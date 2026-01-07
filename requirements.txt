@@ -1,0 +1,21 @@
+pandas
+numpy
+ccxt
+yfinance
+ta
+pytest
+flake8
+mypy
+
+# formatting / dev
+black
+isort
+streamlit
+matplotlib
+APScheduler
+feedparser
+vaderSentiment
+aiohttp>=3.13.3
+urllib3>=2.6.3
+# Note: `filelock` has a fixed release requiring Python >=3.10. To remediate
+# the GHSA advisory for older Python runtimes, upgrade your Python to 3.10+.

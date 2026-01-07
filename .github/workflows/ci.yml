@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install Flask
+            pip install pip-audit detect-secrets
+
+      - name: Run tests
+        run: |
+          pytest -q
+        - name: Run pip-audit
+          run: pip-audit || true
+        - name: Run detect-secrets scan
+          run: detect-secrets scan > secrets_scan.txt || true
+      - name: Run paper-trader unit tests separately
+        run: |
+          pytest -q tests/test_paper_trader.py -q
+
+      - name: Run snapshot monitor (smoke)
+        run: |
+          # run monitor with a high threshold so it does not alert during CI
+          python tools/snapshot_monitor.py --threshold 10080 || true
+
+      - name: Lint
+        run: |
+          flake8 || true
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install Flask
+            pip install pip-audit detect-secrets
+
+      - name: Run tests
+        run: |
+          pytest -q
+
+      - name: Lint with flake8
+        run: |
+          pip install flake8
+          flake8 . --exclude .venv --max-line-length=120 || true
+
+      - name: Type check with mypy
+        run: |
+          pip install mypy
+          mypy --config-file mypy.ini . || true

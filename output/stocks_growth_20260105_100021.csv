@@ -1,0 +1,10 @@
+symbol,tf,growth_score,growth_reasons,near_52w_high,rel_volume,breakout
+NVDA,1h,75,"['Precio > EMA200', 'EMA50 > EMA200', 'Muy cerca 52W High', 'Volumen fuerte']",0.9522361902389541,2.5667647858646268,False
+AMZN,1h,68,"['Precio > EMA200', 'EMA50 > EMA200', 'Cerca 52W High', 'Volumen fuerte']",0.918808331910998,2.3462797587873787,False
+META,1h,67,"['Precio > EMA200', 'EMA50 > EMA200', 'Muy cerca 52W High', 'Volumen arriba']",0.9758094389241232,1.8546660813457447,False
+AMD,1h,47,"['Precio > EMA200', 'Fuerza relativa', 'Volumen fuerte']",0.8549770020855395,2.282000461340517,False
+TSLA,1h,45,"['EMA50 > EMA200', 'Cerca 52W High', 'Volumen arriba']",0.9081432046601189,1.5666543406797695,False
+COIN,1h,40,"['Volumen fuerte', 'Breakout']",0.7846847603590176,3.0312057000629253,True
+MSFT,1h,38,"['Cerca 52W High', 'Volumen fuerte']",0.9207203241959286,2.011296817002364,False
+AAPL,1h,30,"['Cerca 52W High', 'Volumen arriba']",0.9347562886664217,1.9824575378092932,False
+PLTR,1h,24,"['Fuerza relativa', 'Volumen arriba']",0.8765089229541653,1.8370373309613641,False
