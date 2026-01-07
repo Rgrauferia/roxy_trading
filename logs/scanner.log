@@ -1,0 +1,4 @@
+2026-01-07 16:48:12,428 INFO Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-01-07 16:48:12,428 INFO Added job "job" to job store "default"
+2026-01-07 16:48:12,428 INFO Scheduler started
+2026-01-07 16:48:12,428 INFO APScheduler scanner started (interval=5 minutes)

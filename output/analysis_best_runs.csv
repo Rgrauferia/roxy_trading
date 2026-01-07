@@ -1,0 +1,6 @@
+name,trades,realized_pnl,sharpe,cagr
+fine_sweep_bs30_ps0p05_bs26_ps0p075,220,1904.727929689651,0,0
+fine_sweep_bs30_ps0p05_bs28_ps0p075,220,1904.727929689651,0,0
+fine_sweep_bs30_ps0p05_bs30_ps0p075,220,1904.727929689651,0,0
+fine_sweep_bs40_ps0p05_bs38_ps0p075,116,1550.358342488703,0,0
+fine_sweep_bs30_ps0p05_bs32_ps0p075,117,1449.8522243928437,0,0
