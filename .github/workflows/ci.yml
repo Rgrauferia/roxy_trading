@@ -41,6 +41,12 @@ jobs:
         run: |
           detect-secrets scan > secrets_scan.txt
 
+      - name: Upload detect-secrets results
+        uses: actions/upload-artifact@v4
+        with:
+          name: secrets_scan
+          path: secrets_scan.txt
+
       - name: Run paper-trader unit tests separately
         run: |
           pytest -q tests/test_paper_trader.py -q
