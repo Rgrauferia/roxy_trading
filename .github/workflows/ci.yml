@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.9]
+        python-version: ["3.9"]
 
     steps:
       - uses: actions/checkout@v4
@@ -26,15 +26,27 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install Flask
-            pip install pip-audit detect-secrets
+          pip install pip-audit detect-secrets
 
       - name: Run tests
         run: |
           pytest -q
-        - name: Run pip-audit
-          run: pip-audit || true
-        - name: Run detect-secrets scan
-          run: detect-secrets scan > secrets_scan.txt || true
+
+      - name: Run pip-audit
+        run: |
+          python -m pip install --upgrade pip-audit
+          pip-audit
+
+      - name: Run detect-secrets scan
+        run: |
+          detect-secrets scan > secrets_scan.txt
+
+      - name: Upload detect-secrets results
+        uses: actions/upload-artifact@v4
+        with:
+          name: secrets_scan
+          path: secrets_scan.txt
+
       - name: Run paper-trader unit tests separately
         run: |
           pytest -q tests/test_paper_trader.py -q
@@ -46,13 +58,14 @@ jobs:
 
       - name: Lint
         run: |
-          flake8 || true
+          pip install flake8
+          flake8 . --exclude .venv --max-line-length=120 || true
 
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.9, 3.10]
+        python-version: ["3.10", "3.11"]
     steps:
       - uses: actions/checkout@v4
 
@@ -66,7 +79,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install Flask
-            pip install pip-audit detect-secrets
+          pip install pip-audit detect-secrets
 
       - name: Run tests
         run: |
