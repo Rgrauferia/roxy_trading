@@ -17,5 +17,6 @@ feedparser
 vaderSentiment
 aiohttp>=3.13.3
 urllib3>=2.6.3
-# Note: `filelock` has a fixed release requiring Python >=3.10. To remediate
-# the GHSA advisory for older Python runtimes, upgrade your Python to 3.10+.
+# Pin filelock to fixed release to remediate GHSA advisory.
+# Note: this release may require Python >=3.10; CI will validate.
+filelock==3.20.1
