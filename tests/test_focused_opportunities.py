@@ -1351,6 +1351,8 @@ def test_alert_quality_report_dashboard_status_tracks_waiting_streak():
                 "readiness_delta": -6.4,
                 "latest_top_blocker": "15m da entrada: WAIT",
                 "dominant_blocker": {"name": "Volumen acompana", "count": 8},
+                "blocker_category": "MARKET_TRIGGER_WAIT",
+                "recommended_action": "Mantener watchlist; no alertar hasta que 15m confirme entrada",
             },
             "latest_entry": {
                 "top_symbol": "AMAT",
@@ -1367,6 +1369,9 @@ def test_alert_quality_report_dashboard_status_tracks_waiting_streak():
     assert "recurrente Volumen acompana x8" in status["detail"]
     assert status["readiness_delta"] == -6.4
     assert status["dominant_blocker"] == {"name": "Volumen acompana", "count": 8}
+    assert status["blocker_category"] == "MARKET_TRIGGER_WAIT"
+    assert "tipo MARKET_TRIGGER_WAIT" in status["detail"]
+    assert "Mantener watchlist" in status["detail"]
     assert "top AMAT" in status["detail"]
     assert "Esperar gatillo BUY en 15m." in status["detail"]
 

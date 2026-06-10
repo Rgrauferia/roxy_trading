@@ -5,6 +5,7 @@ from alert_quality import (
     alert_quality_entry,
     summarize_quality_history,
     top_opportunity_snapshot,
+    waiting_diagnostic_category,
     write_alert_quality_report,
 )
 
@@ -80,12 +81,55 @@ def test_summarize_quality_history_flags_persistent_blocker():
     assert summary["latest_top_blocker_streak"] == 12
     assert summary["latest_top_gate_streak"] == 12
     assert summary["persistent_blocker"] == "15m da entrada: WAIT"
-    assert summary["diagnostic_severity"] == "ATTENTION"
-    assert summary["diagnostic_label"] == "Bloqueador x12"
+    assert summary["diagnostic_severity"] == "WATCH"
+    assert summary["diagnostic_label"] == "Esperando gatillo x12"
+    assert summary["blocker_category"] == "MARKET_TRIGGER_WAIT"
+    assert "15m confirme" in summary["recommended_action"]
     assert summary["persistent_blocker_minutes"] == 11.0
     assert summary["readiness_delta"] == 0.0
     assert summary["dominant_blocker"] == {"name": "15m da entrada: WAIT", "count": 12}
     assert summary["dominant_gate"] == {"name": "Esperar entrada 15m", "count": 12}
+
+
+def test_summarize_quality_history_escalates_unclassified_persistent_blocker():
+    rows = [
+        {
+            "state": "WAITING",
+            "notifications_ready": 0,
+            "total_opportunities": 8,
+            "avg_readiness": 51,
+            "top_blocker": "Filtro historico: no elegible",
+            "top_gate": "FILTERED_HISTORY",
+            "top_gate_label": "Filtro historico",
+            "recorded_at": f"2026-06-10T12:{idx:02d}:00+00:00",
+        }
+        for idx in range(12)
+    ]
+
+    summary = summarize_quality_history(rows)
+
+    assert summary["diagnostic_severity"] == "ATTENTION"
+    assert summary["diagnostic_label"] == "Bloqueador x12"
+    assert summary["blocker_category"] == "UNCLASSIFIED_WAIT"
+    assert summary["diagnostic_detail"] == "Filtro historico: no elegible"
+
+
+def test_waiting_diagnostic_category_detects_realtime_block_before_market_wait():
+    category = waiting_diagnostic_category(
+        {
+            "state": "WAITING",
+            "blocked_realtime_count": 2,
+            "data_alerts_allowed": True,
+            "realtime_alerts_allowed": True,
+            "top_gate": "WAIT_15M_ENTRY",
+        },
+        "15m da entrada: WAIT",
+        "Esperar entrada 15m",
+        blocker_streak=12,
+    )
+
+    assert category["category"] == "REALTIME_BLOCK"
+    assert category["severity"] == "ATTENTION"
 
 
 def test_top_opportunity_snapshot_extracts_compact_diagnostic_fields():

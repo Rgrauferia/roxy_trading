@@ -5176,6 +5176,8 @@ def alert_quality_report_dashboard_status(report: dict[str, Any] | None) -> dict
     diagnostic_severity = text_display(summary.get("diagnostic_severity") or "OK").upper()
     diagnostic_label = text_display(summary.get("diagnostic_label") or "")
     diagnostic_detail = text_display(summary.get("diagnostic_detail") or "")
+    blocker_category = text_display(summary.get("blocker_category") or "")
+    recommended_action = text_display(summary.get("recommended_action") or "")
     avg_readiness = safe_float(summary.get("avg_readiness"))
     readiness_delta = safe_float(summary.get("readiness_delta"))
     dominant_blocker = summary.get("dominant_blocker") if isinstance(summary.get("dominant_blocker"), dict) else {}
@@ -5216,6 +5218,8 @@ def alert_quality_report_dashboard_status(report: dict[str, Any] | None) -> dict
         dominant_name = text_display(dominant_blocker.get("name"))
         dominant_count = int(dominant_blocker.get("count") or 0)
         detail += f" | recurrente {dominant_name} x{dominant_count}"
+    if blocker_category:
+        detail += f" | tipo {blocker_category}"
     if top_symbol and top_symbol != "-":
         detail += f" | top {top_symbol}"
     if diagnostic_detail and diagnostic_detail not in {"-", blocker}:
@@ -5224,6 +5228,8 @@ def alert_quality_report_dashboard_status(report: dict[str, Any] | None) -> dict
         detail += f" | {blocker}"
     if top_next_action and top_next_action not in {"-", blocker, diagnostic_detail}:
         detail += f" | {top_next_action}"
+    if recommended_action and recommended_action not in {"-", blocker, diagnostic_detail, top_next_action}:
+        detail += f" | {recommended_action}"
     return {
         "label": label,
         "tone": tone,
@@ -5232,6 +5238,8 @@ def alert_quality_report_dashboard_status(report: dict[str, Any] | None) -> dict
         "waiting_streak": waiting_streak,
         "readiness_delta": readiness_delta,
         "dominant_blocker": dominant_blocker,
+        "blocker_category": blocker_category,
+        "recommended_action": recommended_action,
     }
 
 

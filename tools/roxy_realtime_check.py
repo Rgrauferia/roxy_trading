@@ -1304,6 +1304,8 @@ def validate_alert_quality_report(
     avg_readiness = summary.get("avg_readiness", entry.get("avg_readiness"))
     readiness_delta = summary.get("readiness_delta")
     dominant_blocker = summary.get("dominant_blocker") if isinstance(summary.get("dominant_blocker"), dict) else {}
+    blocker_category = str(summary.get("blocker_category") or "")
+    recommended_action = str(summary.get("recommended_action") or "")
     status = status_max(age_status, brief_age_status, report_status)
     detail = f"age {age_minutes:.0f}m"
     if brief_age_minutes is None:
@@ -1323,9 +1325,13 @@ def validate_alert_quality_report(
         detail += f", readiness trend {float(readiness_delta):+.1f}"
     if dominant_blocker.get("name"):
         detail += f", recurrent blocker {dominant_blocker.get('name')} x{dominant_blocker.get('count', 0)}"
+    if blocker_category:
+        detail += f", category {blocker_category}"
     top_blocker = str(summary.get("latest_top_blocker") or entry.get("top_blocker") or "")
     if top_blocker and top_blocker != "-":
         detail += f", blocker {top_blocker}"
+    if recommended_action:
+        detail += f", action {recommended_action}"
     return check(
         "alert_quality_report",
         status,
@@ -1344,6 +1350,8 @@ def validate_alert_quality_report(
         avg_readiness=avg_readiness,
         readiness_delta=readiness_delta,
         dominant_blocker=dominant_blocker,
+        blocker_category=blocker_category,
+        recommended_action=recommended_action,
         top_blocker=top_blocker,
     )
 
@@ -1964,6 +1972,8 @@ def build_operational_summary(
     diagnostic_label = str(summary.get("diagnostic_label") or "")
     diagnostic_detail = str(summary.get("diagnostic_detail") or summary.get("latest_top_blocker") or entry.get("top_blocker") or "")
     diagnostic_severity = str(summary.get("diagnostic_severity") or "OK").upper()
+    blocker_category = str(summary.get("blocker_category") or "")
+    recommended_action = str(summary.get("recommended_action") or "")
     blocker_streak = int(summary.get("latest_top_blocker_streak") or 0)
 
     if ready > 0 or market_state == "READY":
@@ -1990,6 +2000,8 @@ def build_operational_summary(
             detail += f" | bloqueador x{blocker_streak}"
         if diagnostic_detail and diagnostic_detail not in detail:
             detail += f" | {diagnostic_detail}"
+        if recommended_action and recommended_action not in detail:
+            detail += f" | {recommended_action}"
     else:
         mode = "SYSTEM_OK"
         label = "Sistema OK"
@@ -2008,6 +2020,8 @@ def build_operational_summary(
         "diagnostic_severity": diagnostic_severity,
         "diagnostic_label": diagnostic_label,
         "diagnostic_detail": diagnostic_detail,
+        "blocker_category": blocker_category,
+        "recommended_action": recommended_action,
         "blocker_streak": blocker_streak,
     }
 

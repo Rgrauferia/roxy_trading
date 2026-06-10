@@ -166,6 +166,50 @@ def alert_quality_entry(brief: dict[str, Any], *, now: datetime | None = None) -
     }
 
 
+def waiting_diagnostic_category(latest: dict[str, Any], blocker: str, gate: str, *, blocker_streak: int) -> dict[str, str]:
+    state = safe_text(latest.get("state") or "").upper()
+    if state != "WAITING":
+        return {"category": "OTHER", "severity": "OK", "label": "Normal", "detail": blocker or state}
+    if not bool(latest.get("data_alerts_allowed", True)) or not bool(latest.get("realtime_alerts_allowed", True)):
+        return {"category": "DATA_BLOCK", "severity": "ATTENTION", "label": "Datos bloquean", "detail": blocker or "Datos no listos"}
+    blocked_realtime = int(latest.get("blocked_realtime_count") or 0)
+    if blocked_realtime:
+        return {
+            "category": "REALTIME_BLOCK",
+            "severity": "ATTENTION",
+            "label": "Realtime bloquea",
+            "detail": blocker or f"{blocked_realtime} setups bloqueados por datos",
+        }
+    gate_value = safe_text(latest.get("top_gate") or "").upper()
+    gate_label = safe_text(gate or "")
+    blocker_value = safe_text(blocker or "")
+    if gate_value == "WAIT_15M_ENTRY" or "15M" in gate_label.upper() or "15m da entrada" in blocker_value.lower():
+        label = "Esperando gatillo 15m"
+        if blocker_streak >= 12:
+            label = f"Esperando gatillo x{blocker_streak}"
+        return {
+            "category": "MARKET_TRIGGER_WAIT",
+            "severity": "WATCH",
+            "label": label,
+            "detail": blocker_value or gate_label or "Entrada 15m aun no confirma",
+        }
+    if "volumen" in blocker_value.lower():
+        return {
+            "category": "MARKET_CONFIRMATION_WAIT",
+            "severity": "WATCH" if blocker_streak >= 3 else "OK",
+            "label": f"Esperando confirmacion x{blocker_streak}" if blocker_streak >= 3 else "Esperando confirmacion",
+            "detail": blocker_value,
+        }
+    severity = "ATTENTION" if blocker_streak >= 12 else "WATCH" if blocker_streak >= 3 else "OK"
+    label = f"Bloqueador x{blocker_streak}" if blocker_streak >= 3 else "Esperando"
+    return {
+        "category": "UNCLASSIFIED_WAIT",
+        "severity": severity,
+        "label": label,
+        "detail": blocker_value or gate_label or "Esperando condicion de alerta",
+    }
+
+
 def summarize_quality_history(rows: list[dict[str, Any]], *, limit: int = 50) -> dict[str, Any]:
     sample = list(rows)[-max(1, int(limit)) :]
     if not sample:
@@ -236,6 +280,8 @@ def summarize_quality_history(rows: list[dict[str, Any]], *, limit: int = 50) ->
     diagnostic_detail = "Alert quality operating normally"
     latest_ready = int(latest.get("notifications_ready") or 0)
     latest_total = int(latest.get("total_opportunities") or 0)
+    blocker_category = ""
+    recommended_action = ""
     if latest_state in {"BLOCKED_DATA", "BLOCKED_REALTIME"}:
         severity = "ATTENTION"
         diagnostic_label = "Datos bloquean"
@@ -243,17 +289,20 @@ def summarize_quality_history(rows: list[dict[str, Any]], *, limit: int = 50) ->
     elif latest_ready > 0 or latest_state == "READY":
         diagnostic_label = "Lista"
         diagnostic_detail = f"{latest_ready}/{latest_total} opportunities ready"
-    elif latest_state == "WAITING" and latest_total > 0 and blocker_streak >= 12:
-        severity = "ATTENTION"
-        diagnostic_label = f"Bloqueador x{blocker_streak}"
-        diagnostic_detail = latest_blocker
-    elif latest_state == "WAITING" and latest_total > 0 and blocker_streak >= 3:
-        severity = "WATCH"
-        diagnostic_label = f"Bloqueador x{blocker_streak}"
-        diagnostic_detail = latest_blocker
+    elif latest_state == "WAITING" and latest_total > 0:
+        category = waiting_diagnostic_category(latest, latest_blocker, latest_gate, blocker_streak=blocker_streak)
+        blocker_category = category["category"]
+        severity = category["severity"]
+        diagnostic_label = category["label"]
+        diagnostic_detail = category["detail"]
+        if blocker_category == "MARKET_TRIGGER_WAIT":
+            recommended_action = "Mantener watchlist; no alertar hasta que 15m confirme entrada"
+        elif blocker_category == "MARKET_CONFIRMATION_WAIT":
+            recommended_action = "Esperar confirmacion de volumen/target antes de alertar"
     elif latest_state == "NO_SETUPS":
         diagnostic_label = "Sin setups"
         diagnostic_detail = "No opportunities in current brief"
+        recommended_action = "Seguir escaneando; no hay oportunidades actuales"
     dominant_blocker_name = ""
     dominant_blocker_count = 0
     if blocker_counts:
@@ -288,6 +337,8 @@ def summarize_quality_history(rows: list[dict[str, Any]], *, limit: int = 50) ->
         "diagnostic_severity": severity,
         "diagnostic_label": diagnostic_label,
         "diagnostic_detail": diagnostic_detail,
+        "blocker_category": blocker_category,
+        "recommended_action": recommended_action,
         "latest_notifications_ready": latest_ready,
         "latest_total_opportunities": latest_total,
     }
