@@ -3094,14 +3094,34 @@ def build_professional_price_chart(
 
 def style_trading_chart(chart):
     return (
-        chart.configure_axis(
+        chart.configure(background="#0b1220")
+        .configure_axis(
             grid=True,
             gridColor="rgba(148,163,184,0.16)",
             labelColor="#cbd5e1",
             titleColor="#cbd5e1",
+            labelFontSize=10,
+            titleFontSize=11,
+            titlePadding=4,
         )
+        .configure_axisX(
+            title=None,
+            labelAngle=0,
+            labelFlush=True,
+            tickColor="rgba(148,163,184,0.22)",
+            domainColor="rgba(148,163,184,0.20)",
+        )
+        .configure_axisY(domainColor="rgba(148,163,184,0.20)", tickColor="rgba(148,163,184,0.22)")
         .configure_view(stroke="rgba(148,163,184,0.20)")
-        .configure_legend(labelColor="#e5edf7", titleColor="#cbd5e1", orient="right")
+        .configure_legend(
+            labelColor="#e5edf7",
+            titleColor="#cbd5e1",
+            orient="bottom",
+            direction="horizontal",
+            labelFontSize=10,
+            titleFontSize=10,
+            symbolSize=70,
+        )
     )
 
 
