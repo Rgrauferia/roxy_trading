@@ -6350,6 +6350,34 @@ def scanner_action_lane_rows(table: pd.DataFrame, *, limit_per_lane: int = 4) ->
     return display.drop(columns=["lane_order", "score_sort", "readiness_sort"]).reset_index(drop=True)
 
 
+def scanner_strategy_options(table: pd.DataFrame) -> list[str]:
+    if table.empty:
+        return ["Todos"]
+    strategies = sorted(
+        {
+            dashboard_strategy_label(row)
+            for row in table.to_dict("records")
+            if dashboard_strategy_label(row) and dashboard_strategy_label(row) != "-"
+        }
+    )
+    return ["Todos", *strategies]
+
+
+def filter_scanner_explorer_rows(
+    table: pd.DataFrame,
+    *,
+    bucket: str = "Todos",
+    market: str = "Todos",
+    strategy: str = "Todos",
+    min_readiness: float = 0,
+) -> pd.DataFrame:
+    filtered = filter_focused_opportunities(table, bucket=bucket, market=market, min_readiness=min_readiness)
+    if filtered.empty or strategy == "Todos":
+        return filtered
+    mask = [dashboard_strategy_label(row) == strategy for row in filtered.to_dict("records")]
+    return filtered.loc[mask].reset_index(drop=True)
+
+
 def render_scanner_cockpit(
     table: pd.DataFrame,
     confluence_df: pd.DataFrame,
@@ -6412,6 +6440,32 @@ def render_scanner_cockpit(
                 + "</section>"
             )
         st.markdown('<div class="scanner-lane-grid">' + "".join(lane_html) + "</div>", unsafe_allow_html=True)
+
+    with st.expander("Explorar scanner con filtros", expanded=False):
+        markets = ["Todos"]
+        if not table.empty and "market" in table.columns:
+            markets.extend(sorted({text_display(value) for value in table["market"].dropna().tolist() if text_display(value) != "-"}))
+        filter_cols = st.columns([0.8, 0.8, 1.0, 1.0])
+        with filter_cols[0]:
+            bucket_filter = st.selectbox("Estado", ["Todos", "Operar", "Vigilar", "Evitar"], key="scanner_explorer_bucket")
+        with filter_cols[1]:
+            market_filter = st.selectbox("Mercado", markets, key="scanner_explorer_market")
+        with filter_cols[2]:
+            strategy_filter = st.selectbox("Estrategia", scanner_strategy_options(table), key="scanner_explorer_strategy")
+        with filter_cols[3]:
+            readiness_filter = st.slider("Readiness minimo", 0, 100, 0, step=5, key="scanner_explorer_readiness")
+        explorer_rows = filter_scanner_explorer_rows(
+            table,
+            bucket=bucket_filter,
+            market=market_filter,
+            strategy=strategy_filter,
+            min_readiness=float(readiness_filter),
+        )
+        explorer_display = scanner_leaderboard_rows(explorer_rows, bucket="Todos", limit=25)
+        if explorer_display.empty:
+            st.info("No hay setups con esos filtros.")
+        else:
+            st.dataframe(explorer_display, use_container_width=True, hide_index=True, height=260)
 
     heatmap = scanner_heatmap_rows(table)
     top_rows = scanner_leaderboard_rows(table, bucket="Todos", limit=10)
