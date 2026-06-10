@@ -40,6 +40,7 @@ from streamlit_app import (
     load_health_history,
     load_latest_ma_scan,
     live_backend_status,
+    local_training_media_dashboard_status,
     notification_channel_display,
     notification_history_display_table,
     notification_history_dashboard_status,
@@ -1338,6 +1339,57 @@ def test_disk_dashboard_status_maps_free_space_to_tone(tmp_path, monkeypatch):
     assert low["tone"] == "watch"
     assert ok["label"] == "OK"
     assert ok["tone"] == "buy"
+
+
+def test_local_training_media_dashboard_status_maps_realtime_check():
+    small = local_training_media_dashboard_status(
+        {
+            "checks": [
+                {
+                    "name": "local_training_media",
+                    "status": "OK",
+                    "state": "LOCAL_SMALL",
+                    "size_gb": 0.02,
+                    "detail": "training_videos ocupa 0.02 GiB local",
+                }
+            ]
+        }
+    )
+    growing = local_training_media_dashboard_status(
+        {
+            "checks": [
+                {
+                    "name": "local_training_media",
+                    "status": "WARN",
+                    "state": "LOCAL_GROWING",
+                    "size_gb": 6.0,
+                    "detail": "training_videos ocupa 6.00 GiB local; preparar migracion",
+                    "external_suggestion": "/Volumes/RoxyData/MacArchive/roxy_trading/training_videos",
+                }
+            ]
+        }
+    )
+    linked = local_training_media_dashboard_status(
+        {
+            "checks": [
+                {
+                    "name": "local_training_media",
+                    "status": "OK",
+                    "state": "EXTERNAL_LINKED",
+                    "detail": "training_videos esta enlazado a /Volumes/RoxyData/MacArchive/roxy_trading/training_videos",
+                }
+            ]
+        }
+    )
+
+    assert small["label"] == "0.02 GB"
+    assert small["tone"] == "buy"
+    assert "0.02 GiB" in small["detail"]
+    assert growing["label"] == "Crece"
+    assert growing["tone"] == "watch"
+    assert growing["external_suggestion"].endswith("/roxy_trading/training_videos")
+    assert linked["label"] == "Externa"
+    assert linked["tone"] == "buy"
 
 
 def test_alert_gate_summary_dashboard_status_flags_realtime_blocks():

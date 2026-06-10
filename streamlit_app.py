@@ -4907,6 +4907,42 @@ def storage_migration_dashboard_status(realtime_report: dict[str, Any] | None) -
     return {"label": status or "Revisar", "tone": "watch", "detail": detail}
 
 
+def local_training_media_dashboard_status(realtime_report: dict[str, Any] | None) -> dict[str, Any]:
+    item = check_from_report(realtime_report, "local_training_media")
+    if not item:
+        return {"label": "Sin check", "tone": "watch", "detail": "No esta en el reporte RT", "size_gb": None}
+    status = text_display(item.get("status")).upper()
+    state = text_display(item.get("state")).upper()
+    size_gb = safe_float(item.get("size_gb"))
+    detail = text_display(item.get("detail"))
+    if status == "FAIL":
+        label = "Mover"
+        tone = "avoid"
+    elif status == "WARN":
+        label = "Crece"
+        tone = "watch"
+    elif state == "ABSENT":
+        label = "Libre"
+        tone = "buy"
+    elif state == "EXTERNAL_LINKED":
+        label = "Externa"
+        tone = "buy"
+    elif size_gb is not None:
+        label = f"{size_gb:.2f} GB"
+        tone = "buy"
+    else:
+        label = "OK"
+        tone = "buy"
+    return {
+        "label": label,
+        "tone": tone,
+        "detail": detail,
+        "size_gb": size_gb,
+        "state": state,
+        "external_suggestion": text_display(item.get("external_suggestion")),
+    }
+
+
 def health_notify_dashboard_status(state: dict[str, Any] | None) -> dict[str, str]:
     state = state or {}
     if not state:
@@ -5551,6 +5587,7 @@ def show_ai_status_cards(
         else health_history_dashboard_status(health_history)
     )
     mac_disk_status = disk_dashboard_status(Path.home())
+    local_media_status = local_training_media_dashboard_status(realtime_check)
     external_disk_status = disk_dashboard_status("/Volumes/RoxyData", warn_free_gb=100.0, fail_free_gb=20.0)
     gate_summary = brief.get("alert_gate_summary") or summarize_alert_gates(brief)
     gate_summary_status = alert_gate_summary_dashboard_status(gate_summary)
@@ -5684,7 +5721,17 @@ def show_ai_status_cards(
             history_path = str(runtime_path("alerts/roxy_realtime_history.jsonl"))
             render_kpi_card("Historial health", len(health_history), tone="neutral", detail=history_path)
         with ops_cols[3]:
-            render_kpi_card("Disco Mac", mac_disk_status["label"], tone=mac_disk_status["tone"], detail=mac_disk_status["detail"])
+            mac_media_tone = mac_disk_status["tone"]
+            mac_media_label = mac_disk_status["label"]
+            if mac_media_tone == "buy" and local_media_status["tone"] != "buy":
+                mac_media_tone = local_media_status["tone"]
+                mac_media_label = local_media_status["label"]
+            render_kpi_card(
+                "Mac/media",
+                mac_media_label,
+                tone=mac_media_tone,
+                detail=f"Mac {mac_disk_status['detail']} | Media {local_media_status['detail']}",
+            )
 
         ops_cols_2 = st.columns(11)
         with ops_cols_2[0]:
