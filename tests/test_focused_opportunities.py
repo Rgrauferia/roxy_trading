@@ -1032,6 +1032,7 @@ def test_autoheal_dashboard_status_surfaces_recovery_and_failures():
             "streamlit_app_autoheal": {"action": "restart", "ok": True},
             "chart_health_autoheal": {"action": "regenerated", "ok": True},
             "live_data_autoheal": {"action": "ran_live_scan", "ok": True},
+            "storage_migration_autoheal": {"action": "created_missing_destination", "ok": True},
             "output_maintenance_autoheal": {"action": "regenerated", "ok": True},
             "ai_brief_autoheal": {"action": "regenerated", "ok": True},
             "alert_quality_autoheal": {"action": "regenerated", "ok": True},
@@ -1051,6 +1052,7 @@ def test_autoheal_dashboard_status_surfaces_recovery_and_failures():
     assert "backup report regenerated" in recovered["detail"]
     assert "graficas regenerated" in recovered["detail"]
     assert "live ran_live_scan" in recovered["detail"]
+    assert "storage created_missing_destination" in recovered["detail"]
     assert "limpieza regenerated" in recovered["detail"]
     assert "brief regenerated" in recovered["detail"]
     assert "alertas regenerated" in recovered["detail"]

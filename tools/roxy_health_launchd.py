@@ -84,6 +84,7 @@ def build_health_args(
     ensure_runtime_backup_daemon: bool = True,
     ensure_runtime_backup_report: bool = True,
     ensure_core_launchagents: bool = True,
+    ensure_storage_migration: bool = True,
     ensure_live_data: bool = True,
     ensure_yfinance_cache: bool = True,
     ensure_streamlit_app: bool = True,
@@ -112,6 +113,8 @@ def build_health_args(
         args.append("--ensure-runtime-backup-report")
     if ensure_core_launchagents:
         args.append("--ensure-core-launchagents")
+    if ensure_storage_migration:
+        args.append("--ensure-storage-migration")
     if ensure_live_data:
         args.append("--ensure-live-data")
     if ensure_yfinance_cache:
@@ -156,6 +159,7 @@ def build_shell_command(
     ensure_runtime_backup_daemon: bool = True,
     ensure_runtime_backup_report: bool = True,
     ensure_core_launchagents: bool = True,
+    ensure_storage_migration: bool = True,
     ensure_live_data: bool = True,
     ensure_yfinance_cache: bool = True,
     ensure_streamlit_app: bool = True,
@@ -176,6 +180,7 @@ def build_shell_command(
         ensure_runtime_backup_daemon=ensure_runtime_backup_daemon,
         ensure_runtime_backup_report=ensure_runtime_backup_report,
         ensure_core_launchagents=ensure_core_launchagents,
+        ensure_storage_migration=ensure_storage_migration,
         ensure_live_data=ensure_live_data,
         ensure_yfinance_cache=ensure_yfinance_cache,
         ensure_streamlit_app=ensure_streamlit_app,
@@ -289,6 +294,7 @@ def install(args: argparse.Namespace) -> Path:
         ensure_runtime_backup_daemon=args.ensure_runtime_backup_daemon,
         ensure_runtime_backup_report=args.ensure_runtime_backup_report,
         ensure_core_launchagents=args.ensure_core_launchagents,
+        ensure_storage_migration=args.ensure_storage_migration,
         ensure_live_data=args.ensure_live_data,
         ensure_yfinance_cache=args.ensure_yfinance_cache,
         ensure_streamlit_app=args.ensure_streamlit_app,
@@ -338,6 +344,7 @@ def run_now(args: argparse.Namespace) -> int:
         ensure_runtime_backup_daemon=args.ensure_runtime_backup_daemon,
         ensure_runtime_backup_report=args.ensure_runtime_backup_report,
         ensure_core_launchagents=args.ensure_core_launchagents,
+        ensure_storage_migration=args.ensure_storage_migration,
         ensure_live_data=args.ensure_live_data,
         ensure_yfinance_cache=args.ensure_yfinance_cache,
         ensure_streamlit_app=args.ensure_streamlit_app,
@@ -410,6 +417,8 @@ def add_shared_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--no-ensure-runtime-backup-report", dest="ensure_runtime_backup_report", action="store_false")
     parser.add_argument("--ensure-core-launchagents", dest="ensure_core_launchagents", action="store_true", default=True)
     parser.add_argument("--no-ensure-core-launchagents", dest="ensure_core_launchagents", action="store_false")
+    parser.add_argument("--ensure-storage-migration", dest="ensure_storage_migration", action="store_true", default=True)
+    parser.add_argument("--no-ensure-storage-migration", dest="ensure_storage_migration", action="store_false")
     parser.add_argument("--ensure-live-data", dest="ensure_live_data", action="store_true", default=True)
     parser.add_argument("--no-ensure-live-data", dest="ensure_live_data", action="store_false")
     parser.add_argument("--ensure-yfinance-cache", dest="ensure_yfinance_cache", action="store_true", default=True)

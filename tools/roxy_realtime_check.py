@@ -633,6 +633,7 @@ def validate_storage_migration(
     source_exists = source.exists() or source.is_symlink()
     destination_exists = destination.exists()
     source_is_symlink = source.is_symlink()
+    source_broken_symlink = source_is_symlink and not source.exists()
     symlink_target = str(source.resolve()) if source_is_symlink and source_exists else ""
     source_size = path_size_bytes(source) if source_exists and not source_is_symlink else None
     destination_size = path_size_bytes(destination) if destination_exists else None
@@ -645,6 +646,10 @@ def validate_storage_migration(
         status = "FAIL"
         state = "EXTERNAL_MISSING"
         detail = f"{external_disk} no esta montado; no se puede completar la migracion"
+    elif source_broken_symlink and not destination_exists:
+        status = "WARN"
+        state = "BROKEN_SYMLINK"
+        detail = f"Parallels apunta a {destination}, pero el destino externo no existe"
     elif completed:
         status = "OK"
         state = "MIGRATED"
@@ -685,6 +690,7 @@ def validate_storage_migration(
         source_exists=source_exists,
         destination_exists=destination_exists,
         source_is_symlink=source_is_symlink,
+        source_broken_symlink=source_broken_symlink,
         symlink_target=symlink_target,
         source_size_bytes=source_size,
         destination_size_bytes=destination_size,
@@ -692,6 +698,71 @@ def validate_storage_migration(
         log_age_minutes=log_age_minutes,
         waiting_for_parallels=waiting_for_parallels,
     )
+
+
+def storage_migration_needs_recovery(report: dict[str, Any]) -> bool:
+    item = named_check(report, "storage_migration")
+    return str(item.get("state") or "").upper() == "BROKEN_SYMLINK"
+
+
+def ensure_storage_migration_target(
+    *,
+    source_path: str | Path = DEFAULT_PARALLELS_SOURCE_PATH,
+    destination_path: str | Path = DEFAULT_PARALLELS_DESTINATION_PATH,
+    external_disk_path: str | Path = DEFAULT_EXTERNAL_DISK_PATH,
+    log_path: str | Path = DEFAULT_PARALLELS_MIGRATION_LOG_PATH,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    source = Path(source_path)
+    destination = Path(destination_path)
+    external_disk = Path(external_disk_path)
+    log = Path(log_path)
+    current = now or utc_now()
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    status = validate_storage_migration(
+        source_path=source,
+        destination_path=destination,
+        log_path=log,
+        external_disk_path=external_disk,
+        now=current,
+    )
+    if str(status.get("state") or "").upper() != "BROKEN_SYMLINK":
+        return {"action": "not_needed", "ok": True, "status": status}
+    if not external_disk.exists():
+        return {"action": "error", "ok": False, "error": f"{external_disk} is not mounted", "status": status}
+    expected_target = str(destination.resolve(strict=False))
+    symlink_target = str(status.get("symlink_target") or "")
+    if symlink_target != expected_target:
+        return {
+            "action": "error",
+            "ok": False,
+            "error": "source symlink does not point to expected destination",
+            "symlink_target": symlink_target,
+            "expected_target": expected_target,
+            "status": status,
+        }
+    try:
+        destination.mkdir(parents=True, exist_ok=True)
+        log.parent.mkdir(parents=True, exist_ok=True)
+        with log.open("a") as handle:
+            handle.write(f"{current.isoformat()} Recreated missing Parallels destination {destination}\n")
+    except Exception as exc:
+        return {"action": "error", "ok": False, "error": f"{type(exc).__name__}: {exc}", "status": status}
+    after = validate_storage_migration(
+        source_path=source,
+        destination_path=destination,
+        log_path=log,
+        external_disk_path=external_disk,
+        now=current,
+    )
+    return {
+        "action": "created_missing_destination",
+        "ok": str(after.get("status") or "").upper() == "OK",
+        "destination_path": str(destination),
+        "before": status,
+        "after": after,
+    }
 
 
 def validate_live_service(required_timeframes: set[str]) -> dict[str, Any]:
@@ -834,6 +905,7 @@ def validate_health_watchdog_service() -> dict[str, Any]:
         "--ensure-runtime-backup-daemon",
         "--ensure-runtime-backup-report",
         "--ensure-core-launchagents",
+        "--ensure-storage-migration",
         "--ensure-live-data",
         "--ensure-yfinance-cache",
         "--ensure-streamlit-app",
@@ -2579,6 +2651,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--runtime-backup-stale-minutes", type=float, default=15.0)
     parser.add_argument("--ensure-runtime-backup-report", action="store_true", help="Create a runtime backup immediately if its report is missing, stale, or failing.")
     parser.add_argument("--ensure-core-launchagents", action="store_true", help="Reload installed core Roxy LaunchAgents when they are not loaded.")
+    parser.add_argument("--ensure-storage-migration", action="store_true", help="Repair safe external-storage migration drift such as a broken Parallels symlink target.")
     parser.add_argument("--ensure-live-data", action="store_true", help="Run one live scan immediately if heartbeat or live data checks are stale or failing.")
     parser.add_argument("--live-data-recovery-timeout-seconds", type=int, default=DEFAULT_LIVE_DATA_RECOVERY_TIMEOUT_SECONDS)
     parser.add_argument("--ensure-yfinance-cache", action="store_true", help="Recreate yfinance cache directories and restart live services if recent logs show a SQLite cache open failure.")
@@ -2635,6 +2708,32 @@ def main() -> None:
         )
         chart_health_autoheal = None
         live_data_autoheal = None
+        storage_migration_autoheal = None
+        if args.ensure_storage_migration and storage_migration_needs_recovery(report):
+            storage_migration_autoheal = ensure_storage_migration_target(
+                source_path=DEFAULT_PARALLELS_SOURCE_PATH,
+                destination_path=DEFAULT_PARALLELS_DESTINATION_PATH,
+                external_disk_path=args.external_disk_path,
+                log_path=DEFAULT_PARALLELS_MIGRATION_LOG_PATH,
+            )
+            report = evaluate_realtime_health(
+                base_dir=Path(args.base_dir),
+                max_age_minutes=args.max_age_minutes,
+                maintenance_max_age_hours=args.maintenance_max_age_hours,
+                required_timeframes=required_timeframes,
+                app_url=args.app_url,
+                chart_symbol=args.chart_symbol,
+                chart_timeframe=args.chart_timeframe,
+                skip_chart_fetch=args.skip_chart_fetch,
+                skip_service_check=args.skip_service_check,
+                warn_free_gb=args.warn_free_gb,
+                fail_free_gb=args.fail_free_gb,
+                running_warn_minutes=args.running_warn_minutes,
+                running_fail_minutes=args.running_fail_minutes,
+                external_disk_path=args.external_disk_path,
+                external_warn_free_gb=args.external_warn_free_gb,
+                external_fail_free_gb=args.external_fail_free_gb,
+            )
         yfinance_cache_autoheal = None
         if args.ensure_yfinance_cache and yfinance_cache_needs_recovery(report):
             yfinance_cache_autoheal = ensure_yfinance_cache_recovery(report)
@@ -2850,6 +2949,8 @@ def main() -> None:
             report["chart_health_autoheal"] = json_safe(chart_health_autoheal)
         if live_data_autoheal is not None:
             report["live_data_autoheal"] = json_safe(live_data_autoheal)
+        if storage_migration_autoheal is not None:
+            report["storage_migration_autoheal"] = json_safe(storage_migration_autoheal)
         if yfinance_cache_autoheal is not None:
             report["yfinance_cache_autoheal"] = json_safe(yfinance_cache_autoheal)
         if output_maintenance_autoheal is not None:

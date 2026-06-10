@@ -24,6 +24,7 @@ def test_build_shell_command_runs_realtime_check():
     assert "--ensure-runtime-backup-daemon" in command
     assert "--ensure-runtime-backup-report" in command
     assert "--ensure-core-launchagents" in command
+    assert "--ensure-storage-migration" in command
     assert "--ensure-live-data" in command
     assert "--ensure-yfinance-cache" in command
     assert "--ensure-streamlit-app" in command
@@ -106,6 +107,7 @@ def test_install_defaults_to_five_minute_watchdog(monkeypatch):
     assert args.ensure_runtime_backup_daemon is True
     assert args.ensure_runtime_backup_report is True
     assert args.ensure_core_launchagents is True
+    assert args.ensure_storage_migration is True
     assert args.ensure_live_data is True
     assert args.ensure_yfinance_cache is True
     assert args.ensure_streamlit_app is True

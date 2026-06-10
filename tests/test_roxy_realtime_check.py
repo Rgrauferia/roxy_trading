@@ -25,6 +25,7 @@ from tools.roxy_realtime_check import (
     ensure_output_maintenance_report,
     ensure_runtime_backup_daemon,
     ensure_runtime_backup_report,
+    ensure_storage_migration_target,
     ensure_yfinance_cache_recovery,
     heartbeat_check,
     health_history_entry,
@@ -39,6 +40,7 @@ from tools.roxy_realtime_check import (
     release_run_lock,
     should_send_health_notification,
     streamlit_app_needs_recovery,
+    storage_migration_needs_recovery,
     summarize_health_history_entries,
     output_maintenance_report_needs_recovery,
     runtime_backup_report_needs_recovery,
@@ -1038,7 +1040,7 @@ def test_validate_health_watchdog_service_accepts_loaded_periodic_job(monkeypatc
     command = (
         "python tools/roxy_realtime_check.py --app-url http://127.0.0.1:8501 "
         "--notify-health --ensure-runtime-backup-daemon --ensure-runtime-backup-report "
-        "--ensure-core-launchagents --ensure-live-data --ensure-yfinance-cache --ensure-streamlit-app --ensure-chart-health-report "
+        "--ensure-core-launchagents --ensure-storage-migration --ensure-live-data --ensure-yfinance-cache --ensure-streamlit-app --ensure-chart-health-report "
         "--ensure-output-maintenance-report --ensure-alert-quality-report --no-fail"
     )
     monkeypatch.setattr(
@@ -1672,6 +1674,53 @@ def test_validate_storage_migration_accepts_completed_symlink(tmp_path):
     assert status["status"] == "OK"
     assert status["state"] == "MIGRATED"
     assert status["source_is_symlink"] is True
+
+
+def test_validate_storage_migration_warns_on_broken_external_symlink(tmp_path):
+    external = tmp_path / "RoxyData"
+    destination = external / "MacArchive" / "robertograu" / "Parallels"
+    source = tmp_path / "home" / "Parallels"
+    external.mkdir(parents=True)
+    source.parent.mkdir(parents=True)
+    source.symlink_to(destination, target_is_directory=True)
+
+    status = validate_storage_migration(
+        source_path=source,
+        destination_path=destination,
+        log_path=external / "MacArchive" / "migration_logs" / "parallels_migration.log",
+        external_disk_path=external,
+    )
+    report = {"checks": [status]}
+
+    assert status["status"] == "WARN"
+    assert status["state"] == "BROKEN_SYMLINK"
+    assert status["source_broken_symlink"] is True
+    assert storage_migration_needs_recovery(report)
+
+
+def test_ensure_storage_migration_target_repairs_broken_external_symlink(tmp_path):
+    now = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
+    external = tmp_path / "RoxyData"
+    destination = external / "MacArchive" / "robertograu" / "Parallels"
+    source = tmp_path / "home" / "Parallels"
+    log = external / "MacArchive" / "migration_logs" / "parallels_migration.log"
+    external.mkdir(parents=True)
+    source.parent.mkdir(parents=True)
+    source.symlink_to(destination, target_is_directory=True)
+
+    result = ensure_storage_migration_target(
+        source_path=source,
+        destination_path=destination,
+        external_disk_path=external,
+        log_path=log,
+        now=now,
+    )
+
+    assert result["action"] == "created_missing_destination"
+    assert result["ok"] is True
+    assert destination.exists()
+    assert result["after"]["state"] == "MIGRATED"
+    assert "Recreated missing Parallels destination" in log.read_text()
 
 
 def test_validate_chart_health_report_accepts_recent_ok_report(tmp_path):

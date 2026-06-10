@@ -4633,11 +4633,12 @@ def autoheal_dashboard_status(realtime_report: dict[str, Any] | None) -> dict[st
     streamlit_recovery = realtime_report.get("streamlit_app_autoheal") if isinstance(realtime_report.get("streamlit_app_autoheal"), dict) else {}
     chart_recovery = realtime_report.get("chart_health_autoheal") if isinstance(realtime_report.get("chart_health_autoheal"), dict) else {}
     live_data_recovery = realtime_report.get("live_data_autoheal") if isinstance(realtime_report.get("live_data_autoheal"), dict) else {}
+    storage_recovery = realtime_report.get("storage_migration_autoheal") if isinstance(realtime_report.get("storage_migration_autoheal"), dict) else {}
     maintenance_recovery = realtime_report.get("output_maintenance_autoheal") if isinstance(realtime_report.get("output_maintenance_autoheal"), dict) else {}
     ai_brief_recovery = realtime_report.get("ai_brief_autoheal") if isinstance(realtime_report.get("ai_brief_autoheal"), dict) else {}
     alert_quality_recovery = realtime_report.get("alert_quality_autoheal") if isinstance(realtime_report.get("alert_quality_autoheal"), dict) else {}
     yfinance_cache_recovery = realtime_report.get("yfinance_cache_autoheal") if isinstance(realtime_report.get("yfinance_cache_autoheal"), dict) else {}
-    if not launchd and not backup and not backup_report_recovery and not streamlit_recovery and not chart_recovery and not live_data_recovery and not maintenance_recovery and not ai_brief_recovery and not alert_quality_recovery and not yfinance_cache_recovery:
+    if not launchd and not backup and not backup_report_recovery and not streamlit_recovery and not chart_recovery and not live_data_recovery and not storage_recovery and not maintenance_recovery and not ai_brief_recovery and not alert_quality_recovery and not yfinance_cache_recovery:
         return {"label": "Sin dato", "tone": "watch", "detail": "Watchdog aun sin autoheal"}
 
     recovered = list(launchd.get("recovered") or [])
@@ -4654,6 +4655,8 @@ def autoheal_dashboard_status(realtime_report: dict[str, Any] | None) -> dict[st
     chart_ok = bool(chart_recovery.get("ok")) if chart_recovery else True
     live_data_action = text_display(live_data_recovery.get("action")) if live_data_recovery else ""
     live_data_ok = bool(live_data_recovery.get("ok")) if live_data_recovery else True
+    storage_action = text_display(storage_recovery.get("action")) if storage_recovery else ""
+    storage_ok = bool(storage_recovery.get("ok")) if storage_recovery else True
     maintenance_action = text_display(maintenance_recovery.get("action")) if maintenance_recovery else ""
     maintenance_ok = bool(maintenance_recovery.get("ok")) if maintenance_recovery else True
     ai_brief_action = text_display(ai_brief_recovery.get("action")) if ai_brief_recovery else ""
@@ -4670,6 +4673,7 @@ def autoheal_dashboard_status(realtime_report: dict[str, Any] | None) -> dict[st
         or (streamlit_recovery and not streamlit_ok)
         or (chart_recovery and not chart_ok)
         or (live_data_recovery and not live_data_ok)
+        or (storage_recovery and not storage_ok)
         or (maintenance_recovery and not maintenance_ok)
         or (ai_brief_recovery and not ai_brief_ok)
         or (alert_quality_recovery and not alert_quality_ok)
@@ -4684,6 +4688,7 @@ def autoheal_dashboard_status(realtime_report: dict[str, Any] | None) -> dict[st
         or streamlit_action in {"restart", "bootstrapped"}
         or chart_action == "regenerated"
         or live_data_action == "ran_live_scan"
+        or storage_action == "created_missing_destination"
         or maintenance_action == "regenerated"
         or ai_brief_action == "regenerated"
         or alert_quality_action == "regenerated"
@@ -4713,6 +4718,8 @@ def autoheal_dashboard_status(realtime_report: dict[str, Any] | None) -> dict[st
         details.append(f"graficas {chart_action}")
     if live_data_action:
         details.append(f"live {live_data_action}")
+    if storage_action:
+        details.append(f"storage {storage_action}")
     if maintenance_action:
         details.append(f"limpieza {maintenance_action}")
     if ai_brief_action:
@@ -4732,6 +4739,7 @@ def autoheal_dashboard_status(realtime_report: dict[str, Any] | None) -> dict[st
         "streamlit_action": streamlit_action,
         "chart_action": chart_action,
         "live_data_action": live_data_action,
+        "storage_action": storage_action,
         "maintenance_action": maintenance_action,
         "ai_brief_action": ai_brief_action,
         "alert_quality_action": alert_quality_action,

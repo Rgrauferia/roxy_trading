@@ -61,7 +61,7 @@ def test_ensure_core_launch_agents_summarizes_failures(monkeypatch):
 def test_recover_health_watchdog_config_does_nothing_when_current(monkeypatch):
     command = (
         "python tools/roxy_realtime_check.py --notify-health --ensure-runtime-backup-daemon "
-        "--ensure-runtime-backup-report --ensure-core-launchagents --ensure-streamlit-app "
+        "--ensure-runtime-backup-report --ensure-core-launchagents --ensure-storage-migration --ensure-streamlit-app "
         "--ensure-live-data --ensure-yfinance-cache --ensure-chart-health-report --ensure-output-maintenance-report "
         "--ensure-alert-quality-report --no-fail"
     )
@@ -94,7 +94,7 @@ def test_recover_health_watchdog_config_reinstalls_when_flags_are_missing(monkey
     old_command = "python tools/roxy_realtime_check.py --notify-health --no-fail"
     new_command = (
         "python tools/roxy_realtime_check.py --notify-health --ensure-runtime-backup-daemon "
-        "--ensure-runtime-backup-report --ensure-core-launchagents --ensure-streamlit-app "
+        "--ensure-runtime-backup-report --ensure-core-launchagents --ensure-storage-migration --ensure-streamlit-app "
         "--ensure-live-data --ensure-yfinance-cache --ensure-chart-health-report --ensure-output-maintenance-report "
         "--ensure-alert-quality-report --no-fail"
     )
@@ -124,6 +124,7 @@ def test_recover_health_watchdog_config_reinstalls_when_flags_are_missing(monkey
         "--ensure-runtime-backup-daemon",
         "--ensure-runtime-backup-report",
         "--ensure-core-launchagents",
+        "--ensure-storage-migration",
         "--ensure-live-data",
         "--ensure-yfinance-cache",
         "--ensure-streamlit-app",
@@ -140,7 +141,7 @@ def test_recover_health_watchdog_config_reinstalls_when_unloaded(monkeypatch, tm
     calls = []
     command = (
         "python tools/roxy_realtime_check.py --notify-health --ensure-runtime-backup-daemon "
-        "--ensure-runtime-backup-report --ensure-core-launchagents --ensure-streamlit-app "
+        "--ensure-runtime-backup-report --ensure-core-launchagents --ensure-storage-migration --ensure-streamlit-app "
         "--ensure-live-data --ensure-yfinance-cache --ensure-chart-health-report --ensure-output-maintenance-report "
         "--ensure-alert-quality-report --no-fail"
     )
