@@ -6647,6 +6647,37 @@ def render_market_breadth_strip(scan_df: pd.DataFrame, confluence_df: pd.DataFra
     )
 
 
+def scanner_blotter_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, *, limit: int = 24) -> pd.DataFrame:
+    wall_rows = scanner_wallboard_rows(table, confluence_df, limit=limit)
+    if wall_rows.empty:
+        return pd.DataFrame(columns=["#", "Ticker", "Estado", "Score", "Setup", "Riesgo", "Target", "RVol", "TF", "Siguiente"])
+    display = wall_rows.copy().head(limit).reset_index(drop=True)
+    display["#"] = display.index + 1
+    display["Ticker"] = display["symbol"].astype(str)
+    display["Estado"] = display["status"].astype(str)
+    display["Score"] = pd.to_numeric(display["score"], errors="coerce").map(lambda value: num_display(value, 0) if pd.notna(value) else "-")
+    display["Setup"] = display["strategy"].astype(str)
+    display["Riesgo"] = pd.to_numeric(display["risk"], errors="coerce").map(lambda value: pct_display(value) if pd.notna(value) else "-")
+    display["Target"] = pd.to_numeric(display["target"], errors="coerce").map(lambda value: pct_display(value) if pd.notna(value) else "-")
+    display["RVol"] = pd.to_numeric(display["rel_volume"], errors="coerce").map(lambda value: f"{value:.1f}x" if pd.notna(value) else "-")
+    display["TF"] = display["tf"].astype(str)
+    display["Siguiente"] = display["next"].astype(str)
+    return display[["#", "Ticker", "Estado", "Score", "Setup", "Riesgo", "Target", "RVol", "TF", "Siguiente"]]
+
+
+def render_scanner_blotter(table: pd.DataFrame, confluence_df: pd.DataFrame) -> None:
+    blotter = scanner_blotter_rows(table, confluence_df, limit=28)
+    if blotter.empty:
+        return
+    st.markdown("**Blotter operativo**")
+    st.dataframe(
+        blotter,
+        use_container_width=True,
+        hide_index=True,
+        height=min(520, 58 + len(blotter) * 27),
+    )
+
+
 def render_scanner_cockpit(
     table: pd.DataFrame,
     confluence_df: pd.DataFrame,
@@ -6796,6 +6827,7 @@ def render_scanner_cockpit(
             st.info("Sin setups bloqueados.")
         else:
             st.dataframe(blocked_display, use_container_width=True, hide_index=True, height=300)
+    render_scanner_blotter(table, confluence_df)
 
 
 def render_market_pulse_dashboard(table: pd.DataFrame) -> None:
