@@ -53,6 +53,9 @@ DEFAULT_RUNTIME_CACHE_SOURCE_PATH = Path.home() / ".cache" / "codex-runtimes"
 DEFAULT_RUNTIME_CACHE_DESTINATION_PATH = (
     DEFAULT_EXTERNAL_DISK_PATH / "MacArchive" / Path.home().name / ".cache" / "codex-runtimes"
 )
+DEFAULT_LOCAL_TRAINING_MEDIA_RELATIVE_PATH = "training_videos"
+DEFAULT_TRAINING_MEDIA_WARN_GB = 5.0
+DEFAULT_TRAINING_MEDIA_FAIL_GB = 20.0
 REQUIRED_CONFLUENCE_COLUMNS = {
     "market",
     "symbol",
@@ -621,6 +624,60 @@ def read_tail(path: Path, max_bytes: int = 6000) -> str:
             return fh.read().decode("utf-8", errors="replace")
     except OSError:
         return ""
+
+
+def validate_local_training_media(
+    media_path: str | Path,
+    *,
+    external_disk_path: str | Path = DEFAULT_EXTERNAL_DISK_PATH,
+    warn_size_gb: float = DEFAULT_TRAINING_MEDIA_WARN_GB,
+    fail_size_gb: float = DEFAULT_TRAINING_MEDIA_FAIL_GB,
+) -> dict[str, Any]:
+    path = Path(media_path)
+    external_disk = Path(external_disk_path)
+    external_suggestion = external_disk / "MacArchive" / Path.home().name / "roxy_trading" / path.name
+    exists = path.exists() or path.is_symlink()
+    is_symlink = path.is_symlink()
+    symlink_target = resolve_symlink_target(path) if is_symlink else ""
+    size_bytes = path_size_bytes(path) if exists and not is_symlink else None
+    size_gb = (size_bytes or 0) / (1024**3)
+
+    if not exists:
+        status = "OK"
+        state = "ABSENT"
+        detail = f"{path.name} no esta presente localmente"
+    elif is_symlink:
+        status = "OK"
+        state = "EXTERNAL_LINKED" if symlink_target.startswith(str(external_disk.resolve(strict=False))) else "LINKED"
+        detail = f"{path.name} esta enlazado a {symlink_target}"
+    elif size_gb >= fail_size_gb:
+        status = "FAIL"
+        state = "LOCAL_TOO_LARGE"
+        detail = f"{path.name} ocupa {size_gb:.2f} GiB local; mover a {external_suggestion}"
+    elif size_gb >= warn_size_gb:
+        status = "WARN"
+        state = "LOCAL_GROWING"
+        detail = f"{path.name} ocupa {size_gb:.2f} GiB local; preparar migracion a {external_suggestion}"
+    else:
+        status = "OK"
+        state = "LOCAL_SMALL"
+        detail = f"{path.name} ocupa {size_gb:.2f} GiB local"
+
+    return check(
+        "local_training_media",
+        status,
+        detail,
+        state=state,
+        path=str(path),
+        exists=exists,
+        is_symlink=is_symlink,
+        symlink_target=symlink_target,
+        size_bytes=size_bytes,
+        size_gb=round(size_gb, 4),
+        warn_size_gb=warn_size_gb,
+        fail_size_gb=fail_size_gb,
+        external_suggestion=str(external_suggestion),
+    )
 
 
 def validate_storage_migration(
@@ -1782,12 +1839,24 @@ def evaluate_realtime_health(
     storage_migration_log_path: str | Path | None = None,
     runtime_cache_source_path: str | Path | None = None,
     runtime_cache_destination_path: str | Path | None = None,
+    training_media_path: str | Path | None = None,
+    training_media_warn_gb: float = DEFAULT_TRAINING_MEDIA_WARN_GB,
+    training_media_fail_gb: float = DEFAULT_TRAINING_MEDIA_FAIL_GB,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     required_timeframes = required_timeframes or {"15m", "1h", "2h", "4h"}
     output_path, alerts_path = runtime_dirs(base_dir)
     checks: list[dict[str, Any]] = []
     checks.append(validate_disk_space(base_dir, warn_free_gb=warn_free_gb, fail_free_gb=fail_free_gb))
+    local_training_path = Path(training_media_path) if training_media_path is not None else Path(base_dir) / DEFAULT_LOCAL_TRAINING_MEDIA_RELATIVE_PATH
+    checks.append(
+        validate_local_training_media(
+            local_training_path,
+            external_disk_path=external_disk_path or DEFAULT_EXTERNAL_DISK_PATH,
+            warn_size_gb=training_media_warn_gb,
+            fail_size_gb=training_media_fail_gb,
+        )
+    )
     if external_disk_path:
         checks.append(
             validate_external_disk(

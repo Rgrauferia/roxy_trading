@@ -20,6 +20,9 @@ alerts/
 output/
 logs/
 
+# Local training/media captures; keep large files outside Git.
+training_videos/
+
 # Local runtime databases/state
 db/
 *.db

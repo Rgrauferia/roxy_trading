@@ -52,6 +52,7 @@ from tools.roxy_realtime_check import (
     validate_alert_quality_report,
     validate_app_url,
     validate_live_service,
+    validate_local_training_media,
     validate_notification_delivery,
     validate_output_maintenance_report,
     validate_output_maintenance_service,
@@ -1694,6 +1695,45 @@ def test_evaluate_realtime_health_can_check_configured_external_disk(tmp_path):
     assert external["status"] == "OK"
     assert migration["status"] == "OK"
     assert migration["state"] == "NOT_PRESENT"
+
+
+def test_validate_local_training_media_accepts_small_local_folder(tmp_path):
+    media = tmp_path / "training_videos"
+    media.mkdir()
+    (media / "clip.mov").write_text("video")
+
+    status = validate_local_training_media(media, warn_size_gb=1, fail_size_gb=2)
+
+    assert status["status"] == "OK"
+    assert status["state"] == "LOCAL_SMALL"
+    assert status["size_bytes"] == 5
+
+
+def test_validate_local_training_media_warns_before_local_folder_gets_too_large(tmp_path, monkeypatch):
+    media = tmp_path / "training_videos"
+    media.mkdir()
+    monkeypatch.setattr(roxy_realtime_check, "path_size_bytes", lambda path: 6 * 1024**3)
+
+    status = validate_local_training_media(media, warn_size_gb=5, fail_size_gb=20)
+
+    assert status["status"] == "WARN"
+    assert status["state"] == "LOCAL_GROWING"
+    assert status["size_gb"] == 6.0
+    assert status["external_suggestion"].endswith("/roxy_trading/training_videos")
+
+
+def test_evaluate_realtime_health_tracks_local_training_media(tmp_path):
+    now = datetime(2026, 6, 8, 12, 0, tzinfo=timezone.utc)
+    _write_good_artifacts(tmp_path, now)
+    media = tmp_path / "training_videos"
+    media.mkdir()
+    (media / "clip.mov").write_text("video")
+
+    report = evaluate_realtime_health(base_dir=tmp_path, now=now, skip_chart_fetch=True, skip_service_check=True)
+
+    media_check = next(item for item in report["checks"] if item["name"] == "local_training_media")
+    assert media_check["status"] == "OK"
+    assert media_check["state"] == "LOCAL_SMALL"
 
 
 def test_validate_storage_migration_waits_when_parallels_is_still_local(tmp_path):
