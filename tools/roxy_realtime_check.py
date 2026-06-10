@@ -2310,11 +2310,22 @@ def render_text_report(report: dict[str, Any]) -> str:
             current_streak_status = str(stability.get("current_streak_status") or "").upper()
             issue_label = "hist issue" if current_streak_status == "OK" else "top issue"
             issue_detail = f" | {issue_label} {dominant_issue.get('name')} x{dominant_issue.get('count', 0)}"
+        metric_deltas = stability.get("metric_deltas") if isinstance(stability.get("metric_deltas"), dict) else {}
+        metric_detail = ""
+        metric_parts: list[str] = []
+        if metric_deltas.get("disk_free_gb") is not None:
+            metric_parts.append(f"disk {float(metric_deltas['disk_free_gb']):+.2f} GiB")
+        if metric_deltas.get("training_media_gb") is not None:
+            metric_parts.append(f"media {float(metric_deltas['training_media_gb']):+.2f} GiB")
+        if metric_deltas.get("project_storage_gb") is not None:
+            metric_parts.append(f"project {float(metric_deltas['project_storage_gb']):+.2f} GiB")
+        if metric_parts:
+            metric_detail = " | trend " + ", ".join(metric_parts)
         lines.append(
             "Stability: "
             f"OK {ok_pct} over {stability.get('sample_size', 0)} checks | "
             f"streak {stability.get('current_streak_status', '-')} x{stability.get('current_streak_count', 0)}"
-            f"{recovery_detail}{issue_detail}"
+            f"{recovery_detail}{issue_detail}{metric_detail}"
         )
     lines.append("")
     for item in report.get("checks") or []:
@@ -2510,7 +2521,7 @@ def summarize_health_history_entries(entries: list[dict[str, Any]], *, limit: in
                 last_value = float(value)
         if first_value is not None and last_value is not None:
             delta = round(last_value - first_value, 4)
-            if delta:
+            if abs(delta) >= 0.005:
                 metric_deltas[key] = delta
     return {
         "sample_size": total,

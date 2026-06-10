@@ -820,6 +820,7 @@ def test_render_text_report_includes_stability_summary():
             "current_streak_count": 12,
             "incident_free_minutes": 42.5,
             "dominant_issue": {"name": "operational_logs", "count": 3},
+            "metric_deltas": {"disk_free_gb": -1.25, "training_media_gb": 0.05, "project_storage_gb": 0.07},
         },
         "checks": [],
     }
@@ -827,6 +828,7 @@ def test_render_text_report_includes_stability_summary():
     text = render_text_report(report)
 
     assert "Stability: OK 95.0% over 20 checks | streak OK x12 | recovered 42.5m | hist issue operational_logs x3" in text
+    assert "trend disk -1.25 GiB, media +0.05 GiB, project +0.07 GiB" in text
 
 
 def test_health_notification_message_uses_top_issue_and_recovery():
