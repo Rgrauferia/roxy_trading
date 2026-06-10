@@ -1,0 +1,44 @@
+name: Streamlit smoke test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  smoke:
+    name: Smoke start
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Start Streamlit (background)
+        run: |
+          mkdir -p run
+          nohup streamlit run streamlit_app.py --server.port 8501 --server.headless true > run/streamlit_smoke.log 2>&1 &
+          sleep 6
+
+      - name: Check Streamlit root responds
+        run: |
+          for i in {1..12}; do
+            if curl -sS http://127.0.0.1:8501/ >/dev/null; then
+              echo "Streamlit responded"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Streamlit did not respond" >&2
+          cat run/streamlit_smoke.log || true
+          exit 1

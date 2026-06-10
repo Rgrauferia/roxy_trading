@@ -1,0 +1,13 @@
+[Unit]
+Description=Roxy Trading account snapshot service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/roxy_trading
+ExecStart=/usr/bin/python3 /opt/roxy_trading/tools/account_snapshot_service.py --interval 5
+Restart=always
+User=roxy
+
+[Install]
+WantedBy=multi-user.target

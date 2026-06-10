@@ -1,0 +1,32 @@
+.env
+.DS_Store
+.git.broken_external_pointer_*
+
+# Python/runtime caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+
+# Runtime secrets and process files
+run/*.key
+run/*.pid
+run/secrets_scan.txt
+
+# Generated realtime artifacts
+alerts/
+output/
+logs/
+
+# Local runtime databases/state
+db/
+*.db
+*.sqlite
+*.sqlite3
+
+# Local archives/backups
+_backup/
+*.bak
+*.tmp

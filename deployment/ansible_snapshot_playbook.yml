@@ -1,0 +1,18 @@
+---
+- hosts: all
+  become: yes
+  tasks:
+    - name: copy snapshot systemd unit
+      copy:
+        src: deployment/snapshot.service
+        dest: /etc/systemd/system/roxy_snapshot.service
+        mode: '0644'
+
+    - name: reload systemd
+      command: systemctl daemon-reload
+
+    - name: enable and start snapshot service
+      systemd:
+        name: roxy_snapshot.service
+        state: started
+        enabled: yes

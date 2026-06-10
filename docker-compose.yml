@@ -1,0 +1,40 @@
+version: '3.8'
+services:
+  web:
+    build: .
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: ["streamlit", "run", "streamlit_app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
+
+  scanner:
+    build: .
+    volumes:
+      - ./:/app
+    environment:
+      - SCAN_INTERVAL_MIN=5
+    entrypoint: ["/app/docker-entrypoint.sh", "scanner"]
+
+  snapshot:
+    build: .
+    volumes:
+      - ./:/app
+    environment:
+      - SNAP_INTERVAL_MIN=5
+    command: ["python", "tools/account_snapshot_service.py", "--interval", "${SNAP_INTERVAL_MIN}"]
+
+  voice:
+    build:
+      context: .
+      dockerfile: Dockerfile.voice
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app
+    environment:
+      - VOICE_API_KEY
+      - REDIS_URL
+    command: ["uvicorn", "tools.voice_service:app", "--host", "0.0.0.0", "--port", "8000"]

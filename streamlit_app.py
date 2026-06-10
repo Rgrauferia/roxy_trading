@@ -1,0 +1,9385 @@
+"""Focused Streamlit app for Roxy AI Trading.
+
+The active UI is centered on the SMA 20/40/100/200 strategy, 15m/1h
+confluence, symbol analysis, AI-ranked opportunities, and 24h watch status.
+"""
+
+from __future__ import annotations
+
+import html
+import json
+import math
+import os
+import shutil
+import socket
+import subprocess
+import warnings
+from glob import glob
+from pathlib import Path
+from typing import Any, Optional
+from datetime import datetime
+
+import pandas as pd
+import sqlite3
+import streamlit as st
+import altair as alt
+
+from chart_health import chart_freshness_status as shared_chart_freshness_status
+from chart_health import latest_chart_timestamp as shared_latest_chart_timestamp
+from chart_health import timeframe_minutes as shared_timeframe_minutes
+from config import TOP_PICKS_FILE, ENABLE_GROK_CODE_FAST
+import storage
+import grok_control
+import auth
+import notifier
+from roxy_paths import alerts_dir, output_dir, project_path
+from accuracy_tracker import build_accuracy_report, real_signal_memory_summary
+from dashboard_metrics import (
+    best_confluence_candidate,
+    option_expiry_counts,
+    option_quality_points,
+    risk_score_points,
+    score_distribution,
+    setup_counts_by_timeframe,
+    signal_counts_by_timeframe,
+    target_ladder_counts,
+    trade_decision_counts,
+)
+from moving_average_strategy import analyze_moving_average_setup
+from options_strategy import professional_options_feed_status
+from salto_strategies import SALTO_STRATEGIES
+from symbol_detail import (
+    classify_strategy_playbook,
+    detect_reference_strategies,
+    fetch_symbol_history,
+    latest_chart_strategy_events,
+    latest_confluence_row,
+    latest_symbol_rows,
+    prepare_symbol_chart_data,
+    resolve_symbol_query,
+)
+from roxy_ai import (
+    DEFAULT_ACCOUNT_EQUITY,
+    alert_gate_label,
+    apply_global_alert_context,
+    autonomous_learning_plan,
+    build_brief,
+    build_notification_lines,
+    build_strategy_lab,
+    experiment_status_label,
+    human_alert_reason,
+    human_trade_action,
+    learning_research_queue,
+    learning_action_label,
+    load_memory,
+    market_session_status,
+    realtime_health_status,
+    safety_mode_label,
+    source_freshness_status,
+    summarize_alert_gates,
+    summarize_strategy_learning,
+    write_brief,
+)
+from platform_credentials import (
+    credential_table_rows,
+    encryption_status,
+    initialize_local_vault_key,
+    platform_credential_status,
+    save_platform_credentials,
+)
+from platform_execution import build_order_preview
+from platform_router import PLATFORM_PROFILES, build_platform_route_rows, build_platform_ticket
+from schwab_preview import build_schwab_preview
+from trade_brief import (
+    CORE_STRATEGIES,
+    build_symbol_trade_brief,
+    latest_backtest_trades,
+    strategy_family_from_setup,
+    summarize_backtest_by_strategy,
+)
+
+
+PLATFORM_STATUS_LABELS = {
+    "READY_TO_PREVIEW": "Listo para preparar",
+    "WAIT_FOR_CONFIRMATION": "Esperar confirmacion",
+    "NO_TRADE": "No operar",
+    "BLOCKED_STALE_DATA": "Datos vencidos",
+    "BLOCKED_MARKET_CLOSED": "Mercado cerrado",
+    "RISK_GUARDRAIL": "Riesgo bloquea",
+}
+
+PLATFORM_REASON_LABELS = {
+    "Roxy allows preview only after platform buying-power check.": "Roxy permite preparar el ticket, pero debes confirmar buying power y precio en la plataforma.",
+    "Do not place this order. Wait until Roxy returns WATCH or BUY.": "No coloques esta orden. Espera que Roxy vuelva a WATCH o BUY.",
+    "Prepare the ticket only; wait for 15m entry and 1h confirmation.": "Prepara el ticket solamente. Falta gatillo 15m y confirmacion 1h.",
+    "Refresh live/confluence data before preparing any platform preview.": "Refresca datos live/confluencia antes de preparar una orden.",
+    "Execution context is acceptable for preview-only preparation.": "Contexto aceptable para preparar ticket manual, sin envio automatico.",
+}
+
+ASSET_TYPE_LABELS = {
+    "stock": "Accion",
+    "option": "Opcion",
+    "crypto": "Crypto",
+}
+
+ACTION_LABELS = {
+    "ALERT": "Operar",
+    "WATCH": "Esperar",
+    "BUY": "Comprar",
+    "AVOID": "Evitar",
+}
+
+OUTPUT_DIR = output_dir()
+ALERTS_DIR = alerts_dir()
+
+
+def runtime_path(path: str | Path) -> Path:
+    p = Path(path)
+    if p.is_absolute():
+        return p
+    parts = p.parts
+    if parts and parts[0] == "output":
+        return OUTPUT_DIR.joinpath(*parts[1:])
+    if parts and parts[0] == "alerts":
+        return ALERTS_DIR.joinpath(*parts[1:])
+    return project_path(p)
+
+
+CONNECTION_MODE_LABELS = {
+    "NEEDS_CREDENTIALS": "Faltan credenciales",
+    "PREVIEW_ONLY": "Solo preview",
+    "LIVE_ARMED": "Live armado",
+}
+
+ADAPTER_STATUS_LABELS = {
+    "IMPLEMENTED": "Implementado",
+    "PREVIEW_ONLY": "Solo preview",
+}
+
+EXECUTION_BLOCKER_LABELS = {
+    "Platform credentials are missing.": "Faltan credenciales de la plataforma.",
+    "Quantity is zero or unavailable.": "La cantidad es cero o no esta disponible.",
+    "Entry price is unavailable.": "El precio de entrada no esta disponible.",
+    "No live broker adapter is implemented yet; Roxy prepares manual and preview payloads only.": "Todavia no hay adaptador live; Roxy solo prepara tickets manuales y previews.",
+    "Roxy does not send live broker orders from this screen. This preview is for manual review and future adapter wiring.": "Roxy no envia ordenes reales desde esta pantalla. Este preview es para revision manual y futuro adaptador.",
+    "This prepares the Schwab previewOrder request body only. Roxy does not call Schwab or place a live order from this screen.": "Esto prepara solamente el cuerpo previewOrder de Schwab. Roxy no llama a Schwab ni coloca orden real desde esta pantalla.",
+}
+
+NOTIFICATION_CHANNEL_LABELS = {
+    "macos": "Mac local",
+    "email": "Email",
+    "discord": "Discord",
+    "slack": "Slack",
+    "webhook": "Webhook",
+}
+
+NOTIFICATION_NOTE_LABELS = {
+    "Local desktop notification on this Mac.": "Notificacion local en esta Mac.",
+    "Best for phone delivery if your email pushes notifications.": "Mejor opcion para telefono si tu email tiene push.",
+    "Good phone alerts from a mobile app.": "Alertas al telefono desde una app movil.",
+    "Team/mobile alerts.": "Alertas a equipo o telefono.",
+    "Custom automation endpoint.": "Endpoint propio para automatizaciones.",
+}
+
+ROXY_LOGO_SVG = """
+<svg class="roxy-logo-svg" viewBox="0 0 64 64" role="img" aria-label="Roxy logo">
+  <rect x="6" y="6" width="52" height="52" rx="8" fill="#101827" stroke="#38bdf8" stroke-width="2"/>
+  <path d="M17 43 L25 32 L33 36 L46 20" fill="none" stroke="#22c55e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M17 47 H47" stroke="#f59e0b" stroke-width="3" stroke-linecap="round"/>
+  <text x="17" y="28" font-size="18" font-weight="800" fill="#f8fafc" font-family="Arial, sans-serif">R</text>
+</svg>
+"""
+
+PLATFORM_BADGE_BRANDS = {
+    "crypto_com": {
+        "abbr": "CRO",
+        "accent": "#1199fa",
+        "asset": "Crypto 24h",
+        "use": "oportunidades crypto",
+    },
+    "schwab": {
+        "abbr": "CS",
+        "accent": "#22c55e",
+        "asset": "Acciones/opciones",
+        "use": "tickets manuales",
+    },
+    "webull": {
+        "abbr": "WB",
+        "accent": "#a78bfa",
+        "asset": "Acciones/crypto",
+        "use": "confirmacion visual",
+    },
+}
+
+TIMEFRAME_OPTIONS = ["15m", "1h", "2h", "4h", "1d"]
+REALTIME_REFRESH_SECONDS = [30, 60, 120, 300]
+DEFAULT_REALTIME_REFRESH_SECONDS = 60
+LIVE_SOURCE_LABEL = "Live intradia"
+
+STRATEGY_STUDY_GUIDES = {
+    "Canal alcista": {
+        "headline": "Usar la tendencia a favor, comprando continuaciones o retrocesos sanos.",
+        "works_when": "Precio sobre SMA200, medias ordenadas 20 > 40 > 100 > 200 y 1h mantiene maximos crecientes.",
+        "entry": "Entrada ideal cuando 15m vuelve a cerrar sobre SMA20/SMA40 con volumen relativo normal o fuerte.",
+        "avoid": "Evitar si el precio queda extendido lejos de SMA20 o si el stop supera el riesgo permitido.",
+        "option_note": "Calls solo si el spread es bajo, DTE suficiente y el target 2% paga el riesgo.",
+        "practice": "Marca soporte de canal, espera pullback y compara entrada contra stop/objetivos 2%, 5% y 10%.",
+    },
+    "Canal lateral": {
+        "headline": "Operar rango solo cuando el precio respeta soporte/resistencia y el riesgo es pequeno.",
+        "works_when": "SMA100/SMA200 planas, precio dentro de rango y Bollinger/soporte muestran rebotes claros.",
+        "entry": "Entrada cerca de soporte con cierre verde, o ruptura de resistencia con volumen confirmado.",
+        "avoid": "Evitar el centro del rango, velas sin volumen o rompimientos falsos sin cierre.",
+        "option_note": "Opciones requieren mas cuidado: preferir contratos liquidos y no perseguir ruptura tarde.",
+        "practice": "Dibuja soporte, resistencia y punto medio; solo valida entradas en bordes del rango.",
+    },
+    "Pullback": {
+        "headline": "Comprar retroceso dentro de una tendencia viva, no una caida sin control.",
+        "works_when": "Tendencia 1h sigue arriba, precio toca SMA20/SMA40 y no pierde la estructura mayor.",
+        "entry": "Entrada cuando aparece rebote en SMA20/SMA40, 15m da BUY y el volumen acompana.",
+        "avoid": "Evitar si el pullback pierde SMA100/SMA200 o si el rebote no recupera SMA20.",
+        "option_note": "Call watch si la entrada esta cerca del stop y el contrato cabe en el riesgo.",
+        "practice": "Mide distancia entrada-stop antes de mirar ganancia; si 2% no compensa, esperar.",
+    },
+    "Rebote en media": {
+        "headline": "Buscar reaccion limpia en una media clave despues de una pausa del precio.",
+        "works_when": "La media actua como soporte repetido y el precio no cierra fuerte debajo de ella.",
+        "entry": "Entrada sobre confirmacion de vela de rebote y recuperacion de SMA20 o SMA40.",
+        "avoid": "Evitar si hay cierre bajo SMA200 o si el rebote ocurre con volumen debil.",
+        "option_note": "Calls solo si la prima no destruye el target 2% y el break-even es razonable.",
+        "practice": "Compara los ultimos tres toques de la media y revisa si cada rebote hizo maximo nuevo.",
+    },
+    "Cruce de medias": {
+        "headline": "Detectar cambio temprano de tendencia cuando las medias cortas empiezan a girar.",
+        "works_when": "SMA20 cruza sobre SMA40 y el precio sostiene sobre SMA100/SMA200.",
+        "entry": "Primera entrada es watch; operar cuando el cruce se confirma con 1h y volumen.",
+        "avoid": "Evitar cruces dentro de un rango estrecho porque suelen dar senales falsas.",
+        "option_note": "En opciones, esperar confirmacion extra; los cruces tempranos pueden fallar rapido.",
+        "practice": "Busca el cruce, luego revisa si el pullback posterior respeta SMA20/SMA40.",
+    },
+    "Tendencia bajista": {
+        "headline": "Proteger capital. Roxy prioriza no operar o mirar puts solo con confirmacion.",
+        "works_when": "Precio bajo SMA200, medias inclinadas hacia abajo y cada rebote falla en resistencia.",
+        "entry": "Para puts, esperar rechazo en SMA20/SMA40 y 15m confirmando debilidad.",
+        "avoid": "Evitar calls mientras no recupere SMA200 y no cambie la estructura.",
+        "option_note": "Puts solo con liquidez, spread bajo y riesgo maximo definido.",
+        "practice": "Marca SMA200, zona de rechazo y ultimo minimo; no anticipar reversa sin confirmacion.",
+    },
+}
+
+for _salto_strategy in SALTO_STRATEGIES:
+    STRATEGY_STUDY_GUIDES.setdefault(
+        _salto_strategy.family,
+        {
+            "headline": _salto_strategy.headline,
+            "works_when": _salto_strategy.works_when,
+            "entry": _salto_strategy.entry,
+            "avoid": _salto_strategy.avoid,
+            "option_note": _salto_strategy.option_note,
+            "practice": _salto_strategy.practice,
+            "requirements": list(_salto_strategy.requirements),
+            "requirements_text": " | ".join(_salto_strategy.requirements),
+            "confirmation_timeframes": list(_salto_strategy.confirmation_timeframes),
+            "direction": _salto_strategy.direction,
+        },
+    )
+
+
+def latest_file(pattern: str) -> Optional[str]:
+    files = glob(str(runtime_path(pattern)))
+    if not files:
+        return None
+    # choose by modified time
+    files.sort(key=lambda p: Path(p).stat().st_mtime, reverse=True)
+    return files[0]
+
+
+def load_latest_tech_df(kind: str) -> pd.DataFrame:
+    """Load the most recent tech CSV for `kind` in `output/`.
+
+    kind should be 'crypto' or 'stocks'.
+    """
+    pattern = f"output/{kind}_tech_*.csv" if kind == "stocks" else f"output/{kind}_tech_*.csv"
+    path = latest_file(pattern)
+    if not path:
+        return pd.DataFrame()
+    try:
+        return pd.read_csv(path)
+    except Exception:
+        return pd.DataFrame()
+
+
+def get_ohlcv(symbol: str) -> pd.DataFrame:
+    """Query the local `db/roxy.db` ohlcv table for `symbol`.
+
+    Returns a DataFrame indexed by datetime with open/high/low/close/volume.
+    """
+    conn = sqlite3.connect(storage.DB_PATH)
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "SELECT ts, open, high, low, close, volume FROM ohlcv WHERE symbol = ? ORDER BY ts",
+            (symbol,),
+        )
+        rows = cur.fetchall()
+    except sqlite3.OperationalError:
+        rows = []
+    conn.close()
+    if not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(rows, columns=["ts", "open", "high", "low", "close", "volume"])  # type: ignore
+    df["ts"] = pd.to_datetime(df["ts"])
+    df = df.set_index("ts")
+    return df
+
+
+def read_summary_json(path: str) -> dict:
+    p = runtime_path(path)
+    if not p.exists():
+        return {}
+    try:
+        return json.loads(p.read_text())
+    except Exception:
+        return {}
+
+
+def heartbeat_artifact_path(key: str) -> str | None:
+    heartbeat = read_summary_json("alerts/ma_live_heartbeat.json")
+    value = heartbeat.get(key)
+    if not value:
+        return None
+    path = Path(str(value))
+    return str(path) if path.exists() else None
+
+
+def load_learning_journal(path: str = "alerts/roxy_learning_journal.csv", limit: int = 50) -> pd.DataFrame:
+    p = runtime_path(path)
+    if not p.exists():
+        return pd.DataFrame()
+    try:
+        df = pd.read_csv(p)
+    except Exception:
+        return pd.DataFrame()
+    if df.empty:
+        return pd.DataFrame()
+    return df.tail(limit).copy()
+
+
+def read_latest_alert_text(path: str) -> str:
+    p = runtime_path(path)
+    if not p.exists():
+        return ""
+    return p.read_text()
+
+
+def speak_in_browser(text: str, *, key: str, lang: str = "es-US") -> None:
+    spoken = " ".join(str(text or "").split())[:1400]
+    if not spoken:
+        return
+    payload = json.dumps(spoken)
+    lang_payload = json.dumps(lang)
+    component_id = json.dumps(f"roxy-voice-{key}")
+    st.components.v1.html(
+        f"""
+        <div id={component_id}></div>
+        <script>
+        (() => {{
+            const message = {payload};
+            const lang = {lang_payload};
+            const speak = () => {{
+                const utterance = new SpeechSynthesisUtterance(message);
+                utterance.lang = lang;
+                utterance.rate = 0.95;
+                utterance.pitch = 1.0;
+                const voices = window.speechSynthesis.getVoices() || [];
+                const preferred = voices.find(v => (v.lang || '').toLowerCase().startsWith('es'))
+                    || voices.find(v => (v.lang || '').toLowerCase().startsWith('en'))
+                    || voices[0];
+                if (preferred) utterance.voice = preferred;
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.speak(utterance);
+            }};
+            if ('speechSynthesis' in window) {{
+                if (window.speechSynthesis.getVoices().length === 0) {{
+                    window.speechSynthesis.onvoiceschanged = speak;
+                    setTimeout(speak, 350);
+                }} else {{
+                    speak();
+                }}
+            }}
+        }})();
+        </script>
+        """,
+        height=0,
+    )
+
+
+def show_market_tab(kind: str) -> None:
+    df = load_latest_tech_df(kind)
+    if df.empty:
+        st.info(f"No {kind} data available in `output/`.")
+        return
+
+    # normalize market column variations
+    if "market" in df.columns:
+        df = df.copy()
+        # keep only relevant rows
+    st.write(f"Latest {kind.capitalize()} scan — {len(df)} rows")
+
+    # top picks in this market
+    if "rank_score" in df.columns:
+        top = df.sort_values("rank_score", ascending=False).head(10)
+        st.subheader("Top recommendations")
+        st.dataframe(
+            top[
+                [
+                    c
+                    for c in ["symbol", "tf", "signal", "score", "rank_score", "entry", "stop", "tp2"]
+                    if c in top.columns
+                ]
+            ]
+        )
+
+    # pick a symbol to inspect
+    symbols = sorted(df["symbol"].unique())
+    choice = st.selectbox(f"Select {kind} symbol", symbols)
+    row = df[df["symbol"] == choice].iloc[0]
+
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        st.subheader(f"{choice} — {row.get('signal', '')} | score {row.get('score', '')}")
+        ohlcv = get_ohlcv(choice)
+        if not ohlcv.empty:
+            # build a candlestick chart with zoom/tooltip
+            df_cs = ohlcv.reset_index().rename(columns={"ts": "time"})
+            df_cs["time_str"] = df_cs["time"].dt.strftime("%Y-%m-%d %H:%M")
+
+            base = alt.Chart(df_cs).encode(x=alt.X("time:T", title="Time"))
+
+            rule = base.mark_rule().encode(
+                y=alt.Y("low:Q", title="Price"),
+                y2="high:Q",
+                tooltip=[
+                    alt.Tooltip("time_str:N", title="Time"),
+                    alt.Tooltip("open:Q"),
+                    alt.Tooltip("high:Q"),
+                    alt.Tooltip("low:Q"),
+                    alt.Tooltip("close:Q"),
+                    alt.Tooltip("volume:Q"),
+                ],
+            )
+
+            bar = base.mark_bar().encode(
+                y=alt.Y("open:Q", title=""),
+                y2="close:Q",
+                color=alt.condition("datum.open <= datum.close", alt.value("green"), alt.value("red")),
+                tooltip=[
+                    alt.Tooltip("time_str:N", title="Time"),
+                    alt.Tooltip("open:Q"),
+                    alt.Tooltip("high:Q"),
+                    alt.Tooltip("low:Q"),
+                    alt.Tooltip("close:Q"),
+                    alt.Tooltip("volume:Q"),
+                ],
+            )
+
+            selection = alt.selection_interval(bind="scales")
+
+            chart = (rule + bar).properties(height=360).add_selection(selection)
+
+            # overlay horizontal lines for entry/stop/tp2
+            overlays = []
+            for fld, color, label in (("entry", "green", "Entry"), ("stop", "red", "Stop"), ("tp2", "blue", "TP2")):
+                val = row.get(fld)
+                if val is not None and pd.notna(val):
+                    overlays.append(
+                        alt.Chart(pd.DataFrame({"y": [float(val)], "label": [label]}))
+                        .mark_rule(color=color, size=1)
+                        .encode(y="y:Q")
+                    )
+                    overlays.append(
+                        alt.Chart(pd.DataFrame({"y": [float(val)], "label": [label]}))
+                        .mark_text(align="left", dx=5, dy=-5, color=color)
+                        .encode(y="y:Q", text=alt.Text("label:N"))
+                    )
+
+            for o in overlays:
+                chart = chart + o
+
+            st.altair_chart(chart.interactive(), use_container_width=True)
+        else:
+            st.info("No historical OHLCV in local DB for this symbol — showing latest metrics.")
+            st.metric("Entry", row.get("entry", "n/a"))
+            st.metric("Stop", row.get("stop", "n/a"))
+            st.metric("TP2", row.get("tp2", "n/a"))
+
+    with col2:
+        st.subheader("Trade setup")
+        signal = str(row.get("signal", "")).upper()
+        if signal == "BUY":
+            st.success(f"Signal: {signal}")
+        elif signal == "WATCH":
+            st.info(f"Signal: {signal}")
+        else:
+            st.warning(f"Signal: {signal}")
+
+        st.write(f"**Score:** {row.get('score', '')}  ")
+        st.write(f"**Rank:** {row.get('rank_score', '')}  ")
+        st.write(f"**RR (tp2):** {row.get('rr_tp2', '')}  ")
+        st.markdown("---")
+        st.subheader("Simulation")
+        user = st.session_state.get("user", "anon")
+        sizing_mode = st.selectbox("Sizing mode", options=["Units", "% Equity"], key=f"{kind}_sizing_mode")
+        if sizing_mode == "% Equity":
+            try:
+                equity = storage.get_account_equity(user)
+            except Exception:
+                equity = 10000.0
+            pct = st.slider("Percent of equity", 1, 100, 10, key=f"{kind}_equity_pct")
+            price = float(row.get("entry") or (ohlcv["close"].iloc[-1] if not ohlcv.empty else 0.0))
+            qty = (equity * (pct / 100.0)) / (price if price > 0 else 1.0)
+        else:
+            qty = st.number_input(
+                "Position size (units)",
+                min_value=0.0,
+                value=1.0,
+                step=0.1,
+                key=f"{kind}_position_size_units",
+            )
+            price = float(row.get("entry") or (ohlcv["close"].iloc[-1] if not ohlcv.empty else 0.0))
+
+        if st.button("Simulate BUY", key=f"{kind}_simulate_buy"):
+            try:
+                pid = storage.open_sim_position(user, choice, float(qty), float(price), note="simulated via UI")
+                storage.save_simulated_trade(user, choice, "BUY", float(qty), float(price), note=f"open_pos:{pid}")
+                # snapshot equity including unrealized after opening
+                try:
+                    storage.snapshot_account_point(user)
+                except Exception:
+                    pass
+                st.success(f"Opened simulated position #{pid}")
+            except Exception as e:
+                st.error(f"Failed to open simulated position: {e}")
+
+        if st.button("Simulate SELL (close)", key=f"{kind}_simulate_sell"):
+            try:
+                pnl = storage.close_sim_position_by_symbol(user, choice, float(qty), float(price))
+                storage.save_simulated_trade(user, choice, "SELL", float(qty), float(price), note=f"close_qty={qty}")
+                # snapshot equity after realized P&L applied
+                try:
+                    storage.snapshot_account_point(user)
+                except Exception:
+                    pass
+                st.success(f"Closed positions for {qty} units, realized P&L {pnl:.2f}")
+            except Exception as e:
+                st.error(f"Failed to close simulated position: {e}")
+
+        st.subheader("Open simulated positions")
+        open_pos = storage.get_open_positions(user)
+        if open_pos:
+            rows = []
+            last_price = float(ohlcv["close"].iloc[-1]) if not ohlcv.empty else price
+            for pid, ts_open, usr, sym, pqty, entry_price, note in open_pos:
+                unreal = (last_price - float(entry_price)) * float(pqty)
+                rows.append(
+                    {
+                        "id": pid,
+                        "ts_open": ts_open,
+                        "symbol": sym,
+                        "qty": pqty,
+                        "entry": entry_price,
+                        "last": last_price,
+                        "unreal_pnl": unreal,
+                        "note": note,
+                    }
+                )
+            df_open = pd.DataFrame(rows)
+            st.table(df_open)
+        else:
+            st.write("No open simulated positions.")
+
+        # show equity curve for signed-in user
+        if user:
+            pts = storage.get_equity_series(user)
+            if pts:
+                df_eq = pd.DataFrame(pts, columns=["ts", "equity"])  # type: ignore
+                df_eq["ts"] = pd.to_datetime(df_eq["ts"])
+                eq_chart = (
+                    alt.Chart(df_eq)
+                    .mark_line(color="#2b8cbe")
+                    .encode(x=alt.X("ts:T", title="Time"), y=alt.Y("equity:Q", title="Equity"))
+                )
+                st.subheader("Equity Curve")
+                st.altair_chart(eq_chart.properties(height=200), use_container_width=True)
+            else:
+                st.write("No equity history for this user yet.")
+
+        st.subheader("Recent simulated trades (audit)")
+        rows = storage.get_simulated_trades(limit=20)
+        if rows:
+            df_tr = pd.DataFrame(rows, columns=["id", "ts", "user", "symbol", "side", "qty", "price", "note"])  # type: ignore
+            st.table(df_tr)
+        else:
+            st.write("No simulated trades yet.")
+
+        # Grok suggestion
+        from grok_integration import generate_suggestion
+
+        if st.button("Generate Grok suggestion", key=f"{kind}_grok_suggestion"):
+            ctx = {"score": row.get("score"), "signal": row.get("signal")}
+            sugg = generate_suggestion(choice, ctx)
+            st.info(sugg.get("text"))
+            st.write("Confidence:", f"{sugg.get('confidence'):.2f}")
+
+
+def show_news_tab() -> None:
+    st.subheader("Latest Alert")
+    last = read_latest_alert_text("alerts/latest_alert.txt")
+    if last:
+        st.info(last)
+    else:
+        st.write("No latest alert file found.")
+
+    st.subheader("Latest Summary JSON")
+    summary = read_summary_json("alerts/latest_summary.json")
+    if summary:
+        st.json(summary)
+    else:
+        st.write("No latest summary JSON found.")
+
+    st.subheader("News & Suggestions")
+    # simple suggestions: echo top picks with a short suggestion sentence
+    top_picks = read_summary_json("alerts/latest_summary.json").get("top_picks", [])
+    suggestions = []
+    for p in top_picks[:10]:
+        symbol = p.get("symbol")
+        signal = p.get("signal")
+        if symbol and signal:
+            suggestions.append(
+                f"{symbol}: Current suggestion — {signal}. Consider watching entry {p.get('entry')} and stop {p.get('stop')}"
+            )
+
+    if suggestions:
+        for s in suggestions:
+            st.write("- ", s)
+    else:
+        st.write("No suggestions available.")
+
+    # RSS / news fetcher
+    st.markdown("---")
+    # Dashboard Overview panel (quick metrics & aggregate equity chart)
+    with st.expander("Overview", expanded=True):
+        try:
+            acct_rows = storage.list_accounts()
+            total_accounts = len(acct_rows)
+        except Exception:
+            total_accounts = 0
+
+        open_pos_count = 0
+        try:
+            for a in storage.list_accounts():
+                open_pos = storage.get_open_positions(a[0])
+                if open_pos:
+                    open_pos_count += len(open_pos)
+        except Exception:
+            open_pos_count = open_pos_count
+
+        total_trades = 0
+        try:
+            rows = storage.get_simulated_trades(limit=1000000)
+            total_trades = len(rows) if rows else 0
+        except Exception:
+            total_trades = total_trades
+
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.metric("Accounts", total_accounts)
+        with c2:
+            st.metric("Open positions", open_pos_count)
+        with c3:
+            st.metric("Simulated trades", total_trades)
+
+        # aggregated equity chart across snapshot points
+        try:
+            pts = storage.get_snapshot_points(limit=2000)
+            if pts:
+                df_eq = pd.DataFrame(pts, columns=["user", "ts", "equity"])  # type: ignore
+                df_eq["ts"] = pd.to_datetime(df_eq["ts"])
+                df_agg = df_eq.groupby("ts")["equity"].sum().reset_index()
+                chart = (
+                    alt.Chart(df_agg)
+                    .mark_line(color="#2b8cbe")
+                    .encode(x=alt.X("ts:T", title="Time"), y=alt.Y("equity:Q", title="Total Equity"))
+                )
+                st.altair_chart(chart.properties(height=200), use_container_width=True)
+        except Exception:
+            pass
+
+        # Top Picks summary and simple chart (reads TOP_PICKS_FILE if present)
+        try:
+            tp = Path(TOP_PICKS_FILE)
+            if tp.exists():
+                txt = tp.read_text()
+                import json as _json
+                from io import StringIO as _StringIO
+
+                df_p = pd.DataFrame()
+                try:
+                    parsed = _json.loads(txt)
+                    if isinstance(parsed, list):
+                        df_p = pd.DataFrame(parsed)
+                except Exception:
+                    try:
+                        df_p = pd.read_csv(_StringIO(txt))
+                    except Exception:
+                        df_p = pd.DataFrame()
+
+                if not df_p.empty:
+                    st.subheader("Top Picks")
+                    # prefer columns symbol and score if present
+                    show_cols = [c for c in ("symbol", "score") if c in df_p.columns]
+                    st.table(df_p.head(10)[show_cols] if show_cols else df_p.head(10))
+                    if "score" in df_p.columns and "symbol" in df_p.columns:
+                        ch = (
+                            alt.Chart(df_p.head(10))
+                            .mark_bar()
+                            .encode(
+                                x=alt.X("symbol:N", sort='-y', title="Symbol"),
+                                y=alt.Y("score:Q", title="Score"),
+                                color=alt.value("#2b8cbe"),
+                            )
+                        )
+                        st.altair_chart(ch, use_container_width=True)
+        except Exception:
+            pass
+
+        # Voice assistant prototype (client-side speech + server-side reply)
+        with st.expander("Voice Assistant (prototype)"):
+            st.write(
+                "Try speaking or typing a question. This is a local prototype: replies are generated from simple rules."
+            )
+            va_user = st.session_state.get("user")
+            query = st.text_input("Ask the assistant", key="va_query")
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                if st.button("Ask Assistant"):
+                    try:
+                        from tools import voice_assistant as va
+
+                        reply = va.generate_reply(query or "", user=va_user)
+                        st.info(reply)
+                        # speak the reply via client-side TTS using a tiny component
+                        import json as _json
+
+                        js = f"<script>const msg={_json.dumps(reply)}; const u=new SpeechSynthesisUtterance(msg); window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);</script>"
+                        st.components.v1.html(js, height=0)
+                    except Exception as e:
+                        st.error(f"Assistant error: {e}")
+            with col2:
+                # small client-side speech capture UI (Web Speech API) — transcribes locally in the browser
+                st.components.v1.html(
+                    """
+                                <div>
+                                    <button id="start">Start voice capture</button>
+                                    <button id="stop">Stop</button>
+                                    <div id="out" style="margin-top:8px;color:#222;">Transcript will appear here.</div>
+                                    <script>
+                                        let recognition=null;
+                                        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                                            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+                                            recognition = new SR();
+                                            recognition.lang = 'en-US';
+                                            recognition.interimResults = false;
+                                            recognition.onresult = (e) => { document.getElementById('out').innerText = e.results[0][0].transcript; };
+                                            recognition.onerror = (e) => { document.getElementById('out').innerText = 'Error: '+e.error; };
+                                        } else {
+                                            document.getElementById('out').innerText = 'Speech recognition not available in this browser.';
+                                        }
+                                        document.getElementById('start').onclick = () => { if(recognition) recognition.start(); };
+                                        document.getElementById('stop').onclick = () => { if(recognition) recognition.stop(); };
+                                    </script>
+                                </div>
+                                """,
+                    height=140,
+                )
+    st.subheader("External News Feeds")
+    try:
+        from news import fetch_news, save_highlights
+    except Exception as e:
+        fetch_news = None
+        save_highlights = None
+        st.error(f"News module unavailable: {e}")
+
+    with st.expander("Fetch latest headlines"):
+        max_items = st.slider("Headlines", 5, 50, 10)
+        if fetch_news is None:
+            headlines = []
+        else:
+            try:
+                headlines = fetch_news(max_items=max_items)
+            except Exception as e:
+                st.error(f"Failed to fetch news: {e}")
+                headlines = []
+
+        if not headlines:
+            st.write("No items fetched.")
+        else:
+            sources = sorted({h.get("source", "") for h in headlines})
+            sel = st.multiselect("Sources", options=sources, default=sources)
+            sent_threshold = st.slider("Minimum sentiment", -1.0, 1.0, 0.0, 0.1)
+
+            filtered = [h for h in headlines if h.get("source") in sel and h.get("sentiment", 0) >= sent_threshold]
+
+            st.write(f"Showing {len(filtered)} / {len(headlines)} items")
+
+            to_save = []
+            for h in filtered:
+                s = h.get("sentiment", 0.0)
+                if s > 0.2:
+                    sentiment_mark = f"🟢 {s:.2f}"
+                elif s < -0.2:
+                    sentiment_mark = f"🔴 {s:.2f}"
+                else:
+                    sentiment_mark = f"🟡 {s:.2f}"
+
+                st.markdown(f"**[{h['source']}]** {sentiment_mark} [{h['title']}]({h['link']})")
+                st.write(h.get("summary", "")[:500])
+                if st.button(f"Save highlight: {h.get('title')[:60]}", key=h.get("link")):
+                    to_save.append(h)
+                    st.success("Saved")
+                st.write("---")
+
+            if st.button("Save all visible highlights") and filtered:
+                try:
+                    if save_highlights is None:
+                        st.error("News highlight saver is unavailable.")
+                    else:
+                        save_highlights(filtered)
+                        st.success(f"Saved {len(filtered)} items to alerts/news_highlights.json")
+                except Exception as e:
+                    st.error(f"Failed to save highlights: {e}")
+
+    # Saved highlights review
+    st.markdown("---")
+    st.subheader("Saved Highlights")
+    highlights_path = Path("alerts/news_highlights.json")
+    if highlights_path.exists():
+        try:
+            saved = json.loads(highlights_path.read_text())
+        except Exception:
+            saved = []
+    else:
+        saved = []
+
+    if not saved:
+        st.write("No saved highlights yet.")
+    else:
+        for i, h in enumerate(list(saved)):
+            st.markdown(
+                f"**{h.get('source','')}** [{h.get('title','')}]({h.get('link','')}) — sentiment {h.get('sentiment',0):+.2f}"
+            )
+            if st.button(f"Remove", key=f"rm_{i}"):
+                try:
+                    saved.pop(i)
+                    highlights_path.write_text(json.dumps(saved, indent=2))
+                    st.experimental_rerun()
+                except Exception as e:
+                    st.error(f"Failed to remove: {e}")
+            st.write(h.get("summary", "")[:400])
+            st.write("---")
+
+        if st.button("Export saved highlights to CSV"):
+            df = pd.DataFrame(saved)
+            outp = runtime_path("output/news_highlights.csv")
+            outp.parent.mkdir(parents=True, exist_ok=True)
+            df.to_csv(outp, index=False)
+            st.success(f"Wrote {outp}")
+
+
+def load_latest_ma_scan(prefix: str = "ma_strategy") -> tuple[Optional[str], pd.DataFrame]:
+    path = heartbeat_artifact_path("scan_path") if prefix == "ma_live_strategy" else None
+    path = path or latest_file(f"output/{prefix}_*.csv")
+    if not path:
+        return None, pd.DataFrame()
+    try:
+        return path, pd.read_csv(path)
+    except Exception:
+        return path, pd.DataFrame()
+
+
+def load_latest_ma_confluence() -> tuple[Optional[str], pd.DataFrame]:
+    path = heartbeat_artifact_path("confluence_path") or latest_file("output/ma_confluence_*.csv")
+    if not path:
+        return None, pd.DataFrame()
+    try:
+        return path, pd.read_csv(path)
+    except Exception:
+        return path, pd.DataFrame()
+
+
+def load_latest_options_candidates() -> tuple[Optional[str], pd.DataFrame]:
+    path = heartbeat_artifact_path("options_path") or latest_file("output/options_candidates_*.csv")
+    if not path:
+        return None, pd.DataFrame()
+    try:
+        return path, pd.read_csv(path)
+    except Exception:
+        return path, pd.DataFrame()
+
+
+def pct_display(value) -> str:
+    try:
+        if pd.isna(value):
+            return "-"
+        return f"{float(value) * 100:.2f}%"
+    except Exception:
+        return "-"
+
+
+def num_display(value, digits: int = 2) -> str:
+    try:
+        if pd.isna(value):
+            return "-"
+        return f"{float(value):,.{digits}f}"
+    except Exception:
+        return "-"
+
+
+def text_display(value) -> str:
+    try:
+        if pd.isna(value):
+            return "-"
+    except Exception:
+        pass
+    value = str(value).strip()
+    return value if value else "-"
+
+
+def strategy_family_for_row(row: dict[str, Any]) -> str:
+    explicit = row.get("strategy_family") or row.get("salto_family")
+    if text_display(explicit) != "-":
+        return strategy_family_from_setup(explicit)
+    setup = row.get("trigger_setup") or row.get("setup") or row.get("raw_signal")
+    trend = row.get("trend_setup") or row.get("trend")
+    return strategy_family_from_setup(setup, trend_setup=trend)
+
+
+def safe_key(value: Any) -> str:
+    text = str(value or "item").strip().lower()
+    cleaned = [ch if ch.isalnum() else "_" for ch in text]
+    return "_".join(part for part in "".join(cleaned).split("_") if part) or "item"
+
+
+def resolve_study_strategy_choice(
+    strategy_names: list[str],
+    preferred: str,
+    *,
+    requested: str | None = None,
+    current: str | None = None,
+) -> str:
+    if requested in strategy_names:
+        return str(requested)
+    if current in strategy_names:
+        return str(current)
+    if preferred in strategy_names:
+        return preferred
+    return strategy_names[0] if strategy_names else "-"
+
+
+def chart_strategy_summary(
+    setup: dict,
+    confluence: dict | None,
+    brief: dict | None,
+    chart_df: pd.DataFrame,
+) -> dict[str, str]:
+    confluence = confluence or {}
+    brief = brief or {}
+    setup_name = text_display(setup.get("setup") or confluence.get("trigger_setup"))
+    family = strategy_family_from_setup(setup_name, trend_setup=confluence.get("trend_setup"))
+    action = human_trade_action(brief) if brief else action_label(confluence.get("signal"))
+    tone = "buy" if action in {"Operar", "Comprar"} else "avoid" if action in {"No operar", "Evitar"} else "watch"
+    latest = chart_df.iloc[-1].to_dict() if not chart_df.empty else {}
+    sma20 = safe_float(latest.get("sma20") or setup.get("sma20"))
+    sma40 = safe_float(latest.get("sma40") or setup.get("sma40"))
+    sma200 = safe_float(latest.get("sma200") or setup.get("sma200"))
+    risk = safe_float(brief.get("risk_pct") or confluence.get("risk_pct")) or setup_risk_pct(setup)
+    target = safe_float(brief.get("recommended_target_pct") or confluence.get("recommended_target_pct"))
+
+    watch_plan = brief.get("watch_plan") if isinstance(brief, dict) else {}
+    movement = text_display((watch_plan or {}).get("movement"))
+    if movement == "-":
+        if family == "Pullback":
+            movement = f"Esperar rebote en SMA20/SMA40 ({num_display(sma20)} - {num_display(sma40)}) con vela verde."
+        elif family == "Cruce de medias":
+            movement = "Esperar que SMA20 cruce y sostenga sobre SMA40 con confirmacion 1h."
+        elif family == "Canal alcista":
+            movement = "Esperar continuacion sobre SMA20 sin perder estructura 20/40/100/200."
+        elif family == "Canal lateral":
+            movement = "Esperar rebote en soporte o ruptura de resistencia con volumen."
+        elif family == "Tendencia bajista":
+            movement = f"No buscar calls hasta recuperar SMA200 {num_display(sma200)}."
+        else:
+            movement = "Esperar 15m en BUY, 1h confirmando, volumen y riesgo medible."
+
+    if action in {"Operar", "Comprar"}:
+        decision_note = "Setup listo si respeta entrada, stop y volumen."
+    elif action in {"No operar", "Evitar"}:
+        decision_note = "No entrar hasta que cambie la estructura."
+    else:
+        decision_note = "Vigilar sin ejecutar; falta una confirmacion."
+
+    return {
+        "family": family,
+        "setup": setup_name,
+        "action": action,
+        "tone": tone,
+        "movement": movement,
+        "decision_note": decision_note,
+        "risk": pct_display(risk),
+        "target": pct_display(target),
+    }
+
+
+def render_chart_strategy_summary(
+    setup: dict,
+    confluence: dict | None,
+    brief: dict | None,
+    chart_df: pd.DataFrame,
+) -> None:
+    summary = chart_strategy_summary(setup, confluence, brief, chart_df)
+    tone = summary["tone"] if summary["tone"] in {"buy", "watch", "avoid"} else "neutral"
+    st.markdown(
+        f"""
+        <div class="chart-context chart-context-{tone}">
+            <div>
+                <div class="chart-context-kicker">Lectura de estrategia</div>
+                <div class="chart-context-title">{html.escape(summary["family"])} · {html.escape(summary["action"])}</div>
+                <div class="chart-context-text">{html.escape(summary["movement"])}</div>
+            </div>
+            <div class="chart-context-grid">
+                <span>Setup <strong>{html.escape(summary["setup"])}</strong></span>
+                <span>Riesgo <strong>{html.escape(summary["risk"])}</strong></span>
+                <span>Target <strong>{html.escape(summary["target"])}</strong></span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def command_center_target_prices(row: dict[str, Any]) -> dict[str, float | None]:
+    entry = safe_float(row.get("entry"))
+    targets = {
+        "target_2": safe_float(row.get("target_2pct_price") or row.get("target_2")),
+        "target_5": safe_float(row.get("target_5pct_price") or row.get("target_5")),
+        "target_10": safe_float(row.get("target_10pct_price") or row.get("target_10")),
+    }
+    ladder = row.get("target_ladder") or []
+    for item in ladder if isinstance(ladder, list) else []:
+        label = str(item.get("target") or "")
+        price = safe_float(item.get("target_price"))
+        if price is None:
+            continue
+        if label == "2%":
+            targets["target_2"] = price
+        elif label == "5%":
+            targets["target_5"] = price
+        elif label == "10%":
+            targets["target_10"] = price
+    if entry is not None:
+        targets["target_2"] = targets["target_2"] if targets["target_2"] is not None else entry * 1.02
+        targets["target_5"] = targets["target_5"] if targets["target_5"] is not None else entry * 1.05
+        targets["target_10"] = targets["target_10"] if targets["target_10"] is not None else entry * 1.10
+    return targets
+
+
+def command_center_checklist_rows(row: dict[str, Any]) -> list[dict[str, str]]:
+    checks = row.get("condition_checks")
+    rows: list[dict[str, str]] = []
+
+    def add(label: str, passed: bool | None, detail: Any = "-") -> None:
+        if passed is True:
+            status = "OK"
+            tone = "buy"
+        elif passed is False:
+            status = "Falta"
+            tone = "avoid"
+        else:
+            status = "Pendiente"
+            tone = "watch"
+        rows.append(
+            {
+                "label": label,
+                "status": status,
+                "tone": tone,
+                "detail": text_display(detail),
+            }
+        )
+
+    if isinstance(checks, list) and checks:
+        for item in checks[:7]:
+            passed_value = item.get("passed")
+            add(
+                str(item.get("label") or "Condicion"),
+                passed_value if isinstance(passed_value, bool) else None,
+                item.get("detail"),
+            )
+        return rows
+
+    signal = str(row.get("signal") or "").upper()
+    decision = str(row.get("decision") or row.get("trade_decision") or "").upper()
+    trade_ready = opportunity_is_trade_ready(row)
+    risk = safe_float(row.get("risk_pct"))
+    target = safe_float(row.get("recommended_target_pct") or row.get("target_pct"))
+    relative_volume = safe_float(row.get("relative_volume") or row.get("relative_volume_15m"))
+    backtest = row.get("backtest_eligible")
+
+    add("1h confirma", True if trade_ready else None, row.get("trend") or row.get("trend_setup") or "Esperando 1h")
+    add("15m da entrada", trade_ready if signal else None, decision or signal or "Sin gatillo")
+    add(
+        "Volumen acompana",
+        None if relative_volume is None else relative_volume >= 0.8,
+        f"{relative_volume:.2f}x" if relative_volume is not None else "No disponible",
+    )
+    add("Riesgo bajo", None if risk is None else risk <= 0.035, pct_display(risk))
+    add("Target 2% viable", None if target is None else target >= 0.02, pct_display(target))
+    if backtest is not None:
+        add("Filtro historico", bool(backtest), "Backtest elegible" if bool(backtest) else "No validado")
+    return rows
+
+
+def build_command_center_summary(row: dict[str, Any]) -> dict[str, Any]:
+    action = str(row.get("action") or row.get("ai_action") or "").upper()
+    signal = str(row.get("signal") or "").upper()
+    decision_raw = str(row.get("decision") or row.get("trade_decision") or "").upper()
+    if action in {"BUY_STOCK", "WATCH_CALL"} or opportunity_is_trade_ready(row):
+        status = "Operar"
+        tone = "buy"
+    elif action == "NO_TRADE" or signal == "AVOID" or decision_raw.startswith("NO_TRADE"):
+        status = "No operar"
+        tone = "avoid"
+    else:
+        status = "Esperar"
+        tone = "watch"
+
+    decision = text_display(row.get("decision"))
+    if decision == "-":
+        decision = human_trade_action(row)
+    strategy = text_display(row.get("strategy_family"))
+    if strategy == "-":
+        strategy = strategy_family_for_row(row)
+    reason = text_display((row.get("decision_reason") or {}).get("summary") if isinstance(row.get("decision_reason"), dict) else None)
+    if reason == "-":
+        reason = human_alert_reason(row) or opportunity_reason_label(row)
+    movement = text_display((row.get("watch_plan") or {}).get("movement") if isinstance(row.get("watch_plan"), dict) else None)
+    if movement == "-":
+        movement = watch_movement_label(row)
+    memory = row.get("memory") or {}
+    memory_note = text_display(memory.get("note") if isinstance(memory, dict) else None)
+    targets = command_center_target_prices(row)
+    return {
+        "symbol": text_display(row.get("symbol")).upper(),
+        "market": text_display(row.get("market")),
+        "timeframe": text_display(row.get("timeframe")),
+        "status": status,
+        "tone": tone,
+        "decision": decision,
+        "strategy": strategy,
+        "reason": reason,
+        "movement": movement,
+        "entry": safe_float(row.get("entry")),
+        "stop": safe_float(row.get("stop")),
+        "risk": safe_float(row.get("risk_pct")),
+        "score": safe_float(row.get("score") or row.get("ai_score")),
+        "readiness": safe_float(row.get("readiness") or row.get("alert_readiness_score")),
+        "target_2": targets["target_2"],
+        "target_5": targets["target_5"],
+        "target_10": targets["target_10"],
+        "memory_note": memory_note,
+    }
+
+
+def render_command_center_panel(row: dict[str, Any], *, platform_ticket: dict | None = None) -> None:
+    summary = build_command_center_summary(row)
+    tone = summary["tone"] if summary["tone"] in {"buy", "watch", "avoid"} else "watch"
+    platform_name_text = text_display((platform_ticket or {}).get("platform"))
+    platform_status_text = platform_status_label((platform_ticket or {}).get("status")) if platform_ticket else "-"
+    platform_qty = num_display((platform_ticket or {}).get("quantity"), 4) if platform_ticket else "-"
+    st.markdown(
+        f"""
+        <section class="command-center command-center-{html.escape(tone)}">
+            <div class="command-main">
+                <div class="command-kicker">Oportunidad real</div>
+                <h2>{html.escape(summary["symbol"])} · {html.escape(summary["status"])}</h2>
+                <p>{html.escape(summary["reason"])}</p>
+            </div>
+            <div class="command-side">
+                <span>Accion Roxy</span>
+                <strong>{html.escape(summary["decision"])}</strong>
+                <small>{html.escape(summary["strategy"])} · {html.escape(summary["timeframe"])}</small>
+            </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+    kpis = st.columns([0.85, 0.85, 1.15, 1.15, 0.9, 1.15])
+    with kpis[0]:
+        render_kpi_card("Entrada", num_display(summary["entry"]), tone="buy" if tone == "buy" else "neutral")
+    with kpis[1]:
+        render_kpi_card("Stop", num_display(summary["stop"]), tone="avoid")
+    with kpis[2]:
+        render_kpi_card("Targets", f"{num_display(summary['target_2'])} / {num_display(summary['target_5'])} / {num_display(summary['target_10'])}")
+    with kpis[3]:
+        render_kpi_card("Esperamos", summary["movement"], tone="watch")
+    with kpis[4]:
+        render_kpi_card("Riesgo", pct_display(summary["risk"]), tone="buy" if summary["risk"] and summary["risk"] <= 0.035 else "watch")
+    with kpis[5]:
+        render_kpi_card("Plataforma", platform_name_text, detail=f"{platform_status_text} | Qty {platform_qty}", tone="watch")
+
+    checklist = command_center_checklist_rows(row)
+    if checklist:
+        cards = []
+        for item in checklist:
+            cards.append(
+                f'<div class="command-check command-check-{html.escape(item["tone"])}">'
+                f'<span>{html.escape(item["label"])}</span>'
+                f'<strong>{html.escape(item["status"])}</strong>'
+                f'<small>{html.escape(item["detail"])}</small>'
+                "</div>"
+            )
+        st.markdown(
+            '<div class="command-checklist">' + "".join(cards) + "</div>",
+            unsafe_allow_html=True,
+        )
+    if summary["memory_note"] != "-":
+        st.caption("Memoria Roxy: " + summary["memory_note"])
+
+
+def load_symbol_trade_context(
+    *,
+    symbol: str,
+    market: str,
+    timeframe: str,
+    confluence_df: pd.DataFrame,
+    options_df: pd.DataFrame,
+    account_equity: float,
+    risk_per_trade_pct: float,
+    memory: dict | None = None,
+) -> dict[str, Any]:
+    resolved_symbol = resolve_symbol_query(symbol, market)
+    history = fetch_symbol_history(resolved_symbol, market=market, timeframe=timeframe)
+    chart_df = prepare_symbol_chart_data(history)
+    setup = analyze_moving_average_setup(history) if not history.empty else {}
+    if chart_df.empty or not setup:
+        return {"symbol": resolved_symbol, "chart_df": chart_df, "setup": setup, "trade_brief": {}}
+    confluence = latest_confluence_row(confluence_df, resolved_symbol)
+    trade_brief = build_symbol_trade_brief(
+        symbol=resolved_symbol,
+        market=market,
+        timeframe=timeframe,
+        setup=setup,
+        confluence=confluence,
+        options_df=options_df,
+        account_equity=float(account_equity),
+        account_risk_pct=float(risk_per_trade_pct),
+        memory=memory or load_memory(),
+    )
+    return {
+        "symbol": resolved_symbol,
+        "market": market,
+        "timeframe": timeframe,
+        "history": history,
+        "chart_df": chart_df,
+        "setup": setup,
+        "confluence": confluence,
+        "trade_brief": trade_brief,
+    }
+
+
+def render_professional_chart_block(
+    chart_df: pd.DataFrame,
+    setup: dict,
+    confluence: dict | None,
+    trade_brief: dict | None,
+    *,
+    price_height: int = 500,
+    volume_height: int = 130,
+    oscillator_height: int = 120,
+) -> None:
+    clean_window = prepare_chart_window(chart_df)
+    if clean_window.empty:
+        st.warning("Roxy no tiene suficientes velas limpias para dibujar la grafica.")
+        return
+    if len(clean_window) < 40:
+        st.info("Grafica limitada: hay pocas velas limpias para este simbolo/timeframe. Roxy muestra niveles, pero exige confirmacion extra.")
+    price_chart = build_professional_price_chart(clean_window, setup, confluence, trade_brief or {}).properties(height=price_height)
+    volume_chart = build_professional_volume_chart(clean_window)
+    oscillator_chart = build_professional_oscillator_chart(clean_window)
+    panels = [price_chart]
+    if volume_chart is not None:
+        panels.append(volume_chart.properties(height=volume_height))
+    if oscillator_chart is not None:
+        panels.append(oscillator_chart.properties(height=oscillator_height))
+    if len(panels) > 1:
+        combined_chart = alt.vconcat(*panels).resolve_scale(x="shared")
+        st.altair_chart(style_trading_chart(combined_chart), use_container_width=True)
+    else:
+        st.altair_chart(style_trading_chart(price_chart), use_container_width=True)
+
+
+def render_command_center_analysis(
+    context: dict[str, Any],
+    *,
+    app_brief: dict,
+    account_equity: float,
+    risk_per_trade_pct: float,
+) -> None:
+    chart_df = context.get("chart_df") if isinstance(context.get("chart_df"), pd.DataFrame) else pd.DataFrame()
+    setup = context.get("setup") or {}
+    trade_brief = context.get("trade_brief") or {}
+    if chart_df.empty or not setup or not trade_brief:
+        st.info(f"No hay suficiente historial para analizar {context.get('symbol', '-')}.")
+        return
+    confluence = context.get("confluence") or {}
+    ticket = trade_plan_platform_preview(
+        trade_brief,
+        account_equity=float(account_equity),
+        risk_per_trade_pct=float(risk_per_trade_pct),
+        source_freshness=app_brief.get("source_freshness"),
+        market_session=app_brief.get("market_session"),
+    )
+    render_command_center_panel(trade_brief, platform_ticket=ticket)
+    render_chart_strategy_summary(setup, confluence, trade_brief, chart_df)
+    render_chart_level_plan(chart_df, setup, confluence, trade_brief)
+    render_professional_chart_block(chart_df, setup, confluence, trade_brief, price_height=450, volume_height=115)
+    render_operation_gate(trade_brief)
+    with st.expander("Detalles: por que Roxy toma esta decision", expanded=False):
+        render_trade_plan_platform_preview(ticket)
+        render_decision_reason(trade_brief)
+        render_decision_transition(trade_brief)
+        render_strategy_event_panel(chart_df, setup)
+
+
+def platform_badge_rows(env: dict[str, str] | None = None) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for platform_id, profile in PLATFORM_PROFILES.items():
+        brand = PLATFORM_BADGE_BRANDS.get(platform_id, {})
+        try:
+            status = platform_credential_status(platform_id, env=env)
+        except Exception:
+            status = {"mode": "NEEDS_CREDENTIALS", "configured": False}
+        mode = str(status.get("mode") or "NEEDS_CREDENTIALS")
+        configured = bool(status.get("configured"))
+        rows.append(
+            {
+                "platform_id": platform_id,
+                "name": str(profile.get("name") or platform_id),
+                "abbr": str(brand.get("abbr") or platform_id[:2].upper()),
+                "asset": str(brand.get("asset") or ", ".join(profile.get("assets", []))),
+                "use": str(brand.get("use") or profile.get("best_for") or "-"),
+                "mode": connection_mode_label(mode),
+                "tone": "buy" if configured else "watch",
+                "accent": str(brand.get("accent") or "#38bdf8"),
+            }
+        )
+    return rows
+
+
+def render_platform_logo_strip() -> None:
+    badges = platform_badge_rows()
+    if not badges:
+        return
+    badge_html = []
+    for row in badges:
+        tone = row["tone"] if row["tone"] in {"buy", "watch", "avoid"} else "neutral"
+        badge_html.append(
+            (
+                f'<div class="platform-badge platform-badge-{tone}">'
+                f'<div class="platform-mark" style="border-color:{html.escape(row["accent"])};color:{html.escape(row["accent"])}">'
+                f'{html.escape(row["abbr"])}</div>'
+                '<div class="platform-copy">'
+                f'<div class="platform-name">{html.escape(row["name"])}</div>'
+                f'<div class="platform-meta">{html.escape(row["asset"])} · {html.escape(row["mode"])}</div>'
+                '</div></div>'
+            )
+        )
+    st.markdown(
+        f'<div class="platform-strip" aria-label="Plataformas">{"".join(badge_html)}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def study_guides_with_lab(lab_rows: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    lab_by_strategy = {str(row.get("strategy_family")): row for row in lab_rows or []}
+    guides: list[dict[str, Any]] = []
+    for strategy in CORE_STRATEGIES:
+        guide = dict(STRATEGY_STUDY_GUIDES.get(strategy, {}))
+        lab = lab_by_strategy.get(strategy, {})
+        guides.append(
+            {
+                "strategy": strategy,
+                "headline": guide.get("headline", "Estudiar la estructura, entrada, riesgo y salida del setup."),
+                "works_when": guide.get("works_when", "-"),
+                "entry": guide.get("entry", "-"),
+                "avoid": guide.get("avoid", "-"),
+                "option_note": guide.get("option_note", "-"),
+                "practice": guide.get("practice", "-"),
+                "requirements": guide.get("requirements", []),
+                "requirements_text": guide.get("requirements_text") or " | ".join(guide.get("requirements", []) or []),
+                "confirmation_timeframes": guide.get("confirmation_timeframes", []),
+                "direction": guide.get("direction", "-"),
+                "lab_state": lab.get("lab_state", "Collect data"),
+                "evidence_score": lab.get("evidence_score"),
+                "memory_bias": lab.get("memory_bias"),
+                "adaptive_weight": lab.get("adaptive_weight"),
+                "backtest_win_rate": lab.get("backtest_win_rate"),
+                "backtest_profit_factor": lab.get("backtest_profit_factor"),
+                "lab_decision": lab.get("lab_decision"),
+                "experiment_rule": lab.get("experiment_rule"),
+            }
+        )
+    return guides
+
+
+def render_strategy_study_preview(strategy: str, lab_row: dict[str, Any] | None = None) -> None:
+    guide = STRATEGY_STUDY_GUIDES.get(strategy)
+    if not guide:
+        st.info("No hay guia de estudio para esta estrategia todavia.")
+        return
+    lab_row = lab_row or {}
+    lab_state = text_display(lab_row.get("lab_state"))
+    evidence = safe_float(lab_row.get("evidence_score"))
+    st.markdown(
+        f"""
+        <div class="study-hero study-hero-watch">
+            <div>
+                <div class="study-kicker">Estudio desde Roxy Lab</div>
+                <h2>{html.escape(strategy)}</h2>
+                <p>{html.escape(text_display(guide.get("headline")))}</p>
+            </div>
+            <div class="study-status">
+                <span>Lab</span>
+                <strong>{html.escape(lab_state)}</strong>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    cols = st.columns(4)
+    with cols[0]:
+        render_kpi_card("Evidencia", pct_display(evidence), tone="buy" if evidence and evidence >= 0.65 else "watch")
+    with cols[1]:
+        render_kpi_card("Entrada", guide.get("entry"), tone="watch")
+    with cols[2]:
+        render_kpi_card("No operar si", guide.get("avoid"), tone="avoid")
+    with cols[3]:
+        render_kpi_card("Practica", guide.get("practice"))
+    rule = text_display(lab_row.get("experiment_rule") or lab_row.get("lab_decision"))
+    if rule != "-":
+        st.caption(rule)
+
+
+def study_example_rows(confluence_df: pd.DataFrame, brief: dict, strategy: str) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    for row in brief.get("opportunities", []):
+        row_dict = dict(row)
+        family = strategy_family_for_row(row_dict)
+        if family == strategy:
+            row_dict["strategy_family"] = family
+            row_dict["source"] = "brief"
+            rows.append(row_dict)
+    if not confluence_df.empty:
+        for _, item in confluence_df.head(200).iterrows():
+            row_dict = item.to_dict()
+            family = strategy_family_for_row(row_dict)
+            if family == strategy:
+                row_dict["strategy_family"] = family
+                row_dict["source"] = "confluencia"
+                rows.append(row_dict)
+    if not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(rows)
+    if "confluence_score" in df.columns:
+        df["sort_score"] = pd.to_numeric(df["confluence_score"], errors="coerce").fillna(0)
+    elif "ai_score" in df.columns:
+        df["sort_score"] = pd.to_numeric(df["ai_score"], errors="coerce").fillna(0)
+    else:
+        df["sort_score"] = 0
+    if "symbol" in df.columns:
+        df["symbol"] = df["symbol"].astype(str).str.upper()
+    return df.sort_values("sort_score", ascending=False).drop_duplicates(subset=["symbol"], keep="first")
+
+
+def render_roxy_brand_header(
+    *,
+    scan_df: pd.DataFrame,
+    confluence_df: pd.DataFrame,
+    options_df: pd.DataFrame,
+    daily_path: str | None,
+    live_path: str | None,
+    confluence_path: str | None,
+    options_path: str | None,
+    brief: dict,
+) -> None:
+    state = live_service_state()
+    freshness = data_freshness_status([live_path, confluence_path], max_age_minutes=10.0)
+    session = brief.get("market_session") or market_session_status()
+    table = focused_opportunity_table(brief)
+    best = table.iloc[0].to_dict() if not table.empty else {}
+    best_symbol = text_display(best.get("symbol"))
+    best_action = human_trade_action(best) if best else "Esperar"
+    best_detail = text_display(best.get("waiting_for") or best.get("por_que"))
+    source_time = latest_timestamp([daily_path, live_path, confluence_path, options_path])
+    service_label = "Activo" if state.get("loaded") == "yes" else "Pausado"
+    service_tone = "buy" if state.get("loaded") == "yes" else "watch"
+    data_tone = freshness.get("tone", "watch")
+    session_text = text_display(session.get("stock_session"))
+
+    def chip(label: str, value: Any, tone: str = "neutral") -> str:
+        tone = tone if tone in {"buy", "watch", "avoid", "neutral"} else "neutral"
+        return (
+            f'<div class="hero-chip hero-chip-{tone}">'
+            f'<span>{html.escape(label)}</span><strong>{html.escape(text_display(value))}</strong>'
+            f"</div>"
+        )
+
+    hero_html = (
+        '<section class="roxy-hero">'
+        '<div class="roxy-hero-left">'
+        '<div class="roxy-brand-row">'
+        f'{ROXY_LOGO_SVG.strip()}'
+        '<div><h1>Roxy Trading</h1>'
+        '<p>Scanner profesional · SMA 20/40/100/200 · saltos · alertas IA 24h</p></div>'
+        '</div>'
+        '<div class="hero-flow">'
+        '<div class="flow-step"><span>1</span>Detecta setup</div>'
+        '<div class="flow-step"><span>2</span>Valida 1h + 15m</div>'
+        '<div class="flow-step"><span>3</span>Plan de riesgo</div>'
+        '<div class="flow-step"><span>4</span>Ticket manual</div>'
+        '<div class="flow-step"><span>5</span>Memoria IA</div>'
+        '</div></div>'
+        '<div class="roxy-hero-right">'
+        f'{chip("24h", service_label, service_tone)}'
+        f'{chip("Datos", freshness.get("label"), data_tone)}'
+        f'{chip("Sesion", session_text, "buy" if session.get("stock_alerts_allowed") else "watch")}'
+        f'{chip("Top", f"{best_symbol} · {best_action}", signal_tone(best.get("signal", "")) if best else "watch")}'
+        '</div></section>'
+        '<div class="hero-subline">'
+        f'<span>Ultima lectura: {html.escape(source_time)}</span>'
+        f'<span>{html.escape(best_detail[:180])}</span>'
+        '</div>'
+    )
+    st.markdown(hero_html, unsafe_allow_html=True)
+    render_platform_logo_strip()
+
+
+
+def notification_channel_display(rows: list[dict] | pd.DataFrame) -> pd.DataFrame:
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return df
+    if "channel" in df.columns:
+        df["channel"] = df["channel"].map(lambda value: NOTIFICATION_CHANNEL_LABELS.get(str(value), text_display(value)))
+    if "configured" in df.columns:
+        df["status"] = df["configured"].map(lambda value: "Listo" if value else "Falta configurar")
+    if "notes" in df.columns:
+        df["notes"] = df["notes"].map(lambda value: NOTIFICATION_NOTE_LABELS.get(str(value), text_display(value)))
+    cols = [col for col in ["channel", "status", "requirements", "notes"] if col in df.columns]
+    return df[cols].rename(
+        columns={
+            "channel": "Canal",
+            "status": "Estado",
+            "requirements": "Requisitos",
+            "notes": "Notas",
+        }
+    )
+
+
+def valid_lan_ip(value: Any) -> bool:
+    text = str(value or "").strip()
+    if not text or ":" in text:
+        return False
+    if text.startswith(("127.", "169.254.", "0.")):
+        return False
+    parts = text.split(".")
+    if len(parts) != 4:
+        return False
+    try:
+        return all(0 <= int(part) <= 255 for part in parts)
+    except ValueError:
+        return False
+
+
+def local_ip_candidates() -> list[str]:
+    candidates: list[str] = []
+
+    def add(value: Any) -> None:
+        text = str(value or "").strip()
+        if valid_lan_ip(text) and text not in candidates:
+            candidates.append(text)
+
+    for iface in ["en0", "en1", "en2", "bridge100"]:
+        try:
+            result = subprocess.run(["ipconfig", "getifaddr", iface], text=True, capture_output=True, timeout=1.5, check=False)
+            add(result.stdout)
+        except Exception:
+            pass
+    try:
+        hostname = socket.gethostname()
+        for item in socket.getaddrinfo(hostname, None, family=socket.AF_INET):
+            add(item[4][0])
+    except Exception:
+        pass
+    return candidates
+
+
+def build_mobile_access_rows(
+    *,
+    local_ips: list[str],
+    port: int | None,
+    lan_ready: bool,
+    public_url: str | None = None,
+) -> list[dict[str, str]]:
+    rows = []
+    for ip in local_ips:
+        rows.append(
+            {
+                "modo": "Misma Wi-Fi",
+                "url": f"http://{ip}:{int(port or 8501)}",
+                "estado": "Listo" if lan_ready else "Requiere abrir Streamlit en 0.0.0.0",
+                "uso": "Telefono/tablet conectado a la misma red que la Mac.",
+            }
+        )
+    if public_url:
+        rows.append(
+            {
+                "modo": "Fuera de casa",
+                "url": public_url,
+                "estado": "Configurar seguridad",
+                "uso": "Usar solo con tunel/VPN seguro y autenticacion.",
+            }
+        )
+    elif not rows:
+        rows.append(
+            {
+                "modo": "Pendiente",
+                "url": "-",
+                "estado": "No se detecto IP local",
+                "uso": "Conecta la Mac a Wi-Fi o Ethernet y vuelve a revisar.",
+            }
+        )
+    return rows
+
+
+def mobile_access_status() -> dict[str, Any]:
+    try:
+        from tools import streamlit_launchd
+
+        launchd_status = streamlit_launchd.status()
+    except Exception as exc:
+        launchd_status = {
+            "installed": False,
+            "loaded": False,
+            "address": "-",
+            "port": 8501,
+            "lan_ready": False,
+            "error": str(exc),
+        }
+    port = safe_float(launchd_status.get("port")) or 8501
+    public_url = text_display(st.session_state.get("roxy_public_url"))
+    if public_url == "-":
+        public_url = ""
+    local_ips = local_ip_candidates()
+    rows = build_mobile_access_rows(
+        local_ips=local_ips,
+        port=int(port),
+        lan_ready=bool(launchd_status.get("lan_ready")),
+        public_url=public_url,
+    )
+    return {
+        "launchd": launchd_status,
+        "local_ips": local_ips,
+        "public_url": public_url,
+        "rows": rows,
+        "port": int(port),
+    }
+
+
+def safe_float(value) -> float | None:
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except Exception:
+        pass
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def platform_status_label(status: Any) -> str:
+    raw = str(status or "-").upper()
+    return PLATFORM_STATUS_LABELS.get(raw, text_display(status))
+
+
+def platform_reason_label(reason: Any) -> str:
+    raw = text_display(reason)
+    if raw in PLATFORM_REASON_LABELS:
+        return PLATFORM_REASON_LABELS[raw]
+    if raw.startswith("Stocks/options are in "):
+        session = raw.split("Stocks/options are in ", 1)[1].split(";", 1)[0]
+        return f"Acciones/opciones estan en {session}. Usa Roxy para estudio hasta que reabra la sesion."
+    return raw
+
+
+def asset_type_label(asset_type: Any) -> str:
+    raw = str(asset_type or "-").lower()
+    return ASSET_TYPE_LABELS.get(raw, text_display(asset_type))
+
+
+def action_label(action: Any) -> str:
+    raw = str(action or "-").upper()
+    return ACTION_LABELS.get(raw, text_display(action))
+
+
+def connection_mode_label(mode: Any) -> str:
+    raw = str(mode or "-").upper()
+    return CONNECTION_MODE_LABELS.get(raw, text_display(mode))
+
+
+def adapter_status_label(status: Any) -> str:
+    raw = str(status or "-").upper()
+    return ADAPTER_STATUS_LABELS.get(raw, text_display(status))
+
+
+def execution_blocker_label(blocker: Any) -> str:
+    raw = text_display(blocker)
+    if raw in EXECUTION_BLOCKER_LABELS:
+        return EXECUTION_BLOCKER_LABELS[raw]
+    if raw.endswith("=1 is not set."):
+        return "La ejecucion real sigue apagada por seguridad."
+    if raw.startswith("Roxy status is "):
+        status = raw.split("Roxy status is ", 1)[1].split(";", 1)[0]
+        return f"Estado Roxy: {platform_status_label(status)}. Solo se puede armar cuando esta Listo para preparar."
+    return raw
+
+
+def center_decision_summary(row: dict) -> dict[str, str]:
+    signal = str(row.get("signal") or "").upper()
+    decision = str(row.get("decision") or row.get("trade_decision") or "").upper()
+    action = str(row.get("action") or row.get("ai_action") or "").upper()
+    if opportunity_is_trade_ready(row):
+        status = "Operar"
+        tone = "buy"
+        headline = "Hay setup accionable, pero la orden sigue manual."
+    elif signal == "AVOID" or decision.startswith("NO_TRADE"):
+        status = "No operar"
+        tone = "avoid"
+        headline = "Roxy bloquea la operacion hasta que cambie la estructura."
+    else:
+        status = "Esperar"
+        tone = "watch"
+        headline = "Roxy esta esperando el gatillo exacto antes de entrar."
+    return {
+        "status": status,
+        "tone": tone,
+        "headline": human_alert_reason(row) or headline,
+        "action": human_trade_action(row) if action or signal or decision else action_label(action or signal),
+        "why": human_alert_reason(row),
+        "wait_for": watch_movement_label(row),
+        "changes_when": opportunity_change_label(row),
+    }
+
+
+def compound_steps_required(starting_capital: float, target_capital: float, net_gain_pct: float) -> int | None:
+    try:
+        start = float(starting_capital)
+        target = float(target_capital)
+        gain = float(net_gain_pct)
+    except (TypeError, ValueError):
+        return None
+    if start <= 0 or target <= start or gain <= 0:
+        return 0
+    return int(math.ceil(math.log(target / start) / math.log(1.0 + gain)))
+
+
+def capital_growth_phase(equity: float) -> tuple[str, str, str]:
+    if equity < 1_000:
+        return (
+            "Proteccion",
+            "Fractional shares/crypto pequeno; opciones solo paper o debit muy bajo.",
+            "La meta es sobrevivir y medir setups, no forzar trades.",
+        )
+    if equity < 5_000:
+        return (
+            "Base",
+            "Acciones fraccionadas y calls/puts solo si max loss cabe en riesgo.",
+            "Solo operar 1h + 15m confirmados; evitar revenge trades.",
+        )
+    if equity < 25_000:
+        return (
+            "Consistencia",
+            "Acciones liquidas, opciones con DTE y spread controlado.",
+            "Subir tamano solo despues de 20 senales cerradas con edge positivo.",
+        )
+    if equity < 100_000:
+        return (
+            "Escala controlada",
+            "Acciones + opciones liquidas; evitar concentracion.",
+            "Bajar riesgo despues de rachas negativas y proteger ganancias.",
+        )
+    if equity < 500_000:
+        return (
+            "Profesional",
+            "Portafolio de setups, no una sola apuesta.",
+            "Roxy prioriza drawdown bajo antes que crecimiento agresivo.",
+        )
+    return (
+        "Preservacion",
+        "Menos riesgo por trade, mas filtros y menos ruido.",
+        "El objetivo cambia de crecer rapido a no devolver capital.",
+    )
+
+
+def build_million_growth_plan(
+    starting_capital: float = 500.0,
+    target_capital: float = 1_000_000.0,
+    risk_per_trade_pct: float = 0.01,
+) -> dict:
+    start = max(1.0, float(starting_capital or 500.0))
+    target = max(start, float(target_capital or 1_000_000.0))
+    risk_pct = max(0.001, float(risk_per_trade_pct or 0.01))
+    milestone_values = [500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000]
+    milestone_values = sorted({float(value) for value in milestone_values if value >= start} | {target})
+
+    previous = start
+    rows = []
+    for idx, milestone in enumerate(milestone_values, start=1):
+        phase, products, rule = capital_growth_phase(previous)
+        rows.append(
+            {
+                "stage": idx,
+                "phase": phase,
+                "from": previous,
+                "target": milestone,
+                "risk_per_trade": previous * risk_pct,
+                "daily_stop": previous * risk_pct * 2.0,
+                "trades_2pct": compound_steps_required(previous, milestone, 0.02),
+                "trades_5pct": compound_steps_required(previous, milestone, 0.05),
+                "trades_10pct": compound_steps_required(previous, milestone, 0.10),
+                "products": products,
+                "rule": rule,
+            }
+        )
+        previous = milestone
+
+    return {
+        "starting_capital": start,
+        "target_capital": target,
+        "multiplier": target / start,
+        "risk_per_trade_pct": risk_pct,
+        "risk_per_trade": start * risk_pct,
+        "daily_stop": start * risk_pct * 2.0,
+        "max_option_debit": start * risk_pct,
+        "guardrail": build_account_risk_guardrail(start, risk_pct),
+        "steps_to_target": {
+            "2%": compound_steps_required(start, target, 0.02),
+            "5%": compound_steps_required(start, target, 0.05),
+            "10%": compound_steps_required(start, target, 0.10),
+        },
+        "milestones": rows,
+        "rules": [
+            "No operar si Roxy no marca Operar o una alerta BUY con riesgo y target validos.",
+            "Riesgo base 0.5% a 1% por trade; con $500, 1% son $5.",
+            "Maximo 2R de perdida diaria; despues de eso Roxy debe pasar a modo esperar.",
+            "Opciones solo si el max loss del contrato cabe en el riesgo definido; si no, mirar accion fraccionada o paper.",
+            "Subir tamano solo cuando la memoria muestre que el setup llega a 2% mas veces de las que toca stop.",
+            "Nunca promediar perdedor; el stop invalida la idea.",
+        ],
+    }
+
+
+def build_account_risk_guardrail(
+    account_equity: float = 500.0,
+    risk_per_trade_pct: float = 0.01,
+    *,
+    planned_risk_dollars: float | None = None,
+    realized_loss_today: float = 0.0,
+    open_risk_dollars: float = 0.0,
+) -> dict:
+    equity = max(1.0, float(account_equity or 500.0))
+    risk_pct = max(0.001, float(risk_per_trade_pct or 0.01))
+    per_trade_budget = equity * risk_pct
+    daily_stop = per_trade_budget * 2.0
+    planned_risk = safe_float(planned_risk_dollars)
+    if planned_risk is None:
+        planned_risk = per_trade_budget
+    used_risk = max(0.0, float(realized_loss_today or 0.0)) + max(0.0, float(open_risk_dollars or 0.0))
+    remaining_daily_risk = max(0.0, daily_stop - used_risk)
+
+    if used_risk >= daily_stop:
+        status = "DAILY_STOP"
+        allowed = False
+        message = "Modo proteger capital: ya se alcanzo el stop diario 2R."
+    elif planned_risk > per_trade_budget:
+        status = "REDUCE_SIZE"
+        allowed = False
+        message = "Reducir tamano: el riesgo planeado supera el presupuesto por trade."
+    elif planned_risk > remaining_daily_risk:
+        status = "REDUCE_SIZE"
+        allowed = False
+        message = "Reducir tamano: no queda suficiente riesgo diario disponible."
+    else:
+        status = "OK"
+        allowed = True
+        message = "Riesgo permitido dentro del plan 1R por trade y 2R diario."
+
+    return {
+        "status": status,
+        "allowed": allowed,
+        "account_equity": equity,
+        "risk_per_trade_pct": risk_pct,
+        "per_trade_budget": per_trade_budget,
+        "daily_stop": daily_stop,
+        "used_risk": used_risk,
+        "remaining_daily_risk": remaining_daily_risk,
+        "planned_risk": planned_risk,
+        "message": message,
+    }
+
+
+def small_account_product_plan(
+    *,
+    account_equity: float = 500.0,
+    risk_per_trade_pct: float = 0.01,
+    market: str = "stock",
+    entry: float | None = None,
+    stop: float | None = None,
+    option: dict | None = None,
+) -> dict:
+    equity = max(1.0, float(account_equity or 500.0))
+    risk_pct = max(0.001, float(risk_per_trade_pct or 0.01))
+    risk_budget = equity * risk_pct
+    entry_value = safe_float(entry)
+    stop_value = safe_float(stop)
+    market_value = str(market or "stock").lower()
+    option = option or {}
+    option_max_loss = safe_float(option.get("max_loss_per_contract"))
+    option_contract = text_display(option.get("contractSymbol") or option.get("contract"))
+
+    if entry_value is None or entry_value <= 0:
+        return {
+            "recommendation": "Solo paper",
+            "allowed": False,
+            "risk_budget": risk_budget,
+            "message": "Falta precio de entrada para calcular tamano.",
+            "next_step": "Esperar plan con entrada y stop.",
+        }
+
+    risk_per_unit = None
+    if stop_value is not None and stop_value > 0 and stop_value < entry_value:
+        risk_per_unit = entry_value - stop_value
+
+    if market_value == "crypto":
+        if risk_per_unit is None:
+            units = risk_budget / entry_value
+            return {
+                "recommendation": "Crypto pequeno",
+                "allowed": True,
+                "risk_budget": risk_budget,
+                "risk_per_unit": None,
+                "units": units,
+                "message": "Crypto permite tamano fraccionado, pero falta stop valido; usar posicion pequena.",
+                "next_step": "Definir stop antes de operar.",
+            }
+        units = risk_budget / risk_per_unit
+        return {
+            "recommendation": "Crypto pequeno",
+            "allowed": True,
+            "risk_budget": risk_budget,
+            "risk_per_unit": risk_per_unit,
+            "units": units,
+            "message": f"Tamano crypto calculado para no superar ${risk_budget:.2f} de riesgo.",
+            "next_step": "Colocar orden manual solo si el exchange respeta stop y liquidez.",
+        }
+
+    option_allowed = option_max_loss is not None and option_max_loss <= risk_budget
+    if option_contract != "-" and option_max_loss is not None and not option_allowed:
+        option_message = (
+            f"Opcion fuera de plan: max loss ${option_max_loss:.2f} supera 1R ${risk_budget:.2f}."
+        )
+    elif option_contract != "-" and option_allowed:
+        option_message = f"Opcion permitida por riesgo: max loss ${option_max_loss:.2f} cabe en 1R ${risk_budget:.2f}."
+    else:
+        option_message = "Sin contrato de opcion validado para cuenta pequena."
+
+    if option_contract != "-":
+        if option_allowed:
+            contracts = max(1, math.floor(risk_budget / max(option_max_loss or risk_budget, 0.01)))
+            return {
+                "recommendation": "Opcion",
+                "allowed": True,
+                "risk_budget": risk_budget,
+                "risk_per_unit": option_max_loss,
+                "units": contracts,
+                "whole_shares": contracts,
+                "option_allowed": True,
+                "option_max_loss": option_max_loss,
+                "option_message": option_message,
+                "message": f"Contrato permitido por riesgo; max loss cabe en 1R ${risk_budget:.2f}.",
+                "next_step": "Confirmar spread, volumen, open interest y DTE antes de entrar.",
+            }
+        return {
+            "recommendation": "Solo paper",
+            "allowed": False,
+            "risk_budget": risk_budget,
+            "risk_per_unit": option_max_loss,
+            "units": 0,
+            "whole_shares": 0,
+            "option_allowed": False,
+            "option_max_loss": option_max_loss,
+            "option_message": option_message,
+            "message": "Contrato fuera del plan de cuenta pequena.",
+            "next_step": "Priorizar accion/fraccionada o esperar un contrato con max loss dentro de 1R.",
+        }
+
+    if risk_per_unit is None:
+        return {
+            "recommendation": "Solo paper",
+            "allowed": False,
+            "risk_budget": risk_budget,
+            "option_allowed": option_allowed,
+            "option_message": option_message,
+            "message": "Falta stop valido; con cuenta pequena no se opera sin invalidacion clara.",
+            "next_step": "Esperar stop tecnico y target 2% viable.",
+        }
+
+    max_by_risk = risk_budget / risk_per_unit
+    max_by_cash = equity / entry_value
+    units = min(max_by_risk, max_by_cash)
+    whole_shares = math.floor(units)
+    if whole_shares >= 1:
+        recommendation = "Accion"
+        message = f"Puedes usar hasta {whole_shares} accion(es) sin superar ${risk_budget:.2f} de riesgo."
+        allowed = True
+    elif units > 0:
+        recommendation = "Accion fraccionada"
+        message = f"Usar fraccion aproximada {units:.4f}; una accion completa supera efectivo o riesgo."
+        allowed = True
+    else:
+        recommendation = "Solo paper"
+        message = "El riesgo por accion no cabe en la cuenta; usar paper hasta mejor entrada."
+        allowed = False
+
+    if option_contract != "-" and not option_allowed:
+        next_step = "Priorizar accion/fraccionada; no comprar esa opcion con cuenta pequena."
+    elif option_contract != "-" and option_allowed:
+        next_step = "Opcion solo si spread, volumen y DTE tambien pasan el filtro."
+    else:
+        next_step = "Confirmar entrada manual y respetar stop."
+
+    return {
+        "recommendation": recommendation,
+        "allowed": allowed,
+        "risk_budget": risk_budget,
+        "risk_per_unit": risk_per_unit,
+        "units": units,
+        "whole_shares": whole_shares,
+        "option_allowed": option_allowed,
+        "option_max_loss": option_max_loss,
+        "option_message": option_message,
+        "message": message,
+        "next_step": next_step,
+    }
+
+
+def setup_risk_pct(setup: dict) -> float | None:
+    entry = safe_float(setup.get("entry"))
+    stop = safe_float(setup.get("stop"))
+    if entry is None or stop is None or entry <= 0 or stop <= 0 or stop >= entry:
+        return None
+    return (entry - stop) / entry
+
+
+def signal_tone(value: str) -> str:
+    normalized = str(value or "").upper()
+    if normalized.startswith("BUY") or normalized.startswith("TRADE_FOR") or normalized.startswith("ENTER"):
+        return "buy"
+    if normalized.startswith("WATCH") or normalized.startswith("WAIT"):
+        return "watch"
+    if normalized.startswith("AVOID") or normalized.startswith("NO_"):
+        return "avoid"
+    return "neutral"
+
+
+def render_kpi_card(label: str, value, *, tone: str = "neutral", detail: str | None = None) -> None:
+    tone = tone if tone in {"neutral", "buy", "watch", "avoid"} else "neutral"
+    value_text = html.escape(text_display(value))
+    label_text = html.escape(str(label))
+    detail_html = ""
+    if detail:
+        detail_html = f'<div class="symbol-kpi-detail">{html.escape(str(detail))}</div>'
+    st.markdown(
+        f"""
+        <div class="symbol-kpi symbol-kpi-{tone}">
+            <div class="symbol-kpi-label">{label_text}</div>
+            <div class="symbol-kpi-value">{value_text}</div>
+            {detail_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def status_tone(value: str) -> str:
+    normalized = str(value or "").upper()
+    if normalized == "ACTIVE":
+        return "buy"
+    if normalized == "WATCH":
+        return "watch"
+    if normalized == "BLOCKED":
+        return "avoid"
+    return signal_tone(normalized)
+
+
+def render_strategy_checklist(rows: list[dict[str, str]]) -> None:
+    if not rows:
+        return
+    st.markdown("**Checklist de estrategias**")
+    for start in range(0, len(rows), 3):
+        cols = st.columns(3)
+        for col, row in zip(cols, rows[start : start + 3]):
+            detail = f"{row.get('trigger', '-')}. {row.get('action', '-')}"
+            with col:
+                render_kpi_card(
+                    row.get("family", "-"),
+                    row.get("status", "-"),
+                    tone=status_tone(row.get("status", "")),
+                    detail=detail,
+                )
+    with st.expander("Por que Roxy clasifica cada estrategia asi"):
+        st.dataframe(pd.DataFrame(rows), width="stretch")
+
+
+def render_chart_readout(
+    setup: dict,
+    confluence: dict | None,
+    brief: dict | None,
+    chart_df: pd.DataFrame,
+    *,
+    market: str | None = None,
+    timeframe: str | None = None,
+) -> None:
+    confluence = confluence or {}
+    brief = brief or {}
+    market = market or str(brief.get("market") or confluence.get("market") or "stock")
+    timeframe = timeframe or str(brief.get("timeframe") or confluence.get("tf") or "1h")
+    latest = chart_df.iloc[-1].to_dict() if not chart_df.empty else {}
+    close = safe_float(latest.get("close") or setup.get("close") or setup.get("entry"))
+    sma20 = safe_float(latest.get("sma20") or setup.get("sma20"))
+    sma40 = safe_float(latest.get("sma40") or setup.get("sma40"))
+    sma100 = safe_float(latest.get("sma100") or setup.get("sma100"))
+    sma200 = safe_float(latest.get("sma200") or setup.get("sma200"))
+    rel_vol = safe_float(latest.get("relative_volume") or confluence.get("relative_volume_15m") or setup.get("relative_volume"))
+    rsi14 = safe_float(latest.get("rsi14"))
+    macd_hist = safe_float(latest.get("macd_hist"))
+    risk = safe_float(brief.get("risk_pct")) or setup_risk_pct(setup)
+    target = safe_float(brief.get("recommended_target_pct") or confluence.get("recommended_target_pct"))
+
+    has_stack = close is not None and all(value is not None for value in [sma20, sma40, sma100, sma200])
+    bullish_stack = bool(has_stack and sma20 > sma40 > sma100 > sma200 and close > sma20)
+    bearish_stack = bool(has_stack and sma20 < sma40 < sma100 < sma200 and close < sma200)
+    if bullish_stack:
+        trend = "Bull channel"
+        trend_tone = "buy"
+    elif bearish_stack:
+        trend = "Bear channel"
+        trend_tone = "avoid"
+    elif has_stack and close and sma200 and close > sma200:
+        trend = "Above SMA200"
+        trend_tone = "watch"
+    else:
+        trend = "No clean trend"
+        trend_tone = "neutral"
+
+    volume_state = "Strong" if rel_vol is not None and rel_vol >= 1.1 else "Weak" if rel_vol is not None and rel_vol < 0.8 else "Normal"
+    volume_tone = "buy" if volume_state == "Strong" else "avoid" if volume_state == "Weak" else "neutral"
+    risk_tone = "buy" if risk is not None and risk <= 0.025 else "avoid" if risk is not None and risk > 0.035 else "watch"
+    target_tone = "buy" if target is not None and target >= 0.02 else "watch"
+    if rsi14 is None:
+        oscillator_state = "Sin datos"
+        oscillator_tone = "neutral"
+    elif rsi14 >= 75:
+        oscillator_state = "Extendido"
+        oscillator_tone = "avoid"
+    elif rsi14 >= 45 and (macd_hist is None or macd_hist >= 0):
+        oscillator_state = "Con espacio"
+        oscillator_tone = "buy"
+    elif macd_hist is not None and macd_hist < 0:
+        oscillator_state = "Debil"
+        oscillator_tone = "watch"
+    else:
+        oscillator_state = "Neutral"
+        oscillator_tone = "neutral"
+
+    fresh = chart_freshness_status(chart_df, market=market, timeframe=timeframe)
+
+    st.markdown("**Lectura de grafica**")
+    cols = st.columns([1, 1, 1, 1, 1, 1, 1])
+    with cols[0]:
+        trend = {
+            "Bull channel": "Canal alcista",
+            "Bear channel": "Canal bajista",
+            "Above SMA200": "Sobre SMA200",
+            "No clean trend": "Sin tendencia limpia",
+        }.get(trend, trend)
+        render_kpi_card("Estructura MA", trend, tone=trend_tone, detail="20 / 40 / 100 / 200")
+    with cols[1]:
+        render_kpi_card("Ultimo precio", num_display(close))
+    with cols[2]:
+        volume_state = {"Strong": "Fuerte", "Weak": "Debil", "Normal": "Normal"}.get(volume_state, volume_state)
+        render_kpi_card("Volumen", volume_state, tone=volume_tone, detail=f"{num_display(rel_vol)}x" if rel_vol is not None else "Sin datos")
+    with cols[3]:
+        render_kpi_card("Riesgo a stop", pct_display(risk), tone=risk_tone)
+    with cols[4]:
+        render_kpi_card("Objetivo", pct_display(target), tone=target_tone)
+    with cols[5]:
+        macd_label = "+" if macd_hist is not None and macd_hist >= 0 else "-" if macd_hist is not None else "-"
+        render_kpi_card("Oscilador", oscillator_state, tone=oscillator_tone, detail=f"RSI {num_display(rsi14, 0)} | MACD {macd_label}")
+    with cols[6]:
+        render_kpi_card("Tiempo real", fresh["label"], tone=fresh["tone"], detail=f"{fresh['detail']} | {fresh['latest']}")
+
+
+def build_chart_level_plan(
+    chart_df: pd.DataFrame,
+    setup: dict,
+    confluence: dict | None,
+    brief: dict | None = None,
+) -> list[dict[str, Any]]:
+    confluence = confluence or {}
+    brief = brief or {}
+    latest = chart_df.iloc[-1].to_dict() if not chart_df.empty else {}
+    entry = safe_float(brief.get("entry")) or safe_float(confluence.get("entry")) or safe_float(setup.get("entry"))
+    stop = safe_float(brief.get("stop")) or safe_float(confluence.get("stop")) or safe_float(setup.get("stop"))
+    close = safe_float(latest.get("close") or setup.get("close"))
+    rows: list[dict[str, Any]] = []
+
+    def add(level: str, price: Any, role: str, tone: str = "neutral") -> None:
+        number = safe_float(price)
+        if number is None:
+            return
+        rows.append({"nivel": level, "precio": number, "uso": role, "tone": tone})
+
+    add("Precio", close, "Referencia actual", "neutral")
+    add("Entrada", entry, "Zona valida solo si 15m/1h confirman", "buy")
+    add("Stop", stop, "Invalida el trade si lo pierde", "avoid")
+
+    ladder = brief.get("target_ladder") or []
+    target_prices = {}
+    for item in ladder:
+        label = str(item.get("target") or "")
+        price = safe_float(item.get("target_price"))
+        if label and price is not None:
+            target_prices[label] = price
+    if entry is not None:
+        target_prices.setdefault("2%", entry * 1.02)
+        target_prices.setdefault("5%", entry * 1.05)
+        target_prices.setdefault("10%", entry * 1.10)
+    for label in ["2%", "5%", "10%"]:
+        add(f"Objetivo {label}", target_prices.get(label), f"Salida parcial {label}", "buy")
+
+    add("Soporte", latest.get("range_low_60"), "Zona donde debe aparecer rebote", "watch")
+    add("Resistencia", latest.get("range_high_60"), "Ruptura valida con volumen", "watch")
+    add("SMA20", latest.get("sma20") or setup.get("sma20"), "Media rapida: gatillo/pullback", "neutral")
+    add("SMA40", latest.get("sma40") or setup.get("sma40"), "Confirmacion de tendencia corta", "neutral")
+    add("SMA100", latest.get("sma100") or setup.get("sma100"), "Soporte medio", "neutral")
+    add("SMA200", latest.get("sma200") or setup.get("sma200"), "Filtro principal de tendencia", "neutral")
+    return rows
+
+
+def render_chart_level_plan(chart_df: pd.DataFrame, setup: dict, confluence: dict | None, brief: dict | None = None) -> None:
+    rows = build_chart_level_plan(chart_df, setup, confluence, brief)
+    if not rows:
+        return
+    st.markdown("**Plan visual de niveles**")
+    primary = [row for row in rows if row["nivel"] in {"Entrada", "Stop", "Objetivo 2%", "Objetivo 5%", "Objetivo 10%"}]
+    cols = st.columns(len(primary) or 1)
+    for col, row in zip(cols, primary):
+        with col:
+            render_kpi_card(row["nivel"], num_display(row["precio"]), tone=row["tone"], detail=row["uso"])
+    with st.expander("Niveles completos de la grafica"):
+        display = pd.DataFrame(rows).drop(columns=["tone"], errors="ignore")
+        display["precio"] = display["precio"].map(lambda value: num_display(value))
+        st.dataframe(display, width="stretch", hide_index=True)
+
+
+def chart_zone_band(price: Any, chart_window: pd.DataFrame) -> float:
+    reference = safe_float(price)
+    if reference is None or reference <= 0:
+        reference = safe_float(chart_window["close"].iloc[-1]) if not chart_window.empty and "close" in chart_window.columns else 1.0
+    atr_pct = None
+    if "atr_pct" in chart_window.columns and chart_window["atr_pct"].notna().any():
+        atr_pct = safe_float(chart_window["atr_pct"].dropna().iloc[-1])
+    pct = min(0.012, max(0.0025, (atr_pct or 0.006) * 0.35))
+    return max(reference * pct, 0.01)
+
+
+def chart_reference_price(chart_window: pd.DataFrame) -> float | None:
+    if chart_window.empty or "close" not in chart_window.columns:
+        return None
+    close_series = pd.to_numeric(chart_window["close"], errors="coerce").dropna()
+    if close_series.empty:
+        return None
+    reference = safe_float(close_series.iloc[-1])
+    return reference if reference and reference > 0 else None
+
+
+def chart_level_is_near(value: Any, reference: float | None, *, lower: float = 0.60, upper: float = 1.55) -> bool:
+    number = safe_float(value)
+    if number is None or number <= 0:
+        return False
+    if reference is None or reference <= 0:
+        return True
+    return reference * lower <= number <= reference * upper
+
+
+def prepare_chart_window(chart_df: pd.DataFrame, *, limit: int = 260) -> pd.DataFrame:
+    if chart_df.empty:
+        return pd.DataFrame()
+    window = chart_df.copy()
+    if "ts" not in window.columns or "close" not in window.columns:
+        return pd.DataFrame()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        window["ts"] = pd.to_datetime(window["ts"], errors="coerce")
+    numeric_columns = [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "ema9",
+        "sma20",
+        "sma40",
+        "sma100",
+        "sma200",
+        "bb_mid",
+        "bb_upper",
+        "bb_lower",
+        "rsi14",
+        "macd",
+        "macd_signal",
+        "macd_hist",
+        "range_high_60",
+        "range_low_60",
+        "volume_sma20",
+        "relative_volume",
+        "atr_pct",
+    ]
+    for column in numeric_columns:
+        if column in window.columns:
+            window[column] = pd.to_numeric(window[column], errors="coerce")
+    window = window.dropna(subset=["ts", "close"]).sort_values("ts").tail(limit).reset_index(drop=True)
+    if window.empty:
+        return pd.DataFrame()
+    for column in ["open", "high", "low"]:
+        if column not in window.columns:
+            window[column] = window["close"]
+    window["open"] = window["open"].fillna(window["close"])
+    window["high"] = window["high"].fillna(window[["open", "close"]].max(axis=1))
+    window["low"] = window["low"].fillna(window[["open", "close"]].min(axis=1))
+    window["high"] = window[["high", "open", "close"]].max(axis=1)
+    window["low"] = window[["low", "open", "close"]].min(axis=1)
+    return window
+
+
+def build_chart_level_values(
+    chart_window: pd.DataFrame,
+    setup: dict,
+    confluence: dict | None,
+    brief: dict | None = None,
+    targets: list[dict[str, Any]] | None = None,
+) -> list[float]:
+    confluence = confluence or {}
+    brief = brief or {}
+    reference = chart_reference_price(chart_window)
+    values: list[float] = []
+
+    def add(value: Any, *, lower: float = 0.60, upper: float = 1.55) -> None:
+        number = safe_float(value)
+        if number is not None and math.isfinite(number) and number > 0 and chart_level_is_near(number, reference, lower=lower, upper=upper):
+            values.append(number)
+
+    for column in ["open", "close", "ema9", "sma20", "sma40", "sma100", "sma200", "bb_upper", "bb_lower"]:
+        if column in chart_window.columns:
+            for value in chart_window[column].dropna().tail(90).tolist():
+                add(value)
+    for column in ["high", "low"]:
+        if column in chart_window.columns:
+            series = pd.to_numeric(chart_window[column], errors="coerce").dropna().tail(90)
+            if not series.empty:
+                add(float(series.quantile(0.05)), lower=0.70, upper=1.35)
+                add(float(series.quantile(0.95)), lower=0.70, upper=1.35)
+    for column in ["range_high_60", "range_low_60"]:
+        if column in chart_window.columns:
+            for value in chart_window[column].dropna().tail(3).tolist():
+                add(value, lower=0.75, upper=1.25)
+    for source in [setup, confluence, brief]:
+        for key in ["entry", "stop", "tp2", "recommended_target_price", "target_2", "target_5", "target_10"]:
+            add(source.get(key), lower=0.55, upper=1.65)
+    for item in (targets or []):
+        add(item.get("price"), lower=0.55, upper=1.65)
+    for item in brief.get("target_ladder", []) if isinstance(brief.get("target_ladder"), list) else []:
+        add(item.get("target_price"), lower=0.55, upper=1.65)
+    if reference:
+        values.append(reference)
+    return values
+
+
+def chart_price_domain(
+    chart_window: pd.DataFrame,
+    setup: dict,
+    confluence: dict | None,
+    brief: dict | None = None,
+    targets: list[dict[str, Any]] | None = None,
+) -> list[float] | None:
+    values = build_chart_level_values(chart_window, setup, confluence, brief, targets)
+    if not values:
+        return None
+    series = pd.Series(values, dtype="float64").dropna()
+    series = series[(series > 0) & series.map(math.isfinite)]
+    if series.empty:
+        return None
+    low = float(series.quantile(0.01))
+    high = float(series.quantile(0.99))
+    if high <= low:
+        base = high if high > 0 else 1.0
+        return [max(0.0, base * 0.97), base * 1.03]
+    padding = max((high - low) * 0.12, high * 0.008)
+    return [max(0.0, low - padding), high + padding]
+
+
+def build_visual_zone_rows(
+    chart_window: pd.DataFrame,
+    setup: dict,
+    confluence: dict | None,
+    brief: dict | None = None,
+) -> list[dict[str, Any]]:
+    if chart_window.empty:
+        return []
+    confluence = confluence or {}
+    brief = brief or {}
+    first_ts = chart_window["ts"].iloc[0]
+    last_ts = chart_window["ts"].iloc[-1]
+    latest = chart_window.iloc[-1].to_dict()
+    latest_close = chart_reference_price(chart_window)
+    entry = safe_float(brief.get("entry")) or safe_float(confluence.get("entry")) or safe_float(setup.get("entry"))
+    stop = safe_float(brief.get("stop")) or safe_float(confluence.get("stop")) or safe_float(setup.get("stop"))
+    resistance = safe_float(latest.get("range_high_60"))
+    support = safe_float(latest.get("range_low_60"))
+    zones: list[dict[str, Any]] = []
+
+    def add(label: str, center: Any, tone: str, role: str, *, lower: float = 0.60, upper: float = 1.55) -> None:
+        price = safe_float(center)
+        if price is None or not chart_level_is_near(price, latest_close, lower=lower, upper=upper):
+            return
+        band = chart_zone_band(price, chart_window)
+        zones.append(
+            {
+                "ts": first_ts,
+                "ts2": last_ts,
+                "low": price - band,
+                "high": price + band,
+                "center": price,
+                "zone": label,
+                "tone": tone,
+                "role": role,
+            }
+        )
+
+    add("Zona entrada", entry, "buy", "Comprar solo si 15m/1h y volumen confirman.", lower=0.55, upper=1.65)
+    add("Zona stop", stop, "avoid", "Si pierde esta zona, el setup queda invalido.", lower=0.55, upper=1.65)
+    add("Soporte", support, "watch", "Zona donde Roxy busca rebote o defensa.", lower=0.75, upper=1.25)
+    add("Resistencia", resistance, "watch", "Ruptura valida solo con volumen.", lower=0.75, upper=1.25)
+    return zones
+
+
+def render_alert_noise_contract(brief: dict) -> None:
+    opportunities = brief.get("opportunities") or []
+    alert_rows = [row for row in opportunities if str(row.get("ai_action") or "").upper() == "ALERT"]
+    top = opportunities[0] if opportunities else {}
+    top_gate = alert_gate_label(top.get("alert_gate")) if top else "-"
+    top_blocker = text_display(top.get("alert_primary_blocker") or ((top.get("alert_blockers") or ["-"])[0] if isinstance(top.get("alert_blockers"), list) and top.get("alert_blockers") else "-"))
+    freshness = brief.get("source_freshness") or {}
+    session = brief.get("market_session") or {}
+    cols = st.columns(4)
+    with cols[0]:
+        render_kpi_card("Alertas reales", len(alert_rows), tone="buy" if alert_rows else "neutral", detail="Max 3 por brief")
+    with cols[1]:
+        render_kpi_card("Regla anti-ruido", "Todo o nada", tone="watch", detail="1h + 15m + volumen + riesgo + target")
+    with cols[2]:
+        render_kpi_card("Bloqueo principal", top_gate, tone="watch", detail=top_blocker)
+    with cols[3]:
+        session_text = session.get("stock_session") or "-"
+        fresh_text = freshness.get("label") or "-"
+        render_kpi_card("Contexto", f"{session_text} / {fresh_text}", tone="buy" if freshness.get("alerts_allowed", True) else "avoid")
+
+
+def greek_quality_label(row: dict[str, Any]) -> tuple[str, str, str]:
+    delta = safe_float(row.get("delta"))
+    gamma = safe_float(row.get("gamma"))
+    theta = safe_float(row.get("theta"))
+    vega = safe_float(row.get("vega"))
+    iv = safe_float(row.get("impliedVolatility"))
+    has_full = all(value is not None for value in [delta, gamma, theta, vega])
+    if has_full:
+        return "Completo", "buy", "Delta, gamma, theta y vega disponibles."
+    if delta is not None and iv is not None:
+        return "Basico estimado", "watch", "Delta estimada con IV; faltan gamma/theta/vega reales."
+    if delta is not None:
+        return "Parcial", "watch", "Delta disponible; faltan Greeks completos."
+    return "Incompleto", "avoid", "No tratar este contrato como setup profesional sin Greeks."
+
+
+def annotate_option_greek_quality(options_df: pd.DataFrame) -> pd.DataFrame:
+    if options_df.empty:
+        return options_df
+    data = options_df.copy()
+    labels = data.apply(lambda row: greek_quality_label(row.to_dict()), axis=1)
+    data["greek_quality"] = [item[0] for item in labels]
+    data["greek_tone"] = [item[1] for item in labels]
+    data["greek_note"] = [item[2] for item in labels]
+    return data
+
+
+def _option_greek_is_professional(row: dict[str, Any]) -> bool:
+    quality = str(row.get("greek_quality") or "").upper()
+    if quality in {"FULL_GREEKS", "COMPLETO"}:
+        return True
+    return all(safe_float(row.get(key)) is not None for key in ["delta", "gamma", "theta", "vega"])
+
+
+def annotate_professional_options_contracts(options_df: pd.DataFrame) -> pd.DataFrame:
+    if options_df.empty:
+        return options_df
+    data = options_df.copy()
+    numeric_cols = [
+        "bid",
+        "ask",
+        "mid",
+        "strike",
+        "underlying_price",
+        "dte",
+        "spread_pct",
+        "spread_dollars",
+        "volume",
+        "openInterest",
+        "breakeven_price",
+        "breakeven_pct",
+        "max_loss_per_contract",
+    ]
+    for column in numeric_cols:
+        if column in data.columns:
+            data[column] = pd.to_numeric(data[column], errors="coerce")
+
+    if "side" not in data.columns:
+        data["side"] = data.apply(lambda row: option_side_from_row(row.to_dict()), axis=1)
+    if {"bid", "ask"}.issubset(data.columns):
+        if "mid" not in data.columns:
+            data["mid"] = pd.Series(float("nan"), index=data.index, dtype="float64")
+        else:
+            data["mid"] = pd.to_numeric(data["mid"], errors="coerce")
+        data["mid"] = data["mid"].fillna((data["bid"] + data["ask"]) / 2.0)
+        if "spread_dollars" not in data.columns:
+            data["spread_dollars"] = pd.Series(float("nan"), index=data.index, dtype="float64")
+        else:
+            data["spread_dollars"] = pd.to_numeric(data["spread_dollars"], errors="coerce")
+        data["spread_dollars"] = data["spread_dollars"].fillna(data["ask"] - data["bid"])
+        if "max_loss_per_contract" not in data.columns:
+            data["max_loss_per_contract"] = pd.Series(float("nan"), index=data.index, dtype="float64")
+        else:
+            data["max_loss_per_contract"] = pd.to_numeric(data["max_loss_per_contract"], errors="coerce")
+        data["max_loss_per_contract"] = data["max_loss_per_contract"].fillna(data["ask"] * 100.0)
+
+    if {"strike", "ask", "side"}.issubset(data.columns):
+        if "breakeven_price" not in data.columns:
+            data["breakeven_price"] = pd.Series(float("nan"), index=data.index, dtype="float64")
+        else:
+            data["breakeven_price"] = pd.to_numeric(data["breakeven_price"], errors="coerce")
+        call_be = data["strike"] + data["ask"]
+        put_be = data["strike"] - data["ask"]
+        computed_be = data["side"].astype(str).str.upper().map({"CALL": 1, "PUT": -1})
+        computed_be = computed_be.where(computed_be.ne(1), call_be)
+        computed_be = computed_be.where(data["side"].astype(str).str.upper().ne("PUT"), put_be)
+        data["breakeven_price"] = data["breakeven_price"].fillna(computed_be)
+    if {"breakeven_price", "underlying_price"}.issubset(data.columns):
+        if "breakeven_pct" not in data.columns:
+            data["breakeven_pct"] = pd.Series(float("nan"), index=data.index, dtype="float64")
+        else:
+            data["breakeven_pct"] = pd.to_numeric(data["breakeven_pct"], errors="coerce")
+        data["breakeven_pct"] = data["breakeven_pct"].fillna((data["breakeven_price"] / data["underlying_price"]) - 1.0)
+
+    rows = []
+    for _, row in data.iterrows():
+        row_dict = row.to_dict()
+        blockers = []
+        dte = safe_float(row_dict.get("dte"))
+        spread = safe_float(row_dict.get("spread_pct"))
+        volume = safe_float(row_dict.get("volume")) or 0.0
+        open_interest = safe_float(row_dict.get("openInterest")) or 0.0
+        max_loss = safe_float(row_dict.get("max_loss_per_contract"))
+        fits_1r = row_dict.get("fits_1r")
+
+        if dte is None or not (7 <= dte <= 45):
+            blockers.append("DTE fuera de 7-45")
+        if spread is None or spread > 0.18:
+            blockers.append("Spread alto")
+        if volume < 50 or open_interest < 100:
+            blockers.append("Liquidez baja")
+        if not _option_greek_is_professional(row_dict):
+            blockers.append("Faltan Greeks completos")
+        if max_loss is None or max_loss <= 0:
+            blockers.append("Max loss no medible")
+        elif isinstance(fits_1r, bool) and not fits_1r:
+            blockers.append("No cabe en 1R")
+
+        readiness = "Listo para revisar" if not blockers else "Solo paper" if "Faltan Greeks completos" not in blockers else "Faltan Greeks"
+        rows.append(
+            {
+                "professional_readiness": readiness,
+                "professional_blockers": "OK" if not blockers else " | ".join(blockers[:4]),
+                "dte_ok": dte is not None and 7 <= dte <= 45,
+                "spread_ok": spread is not None and spread <= 0.18,
+                "liquidity_ok": volume >= 50 and open_interest >= 100,
+                "greeks_ok": _option_greek_is_professional(row_dict),
+                "max_loss_ok": max_loss is not None and max_loss > 0,
+            }
+        )
+
+    extra = pd.DataFrame(rows, index=data.index)
+    return pd.concat([data, extra], axis=1)
+
+
+def lab_daily_summary_rows(lab_rows: list[dict[str, Any]]) -> list[dict[str, str]]:
+    if not lab_rows:
+        return []
+    promoted = next((row for row in lab_rows if row.get("lab_state") == "Promote"), None)
+    tighten = next((row for row in lab_rows if row.get("lab_state") == "Tighten filter"), None)
+    watch = next((row for row in lab_rows if row.get("lab_state") == "Watch"), None)
+    collect = next((row for row in lab_rows if row.get("lab_state") == "Collect data"), None)
+    output: list[dict[str, str]] = []
+
+    def add(label: str, row: dict[str, Any] | None, tone: str, fallback: str) -> None:
+        if row:
+            strategy = text_display(row.get("strategy_family"))
+            action = text_display(row.get("production_action") or row.get("lab_decision"))
+            evidence = pct_display(row.get("evidence_score"))
+            detail = f"{action} | Evidencia {evidence}"
+        else:
+            strategy = fallback
+            detail = "Roxy sigue recolectando datos."
+        output.append({"label": label, "strategy": strategy, "detail": detail, "tone": tone})
+
+    add("Promover", promoted, "buy", "Ninguna todavia")
+    add("Endurecer", tighten, "avoid", "Ninguna todavia")
+    add("Vigilar", watch, "watch", "Ninguna todavia")
+    add("Estudiar", collect, "neutral", "Recolectar mas datos")
+    return output
+
+
+def render_lab_daily_summary(lab_rows: list[dict[str, Any]]) -> None:
+    rows = lab_daily_summary_rows(lab_rows)
+    if not rows:
+        return
+    st.markdown("**Decision diaria del laboratorio**")
+    cols = st.columns(len(rows))
+    for col, row in zip(cols, rows):
+        with col:
+            render_kpi_card(row["label"], row["strategy"], tone=row["tone"], detail=row["detail"])
+
+
+def build_professional_price_chart(
+    chart_df: pd.DataFrame,
+    setup: dict,
+    confluence: dict | None,
+    brief: dict | None = None,
+) -> alt.LayerChart:
+    chart_window = prepare_chart_window(chart_df)
+    confluence = confluence or {}
+    brief = brief or {}
+    if chart_window.empty:
+        fallback = pd.DataFrame({"ts": [pd.Timestamp.utcnow()], "price": [0.0], "message": ["Sin historial suficiente"]})
+        return alt.Chart(fallback).mark_text(color="#cbd5e1", fontSize=16).encode(x="ts:T", y="price:Q", text="message:N")
+    chart_window["direction"] = ["up" if close >= open_ else "down" for close, open_ in zip(chart_window["close"], chart_window["open"])]
+    base = alt.Chart(chart_window).encode(x=alt.X("ts:T", title="Tiempo"))
+
+    layers: list[alt.Chart] = []
+    entry = safe_float(brief.get("entry")) or safe_float(confluence.get("entry")) or safe_float(setup.get("entry"))
+    stop = safe_float(brief.get("stop")) or safe_float(confluence.get("stop")) or safe_float(setup.get("stop"))
+    targets: list[dict[str, float | str]] = []
+    for item in brief.get("target_ladder", []):
+        price = safe_float(item.get("target_price"))
+        if price is not None:
+            targets.append({"price": price, "label": f"Objetivo {item.get('target', '-')}", "color": "#a78bfa"})
+    if not targets and entry is not None:
+        targets = [
+            {"price": entry * 1.02, "label": "Objetivo 2%", "color": "#60a5fa"},
+            {"price": entry * 1.05, "label": "Objetivo 5%", "color": "#a78bfa"},
+            {"price": entry * 1.10, "label": "Objetivo 10%", "color": "#f472b6"},
+        ]
+    price_domain = chart_price_domain(chart_window, setup, confluence, brief, targets)
+    price_scale = alt.Scale(zero=False, domain=price_domain) if price_domain else alt.Scale(zero=False)
+    if entry is not None and not chart_window.empty:
+        first_ts = chart_window["ts"].iloc[0]
+        last_ts = chart_window["ts"].iloc[-1]
+        if stop is not None and 0 < stop < entry:
+            risk_zone = pd.DataFrame({"ts": [first_ts, last_ts], "low": [stop, stop], "high": [entry, entry]})
+            layers.append(
+                alt.Chart(risk_zone)
+                .mark_area(color="#ef4444", opacity=0.07)
+                .encode(x=alt.X("ts:T", title="Tiempo"), y=alt.Y("low:Q", title="Precio", scale=price_scale), y2="high:Q")
+            )
+        target_10 = next((safe_float(item.get("price")) for item in targets if "10%" in str(item.get("label"))), None)
+        if target_10 is not None and target_10 > entry:
+            reward_zone = pd.DataFrame({"ts": [first_ts, last_ts], "low": [entry, entry], "high": [target_10, target_10]})
+            layers.append(
+                alt.Chart(reward_zone)
+                .mark_area(color="#22c55e", opacity=0.05)
+                .encode(x=alt.X("ts:T", title="Tiempo"), y=alt.Y("low:Q", title="Precio", scale=price_scale), y2="high:Q")
+            )
+        entry_band = pd.DataFrame(
+            {"ts": [first_ts, last_ts], "low": [entry * 0.995, entry * 0.995], "high": [entry * 1.005, entry * 1.005]}
+        )
+        layers.append(
+            alt.Chart(entry_band)
+            .mark_area(color="#22c55e", opacity=0.11)
+            .encode(x=alt.X("ts:T", title="Tiempo"), y=alt.Y("low:Q", title="Precio", scale=price_scale), y2="high:Q")
+        )
+
+    visual_zones = build_visual_zone_rows(chart_window, setup, confluence, brief)
+    if visual_zones:
+        zone_df = pd.DataFrame(visual_zones)
+        layers.append(
+            alt.Chart(zone_df)
+            .mark_rect(opacity=0.16)
+            .encode(
+                x=alt.X("ts:T", title="Tiempo"),
+                x2="ts2:T",
+                y=alt.Y("low:Q", title="Precio", scale=price_scale),
+                y2="high:Q",
+                color=alt.Color(
+                    "tone:N",
+                    legend=None,
+                    scale=alt.Scale(domain=["buy", "watch", "avoid"], range=["#22c55e", "#38bdf8", "#ef4444"]),
+                ),
+                tooltip=[
+                    alt.Tooltip("zone:N", title="Zona"),
+                    alt.Tooltip("center:Q", title="Precio", format=".2f"),
+                    alt.Tooltip("role:N", title="Uso"),
+                ],
+            )
+        )
+        zone_labels = zone_df.copy()
+        zone_labels = zone_labels[zone_labels["zone"].isin(["Zona entrada", "Zona stop"])]
+        zone_labels["label_text"] = zone_labels.apply(lambda row: f"{row['zone']} {row['center']:.2f}", axis=1)
+        zone_labels["label_ts"] = chart_window["ts"].iloc[max(0, len(chart_window) - 52)]
+        if not zone_labels.empty:
+            layers.append(
+                alt.Chart(zone_labels)
+                .mark_text(align="left", dx=6, dy=-12, fontSize=11, fontWeight="bold")
+                .encode(
+                    x=alt.X("label_ts:T", title="Tiempo"),
+                    y=alt.Y("center:Q", title="Precio", scale=price_scale),
+                    text="label_text:N",
+                    color=alt.Color(
+                        "tone:N",
+                        legend=None,
+                        scale=alt.Scale(domain=["buy", "watch", "avoid"], range=["#22c55e", "#38bdf8", "#ef4444"]),
+                    ),
+                )
+            )
+
+    if {"bb_upper", "bb_lower"}.issubset(chart_window.columns):
+        band_df = chart_window.dropna(subset=["bb_upper", "bb_lower"])
+        if not band_df.empty:
+            layers.append(
+                alt.Chart(band_df)
+                .mark_area(color="#94a3b8", opacity=0.18)
+                .encode(
+                    x=alt.X("ts:T", title="Tiempo"),
+                    y=alt.Y("bb_lower:Q", title="Precio", scale=price_scale),
+                    y2="bb_upper:Q",
+                    tooltip=[
+                        alt.Tooltip("ts:T", title="Tiempo"),
+                        alt.Tooltip("bb_lower:Q", title="Banda baja", format=".2f"),
+                        alt.Tooltip("bb_upper:Q", title="Banda alta", format=".2f"),
+                    ],
+                )
+            )
+
+    if {"range_high_60", "range_low_60"}.issubset(chart_window.columns):
+        channel_df = chart_window.dropna(subset=["range_high_60", "range_low_60"])
+        reference = chart_reference_price(chart_window)
+        if reference:
+            channel_df = channel_df[
+                channel_df["range_high_60"].map(lambda value: chart_level_is_near(value, reference, lower=0.75, upper=1.25))
+                & channel_df["range_low_60"].map(lambda value: chart_level_is_near(value, reference, lower=0.75, upper=1.25))
+            ]
+        if not channel_df.empty:
+            layers.append(
+                alt.Chart(channel_df)
+                .mark_area(color="#22d3ee", opacity=0.045)
+                .encode(
+                    x=alt.X("ts:T", title="Tiempo"),
+                    y=alt.Y("range_low_60:Q", title="Precio", scale=price_scale),
+                    y2="range_high_60:Q",
+                    tooltip=[
+                        alt.Tooltip("ts:T", title="Tiempo"),
+                        alt.Tooltip("range_low_60:Q", title="Soporte", format=".2f"),
+                        alt.Tooltip("range_high_60:Q", title="Resistencia", format=".2f"),
+                    ],
+                )
+            )
+
+    candle_tooltips = [
+        alt.Tooltip("ts:T", title="Tiempo"),
+        alt.Tooltip("open:Q", title="Open", format=".2f"),
+        alt.Tooltip("high:Q", title="High", format=".2f"),
+        alt.Tooltip("low:Q", title="Low", format=".2f"),
+        alt.Tooltip("close:Q", title="Close", format=".2f"),
+        alt.Tooltip("volume:Q", title="Volumen", format=",.0f"),
+    ]
+    candle_color = alt.condition("datum.close >= datum.open", alt.value("#22c55e"), alt.value("#ef4444"))
+    layers.append(
+        base.mark_rule(size=1.2)
+        .encode(
+            y=alt.Y("low:Q", title="Precio", scale=price_scale),
+            y2="high:Q",
+            color=candle_color,
+            tooltip=candle_tooltips,
+        )
+    )
+    layers.append(
+        base.mark_bar(size=5)
+        .encode(
+            y=alt.Y("open:Q", title="Precio", scale=price_scale),
+            y2="close:Q",
+            color=candle_color,
+            tooltip=candle_tooltips,
+        )
+    )
+
+    event_rows = [row for row in latest_chart_strategy_events(chart_window, setup) if row.get("status") in {"ACTIVE", "WATCH"}]
+    if event_rows:
+        event_df = pd.DataFrame(event_rows)
+        layers.append(
+            alt.Chart(event_df)
+            .mark_point(filled=True, size=120, stroke="#0f172a", strokeWidth=1)
+            .encode(
+                x=alt.X("ts:T", title="Time"),
+                y=alt.Y("price:Q", title="Precio", scale=price_scale),
+                color=alt.Color("marker:N", legend=None, scale=alt.Scale(range=event_df["color"].tolist())),
+                shape=alt.Shape(
+                    "status:N",
+                    legend=None,
+                    scale=alt.Scale(domain=["ACTIVE", "WATCH"], range=["triangle-up", "circle"]),
+                ),
+                tooltip=[
+                    alt.Tooltip("marker:N", title="Marcador"),
+                    alt.Tooltip("status:N", title="Estado"),
+                    alt.Tooltip("event:N", title="Evento"),
+                    alt.Tooltip("what_it_means:N", title="Lectura"),
+                    alt.Tooltip("wait_for:N", title="Esperar"),
+                    alt.Tooltip("price:Q", title="Precio", format=".2f"),
+                ],
+            )
+        )
+
+    line_cols = [col for col in ["ema9", "sma20", "sma40", "sma100", "sma200"] if col in chart_window.columns]
+    if line_cols:
+        chart_long = chart_window[["ts", *line_cols]].melt("ts", var_name="line", value_name="price").dropna()
+        layers.append(
+            alt.Chart(chart_long)
+            .mark_line(size=1.8)
+            .encode(
+                x=alt.X("ts:T", title="Tiempo"),
+                y=alt.Y("price:Q", title="Precio", scale=price_scale),
+                color=alt.Color(
+                    "line:N",
+                    title="Media",
+                    legend=alt.Legend(orient="bottom", columns=5),
+                    scale=alt.Scale(
+                        domain=["ema9", "sma20", "sma40", "sma100", "sma200"],
+                        range=["#e879f9", "#22c55e", "#38bdf8", "#f59e0b", "#ef4444"],
+                    ),
+                ),
+                tooltip=[
+                    alt.Tooltip("ts:T", title="Tiempo"),
+                    alt.Tooltip("line:N", title="Media"),
+                    alt.Tooltip("price:Q", title="Precio", format=".2f"),
+                ],
+            )
+        )
+
+    levels = []
+    for level, label, color in (
+        (entry, "Entrada", "#22c55e"),
+        (stop, "Stop", "#ef4444"),
+        (confluence.get("recommended_target_price") if confluence else None, "Objetivo", "#a78bfa"),
+    ):
+        number = safe_float(level)
+        if number is not None:
+            levels.append({"price": number, "label": label, "color": color})
+    for target in targets:
+        number = safe_float(target.get("price"))
+        if number is not None:
+            levels.append({"price": number, "label": str(target.get("label")), "color": str(target.get("color"))})
+    if not chart_window.empty:
+        last = chart_window.iloc[-1]
+        last_close = safe_float(last.get("close"))
+        if last_close is not None:
+            levels.append({"price": last_close, "label": "Actual", "color": "#f8fafc"})
+        for level, label, color in (
+            (last.get("range_high_60"), "Resistencia", "#22d3ee"),
+            (last.get("range_low_60"), "Soporte", "#22d3ee"),
+        ):
+            number = safe_float(level)
+            if number is not None and chart_level_is_near(number, last_close, lower=0.75, upper=1.25):
+                levels.append({"price": number, "label": label, "color": color})
+    if levels:
+        deduped: list[dict[str, Any]] = []
+        seen_levels: set[tuple[str, float]] = set()
+        label_idx = max(0, len(chart_window) - 14)
+        label_ts = chart_window["ts"].iloc[label_idx] if not chart_window.empty else None
+        for item in levels:
+            price = safe_float(item.get("price"))
+            if price is None:
+                continue
+            key = (str(item.get("label")), round(price, 4))
+            if key in seen_levels:
+                continue
+            seen_levels.add(key)
+            deduped.append(
+                {
+                    **item,
+                    "price": price,
+                    "label_text": f"{item.get('label')} {price:.2f}",
+                    "ts": label_ts,
+                }
+            )
+        level_df = pd.DataFrame(deduped)
+        labels = level_df["label"].tolist()
+        colors = level_df["color"].tolist()
+        layers.append(
+            alt.Chart(level_df)
+            .mark_rule(strokeDash=[6, 4], size=1.4)
+            .encode(
+                y=alt.Y("price:Q", title="Precio", scale=price_scale),
+                color=alt.Color("label:N", legend=None, scale=alt.Scale(domain=labels, range=colors)),
+                tooltip=[alt.Tooltip("label:N", title="Nivel"), alt.Tooltip("price:Q", title="Precio", format=".2f")],
+            )
+        )
+        label_df = level_df[level_df["label"].isin(["Actual", "Entrada", "Stop", "Objetivo 2%"])]
+        if not label_df.empty:
+            layers.append(
+                alt.Chart(label_df)
+            .mark_text(align="left", dx=8, dy=-6, fontSize=12, fontWeight="bold")
+            .encode(
+                x=alt.X("ts:T", title="Tiempo"),
+                y=alt.Y("price:Q", title="Precio", scale=price_scale),
+                text="label_text:N",
+                color=alt.Color("label:N", legend=None, scale=alt.Scale(domain=labels, range=colors)),
+            )
+            )
+
+    if not chart_window.empty:
+        latest = chart_window.iloc[-1].to_dict()
+        callout_price = (
+            safe_float(brief.get("entry"))
+            or safe_float(confluence.get("entry"))
+            or safe_float(setup.get("entry"))
+            or safe_float(latest.get("close"))
+        )
+        if callout_price is not None:
+            callout = chart_strategy_summary(setup, confluence, brief, chart_window)
+            callout_df = pd.DataFrame(
+                [
+                    {
+                        "ts": chart_window["ts"].iloc[max(0, len(chart_window) - 36)],
+                        "price": callout_price,
+                        "label": f"{callout['family']} · {callout['action']}",
+                        "tone": callout["tone"],
+                    }
+                ]
+            )
+            layers.append(
+                alt.Chart(callout_df)
+                .mark_text(align="left", dx=8, dy=-18, fontSize=14, fontWeight="bold")
+                .encode(
+                    x=alt.X("ts:T", title="Tiempo"),
+                    y=alt.Y("price:Q", title="Precio", scale=price_scale),
+                    text="label:N",
+                    color=alt.Color(
+                        "tone:N",
+                        legend=None,
+                        scale=alt.Scale(domain=["buy", "watch", "avoid", "neutral"], range=["#22c55e", "#f59e0b", "#ef4444", "#cbd5e1"]),
+                    ),
+                )
+            )
+
+    return alt.layer(*layers).resolve_scale(color="independent")
+
+
+def style_trading_chart(chart):
+    return (
+        chart.configure_axis(
+            grid=True,
+            gridColor="rgba(148,163,184,0.16)",
+            labelColor="#cbd5e1",
+            titleColor="#cbd5e1",
+        )
+        .configure_view(stroke="rgba(148,163,184,0.20)")
+        .configure_legend(labelColor="#e5edf7", titleColor="#cbd5e1", orient="right")
+    )
+
+
+def build_professional_volume_chart(chart_df: pd.DataFrame) -> alt.LayerChart | None:
+    if "volume" not in chart_df.columns:
+        return None
+    volume_window = prepare_chart_window(chart_df).dropna(subset=["volume"]).copy()
+    if volume_window.empty:
+        return None
+    volume_color = alt.condition("datum.close >= datum.open", alt.value("#22c55e"), alt.value("#ef4444"))
+    layers: list[alt.Chart] = [
+        alt.Chart(volume_window)
+        .mark_bar(opacity=0.56)
+        .encode(
+            x=alt.X("ts:T", title="Tiempo"),
+            y=alt.Y("volume:Q", title="Volumen"),
+            color=volume_color,
+            tooltip=[
+                alt.Tooltip("ts:T", title="Tiempo"),
+                alt.Tooltip("volume:Q", title="Volumen", format=",.0f"),
+                alt.Tooltip("relative_volume:Q", title="Volumen relativo", format=".2f")
+                if "relative_volume" in volume_window.columns
+                else alt.Tooltip("volume:Q", title="Volumen", format=",.0f"),
+            ],
+        )
+    ]
+    if "volume_sma20" in volume_window.columns and volume_window["volume_sma20"].notna().any():
+        layers.append(
+            alt.Chart(volume_window.dropna(subset=["volume_sma20"]))
+            .mark_line(color="#f59e0b", size=1.6)
+            .encode(
+                x=alt.X("ts:T", title="Tiempo"),
+                y=alt.Y("volume_sma20:Q", title="Volumen"),
+                tooltip=[
+                    alt.Tooltip("ts:T", title="Tiempo"),
+                    alt.Tooltip("volume_sma20:Q", title="Volumen SMA20", format=",.0f"),
+                ],
+            )
+        )
+    return alt.layer(*layers).resolve_scale(color="independent")
+
+
+def build_professional_oscillator_chart(chart_df: pd.DataFrame) -> alt.LayerChart | None:
+    oscillator_cols = [column for column in ("rsi14", "macd_hist") if column in chart_df.columns]
+    if not oscillator_cols:
+        return None
+    window = prepare_chart_window(chart_df)
+    subset = ["ts", *oscillator_cols]
+    oscillator_window = window[subset].dropna(how="all", subset=oscillator_cols).copy() if not window.empty else pd.DataFrame()
+    if oscillator_window.empty:
+        return None
+
+    layers: list[alt.Chart] = []
+    if "rsi14" in oscillator_window.columns and oscillator_window["rsi14"].notna().any():
+        rsi_df = oscillator_window.dropna(subset=["rsi14"]).copy()
+        rsi_base = alt.Chart(rsi_df).encode(x=alt.X("ts:T", title="Tiempo"))
+        layers.append(
+            rsi_base.mark_line(color="#38bdf8", size=1.8).encode(
+                y=alt.Y("rsi14:Q", title="RSI 14", scale=alt.Scale(domain=[0, 100])),
+                tooltip=[
+                    alt.Tooltip("ts:T", title="Tiempo"),
+                    alt.Tooltip("rsi14:Q", title="RSI 14", format=".1f"),
+                ],
+            )
+        )
+        for value, label, color in ((70, "RSI 70", "#f59e0b"), (30, "RSI 30", "#22c55e")):
+            layers.append(
+                alt.Chart(pd.DataFrame({"level": [value], "label": [label]}))
+                .mark_rule(strokeDash=[4, 4], color=color, opacity=0.65)
+                .encode(y=alt.Y("level:Q", title="RSI 14", scale=alt.Scale(domain=[0, 100])), tooltip=["label:N"])
+            )
+
+    if "macd_hist" in oscillator_window.columns and oscillator_window["macd_hist"].notna().any():
+        macd_df = oscillator_window.dropna(subset=["macd_hist"]).copy()
+        macd_color = alt.condition("datum.macd_hist >= 0", alt.value("#22c55e"), alt.value("#ef4444"))
+        layers.append(
+            alt.Chart(macd_df)
+            .mark_bar(opacity=0.38)
+            .encode(
+                x=alt.X("ts:T", title="Tiempo"),
+                y=alt.Y("macd_hist:Q", title="MACD hist"),
+                color=macd_color,
+                tooltip=[
+                    alt.Tooltip("ts:T", title="Tiempo"),
+                    alt.Tooltip("macd_hist:Q", title="MACD hist", format=".4f"),
+                ],
+            )
+        )
+
+    if not layers:
+        return None
+    return alt.layer(*layers).resolve_scale(y="independent", color="independent")
+
+
+def render_strategy_event_panel(chart_df: pd.DataFrame, setup: dict) -> None:
+    events = latest_chart_strategy_events(chart_df, setup)
+    if not events:
+        return
+    st.markdown("**Marcadores de estrategia**")
+    status_label = {"ACTIVE": "Activo", "WATCH": "Vigilar", "BLOCKED": "Bloqueado"}
+    display = pd.DataFrame(
+        [
+            {
+                "Estado": status_label.get(str(row.get("status")), str(row.get("status") or "-")),
+                "Marcador": row.get("marker"),
+                "Lectura": row.get("what_it_means"),
+                "Esperar": row.get("wait_for"),
+                "Precio": num_display(row.get("price")),
+            }
+            for row in events
+        ]
+    )
+    st.dataframe(display, width="stretch", hide_index=True)
+
+
+def render_focus_action_brief(brief: dict) -> None:
+    direct = brief.get("direct_plan") or {}
+    decision = text_display(direct.get("status") or brief.get("decision"))
+    action = text_display(brief.get("action"))
+    tone = "buy" if action in {"BUY_STOCK", "WATCH_CALL"} else "avoid" if action == "NO_TRADE" else "watch"
+    reason_text = text_display(direct.get("summary"))
+    if reason_text == "-":
+        reasons = [str(item) for item in brief.get("reasons", []) if str(item).strip()]
+        reason_text = " ".join(reasons[:3]) or "Esperar una confirmacion mas limpia antes de operar."
+    teaching = text_display(brief.get("teaching_note"))
+    if teaching == "-":
+        teaching = "Roxy esta comparando tendencia, medias moviles, volumen, riesgo y memoria antes de alertar."
+    st.markdown(
+        f"""
+        <div class="trade-plan trade-plan-{tone}">
+            <div class="trade-plan-title">Roxy: {html.escape(decision)}</div>
+            <div class="trade-plan-line">{html.escape(reason_text)}</div>
+            <div class="trade-plan-line">{html.escape(teaching)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_watch_plan(brief: dict) -> None:
+    plan = brief.get("watch_plan") or {}
+    movement = text_display(plan.get("movement"))
+    if movement == "-":
+        return
+    st.markdown("**Movimiento que estamos esperando**")
+    st.info(movement)
+    confirmations = [str(item) for item in plan.get("confirmations", []) if str(item).strip()]
+    levels = [str(item) for item in plan.get("levels", []) if str(item).strip()]
+    if confirmations:
+        cols = st.columns(min(3, len(confirmations)))
+        for col, item in zip(cols, confirmations[:3]):
+            with col:
+                render_kpi_card("Falta", item, tone="watch")
+    if levels:
+        st.caption(" | ".join(levels[:5]))
+
+
+def render_decision_reason(brief: dict) -> None:
+    reason = brief.get("decision_reason") or {}
+    title = text_display(reason.get("title"))
+    summary = text_display(reason.get("summary"))
+    if title == "-" and summary == "-":
+        return
+    tone = str(reason.get("tone") or "watch")
+    tone = tone if tone in {"buy", "watch", "avoid", "neutral"} else "watch"
+    st.markdown(f"**{html.escape(title if title != '-' else 'Por que Roxy decide esto')}**")
+    if summary != "-":
+        if tone == "buy":
+            st.success(summary)
+        elif tone == "avoid":
+            st.warning(summary)
+        else:
+            st.info(summary)
+
+    bullets = [str(item) for item in reason.get("bullets", []) if str(item).strip()]
+    if bullets:
+        cols = st.columns(min(3, len(bullets)))
+        for col, item in zip(cols, bullets[:3]):
+            with col:
+                render_kpi_card("Razon", item[:140], tone=tone)
+
+    next_steps = [str(item) for item in reason.get("next_steps", []) if str(item).strip()]
+    if next_steps:
+        st.caption("Siguiente: " + " | ".join(next_steps[:3]))
+
+
+def render_decision_transition(brief: dict) -> None:
+    transition = brief.get("decision_transition") or {}
+    title = text_display(transition.get("title"))
+    status = text_display(transition.get("status"))
+    if title == "-" and status == "-":
+        return
+    tone = str(transition.get("tone") or "watch")
+    tone = tone if tone in {"buy", "watch", "avoid", "neutral"} else "watch"
+    st.markdown(f"**{html.escape(title if title != '-' else 'Que cambia la decision')}**")
+    if status != "-":
+        render_kpi_card("Regla", status, tone=tone)
+    items = [str(item) for item in transition.get("items", []) if str(item).strip()]
+    if items:
+        cols = st.columns(min(3, len(items)))
+        for col, item in zip(cols, items[:3]):
+            with col:
+                render_kpi_card("Condicion", item[:140], tone=tone)
+
+
+def render_ai_trade_brief(brief: dict) -> None:
+    action = str(brief.get("action", "WAIT"))
+    tone = "buy" if action in {"BUY_STOCK", "WATCH_CALL"} else "avoid" if action == "NO_TRADE" else "watch"
+    symbol = text_display(brief.get("symbol"))
+    decision = text_display(brief.get("decision"))
+    direct = brief.get("direct_plan") or {}
+    direct_status = text_display(direct.get("status") or decision)
+    direct_product = text_display(direct.get("product"))
+    direct_summary = text_display(direct.get("summary"))
+    direct_next = text_display(direct.get("next_step"))
+    entry = safe_float(brief.get("entry"))
+    stop = safe_float(brief.get("stop"))
+    targets = brief.get("target_ladder", [])
+    target_prices = [num_display(item.get("target_price")) for item in targets[:3]]
+    while len(target_prices) < 3:
+        target_prices.append("-")
+    st.markdown("**Plan de operacion**")
+    st.markdown(
+        f"""
+        <div class="trade-plan trade-plan-{tone}">
+            <div class="trade-plan-title">{html.escape(symbol)} | {html.escape(direct_status)}</div>
+            <div class="trade-plan-line">{html.escape(direct_summary if direct_summary != '-' else decision)}</div>
+            <div class="trade-plan-line">
+                Entrada {html.escape(num_display(entry))} | Stop {html.escape(num_display(stop))} |
+                Objetivos {html.escape(" / ".join(target_prices))}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    cols = st.columns([1.1, 1, 0.8, 0.8, 0.8, 0.9])
+    with cols[0]:
+        render_kpi_card("Decision directa", direct_status, tone=tone, detail=direct_product if direct_product != "-" else None)
+    with cols[1]:
+        render_kpi_card("Estrategia", brief.get("strategy_family", "-"))
+    with cols[2]:
+        render_kpi_card("Score", num_display(brief.get("score"), 0))
+    with cols[3]:
+        render_kpi_card("Entrada", num_display(brief.get("entry")))
+    with cols[4]:
+        render_kpi_card("Stop", num_display(brief.get("stop")))
+    with cols[5]:
+        render_kpi_card("Riesgo", pct_display(brief.get("risk_pct")), tone="avoid" if tone == "avoid" else "neutral")
+
+    message = direct_next if direct_next != "-" else " ".join(str(item) for item in brief.get("reasons", [])[:5])
+    if action in {"BUY_STOCK", "WATCH_CALL"}:
+        st.success(message)
+    elif action == "NO_TRADE":
+        st.warning(message)
+    else:
+        st.info(message)
+
+    memory = brief.get("memory") or {}
+    stats = memory.get("stats") if isinstance(memory, dict) else {}
+    if isinstance(stats, dict) and (safe_float(stats.get("alerts")) or 0) > 0:
+        st.caption(
+            "Memoria real de esta estrategia: "
+            f"{int(safe_float(stats.get('alerts')) or 0)} senales | "
+            f"2%: {int(safe_float(stats.get('hit_2pct')) or 0)} | "
+            f"5%: {int(safe_float(stats.get('hit_5pct')) or 0)} | "
+            f"10%: {int(safe_float(stats.get('hit_10pct')) or 0)} | "
+            f"Stop: {int(safe_float(stats.get('stops')) or 0)}."
+        )
+    else:
+        st.caption("Memoria real de esta estrategia: Roxy todavia esta recolectando resultados cerrados.")
+
+    render_decision_reason(brief)
+    render_decision_transition(brief)
+
+    if action not in {"BUY_STOCK", "WATCH_CALL"}:
+        render_watch_plan(brief)
+
+    explanation_lines = [str(item) for item in brief.get("strategy_explanation", []) if str(item).strip()]
+    if explanation_lines:
+        st.markdown("**Explicacion de Roxy**")
+        for line in explanation_lines[:7]:
+            st.write(f"- {line}")
+        if st.button("Escuchar explicacion de Roxy", key=f"speak_trade_{symbol}_{brief.get('timeframe', '')}"):
+            voice_text = f"{symbol}. {decision}. " + " ".join(explanation_lines[:6])
+            speak_in_browser(voice_text, key=f"trade-{symbol}-{brief.get('timeframe', '')}")
+
+    target_rows = brief.get("target_ladder", [])
+    if target_rows:
+        target_df = pd.DataFrame(target_rows)
+        display = target_df.copy()
+        display["target_price"] = display["target_price"].map(lambda value: num_display(value))
+        display["reward_r"] = display["reward_r"].map(lambda value: "-" if pd.isna(value) else f"{value:.2f}R")
+        st.dataframe(display[["target", "target_price", "reward_r"]], width="stretch", hide_index=True)
+
+    sizing = brief.get("sizing", {})
+    size_cols = st.columns(4)
+    with size_cols[0]:
+        render_kpi_card("Riesgo $", num_display(sizing.get("risk_dollars")))
+    with size_cols[1]:
+        render_kpi_card("Acciones", sizing.get("shares", 0))
+    with size_cols[2]:
+        render_kpi_card("Valor posicion", num_display(sizing.get("stock_notional")))
+    with size_cols[3]:
+        render_kpi_card("Contratos", sizing.get("contracts", 0))
+
+    option = brief.get("option") or {}
+    if option:
+        option_cols = [
+            "contractSymbol",
+            "option_decision",
+            "option_score",
+            "expiry",
+            "dte",
+            "strike",
+            "delta",
+            "bid",
+            "ask",
+            "spread_pct",
+            "volume",
+            "openInterest",
+            "breakeven_price",
+            "breakeven_pct",
+            "max_loss_per_contract",
+        ]
+        st.markdown("**Mejor contrato de opcion**")
+        st.dataframe(pd.DataFrame([option])[[col for col in option_cols if col in option]], width="stretch")
+
+    st.caption("Solo apoyo de decision. Roxy exige confirmacion, stop y tamano controlado antes de cualquier operacion real.")
+
+
+def render_operation_gate(brief: dict) -> None:
+    status = text_display(brief.get("operation_status"))
+    tone = "buy" if status == "Operar" else "avoid" if status == "No operar" else "watch"
+    st.markdown("**Solo operar si...**")
+    cols = st.columns([1.1, 1, 1, 1, 1])
+    with cols[0]:
+        render_kpi_card("Decision final", status, tone=tone)
+    checks = brief.get("condition_checks", [])
+    for col, item in zip(cols[1:], checks[:4]):
+        passed = bool(item.get("passed"))
+        with col:
+            render_kpi_card(
+                str(item.get("label", "-")),
+                "OK" if passed else "NO",
+                tone="buy" if passed else "avoid",
+                detail=str(item.get("detail", ""))[:80],
+            )
+    if len(checks) > 4:
+        more_cols = st.columns(3)
+        for col, item in zip(more_cols, checks[4:7]):
+            passed = bool(item.get("passed"))
+            with col:
+                render_kpi_card(
+                    str(item.get("label", "-")),
+                    "OK" if passed else "NO",
+                    tone="buy" if passed else "avoid",
+                    detail=str(item.get("detail", ""))[:110],
+                )
+
+
+def render_trade_plan_platform_preview(ticket: dict) -> None:
+    if not ticket:
+        return
+    raw_status = str(ticket.get("status") or "-")
+    status = platform_status_label(raw_status)
+    tone = "buy" if raw_status == "READY_TO_PREVIEW" else "watch" if raw_status == "WAIT_FOR_CONFIRMATION" else "avoid"
+    st.markdown("**Ruta manual a plataforma**")
+    cols = st.columns([1.1, 0.9, 1.0, 1.1, 0.8, 0.8])
+    with cols[0]:
+        render_kpi_card("Plataforma", ticket.get("platform", "-"), tone=tone)
+    with cols[1]:
+        render_kpi_card("Producto", asset_type_label(ticket.get("asset_type")), tone=tone)
+    with cols[2]:
+        render_kpi_card("Estado", status, tone=tone)
+    with cols[3]:
+        render_kpi_card("Orden", ticket.get("order_symbol", "-"))
+    with cols[4]:
+        render_kpi_card("Qty", num_display(ticket.get("quantity"), 4))
+    with cols[5]:
+        render_kpi_card("Riesgo $", num_display(ticket.get("risk_dollars")))
+
+    reason = platform_reason_label(ticket.get("status_reason"))
+    note = text_display(ticket.get("platform_note"))
+    if tone == "buy":
+        st.success(reason)
+    elif tone == "avoid":
+        st.warning(reason)
+    else:
+        st.info(reason)
+    if note != "-":
+        st.caption(note)
+
+    option_quality = ticket.get("option_quality") or {}
+    if option_quality:
+        visible = {key: value for key, value in option_quality.items() if text_display(value) != "-"}
+        if visible:
+            st.caption(
+                "Opcion: "
+                + " | ".join(
+                    f"{key}={num_display(value) if isinstance(value, (int, float)) else value}" for key, value in visible.items()
+                )
+            )
+
+    guardrail = ticket.get("risk_guardrail") or {}
+    if guardrail:
+        guard_tone = "buy" if guardrail.get("allowed") else "avoid"
+        guard_cols = st.columns(4)
+        with guard_cols[0]:
+            render_kpi_card("Control riesgo", platform_status_label(guardrail.get("status", "-")), tone=guard_tone)
+        with guard_cols[1]:
+            render_kpi_card("1R", num_display(guardrail.get("per_trade_budget")))
+        with guard_cols[2]:
+            render_kpi_card("2R diario", num_display(guardrail.get("daily_stop")), tone="avoid")
+        with guard_cols[3]:
+            render_kpi_card("Riesgo libre", num_display(guardrail.get("remaining_daily_risk")), tone=guard_tone)
+        st.caption(str(guardrail.get("message") or ""))
+
+    product_plan = ticket.get("small_account_plan") or {}
+    if product_plan:
+        product_tone = "buy" if product_plan.get("allowed") else "avoid"
+        product_cols = st.columns(4)
+        with product_cols[0]:
+            render_kpi_card("Cuenta pequena", product_plan.get("recommendation", "-"), tone=product_tone)
+        with product_cols[1]:
+            render_kpi_card("Riesgo max", num_display(product_plan.get("risk_budget")), tone=product_tone)
+        with product_cols[2]:
+            render_kpi_card("Unidades", num_display(product_plan.get("whole_shares") or product_plan.get("units"), 4))
+        with product_cols[3]:
+            option_label = "OK" if product_plan.get("option_allowed") else "NO"
+            render_kpi_card("Opcion", option_label, tone="buy" if product_plan.get("option_allowed") else "watch")
+        st.caption(str(product_plan.get("message") or ""))
+        option_message = text_display(product_plan.get("option_message"))
+        if option_message != "-":
+            st.caption(option_message)
+        st.caption(str(product_plan.get("next_step") or ""))
+
+    with st.expander("Ticket preview JSON", expanded=False):
+        payload = {
+            "platform": ticket.get("platform"),
+            "asset_type": ticket.get("asset_type"),
+            "order_symbol": ticket.get("order_symbol"),
+            "side": ticket.get("side"),
+            "order_type": ticket.get("order_type"),
+            "time_in_force": ticket.get("time_in_force"),
+            "entry": ticket.get("entry"),
+            "stop": ticket.get("stop"),
+            "target_price": ticket.get("target_price"),
+            "risk_dollars": ticket.get("risk_dollars"),
+            "quantity": ticket.get("quantity"),
+            "status": ticket.get("status"),
+            "execution_gate": ticket.get("execution_gate"),
+            "manual_only": ticket.get("manual_only"),
+            "risk_guardrail": ticket.get("risk_guardrail"),
+            "small_account_plan": ticket.get("small_account_plan"),
+        }
+        st.code(json.dumps(payload, indent=2), language="json")
+
+
+def show_sma_symbol_analyzer(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, options_df: pd.DataFrame) -> None:
+    st.subheader("Analizador por simbolo")
+    control_cols = st.columns([1.2, 0.8, 0.8, 0.8])
+    with control_cols[0]:
+        query = st.text_input("Simbolo o compania", value="AAPL", key="sma_symbol_query")
+    with control_cols[1]:
+        market = st.selectbox("Mercado", ["stock", "crypto"], key="sma_symbol_market")
+    with control_cols[2]:
+        timeframe = st.selectbox("Marco", TIMEFRAME_OPTIONS, index=1, key="sma_symbol_tf")
+    with control_cols[3]:
+        run = st.button("Analizar simbolo", key="sma_symbol_analyze")
+
+    risk_cols = st.columns([1, 1, 2])
+    with risk_cols[0]:
+        account_equity = st.number_input(
+            "Capital de cuenta",
+            min_value=100.0,
+            value=float(DEFAULT_ACCOUNT_EQUITY),
+            step=50.0,
+            key="sma_account_equity",
+        )
+    with risk_cols[1]:
+        risk_per_trade_pct = st.number_input(
+            "Riesgo por trade %",
+            min_value=0.1,
+            max_value=5.0,
+            value=1.0,
+            step=0.1,
+            key="sma_risk_per_trade_pct",
+        )
+
+    symbol = resolve_symbol_query(query, market)
+    if not run:
+        st.caption("Ejemplo: escribe Apple o AAPL, elige 1h o 15m y analiza el simbolo.")
+        return
+    if not symbol:
+        st.warning("Primero escribe un simbolo.")
+        return
+
+    with st.spinner(f"Analizando {symbol} con SMA 20/40/100/200..."):
+        try:
+            history = fetch_symbol_history(symbol, market=market, timeframe=timeframe)
+            chart_df = prepare_symbol_chart_data(history)
+            setup = analyze_moving_average_setup(history) if not history.empty else {}
+        except Exception as exc:
+            st.error(f"No se pudo analizar {symbol}: {exc}")
+            return
+
+    if chart_df.empty or not setup:
+        st.warning(f"No hay suficiente historial de precio para {symbol}.")
+        return
+
+    signal = text_display(setup.get("signal"))
+    setup_name = text_display(setup.get("setup"))
+    risk_pct = setup_risk_pct(setup)
+    confluence = latest_confluence_row(confluence_df, symbol)
+    confluence_signal = text_display(confluence.get("signal")) if confluence else "-"
+    trade_decision = text_display(confluence.get("trade_decision")) if confluence else "-"
+
+    metric_cols = st.columns(6)
+    with metric_cols[0]:
+        render_kpi_card("Simbolo", symbol)
+    with metric_cols[1]:
+        render_kpi_card("Senal / setup", f"{signal} | {setup_name}", tone=signal_tone(signal))
+    with metric_cols[2]:
+        render_kpi_card("Score", num_display(setup.get("score"), 0))
+    with metric_cols[3]:
+        render_kpi_card("Entrada", num_display(setup.get("entry")))
+    with metric_cols[4]:
+        render_kpi_card("Stop", num_display(setup.get("stop")))
+    with metric_cols[5]:
+        render_kpi_card(
+            "Riesgo",
+            pct_display(risk_pct),
+            tone="avoid" if risk_pct is not None and risk_pct > 0.03 else "neutral",
+            detail="Alto" if risk_pct is not None and risk_pct > 0.03 else None,
+        )
+
+    if confluence:
+        confluence_cols = st.columns(5)
+        with confluence_cols[0]:
+            render_kpi_card("Confluencia", confluence_signal, tone=signal_tone(confluence_signal))
+        with confluence_cols[1]:
+            render_kpi_card("Decision", trade_decision, tone=signal_tone(trade_decision))
+        with confluence_cols[2]:
+            render_kpi_card("Score confluencia", num_display(confluence.get("confluence_score"), 0))
+        with confluence_cols[3]:
+            render_kpi_card("Objetivo", pct_display(confluence.get("recommended_target_pct")))
+        with confluence_cols[4]:
+            render_kpi_card("Precio objetivo", num_display(confluence.get("recommended_target_price")))
+
+        if signal == "BUY" and not (confluence_signal == "BUY" and str(trade_decision).startswith("TRADE_FOR")):
+            st.warning(
+                "Setup fuerte en la grafica, pero 15m/1h todavia no confirma entrada. "
+                "Tratalo como watchlist; para opciones espera confluence BUY."
+            )
+        elif signal == "BUY":
+            st.success("Setup y confluence alineados. La entrada se maneja con stop, objetivo y tamano controlado.")
+    elif signal == "BUY":
+        st.info("Setup fuerte, pero no hay confluence 15m/1h para este simbolo. Espera confirmacion intradia antes de opciones.")
+
+    ai_trade_brief = build_symbol_trade_brief(
+        symbol=symbol,
+        market=market,
+        timeframe=timeframe,
+        setup=setup,
+        confluence=confluence,
+        options_df=options_df,
+        account_equity=float(account_equity),
+        account_risk_pct=float(risk_per_trade_pct) / 100.0,
+        memory=load_memory(),
+    )
+    render_ai_trade_brief(ai_trade_brief)
+    render_operation_gate(ai_trade_brief)
+
+    playbook = classify_strategy_playbook(setup, confluence=confluence, market=market, timeframe=timeframe)
+    st.markdown("**Manual de estrategia**")
+    playbook_cols = st.columns([1, 1, 1.3, 1.5, 1.5])
+    with playbook_cols[0]:
+        render_kpi_card("Regimen", playbook["regime"])
+    with playbook_cols[1]:
+        render_kpi_card("Estrategia", playbook["strategy"])
+    with playbook_cols[2]:
+        render_kpi_card("Regla entrada", playbook["entry_rule"])
+    with playbook_cols[3]:
+        render_kpi_card("Plan accion", playbook["stock_plan"], tone=signal_tone(signal))
+    with playbook_cols[4]:
+        render_kpi_card("Plan opciones", playbook["options_plan"], tone="watch" if market == "stock" else "neutral")
+
+    reference_rows = detect_reference_strategies(chart_df, setup)
+    render_strategy_checklist(reference_rows)
+
+    st.markdown("**Grafica profesional de estrategia**")
+    st.caption(
+        "Velas, nube de volatilidad, EMA9, SMA20/40/100/200, soporte/resistencia, zona de entrada, stop, objetivos 2%/5%/10% y volumen."
+    )
+    render_chart_readout(setup, confluence, ai_trade_brief, chart_df)
+    render_chart_strategy_summary(setup, confluence, ai_trade_brief, chart_df)
+    price_chart = build_professional_price_chart(chart_df, setup, confluence, ai_trade_brief).properties(height=460)
+    volume_chart = build_professional_volume_chart(chart_df)
+    oscillator_chart = build_professional_oscillator_chart(chart_df)
+    chart_panels = [price_chart]
+    if volume_chart is not None:
+        chart_panels.append(volume_chart.properties(height=130))
+    if oscillator_chart is not None:
+        chart_panels.append(oscillator_chart.properties(height=115))
+    if len(chart_panels) > 1:
+        combined_chart = alt.vconcat(*chart_panels).resolve_scale(x="shared")
+        st.altair_chart(
+            style_trading_chart(combined_chart),
+            use_container_width=True,
+        )
+    else:
+        st.altair_chart(style_trading_chart(price_chart), use_container_width=True)
+
+    reasons = setup.get("reasons") or []
+    if reasons:
+        st.markdown("**Strategy read:** " + " · ".join(str(reason) for reason in reasons[:6]))
+
+    scan_rows = latest_symbol_rows(scan_df, symbol)
+    if not scan_rows.empty:
+        cols = [
+            "market",
+            "symbol",
+            "tf",
+            "signal",
+            "raw_signal",
+            "setup",
+            "score",
+            "close",
+            "sma20",
+            "sma40",
+            "sma100",
+            "sma200",
+            "relative_volume",
+            "atr_pct",
+            "backtest_eligible",
+        ]
+        cols = [col for col in cols if col in scan_rows.columns]
+        st.dataframe(scan_rows[cols], width="stretch")
+
+    if market == "stock" and not options_df.empty and "symbol" in options_df.columns:
+        symbol_options = options_df[options_df["symbol"].astype(str).str.upper().eq(symbol.upper())].copy()
+        if not symbol_options.empty:
+            st.markdown("**Option candidates for this symbol**")
+            option_cols = [
+                "contractSymbol",
+                "option_decision",
+                "option_score",
+                "expiry",
+                "dte",
+                "strike",
+                "bid",
+                "ask",
+                "spread_pct",
+                "target_pct",
+                "breakeven_pct",
+                "max_loss_per_contract",
+            ]
+            option_cols = [col for col in option_cols if col in symbol_options.columns]
+            st.dataframe(symbol_options[option_cols], width="stretch")
+
+
+def show_sma_strategy_tab() -> None:
+    st.header("SMA 20/40/100/200 Strategy")
+
+    daily_scan_path, daily_scan_df = load_latest_ma_scan("ma_strategy")
+    live_scan_path, live_scan_df = load_latest_ma_scan("ma_live_strategy")
+    confluence_path, confluence_df = load_latest_ma_confluence()
+    options_path, options_df = load_latest_options_candidates()
+    daily_summary = read_summary_json("alerts/ma_daily_summary.json")
+    live_summary = read_summary_json("alerts/ma_live_summary.json")
+    confluence_summary = read_summary_json("alerts/ma_confluence_summary.json")
+    options_summary = read_summary_json("alerts/options_summary.json")
+
+    source_options = [LIVE_SOURCE_LABEL, "Daily 1d"] if live_scan_path else ["Daily 1d"]
+    selected_source = st.radio("Source", source_options, horizontal=True)
+    if selected_source == LIVE_SOURCE_LABEL:
+        scan_path, scan_df = live_scan_path, live_scan_df
+        summary = live_summary
+        report_path = Path("alerts/ma_live_report.txt")
+    else:
+        scan_path, scan_df = daily_scan_path, daily_scan_df
+        summary = daily_summary
+        report_path = Path("alerts/ma_daily_report.txt")
+
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    with col1:
+        st.metric("Rows", summary.get("rows", len(scan_df) if not scan_df.empty else 0))
+    with col2:
+        st.metric("BUY", summary.get("buy_count", 0))
+    with col3:
+        st.metric("Raw BUY", summary.get("raw_signal_counts", {}).get("BUY", 0))
+    with col4:
+        st.metric("Downgraded", summary.get("filtered_buy_count", 0))
+    with col5:
+        st.metric("Confluence BUY", confluence_summary.get("buy_count", 0) if selected_source == LIVE_SOURCE_LABEL else 0)
+    with col6:
+        st.metric("Options", options_summary.get("candidate_count", 0) if selected_source == LIVE_SOURCE_LABEL else 0)
+
+    controls = st.columns([1, 1, 1, 2])
+    with controls[0]:
+        if st.button("Run SMA Daily"):
+            try:
+                import subprocess
+                import sys
+
+                with st.spinner("Running daily SMA workflow..."):
+                    result = subprocess.run(
+                        [sys.executable, "tools/ma_daily.py"],
+                        cwd=Path(__file__).resolve().parent,
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
+                if result.returncode == 0:
+                    st.success("Daily workflow completed")
+                    if result.stdout:
+                        st.code(result.stdout)
+                else:
+                    st.error("Daily workflow failed")
+                    st.code(result.stderr or result.stdout)
+            except Exception as e:
+                st.error(f"Failed to run daily workflow: {e}")
+    with controls[1]:
+        if st.button("Run SMA Live Once"):
+            try:
+                import subprocess
+                import sys
+
+                with st.spinner("Running live SMA cycle..."):
+                    result = subprocess.run(
+                        [sys.executable, "tools/ma_live.py", "--once"],
+                        cwd=Path(__file__).resolve().parent,
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
+                if result.returncode == 0:
+                    st.success("Live cycle completed")
+                    if result.stdout:
+                        st.code(result.stdout)
+                else:
+                    st.error("Live cycle failed")
+                    st.code(result.stderr or result.stdout)
+            except Exception as e:
+                st.error(f"Failed to run live cycle: {e}")
+    with controls[2]:
+        if st.button("Refresh Report"):
+            try:
+                import subprocess
+                import sys
+
+                cmd = [sys.executable, "tools/ma_report.py"]
+                if scan_path:
+                    cmd.extend(["--scan-csv", scan_path])
+                result = subprocess.run(
+                    cmd,
+                    cwd=Path(__file__).resolve().parent,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                if result.returncode == 0:
+                    st.success("Report refreshed")
+                else:
+                    st.error(result.stderr or result.stdout)
+            except Exception as e:
+                st.error(f"Failed to refresh report: {e}")
+    with controls[3]:
+        if scan_path:
+            st.caption(f"Latest scan: {scan_path}")
+        else:
+            st.caption("No SMA scan CSV found.")
+
+    if scan_df.empty:
+        st.info("No SMA scan data found. Run the daily workflow or one live cycle to create the first report.")
+        return
+
+    if selected_source == LIVE_SOURCE_LABEL:
+        brief = best_confluence_candidate(confluence_df)
+        st.subheader("Decision Brief")
+        if brief:
+            decision = text_display(brief.get("trade_decision"))
+            signal = text_display(brief.get("signal"))
+            symbol = text_display(brief.get("symbol"))
+            market = text_display(brief.get("market"))
+
+            status_cols = st.columns([1.2, 1.1, 0.8, 0.8, 0.8, 1.2])
+            with status_cols[0]:
+                st.metric("Focus", f"{market} {symbol}")
+            with status_cols[1]:
+                if decision.startswith("TRADE_FOR") or signal == "BUY":
+                    st.success(f"{signal} | {decision}")
+                elif signal == "WATCH":
+                    st.info(f"{signal} | {decision}")
+                else:
+                    st.warning(f"{signal} | {decision}")
+            with status_cols[2]:
+                st.metric("Score", num_display(brief.get("confluence_score"), 0))
+            with status_cols[3]:
+                st.metric("Risk", pct_display(brief.get("risk_pct")))
+            with status_cols[4]:
+                st.metric("Target", pct_display(brief.get("recommended_target_pct")))
+            with status_cols[5]:
+                st.metric("Target Price", num_display(brief.get("recommended_target_price")))
+
+            plan_cols = st.columns([1, 1, 2])
+            with plan_cols[0]:
+                st.metric("Entry", num_display(brief.get("entry")))
+            with plan_cols[1]:
+                st.metric("Stop", num_display(brief.get("stop")))
+            with plan_cols[2]:
+                st.caption(text_display(brief.get("exit_plan")))
+        else:
+            st.info("No confluence data found yet.")
+
+    show_sma_symbol_analyzer(scan_df, confluence_df, options_df)
+
+    table_tabs = st.tabs(["Signals", "Confluence", "Options", "Downgraded", "Eligible Watch", "Report"])
+
+    display_cols = [
+        "market",
+        "symbol",
+        "tf",
+        "signal",
+        "raw_signal",
+        "backtest_eligible",
+        "setup",
+        "score",
+        "close",
+        "stop",
+        "backtest_total_return_pct",
+        "backtest_buy_hold_edge_pct",
+        "backtest_profit_factor",
+        "backtest_trades",
+    ]
+    display_cols = [col for col in display_cols if col in scan_df.columns]
+
+    with table_tabs[0]:
+        chart_cols = st.columns([1, 1])
+        signal_mix = signal_counts_by_timeframe(scan_df)
+        setup_mix = setup_counts_by_timeframe(scan_df)
+        with chart_cols[0]:
+            if not signal_mix.empty:
+                signal_chart = (
+                    alt.Chart(signal_mix)
+                    .mark_bar()
+                    .encode(
+                        x=alt.X("tf:N", title="Timeframe", sort=None),
+                        y=alt.Y("count:Q", title="Rows"),
+                        color=alt.Color(
+                            "signal:N",
+                            title="Signal",
+                            scale=alt.Scale(
+                                domain=["BUY", "WATCH", "AVOID"],
+                                range=["#16a34a", "#f59e0b", "#dc2626"],
+                            ),
+                        ),
+                        tooltip=["tf:N", "signal:N", "count:Q"],
+                    )
+                )
+                st.altair_chart(signal_chart.properties(height=260), use_container_width=True)
+        with chart_cols[1]:
+            if not setup_mix.empty:
+                setup_chart = (
+                    alt.Chart(setup_mix)
+                    .mark_bar()
+                    .encode(
+                        x=alt.X("count:Q", title="Rows"),
+                        y=alt.Y("setup:N", title="Setup", sort="-x"),
+                        color=alt.Color("tf:N", title="Timeframe", scale=alt.Scale(range=["#2563eb", "#14b8a6"])),
+                        tooltip=["tf:N", "setup:N", "count:Q"],
+                    )
+                )
+                st.altair_chart(setup_chart.properties(height=260), use_container_width=True)
+
+        score_points = score_distribution(scan_df)
+        if not score_points.empty:
+            score_chart = (
+                alt.Chart(score_points)
+                .mark_bar(opacity=0.85)
+                .encode(
+                    x=alt.X("score:Q", bin=alt.Bin(step=10), title="Score"),
+                    y=alt.Y("count():Q", title="Rows"),
+                    color=alt.Color(
+                        "signal:N",
+                        title="Signal",
+                        scale=alt.Scale(domain=["BUY", "WATCH", "AVOID"], range=["#16a34a", "#f59e0b", "#dc2626"]),
+                    ),
+                    tooltip=["signal:N", "count():Q"],
+                )
+            )
+            st.altair_chart(score_chart.properties(height=200), use_container_width=True)
+
+        signals = scan_df.copy()
+        if "signal" in signals.columns:
+            selected_signal = st.selectbox(
+                "Signal", options=["All"] + sorted(signals["signal"].dropna().unique().tolist())
+            )
+            if selected_signal != "All":
+                signals = signals[signals["signal"] == selected_signal]
+        st.dataframe(signals[display_cols], width="stretch")
+
+    confluence_cols = [
+        "market",
+        "symbol",
+        "signal",
+        "action",
+        "trade_decision",
+        "confluence_score",
+        "recommended_target_pct",
+        "recommended_target_price",
+        "entry",
+        "stop",
+        "risk_pct",
+        "risk_level",
+        "target_2pct_ok",
+        "target_2pct_price",
+        "target_2pct_reward_r",
+        "target_5pct_ok",
+        "target_5pct_price",
+        "target_5pct_reward_r",
+        "target_10pct_ok",
+        "target_10pct_price",
+        "target_10pct_reward_r",
+        "target_1r",
+        "target_2r",
+        "relative_volume_15m",
+        "atr_pct_15m",
+        "trigger_setup",
+        "trigger_score",
+        "trend_setup",
+        "trend_score",
+        "higher_tf_bias",
+        "higher_tf_confirmations",
+        "higher_tf_blocks",
+        "higher_tf_score",
+        "htf_2h_signal",
+        "htf_2h_setup",
+        "htf_2h_score",
+        "htf_4h_signal",
+        "htf_4h_setup",
+        "htf_4h_score",
+        "backtest_eligible",
+        "reasons",
+    ]
+    confluence_cols = [col for col in confluence_cols if col in confluence_df.columns]
+
+    with table_tabs[1]:
+        confluence_report_path = Path("alerts/ma_confluence_report.txt")
+        if selected_source != LIVE_SOURCE_LABEL:
+            st.info("Confluence is built from the live intraday scan.")
+        elif confluence_df.empty:
+            st.info("No confluence data found yet.")
+        else:
+            st.caption(f"Latest confluence: {confluence_path}")
+            confluence_chart_cols = st.columns([1, 1])
+            target_counts = target_ladder_counts(confluence_df)
+            with confluence_chart_cols[0]:
+                target_chart = (
+                    alt.Chart(target_counts)
+                    .mark_bar()
+                    .encode(
+                        x=alt.X("target:N", title="Target", sort=["2%", "5%", "10%"]),
+                        y=alt.Y("count:Q", title="Setups"),
+                        color=alt.Color(
+                            "target:N", legend=None, scale=alt.Scale(range=["#16a34a", "#0891b2", "#7c3aed"])
+                        ),
+                        tooltip=["target:N", "count:Q"],
+                    )
+                )
+                st.altair_chart(target_chart.properties(height=230), use_container_width=True)
+            with confluence_chart_cols[1]:
+                decision_counts = trade_decision_counts(confluence_df)
+                if not decision_counts.empty:
+                    decision_chart = (
+                        alt.Chart(decision_counts)
+                        .mark_bar()
+                        .encode(
+                            x=alt.X("count:Q", title="Setups"),
+                            y=alt.Y("trade_decision:N", title="Decision", sort="-x"),
+                            color=alt.value("#475569"),
+                            tooltip=["trade_decision:N", "count:Q"],
+                        )
+                    )
+                    st.altair_chart(decision_chart.properties(height=230), use_container_width=True)
+                if "higher_tf_bias" in confluence_df.columns:
+                    htf_counts = (
+                        confluence_df["higher_tf_bias"]
+                        .fillna("NO_DATA")
+                        .astype(str)
+                        .str.upper()
+                        .value_counts()
+                        .rename_axis("higher_tf_bias")
+                        .reset_index(name="count")
+                    )
+                    htf_chart = (
+                        alt.Chart(htf_counts)
+                        .mark_bar()
+                        .encode(
+                            x=alt.X("count:Q", title="Setups"),
+                            y=alt.Y("higher_tf_bias:N", title="2h/4h", sort="-x"),
+                            color=alt.Color(
+                                "higher_tf_bias:N",
+                                legend=None,
+                                scale=alt.Scale(
+                                    domain=["CONFIRMED", "PARTIAL", "BLOCKED", "NO_DATA"],
+                                    range=["#16a34a", "#f59e0b", "#dc2626", "#94a3b8"],
+                                ),
+                            ),
+                            tooltip=["higher_tf_bias:N", "count:Q"],
+                        )
+                    )
+                    st.altair_chart(htf_chart.properties(height=190), use_container_width=True)
+
+            risk_points = risk_score_points(confluence_df)
+            if not risk_points.empty:
+                risk_chart = (
+                    alt.Chart(risk_points)
+                    .mark_circle(size=110, opacity=0.82)
+                    .encode(
+                        x=alt.X("risk_display_pct:Q", title="Risk % to Stop"),
+                        y=alt.Y("confluence_score:Q", title="Confluence Score", scale=alt.Scale(domain=[0, 100])),
+                        color=alt.Color(
+                            "signal:N",
+                            title="Signal",
+                            scale=alt.Scale(domain=["BUY", "WATCH", "AVOID"], range=["#16a34a", "#f59e0b", "#dc2626"]),
+                        ),
+                        tooltip=[
+                            "market:N",
+                            "symbol:N",
+                            "signal:N",
+                            "trade_decision:N",
+                            alt.Tooltip("risk_display_pct:Q", title="Risk %", format=".2f"),
+                            alt.Tooltip("confluence_score:Q", title="Score", format=".0f"),
+                        ],
+                    )
+                )
+                st.altair_chart(risk_chart.properties(height=280), use_container_width=True)
+            st.dataframe(confluence_df[confluence_cols], width="stretch")
+        if confluence_report_path.exists():
+            with st.expander("Confluence report"):
+                st.text(confluence_report_path.read_text())
+
+    with table_tabs[2]:
+        options_report_path = Path("alerts/options_report.txt")
+        option_cols = [
+            "symbol",
+            "contractSymbol",
+            "option_decision",
+            "option_score",
+            "expiry",
+            "dte",
+            "strike",
+            "bid",
+            "ask",
+            "spread_pct",
+            "volume",
+            "openInterest",
+            "moneyness_pct",
+            "target_pct",
+            "target_reaches_strike",
+            "breakeven_pct",
+            "max_loss_per_contract",
+            "underlying_trade_decision",
+            "underlying_confluence_score",
+        ]
+        option_cols = [col for col in option_cols if col in options_df.columns]
+        if selected_source != LIVE_SOURCE_LABEL:
+            st.info("Options candidates are built from the live confluence trade plan.")
+        elif options_df.empty:
+            st.info(
+                "No options candidates found. The scanner only fetches contracts when confluence has actionable stock BUY setups."
+            )
+        else:
+            st.caption(f"Latest options scan: {options_path}")
+            option_chart_cols = st.columns([1, 1])
+            quality_points = option_quality_points(options_df)
+            with option_chart_cols[0]:
+                if not quality_points.empty:
+                    quality_chart = (
+                        alt.Chart(quality_points)
+                        .mark_circle(size=95, opacity=0.82)
+                        .encode(
+                            x=alt.X("spread_display_pct:Q", title="Spread %"),
+                            y=alt.Y("option_score:Q", title="Option Score", scale=alt.Scale(domain=[0, 100])),
+                            color=alt.Color(
+                                "option_decision:N",
+                                title="Decision",
+                                scale=alt.Scale(range=["#16a34a", "#f59e0b", "#64748b"]),
+                            ),
+                            tooltip=[
+                                "symbol:N",
+                                "contractSymbol:N",
+                                "option_decision:N",
+                                alt.Tooltip("spread_display_pct:Q", title="Spread %", format=".2f"),
+                                alt.Tooltip("option_score:Q", title="Score", format=".0f"),
+                                alt.Tooltip("dte:Q", title="DTE", format=".0f"),
+                            ],
+                        )
+                    )
+                    st.altair_chart(quality_chart.properties(height=250), use_container_width=True)
+            with option_chart_cols[1]:
+                expiry_counts = option_expiry_counts(options_df)
+                if not expiry_counts.empty:
+                    expiry_chart = (
+                        alt.Chart(expiry_counts)
+                        .mark_bar()
+                        .encode(
+                            x=alt.X("expiry:N", title="Expiry", sort=None),
+                            y=alt.Y("count:Q", title="Contracts"),
+                            color=alt.value("#0891b2"),
+                            tooltip=["expiry:N", "count:Q"],
+                        )
+                    )
+                    st.altair_chart(expiry_chart.properties(height=250), use_container_width=True)
+            st.dataframe(options_df[option_cols], width="stretch")
+        if options_report_path.exists():
+            with st.expander("Options report"):
+                st.text(options_report_path.read_text())
+
+    with table_tabs[3]:
+        if {"raw_signal", "signal"}.issubset(scan_df.columns):
+            downgraded = scan_df[(scan_df["raw_signal"] == "BUY") & (scan_df["signal"] != "BUY")]
+        else:
+            downgraded = pd.DataFrame()
+        st.write(f"{len(downgraded)} raw BUY signals were downgraded by the historical filter.")
+        if not downgraded.empty:
+            st.dataframe(downgraded[display_cols], width="stretch")
+
+    with table_tabs[4]:
+        if "backtest_eligible" in scan_df.columns:
+            eligible = scan_df[scan_df["backtest_eligible"].astype(bool) & (scan_df["signal"] != "BUY")]
+        else:
+            eligible = pd.DataFrame()
+        st.write(f"{len(eligible)} historically eligible symbols are not BUY today.")
+        if not eligible.empty:
+            st.dataframe(eligible[display_cols], width="stretch")
+
+    with table_tabs[5]:
+        if report_path.exists():
+            st.text(report_path.read_text())
+        else:
+            st.info("No SMA daily report found.")
+        if summary:
+            with st.expander("Summary JSON"):
+                st.json(summary)
+
+
+def run_local_command(args: list[str]) -> tuple[int, str]:
+    import subprocess
+    import sys
+
+    command = [sys.executable, *args]
+    result = subprocess.run(
+        command,
+        cwd=Path(__file__).resolve().parent,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    output = (result.stdout or "") + ("\n" + result.stderr if result.stderr else "")
+    return result.returncode, output.strip()
+
+
+def latest_timestamp(paths: list[str | None]) -> str:
+    existing = [Path(path) for path in paths if path and Path(path).exists()]
+    if not existing:
+        return "-"
+    latest = max(existing, key=lambda path: path.stat().st_mtime)
+    return datetime.fromtimestamp(latest.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+
+
+def file_age_minutes(path: str | None, *, now: datetime | None = None) -> float | None:
+    if not path:
+        return None
+    file_path = Path(path)
+    if not file_path.exists():
+        return None
+    now = now or datetime.now()
+    age_seconds = (now - datetime.fromtimestamp(file_path.stat().st_mtime)).total_seconds()
+    return max(0.0, age_seconds / 60.0)
+
+
+def data_freshness_status(
+    paths: list[str | None],
+    *,
+    max_age_minutes: float = 10.0,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    ages = [file_age_minutes(path, now=now) for path in paths if path]
+    ages = [age for age in ages if age is not None]
+    if not ages:
+        return {
+            "label": "Sin datos",
+            "tone": "avoid",
+            "age_minutes": None,
+            "detail": "Live/confluencia no encontrados",
+        }
+
+    age = max(ages)
+    if age <= max_age_minutes:
+        label = "Frescos"
+        tone = "buy"
+    elif age <= max_age_minutes * 3:
+        label = "Revisar"
+        tone = "watch"
+    else:
+        label = "Estancados"
+        tone = "avoid"
+
+    return {
+        "label": label,
+        "tone": tone,
+        "age_minutes": age,
+        "detail": f"{age:.0f} min",
+    }
+
+
+def timeframe_minutes(timeframe: str) -> int:
+    return shared_timeframe_minutes(timeframe)
+
+
+def latest_chart_timestamp(chart_df: pd.DataFrame) -> pd.Timestamp | None:
+    return shared_latest_chart_timestamp(chart_df)
+
+
+def chart_freshness_status(
+    chart_df: pd.DataFrame,
+    *,
+    market: str,
+    timeframe: str,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    return shared_chart_freshness_status(chart_df, market=market, timeframe=timeframe, now=now)
+
+
+def live_service_state() -> dict[str, str]:
+    try:
+        from tools import ma_live_launchd
+
+        label = ma_live_launchd.DEFAULT_LABEL
+        path = ma_live_launchd.plist_path_for_label(label)
+        loaded = ma_live_launchd.is_loaded(label)
+        return {
+            "label": label,
+            "installed": "yes" if path.exists() else "no",
+            "loaded": "yes" if loaded else "no",
+            "path": str(path),
+        }
+    except Exception:
+        return {"label": "com.roxy.ma_live", "installed": "unknown", "loaded": "unknown", "path": "-"}
+
+
+def live_backend_status(
+    live_path: str | None,
+    confluence_path: str | None,
+    *,
+    service_state: dict[str, str] | None = None,
+    heartbeat: dict[str, Any] | None = None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    state = service_state or live_service_state()
+    freshness = data_freshness_status([live_path, confluence_path], max_age_minutes=10.0, now=now)
+    loaded = state.get("loaded") == "yes"
+    installed = state.get("installed") == "yes"
+    heartbeat = heartbeat or {}
+    heartbeat_status = text_display(heartbeat.get("status")).upper()
+    heartbeat_error = text_display(heartbeat.get("error"))
+    heartbeat_error = "" if heartbeat_error == "-" else heartbeat_error
+    duration = safe_float(heartbeat.get("duration_seconds"))
+    duration_text = f" | {duration:.1f}s" if duration is not None else ""
+
+    if heartbeat_status == "RUNNING":
+        return {
+            "label": "Corriendo",
+            "tone": "watch",
+            "detail": f"Backend ejecutando scan live{duration_text}",
+            "loaded": loaded,
+            "installed": installed,
+            "freshness": freshness,
+            "heartbeat": heartbeat,
+        }
+    if heartbeat_status == "FAILED":
+        return {
+            "label": "Fallo",
+            "tone": "avoid",
+            "detail": heartbeat_error or "Ultima corrida live fallo",
+            "loaded": loaded,
+            "installed": installed,
+            "freshness": freshness,
+            "heartbeat": heartbeat,
+        }
+    if heartbeat_status == "NO_SCAN":
+        return {
+            "label": "Sin CSV",
+            "tone": "avoid",
+            "detail": heartbeat_error or "Ultima corrida no produjo scan",
+            "loaded": loaded,
+            "installed": installed,
+            "freshness": freshness,
+            "heartbeat": heartbeat,
+        }
+
+    if loaded and freshness["tone"] == "buy":
+        label = "Operativo"
+        tone = "buy"
+        detail = f"24h ON | {freshness['detail']}{duration_text}"
+    elif loaded:
+        label = "Atrasado"
+        tone = freshness["tone"]
+        detail = f"24h ON | {freshness['detail']}{duration_text}"
+    elif freshness["tone"] == "buy":
+        label = "Manual fresco"
+        tone = "watch"
+        detail = f"24h OFF | {freshness['detail']}{duration_text}"
+    elif installed:
+        label = "Instalado OFF"
+        tone = "watch"
+        detail = freshness["detail"]
+    else:
+        label = "24h OFF"
+        tone = "avoid"
+        detail = freshness["detail"]
+
+    return {
+        "label": label,
+        "tone": tone,
+        "detail": detail,
+        "loaded": loaded,
+        "installed": installed,
+        "freshness": freshness,
+        "heartbeat": heartbeat,
+    }
+
+
+def realtime_check_status(report: dict[str, Any] | None) -> dict[str, str]:
+    if not report:
+        return {"label": "No corrido", "tone": "watch", "detail": "Ejecuta verificacion RT"}
+    status = text_display(report.get("status")).upper()
+    checks = report.get("checks") or []
+    fail_count = sum(1 for item in checks if str(item.get("status") or "").upper() == "FAIL")
+    warn_count = sum(1 for item in checks if str(item.get("status") or "").upper() == "WARN")
+    top_issue = next(
+        (
+            item
+            for item in checks
+            if str(item.get("status") or "").upper() in {"FAIL", "WARN"}
+        ),
+        None,
+    )
+    issue_detail = ""
+    if top_issue:
+        issue_detail = f"{text_display(top_issue.get('name'))}: {text_display(top_issue.get('detail'))}"
+    if status == "OK":
+        return {"label": "OK", "tone": "buy", "detail": f"{len(checks)} checks"}
+    if status == "WARN":
+        detail = issue_detail or f"{warn_count} warning(s)"
+        return {"label": "Revisar", "tone": "watch", "detail": detail}
+    if status == "FAIL":
+        detail = issue_detail or f"{fail_count} fallo(s), {warn_count} warning(s)"
+        return {"label": "Falla", "tone": "avoid", "detail": detail}
+    return {"label": status or "Desconocido", "tone": "watch", "detail": f"{len(checks)} checks"}
+
+
+def operational_mode_dashboard_status(
+    realtime_report: dict[str, Any] | None,
+    alert_quality_report: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    realtime_report = realtime_report or {}
+    summary = realtime_report.get("operational_summary") if isinstance(realtime_report.get("operational_summary"), dict) else {}
+    if summary:
+        return {
+            "label": text_display(summary.get("label") or summary.get("mode") or "-"),
+            "tone": text_display(summary.get("tone") or "watch"),
+            "detail": text_display(summary.get("detail") or summary.get("mode") or "-"),
+            "mode": text_display(summary.get("mode")),
+        }
+    health = realtime_check_status(realtime_report)
+    if health["tone"] == "avoid":
+        return {"label": "Sistema falla", "tone": "avoid", "detail": health["detail"], "mode": "SYSTEM_FAIL"}
+    if health["tone"] == "watch":
+        return {"label": "Sistema revisar", "tone": "watch", "detail": health["detail"], "mode": "SYSTEM_WARN"}
+    quality = alert_quality_report_dashboard_status(alert_quality_report)
+    if quality.get("state") == "READY":
+        return {"label": "Alertas listas", "tone": "buy", "detail": quality["detail"], "mode": "READY_TO_REVIEW"}
+    if quality.get("state") == "WAITING":
+        return {"label": "Mercado espera", "tone": "watch", "detail": quality["detail"], "mode": "MARKET_WAITING"}
+    return {"label": "Sistema OK", "tone": "buy", "detail": health["detail"], "mode": "SYSTEM_OK"}
+
+
+def check_from_report(report: dict[str, Any] | None, name: str) -> dict[str, Any]:
+    if not report:
+        return {}
+    for item in report.get("checks") or []:
+        if str(item.get("name") or "") == name:
+            return dict(item)
+    return {}
+
+
+def parse_iso_datetime(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is not None:
+        return parsed.replace(tzinfo=None)
+    return parsed
+
+
+def output_maintenance_dashboard_status(
+    realtime_report: dict[str, Any] | None,
+    maintenance_report: dict[str, Any] | None,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    check_item = check_from_report(realtime_report, "output_maintenance_report")
+    maintenance_report = maintenance_report or {}
+    status = text_display(check_item.get("status") or maintenance_report.get("status")).upper()
+    if not status or status == "-":
+        status = "OK" if maintenance_report else ""
+
+    if status == "OK":
+        label = "OK"
+        tone = "buy"
+    elif status == "FAIL":
+        label = "Falla"
+        tone = "avoid"
+    elif status == "WARN":
+        label = "Revisar"
+        tone = "watch"
+    else:
+        label = "Sin reporte"
+        tone = "watch"
+
+    age_hours = safe_float(check_item.get("age_hours"))
+    if age_hours is None and maintenance_report:
+        generated = parse_iso_datetime(maintenance_report.get("generated_at"))
+        if generated is not None:
+            current = now or datetime.now()
+            if current.tzinfo is not None:
+                current = current.replace(tzinfo=None)
+            age_hours = max(0.0, (current - generated).total_seconds() / 3600.0)
+
+    removed_count = safe_float(check_item.get("removed_count"))
+    if removed_count is None:
+        removed_count = safe_float(maintenance_report.get("removed_count"))
+    trimmed_logs = safe_float(check_item.get("trimmed_log_count"))
+    if trimmed_logs is None:
+        trimmed_logs = safe_float(maintenance_report.get("trimmed_log_count"))
+    trimmed_histories = safe_float(check_item.get("trimmed_history_count"))
+    if trimmed_histories is None:
+        trimmed_histories = safe_float(maintenance_report.get("trimmed_history_count"))
+    removed_alert_reports = safe_float(check_item.get("removed_alert_report_count"))
+    if removed_alert_reports is None:
+        removed_alert_reports = safe_float(maintenance_report.get("removed_alert_report_count"))
+    dry_run = bool(check_item.get("dry_run") or maintenance_report.get("dry_run"))
+    if dry_run and tone == "buy":
+        label = "Revisar"
+        tone = "watch"
+
+    details = []
+    if age_hours is not None:
+        details.append(f"{age_hours:.1f}h")
+    if removed_count is not None:
+        details.append(f"removidos {int(removed_count)}")
+    if trimmed_logs is not None:
+        details.append(f"logs {int(trimmed_logs)}")
+    if trimmed_histories is not None:
+        details.append(f"hist {int(trimmed_histories)}")
+    if removed_alert_reports is not None:
+        details.append(f"reportes {int(removed_alert_reports)}")
+    if dry_run:
+        details.append("dry-run")
+    if check_item.get("detail") and not details:
+        details.append(text_display(check_item.get("detail")))
+
+    return {
+        "label": label,
+        "tone": tone,
+        "detail": " | ".join(details) if details else "Ejecuta mantenimiento",
+        "age_hours": age_hours,
+        "removed_count": int(removed_count) if removed_count is not None else None,
+        "trimmed_log_count": int(trimmed_logs) if trimmed_logs is not None else None,
+        "trimmed_history_count": int(trimmed_histories) if trimmed_histories is not None else None,
+        "removed_alert_report_count": int(removed_alert_reports) if removed_alert_reports is not None else None,
+        "dry_run": dry_run,
+        "check": check_item,
+    }
+
+
+def runtime_backup_dashboard_status(
+    realtime_report: dict[str, Any] | None,
+    backup_report: dict[str, Any] | None,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    check_item = check_from_report(realtime_report, "runtime_backup_report")
+    backup_report = backup_report or {}
+    status = text_display(check_item.get("status") or backup_report.get("status")).upper()
+    if not status or status == "-":
+        status = "OK" if backup_report else ""
+
+    if status == "OK":
+        label = "OK"
+        tone = "buy"
+    elif status == "FAIL":
+        label = "Falla"
+        tone = "avoid"
+    elif status in {"WARN", "DRY_RUN"}:
+        label = "Revisar"
+        tone = "watch"
+    else:
+        label = "Sin reporte"
+        tone = "watch"
+
+    age_hours = safe_float(check_item.get("age_hours"))
+    if age_hours is None and backup_report:
+        generated = parse_iso_datetime(backup_report.get("generated_at"))
+        if generated is not None:
+            current = now or datetime.now()
+            if current.tzinfo is not None:
+                current = current.replace(tzinfo=None)
+            age_hours = max(0.0, (current - generated).total_seconds() / 3600.0)
+
+    archive_size = safe_float(check_item.get("archive_size_bytes"))
+    if archive_size is None:
+        archive_size = safe_float(backup_report.get("archive_size_bytes"))
+    removed_count = safe_float(check_item.get("removed_count"))
+    if removed_count is None:
+        removed_count = safe_float(backup_report.get("removed_count"))
+    dry_run = bool(check_item.get("dry_run") or backup_report.get("dry_run"))
+    archive_exists = bool(check_item.get("archive_exists") if check_item else backup_report.get("archive_exists"))
+    archive_verified = bool(check_item.get("archive_verified") if check_item else backup_report.get("archive_verified"))
+    archive_member_count = safe_float(check_item.get("archive_member_count"))
+    if archive_member_count is None:
+        archive_member_count = safe_float(backup_report.get("archive_member_count"))
+    verified_paths = check_item.get("archive_verified_paths") if check_item else backup_report.get("archive_verified_paths")
+    if not isinstance(verified_paths, list):
+        verified_paths = []
+    if dry_run and tone == "buy":
+        label = "Revisar"
+        tone = "watch"
+
+    details = []
+    if age_hours is not None:
+        details.append(f"{age_hours:.1f}h")
+    if archive_size is not None:
+        size_mb = float(archive_size) / (1024**2)
+        details.append(f"{size_mb:.1f} MB")
+    if removed_count is not None:
+        details.append(f"rotados {int(removed_count)}")
+    if archive_verified:
+        if verified_paths:
+            details.append(f"verificado {len(verified_paths)} rutas")
+        elif archive_member_count is not None:
+            details.append(f"verificado {int(archive_member_count)} archivos")
+    if dry_run:
+        details.append("dry-run")
+    if not archive_exists and backup_report:
+        details.append("archivo no encontrado")
+    elif archive_exists and not archive_verified and not dry_run:
+        details.append("sin verificar")
+    if check_item.get("detail") and not details:
+        details.append(text_display(check_item.get("detail")))
+
+    return {
+        "label": label,
+        "tone": tone,
+        "detail": " | ".join(details) if details else "Ejecuta backup",
+        "age_hours": age_hours,
+        "archive_size_bytes": int(archive_size) if archive_size is not None else None,
+        "removed_count": int(removed_count) if removed_count is not None else None,
+        "dry_run": dry_run,
+        "archive_exists": archive_exists,
+        "archive_verified": archive_verified,
+        "archive_member_count": int(archive_member_count) if archive_member_count is not None else None,
+        "archive_verified_paths": verified_paths,
+        "check": check_item,
+    }
+
+
+def autoheal_dashboard_status(realtime_report: dict[str, Any] | None) -> dict[str, Any]:
+    realtime_report = realtime_report or {}
+    launchd = realtime_report.get("launchd_autoheal") if isinstance(realtime_report.get("launchd_autoheal"), dict) else {}
+    backup = realtime_report.get("runtime_backup_autoheal") if isinstance(realtime_report.get("runtime_backup_autoheal"), dict) else {}
+    backup_report_recovery = realtime_report.get("runtime_backup_report_autoheal") if isinstance(realtime_report.get("runtime_backup_report_autoheal"), dict) else {}
+    streamlit_recovery = realtime_report.get("streamlit_app_autoheal") if isinstance(realtime_report.get("streamlit_app_autoheal"), dict) else {}
+    chart_recovery = realtime_report.get("chart_health_autoheal") if isinstance(realtime_report.get("chart_health_autoheal"), dict) else {}
+    live_data_recovery = realtime_report.get("live_data_autoheal") if isinstance(realtime_report.get("live_data_autoheal"), dict) else {}
+    maintenance_recovery = realtime_report.get("output_maintenance_autoheal") if isinstance(realtime_report.get("output_maintenance_autoheal"), dict) else {}
+    ai_brief_recovery = realtime_report.get("ai_brief_autoheal") if isinstance(realtime_report.get("ai_brief_autoheal"), dict) else {}
+    alert_quality_recovery = realtime_report.get("alert_quality_autoheal") if isinstance(realtime_report.get("alert_quality_autoheal"), dict) else {}
+    yfinance_cache_recovery = realtime_report.get("yfinance_cache_autoheal") if isinstance(realtime_report.get("yfinance_cache_autoheal"), dict) else {}
+    if not launchd and not backup and not backup_report_recovery and not streamlit_recovery and not chart_recovery and not live_data_recovery and not maintenance_recovery and not ai_brief_recovery and not alert_quality_recovery and not yfinance_cache_recovery:
+        return {"label": "Sin dato", "tone": "watch", "detail": "Watchdog aun sin autoheal"}
+
+    recovered = list(launchd.get("recovered") or [])
+    failed = list(launchd.get("failed") or [])
+    service_count = int(launchd.get("service_count") or 0)
+    backup_action = text_display(backup.get("action")) if backup else ""
+    backup_status = backup.get("status") if isinstance(backup.get("status"), dict) else {}
+    backup_healthy = bool(backup_status.get("healthy")) if backup_status else backup_action == "healthy"
+    backup_report_action = text_display(backup_report_recovery.get("action")) if backup_report_recovery else ""
+    backup_report_ok = bool(backup_report_recovery.get("ok")) if backup_report_recovery else True
+    streamlit_action = text_display(streamlit_recovery.get("action")) if streamlit_recovery else ""
+    streamlit_ok = bool(streamlit_recovery.get("ok")) if streamlit_recovery else True
+    chart_action = text_display(chart_recovery.get("action")) if chart_recovery else ""
+    chart_ok = bool(chart_recovery.get("ok")) if chart_recovery else True
+    live_data_action = text_display(live_data_recovery.get("action")) if live_data_recovery else ""
+    live_data_ok = bool(live_data_recovery.get("ok")) if live_data_recovery else True
+    maintenance_action = text_display(maintenance_recovery.get("action")) if maintenance_recovery else ""
+    maintenance_ok = bool(maintenance_recovery.get("ok")) if maintenance_recovery else True
+    ai_brief_action = text_display(ai_brief_recovery.get("action")) if ai_brief_recovery else ""
+    ai_brief_ok = bool(ai_brief_recovery.get("ok")) if ai_brief_recovery else True
+    alert_quality_action = text_display(alert_quality_recovery.get("action")) if alert_quality_recovery else ""
+    alert_quality_ok = bool(alert_quality_recovery.get("ok")) if alert_quality_recovery else True
+    yfinance_cache_action = text_display(yfinance_cache_recovery.get("action")) if yfinance_cache_recovery else ""
+    yfinance_cache_ok = bool(yfinance_cache_recovery.get("ok")) if yfinance_cache_recovery else True
+
+    if (
+        failed
+        or backup_action == "error"
+        or (backup_report_recovery and not backup_report_ok)
+        or (streamlit_recovery and not streamlit_ok)
+        or (chart_recovery and not chart_ok)
+        or (live_data_recovery and not live_data_ok)
+        or (maintenance_recovery and not maintenance_ok)
+        or (ai_brief_recovery and not ai_brief_ok)
+        or (alert_quality_recovery and not alert_quality_ok)
+        or (yfinance_cache_recovery and not yfinance_cache_ok)
+    ):
+        label = "Falla"
+        tone = "avoid"
+    elif (
+        recovered
+        or backup_action in {"restarted", "started"}
+        or backup_report_action == "regenerated"
+        or streamlit_action in {"restart", "bootstrapped"}
+        or chart_action == "regenerated"
+        or live_data_action == "ran_live_scan"
+        or maintenance_action == "regenerated"
+        or ai_brief_action == "regenerated"
+        or alert_quality_action == "regenerated"
+        or yfinance_cache_action == "recovered"
+    ):
+        label = f"Recupero {len(recovered)}"
+        tone = "watch"
+    else:
+        label = "OK"
+        tone = "buy"
+
+    details = []
+    if service_count:
+        details.append(f"servicios {service_count}")
+    details.append(f"recuperados {len(recovered)}")
+    if failed:
+        details.append(f"fallos {len(failed)}")
+    if backup_action:
+        details.append(f"backup {backup_action}")
+    elif backup_healthy:
+        details.append("backup healthy")
+    if backup_report_action:
+        details.append(f"backup report {backup_report_action}")
+    if streamlit_action:
+        details.append(f"web {streamlit_action}")
+    if chart_action:
+        details.append(f"graficas {chart_action}")
+    if live_data_action:
+        details.append(f"live {live_data_action}")
+    if maintenance_action:
+        details.append(f"limpieza {maintenance_action}")
+    if ai_brief_action:
+        details.append(f"brief {ai_brief_action}")
+    if alert_quality_action:
+        details.append(f"alertas {alert_quality_action}")
+    if yfinance_cache_action:
+        details.append(f"cache yf {yfinance_cache_action}")
+    return {
+        "label": label,
+        "tone": tone,
+        "detail": " | ".join(details),
+        "recovered": recovered,
+        "failed": failed,
+        "backup_action": backup_action,
+        "backup_report_action": backup_report_action,
+        "streamlit_action": streamlit_action,
+        "chart_action": chart_action,
+        "live_data_action": live_data_action,
+        "maintenance_action": maintenance_action,
+        "ai_brief_action": ai_brief_action,
+        "alert_quality_action": alert_quality_action,
+        "yfinance_cache_action": yfinance_cache_action,
+    }
+
+
+def realtime_report_check_card(
+    realtime_report: dict[str, Any] | None,
+    check_name: str,
+    *,
+    ok_label: str = "OK",
+    missing_label: str = "Sin dato",
+) -> dict[str, str]:
+    item = check_from_report(realtime_report, check_name)
+    if not item:
+        return {"label": missing_label, "tone": "watch", "detail": "No esta en el reporte RT"}
+    status = text_display(item.get("status")).upper()
+    if status == "OK":
+        return {"label": ok_label, "tone": "buy", "detail": text_display(item.get("detail"))}
+    if status == "FAIL":
+        return {"label": "Falla", "tone": "avoid", "detail": text_display(item.get("detail"))}
+    if status == "WARN":
+        return {"label": "Revisar", "tone": "watch", "detail": text_display(item.get("detail"))}
+    if status == "INFO":
+        return {"label": "Info", "tone": "neutral", "detail": text_display(item.get("detail"))}
+    return {"label": status or missing_label, "tone": "watch", "detail": text_display(item.get("detail"))}
+
+
+def storage_migration_dashboard_status(realtime_report: dict[str, Any] | None) -> dict[str, str]:
+    item = check_from_report(realtime_report, "storage_migration")
+    if not item:
+        return {"label": "Sin check", "tone": "watch", "detail": "No esta en el reporte RT"}
+    status = text_display(item.get("status")).upper()
+    state = text_display(item.get("state")).upper()
+    detail = text_display(item.get("detail"))
+    if status == "FAIL":
+        return {"label": "Falla", "tone": "avoid", "detail": detail}
+    if state in {"MIGRATED", "NOT_PRESENT"}:
+        return {"label": "OK", "tone": "buy", "detail": detail}
+    if state == "WAITING_FOR_PARALLELS":
+        return {"label": "Pendiente", "tone": "watch", "detail": detail}
+    if state in {"LOCAL_ONLY", "COPY_PRESENT", "DESTINATION_ONLY"}:
+        return {"label": "Revisar", "tone": "watch", "detail": detail}
+    return {"label": status or "Revisar", "tone": "watch", "detail": detail}
+
+
+def health_notify_dashboard_status(state: dict[str, Any] | None) -> dict[str, str]:
+    state = state or {}
+    if not state:
+        return {"label": "Sin estado", "tone": "watch", "detail": "Aun no corrio notify-health"}
+    status = text_display(state.get("last_status")).upper()
+    result = state.get("last_result") if isinstance(state.get("last_result"), dict) else {}
+    reason = text_display(result.get("reason") if result else "")
+    sent = bool(result.get("sent")) if result else False
+    if status == "OK":
+        return {"label": "Silencioso", "tone": "buy", "detail": "Health OK; sin aviso necesario"}
+    if sent:
+        return {"label": "Avisado", "tone": "avoid" if status == "FAIL" else "watch", "detail": reason or status}
+    if reason == "cooldown":
+        return {"label": "Cooldown", "tone": "watch", "detail": "Aviso reciente ya enviado"}
+    if reason == "recorded_local":
+        return {"label": "Registrado", "tone": "watch", "detail": "Sin canal externo; guardado localmente"}
+    return {"label": status or "Revisar", "tone": "watch", "detail": text_display(state.get("last_message"))}
+
+
+def realtime_lock_dashboard_status(lock_report: dict[str, Any] | None) -> dict[str, str]:
+    lock_report = lock_report or {}
+    if not lock_report:
+        return {"label": "Sin dato", "tone": "neutral", "detail": "Aun sin estado de lock"}
+    event = text_display(lock_report.get("event")).lower()
+    pid = text_display(lock_report.get("pid"))
+    age = safe_float(lock_report.get("age_minutes"))
+    age_detail = f"{age:.1f}m" if age is not None else "-"
+    generated = text_display(lock_report.get("generated_at"))
+    if event == "blocked":
+        return {"label": "Ocupado", "tone": "watch", "detail": f"pid {pid} | age {age_detail}"}
+    if event == "acquired":
+        stale_replaced = bool(lock_report.get("stale_replaced"))
+        label = "Reemplazo" if stale_replaced else "Activo"
+        tone = "watch" if stale_replaced else "neutral"
+        return {"label": label, "tone": tone, "detail": f"pid {pid} | {generated}"}
+    if event == "released":
+        return {"label": "Libre", "tone": "buy", "detail": text_display(lock_report.get("released_at") or generated)}
+    return {"label": text_display(lock_report.get("event") or "-"), "tone": "watch", "detail": generated}
+
+
+def load_health_history(path: str = "alerts/roxy_realtime_history.jsonl", limit: int = 100) -> list[dict[str, Any]]:
+    p = runtime_path(path)
+    if not p.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    try:
+        lines = p.read_text(errors="replace").splitlines()
+    except Exception:
+        return []
+    for line in lines[-max(1, int(limit)) :]:
+        if not line.strip():
+            continue
+        try:
+            item = json.loads(line)
+        except Exception:
+            continue
+        if isinstance(item, dict):
+            rows.append(item)
+    return rows
+
+
+def health_history_dashboard_status(rows: list[dict[str, Any]] | None, *, limit: int = 50) -> dict[str, Any]:
+    rows = list(rows or [])[-max(1, int(limit)) :]
+    if not rows:
+        return {
+            "label": "Sin historial",
+            "tone": "watch",
+            "detail": "Watchdog aun sin historial",
+            "fail_count": 0,
+            "warn_count": 0,
+            "ok_rate": None,
+            "current_streak_status": "-",
+            "current_streak_count": 0,
+        }
+    fail_count = sum(1 for item in rows if str(item.get("status") or "").upper() == "FAIL" or int(item.get("fail_count") or 0) > 0)
+    warn_count = sum(1 for item in rows if str(item.get("status") or "").upper() == "WARN" or int(item.get("warn_count") or 0) > 0)
+    ok_count = sum(1 for item in rows if str(item.get("status") or "").upper() == "OK" and int(item.get("fail_count") or 0) == 0 and int(item.get("warn_count") or 0) == 0)
+    ok_rate = ok_count / len(rows) if rows else 0.0
+    latest = rows[-1]
+    latest_status = text_display(latest.get("status")).upper()
+    streak_count = 0
+    for item in reversed(rows):
+        if text_display(item.get("status")).upper() == latest_status:
+            streak_count += 1
+        else:
+            break
+    recovered = latest_status == "OK" and streak_count >= 3 and bool(fail_count or warn_count)
+    if recovered:
+        label = "Recuperado"
+        tone = "watch"
+    elif fail_count:
+        label = "Inestable"
+        tone = "avoid"
+    elif warn_count:
+        label = "Con avisos"
+        tone = "watch"
+    else:
+        label = "Estable"
+        tone = "buy"
+    top_issue = latest.get("top_issue") if isinstance(latest.get("top_issue"), dict) else {}
+    issue_name = text_display(top_issue.get("name") if top_issue else "")
+    detail = f"OK {ok_rate * 100:.1f}% | racha {latest_status} x{streak_count} | {len(rows)} checks"
+    if latest_status in {"FAIL", "WARN"} and issue_name:
+        detail = f"{detail} | ultimo {issue_name}"
+    return {
+        "label": label,
+        "tone": tone,
+        "detail": detail,
+        "fail_count": fail_count,
+        "warn_count": warn_count,
+        "ok_count": ok_count,
+        "ok_rate": ok_rate,
+        "sample_size": len(rows),
+        "latest_status": latest_status,
+        "current_streak_status": latest_status,
+        "current_streak_count": streak_count,
+        "recovered": recovered,
+    }
+
+
+def health_history_display_table(rows: list[dict[str, Any]] | pd.DataFrame, *, limit: int = 50) -> pd.DataFrame:
+    if isinstance(rows, pd.DataFrame):
+        source_rows = rows.to_dict(orient="records")
+    else:
+        source_rows = list(rows or [])
+    display_rows: list[dict[str, Any]] = []
+    for item in source_rows[-max(1, int(limit)) :]:
+        if not isinstance(item, dict):
+            continue
+        top_issue = item.get("top_issue") if isinstance(item.get("top_issue"), dict) else {}
+        detail = text_display(top_issue.get("detail") if top_issue else "")
+        issue_name = text_display(top_issue.get("name") if top_issue else "")
+        if "Traceback" in detail:
+            detail = "Ver historial tecnico: fallo Python recuperado"
+        elif len(detail) > 140:
+            detail = detail[:137].rstrip() + "..."
+        display_rows.append(
+            {
+                "generated_at": text_display(item.get("generated_at")),
+                "status": text_display(item.get("status")).upper(),
+                "mode": text_display(item.get("operational_mode")),
+                "label": text_display(item.get("operational_label")),
+                "ok": bool(item.get("ok")),
+                "fail_count": int(item.get("fail_count") or 0),
+                "warn_count": int(item.get("warn_count") or 0),
+                "top_issue": issue_name or "-",
+                "top_detail": detail or "-",
+            }
+        )
+    return pd.DataFrame(display_rows)
+
+
+def stability_summary_dashboard_status(summary: dict[str, Any] | None) -> dict[str, Any]:
+    summary = summary or {}
+    sample_size = int(summary.get("sample_size") or 0)
+    if not sample_size:
+        return {"label": "Sin historial", "tone": "watch", "detail": "Watchdog aun sin historial"}
+    fail_count = int(summary.get("fail_count") or 0)
+    warn_count = int(summary.get("warn_count") or 0)
+    latest_status = text_display(summary.get("current_streak_status") or summary.get("status")).upper()
+    streak_count = int(summary.get("current_streak_count") or 0)
+    ok_rate = safe_float(summary.get("ok_rate"))
+    recovered = latest_status == "OK" and streak_count >= 3 and bool(fail_count or warn_count)
+    if recovered:
+        label = "Recuperado"
+        tone = "watch"
+    elif fail_count:
+        label = "Inestable"
+        tone = "avoid"
+    elif warn_count:
+        label = "Con avisos"
+        tone = "watch"
+    else:
+        label = "Estable"
+        tone = "buy"
+    ok_text = f"{ok_rate * 100:.1f}%" if ok_rate is not None else "-"
+    detail = f"OK {ok_text} | racha {latest_status} x{streak_count} | {sample_size} checks"
+    last_issue = summary.get("last_issue") if isinstance(summary.get("last_issue"), dict) else {}
+    if latest_status in {"FAIL", "WARN"} and last_issue:
+        detail += f" | ultimo {text_display(last_issue.get('name'))}"
+    return {
+        "label": label,
+        "tone": tone,
+        "detail": detail,
+        "fail_count": fail_count,
+        "warn_count": warn_count,
+        "ok_rate": ok_rate,
+        "sample_size": sample_size,
+        "latest_status": latest_status,
+        "current_streak_status": latest_status,
+        "current_streak_count": streak_count,
+        "recovered": recovered,
+    }
+
+
+def disk_dashboard_status(path: str | Path, *, warn_free_gb: float = 20.0, fail_free_gb: float = 5.0) -> dict[str, Any]:
+    disk_path = Path(path)
+    if not disk_path.exists():
+        return {"label": "No montado", "tone": "avoid", "detail": str(disk_path), "free_gb": None}
+    try:
+        usage = shutil.disk_usage(disk_path)
+    except Exception as exc:
+        return {"label": "Sin lectura", "tone": "watch", "detail": str(exc), "free_gb": None}
+    free_gb = usage.free / (1024**3)
+    total_gb = usage.total / (1024**3)
+    used_pct = (usage.used / usage.total * 100.0) if usage.total else 0.0
+    if free_gb <= fail_free_gb:
+        label = "Critico"
+        tone = "avoid"
+    elif free_gb <= warn_free_gb:
+        label = "Bajo"
+        tone = "watch"
+    else:
+        label = "OK"
+        tone = "buy"
+    return {
+        "label": label,
+        "tone": tone,
+        "detail": f"{free_gb:.1f} GB libres | {used_pct:.0f}% usado",
+        "free_gb": free_gb,
+        "total_gb": total_gb,
+        "used_pct": used_pct,
+    }
+
+
+def alert_gate_summary_dashboard_status(summary: dict[str, Any] | None) -> dict[str, Any]:
+    summary = summary or {}
+    total = int(summary.get("total_opportunities") or 0)
+    ready = int(summary.get("notifications_ready") or 0)
+    blocked_realtime = int(summary.get("blocked_realtime_count") or 0)
+    top_gate = text_display(summary.get("top_gate_label") or summary.get("top_gate"))
+    avg_readiness = safe_float(summary.get("avg_readiness"))
+    if not total:
+        return {"label": "Sin setups", "tone": "neutral", "detail": "No hay oportunidades en brief"}
+    if blocked_realtime:
+        tone = "avoid"
+        label = "Datos bloquean"
+    elif ready:
+        tone = "buy"
+        label = f"{ready} lista(s)"
+    else:
+        tone = "watch"
+        label = "Esperando"
+    detail = f"{total} setups | {top_gate}"
+    if avg_readiness is not None:
+        detail += f" | readiness {avg_readiness:.0f}%"
+    return {"label": label, "tone": tone, "detail": detail}
+
+
+def alert_quality_report_dashboard_status(report: dict[str, Any] | None) -> dict[str, Any]:
+    report = report or {}
+    summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+    entry = report.get("latest_entry") if isinstance(report.get("latest_entry"), dict) else {}
+    if not entry:
+        entry = report.get("entry") if isinstance(report.get("entry"), dict) else {}
+    if not summary and not entry:
+        return {"label": "Sin historial", "tone": "watch", "detail": "Aun no hay reporte de calidad"}
+    state = text_display(summary.get("state") or entry.get("state")).upper()
+    ready = int(summary.get("latest_notifications_ready") or entry.get("notifications_ready") or 0)
+    total = int(summary.get("latest_total_opportunities") or entry.get("total_opportunities") or 0)
+    waiting_streak = int(summary.get("waiting_streak") or 0)
+    blocker_streak = int(summary.get("latest_top_blocker_streak") or 0)
+    diagnostic_severity = text_display(summary.get("diagnostic_severity") or "OK").upper()
+    diagnostic_label = text_display(summary.get("diagnostic_label") or "")
+    diagnostic_detail = text_display(summary.get("diagnostic_detail") or "")
+    avg_readiness = safe_float(summary.get("avg_readiness"))
+    blocker = text_display(summary.get("latest_top_blocker") or entry.get("top_blocker"))
+    top_symbol = text_display(entry.get("top_symbol"))
+    top_next_action = text_display(entry.get("top_next_action"))
+    if state == "READY" or ready:
+        label = f"{ready} lista(s)"
+        tone = "buy"
+    elif state in {"BLOCKED_DATA", "BLOCKED_REALTIME"}:
+        label = "Datos bloquean"
+        tone = "avoid"
+    elif state == "NO_SETUPS":
+        label = "Sin setups"
+        tone = "neutral"
+    elif diagnostic_severity == "ATTENTION" and diagnostic_label:
+        label = diagnostic_label
+        tone = "avoid"
+    elif diagnostic_severity == "WATCH" and diagnostic_label:
+        label = diagnostic_label
+        tone = "watch"
+    else:
+        label = "Esperando"
+        tone = "watch"
+    detail = f"{ready}/{total} listas"
+    if waiting_streak:
+        detail += f" | racha espera {waiting_streak}"
+    if blocker_streak:
+        detail += f" | bloqueador x{blocker_streak}"
+    if avg_readiness is not None:
+        detail += f" | readiness {avg_readiness:.0f}%"
+    if top_symbol and top_symbol != "-":
+        detail += f" | top {top_symbol}"
+    if diagnostic_detail and diagnostic_detail not in {"-", blocker}:
+        detail += f" | {diagnostic_detail}"
+    elif blocker and blocker != "-":
+        detail += f" | {blocker}"
+    if top_next_action and top_next_action not in {"-", blocker, diagnostic_detail}:
+        detail += f" | {top_next_action}"
+    return {"label": label, "tone": tone, "detail": detail, "state": state, "waiting_streak": waiting_streak}
+
+
+def notification_history_dashboard_status(summary: dict[str, Any] | None) -> dict[str, Any]:
+    summary = summary or {}
+    sample_size = int(summary.get("sample_size") or 0)
+    if not sample_size:
+        return {"label": "Sin historial", "tone": "watch", "detail": "Aun no hay intentos registrados"}
+    cooldown = int(summary.get("cooldown_skipped") or 0)
+    sent = int(summary.get("sent_count") or 0)
+    last_reason = text_display(summary.get("last_reason"))
+    if cooldown:
+        tone = "watch"
+        label = f"{cooldown} cooldown"
+    elif sent:
+        tone = "buy"
+        label = f"{sent} enviadas"
+    else:
+        tone = "neutral"
+        label = "Sin envio"
+    return {"label": label, "tone": tone, "detail": f"{sample_size} eventos | ultimo {last_reason}"}
+
+
+def notification_history_display_table(history: list[dict[str, Any]] | pd.DataFrame) -> pd.DataFrame:
+    if isinstance(history, pd.DataFrame):
+        table = history.copy()
+    else:
+        table = pd.DataFrame(history or [])
+    if table.empty:
+        return table
+    rows = table.to_dict(orient="records")
+    table["effective_sent"] = [notifier.notification_effectively_sent(row) for row in rows]
+    if "message" in table.columns:
+        table["message"] = table["message"].astype(str).str.replace("\n", " | ", regex=False).str.slice(0, 260)
+    if "cooldown_skipped" in table.columns:
+        table["cooldown_skipped"] = pd.to_numeric(table["cooldown_skipped"], errors="coerce").fillna(0).astype(int)
+    return table
+
+
+def chart_realtime_dashboard_status(report: dict[str, Any] | None) -> dict[str, Any]:
+    report = report or {}
+    summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+    if not summary:
+        return {"label": "Sin reporte", "tone": "watch", "detail": "Ejecuta chart realtime health"}
+    label = text_display(summary.get("label"))
+    tone = text_display(summary.get("tone")) or "watch"
+    checked = int(summary.get("checked_count") or 0)
+    fail_count = int(summary.get("fail_count") or 0)
+    warn_count = int(summary.get("warn_count") or 0)
+    stale_count = int(summary.get("stale_count") or 0)
+    data_quality_issue_count = int(summary.get("data_quality_issue_count") or 0)
+    detail = f"{checked} charts | fallos {fail_count} | warnings {warn_count}"
+    if stale_count:
+        detail += f" | estancadas {stale_count}"
+    if data_quality_issue_count:
+        detail += f" | calidad {data_quality_issue_count}"
+    top_issue = summary.get("top_issue") if isinstance(summary.get("top_issue"), dict) else {}
+    if top_issue:
+        detail += f" | {text_display(top_issue.get('symbol'))} {text_display(top_issue.get('timeframe'))}"
+    return {"label": label or "Graficas", "tone": tone, "detail": detail}
+
+
+def ai_brief_from_latest(
+    scan_df: pd.DataFrame,
+    confluence_df: pd.DataFrame,
+    options_df: pd.DataFrame,
+    *,
+    source_files: dict[str, str | None] | None = None,
+) -> dict:
+    brief = build_brief(
+        confluence_df=confluence_df,
+        options_df=options_df,
+        scan_df=scan_df,
+        memory=load_memory(),
+    )
+    if source_files:
+        brief["source_files"] = source_files
+        brief["source_freshness"] = source_freshness_status(source_files)
+    brief["market_session"] = market_session_status()
+    brief["realtime_health"] = realtime_health_status()
+    brief = apply_global_alert_context(brief)
+    write_brief(brief)
+    return brief
+
+
+def normalize_realtime_refresh_interval(value: Any, *, default: int = DEFAULT_REALTIME_REFRESH_SECONDS) -> int:
+    try:
+        interval = int(value)
+    except (TypeError, ValueError):
+        interval = int(default)
+    allowed = sorted({int(item) for item in REALTIME_REFRESH_SECONDS})
+    if interval in allowed:
+        return interval
+    return min(allowed, key=lambda item: abs(item - interval))
+
+
+def build_realtime_refresh_script(interval_seconds: Any) -> str:
+    interval = normalize_realtime_refresh_interval(interval_seconds)
+    interval_ms = max(1, interval) * 1000
+    return f"""
+    <script>
+    (() => {{
+        const intervalMs = {interval_ms};
+        const timerKey = "__roxyRealtimeRefreshTimer";
+        const getRoot = () => {{
+            try {{
+                return window.parent && window.parent !== window ? window.parent : window;
+            }} catch (error) {{
+                return window;
+            }}
+        }};
+        const root = getRoot();
+        try {{
+            if (root[timerKey]) {{
+                root.clearTimeout(root[timerKey]);
+            }}
+        }} catch (error) {{}}
+        const shouldDelayReload = () => {{
+            try {{
+                const doc = root.document;
+                if (!doc || doc.visibilityState === "hidden") return true;
+                const active = doc.activeElement;
+                const tag = active && active.tagName ? active.tagName.toUpperCase() : "";
+                return ["INPUT", "TEXTAREA", "SELECT"].includes(tag);
+            }} catch (error) {{
+                return false;
+            }}
+        }};
+        const schedule = () => {{
+            const timer = root.setTimeout(() => {{
+                if (shouldDelayReload()) {{
+                    schedule();
+                    return;
+                }}
+                root.location.reload();
+            }}, intervalMs);
+            try {{
+                root[timerKey] = timer;
+            }} catch (error) {{}}
+        }};
+        schedule();
+    }})();
+    </script>
+    """
+
+
+def realtime_refresh_dashboard_status(realtime: dict[str, Any] | None) -> dict[str, Any]:
+    realtime = realtime or {}
+    enabled = bool(realtime.get("enabled"))
+    interval = normalize_realtime_refresh_interval(realtime.get("interval_seconds"))
+    if enabled:
+        return {"label": "ON", "tone": "buy", "detail": f"{interval}s | pausa al escribir"}
+    return {"label": "OFF", "tone": "watch", "detail": "manual"}
+
+
+def configure_realtime_refresh() -> dict[str, Any]:
+    st.sidebar.markdown("**Tiempo real**")
+    enabled = st.sidebar.toggle("Auto-refresh", value=True, key="roxy_realtime_enabled")
+    interval = st.sidebar.selectbox(
+        "Intervalo",
+        REALTIME_REFRESH_SECONDS,
+        index=1,
+        format_func=lambda value: f"{value}s",
+        key="roxy_realtime_interval",
+    )
+    interval = normalize_realtime_refresh_interval(interval)
+    st.sidebar.caption("Recarga la app y vuelve a leer CSV/live data. Pausa si escribes en un control.")
+    if enabled:
+        st.components.v1.html(build_realtime_refresh_script(interval), height=0)
+    return {"enabled": enabled, "interval_seconds": int(interval)}
+
+
+def show_focused_sidebar() -> None:
+    state = live_service_state()
+    channels = notifier.configured_channels()
+    st.sidebar.title("Roxy")
+    st.sidebar.caption("SMA 20/40/100/200 + 15m/1h/2h/4h")
+    st.sidebar.markdown("**Estado operativo**")
+    st.sidebar.write(f"Escaner 24h: `{'ON' if state['loaded'] == 'yes' else 'OFF'}`")
+    st.sidebar.write("Alertas: `" + (", ".join(channels) if channels else "archivo local") + "`")
+    st.sidebar.write("Watchlist IA/dev: `data/watchlist_ai_core.txt`")
+    st.sidebar.markdown("**Regla principal**")
+    st.sidebar.write("Solo alertar cuando 1h confirma, 15m da entrada, volumen acompana, riesgo <= 3.5% y target 2% es viable.")
+    with st.sidebar.expander("Configuracion avanzada", expanded=False):
+        st.write(f"Instalado: `{state['installed']}`")
+        st.write(f"Activo: `{state['loaded']}`")
+        st.write("Email: `SMTP_HOST` + `ALERT_EMAIL_TO`")
+        st.write("Discord: `DISCORD_WEBHOOK_URL`")
+        st.write("Slack: `SLACK_WEBHOOK_URL`")
+        st.write("Webhook: `WEBHOOK_URL`")
+        st.write("Mac: `MACOS_NOTIFICATIONS=1`")
+        st.write("Estrategias: `" + "`, `".join(CORE_STRATEGIES) + "`")
+
+
+def show_ai_status_cards(
+    *,
+    scan_df: pd.DataFrame,
+    confluence_df: pd.DataFrame,
+    options_df: pd.DataFrame,
+    daily_path: str | None,
+    live_path: str | None,
+    confluence_path: str | None,
+    options_path: str | None,
+    brief: dict,
+) -> None:
+    state = live_service_state()
+    alerts = int(brief.get("alert_count", 0) or 0)
+    opportunities = brief.get("opportunities", [])
+    best = opportunities[0] if opportunities else {}
+    freshness = data_freshness_status([live_path, confluence_path], max_age_minutes=10.0)
+    heartbeat = read_summary_json("alerts/ma_live_heartbeat.json")
+    backend = live_backend_status(live_path, confluence_path, service_state=state, heartbeat=heartbeat)
+    realtime_check = read_summary_json("alerts/roxy_realtime_check.json")
+    check_status = realtime_check_status(realtime_check)
+    autoheal_status = autoheal_dashboard_status(realtime_check)
+    maintenance_report = read_summary_json("alerts/output_maintenance.json")
+    maintenance_status = output_maintenance_dashboard_status(realtime_check, maintenance_report)
+    runtime_backup_report = read_summary_json("alerts/runtime_backup.json")
+    runtime_backup_status = runtime_backup_dashboard_status(realtime_check, runtime_backup_report)
+    streamlit_service_status = realtime_report_check_card(
+        realtime_check,
+        "streamlit_service_24h",
+        ok_label="24h ON",
+        missing_label="Sin check",
+    )
+    daily_service_status = realtime_report_check_card(
+        realtime_check,
+        "daily_service",
+        ok_label="Programado",
+        missing_label="Sin check",
+    )
+    health_watchdog_status = realtime_report_check_card(
+        realtime_check,
+        "health_watchdog_service",
+        ok_label="Vigilando",
+        missing_label="Sin check",
+    )
+    lock_status = realtime_lock_dashboard_status(read_summary_json("alerts/roxy_realtime_lock.json"))
+    health_notify_status = health_notify_dashboard_status(read_summary_json("alerts/roxy_health_notify_state.json"))
+    health_history = load_health_history()
+    health_history_status = (
+        stability_summary_dashboard_status(realtime_check.get("stability_summary"))
+        if isinstance(realtime_check.get("stability_summary"), dict)
+        else health_history_dashboard_status(health_history)
+    )
+    mac_disk_status = disk_dashboard_status(Path.home())
+    external_disk_status = disk_dashboard_status("/Volumes/RoxyData", warn_free_gb=100.0, fail_free_gb=20.0)
+    gate_summary = brief.get("alert_gate_summary") or summarize_alert_gates(brief)
+    gate_summary_status = alert_gate_summary_dashboard_status(gate_summary)
+    alert_quality_report = read_summary_json("alerts/alert_quality.json")
+    alert_quality_status = alert_quality_report_dashboard_status(alert_quality_report)
+    operational_mode_status = operational_mode_dashboard_status(realtime_check, alert_quality_report)
+    delivery_summary = notifier.notification_history_summary(limit=50)
+    delivery_summary_status = notification_history_dashboard_status(delivery_summary)
+    chart_health_report = read_summary_json("alerts/chart_realtime_health.json")
+    chart_health_status = chart_realtime_dashboard_status(chart_health_report)
+    external_disk_check_status = realtime_report_check_card(
+        realtime_check,
+        "external_disk",
+        ok_label="OK",
+        missing_label=external_disk_status["label"],
+    )
+    storage_migration_status = storage_migration_dashboard_status(realtime_check)
+    notification_delivery_status = realtime_report_check_card(
+        realtime_check,
+        "notification_delivery",
+        ok_label="Lista",
+        missing_label="Sin check",
+    )
+    operational_logs_status = realtime_report_check_card(
+        realtime_check,
+        "operational_logs",
+        ok_label="Limpios",
+        missing_label="Sin check",
+    )
+    session = brief.get("market_session") or market_session_status()
+    realtime = brief.get("realtime") or {}
+    realtime_refresh_status = realtime_refresh_dashboard_status(realtime)
+    with st.expander("Estado tecnico del scan", expanded=False):
+        primary_cols = st.columns(6)
+        with primary_cols[0]:
+            render_kpi_card("Modo ops", operational_mode_status["label"], tone=operational_mode_status["tone"], detail=operational_mode_status["detail"])
+        with primary_cols[1]:
+            render_kpi_card("Backend live", backend["label"], tone=backend["tone"], detail=backend["detail"])
+        with primary_cols[2]:
+            render_kpi_card("Alertas", alerts, tone="buy" if alerts else "neutral")
+        with primary_cols[3]:
+            render_kpi_card("Datos live", freshness["label"], tone=freshness["tone"], detail=freshness["detail"])
+        with primary_cols[4]:
+            session_tone = "buy" if session.get("stock_alerts_allowed") else "watch"
+            render_kpi_card("Sesion stock", session.get("stock_session", "-"), tone=session_tone, detail=session.get("local_time"))
+        with primary_cols[5]:
+            render_kpi_card(
+                "Auto-refresh",
+                realtime_refresh_status["label"],
+                tone=realtime_refresh_status["tone"],
+                detail=realtime_refresh_status["detail"],
+            )
+
+        data_cols = st.columns(11)
+        with data_cols[0]:
+            label = safe_float(best.get("ai_score")) if best else None
+            render_kpi_card("Mejor IA", num_display(label, 0) if label is not None else "-")
+        with data_cols[1]:
+            render_kpi_card("Filas live", len(scan_df) if not scan_df.empty else 0)
+        with data_cols[2]:
+            render_kpi_card("Confluencia", len(confluence_df) if not confluence_df.empty else 0)
+        with data_cols[3]:
+            render_kpi_card("Opciones", len(options_df) if not options_df.empty else 0)
+        with data_cols[4]:
+            render_kpi_card("Check RT", check_status["label"], tone=check_status["tone"], detail=check_status["detail"])
+        with data_cols[5]:
+            render_kpi_card(
+                "Pagina 24h",
+                streamlit_service_status["label"],
+                tone=streamlit_service_status["tone"],
+                detail=streamlit_service_status["detail"],
+            )
+        with data_cols[6]:
+            render_kpi_card(
+                "Scan diario",
+                daily_service_status["label"],
+                tone=daily_service_status["tone"],
+                detail=daily_service_status["detail"],
+            )
+        with data_cols[7]:
+            render_kpi_card(
+                "Watchdog RT",
+                health_watchdog_status["label"],
+                tone=health_watchdog_status["tone"],
+                detail=health_watchdog_status["detail"],
+            )
+        with data_cols[8]:
+            render_kpi_card(
+                "Avisos health",
+                health_notify_status["label"],
+                tone=health_notify_status["tone"],
+                detail=health_notify_status["detail"],
+            )
+        with data_cols[9]:
+            render_kpi_card(
+                "Entrega alertas",
+                notification_delivery_status["label"],
+                tone=notification_delivery_status["tone"],
+                detail=notification_delivery_status["detail"],
+            )
+        with data_cols[10]:
+            render_kpi_card(
+                "Limpieza",
+                maintenance_status["label"],
+                tone=maintenance_status["tone"],
+                detail=maintenance_status["detail"],
+            )
+
+        ops_cols = st.columns(4)
+        with ops_cols[0]:
+            render_kpi_card(
+                "Estabilidad RT",
+                health_history_status["label"],
+                tone=health_history_status["tone"],
+                detail=health_history_status["detail"],
+            )
+        with ops_cols[1]:
+            render_kpi_card(
+                "Ultimo estado",
+                text_display(realtime_check.get("status") if realtime_check else "-"),
+                tone=check_status["tone"],
+                detail=text_display(realtime_check.get("generated_at") if realtime_check else "Sin reporte"),
+            )
+        with ops_cols[2]:
+            history_path = str(runtime_path("alerts/roxy_realtime_history.jsonl"))
+            render_kpi_card("Historial health", len(health_history), tone="neutral", detail=history_path)
+        with ops_cols[3]:
+            render_kpi_card("Disco Mac", mac_disk_status["label"], tone=mac_disk_status["tone"], detail=mac_disk_status["detail"])
+
+        ops_cols_2 = st.columns(10)
+        with ops_cols_2[0]:
+            render_kpi_card(
+                "RoxyData",
+                external_disk_check_status["label"],
+                tone=external_disk_check_status["tone"] if external_disk_check_status["label"] != external_disk_status["label"] else external_disk_status["tone"],
+                detail=external_disk_check_status["detail"] if external_disk_check_status["detail"] != "No esta en el reporte RT" else external_disk_status["detail"],
+            )
+        with ops_cols_2[1]:
+            render_kpi_card(
+                "Migracion espacio",
+                storage_migration_status["label"],
+                tone=storage_migration_status["tone"],
+                detail=storage_migration_status["detail"],
+            )
+        with ops_cols_2[2]:
+            render_kpi_card("Calidad alertas", gate_summary_status["label"], tone=gate_summary_status["tone"], detail=gate_summary_status["detail"])
+        with ops_cols_2[3]:
+            render_kpi_card("Racha alertas", alert_quality_status["label"], tone=alert_quality_status["tone"], detail=alert_quality_status["detail"])
+        with ops_cols_2[4]:
+            render_kpi_card("Delivery alertas", delivery_summary_status["label"], tone=delivery_summary_status["tone"], detail=delivery_summary_status["detail"])
+        with ops_cols_2[5]:
+            render_kpi_card("Graficas RT", chart_health_status["label"], tone=chart_health_status["tone"], detail=chart_health_status["detail"])
+        with ops_cols_2[6]:
+            render_kpi_card("Backup", runtime_backup_status["label"], tone=runtime_backup_status["tone"], detail=runtime_backup_status["detail"])
+        with ops_cols_2[7]:
+            render_kpi_card("Autoheal", autoheal_status["label"], tone=autoheal_status["tone"], detail=autoheal_status["detail"])
+        with ops_cols_2[8]:
+            render_kpi_card("Lock RT", lock_status["label"], tone=lock_status["tone"], detail=lock_status["detail"])
+        with ops_cols_2[9]:
+            render_kpi_card(
+                "Logs ops",
+                operational_logs_status["label"],
+                tone=operational_logs_status["tone"],
+                detail=operational_logs_status["detail"],
+            )
+
+        st.caption(
+            "Datos recientes: "
+            f"diario `{daily_path or '-'}` | live `{live_path or '-'}` | confluencia `{confluence_path or '-'}` | "
+            f"opciones `{options_path or '-'}` | actualizado {latest_timestamp([daily_path, live_path, confluence_path, options_path])}"
+        )
+        if freshness["tone"] == "avoid":
+            st.warning("Datos live/confluencia estancados. Roxy puede seguir leyendo memoria, pero no conviene operar hasta refrescar el scan.")
+        if heartbeat:
+            with st.expander("Heartbeat backend live", expanded=backend["tone"] == "avoid"):
+                st.json(heartbeat)
+        if realtime_check:
+            with st.expander("Reporte verificacion realtime", expanded=check_status["tone"] != "buy"):
+                st.json(realtime_check)
+            autoheal_keys = [
+                "launchd_autoheal",
+                "runtime_backup_autoheal",
+                "runtime_backup_report_autoheal",
+                "streamlit_app_autoheal",
+                "chart_health_autoheal",
+                "live_data_autoheal",
+                "output_maintenance_autoheal",
+                "ai_brief_autoheal",
+                "alert_quality_autoheal",
+            ]
+            if any(realtime_check.get(key) for key in autoheal_keys):
+                with st.expander("Reporte autoheal", expanded=autoheal_status["tone"] != "buy"):
+                    st.json({key: realtime_check.get(key) for key in autoheal_keys})
+        if health_history:
+            with st.expander("Historial health realtime", expanded=health_history_status["tone"] != "buy"):
+                history_display = health_history_display_table(health_history, limit=50)
+                if not history_display.empty:
+                    st.dataframe(history_display, width="stretch", hide_index=True, height=320)
+                with st.expander("JSON tecnico del historial", expanded=False):
+                    st.json(health_history[-50:])
+        if maintenance_report:
+            with st.expander("Reporte limpieza output", expanded=maintenance_status["tone"] != "buy"):
+                st.json(maintenance_report)
+        if runtime_backup_report:
+            with st.expander("Reporte backup runtime", expanded=runtime_backup_status["tone"] != "buy"):
+                st.json(runtime_backup_report)
+        if gate_summary:
+            with st.expander("Resumen compuertas de alertas", expanded=gate_summary_status["tone"] != "buy"):
+                st.json(gate_summary)
+        if alert_quality_report:
+            with st.expander("Historial calidad de alertas", expanded=alert_quality_status["tone"] == "avoid"):
+                st.json(alert_quality_report)
+        if delivery_summary:
+            with st.expander("Resumen delivery de alertas", expanded=delivery_summary_status["tone"] == "watch"):
+                st.json(delivery_summary)
+        if chart_health_report:
+            with st.expander("Reporte graficas realtime", expanded=chart_health_status["tone"] != "buy"):
+                st.json(chart_health_report)
+
+
+def show_focused_controls() -> None:
+    control_cols = st.columns([1, 1, 1, 1, 1.2, 1])
+    with control_cols[0]:
+        if st.button("Live completo", key="focused_run_full_live"):
+            with st.spinner("Corriendo scan live y reconstruyendo brief IA..."):
+                code_scan, output_scan = run_local_command(["tools/ma_live.py", "--once"])
+                code_brief, output_brief = run_local_command(["tools/roxy_ai_watch.py", "--notify"]) if code_scan == 0 else (1, "")
+            if code_scan == 0 and code_brief == 0:
+                st.success("Live completo actualizado")
+            else:
+                st.error("Live completo fallo")
+            output = "\n".join(item for item in [output_scan, output_brief] if item)
+            if output:
+                st.code(output[-7000:])
+    with control_cols[1]:
+        if st.button("Escanear live ahora", key="focused_run_live"):
+            with st.spinner("Corriendo scan intradia, confluencia, opciones y lectura IA..."):
+                code, output = run_local_command(["tools/ma_live.py", "--once"])
+            if code == 0:
+                st.success("Scan live completado")
+            else:
+                st.error("Scan live fallo")
+            if output:
+                st.code(output[-5000:])
+    with control_cols[2]:
+        if st.button("Actualizar brief IA", key="focused_refresh_ai"):
+            with st.spinner("Construyendo brief IA..."):
+                code, output = run_local_command(["tools/roxy_ai_watch.py", "--notify"])
+            if code == 0:
+                st.success("Brief IA actualizado")
+            else:
+                st.error("Brief IA fallo")
+            if output:
+                st.code(output[-3000:])
+    with control_cols[3]:
+        if st.button("Activar 24h", key="focused_enable_24h"):
+            with st.spinner("Instalando servicio 24h de macOS..."):
+                code, output = run_local_command(
+                    [
+                        "tools/ma_live_launchd.py",
+                        "install",
+                        "--stock-intervals",
+                        "15m,1h,2h,4h",
+                        "--crypto-timeframes",
+                        "15m,1h,2h,4h",
+                        "--poll-seconds",
+                        "300",
+                        "--limit",
+                        "30",
+                        "--report-limit",
+                        "12",
+                        "--retention-count",
+                        "96",
+                        "--health-check",
+                        "--health-app-url",
+                        "http://127.0.0.1:8501",
+                        "--health-chart-symbol",
+                        "AAPL",
+                        "--health-chart-timeframe",
+                        "1h",
+                    ]
+                )
+            if code == 0:
+                st.success("Escaner 24h activado")
+            else:
+                st.error("No se pudo activar el escaner 24h")
+            if output:
+                st.code(output[-5000:])
+    with control_cols[4]:
+        if st.button("Detener 24h", key="focused_stop_24h"):
+            with st.spinner("Deteniendo servicio 24h..."):
+                code, output = run_local_command(["tools/ma_live_launchd.py", "uninstall"])
+            if code == 0:
+                st.success("Escaner 24h detenido")
+            else:
+                st.error("No se pudo detener el escaner 24h")
+            if output:
+                st.code(output[-3000:])
+    with control_cols[5]:
+        if st.button("Verificar RT", key="focused_realtime_check"):
+            with st.spinner("Verificando pipeline realtime..."):
+                code, output = run_local_command(
+                    [
+                        "tools/roxy_realtime_check.py",
+                        "--app-url",
+                        "http://127.0.0.1:8501",
+                        "--chart-symbol",
+                        "AAPL",
+                        "--chart-timeframe",
+                        "1h",
+                        "--no-fail",
+                    ]
+                )
+            if code == 0:
+                st.success("Verificacion RT actualizada")
+            else:
+                st.error("Verificacion RT fallo antes de escribir reporte")
+            if output:
+                st.code(output[-5000:])
+
+
+def watch_movement_label(row: dict) -> str:
+    signal = str(row.get("signal") or "").upper()
+    decision = str(row.get("trade_decision") or row.get("decision") or "").upper()
+    trigger = str(row.get("trigger_setup") or row.get("trigger") or row.get("setup") or "").upper()
+    trend = str(row.get("trend_setup") or row.get("trend") or "").upper()
+    action = str(row.get("ai_action") or row.get("action") or "").upper()
+    alert_movement = str(row.get("alert_movement") or row.get("movement") or "").strip()
+    if action == "ALERT" or (signal == "BUY" and decision.startswith("TRADE_FOR")):
+        return "BUY porque 15m/1h confirman, riesgo esta medido y target minimo es viable."
+    if alert_movement:
+        return alert_movement
+    if "RISK_REWARD" in decision:
+        return "Esperar mejor riesgo/beneficio: stop mas cerca o target minimo 2% viable."
+    if "PULLBACK" in {trigger, trend}:
+        return "Esperar rebote en SMA20/SMA40 con cierre verde y volumen."
+    if "TREND_CONTINUATION" in {trigger, trend}:
+        return "Esperar continuacion: cierre sobre SMA20 y ruptura del maximo reciente."
+    if "EARLY_UPTREND" in {trigger, trend}:
+        return "Esperar cruce confirmado: SMA20 sobre SMA40 y 1h sosteniendo tendencia."
+    if "DOWNTREND" in {trigger, trend}:
+        return "AVOID porque la estructura sigue bajista; esperar recuperacion sobre SMA200."
+    if signal == "AVOID" or decision.startswith("NO_TRADE"):
+        return "AVOID porque no hay confluencia BUY; esperar que vuelva a WATCH/BUY."
+    if signal == "WATCH" or decision == "WAIT":
+        return "Esperar 15m en BUY, 1h confirmando y volumen acompanando."
+    return "Esperar setup mas claro antes de operar."
+
+
+def opportunity_reason_label(row: dict) -> str:
+    signal = str(row.get("signal") or "").upper()
+    decision = str(row.get("trade_decision") or row.get("decision") or "").upper()
+    trigger = str(row.get("trigger_setup") or row.get("trigger") or "").upper()
+    trend = str(row.get("trend_setup") or row.get("trend") or "").upper()
+    risk_pct = safe_float(row.get("risk_pct"))
+    target_pct = safe_float(row.get("recommended_target_pct") or row.get("target_pct"))
+
+    if opportunity_is_trade_ready(row):
+        parts = ["BUY: confluencia activa"]
+        if trigger:
+            parts.append(trigger.replace("_", " ").title())
+        if risk_pct is not None:
+            parts.append(f"riesgo {risk_pct * 100:.2f}%")
+        if target_pct is not None:
+            parts.append(f"target {target_pct * 100:.0f}% viable")
+        return " | ".join(parts[:4])
+
+    if "RISK_REWARD" in decision:
+        return "NO: el riesgo/beneficio no compensa el stop actual."
+    if "DOWNTREND" in {trigger, trend}:
+        return "AVOID: estructura bajista; primero debe recuperar medias largas."
+    if signal == "AVOID" or decision.startswith("NO_TRADE"):
+        return "AVOID: falta confluencia BUY entre tendencia, entrada y riesgo."
+    if signal == "WATCH" or decision == "WAIT":
+        return f"WATCH: {watch_movement_label(row)}"
+    return "WAIT: falta un setup mas limpio."
+
+
+def opportunity_change_label(row: dict) -> str:
+    signal = str(row.get("signal") or "").upper()
+    decision = str(row.get("trade_decision") or row.get("decision") or "").upper()
+    trigger = str(row.get("trigger_setup") or row.get("trigger") or "").upper()
+    trend = str(row.get("trend_setup") or row.get("trend") or "").upper()
+    risk_pct = safe_float(row.get("risk_pct"))
+    target_pct = safe_float(row.get("recommended_target_pct") or row.get("target_pct"))
+
+    if opportunity_is_trade_ready(row):
+        return "Mantener solo si respeta stop, 15m sigue BUY y volumen no se apaga."
+    if "RISK_REWARD" in decision:
+        return "Cambia si el stop queda mas cerca o el target minimo 2% vuelve a ser viable."
+    if "DOWNTREND" in {trigger, trend}:
+        return "Cambia si recupera SMA200 y 1h deja de marcar tendencia bajista."
+
+    needed = []
+    if signal != "BUY":
+        needed.append("15m en BUY")
+    if decision in {"", "WAIT"} or signal == "WATCH":
+        needed.append("1h confirmando")
+    if risk_pct is None or risk_pct > 0.035:
+        needed.append("riesgo <= 3.5%")
+    if target_pct is None or target_pct < 0.02:
+        needed.append("target 2% viable")
+    if not needed:
+        needed.append("cierre fuerte con volumen")
+    return "Necesita " + " + ".join(needed[:3]) + "."
+
+
+def opportunity_confidence_label(row: dict) -> str:
+    readiness = safe_float(row.get("alert_readiness_score") or row.get("readiness"))
+    bias = str(row.get("learning_bias") or "").lower()
+    memory_note = str(row.get("memory_note") or "")
+
+    if bias == "positive" and readiness is not None and readiness >= 80:
+        return "Alta: memoria positiva y checklist fuerte."
+    if bias == "negative":
+        return "Baja: memoria historica exige filtro extra."
+    if bias == "shadow_positive":
+        return "Media+: laboratorio WATCH mejora, falta muestra real."
+    if bias == "shadow_negative":
+        return "Baja: laboratorio WATCH exige filtro extra."
+    if bias == "learning" or "no hay suficientes" in memory_note.lower():
+        return "Aprendiendo: falta muestra cerrada."
+    if readiness is not None and readiness >= 70:
+        return "Media: checklist parcial, confirmar entrada."
+    if readiness is not None:
+        return "Baja: faltan condiciones del checklist."
+    return "Sin memoria suficiente."
+
+
+def focused_opportunity_table(brief: dict) -> pd.DataFrame:
+    rows = []
+    for row in brief.get("opportunities", []):
+        option = row.get("option") or {}
+        signal = str(row.get("signal") or "").upper()
+        decision = str(row.get("trade_decision") or "").upper()
+        action = str(row.get("ai_action") or "").upper()
+        is_trade = action == "ALERT" or (signal == "BUY" and decision.startswith("TRADE_FOR"))
+        is_no_trade = signal == "AVOID" or decision.startswith("NO_TRADE")
+        is_watch = not is_trade and not is_no_trade and (signal == "WATCH" or action == "WATCH" or decision == "WAIT")
+        focus_priority = 2 if is_trade else 1 if is_watch else 0
+        rows.append(
+            {
+                "action": row.get("ai_action"),
+                "symbol": row.get("symbol"),
+                "market": row.get("market"),
+                "ai_score": row.get("ai_score"),
+                "signal": row.get("signal"),
+                "decision": row.get("trade_decision"),
+                "entry": row.get("entry"),
+                "stop": row.get("stop"),
+                "risk_pct": row.get("risk_pct"),
+                "target_pct": row.get("recommended_target_pct"),
+                "target_price": row.get("recommended_target_price"),
+                "trigger": row.get("trigger_setup"),
+                "trend": row.get("trend_setup"),
+                "option": option.get("contract"),
+                "option_score": option.get("score"),
+                "gate": alert_gate_label(row.get("alert_gate")),
+                "readiness": row.get("alert_readiness_score"),
+                "confidence": opportunity_confidence_label(row),
+                "learning_bias": row.get("learning_bias"),
+                "por_que": human_alert_reason(row) or opportunity_reason_label(row),
+                "waiting_for": watch_movement_label(row),
+                "cambia_si": opportunity_change_label(row),
+                "focus_priority": focus_priority,
+            }
+        )
+    table = pd.DataFrame(rows)
+    if table.empty:
+        return table
+    if "ai_score" in table.columns:
+        table["ai_score"] = pd.to_numeric(table["ai_score"], errors="coerce").fillna(0)
+    return table.sort_values(["focus_priority", "ai_score"], ascending=[False, False]).reset_index(drop=True)
+
+
+def focused_display_table(table: pd.DataFrame) -> pd.DataFrame:
+    if table.empty:
+        return table
+    columns = [
+        "action",
+        "symbol",
+        "signal",
+        "decision",
+        "ai_score",
+        "entry",
+        "stop",
+        "risk_pct",
+        "target_pct",
+        "target_price",
+        "gate",
+        "readiness",
+        "confidence",
+        "por_que",
+        "waiting_for",
+        "cambia_si",
+        "option",
+        "option_score",
+    ]
+    return table[[col for col in columns if col in table.columns]].copy()
+
+
+def focused_display_table_es(table: pd.DataFrame) -> pd.DataFrame:
+    display = focused_display_table(table)
+    if display.empty:
+        return display
+    formatted = display.copy()
+    for column in ["entry", "stop", "target_price"]:
+        if column in formatted.columns:
+            formatted[column] = formatted[column].map(lambda value: num_display(value) if pd.notna(value) else "-")
+    for column in ["risk_pct", "target_pct"]:
+        if column in formatted.columns:
+            formatted[column] = formatted[column].map(lambda value: pct_display(value) if pd.notna(value) else "-")
+    if "readiness" in formatted.columns:
+        formatted["readiness"] = formatted["readiness"].map(lambda value: num_display(value, 0) if pd.notna(value) else "-")
+    rename = {
+        "action": "accion",
+        "symbol": "simbolo",
+        "signal": "senal",
+        "decision": "decision",
+        "ai_score": "score_ia",
+        "entry": "entrada",
+        "stop": "stop",
+        "risk_pct": "riesgo",
+        "target_pct": "target",
+        "target_price": "precio_target",
+        "gate": "filtro",
+        "readiness": "readiness",
+        "confidence": "confianza",
+        "por_que": "por_que",
+        "waiting_for": "esperamos",
+        "cambia_si": "cambia_si",
+        "option": "opcion",
+        "option_score": "score_opcion",
+    }
+    return formatted.rename(columns={key: value for key, value in rename.items() if key in formatted.columns})
+
+
+def alert_preview_table(brief: dict) -> pd.DataFrame:
+    rows = []
+    for row in brief.get("opportunities", []):
+        if str(row.get("ai_action") or "").upper() != "ALERT":
+            continue
+        entry = safe_float(row.get("entry"))
+        target_2 = safe_float(row.get("target_2pct_price"))
+        target_5 = safe_float(row.get("target_5pct_price"))
+        target_10 = safe_float(row.get("target_10pct_price"))
+        if entry is not None:
+            target_2 = target_2 if target_2 is not None else entry * 1.02
+            target_5 = target_5 if target_5 is not None else entry * 1.05
+            target_10 = target_10 if target_10 is not None else entry * 1.10
+        rows.append(
+            {
+                "market": row.get("market"),
+                "symbol": row.get("symbol"),
+                "accion": row.get("trade_decision"),
+                "setup": row.get("strategy_family") or row.get("trigger_setup"),
+                "entry": entry,
+                "stop": safe_float(row.get("stop")),
+                "target_2": target_2,
+                "target_5": target_5,
+                "target_10": target_10,
+                "risk": safe_float(row.get("risk_pct")),
+                "readiness": safe_float(row.get("alert_readiness_score")),
+                "confianza": opportunity_confidence_label(row),
+                "por_que": human_alert_reason(row) or opportunity_reason_label(row),
+                "vigilar": watch_movement_label(row),
+                "filtro": alert_gate_label(row.get("alert_gate")),
+            }
+        )
+    table = pd.DataFrame(rows)
+    if table.empty:
+        return table
+    return table.sort_values(["readiness", "symbol"], ascending=[False, True], na_position="last").reset_index(drop=True)
+
+
+def _option_entry_price(option: dict) -> float | None:
+    bid = safe_float(option.get("bid"))
+    ask = safe_float(option.get("ask"))
+    if bid is not None and ask is not None and bid > 0 and ask > 0:
+        return (bid + ask) / 2.0
+    for field in ("mark", "mid", "lastPrice", "last", "ask"):
+        price = safe_float(option.get(field))
+        if price is not None and price > 0:
+            return price
+    return None
+
+
+def trade_plan_platform_preview(
+    trade_brief: dict,
+    *,
+    account_equity: float,
+    risk_per_trade_pct: float,
+    preferred_crypto: str = "crypto_com",
+    preferred_stock: str = "schwab",
+    preferred_option: str = "schwab",
+    source_freshness: dict | None = None,
+    market_session: dict | None = None,
+) -> dict:
+    action = str(trade_brief.get("action") or "").upper()
+    operation_status = str(trade_brief.get("operation_status") or "").lower()
+    option = trade_brief.get("option") or {}
+    preferred_product = "option" if action == "WATCH_CALL" else "crypto" if trade_brief.get("market") == "crypto" else "stock"
+    ready_signal = operation_status == "operar"
+    entry = trade_brief.get("entry")
+    stop = trade_brief.get("stop")
+
+    if preferred_product == "option" and option:
+        option_entry = _option_entry_price(option)
+        if option_entry is not None:
+            entry = option_entry
+            max_loss = safe_float(option.get("max_loss_per_contract"))
+            option_stop = safe_float(option.get("stop") or option.get("option_stop"))
+            if option_stop is None and max_loss is not None and max_loss > 0:
+                option_stop = max(0.01, option_entry - (max_loss / 100.0))
+            stop = option_stop
+
+    row = {
+        "market": trade_brief.get("market"),
+        "symbol": trade_brief.get("symbol"),
+        "contractSymbol": option.get("contractSymbol"),
+        "option": option.get("contractSymbol"),
+        "signal": "BUY" if ready_signal else trade_brief.get("signal") or "WATCH",
+        "decision": trade_brief.get("trade_decision") if ready_signal else "WAIT",
+        "trade_decision": trade_brief.get("trade_decision") if ready_signal else "WAIT",
+        "entry": entry,
+        "stop": stop,
+        "target_pct": trade_brief.get("recommended_target_pct"),
+        "target_price": trade_brief.get("recommended_target_price"),
+        "strategy_family": trade_brief.get("strategy_family"),
+    }
+    ticket = build_platform_ticket(
+        row,
+        account_equity=account_equity,
+        risk_per_trade_pct=risk_per_trade_pct,
+        preferred_product=preferred_product,
+        preferred_crypto=preferred_crypto,
+        preferred_stock=preferred_stock,
+        preferred_option=preferred_option,
+        source_freshness=source_freshness,
+        market_session=market_session,
+    )
+    ticket["trade_plan_decision"] = trade_brief.get("decision")
+    ticket["manual_only"] = True
+    ticket["platform_note"] = (
+        "Preview only: Roxy prepara la orden y el tamano; la entrada real se confirma manualmente en la plataforma."
+    )
+    guardrail = build_account_risk_guardrail(
+        account_equity,
+        risk_per_trade_pct,
+        planned_risk_dollars=ticket.get("risk_dollars"),
+    )
+    ticket["risk_guardrail"] = guardrail
+    ticket["small_account_plan"] = small_account_product_plan(
+        account_equity=account_equity,
+        risk_per_trade_pct=risk_per_trade_pct,
+        market=trade_brief.get("market"),
+        entry=entry,
+        stop=stop,
+        option=option,
+    )
+    if ticket.get("status") == "READY_TO_PREVIEW" and not guardrail["allowed"]:
+        ticket["status"] = "RISK_GUARDRAIL"
+        ticket["status_reason"] = guardrail["message"]
+        ticket["execution_enabled"] = False
+    if preferred_product == "option":
+        ticket["option_contract"] = option.get("contractSymbol")
+        ticket["option_quality"] = {
+            "dte": option.get("dte"),
+            "delta": option.get("delta"),
+            "spread_pct": option.get("spread_pct"),
+            "volume": option.get("volume"),
+            "openInterest": option.get("openInterest"),
+            "breakeven_price": option.get("breakeven_price"),
+            "max_loss_per_contract": option.get("max_loss_per_contract"),
+        }
+    return ticket
+
+
+def opportunity_is_trade_ready(row: dict) -> bool:
+    action = str(row.get("action") or row.get("ai_action") or "").upper()
+    signal = str(row.get("signal") or "").upper()
+    decision = str(row.get("decision") or row.get("trade_decision") or "").upper()
+    return action == "ALERT" or (signal == "BUY" and decision.startswith("TRADE_FOR"))
+
+
+def render_center_decision_board(row: dict) -> None:
+    summary = center_decision_summary(row)
+    st.markdown(
+        f"""
+        <div class="trade-plan trade-plan-{html.escape(summary['tone'])}">
+            <div class="trade-plan-title">{html.escape(summary['status'])} | {html.escape(str(row.get('symbol') or '-'))}</div>
+            <div class="trade-plan-line">{html.escape(summary['headline'])}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    cols = st.columns([0.8, 1.4, 1.4, 1.4])
+    with cols[0]:
+        render_kpi_card("Accion Roxy", summary["action"], tone=summary["tone"])
+    with cols[1]:
+        render_kpi_card("Por que", summary["why"], tone=summary["tone"])
+    with cols[2]:
+        render_kpi_card("Esperamos", summary["wait_for"], tone="watch")
+    with cols[3]:
+        render_kpi_card("Cambia si", summary["changes_when"], tone="neutral")
+
+
+def render_real_opportunity_panel(row: dict) -> None:
+    symbol = str(row.get("symbol") or "-")
+    market = str(row.get("market") or "-")
+    signal = str(row.get("signal") or "-")
+    decision = str(row.get("decision") or row.get("trade_decision") or "-")
+    entry = safe_float(row.get("entry"))
+    stop = safe_float(row.get("stop"))
+    target_pct = safe_float(row.get("target_pct") or row.get("recommended_target_pct"))
+    target_price = safe_float(row.get("target_price") or row.get("recommended_target_price"))
+    if target_price is None and entry is not None and target_pct is not None:
+        target_price = entry * (1.0 + target_pct)
+    target_2 = entry * 1.02 if entry is not None else None
+    target_5 = entry * 1.05 if entry is not None else None
+    target_10 = entry * 1.10 if entry is not None else None
+    tone = "buy" if signal == "BUY" else "watch" if signal == "WATCH" else "avoid"
+    waiting_for = text_display(row.get("waiting_for"))
+    confidence = text_display(row.get("confidence"))
+    confidence_tone = "buy" if confidence.startswith("Alta") else "avoid" if confidence.startswith("Baja") else "watch"
+    cols = st.columns([1.3, 0.9, 0.85, 0.85, 1.0, 1.35])
+    with cols[0]:
+        render_kpi_card("Enfoque", f"{market} {symbol}", tone=tone)
+    with cols[1]:
+        render_kpi_card("Senal", f"{signal} / {decision}", tone=tone, detail=waiting_for if waiting_for != "-" else None)
+    with cols[2]:
+        render_kpi_card("Entrada", num_display(entry))
+    with cols[3]:
+        render_kpi_card("Stop", num_display(stop))
+    with cols[4]:
+        render_kpi_card("Confianza", confidence, tone=confidence_tone)
+    with cols[5]:
+        render_kpi_card(
+            "Objetivos",
+            f"{num_display(target_2)} / {num_display(target_5)} / {num_display(target_10)}",
+            detail=f"Recomendado {num_display(target_price)}",
+        )
+
+
+def render_focus_opportunity_chart(
+    row: dict,
+    confluence_df: pd.DataFrame,
+    options_df: pd.DataFrame,
+    app_brief: dict | None = None,
+) -> None:
+    symbol = str(row.get("symbol") or "").strip().upper()
+    if not symbol or symbol == "-":
+        return
+
+    market_value = str(row.get("market") or "stock").strip().lower()
+    market = "crypto" if market_value.startswith("crypto") or "/" in symbol else "stock"
+    timeframe = "1h"
+    resolved_symbol = resolve_symbol_query(symbol, market)
+
+    with st.spinner(f"Construyendo grafica principal para {resolved_symbol}..."):
+        try:
+            history = fetch_symbol_history(resolved_symbol, market=market, timeframe=timeframe)
+            chart_df = prepare_symbol_chart_data(history)
+            setup = analyze_moving_average_setup(history) if not history.empty else {}
+        except Exception as exc:
+            st.warning(f"Grafica principal no disponible para {resolved_symbol}: {exc}")
+            return
+
+    if chart_df.empty or not setup:
+        st.info(f"No hay historial de grafica disponible para {resolved_symbol}.")
+        return
+
+    confluence = latest_confluence_row(confluence_df, resolved_symbol)
+    trade_brief = build_symbol_trade_brief(
+        symbol=resolved_symbol,
+        market=market,
+        timeframe=timeframe,
+        setup=setup,
+        confluence=confluence,
+        options_df=options_df,
+        account_equity=float(DEFAULT_ACCOUNT_EQUITY),
+        account_risk_pct=0.01,
+        memory=load_memory(),
+    )
+
+    st.markdown("**Grafica principal**")
+    render_chart_readout(setup, confluence, trade_brief, chart_df)
+    render_chart_strategy_summary(setup, confluence, trade_brief, chart_df)
+    render_operation_gate(trade_brief)
+    render_focus_action_brief(trade_brief)
+    if str(trade_brief.get("action") or "").upper() not in {"BUY_STOCK", "WATCH_CALL"}:
+        render_watch_plan(trade_brief)
+    render_chart_level_plan(chart_df, setup, confluence, trade_brief)
+    platform_ticket = trade_plan_platform_preview(
+        trade_brief,
+        account_equity=float(DEFAULT_ACCOUNT_EQUITY),
+        risk_per_trade_pct=0.01,
+        source_freshness=(app_brief or {}).get("source_freshness"),
+        market_session=(app_brief or {}).get("market_session"),
+    )
+    render_trade_plan_platform_preview(platform_ticket)
+    price_chart = build_professional_price_chart(chart_df, setup, confluence, trade_brief).properties(height=390)
+    volume_chart = build_professional_volume_chart(chart_df)
+    oscillator_chart = build_professional_oscillator_chart(chart_df)
+    chart_panels = [price_chart]
+    if volume_chart is not None:
+        chart_panels.append(volume_chart.properties(height=105))
+    if oscillator_chart is not None:
+        chart_panels.append(oscillator_chart.properties(height=100))
+    if len(chart_panels) > 1:
+        combined_chart = alt.vconcat(*chart_panels).resolve_scale(x="shared")
+        st.altair_chart(style_trading_chart(combined_chart), use_container_width=True)
+    else:
+        st.altair_chart(style_trading_chart(price_chart), use_container_width=True)
+
+    with st.expander("Detalles de estrategia", expanded=False):
+        render_decision_reason(trade_brief)
+        render_decision_transition(trade_brief)
+        render_strategy_event_panel(chart_df, setup)
+        playbook = classify_strategy_playbook(setup, confluence=confluence, market=market, timeframe=timeframe)
+        cols = st.columns(3)
+        with cols[0]:
+            render_kpi_card("Estrategia", playbook.get("regime", "-"))
+        with cols[1]:
+            render_kpi_card("Gatillo entrada", playbook.get("entry_rule", "-"))
+        with cols[2]:
+            render_kpi_card("Plan opciones", playbook.get("options_plan", "-"), tone="watch" if market == "stock" else "neutral")
+
+
+def default_trade_plan_symbol(confluence_df: pd.DataFrame, brief: dict) -> str:
+    table = focused_opportunity_table(brief)
+    if not table.empty and table.iloc[0].get("symbol"):
+        return str(table.iloc[0].get("symbol")).upper()
+    if not confluence_df.empty and "symbol" in confluence_df.columns:
+        scored = confluence_df.copy()
+        if "confluence_score" in scored.columns:
+            scored["confluence_score"] = pd.to_numeric(scored["confluence_score"], errors="coerce").fillna(0)
+            scored = scored.sort_values("confluence_score", ascending=False)
+        first = scored.iloc[0].get("symbol")
+        if first:
+            return str(first).upper()
+    return "AAPL"
+
+
+def show_trade_plan_screen(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, options_df: pd.DataFrame, brief: dict) -> None:
+    st.subheader("Plan de trade")
+    default_symbol = default_trade_plan_symbol(confluence_df, brief)
+    available_symbols = [default_symbol]
+    if not confluence_df.empty and "symbol" in confluence_df.columns:
+        available_symbols.extend(confluence_df["symbol"].dropna().astype(str).str.upper().unique().tolist())
+    available_symbols.extend(["AAPL", "NVDA", "AMD", "MSFT", "PLTR"])
+    symbols = sorted(dict.fromkeys(symbol for symbol in available_symbols if symbol))
+
+    controls = st.columns([1.1, 0.8, 0.8, 0.8, 0.8])
+    with controls[0]:
+        symbol_choice = st.selectbox("Simbolo", symbols, index=symbols.index(default_symbol) if default_symbol in symbols else 0)
+    with controls[1]:
+        market = st.selectbox("Mercado", ["stock", "crypto"], key="trade_plan_market")
+    with controls[2]:
+        timeframe = st.selectbox("Marco", TIMEFRAME_OPTIONS, index=1, key="trade_plan_tf")
+    with controls[3]:
+        account_equity = st.number_input("Cuenta", min_value=100.0, value=float(DEFAULT_ACCOUNT_EQUITY), step=50.0, key="trade_plan_equity")
+    with controls[4]:
+        risk_per_trade_pct = st.number_input("Riesgo %", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key="trade_plan_risk")
+
+    symbol = resolve_symbol_query(symbol_choice, market)
+    with st.spinner(f"Construyendo plan para {symbol}..."):
+        try:
+            history = fetch_symbol_history(symbol, market=market, timeframe=timeframe)
+            chart_df = prepare_symbol_chart_data(history)
+            setup = analyze_moving_average_setup(history) if not history.empty else {}
+        except Exception as exc:
+            st.error(f"No se pudo construir el plan para {symbol}: {exc}")
+            return
+
+    if chart_df.empty or not setup:
+        st.warning(f"No hay suficiente historial de precio para {symbol}.")
+        return
+
+    confluence = latest_confluence_row(confluence_df, symbol)
+    trade_brief = build_symbol_trade_brief(
+        symbol=symbol,
+        market=market,
+        timeframe=timeframe,
+        setup=setup,
+        confluence=confluence,
+        options_df=options_df,
+        account_equity=float(account_equity),
+        account_risk_pct=float(risk_per_trade_pct) / 100.0,
+        memory=load_memory(),
+    )
+    platform_ticket = trade_plan_platform_preview(
+        trade_brief,
+        account_equity=float(account_equity),
+        risk_per_trade_pct=float(risk_per_trade_pct) / 100.0,
+        source_freshness=brief.get("source_freshness"),
+        market_session=brief.get("market_session"),
+    )
+
+    render_ai_trade_brief(trade_brief)
+    render_chart_strategy_summary(setup, confluence, trade_brief, chart_df)
+    render_chart_level_plan(chart_df, setup, confluence, trade_brief)
+    render_professional_chart_block(chart_df, setup, confluence, trade_brief, price_height=520, volume_height=135)
+    render_operation_gate(trade_brief)
+    with st.expander("Ruta manual, riesgo y plataforma", expanded=False):
+        render_trade_plan_platform_preview(platform_ticket)
+
+    playbook = classify_strategy_playbook(setup, confluence=confluence, market=market, timeframe=timeframe)
+    with st.expander("Lectura completa y estudio del setup", expanded=False):
+        render_chart_readout(setup, confluence, trade_brief, chart_df)
+        render_strategy_event_panel(chart_df, setup)
+        plan_cols = st.columns(3)
+        with plan_cols[0]:
+            render_kpi_card("Regimen", playbook["regime"])
+        with plan_cols[1]:
+            render_kpi_card("Regla entrada", playbook["entry_rule"])
+        with plan_cols[2]:
+            render_kpi_card("Opciones", playbook["options_plan"], tone="watch" if market == "stock" else "neutral")
+
+        reference_rows = detect_reference_strategies(chart_df, setup)
+        render_strategy_checklist(reference_rows)
+
+
+def option_side_from_row(row: dict) -> str:
+    explicit = str(row.get("option_type") or row.get("side") or row.get("type") or "").upper()
+    if explicit in {"CALL", "PUT"}:
+        return explicit
+    contract = str(row.get("contractSymbol") or "")
+    if len(contract) >= 9 and contract[-9] in {"C", "P"}:
+        return "CALL" if contract[-9] == "C" else "PUT"
+    return "CALL" if "C" in contract[-10:] else "PUT" if "P" in contract[-10:] else "-"
+
+
+def prepare_options_view(options_df: pd.DataFrame) -> pd.DataFrame:
+    if options_df.empty:
+        return pd.DataFrame()
+    data = options_df.copy()
+    for column in [
+        "option_score",
+        "dte",
+        "strike",
+        "delta",
+        "gamma",
+        "theta",
+        "vega",
+        "bid",
+        "ask",
+        "spread_pct",
+        "volume",
+        "openInterest",
+        "breakeven_price",
+        "breakeven_pct",
+        "max_loss_per_contract",
+        "risk_reward_at_target",
+    ]:
+        if column in data.columns:
+            data[column] = pd.to_numeric(data[column], errors="coerce")
+    data["side"] = data.apply(lambda row: option_side_from_row(row.to_dict()), axis=1)
+    if "option_decision" in data.columns:
+        data["candidate_rank"] = data["option_decision"].astype(str).str.upper().eq("OPTION_CANDIDATE").astype(int)
+    else:
+        data["candidate_rank"] = 0
+    if "volume" in data.columns and "openInterest" in data.columns:
+        data["liquidity"] = data["volume"].fillna(0) + data["openInterest"].fillna(0)
+    else:
+        data["liquidity"] = 0
+    if "spread_pct" in data.columns:
+        data["spread_pct_display"] = data["spread_pct"] * 100.0
+    if "breakeven_pct" in data.columns:
+        data["breakeven_pct_display"] = data["breakeven_pct"] * 100.0
+    data = annotate_option_greek_quality(data)
+    sort_cols = [col for col in ["candidate_rank", "option_score", "spread_pct", "liquidity", "dte"] if col in data.columns]
+    ascending = [False, False, True, False, True][: len(sort_cols)]
+    if sort_cols:
+        data = data.sort_values(sort_cols, ascending=ascending)
+    return data.reset_index(drop=True)
+
+
+def annotate_options_risk_budget(
+    options_df: pd.DataFrame,
+    *,
+    account_equity: float = 500.0,
+    risk_per_trade_pct: float = 0.01,
+) -> pd.DataFrame:
+    if options_df.empty:
+        return options_df
+    data = options_df.copy()
+    risk_budget = max(1.0, float(account_equity or 500.0)) * max(0.001, float(risk_per_trade_pct or 0.01))
+    if "max_loss_per_contract" in data.columns:
+        data["max_loss_per_contract"] = pd.to_numeric(data["max_loss_per_contract"], errors="coerce")
+        data["risk_budget"] = risk_budget
+        data["risk_multiple"] = data["max_loss_per_contract"] / risk_budget
+        data["fits_1r"] = data["max_loss_per_contract"].le(risk_budget)
+        data["small_account_label"] = data["fits_1r"].map(
+            {True: "Cabe en 1R", False: "Solo paper / reducir riesgo"}
+        )
+        data.loc[data["max_loss_per_contract"].isna(), "small_account_label"] = "Sin max loss"
+    else:
+        data["risk_budget"] = risk_budget
+        data["risk_multiple"] = pd.NA
+        data["fits_1r"] = False
+        data["small_account_label"] = "Sin max loss"
+    return data
+
+
+def show_options_screen(confluence_df: pd.DataFrame, options_df: pd.DataFrame, brief: dict) -> None:
+    st.subheader("Opciones: calls / puts")
+    feed = professional_options_feed_status()
+    feed_cols = st.columns(3)
+    with feed_cols[0]:
+        render_kpi_card("Fuente Greeks", feed["label"], tone=feed["tone"], detail=feed["source"])
+    with feed_cols[1]:
+        render_kpi_card("Datos requeridos", "Delta / DTE / Spread / OI", tone="watch")
+    with feed_cols[2]:
+        render_kpi_card("Uso permitido", "Manual / paper", tone="watch", detail=feed["note"])
+
+    data = prepare_options_view(options_df)
+    if data.empty:
+        st.info("Todavia no hay candidatos de opciones. Roxy solo escanea contratos cuando la accion base tiene setup calificado.")
+        empty_cols = st.columns(3)
+        with empty_cols[0]:
+            render_kpi_card("1R cuenta", num_display(float(DEFAULT_ACCOUNT_EQUITY) * 0.01), tone="watch")
+        with empty_cols[1]:
+            render_kpi_card("Regla opciones", "Solo paper", tone="avoid")
+        with empty_cols[2]:
+            render_kpi_card("Esperar", "Setup base BUY", tone="watch")
+        st.caption("Con $500 y riesgo 1%, un contrato solo pasa si su max loss cabe cerca de $5. Si no cabe, Roxy debe priorizar accion/fraccionada o paper.")
+        table = focused_opportunity_table(brief)
+        if not table.empty:
+            st.markdown("**Watchlist base esperando escaneo de opciones**")
+            st.dataframe(table[["symbol", "signal", "decision", "entry", "stop", "target_pct"]], width="stretch", hide_index=True)
+        return
+
+    symbols = ["Todos"] + sorted(data["symbol"].dropna().astype(str).str.upper().unique().tolist()) if "symbol" in data.columns else ["Todos"]
+    controls = st.columns([1, 1, 1, 1, 1])
+    with controls[0]:
+        selected_symbol = st.selectbox("Simbolo", symbols, key="options_symbol_filter")
+    with controls[1]:
+        selected_side = st.selectbox("Tipo", ["Todos", "CALL", "PUT"], key="options_side_filter")
+    with controls[2]:
+        min_score = st.slider("Score minimo", 0, 100, 0, key="options_min_score")
+    with controls[3]:
+        option_equity = st.number_input("Cuenta", min_value=100.0, value=float(DEFAULT_ACCOUNT_EQUITY), step=50.0, key="options_equity")
+    with controls[4]:
+        option_risk_pct = st.number_input("Riesgo %", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key="options_risk_pct")
+
+    view = data.copy()
+    if selected_symbol != "Todos" and "symbol" in view.columns:
+        view = view[view["symbol"].astype(str).str.upper().eq(selected_symbol)]
+    if selected_side != "Todos":
+        view = view[view["side"].eq(selected_side)]
+    if "option_score" in view.columns:
+        view = view[view["option_score"].fillna(0) >= min_score]
+    view = annotate_options_risk_budget(
+        view,
+        account_equity=float(option_equity),
+        risk_per_trade_pct=float(option_risk_pct) / 100.0,
+    )
+    view = annotate_professional_options_contracts(view)
+
+    if view.empty:
+        st.warning("Ningun contrato coincide con esos filtros.")
+        return
+
+    best = view.iloc[0].to_dict()
+    best_cols = st.columns(8)
+    with best_cols[0]:
+        render_kpi_card("Mejor contrato", best.get("contractSymbol", "-"), tone="buy")
+    with best_cols[1]:
+        render_kpi_card("Tipo", best.get("side", "-"))
+    with best_cols[2]:
+        render_kpi_card("DTE", num_display(best.get("dte"), 0))
+    with best_cols[3]:
+        render_kpi_card("Delta", num_display(best.get("delta"), 2))
+    with best_cols[4]:
+        render_kpi_card("Spread", pct_display(best.get("spread_pct")))
+    with best_cols[5]:
+        render_kpi_card("Volumen", num_display(best.get("volume"), 0))
+    with best_cols[6]:
+        render_kpi_card("Open interest", num_display(best.get("openInterest"), 0))
+    with best_cols[7]:
+        render_kpi_card(
+            "Riesgo max",
+            num_display(best.get("max_loss_per_contract")),
+            tone="buy" if bool(best.get("fits_1r")) else "avoid",
+        )
+
+    readiness_cols = st.columns([1, 1, 1.2, 1])
+    with readiness_cols[0]:
+        readiness = text_display(best.get("professional_readiness"))
+        readiness_tone = "buy" if readiness == "Listo para revisar" else "avoid" if readiness == "Faltan Greeks" else "watch"
+        render_kpi_card("Calidad contrato", readiness, tone=readiness_tone)
+    with readiness_cols[1]:
+        render_kpi_card("Fuente", text_display(best.get("data_source") or feed["source"]), tone=feed["tone"])
+    with readiness_cols[2]:
+        render_kpi_card("Bloqueos", text_display(best.get("professional_blockers")), tone=readiness_tone)
+    with readiness_cols[3]:
+        render_kpi_card("Prima / max loss", f"{num_display(best.get('ask'))} / {num_display(best.get('max_loss_per_contract'))}")
+
+    risk_cols = st.columns(4)
+    with risk_cols[0]:
+        render_kpi_card("Break-even", num_display(best.get("breakeven_price")))
+    with risk_cols[1]:
+        render_kpi_card("Break-even %", pct_display(best.get("breakeven_pct")))
+    with risk_cols[2]:
+        render_kpi_card("Bid / Ask", f"{num_display(best.get('bid'))} / {num_display(best.get('ask'))}")
+    with risk_cols[3]:
+        render_kpi_card("Score opcion", num_display(best.get("option_score"), 0), tone="buy" if (safe_float(best.get("option_score")) or 0) >= 70 else "watch")
+
+    greek_label, greek_tone, greek_note = greek_quality_label(best)
+    greek_cols = st.columns(4)
+    with greek_cols[0]:
+        render_kpi_card("Greeks", greek_label, tone=greek_tone, detail=greek_note)
+    with greek_cols[1]:
+        render_kpi_card("Gamma", num_display(best.get("gamma"), 4))
+    with greek_cols[2]:
+        render_kpi_card("Theta", num_display(best.get("theta"), 4), tone="avoid" if safe_float(best.get("theta")) and safe_float(best.get("theta")) < 0 else "neutral")
+    with greek_cols[3]:
+        render_kpi_card("Vega", num_display(best.get("vega"), 4))
+
+    account_cols = st.columns(4)
+    with account_cols[0]:
+        render_kpi_card("1R cuenta", num_display(best.get("risk_budget")), tone="watch")
+    with account_cols[1]:
+        fits = bool(best.get("fits_1r"))
+        render_kpi_card("Cabe en 1R", "SI" if fits else "NO", tone="buy" if fits else "avoid")
+    with account_cols[2]:
+        render_kpi_card("Veces 1R", num_display(best.get("risk_multiple"), 2), tone="avoid" if (safe_float(best.get("risk_multiple")) or 0) > 1 else "buy")
+    with account_cols[3]:
+        render_kpi_card("Cuenta pequena", best.get("small_account_label", "-"), tone="buy" if fits else "avoid")
+
+    chart_cols = st.columns([1, 1])
+    with chart_cols[0]:
+        if {"spread_pct_display", "option_score"}.issubset(view.columns):
+            quality_chart = (
+                alt.Chart(view)
+                .mark_circle(size=120, opacity=0.82)
+                .encode(
+                    x=alt.X("spread_pct_display:Q", title="Spread %"),
+                    y=alt.Y("option_score:Q", title="Score opcion", scale=alt.Scale(domain=[0, 100])),
+                    color=alt.Color("side:N", title="Tipo", scale=alt.Scale(domain=["CALL", "PUT", "-"], range=["#22c55e", "#ef4444", "#94a3b8"])),
+                    size=alt.Size("liquidity:Q", title="Liquidez", scale=alt.Scale(range=[60, 260])),
+                    tooltip=[
+                        "symbol:N",
+                        "contractSymbol:N",
+                        "side:N",
+                        alt.Tooltip("dte:Q", format=".0f"),
+                        alt.Tooltip("delta:Q", format=".2f"),
+                        alt.Tooltip("spread_pct_display:Q", title="Spread %", format=".2f"),
+                        alt.Tooltip("option_score:Q", format=".0f"),
+                    ],
+                )
+            )
+            st.altair_chart(quality_chart.properties(height=280), use_container_width=True)
+    with chart_cols[1]:
+        if {"contractSymbol", "volume", "openInterest"}.issubset(view.columns):
+            liquidity = view.head(12)[["contractSymbol", "volume", "openInterest"]].melt(
+                "contractSymbol", var_name="metric", value_name="value"
+            )
+            liq_chart = (
+                alt.Chart(liquidity)
+                .mark_bar()
+                .encode(
+                    x=alt.X("value:Q", title="Contratos"),
+                    y=alt.Y("contractSymbol:N", title="Contrato", sort="-x"),
+                    color=alt.Color("metric:N", title="Metrica", scale=alt.Scale(range=["#38bdf8", "#a78bfa"])),
+                    tooltip=["contractSymbol:N", "metric:N", alt.Tooltip("value:Q", format=",.0f")],
+                )
+            )
+            st.altair_chart(liq_chart.properties(height=280), use_container_width=True)
+
+    option_cols = [
+        "symbol",
+        "side",
+        "contractSymbol",
+        "option_decision",
+        "option_score",
+        "expiry",
+        "dte",
+        "strike",
+        "delta",
+        "gamma",
+        "theta",
+        "vega",
+        "greek_quality",
+        "greek_note",
+        "bid",
+        "ask",
+        "spread_pct_display",
+        "spread_dollars",
+        "volume",
+        "openInterest",
+        "breakeven_price",
+        "breakeven_pct_display",
+        "risk_reward_at_target",
+        "max_loss_per_contract",
+        "professional_readiness",
+        "professional_blockers",
+        "risk_budget",
+        "risk_multiple",
+        "small_account_label",
+        "underlying_trade_decision",
+        "underlying_confluence_score",
+    ]
+    st.dataframe(view[[col for col in option_cols if col in view.columns]], width="stretch", hide_index=True)
+
+    if selected_symbol != "Todos" and not confluence_df.empty and "symbol" in confluence_df.columns:
+        underlying = confluence_df[confluence_df["symbol"].astype(str).str.upper().eq(selected_symbol)]
+        if not underlying.empty:
+            st.markdown("**Setup de la accion base**")
+            cols = [
+                "symbol",
+                "signal",
+                "trade_decision",
+                "confluence_score",
+                "entry",
+                "stop",
+                "risk_pct",
+                "recommended_target_pct",
+                "recommended_target_price",
+            ]
+            st.dataframe(underlying[[col for col in cols if col in underlying.columns]], width="stretch", hide_index=True)
+
+
+def render_backtest_strategy_visual(expanded: bool = True) -> None:
+    trades_path, trades_df = latest_backtest_trades()
+    summary = summarize_backtest_by_strategy(trades_df)
+    if summary.empty:
+        st.info("Todavia no hay trades de backtest por estrategia. Corre el flujo de backtest MA para llenar esta tabla.")
+        return
+
+    chart_data = summary.copy()
+    for column in ["win_rate", "hit_2pct_rate", "hit_5pct_rate", "hit_10pct_rate", "stop_rate"]:
+        chart_data[f"{column}_pct"] = chart_data[column] * 100.0
+    finite_pf = chart_data["profit_factor"].replace([float("inf")], pd.NA).dropna()
+    cap = float(finite_pf.max()) + 1.0 if not finite_pf.empty else 5.0
+    chart_data["profit_factor_display"] = chart_data["profit_factor"].map(lambda value: cap if value == float("inf") else value)
+
+    top = chart_data.iloc[0].to_dict()
+    top_cols = st.columns(5)
+    with top_cols[0]:
+        render_kpi_card("Mejor estrategia", top.get("strategy_family", "-"), tone="buy")
+    with top_cols[1]:
+        render_kpi_card("Win rate", pct_display((safe_float(top.get("win_rate")) or 0)))
+    with top_cols[2]:
+        render_kpi_card("Profit factor", "inf" if top.get("profit_factor") == float("inf") else num_display(top.get("profit_factor")))
+    with top_cols[3]:
+        render_kpi_card("Llega 2%", pct_display((safe_float(top.get("hit_2pct_rate")) or 0)))
+    with top_cols[4]:
+        render_kpi_card("Toca stop", pct_display((safe_float(top.get("stop_rate")) or 0)), tone="avoid" if (safe_float(top.get("stop_rate")) or 0) > 0.45 else "neutral")
+
+    cols = st.columns([1, 1])
+    with cols[0]:
+        win_chart = (
+            alt.Chart(chart_data)
+            .mark_bar()
+            .encode(
+                x=alt.X("win_rate_pct:Q", title="Win rate %"),
+                y=alt.Y("strategy_family:N", title="Estrategia", sort="-x"),
+                color=alt.Color("strategy_family:N", legend=None, scale=alt.Scale(range=["#22c55e", "#38bdf8", "#a78bfa", "#f59e0b", "#ef4444", "#94a3b8"])),
+                tooltip=["strategy_family:N", alt.Tooltip("win_rate_pct:Q", format=".1f"), "trades:Q"],
+            )
+        )
+        st.altair_chart(win_chart.properties(height=280), use_container_width=True)
+    with cols[1]:
+        pf_chart = (
+            alt.Chart(chart_data)
+            .mark_bar(color="#a78bfa")
+            .encode(
+                x=alt.X("profit_factor_display:Q", title="Profit factor"),
+                y=alt.Y("strategy_family:N", title="Estrategia", sort="-x"),
+                tooltip=["strategy_family:N", alt.Tooltip("profit_factor_display:Q", format=".2f"), "total_pnl:Q"],
+            )
+        )
+        st.altair_chart(pf_chart.properties(height=280), use_container_width=True)
+
+    target_view = chart_data[
+        ["strategy_family", "hit_2pct_rate_pct", "hit_5pct_rate_pct", "hit_10pct_rate_pct", "stop_rate_pct"]
+    ].melt("strategy_family", var_name="metric", value_name="rate")
+    target_view["metric"] = target_view["metric"].map(
+        {
+            "hit_2pct_rate_pct": "Llega 2%",
+            "hit_5pct_rate_pct": "Llega 5%",
+            "hit_10pct_rate_pct": "Llega 10%",
+            "stop_rate_pct": "Stop",
+        }
+    )
+    target_chart = (
+        alt.Chart(target_view)
+        .mark_bar()
+        .encode(
+            x=alt.X("rate:Q", title="Rate %"),
+            y=alt.Y("strategy_family:N", title="Estrategia", sort="-x"),
+            color=alt.Color(
+                "metric:N",
+                title="Resultado",
+                scale=alt.Scale(domain=["Llega 2%", "Llega 5%", "Llega 10%", "Stop"], range=["#22c55e", "#38bdf8", "#a78bfa", "#ef4444"]),
+            ),
+            tooltip=["strategy_family:N", "metric:N", alt.Tooltip("rate:Q", format=".1f")],
+        )
+    )
+    st.altair_chart(target_chart.properties(height=330), use_container_width=True)
+
+    display = summary.copy()
+    for column in ["win_rate", "hit_2pct_rate", "hit_5pct_rate", "hit_10pct_rate", "stop_rate", "avg_return_pct"]:
+        if column in display.columns:
+            display[column] = display[column].map(lambda value: pct_display(value) if pd.notna(value) else "-")
+    display["total_pnl"] = display["total_pnl"].map(lambda value: num_display(value))
+    display["profit_factor"] = display["profit_factor"].map(lambda value: "inf" if value == float("inf") else num_display(value))
+    st.caption(f"Fuente: `{trades_path}`")
+    st.dataframe(display, width="stretch", hide_index=True)
+
+
+def show_backtest_screen() -> None:
+    st.subheader("Backtest por estrategia")
+    render_backtest_strategy_visual()
+
+
+def show_accuracy_screen(brief: dict) -> None:
+    memory = brief.get("memory") or load_memory()
+    report = build_accuracy_report(memory)
+    headline = report["headline"]
+
+    st.subheader("Precision / rendimiento")
+    if headline.get("sample_status") == "READY":
+        st.success("Roxy ya tiene suficientes senales medidas para comparar calidad por estrategia.")
+    else:
+        st.warning(
+            "Roxy todavia esta juntando evidencia. Usala como asistente de decision, no como motor automatico."
+        )
+
+    kpis = st.columns(6)
+    with kpis[0]:
+        render_kpi_card("Alertas", headline.get("alerts", 0))
+    with kpis[1]:
+        sample = f"{headline.get('measured', 0)}/{headline.get('minimum_sample', 30)}"
+        render_kpi_card("Medidas", sample, tone="buy" if headline.get("sample_status") == "READY" else "watch")
+    with kpis[2]:
+        render_kpi_card("Llega 2%", pct_display(headline.get("hit_2_rate")), tone="buy")
+    with kpis[3]:
+        render_kpi_card("Llega 5%", pct_display(headline.get("hit_5_rate")), tone="buy")
+    with kpis[4]:
+        render_kpi_card("Llega 10%", pct_display(headline.get("hit_10_rate")), tone="buy")
+    with kpis[5]:
+        stop_rate = safe_float(headline.get("stop_rate")) or 0.0
+        render_kpi_card("Toca stop", pct_display(headline.get("stop_rate")), tone="avoid" if stop_rate >= 0.35 else "neutral")
+
+    real_memory = report.get("real_memory") or real_signal_memory_summary(memory)
+    st.markdown("**Memoria real de senales**")
+    real_cols = st.columns(6)
+    with real_cols[0]:
+        render_kpi_card("Senales", real_memory.get("alerts", 0))
+    with real_cols[1]:
+        render_kpi_card("Medidas", real_memory.get("measured", 0), tone="buy" if real_memory.get("measured", 0) else "watch")
+    with real_cols[2]:
+        render_kpi_card("2%", pct_display(real_memory.get("hit_2_rate")), tone="buy")
+    with real_cols[3]:
+        render_kpi_card("5%", pct_display(real_memory.get("hit_5_rate")), tone="buy")
+    with real_cols[4]:
+        render_kpi_card("10%", pct_display(real_memory.get("hit_10_rate")), tone="buy")
+    with real_cols[5]:
+        render_kpi_card("Stop", pct_display(real_memory.get("stop_rate")), tone="avoid" if (safe_float(real_memory.get("stop_rate")) or 0) >= 0.35 else "neutral")
+    st.caption(text_display(real_memory.get("lesson")))
+
+    action_cols = st.columns([1.2, 1])
+    with action_cols[0]:
+        st.markdown("**Proximas acciones**")
+        for item in report.get("next_actions", []):
+            st.write(f"- {item}")
+    with action_cols[1]:
+        st.markdown("**Como leerlo**")
+        st.caption(
+            "La precision se basa en resultados guardados: 2%, 5%, 10% y stop. "
+            "Un setup necesita senales repetidas antes de que Roxy suba su peso."
+        )
+
+    watch_progress = report.get("watch_progress") or {}
+    st.markdown("**Progreso WATCH de laboratorio**")
+    watch_cols = st.columns(5)
+    with watch_cols[0]:
+        render_kpi_card("WATCH trackeados", watch_progress.get("tracked", 0))
+    with watch_cols[1]:
+        render_kpi_card("Observados", watch_progress.get("observed", 0), tone="watch")
+    with watch_cols[2]:
+        near_target = safe_float(watch_progress.get("near_2pct_count")) or 0
+        render_kpi_card("Cerca 2%", int(near_target), tone="buy" if near_target > 0 else "neutral")
+    with watch_cols[3]:
+        near_stop = safe_float(watch_progress.get("danger_stop_count")) or 0
+        render_kpi_card("Cerca stop", int(near_stop), tone="avoid" if near_stop > 0 else "neutral")
+    with watch_cols[4]:
+        render_kpi_card("Promedio a 2%", pct_display(watch_progress.get("avg_progress_to_2pct")), tone="watch")
+    st.caption(
+        "Esto mide setups WATCH que aun no eran suficientemente limpios para alerta. "
+        "Si muchos casi llegan al 2%, Roxy puede aflojar filtros; si van hacia stop, los endurece."
+    )
+
+    strategy_rows = report.get("strategy_rows") or []
+    if strategy_rows:
+        strategy_df = pd.DataFrame(strategy_rows)
+        chart_df = strategy_df[strategy_df["alerts"] > 0].copy()
+        if not chart_df.empty:
+            rate_df = chart_df[
+                ["strategy_family", "hit_2_rate", "hit_5_rate", "hit_10_rate", "stop_rate"]
+            ].melt("strategy_family", var_name="metric", value_name="rate")
+            rate_df["metric"] = rate_df["metric"].map(
+                {
+                    "hit_2_rate": "Llega 2%",
+                    "hit_5_rate": "Llega 5%",
+                    "hit_10_rate": "Llega 10%",
+                    "stop_rate": "Stop",
+                }
+            )
+            rate_df["rate_pct"] = rate_df["rate"].fillna(0) * 100
+            rate_chart = (
+                alt.Chart(rate_df)
+                .mark_bar()
+                .encode(
+                    x=alt.X("rate_pct:Q", title="Rate %"),
+                    y=alt.Y("strategy_family:N", title="Estrategia", sort="-x"),
+                    color=alt.Color(
+                        "metric:N",
+                        title="Outcome",
+                        scale=alt.Scale(
+                            domain=["Llega 2%", "Llega 5%", "Llega 10%", "Stop"],
+                            range=["#22c55e", "#38bdf8", "#a78bfa", "#ef4444"],
+                        ),
+                    ),
+                    tooltip=["strategy_family:N", "metric:N", alt.Tooltip("rate_pct:Q", format=".1f")],
+                )
+            )
+            st.altair_chart(rate_chart.properties(height=320), use_container_width=True)
+        else:
+            st.info("Aun no hay resultados de alertas por estrategia. La tabla muestra lo que Roxy esta midiendo.")
+
+        display = strategy_df.copy()
+        for col in ["hit_2_rate", "hit_5_rate", "hit_10_rate", "stop_rate"]:
+            if col in display.columns:
+                display[col] = display[col].map(lambda value: pct_display(value) if pd.notna(value) else "-")
+        cols = [
+            "strategy_family",
+            "status",
+            "seen",
+            "alerts",
+            "measured",
+            "hit_2pct",
+            "hit_5pct",
+            "hit_10pct",
+            "stops",
+            "hit_2_rate",
+            "stop_rate",
+            "sample_gap",
+        ]
+        with st.expander("Detalle: precision por estrategia", expanded=False):
+            st.dataframe(display[[col for col in cols if col in display.columns]], width="stretch", hide_index=True)
+
+    symbol_rows = report.get("symbol_rows") or []
+    if symbol_rows:
+        symbol_df = pd.DataFrame(symbol_rows)
+        display = symbol_df.head(25).copy()
+        for col in ["hit_2_rate", "stop_rate"]:
+            if col in display.columns:
+                display[col] = display[col].map(lambda value: pct_display(value) if pd.notna(value) else "-")
+        with st.expander("Detalle: memoria por simbolo", expanded=False):
+            st.dataframe(display, width="stretch", hide_index=True)
+
+    alert_rows = report.get("alert_rows") or []
+    with st.expander("Detalle: registro de resultados", expanded=False):
+        if alert_rows:
+            alert_display = pd.DataFrame(alert_rows).head(50)
+            for col in ["max_gain_pct", "max_drawdown_pct", "progress_to_2pct", "progress_to_stop"]:
+                if col in alert_display.columns:
+                    alert_display[col] = alert_display[col].map(lambda value: pct_display(value) if pd.notna(value) else "-")
+            st.dataframe(alert_display, width="stretch", hide_index=True)
+        else:
+            st.caption("Aun no hay resultados de alertas guardados. Cuando Roxy envie alertas limpias, aqui veras targets y stops.")
+
+    journal_rows = report.get("signal_journal_rows") or []
+    with st.expander("Detalle: diario WATCH del laboratorio", expanded=False):
+        st.caption("Laboratorio de observacion para setups WATCH/AVOID fuertes. Ayuda a Roxy a aprender, pero no cuenta como precision real.")
+        if journal_rows:
+            journal_display = pd.DataFrame(journal_rows).head(50)
+            for col in ["max_gain_pct", "max_drawdown_pct", "progress_to_2pct", "progress_to_stop"]:
+                if col in journal_display.columns:
+                    journal_display[col] = journal_display[col].map(lambda value: pct_display(value) if pd.notna(value) else "-")
+            st.dataframe(journal_display, width="stretch", hide_index=True)
+        else:
+            st.caption("Aun no hay senales WATCH guardadas.")
+
+
+def render_smart_alert_gate(brief: dict) -> None:
+    rows = []
+    for row in brief.get("opportunities") or []:
+        blockers = row.get("alert_blockers") or []
+        if isinstance(blockers, str):
+            blockers = [blockers]
+        checks = (row.get("smart_alert") or {}).get("checks") or []
+        rows.append(
+            {
+                "symbol": row.get("symbol"),
+                "market": row.get("market"),
+                "action": human_trade_action(row),
+                "quality": row.get("alert_quality") or (row.get("smart_alert") or {}).get("quality"),
+                "gate": alert_gate_label(row.get("alert_gate")),
+                "readiness": row.get("alert_readiness_score"),
+                "passed": f"{(row.get('smart_alert') or {}).get('passed_count', 0)}/{(row.get('smart_alert') or {}).get('total_checks', 0)}",
+                "primary_blocker": row.get("alert_primary_blocker") or (row.get("smart_alert") or {}).get("primary_blocker"),
+                "next_action": row.get("alert_next_action") or (row.get("smart_alert") or {}).get("next_action"),
+                "reason": human_alert_reason(row),
+                "missing": " | ".join(str(item) for item in blockers[:3]) if blockers else "Listo",
+                "movement": row.get("alert_movement"),
+                "signal": row.get("signal"),
+                "decision": row.get("trade_decision"),
+                "entry": row.get("entry"),
+                "stop": row.get("stop"),
+                "checks": " | ".join(
+                    f"{check.get('rule')}: {'OK' if check.get('passed') else 'NO'}" for check in checks[:5]
+                ),
+            }
+        )
+    st.markdown("**Filtro inteligente de alertas**")
+    if not rows:
+        st.caption("No hay oportunidades ordenadas por IA en el brief actual.")
+        return
+    gate_df = pd.DataFrame(rows).sort_values(["action", "readiness"], ascending=[True, False])
+    chart_df = gate_df.copy()
+    chart_df["readiness"] = pd.to_numeric(chart_df["readiness"], errors="coerce").fillna(0)
+    chart = (
+        alt.Chart(chart_df.head(12))
+        .mark_bar()
+        .encode(
+            x=alt.X("readiness:Q", title="Checklist %"),
+            y=alt.Y("symbol:N", title="Simbolo", sort="-x"),
+            color=alt.Color(
+                "gate:N",
+                title="Filtro",
+                scale=alt.Scale(
+                    range=["#22c55e", "#f59e0b", "#38bdf8", "#ef4444", "#a78bfa", "#94a3b8"],
+                ),
+            ),
+            tooltip=[
+                alt.Tooltip("symbol:N", title="Simbolo"),
+                alt.Tooltip("quality:N", title="Calidad"),
+                alt.Tooltip("gate:N", title="Filtro"),
+                alt.Tooltip("passed:N", title="Pasa"),
+                alt.Tooltip("primary_blocker:N", title="Bloqueo principal"),
+                alt.Tooltip("next_action:N", title="Proximo paso"),
+            ],
+        )
+    )
+    st.altair_chart(chart.properties(height=280), use_container_width=True)
+    display_cols = [
+        "symbol",
+        "action",
+        "quality",
+        "gate",
+        "readiness",
+        "passed",
+        "primary_blocker",
+        "next_action",
+        "reason",
+        "entry",
+        "stop",
+    ]
+    gate_display = gate_df[[col for col in display_cols if col in gate_df.columns]].rename(
+        columns={
+            "symbol": "Simbolo",
+            "action": "Accion",
+            "quality": "Calidad",
+            "gate": "Filtro",
+            "readiness": "Checklist %",
+            "passed": "Pasa",
+            "primary_blocker": "Bloqueo principal",
+            "next_action": "Proximo paso",
+            "reason": "Razon",
+            "entry": "Entrada",
+            "stop": "Stop",
+        }
+    )
+    st.dataframe(gate_display, width="stretch", hide_index=True)
+
+
+def render_roxy_lab_visual(brief: dict, memory: dict) -> None:
+    trades_path, trades_df = latest_backtest_trades()
+    backtest_summary = summarize_backtest_by_strategy(trades_df)
+    lab_rows = build_strategy_lab(memory, backtest_summary=backtest_summary)
+
+    st.subheader("Roxy Lab")
+    if not lab_rows:
+        st.info("Roxy Lab is waiting for strategy memory or backtest results.")
+        return
+
+    lab_df = pd.DataFrame(lab_rows)
+    state_labels = {
+        "Promote": "Promover",
+        "Watch": "Vigilar",
+        "Collect data": "Recolectar datos",
+        "Tighten filter": "Ajustar filtro",
+    }
+    state_counts = lab_df["lab_state"].value_counts()
+    kpi_cols = st.columns(4)
+    with kpi_cols[0]:
+        render_kpi_card("Promover", int(state_counts.get("Promote", 0)), tone="buy")
+    with kpi_cols[1]:
+        render_kpi_card("Vigilar", int(state_counts.get("Watch", 0)), tone="watch")
+    with kpi_cols[2]:
+        render_kpi_card("Ajustar", int(state_counts.get("Tighten filter", 0)), tone="avoid")
+    with kpi_cols[3]:
+        render_kpi_card("Datos", int(state_counts.get("Collect data", 0)))
+
+    shadow_observed = int(pd.to_numeric(lab_df.get("shadow_observed", 0), errors="coerce").fillna(0).sum())
+    shadow_target_weighted = 0.0
+    shadow_stop_weighted = 0.0
+    if shadow_observed:
+        shadow_target_weighted = (
+            pd.to_numeric(lab_df.get("shadow_target_rate", 0), errors="coerce").fillna(0)
+            * pd.to_numeric(lab_df.get("shadow_observed", 0), errors="coerce").fillna(0)
+        ).sum() / shadow_observed
+        shadow_stop_weighted = (
+            pd.to_numeric(lab_df.get("shadow_stop_pressure", 0), errors="coerce").fillna(0)
+            * pd.to_numeric(lab_df.get("shadow_observed", 0), errors="coerce").fillna(0)
+        ).sum() / shadow_observed
+    shadow_cols = st.columns(3)
+    with shadow_cols[0]:
+        render_kpi_card("WATCH medidos", shadow_observed, tone="watch")
+    with shadow_cols[1]:
+        render_kpi_card("WATCH cerca 2%", pct_display(shadow_target_weighted), tone="buy" if shadow_target_weighted >= 0.55 else "neutral")
+    with shadow_cols[2]:
+        render_kpi_card("WATCH hacia stop", pct_display(shadow_stop_weighted), tone="avoid" if shadow_stop_weighted >= 0.45 else "neutral")
+
+    render_lab_daily_summary(lab_rows)
+
+    chart_df = lab_df.copy()
+    chart_df["evidence_score_pct"] = chart_df["evidence_score"] * 100.0
+    chart_df["lab_state_label"] = chart_df["lab_state"].map(state_labels).fillna(chart_df["lab_state"])
+    state_domain = ["Promote", "Watch", "Collect data", "Tighten filter"]
+    state_label_domain = [state_labels[item] for item in state_domain]
+    state_range = ["#22c55e", "#f59e0b", "#38bdf8", "#ef4444"]
+    lab_chart = (
+        alt.Chart(chart_df)
+        .mark_bar()
+        .encode(
+            x=alt.X("evidence_score_pct:Q", title="Evidencia %"),
+            y=alt.Y("strategy_family:N", title="Estrategia", sort="-x"),
+            color=alt.Color("lab_state_label:N", title="Estado lab", scale=alt.Scale(domain=state_label_domain, range=state_range)),
+            tooltip=[
+                alt.Tooltip("strategy_family:N", title="Estrategia"),
+                alt.Tooltip("lab_state_label:N", title="Estado"),
+                alt.Tooltip("evidence_score_pct:Q", title="Evidencia %", format=".1f"),
+                alt.Tooltip("alerts:Q", title="Alertas"),
+                alt.Tooltip("shadow_observed:Q", title="WATCH medidos"),
+                alt.Tooltip("shadow_target_rate:Q", title="WATCH cerca 2%", format=".1%"),
+                alt.Tooltip("shadow_stop_pressure:Q", title="WATCH hacia stop", format=".1%"),
+                alt.Tooltip("backtest_trades:Q", title="Backtest trades"),
+            ],
+        )
+    )
+    st.altair_chart(lab_chart.properties(height=320), use_container_width=True)
+
+    journal_df = load_learning_journal(limit=40)
+    if not journal_df.empty:
+        st.markdown("**Bitacora diaria de aprendizaje**")
+        chart_rows = journal_df.copy()
+        if "generated_at" in chart_rows.columns:
+            chart_rows["generated_at"] = pd.to_datetime(chart_rows["generated_at"], errors="coerce")
+        if "top_readiness" in chart_rows.columns and chart_rows["top_readiness"].notna().any():
+            readiness_chart = (
+                alt.Chart(chart_rows.dropna(subset=["generated_at", "top_readiness"]))
+                .mark_line(point=True)
+                .encode(
+                    x=alt.X("generated_at:T", title="Tiempo"),
+                    y=alt.Y("top_readiness:Q", title="Checklist %", scale=alt.Scale(domain=[0, 100])),
+                    color=alt.Color("top_action:N", title="Accion"),
+                    tooltip=[
+                        alt.Tooltip("generated_at:T", title="Tiempo"),
+                        alt.Tooltip("top_symbol:N", title="Simbolo"),
+                        alt.Tooltip("top_action:N", title="Accion"),
+                        alt.Tooltip("top_gate:N", title="Filtro"),
+                        alt.Tooltip("top_quality:N", title="Calidad"),
+                        alt.Tooltip("top_readiness:Q", title="Checklist %", format=".0f"),
+                        alt.Tooltip("learning_bias:N", title="Memoria"),
+                    ],
+                )
+            )
+            st.altair_chart(readiness_chart.properties(height=180), use_container_width=True)
+
+        display_cols = [
+            "generated_at",
+            "top_symbol",
+            "top_market",
+            "top_action",
+            "top_strategy",
+            "top_gate",
+            "top_quality",
+            "top_readiness",
+            "top_next_action",
+            "learning_bias",
+            "learning_lesson",
+            "next_experiment",
+        ]
+        journal_display = journal_df[[col for col in display_cols if col in journal_df.columns]].copy()
+        if "top_action" in journal_display.columns:
+            journal_display["top_action"] = journal_display["top_action"].map(action_label)
+        if "top_readiness" in journal_display.columns:
+            journal_display["top_readiness"] = journal_display["top_readiness"].map(
+                lambda value: num_display(value, 0) if pd.notna(value) else "-"
+            )
+        if "generated_at" in journal_display.columns:
+            journal_display["generated_at"] = journal_display["generated_at"].astype(str).str.replace("T", " ", regex=False).str.slice(0, 16)
+        journal_display = journal_display.rename(
+            columns={
+                "generated_at": "Fecha",
+                "top_symbol": "Simbolo",
+                "top_market": "Mercado",
+                "top_action": "Decision",
+                "top_strategy": "Estrategia",
+                "top_gate": "Filtro",
+                "top_quality": "Calidad",
+                "top_readiness": "Checklist",
+                "top_next_action": "Que espera",
+                "learning_bias": "Memoria",
+                "learning_lesson": "Leccion",
+                "next_experiment": "Siguiente experimento",
+            }
+        )
+        st.dataframe(journal_display.tail(15), width="stretch", hide_index=True, height=320)
+
+    learning_plan = brief.get("learning_plan") or autonomous_learning_plan(memory, backtest_summary=backtest_summary)
+    if learning_plan:
+        st.markdown("**Plan autonomo de aprendizaje**")
+        plan_df = pd.DataFrame(learning_plan)
+        display_cols = [
+            "strategy_family",
+            "action",
+            "safety_mode",
+            "evidence_score",
+            "proposed_rule",
+            "activation_rule",
+            "why",
+        ]
+        plan_display = plan_df[[col for col in display_cols if col in plan_df.columns]].rename(
+            columns={
+                "strategy_family": "Estrategia",
+                "action": "Accion",
+                "safety_mode": "Modo",
+                "evidence_score": "Evidencia",
+                "proposed_rule": "Regla propuesta",
+                "activation_rule": "Activacion",
+                "why": "Por que",
+            }
+        )
+        if "Accion" in plan_display.columns:
+            plan_display["Accion"] = plan_display["Accion"].map(learning_action_label)
+        if "Modo" in plan_display.columns:
+            plan_display["Modo"] = plan_display["Modo"].map(safety_mode_label)
+        st.dataframe(plan_display, width="stretch", hide_index=True)
+
+    experiment_registry = brief.get("experiment_registry") or (memory.get("experiment_registry") if isinstance(memory, dict) else [])
+    if experiment_registry:
+        st.markdown("**Registro de experimentos Roxy**")
+        experiments_df = pd.DataFrame(experiment_registry)
+        measured_total = int(pd.to_numeric(experiments_df.get("measured_count", 0), errors="coerce").fillna(0).sum())
+        hit_2_total = int(pd.to_numeric(experiments_df.get("hit_2_count", 0), errors="coerce").fillna(0).sum())
+        stop_total = int(pd.to_numeric(experiments_df.get("stop_count", 0), errors="coerce").fillna(0).sum())
+        exp_cols = st.columns(4)
+        with exp_cols[0]:
+            render_kpi_card("Experimentos", len(experiments_df), tone="watch")
+        with exp_cols[1]:
+            render_kpi_card("Senales medidas", measured_total, tone="buy" if measured_total >= 3 else "watch")
+        with exp_cols[2]:
+            render_kpi_card("Hit 2% lab", pct_display(hit_2_total / measured_total if measured_total else 0.0), tone="buy")
+        with exp_cols[3]:
+            render_kpi_card("Stop lab", pct_display(stop_total / measured_total if measured_total else 0.0), tone="avoid" if stop_total else "neutral")
+        display_cols = [
+            "strategy_family",
+            "status",
+            "outcome_state",
+            "action",
+            "safety_mode",
+            "evidence_score",
+            "measured_count",
+            "hit_2_rate",
+            "stop_rate",
+            "seen_count",
+            "proposed_rule",
+            "activation_rule",
+        ]
+        for col in ["hit_2_rate", "stop_rate", "evidence_score"]:
+            if col in experiments_df.columns:
+                experiments_df[col] = experiments_df[col].map(lambda value: pct_display(value) if pd.notna(value) else "-")
+        experiment_display = experiments_df[[col for col in display_cols if col in experiments_df.columns]].rename(
+            columns={
+                "strategy_family": "Estrategia",
+                "status": "Estado",
+                "outcome_state": "Resultado",
+                "action": "Accion",
+                "safety_mode": "Modo",
+                "evidence_score": "Evidencia",
+                "measured_count": "Medidas",
+                "hit_2_rate": "Hit 2%",
+                "stop_rate": "Stop",
+                "seen_count": "Visto",
+                "proposed_rule": "Regla propuesta",
+                "activation_rule": "Activacion",
+            }
+        )
+        if "Estado" in experiment_display.columns:
+            experiment_display["Estado"] = experiment_display["Estado"].map(experiment_status_label)
+        if "Accion" in experiment_display.columns:
+            experiment_display["Accion"] = experiment_display["Accion"].map(learning_action_label)
+        if "Modo" in experiment_display.columns:
+            experiment_display["Modo"] = experiment_display["Modo"].map(safety_mode_label)
+        st.dataframe(
+            experiment_display,
+            width="stretch",
+            hide_index=True,
+            height=260,
+        )
+
+    display_cols = [
+        "strategy_family",
+        "lab_state",
+        "evidence_score",
+        "memory_bias",
+        "adaptive_weight",
+        "alerts",
+        "hit_2_rate",
+        "hit_5_rate",
+        "stop_rate",
+        "shadow_observed",
+        "shadow_target_rate",
+        "shadow_stop_pressure",
+        "backtest_trades",
+        "backtest_win_rate",
+        "backtest_profit_factor",
+        "lab_decision",
+        "experiment_rule",
+    ]
+    display = lab_df[[col for col in display_cols if col in lab_df.columns]].copy()
+    for col in [
+        "evidence_score",
+        "hit_2_rate",
+        "hit_5_rate",
+        "stop_rate",
+        "shadow_target_rate",
+        "shadow_stop_pressure",
+        "backtest_win_rate",
+    ]:
+        if col in display.columns:
+            display[col] = display[col].map(lambda value: pct_display(value) if pd.notna(value) else "-")
+    if "adaptive_weight" in display.columns:
+        display["adaptive_weight"] = display["adaptive_weight"].map(lambda value: f"{float(value):.2f}x")
+    if "backtest_profit_factor" in display.columns:
+        display["backtest_profit_factor"] = display["backtest_profit_factor"].map(
+            lambda value: "inf" if value == float("inf") else num_display(value)
+        )
+    display = display.rename(
+        columns={
+            "strategy_family": "Estrategia",
+            "lab_state": "Estado lab",
+            "evidence_score": "Evidencia",
+            "memory_bias": "Memoria",
+            "adaptive_weight": "Peso",
+            "alerts": "Alertas",
+            "hit_2_rate": "Hit 2%",
+            "hit_5_rate": "Hit 5%",
+            "stop_rate": "Stop",
+            "shadow_observed": "WATCH medidos",
+            "shadow_target_rate": "WATCH cerca 2%",
+            "shadow_stop_pressure": "WATCH hacia stop",
+            "backtest_trades": "Backtest trades",
+            "backtest_win_rate": "Win rate",
+            "backtest_profit_factor": "Profit factor",
+            "lab_decision": "Decision lab",
+            "experiment_rule": "Regla experimento",
+        }
+    )
+    if "Estado lab" in display.columns:
+        display["Estado lab"] = display["Estado lab"].map(lambda value: state_labels.get(str(value), value))
+    with st.expander("Detalle: panel de control de estrategias", expanded=False):
+        st.dataframe(display, width="stretch", hide_index=True, height=360)
+
+    promote_rows = [row for row in lab_rows if row.get("lab_state") == "Promote"]
+    tighten_rows = [row for row in lab_rows if row.get("lab_state") == "Tighten filter"]
+    next_rows = promote_rows[:2] + tighten_rows[:2]
+    if next_rows:
+        st.markdown("**Decisiones de Roxy**")
+        cols = st.columns(min(3, len(next_rows)))
+        for idx, row in enumerate(next_rows[:3]):
+            tone = "buy" if row.get("lab_state") == "Promote" else "avoid"
+            strategy_name = text_display(row.get("strategy_family"))
+            row_key = f"{idx}_{safe_key(strategy_name)}"
+            with cols[idx]:
+                render_kpi_card(
+                    strategy_name,
+                    state_labels.get(str(row.get("lab_state")), row.get("lab_state")),
+                    tone=tone,
+                    detail=row.get("production_action"),
+                )
+                st.caption(str(row.get("experiment_rule") or ""))
+                if st.button("Mini estudio", key=f"lab_inline_study_{row_key}", width="stretch"):
+                    st.session_state["lab_inline_study_strategy"] = strategy_name
+                if st.button("Cargar en Estudios", key=f"lab_load_study_{row_key}", width="stretch"):
+                    st.session_state["study_strategy_request"] = strategy_name
+                    st.session_state["study_focus_message"] = f"Roxy Lab cargo {strategy_name}. Abre la pestana Estudios para verlo completo."
+                    st.success("Listo. Abre Estudios para ver el playbook completo con grafica.")
+
+    inline_strategy = st.session_state.get("lab_inline_study_strategy")
+    if inline_strategy:
+        st.markdown("**Mini estudio conectado al laboratorio**")
+        inline_row = next((row for row in lab_rows if row.get("strategy_family") == inline_strategy), {})
+        render_strategy_study_preview(str(inline_strategy), inline_row)
+
+    if trades_path:
+        st.caption(f"Fuente backtest: `{trades_path}`")
+    st.caption("Los cambios del laboratorio afectan ranking y alertas paper. Las ordenes reales siguen manuales hasta conectar un broker explicitamente.")
+
+
+def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, options_df: pd.DataFrame, brief: dict) -> None:
+    best = focused_opportunity_table(brief)
+    default_symbol = default_trade_plan_symbol(confluence_df, brief)
+    if "command_symbol" not in st.session_state:
+        st.session_state["command_symbol"] = default_symbol
+    pending_symbol = st.session_state.pop("command_symbol_pending", None)
+    if pending_symbol:
+        st.session_state["command_symbol"] = str(pending_symbol)
+    pending_market = st.session_state.pop("command_market_pending", None)
+    if pending_market:
+        st.session_state["command_market"] = str(pending_market)
+
+    st.subheader("Command Center")
+    control_cols = st.columns([1.0, 0.7, 0.65, 0.65, 0.65])
+    with control_cols[0]:
+        symbol_input = st.text_input("Simbolo o crypto", value=st.session_state.get("command_symbol", default_symbol), key="command_symbol")
+    with control_cols[1]:
+        inferred_market = "crypto" if "/" in str(symbol_input) else "stock"
+        market = st.selectbox(
+            "Mercado",
+            ["stock", "crypto"],
+            index=1 if inferred_market == "crypto" else 0,
+            key="command_market",
+        )
+    with control_cols[2]:
+        timeframe = st.selectbox("Marco", TIMEFRAME_OPTIONS, index=1, key="command_timeframe")
+    with control_cols[3]:
+        account_equity = st.number_input("Cuenta", min_value=100.0, value=500.0, step=50.0, key="command_equity")
+    with control_cols[4]:
+        risk_pct_ui = st.number_input("Riesgo %", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key="command_risk")
+
+    render_alert_noise_contract(brief)
+
+    left, right = st.columns([1.6, 0.72])
+    with left:
+        symbol = str(symbol_input or default_symbol or "AAPL").strip().upper()
+        if not symbol:
+            symbol = "AAPL"
+        with st.spinner(f"Leyendo {symbol} en {timeframe}..."):
+            try:
+                context = load_symbol_trade_context(
+                    symbol=symbol,
+                    market=market,
+                    timeframe=timeframe,
+                    confluence_df=confluence_df,
+                    options_df=options_df,
+                    account_equity=float(account_equity),
+                    risk_per_trade_pct=float(risk_pct_ui) / 100.0,
+                    memory=load_memory(),
+                )
+            except Exception as exc:
+                st.error(f"No se pudo construir el Command Center para {symbol}: {exc}")
+                context = {}
+        if context:
+            render_command_center_analysis(
+                context,
+                app_brief=brief,
+                account_equity=float(account_equity),
+                risk_per_trade_pct=float(risk_pct_ui) / 100.0,
+            )
+    with right:
+        st.subheader("Carga rapida")
+        quick_rows = best.head(7).to_dict("records") if not best.empty else []
+        if quick_rows:
+            for idx, row in enumerate(quick_rows):
+                label = (
+                    f"{text_display(row.get('symbol')).upper()} | "
+                    f"{human_trade_action(row)} | "
+                    f"{strategy_family_for_row(row)}"
+                )
+                if st.button(label, key=f"command_load_{idx}_{safe_key(row.get('symbol'))}", width="stretch"):
+                    st.session_state["command_symbol_pending"] = text_display(row.get("symbol")).upper()
+                    st.session_state["command_market_pending"] = "crypto" if str(row.get("market") or "").lower().startswith("crypto") else "stock"
+                    st.rerun()
+        else:
+            st.info("No hay oportunidades ordenadas. Puedes escribir un simbolo manualmente.")
+
+        st.markdown("**Simbolos clave**")
+        for symbol_label in ["AAPL", "NVDA", "AMD", "MSFT", "PLTR", "QQQ", "BTC/USD", "SOL/USD"]:
+            if st.button(symbol_label, key=f"command_key_symbol_{safe_key(symbol_label)}", width="stretch"):
+                st.session_state["command_symbol_pending"] = symbol_label
+                st.session_state["command_market_pending"] = "crypto" if "/" in symbol_label else "stock"
+                st.rerun()
+
+        status = read_summary_json("alerts/roxy_status.json")
+        if status:
+            st.subheader("Estado Roxy")
+            status_cols = st.columns(2)
+            with status_cols[0]:
+                alert_count = int(status.get("notifications_ready", 0) or 0)
+                render_kpi_card("Alertas listas", alert_count, tone="buy" if alert_count else "neutral")
+            with status_cols[1]:
+                render_kpi_card("Datos", status.get("data_label", "-"), tone="buy" if status.get("data_label") == "Frescos" else "avoid")
+            render_kpi_card(
+                "Top watch",
+                f"{status.get('top_market', '-')} {status.get('top_symbol', '-')}",
+                tone="buy" if status.get("top_action") == "ALERT" else "watch",
+                detail=f"{status.get('top_gate', '-')} | {status.get('top_quality', '-')}",
+            )
+            next_action = text_display(status.get("top_next_action"))
+            if next_action != "-":
+                st.caption(next_action)
+            blockers = status.get("top_blockers") or []
+            if blockers:
+                st.caption("Bloquea: " + " | ".join(str(item) for item in blockers[:2]))
+        st.subheader("Lectura IA")
+        lessons = brief.get("lessons", [])[-6:]
+        if lessons:
+            for lesson in lessons:
+                st.write(f"- {lesson}")
+        else:
+            st.write("La memoria IA se llenara despues del proximo escaneo live.")
+        lines = build_notification_lines(brief)
+        if lines:
+            st.markdown("**Vista previa de alerta**")
+            st.code("\n".join(lines))
+        if not best.empty:
+            with st.expander("Watchlist priorizada", expanded=False):
+                st.dataframe(focused_display_table_es(best).head(10), width="stretch", height=280)
+
+
+def show_focused_opportunities(confluence_df: pd.DataFrame, options_df: pd.DataFrame, brief: dict) -> None:
+    table = focused_opportunity_table(brief)
+    st.subheader("Solo lo importante")
+    if table.empty:
+        st.info("Todavia no hay oportunidades ordenadas por IA.")
+    else:
+        st.dataframe(focused_display_table_es(table), width="stretch", height=360)
+
+    with st.expander("Confluencia tecnica completa"):
+        if confluence_df.empty:
+            st.write("No hay datos de confluencia.")
+        else:
+            cols = [
+                "market",
+                "symbol",
+                "signal",
+                "trade_decision",
+                "confluence_score",
+                "entry",
+                "stop",
+                "risk_pct",
+                "recommended_target_pct",
+                "recommended_target_price",
+                "trigger_setup",
+                "trend_setup",
+                "backtest_eligible",
+                "reasons",
+            ]
+            st.dataframe(confluence_df[[col for col in cols if col in confluence_df.columns]], width="stretch")
+
+    with st.expander("Candidatos de opciones"):
+        if options_df.empty:
+            st.write("No hay candidatos de opciones.")
+        else:
+            cols = [
+                "symbol",
+                "contractSymbol",
+                "option_decision",
+                "option_score",
+                "expiry",
+                "dte",
+                "strike",
+                "delta",
+                "bid",
+                "ask",
+                "spread_pct",
+                "breakeven_price",
+                "breakeven_pct",
+                "max_loss_per_contract",
+                "volume",
+                "openInterest",
+            ]
+            st.dataframe(options_df[[col for col in cols if col in options_df.columns]], width="stretch")
+
+    with st.expander("Backtest by strategy", expanded=True):
+        render_backtest_strategy_visual()
+
+
+def show_focused_ai_24h(brief: dict) -> None:
+    memory = load_memory()
+    render_roxy_lab_visual(brief, memory)
+    st.divider()
+    st.subheader("Alertas IA 24h")
+    state = live_service_state()
+    cols = st.columns(3)
+    with cols[0]:
+        render_kpi_card("LaunchAgent", state["loaded"], tone="buy" if state["loaded"] == "yes" else "watch")
+    with cols[1]:
+        render_kpi_card("Memory symbols", brief.get("memory_symbols", 0))
+    with cols[2]:
+        render_kpi_card("Modo", brief.get("mode", "AI_WATCH_24H"))
+
+    render_smart_alert_gate(brief)
+
+    with st.expander("Configuracion de notificaciones", expanded=False):
+        st.code(
+            "ALERT_EMAIL_TO=you@example.com\n"
+            "SMTP_HOST=smtp.gmail.com\n"
+            "SMTP_PORT=587\n"
+            "SMTP_USERNAME=you@example.com\n"
+            "SMTP_PASSWORD=app_password\n"
+            "# alternativas opcionales\n"
+            "DISCORD_WEBHOOK_URL=...\n"
+            "SLACK_WEBHOOK_URL=...\n"
+            "WEBHOOK_URL=...\n"
+            "MACOS_NOTIFICATIONS=1\n"
+            "ALERT_COOLDOWN_MINUTES=60"
+        )
+        st.caption("El escaner puede correr cada 5 minutos. Crypto es 24h; acciones usan 15m/1h/2h/4h y extended-hours cuando el proveedor lo permita.")
+
+    st.markdown("**Centro de alertas**")
+    gate_summary = brief.get("alert_gate_summary") or summarize_alert_gates(brief)
+    delivery_summary = notifier.notification_history_summary(limit=50)
+    gate_status = alert_gate_summary_dashboard_status(gate_summary)
+    delivery_status = notification_history_dashboard_status(delivery_summary)
+    quality_cols = st.columns(4)
+    with quality_cols[0]:
+        render_kpi_card("Compuerta", gate_status["label"], tone=gate_status["tone"], detail=gate_status["detail"])
+    with quality_cols[1]:
+        render_kpi_card(
+            "Readiness prom.",
+            num_display(gate_summary.get("avg_readiness"), 0) if gate_summary.get("avg_readiness") is not None else "-",
+            tone=gate_status["tone"],
+            detail=f"Listas {gate_summary.get('notifications_ready', 0)} / {gate_summary.get('total_opportunities', 0)}",
+        )
+    with quality_cols[2]:
+        render_kpi_card("Delivery", delivery_status["label"], tone=delivery_status["tone"], detail=delivery_status["detail"])
+    with quality_cols[3]:
+        top_blocker = text_display(gate_summary.get("top_blocker"))
+        render_kpi_card("Bloqueo top", gate_summary.get("top_gate_label", "-"), tone="watch", detail=top_blocker)
+
+    status_df = notification_channel_display(notifier.notification_channel_status())
+    if not status_df.empty:
+        st.table(status_df)
+
+    alert_cols = st.columns([1, 2])
+    with alert_cols[0]:
+        if st.button("Probar notificacion Mac", width="stretch"):
+            result = notifier.send_test_macos_notification()
+            if result.get("sent"):
+                st.success("Notificacion Mac enviada.")
+            else:
+                st.warning("La notificacion Mac no se envio.")
+    with alert_cols[1]:
+        active_channels = notifier.configured_channels()
+        active_labels = [NOTIFICATION_CHANNEL_LABELS.get(channel, channel) for channel in active_channels]
+        st.metric("Canales activos", ", ".join(active_labels) if active_labels else "solo archivos locales")
+        lines = build_notification_lines(brief)
+        st.metric("Alertas listas", len(lines))
+        st.caption(f"Cooldown: {notifier.ALERT_COOLDOWN_MINUTES} minutos por mercado/simbolo.")
+
+    preview_df = alert_preview_table(brief)
+    lines = build_notification_lines(brief)
+    if not preview_df.empty:
+        with st.expander("Vista previa de alerta actual", expanded=True):
+            display_df = preview_df.copy()
+            for col in ["entry", "stop", "target_2", "target_5", "target_10"]:
+                if col in display_df.columns:
+                    display_df[col] = display_df[col].map(lambda value: num_display(value) if pd.notna(value) else "-")
+            if "risk" in display_df.columns:
+                display_df["risk"] = display_df["risk"].map(lambda value: pct_display(value) if pd.notna(value) else "-")
+            if "readiness" in display_df.columns:
+                display_df["readiness"] = display_df["readiness"].map(lambda value: num_display(value, 0) if pd.notna(value) else "-")
+            st.dataframe(display_df, width="stretch", hide_index=True)
+            if lines:
+                st.caption("Texto exacto que se enviaria por los canales activos:")
+                st.text("\n".join(lines))
+    else:
+        st.caption("No hay alertas limpias ahora. Roxy seguira observando hasta que 1h, 15m, volumen, riesgo y target coincidan.")
+
+    history = notifier.read_notification_history(limit=25)
+    st.markdown("**Historial de notificaciones**")
+    if history:
+        history_df = notification_history_display_table(history)
+        cols = ["ts", "effective_sent", "sent", "reason", "cooldown_skipped", "channels", "message"]
+        st.dataframe(history_df[[col for col in cols if col in history_df.columns]], width="stretch", hide_index=True)
+    else:
+        st.caption("Todavia no hay historial de notificaciones.")
+
+    brief_text = Path("alerts/roxy_ai_brief.txt")
+    if brief_text.exists():
+        st.markdown("**Ultimo brief IA**")
+        st.text(brief_text.read_text())
+    learning_profiles = brief.get("learning_profiles") or summarize_strategy_learning(memory)
+    if learning_profiles:
+        learning_df = pd.DataFrame(learning_profiles)
+        display_cols = [
+            "strategy_family",
+            "bias",
+            "adaptive_weight",
+            "alerts",
+            "hit_2_rate",
+            "hit_5_rate",
+            "hit_10_rate",
+            "stop_rate",
+            "lesson",
+            "recommendation",
+        ]
+        learning_display = learning_df[[col for col in display_cols if col in learning_df.columns]].copy()
+        for col in ["hit_2_rate", "hit_5_rate", "hit_10_rate", "stop_rate"]:
+            if col in learning_display.columns:
+                learning_display[col] = learning_display[col].map(lambda value: pct_display(value) if pd.notna(value) else "-")
+        if "adaptive_weight" in learning_display.columns:
+            learning_display["adaptive_weight"] = learning_display["adaptive_weight"].map(lambda value: f"{float(value):.2f}x")
+        st.markdown("**Aprendizaje Roxy**")
+        st.dataframe(learning_display, width="stretch", hide_index=True)
+        if st.button("Speak learning summary", key="speak_learning_summary"):
+            voice_lines = []
+            for profile in learning_profiles[:4]:
+                lesson = str(profile.get("lesson") or "")
+                recommendation = str(profile.get("recommendation") or "")
+                if lesson:
+                    voice_lines.append(lesson)
+                if recommendation:
+                    voice_lines.append(recommendation)
+            speak_in_browser(" ".join(voice_lines), key="learning-summary")
+
+    research_rows = brief.get("research_queue") or learning_research_queue(memory)
+    if research_rows:
+        st.markdown("**Lo proximo que Roxy debe probar**")
+        st.dataframe(pd.DataFrame(research_rows), width="stretch", hide_index=True)
+
+    gate_research = brief.get("gate_research") or []
+    if gate_research:
+        st.markdown("**Investigacion de filtros**")
+        st.caption("Patrones de WATCH bloqueados. Esto le dice a Roxy que filtro debe mejorar.")
+        st.dataframe(pd.DataFrame(gate_research), width="stretch", hide_index=True)
+
+    strategy_stats = memory.get("strategy_stats") or {}
+    if strategy_stats:
+        rows = []
+        for family, stats in strategy_stats.items():
+            alerts = int(stats.get("alerts", 0) or 0)
+            hit_2 = int(stats.get("hit_2pct", 0) or 0)
+            stops = int(stats.get("stops", 0) or 0)
+            rows.append(
+                {
+                    "strategy": family,
+                    "seen": stats.get("seen", 0),
+                    "alerts": alerts,
+                    "hit_2pct": hit_2,
+                    "hit_5pct": stats.get("hit_5pct", 0),
+                    "hit_10pct": stats.get("hit_10pct", 0),
+                    "stops": stops,
+                    "hit_2_rate": hit_2 / alerts if alerts else None,
+                    "stop_rate": stops / alerts if alerts else None,
+                }
+            )
+        memory_df = pd.DataFrame(rows).sort_values(["hit_2_rate", "alerts"], ascending=[False, False])
+        display = memory_df.copy()
+        display["hit_2_rate"] = display["hit_2_rate"].map(lambda value: pct_display(value) if pd.notna(value) else "-")
+        display["stop_rate"] = display["stop_rate"].map(lambda value: pct_display(value) if pd.notna(value) else "-")
+        st.markdown("**Strategy memory**")
+        st.dataframe(display, width="stretch", hide_index=True)
+    with st.expander("Raw AI memory"):
+        st.json(memory)
+
+
+def show_strategy_study_center(
+    scan_df: pd.DataFrame,
+    confluence_df: pd.DataFrame,
+    options_df: pd.DataFrame,
+    brief: dict,
+) -> None:
+    st.subheader("Estudios")
+    memory = load_memory()
+    trades_path, trades_df = latest_backtest_trades()
+    backtest_summary = summarize_backtest_by_strategy(trades_df)
+    lab_rows = build_strategy_lab(memory, backtest_summary=backtest_summary)
+    guides = study_guides_with_lab(lab_rows)
+    if not guides:
+        st.info("Roxy todavia no tiene guias de estudio cargadas.")
+        return
+
+    state_labels = {
+        "Promote": "Promover",
+        "Watch": "Vigilar",
+        "Collect data": "Recolectar datos",
+        "Tighten filter": "Ajustar filtro",
+    }
+    tone_by_state = {
+        "Promote": "buy",
+        "Watch": "watch",
+        "Collect data": "neutral",
+        "Tighten filter": "avoid",
+    }
+    strategy_names = [row["strategy"] for row in guides]
+    preferred = next((row["strategy"] for row in guides if row.get("lab_state") == "Promote"), strategy_names[0])
+    requested = st.session_state.pop("study_strategy_request", None)
+    selected_default = resolve_study_strategy_choice(
+        strategy_names,
+        preferred,
+        requested=requested,
+        current=st.session_state.get("study_strategy_select"),
+    )
+    if selected_default in strategy_names:
+        st.session_state["study_strategy_select"] = selected_default
+    focus_message = st.session_state.pop("study_focus_message", None)
+    if focus_message:
+        st.success(str(focus_message))
+    selected = st.selectbox(
+        "Estrategia para estudiar",
+        strategy_names,
+        index=strategy_names.index(selected_default) if selected_default in strategy_names else 0,
+        key="study_strategy_select",
+    )
+    guide = next(row for row in guides if row["strategy"] == selected)
+    lab_state = str(guide.get("lab_state") or "Collect data")
+    lab_tone = tone_by_state.get(lab_state, "neutral")
+
+    st.markdown(
+        f"""
+        <div class="study-hero study-hero-{lab_tone}">
+            <div>
+                <div class="study-kicker">Playbook Roxy</div>
+                <h2>{html.escape(selected)}</h2>
+                <p>{html.escape(text_display(guide.get("headline")))}</p>
+            </div>
+            <div class="study-status">
+                <span>Lab</span>
+                <strong>{html.escape(state_labels.get(lab_state, lab_state))}</strong>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    metric_cols = st.columns(4)
+    with metric_cols[0]:
+        render_kpi_card("Evidencia", pct_display(guide.get("evidence_score")), tone=lab_tone)
+    with metric_cols[1]:
+        render_kpi_card("Win rate", pct_display(guide.get("backtest_win_rate")), tone="buy")
+    with metric_cols[2]:
+        profit_factor = guide.get("backtest_profit_factor")
+        render_kpi_card(
+            "Profit factor",
+            "inf" if profit_factor == float("inf") else num_display(profit_factor),
+            tone="buy" if safe_float(profit_factor) and safe_float(profit_factor) >= 1.25 else "watch",
+        )
+    with metric_cols[3]:
+        weight = safe_float(guide.get("adaptive_weight"))
+        render_kpi_card("Peso IA", f"{weight:.2f}x" if weight is not None else "-", tone=lab_tone)
+
+    study_tabs = st.tabs(["Manual", "Ejemplo con grafica", "Laboratorio"])
+    with study_tabs[0]:
+        cards = [
+            ("Cuando funciona", guide.get("works_when"), "buy"),
+            ("Requisitos", guide.get("requirements_text") or "-", "buy"),
+            ("Entrada", guide.get("entry"), "watch"),
+            ("No operar si", guide.get("avoid"), "avoid"),
+            ("Opciones", guide.get("option_note"), "watch"),
+            ("Practica", guide.get("practice"), "neutral"),
+        ]
+        for start in range(0, len(cards), 3):
+            cols = st.columns(min(3, len(cards) - start))
+            for col, (label, value, tone) in zip(cols, cards[start : start + 3]):
+                with col:
+                    st.markdown(
+                        f"""
+                        <div class="study-card study-card-{tone}">
+                            <div class="study-card-label">{html.escape(label)}</div>
+                            <div class="study-card-text">{html.escape(text_display(value))}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+    with study_tabs[1]:
+        examples = study_example_rows(confluence_df, brief, selected)
+        example_symbols = examples["symbol"].dropna().astype(str).str.upper().unique().tolist() if not examples.empty else []
+        fallback_symbols = ["AAPL", "NVDA", "AMD", "MSFT", "PLTR", "QQQ"]
+        symbols = sorted(dict.fromkeys(example_symbols + fallback_symbols))
+        control_cols = st.columns([1, 0.8, 0.8])
+        with control_cols[0]:
+            symbol_choice = st.selectbox("Simbolo de ejemplo", symbols, key=f"study_symbol_{selected}")
+        with control_cols[1]:
+            default_market = "crypto" if "/" in symbol_choice else "stock"
+            market = st.selectbox(
+                "Mercado",
+                ["stock", "crypto"],
+                index=1 if default_market == "crypto" else 0,
+                key=f"study_market_{selected}",
+            )
+        with control_cols[2]:
+            timeframe = st.selectbox("Marco", TIMEFRAME_OPTIONS, index=1, key=f"study_tf_{selected}")
+
+        resolved_symbol = resolve_symbol_query(symbol_choice, market)
+        with st.spinner(f"Estudiando {resolved_symbol} en {timeframe}..."):
+            try:
+                history = fetch_symbol_history(resolved_symbol, market=market, timeframe=timeframe)
+                chart_df = prepare_symbol_chart_data(history)
+                setup = analyze_moving_average_setup(history) if not history.empty else {}
+            except Exception as exc:
+                st.warning(f"No se pudo cargar la grafica de estudio para {resolved_symbol}: {exc}")
+                setup = {}
+                chart_df = pd.DataFrame()
+
+        if chart_df.empty or not setup:
+            st.info("No hay suficiente historial para graficar este ejemplo ahora.")
+        else:
+            confluence = latest_confluence_row(confluence_df, resolved_symbol)
+            trade_brief = build_symbol_trade_brief(
+                symbol=resolved_symbol,
+                market=market,
+                timeframe=timeframe,
+                setup=setup,
+                confluence=confluence,
+                options_df=options_df,
+                account_equity=float(DEFAULT_ACCOUNT_EQUITY),
+                account_risk_pct=0.01,
+                memory=memory,
+            )
+            render_ai_trade_brief(trade_brief)
+            render_chart_readout(setup, confluence, trade_brief, chart_df)
+            render_chart_strategy_summary(setup, confluence, trade_brief, chart_df)
+            render_strategy_event_panel(chart_df, setup)
+            render_chart_level_plan(chart_df, setup, confluence, trade_brief)
+            price_chart = build_professional_price_chart(chart_df, setup, confluence, trade_brief).properties(height=440)
+            volume_chart = build_professional_volume_chart(chart_df)
+            oscillator_chart = build_professional_oscillator_chart(chart_df)
+            chart_panels = [price_chart]
+            if volume_chart is not None:
+                chart_panels.append(volume_chart.properties(height=120))
+            if oscillator_chart is not None:
+                chart_panels.append(oscillator_chart.properties(height=110))
+            if len(chart_panels) > 1:
+                combined_chart = alt.vconcat(*chart_panels).resolve_scale(x="shared")
+                st.altair_chart(style_trading_chart(combined_chart), use_container_width=True)
+            else:
+                st.altair_chart(style_trading_chart(price_chart), use_container_width=True)
+
+        if not examples.empty:
+            display_cols = [
+                "symbol",
+                "source",
+                "signal",
+                "trade_decision",
+                "ai_action",
+                "confluence_score",
+                "entry",
+                "stop",
+                "risk_pct",
+                "recommended_target_pct",
+                "trigger_setup",
+                "trend_setup",
+            ]
+            display = examples[[col for col in display_cols if col in examples.columns]].copy()
+            for col in ["entry", "stop"]:
+                if col in display.columns:
+                    display[col] = display[col].map(lambda value: num_display(value) if pd.notna(value) else "-")
+            for col in ["risk_pct", "recommended_target_pct"]:
+                if col in display.columns:
+                    display[col] = display[col].map(lambda value: pct_display(value) if pd.notna(value) else "-")
+            st.markdown("**Ejemplos detectados por Roxy**")
+            st.dataframe(display.head(12), width="stretch", hide_index=True)
+
+    with study_tabs[2]:
+        lab_display = pd.DataFrame(guides)
+        lab_display = lab_display[
+            [
+                "strategy",
+                "lab_state",
+                "evidence_score",
+                "memory_bias",
+                "adaptive_weight",
+                "backtest_win_rate",
+                "backtest_profit_factor",
+                "lab_decision",
+                "experiment_rule",
+            ]
+        ].copy()
+        lab_display["lab_state"] = lab_display["lab_state"].map(lambda value: state_labels.get(str(value), value))
+        for col in ["evidence_score", "backtest_win_rate"]:
+            lab_display[col] = lab_display[col].map(lambda value: pct_display(value) if pd.notna(value) else "-")
+        lab_display["adaptive_weight"] = lab_display["adaptive_weight"].map(
+            lambda value: f"{float(value):.2f}x" if pd.notna(value) else "-"
+        )
+        lab_display["backtest_profit_factor"] = lab_display["backtest_profit_factor"].map(
+            lambda value: "inf" if value == float("inf") else num_display(value)
+        )
+        lab_display = lab_display.rename(
+            columns={
+                "strategy": "Estrategia",
+                "lab_state": "Estado lab",
+                "evidence_score": "Evidencia",
+                "memory_bias": "Memoria",
+                "adaptive_weight": "Peso IA",
+                "backtest_win_rate": "Win rate",
+                "backtest_profit_factor": "Profit factor",
+                "lab_decision": "Decision lab",
+                "experiment_rule": "Regla experimento",
+            }
+        )
+        st.dataframe(lab_display, width="stretch", hide_index=True, height=300)
+        selected_rule = text_display(guide.get("experiment_rule"))
+        selected_decision = text_display(guide.get("lab_decision"))
+        if selected_rule != "-" or selected_decision != "-":
+            st.markdown("**Lectura del laboratorio para esta estrategia**")
+            if selected_decision != "-":
+                st.info(selected_decision)
+            if selected_rule != "-":
+                st.caption(selected_rule)
+        if trades_path:
+            st.caption(f"Fuente backtest: `{trades_path}`")
+
+
+def show_focused_voice(brief: dict) -> None:
+    st.subheader("Roxy Voice")
+    st.caption("Panel local: Roxy puede leer oportunidades, aprendizaje, laboratorio y estado simple de cuenta.")
+    try:
+        from tools import voice_assistant as va
+    except Exception as exc:
+        st.error(f"Voice assistant unavailable: {exc}")
+        return
+
+    user = st.session_state.get("user")
+    quick_cols = st.columns(4)
+    quick_prompts = [
+        ("Oportunidad", "resumen de oportunidad"),
+        ("Aprendizaje", "que estas aprendiendo"),
+        ("Laboratorio", "que experimento sigue en el laboratorio"),
+        ("Cuenta", "como esta mi cuenta"),
+    ]
+    for idx, (label, prompt) in enumerate(quick_prompts):
+        with quick_cols[idx]:
+            if st.button(label, key=f"voice_quick_{idx}", width="stretch"):
+                reply = va.generate_reply(prompt, user=user)
+                st.session_state["voice_last_reply"] = reply
+                st.session_state["voice_last_query"] = prompt
+
+    query = st.text_input(
+        "Preguntar a Roxy",
+        value=st.session_state.get("voice_last_query", ""),
+        placeholder="Ejemplo: Roxy, explicame AAPL o que estas aprendiendo",
+        key="focused_voice_query",
+    )
+    ask_cols = st.columns([1, 1, 2])
+    with ask_cols[0]:
+        if st.button("Preguntar", key="focused_voice_ask", width="stretch"):
+            reply = va.generate_reply(query, user=user)
+            st.session_state["voice_last_reply"] = reply
+            st.session_state["voice_last_query"] = query
+    with ask_cols[1]:
+        auto_speak = st.toggle("Leer respuesta", value=True, key="focused_voice_auto_speak")
+
+    reply = st.session_state.get("voice_last_reply")
+    if reply:
+        st.markdown("**Roxy dice**")
+        st.info(reply)
+        if auto_speak:
+            speak_in_browser(str(reply), key="voice-panel")
+        elif st.button("Leer ultima respuesta", key="focused_voice_speak_last"):
+            speak_in_browser(str(reply), key="voice-panel-manual")
+
+    with st.expander("Captura de voz"):
+        st.caption("Chrome puede transcribir tu voz aqui. Copia el texto a Preguntar a Roxy si Streamlit no lo llena automaticamente.")
+        st.components.v1.html(
+            """
+            <div style="font-family: system-ui; color: #f8fafc;">
+              <button id="roxy-start" style="padding:8px 12px;border-radius:8px;border:1px solid #64748b;background:#111827;color:#f8fafc;">Escuchar</button>
+              <button id="roxy-stop" style="padding:8px 12px;border-radius:8px;border:1px solid #64748b;background:#111827;color:#f8fafc;">Parar</button>
+              <div id="roxy-transcript" style="margin-top:10px;padding:10px;border:1px solid #334155;border-radius:8px;background:#0f172a;min-height:42px;">
+                La transcripcion aparecera aqui.
+              </div>
+              <script>
+                let recognition = null;
+                const out = document.getElementById('roxy-transcript');
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (SpeechRecognition) {
+                  recognition = new SpeechRecognition();
+                  recognition.lang = 'es-US';
+                  recognition.interimResults = false;
+                  recognition.continuous = false;
+                  recognition.onresult = (event) => {
+                    out.innerText = event.results[0][0].transcript;
+                    navigator.clipboard?.writeText(event.results[0][0].transcript).catch(() => {});
+                  };
+                  recognition.onerror = (event) => {
+                    out.innerText = 'Error: ' + event.error;
+                  };
+                } else {
+                  out.innerText = 'El reconocimiento de voz no esta disponible en este navegador.';
+                }
+                document.getElementById('roxy-start').onclick = () => { if (recognition) recognition.start(); };
+                document.getElementById('roxy-stop').onclick = () => { if (recognition) recognition.stop(); };
+              </script>
+            </div>
+            """,
+            height=170,
+        )
+
+    opportunity = (brief.get("opportunities") or [{}])[0] if brief.get("opportunities") else {}
+    if opportunity:
+        st.markdown("**Contexto actual de voz**")
+        st.write(_summarize_voice_context(opportunity))
+
+
+def show_million_plan_screen() -> None:
+    st.subheader("Plan de capital 500 a 1M")
+    st.warning(
+        "Esto es un marco de riesgo, no una promesa. Con $500, la primera meta es proteger capital y probar el setup."
+    )
+
+    controls = st.columns([1, 1, 1])
+    with controls[0]:
+        starting_capital = st.number_input("Capital inicial", min_value=100.0, max_value=100_000.0, value=500.0, step=50.0)
+    with controls[1]:
+        target_capital = st.number_input("Meta de capital", min_value=1_000.0, max_value=5_000_000.0, value=1_000_000.0, step=10_000.0)
+    with controls[2]:
+        risk_pct_ui = st.slider("Riesgo por trade %", min_value=0.25, max_value=2.00, value=1.00, step=0.25)
+
+    plan = build_million_growth_plan(
+        starting_capital=starting_capital,
+        target_capital=target_capital,
+        risk_per_trade_pct=risk_pct_ui / 100.0,
+    )
+
+    kpis = st.columns(5)
+    with kpis[0]:
+        render_kpi_card("Inicio", num_display(plan["starting_capital"]))
+    with kpis[1]:
+        render_kpi_card("Meta", num_display(plan["target_capital"], 0))
+    with kpis[2]:
+        render_kpi_card("Multiplicador", f"{num_display(plan['multiplier'], 0)}x", tone="watch")
+    with kpis[3]:
+        render_kpi_card("Riesgo/trade", num_display(plan["risk_per_trade"]), detail=f"{risk_pct_ui:.2f}%")
+    with kpis[4]:
+        render_kpi_card("Stop diario", num_display(plan["daily_stop"]), tone="avoid", detail="2R max")
+
+    guardrail = plan.get("guardrail") or {}
+    if guardrail:
+        st.markdown("**Gobernador de riesgo**")
+        guard_cols = st.columns(4)
+        with guard_cols[0]:
+            render_kpi_card("Estado", guardrail.get("status"), tone="buy" if guardrail.get("allowed") else "avoid")
+        with guard_cols[1]:
+            render_kpi_card("1R max", num_display(guardrail.get("per_trade_budget")))
+        with guard_cols[2]:
+            render_kpi_card("2R stop diario", num_display(guardrail.get("daily_stop")), tone="avoid")
+        with guard_cols[3]:
+            render_kpi_card("Riesgo libre", num_display(guardrail.get("remaining_daily_risk")))
+        st.caption(str(guardrail.get("message") or ""))
+
+    steps = pd.DataFrame(
+        [
+            {
+                "movimiento_neto": move,
+                "pasos_ganadores_netos": steps_needed,
+                "semanas_a_3_pasos": int(math.ceil((steps_needed or 0) / 3)) if steps_needed else 0,
+            }
+            for move, steps_needed in plan["steps_to_target"].items()
+        ]
+    )
+    st.markdown("**Chequeo realista de crecimiento compuesto**")
+    st.dataframe(steps, width="stretch", hide_index=True)
+
+    milestones = pd.DataFrame(plan["milestones"])
+    if not milestones.empty:
+        chart_df = milestones[["stage", "target"]].copy()
+        chart_df["target_label"] = chart_df["target"].map(lambda value: f"${value:,.0f}")
+        milestone_chart = (
+            alt.Chart(chart_df)
+            .mark_line(point=True, color="#38bdf8")
+            .encode(
+                x=alt.X("stage:O", title="Etapa"),
+                y=alt.Y("target:Q", title="Meta de cuenta", scale=alt.Scale(type="log")),
+                tooltip=["stage:O", "target_label:N"],
+            )
+        )
+        st.altair_chart(style_trading_chart(milestone_chart.properties(height=280)), use_container_width=True)
+
+        display = milestones.copy()
+        for col in ["from", "target", "risk_per_trade", "daily_stop"]:
+            display[col] = display[col].map(lambda value: num_display(value))
+        display = display.rename(
+            columns={
+                "stage": "etapa",
+                "phase": "fase",
+                "from": "desde",
+                "target": "meta",
+                "risk_per_trade": "riesgo_trade",
+                "daily_stop": "stop_diario",
+                "trades_2pct": "trades_2pct",
+                "trades_5pct": "trades_5pct",
+                "trades_10pct": "trades_10pct",
+                "products": "productos",
+                "rule": "regla",
+            }
+        )
+        st.markdown("**Escalera de metas**")
+        st.dataframe(
+            display[
+                [
+                    "etapa",
+                    "fase",
+                    "desde",
+                    "meta",
+                    "riesgo_trade",
+                    "stop_diario",
+                    "trades_2pct",
+                    "trades_5pct",
+                    "trades_10pct",
+                    "productos",
+                    "regla",
+                ]
+            ],
+            width="stretch",
+            hide_index=True,
+            height=360,
+        )
+
+    st.markdown("**Reglas Roxy para una cuenta de $500**")
+    rule_cols = st.columns(2)
+    for idx, rule in enumerate(plan["rules"]):
+        with rule_cols[idx % 2]:
+            render_kpi_card("Regla", rule, tone="watch" if idx < 3 else "neutral")
+
+    st.info(
+        "Para opciones, Roxy debe comparar perdida maxima por contrato contra el presupuesto de riesgo. "
+        f"Con {risk_pct_ui:.2f}% de riesgo, el primer presupuesto es {num_display(plan['max_option_debit'])}."
+    )
+    st.caption(
+        "Las reglas del broker importan: cambios de margen intradia en EE. UU. empezaron el 4 de junio de 2026, "
+        "pero los brokers pueden transicionar hasta el 20 de octubre de 2027. Confirma con tu broker antes de asumir margen o day-trading."
+    )
+
+
+def show_platform_router_screen(brief: dict) -> None:
+    st.subheader("Plataformas")
+    st.warning(
+        "Roxy prepara tickets e instrucciones manuales solamente. El envio real al broker sigue apagado hasta tener credenciales, OAuth y confirmacion explicita."
+    )
+    st.info(
+        "Uso actual: Roxy detecta oportunidad, calcula entrada/stop/tamano y te prepara la orden para copiarla manualmente en Crypto.com, Charles Schwab o Webull."
+    )
+
+    platform_name = lambda platform_id: PLATFORM_PROFILES[platform_id]["name"]
+    crypto_platforms = [pid for pid, profile in PLATFORM_PROFILES.items() if "crypto" in profile["assets"]]
+    stock_platforms = [pid for pid, profile in PLATFORM_PROFILES.items() if "stock" in profile["assets"]]
+    option_platforms = [pid for pid, profile in PLATFORM_PROFILES.items() if "option" in profile["assets"]]
+
+    controls = st.columns([0.8, 0.8, 1.0, 1.0, 1.0])
+    with controls[0]:
+        account_equity = st.number_input("Capital", min_value=100.0, max_value=5_000_000.0, value=500.0, step=50.0, key="platform_equity")
+    with controls[1]:
+        risk_pct_ui = st.slider("Riesgo por trade %", min_value=0.25, max_value=2.00, value=1.00, step=0.25, key="platform_risk_pct")
+    with controls[2]:
+        preferred_crypto = st.selectbox(
+            "Crypto",
+            crypto_platforms,
+            index=crypto_platforms.index("crypto_com") if "crypto_com" in crypto_platforms else 0,
+            format_func=platform_name,
+            key="platform_crypto",
+        )
+    with controls[3]:
+        preferred_stock = st.selectbox(
+            "Acciones",
+            stock_platforms,
+            index=stock_platforms.index("schwab") if "schwab" in stock_platforms else 0,
+            format_func=platform_name,
+            key="platform_stock",
+        )
+    with controls[4]:
+        preferred_option = st.selectbox(
+            "Opciones",
+            option_platforms,
+            index=option_platforms.index("schwab") if "schwab" in option_platforms else 0,
+            format_func=platform_name,
+            key="platform_option",
+        )
+
+    table = focused_opportunity_table(brief)
+    opportunities = table.to_dict("records") if not table.empty else list(brief.get("opportunities") or [])
+    if not opportunities:
+        st.info("No hay oportunidades actuales. Corre el escaner y esta pantalla preparara tickets manuales.")
+    else:
+        route_rows = build_platform_route_rows(
+            opportunities,
+            account_equity=float(account_equity),
+            risk_per_trade_pct=float(risk_pct_ui) / 100.0,
+            preferred_crypto=preferred_crypto,
+            preferred_stock=preferred_stock,
+            preferred_option=preferred_option,
+            source_freshness=brief.get("source_freshness"),
+            market_session=brief.get("market_session"),
+        )
+        route_df = pd.DataFrame(route_rows)
+        if not route_df.empty:
+            route_df.insert(0, "route", range(1, len(route_df) + 1))
+            display_routes = route_df.copy()
+            if "asset_type" in display_routes.columns:
+                display_routes["asset_type"] = display_routes["asset_type"].map(asset_type_label)
+            if "status" in display_routes.columns:
+                display_routes["status"] = display_routes["status"].map(platform_status_label)
+            for column in ["entry", "stop", "target_price", "risk_dollars", "quantity"]:
+                if column in display_routes.columns:
+                    display_routes[column] = display_routes[column].map(lambda value: num_display(value, 4 if column == "quantity" else 2))
+            summary_cols = st.columns(3)
+            for idx, platform_id in enumerate([preferred_crypto, preferred_stock, preferred_option]):
+                profile = PLATFORM_PROFILES.get(platform_id, {})
+                status = platform_credential_status(platform_id)
+                mode = connection_mode_label(status.get("mode", "NEEDS_CREDENTIALS"))
+                with summary_cols[idx]:
+                    render_kpi_card(
+                        profile.get("name", platform_id),
+                        mode,
+                        tone="buy" if status.get("configured") else "watch",
+                        detail=profile.get("best_for", ""),
+                    )
+
+            route_display_cols = [
+                "route",
+                "symbol",
+                "asset_type",
+                "platform",
+                "status",
+                "order_symbol",
+                "entry",
+                "stop",
+                "target_price",
+                "risk_dollars",
+                "quantity",
+            ]
+            st.markdown("**Ruta por plataforma**")
+            st.dataframe(
+                display_routes[[col for col in route_display_cols if col in display_routes.columns]],
+                width="stretch",
+                hide_index=True,
+                height=230,
+            )
+
+            labels = [
+                f"{idx + 1}. {row.get('symbol')} -> {row.get('platform')} | {platform_status_label(row.get('status'))}"
+                for idx, row in enumerate(route_rows)
+            ]
+            selected_label = st.selectbox("Ticket a preparar", labels, key="platform_ticket_choice")
+            selected_index = labels.index(selected_label)
+            selected_row = opportunities[selected_index]
+            ticket = build_platform_ticket(
+                selected_row,
+                account_equity=float(account_equity),
+                risk_per_trade_pct=float(risk_pct_ui) / 100.0,
+                preferred_crypto=preferred_crypto,
+                preferred_stock=preferred_stock,
+                preferred_option=preferred_option,
+                source_freshness=brief.get("source_freshness"),
+                market_session=brief.get("market_session"),
+            )
+
+            status_tone_map = {
+                "READY_TO_PREVIEW": "buy",
+                "WAIT_FOR_CONFIRMATION": "watch",
+                "NO_TRADE": "avoid",
+                "BLOCKED_STALE_DATA": "avoid",
+                "BLOCKED_MARKET_CLOSED": "avoid",
+            }
+            cols = st.columns([1.0, 1.0, 1.0, 0.9, 0.9, 0.9])
+            with cols[0]:
+                render_kpi_card("Plataforma", ticket["platform"])
+            with cols[1]:
+                render_kpi_card("Estado", platform_status_label(ticket["status"]), tone=status_tone_map.get(ticket["status"], "neutral"))
+            with cols[2]:
+                render_kpi_card("Orden", ticket["order_symbol"])
+            with cols[3]:
+                render_kpi_card("Entrada", num_display(ticket["entry"]))
+            with cols[4]:
+                render_kpi_card("Stop", num_display(ticket["stop"]))
+            with cols[5]:
+                render_kpi_card("Qty", num_display(ticket["quantity"], 4), detail=f"Riesgo {num_display(ticket['risk_dollars'])}")
+
+            ticket_payload = {
+                "platform": ticket["platform"],
+                "asset_type": ticket["asset_type"],
+                "symbol": ticket["symbol"],
+                "order_symbol": ticket["order_symbol"],
+                "side": ticket["side"],
+                "order_type": ticket["order_type"],
+                "time_in_force": ticket["time_in_force"],
+                "entry": ticket["entry"],
+                "stop": ticket["stop"],
+                "target_price": ticket["target_price"],
+                "risk_dollars": ticket["risk_dollars"],
+                "quantity": ticket["quantity"],
+                "status": platform_status_label(ticket["status"]),
+                "execution_gate": platform_status_label(ticket["execution_gate"]),
+            }
+            order_preview = build_order_preview(ticket, connection_status=platform_credential_status(ticket["platform_id"]))
+            st.markdown("**Ticket listo para copiar manualmente**")
+            ticket_cols = st.columns([1.0, 1.0, 1.0, 0.8, 0.8])
+            with ticket_cols[0]:
+                render_kpi_card("Producto", asset_type_label(ticket["asset_type"]), detail=ticket["platform"])
+            with ticket_cols[1]:
+                render_kpi_card("Accion", platform_status_label(ticket["status"]), tone=status_tone_map.get(ticket["status"], "neutral"))
+            with ticket_cols[2]:
+                render_kpi_card("Orden", ticket["order_symbol"])
+            with ticket_cols[3]:
+                render_kpi_card("Riesgo $", num_display(ticket["risk_dollars"]), tone="watch")
+            with ticket_cols[4]:
+                render_kpi_card("Manual", "SI", tone="watch", detail="Envio real OFF")
+
+            left, right = st.columns([1.1, 0.9])
+            with left:
+                with st.expander("Ticket JSON avanzado", expanded=False):
+                    st.code(json.dumps(ticket_payload, indent=2), language="json")
+            with right:
+                with st.expander("Checklist antes de operar", expanded=True):
+                    for item in ticket["checklist"]:
+                        st.checkbox(item, value=False, key=f"platform_check_{selected_index}_{item[:20]}")
+                    st.caption(platform_reason_label(ticket["status_reason"]))
+
+            with st.expander(f"Pasos manuales para {ticket['platform']}", expanded=True):
+                for step in ticket["manual_steps"]:
+                    st.write(f"- {step}")
+
+            st.markdown("**Seguridad de ejecucion**")
+            readiness_cols = st.columns([0.9, 1.0, 1.0, 1.0, 1.4])
+            with readiness_cols[0]:
+                render_kpi_card("Readiness", f"{order_preview['readiness_score']}%")
+            with readiness_cols[1]:
+                render_kpi_card("Modo conexion", connection_mode_label(order_preview["mode"]), tone="buy" if order_preview["mode"] == "LIVE_ARMED" else "watch")
+            with readiness_cols[2]:
+                render_kpi_card(
+                    "Payload preview",
+                    "READY" if order_preview["preview_payload_ready"] else "BLOCKED",
+                    tone="buy" if order_preview["preview_payload_ready"] else "avoid",
+                )
+            with readiness_cols[3]:
+                render_kpi_card(
+                    "Envio real",
+                    "ON" if order_preview["live_send_ready"] else "OFF",
+                    tone="buy" if order_preview["live_send_ready"] else "avoid",
+                    detail=adapter_status_label(order_preview["adapter_status"]["status"]),
+                )
+            with readiness_cols[4]:
+                render_kpi_card(
+                    "Credenciales",
+                    "ARMED" if order_preview["credential_gate_ready"] else "BLOCKED",
+                    tone="buy" if order_preview["credential_gate_ready"] else "avoid",
+                )
+            missing = order_preview["credential_status"]["missing_keys"]
+            if missing:
+                st.caption("Faltan credenciales de conexion. No se muestran en la vista principal por seguridad.")
+            with st.expander("Por que el envio real esta bloqueado", expanded=False):
+                if order_preview["send_blockers"]:
+                    for blocker in order_preview["send_blockers"]:
+                        st.write(f"- {execution_blocker_label(blocker)}")
+                else:
+                    st.write("- Sin bloqueos adicionales.")
+                st.caption(execution_blocker_label(order_preview["adapter_status"]["reason"]))
+                st.caption(execution_blocker_label(order_preview["guardrail"]))
+            with st.expander("Payload preview para futuro adaptador broker", expanded=False):
+                st.code(json.dumps(order_preview["manual_order"], indent=2), language="json")
+
+            schwab_preview = build_schwab_preview(ticket, order_preview=order_preview)
+            if schwab_preview.get("applicable"):
+                st.markdown("**Preview Schwab**")
+                schwab_cols = st.columns([1.0, 1.0, 1.4])
+                with schwab_cols[0]:
+                    render_kpi_card(
+                        "Schwab preview",
+                        "READY" if schwab_preview["api_preview_ready"] else "BLOCKED",
+                        tone="buy" if schwab_preview["api_preview_ready"] else "avoid",
+                    )
+                with schwab_cols[1]:
+                    qty = (
+                        schwab_preview["payload"].get("orderLegCollection", [{}])[0].get("quantity")
+                        if schwab_preview.get("payload")
+                        else "-"
+                    )
+                    render_kpi_card("Schwab qty", qty)
+                with schwab_cols[2]:
+                    render_kpi_card("Endpoint", "/previewOrder", detail="Plantilla POST; no enviada")
+                with st.expander("Bloqueos y payload Schwab", expanded=False):
+                    if schwab_preview["blockers"]:
+                        st.markdown("**Bloqueos Schwab**")
+                        for blocker in schwab_preview["blockers"]:
+                            st.write(f"- {execution_blocker_label(blocker)}")
+                    st.caption(execution_blocker_label(schwab_preview["guardrail"]))
+                    st.code(json.dumps(schwab_preview["payload"], indent=2), language="json")
+                    st.caption(schwab_preview["preview_endpoint"])
+
+    with st.expander("Credenciales y configuracion avanzada", expanded=False):
+        st.markdown("**Boveda segura de credenciales**")
+        vault = encryption_status()
+        if not vault["enabled"]:
+            st.warning("La boveda encriptada no esta activa. Inicializa la llave local antes de guardar credenciales.")
+            st.caption(f"Archivo local de llave: {vault['default_key_file']}")
+            if st.button("Inicializar boveda local", key="init_local_vault"):
+                try:
+                    result = initialize_local_vault_key()
+                    st.success(f"Llave lista: {result['path']} ({result['mode']}). El valor no se muestra.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"No se pudo inicializar la llave: {exc}")
+            with st.expander("Opcion manual de llave", expanded=False):
+                st.code("python3 -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"")
+                st.caption("Usa el valor como FERNET_KEY solo si prefieres configurarlo por variable de entorno.")
+        else:
+            st.success("Boveda encriptada activa. Los secretos no se imprimen en pantalla.")
+            st.caption(f"Store: {vault['store']}")
+
+        credential_platform = st.selectbox(
+            "Plataforma de credenciales",
+            list(PLATFORM_PROFILES.keys()),
+            index=0,
+            format_func=platform_name,
+            key="credential_platform",
+        )
+        credential_status = platform_credential_status(credential_platform)
+        st.dataframe(pd.DataFrame(credential_status["key_rows"]), width="stretch", hide_index=True)
+        with st.expander(f"Guardar o rotar credenciales para {platform_name(credential_platform)}", expanded=False):
+            entered_values = {}
+            for key_name in credential_status["required_keys"]:
+                entered_values[key_name] = st.text_input(
+                    key_name,
+                    value="",
+                    type="password",
+                    key=f"credential_input_{credential_platform}_{key_name}",
+                    help="Roxy guarda esto encriptado cuando la boveda esta activa. El valor no se imprime en pantalla.",
+                )
+            if st.button("Guardar credenciales escritas", key=f"save_credentials_{credential_platform}"):
+                values_to_save = {key: value for key, value in entered_values.items() if str(value or "").strip()}
+                if not values_to_save:
+                    st.info("No escribiste valores de credenciales.")
+                else:
+                    try:
+                        saved = save_platform_credentials(credential_platform, values_to_save)
+                        st.success(f"Guardadas/rotadas {len(saved)} credencial(es). Los valores no se muestran.")
+                    except Exception as exc:
+                        st.error(f"No se pudieron guardar credenciales: {exc}")
+
+    st.markdown("**Estado de plataformas**")
+    credential_lookup = {row["platform"]: row for row in credential_table_rows()}
+    profile_rows = [
+        {
+            "platform": profile["name"],
+            "assets": ", ".join(profile["assets"]),
+            "mode": connection_mode_label(credential_lookup.get(profile["name"], {}).get("mode", "NEEDS_CREDENTIALS")),
+            "missing": credential_lookup.get(profile["name"], {}).get("missing", "-"),
+            "auth": profile["auth"],
+            "api_status": profile["api_status"],
+            "best_for": profile["best_for"],
+        }
+        for profile in PLATFORM_PROFILES.values()
+    ]
+    profile_df = pd.DataFrame(profile_rows)
+    clean_profile_df = profile_df[["platform", "assets", "mode", "best_for"]].rename(
+        columns={"platform": "Plataforma", "assets": "Opera", "mode": "Conexion", "best_for": "Mejor uso"}
+    )
+    st.dataframe(clean_profile_df, width="stretch", hide_index=True)
+    with st.expander("Detalles tecnicos de plataformas", expanded=False):
+        st.dataframe(profile_df, width="stretch", hide_index=True)
+    st.caption("Plataformas configuradas: Crypto.com para crypto, Charles Schwab para acciones/opciones y Webull como ruta alterna.")
+    st.info(
+        "Siguiente paso seguro: credenciales encriptadas + OAuth + adaptador preview-only. El envio automatico debe requerir una segunda confirmacion."
+    )
+
+
+def _summarize_voice_context(row: dict) -> str:
+    symbol = text_display(row.get("symbol"))
+    family = text_display(row.get("strategy_family"))
+    action = text_display(row.get("ai_action"))
+    entry = num_display(row.get("entry"))
+    stop = num_display(row.get("stop"))
+    return f"{symbol} | {action} | {family} | Entry {entry} | Stop {stop}"
+
+
+def show_focused_roxy_app() -> None:
+    daily_path, daily_df = load_latest_ma_scan("ma_strategy")
+    live_path, live_df = load_latest_ma_scan("ma_live_strategy")
+    confluence_path, confluence_df = load_latest_ma_confluence()
+    options_path, options_df = load_latest_options_candidates()
+    scan_df = live_df if not live_df.empty else daily_df
+    source_files = {"scan": live_path or daily_path, "confluence": confluence_path, "options": options_path}
+    brief = read_summary_json("alerts/roxy_ai_brief.json")
+    if not brief:
+        memory_preview = json.loads(json.dumps(load_memory()))
+        brief = build_brief(
+            confluence_df=confluence_df,
+            options_df=options_df,
+            scan_df=scan_df,
+            memory=memory_preview,
+        )
+    brief["source_files"] = source_files
+    brief["source_freshness"] = source_freshness_status(source_files)
+    brief["market_session"] = market_session_status()
+    brief["realtime_health"] = realtime_health_status()
+    brief = apply_global_alert_context(brief)
+
+    render_roxy_brand_header(
+        scan_df=scan_df,
+        confluence_df=confluence_df,
+        options_df=options_df,
+        daily_path=daily_path,
+        live_path=live_path,
+        confluence_path=confluence_path,
+        options_path=options_path,
+        brief=brief,
+    )
+    show_focused_sidebar()
+    realtime = configure_realtime_refresh()
+    brief["realtime"] = realtime
+    show_ai_status_cards(
+        scan_df=scan_df,
+        confluence_df=confluence_df,
+        options_df=options_df,
+        daily_path=daily_path,
+        live_path=live_path,
+        confluence_path=confluence_path,
+        options_path=options_path,
+        brief=brief,
+    )
+    show_focused_controls()
+
+    page_tabs = st.tabs(
+        ["Centro", "Plan de trade", "Riesgo $500", "Plataformas", "Opciones", "Backtest", "Precision", "Estudios", "Roxy Lab", "Voz"]
+    )
+    with page_tabs[0]:
+        show_focused_home(scan_df, confluence_df, options_df, brief)
+    with page_tabs[1]:
+        show_trade_plan_screen(scan_df, confluence_df, options_df, brief)
+    with page_tabs[2]:
+        show_million_plan_screen()
+    with page_tabs[3]:
+        show_platform_router_screen(brief)
+    with page_tabs[4]:
+        show_options_screen(confluence_df, options_df, brief)
+    with page_tabs[5]:
+        show_backtest_screen()
+    with page_tabs[6]:
+        show_accuracy_screen(brief)
+    with page_tabs[7]:
+        show_strategy_study_center(scan_df, confluence_df, options_df, brief)
+    with page_tabs[8]:
+        show_focused_ai_24h(brief)
+    with page_tabs[9]:
+        show_focused_voice(brief)
+
+
+def main() -> None:
+    st.set_page_config(page_title="Roxy AI Trading", layout="wide")
+    st.markdown(
+        """
+        <style>
+        :root{--roxy-bg:#0f1720;--card-bg:#0b1220;--muted:#9aa4b2;--accent:#38bdf8;--accent-2:#22c55e;--card-radius:8px}
+        .stApp{background:#0b1020;color:#e5edf7}
+        .block-container{padding-top:1.1rem;padding-bottom:2rem;max-width:1540px}
+        [data-testid="stSidebar"]{background:#0f172a;border-right:1px solid rgba(148,163,184,.16)}
+        [data-testid="stHeader"]{background:rgba(14,22,36,.9)}
+        [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"], #MainMenu, footer{display:none!important}
+        .roxy-hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,520px);gap:18px;align-items:stretch;border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0d1426;padding:16px 18px;margin:0 0 10px;box-shadow:0 16px 42px rgba(0,0,0,.24)}
+        .roxy-brand-row{display:flex;align-items:center;gap:14px}
+        .roxy-logo-svg{width:58px;height:58px;flex:0 0 auto;filter:drop-shadow(0 10px 18px rgba(34,197,94,.15))}
+        .roxy-hero h1{font-size:34px;line-height:1.05;margin:0;color:#f8fafc;letter-spacing:0}
+        .roxy-hero p{margin:6px 0 0;color:#b7c1d0;font-size:14px;line-height:1.35}
+        .hero-flow{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+        .flow-step{display:flex;align-items:center;gap:7px;border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#111827;padding:8px 10px;color:#dbeafe;font-weight:750;font-size:12px;line-height:1.2}
+        .flow-step span{display:inline-grid;place-items:center;width:19px;height:19px;border-radius:50%;background:#1f2937;color:#93c5fd;font-size:11px;font-weight:900}
+        .roxy-hero-right{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .hero-chip{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#111827;padding:10px 12px;min-height:68px}
+        .hero-chip span{display:block;color:#94a3b8;font-size:12px;font-weight:800;margin-bottom:6px}
+        .hero-chip strong{display:block;color:#f8fafc;font-size:18px;line-height:1.18;overflow-wrap:anywhere}
+        .hero-chip-buy{border-color:rgba(34,197,94,.42);box-shadow:inset 0 0 0 1px rgba(34,197,94,.12)}
+        .hero-chip-watch{border-color:rgba(245,158,11,.42);box-shadow:inset 0 0 0 1px rgba(245,158,11,.10)}
+        .hero-chip-avoid{border-color:rgba(239,68,68,.42);box-shadow:inset 0 0 0 1px rgba(239,68,68,.10)}
+        .hero-subline{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:#9aa4b2;font-size:12px;margin:0 0 12px;padding:0 2px}
+        .platform-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 14px}
+        .platform-badge{display:flex;align-items:center;gap:10px;border:1px solid rgba(148,163,184,.18);border-radius:8px;background:#0b1220;padding:10px 12px;min-height:70px}
+        .platform-badge-buy{border-color:rgba(34,197,94,.32)}
+        .platform-badge-watch{border-color:rgba(245,158,11,.26)}
+        .platform-mark{display:grid;place-items:center;width:42px;height:42px;border:2px solid;border-radius:8px;font-size:13px;font-weight:900;background:#111827}
+        .platform-name{font-size:14px;line-height:1.2;color:#f8fafc;font-weight:850}
+        .platform-meta{font-size:12px;line-height:1.25;color:#a7b3c5;margin-top:4px}
+        .kpibox{display:inline-block;padding:8px 12px;background:#081023;border-radius:8px;margin-right:8px;color:var(--muted)}
+        .metrics-row{display:flex;gap:12px;flex-wrap:wrap}
+        .metric-card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:10px;border-radius:8px;min-width:160px}
+        .symbol-kpi{min-height:96px;padding:12px 14px;border:1px solid rgba(148,163,184,.24);border-radius:8px;background:#0f172a;box-shadow:0 1px 0 rgba(255,255,255,.04) inset;margin-bottom:10px;overflow-wrap:anywhere}
+        .symbol-kpi-label{font-size:12px;line-height:1.25;color:#b7c1d0;font-weight:700;margin-bottom:8px}
+        .symbol-kpi-value{font-size:20px;line-height:1.18;color:#f8fafc;font-weight:800;white-space:normal;letter-spacing:0}
+        .symbol-kpi-detail{font-size:12px;line-height:1.25;color:#cbd5e1;margin-top:8px}
+        .symbol-kpi-buy{border-color:rgba(34,197,94,.45);background:rgba(21,93,62,.46)}
+        .symbol-kpi-watch{border-color:rgba(245,158,11,.45);background:rgba(120,74,15,.38)}
+        .symbol-kpi-avoid{border-color:rgba(239,68,68,.45);background:rgba(127,29,29,.38)}
+        .trade-plan{border:1px solid rgba(148,163,184,.28);border-radius:8px;padding:14px 16px;margin:6px 0 14px;background:#0b1220}
+        .trade-plan-title{font-size:24px;line-height:1.18;font-weight:850;color:#f8fafc;margin-bottom:6px;letter-spacing:0}
+        .trade-plan-line{font-size:15px;line-height:1.35;color:#cbd5e1}
+        .trade-plan-buy{border-color:rgba(34,197,94,.55)}
+        .trade-plan-watch{border-color:rgba(245,158,11,.55)}
+        .trade-plan-avoid{border-color:rgba(239,68,68,.55)}
+        .command-center{display:grid;grid-template-columns:minmax(0,1fr) minmax(230px,340px);gap:16px;align-items:stretch;border:1px solid rgba(148,163,184,.24);border-radius:8px;background:#0d1426;padding:16px 18px;margin:6px 0 12px}
+        .command-center-buy{border-color:rgba(34,197,94,.48)}
+        .command-center-watch{border-color:rgba(245,158,11,.48)}
+        .command-center-avoid{border-color:rgba(239,68,68,.48)}
+        .command-kicker{font-size:12px;text-transform:uppercase;color:#93c5fd;font-weight:900;letter-spacing:0}
+        .command-main h2{margin:4px 0 8px;color:#f8fafc;font-size:32px;line-height:1.05;letter-spacing:0}
+        .command-main p{margin:0;color:#cbd5e1;font-size:15px;line-height:1.35}
+        .command-side{border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#111827;padding:13px 14px;display:flex;flex-direction:column;justify-content:center;min-height:120px}
+        .command-side span{font-size:12px;color:#94a3b8;font-weight:900;text-transform:uppercase;letter-spacing:0}
+        .command-side strong{font-size:24px;line-height:1.1;color:#f8fafc;margin:6px 0;overflow-wrap:anywhere}
+        .command-side small{font-size:13px;line-height:1.3;color:#cbd5e1}
+        .command-checklist{display:grid;grid-template-columns:repeat(7,minmax(110px,1fr));gap:8px;margin:2px 0 12px}
+        .command-check{border:1px solid rgba(148,163,184,.18);border-radius:8px;background:#0f172a;padding:9px 10px;min-height:86px}
+        .command-check span{display:block;color:#94a3b8;font-size:11px;line-height:1.2;font-weight:900;text-transform:uppercase;letter-spacing:0}
+        .command-check strong{display:block;color:#f8fafc;font-size:16px;line-height:1.15;margin-top:6px}
+        .command-check small{display:block;color:#cbd5e1;font-size:12px;line-height:1.25;margin-top:5px;overflow-wrap:anywhere}
+        .command-check-buy{border-color:rgba(34,197,94,.38)}
+        .command-check-watch{border-color:rgba(245,158,11,.34)}
+        .command-check-avoid{border-color:rgba(239,68,68,.38)}
+        .study-hero{display:flex;align-items:center;justify-content:space-between;gap:16px;border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#0d1426;padding:16px;margin:6px 0 14px}
+        .study-hero h2{margin:2px 0 6px;color:#f8fafc;font-size:26px;line-height:1.12;letter-spacing:0}
+        .study-hero p{margin:0;color:#cbd5e1;line-height:1.35}
+        .study-kicker{font-size:12px;text-transform:uppercase;color:#93c5fd;font-weight:900;letter-spacing:0}
+        .study-status{min-width:150px;border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#111827;padding:10px 12px;text-align:left}
+        .study-status span{display:block;color:#94a3b8;font-size:12px;font-weight:800}
+        .study-status strong{display:block;color:#f8fafc;font-size:18px;line-height:1.2;margin-top:4px}
+        .study-hero-buy{border-color:rgba(34,197,94,.44)}
+        .study-hero-watch{border-color:rgba(245,158,11,.44)}
+        .study-hero-avoid{border-color:rgba(239,68,68,.44)}
+        .study-card{min-height:138px;border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#0b1220;padding:14px;margin-bottom:10px}
+        .study-card-label{font-size:13px;color:#f8fafc;font-weight:900;margin-bottom:8px}
+        .study-card-text{font-size:14px;line-height:1.36;color:#cbd5e1}
+        .study-card-buy{border-color:rgba(34,197,94,.36)}
+        .study-card-watch{border-color:rgba(245,158,11,.36)}
+        .study-card-avoid{border-color:rgba(239,68,68,.36)}
+        .chart-context{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,420px);gap:14px;align-items:center;border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#0b1220;padding:14px 16px;margin:8px 0 12px}
+        .chart-context-kicker{font-size:12px;text-transform:uppercase;color:#93c5fd;font-weight:900;letter-spacing:0}
+        .chart-context-title{font-size:22px;line-height:1.12;color:#f8fafc;font-weight:900;margin-top:3px}
+        .chart-context-text{font-size:14px;line-height:1.35;color:#cbd5e1;margin-top:6px}
+        .chart-context-grid{display:grid;grid-template-columns:1fr;gap:7px}
+        .chart-context-grid span{display:flex;justify-content:space-between;gap:10px;border:1px solid rgba(148,163,184,.18);border-radius:8px;background:#111827;padding:8px 10px;color:#94a3b8;font-size:12px;font-weight:800}
+        .chart-context-grid strong{color:#f8fafc;text-align:right}
+        .chart-context-buy{border-color:rgba(34,197,94,.44)}
+        .chart-context-watch{border-color:rgba(245,158,11,.44)}
+        .chart-context-avoid{border-color:rgba(239,68,68,.44)}
+        [data-testid="stTabs"] button{font-weight:800;color:#cbd5e1}
+        [data-testid="stTabs"] button[aria-selected="true"]{color:#a78bfa}
+        [data-testid="stVegaLiteChart"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;background:#0b1220;padding:10px}
+        .stButton button{border-radius:8px;border:1px solid rgba(148,163,184,.30);background:#111827;color:#f8fafc;font-weight:800}
+        .stButton button:hover{border-color:#a78bfa;color:#f8fafc}
+        div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
+        @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
+        @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
+        @media (max-width:600px){.metric-card{min-width:120px}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    show_focused_roxy_app()
+    return
+
+    st.sidebar.header("Quick Links")
+    st.sidebar.write("Data files in `output/` and `alerts/` are used to populate this dashboard.")
+
+    st.sidebar.markdown("**Snapshot Service**")
+    if st.sidebar.button("Run snapshot now (server)"):
+        try:
+            # if user signed in, snapshot their account; else snapshot all
+            u = st.session_state.get("user")
+            if u:
+                val = storage.snapshot_account_point(u)
+                st.sidebar.success(f"Snapshot for {u}: {val:.2f}")
+            else:
+                # run for all users
+                import tools.account_snapshot_service as svc
+
+                svc.snapshot_all(storage.DB_PATH)
+                st.sidebar.success("Snapshot run for all users")
+        except Exception as e:
+            st.sidebar.error(f"Snapshot failed: {e}")
+
+    st.sidebar.markdown("Run the background snapshot service with Docker:")
+    st.sidebar.code("docker-compose up -d snapshot")
+
+    # Local start/stop controls (development) with admin token
+    st.sidebar.markdown("**Local snapshot process**")
+    import tools.process_manager as pm
+
+    interval = st.sidebar.number_input("Interval (minutes)", min_value=1, max_value=60, value=5)
+    admin_token_input = st.sidebar.text_input("Admin token (for promotion)", type="password")
+    # determine admin via stored role
+    if "is_admin" not in st.session_state:
+        st.session_state.is_admin = False
+    # if user signed in, check role from storage
+    user = st.session_state.get("user")
+    try:
+        if user and storage.is_admin(user):
+            st.session_state.is_admin = True
+    except Exception:
+        pass
+
+    # Allow bootstrap promotion via ADMIN_TOKEN env var: promotes current signed-in user to admin
+    try:
+        from config import ADMIN_TOKEN, ADMIN_ORGS
+
+        if ADMIN_TOKEN and admin_token_input and admin_token_input == ADMIN_TOKEN:
+            if user:
+                try:
+                    storage.set_user_role(user, "admin", actor=user)
+                    st.session_state.is_admin = True
+                    st.sidebar.success(f"User {user} promoted to admin")
+                except Exception:
+                    st.sidebar.error("Failed to promote user to admin in storage")
+            else:
+                st.sidebar.warning("Sign in first to use admin token promotion")
+        # If ADMIN_ORGS configured, and user has an access token in session, auto-grant admin when signing in
+        if (
+            not st.session_state.is_admin
+            and user
+            and st.session_state.get("access_token")
+            and 'ADMIN_ORGS' in globals()
+        ):
+            try:
+                token = st.session_state.get("access_token")
+                orgs = auth.get_user_orgs(token)
+                cfg_orgs = [o.strip() for o in (ADMIN_ORGS or "").split(",") if o.strip()]
+                if any(o in cfg_orgs for o in orgs):
+                    storage.set_user_role(user, "admin", actor="oauth")
+                    st.session_state.is_admin = True
+                    st.sidebar.success(f"User {user} auto-promoted to admin via GitHub org membership")
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    has_admin = bool(st.session_state.is_admin)
+
+    # Snapshot history (user-level and global)
+    st.sidebar.markdown("**Snapshot History**")
+    if st.session_state.get("user"):
+        try:
+            user_pts = storage.get_equity_series(st.session_state.user)
+            if user_pts:
+                df_pts = pd.DataFrame(user_pts, columns=["ts", "equity"])  # type: ignore
+                df_pts["ts"] = pd.to_datetime(df_pts["ts"])
+                st.sidebar.write(f"Last {len(df_pts)} points for {st.session_state.user}")
+                st.sidebar.table(df_pts.tail(5))
+                st.sidebar.write("Latest:", str(df_pts["ts"].iloc[-1]))
+            else:
+                st.sidebar.write("No snapshots for your account yet.")
+        except Exception:
+            st.sidebar.write("No snapshot data available.")
+    else:
+        st.sidebar.write("Sign in to view your snapshot history.")
+
+    # show all accounts summary
+    st.sidebar.markdown("**All accounts**")
+    try:
+        acct_rows = storage.list_accounts()
+        if acct_rows:
+            for user, created_ts, equity in acct_rows[:10]:
+                role = storage.get_user_role(user)
+                st.sidebar.write(f"{user} ({role}): {equity:.2f} (created {created_ts})")
+        else:
+            st.sidebar.write("No accounts registered yet.")
+    except Exception:
+        st.sidebar.write("Unable to list accounts.")
+
+    col1, col2 = st.sidebar.columns(2)
+    with col1:
+        if st.button("Start snapshot"):
+            if not has_admin:
+                st.sidebar.error("Admin token required to start service")
+            else:
+                try:
+                    pid = pm.start_snapshot_service(interval=int(interval), run_once=False)
+                    st.sidebar.success(f"Started snapshot pid={pid}")
+                except Exception as e:
+                    st.sidebar.error(f"Failed to start: {e}")
+    with col2:
+        if st.button("Stop snapshot"):
+            if not has_admin:
+                st.sidebar.error("Admin token required to stop service")
+            else:
+                try:
+                    ok = pm.stop_snapshot_service()
+                    if ok:
+                        st.sidebar.success("Stopped snapshot service")
+                    else:
+                        st.sidebar.info("No snapshot service running")
+                except Exception as e:
+                    st.sidebar.error(f"Failed to stop: {e}")
+
+    # Small Grok model toggle (writes .grok_settings.json)
+    st.sidebar.markdown("**Grok Code Fast 1**")
+    enabled_local = grok_control.is_enabled() or ENABLE_GROK_CODE_FAST
+    if enabled_local:
+        st.sidebar.success("Grok Code Fast 1: ENABLED")
+    else:
+        st.sidebar.info("Grok Code Fast 1: disabled")
+
+    if st.sidebar.button("Toggle Grok Code Fast 1"):
+        # flip the on-disk setting and show confirmation
+        new_state = not grok_control.is_enabled()
+        grok_control.apply_enable_for_all(new_state)
+        st.experimental_rerun()
+
+    # Admin management panel: allow admins to change roles
+    if has_admin:
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("**Admin: Manage Roles**")
+        try:
+            users = [r[0] for r in storage.list_accounts()]
+        except Exception:
+            users = []
+        target = st.sidebar.selectbox("Select user to edit role", options=[""] + users)
+        new_role = st.sidebar.selectbox("Role", options=["user", "admin"], index=0)
+        if st.sidebar.button("Set role") and target:
+            try:
+                storage.set_user_role(target, new_role, actor=st.session_state.get("user"))
+                st.sidebar.success(f"Set {target} -> {new_role}")
+            except Exception as e:
+                st.sidebar.error(f"Failed to set role: {e}")
+
+        # show recent role audit entries
+        st.sidebar.markdown("**Role change audit**")
+        try:
+            rows = storage.list_role_audit(limit=50)
+            if rows:
+                import pandas as _pd
+
+                df_a = _pd.DataFrame(rows, columns=["id", "actor", "target_user", "old_role", "new_role", "ts"])  # type: ignore
+                st.sidebar.dataframe(df_a.head(10))
+                csv = df_a.to_csv(index=False)
+                st.sidebar.download_button(
+                    "Export role audit CSV", data=csv, file_name="role_audit.csv", mime="text/csv"
+                )
+            else:
+                st.sidebar.write("No recent role changes.")
+        except Exception:
+            st.sidebar.write("Unable to read role audit.")
+        # server-side export: write CSV to output/ so it can be served by a static server
+        try:
+            outp = Path("output")
+            outp.mkdir(parents=True, exist_ok=True)
+            if st.sidebar.button("Export audit CSV to server output"):
+                fn = (
+                    outp
+                    / f"role_audit_export_{st.session_state.get('user','admin')}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.csv"
+                )
+                df_a.to_csv(fn, index=False)
+                st.sidebar.success(f"Wrote {fn}")
+                st.sidebar.write("If you run a static file server for `output/`, download at:")
+                st.sidebar.write(str(fn))
+        except Exception:
+            pass
+
+        # Admin A/B Testing panel
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("**Admin: A/B Tests**")
+        try:
+            from tools import ab_test
+
+            test_name = st.sidebar.text_input("Test name (create/update)", key="ab_test_name")
+            variants_raw = st.sidebar.text_input(
+                "Variants (name:weight,name2:weight)", value="control:1,canary:1", key="ab_variants"
+            )
+            if st.sidebar.button("Create/Update A/B test") and test_name:
+                try:
+                    pairs = [p.strip() for p in variants_raw.split(",") if p.strip()]
+                    variants = {}
+                    for p in pairs:
+                        if ":" not in p:
+                            raise ValueError("Variant format must be name:weight")
+                        n, w = p.split(":", 1)
+                        variants[n.strip()] = float(w)
+                    ab_test.create_test(test_name, variants)
+                    st.sidebar.success(f"Created/updated test '{test_name}'")
+                except Exception as e:
+                    st.sidebar.error(f"Failed to create test: {e}")
+
+            tests = ab_test.list_tests()
+            if tests:
+                import pandas as _pd
+
+                df_tests = _pd.DataFrame(tests, columns=["id", "name", "description", "ts"])  # type: ignore
+                sel = st.sidebar.selectbox("Select test", options=[""] + df_tests["name"].tolist(), key="ab_select")
+                st.sidebar.dataframe(df_tests[["id", "name", "ts"]])
+                if sel:
+                    conn = sqlite3.connect(storage.DB_PATH)
+                    cur = conn.cursor()
+                    cur.execute(
+                        "SELECT ab_variants.name, ab_variants.weight FROM ab_variants JOIN ab_tests ON ab_variants.test_id=ab_tests.id WHERE ab_tests.name = ?",
+                        (sel,),
+                    )
+                    var_rows = cur.fetchall()
+                    conn.close()
+                    if var_rows:
+                        st.sidebar.write("Variants:")
+                        st.sidebar.table(_pd.DataFrame(var_rows, columns=["name", "weight"]))
+                    if st.sidebar.button("Show recent results for selected test"):
+                        conn = sqlite3.connect(storage.DB_PATH)
+                        cur = conn.cursor()
+                        cur.execute(
+                            """
+                            SELECT r.id, a.key, a.actor, a.variant, r.action, r.symbol, r.qty, r.price, r.side, r.result_type, r.result_value, r.ts
+                            FROM ab_results r
+                            JOIN ab_assignments a ON r.assignment_id = a.id
+                            JOIN ab_tests t ON a.test_id = t.id
+                            WHERE t.name = ?
+                            ORDER BY r.id DESC LIMIT 200
+                            """,
+                            (sel,),
+                        )
+                        res = cur.fetchall()
+                        conn.close()
+                        if res:
+                            df_res = _pd.DataFrame(res, columns=["id", "key", "actor", "variant", "action", "symbol", "qty", "price", "side", "result_type", "result_value", "ts"])  # type: ignore
+                            st.subheader(f"A/B Results for {sel}")
+                            st.dataframe(df_res)
+                        else:
+                            st.info("No results yet for this test")
+                # Admin auto-exec controls
+                st.sidebar.markdown("---")
+                st.sidebar.markdown("**Admin: Auto-Exec (LLM)**")
+                try:
+                    from tools.auto_exec import run_llm_auto_pipeline
+
+                    ae_symbols = st.sidebar.text_input("Symbols (comma-separated)", value="AAPL,MSFT", key="ae_symbols")
+                    ae_horizon = st.sidebar.text_input("Horizon", value="1d", key="ae_horizon")
+                    ae_dry = st.sidebar.checkbox("Dry run (no executes)", value=True, key="ae_dry")
+                    ae_execute = st.sidebar.checkbox("Auto execute if allowed", value=False, key="ae_execute")
+                    if st.sidebar.button("Run Auto-Exec (LLM)"):
+                        if not st.session_state.get("is_admin"):
+                            st.sidebar.error("Admin required to run auto-exec")
+                        else:
+                            syms = [s.strip().upper() for s in ae_symbols.split(",") if s.strip()]
+                            with st.spinner("Running LLM auto pipeline..."):
+                                try:
+                                    res = run_llm_auto_pipeline(
+                                        user=st.session_state.get("user") or "admin",
+                                        symbols=syms,
+                                        horizon=ae_horizon,
+                                        dry_run=ae_dry,
+                                        auto_execute=ae_execute,
+                                    )
+                                    st.sidebar.success("Pipeline run completed")
+                                    st.sidebar.json(res)
+                                except Exception as e:
+                                    st.sidebar.error(f"Auto pipeline failed: {e}")
+                except Exception:
+                    st.sidebar.write("Auto-exec module not available")
+        except Exception:
+            st.sidebar.write("A/B testing module not available")
+
+    # --- Login-like sidebar
+    if "user" not in st.session_state:
+        st.session_state.user = None
+
+    if st.session_state.user is None:
+        with st.sidebar.form("login_form"):
+            st.markdown("## Sign in")
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Sign in")
+            if submitted:
+                # Basic local auth simulation: accept any non-empty username
+                if username.strip():
+                    st.session_state.user = username.strip()
+                    st.experimental_rerun()
+                else:
+                    st.sidebar.error("Enter a username to sign in.")
+        # GitHub device-flow sign-in (requires GITHUB_CLIENT_ID env var)
+        if st.sidebar.button("Sign in with GitHub (device code)"):
+            try:
+                with st.spinner("Starting GitHub device flow — follow instructions shown below"):
+                    import requests
+
+                    api_root = st.session_state.get("api_root") or "http://127.0.0.1:8000"
+                    r = requests.post(f"{api_root}/api/auth/device/start", timeout=10)
+                    r.raise_for_status()
+                    df = r.json()
+                # store device flow state in session to allow polling
+                st.session_state._gh_device = df
+                st.sidebar.success("Device flow started — follow instructions below")
+            except Exception as e:
+                st.sidebar.error(f"GitHub sign-in failed: {e}")
+
+        # If device flow started, show user_code and verification URI and allow polling
+        if st.session_state.get("_gh_device"):
+            gh = st.session_state.get("_gh_device")
+            ver = gh.get("verification_uri_complete") or gh.get("verification_uri")
+            st.sidebar.markdown("**Complete GitHub sign-in**")
+            st.sidebar.write("Open the verification URL and enter the code below:")
+            if ver:
+                st.sidebar.markdown(f"{ver}")
+            st.sidebar.info(f"Code: {gh.get('user_code')}")
+            if st.sidebar.button("Poll GitHub for completion"):
+                try:
+                    with st.spinner("Waiting for GitHub authorization..."):
+                        import requests
+
+                        api_root = st.session_state.get("api_root") or "http://127.0.0.1:8000"
+                        r = requests.post(
+                            f"{api_root}/api/auth/device/poll",
+                            json={"device_code": gh.get("device_code")},
+                            timeout=10,
+                        )
+                        r.raise_for_status()
+                        res = r.json()
+                    st.session_state.user = res.get("username")
+                    st.session_state.access_token = res.get("session_token")
+                    try:
+                        storage.create_account_if_missing(res.get("username"))
+                    except Exception:
+                        pass
+                    # clear device flow state
+                    st.session_state.pop("_gh_device", None)
+                    st.success(f"Signed in as {res.get('username')}")
+                    st.experimental_rerun()
+                except Exception as e:
+                    st.sidebar.error(f"GitHub sign-in polling failed: {e}")
+
+        # Redirect-based OAuth helper (requires running tools/oauth_server.py)
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("**Sign in with GitHub (redirect)**")
+        if st.sidebar.button("Start redirect OAuth (open local server)"):
+            try:
+                import requests
+                import time
+
+                port = 5000
+                redirect_uri = f"http://127.0.0.1:{port}/callback"
+                api_root = st.session_state.get("api_root") or "http://127.0.0.1:8000"
+                r = requests.get(f"{api_root}/api/auth/start", params={"redirect_uri": redirect_uri}, timeout=10)
+                r.raise_for_status()
+                jd = r.json()
+                url = jd.get("url")
+                st.session_state._gh_redirect_url = url
+                st.session_state._gh_state = jd.get("state")
+                st.sidebar.success("Redirect flow started — open the authorize URL in your browser")
+                # Automatically poll for the resulting session token for up to 120 seconds
+                if st.session_state.get("_gh_state"):
+                    state = st.session_state.get("_gh_state")
+                    with st.spinner("Waiting for authorization to complete..."):
+                        api_root = st.session_state.get("api_root") or "http://127.0.0.1:8000"
+                        token = None
+                        username = None
+                        deadline = time.time() + 120
+                        while time.time() < deadline:
+                            try:
+                                rr = requests.get(
+                                    f"{api_root}/api/auth/check_state", params={"state": state}, timeout=5
+                                )
+                                if rr.status_code == 200:
+                                    jd2 = rr.json()
+                                    username = jd2.get("username")
+                                    token = jd2.get("session_token")
+                                    break
+                            except Exception:
+                                pass
+                            time.sleep(2)
+                        if token:
+                            st.session_state.user = username
+                            st.session_state.access_token = token
+                            try:
+                                storage.create_account_if_missing(username)
+                            except Exception:
+                                pass
+                            st.success(f"Signed in as {username}")
+                            # clear redirect state
+                            st.session_state.pop("_gh_redirect_url", None)
+                            st.session_state.pop("_gh_state", None)
+                            st.experimental_rerun()
+                        else:
+                            st.info(
+                                "Authorization not completed yet — try again or check the authorize URL in your browser"
+                            )
+            except Exception as e:
+                st.sidebar.error(f"Redirect flow failed: {e}")
+
+        if st.session_state.get("_gh_redirect_url"):
+            st.sidebar.markdown("Open this URL to authorize:")
+            st.sidebar.write(st.session_state.get("_gh_redirect_url"))
+            if st.sidebar.button("Check for callback result"):
+                try:
+                    import requests
+
+                    api_root = st.session_state.get("api_root") or "http://127.0.0.1:8000"
+                    # the oauth callback writes run/oauth_callback.json; check for it
+
+                    p = Path("run/oauth_callback.json")
+                    if p.exists():
+                        j = json.loads(p.read_text())
+                        st.session_state.user = j.get("login")
+                        st.session_state.access_token = j.get("access_token")
+                        try:
+                            storage.create_account_if_missing(st.session_state.user)
+                        except Exception:
+                            pass
+                        p.unlink()
+                        st.success(f"Signed in as {st.session_state.user}")
+                        st.experimental_rerun()
+                    else:
+                        st.info("No callback found yet. Complete authorization in the browser and try again.")
+                except Exception as e:
+                    st.sidebar.error(f"Failed to read callback: {e}")
+    else:
+        st.sidebar.markdown(f"**Signed in as:** {st.session_state.user}")
+        try:
+            storage.create_account_if_missing(st.session_state.user)
+        except Exception:
+            pass
+        if st.sidebar.button("Sign out"):
+            st.session_state.user = None
+            st.experimental_rerun()
+
+    # --- Secrets & API keys management (admin only)
+    try:
+        if st.session_state.is_admin:
+            st.sidebar.markdown("---")
+            st.sidebar.markdown("**Secrets Manager (admin)**")
+            from tools import secrets_service as ss
+
+            with st.sidebar.expander("Create Secret"):
+                sname = st.text_input("Secret name", key="s_name")
+                svalue = st.text_input("Secret value", key="s_value")
+                sprov = st.text_input("Provider (optional)", key="s_prov")
+                smeta = st.text_area("Metadata (JSON, optional)", key="s_meta")
+                if st.button("Create secret"):
+                    try:
+                        meta_obj = json.loads(smeta) if smeta else {}
+                    except Exception:
+                        st.error("Invalid metadata JSON")
+                        meta_obj = None
+                    try:
+                        import requests, os
+
+                        api_root = st.session_state.get("api_root") or "http://127.0.0.1:8000"
+                        token = st.session_state.get("access_token") or os.getenv("ADMIN_TOKEN")
+                        headers = {"Authorization": f"Bearer {token}"} if token else {}
+                        payload = {"name": sname, "value": svalue, "provider": sprov or None, "metadata": meta_obj}
+                        r = requests.post(f"{api_root}/api/secrets", headers=headers, json=payload, timeout=10)
+                        r.raise_for_status()
+                        jd = r.json()
+                        st.success(f"Created secret {jd.get('name')} v{jd.get('version')}")
+                    except Exception as e:
+                        st.error(f"Create failed: {e}")
+
+            with st.sidebar.expander("Secrets List"):
+                try:
+                    import requests, os
+
+                    api_root = st.session_state.get("api_root") or "http://127.0.0.1:8000"
+                    token = st.session_state.get("access_token") or os.getenv("ADMIN_TOKEN")
+                    headers = {"Authorization": f"Bearer {token}"} if token else {}
+                    r = requests.get(f"{api_root}/api/secrets", headers=headers, timeout=10)
+                    r.raise_for_status()
+                    rows = r.json()
+                    if rows:
+                        for r in rows:
+                            st.write(f"{r.get('name')} (provider={r.get('provider')}) v{r.get('version')}")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.button(f"Reveal {r.get('name')}", key=f"reveal_{r.get('name')}"):
+                                    try:
+                                        rr = requests.get(
+                                            f"{api_root}/api/secrets/{r.get('name')}/reveal",
+                                            headers=headers,
+                                            timeout=10,
+                                        )
+                                        rr.raise_for_status()
+                                        jd = rr.json()
+                                        st.code(jd.get("value"))
+                                    except Exception as e:
+                                        st.error(f"Reveal failed: {e}")
+                            with col2:
+                                if st.button(f"Rotate {r.get('name')}", key=f"rotate_{r.get('name')}"):
+                                    try:
+                                        rr = requests.post(
+                                            f"{api_root}/api/secrets/{r.get('name')}/rotate",
+                                            headers=headers,
+                                            json={"reason": "rotated via UI"},
+                                            timeout=10,
+                                        )
+                                        rr.raise_for_status()
+                                        res = rr.json()
+                                        st.success(f"Rotated {res.get('name')} -> v{res.get('version')}")
+                                    except Exception as e:
+                                        st.error(f"Rotate failed: {e}")
+                    else:
+                        st.write("No secrets found")
+                except Exception as e:
+                    st.error(f"Failed to list secrets: {e}")
+
+            with st.sidebar.expander("API Keys"):
+                if st.button("Create API key"):
+                    try:
+                        import requests, os
+
+                        api_root = st.session_state.get("api_root") or "http://127.0.0.1:8000"
+                        token = st.session_state.get("access_token") or os.getenv("ADMIN_TOKEN")
+                        headers = {"Authorization": f"Bearer {token}"} if token else {}
+                        payload = {
+                            "name": f"ui-{st.session_state.get('user')}",
+                            "owner": st.session_state.get('user'),
+                            "scopes": ["secrets:reveal"],
+                        }
+                        r = requests.post(f"{api_root}/api/api-keys", headers=headers, json=payload, timeout=10)
+                        r.raise_for_status()
+                        st.code(json.dumps(r.json()))
+                    except Exception as e:
+                        st.error(f"Create API key failed: {e}")
+                try:
+                    import requests, os
+
+                    api_root = st.session_state.get("api_root") or "http://127.0.0.1:8000"
+                    token = st.session_state.get("access_token") or os.getenv("ADMIN_TOKEN")
+                    headers = {"Authorization": f"Bearer {token}"} if token else {}
+                    r = requests.get(f"{api_root}/api/api-keys", headers=headers, timeout=10)
+                    r.raise_for_status()
+                    keys = r.json()
+                    if keys:
+                        for k in keys:
+                            st.write(
+                                f"id={k['id']} name={k.get('name')} owner={k.get('owner')} revoked={k.get('revoked')}"
+                            )
+                            if st.button(f"Revoke {k['id']}", key=f"revoke_{k['id']}"):
+                                try:
+                                    rr = requests.post(
+                                        f"{api_root}/api/api-keys/{k['id']}/revoke", headers=headers, timeout=10
+                                    )
+                                    rr.raise_for_status()
+                                    st.success("Revoked")
+                                except Exception as e:
+                                    st.error(f"Revoke failed: {e}")
+                    else:
+                        st.write("No API keys")
+                except Exception as e:
+                    st.error(f"Failed to list API keys: {e}")
+    except Exception:
+        pass
+
+    tabs = st.tabs(
+        [
+            "Cryptocurrencies",
+            "Stocks",
+            "Real Estate",
+            "News",
+            "Top Picks",
+            "Execution",
+            "SMA Strategy",
+            "Snapshots",
+        ]
+    )  # type: ignore
+
+    with tabs[0]:
+        show_market_tab("crypto")
+    with tabs[1]:
+        show_market_tab("stocks")
+    with tabs[2]:
+        st.write("Real Estate — placeholder list")
+        # For now list weekly report files as real-estate-like suggestions
+        files = sorted(glob("alerts/weekly_report_*.txt"), reverse=True)
+        if files:
+            for f in files[:5]:
+                st.write(f)
+        else:
+            st.write("No weekly reports found in alerts/.")
+    with tabs[3]:
+        show_news_tab()
+    with tabs[4]:
+        st.header("Top Picks")
+        p = Path(TOP_PICKS_FILE)
+        if p.exists():
+            st.text(p.read_text())
+        else:
+            st.info("No top picks yet.")
+        # AI Signals quick panel
+        with st.expander("AI Signals (prototype)"):
+            symbols_input = st.text_input("Symbols (comma separated)", value="AAPL,MSFT")
+            horizon = st.selectbox("Horizon", options=["1d", "5m", "15m"], index=0)
+            if st.button("Generate AI Signals"):
+                api_root = st.session_state.get("api_root") or "http://127.0.0.1:8000"
+                try:
+                    import requests
+
+                    payload = {
+                        "symbols": [s.strip().upper() for s in symbols_input.split(",") if s.strip()],
+                        "horizon": horizon,
+                    }
+                    r = requests.post(f"{api_root}/api/ai/signal", json=payload, timeout=20)
+                    r.raise_for_status()
+                    sigs = r.json()
+                    if sigs:
+                        st.write("Generated signals:")
+                        st.json(sigs)
+                        # quick backtest placeholder: run simple paper trade on first signal
+                        try:
+                            from adapters.paper_trader import SimplePaperTrader
+
+                            user = st.session_state.get("user") or "ai-bot"
+                            pt = SimplePaperTrader(user)
+                            for s in sigs:
+                                st.write(f"{s.get('action')} {s.get('symbol')} size_pct={s.get('size_pct')}")
+                        except Exception:
+                            pass
+                    else:
+                        st.info("No signals returned")
+                except Exception as e:
+                    st.error(f"AI signal generation failed: {e}")
+    # Execution tab (paper trading adapter)
+    with tabs[5]:
+        st.header("Execution — Paper Trading")
+        st.write(
+            "Place orders via the simple paper trader adapter. Trades are persisted in `db/roxy.db` as simulated trades and positions."
+        )
+        user = st.session_state.get("user") or st.text_input("Execution user (will create account)")
+        if user:
+            try:
+                storage.create_account_if_missing(user)
+            except Exception:
+                pass
+
+            from adapters.paper_trader import SimplePaperTrader
+
+            st.subheader("Execution realism")
+            slippage = st.slider("Slippage %", min_value=0.0, max_value=5.0, value=0.0, step=0.1)
+            fill_rate = st.slider("Fill rate %", min_value=0, max_value=100, value=100, step=5)
+            # create paper trader with user-specified realism
+            pt = SimplePaperTrader(user, slippage_pct=(slippage / 100.0), fill_rate=(fill_rate / 100.0))
+            st.subheader("Account")
+            try:
+                eq = storage.get_account_equity(user)
+            except Exception:
+                eq = 0.0
+            st.write(f"User: {user} — equity: {eq:.2f}")
+
+            st.subheader("Place Order")
+            symbol = st.text_input("Symbol", value="AAPL")
+            qty = st.number_input("Quantity", min_value=0.0, value=1.0, step=0.1)
+            price = st.number_input("Price", min_value=0.0, value=0.0, step=0.01)
+            colb, cols = st.columns(2)
+            with colb:
+                if st.button("Buy (paper)"):
+                    try:
+                        if price <= 0:
+                            st.error("Set a positive price for this simple paper execution")
+                        else:
+                            pid = pt.buy(symbol, qty, price)
+                            st.success(f"Opened paper position #{pid} for {symbol} @ {price}")
+                    except Exception as e:
+                        st.error(f"Buy failed: {e}")
+            with cols:
+                if st.button("Sell (paper)"):
+                    try:
+                        if price <= 0:
+                            st.error("Set a positive price for this simple paper execution")
+                        else:
+                            pnl = pt.sell(symbol, qty, price)
+                            st.success(f"Sold {qty} {symbol}, realized P&L {pnl:.2f}")
+                    except Exception as e:
+                        st.error(f"Sell failed: {e}")
+
+            st.subheader("Open Positions")
+            open_pos = storage.get_open_positions(user)
+            if open_pos:
+                df_open = pd.DataFrame(open_pos, columns=["id", "ts_open", "user", "symbol", "qty", "entry_price", "note"])  # type: ignore
+                st.table(df_open)
+            else:
+                st.write("No open positions for this user.")
+    with tabs[6]:
+        show_sma_strategy_tab()
+    with tabs[-1]:
+        st.header("Snapshots — account equity history")
+        try:
+            users = ["All"] + [r[0] for r in storage.list_accounts()]
+        except Exception:
+            users = ["All"]
+        sel_user = st.selectbox("User", users)
+        limit = st.number_input("Max rows", min_value=10, max_value=10000, value=1000)
+        start = st.date_input("From", value=None)
+        end = st.date_input("To", value=None)
+
+        if st.button("Load snapshots"):
+            try:
+                if sel_user == "All":
+                    rows = storage.get_snapshot_points(limit=int(limit))
+                else:
+                    # restrict viewing other users unless admin
+                    if sel_user != "All" and sel_user != st.session_state.get("user") and not has_admin:
+                        st.error("Permission denied: admin required to view other users' snapshots")
+                        rows = []
+                    else:
+                        rows = storage.get_snapshot_points(user=sel_user, limit=int(limit))
+                import io
+
+                if not rows:
+                    st.info("No snapshot points found")
+                else:
+                    # normalize rows to DataFrame
+                    df = pd.DataFrame(rows, columns=["user", "ts", "equity"])  # type: ignore
+                    df["ts"] = pd.to_datetime(df["ts"])
+                    if start:
+                        df = df[df["ts"] >= pd.to_datetime(start)]
+                    if end:
+                        df = df[df["ts"] <= pd.to_datetime(end)]
+                    st.write(f"Showing {len(df)} rows")
+                    st.dataframe(df.sort_values(["user", "ts"]))
+
+                    # CSV export
+                    csv = df.to_csv(index=False)
+                    st.download_button("Export CSV", data=csv, file_name="snapshots.csv", mime="text/csv")
+                    # JSON export
+                    js = df.to_dict(orient="records")
+                    st.download_button(
+                        "Export JSON", data=json.dumps(js), file_name="snapshots.json", mime="application/json"
+                    )
+
+                    # interactive chart
+                    try:
+                        chart_df = df.copy()
+                        if "user" not in chart_df.columns:
+                            chart_df["user"] = sel_user
+                        chart = (
+                            alt.Chart(chart_df)
+                            .mark_line()
+                            .encode(x=alt.X("ts:T", title="Time"), y=alt.Y("equity:Q", title="Equity"), color="user:N")
+                        )
+                        st.altair_chart(chart.interactive(), use_container_width=True)
+                    except Exception:
+                        pass
+                    # admin exports to server `output/`
+                    if has_admin:
+                        if st.button("Export visible to server output"):
+                            outp = Path("output")
+                            outp.mkdir(parents=True, exist_ok=True)
+                            fn = (
+                                outp
+                                / f"snapshots_export_{st.session_state.get('user','admin')}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.csv"
+                            )
+                            df.to_csv(fn, index=False)
+                            st.success(f"Wrote {fn}")
+            except Exception as e:
+                st.error(f"Failed to load snapshots: {e}")
+
+
+if __name__ == "__main__":
+    main()
