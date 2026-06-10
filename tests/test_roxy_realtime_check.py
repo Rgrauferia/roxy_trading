@@ -731,32 +731,45 @@ def test_summarize_health_history_entries_reports_rates_and_streak():
     rows = [
         {"status": "OK", "generated_at": "2026-06-08T12:00:00+00:00"},
         {"status": "WARN", "generated_at": "2026-06-08T12:05:00+00:00", "top_issue": {"name": "heartbeat"}},
+        {"status": "FAIL", "generated_at": "2026-06-08T12:07:00+00:00", "top_issue": {"name": "heartbeat"}},
         {"status": "OK", "generated_at": "2026-06-08T12:10:00+00:00"},
         {"status": "OK", "generated_at": "2026-06-08T12:15:00+00:00"},
     ]
 
     summary = summarize_health_history_entries(rows)
 
-    assert summary["sample_size"] == 4
-    assert summary["ok_rate"] == 0.75
-    assert summary["warn_rate"] == 0.25
+    assert summary["sample_size"] == 5
+    assert summary["ok_rate"] == 0.6
+    assert summary["warn_rate"] == 0.2
+    assert summary["fail_rate"] == 0.2
     assert summary["current_streak_status"] == "OK"
     assert summary["current_streak_count"] == 2
-    assert summary["last_incident_at"] == "2026-06-08T12:05:00+00:00"
+    assert summary["current_streak_started_at"] == "2026-06-08T12:10:00+00:00"
+    assert summary["current_streak_minutes"] == 5.0
+    assert summary["incident_free_minutes"] == 8.0
+    assert summary["last_incident_at"] == "2026-06-08T12:07:00+00:00"
     assert summary["last_issue"]["name"] == "heartbeat"
+    assert summary["dominant_issue"] == {"name": "heartbeat", "count": 2}
 
 
 def test_render_text_report_includes_stability_summary():
     report = {
         "status": "OK",
         "generated_at": "2026-06-08T12:00:00+00:00",
-        "stability_summary": {"ok_rate": 0.95, "sample_size": 20, "current_streak_status": "OK", "current_streak_count": 12},
+        "stability_summary": {
+            "ok_rate": 0.95,
+            "sample_size": 20,
+            "current_streak_status": "OK",
+            "current_streak_count": 12,
+            "incident_free_minutes": 42.5,
+            "dominant_issue": {"name": "operational_logs", "count": 3},
+        },
         "checks": [],
     }
 
     text = render_text_report(report)
 
-    assert "Stability: OK 95.0% over 20 checks | streak OK x12" in text
+    assert "Stability: OK 95.0% over 20 checks | streak OK x12 | recovered 42.5m | top issue operational_logs x3" in text
 
 
 def test_health_notification_message_uses_top_issue_and_recovery():

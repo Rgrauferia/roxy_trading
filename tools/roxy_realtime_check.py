@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import os
 import re
@@ -1893,10 +1894,19 @@ def render_text_report(report: dict[str, Any]) -> str:
     if stability:
         ok_rate = stability.get("ok_rate")
         ok_pct = f"{float(ok_rate) * 100:.1f}%" if ok_rate is not None else "-"
+        recovery_detail = ""
+        incident_free = stability.get("incident_free_minutes")
+        if incident_free is not None:
+            recovery_detail = f" | recovered {float(incident_free):.1f}m"
+        dominant_issue = stability.get("dominant_issue") if isinstance(stability.get("dominant_issue"), dict) else {}
+        issue_detail = ""
+        if dominant_issue.get("name"):
+            issue_detail = f" | top issue {dominant_issue.get('name')} x{dominant_issue.get('count', 0)}"
         lines.append(
             "Stability: "
             f"OK {ok_pct} over {stability.get('sample_size', 0)} checks | "
             f"streak {stability.get('current_streak_status', '-')} x{stability.get('current_streak_count', 0)}"
+            f"{recovery_detail}{issue_detail}"
         )
     lines.append("")
     for item in report.get("checks") or []:
@@ -2019,14 +2029,35 @@ def summarize_health_history_entries(entries: list[dict[str, Any]], *, limit: in
             status_counts[status] += 1
     total = len(rows)
     latest_status = str(rows[-1].get("status") or "UNKNOWN").upper()
+    latest_at = parse_utc_datetime(rows[-1].get("generated_at"))
     streak_count = 0
+    streak_started_at = ""
     for row in reversed(rows):
         if str(row.get("status") or "").upper() == latest_status:
             streak_count += 1
+            streak_started_at = str(row.get("generated_at") or "")
         else:
             break
     last_incident = next((row for row in reversed(rows) if str(row.get("status") or "").upper() in {"WARN", "FAIL"}), {})
     last_issue = last_incident.get("top_issue") if isinstance(last_incident.get("top_issue"), dict) else {}
+    last_incident_at = str(last_incident.get("generated_at") or "")
+    last_incident_dt = parse_utc_datetime(last_incident_at)
+    streak_started_dt = parse_utc_datetime(streak_started_at)
+    incident_issue_counts = Counter(
+        str((row.get("top_issue") or {}).get("name") or "unknown")
+        for row in rows
+        if str(row.get("status") or "").upper() in {"WARN", "FAIL"} and isinstance(row.get("top_issue"), dict)
+    )
+    dominant_issue_name = ""
+    dominant_issue_count = 0
+    if incident_issue_counts:
+        dominant_issue_name, dominant_issue_count = incident_issue_counts.most_common(1)[0]
+    current_streak_minutes = None
+    if latest_at is not None and streak_started_dt is not None:
+        current_streak_minutes = round(max(0.0, (latest_at - streak_started_dt).total_seconds() / 60.0), 1)
+    incident_free_minutes = None
+    if latest_status == "OK" and latest_at is not None and last_incident_dt is not None:
+        incident_free_minutes = round(max(0.0, (latest_at - last_incident_dt).total_seconds() / 60.0), 1)
     return {
         "sample_size": total,
         "status": latest_status,
@@ -2038,8 +2069,12 @@ def summarize_health_history_entries(entries: list[dict[str, Any]], *, limit: in
         "fail_rate": round(status_counts["FAIL"] / total, 4),
         "current_streak_status": latest_status,
         "current_streak_count": streak_count,
-        "last_incident_at": str(last_incident.get("generated_at") or ""),
+        "current_streak_started_at": streak_started_at,
+        "current_streak_minutes": current_streak_minutes,
+        "incident_free_minutes": incident_free_minutes,
+        "last_incident_at": last_incident_at,
         "last_issue": last_issue or {},
+        "dominant_issue": {"name": dominant_issue_name, "count": dominant_issue_count} if dominant_issue_name else {},
     }
 
 

@@ -1176,15 +1176,22 @@ def test_stability_summary_dashboard_status_uses_official_health_summary():
             "warn_count": 0,
             "current_streak_status": "OK",
             "current_streak_count": 3,
+            "incident_free_minutes": 18.5,
+            "current_streak_minutes": 12.0,
             "last_issue": {"name": "external_disk"},
+            "dominant_issue": {"name": "external_disk", "count": 2},
         }
     )
 
     assert status["label"] == "Recuperado"
     assert status["tone"] == "watch"
     assert status["recovered"] is True
+    assert status["incident_free_minutes"] == 18.5
+    assert status["dominant_issue"] == {"name": "external_disk", "count": 2}
     assert "OK 88.2%" in status["detail"]
     assert "racha OK x3" in status["detail"]
+    assert "recuperado 18.5m" in status["detail"]
+    assert "recurrente external_disk x2" in status["detail"]
 
 
 def test_stability_summary_dashboard_status_flags_current_failure():

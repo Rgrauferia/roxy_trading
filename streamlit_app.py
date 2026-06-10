@@ -5000,9 +5000,18 @@ def stability_summary_dashboard_status(summary: dict[str, Any] | None) -> dict[s
         tone = "buy"
     ok_text = f"{ok_rate * 100:.1f}%" if ok_rate is not None else "-"
     detail = f"OK {ok_text} | racha {latest_status} x{streak_count} | {sample_size} checks"
+    incident_free_minutes = safe_float(summary.get("incident_free_minutes"))
+    current_streak_minutes = safe_float(summary.get("current_streak_minutes"))
+    if incident_free_minutes is not None:
+        detail += f" | recuperado {incident_free_minutes:.1f}m"
+    elif current_streak_minutes is not None and latest_status == "OK":
+        detail += f" | OK {current_streak_minutes:.1f}m"
     last_issue = summary.get("last_issue") if isinstance(summary.get("last_issue"), dict) else {}
     if latest_status in {"FAIL", "WARN"} and last_issue:
         detail += f" | ultimo {text_display(last_issue.get('name'))}"
+    dominant_issue = summary.get("dominant_issue") if isinstance(summary.get("dominant_issue"), dict) else {}
+    if dominant_issue.get("name"):
+        detail += f" | recurrente {text_display(dominant_issue.get('name'))} x{int(dominant_issue.get('count') or 0)}"
     return {
         "label": label,
         "tone": tone,
@@ -5014,6 +5023,9 @@ def stability_summary_dashboard_status(summary: dict[str, Any] | None) -> dict[s
         "latest_status": latest_status,
         "current_streak_status": latest_status,
         "current_streak_count": streak_count,
+        "current_streak_minutes": current_streak_minutes,
+        "incident_free_minutes": incident_free_minutes,
+        "dominant_issue": dominant_issue,
         "recovered": recovered,
     }
 
