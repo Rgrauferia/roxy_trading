@@ -1136,6 +1136,23 @@ def test_autoheal_dashboard_status_treats_routine_refresh_as_healthy():
     assert "alertas regenerated" in status["detail"]
 
 
+def test_autoheal_dashboard_status_handles_ok_without_autoheal_actions():
+    status = autoheal_dashboard_status(
+        {
+            "status": "OK",
+            "checks": [
+                {"name": "heartbeat", "status": "OK", "detail": "running"},
+                {"name": "streamlit_service_24h", "status": "OK", "detail": "loaded"},
+            ],
+        }
+    )
+
+    assert status["label"] == "Sin acciones"
+    assert status["tone"] == "buy"
+    assert status["routine_refresh"] is True
+    assert "no hizo falta autoheal" in status["detail"]
+
+
 def test_autoheal_dashboard_status_surfaces_recovery_and_failures():
     recovered = autoheal_dashboard_status(
         {

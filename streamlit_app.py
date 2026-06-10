@@ -4730,6 +4730,15 @@ def autoheal_dashboard_status(realtime_report: dict[str, Any] | None) -> dict[st
     alert_quality_recovery = realtime_report.get("alert_quality_autoheal") if isinstance(realtime_report.get("alert_quality_autoheal"), dict) else {}
     yfinance_cache_recovery = realtime_report.get("yfinance_cache_autoheal") if isinstance(realtime_report.get("yfinance_cache_autoheal"), dict) else {}
     if not launchd and not backup and not backup_report_recovery and not streamlit_recovery and not chart_recovery and not live_data_recovery and not storage_recovery and not maintenance_recovery and not ai_brief_recovery and not alert_quality_recovery and not yfinance_cache_recovery:
+        if str(realtime_report.get("status") or "").upper() == "OK" and realtime_report.get("checks"):
+            return {
+                "label": "Sin acciones",
+                "tone": "buy",
+                "detail": "Health OK; no hizo falta autoheal",
+                "recovered": [],
+                "failed": [],
+                "routine_refresh": True,
+            }
         return {"label": "Sin dato", "tone": "watch", "detail": "Watchdog aun sin autoheal"}
 
     recovered = list(launchd.get("recovered") or [])
