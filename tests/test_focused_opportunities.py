@@ -1460,6 +1460,28 @@ def test_notification_history_dashboard_status_surfaces_cooldown():
     assert "ultimo cooldown" in status["detail"]
 
 
+def test_notification_history_dashboard_status_surfaces_local_fallback():
+    status = notification_history_dashboard_status(
+        {
+            "sample_size": 8,
+            "sent_count": 0,
+            "local_recorded_count": 6,
+            "cooldown_skipped": 1,
+            "channel_count": 0,
+            "last_reason": "recorded_local",
+            "last_age_minutes": 4.5,
+        }
+    )
+
+    assert status["label"] == "Local"
+    assert status["tone"] == "watch"
+    assert status["channel_count"] == 0
+    assert status["local_recorded_count"] == 6
+    assert "local 6" in status["detail"]
+    assert "sin canal externo" in status["detail"]
+    assert "hace 4.5m" in status["detail"]
+
+
 def test_notification_history_display_table_uses_effective_sent_for_legacy_rows():
     table = notification_history_display_table(
         [

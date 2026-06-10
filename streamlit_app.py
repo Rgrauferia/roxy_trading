@@ -5250,8 +5250,14 @@ def notification_history_dashboard_status(summary: dict[str, Any] | None) -> dic
         return {"label": "Sin historial", "tone": "watch", "detail": "Aun no hay intentos registrados"}
     cooldown = int(summary.get("cooldown_skipped") or 0)
     sent = int(summary.get("sent_count") or 0)
+    channel_count = int(summary.get("channel_count") or 0)
+    local_recorded = int(summary.get("local_recorded_count") or 0)
+    last_age_minutes = safe_float(summary.get("last_age_minutes"))
     last_reason = text_display(summary.get("last_reason"))
-    if cooldown:
+    if channel_count == 0 and local_recorded:
+        tone = "watch"
+        label = "Local"
+    elif cooldown:
         tone = "watch"
         label = f"{cooldown} cooldown"
     elif sent:
@@ -5260,7 +5266,23 @@ def notification_history_dashboard_status(summary: dict[str, Any] | None) -> dic
     else:
         tone = "neutral"
         label = "Sin envio"
-    return {"label": label, "tone": tone, "detail": f"{sample_size} eventos | ultimo {last_reason}"}
+    detail = f"{sample_size} eventos | ultimo {last_reason}"
+    if last_age_minutes is not None:
+        detail += f" hace {last_age_minutes:.1f}m"
+    if channel_count == 0:
+        detail += f" | local {local_recorded} | sin canal externo"
+    elif channel_count:
+        detail += f" | canales {channel_count}"
+    if cooldown and "cooldown" not in label:
+        detail += f" | cooldown {cooldown}"
+    return {
+        "label": label,
+        "tone": tone,
+        "detail": detail,
+        "channel_count": channel_count,
+        "local_recorded_count": local_recorded,
+        "last_age_minutes": last_age_minutes,
+    }
 
 
 def notification_history_display_table(history: list[dict[str, Any]] | pd.DataFrame) -> pd.DataFrame:

@@ -156,30 +156,59 @@ def notification_effectively_sent(row: dict) -> bool:
     return bool(channels)
 
 
-def notification_history_summary(limit: int = 50) -> dict:
+def parse_notification_timestamp(value: str) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def notification_history_summary(limit: int = 50, *, now: datetime | None = None) -> dict:
     rows = read_notification_history(limit=limit)
     reason_counts: dict[str, int] = {}
     sent_count = 0
     cooldown_skipped = 0
+    local_recorded_count = 0
     for row in rows:
         reason = str(row.get("reason") or "unknown")
         reason_counts[reason] = reason_counts.get(reason, 0) + 1
         if notification_effectively_sent(row):
             sent_count += 1
+        if reason == "recorded_local" or (not notification_effectively_sent(row) and not (row.get("channels") or [])):
+            local_recorded_count += 1
         try:
             cooldown_skipped += int(row.get("cooldown_skipped") or 0)
         except (TypeError, ValueError):
             pass
     last = rows[-1] if rows else {}
+    last_ts = str(last.get("ts") or "") if last else ""
+    last_dt = parse_notification_timestamp(last_ts)
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    last_age_minutes = round(max(0.0, (current - last_dt).total_seconds() / 60.0), 1) if last_dt is not None else None
+    channels = configured_channels()
     return {
         "sample_size": len(rows),
         "sent_count": sent_count,
         "suppressed_count": len(rows) - sent_count,
+        "local_recorded_count": local_recorded_count,
         "cooldown_skipped": cooldown_skipped,
         "reason_counts": dict(sorted(reason_counts.items(), key=lambda item: (-item[1], item[0]))),
         "last_reason": str(last.get("reason") or "-") if last else "-",
         "last_sent": notification_effectively_sent(last) if last else False,
-        "last_ts": str(last.get("ts") or "") if last else "",
+        "last_effective_sent": notification_effectively_sent(last) if last else False,
+        "last_ts": last_ts,
+        "last_age_minutes": last_age_minutes,
+        "last_channels": list(last.get("channels") or []) if last else [],
+        "configured_channels": channels,
+        "channel_count": len(channels),
+        "delivery_mode": "external" if channels else "local_file",
     }
 
 

@@ -1030,6 +1030,7 @@ def validate_notification_delivery(alerts_path: Path = ALERTS_DIR) -> dict[str, 
 
         channels = notifier.configured_channels()
         channel_status = notifier.notification_channel_status()
+        history_summary = notifier.notification_history_summary(limit=50)
     except Exception as exc:
         return check("notification_delivery", "WARN", f"Could not inspect notification channels: {exc}")
 
@@ -1054,6 +1055,12 @@ def validate_notification_delivery(alerts_path: Path = ALERTS_DIR) -> dict[str, 
     elif alerts_writable:
         status = "INFO"
         detail = "No external channels configured; local alert files are writable"
+        last_reason = str(history_summary.get("last_reason") or "")
+        last_age_minutes = history_summary.get("last_age_minutes")
+        if last_reason and last_reason != "-":
+            detail += f"; last local event {last_reason}"
+            if last_age_minutes is not None:
+                detail += f" {float(last_age_minutes):.1f}m ago"
     else:
         status = "FAIL"
         detail = "No notification channels configured and local alerts path is not writable"
@@ -1067,6 +1074,11 @@ def validate_notification_delivery(alerts_path: Path = ALERTS_DIR) -> dict[str, 
         channel_count=len(channels),
         local_file_fallback=alerts_writable,
         channel_status=channel_status,
+        history_summary=history_summary,
+        local_recorded_count=history_summary.get("local_recorded_count"),
+        last_reason=history_summary.get("last_reason"),
+        last_age_minutes=history_summary.get("last_age_minutes"),
+        delivery_mode=history_summary.get("delivery_mode"),
         probe_error=probe_error,
     )
 

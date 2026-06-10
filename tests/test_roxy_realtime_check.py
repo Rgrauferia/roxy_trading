@@ -1099,6 +1099,7 @@ def test_validate_health_watchdog_service_flags_missing_or_slow_job(monkeypatch)
 def test_validate_notification_delivery_accepts_configured_channels(tmp_path, monkeypatch):
     monkeypatch.setattr("notifier.configured_channels", lambda: ["macos", "email"])
     monkeypatch.setattr("notifier.notification_channel_status", lambda: [{"channel": "macos", "configured": True}])
+    monkeypatch.setattr("notifier.notification_history_summary", lambda limit=50: {"sample_size": 0})
 
     status = validate_notification_delivery(tmp_path)
 
@@ -1110,13 +1111,27 @@ def test_validate_notification_delivery_accepts_configured_channels(tmp_path, mo
 def test_validate_notification_delivery_accepts_local_file_fallback(tmp_path, monkeypatch):
     monkeypatch.setattr("notifier.configured_channels", lambda: [])
     monkeypatch.setattr("notifier.notification_channel_status", lambda: [])
+    monkeypatch.setattr(
+        "notifier.notification_history_summary",
+        lambda limit=50: {
+            "sample_size": 2,
+            "local_recorded_count": 2,
+            "last_reason": "recorded_local",
+            "last_age_minutes": 4.5,
+            "delivery_mode": "local_file",
+        },
+    )
 
     status = validate_notification_delivery(tmp_path)
 
     assert status["status"] == "INFO"
     assert status["channel_count"] == 0
     assert status["local_file_fallback"] is True
+    assert status["local_recorded_count"] == 2
+    assert status["last_age_minutes"] == 4.5
+    assert status["delivery_mode"] == "local_file"
     assert status["probe_error"] == ""
+    assert "recorded_local 4.5m ago" in status["detail"]
     assert "local alert files" in status["detail"]
 
 
@@ -1124,6 +1139,7 @@ def test_validate_notification_delivery_fails_without_channels_or_writable_fallb
     missing = tmp_path / "missing"
     monkeypatch.setattr("notifier.configured_channels", lambda: [])
     monkeypatch.setattr("notifier.notification_channel_status", lambda: [])
+    monkeypatch.setattr("notifier.notification_history_summary", lambda limit=50: {"sample_size": 0})
 
     status = validate_notification_delivery(missing)
 

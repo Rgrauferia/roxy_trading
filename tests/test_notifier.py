@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 import notifier
 
 
@@ -48,12 +50,18 @@ def test_notify_if_changed_records_history(tmp_path, monkeypatch):
     assert rows[0]["message"] == "AAPL | BUY WATCH | Entry 203.40"
     assert rows[0]["effective_sent"] is False
     assert rows[1]["effective_sent"] is False
-    summary = notifier.notification_history_summary(limit=10)
+    summary = notifier.notification_history_summary(
+        limit=10,
+        now=datetime.fromisoformat(rows[-1]["ts"].replace("Z", "+00:00")),
+    )
     assert summary["sample_size"] == 2
     assert summary["sent_count"] == 0
     assert summary["suppressed_count"] == 2
+    assert summary["local_recorded_count"] == 2
     assert summary["reason_counts"]["recorded_local"] == 1
     assert summary["last_reason"] == "unchanged"
+    assert summary["last_age_minutes"] == 0.0
+    assert summary["delivery_mode"] == "local_file"
 
 
 def test_notification_history_summary_ignores_legacy_sent_without_channels(tmp_path, monkeypatch):
@@ -74,6 +82,7 @@ def test_notification_history_summary_ignores_legacy_sent_without_channels(tmp_p
     assert summary["sent_count"] == 1
     assert summary["suppressed_count"] == 1
     assert summary["last_sent"] is True
+    assert summary["last_effective_sent"] is True
 
 
 def test_notify_if_changed_uses_symbol_cooldown_for_changed_alert(tmp_path, monkeypatch):
