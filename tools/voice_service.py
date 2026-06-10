@@ -44,6 +44,7 @@ except Exception:
 VOICE_API_KEY = os.getenv("VOICE_API_KEY")
 RATE_LIMIT_WINDOW = int(os.getenv("VOICE_RATE_WINDOW_SECONDS", "60"))
 RATE_LIMIT_MAX = int(os.getenv("VOICE_RATE_MAX", "30"))
+_DEV_AUTH_WARNING_LOGGED = False
 
 # simple in-memory rate limiter: api_key -> (count, window_start)
 _RATE_STATE: Dict[str, Dict[str, int]] = {}
@@ -106,9 +107,12 @@ class AssistRequest(BaseModel):
 
 
 def require_api_key(request: Request):
+    global _DEV_AUTH_WARNING_LOGGED
     if VOICE_API_KEY is None:
         # allow local dev when VOICE_API_KEY not set, but log warning
-        logger.warning("VOICE_API_KEY not set — running in permissive dev mode")
+        if not _DEV_AUTH_WARNING_LOGGED:
+            logger.warning("VOICE_API_KEY not set — running in permissive dev mode")
+            _DEV_AUTH_WARNING_LOGGED = True
         return None
     auth = request.headers.get("Authorization")
     if not auth or not auth.startswith("Bearer "):
