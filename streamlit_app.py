@@ -6378,6 +6378,176 @@ def filter_scanner_explorer_rows(
     return filtered.loc[mask].reset_index(drop=True)
 
 
+def scanner_wallboard_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, *, limit: int = 30) -> pd.DataFrame:
+    columns = ["symbol", "status", "tone", "market", "strategy", "score", "readiness", "risk", "target", "rel_volume", "tf", "next"]
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    pulse = market_pulse_rows(table)
+    for idx, item in table.iterrows():
+        row = item.to_dict()
+        status = pulse.iloc[idx].to_dict() if idx < len(pulse) else {}
+        symbol = text_display(row.get("symbol")).upper()
+        if not symbol or symbol == "-":
+            continue
+        seen.add(symbol)
+        rows.append(
+            {
+                "symbol": symbol,
+                "status": status.get("bucket", "Vigilar"),
+                "tone": status.get("tone", "watch"),
+                "market": text_display(row.get("market")),
+                "strategy": dashboard_strategy_label(row),
+                "score": safe_float(row.get("ai_score")),
+                "readiness": safe_float(row.get("readiness")),
+                "risk": safe_float(row.get("risk_pct")),
+                "target": safe_float(row.get("target_pct")),
+                "rel_volume": safe_float(row.get("relative_volume_15m") or row.get("relative_volume")),
+                "tf": text_display(row.get("entry_tf") or row.get("tf") or row.get("timeframe")),
+                "next": text_display(row.get("waiting_for") or row.get("gate")),
+            }
+        )
+    if not confluence_df.empty:
+        data = confluence_df.copy()
+        if "confluence_score" in data.columns:
+            data["sort_score"] = pd.to_numeric(data["confluence_score"], errors="coerce").fillna(0)
+            data = data.sort_values("sort_score", ascending=False)
+        for _, item in data.head(max(limit * 2, limit)).iterrows():
+            row = item.to_dict()
+            symbol = text_display(row.get("symbol")).upper()
+            if not symbol or symbol == "-" or symbol in seen:
+                continue
+            signal = str(row.get("signal") or "").upper()
+            decision = str(row.get("trade_decision") or "").upper()
+            if signal == "BUY" and decision.startswith("TRADE_FOR"):
+                status, tone = "Operar", "buy"
+            elif signal == "AVOID" or decision.startswith("NO_TRADE"):
+                status, tone = "Evitar", "avoid"
+            else:
+                status, tone = "Vigilar", "watch"
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "status": status,
+                    "tone": tone,
+                    "market": text_display(row.get("market")),
+                    "strategy": dashboard_strategy_label(row),
+                    "score": safe_float(row.get("confluence_score") or row.get("ai_score")),
+                    "readiness": None,
+                    "risk": safe_float(row.get("risk_pct")),
+                    "target": safe_float(row.get("recommended_target_pct")),
+                    "rel_volume": safe_float(row.get("relative_volume_15m") or row.get("relative_volume")),
+                    "tf": text_display(row.get("entry_tf") or row.get("tf")),
+                    "next": text_display(row.get("trade_decision") or row.get("action")),
+                }
+            )
+            seen.add(symbol)
+            if len(rows) >= limit:
+                break
+    result = pd.DataFrame(rows, columns=columns)
+    if result.empty:
+        return result
+    result["score_sort"] = pd.to_numeric(result["score"], errors="coerce").fillna(0)
+    result["risk_sort"] = pd.to_numeric(result["risk"], errors="coerce").fillna(99)
+    result["volume_sort"] = pd.to_numeric(result["rel_volume"], errors="coerce").fillna(0)
+    result["status_order"] = result["status"].map({"Operar": 0, "Vigilar": 1, "Evitar": 2}).fillna(1)
+    result = result.sort_values(["status_order", "score_sort"], ascending=[True, False]).head(limit)
+    return result.drop(columns=["score_sort", "risk_sort", "volume_sort", "status_order"]).reset_index(drop=True)
+
+
+def scanner_wallboard_summary(rows: pd.DataFrame) -> dict[str, Any]:
+    if rows.empty:
+        return {"total": 0, "ready": 0, "watch": 0, "avoid": 0, "avg_score": None, "avg_risk": None, "top_strategy": "-", "top_symbol": "-"}
+    counts = rows["status"].value_counts()
+    strategies = rows[rows["strategy"].ne("-")]["strategy"].value_counts()
+    return {
+        "total": int(len(rows)),
+        "ready": int(counts.get("Operar", 0)),
+        "watch": int(counts.get("Vigilar", 0)),
+        "avoid": int(counts.get("Evitar", 0)),
+        "avg_score": safe_float(pd.to_numeric(rows["score"], errors="coerce").mean()),
+        "avg_risk": safe_float(pd.to_numeric(rows["risk"], errors="coerce").mean()),
+        "top_strategy": str(strategies.index[0]) if not strategies.empty else "-",
+        "top_symbol": text_display(rows.iloc[0].get("symbol")).upper(),
+    }
+
+
+def render_finviz_style_wallboard(table: pd.DataFrame, confluence_df: pd.DataFrame, brief: dict) -> None:
+    rows = scanner_wallboard_rows(table, confluence_df, limit=32)
+    if rows.empty:
+        return
+    summary = scanner_wallboard_summary(rows)
+    status = read_summary_json("alerts/roxy_status.json")
+    daily_line = (
+        f"Plan diario: {status.get('daily_plan_top_symbol', summary['top_symbol'])} · "
+        f"{status.get('daily_plan_proxima_entrada', summary['watch'])} próximas entradas · "
+        f"{status.get('daily_plan_operar_ahora', summary['ready'])} operar ahora"
+        if status
+        else f"{summary['total']} candidatos · top {summary['top_symbol']}"
+    )
+    freshness = brief.get("source_freshness") if isinstance(brief.get("source_freshness"), dict) else {}
+    session = brief.get("market_session") if isinstance(brief.get("market_session"), dict) else {}
+    top_tiles = rows.head(24).to_dict("records")
+    tile_html = []
+    for row in top_tiles:
+        score = safe_float(row.get("score")) or 0
+        score_alpha = min(0.92, max(0.24, score / 125.0))
+        tone = text_display(row.get("tone"))
+        tile_html.append(
+            f'<div class="wall-tile wall-tile-{html.escape(tone)}" style="--tile-alpha:{score_alpha:.2f}">'
+            f'<strong>{html.escape(text_display(row.get("symbol")))}</strong>'
+            f'<span>{html.escape(num_display(row.get("score"), 0))}</span>'
+            f'<small>{html.escape(text_display(row.get("strategy")))}</small>'
+            f'<em>R {html.escape(pct_display(row.get("risk")))} · V {html.escape(num_display(row.get("rel_volume"), 1))}x</em>'
+            "</div>"
+        )
+    def _mini_table(title: str, data: pd.DataFrame) -> str:
+        body = []
+        for row in data.head(7).to_dict("records"):
+            body.append(
+                "<tr>"
+                f"<td>{html.escape(text_display(row.get('symbol')))}</td>"
+                f"<td>{html.escape(text_display(row.get('status')))}</td>"
+                f"<td>{html.escape(num_display(row.get('score'), 0))}</td>"
+                f"<td>{html.escape(pct_display(row.get('risk')))}</td>"
+                "</tr>"
+            )
+        return (
+            f'<section class="wall-table"><header>{html.escape(title)}</header>'
+            "<table><thead><tr><th>Ticker</th><th>Estado</th><th>Score</th><th>Riesgo</th></tr></thead>"
+            f"<tbody>{''.join(body)}</tbody></table></section>"
+        )
+    score_table = rows.assign(_score=pd.to_numeric(rows["score"], errors="coerce").fillna(0)).sort_values("_score", ascending=False)
+    volume_table = rows.assign(_volume=pd.to_numeric(rows["rel_volume"], errors="coerce").fillna(0)).sort_values("_volume", ascending=False)
+    risk_table = rows.assign(_risk=pd.to_numeric(rows["risk"], errors="coerce").fillna(99)).sort_values(["_risk", "symbol"], ascending=[True, True])
+    st.markdown(
+        f"""
+        <section class="finviz-wallboard">
+            <div class="wall-ticker">
+                <strong>ROXY MARKET WALL</strong>
+                <span>{html.escape(daily_line)}</span>
+                <span>{html.escape(text_display(session.get('stock_session') or session.get('crypto_session')))} · {html.escape(text_display(freshness.get('label')))}</span>
+            </div>
+            <div class="wall-stats">
+                <div><span>Total</span><strong>{summary['total']}</strong><small>{html.escape(summary['top_strategy'])}</small></div>
+                <div class="wall-stat-buy"><span>Operar</span><strong>{summary['ready']}</strong><small>confirmadas</small></div>
+                <div class="wall-stat-watch"><span>Vigilar</span><strong>{summary['watch']}</strong><small>gatillo pendiente</small></div>
+                <div class="wall-stat-avoid"><span>Evitar</span><strong>{summary['avoid']}</strong><small>bloqueadas</small></div>
+                <div><span>Score avg</span><strong>{html.escape(num_display(summary['avg_score'], 0))}</strong><small>riesgo {html.escape(pct_display(summary['avg_risk']))}</small></div>
+            </div>
+            <div class="wall-main">
+                <div class="wall-heatmap">{''.join(tile_html)}</div>
+                <div class="wall-tables">
+                    {_mini_table("Top Score", score_table)}
+                    {_mini_table("Volumen Relativo", volume_table)}
+                    {_mini_table("Riesgo Bajo", risk_table)}
+                </div>
+            </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_scanner_cockpit(
     table: pd.DataFrame,
     confluence_df: pd.DataFrame,
@@ -8078,6 +8248,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
         risk_pct_ui = st.number_input("Riesgo %", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key="command_risk")
 
     render_alert_noise_contract(brief)
+    render_finviz_style_wallboard(best, confluence_df, brief)
     render_scanner_cockpit(best, confluence_df, options_df, brief)
     render_market_pulse_dashboard(best)
 
@@ -9321,7 +9492,7 @@ def main() -> None:
         <style>
         :root{--roxy-bg:#0f1720;--card-bg:#0b1220;--muted:#9aa4b2;--accent:#38bdf8;--accent-2:#22c55e;--card-radius:8px}
         .stApp{background:#0b1020;color:#e5edf7}
-        .block-container{padding-top:1.1rem;padding-bottom:2rem;max-width:1540px}
+        .block-container{padding-top:.75rem;padding-bottom:1.2rem;max-width:98vw}
         [data-testid="stSidebar"]{background:#0f172a;border-right:1px solid rgba(148,163,184,.16)}
         [data-testid="stHeader"]{background:rgba(14,22,36,.9)}
         [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"], #MainMenu, footer{display:none!important}
@@ -9374,6 +9545,16 @@ def main() -> None:
         .scanner-lane-buy header{background:rgba(21,128,61,.28);color:#bbf7d0}
         .scanner-lane-watch header{background:rgba(180,83,9,.28);color:#fde68a}
         .scanner-lane-avoid header{background:rgba(153,27,27,.30);color:#fecaca}
+        .finviz-wallboard{border:1px solid rgba(148,163,184,.24);border-radius:8px;background:#080d18;margin:8px 0 12px;overflow:hidden;box-shadow:0 18px 46px rgba(0,0,0,.22)}
+        .wall-ticker{display:grid;grid-template-columns:.75fr 1.6fr .8fr;gap:10px;align-items:center;padding:8px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.18)}
+        .wall-ticker strong{color:#f8fafc;font-size:12px;font-weight:950;letter-spacing:.04em}.wall-ticker span{color:#cbd5e1;font-size:12px;line-height:1.25;text-align:right}
+        .wall-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.16)}
+        .wall-stats div{background:#0b1220;padding:9px 10px;min-height:74px}.wall-stats span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase}.wall-stats strong{display:block;color:#f8fafc;font-size:26px;line-height:1.05;margin:5px 0}.wall-stats small{color:#cbd5e1;font-size:11px;line-height:1.2}
+        .wall-stat-buy{box-shadow:inset 0 0 0 1px rgba(34,197,94,.28)}.wall-stat-watch{box-shadow:inset 0 0 0 1px rgba(245,158,11,.30)}.wall-stat-avoid{box-shadow:inset 0 0 0 1px rgba(239,68,68,.30)}
+        .wall-main{display:grid;grid-template-columns:1.25fr 1fr;gap:8px;padding:8px}.wall-heatmap{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-auto-rows:74px;gap:4px}
+        .wall-tile{border:1px solid rgba(148,163,184,.18);border-radius:4px;padding:7px;min-width:0;display:grid;grid-template-columns:1fr auto;grid-template-rows:auto 1fr auto;gap:2px;background:#172033;overflow:hidden}.wall-tile strong{color:#f8fafc;font-size:16px;line-height:1;font-weight:950}.wall-tile span{font-size:13px;color:#e2e8f0;font-weight:900;text-align:right}.wall-tile small{grid-column:1/3;color:#e2e8f0;font-size:11px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wall-tile em{grid-column:1/3;color:#cbd5e1;font-size:10px;font-style:normal;line-height:1.1}
+        .wall-tile-buy{background:rgba(21,128,61,var(--tile-alpha))}.wall-tile-watch{background:rgba(180,83,9,var(--tile-alpha))}.wall-tile-avoid{background:rgba(153,27,27,var(--tile-alpha))}
+        .wall-tables{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.wall-table{border:1px solid rgba(148,163,184,.18);border-radius:6px;overflow:hidden;background:#0b1220}.wall-table header{padding:6px 8px;color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.wall-table table{width:100%;border-collapse:collapse}.wall-table th,.wall-table td{padding:5px 6px;border-bottom:1px solid rgba(148,163,184,.10);font-size:10px;line-height:1.15;text-align:left;color:#cbd5e1}.wall-table th{color:#94a3b8;font-weight:900;text-transform:uppercase}.wall-table td:first-child{color:#f8fafc;font-weight:950}.wall-table tr:last-child td{border-bottom:0}
         .kpibox{display:inline-block;padding:8px 12px;background:#081023;border-radius:8px;margin-right:8px;color:var(--muted)}
         .metrics-row{display:flex;gap:12px;flex-wrap:wrap}
         .metric-card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:10px;border-radius:8px;min-width:160px}
@@ -9442,9 +9623,9 @@ def main() -> None:
         .stButton button:hover{border-color:#a78bfa;color:#f8fafc}
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media (max-width:1100px){.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}}
+        @media (max-width:1100px){.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}}
         @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
-        @media (max-width:600px){.metric-card{min-width:120px}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}}
+        @media (max-width:600px){.metric-card{min-width:120px}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}}
         </style>
         """,
         unsafe_allow_html=True,
