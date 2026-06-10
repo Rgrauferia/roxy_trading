@@ -1701,12 +1701,24 @@ def validate_chart_health_report(
     warn_count = int(summary.get("warn_count", 0) or 0)
     max_chart_age_minutes = summary.get("max_age_minutes")
     avg_chart_age_minutes = summary.get("avg_age_minutes")
+    max_cadence_lag_minutes = summary.get("max_cadence_lag_minutes")
+    max_health_lag_minutes = summary.get("max_health_lag_minutes")
+    next_expected_update_in_minutes = summary.get("next_expected_update_in_minutes")
     stalest_chart = summary.get("stalest_chart") if isinstance(summary.get("stalest_chart"), dict) else {}
+    most_overdue_chart = summary.get("most_overdue_chart") if isinstance(summary.get("most_overdue_chart"), dict) else {}
     details = [f"age {age_minutes:.0f}m", f"checked {checked_count}", f"fail {fail_count}", f"warn {warn_count}"]
     if max_chart_age_minutes is not None:
         details.append(f"max chart age {float(max_chart_age_minutes):.1f}m")
+    if max_cadence_lag_minutes is not None and float(max_cadence_lag_minutes) > 0:
+        details.append(f"cadence lag {float(max_cadence_lag_minutes):.1f}m")
+    elif next_expected_update_in_minutes is not None:
+        details.append(f"next candle {float(next_expected_update_in_minutes):.1f}m")
+    if max_health_lag_minutes is not None and float(max_health_lag_minutes) > 0:
+        details.append(f"health lag {float(max_health_lag_minutes):.1f}m")
     if stalest_chart:
         details.append(f"stalest {stalest_chart.get('symbol', '-')} {stalest_chart.get('timeframe', '-')}")
+    if most_overdue_chart and max_cadence_lag_minutes is not None and float(max_cadence_lag_minutes) > 0:
+        details.append(f"overdue {most_overdue_chart.get('symbol', '-')} {most_overdue_chart.get('timeframe', '-')}")
     return check(
         "chart_realtime_health_report",
         status,
@@ -1719,7 +1731,11 @@ def validate_chart_health_report(
         warn_count=warn_count,
         max_chart_age_minutes=max_chart_age_minutes,
         avg_chart_age_minutes=avg_chart_age_minutes,
+        max_cadence_lag_minutes=max_cadence_lag_minutes,
+        max_health_lag_minutes=max_health_lag_minutes,
+        next_expected_update_in_minutes=next_expected_update_in_minutes,
         stalest_chart=stalest_chart,
+        most_overdue_chart=most_overdue_chart,
     )
 
 

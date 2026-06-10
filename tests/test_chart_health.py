@@ -36,6 +36,10 @@ def test_chart_health_row_requires_fresh_candles_and_indicators():
     assert row["has_macd"] is True
     assert row["data_quality_status"] == "OK"
     assert row["valid_ohlc_rows"] == 60
+    assert row["expected_minutes"] == 15
+    assert row["next_expected_update_in_minutes"] == 14.0
+    assert row["cadence_lag_minutes"] == 0.0
+    assert row["health_lag_minutes"] == 0.0
 
 
 def test_chart_data_quality_status_rejects_missing_ohlc_columns():
@@ -96,12 +100,23 @@ def test_chart_freshness_status_marks_stale_chart():
 
     assert status["status"] == "FAIL"
     assert status["label"] == "Estancada"
+    assert status["cadence_lag_minutes"] == 225.0
+    assert status["health_lag_minutes"] > 0
 
 
 def test_summarize_chart_health_flags_failures_and_top_issue():
     rows = [
         {"symbol": "AAPL", "timeframe": "15m", "status": "OK", "label": "Viva", "indicator_status": "OK", "age_minutes": 4.0},
-        {"symbol": "AMD", "timeframe": "1h", "status": "FAIL", "label": "Estancada", "indicator_status": "FAIL", "age_minutes": 92.4},
+        {
+            "symbol": "AMD",
+            "timeframe": "1h",
+            "status": "FAIL",
+            "label": "Estancada",
+            "indicator_status": "FAIL",
+            "age_minutes": 92.4,
+            "cadence_lag_minutes": 32.4,
+            "health_lag_minutes": 0.0,
+        },
     ]
 
     summary = summarize_chart_health(rows)
@@ -113,7 +128,30 @@ def test_summarize_chart_health_flags_failures_and_top_issue():
     assert summary["top_issue"]["symbol"] == "AMD"
     assert summary["max_age_minutes"] == 92.4
     assert summary["avg_age_minutes"] == 48.2
+    assert summary["max_cadence_lag_minutes"] == 32.4
+    assert summary["max_health_lag_minutes"] == 0.0
     assert summary["stalest_chart"]["symbol"] == "AMD"
+    assert summary["most_overdue_chart"]["symbol"] == "AMD"
+
+
+def test_summarize_chart_health_omits_overdue_chart_when_lag_is_zero():
+    rows = [
+        {
+            "symbol": "AAPL",
+            "timeframe": "15m",
+            "status": "OK",
+            "label": "Viva",
+            "indicator_status": "OK",
+            "age_minutes": 4.0,
+            "cadence_lag_minutes": 0.0,
+            "health_lag_minutes": 0.0,
+        }
+    ]
+
+    summary = summarize_chart_health(rows)
+
+    assert summary["max_cadence_lag_minutes"] == 0.0
+    assert summary["most_overdue_chart"] == {}
 
 
 def test_write_chart_health_report_outputs_summary(tmp_path):

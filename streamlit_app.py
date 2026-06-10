@@ -5285,28 +5285,44 @@ def chart_realtime_dashboard_status(report: dict[str, Any] | None) -> dict[str, 
     data_quality_issue_count = int(summary.get("data_quality_issue_count") or 0)
     max_age_minutes = safe_float(summary.get("max_age_minutes"))
     avg_age_minutes = safe_float(summary.get("avg_age_minutes"))
+    max_cadence_lag_minutes = safe_float(summary.get("max_cadence_lag_minutes"))
+    max_health_lag_minutes = safe_float(summary.get("max_health_lag_minutes"))
+    next_expected_update_in_minutes = safe_float(summary.get("next_expected_update_in_minutes"))
     detail = f"{checked} charts | fallos {fail_count} | warnings {warn_count}"
     if max_age_minutes is not None:
         detail += f" | max {max_age_minutes:.1f}m"
     if avg_age_minutes is not None:
         detail += f" | avg {avg_age_minutes:.1f}m"
+    if max_cadence_lag_minutes is not None and max_cadence_lag_minutes > 0:
+        detail += f" | lag max {max_cadence_lag_minutes:.1f}m"
+    elif next_expected_update_in_minutes is not None:
+        detail += f" | next vela {next_expected_update_in_minutes:.1f}m"
+    if max_health_lag_minutes is not None and max_health_lag_minutes > 0:
+        detail += f" | health lag {max_health_lag_minutes:.1f}m"
     if stale_count:
         detail += f" | estancadas {stale_count}"
     if data_quality_issue_count:
         detail += f" | calidad {data_quality_issue_count}"
     stalest_chart = summary.get("stalest_chart") if isinstance(summary.get("stalest_chart"), dict) else {}
-    if stalest_chart and not summary.get("top_issue"):
-        detail += f" | atrasada {text_display(stalest_chart.get('symbol'))} {text_display(stalest_chart.get('timeframe'))}"
+    if stalest_chart and not summary.get("top_issue") and not (max_cadence_lag_minutes is not None and max_cadence_lag_minutes > 0):
+        detail += f" | mas vieja {text_display(stalest_chart.get('symbol'))} {text_display(stalest_chart.get('timeframe'))}"
     top_issue = summary.get("top_issue") if isinstance(summary.get("top_issue"), dict) else {}
     if top_issue:
         detail += f" | {text_display(top_issue.get('symbol'))} {text_display(top_issue.get('timeframe'))}"
+    most_overdue_chart = summary.get("most_overdue_chart") if isinstance(summary.get("most_overdue_chart"), dict) else {}
+    if most_overdue_chart and max_cadence_lag_minutes is not None and max_cadence_lag_minutes > 0 and not top_issue:
+        detail += f" | tarde {text_display(most_overdue_chart.get('symbol'))} {text_display(most_overdue_chart.get('timeframe'))}"
     return {
         "label": label or "Graficas",
         "tone": tone,
         "detail": detail,
         "max_age_minutes": max_age_minutes,
         "avg_age_minutes": avg_age_minutes,
+        "max_cadence_lag_minutes": max_cadence_lag_minutes,
+        "max_health_lag_minutes": max_health_lag_minutes,
+        "next_expected_update_in_minutes": next_expected_update_in_minutes,
         "stalest_chart": stalest_chart,
+        "most_overdue_chart": most_overdue_chart,
     }
 
 

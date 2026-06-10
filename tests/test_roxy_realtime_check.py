@@ -1858,7 +1858,11 @@ def test_validate_chart_health_report_accepts_recent_ok_report(tmp_path):
                     "warn_count": 0,
                     "max_age_minutes": 24.5,
                     "avg_age_minutes": 10.0,
+                    "max_cadence_lag_minutes": 4.5,
+                    "max_health_lag_minutes": 0.0,
+                    "next_expected_update_in_minutes": 3.0,
                     "stalest_chart": {"symbol": "AAPL", "timeframe": "1h"},
+                    "most_overdue_chart": {"symbol": "MDB", "timeframe": "15m"},
                 },
             }
         )
@@ -1870,9 +1874,15 @@ def test_validate_chart_health_report_accepts_recent_ok_report(tmp_path):
     assert status["checked_count"] == 4
     assert status["max_chart_age_minutes"] == 24.5
     assert status["avg_chart_age_minutes"] == 10.0
+    assert status["max_cadence_lag_minutes"] == 4.5
+    assert status["max_health_lag_minutes"] == 0.0
+    assert status["next_expected_update_in_minutes"] == 3.0
     assert status["stalest_chart"] == {"symbol": "AAPL", "timeframe": "1h"}
+    assert status["most_overdue_chart"] == {"symbol": "MDB", "timeframe": "15m"}
     assert "max chart age 24.5m" in status["detail"]
+    assert "cadence lag 4.5m" in status["detail"]
     assert "stalest AAPL 1h" in status["detail"]
+    assert "overdue MDB 15m" in status["detail"]
 
 
 def test_validate_chart_health_report_fails_stale_report(tmp_path):

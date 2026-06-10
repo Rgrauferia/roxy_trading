@@ -1589,7 +1589,11 @@ def test_chart_realtime_dashboard_status_summarizes_report():
                 "data_quality_issue_count": 1,
                 "max_age_minutes": 24.5,
                 "avg_age_minutes": 11.2,
+                "max_cadence_lag_minutes": 9.5,
+                "max_health_lag_minutes": 0.0,
+                "next_expected_update_in_minutes": 3.0,
                 "stalest_chart": {"symbol": "NVDA", "timeframe": "1h"},
+                "most_overdue_chart": {"symbol": "AAPL", "timeframe": "15m"},
                 "top_issue": {"symbol": "AAPL", "timeframe": "15m"},
             }
         }
@@ -1600,11 +1604,41 @@ def test_chart_realtime_dashboard_status_summarizes_report():
     assert "4 charts" in status["detail"]
     assert "max 24.5m" in status["detail"]
     assert "avg 11.2m" in status["detail"]
+    assert "lag max 9.5m" in status["detail"]
     assert "calidad 1" in status["detail"]
     assert "AAPL 15m" in status["detail"]
     assert status["max_age_minutes"] == 24.5
     assert status["avg_age_minutes"] == 11.2
+    assert status["max_cadence_lag_minutes"] == 9.5
+    assert status["max_health_lag_minutes"] == 0.0
+    assert status["next_expected_update_in_minutes"] == 3.0
     assert status["stalest_chart"] == {"symbol": "NVDA", "timeframe": "1h"}
+    assert status["most_overdue_chart"] == {"symbol": "AAPL", "timeframe": "15m"}
+
+
+def test_chart_realtime_dashboard_status_avoids_overdue_copy_without_lag():
+    status = chart_realtime_dashboard_status(
+        {
+            "summary": {
+                "label": "Graficas vivas",
+                "tone": "buy",
+                "checked_count": 12,
+                "fail_count": 0,
+                "warn_count": 0,
+                "max_age_minutes": 2.1,
+                "avg_age_minutes": 2.1,
+                "max_cadence_lag_minutes": 0.0,
+                "next_expected_update_in_minutes": 12.9,
+                "stalest_chart": {"symbol": "AAPL", "timeframe": "15m"},
+                "most_overdue_chart": {},
+            }
+        }
+    )
+
+    assert "next vela 12.9m" in status["detail"]
+    assert "mas vieja AAPL 15m" in status["detail"]
+    assert "atrasada" not in status["detail"]
+    assert "tarde" not in status["detail"]
 
 
 def test_build_chart_level_plan_includes_trade_levels():

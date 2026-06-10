@@ -159,6 +159,10 @@ def chart_freshness_status(
         latest_dt = latest_dt.replace(tzinfo=None)
     age_minutes = max(0.0, (current - latest_dt).total_seconds() / 60.0)
     expected = timeframe_minutes(timeframe)
+    freshness_budget = max(expected * 2.5, 10)
+    cadence_lag_minutes = max(0.0, age_minutes - expected)
+    health_lag_minutes = max(0.0, age_minutes - freshness_budget)
+    next_expected_update_in_minutes = max(0.0, expected - age_minutes)
     market_value = str(market or "stock").lower()
 
     if stock_alerts_allowed is None:
@@ -173,7 +177,7 @@ def chart_freshness_status(
         label = "Mercado cerrado"
         tone = "watch"
         status = "WARN"
-    elif age_minutes <= max(expected * 2.5, 10):
+    elif age_minutes <= freshness_budget:
         label = "Viva"
         tone = "buy"
         status = "OK"
@@ -194,6 +198,10 @@ def chart_freshness_status(
         "age_minutes": age_minutes,
         "latest": latest_dt.strftime("%Y-%m-%d %H:%M"),
         "expected_minutes": expected,
+        "freshness_budget_minutes": freshness_budget,
+        "cadence_lag_minutes": cadence_lag_minutes,
+        "health_lag_minutes": health_lag_minutes,
+        "next_expected_update_in_minutes": next_expected_update_in_minutes,
     }
 
 
@@ -232,6 +240,11 @@ def chart_health_row(
         "detail": detail,
         "age_minutes": freshness["age_minutes"],
         "latest": freshness["latest"],
+        "expected_minutes": freshness.get("expected_minutes"),
+        "freshness_budget_minutes": freshness.get("freshness_budget_minutes"),
+        "cadence_lag_minutes": freshness.get("cadence_lag_minutes"),
+        "health_lag_minutes": freshness.get("health_lag_minutes"),
+        "next_expected_update_in_minutes": freshness.get("next_expected_update_in_minutes"),
         "rows": int(len(chart_df)),
         "has_rsi": bool(has_rsi),
         "has_macd": bool(has_macd),
@@ -258,11 +271,35 @@ def summarize_chart_health(rows: list[dict[str, Any]]) -> dict[str, Any]:
     ]
     max_age_minutes = round(max(age_values), 1) if age_values else None
     avg_age_minutes = round(sum(age_values) / len(age_values), 1) if age_values else None
+    cadence_lag_values = [
+        float(row.get("cadence_lag_minutes"))
+        for row in rows
+        if row.get("cadence_lag_minutes") is not None
+    ]
+    health_lag_values = [
+        float(row.get("health_lag_minutes"))
+        for row in rows
+        if row.get("health_lag_minutes") is not None
+    ]
+    next_update_values = [
+        float(row.get("next_expected_update_in_minutes"))
+        for row in rows
+        if row.get("next_expected_update_in_minutes") is not None and float(row.get("next_expected_update_in_minutes") or 0) > 0
+    ]
+    max_cadence_lag_minutes = round(max(cadence_lag_values), 1) if cadence_lag_values else None
+    max_health_lag_minutes = round(max(health_lag_values), 1) if health_lag_values else None
+    next_expected_update_in_minutes = round(min(next_update_values), 1) if next_update_values else None
     stalest_chart = {}
     if age_values:
         stalest_chart = max(
             (row for row in rows if row.get("age_minutes") is not None),
             key=lambda row: float(row.get("age_minutes") or 0),
+        )
+    most_overdue_chart = {}
+    if cadence_lag_values and max(cadence_lag_values) > 0:
+        most_overdue_chart = max(
+            (row for row in rows if row.get("cadence_lag_minutes") is not None),
+            key=lambda row: float(row.get("cadence_lag_minutes") or 0),
         )
     if fail_count:
         status = "FAIL"
@@ -293,7 +330,11 @@ def summarize_chart_health(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "data_quality_issue_count": data_quality_issue_count,
         "max_age_minutes": max_age_minutes,
         "avg_age_minutes": avg_age_minutes,
+        "max_cadence_lag_minutes": max_cadence_lag_minutes,
+        "max_health_lag_minutes": max_health_lag_minutes,
+        "next_expected_update_in_minutes": next_expected_update_in_minutes,
         "stalest_chart": stalest_chart,
+        "most_overdue_chart": most_overdue_chart,
         "top_issue": top_issue,
     }
 
