@@ -910,6 +910,8 @@ def test_output_maintenance_dashboard_status_uses_realtime_check():
                     "status": "OK",
                     "age_hours": 0.4,
                     "removed_count": 522,
+                    "output_archive_count": 11,
+                    "output_archive_dir": "/Volumes/RoxyData/MacArchive/roxy_trading/output_archive",
                     "stale_output_removed_count": 9,
                     "trimmed_log_count": 2,
                     "trimmed_history_count": 1,
@@ -926,6 +928,9 @@ def test_output_maintenance_dashboard_status_uses_realtime_check():
     assert "0.4h" in status["detail"]
     assert "stale 9" in status["detail"]
     assert "removidos 522" in status["detail"]
+    assert "archivados 11" in status["detail"]
+    assert status["output_archive_count"] == 11
+    assert status["output_archive_dir"] == "/Volumes/RoxyData/MacArchive/roxy_trading/output_archive"
     assert "logs 2" in status["detail"]
     assert "hist 1" in status["detail"]
     assert "reportes 3" in status["detail"]
@@ -947,6 +952,27 @@ def test_output_maintenance_dashboard_status_warns_on_dry_run_report():
     assert status["tone"] == "watch"
     assert status["dry_run"] is True
     assert "dry-run" in status["detail"]
+
+
+def test_output_maintenance_dashboard_status_warns_on_archive_errors():
+    status = output_maintenance_dashboard_status(
+        {
+            "checks": [
+                {
+                    "name": "output_maintenance_report",
+                    "status": "WARN",
+                    "output_archive_count": 0,
+                    "output_archive_error_count": 2,
+                }
+            ],
+        },
+        {},
+    )
+
+    assert status["label"] == "Revisar"
+    assert status["tone"] == "watch"
+    assert status["output_archive_error_count"] == 2
+    assert "errores archivo 2" in status["detail"]
 
 
 def test_output_maintenance_dashboard_status_handles_missing_report():
