@@ -977,6 +977,13 @@ def strategy_family_for_row(row: dict[str, Any]) -> str:
     return strategy_family_from_setup(setup, trend_setup=trend)
 
 
+def dashboard_strategy_label(row: dict[str, Any]) -> str:
+    explicit = text_display(row.get("strategy_family") or row.get("salto_family"))
+    if explicit != "-":
+        return explicit
+    return strategy_family_for_row(row)
+
+
 def safe_key(value: Any) -> str:
     text = str(value or "item").strip().lower()
     cleaned = [ch if ch.isalnum() else "_" for ch in text]
@@ -6094,6 +6101,7 @@ def focused_opportunity_table(brief: dict) -> pd.DataFrame:
                 "risk_pct": row.get("risk_pct"),
                 "target_pct": row.get("recommended_target_pct"),
                 "target_price": row.get("recommended_target_price"),
+                "strategy_family": dashboard_strategy_label(row),
                 "trigger": row.get("trigger_setup"),
                 "trend": row.get("trend_setup"),
                 "option": option.get("contract"),
@@ -6213,6 +6221,193 @@ def market_pulse_risk_map(table: pd.DataFrame) -> pd.DataFrame:
     return risk_map
 
 
+def scanner_overview_summary(
+    table: pd.DataFrame,
+    confluence_df: pd.DataFrame,
+    options_df: pd.DataFrame,
+    brief: dict,
+) -> dict[str, Any]:
+    pulse = market_pulse_summary(table)
+    top = table.iloc[0].to_dict() if not table.empty else {}
+    score_values = pd.to_numeric(table.get("ai_score", pd.Series(dtype=float)), errors="coerce") if not table.empty else pd.Series(dtype=float)
+    readiness_values = pd.to_numeric(table.get("readiness", pd.Series(dtype=float)), errors="coerce") if not table.empty else pd.Series(dtype=float)
+    option_candidates = 0
+    if not options_df.empty:
+        if "option_decision" in options_df.columns:
+            option_candidates = int(options_df["option_decision"].astype(str).str.upper().eq("OPTION_CANDIDATE").sum())
+        else:
+            option_candidates = int(len(options_df))
+    session = brief.get("market_session") if isinstance(brief.get("market_session"), dict) else {}
+    freshness = brief.get("source_freshness") if isinstance(brief.get("source_freshness"), dict) else {}
+    return {
+        "total": pulse["total"],
+        "ready": pulse["ready"],
+        "watch": pulse["watch"],
+        "avoid": pulse["avoid"],
+        "top_symbol": text_display(top.get("symbol")).upper(),
+        "top_action": human_trade_action(top) if top else "Esperar",
+        "top_strategy": dashboard_strategy_label(top) if top else "-",
+        "top_gate": pulse["top_gate"],
+        "avg_score": safe_float(score_values.mean()),
+        "avg_readiness": safe_float(readiness_values.mean()),
+        "confluence_rows": int(len(confluence_df)),
+        "option_candidates": option_candidates,
+        "session": text_display(session.get("stock_session") or session.get("crypto_session")),
+        "freshness": text_display(freshness.get("label")),
+    }
+
+
+def scanner_heatmap_rows(table: pd.DataFrame) -> pd.DataFrame:
+    if table.empty:
+        return pd.DataFrame(columns=["strategy", "bucket", "tone", "count", "avg_score", "avg_readiness"])
+    pulse = market_pulse_rows(table)
+    rows: list[dict[str, Any]] = []
+    for idx, item in table.iterrows():
+        row = item.to_dict()
+        status = pulse.iloc[idx].to_dict() if idx < len(pulse) else {}
+        rows.append(
+            {
+                "strategy": dashboard_strategy_label(row),
+                "bucket": status.get("bucket", "Vigilar"),
+                "tone": status.get("tone", "watch"),
+                "ai_score": safe_float(row.get("ai_score")),
+                "readiness": safe_float(row.get("readiness")),
+            }
+        )
+    data = pd.DataFrame(rows)
+    grouped = (
+        data.groupby(["strategy", "bucket", "tone"], as_index=False)
+        .agg(count=("strategy", "size"), avg_score=("ai_score", "mean"), avg_readiness=("readiness", "mean"))
+        .sort_values(["count", "avg_score"], ascending=[False, False])
+    )
+    return grouped.reset_index(drop=True)
+
+
+def scanner_leaderboard_rows(table: pd.DataFrame, *, bucket: str = "Todos", limit: int = 12) -> pd.DataFrame:
+    filtered = filter_focused_opportunities(table, bucket=bucket)
+    if filtered.empty:
+        return pd.DataFrame(columns=["symbol", "status", "market", "strategy", "score", "readiness", "risk", "gate", "next"])
+    pulse = market_pulse_rows(filtered)
+    rows: list[dict[str, Any]] = []
+    for idx, item in filtered.iterrows():
+        row = item.to_dict()
+        status = pulse.iloc[idx].to_dict() if idx < len(pulse) else {}
+        rows.append(
+            {
+                "symbol": text_display(row.get("symbol")).upper(),
+                "status": status.get("bucket", "-"),
+                "market": text_display(row.get("market")),
+                "strategy": dashboard_strategy_label(row),
+                "score": safe_float(row.get("ai_score")),
+                "readiness": safe_float(row.get("readiness")),
+                "risk": safe_float(row.get("risk_pct")),
+                "gate": text_display(row.get("gate")),
+                "next": text_display(row.get("waiting_for")),
+            }
+        )
+    display = pd.DataFrame(rows)
+    display["score_sort"] = pd.to_numeric(display["score"], errors="coerce").fillna(0)
+    display["readiness_sort"] = pd.to_numeric(display["readiness"], errors="coerce").fillna(0)
+    display = display.sort_values(["score_sort", "readiness_sort"], ascending=[False, False]).head(limit)
+    return display.drop(columns=["score_sort", "readiness_sort"]).reset_index(drop=True)
+
+
+def render_scanner_cockpit(
+    table: pd.DataFrame,
+    confluence_df: pd.DataFrame,
+    options_df: pd.DataFrame,
+    brief: dict,
+) -> None:
+    summary = scanner_overview_summary(table, confluence_df, options_df, brief)
+    st.markdown(
+        f"""
+        <section class="scanner-tape">
+            <div><strong>Roxy Scanner</strong><span>{summary['total']} setups · {summary['ready']} operables · {summary['watch']} en vigilancia · {summary['avoid']} evitados</span></div>
+            <div><strong>Top</strong><span>{html.escape(summary['top_symbol'])} · {html.escape(summary['top_action'])} · {html.escape(summary['top_strategy'])}</span></div>
+            <div><strong>Contexto</strong><span>{html.escape(summary['session'])} · {html.escape(summary['freshness'])}</span></div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+    card_html = []
+    for label, value, detail, tone in [
+        ("Operables", summary["ready"], "Listas o casi listas para trabajar", "buy" if summary["ready"] else "neutral"),
+        ("Watchlist", summary["watch"], f"Filtro dominante: {summary['top_gate']}", "watch" if summary["watch"] else "neutral"),
+        ("Confluencia", summary["confluence_rows"], f"Score avg {num_display(summary['avg_score'], 0)}", "neutral"),
+        ("Opciones", summary["option_candidates"], f"Readiness avg {num_display(summary['avg_readiness'], 0)}", "buy" if summary["option_candidates"] else "watch"),
+    ]:
+        tone = tone if tone in {"buy", "watch", "avoid", "neutral"} else "neutral"
+        card_html.append(
+            f'<div class="scanner-card scanner-card-{tone}">'
+            f'<span>{html.escape(str(label))}</span>'
+            f'<strong>{html.escape(text_display(value))}</strong>'
+            f'<small>{html.escape(text_display(detail))}</small>'
+            "</div>"
+        )
+    st.markdown('<div class="scanner-card-grid">' + "".join(card_html) + "</div>", unsafe_allow_html=True)
+
+    heatmap = scanner_heatmap_rows(table)
+    top_rows = scanner_leaderboard_rows(table, bucket="Todos", limit=10)
+    chart_cols = st.columns([1.15, 0.85])
+    with chart_cols[0]:
+        st.markdown("**Mapa de estrategias**")
+        if heatmap.empty:
+            st.info("Aun no hay setups para mapa de estrategias.")
+        else:
+            heatmap_chart = (
+                alt.Chart(heatmap)
+                .mark_square(opacity=0.88)
+                .encode(
+                    x=alt.X("bucket:N", title="", sort=["Operar", "Vigilar", "Evitar"]),
+                    y=alt.Y("strategy:N", title="", sort="-x"),
+                    color=alt.Color("tone:N", title="", scale=alt.Scale(domain=["buy", "watch", "avoid"], range=["#16a34a", "#d97706", "#dc2626"])),
+                    size=alt.Size("count:Q", title="Setups", scale=alt.Scale(range=[80, 600])),
+                    tooltip=[
+                        "strategy:N",
+                        "bucket:N",
+                        alt.Tooltip("count:Q", format=",.0f"),
+                        alt.Tooltip("avg_score:Q", title="Score avg", format=".0f"),
+                        alt.Tooltip("avg_readiness:Q", title="Readiness avg", format=".0f"),
+                    ],
+                )
+            )
+            st.altair_chart(heatmap_chart.properties(height=260), use_container_width=True)
+    with chart_cols[1]:
+        st.markdown("**Ranking por IA**")
+        if top_rows.empty:
+            st.info("Sin ranking disponible.")
+        else:
+            score_chart = (
+                alt.Chart(top_rows)
+                .mark_bar(cornerRadius=4)
+                .encode(
+                    x=alt.X("score:Q", title="Score IA", scale=alt.Scale(domain=[0, 100])),
+                    y=alt.Y("symbol:N", title="", sort="-x"),
+                    color=alt.Color("status:N", title="", scale=alt.Scale(domain=["Operar", "Vigilar", "Evitar"], range=["#16a34a", "#d97706", "#dc2626"])),
+                    tooltip=["symbol:N", "status:N", "strategy:N", alt.Tooltip("score:Q", format=".0f"), alt.Tooltip("readiness:Q", format=".0f")],
+                )
+            )
+            st.altair_chart(score_chart.properties(height=260), use_container_width=True)
+
+    table_cols = st.columns([1, 1])
+    with table_cols[0]:
+        st.markdown("**Mejores oportunidades**")
+        top_display = scanner_leaderboard_rows(table, bucket="Todos", limit=12)
+        if top_display.empty:
+            st.info("Sin oportunidades priorizadas.")
+        else:
+            st.dataframe(top_display, use_container_width=True, hide_index=True, height=300)
+    with table_cols[1]:
+        st.markdown("**Falta confirmacion / bloqueadas**")
+        watch_display = scanner_leaderboard_rows(table, bucket="Vigilar", limit=8)
+        avoid_display = scanner_leaderboard_rows(table, bucket="Evitar", limit=4)
+        blocked_display = pd.concat([watch_display, avoid_display], ignore_index=True).head(12)
+        if blocked_display.empty:
+            st.info("Sin setups bloqueados.")
+        else:
+            st.dataframe(blocked_display, use_container_width=True, hide_index=True, height=300)
+
+
 def render_market_pulse_dashboard(table: pd.DataFrame) -> None:
     summary = market_pulse_summary(table)
     st.markdown("**Pulso del mercado**")
@@ -6246,7 +6441,7 @@ def render_market_pulse_dashboard(table: pd.DataFrame) -> None:
                 tooltip=["bucket:N", alt.Tooltip("count:Q", format=",.0f")],
             )
         )
-        st.altair_chart(bucket_chart.properties(height=185), width="stretch")
+        st.altair_chart(bucket_chart.properties(height=185), use_container_width=True)
     with chart_cols[1]:
         gate_df = rows[rows["gate"].ne("-")].groupby("gate", as_index=False).size().rename(columns={"size": "count"})
         if gate_df.empty:
@@ -6261,7 +6456,7 @@ def render_market_pulse_dashboard(table: pd.DataFrame) -> None:
                     tooltip=["gate:N", alt.Tooltip("count:Q", format=",.0f")],
                 )
             )
-            st.altair_chart(gate_chart.properties(height=185), width="stretch")
+            st.altair_chart(gate_chart.properties(height=185), use_container_width=True)
     with chart_cols[2]:
         risk_map = market_pulse_risk_map(table)
         if risk_map.empty:
@@ -6285,7 +6480,7 @@ def render_market_pulse_dashboard(table: pd.DataFrame) -> None:
                     ],
                 )
             )
-            st.altair_chart(risk_chart.properties(height=185), width="stretch")
+            st.altair_chart(risk_chart.properties(height=185), use_container_width=True)
 
 
 def focused_display_table(table: pd.DataFrame) -> pd.DataFrame:
@@ -7762,6 +7957,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
         risk_pct_ui = st.number_input("Riesgo %", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key="command_risk")
 
     render_alert_noise_contract(brief)
+    render_scanner_cockpit(best, confluence_df, options_df, brief)
     render_market_pulse_dashboard(best)
 
     left, right = st.columns([1.6, 0.72])
@@ -9031,6 +9227,19 @@ def main() -> None:
         .platform-mark{display:grid;place-items:center;width:42px;height:42px;border:2px solid;border-radius:8px;font-size:13px;font-weight:900;background:#111827}
         .platform-name{font-size:14px;line-height:1.2;color:#f8fafc;font-weight:850}
         .platform-meta{font-size:12px;line-height:1.25;color:#a7b3c5;margin-top:4px}
+        .scanner-tape{display:grid;grid-template-columns:1.1fr 1fr .9fr;gap:8px;align-items:center;border:1px solid rgba(148,163,184,.24);border-radius:8px;background:#111827;padding:8px 10px;margin:6px 0 10px}
+        .scanner-tape div{display:flex;align-items:center;justify-content:space-between;gap:10px;border-right:1px solid rgba(148,163,184,.18);padding-right:10px;min-width:0}
+        .scanner-tape div:last-child{border-right:0;padding-right:0}
+        .scanner-tape strong{color:#f8fafc;font-size:12px;font-weight:950;text-transform:uppercase;white-space:nowrap}
+        .scanner-tape span{color:#cbd5e1;font-size:12px;line-height:1.25;text-align:right;overflow-wrap:anywhere}
+        .scanner-card-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 10px}
+        .scanner-card{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#0b1220;padding:10px 12px;min-height:90px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+        .scanner-card span{display:block;color:#94a3b8;font-size:11px;line-height:1.2;font-weight:900;text-transform:uppercase}
+        .scanner-card strong{display:block;color:#f8fafc;font-size:28px;line-height:1;margin:8px 0 7px;letter-spacing:0}
+        .scanner-card small{display:block;color:#cbd5e1;font-size:12px;line-height:1.25}
+        .scanner-card-buy{border-color:rgba(34,197,94,.42);background:rgba(21,93,62,.32)}
+        .scanner-card-watch{border-color:rgba(245,158,11,.42);background:rgba(120,74,15,.28)}
+        .scanner-card-avoid{border-color:rgba(239,68,68,.42);background:rgba(127,29,29,.30)}
         .kpibox{display:inline-block;padding:8px 12px;background:#081023;border-radius:8px;margin-right:8px;color:var(--muted)}
         .metrics-row{display:flex;gap:12px;flex-wrap:wrap}
         .metric-card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:10px;border-radius:8px;min-width:160px}
@@ -9099,8 +9308,9 @@ def main() -> None:
         .stButton button:hover{border-color:#a78bfa;color:#f8fafc}
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
+        @media (max-width:1100px){.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
         @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
-        @media (max-width:600px){.metric-card{min-width:120px}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}}
+        @media (max-width:600px){.metric-card{min-width:120px}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.scanner-card-grid{grid-template-columns:1fr}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}}
         </style>
         """,
         unsafe_allow_html=True,

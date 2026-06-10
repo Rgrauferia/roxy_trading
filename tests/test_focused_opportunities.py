@@ -68,6 +68,9 @@ from streamlit_app import (
     realtime_refresh_dashboard_status,
     resolve_study_strategy_choice,
     runtime_backup_dashboard_status,
+    scanner_heatmap_rows,
+    scanner_leaderboard_rows,
+    scanner_overview_summary,
     safe_key,
     stability_summary_dashboard_status,
     strategy_family_for_row,
@@ -651,6 +654,54 @@ def test_market_pulse_risk_map_keeps_numeric_risk_and_readiness():
     assert risk_map["symbol"].tolist() == ["AAPL"]
     assert risk_map.loc[0, "risk_pct_display"] == 1.7999999999999998
     assert risk_map.loc[0, "readiness"] == 86
+
+
+def test_scanner_cockpit_summary_heatmap_and_leaderboard_prioritize_setups():
+    brief = {
+        "market_session": {"stock_session": "Regular"},
+        "source_freshness": {"label": "Frescos"},
+        "opportunities": [
+            {
+                "ai_action": "ALERT",
+                "symbol": "AAPL",
+                "market": "stock",
+                "ai_score": 91,
+                "signal": "BUY",
+                "trade_decision": "TRADE_FOR_2PCT",
+                "strategy_family": "Pullback",
+                "trigger_setup": "PULLBACK",
+                "risk_pct": 0.018,
+                "alert_gate": "ready",
+                "alert_readiness_score": 86,
+            },
+            {
+                "ai_action": "WATCH",
+                "symbol": "NVDA",
+                "market": "stock",
+                "ai_score": 77,
+                "signal": "WATCH",
+                "trade_decision": "WAIT",
+                "strategy_family": "Canal alcista",
+                "trigger_setup": "CANAL_ALCISTA",
+                "risk_pct": 0.042,
+                "alert_gate": "risk",
+                "alert_readiness_score": 64,
+            },
+        ],
+    }
+    table = focused_opportunity_table(brief)
+    options = pd.DataFrame([{"option_decision": "OPTION_CANDIDATE"}, {"option_decision": "REJECTED"}])
+
+    summary = scanner_overview_summary(table, pd.DataFrame([{"symbol": "AAPL"}]), options, brief)
+    heatmap = scanner_heatmap_rows(table)
+    leaderboard = scanner_leaderboard_rows(table, bucket="Todos", limit=2)
+
+    assert summary["top_symbol"] == "AAPL"
+    assert summary["option_candidates"] == 1
+    assert summary["session"] == "Regular"
+    assert {"Pullback", "Canal alcista"}.issubset(set(heatmap["strategy"]))
+    assert leaderboard["symbol"].tolist() == ["AAPL", "NVDA"]
+    assert leaderboard.loc[0, "status"] == "Operar"
 
 
 def test_platform_labels_hide_internal_statuses():
