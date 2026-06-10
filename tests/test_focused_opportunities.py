@@ -1293,7 +1293,7 @@ def test_stability_summary_dashboard_status_uses_official_health_summary():
     assert "OK 88.2%" in status["detail"]
     assert "racha OK x3" in status["detail"]
     assert "recuperado 18.5m" in status["detail"]
-    assert "recurrente external_disk x2" in status["detail"]
+    assert "hist external_disk x2" in status["detail"]
 
 
 def test_stability_summary_dashboard_status_flags_current_failure():

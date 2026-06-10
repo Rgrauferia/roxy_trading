@@ -770,7 +770,7 @@ def test_render_text_report_includes_stability_summary():
 
     text = render_text_report(report)
 
-    assert "Stability: OK 95.0% over 20 checks | streak OK x12 | recovered 42.5m | top issue operational_logs x3" in text
+    assert "Stability: OK 95.0% over 20 checks | streak OK x12 | recovered 42.5m | hist issue operational_logs x3" in text
 
 
 def test_health_notification_message_uses_top_issue_and_recovery():

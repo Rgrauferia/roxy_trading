@@ -5095,7 +5095,8 @@ def stability_summary_dashboard_status(summary: dict[str, Any] | None) -> dict[s
         detail += f" | ultimo {text_display(last_issue.get('name'))}"
     dominant_issue = summary.get("dominant_issue") if isinstance(summary.get("dominant_issue"), dict) else {}
     if dominant_issue.get("name"):
-        detail += f" | recurrente {text_display(dominant_issue.get('name'))} x{int(dominant_issue.get('count') or 0)}"
+        issue_prefix = "hist" if latest_status == "OK" else "recurrente"
+        detail += f" | {issue_prefix} {text_display(dominant_issue.get('name'))} x{int(dominant_issue.get('count') or 0)}"
     return {
         "label": label,
         "tone": tone,

@@ -2060,7 +2060,9 @@ def render_text_report(report: dict[str, Any]) -> str:
         dominant_issue = stability.get("dominant_issue") if isinstance(stability.get("dominant_issue"), dict) else {}
         issue_detail = ""
         if dominant_issue.get("name"):
-            issue_detail = f" | top issue {dominant_issue.get('name')} x{dominant_issue.get('count', 0)}"
+            current_streak_status = str(stability.get("current_streak_status") or "").upper()
+            issue_label = "hist issue" if current_streak_status == "OK" else "top issue"
+            issue_detail = f" | {issue_label} {dominant_issue.get('name')} x{dominant_issue.get('count', 0)}"
         lines.append(
             "Stability: "
             f"OK {ok_pct} over {stability.get('sample_size', 0)} checks | "
