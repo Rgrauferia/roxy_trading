@@ -30,6 +30,7 @@ from streamlit_app import (
     data_freshness_status,
     disk_dashboard_status,
     execution_blocker_label,
+    filter_focused_opportunities,
     focused_display_table_es,
     focused_display_table,
     focused_opportunity_table,
@@ -573,6 +574,49 @@ def test_market_pulse_summary_groups_actionable_dashboard_state():
     assert summary["top_gate"] == "Risk"
     assert summary["top_market"] == "stock"
     assert summary["risk_alerts"] == 1
+
+
+def test_filter_focused_opportunities_applies_dashboard_controls():
+    brief = {
+        "opportunities": [
+            {
+                "ai_action": "ALERT",
+                "symbol": "AAPL",
+                "market": "stock",
+                "ai_score": 91,
+                "signal": "BUY",
+                "trade_decision": "TRADE_FOR_2PCT",
+                "alert_readiness_score": 86,
+            },
+            {
+                "ai_action": "WATCH",
+                "symbol": "NVDA",
+                "market": "stock",
+                "ai_score": 77,
+                "signal": "WATCH",
+                "trade_decision": "WAIT",
+                "alert_readiness_score": 64,
+            },
+            {
+                "ai_action": "WATCH",
+                "symbol": "BTC/USD",
+                "market": "crypto",
+                "ai_score": 72,
+                "signal": "WATCH",
+                "trade_decision": "WAIT",
+                "alert_readiness_score": 78,
+            },
+        ]
+    }
+
+    table = focused_opportunity_table(brief)
+    stock_watch = filter_focused_opportunities(table, bucket="Vigilar", market="stock", min_readiness=60)
+    ready_only = filter_focused_opportunities(table, bucket="Operar", market="Todos", min_readiness=80)
+    crypto_high = filter_focused_opportunities(table, bucket="Todos", market="crypto", min_readiness=75)
+
+    assert stock_watch["symbol"].tolist() == ["NVDA"]
+    assert ready_only["symbol"].tolist() == ["AAPL"]
+    assert crypto_high["symbol"].tolist() == ["BTC/USD"]
 
 
 def test_platform_labels_hide_internal_statuses():

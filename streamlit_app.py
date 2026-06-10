@@ -6179,6 +6179,26 @@ def market_pulse_summary(table: pd.DataFrame) -> dict[str, Any]:
     }
 
 
+def filter_focused_opportunities(
+    table: pd.DataFrame,
+    *,
+    bucket: str = "Todos",
+    market: str = "Todos",
+    min_readiness: float = 0,
+) -> pd.DataFrame:
+    if table.empty:
+        return table
+    pulse = market_pulse_rows(table)
+    mask = pd.Series(True, index=table.index)
+    if bucket != "Todos":
+        mask &= pulse["bucket"].eq(bucket).to_numpy()
+    if market != "Todos":
+        mask &= pulse["market"].astype(str).str.lower().eq(str(market).lower()).to_numpy()
+    readiness = pd.to_numeric(pulse["readiness"], errors="coerce").fillna(0)
+    mask &= readiness.ge(float(min_readiness)).to_numpy()
+    return table.loc[mask].reset_index(drop=True)
+
+
 def render_market_pulse_dashboard(table: pd.DataFrame) -> None:
     summary = market_pulse_summary(table)
     st.markdown("**Pulso del mercado**")
@@ -7791,7 +7811,33 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
             st.code("\n".join(lines))
         if not best.empty:
             with st.expander("Watchlist priorizada", expanded=False):
-                st.dataframe(focused_display_table_es(best).head(10), width="stretch", height=280)
+                watch_controls = st.columns([1, 1, 1])
+                with watch_controls[0]:
+                    watch_bucket = st.selectbox(
+                        "Estado",
+                        ["Todos", "Operar", "Vigilar", "Evitar"],
+                        key="watchlist_bucket_filter",
+                    )
+                with watch_controls[1]:
+                    markets = ["Todos"] + sorted(
+                        market
+                        for market in market_pulse_rows(best)["market"].dropna().astype(str).unique().tolist()
+                        if market != "-"
+                    )
+                    watch_market = st.selectbox("Mercado", markets, key="watchlist_market_filter")
+                with watch_controls[2]:
+                    watch_min_readiness = st.slider("Readiness minimo", 0, 100, 0, step=5, key="watchlist_min_readiness")
+                filtered_watchlist = filter_focused_opportunities(
+                    best,
+                    bucket=watch_bucket,
+                    market=watch_market,
+                    min_readiness=float(watch_min_readiness),
+                )
+                if filtered_watchlist.empty:
+                    st.info("Ninguna oportunidad coincide con esos filtros.")
+                else:
+                    st.caption(f"Mostrando {min(len(filtered_watchlist), 15)} de {len(best)} oportunidades priorizadas.")
+                    st.dataframe(focused_display_table_es(filtered_watchlist).head(15), width="stretch", height=320)
 
 
 def show_focused_opportunities(confluence_df: pd.DataFrame, options_df: pd.DataFrame, brief: dict) -> None:
