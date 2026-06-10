@@ -44,6 +44,7 @@ from streamlit_app import (
     load_latest_ma_scan,
     live_backend_status,
     local_training_media_dashboard_status,
+    market_pulse_risk_map,
     market_pulse_rows,
     market_pulse_summary,
     notification_channel_display,
@@ -617,6 +618,39 @@ def test_filter_focused_opportunities_applies_dashboard_controls():
     assert stock_watch["symbol"].tolist() == ["NVDA"]
     assert ready_only["symbol"].tolist() == ["AAPL"]
     assert crypto_high["symbol"].tolist() == ["BTC/USD"]
+
+
+def test_market_pulse_risk_map_keeps_numeric_risk_and_readiness():
+    brief = {
+        "opportunities": [
+            {
+                "ai_action": "ALERT",
+                "symbol": "AAPL",
+                "market": "stock",
+                "ai_score": 91,
+                "signal": "BUY",
+                "trade_decision": "TRADE_FOR_2PCT",
+                "risk_pct": 0.018,
+                "alert_readiness_score": 86,
+            },
+            {
+                "ai_action": "WATCH",
+                "symbol": "MSFT",
+                "market": "stock",
+                "ai_score": 66,
+                "signal": "WATCH",
+                "trade_decision": "WAIT",
+                "risk_pct": None,
+                "alert_readiness_score": 55,
+            },
+        ]
+    }
+
+    risk_map = market_pulse_risk_map(focused_opportunity_table(brief))
+
+    assert risk_map["symbol"].tolist() == ["AAPL"]
+    assert risk_map.loc[0, "risk_pct_display"] == 1.7999999999999998
+    assert risk_map.loc[0, "readiness"] == 86
 
 
 def test_platform_labels_hide_internal_statuses():

@@ -6199,6 +6199,20 @@ def filter_focused_opportunities(
     return table.loc[mask].reset_index(drop=True)
 
 
+def market_pulse_risk_map(table: pd.DataFrame) -> pd.DataFrame:
+    rows = market_pulse_rows(table)
+    if rows.empty:
+        return pd.DataFrame()
+    risk_map = rows.copy()
+    risk_map["readiness"] = pd.to_numeric(risk_map["readiness"], errors="coerce")
+    risk_map["risk_pct"] = pd.to_numeric(risk_map["risk_pct"], errors="coerce")
+    risk_map = risk_map.dropna(subset=["readiness", "risk_pct"])
+    if risk_map.empty:
+        return risk_map
+    risk_map["risk_pct_display"] = risk_map["risk_pct"] * 100.0
+    return risk_map
+
+
 def render_market_pulse_dashboard(table: pd.DataFrame) -> None:
     summary = market_pulse_summary(table)
     st.markdown("**Pulso del mercado**")
@@ -6219,7 +6233,7 @@ def render_market_pulse_dashboard(table: pd.DataFrame) -> None:
         st.info("Aun no hay oportunidades para dibujar el pulso.")
         return
 
-    chart_cols = st.columns([1, 1])
+    chart_cols = st.columns([1, 1, 1])
     with chart_cols[0]:
         bucket_df = rows.groupby(["bucket", "tone"], as_index=False).size().rename(columns={"size": "count"})
         bucket_chart = (
@@ -6248,6 +6262,30 @@ def render_market_pulse_dashboard(table: pd.DataFrame) -> None:
                 )
             )
             st.altair_chart(gate_chart.properties(height=185), width="stretch")
+    with chart_cols[2]:
+        risk_map = market_pulse_risk_map(table)
+        if risk_map.empty:
+            st.info("Sin riesgo/readiness suficiente.")
+        else:
+            risk_chart = (
+                alt.Chart(risk_map)
+                .mark_circle(size=130, opacity=0.82)
+                .encode(
+                    x=alt.X("risk_pct_display:Q", title="Riesgo %"),
+                    y=alt.Y("readiness:Q", title="Readiness", scale=alt.Scale(domain=[0, 100])),
+                    color=alt.Color("tone:N", title="", scale=alt.Scale(domain=["buy", "watch", "avoid"], range=["#22c55e", "#f59e0b", "#ef4444"])),
+                    shape=alt.Shape("market:N", title="Mercado"),
+                    tooltip=[
+                        "symbol:N",
+                        "bucket:N",
+                        "market:N",
+                        "gate:N",
+                        alt.Tooltip("risk_pct_display:Q", title="Riesgo %", format=".2f"),
+                        alt.Tooltip("readiness:Q", format=".0f"),
+                    ],
+                )
+            )
+            st.altair_chart(risk_chart.properties(height=185), width="stretch")
 
 
 def focused_display_table(table: pd.DataFrame) -> pd.DataFrame:
