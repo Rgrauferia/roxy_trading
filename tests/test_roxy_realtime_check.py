@@ -57,6 +57,7 @@ from tools.roxy_realtime_check import (
     validate_output_maintenance_report,
     validate_output_maintenance_service,
     validate_operational_logs,
+    validate_project_storage_footprint,
     validate_runtime_backup_report,
     validate_runtime_backup_service,
     validate_salto_integration,
@@ -1750,6 +1751,38 @@ def test_validate_local_training_media_warns_before_local_folder_gets_too_large(
     assert status["external_suggestion"].endswith("/roxy_trading/training_videos")
 
 
+def test_validate_project_storage_footprint_reports_top_local_dirs(tmp_path):
+    output = tmp_path / "output"
+    db = tmp_path / "db"
+    git_dir = tmp_path / ".git"
+    output.mkdir()
+    db.mkdir()
+    git_dir.mkdir()
+    (output / "scan.csv").write_text("x" * 20)
+    (db / "roxy.db").write_text("y" * 10)
+    (git_dir / "ignored").write_text("z" * 100)
+
+    status = validate_project_storage_footprint(tmp_path, warn_size_gb=1, fail_size_gb=2)
+
+    assert status["status"] == "OK"
+    assert status["size_bytes"] == 30
+    assert [item["name"] for item in status["top_entries"][:2]] == ["output", "db"]
+    assert ".git" not in status["detail"]
+
+
+def test_validate_project_storage_footprint_warns_when_local_project_grows(tmp_path, monkeypatch):
+    payload = tmp_path / "output"
+    payload.mkdir()
+    (payload / "large.csv").write_text("x")
+    monkeypatch.setattr(roxy_realtime_check, "path_size_bytes", lambda path: 6 * 1024**3)
+
+    status = validate_project_storage_footprint(tmp_path, warn_size_gb=5, fail_size_gb=20)
+
+    assert status["status"] == "WARN"
+    assert status["size_gb"] == 6.0
+    assert "ocupa 6.00 GiB" in status["detail"]
+
+
 def test_evaluate_realtime_health_tracks_local_training_media(tmp_path):
     now = datetime(2026, 6, 8, 12, 0, tzinfo=timezone.utc)
     _write_good_artifacts(tmp_path, now)
@@ -1762,6 +1795,9 @@ def test_evaluate_realtime_health_tracks_local_training_media(tmp_path):
     media_check = next(item for item in report["checks"] if item["name"] == "local_training_media")
     assert media_check["status"] == "OK"
     assert media_check["state"] == "LOCAL_SMALL"
+    storage_check = next(item for item in report["checks"] if item["name"] == "project_storage_footprint")
+    assert storage_check["status"] == "OK"
+    assert storage_check["size_bytes"] > 0
 
 
 def test_validate_storage_migration_waits_when_parallels_is_still_local(tmp_path):

@@ -56,6 +56,8 @@ DEFAULT_RUNTIME_CACHE_DESTINATION_PATH = (
 DEFAULT_LOCAL_TRAINING_MEDIA_RELATIVE_PATH = "training_videos"
 DEFAULT_TRAINING_MEDIA_WARN_GB = 5.0
 DEFAULT_TRAINING_MEDIA_FAIL_GB = 20.0
+DEFAULT_PROJECT_STORAGE_WARN_GB = 5.0
+DEFAULT_PROJECT_STORAGE_FAIL_GB = 20.0
 REQUIRED_CONFLUENCE_COLUMNS = {
     "market",
     "symbol",
@@ -677,6 +679,72 @@ def validate_local_training_media(
         warn_size_gb=warn_size_gb,
         fail_size_gb=fail_size_gb,
         external_suggestion=str(external_suggestion),
+    )
+
+
+def project_storage_entries(base_dir: str | Path, *, exclude_names: set[str] | None = None) -> list[dict[str, Any]]:
+    root = Path(base_dir)
+    excluded = exclude_names or {".git"}
+    entries: list[dict[str, Any]] = []
+    if not root.exists() or not root.is_dir():
+        return entries
+    for child in root.iterdir():
+        if child.name in excluded:
+            continue
+        size = path_size_bytes(child)
+        if size is None:
+            continue
+        entries.append(
+            {
+                "name": child.name,
+                "path": str(child),
+                "size_bytes": size,
+                "size_gb": round(size / (1024**3), 4),
+                "is_dir": child.is_dir(),
+                "is_symlink": child.is_symlink(),
+            }
+        )
+    return sorted(entries, key=lambda item: int(item.get("size_bytes") or 0), reverse=True)
+
+
+def project_storage_top_entries(base_dir: str | Path, *, limit: int = 5, exclude_names: set[str] | None = None) -> list[dict[str, Any]]:
+    return project_storage_entries(base_dir, exclude_names=exclude_names)[: max(1, int(limit))]
+
+
+def validate_project_storage_footprint(
+    base_dir: str | Path,
+    *,
+    warn_size_gb: float = DEFAULT_PROJECT_STORAGE_WARN_GB,
+    fail_size_gb: float = DEFAULT_PROJECT_STORAGE_FAIL_GB,
+    top_limit: int = 5,
+) -> dict[str, Any]:
+    root = Path(base_dir)
+    entries = project_storage_entries(root)
+    if root.exists() and root.is_dir():
+        size_bytes = sum(int(item.get("size_bytes") or 0) for item in entries)
+    else:
+        size_bytes = path_size_bytes(root)
+    if size_bytes is None:
+        return check("project_storage_footprint", "WARN", f"No se pudo medir {root}", path=str(root), exists=root.exists())
+    size_gb = size_bytes / (1024**3)
+    if size_gb >= fail_size_gb:
+        status = "FAIL"
+    elif size_gb >= warn_size_gb:
+        status = "WARN"
+    else:
+        status = "OK"
+    top_entries = entries[: max(1, int(top_limit))]
+    leaders = ", ".join(f"{item['name']} {float(item['size_gb']):.2f} GiB" for item in top_entries[:3]) or "sin entradas"
+    return check(
+        "project_storage_footprint",
+        status,
+        f"{root.name} ocupa {size_gb:.2f} GiB local; top: {leaders}",
+        path=str(root),
+        size_bytes=size_bytes,
+        size_gb=round(size_gb, 4),
+        warn_size_gb=warn_size_gb,
+        fail_size_gb=fail_size_gb,
+        top_entries=top_entries,
     )
 
 
@@ -1857,6 +1925,8 @@ def evaluate_realtime_health(
     training_media_path: str | Path | None = None,
     training_media_warn_gb: float = DEFAULT_TRAINING_MEDIA_WARN_GB,
     training_media_fail_gb: float = DEFAULT_TRAINING_MEDIA_FAIL_GB,
+    project_storage_warn_gb: float = DEFAULT_PROJECT_STORAGE_WARN_GB,
+    project_storage_fail_gb: float = DEFAULT_PROJECT_STORAGE_FAIL_GB,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     required_timeframes = required_timeframes or {"15m", "1h", "2h", "4h"}
@@ -1870,6 +1940,13 @@ def evaluate_realtime_health(
             external_disk_path=external_disk_path or DEFAULT_EXTERNAL_DISK_PATH,
             warn_size_gb=training_media_warn_gb,
             fail_size_gb=training_media_fail_gb,
+        )
+    )
+    checks.append(
+        validate_project_storage_footprint(
+            base_dir,
+            warn_size_gb=project_storage_warn_gb,
+            fail_size_gb=project_storage_fail_gb,
         )
     )
     if external_disk_path:
