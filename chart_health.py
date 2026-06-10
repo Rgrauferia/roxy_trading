@@ -251,6 +251,19 @@ def summarize_chart_health(rows: list[dict[str, Any]]) -> dict[str, Any]:
     stale_count = sum(1 for row in rows if str(row.get("label")) == "Estancada")
     missing_indicator_count = sum(1 for row in rows if str(row.get("indicator_status")) == "FAIL")
     data_quality_issue_count = sum(1 for row in rows if str(row.get("data_quality_status", "OK")) != "OK")
+    age_values = [
+        float(row.get("age_minutes"))
+        for row in rows
+        if row.get("age_minutes") is not None
+    ]
+    max_age_minutes = round(max(age_values), 1) if age_values else None
+    avg_age_minutes = round(sum(age_values) / len(age_values), 1) if age_values else None
+    stalest_chart = {}
+    if age_values:
+        stalest_chart = max(
+            (row for row in rows if row.get("age_minutes") is not None),
+            key=lambda row: float(row.get("age_minutes") or 0),
+        )
     if fail_count:
         status = "FAIL"
         label = "Graficas fallan"
@@ -278,6 +291,9 @@ def summarize_chart_health(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "stale_count": stale_count,
         "missing_indicator_count": missing_indicator_count,
         "data_quality_issue_count": data_quality_issue_count,
+        "max_age_minutes": max_age_minutes,
+        "avg_age_minutes": avg_age_minutes,
+        "stalest_chart": stalest_chart,
         "top_issue": top_issue,
     }
 

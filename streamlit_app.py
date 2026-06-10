@@ -5208,15 +5208,31 @@ def chart_realtime_dashboard_status(report: dict[str, Any] | None) -> dict[str, 
     warn_count = int(summary.get("warn_count") or 0)
     stale_count = int(summary.get("stale_count") or 0)
     data_quality_issue_count = int(summary.get("data_quality_issue_count") or 0)
+    max_age_minutes = safe_float(summary.get("max_age_minutes"))
+    avg_age_minutes = safe_float(summary.get("avg_age_minutes"))
     detail = f"{checked} charts | fallos {fail_count} | warnings {warn_count}"
+    if max_age_minutes is not None:
+        detail += f" | max {max_age_minutes:.1f}m"
+    if avg_age_minutes is not None:
+        detail += f" | avg {avg_age_minutes:.1f}m"
     if stale_count:
         detail += f" | estancadas {stale_count}"
     if data_quality_issue_count:
         detail += f" | calidad {data_quality_issue_count}"
+    stalest_chart = summary.get("stalest_chart") if isinstance(summary.get("stalest_chart"), dict) else {}
+    if stalest_chart and not summary.get("top_issue"):
+        detail += f" | atrasada {text_display(stalest_chart.get('symbol'))} {text_display(stalest_chart.get('timeframe'))}"
     top_issue = summary.get("top_issue") if isinstance(summary.get("top_issue"), dict) else {}
     if top_issue:
         detail += f" | {text_display(top_issue.get('symbol'))} {text_display(top_issue.get('timeframe'))}"
-    return {"label": label or "Graficas", "tone": tone, "detail": detail}
+    return {
+        "label": label or "Graficas",
+        "tone": tone,
+        "detail": detail,
+        "max_age_minutes": max_age_minutes,
+        "avg_age_minutes": avg_age_minutes,
+        "stalest_chart": stalest_chart,
+    }
 
 
 def ai_brief_from_latest(

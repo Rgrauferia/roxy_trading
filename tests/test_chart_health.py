@@ -100,8 +100,8 @@ def test_chart_freshness_status_marks_stale_chart():
 
 def test_summarize_chart_health_flags_failures_and_top_issue():
     rows = [
-        {"symbol": "AAPL", "status": "OK", "label": "Viva", "indicator_status": "OK"},
-        {"symbol": "AMD", "status": "FAIL", "label": "Estancada", "indicator_status": "FAIL"},
+        {"symbol": "AAPL", "timeframe": "15m", "status": "OK", "label": "Viva", "indicator_status": "OK", "age_minutes": 4.0},
+        {"symbol": "AMD", "timeframe": "1h", "status": "FAIL", "label": "Estancada", "indicator_status": "FAIL", "age_minutes": 92.4},
     ]
 
     summary = summarize_chart_health(rows)
@@ -111,6 +111,9 @@ def test_summarize_chart_health_flags_failures_and_top_issue():
     assert summary["stale_count"] == 1
     assert summary["missing_indicator_count"] == 1
     assert summary["top_issue"]["symbol"] == "AMD"
+    assert summary["max_age_minutes"] == 92.4
+    assert summary["avg_age_minutes"] == 48.2
+    assert summary["stalest_chart"]["symbol"] == "AMD"
 
 
 def test_write_chart_health_report_outputs_summary(tmp_path):

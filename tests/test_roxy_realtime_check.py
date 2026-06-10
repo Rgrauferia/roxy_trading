@@ -1777,7 +1777,15 @@ def test_validate_chart_health_report_accepts_recent_ok_report(tmp_path):
         json.dumps(
             {
                 "generated_at": (now - timedelta(minutes=5)).isoformat(),
-                "summary": {"status": "OK", "checked_count": 4, "fail_count": 0, "warn_count": 0},
+                "summary": {
+                    "status": "OK",
+                    "checked_count": 4,
+                    "fail_count": 0,
+                    "warn_count": 0,
+                    "max_age_minutes": 24.5,
+                    "avg_age_minutes": 10.0,
+                    "stalest_chart": {"symbol": "AAPL", "timeframe": "1h"},
+                },
             }
         )
     )
@@ -1786,6 +1794,11 @@ def test_validate_chart_health_report_accepts_recent_ok_report(tmp_path):
 
     assert status["status"] == "OK"
     assert status["checked_count"] == 4
+    assert status["max_chart_age_minutes"] == 24.5
+    assert status["avg_chart_age_minutes"] == 10.0
+    assert status["stalest_chart"] == {"symbol": "AAPL", "timeframe": "1h"}
+    assert "max chart age 24.5m" in status["detail"]
+    assert "stalest AAPL 1h" in status["detail"]
 
 
 def test_validate_chart_health_report_fails_stale_report(tmp_path):

@@ -1502,6 +1502,9 @@ def test_chart_realtime_dashboard_status_summarizes_report():
                 "warn_count": 1,
                 "stale_count": 0,
                 "data_quality_issue_count": 1,
+                "max_age_minutes": 24.5,
+                "avg_age_minutes": 11.2,
+                "stalest_chart": {"symbol": "NVDA", "timeframe": "1h"},
                 "top_issue": {"symbol": "AAPL", "timeframe": "15m"},
             }
         }
@@ -1510,8 +1513,13 @@ def test_chart_realtime_dashboard_status_summarizes_report():
     assert status["label"] == "Graficas revisar"
     assert status["tone"] == "watch"
     assert "4 charts" in status["detail"]
+    assert "max 24.5m" in status["detail"]
+    assert "avg 11.2m" in status["detail"]
     assert "calidad 1" in status["detail"]
     assert "AAPL 15m" in status["detail"]
+    assert status["max_age_minutes"] == 24.5
+    assert status["avg_age_minutes"] == 11.2
+    assert status["stalest_chart"] == {"symbol": "NVDA", "timeframe": "1h"}
 
 
 def test_build_chart_level_plan_includes_trade_levels():

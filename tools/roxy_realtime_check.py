@@ -1610,16 +1610,27 @@ def validate_chart_health_report(
     checked_count = int(summary.get("checked_count", 0) or 0)
     fail_count = int(summary.get("fail_count", 0) or 0)
     warn_count = int(summary.get("warn_count", 0) or 0)
+    max_chart_age_minutes = summary.get("max_age_minutes")
+    avg_chart_age_minutes = summary.get("avg_age_minutes")
+    stalest_chart = summary.get("stalest_chart") if isinstance(summary.get("stalest_chart"), dict) else {}
+    details = [f"age {age_minutes:.0f}m", f"checked {checked_count}", f"fail {fail_count}", f"warn {warn_count}"]
+    if max_chart_age_minutes is not None:
+        details.append(f"max chart age {float(max_chart_age_minutes):.1f}m")
+    if stalest_chart:
+        details.append(f"stalest {stalest_chart.get('symbol', '-')} {stalest_chart.get('timeframe', '-')}")
     return check(
         "chart_realtime_health_report",
         status,
-        f"age {age_minutes:.0f}m, checked {checked_count}, fail {fail_count}, warn {warn_count}",
+        ", ".join(details),
         path=str(report_path),
         generated_at=generated_at.isoformat(),
         age_minutes=age_minutes,
         checked_count=checked_count,
         fail_count=fail_count,
         warn_count=warn_count,
+        max_chart_age_minutes=max_chart_age_minutes,
+        avg_chart_age_minutes=avg_chart_age_minutes,
+        stalest_chart=stalest_chart,
     )
 
 
