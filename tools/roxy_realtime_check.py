@@ -1590,6 +1590,9 @@ def validate_output_maintenance_report(
     trimmed_log_count = int(payload.get("trimmed_log_count", 0) or 0)
     trimmed_history_count = int(payload.get("trimmed_history_count", 0) or 0)
     removed_alert_report_count = int(payload.get("removed_alert_report_count", 0) or 0)
+    runtime_footprint_after = dict(payload.get("runtime_footprint_after") or {})
+    runtime_footprint_mb = runtime_footprint_after.get("total_mb")
+    runtime_footprint_reclaimed_bytes = int(payload.get("runtime_footprint_reclaimed_bytes", 0) or 0)
     kept_counts = dict(payload.get("kept_counts") or {})
     details.append(f"removed {removed_count}")
     details.append(f"archived output {output_archive_count}")
@@ -1599,6 +1602,10 @@ def validate_output_maintenance_report(
     details.append(f"trimmed logs {trimmed_log_count}")
     details.append(f"trimmed histories {trimmed_history_count}")
     details.append(f"removed alert reports {removed_alert_report_count}")
+    if runtime_footprint_mb is not None:
+        details.append(f"runtime footprint {float(runtime_footprint_mb):.1f} MB")
+    if runtime_footprint_reclaimed_bytes:
+        details.append(f"reclaimed {runtime_footprint_reclaimed_bytes} bytes")
     return check(
         "output_maintenance_report",
         status,
@@ -1619,6 +1626,9 @@ def validate_output_maintenance_report(
         trimmed_log_count=trimmed_log_count,
         trimmed_history_count=trimmed_history_count,
         removed_alert_report_count=removed_alert_report_count,
+        runtime_footprint_after=runtime_footprint_after,
+        runtime_footprint_mb=runtime_footprint_mb,
+        runtime_footprint_reclaimed_bytes=runtime_footprint_reclaimed_bytes,
         kept_counts=kept_counts,
     )
 

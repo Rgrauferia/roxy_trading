@@ -1338,6 +1338,8 @@ def test_validate_output_maintenance_report_accepts_recent_run(tmp_path):
                 "trimmed_log_count": 2,
                 "trimmed_history_count": 1,
                 "removed_alert_report_count": 4,
+                "runtime_footprint_after": {"total_mb": 53.5},
+                "runtime_footprint_reclaimed_bytes": 1200,
                 "kept_counts": {"ma_live_strategy_*.csv": 96},
             }
         )
@@ -1355,6 +1357,10 @@ def test_validate_output_maintenance_report_accepts_recent_run(tmp_path):
     assert status["trimmed_log_count"] == 2
     assert status["trimmed_history_count"] == 1
     assert status["removed_alert_report_count"] == 4
+    assert status["runtime_footprint_mb"] == 53.5
+    assert status["runtime_footprint_reclaimed_bytes"] == 1200
+    assert "runtime footprint 53.5 MB" in status["detail"]
+    assert "reclaimed 1200 bytes" in status["detail"]
     assert status["output_exists"] is True
 
 

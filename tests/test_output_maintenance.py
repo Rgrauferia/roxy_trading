@@ -11,7 +11,9 @@ from tools.output_maintenance import (
     cleanup_output_files,
     cleanup_runtime_artifacts,
     cleanup_stale_output_files,
+    directory_footprint,
     render_text_report,
+    runtime_footprint,
     trim_history_file,
     trim_log_files,
     write_report,
@@ -37,6 +39,24 @@ def test_cleanup_output_files_applies_pattern_retention(tmp_path):
     assert not old_path.exists()
     assert new_path.exists()
     assert unrelated.exists()
+
+
+def test_runtime_footprint_counts_runtime_files_and_bytes(tmp_path):
+    output = tmp_path / "output"
+    alerts = tmp_path / "alerts"
+    logs = tmp_path / "logs"
+    for path in (output, alerts, logs):
+        path.mkdir()
+    (output / "scan.csv").write_text("abcd")
+    (alerts / "health.json").write_text("{}")
+    (logs / "ma_live.out").write_text("xyz")
+
+    footprint = runtime_footprint(output_dir=output, alerts_path=alerts, log_dirs=[logs])
+
+    assert directory_footprint(output)["files"] == 1
+    assert footprint["total_files"] == 3
+    assert footprint["total_bytes"] == 9
+    assert footprint["output"]["bytes"] == 4
 
 
 def test_cleanup_output_files_dry_run_keeps_files(tmp_path):
@@ -194,6 +214,8 @@ def test_write_report_outputs_json_and_text(tmp_path):
         "stale_output_archived": [],
         "stale_output_removed_counts": {"fine_sweep_*": 1},
         "stale_output_max_age_days_rules": {"fine_sweep_*": 7.0},
+        "runtime_footprint_after": {"total_mb": 12.5},
+        "runtime_footprint_reclaimed_bytes": 42,
         "removed": ["a.csv", "b.csv"],
     }
 
@@ -205,6 +227,8 @@ def test_write_report_outputs_json_and_text(tmp_path):
     assert "Archived output: 1" in render_text_report(result)
     assert "archived output: archive/a.csv" in render_text_report(result)
     assert "Prepared external dirs: 1" in render_text_report(result)
+    assert "Runtime footprint: 12.5 MB" in render_text_report(result)
+    assert "Reclaimed runtime bytes: 42" in render_text_report(result)
     assert "prepared dir: archive" in render_text_report(result)
     assert "Removed stale output: 1" in render_text_report(result)
     assert "stale fine_sweep_*: removed 1, max age 7.0d" in render_text_report(result)
@@ -372,6 +396,8 @@ def test_cleanup_runtime_artifacts_reports_trimmed_logs_and_histories(tmp_path):
     assert result["trimmed_history_count"] == 1
     assert result["removed_alert_report_count"] == 1
     assert result["removed_log_snapshot_count"] == 1
+    assert result["runtime_footprint_before"]["total_files"] >= result["runtime_footprint_after"]["total_files"]
+    assert result["runtime_footprint_reclaimed_bytes"] > 0
     assert "Trimmed logs: 1" in render_text_report(result)
     assert "Archived output: 1" in render_text_report(result)
     assert "Removed alert reports: 1" in render_text_report(result)

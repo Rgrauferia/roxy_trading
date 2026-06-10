@@ -75,6 +75,51 @@ DEFAULT_MAX_HISTORY_LINES = 500
 DEFAULT_LOG_SNAPSHOT_KEEP_COUNT = 20
 
 
+def directory_footprint(path: str | Path) -> dict[str, Any]:
+    root = Path(path)
+    files = 0
+    bytes_total = 0
+    if not root.exists():
+        return {"path": str(root), "exists": False, "files": 0, "bytes": 0, "mb": 0.0}
+    if root.is_file():
+        try:
+            bytes_total = root.stat().st_size
+        except OSError:
+            bytes_total = 0
+        return {"path": str(root), "exists": True, "files": 1, "bytes": bytes_total, "mb": round(bytes_total / (1024**2), 3)}
+    for child in root.rglob("*"):
+        if not child.is_file():
+            continue
+        try:
+            bytes_total += child.stat().st_size
+            files += 1
+        except OSError:
+            continue
+    return {"path": str(root), "exists": True, "files": files, "bytes": bytes_total, "mb": round(bytes_total / (1024**2), 3)}
+
+
+def runtime_footprint(
+    *,
+    output_dir: str | Path = OUTPUT_DIR,
+    alerts_path: str | Path = ALERTS_DIR,
+    log_dirs: list[str | Path] | None = None,
+) -> dict[str, Any]:
+    selected_log_dirs = log_dirs or [LOG_DIR, LAUNCHD_LOG_DIR]
+    output = directory_footprint(output_dir)
+    alerts = directory_footprint(alerts_path)
+    logs = [directory_footprint(path) for path in selected_log_dirs]
+    total_bytes = int(output["bytes"]) + int(alerts["bytes"]) + sum(int(item["bytes"]) for item in logs)
+    total_files = int(output["files"]) + int(alerts["files"]) + sum(int(item["files"]) for item in logs)
+    return {
+        "output": output,
+        "alerts": alerts,
+        "logs": logs,
+        "total_files": total_files,
+        "total_bytes": total_bytes,
+        "total_mb": round(total_bytes / (1024**2), 3),
+    }
+
+
 def files_for_pattern(output_dir: Path, pattern: str) -> list[Path]:
     if not output_dir.exists():
         return []
@@ -460,6 +505,7 @@ def cleanup_runtime_artifacts(
     log_snapshot_dir: str | Path = DEFAULT_LOG_SNAPSHOT_DIR,
     log_snapshot_keep_count: int = DEFAULT_LOG_SNAPSHOT_KEEP_COUNT,
 ) -> dict[str, Any]:
+    footprint_before = runtime_footprint(output_dir=output_dir, alerts_path=alerts_path, log_dirs=log_dirs)
     prepared_dirs = prepare_maintenance_dirs(
         output_archive_dir=output_archive_dir,
         log_snapshot_dir=log_snapshot_dir,
@@ -489,6 +535,7 @@ def cleanup_runtime_artifacts(
         keep_count=log_snapshot_keep_count,
         dry_run=dry_run,
     )
+    footprint_after = runtime_footprint(output_dir=output_dir, alerts_path=alerts_path, log_dirs=log_dirs)
     result.update(
         {
             "alerts_dir": str(alerts_path),
@@ -521,6 +568,12 @@ def cleanup_runtime_artifacts(
             "removed_log_snapshots": log_snapshots["removed"],
             "removed_log_snapshot_count": log_snapshots["removed_count"],
             "log_snapshot_counts": log_snapshots,
+            "runtime_footprint_before": footprint_before,
+            "runtime_footprint_after": footprint_after,
+            "runtime_footprint_reclaimed_bytes": max(
+                0,
+                int(footprint_before.get("total_bytes") or 0) - int(footprint_after.get("total_bytes") or 0),
+            ),
             "max_log_bytes": max_log_bytes,
             "max_history_lines": max_history_lines,
         }
@@ -553,6 +606,8 @@ def render_text_report(result: Mapping[str, Any]) -> str:
         f"Removed alert reports: {result.get('removed_alert_report_count', 0)}",
         f"Removed log snapshots: {result.get('removed_log_snapshot_count', 0)}",
         f"Prepared external dirs: {result.get('prepared_dir_count', 0)}",
+        f"Runtime footprint: {dict(result.get('runtime_footprint_after') or {}).get('total_mb', 0)} MB",
+        f"Reclaimed runtime bytes: {result.get('runtime_footprint_reclaimed_bytes', 0)}",
         "",
     ]
     for pattern, count in dict(result.get("removed_counts") or {}).items():
