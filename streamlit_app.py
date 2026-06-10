@@ -4510,6 +4510,10 @@ def output_maintenance_dashboard_status(
     if output_archive_error_count is None:
         output_archive_error_count = safe_float(maintenance_report.get("output_archive_error_count"))
     output_archive_dir = text_display(check_item.get("output_archive_dir") or maintenance_report.get("output_archive_dir"))
+    prepared_dir_count = safe_float(maintenance_report.get("prepared_dir_count"))
+    prepared_dir_error_count = safe_float(maintenance_report.get("prepared_dir_error_count"))
+    output_archive_exists = bool(maintenance_report.get("output_archive_exists"))
+    log_snapshot_dir_exists = bool(maintenance_report.get("log_snapshot_dir_exists"))
     stale_output_removed = safe_float(check_item.get("stale_output_removed_count"))
     if stale_output_removed is None:
         stale_output_removed = safe_float(maintenance_report.get("stale_output_removed_count"))
@@ -4529,6 +4533,9 @@ def output_maintenance_dashboard_status(
     if output_archive_error_count and tone == "buy":
         label = "Revisar"
         tone = "watch"
+    if prepared_dir_error_count and tone == "buy":
+        label = "Revisar"
+        tone = "watch"
 
     details = []
     if age_hours is not None:
@@ -4539,6 +4546,12 @@ def output_maintenance_dashboard_status(
         details.append(f"archivados {int(output_archive_count)}")
     if output_archive_error_count:
         details.append(f"errores archivo {int(output_archive_error_count)}")
+    if prepared_dir_error_count:
+        details.append(f"errores dirs {int(prepared_dir_error_count)}")
+    elif output_archive_exists and log_snapshot_dir_exists:
+        details.append("dirs OK")
+    elif prepared_dir_count:
+        details.append(f"dirs {int(prepared_dir_count)}")
     if stale_output_removed is not None:
         details.append(f"stale {int(stale_output_removed)}")
     if trimmed_logs is not None:
@@ -4561,6 +4574,10 @@ def output_maintenance_dashboard_status(
         "output_archive_count": int(output_archive_count) if output_archive_count is not None else None,
         "output_archive_error_count": int(output_archive_error_count) if output_archive_error_count is not None else None,
         "output_archive_dir": output_archive_dir,
+        "prepared_dir_count": int(prepared_dir_count) if prepared_dir_count is not None else None,
+        "prepared_dir_error_count": int(prepared_dir_error_count) if prepared_dir_error_count is not None else None,
+        "output_archive_exists": output_archive_exists,
+        "log_snapshot_dir_exists": log_snapshot_dir_exists,
         "stale_output_removed_count": int(stale_output_removed) if stale_output_removed is not None else None,
         "trimmed_log_count": int(trimmed_logs) if trimmed_logs is not None else None,
         "trimmed_history_count": int(trimmed_histories) if trimmed_histories is not None else None,

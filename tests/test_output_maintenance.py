@@ -186,6 +186,8 @@ def test_write_report_outputs_json_and_text(tmp_path):
         "removed_count": 2,
         "output_archive_count": 1,
         "archived": ["archive/a.csv"],
+        "prepared_dir_count": 1,
+        "prepared_dirs": {"created_dirs": ["archive"], "dir_errors": {}},
         "removed_counts": {"ma_live_strategy_*.csv": 2},
         "kept_counts": {"ma_live_strategy_*.csv": 96},
         "stale_output_removed_count": 1,
@@ -202,6 +204,8 @@ def test_write_report_outputs_json_and_text(tmp_path):
     assert "removed 2, kept 96" in render_text_report(result)
     assert "Archived output: 1" in render_text_report(result)
     assert "archived output: archive/a.csv" in render_text_report(result)
+    assert "Prepared external dirs: 1" in render_text_report(result)
+    assert "prepared dir: archive" in render_text_report(result)
     assert "Removed stale output: 1" in render_text_report(result)
     assert "stale fine_sweep_*: removed 1, max age 7.0d" in render_text_report(result)
 
@@ -360,6 +364,9 @@ def test_cleanup_runtime_artifacts_reports_trimmed_logs_and_histories(tmp_path):
 
     assert result["removed_count"] == 1
     assert result["output_archive_count"] == 1
+    assert result["prepared_dir_count"] == 1
+    assert result["output_archive_exists"] is True
+    assert result["log_snapshot_dir_exists"] is True
     assert result["stale_output_removed_count"] == 0
     assert result["trimmed_log_count"] == 1
     assert result["trimmed_history_count"] == 1
@@ -369,3 +376,32 @@ def test_cleanup_runtime_artifacts_reports_trimmed_logs_and_histories(tmp_path):
     assert "Archived output: 1" in render_text_report(result)
     assert "Removed alert reports: 1" in render_text_report(result)
     assert "Removed log snapshots: 1" in render_text_report(result)
+
+
+def test_cleanup_runtime_artifacts_prepares_missing_external_dirs(tmp_path):
+    output = tmp_path / "output"
+    alerts = tmp_path / "alerts"
+    logs = tmp_path / "logs"
+    archive = tmp_path / "external" / "output_archive"
+    snapshots = tmp_path / "external" / "log_snapshots"
+    output.mkdir()
+    alerts.mkdir()
+    logs.mkdir()
+
+    result = cleanup_runtime_artifacts(
+        output_dir=output,
+        alerts_path=alerts,
+        log_dirs=[logs],
+        retention_rules={},
+        stale_output_rules={},
+        output_archive_dir=archive,
+        log_snapshot_dir=snapshots,
+    )
+
+    assert archive.is_dir()
+    assert snapshots.is_dir()
+    assert result["prepared_dir_count"] == 2
+    assert result["prepared_dir_error_count"] == 0
+    assert result["output_archive_exists"] is True
+    assert result["log_snapshot_dir_exists"] is True
+    assert result["log_snapshot_counts"]["exists"] is True

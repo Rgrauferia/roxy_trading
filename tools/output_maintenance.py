@@ -118,6 +118,47 @@ def archive_removed_file(path: Path, *, output_root: Path, archive_dir: str | Pa
     return str(destination)
 
 
+def prepare_maintenance_dirs(
+    *,
+    output_archive_dir: str | Path | None = None,
+    log_snapshot_dir: str | Path | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    targets = {
+        "output_archive_dir": Path(output_archive_dir) if output_archive_dir else None,
+        "log_snapshot_dir": Path(log_snapshot_dir) if log_snapshot_dir else None,
+    }
+    created: list[str] = []
+    existing: dict[str, bool] = {}
+    errors: dict[str, str] = {}
+    for key, path in targets.items():
+        if path is None:
+            existing[key] = False
+            continue
+        if path.exists():
+            existing[key] = path.is_dir()
+            if not path.is_dir():
+                errors[key] = "path exists but is not a directory"
+            continue
+        existing[key] = False
+        if dry_run:
+            continue
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+            existing[key] = path.is_dir()
+            created.append(str(path))
+        except Exception as exc:
+            errors[key] = f"{type(exc).__name__}: {exc}"
+    return {
+        "created_dirs": created,
+        "created_dir_count": len(created),
+        "dir_exists": existing,
+        "dir_errors": errors,
+        "dir_error_count": len(errors),
+        "dry_run": dry_run,
+    }
+
+
 def cleanup_output_files(
     *,
     output_dir: str | Path = OUTPUT_DIR,
@@ -419,6 +460,11 @@ def cleanup_runtime_artifacts(
     log_snapshot_dir: str | Path = DEFAULT_LOG_SNAPSHOT_DIR,
     log_snapshot_keep_count: int = DEFAULT_LOG_SNAPSHOT_KEEP_COUNT,
 ) -> dict[str, Any]:
+    prepared_dirs = prepare_maintenance_dirs(
+        output_archive_dir=output_archive_dir,
+        log_snapshot_dir=log_snapshot_dir,
+        dry_run=dry_run,
+    )
     result = cleanup_output_files(
         output_dir=output_dir,
         retention_rules=retention_rules,
@@ -457,6 +503,11 @@ def cleanup_runtime_artifacts(
             "output_archive_dir": str(output_archive_dir) if output_archive_dir else "",
             "output_archive_count": int(result.get("archived_count") or 0) + int(stale_output.get("archived_count") or 0),
             "output_archive_error_count": int(result.get("archive_error_count") or 0) + int(stale_output.get("archive_error_count") or 0),
+            "prepared_dirs": prepared_dirs,
+            "prepared_dir_count": prepared_dirs["created_dir_count"],
+            "prepared_dir_error_count": prepared_dirs["dir_error_count"],
+            "output_archive_exists": bool(prepared_dirs["dir_exists"].get("output_archive_dir")),
+            "log_snapshot_dir_exists": bool(prepared_dirs["dir_exists"].get("log_snapshot_dir")),
             "trimmed_logs": trimmed_logs,
             "trimmed_log_count": len(trimmed_logs),
             "trimmed_histories": trimmed_histories,
@@ -501,6 +552,7 @@ def render_text_report(result: Mapping[str, Any]) -> str:
         f"Trimmed histories: {result.get('trimmed_history_count', 0)}",
         f"Removed alert reports: {result.get('removed_alert_report_count', 0)}",
         f"Removed log snapshots: {result.get('removed_log_snapshot_count', 0)}",
+        f"Prepared external dirs: {result.get('prepared_dir_count', 0)}",
         "",
     ]
     for pattern, count in dict(result.get("removed_counts") or {}).items():
@@ -511,6 +563,11 @@ def render_text_report(result: Mapping[str, Any]) -> str:
         lines.append(f"- archived stale output: {path}")
     if result.get("output_archive_error_count"):
         lines.append(f"- output archive errors: {result.get('output_archive_error_count')}")
+    prepared = result.get("prepared_dirs") if isinstance(result.get("prepared_dirs"), dict) else {}
+    for path in prepared.get("created_dirs") or []:
+        lines.append(f"- prepared dir: {path}")
+    for key, error in dict(prepared.get("dir_errors") or {}).items():
+        lines.append(f"- prepared dir error {key}: {error}")
     for pattern, count in dict(result.get("stale_output_removed_counts") or {}).items():
         if count:
             days = dict(result.get("stale_output_max_age_days_rules") or {}).get(pattern, "-")

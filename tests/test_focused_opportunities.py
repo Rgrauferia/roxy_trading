@@ -920,7 +920,12 @@ def test_output_maintenance_dashboard_status_uses_realtime_check():
                 }
             ],
         },
-        {},
+        {
+            "prepared_dir_count": 2,
+            "prepared_dir_error_count": 0,
+            "output_archive_exists": True,
+            "log_snapshot_dir_exists": True,
+        },
     )
 
     assert status["label"] == "OK"
@@ -929,8 +934,12 @@ def test_output_maintenance_dashboard_status_uses_realtime_check():
     assert "stale 9" in status["detail"]
     assert "removidos 522" in status["detail"]
     assert "archivados 11" in status["detail"]
+    assert "dirs OK" in status["detail"]
     assert status["output_archive_count"] == 11
     assert status["output_archive_dir"] == "/Volumes/RoxyData/MacArchive/roxy_trading/output_archive"
+    assert status["prepared_dir_count"] == 2
+    assert status["output_archive_exists"] is True
+    assert status["log_snapshot_dir_exists"] is True
     assert "logs 2" in status["detail"]
     assert "hist 1" in status["detail"]
     assert "reportes 3" in status["detail"]
@@ -973,6 +982,24 @@ def test_output_maintenance_dashboard_status_warns_on_archive_errors():
     assert status["tone"] == "watch"
     assert status["output_archive_error_count"] == 2
     assert "errores archivo 2" in status["detail"]
+
+
+def test_output_maintenance_dashboard_status_warns_on_prepared_dir_errors():
+    status = output_maintenance_dashboard_status(
+        {},
+        {
+            "generated_at": "2026-06-08T10:00:00+00:00",
+            "prepared_dir_error_count": 1,
+            "output_archive_exists": False,
+            "log_snapshot_dir_exists": False,
+        },
+        now=datetime(2026, 6, 8, 12, 0),
+    )
+
+    assert status["label"] == "Revisar"
+    assert status["tone"] == "watch"
+    assert status["prepared_dir_error_count"] == 1
+    assert "errores dirs 1" in status["detail"]
 
 
 def test_output_maintenance_dashboard_status_handles_missing_report():
