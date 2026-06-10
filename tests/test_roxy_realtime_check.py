@@ -1117,7 +1117,10 @@ def test_validate_notification_delivery_accepts_local_file_fallback(tmp_path, mo
         "notifier.notification_history_summary",
         lambda limit=50: {
             "sample_size": 2,
+            "sent_count": 0,
+            "suppressed_count": 2,
             "local_recorded_count": 2,
+            "cooldown_skipped": 1,
             "last_reason": "recorded_local",
             "last_age_minutes": 4.5,
             "delivery_mode": "local_file",
@@ -1129,11 +1132,16 @@ def test_validate_notification_delivery_accepts_local_file_fallback(tmp_path, mo
     assert status["status"] == "INFO"
     assert status["channel_count"] == 0
     assert status["local_file_fallback"] is True
+    assert status["sample_size"] == 2
+    assert status["sent_count"] == 0
+    assert status["suppressed_count"] == 2
     assert status["local_recorded_count"] == 2
+    assert status["cooldown_skipped"] == 1
     assert status["last_age_minutes"] == 4.5
     assert status["delivery_mode"] == "local_file"
     assert status["probe_error"] == ""
     assert "recorded_local 4.5m ago" in status["detail"]
+    assert "history sample 2, sent 0, local 2, suppressed 2, cooldown skipped 1" in status["detail"]
     assert "local alert files" in status["detail"]
 
 

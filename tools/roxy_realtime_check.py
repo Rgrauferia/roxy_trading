@@ -1175,6 +1175,11 @@ def validate_notification_delivery(alerts_path: Path = ALERTS_DIR) -> dict[str, 
             except Exception:
                 pass
     malformed_recent_lines = int(history_summary.get("malformed_recent_lines") or 0)
+    sample_size = int(history_summary.get("sample_size") or 0)
+    sent_count = int(history_summary.get("sent_count") or 0)
+    suppressed_count = int(history_summary.get("suppressed_count") or 0)
+    local_recorded_count = int(history_summary.get("local_recorded_count") or 0)
+    cooldown_skipped = int(history_summary.get("cooldown_skipped") or 0)
     if channels:
         status = "OK"
         detail = "Configured channels: " + ", ".join(channels)
@@ -1192,6 +1197,12 @@ def validate_notification_delivery(alerts_path: Path = ALERTS_DIR) -> dict[str, 
         detail = "No notification channels configured and local alerts path is not writable"
         if probe_error:
             detail += f": {probe_error}"
+    if sample_size:
+        detail += f"; history sample {sample_size}, sent {sent_count}, local {local_recorded_count}"
+        if suppressed_count:
+            detail += f", suppressed {suppressed_count}"
+        if cooldown_skipped:
+            detail += f", cooldown skipped {cooldown_skipped}"
     if malformed_recent_lines and status != "FAIL":
         status = "WARN"
         detail = f"Notification history has {malformed_recent_lines} malformed recent line(s); {detail}"
@@ -1205,7 +1216,11 @@ def validate_notification_delivery(alerts_path: Path = ALERTS_DIR) -> dict[str, 
         channel_status=channel_status,
         history_summary=history_summary,
         malformed_recent_lines=malformed_recent_lines,
-        local_recorded_count=history_summary.get("local_recorded_count"),
+        sample_size=sample_size,
+        sent_count=sent_count,
+        suppressed_count=suppressed_count,
+        local_recorded_count=local_recorded_count,
+        cooldown_skipped=cooldown_skipped,
         last_reason=history_summary.get("last_reason"),
         last_age_minutes=history_summary.get("last_age_minutes"),
         delivery_mode=history_summary.get("delivery_mode"),
