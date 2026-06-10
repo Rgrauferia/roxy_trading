@@ -619,8 +619,12 @@ def test_health_history_entry_counts_statuses_and_top_issue():
         "generated_at": "2026-06-08T12:00:00+00:00",
         "operational_summary": {"mode": "SYSTEM_WARN", "label": "Sistema revisar", "market_state": "UNKNOWN"},
         "checks": [
-            {"name": "disk_space", "status": "OK", "detail": "ok"},
-            {"name": "heartbeat", "status": "WARN", "detail": "running long"},
+            {"name": "disk_space", "status": "OK", "detail": "ok", "free_gb": 80.5, "free_pct": 35.2},
+            {"name": "local_training_media", "status": "OK", "detail": "small", "size_gb": 0.14, "state": "LOCAL_SMALL"},
+            {"name": "project_storage_footprint", "status": "OK", "detail": "1gb", "size_gb": 1.04},
+            {"name": "heartbeat", "status": "WARN", "detail": "running long", "duration_seconds": 263.4},
+            {"name": "notification_delivery", "status": "INFO", "detail": "local", "sample_size": 45, "cooldown_skipped": 1},
+            {"name": "ai_brief", "status": "OK", "detail": "watch", "alert_count": 0, "watch_count": 4, "avg_readiness": 50.0},
             {"name": "streamlit_app", "status": "FAIL", "detail": "timeout"},
         ],
     }
@@ -629,12 +633,18 @@ def test_health_history_entry_counts_statuses_and_top_issue():
 
     assert entry["status"] == "WARN"
     assert entry["ok"] is False
-    assert entry["ok_count"] == 1
+    assert entry["ok_count"] == 4
     assert entry["warn_count"] == 1
     assert entry["fail_count"] == 1
     assert entry["operational_mode"] == "SYSTEM_WARN"
     assert entry["top_issue"]["name"] == "heartbeat"
     assert entry["checks"]["streamlit_app"] == "FAIL"
+    assert entry["metrics"]["disk_free_gb"] == 80.5
+    assert entry["metrics"]["training_media_gb"] == 0.14
+    assert entry["metrics"]["project_storage_gb"] == 1.04
+    assert entry["metrics"]["heartbeat_duration_seconds"] == 263.4
+    assert entry["metrics"]["notification_cooldown_skipped"] == 1
+    assert entry["metrics"]["ai_watch_count"] == 4
 
 
 def test_build_operational_summary_prioritizes_system_failures():
@@ -766,11 +776,19 @@ def test_write_run_lock_status_records_blocked_and_released(tmp_path):
 
 def test_summarize_health_history_entries_reports_rates_and_streak():
     rows = [
-        {"status": "OK", "generated_at": "2026-06-08T12:00:00+00:00"},
+        {
+            "status": "OK",
+            "generated_at": "2026-06-08T12:00:00+00:00",
+            "metrics": {"disk_free_gb": 82.0, "training_media_gb": 0.1},
+        },
         {"status": "WARN", "generated_at": "2026-06-08T12:05:00+00:00", "top_issue": {"name": "heartbeat"}},
         {"status": "FAIL", "generated_at": "2026-06-08T12:07:00+00:00", "top_issue": {"name": "heartbeat"}},
         {"status": "OK", "generated_at": "2026-06-08T12:10:00+00:00"},
-        {"status": "OK", "generated_at": "2026-06-08T12:15:00+00:00"},
+        {
+            "status": "OK",
+            "generated_at": "2026-06-08T12:15:00+00:00",
+            "metrics": {"disk_free_gb": 80.5, "training_media_gb": 0.14},
+        },
     ]
 
     summary = summarize_health_history_entries(rows)
@@ -787,6 +805,8 @@ def test_summarize_health_history_entries_reports_rates_and_streak():
     assert summary["last_incident_at"] == "2026-06-08T12:07:00+00:00"
     assert summary["last_issue"]["name"] == "heartbeat"
     assert summary["dominant_issue"] == {"name": "heartbeat", "count": 2}
+    assert summary["latest_metrics"] == {"disk_free_gb": 80.5, "training_media_gb": 0.14}
+    assert summary["metric_deltas"] == {"disk_free_gb": -1.5, "training_media_gb": 0.04}
 
 
 def test_render_text_report_includes_stability_summary():

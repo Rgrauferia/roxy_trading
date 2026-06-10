@@ -2365,6 +2365,7 @@ def health_history_entry(report: dict[str, Any]) -> dict[str, Any]:
     checks = report.get("checks") or []
     status_counts = {"OK": 0, "WARN": 0, "FAIL": 0}
     named_statuses: dict[str, str] = {}
+    metrics: dict[str, Any] = {}
     for item in checks:
         name = str(item.get("name") or "")
         status = str(item.get("status") or "").upper()
@@ -2372,6 +2373,28 @@ def health_history_entry(report: dict[str, Any]) -> dict[str, Any]:
             status_counts[status] += 1
         if name:
             named_statuses[name] = status or "UNKNOWN"
+        if name == "disk_space":
+            metrics["disk_free_gb"] = item.get("free_gb")
+            metrics["disk_free_pct"] = item.get("free_pct")
+        elif name == "local_training_media":
+            metrics["training_media_gb"] = item.get("size_gb")
+            metrics["training_media_state"] = item.get("state")
+        elif name == "project_storage_footprint":
+            metrics["project_storage_gb"] = item.get("size_gb")
+        elif name == "output_maintenance_report":
+            metrics["runtime_footprint_mb"] = item.get("runtime_footprint_mb")
+        elif name == "heartbeat":
+            if item.get("duration_seconds") is not None:
+                metrics["heartbeat_duration_seconds"] = item.get("duration_seconds")
+            if item.get("running_minutes") is not None:
+                metrics["heartbeat_running_minutes"] = item.get("running_minutes")
+        elif name == "notification_delivery":
+            metrics["notification_history_sample"] = item.get("sample_size")
+            metrics["notification_cooldown_skipped"] = item.get("cooldown_skipped")
+        elif name == "ai_brief":
+            metrics["ai_alert_count"] = item.get("alert_count")
+            metrics["ai_watch_count"] = item.get("watch_count")
+            metrics["ai_avg_readiness"] = item.get("avg_readiness")
     issue = top_health_issue(report)
     top_issue = {
         "name": issue.get("name"),
@@ -2392,6 +2415,7 @@ def health_history_entry(report: dict[str, Any]) -> dict[str, Any]:
         "fail_count": status_counts["FAIL"],
         "top_issue": top_issue,
         "checks": named_statuses,
+        "metrics": {key: value for key, value in metrics.items() if value is not None},
     }
 
 
@@ -2466,6 +2490,28 @@ def summarize_health_history_entries(entries: list[dict[str, Any]], *, limit: in
     incident_free_minutes = None
     if latest_status == "OK" and latest_at is not None and last_incident_dt is not None:
         incident_free_minutes = round(max(0.0, (latest_at - last_incident_dt).total_seconds() / 60.0), 1)
+    latest_metrics = rows[-1].get("metrics") if isinstance(rows[-1].get("metrics"), dict) else {}
+    metric_deltas: dict[str, float] = {}
+    tracked_metric_names = {
+        key
+        for row in rows
+        if isinstance(row.get("metrics"), dict)
+        for key in row["metrics"].keys()
+    }
+    for key in sorted(tracked_metric_names):
+        first_value = None
+        last_value = None
+        for row in rows:
+            metrics = row.get("metrics") if isinstance(row.get("metrics"), dict) else {}
+            value = metrics.get(key)
+            if isinstance(value, (int, float)):
+                if first_value is None:
+                    first_value = float(value)
+                last_value = float(value)
+        if first_value is not None and last_value is not None:
+            delta = round(last_value - first_value, 4)
+            if delta:
+                metric_deltas[key] = delta
     return {
         "sample_size": total,
         "status": latest_status,
@@ -2483,6 +2529,8 @@ def summarize_health_history_entries(entries: list[dict[str, Any]], *, limit: in
         "last_incident_at": last_incident_at,
         "last_issue": last_issue or {},
         "dominant_issue": {"name": dominant_issue_name, "count": dominant_issue_count} if dominant_issue_name else {},
+        "latest_metrics": latest_metrics,
+        "metric_deltas": metric_deltas,
     }
 
 
