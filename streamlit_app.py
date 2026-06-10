@@ -4590,11 +4590,14 @@ def output_maintenance_dashboard_status(
 def runtime_backup_dashboard_status(
     realtime_report: dict[str, Any] | None,
     backup_report: dict[str, Any] | None,
+    daemon_heartbeat: dict[str, Any] | None = None,
     *,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     check_item = check_from_report(realtime_report, "runtime_backup_report")
+    service_item = check_from_report(realtime_report, "runtime_backup_service")
     backup_report = backup_report or {}
+    daemon_heartbeat = daemon_heartbeat or {}
     status = text_display(check_item.get("status") or backup_report.get("status")).upper()
     if not status or status == "-":
         status = "OK" if backup_report else ""
@@ -4640,9 +4643,38 @@ def runtime_backup_dashboard_status(
         label = "Revisar"
         tone = "watch"
 
+    daemon_status = text_display(daemon_heartbeat.get("status") or service_item.get("daemon_status")).upper()
+    daemon_running = bool(service_item.get("daemon_running"))
+    if not daemon_running and daemon_heartbeat:
+        daemon_running = daemon_status in {"RUNNING", "DEGRADED"}
+    last_backup_at = parse_iso_datetime(daemon_heartbeat.get("last_backup_at") or service_item.get("daemon_last_backup_at"))
+    next_backup_at = parse_iso_datetime(daemon_heartbeat.get("next_backup_at") or service_item.get("daemon_next_backup_at"))
+    current = now or datetime.now()
+    if current.tzinfo is not None:
+        current = current.replace(tzinfo=None)
+    last_backup_age_hours = max(0.0, (current - last_backup_at).total_seconds() / 3600.0) if last_backup_at else None
+    next_backup_in_hours = (next_backup_at - current).total_seconds() / 3600.0 if next_backup_at else None
+
     details = []
     if age_hours is not None:
         details.append(f"{age_hours:.1f}h")
+    if daemon_running:
+        details.append(f"daemon {daemon_status.lower() or 'running'}")
+    elif daemon_heartbeat:
+        details.append("daemon revisar")
+        if tone == "buy":
+            label = "Revisar"
+            tone = "watch"
+    if last_backup_age_hours is not None:
+        details.append(f"last {last_backup_age_hours:.1f}h")
+    if next_backup_in_hours is not None:
+        if next_backup_in_hours >= 0:
+            details.append(f"next {next_backup_in_hours:.1f}h")
+        else:
+            details.append(f"atrasado {abs(next_backup_in_hours):.1f}h")
+            if tone == "buy":
+                label = "Revisar"
+                tone = "watch"
     if archive_size is not None:
         size_mb = float(archive_size) / (1024**2)
         details.append(f"{size_mb:.1f} MB")
@@ -4674,6 +4706,12 @@ def runtime_backup_dashboard_status(
         "archive_verified": archive_verified,
         "archive_member_count": int(archive_member_count) if archive_member_count is not None else None,
         "archive_verified_paths": verified_paths,
+        "daemon_running": daemon_running,
+        "daemon_status": daemon_status,
+        "last_backup_at": str(daemon_heartbeat.get("last_backup_at") or service_item.get("daemon_last_backup_at") or ""),
+        "next_backup_at": str(daemon_heartbeat.get("next_backup_at") or service_item.get("daemon_next_backup_at") or ""),
+        "last_backup_age_hours": last_backup_age_hours,
+        "next_backup_in_hours": next_backup_in_hours,
         "check": check_item,
     }
 
@@ -5428,7 +5466,8 @@ def show_ai_status_cards(
     maintenance_report = read_summary_json("alerts/output_maintenance.json")
     maintenance_status = output_maintenance_dashboard_status(realtime_check, maintenance_report)
     runtime_backup_report = read_summary_json("alerts/runtime_backup.json")
-    runtime_backup_status = runtime_backup_dashboard_status(realtime_check, runtime_backup_report)
+    runtime_backup_daemon = read_summary_json("alerts/runtime_backup_daemon_heartbeat.json")
+    runtime_backup_status = runtime_backup_dashboard_status(realtime_check, runtime_backup_report, runtime_backup_daemon)
     streamlit_service_status = realtime_report_check_card(
         realtime_check,
         "streamlit_service_24h",

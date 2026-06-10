@@ -1055,6 +1055,45 @@ def test_runtime_backup_dashboard_status_warns_on_dry_run_report():
     assert "dry-run" in status["detail"]
 
 
+def test_runtime_backup_dashboard_status_includes_daemon_schedule():
+    now = datetime(2026, 6, 10, 12, 0)
+    status = runtime_backup_dashboard_status(
+        {
+            "status": "OK",
+            "checks": [
+                {
+                    "name": "runtime_backup_report",
+                    "status": "OK",
+                    "age_hours": 1.0,
+                    "archive_size_bytes": 10 * 1024 * 1024,
+                    "archive_exists": True,
+                    "archive_verified": True,
+                    "archive_verified_paths": ["alerts", "db", "data"],
+                },
+                {
+                    "name": "runtime_backup_service",
+                    "status": "OK",
+                    "daemon_running": True,
+                },
+            ],
+        },
+        {},
+        {
+            "status": "RUNNING",
+            "last_backup_at": "2026-06-10T10:00:00+00:00",
+            "next_backup_at": "2026-06-11T10:00:00+00:00",
+        },
+        now=now,
+    )
+
+    assert status["label"] == "OK"
+    assert status["tone"] == "buy"
+    assert status["daemon_running"] is True
+    assert "daemon running" in status["detail"]
+    assert "last 2.0h" in status["detail"]
+    assert "next 22.0h" in status["detail"]
+
+
 def test_runtime_backup_dashboard_status_handles_missing_report():
     status = runtime_backup_dashboard_status({}, {})
 

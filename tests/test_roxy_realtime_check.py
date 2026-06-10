@@ -1210,6 +1210,8 @@ def test_validate_runtime_backup_service_accepts_active_daemon_when_launchd_not_
                 "status": "RUNNING",
                 "pid": 12345,
                 "last_backup_status": "OK",
+                "last_backup_at": "2026-06-10T12:00:00+00:00",
+                "next_backup_at": "2026-06-11T12:00:00+00:00",
             }
         )
     )
@@ -1229,6 +1231,8 @@ def test_validate_runtime_backup_service_accepts_active_daemon_when_launchd_not_
 
     assert status["status"] == "OK"
     assert status["daemon_running"] is True
+    assert status["daemon_last_backup_at"] == "2026-06-10T12:00:00+00:00"
+    assert status["daemon_next_backup_at"] == "2026-06-11T12:00:00+00:00"
     assert "daemon active" in status["detail"]
 
 

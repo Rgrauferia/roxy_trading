@@ -1411,7 +1411,10 @@ def validate_runtime_backup_service() -> dict[str, Any]:
                 daemon_running=daemon_running,
                 daemon_age_minutes=daemon_age_minutes,
                 daemon_pid=daemon_heartbeat.get("pid") if daemon_heartbeat else None,
+                daemon_status=daemon_heartbeat.get("status") if daemon_heartbeat else None,
                 daemon_last_backup_status=daemon_heartbeat.get("last_backup_status") if daemon_heartbeat else None,
+                daemon_last_backup_at=daemon_heartbeat.get("last_backup_at") if daemon_heartbeat else None,
+                daemon_next_backup_at=daemon_heartbeat.get("next_backup_at") if daemon_heartbeat else None,
             )
         return check("runtime_backup_service", "WARN", f"Could not inspect runtime backup LaunchAgent: {exc}")
 
@@ -1447,7 +1450,10 @@ def validate_runtime_backup_service() -> dict[str, Any]:
         daemon_running=daemon_running,
         daemon_age_minutes=daemon_age_minutes,
         daemon_pid=daemon_heartbeat.get("pid") if daemon_heartbeat else None,
+        daemon_status=daemon_heartbeat.get("status") if daemon_heartbeat else None,
         daemon_last_backup_status=daemon_heartbeat.get("last_backup_status") if daemon_heartbeat else None,
+        daemon_last_backup_at=daemon_heartbeat.get("last_backup_at") if daemon_heartbeat else None,
+        daemon_next_backup_at=daemon_heartbeat.get("next_backup_at") if daemon_heartbeat else None,
     )
 
 
