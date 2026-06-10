@@ -511,6 +511,20 @@ def recover_launch_agent(module_name: str, *, label: str | None = None) -> dict[
         return result
 
 
+def install_args_for_launch_agent(module_name: str, module: Any) -> argparse.Namespace | None:
+    if module_name == "tools.streamlit_launchd":
+        return streamlit_install_args(module)
+    if module_name == "tools.ma_live_launchd":
+        return ma_live_install_args(module)
+    if module_name == "tools.ma_daily_launchd":
+        return ma_daily_install_args(module)
+    if module_name == "tools.output_maintenance_launchd":
+        return output_maintenance_install_args(module)
+    if module_name == "tools.roxy_health_launchd":
+        return health_watchdog_install_args(module)
+    return None
+
+
 def restart_launch_agent(module_name: str, *, label: str | None = None) -> dict[str, Any]:
     module = importlib.import_module(module_name)
     status_fn = getattr(module, "status")
@@ -542,6 +556,18 @@ def restart_launch_agent(module_name: str, *, label: str | None = None) -> dict[
             after = status_fn()
         result["after"] = after
         result["ok"] = bool(after.get("loaded"))
+        if not result["ok"] and hasattr(module, "install"):
+            install_args = install_args_for_launch_agent(module_name, module)
+            if install_args is not None:
+                path = module.install(install_args)
+                if label:
+                    after = status_fn(label)
+                else:
+                    after = status_fn()
+                result["action"] = "restart_reinstalled"
+                result["path"] = str(path)
+                result["after"] = after
+                result["ok"] = bool(after.get("loaded"))
         return result
     except Exception as exc:
         result["action"] = "error"

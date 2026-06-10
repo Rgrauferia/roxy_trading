@@ -465,3 +465,48 @@ def test_restart_launch_agent_bootouts_and_bootstraps_loaded_service(monkeypatch
     assert result["action"] == "restart"
     assert result["ok"] is True
     assert calls == [("bootout", "com.test.restart"), ("bootstrap", "/tmp/test.plist")]
+
+
+def test_restart_launch_agent_reinstalls_when_bootstrap_leaves_service_unloaded(monkeypatch, tmp_path):
+    calls = []
+    states = [
+        {"label": "com.roxy.streamlit", "installed": True, "loaded": True, "path": str(tmp_path / "streamlit.plist")},
+        {"label": "com.roxy.streamlit", "installed": True, "loaded": False, "path": str(tmp_path / "streamlit.plist")},
+        {"label": "com.roxy.streamlit", "installed": True, "loaded": True, "path": str(tmp_path / "streamlit.plist")},
+    ]
+    status_calls = []
+
+    def tracked_status():
+        index = min(len(status_calls), 2)
+        status_calls.append(index)
+        calls.append(("status", ""))
+        return states[index]
+
+    def bootout(label):
+        calls.append(("bootout", label))
+
+    def bootstrap(path):
+        calls.append(("bootstrap", str(path)))
+
+    def install(args):
+        calls.append(("install", args.label, args.load))
+        return tmp_path / "streamlit.plist"
+
+    module = SimpleNamespace(
+        DEFAULT_LABEL="com.roxy.streamlit",
+        DEFAULT_ADDRESS="0.0.0.0",
+        DEFAULT_PORT=8501,
+        status=tracked_status,
+        bootout=bootout,
+        bootstrap=bootstrap,
+        install=install,
+    )
+    monkeypatch.setattr(launchd_recovery.importlib, "import_module", lambda name: module)
+
+    result = launchd_recovery.restart_launch_agent("tools.streamlit_launchd")
+
+    assert result["action"] == "restart_reinstalled"
+    assert result["ok"] is True
+    assert ("bootout", "com.roxy.streamlit") in calls
+    assert ("bootstrap", str(tmp_path / "streamlit.plist")) in calls
+    assert ("install", "com.roxy.streamlit", True) in calls
