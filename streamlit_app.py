@@ -6647,6 +6647,92 @@ def render_market_breadth_strip(scan_df: pd.DataFrame, confluence_df: pd.DataFra
     )
 
 
+def market_index_strip_rows(scan_df: pd.DataFrame, confluence_df: pd.DataFrame) -> list[dict[str, Any]]:
+    targets = [
+        ("SPY", "S&P 500"),
+        ("QQQ", "Nasdaq"),
+        ("DIA", "Dow"),
+        ("IWM", "Russell"),
+        ("BTC/USD", "Bitcoin"),
+        ("ETH/USD", "Ethereum"),
+        ("SOL/USD", "Solana"),
+    ]
+    scan_lookup: dict[str, dict[str, Any]] = {}
+    if not scan_df.empty and "symbol" in scan_df.columns:
+        scan_data = scan_df.copy()
+        if "score" in scan_data.columns:
+            scan_data["sort_score"] = pd.to_numeric(scan_data["score"], errors="coerce").fillna(0)
+            scan_data = scan_data.sort_values("sort_score", ascending=False)
+        for _, item in scan_data.iterrows():
+            row = item.to_dict()
+            symbol = text_display(row.get("symbol")).upper()
+            scan_lookup.setdefault(symbol, row)
+
+    confluence_lookup: dict[str, dict[str, Any]] = {}
+    if not confluence_df.empty and "symbol" in confluence_df.columns:
+        confluence_data = confluence_df.copy()
+        if "confluence_score" in confluence_data.columns:
+            confluence_data["sort_score"] = pd.to_numeric(confluence_data["confluence_score"], errors="coerce").fillna(0)
+            confluence_data = confluence_data.sort_values("sort_score", ascending=False)
+        for _, item in confluence_data.iterrows():
+            row = item.to_dict()
+            symbol = text_display(row.get("symbol")).upper()
+            confluence_lookup.setdefault(symbol, row)
+
+    rows: list[dict[str, Any]] = []
+    for symbol, label in targets:
+        row = {**scan_lookup.get(symbol, {}), **confluence_lookup.get(symbol, {})}
+        if not row:
+            continue
+        signal = text_display(row.get("signal")).upper()
+        decision = text_display(row.get("trade_decision")).upper()
+        if signal == "BUY" and decision.startswith("TRADE_FOR"):
+            tone = "buy"
+            status = "Operar"
+        elif signal == "AVOID" or decision.startswith("NO_TRADE"):
+            tone = "avoid"
+            status = "Evitar"
+        else:
+            tone = "watch"
+            status = "Vigilar"
+        rows.append(
+            {
+                "symbol": symbol,
+                "label": label,
+                "status": status,
+                "tone": tone,
+                "score": safe_float(row.get("confluence_score") or row.get("score")),
+                "risk": safe_float(row.get("risk_pct")),
+                "relative_volume": safe_float(row.get("relative_volume_15m") or row.get("relative_volume")),
+                "setup": dashboard_strategy_label(row),
+                "tf": text_display(row.get("entry_tf") or row.get("tf")),
+            }
+        )
+    return rows
+
+
+def render_market_index_strip(scan_df: pd.DataFrame, confluence_df: pd.DataFrame) -> None:
+    rows = market_index_strip_rows(scan_df, confluence_df)
+    if not rows:
+        return
+    cards = []
+    for row in rows:
+        tone = text_display(row.get("tone"))
+        cards.append(
+            f'<div class="index-card index-card-{html.escape(tone)}">'
+            f'<div><span>{html.escape(text_display(row.get("label")))}</span><strong>{html.escape(text_display(row.get("symbol")))}</strong></div>'
+            f'<em>{html.escape(text_display(row.get("status")))} · {html.escape(num_display(row.get("score"), 0))}</em>'
+            f'<small>{html.escape(text_display(row.get("setup")))} · R {html.escape(pct_display(row.get("risk")))} · V {html.escape(num_display(row.get("relative_volume"), 1))}x</small>'
+            "</div>"
+        )
+    st.markdown(
+        '<section class="index-strip"><header>Índices y crypto mayor</header><div class="index-grid">'
+        + "".join(cards)
+        + "</div></section>",
+        unsafe_allow_html=True,
+    )
+
+
 def scanner_blotter_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, *, limit: int = 24) -> pd.DataFrame:
     wall_rows = scanner_wallboard_rows(table, confluence_df, limit=limit)
     if wall_rows.empty:
@@ -8381,6 +8467,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
     render_alert_noise_contract(brief)
     render_finviz_style_wallboard(best, confluence_df, brief)
     render_market_breadth_strip(scan_df, confluence_df)
+    render_market_index_strip(scan_df, confluence_df)
     render_scanner_cockpit(best, confluence_df, options_df, brief)
     render_market_pulse_dashboard(best)
 
@@ -9691,6 +9778,10 @@ def main() -> None:
         .breadth-strip header{padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14);color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}
         .breadth-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .breadth-card{background:#0b1220;padding:8px 10px}.breadth-card div:first-child{display:flex;justify-content:space-between;gap:8px;align-items:center}.breadth-card strong{color:#e2e8f0;font-size:11px;font-weight:950;text-transform:uppercase}.breadth-card span{color:#f8fafc;font-size:14px;font-weight:950}.breadth-card small{display:block;color:#94a3b8;font-size:10px;line-height:1.2;margin-top:5px}.breadth-bar{height:7px;border-radius:999px;background:#1f2937;overflow:hidden;margin-top:6px}.breadth-bar i{display:block;height:100%;border-radius:999px;background:#64748b}.breadth-card-buy .breadth-bar i{background:#22c55e}.breadth-card-watch .breadth-bar i{background:#f59e0b}.breadth-card-avoid .breadth-bar i{background:#ef4444}
+        .index-strip{border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0b1220;margin:0 0 12px;overflow:hidden}
+        .index-strip header{padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14);color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}
+        .index-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
+        .index-card{background:#0b1220;padding:8px 9px;min-width:0;border-top:2px solid rgba(148,163,184,.28)}.index-card div{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.index-card span{color:#94a3b8;font-size:10px;font-weight:900;text-transform:uppercase}.index-card strong{color:#f8fafc;font-size:15px;font-weight:950}.index-card em{display:block;color:#e2e8f0;font-size:12px;font-weight:850;font-style:normal;margin-top:5px}.index-card small{display:block;color:#94a3b8;font-size:10px;line-height:1.2;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.index-card-buy{border-top-color:#22c55e}.index-card-watch{border-top-color:#f59e0b}.index-card-avoid{border-top-color:#ef4444}
         .kpibox{display:inline-block;padding:8px 12px;background:#081023;border-radius:8px;margin-right:8px;color:var(--muted)}
         .metrics-row{display:flex;gap:12px;flex-wrap:wrap}
         .metric-card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:10px;border-radius:8px;min-width:160px}
@@ -9759,9 +9850,9 @@ def main() -> None:
         .stButton button:hover{border-color:#a78bfa;color:#f8fafc}
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media (max-width:1100px){.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media (max-width:1100px){.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
         @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
-        @media (max-width:600px){.metric-card{min-width:120px}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}}
+        @media (max-width:600px){.metric-card{min-width:120px}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
         </style>
         """,
         unsafe_allow_html=True,
