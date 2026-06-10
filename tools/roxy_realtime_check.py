@@ -233,18 +233,40 @@ def heartbeat_check(
     now: datetime | None = None,
     running_warn_minutes: float = 15.0,
     running_fail_minutes: float = 30.0,
+    success_warn_seconds: float = 600.0,
+    success_fail_seconds: float = 900.0,
 ) -> tuple[dict[str, Any], str]:
     if not heartbeat:
         return check("heartbeat", "WARN", "Heartbeat not found", path=str(heartbeat_path)), ""
 
     hb_status = str(heartbeat.get("status") or "").upper()
     if hb_status == "SUCCESS":
+        raw_duration = heartbeat.get("duration_seconds")
+        try:
+            duration_seconds = float(raw_duration)
+        except (TypeError, ValueError):
+            duration_seconds = None
+        if duration_seconds is None:
+            status = "OK"
+            detail = f"Last live run succeeded in {raw_duration or '-'}s"
+        elif duration_seconds >= success_fail_seconds:
+            status = "FAIL"
+            detail = f"Last live run succeeded but took {duration_seconds:.1f}s; realtime scan too slow"
+        elif duration_seconds >= success_warn_seconds:
+            status = "WARN"
+            detail = f"Last live run succeeded but took {duration_seconds:.1f}s"
+        else:
+            status = "OK"
+            detail = f"Last live run succeeded in {duration_seconds:.1f}s"
         return (
             check(
                 "heartbeat",
-                "OK",
-                f"Last live run succeeded in {heartbeat.get('duration_seconds', '-')}s",
+                status,
+                detail,
                 path=str(heartbeat_path),
+                duration_seconds=duration_seconds,
+                success_warn_seconds=success_warn_seconds,
+                success_fail_seconds=success_fail_seconds,
             ),
             hb_status,
         )

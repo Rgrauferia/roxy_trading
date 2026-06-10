@@ -471,6 +471,36 @@ def test_heartbeat_running_is_ok_inside_normal_window(tmp_path):
     assert status["running_minutes"] == 5.0
 
 
+def test_heartbeat_success_reports_duration_and_warns_when_scan_is_slow(tmp_path):
+    normal, hb_status = heartbeat_check(
+        tmp_path / "heartbeat.json",
+        {"status": "SUCCESS", "duration_seconds": 120.5},
+        success_warn_seconds=600,
+        success_fail_seconds=900,
+    )
+    slow, _ = heartbeat_check(
+        tmp_path / "heartbeat.json",
+        {"status": "SUCCESS", "duration_seconds": 650},
+        success_warn_seconds=600,
+        success_fail_seconds=900,
+    )
+    stalled, _ = heartbeat_check(
+        tmp_path / "heartbeat.json",
+        {"status": "SUCCESS", "duration_seconds": 950},
+        success_warn_seconds=600,
+        success_fail_seconds=900,
+    )
+
+    assert hb_status == "SUCCESS"
+    assert normal["status"] == "OK"
+    assert normal["duration_seconds"] == 120.5
+    assert "120.5s" in normal["detail"]
+    assert slow["status"] == "WARN"
+    assert "650.0s" in slow["detail"]
+    assert stalled["status"] == "FAIL"
+    assert "realtime scan too slow" in stalled["detail"]
+
+
 def test_heartbeat_running_fails_after_stuck_window(tmp_path):
     now = datetime(2026, 6, 8, 12, 0, tzinfo=timezone.utc)
     heartbeat = {"status": "RUNNING", "started_at": (now - timedelta(minutes=45)).isoformat()}
