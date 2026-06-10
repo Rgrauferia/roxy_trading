@@ -5068,6 +5068,7 @@ def alert_quality_report_dashboard_status(report: dict[str, Any] | None) -> dict
     total = int(summary.get("latest_total_opportunities") or entry.get("total_opportunities") or 0)
     waiting_streak = int(summary.get("waiting_streak") or 0)
     blocker_streak = int(summary.get("latest_top_blocker_streak") or 0)
+    persistent_blocker_minutes = safe_float(summary.get("persistent_blocker_minutes"))
     diagnostic_severity = text_display(summary.get("diagnostic_severity") or "OK").upper()
     diagnostic_label = text_display(summary.get("diagnostic_label") or "")
     diagnostic_detail = text_display(summary.get("diagnostic_detail") or "")
@@ -5098,6 +5099,8 @@ def alert_quality_report_dashboard_status(report: dict[str, Any] | None) -> dict
         detail += f" | racha espera {waiting_streak}"
     if blocker_streak:
         detail += f" | bloqueador x{blocker_streak}"
+    if persistent_blocker_minutes is not None:
+        detail += f" | persistente {persistent_blocker_minutes:.1f}m"
     if avg_readiness is not None:
         detail += f" | readiness {avg_readiness:.0f}%"
     if top_symbol and top_symbol != "-":

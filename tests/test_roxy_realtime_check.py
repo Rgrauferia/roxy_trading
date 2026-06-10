@@ -1815,6 +1815,8 @@ def test_validate_alert_quality_report_accepts_recent_waiting_state(tmp_path):
                     "latest_notifications_ready": 0,
                     "latest_total_opportunities": 8,
                     "waiting_streak": 3,
+                    "latest_top_blocker_streak": 3,
+                    "persistent_blocker_minutes": 12.5,
                     "avg_readiness": 61.3,
                     "latest_top_blocker": "15m da entrada: WAIT",
                 },
@@ -1827,7 +1829,10 @@ def test_validate_alert_quality_report_accepts_recent_waiting_state(tmp_path):
     assert status["status"] == "OK"
     assert status["state"] == "WAITING"
     assert status["waiting_streak"] == 3
+    assert status["latest_top_blocker_streak"] == 3
+    assert status["persistent_blocker_minutes"] == 12.5
     assert status["brief_age_minutes"] == 6.0
+    assert "persistent 12.5m" in status["detail"]
     assert "ready 0/8" in status["detail"]
 
 

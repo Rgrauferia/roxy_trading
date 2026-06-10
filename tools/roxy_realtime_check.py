@@ -1215,6 +1215,8 @@ def validate_alert_quality_report(
     ready = int(summary.get("latest_notifications_ready") or entry.get("notifications_ready") or 0)
     total = int(summary.get("latest_total_opportunities") or entry.get("total_opportunities") or 0)
     waiting_streak = int(summary.get("waiting_streak") or 0)
+    blocker_streak = int(summary.get("latest_top_blocker_streak") or 0)
+    persistent_blocker_minutes = summary.get("persistent_blocker_minutes")
     avg_readiness = summary.get("avg_readiness", entry.get("avg_readiness"))
     status = status_max(age_status, brief_age_status, report_status)
     detail = f"age {age_minutes:.0f}m"
@@ -1225,6 +1227,10 @@ def validate_alert_quality_report(
     detail += f", state {state}, ready {ready}/{total}"
     if waiting_streak:
         detail += f", waiting streak {waiting_streak}"
+    if blocker_streak:
+        detail += f", blocker streak {blocker_streak}"
+    if persistent_blocker_minutes is not None:
+        detail += f", persistent {float(persistent_blocker_minutes):.1f}m"
     if avg_readiness is not None:
         detail += f", avg readiness {float(avg_readiness):.1f}"
     top_blocker = str(summary.get("latest_top_blocker") or entry.get("top_blocker") or "")
@@ -1243,6 +1249,8 @@ def validate_alert_quality_report(
         notifications_ready=ready,
         total_opportunities=total,
         waiting_streak=waiting_streak,
+        latest_top_blocker_streak=blocker_streak,
+        persistent_blocker_minutes=persistent_blocker_minutes,
         avg_readiness=avg_readiness,
         top_blocker=top_blocker,
     )

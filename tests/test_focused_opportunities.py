@@ -1259,6 +1259,7 @@ def test_alert_quality_report_dashboard_status_flags_persistent_blocker():
                 "diagnostic_severity": "ATTENTION",
                 "diagnostic_label": "Bloqueador x14",
                 "diagnostic_detail": "15m da entrada: WAIT",
+                "persistent_blocker_minutes": 18.5,
                 "avg_readiness": 61.3,
                 "latest_top_blocker": "15m da entrada: WAIT",
             }
@@ -1268,6 +1269,7 @@ def test_alert_quality_report_dashboard_status_flags_persistent_blocker():
     assert status["label"] == "Bloqueador x14"
     assert status["tone"] == "avoid"
     assert "bloqueador x14" in status["detail"]
+    assert "persistente 18.5m" in status["detail"]
 
 
 def test_operational_mode_dashboard_status_uses_realtime_summary():
