@@ -6116,6 +6116,120 @@ def focused_opportunity_table(brief: dict) -> pd.DataFrame:
     return table.sort_values(["focus_priority", "ai_score"], ascending=[False, False]).reset_index(drop=True)
 
 
+def market_pulse_rows(table: pd.DataFrame) -> pd.DataFrame:
+    columns = ["bucket", "tone", "market", "symbol", "gate", "readiness", "risk_pct", "ai_score"]
+    if table.empty:
+        return pd.DataFrame(columns=columns)
+    rows: list[dict[str, Any]] = []
+    for _, item in table.iterrows():
+        row = item.to_dict()
+        action = str(row.get("action") or row.get("ai_action") or "").upper()
+        signal = str(row.get("signal") or "").upper()
+        decision = str(row.get("decision") or row.get("trade_decision") or "").upper()
+        if action == "ALERT" or opportunity_is_trade_ready(row):
+            bucket = "Operar"
+            tone = "buy"
+        elif signal == "AVOID" or decision.startswith("NO_TRADE"):
+            bucket = "Evitar"
+            tone = "avoid"
+        else:
+            bucket = "Vigilar"
+            tone = "watch"
+        rows.append(
+            {
+                "bucket": bucket,
+                "tone": tone,
+                "market": text_display(row.get("market")),
+                "symbol": text_display(row.get("symbol")).upper(),
+                "gate": text_display(row.get("gate")),
+                "readiness": safe_float(row.get("readiness")),
+                "risk_pct": safe_float(row.get("risk_pct")),
+                "ai_score": safe_float(row.get("ai_score")),
+            }
+        )
+    return pd.DataFrame(rows, columns=columns)
+
+
+def market_pulse_summary(table: pd.DataFrame) -> dict[str, Any]:
+    rows = market_pulse_rows(table)
+    if rows.empty:
+        return {
+            "total": 0,
+            "ready": 0,
+            "watch": 0,
+            "avoid": 0,
+            "avg_readiness": None,
+            "top_gate": "-",
+            "top_market": "-",
+            "risk_alerts": 0,
+        }
+    counts = rows["bucket"].value_counts()
+    gate_counts = rows[rows["gate"].ne("-")]["gate"].value_counts()
+    market_counts = rows[rows["market"].ne("-")]["market"].value_counts()
+    risk_values = pd.to_numeric(rows["risk_pct"], errors="coerce")
+    return {
+        "total": int(len(rows)),
+        "ready": int(counts.get("Operar", 0)),
+        "watch": int(counts.get("Vigilar", 0)),
+        "avoid": int(counts.get("Evitar", 0)),
+        "avg_readiness": safe_float(pd.to_numeric(rows["readiness"], errors="coerce").mean()),
+        "top_gate": str(gate_counts.index[0]) if not gate_counts.empty else "-",
+        "top_market": str(market_counts.index[0]) if not market_counts.empty else "-",
+        "risk_alerts": int(risk_values.gt(0.035).sum()),
+    }
+
+
+def render_market_pulse_dashboard(table: pd.DataFrame) -> None:
+    summary = market_pulse_summary(table)
+    st.markdown("**Pulso del mercado**")
+    cols = st.columns([0.75, 0.75, 0.75, 1.05, 1.1])
+    with cols[0]:
+        render_kpi_card("Operables", summary["ready"], tone="buy" if summary["ready"] else "neutral")
+    with cols[1]:
+        render_kpi_card("Vigilar", summary["watch"], tone="watch" if summary["watch"] else "neutral")
+    with cols[2]:
+        render_kpi_card("Evitar", summary["avoid"], tone="avoid" if summary["avoid"] else "neutral")
+    with cols[3]:
+        render_kpi_card("Readiness avg", num_display(summary["avg_readiness"], 0), tone="buy" if (summary["avg_readiness"] or 0) >= 70 else "watch")
+    with cols[4]:
+        render_kpi_card("Filtro dominante", summary["top_gate"], detail=f"Mercado: {summary['top_market']}")
+
+    rows = market_pulse_rows(table)
+    if rows.empty:
+        st.info("Aun no hay oportunidades para dibujar el pulso.")
+        return
+
+    chart_cols = st.columns([1, 1])
+    with chart_cols[0]:
+        bucket_df = rows.groupby(["bucket", "tone"], as_index=False).size().rename(columns={"size": "count"})
+        bucket_chart = (
+            alt.Chart(bucket_df)
+            .mark_bar(cornerRadius=4)
+            .encode(
+                x=alt.X("count:Q", title="Setups"),
+                y=alt.Y("bucket:N", title="", sort=["Operar", "Vigilar", "Evitar"]),
+                color=alt.Color("tone:N", title="", scale=alt.Scale(domain=["buy", "watch", "avoid"], range=["#22c55e", "#f59e0b", "#ef4444"])),
+                tooltip=["bucket:N", alt.Tooltip("count:Q", format=",.0f")],
+            )
+        )
+        st.altair_chart(bucket_chart.properties(height=185), width="stretch")
+    with chart_cols[1]:
+        gate_df = rows[rows["gate"].ne("-")].groupby("gate", as_index=False).size().rename(columns={"size": "count"})
+        if gate_df.empty:
+            st.info("Sin filtros de alerta registrados.")
+        else:
+            gate_chart = (
+                alt.Chart(gate_df.sort_values("count", ascending=False).head(8))
+                .mark_bar(cornerRadius=4, color="#38bdf8")
+                .encode(
+                    x=alt.X("count:Q", title="Setups"),
+                    y=alt.Y("gate:N", title="", sort="-x"),
+                    tooltip=["gate:N", alt.Tooltip("count:Q", format=",.0f")],
+                )
+            )
+            st.altair_chart(gate_chart.properties(height=185), width="stretch")
+
+
 def focused_display_table(table: pd.DataFrame) -> pd.DataFrame:
     if table.empty:
         return table
@@ -7590,6 +7704,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
         risk_pct_ui = st.number_input("Riesgo %", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key="command_risk")
 
     render_alert_noise_contract(brief)
+    render_market_pulse_dashboard(best)
 
     left, right = st.columns([1.6, 0.72])
     with left:

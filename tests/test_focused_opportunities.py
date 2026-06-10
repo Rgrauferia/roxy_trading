@@ -43,6 +43,8 @@ from streamlit_app import (
     load_latest_ma_scan,
     live_backend_status,
     local_training_media_dashboard_status,
+    market_pulse_rows,
+    market_pulse_summary,
     notification_channel_display,
     notification_history_display_table,
     notification_history_dashboard_status,
@@ -520,6 +522,57 @@ def test_focused_display_table_es_renames_and_formats_columns():
     assert table.loc[0, "entrada"] == "200.00"
     assert table.loc[0, "riesgo"] == "2.00%"
     assert table.loc[0, "target"] == "5.00%"
+
+
+def test_market_pulse_summary_groups_actionable_dashboard_state():
+    brief = {
+        "opportunities": [
+            {
+                "ai_action": "ALERT",
+                "symbol": "AAPL",
+                "market": "stock",
+                "ai_score": 91,
+                "signal": "BUY",
+                "trade_decision": "TRADE_FOR_2PCT",
+                "risk_pct": 0.018,
+                "alert_gate": "ready",
+                "alert_readiness_score": 86,
+            },
+            {
+                "ai_action": "WATCH",
+                "symbol": "NVDA",
+                "market": "stock",
+                "ai_score": 77,
+                "signal": "WATCH",
+                "trade_decision": "WAIT",
+                "risk_pct": 0.042,
+                "alert_gate": "risk",
+                "alert_readiness_score": 64,
+            },
+            {
+                "ai_action": "NO_TRADE",
+                "symbol": "BTC/USD",
+                "market": "crypto",
+                "ai_score": 32,
+                "signal": "AVOID",
+                "trade_decision": "NO_TRADE",
+                "alert_gate": "risk",
+                "alert_readiness_score": 20,
+            },
+        ]
+    }
+
+    table = focused_opportunity_table(brief)
+    rows = market_pulse_rows(table)
+    summary = market_pulse_summary(table)
+
+    assert rows["bucket"].tolist() == ["Operar", "Vigilar", "Evitar"]
+    assert summary["ready"] == 1
+    assert summary["watch"] == 1
+    assert summary["avoid"] == 1
+    assert summary["top_gate"] == "Risk"
+    assert summary["top_market"] == "stock"
+    assert summary["risk_alerts"] == 1
 
 
 def test_platform_labels_hide_internal_statuses():
