@@ -519,7 +519,7 @@ def show_market_tab(kind: str) -> None:
             for o in overlays:
                 chart = chart + o
 
-            st.altair_chart(chart.interactive(), use_container_width=True)
+            st.altair_chart(chart.interactive(), width="stretch")
         else:
             st.info("No historical OHLCV in local DB for this symbol — showing latest metrics.")
             st.metric("Entry", row.get("entry", "n/a"))
@@ -623,7 +623,7 @@ def show_market_tab(kind: str) -> None:
                     .encode(x=alt.X("ts:T", title="Time"), y=alt.Y("equity:Q", title="Equity"))
                 )
                 st.subheader("Equity Curve")
-                st.altair_chart(eq_chart.properties(height=200), use_container_width=True)
+                st.altair_chart(eq_chart.properties(height=200), width="stretch")
             else:
                 st.write("No equity history for this user yet.")
 
@@ -724,7 +724,7 @@ def show_news_tab() -> None:
                     .mark_line(color="#2b8cbe")
                     .encode(x=alt.X("ts:T", title="Time"), y=alt.Y("equity:Q", title="Total Equity"))
                 )
-                st.altair_chart(chart.properties(height=200), use_container_width=True)
+                st.altair_chart(chart.properties(height=200), width="stretch")
         except Exception:
             pass
 
@@ -762,7 +762,7 @@ def show_news_tab() -> None:
                                 color=alt.value("#2b8cbe"),
                             )
                         )
-                        st.altair_chart(ch, use_container_width=True)
+                        st.altair_chart(ch, width="stretch")
         except Exception:
             pass
 
@@ -1335,9 +1335,9 @@ def render_professional_chart_block(
         panels.append(oscillator_chart.properties(height=oscillator_height))
     if len(panels) > 1:
         combined_chart = alt.vconcat(*panels).resolve_scale(x="shared")
-        st.altair_chart(style_trading_chart(combined_chart), use_container_width=True)
+        st.altair_chart(style_trading_chart(combined_chart), width="stretch")
     else:
-        st.altair_chart(style_trading_chart(price_chart), use_container_width=True)
+        st.altair_chart(style_trading_chart(price_chart), width="stretch")
 
 
 def render_command_center_analysis(
@@ -3703,10 +3703,10 @@ def show_sma_symbol_analyzer(scan_df: pd.DataFrame, confluence_df: pd.DataFrame,
         combined_chart = alt.vconcat(*chart_panels).resolve_scale(x="shared")
         st.altair_chart(
             style_trading_chart(combined_chart),
-            use_container_width=True,
+            width="stretch",
         )
     else:
-        st.altair_chart(style_trading_chart(price_chart), use_container_width=True)
+        st.altair_chart(style_trading_chart(price_chart), width="stretch")
 
     reasons = setup.get("reasons") or []
     if reasons:
@@ -3955,7 +3955,7 @@ def show_sma_strategy_tab() -> None:
                         tooltip=["tf:N", "signal:N", "count:Q"],
                     )
                 )
-                st.altair_chart(signal_chart.properties(height=260), use_container_width=True)
+                st.altair_chart(signal_chart.properties(height=260), width="stretch")
         with chart_cols[1]:
             if not setup_mix.empty:
                 setup_chart = (
@@ -3968,7 +3968,7 @@ def show_sma_strategy_tab() -> None:
                         tooltip=["tf:N", "setup:N", "count:Q"],
                     )
                 )
-                st.altair_chart(setup_chart.properties(height=260), use_container_width=True)
+                st.altair_chart(setup_chart.properties(height=260), width="stretch")
 
         score_points = score_distribution(scan_df)
         if not score_points.empty:
@@ -3986,7 +3986,7 @@ def show_sma_strategy_tab() -> None:
                     tooltip=["signal:N", "count():Q"],
                 )
             )
-            st.altair_chart(score_chart.properties(height=200), use_container_width=True)
+            st.altair_chart(score_chart.properties(height=200), width="stretch")
 
         signals = scan_df.copy()
         if "signal" in signals.columns:
@@ -4065,7 +4065,7 @@ def show_sma_strategy_tab() -> None:
                         tooltip=["target:N", "count:Q"],
                     )
                 )
-                st.altair_chart(target_chart.properties(height=230), use_container_width=True)
+                st.altair_chart(target_chart.properties(height=230), width="stretch")
             with confluence_chart_cols[1]:
                 decision_counts = trade_decision_counts(confluence_df)
                 if not decision_counts.empty:
@@ -4079,7 +4079,7 @@ def show_sma_strategy_tab() -> None:
                             tooltip=["trade_decision:N", "count:Q"],
                         )
                     )
-                    st.altair_chart(decision_chart.properties(height=230), use_container_width=True)
+                    st.altair_chart(decision_chart.properties(height=230), width="stretch")
                 if "higher_tf_bias" in confluence_df.columns:
                     htf_counts = (
                         confluence_df["higher_tf_bias"]
@@ -4107,7 +4107,7 @@ def show_sma_strategy_tab() -> None:
                             tooltip=["higher_tf_bias:N", "count:Q"],
                         )
                     )
-                    st.altair_chart(htf_chart.properties(height=190), use_container_width=True)
+                    st.altair_chart(htf_chart.properties(height=190), width="stretch")
 
             risk_points = risk_score_points(confluence_df)
             if not risk_points.empty:
@@ -4132,7 +4132,7 @@ def show_sma_strategy_tab() -> None:
                         ],
                     )
                 )
-                st.altair_chart(risk_chart.properties(height=280), use_container_width=True)
+                st.altair_chart(risk_chart.properties(height=280), width="stretch")
             st.dataframe(confluence_df[confluence_cols], width="stretch")
         if confluence_report_path.exists():
             with st.expander("Confluence report"):
@@ -4195,7 +4195,7 @@ def show_sma_strategy_tab() -> None:
                             ],
                         )
                     )
-                    st.altair_chart(quality_chart.properties(height=250), use_container_width=True)
+                    st.altair_chart(quality_chart.properties(height=250), width="stretch")
             with option_chart_cols[1]:
                 expiry_counts = option_expiry_counts(options_df)
                 if not expiry_counts.empty:
@@ -4209,7 +4209,7 @@ def show_sma_strategy_tab() -> None:
                             tooltip=["expiry:N", "count:Q"],
                         )
                     )
-                    st.altair_chart(expiry_chart.properties(height=250), use_container_width=True)
+                    st.altair_chart(expiry_chart.properties(height=250), width="stretch")
             st.dataframe(options_df[option_cols], width="stretch")
         if options_report_path.exists():
             with st.expander("Options report"):
@@ -6452,9 +6452,9 @@ def render_focus_opportunity_chart(
         chart_panels.append(oscillator_chart.properties(height=100))
     if len(chart_panels) > 1:
         combined_chart = alt.vconcat(*chart_panels).resolve_scale(x="shared")
-        st.altair_chart(style_trading_chart(combined_chart), use_container_width=True)
+        st.altair_chart(style_trading_chart(combined_chart), width="stretch")
     else:
-        st.altair_chart(style_trading_chart(price_chart), use_container_width=True)
+        st.altair_chart(style_trading_chart(price_chart), width="stretch")
 
     with st.expander("Detalles de estrategia", expanded=False):
         render_decision_reason(trade_brief)
@@ -6794,7 +6794,7 @@ def show_options_screen(confluence_df: pd.DataFrame, options_df: pd.DataFrame, b
                     ],
                 )
             )
-            st.altair_chart(quality_chart.properties(height=280), use_container_width=True)
+            st.altair_chart(quality_chart.properties(height=280), width="stretch")
     with chart_cols[1]:
         if {"contractSymbol", "volume", "openInterest"}.issubset(view.columns):
             liquidity = view.head(12)[["contractSymbol", "volume", "openInterest"]].melt(
@@ -6810,7 +6810,7 @@ def show_options_screen(confluence_df: pd.DataFrame, options_df: pd.DataFrame, b
                     tooltip=["contractSymbol:N", "metric:N", alt.Tooltip("value:Q", format=",.0f")],
                 )
             )
-            st.altair_chart(liq_chart.properties(height=280), use_container_width=True)
+            st.altair_chart(liq_chart.properties(height=280), width="stretch")
 
     option_cols = [
         "symbol",
@@ -6904,7 +6904,7 @@ def render_backtest_strategy_visual(expanded: bool = True) -> None:
                 tooltip=["strategy_family:N", alt.Tooltip("win_rate_pct:Q", format=".1f"), "trades:Q"],
             )
         )
-        st.altair_chart(win_chart.properties(height=280), use_container_width=True)
+        st.altair_chart(win_chart.properties(height=280), width="stretch")
     with cols[1]:
         pf_chart = (
             alt.Chart(chart_data)
@@ -6915,7 +6915,7 @@ def render_backtest_strategy_visual(expanded: bool = True) -> None:
                 tooltip=["strategy_family:N", alt.Tooltip("profit_factor_display:Q", format=".2f"), "total_pnl:Q"],
             )
         )
-        st.altair_chart(pf_chart.properties(height=280), use_container_width=True)
+        st.altair_chart(pf_chart.properties(height=280), width="stretch")
 
     target_view = chart_data[
         ["strategy_family", "hit_2pct_rate_pct", "hit_5pct_rate_pct", "hit_10pct_rate_pct", "stop_rate_pct"]
@@ -6942,7 +6942,7 @@ def render_backtest_strategy_visual(expanded: bool = True) -> None:
             tooltip=["strategy_family:N", "metric:N", alt.Tooltip("rate:Q", format=".1f")],
         )
     )
-    st.altair_chart(target_chart.properties(height=330), use_container_width=True)
+    st.altair_chart(target_chart.properties(height=330), width="stretch")
 
     display = summary.copy()
     for column in ["win_rate", "hit_2pct_rate", "hit_5pct_rate", "hit_10pct_rate", "stop_rate", "avg_return_pct"]:
@@ -7071,7 +7071,7 @@ def show_accuracy_screen(brief: dict) -> None:
                     tooltip=["strategy_family:N", "metric:N", alt.Tooltip("rate_pct:Q", format=".1f")],
                 )
             )
-            st.altair_chart(rate_chart.properties(height=320), use_container_width=True)
+            st.altair_chart(rate_chart.properties(height=320), width="stretch")
         else:
             st.info("Aun no hay resultados de alertas por estrategia. La tabla muestra lo que Roxy esta midiendo.")
 
@@ -7190,7 +7190,7 @@ def render_smart_alert_gate(brief: dict) -> None:
             ],
         )
     )
-    st.altair_chart(chart.properties(height=280), use_container_width=True)
+    st.altair_chart(chart.properties(height=280), width="stretch")
     display_cols = [
         "symbol",
         "action",
@@ -7297,7 +7297,7 @@ def render_roxy_lab_visual(brief: dict, memory: dict) -> None:
             ],
         )
     )
-    st.altair_chart(lab_chart.properties(height=320), use_container_width=True)
+    st.altair_chart(lab_chart.properties(height=320), width="stretch")
 
     journal_df = load_learning_journal(limit=40)
     if not journal_df.empty:
@@ -7324,7 +7324,7 @@ def render_roxy_lab_visual(brief: dict, memory: dict) -> None:
                     ],
                 )
             )
-            st.altair_chart(readiness_chart.properties(height=180), use_container_width=True)
+            st.altair_chart(readiness_chart.properties(height=180), width="stretch")
 
         display_cols = [
             "generated_at",
@@ -8086,9 +8086,9 @@ def show_strategy_study_center(
                 chart_panels.append(oscillator_chart.properties(height=110))
             if len(chart_panels) > 1:
                 combined_chart = alt.vconcat(*chart_panels).resolve_scale(x="shared")
-                st.altair_chart(style_trading_chart(combined_chart), use_container_width=True)
+                st.altair_chart(style_trading_chart(combined_chart), width="stretch")
             else:
-                st.altair_chart(style_trading_chart(price_chart), use_container_width=True)
+                st.altair_chart(style_trading_chart(price_chart), width="stretch")
 
         if not examples.empty:
             display_cols = [
@@ -8328,7 +8328,7 @@ def show_million_plan_screen() -> None:
                 tooltip=["stage:O", "target_label:N"],
             )
         )
-        st.altair_chart(style_trading_chart(milestone_chart.properties(height=280)), use_container_width=True)
+        st.altair_chart(style_trading_chart(milestone_chart.properties(height=280)), width="stretch")
 
         display = milestones.copy()
         for col in ["from", "target", "risk_per_trade", "daily_stop"]:
@@ -9677,7 +9677,7 @@ def main() -> None:
                             .mark_line()
                             .encode(x=alt.X("ts:T", title="Time"), y=alt.Y("equity:Q", title="Equity"), color="user:N")
                         )
-                        st.altair_chart(chart.interactive(), use_container_width=True)
+                        st.altair_chart(chart.interactive(), width="stretch")
                     except Exception:
                         pass
                     # admin exports to server `output/`
