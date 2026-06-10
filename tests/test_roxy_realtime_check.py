@@ -840,10 +840,22 @@ def test_health_notification_message_uses_top_issue_and_recovery():
         ],
     }
     ok_report = {"status": "OK", "checks": []}
+    recovered_with_context = {
+        "status": "OK",
+        "operational_summary": {
+            "label": "Mercado espera",
+            "detail": "Esperando gatillo x3 | 15m da entrada: WAIT",
+        },
+        "checks": [],
+    }
 
     assert health_notification_message(warn_report) == "ROXY HEALTH WARN | heartbeat: running long"
     assert health_notification_message(ok_report) == ""
     assert health_notification_message(ok_report, {"last_status": "FAIL"}) == "ROXY HEALTH OK | realtime pipeline recovered"
+    assert (
+        health_notification_message(recovered_with_context, {"last_status": "FAIL"})
+        == "ROXY HEALTH OK | recovered | Mercado espera: Esperando gatillo x3 | 15m da entrada: WAIT"
+    )
 
 
 def test_should_send_health_notification_respects_cooldown():
@@ -899,10 +911,18 @@ def test_notify_health_if_needed_sends_recovery_after_failure(tmp_path, monkeypa
 
     monkeypatch.setattr("notifier.send_notification_message", fake_send)
 
-    result = notify_health_if_needed({"status": "OK", "checks": []}, state_path=state_path, now=now)
+    result = notify_health_if_needed(
+        {
+            "status": "OK",
+            "operational_summary": {"label": "Mercado espera", "detail": "Esperando gatillo"},
+            "checks": [],
+        },
+        state_path=state_path,
+        now=now,
+    )
 
     assert result["sent"] is True
-    assert calls == ["ROXY HEALTH OK | realtime pipeline recovered"]
+    assert calls == ["ROXY HEALTH OK | recovered | Mercado espera: Esperando gatillo"]
 
 
 def test_notify_health_if_needed_cools_down_recorded_local_attempts(tmp_path, monkeypatch):

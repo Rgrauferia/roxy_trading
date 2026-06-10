@@ -3068,6 +3068,13 @@ def health_notification_message(report: dict[str, Any], previous_state: dict[str
     previous_status = str((previous_state or {}).get("last_status") or "").upper()
     if status == "OK":
         if previous_status and previous_status != "OK":
+            operational = report.get("operational_summary") if isinstance(report.get("operational_summary"), dict) else {}
+            if operational:
+                label = str(operational.get("label") or operational.get("mode") or "operativo")
+                detail = str(operational.get("detail") or "").strip()
+                if detail:
+                    return f"ROXY HEALTH OK | recovered | {label}: {detail}"
+                return f"ROXY HEALTH OK | recovered | {label}"
             return "ROXY HEALTH OK | realtime pipeline recovered"
         return ""
     if status not in {"WARN", "FAIL"}:
