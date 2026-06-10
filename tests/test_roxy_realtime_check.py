@@ -1016,9 +1016,10 @@ def test_validate_streamlit_service_accepts_loaded_keepalive_job(monkeypatch):
             "installed": True,
             "loaded": True,
             "keep_alive": True,
+            "lan_ready": True,
             "address": "0.0.0.0",
             "port": 8501,
-            "command": "python -m streamlit run /tmp/streamlit_app.py --server.port 8501",
+            "command": "python -m streamlit run /tmp/streamlit_app.py --server.address 0.0.0.0 --server.port 8501 --server.headless true --browser.gatherUsageStats false",
         },
     )
 
@@ -1026,6 +1027,9 @@ def test_validate_streamlit_service_accepts_loaded_keepalive_job(monkeypatch):
 
     assert status["status"] == "OK"
     assert status["keep_alive"] is True
+    assert status["lan_ready"] is True
+    assert status["headless"] is True
+    assert status["usage_stats_disabled"] is True
     assert status["port"] == 8501
 
 
@@ -1036,6 +1040,7 @@ def test_validate_streamlit_service_flags_unloaded_or_wrong_command(monkeypatch)
             "installed": True,
             "loaded": False,
             "keep_alive": False,
+            "lan_ready": False,
             "address": "127.0.0.1",
             "port": 8502,
             "command": "python -m streamlit run other.py --server.port 8502",
@@ -1048,6 +1053,9 @@ def test_validate_streamlit_service_flags_unloaded_or_wrong_command(monkeypatch)
     assert "not loaded" in status["detail"]
     assert "KeepAlive disabled" in status["detail"]
     assert "streamlit_app.py" in status["detail"]
+    assert "LAN binding disabled" in status["detail"]
+    assert "headless mode missing" in status["detail"]
+    assert "usage stats opt-out missing" in status["detail"]
     assert "port mismatch" in status["detail"]
 
 

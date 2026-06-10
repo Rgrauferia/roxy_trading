@@ -1057,6 +1057,12 @@ def validate_streamlit_service(expected_port: int | None = 8501) -> dict[str, An
         issues.append("KeepAlive disabled")
     if "streamlit_app.py" not in command:
         issues.append("command does not run streamlit_app.py")
+    if not info.get("lan_ready"):
+        issues.append("LAN binding disabled")
+    if "--server.headless true" not in command:
+        issues.append("headless mode missing")
+    if "--browser.gatherUsageStats false" not in command:
+        issues.append("usage stats opt-out missing")
     if expected_port is not None and port != expected_port:
         issues.append(f"port mismatch: {port or '-'}")
     status = "OK" if not issues else "FAIL"
@@ -1068,8 +1074,11 @@ def validate_streamlit_service(expected_port: int | None = 8501) -> dict[str, An
         installed=bool(info.get("installed")),
         loaded=bool(info.get("loaded")),
         keep_alive=bool(info.get("keep_alive")),
+        lan_ready=bool(info.get("lan_ready")),
         address=str(info.get("address") or "-"),
         port=port,
+        headless="--server.headless true" in command,
+        usage_stats_disabled="--browser.gatherUsageStats false" in command,
         command=command,
     )
 
