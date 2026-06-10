@@ -1136,6 +1136,28 @@ def test_validate_notification_delivery_accepts_local_file_fallback(tmp_path, mo
     assert "local alert files" in status["detail"]
 
 
+def test_validate_notification_delivery_warns_on_malformed_history(tmp_path, monkeypatch):
+    monkeypatch.setattr("notifier.configured_channels", lambda: [])
+    monkeypatch.setattr("notifier.notification_channel_status", lambda: [])
+    monkeypatch.setattr(
+        "notifier.notification_history_summary",
+        lambda limit=50: {
+            "sample_size": 1,
+            "malformed_recent_lines": 2,
+            "local_recorded_count": 1,
+            "last_reason": "recorded_local",
+            "last_age_minutes": 1.0,
+            "delivery_mode": "local_file",
+        },
+    )
+
+    status = validate_notification_delivery(tmp_path)
+
+    assert status["status"] == "WARN"
+    assert status["malformed_recent_lines"] == 2
+    assert "malformed recent line" in status["detail"]
+
+
 def test_validate_notification_delivery_fails_without_channels_or_writable_fallback(tmp_path, monkeypatch):
     missing = tmp_path / "missing"
     monkeypatch.setattr("notifier.configured_channels", lambda: [])

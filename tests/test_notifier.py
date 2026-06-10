@@ -85,6 +85,28 @@ def test_notification_history_summary_ignores_legacy_sent_without_channels(tmp_p
     assert summary["last_effective_sent"] is True
 
 
+def test_notification_history_summary_skips_malformed_recent_lines(tmp_path, monkeypatch):
+    history_path = tmp_path / "notification_history.jsonl"
+    monkeypatch.setattr(notifier, "NOTIFICATION_HISTORY_FILE", history_path)
+    history_path.write_text(
+        "\n".join(
+            [
+                '{"channels": [], "message": "old", "reason": "recorded_local", "sent": false, "ts": "2026-06-10T00:00:00+00:00"}',
+                "not-json",
+                '["wrong-shape"]',
+                '{"channels": [], "message": "new", "reason": "recorded_local", "sent": false, "ts": "2026-06-10T00:01:00+00:00"}',
+            ]
+        )
+    )
+
+    rows = notifier.read_notification_history(limit=10)
+    summary = notifier.notification_history_summary(limit=10)
+
+    assert [row["message"] for row in rows] == ["old", "new"]
+    assert summary["sample_size"] == 2
+    assert summary["malformed_recent_lines"] == 2
+
+
 def test_notify_if_changed_uses_symbol_cooldown_for_changed_alert(tmp_path, monkeypatch):
     _clear_channels(monkeypatch)
     monkeypatch.setattr(notifier, "LAST_SENT_FILE", tmp_path / "last_sent.txt")

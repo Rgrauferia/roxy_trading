@@ -132,18 +132,32 @@ def filter_alerts_by_cooldown(alerts: Iterable[str], *, cooldown_minutes: int | 
     return sendable, skipped
 
 
-def read_notification_history(limit: int = 50) -> list[dict]:
+def _read_notification_history_rows(limit: int = 50) -> tuple[list[dict], int]:
     if not NOTIFICATION_HISTORY_FILE.exists():
-        return []
+        return [], 0
     rows: list[dict] = []
+    malformed = 0
     try:
         for line in NOTIFICATION_HISTORY_FILE.read_text().splitlines()[-limit:]:
             if not line.strip():
                 continue
-            rows.append(json.loads(line))
+            try:
+                parsed = json.loads(line)
+            except json.JSONDecodeError:
+                malformed += 1
+                continue
+            if isinstance(parsed, dict):
+                rows.append(parsed)
+            else:
+                malformed += 1
     except Exception:
         logger.exception("Failed to read notification history")
-        return []
+        return [], 0
+    return rows, malformed
+
+
+def read_notification_history(limit: int = 50) -> list[dict]:
+    rows, _malformed = _read_notification_history_rows(limit=limit)
     return rows
 
 
@@ -169,7 +183,7 @@ def parse_notification_timestamp(value: str) -> datetime | None:
 
 
 def notification_history_summary(limit: int = 50, *, now: datetime | None = None) -> dict:
-    rows = read_notification_history(limit=limit)
+    rows, malformed_recent_lines = _read_notification_history_rows(limit=limit)
     reason_counts: dict[str, int] = {}
     sent_count = 0
     cooldown_skipped = 0
@@ -195,6 +209,7 @@ def notification_history_summary(limit: int = 50, *, now: datetime | None = None
     channels = configured_channels()
     return {
         "sample_size": len(rows),
+        "malformed_recent_lines": malformed_recent_lines,
         "sent_count": sent_count,
         "suppressed_count": len(rows) - sent_count,
         "local_recorded_count": local_recorded_count,

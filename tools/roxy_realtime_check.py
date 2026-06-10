@@ -1106,6 +1106,7 @@ def validate_notification_delivery(alerts_path: Path = ALERTS_DIR) -> dict[str, 
                     probe.unlink()
             except Exception:
                 pass
+    malformed_recent_lines = int(history_summary.get("malformed_recent_lines") or 0)
     if channels:
         status = "OK"
         detail = "Configured channels: " + ", ".join(channels)
@@ -1123,6 +1124,9 @@ def validate_notification_delivery(alerts_path: Path = ALERTS_DIR) -> dict[str, 
         detail = "No notification channels configured and local alerts path is not writable"
         if probe_error:
             detail += f": {probe_error}"
+    if malformed_recent_lines and status != "FAIL":
+        status = "WARN"
+        detail = f"Notification history has {malformed_recent_lines} malformed recent line(s); {detail}"
     return check(
         "notification_delivery",
         status,
@@ -1132,6 +1136,7 @@ def validate_notification_delivery(alerts_path: Path = ALERTS_DIR) -> dict[str, 
         local_file_fallback=alerts_writable,
         channel_status=channel_status,
         history_summary=history_summary,
+        malformed_recent_lines=malformed_recent_lines,
         local_recorded_count=history_summary.get("local_recorded_count"),
         last_reason=history_summary.get("last_reason"),
         last_age_minutes=history_summary.get("last_age_minutes"),
