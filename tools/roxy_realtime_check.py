@@ -3220,6 +3220,28 @@ def main() -> None:
                 return
             write_run_lock_status(lock_info, args.lock_status_path, event="acquired")
         required_timeframes = {item.strip().lower() for item in args.required_timeframes.split(",") if item.strip()}
+        health_eval_kwargs = {
+            "base_dir": Path(args.base_dir),
+            "max_age_minutes": args.max_age_minutes,
+            "maintenance_max_age_hours": args.maintenance_max_age_hours,
+            "required_timeframes": required_timeframes,
+            "app_url": args.app_url,
+            "chart_symbol": args.chart_symbol,
+            "chart_timeframe": args.chart_timeframe,
+            "skip_chart_fetch": args.skip_chart_fetch,
+            "skip_service_check": args.skip_service_check,
+            "warn_free_gb": args.warn_free_gb,
+            "fail_free_gb": args.fail_free_gb,
+            "running_warn_minutes": args.running_warn_minutes,
+            "running_fail_minutes": args.running_fail_minutes,
+            "external_disk_path": args.external_disk_path,
+            "external_warn_free_gb": args.external_warn_free_gb,
+            "external_fail_free_gb": args.external_fail_free_gb,
+        }
+
+        def refresh_health() -> dict[str, Any]:
+            return evaluate_realtime_health(**health_eval_kwargs)
+
         backup_autoheal = None
         if args.ensure_runtime_backup_daemon:
             backup_autoheal = ensure_runtime_backup_daemon(
@@ -3228,24 +3250,7 @@ def main() -> None:
                 stale_minutes=args.runtime_backup_stale_minutes,
             )
         launchd_autoheal = ensure_core_launchagents() if args.ensure_core_launchagents else None
-        report = evaluate_realtime_health(
-            base_dir=Path(args.base_dir),
-            max_age_minutes=args.max_age_minutes,
-            maintenance_max_age_hours=args.maintenance_max_age_hours,
-            required_timeframes=required_timeframes,
-            app_url=args.app_url,
-            chart_symbol=args.chart_symbol,
-            chart_timeframe=args.chart_timeframe,
-            skip_chart_fetch=args.skip_chart_fetch,
-            skip_service_check=args.skip_service_check,
-            warn_free_gb=args.warn_free_gb,
-            fail_free_gb=args.fail_free_gb,
-            running_warn_minutes=args.running_warn_minutes,
-            running_fail_minutes=args.running_fail_minutes,
-            external_disk_path=args.external_disk_path,
-            external_warn_free_gb=args.external_warn_free_gb,
-            external_fail_free_gb=args.external_fail_free_gb,
-        )
+        report = refresh_health()
         chart_health_autoheal = None
         live_data_autoheal = None
         storage_migration_autoheal = None
@@ -3256,45 +3261,11 @@ def main() -> None:
                 external_disk_path=args.external_disk_path,
                 log_path=DEFAULT_PARALLELS_MIGRATION_LOG_PATH,
             )
-            report = evaluate_realtime_health(
-                base_dir=Path(args.base_dir),
-                max_age_minutes=args.max_age_minutes,
-                maintenance_max_age_hours=args.maintenance_max_age_hours,
-                required_timeframes=required_timeframes,
-                app_url=args.app_url,
-                chart_symbol=args.chart_symbol,
-                chart_timeframe=args.chart_timeframe,
-                skip_chart_fetch=args.skip_chart_fetch,
-                skip_service_check=args.skip_service_check,
-                warn_free_gb=args.warn_free_gb,
-                fail_free_gb=args.fail_free_gb,
-                running_warn_minutes=args.running_warn_minutes,
-                running_fail_minutes=args.running_fail_minutes,
-                external_disk_path=args.external_disk_path,
-                external_warn_free_gb=args.external_warn_free_gb,
-                external_fail_free_gb=args.external_fail_free_gb,
-            )
+            report = refresh_health()
         yfinance_cache_autoheal = None
         if args.ensure_yfinance_cache and yfinance_cache_needs_recovery(report):
             yfinance_cache_autoheal = ensure_yfinance_cache_recovery(report)
-            report = evaluate_realtime_health(
-                base_dir=Path(args.base_dir),
-                max_age_minutes=args.max_age_minutes,
-                maintenance_max_age_hours=args.maintenance_max_age_hours,
-                required_timeframes=required_timeframes,
-                app_url=args.app_url,
-                chart_symbol=args.chart_symbol,
-                chart_timeframe=args.chart_timeframe,
-                skip_chart_fetch=args.skip_chart_fetch,
-                skip_service_check=args.skip_service_check,
-                warn_free_gb=args.warn_free_gb,
-                fail_free_gb=args.fail_free_gb,
-                running_warn_minutes=args.running_warn_minutes,
-                running_fail_minutes=args.running_fail_minutes,
-                external_disk_path=args.external_disk_path,
-                external_warn_free_gb=args.external_warn_free_gb,
-                external_fail_free_gb=args.external_fail_free_gb,
-            )
+            report = refresh_health()
         if args.ensure_live_data and live_data_needs_recovery(report):
             if live_data_recovery_should_wait_for_service(report):
                 live_data_autoheal = {
@@ -3309,47 +3280,13 @@ def main() -> None:
                     stock_intervals=args.required_timeframes,
                     crypto_timeframes=args.required_timeframes,
                 )
-                report = evaluate_realtime_health(
-                    base_dir=Path(args.base_dir),
-                    max_age_minutes=args.max_age_minutes,
-                    maintenance_max_age_hours=args.maintenance_max_age_hours,
-                    required_timeframes=required_timeframes,
-                    app_url=args.app_url,
-                    chart_symbol=args.chart_symbol,
-                    chart_timeframe=args.chart_timeframe,
-                    skip_chart_fetch=args.skip_chart_fetch,
-                    skip_service_check=args.skip_service_check,
-                    warn_free_gb=args.warn_free_gb,
-                    fail_free_gb=args.fail_free_gb,
-                    running_warn_minutes=args.running_warn_minutes,
-                    running_fail_minutes=args.running_fail_minutes,
-                    external_disk_path=args.external_disk_path,
-                    external_warn_free_gb=args.external_warn_free_gb,
-                    external_fail_free_gb=args.external_fail_free_gb,
-                )
+                report = refresh_health()
         if args.ensure_chart_health_report and chart_health_report_needs_recovery(report):
             _, chart_alerts_path = runtime_dirs(Path(args.base_dir))
             chart_health_autoheal = ensure_chart_health_report(
                 report_path=chart_alerts_path / "chart_realtime_health.json"
             )
-            report = evaluate_realtime_health(
-                base_dir=Path(args.base_dir),
-                max_age_minutes=args.max_age_minutes,
-                maintenance_max_age_hours=args.maintenance_max_age_hours,
-                required_timeframes=required_timeframes,
-                app_url=args.app_url,
-                chart_symbol=args.chart_symbol,
-                chart_timeframe=args.chart_timeframe,
-                skip_chart_fetch=args.skip_chart_fetch,
-                skip_service_check=args.skip_service_check,
-                warn_free_gb=args.warn_free_gb,
-                fail_free_gb=args.fail_free_gb,
-                running_warn_minutes=args.running_warn_minutes,
-                running_fail_minutes=args.running_fail_minutes,
-                external_disk_path=args.external_disk_path,
-                external_warn_free_gb=args.external_warn_free_gb,
-                external_fail_free_gb=args.external_fail_free_gb,
-            )
+            report = refresh_health()
         streamlit_app_autoheal = None
         output_maintenance_autoheal = None
         if args.ensure_output_maintenance_report and output_maintenance_report_needs_recovery(report):
@@ -3359,24 +3296,7 @@ def main() -> None:
                 alerts_path=alerts_path,
                 report_path=alerts_path / "output_maintenance.json",
             )
-            report = evaluate_realtime_health(
-                base_dir=Path(args.base_dir),
-                max_age_minutes=args.max_age_minutes,
-                maintenance_max_age_hours=args.maintenance_max_age_hours,
-                required_timeframes=required_timeframes,
-                app_url=args.app_url,
-                chart_symbol=args.chart_symbol,
-                chart_timeframe=args.chart_timeframe,
-                skip_chart_fetch=args.skip_chart_fetch,
-                skip_service_check=args.skip_service_check,
-                warn_free_gb=args.warn_free_gb,
-                fail_free_gb=args.fail_free_gb,
-                running_warn_minutes=args.running_warn_minutes,
-                running_fail_minutes=args.running_fail_minutes,
-                external_disk_path=args.external_disk_path,
-                external_warn_free_gb=args.external_warn_free_gb,
-                external_fail_free_gb=args.external_fail_free_gb,
-            )
+            report = refresh_health()
         runtime_backup_report_autoheal = None
         if args.ensure_runtime_backup_report and runtime_backup_report_needs_recovery(report):
             _, alerts_path = runtime_dirs(Path(args.base_dir))
@@ -3387,24 +3307,7 @@ def main() -> None:
                 report_path=alerts_path / "runtime_backup.json",
                 text_path=alerts_path / "runtime_backup.txt",
             )
-            report = evaluate_realtime_health(
-                base_dir=Path(args.base_dir),
-                max_age_minutes=args.max_age_minutes,
-                maintenance_max_age_hours=args.maintenance_max_age_hours,
-                required_timeframes=required_timeframes,
-                app_url=args.app_url,
-                chart_symbol=args.chart_symbol,
-                chart_timeframe=args.chart_timeframe,
-                skip_chart_fetch=args.skip_chart_fetch,
-                skip_service_check=args.skip_service_check,
-                warn_free_gb=args.warn_free_gb,
-                fail_free_gb=args.fail_free_gb,
-                running_warn_minutes=args.running_warn_minutes,
-                running_fail_minutes=args.running_fail_minutes,
-                external_disk_path=args.external_disk_path,
-                external_warn_free_gb=args.external_warn_free_gb,
-                external_fail_free_gb=args.external_fail_free_gb,
-            )
+            report = refresh_health()
         alert_quality_autoheal = None
         if args.ensure_alert_quality_report and alert_quality_report_needs_recovery(report):
             _, alerts_path = runtime_dirs(Path(args.base_dir))
@@ -3413,44 +3316,10 @@ def main() -> None:
                 report_path=alerts_path / "alert_quality.json",
                 history_path=alerts_path / "alert_quality_history.jsonl",
             )
-            report = evaluate_realtime_health(
-                base_dir=Path(args.base_dir),
-                max_age_minutes=args.max_age_minutes,
-                maintenance_max_age_hours=args.maintenance_max_age_hours,
-                required_timeframes=required_timeframes,
-                app_url=args.app_url,
-                chart_symbol=args.chart_symbol,
-                chart_timeframe=args.chart_timeframe,
-                skip_chart_fetch=args.skip_chart_fetch,
-                skip_service_check=args.skip_service_check,
-                warn_free_gb=args.warn_free_gb,
-                fail_free_gb=args.fail_free_gb,
-                running_warn_minutes=args.running_warn_minutes,
-                running_fail_minutes=args.running_fail_minutes,
-                external_disk_path=args.external_disk_path,
-                external_warn_free_gb=args.external_warn_free_gb,
-                external_fail_free_gb=args.external_fail_free_gb,
-            )
+            report = refresh_health()
         if args.ensure_streamlit_app and args.app_url and streamlit_app_needs_recovery(report):
             streamlit_app_autoheal = recover_streamlit_app(wait_seconds=args.streamlit_recovery_wait_seconds, app_url=args.app_url)
-            report = evaluate_realtime_health(
-                base_dir=Path(args.base_dir),
-                max_age_minutes=args.max_age_minutes,
-                maintenance_max_age_hours=args.maintenance_max_age_hours,
-                required_timeframes=required_timeframes,
-                app_url=args.app_url,
-                chart_symbol=args.chart_symbol,
-                chart_timeframe=args.chart_timeframe,
-                skip_chart_fetch=args.skip_chart_fetch,
-                skip_service_check=args.skip_service_check,
-                warn_free_gb=args.warn_free_gb,
-                fail_free_gb=args.fail_free_gb,
-                running_warn_minutes=args.running_warn_minutes,
-                running_fail_minutes=args.running_fail_minutes,
-                external_disk_path=args.external_disk_path,
-                external_warn_free_gb=args.external_warn_free_gb,
-                external_fail_free_gb=args.external_fail_free_gb,
-            )
+            report = refresh_health()
         ai_brief_autoheal = None
         if args.ensure_alert_quality_report:
             write_report(report, json_path=args.json_path, text_path=args.text_path)
@@ -3461,24 +3330,7 @@ def main() -> None:
                 report_path=alerts_path / "alert_quality.json",
                 history_path=alerts_path / "alert_quality_history.jsonl",
             )
-            report = evaluate_realtime_health(
-                base_dir=Path(args.base_dir),
-                max_age_minutes=args.max_age_minutes,
-                maintenance_max_age_hours=args.maintenance_max_age_hours,
-                required_timeframes=required_timeframes,
-                app_url=args.app_url,
-                chart_symbol=args.chart_symbol,
-                chart_timeframe=args.chart_timeframe,
-                skip_chart_fetch=args.skip_chart_fetch,
-                skip_service_check=args.skip_service_check,
-                warn_free_gb=args.warn_free_gb,
-                fail_free_gb=args.fail_free_gb,
-                running_warn_minutes=args.running_warn_minutes,
-                running_fail_minutes=args.running_fail_minutes,
-                external_disk_path=args.external_disk_path,
-                external_warn_free_gb=args.external_warn_free_gb,
-                external_fail_free_gb=args.external_fail_free_gb,
-            )
+            report = refresh_health()
         if backup_autoheal is not None:
             report["runtime_backup_autoheal"] = json_safe(backup_autoheal)
         if launchd_autoheal is not None:
