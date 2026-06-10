@@ -4701,6 +4701,21 @@ def autoheal_dashboard_status(realtime_report: dict[str, Any] | None) -> dict[st
     alert_quality_ok = bool(alert_quality_recovery.get("ok")) if alert_quality_recovery else True
     yfinance_cache_action = text_display(yfinance_cache_recovery.get("action")) if yfinance_cache_recovery else ""
     yfinance_cache_ok = bool(yfinance_cache_recovery.get("ok")) if yfinance_cache_recovery else True
+    routine_refresh = bool(
+        str(realtime_report.get("status") or "").upper() == "OK"
+        and not recovered
+        and not failed
+        and backup_action not in {"restarted", "started", "error"}
+        and not backup_report_action
+        and not streamlit_action
+        and not chart_action
+        and live_data_action in {"", "skipped_running_service"}
+        and not storage_action
+        and not maintenance_action
+        and not yfinance_cache_action
+        and (ai_brief_action in {"", "regenerated"})
+        and (alert_quality_action in {"", "regenerated"})
+    )
 
     if (
         failed
@@ -4730,8 +4745,12 @@ def autoheal_dashboard_status(realtime_report: dict[str, Any] | None) -> dict[st
         or alert_quality_action == "regenerated"
         or yfinance_cache_action == "recovered"
     ):
-        label = f"Recupero {len(recovered)}"
-        tone = "watch"
+        if routine_refresh:
+            label = "OK"
+            tone = "buy"
+        else:
+            label = f"Recupero {len(recovered)}"
+            tone = "watch"
     else:
         label = "OK"
         tone = "buy"
@@ -4780,6 +4799,7 @@ def autoheal_dashboard_status(realtime_report: dict[str, Any] | None) -> dict[st
         "ai_brief_action": ai_brief_action,
         "alert_quality_action": alert_quality_action,
         "yfinance_cache_action": yfinance_cache_action,
+        "routine_refresh": routine_refresh,
     }
 
 

@@ -1051,6 +1051,25 @@ def test_autoheal_dashboard_status_summarizes_healthy_state():
     assert "live skipped_running_service" in status["detail"]
 
 
+def test_autoheal_dashboard_status_treats_routine_refresh_as_healthy():
+    status = autoheal_dashboard_status(
+        {
+            "status": "OK",
+            "launchd_autoheal": {"status": "OK", "service_count": 5, "recovered": [], "failed": []},
+            "runtime_backup_autoheal": {"action": "healthy", "status": {"healthy": True}},
+            "live_data_autoheal": {"action": "skipped_running_service", "ok": True},
+            "ai_brief_autoheal": {"action": "regenerated", "ok": True},
+            "alert_quality_autoheal": {"action": "regenerated", "ok": True},
+        }
+    )
+
+    assert status["label"] == "OK"
+    assert status["tone"] == "buy"
+    assert status["routine_refresh"] is True
+    assert "brief regenerated" in status["detail"]
+    assert "alertas regenerated" in status["detail"]
+
+
 def test_autoheal_dashboard_status_surfaces_recovery_and_failures():
     recovered = autoheal_dashboard_status(
         {
