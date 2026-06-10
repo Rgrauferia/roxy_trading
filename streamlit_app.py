@@ -5473,6 +5473,12 @@ def show_ai_status_cards(
         missing_label=external_disk_status["label"],
     )
     storage_migration_status = storage_migration_dashboard_status(realtime_check)
+    runtime_cache_status = realtime_report_check_card(
+        realtime_check,
+        "runtime_cache_migration",
+        ok_label="Externa",
+        missing_label="Sin check",
+    )
     notification_delivery_status = realtime_report_check_card(
         realtime_check,
         "notification_delivery",
@@ -5585,7 +5591,7 @@ def show_ai_status_cards(
         with ops_cols[3]:
             render_kpi_card("Disco Mac", mac_disk_status["label"], tone=mac_disk_status["tone"], detail=mac_disk_status["detail"])
 
-        ops_cols_2 = st.columns(10)
+        ops_cols_2 = st.columns(11)
         with ops_cols_2[0]:
             render_kpi_card(
                 "RoxyData",
@@ -5601,20 +5607,27 @@ def show_ai_status_cards(
                 detail=storage_migration_status["detail"],
             )
         with ops_cols_2[2]:
-            render_kpi_card("Calidad alertas", gate_summary_status["label"], tone=gate_summary_status["tone"], detail=gate_summary_status["detail"])
+            render_kpi_card(
+                "Cache runtime",
+                runtime_cache_status["label"],
+                tone=runtime_cache_status["tone"],
+                detail=runtime_cache_status["detail"],
+            )
         with ops_cols_2[3]:
-            render_kpi_card("Racha alertas", alert_quality_status["label"], tone=alert_quality_status["tone"], detail=alert_quality_status["detail"])
+            render_kpi_card("Calidad alertas", gate_summary_status["label"], tone=gate_summary_status["tone"], detail=gate_summary_status["detail"])
         with ops_cols_2[4]:
-            render_kpi_card("Delivery alertas", delivery_summary_status["label"], tone=delivery_summary_status["tone"], detail=delivery_summary_status["detail"])
+            render_kpi_card("Racha alertas", alert_quality_status["label"], tone=alert_quality_status["tone"], detail=alert_quality_status["detail"])
         with ops_cols_2[5]:
-            render_kpi_card("Graficas RT", chart_health_status["label"], tone=chart_health_status["tone"], detail=chart_health_status["detail"])
+            render_kpi_card("Delivery alertas", delivery_summary_status["label"], tone=delivery_summary_status["tone"], detail=delivery_summary_status["detail"])
         with ops_cols_2[6]:
-            render_kpi_card("Backup", runtime_backup_status["label"], tone=runtime_backup_status["tone"], detail=runtime_backup_status["detail"])
+            render_kpi_card("Graficas RT", chart_health_status["label"], tone=chart_health_status["tone"], detail=chart_health_status["detail"])
         with ops_cols_2[7]:
-            render_kpi_card("Autoheal", autoheal_status["label"], tone=autoheal_status["tone"], detail=autoheal_status["detail"])
+            render_kpi_card("Backup", runtime_backup_status["label"], tone=runtime_backup_status["tone"], detail=runtime_backup_status["detail"])
         with ops_cols_2[8]:
-            render_kpi_card("Lock RT", lock_status["label"], tone=lock_status["tone"], detail=lock_status["detail"])
+            render_kpi_card("Autoheal", autoheal_status["label"], tone=autoheal_status["tone"], detail=autoheal_status["detail"])
         with ops_cols_2[9]:
+            render_kpi_card("Lock RT", lock_status["label"], tone=lock_status["tone"], detail=lock_status["detail"])
+        with ops_cols_2[10]:
             render_kpi_card(
                 "Logs ops",
                 operational_logs_status["label"],

@@ -49,6 +49,10 @@ DEFAULT_LIVE_DATA_RECOVERY_TIMEOUT_SECONDS = 900
 DEFAULT_PARALLELS_SOURCE_PATH = Path.home() / "Parallels"
 DEFAULT_PARALLELS_DESTINATION_PATH = DEFAULT_EXTERNAL_DISK_PATH / "MacArchive" / Path.home().name / "Parallels"
 DEFAULT_PARALLELS_MIGRATION_LOG_PATH = DEFAULT_EXTERNAL_DISK_PATH / "MacArchive" / "migration_logs" / "parallels_migration.log"
+DEFAULT_RUNTIME_CACHE_SOURCE_PATH = Path.home() / ".cache" / "codex-runtimes"
+DEFAULT_RUNTIME_CACHE_DESTINATION_PATH = (
+    DEFAULT_EXTERNAL_DISK_PATH / "MacArchive" / Path.home().name / ".cache" / "codex-runtimes"
+)
 REQUIRED_CONFLUENCE_COLUMNS = {
     "market",
     "symbol",
@@ -698,6 +702,85 @@ def validate_storage_migration(
         log_exists=log.exists(),
         log_age_minutes=log_age_minutes,
         waiting_for_parallels=waiting_for_parallels,
+    )
+
+
+def resolve_symlink_target(path: Path) -> str:
+    if not path.is_symlink():
+        return ""
+    try:
+        raw_target = Path(os.readlink(path))
+    except OSError:
+        return ""
+    if not raw_target.is_absolute():
+        raw_target = path.parent / raw_target
+    return str(raw_target.resolve(strict=False))
+
+
+def validate_runtime_cache_migration(
+    *,
+    source_path: str | Path = DEFAULT_RUNTIME_CACHE_SOURCE_PATH,
+    destination_path: str | Path = DEFAULT_RUNTIME_CACHE_DESTINATION_PATH,
+    external_disk_path: str | Path = DEFAULT_EXTERNAL_DISK_PATH,
+) -> dict[str, Any]:
+    source = Path(source_path)
+    destination = Path(destination_path)
+    external_disk = Path(external_disk_path)
+    source_exists = source.exists() or source.is_symlink()
+    destination_exists = destination.exists()
+    source_is_symlink = source.is_symlink()
+    source_broken_symlink = source_is_symlink and not source.exists()
+    symlink_target = resolve_symlink_target(source)
+    expected_target = str(destination.resolve(strict=False))
+    completed = source_is_symlink and destination_exists and symlink_target == expected_target
+    source_size = path_size_bytes(source) if source_exists and not source_is_symlink else None
+    destination_size = path_size_bytes(destination) if destination_exists else None
+
+    if not external_disk.exists():
+        status = "FAIL"
+        state = "EXTERNAL_MISSING"
+        detail = f"{external_disk} no esta montado; cache runtime externa no disponible"
+    elif source_broken_symlink and symlink_target == expected_target:
+        status = "WARN"
+        state = "BROKEN_SYMLINK"
+        detail = f"Cache runtime apunta a {destination}, pero el destino externo no existe"
+    elif completed:
+        status = "OK"
+        state = "MIGRATED"
+        detail = f"Cache runtime Codex apunta al disco externo ({destination})"
+    elif destination_exists and not source_exists:
+        status = "INFO"
+        state = "DESTINATION_ONLY"
+        detail = f"Cache runtime existe en {destination}, pero la fuente local no esta enlazada"
+    elif source_exists and destination_exists:
+        status = "WARN"
+        state = "COPY_PRESENT"
+        detail = "Cache runtime existe local y externa; falta completar enlace/limpieza"
+    elif source_exists:
+        status = "WARN"
+        state = "LOCAL_ONLY"
+        detail = "Cache runtime sigue ocupando espacio local; migracion externa pendiente"
+    else:
+        status = "OK"
+        state = "NOT_PRESENT"
+        detail = "No se encontro cache runtime local para migrar"
+
+    return check(
+        "runtime_cache_migration",
+        status,
+        detail,
+        state=state,
+        source_path=str(source),
+        destination_path=str(destination),
+        external_disk_path=str(external_disk),
+        source_exists=source_exists,
+        destination_exists=destination_exists,
+        source_is_symlink=source_is_symlink,
+        source_broken_symlink=source_broken_symlink,
+        symlink_target=symlink_target,
+        expected_target=expected_target,
+        source_size_bytes=source_size,
+        destination_size_bytes=destination_size,
     )
 
 
@@ -1655,6 +1738,8 @@ def evaluate_realtime_health(
     storage_migration_source_path: str | Path | None = None,
     storage_migration_destination_path: str | Path | None = None,
     storage_migration_log_path: str | Path | None = None,
+    runtime_cache_source_path: str | Path | None = None,
+    runtime_cache_destination_path: str | Path | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     required_timeframes = required_timeframes or {"15m", "1h", "2h", "4h"}
@@ -1678,6 +1763,13 @@ def evaluate_realtime_health(
                 log_path=storage_migration_log_path or DEFAULT_PARALLELS_MIGRATION_LOG_PATH,
                 external_disk_path=external_disk_path,
                 now=now,
+            )
+        )
+        checks.append(
+            validate_runtime_cache_migration(
+                source_path=runtime_cache_source_path or DEFAULT_RUNTIME_CACHE_SOURCE_PATH,
+                destination_path=runtime_cache_destination_path or DEFAULT_RUNTIME_CACHE_DESTINATION_PATH,
+                external_disk_path=external_disk_path,
             )
         )
 

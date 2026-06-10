@@ -59,6 +59,7 @@ from tools.roxy_realtime_check import (
     validate_runtime_backup_report,
     validate_runtime_backup_service,
     validate_salto_integration,
+    validate_runtime_cache_migration,
     validate_storage_migration,
     validate_streamlit_service,
     write_run_lock_status,
@@ -1721,6 +1722,75 @@ def test_validate_storage_migration_accepts_completed_symlink(tmp_path):
     assert status["status"] == "OK"
     assert status["state"] == "MIGRATED"
     assert status["source_is_symlink"] is True
+
+
+def test_validate_runtime_cache_migration_accepts_completed_symlink(tmp_path):
+    external = tmp_path / "RoxyData"
+    destination = external / "MacArchive" / "robertograu" / ".cache" / "codex-runtimes"
+    source = tmp_path / "home" / ".cache" / "codex-runtimes"
+    destination.mkdir(parents=True)
+    source.parent.mkdir(parents=True)
+    (destination / "runtime.bin").write_text("cache")
+    source.symlink_to(destination, target_is_directory=True)
+
+    status = validate_runtime_cache_migration(
+        source_path=source,
+        destination_path=destination,
+        external_disk_path=external,
+    )
+
+    assert status["status"] == "OK"
+    assert status["state"] == "MIGRATED"
+    assert status["source_is_symlink"] is True
+    assert status["destination_size_bytes"] == 5
+
+
+def test_validate_runtime_cache_migration_warns_when_cache_is_local(tmp_path):
+    external = tmp_path / "RoxyData"
+    source = tmp_path / "home" / ".cache" / "codex-runtimes"
+    destination = external / "MacArchive" / "robertograu" / ".cache" / "codex-runtimes"
+    external.mkdir(parents=True)
+    source.mkdir(parents=True)
+    (source / "runtime.bin").write_text("cache")
+
+    status = validate_runtime_cache_migration(
+        source_path=source,
+        destination_path=destination,
+        external_disk_path=external,
+    )
+
+    assert status["status"] == "WARN"
+    assert status["state"] == "LOCAL_ONLY"
+    assert status["source_size_bytes"] == 5
+
+
+def test_evaluate_realtime_health_checks_runtime_cache_migration(tmp_path):
+    now = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
+    _write_good_artifacts(tmp_path, now)
+    external = tmp_path / "RoxyData"
+    external.mkdir()
+    cache_destination = external / "MacArchive" / "robertograu" / ".cache" / "codex-runtimes"
+    cache_source = tmp_path / "home" / ".cache" / "codex-runtimes"
+    cache_destination.mkdir(parents=True)
+    cache_source.parent.mkdir(parents=True)
+    cache_source.symlink_to(cache_destination, target_is_directory=True)
+
+    report = evaluate_realtime_health(
+        base_dir=tmp_path,
+        external_disk_path=external,
+        storage_migration_source_path=tmp_path / "home" / "Parallels",
+        storage_migration_destination_path=external / "MacArchive" / "robertograu" / "Parallels",
+        storage_migration_log_path=external / "MacArchive" / "migration_logs" / "parallels_migration.log",
+        runtime_cache_source_path=cache_source,
+        runtime_cache_destination_path=cache_destination,
+        skip_chart_fetch=True,
+        skip_service_check=True,
+        now=now,
+    )
+
+    cache = next(item for item in report["checks"] if item["name"] == "runtime_cache_migration")
+    assert cache["status"] == "OK"
+    assert cache["state"] == "MIGRATED"
 
 
 def test_validate_storage_migration_warns_on_broken_external_symlink(tmp_path):
