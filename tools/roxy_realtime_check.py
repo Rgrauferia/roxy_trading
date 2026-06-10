@@ -1228,6 +1228,53 @@ def validate_notification_delivery(alerts_path: Path = ALERTS_DIR) -> dict[str, 
     )
 
 
+def validate_ai_brief_report(brief_path: str | Path) -> dict[str, Any]:
+    path = Path(brief_path)
+    brief = read_json(path)
+    if not brief:
+        return check("ai_brief", "FAIL", "AI brief not found or unreadable", path=str(path))
+
+    freshness = brief.get("source_freshness") or {}
+    allowed = bool(freshness.get("alerts_allowed", True))
+    gate_summary = brief.get("alert_gate_summary") or {}
+    alert_count = int(brief.get("alert_count", gate_summary.get("alert_count", 0)) or 0)
+    watch_count = int(brief.get("watch_count", gate_summary.get("watch_count", 0)) or 0)
+    total_opportunities = int(gate_summary.get("total_opportunities", alert_count + watch_count) or 0)
+    notifications_ready = int(gate_summary.get("notifications_ready", alert_count) or 0)
+    avg_readiness = gate_summary.get("avg_readiness")
+    top_gate = str(gate_summary.get("top_gate_label") or gate_summary.get("top_gate") or "")
+    top_blocker = str(gate_summary.get("top_blocker") or "")
+    top_quality = str(gate_summary.get("top_quality") or "")
+
+    detail = str(freshness.get("detail") or "AI brief readable")
+    detail += f"; alerts {alert_count}, watch {watch_count}, ready {notifications_ready}/{total_opportunities}"
+    if avg_readiness is not None:
+        detail += f", avg readiness {float(avg_readiness):.1f}"
+    if top_quality:
+        detail += f", top quality {top_quality}"
+    if top_gate:
+        detail += f", gate {top_gate}"
+    if top_blocker:
+        detail += f", blocker {top_blocker}"
+
+    return check(
+        "ai_brief",
+        "OK" if allowed else "FAIL",
+        detail,
+        path=str(path),
+        alerts_allowed=allowed,
+        alert_count=alert_count,
+        watch_count=watch_count,
+        total_opportunities=total_opportunities,
+        notifications_ready=notifications_ready,
+        avg_readiness=avg_readiness,
+        top_gate=top_gate,
+        top_blocker=top_blocker,
+        top_quality=top_quality,
+        source_freshness=freshness,
+    )
+
+
 def default_operational_log_paths(base_dir: Path = BASE_DIR) -> list[Path]:
     user_log_dir = Path.home() / "Library" / "Logs" / "RoxyTrading"
     local_log_dir = base_dir / "logs"
@@ -2046,14 +2093,7 @@ def evaluate_realtime_health(
         )
 
     brief_path = alerts_path / "roxy_ai_brief.json"
-    brief = read_json(brief_path)
-    if not brief:
-        checks.append(check("ai_brief", "FAIL", "AI brief not found or unreadable", path=str(brief_path)))
-    else:
-        freshness = brief.get("source_freshness") or {}
-        allowed = bool(freshness.get("alerts_allowed", True))
-        status = "OK" if allowed else "FAIL"
-        checks.append(check("ai_brief", status, str(freshness.get("detail") or "AI brief readable"), path=str(brief_path)))
+    checks.append(validate_ai_brief_report(brief_path))
     checks.append(validate_alert_quality_report(alerts_path / "alert_quality.json", now=now))
 
     if options_path is None:

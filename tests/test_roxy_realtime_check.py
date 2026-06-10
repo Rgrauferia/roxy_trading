@@ -50,6 +50,7 @@ from tools.roxy_realtime_check import (
     validate_health_watchdog_service,
     validate_chart_health_report,
     validate_alert_quality_report,
+    validate_ai_brief_report,
     validate_app_url,
     validate_live_service,
     validate_local_training_media,
@@ -412,6 +413,9 @@ def test_evaluate_realtime_health_passes_with_good_artifacts(tmp_path):
     assert report["status"] == "WARN"
     assert any(item["name"] == "timeframe_coverage" and item["status"] == "OK" for item in report["checks"])
     assert any(item["name"] == "higher_timeframe_confluence" and item["status"] == "OK" for item in report["checks"])
+    ai_brief = next(item for item in report["checks"] if item["name"] == "ai_brief")
+    assert ai_brief["status"] == "OK"
+    assert "alerts 0" in ai_brief["detail"]
     assert any(item["name"] == "salto_integration" and item["status"] == "OK" for item in report["checks"])
     assert any(item["name"] == "chart_indicators" and item["status"] == "WARN" for item in report["checks"])
 
@@ -2066,6 +2070,44 @@ def test_ensure_chart_health_report_regenerates_report(tmp_path, monkeypatch):
     assert report_path.exists()
     payload = json.loads(report_path.read_text())
     assert payload["summary"]["status"] == "OK"
+
+
+def test_validate_ai_brief_report_summarizes_gate_readiness_and_blocker(tmp_path):
+    brief = tmp_path / "roxy_ai_brief.json"
+    brief.write_text(
+        json.dumps(
+            {
+                "alert_count": 1,
+                "watch_count": 5,
+                "source_freshness": {"alerts_allowed": True, "detail": "live/confluencia actualizados hace 1 min."},
+                "alert_gate_summary": {
+                    "alert_count": 1,
+                    "watch_count": 5,
+                    "notifications_ready": 1,
+                    "total_opportunities": 6,
+                    "avg_readiness": 67.4,
+                    "top_gate_label": "Esperar entrada 15m",
+                    "top_blocker": "15m da entrada: WAIT",
+                    "top_quality": "B",
+                },
+            }
+        )
+    )
+
+    status = validate_ai_brief_report(brief)
+
+    assert status["status"] == "OK"
+    assert status["alert_count"] == 1
+    assert status["watch_count"] == 5
+    assert status["notifications_ready"] == 1
+    assert status["total_opportunities"] == 6
+    assert status["avg_readiness"] == 67.4
+    assert status["top_gate"] == "Esperar entrada 15m"
+    assert status["top_blocker"] == "15m da entrada: WAIT"
+    assert "alerts 1, watch 5, ready 1/6" in status["detail"]
+    assert "avg readiness 67.4" in status["detail"]
+    assert "gate Esperar entrada 15m" in status["detail"]
+    assert "blocker 15m da entrada: WAIT" in status["detail"]
 
 
 def test_validate_alert_quality_report_accepts_recent_waiting_state(tmp_path):
