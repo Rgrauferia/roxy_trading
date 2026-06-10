@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,7 +20,9 @@ OUTPUT_DIR = output_dir()
 ALERTS_DIR = alerts_dir()
 LOG_DIR = BASE_DIR / "logs"
 LAUNCHD_LOG_DIR = Path.home() / "Library" / "Logs" / "RoxyTrading"
+DEFAULT_EXTERNAL_DISK_PATH = Path("/Volumes/RoxyData")
 DEFAULT_LOG_SNAPSHOT_DIR = Path("/Volumes/RoxyData/MacArchive/log_snapshots")
+DEFAULT_OUTPUT_ARCHIVE_DIR = DEFAULT_EXTERNAL_DISK_PATH / "MacArchive" / "roxy_trading" / "output_archive"
 DEFAULT_JSON_PATH = ALERTS_DIR / "output_maintenance.json"
 DEFAULT_TEXT_PATH = ALERTS_DIR / "output_maintenance.txt"
 
@@ -82,17 +85,53 @@ def files_for_pattern(output_dir: Path, pattern: str) -> list[Path]:
     )
 
 
+def default_output_archive_dir() -> Path | None:
+    if DEFAULT_EXTERNAL_DISK_PATH.exists() and DEFAULT_EXTERNAL_DISK_PATH.is_dir():
+        return DEFAULT_OUTPUT_ARCHIVE_DIR
+    return None
+
+
+def unique_destination(path: Path) -> Path:
+    if not path.exists():
+        return path
+    stem = path.stem
+    suffix = path.suffix
+    for idx in range(1, 10_000):
+        candidate = path.with_name(f"{stem}.{idx}{suffix}")
+        if not candidate.exists():
+            return candidate
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+    return path.with_name(f"{stem}.{timestamp}{suffix}")
+
+
+def archive_removed_file(path: Path, *, output_root: Path, archive_dir: str | Path | None) -> str | None:
+    if not archive_dir:
+        return None
+    archive_root = Path(archive_dir)
+    try:
+        relative = path.relative_to(output_root)
+    except ValueError:
+        relative = Path(path.name)
+    destination = unique_destination(archive_root / relative)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(path), str(destination))
+    return str(destination)
+
+
 def cleanup_output_files(
     *,
     output_dir: str | Path = OUTPUT_DIR,
     retention_rules: Mapping[str, int] | None = None,
+    archive_dir: str | Path | None = None,
     dry_run: bool = False,
 ) -> dict[str, object]:
     root = Path(output_dir)
     rules = dict(retention_rules or DEFAULT_RETENTION_RULES)
     removed: list[str] = []
+    archived: list[str] = []
     kept_counts: dict[str, int] = {}
     removed_counts: dict[str, int] = {}
+    archive_error_count = 0
 
     for pattern, keep_count in rules.items():
         keep_count = max(0, int(keep_count))
@@ -101,9 +140,18 @@ def cleanup_output_files(
         stale = files[keep_count:]
         removed_counts[pattern] = len(stale)
         for path in stale:
-            removed.append(str(path))
-            if not dry_run:
-                path.unlink()
+            if dry_run:
+                removed.append(str(path))
+                continue
+            try:
+                archived_path = archive_removed_file(path, output_root=root, archive_dir=archive_dir)
+                if archived_path:
+                    archived.append(archived_path)
+                else:
+                    path.unlink()
+                removed.append(str(path))
+            except Exception:
+                archive_error_count += 1
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -111,6 +159,10 @@ def cleanup_output_files(
         "dry_run": dry_run,
         "removed": removed,
         "removed_count": len(removed),
+        "archived": archived,
+        "archived_count": len(archived),
+        "archive_dir": str(archive_dir) if archive_dir else "",
+        "archive_error_count": archive_error_count,
         "kept_counts": kept_counts,
         "removed_counts": removed_counts,
     }
@@ -120,6 +172,7 @@ def cleanup_stale_output_files(
     *,
     output_dir: str | Path = OUTPUT_DIR,
     max_age_days_rules: Mapping[str, float] | None = None,
+    archive_dir: str | Path | None = None,
     dry_run: bool = False,
     now: datetime | None = None,
 ) -> dict[str, Any]:
@@ -129,13 +182,19 @@ def cleanup_stale_output_files(
     if current.tzinfo is None:
         current = current.replace(tzinfo=timezone.utc)
     removed: list[str] = []
+    archived: list[str] = []
     removed_counts: dict[str, int] = {}
     kept_counts: dict[str, int] = {}
+    archive_error_count = 0
     if not root.exists():
         return {
             "output_dir": str(root),
             "removed": removed,
             "removed_count": 0,
+            "archived": archived,
+            "archived_count": 0,
+            "archive_dir": str(archive_dir) if archive_dir else "",
+            "archive_error_count": 0,
             "removed_counts": removed_counts,
             "kept_counts": kept_counts,
             "exists": False,
@@ -150,16 +209,29 @@ def cleanup_stale_output_files(
             modified = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
             age_seconds = max(0.0, (current - modified).total_seconds())
             if age_seconds > max_age_seconds:
-                removed.append(str(path))
                 removed_counts[pattern] += 1
-                if not dry_run:
-                    path.unlink()
+                if dry_run:
+                    removed.append(str(path))
+                    continue
+                try:
+                    archived_path = archive_removed_file(path, output_root=root, archive_dir=archive_dir)
+                    if archived_path:
+                        archived.append(archived_path)
+                    else:
+                        path.unlink()
+                    removed.append(str(path))
+                except Exception:
+                    archive_error_count += 1
             else:
                 kept_counts[pattern] += 1
     return {
         "output_dir": str(root),
         "removed": removed,
         "removed_count": len(removed),
+        "archived": archived,
+        "archived_count": len(archived),
+        "archive_dir": str(archive_dir) if archive_dir else "",
+        "archive_error_count": archive_error_count,
         "removed_counts": removed_counts,
         "kept_counts": kept_counts,
         "exists": True,
@@ -339,6 +411,7 @@ def cleanup_runtime_artifacts(
     log_dirs: list[str | Path] | None = None,
     retention_rules: Mapping[str, int] | None = None,
     stale_output_rules: Mapping[str, float] | None = None,
+    output_archive_dir: str | Path | None = None,
     dry_run: bool = False,
     max_log_bytes: int = DEFAULT_MAX_LOG_BYTES,
     max_history_lines: int = DEFAULT_MAX_HISTORY_LINES,
@@ -346,10 +419,16 @@ def cleanup_runtime_artifacts(
     log_snapshot_dir: str | Path = DEFAULT_LOG_SNAPSHOT_DIR,
     log_snapshot_keep_count: int = DEFAULT_LOG_SNAPSHOT_KEEP_COUNT,
 ) -> dict[str, Any]:
-    result = cleanup_output_files(output_dir=output_dir, retention_rules=retention_rules, dry_run=dry_run)
+    result = cleanup_output_files(
+        output_dir=output_dir,
+        retention_rules=retention_rules,
+        archive_dir=output_archive_dir,
+        dry_run=dry_run,
+    )
     stale_output = cleanup_stale_output_files(
         output_dir=output_dir,
         max_age_days_rules=stale_output_rules,
+        archive_dir=output_archive_dir,
         dry_run=dry_run,
     )
     trimmed_logs = trim_log_files(log_dirs=log_dirs, max_bytes=max_log_bytes, dry_run=dry_run)
@@ -370,9 +449,14 @@ def cleanup_runtime_artifacts(
             "log_dirs": [str(path) for path in (log_dirs or [LOG_DIR, LAUNCHD_LOG_DIR])],
             "stale_output_removed": stale_output["removed"],
             "stale_output_removed_count": stale_output["removed_count"],
+            "stale_output_archived": stale_output["archived"],
+            "stale_output_archived_count": stale_output["archived_count"],
             "stale_output_removed_counts": stale_output["removed_counts"],
             "stale_output_kept_counts": stale_output["kept_counts"],
             "stale_output_max_age_days_rules": stale_output.get("max_age_days_rules", {}),
+            "output_archive_dir": str(output_archive_dir) if output_archive_dir else "",
+            "output_archive_count": int(result.get("archived_count") or 0) + int(stale_output.get("archived_count") or 0),
+            "output_archive_error_count": int(result.get("archive_error_count") or 0) + int(stale_output.get("archive_error_count") or 0),
             "trimmed_logs": trimmed_logs,
             "trimmed_log_count": len(trimmed_logs),
             "trimmed_histories": trimmed_histories,
@@ -411,6 +495,7 @@ def render_text_report(result: Mapping[str, Any]) -> str:
         f"Generated: {result.get('generated_at', '-')}",
         f"Output: {result.get('output_dir', '-')}",
         f"Removed: {result.get('removed_count', 0)}",
+        f"Archived output: {result.get('output_archive_count', 0)}",
         f"Removed stale output: {result.get('stale_output_removed_count', 0)}",
         f"Trimmed logs: {result.get('trimmed_log_count', 0)}",
         f"Trimmed histories: {result.get('trimmed_history_count', 0)}",
@@ -420,6 +505,12 @@ def render_text_report(result: Mapping[str, Any]) -> str:
     ]
     for pattern, count in dict(result.get("removed_counts") or {}).items():
         lines.append(f"- {pattern}: removed {count}, kept {dict(result.get('kept_counts') or {}).get(pattern, 0)}")
+    for path in result.get("archived") or []:
+        lines.append(f"- archived output: {path}")
+    for path in result.get("stale_output_archived") or []:
+        lines.append(f"- archived stale output: {path}")
+    if result.get("output_archive_error_count"):
+        lines.append(f"- output archive errors: {result.get('output_archive_error_count')}")
     for pattern, count in dict(result.get("stale_output_removed_counts") or {}).items():
         if count:
             days = dict(result.get("stale_output_max_age_days_rules") or {}).get(pattern, "-")
@@ -469,6 +560,11 @@ def parse_rule(value: str) -> tuple[str, int]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Clean old generated Roxy output files by retention pattern.")
     parser.add_argument("--output-dir", default=str(OUTPUT_DIR))
+    parser.add_argument(
+        "--archive-dir",
+        default=str(default_output_archive_dir() or ""),
+        help="Move removed output files here before deleting from the active output directory.",
+    )
     parser.add_argument("--rule", action="append", type=parse_rule, help="Retention rule like 'ma_live_strategy_*.csv=96'. Can be repeated.")
     parser.add_argument(
         "--stale-output-rule",
@@ -502,6 +598,7 @@ def main() -> None:
         output_dir=args.output_dir,
         retention_rules=rules,
         stale_output_rules=stale_output_rules,
+        output_archive_dir=args.archive_dir or None,
         dry_run=args.dry_run,
         max_log_bytes=args.max_log_bytes,
         max_history_lines=args.max_history_lines,
@@ -522,6 +619,8 @@ def main() -> None:
         print(f"Trimmed logs: {result['trimmed_log_count']}")
     if result.get("stale_output_removed_count"):
         print(f"Removed stale output: {result['stale_output_removed_count']}")
+    if result.get("output_archive_count"):
+        print(f"Archived output: {result['output_archive_count']}")
     if result.get("trimmed_history_count"):
         print(f"Trimmed histories: {result['trimmed_history_count']}")
     if result.get("removed_alert_report_count"):

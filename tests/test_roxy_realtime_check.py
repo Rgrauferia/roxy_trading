@@ -1274,6 +1274,8 @@ def test_validate_output_maintenance_report_accepts_recent_run(tmp_path):
                 "output_dir": str(output),
                 "dry_run": False,
                 "removed_count": 3,
+                "output_archive_count": 2,
+                "output_archive_dir": str(tmp_path / "archive"),
                 "stale_output_removed_count": 5,
                 "stale_output_removed_counts": {"fine_sweep_*": 5},
                 "trimmed_log_count": 2,
@@ -1288,6 +1290,9 @@ def test_validate_output_maintenance_report_accepts_recent_run(tmp_path):
 
     assert status["status"] == "OK"
     assert status["removed_count"] == 3
+    assert status["output_archive_count"] == 2
+    assert status["output_archive_dir"] == str(tmp_path / "archive")
+    assert "archived output 2" in status["detail"]
     assert status["stale_output_removed_count"] == 5
     assert status["stale_output_removed_counts"] == {"fine_sweep_*": 5}
     assert status["trimmed_log_count"] == 2
@@ -1308,6 +1313,30 @@ def test_validate_output_maintenance_report_warns_on_dry_run(tmp_path):
 
     assert status["status"] == "WARN"
     assert "dry-run" in status["detail"]
+
+
+def test_validate_output_maintenance_report_warns_on_archive_errors(tmp_path):
+    now = datetime(2026, 6, 8, 12, 0, tzinfo=timezone.utc)
+    output = tmp_path / "output"
+    output.mkdir()
+    report = tmp_path / "alerts" / "output_maintenance.json"
+    report.parent.mkdir()
+    report.write_text(
+        json.dumps(
+            {
+                "generated_at": now.isoformat(),
+                "output_dir": str(output),
+                "dry_run": False,
+                "output_archive_error_count": 1,
+            }
+        )
+    )
+
+    status = validate_output_maintenance_report(report, max_age_hours=36, now=now)
+
+    assert status["status"] == "WARN"
+    assert status["output_archive_error_count"] == 1
+    assert "archive errors 1" in status["detail"]
 
 
 def test_validate_output_maintenance_report_fails_when_stale(tmp_path):
@@ -1360,6 +1389,7 @@ def test_ensure_output_maintenance_report_regenerates_report(tmp_path):
 
     assert result["action"] == "regenerated"
     assert result["ok"] is True
+    assert result["output_archive_count"] == 0
     assert result["removed_alert_report_count"] == 0
     assert (alerts / "output_maintenance.json").exists()
     assert (alerts / "output_maintenance.txt").exists()

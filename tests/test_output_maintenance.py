@@ -58,6 +58,56 @@ def test_cleanup_output_files_dry_run_keeps_files(tmp_path):
     assert second.exists()
 
 
+def test_cleanup_output_files_archives_removed_files(tmp_path):
+    output = tmp_path / "output"
+    archive = tmp_path / "archive"
+    output.mkdir()
+    old_path = output / "stocks_tech_20260606_000000.csv"
+    new_path = output / "stocks_tech_20260607_000000.csv"
+    old_path.write_text("old")
+    new_path.write_text("new")
+    os.utime(old_path, (1, 1))
+    os.utime(new_path, (2, 2))
+
+    result = cleanup_output_files(
+        output_dir=output,
+        retention_rules={"stocks_tech_*.csv": 1},
+        archive_dir=archive,
+    )
+
+    archived = archive / old_path.name
+    assert result["removed_count"] == 1
+    assert result["archived_count"] == 1
+    assert not old_path.exists()
+    assert new_path.exists()
+    assert archived.read_text() == "old"
+
+
+def test_cleanup_output_files_keeps_original_when_archive_fails(tmp_path):
+    output = tmp_path / "output"
+    output.mkdir()
+    blocking_file = tmp_path / "archive"
+    blocking_file.write_text("not a directory")
+    old_path = output / "stocks_tech_20260606_000000.csv"
+    new_path = output / "stocks_tech_20260607_000000.csv"
+    old_path.write_text("old")
+    new_path.write_text("new")
+    os.utime(old_path, (1, 1))
+    os.utime(new_path, (2, 2))
+
+    result = cleanup_output_files(
+        output_dir=output,
+        retention_rules={"stocks_tech_*.csv": 1},
+        archive_dir=blocking_file,
+    )
+
+    assert result["removed_count"] == 0
+    assert result["archived_count"] == 0
+    assert result["archive_error_count"] == 1
+    assert old_path.exists()
+    assert old_path.read_text() == "old"
+
+
 def test_default_stale_output_rules_cover_transient_dev_artifacts():
     assert STALE_OUTPUT_MAX_AGE_DAYS_RULES["fine_sweep_*"] == 7.0
     assert STALE_OUTPUT_MAX_AGE_DAYS_RULES["synthetic_ohlcv.csv"] == 7.0
@@ -105,15 +155,41 @@ def test_cleanup_stale_output_files_dry_run_keeps_files(tmp_path):
     assert stale.exists()
 
 
+def test_cleanup_stale_output_files_archives_old_transient_artifacts(tmp_path):
+    now = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
+    output = tmp_path / "output"
+    archive = tmp_path / "archive"
+    output.mkdir()
+    stale = output / "synthetic_ohlcv.csv"
+    stale.write_text("old")
+    os.utime(stale, ((now - timedelta(days=9)).timestamp(), (now - timedelta(days=9)).timestamp()))
+
+    result = cleanup_stale_output_files(
+        output_dir=output,
+        max_age_days_rules={"synthetic_ohlcv.csv": 7.0},
+        archive_dir=archive,
+        now=now,
+    )
+
+    archived = archive / stale.name
+    assert result["removed_count"] == 1
+    assert result["archived_count"] == 1
+    assert not stale.exists()
+    assert archived.read_text() == "old"
+
+
 def test_write_report_outputs_json_and_text(tmp_path):
     result = {
         "generated_at": "2026-06-10T12:00:00+00:00",
         "output_dir": str(tmp_path),
         "dry_run": False,
         "removed_count": 2,
+        "output_archive_count": 1,
+        "archived": ["archive/a.csv"],
         "removed_counts": {"ma_live_strategy_*.csv": 2},
         "kept_counts": {"ma_live_strategy_*.csv": 96},
         "stale_output_removed_count": 1,
+        "stale_output_archived": [],
         "stale_output_removed_counts": {"fine_sweep_*": 1},
         "stale_output_max_age_days_rules": {"fine_sweep_*": 7.0},
         "removed": ["a.csv", "b.csv"],
@@ -124,6 +200,8 @@ def test_write_report_outputs_json_and_text(tmp_path):
     assert json.loads(json_path.read_text())["removed_count"] == 2
     assert "Roxy output maintenance: DONE" in text_path.read_text()
     assert "removed 2, kept 96" in render_text_report(result)
+    assert "Archived output: 1" in render_text_report(result)
+    assert "archived output: archive/a.csv" in render_text_report(result)
     assert "Removed stale output: 1" in render_text_report(result)
     assert "stale fine_sweep_*: removed 1, max age 7.0d" in render_text_report(result)
 
@@ -272,6 +350,7 @@ def test_cleanup_runtime_artifacts_reports_trimmed_logs_and_histories(tmp_path):
         log_dirs=[logs],
         retention_rules={"stocks_tech_*.csv": 1},
         stale_output_rules={"fine_sweep_*": 7.0},
+        output_archive_dir=tmp_path / "archive",
         alert_report_retention_rules={"weekly_report_*.txt": 1},
         max_log_bytes=20,
         max_history_lines=3,
@@ -280,11 +359,13 @@ def test_cleanup_runtime_artifacts_reports_trimmed_logs_and_histories(tmp_path):
     )
 
     assert result["removed_count"] == 1
+    assert result["output_archive_count"] == 1
     assert result["stale_output_removed_count"] == 0
     assert result["trimmed_log_count"] == 1
     assert result["trimmed_history_count"] == 1
     assert result["removed_alert_report_count"] == 1
     assert result["removed_log_snapshot_count"] == 1
     assert "Trimmed logs: 1" in render_text_report(result)
+    assert "Archived output: 1" in render_text_report(result)
     assert "Removed alert reports: 1" in render_text_report(result)
     assert "Removed log snapshots: 1" in render_text_report(result)

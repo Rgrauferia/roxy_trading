@@ -1395,7 +1395,9 @@ def validate_output_maintenance_report(
     output_status = "OK" if output_exists else "FAIL"
     dry_run = bool(payload.get("dry_run"))
     dry_run_status = "WARN" if dry_run else "OK"
-    status = status_max(age_status, output_status, dry_run_status)
+    output_archive_error_count = int(payload.get("output_archive_error_count", 0) or 0)
+    archive_status = "WARN" if output_archive_error_count else "OK"
+    status = status_max(age_status, output_status, dry_run_status, archive_status)
 
     details = [f"age {age_hours:.1f}h"]
     if not output_exists:
@@ -1403,12 +1405,16 @@ def validate_output_maintenance_report(
     if dry_run:
         details.append("last run was dry-run")
     removed_count = int(payload.get("removed_count", 0) or 0)
+    output_archive_count = int(payload.get("output_archive_count", 0) or 0)
     stale_output_removed_count = int(payload.get("stale_output_removed_count", 0) or 0)
     trimmed_log_count = int(payload.get("trimmed_log_count", 0) or 0)
     trimmed_history_count = int(payload.get("trimmed_history_count", 0) or 0)
     removed_alert_report_count = int(payload.get("removed_alert_report_count", 0) or 0)
     kept_counts = dict(payload.get("kept_counts") or {})
     details.append(f"removed {removed_count}")
+    details.append(f"archived output {output_archive_count}")
+    if output_archive_error_count:
+        details.append(f"archive errors {output_archive_error_count}")
     details.append(f"removed stale output {stale_output_removed_count}")
     details.append(f"trimmed logs {trimmed_log_count}")
     details.append(f"trimmed histories {trimmed_history_count}")
@@ -1425,6 +1431,9 @@ def validate_output_maintenance_report(
         output_exists=output_exists,
         dry_run=dry_run,
         removed_count=removed_count,
+        output_archive_count=output_archive_count,
+        output_archive_error_count=output_archive_error_count,
+        output_archive_dir=str(payload.get("output_archive_dir") or payload.get("archive_dir") or ""),
         stale_output_removed_count=stale_output_removed_count,
         stale_output_removed_counts=dict(payload.get("stale_output_removed_counts") or {}),
         trimmed_log_count=trimmed_log_count,
@@ -2150,11 +2159,18 @@ def ensure_output_maintenance_report(
     report_path: str | Path,
     text_path: str | Path | None = None,
     log_dirs: list[str | Path] | None = None,
+    output_archive_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     try:
         from tools import output_maintenance
 
-        result = output_maintenance.cleanup_runtime_artifacts(output_dir=output_path, alerts_path=alerts_path, log_dirs=log_dirs)
+        archive_dir = output_archive_dir if output_archive_dir is not None else output_maintenance.default_output_archive_dir()
+        result = output_maintenance.cleanup_runtime_artifacts(
+            output_dir=output_path,
+            alerts_path=alerts_path,
+            log_dirs=log_dirs,
+            output_archive_dir=archive_dir,
+        )
         json_path, output_text_path = output_maintenance.write_report(
             result,
             json_path=report_path,
@@ -2166,6 +2182,9 @@ def ensure_output_maintenance_report(
             "report_path": str(json_path),
             "text_path": str(output_text_path),
             "removed_count": result.get("removed_count"),
+            "output_archive_count": result.get("output_archive_count"),
+            "output_archive_error_count": result.get("output_archive_error_count"),
+            "output_archive_dir": result.get("output_archive_dir"),
             "trimmed_log_count": result.get("trimmed_log_count"),
             "trimmed_history_count": result.get("trimmed_history_count"),
             "removed_alert_report_count": result.get("removed_alert_report_count"),
