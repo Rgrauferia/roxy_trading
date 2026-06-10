@@ -5102,6 +5102,8 @@ def alert_quality_report_dashboard_status(report: dict[str, Any] | None) -> dict
     diagnostic_label = text_display(summary.get("diagnostic_label") or "")
     diagnostic_detail = text_display(summary.get("diagnostic_detail") or "")
     avg_readiness = safe_float(summary.get("avg_readiness"))
+    readiness_delta = safe_float(summary.get("readiness_delta"))
+    dominant_blocker = summary.get("dominant_blocker") if isinstance(summary.get("dominant_blocker"), dict) else {}
     blocker = text_display(summary.get("latest_top_blocker") or entry.get("top_blocker"))
     top_symbol = text_display(entry.get("top_symbol"))
     top_next_action = text_display(entry.get("top_next_action"))
@@ -5132,6 +5134,13 @@ def alert_quality_report_dashboard_status(report: dict[str, Any] | None) -> dict
         detail += f" | persistente {persistent_blocker_minutes:.1f}m"
     if avg_readiness is not None:
         detail += f" | readiness {avg_readiness:.0f}%"
+    if readiness_delta is not None:
+        sign = "+" if readiness_delta > 0 else ""
+        detail += f" | trend {sign}{readiness_delta:.1f}"
+    if dominant_blocker.get("name"):
+        dominant_name = text_display(dominant_blocker.get("name"))
+        dominant_count = int(dominant_blocker.get("count") or 0)
+        detail += f" | recurrente {dominant_name} x{dominant_count}"
     if top_symbol and top_symbol != "-":
         detail += f" | top {top_symbol}"
     if diagnostic_detail and diagnostic_detail not in {"-", blocker}:
@@ -5140,7 +5149,15 @@ def alert_quality_report_dashboard_status(report: dict[str, Any] | None) -> dict
         detail += f" | {blocker}"
     if top_next_action and top_next_action not in {"-", blocker, diagnostic_detail}:
         detail += f" | {top_next_action}"
-    return {"label": label, "tone": tone, "detail": detail, "state": state, "waiting_streak": waiting_streak}
+    return {
+        "label": label,
+        "tone": tone,
+        "detail": detail,
+        "state": state,
+        "waiting_streak": waiting_streak,
+        "readiness_delta": readiness_delta,
+        "dominant_blocker": dominant_blocker,
+    }
 
 
 def notification_history_dashboard_status(summary: dict[str, Any] | None) -> dict[str, Any]:

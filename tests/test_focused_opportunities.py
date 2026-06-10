@@ -1263,7 +1263,9 @@ def test_alert_quality_report_dashboard_status_tracks_waiting_streak():
                 "latest_total_opportunities": 8,
                 "waiting_streak": 4,
                 "avg_readiness": 61.3,
+                "readiness_delta": -6.4,
                 "latest_top_blocker": "15m da entrada: WAIT",
+                "dominant_blocker": {"name": "Volumen acompana", "count": 8},
             },
             "latest_entry": {
                 "top_symbol": "AMAT",
@@ -1276,6 +1278,10 @@ def test_alert_quality_report_dashboard_status_tracks_waiting_streak():
     assert status["tone"] == "watch"
     assert "racha espera 4" in status["detail"]
     assert "readiness 61%" in status["detail"]
+    assert "trend -6.4" in status["detail"]
+    assert "recurrente Volumen acompana x8" in status["detail"]
+    assert status["readiness_delta"] == -6.4
+    assert status["dominant_blocker"] == {"name": "Volumen acompana", "count": 8}
     assert "top AMAT" in status["detail"]
     assert "Esperar gatillo BUY en 15m." in status["detail"]
 
@@ -1295,6 +1301,7 @@ def test_alert_quality_report_dashboard_status_flags_persistent_blocker():
                 "persistent_blocker_minutes": 18.5,
                 "avg_readiness": 61.3,
                 "latest_top_blocker": "15m da entrada: WAIT",
+                "dominant_blocker": {"name": "15m da entrada: WAIT", "count": 14},
             }
         }
     )
@@ -1303,6 +1310,7 @@ def test_alert_quality_report_dashboard_status_flags_persistent_blocker():
     assert status["tone"] == "avoid"
     assert "bloqueador x14" in status["detail"]
     assert "persistente 18.5m" in status["detail"]
+    assert "recurrente 15m da entrada: WAIT x14" in status["detail"]
 
 
 def test_operational_mode_dashboard_status_uses_realtime_summary():

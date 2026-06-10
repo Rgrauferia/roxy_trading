@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -179,6 +180,9 @@ def summarize_quality_history(rows: list[dict[str, Any]], *, limit: int = 50) ->
     state_counts: dict[str, int] = {}
     ready_count = 0
     readiness_values: list[float] = []
+    readiness_timeline: list[float] = []
+    blocker_counts: Counter[str] = Counter()
+    gate_counts: Counter[str] = Counter()
     for row in sample:
         state = safe_text(row.get("state") or "UNKNOWN").upper()
         state_counts[state] = state_counts.get(state, 0) + 1
@@ -187,6 +191,13 @@ def summarize_quality_history(rows: list[dict[str, Any]], *, limit: int = 50) ->
         readiness = safe_float(row.get("avg_readiness"))
         if readiness is not None:
             readiness_values.append(readiness)
+            readiness_timeline.append(readiness)
+        blocker = safe_text(row.get("top_blocker") or "-")
+        if blocker and blocker != "-":
+            blocker_counts[blocker] += 1
+        gate = safe_text(row.get("top_gate_label") or row.get("top_gate") or "-")
+        if gate and gate != "-":
+            gate_counts[gate] += 1
     latest = sample[-1]
     latest_state = safe_text(latest.get("state") or "UNKNOWN").upper()
     latest_blocker = safe_text(latest.get("top_blocker") or "-")
@@ -243,6 +254,17 @@ def summarize_quality_history(rows: list[dict[str, Any]], *, limit: int = 50) ->
     elif latest_state == "NO_SETUPS":
         diagnostic_label = "Sin setups"
         diagnostic_detail = "No opportunities in current brief"
+    dominant_blocker_name = ""
+    dominant_blocker_count = 0
+    if blocker_counts:
+        dominant_blocker_name, dominant_blocker_count = blocker_counts.most_common(1)[0]
+    dominant_gate_name = ""
+    dominant_gate_count = 0
+    if gate_counts:
+        dominant_gate_name, dominant_gate_count = gate_counts.most_common(1)[0]
+    readiness_delta = None
+    if len(readiness_timeline) >= 2:
+        readiness_delta = round(readiness_timeline[-1] - readiness_timeline[0], 1)
     return {
         "sample_size": len(sample),
         "state": latest_state,
@@ -250,6 +272,8 @@ def summarize_quality_history(rows: list[dict[str, Any]], *, limit: int = 50) ->
         "ready_count": ready_count,
         "ready_rate": round(ready_count / len(sample), 4),
         "avg_readiness": round(sum(readiness_values) / len(readiness_values), 1) if readiness_values else None,
+        "latest_readiness": readiness_timeline[-1] if readiness_timeline else None,
+        "readiness_delta": readiness_delta,
         "waiting_streak": waiting_streak,
         "current_streak_state": latest_state,
         "current_streak_count": streak,
@@ -259,6 +283,8 @@ def summarize_quality_history(rows: list[dict[str, Any]], *, limit: int = 50) ->
         "latest_top_gate_streak": gate_streak,
         "persistent_blocker": latest_blocker if blocker_streak >= 3 and latest_blocker != "-" else "",
         "persistent_blocker_minutes": blocked_minutes,
+        "dominant_blocker": {"name": dominant_blocker_name, "count": dominant_blocker_count} if dominant_blocker_name else {},
+        "dominant_gate": {"name": dominant_gate_name, "count": dominant_gate_count} if dominant_gate_name else {},
         "diagnostic_severity": severity,
         "diagnostic_label": diagnostic_label,
         "diagnostic_detail": diagnostic_detail,

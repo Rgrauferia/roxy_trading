@@ -56,6 +56,9 @@ def test_summarize_quality_history_tracks_waiting_streak():
     assert summary["waiting_streak"] == 2
     assert summary["current_streak_state"] == "WAITING"
     assert summary["avg_readiness"] == 70.7
+    assert summary["latest_readiness"] == 62.0
+    assert summary["readiness_delta"] == -28.0
+    assert summary["dominant_blocker"] == {"name": "Volumen acompana", "count": 1}
 
 
 def test_summarize_quality_history_flags_persistent_blocker():
@@ -80,6 +83,9 @@ def test_summarize_quality_history_flags_persistent_blocker():
     assert summary["diagnostic_severity"] == "ATTENTION"
     assert summary["diagnostic_label"] == "Bloqueador x12"
     assert summary["persistent_blocker_minutes"] == 11.0
+    assert summary["readiness_delta"] == 0.0
+    assert summary["dominant_blocker"] == {"name": "15m da entrada: WAIT", "count": 12}
+    assert summary["dominant_gate"] == {"name": "Esperar entrada 15m", "count": 12}
 
 
 def test_top_opportunity_snapshot_extracts_compact_diagnostic_fields():

@@ -1219,6 +1219,8 @@ def validate_alert_quality_report(
     blocker_streak = int(summary.get("latest_top_blocker_streak") or 0)
     persistent_blocker_minutes = summary.get("persistent_blocker_minutes")
     avg_readiness = summary.get("avg_readiness", entry.get("avg_readiness"))
+    readiness_delta = summary.get("readiness_delta")
+    dominant_blocker = summary.get("dominant_blocker") if isinstance(summary.get("dominant_blocker"), dict) else {}
     status = status_max(age_status, brief_age_status, report_status)
     detail = f"age {age_minutes:.0f}m"
     if brief_age_minutes is None:
@@ -1234,6 +1236,10 @@ def validate_alert_quality_report(
         detail += f", persistent {float(persistent_blocker_minutes):.1f}m"
     if avg_readiness is not None:
         detail += f", avg readiness {float(avg_readiness):.1f}"
+    if readiness_delta is not None:
+        detail += f", readiness trend {float(readiness_delta):+.1f}"
+    if dominant_blocker.get("name"):
+        detail += f", recurrent blocker {dominant_blocker.get('name')} x{dominant_blocker.get('count', 0)}"
     top_blocker = str(summary.get("latest_top_blocker") or entry.get("top_blocker") or "")
     if top_blocker and top_blocker != "-":
         detail += f", blocker {top_blocker}"
@@ -1253,6 +1259,8 @@ def validate_alert_quality_report(
         latest_top_blocker_streak=blocker_streak,
         persistent_blocker_minutes=persistent_blocker_minutes,
         avg_readiness=avg_readiness,
+        readiness_delta=readiness_delta,
+        dominant_blocker=dominant_blocker,
         top_blocker=top_blocker,
     )
 

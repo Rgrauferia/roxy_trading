@@ -1861,6 +1861,8 @@ def test_validate_alert_quality_report_accepts_recent_waiting_state(tmp_path):
                     "latest_top_blocker_streak": 3,
                     "persistent_blocker_minutes": 12.5,
                     "avg_readiness": 61.3,
+                    "readiness_delta": -4.2,
+                    "dominant_blocker": {"name": "15m da entrada: WAIT", "count": 3},
                     "latest_top_blocker": "15m da entrada: WAIT",
                 },
             }
@@ -1874,8 +1876,12 @@ def test_validate_alert_quality_report_accepts_recent_waiting_state(tmp_path):
     assert status["waiting_streak"] == 3
     assert status["latest_top_blocker_streak"] == 3
     assert status["persistent_blocker_minutes"] == 12.5
+    assert status["readiness_delta"] == -4.2
+    assert status["dominant_blocker"] == {"name": "15m da entrada: WAIT", "count": 3}
     assert status["brief_age_minutes"] == 6.0
     assert "persistent 12.5m" in status["detail"]
+    assert "readiness trend -4.2" in status["detail"]
+    assert "recurrent blocker 15m da entrada: WAIT x3" in status["detail"]
     assert "ready 0/8" in status["detail"]
 
 
