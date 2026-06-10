@@ -6312,6 +6312,44 @@ def scanner_leaderboard_rows(table: pd.DataFrame, *, bucket: str = "Todos", limi
     return display.drop(columns=["score_sort", "readiness_sort"]).reset_index(drop=True)
 
 
+def scanner_action_lane_rows(table: pd.DataFrame, *, limit_per_lane: int = 4) -> pd.DataFrame:
+    columns = ["lane", "tone", "symbol", "action", "strategy", "score", "readiness", "risk", "target", "trigger"]
+    if table.empty:
+        return pd.DataFrame(columns=columns)
+    pulse = market_pulse_rows(table)
+    rows: list[dict[str, Any]] = []
+    lane_map = {
+        "Operar": ("Ahora", "buy", 0),
+        "Vigilar": ("Esperar gatillo", "watch", 1),
+        "Evitar": ("No tocar", "avoid", 2),
+    }
+    for idx, item in table.iterrows():
+        row = item.to_dict()
+        status = pulse.iloc[idx].to_dict() if idx < len(pulse) else {}
+        lane, tone, lane_order = lane_map.get(str(status.get("bucket")), ("Esperar gatillo", "watch", 1))
+        rows.append(
+            {
+                "lane": lane,
+                "tone": tone,
+                "symbol": text_display(row.get("symbol")).upper(),
+                "action": human_trade_action(row),
+                "strategy": dashboard_strategy_label(row),
+                "score": safe_float(row.get("ai_score")),
+                "readiness": safe_float(row.get("readiness")),
+                "risk": safe_float(row.get("risk_pct")),
+                "target": safe_float(row.get("target_pct")),
+                "trigger": text_display(row.get("waiting_for") or row.get("gate")),
+                "lane_order": lane_order,
+            }
+        )
+    display = pd.DataFrame(rows)
+    display["score_sort"] = pd.to_numeric(display["score"], errors="coerce").fillna(0)
+    display["readiness_sort"] = pd.to_numeric(display["readiness"], errors="coerce").fillna(0)
+    display = display.sort_values(["lane_order", "score_sort", "readiness_sort"], ascending=[True, False, False])
+    display = display.groupby("lane", sort=False).head(max(1, int(limit_per_lane)))
+    return display.drop(columns=["lane_order", "score_sort", "readiness_sort"]).reset_index(drop=True)
+
+
 def render_scanner_cockpit(
     table: pd.DataFrame,
     confluence_df: pd.DataFrame,
@@ -6345,6 +6383,35 @@ def render_scanner_cockpit(
             "</div>"
         )
     st.markdown('<div class="scanner-card-grid">' + "".join(card_html) + "</div>", unsafe_allow_html=True)
+
+    lanes = scanner_action_lane_rows(table, limit_per_lane=3)
+    if not lanes.empty:
+        lane_html = []
+        for lane_name in ["Ahora", "Esperar gatillo", "No tocar"]:
+            lane_rows = lanes[lanes["lane"].eq(lane_name)].to_dict("records")
+            tone = str(lane_rows[0].get("tone") if lane_rows else "neutral")
+            items = []
+            for row in lane_rows:
+                risk = safe_float(row.get("risk"))
+                target = safe_float(row.get("target"))
+                detail = f"R {pct_display(risk)} · T {pct_display(target)} · {text_display(row.get('strategy'))}"
+                items.append(
+                    '<div class="scanner-lane-row">'
+                    f'<strong>{html.escape(text_display(row.get("symbol")))}</strong>'
+                    f'<span>{html.escape(text_display(row.get("action")))} · {html.escape(num_display(row.get("score"), 0))}</span>'
+                    f'<small>{html.escape(detail)}</small>'
+                    f'<em>{html.escape(text_display(row.get("trigger")))}</em>'
+                    "</div>"
+                )
+            empty = '<div class="scanner-lane-empty">Sin setups en este carril</div>' if not items else ""
+            lane_html.append(
+                f'<section class="scanner-lane scanner-lane-{html.escape(tone)}">'
+                f'<header>{html.escape(lane_name)}</header>'
+                + "".join(items)
+                + empty
+                + "</section>"
+            )
+        st.markdown('<div class="scanner-lane-grid">' + "".join(lane_html) + "</div>", unsafe_allow_html=True)
 
     heatmap = scanner_heatmap_rows(table)
     top_rows = scanner_leaderboard_rows(table, bucket="Todos", limit=10)
@@ -9240,6 +9307,19 @@ def main() -> None:
         .scanner-card-buy{border-color:rgba(34,197,94,.42);background:rgba(21,93,62,.32)}
         .scanner-card-watch{border-color:rgba(245,158,11,.42);background:rgba(120,74,15,.28)}
         .scanner-card-avoid{border-color:rgba(239,68,68,.42);background:rgba(127,29,29,.30)}
+        .scanner-lane-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:2px 0 12px}
+        .scanner-lane{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#0b1220;overflow:hidden}
+        .scanner-lane header{padding:8px 10px;color:#f8fafc;font-size:12px;font-weight:950;text-transform:uppercase;border-bottom:1px solid rgba(148,163,184,.16);letter-spacing:.02em}
+        .scanner-lane-row{padding:8px 10px;border-bottom:1px solid rgba(148,163,184,.12);display:grid;grid-template-columns:.62fr 1fr;gap:2px 8px;align-items:start}
+        .scanner-lane-row:last-child{border-bottom:0}
+        .scanner-lane-row strong{color:#f8fafc;font-size:13px;font-weight:950}
+        .scanner-lane-row span{color:#e2e8f0;font-size:12px;text-align:right;font-weight:800}
+        .scanner-lane-row small{color:#cbd5e1;font-size:11px;line-height:1.25}
+        .scanner-lane-row em{color:#94a3b8;font-size:11px;line-height:1.25;text-align:right;font-style:normal}
+        .scanner-lane-empty{padding:12px 10px;color:#94a3b8;font-size:12px}
+        .scanner-lane-buy header{background:rgba(21,128,61,.28);color:#bbf7d0}
+        .scanner-lane-watch header{background:rgba(180,83,9,.28);color:#fde68a}
+        .scanner-lane-avoid header{background:rgba(153,27,27,.30);color:#fecaca}
         .kpibox{display:inline-block;padding:8px 12px;background:#081023;border-radius:8px;margin-right:8px;color:var(--muted)}
         .metrics-row{display:flex;gap:12px;flex-wrap:wrap}
         .metric-card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:10px;border-radius:8px;min-width:160px}
@@ -9308,9 +9388,9 @@ def main() -> None:
         .stButton button:hover{border-color:#a78bfa;color:#f8fafc}
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media (max-width:1100px){.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media (max-width:1100px){.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}}
         @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
-        @media (max-width:600px){.metric-card{min-width:120px}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.scanner-card-grid{grid-template-columns:1fr}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}}
+        @media (max-width:600px){.metric-card{min-width:120px}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}}
         </style>
         """,
         unsafe_allow_html=True,
