@@ -6568,6 +6568,85 @@ def render_finviz_style_wallboard(table: pd.DataFrame, confluence_df: pd.DataFra
     )
 
 
+def scanner_breadth_summary(scan_df: pd.DataFrame, confluence_df: pd.DataFrame) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+
+    def ratio_row(label: str, positive: int, total: int, detail: str, tone: str = "neutral") -> None:
+        pct = (positive / total * 100.0) if total else None
+        rows.append(
+            {
+                "label": label,
+                "positive": int(positive),
+                "total": int(total),
+                "pct": pct,
+                "detail": detail,
+                "tone": tone,
+            }
+        )
+
+    if not scan_df.empty:
+        scan = scan_df.copy()
+        total = int(len(scan))
+        signal_series = scan["signal"].astype(str).str.upper() if "signal" in scan.columns else pd.Series(dtype=str)
+        raw_series = scan["raw_signal"].astype(str).str.upper() if "raw_signal" in scan.columns else signal_series
+        score_values = pd.to_numeric(scan.get("score", pd.Series(dtype=float)), errors="coerce")
+        sma200_values = pd.to_numeric(scan.get("dist_sma200_pct", pd.Series(dtype=float)), errors="coerce")
+        rel_volume_values = pd.to_numeric(scan.get("relative_volume", pd.Series(dtype=float)), errors="coerce")
+        ratio_row("BUY crudo", int(raw_series.eq("BUY").sum()), total, "gatillos tecnicos vivos", "buy")
+        ratio_row("Sobre SMA200", int(sma200_values.gt(0).sum()), int(sma200_values.notna().sum()), "estructura mayor", "buy")
+        ratio_row("Score >=80", int(score_values.ge(80).sum()), int(score_values.notna().sum()), "calidad tecnica", "watch")
+        ratio_row("Volumen >1.2x", int(rel_volume_values.ge(1.2).sum()), int(rel_volume_values.notna().sum()), "participacion real", "watch")
+        if "tf" in scan.columns:
+            tf_counts = scan["tf"].dropna().astype(str).value_counts()
+            if not tf_counts.empty:
+                rows.append(
+                    {
+                        "label": "Marco dominante",
+                        "positive": int(tf_counts.iloc[0]),
+                        "total": total,
+                        "pct": tf_counts.iloc[0] / total * 100.0 if total else None,
+                        "detail": str(tf_counts.index[0]),
+                        "tone": "neutral",
+                    }
+                )
+    if not confluence_df.empty:
+        confluence = confluence_df.copy()
+        total = int(len(confluence))
+        signal_series = confluence["signal"].astype(str).str.upper() if "signal" in confluence.columns else pd.Series(dtype=str)
+        score_values = pd.to_numeric(confluence.get("confluence_score", pd.Series(dtype=float)), errors="coerce")
+        risk_values = pd.to_numeric(confluence.get("risk_pct", pd.Series(dtype=float)), errors="coerce")
+        ratio_row("Confluencia BUY", int(signal_series.eq("BUY").sum()), total, "multi-timeframe", "buy")
+        ratio_row("Riesgo <=3.5%", int(risk_values.le(0.035).sum()), int(risk_values.notna().sum()), "stop trabajable", "buy")
+        ratio_row("Conf score >=75", int(score_values.ge(75).sum()), int(score_values.notna().sum()), "mejores candidatos", "watch")
+    return rows
+
+
+def render_market_breadth_strip(scan_df: pd.DataFrame, confluence_df: pd.DataFrame) -> None:
+    rows = scanner_breadth_summary(scan_df, confluence_df)
+    if not rows:
+        return
+    cards = []
+    for row in rows[:8]:
+        pct = safe_float(row.get("pct"))
+        fill = min(100.0, max(0.0, pct or 0.0))
+        tone = text_display(row.get("tone"))
+        value = f"{num_display(pct, 0)}%" if pct is not None else "-"
+        count = f"{row.get('positive', 0)}/{row.get('total', 0)}"
+        cards.append(
+            f'<div class="breadth-card breadth-card-{html.escape(tone)}">'
+            f'<div><strong>{html.escape(text_display(row.get("label")))}</strong><span>{html.escape(value)}</span></div>'
+            f'<div class="breadth-bar"><i style="width:{fill:.1f}%"></i></div>'
+            f'<small>{html.escape(count)} · {html.escape(text_display(row.get("detail")))}</small>'
+            "</div>"
+        )
+    st.markdown(
+        '<section class="breadth-strip"><header>Market Breadth</header><div class="breadth-grid">'
+        + "".join(cards)
+        + "</div></section>",
+        unsafe_allow_html=True,
+    )
+
+
 def render_scanner_cockpit(
     table: pd.DataFrame,
     confluence_df: pd.DataFrame,
@@ -8269,6 +8348,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
 
     render_alert_noise_contract(brief)
     render_finviz_style_wallboard(best, confluence_df, brief)
+    render_market_breadth_strip(scan_df, confluence_df)
     render_scanner_cockpit(best, confluence_df, options_df, brief)
     render_market_pulse_dashboard(best)
 
@@ -9575,6 +9655,10 @@ def main() -> None:
         .wall-tile{border:1px solid rgba(148,163,184,.18);border-radius:4px;padding:7px;min-width:0;display:grid;grid-template-columns:1fr auto;grid-template-rows:auto 1fr auto;gap:2px;background:#172033;overflow:hidden}.wall-tile strong{color:#f8fafc;font-size:16px;line-height:1;font-weight:950}.wall-tile span{font-size:13px;color:#e2e8f0;font-weight:900;text-align:right}.wall-tile small{grid-column:1/3;color:#e2e8f0;font-size:11px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wall-tile em{grid-column:1/3;color:#cbd5e1;font-size:10px;font-style:normal;line-height:1.1}
         .wall-tile-buy{background:rgba(21,128,61,var(--tile-alpha))}.wall-tile-watch{background:rgba(180,83,9,var(--tile-alpha))}.wall-tile-avoid{background:rgba(153,27,27,var(--tile-alpha))}
         .wall-tables{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.wall-table{border:1px solid rgba(148,163,184,.18);border-radius:6px;overflow:hidden;background:#0b1220}.wall-table header{padding:6px 8px;color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.wall-table table{width:100%;border-collapse:collapse}.wall-table th,.wall-table td{padding:5px 6px;border-bottom:1px solid rgba(148,163,184,.10);font-size:10px;line-height:1.15;text-align:left;color:#cbd5e1}.wall-table th{color:#94a3b8;font-weight:900;text-transform:uppercase}.wall-table td:first-child{color:#f8fafc;font-weight:950}.wall-table tr:last-child td{border-bottom:0}
+        .breadth-strip{border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0b1220;margin:0 0 12px;overflow:hidden}
+        .breadth-strip header{padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14);color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}
+        .breadth-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
+        .breadth-card{background:#0b1220;padding:8px 10px}.breadth-card div:first-child{display:flex;justify-content:space-between;gap:8px;align-items:center}.breadth-card strong{color:#e2e8f0;font-size:11px;font-weight:950;text-transform:uppercase}.breadth-card span{color:#f8fafc;font-size:14px;font-weight:950}.breadth-card small{display:block;color:#94a3b8;font-size:10px;line-height:1.2;margin-top:5px}.breadth-bar{height:7px;border-radius:999px;background:#1f2937;overflow:hidden;margin-top:6px}.breadth-bar i{display:block;height:100%;border-radius:999px;background:#64748b}.breadth-card-buy .breadth-bar i{background:#22c55e}.breadth-card-watch .breadth-bar i{background:#f59e0b}.breadth-card-avoid .breadth-bar i{background:#ef4444}
         .kpibox{display:inline-block;padding:8px 12px;background:#081023;border-radius:8px;margin-right:8px;color:var(--muted)}
         .metrics-row{display:flex;gap:12px;flex-wrap:wrap}
         .metric-card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:10px;border-radius:8px;min-width:160px}
@@ -9643,9 +9727,9 @@ def main() -> None:
         .stButton button:hover{border-color:#a78bfa;color:#f8fafc}
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media (max-width:1100px){.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}}
+        @media (max-width:1100px){.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
         @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
-        @media (max-width:600px){.metric-card{min-width:120px}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}}
+        @media (max-width:600px){.metric-card{min-width:120px}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}}
         </style>
         """,
         unsafe_allow_html=True,
