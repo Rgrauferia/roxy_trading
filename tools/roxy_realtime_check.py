@@ -69,6 +69,7 @@ BENIGN_OPERATIONAL_LOG_PATTERNS = (
     "HTTP Error 500: <!DOCTYPE html>",
     "HTTP Error 502: <!DOCTYPE html>",
     "YFException(\"Failed to parse json response from Yahoo Finance:",
+    "YAHOO! FINANCE IS CURRENTLY DOWN!",
 )
 CRITICAL_OPERATIONAL_LOG_PATTERNS = (
     r"\bTraceback \(most recent call last\):",
@@ -986,6 +987,7 @@ def operational_log_signals(text: str) -> tuple[list[str], list[str], int]:
             or "HTTP Error 500: <!DOCTYPE html>" in text
             or "HTTP Error 502: <!DOCTYPE html>" in text
             or "Failed to parse json response from Yahoo Finance" in text
+            or "YAHOO! FINANCE IS CURRENTLY DOWN!" in text
         )
     )
     for raw_line in text.splitlines():

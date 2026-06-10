@@ -314,6 +314,7 @@ def test_validate_operational_logs_ignores_yahoo_provider_noise_without_cache_is
             [
                 "2026-06-10 15:51:09,932 ERROR Failed to get ticker 'MATIC/USD' reason: Expecting value: line 1 column 1 (char 0)",
                 "2026-06-10 15:51:10,512 ERROR HTTP Error 502: <!DOCTYPE html>",
+                "2026-06-10 15:52:04,459 ERROR ['MATIC/USD']: RuntimeError('*** YAHOO! FINANCE IS CURRENTLY DOWN! ***')",
                 "2026-06-10 15:51:10,977 ERROR",
                 "1 Failed download:",
             ]
