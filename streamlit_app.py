@@ -2713,6 +2713,45 @@ def render_lab_daily_summary(lab_rows: list[dict[str, Any]]) -> None:
             render_kpi_card(row["label"], row["strategy"], tone=row["tone"], detail=row["detail"])
 
 
+def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale | None = None) -> list[alt.Chart]:
+    if chart_window.empty or not {"ts", "close"}.issubset(chart_window.columns):
+        return []
+    hover_cols = ["ts", "open", "high", "low", "close", "volume", "ema9", "sma20", "sma40", "sma100", "sma200"]
+    hover_cols = [column for column in hover_cols if column in chart_window.columns]
+    hover_df = chart_window[hover_cols].copy()
+    hover = alt.selection_point(
+        name="candle_hover",
+        fields=["ts"],
+        nearest=True,
+        on="pointerover",
+        clear="pointerout",
+        empty=False,
+    )
+    y_encoding = alt.Y("close:Q", title="Precio", scale=price_scale or alt.Scale(zero=False))
+    tooltips = [
+        alt.Tooltip("ts:T", title="Tiempo"),
+        alt.Tooltip("open:Q", title="Open", format=".2f"),
+        alt.Tooltip("high:Q", title="High", format=".2f"),
+        alt.Tooltip("low:Q", title="Low", format=".2f"),
+        alt.Tooltip("close:Q", title="Close", format=".2f"),
+    ]
+    if "volume" in hover_df.columns:
+        tooltips.append(alt.Tooltip("volume:Q", title="Volumen", format=",.0f"))
+    for column, label in (("ema9", "EMA9"), ("sma20", "SMA20"), ("sma40", "SMA40"), ("sma100", "SMA100"), ("sma200", "SMA200")):
+        if column in hover_df.columns:
+            tooltips.append(alt.Tooltip(f"{column}:Q", title=label, format=".2f"))
+
+    hover_base = alt.Chart(hover_df).encode(x=alt.X("ts:T", title="Tiempo"))
+    selector = hover_base.mark_point(opacity=0, size=90).encode(y=y_encoding, tooltip=tooltips).add_params(hover)
+    crosshair = hover_base.mark_rule(color="#e5e7eb", opacity=0.55, strokeDash=[3, 3]).transform_filter(hover)
+    marker = (
+        hover_base.mark_point(filled=True, size=78, color="#f8fafc", stroke="#0f172a", strokeWidth=1.2)
+        .encode(y=y_encoding, tooltip=tooltips)
+        .transform_filter(hover)
+    )
+    return [selector, crosshair, marker]
+
+
 def build_professional_price_chart(
     chart_df: pd.DataFrame,
     setup: dict,
@@ -2883,6 +2922,7 @@ def build_professional_price_chart(
             tooltip=candle_tooltips,
         )
     )
+    layers.extend(build_price_hover_layers(chart_window, price_scale))
 
     event_rows = [row for row in latest_chart_strategy_events(chart_window, setup) if row.get("status") in {"ACTIVE", "WATCH"}]
     if event_rows:

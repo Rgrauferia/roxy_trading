@@ -13,7 +13,9 @@ from streamlit_app import (
     asset_type_label,
     build_realtime_refresh_script,
     build_chart_level_plan,
+    build_price_hover_layers,
     build_professional_oscillator_chart,
+    build_professional_price_chart,
     chart_price_domain,
     build_visual_zone_rows,
     build_command_center_summary,
@@ -1937,6 +1939,67 @@ def test_chart_price_domain_ignores_far_high_low_and_channel_outliers():
     assert domain is not None
     assert 70 < domain[0] < 99
     assert 108 < domain[1] < 150
+
+
+def test_build_price_hover_layers_adds_crosshair_and_media_tooltips():
+    chart_window = prepare_chart_window(
+        pd.DataFrame(
+            [
+                {
+                    "ts": "2026-01-01 10:00",
+                    "open": 100,
+                    "high": 102,
+                    "low": 98,
+                    "close": 101,
+                    "volume": 1000,
+                    "ema9": 100.5,
+                    "sma20": 99.5,
+                    "sma40": 98.5,
+                    "sma100": 96,
+                    "sma200": 92,
+                },
+                {
+                    "ts": "2026-01-01 11:00",
+                    "open": 101,
+                    "high": 104,
+                    "low": 100,
+                    "close": 103,
+                    "volume": 1200,
+                    "ema9": 101.5,
+                    "sma20": 100,
+                    "sma40": 99,
+                    "sma100": 97,
+                    "sma200": 93,
+                },
+            ]
+        )
+    )
+
+    layers = build_price_hover_layers(chart_window)
+    specs = [layer.to_dict() for layer in layers]
+    joined = str(specs)
+
+    assert len(layers) == 3
+    assert "candle_hover" in joined
+    assert any(spec.get("mark", {}).get("type") == "rule" for spec in specs)
+    assert "EMA9" in joined
+    assert "SMA200" in joined
+
+
+def test_build_professional_price_chart_includes_hover_cursor():
+    chart_df = pd.DataFrame(
+        [
+            {"ts": "2026-01-01", "open": 100, "high": 102, "low": 98, "close": 101, "volume": 1000, "sma20": 99},
+            {"ts": "2026-01-02", "open": 101, "high": 104, "low": 100, "close": 103, "volume": 1200, "sma20": 100},
+        ]
+    )
+
+    chart = build_professional_price_chart(chart_df, {"entry": 103, "stop": 99}, {}, {})
+    spec = chart.to_dict()
+
+    assert "params" in spec
+    assert any(param.get("name") == "candle_hover" for param in spec["params"])
+    assert "candle_hover" in str(spec)
 
 
 def test_build_professional_oscillator_chart_uses_rsi_and_macd():
