@@ -40,6 +40,15 @@ APP_SCAN_RETENTION_PATTERNS = (
     "stocks_growth_*.csv",
     "crypto_tech_*.csv",
 )
+STALE_OUTPUT_MAX_AGE_DAYS_RULES: dict[str, float] = {
+    "fine_sweep_*": 7.0,
+    "sweep_summary*": 7.0,
+    "synthetic_ohlcv.csv": 7.0,
+    "analysis_best_runs.csv": 7.0,
+    "ma_ai_development_test_*.csv": 7.0,
+    "ma_crypto_ai_development_test_*.csv": 7.0,
+    "backtest_batch_summary_*.json": 30.0,
+}
 
 DEFAULT_RETENTION_RULES: dict[str, int] = {
     **{pattern: 96 for pattern in LIVE_RETENTION_PATTERNS},
@@ -104,6 +113,57 @@ def cleanup_output_files(
         "removed_count": len(removed),
         "kept_counts": kept_counts,
         "removed_counts": removed_counts,
+    }
+
+
+def cleanup_stale_output_files(
+    *,
+    output_dir: str | Path = OUTPUT_DIR,
+    max_age_days_rules: Mapping[str, float] | None = None,
+    dry_run: bool = False,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    root = Path(output_dir)
+    rules = dict(max_age_days_rules or STALE_OUTPUT_MAX_AGE_DAYS_RULES)
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    removed: list[str] = []
+    removed_counts: dict[str, int] = {}
+    kept_counts: dict[str, int] = {}
+    if not root.exists():
+        return {
+            "output_dir": str(root),
+            "removed": removed,
+            "removed_count": 0,
+            "removed_counts": removed_counts,
+            "kept_counts": kept_counts,
+            "exists": False,
+        }
+    for pattern, max_age_days in rules.items():
+        max_age_seconds = max(0.0, float(max_age_days)) * 86400.0
+        removed_counts[pattern] = 0
+        kept_counts[pattern] = 0
+        for path in sorted(root.glob(pattern), key=lambda item: item.stat().st_mtime, reverse=True):
+            if not path.is_file():
+                continue
+            modified = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+            age_seconds = max(0.0, (current - modified).total_seconds())
+            if age_seconds > max_age_seconds:
+                removed.append(str(path))
+                removed_counts[pattern] += 1
+                if not dry_run:
+                    path.unlink()
+            else:
+                kept_counts[pattern] += 1
+    return {
+        "output_dir": str(root),
+        "removed": removed,
+        "removed_count": len(removed),
+        "removed_counts": removed_counts,
+        "kept_counts": kept_counts,
+        "exists": True,
+        "max_age_days_rules": rules,
     }
 
 
@@ -278,6 +338,7 @@ def cleanup_runtime_artifacts(
     alerts_path: str | Path = ALERTS_DIR,
     log_dirs: list[str | Path] | None = None,
     retention_rules: Mapping[str, int] | None = None,
+    stale_output_rules: Mapping[str, float] | None = None,
     dry_run: bool = False,
     max_log_bytes: int = DEFAULT_MAX_LOG_BYTES,
     max_history_lines: int = DEFAULT_MAX_HISTORY_LINES,
@@ -286,6 +347,11 @@ def cleanup_runtime_artifacts(
     log_snapshot_keep_count: int = DEFAULT_LOG_SNAPSHOT_KEEP_COUNT,
 ) -> dict[str, Any]:
     result = cleanup_output_files(output_dir=output_dir, retention_rules=retention_rules, dry_run=dry_run)
+    stale_output = cleanup_stale_output_files(
+        output_dir=output_dir,
+        max_age_days_rules=stale_output_rules,
+        dry_run=dry_run,
+    )
     trimmed_logs = trim_log_files(log_dirs=log_dirs, max_bytes=max_log_bytes, dry_run=dry_run)
     trimmed_histories = trim_history_files(alerts_path=alerts_path, max_lines=max_history_lines, dry_run=dry_run)
     alert_reports = cleanup_alert_report_files(
@@ -302,6 +368,11 @@ def cleanup_runtime_artifacts(
         {
             "alerts_dir": str(alerts_path),
             "log_dirs": [str(path) for path in (log_dirs or [LOG_DIR, LAUNCHD_LOG_DIR])],
+            "stale_output_removed": stale_output["removed"],
+            "stale_output_removed_count": stale_output["removed_count"],
+            "stale_output_removed_counts": stale_output["removed_counts"],
+            "stale_output_kept_counts": stale_output["kept_counts"],
+            "stale_output_max_age_days_rules": stale_output.get("max_age_days_rules", {}),
             "trimmed_logs": trimmed_logs,
             "trimmed_log_count": len(trimmed_logs),
             "trimmed_histories": trimmed_histories,
@@ -340,6 +411,7 @@ def render_text_report(result: Mapping[str, Any]) -> str:
         f"Generated: {result.get('generated_at', '-')}",
         f"Output: {result.get('output_dir', '-')}",
         f"Removed: {result.get('removed_count', 0)}",
+        f"Removed stale output: {result.get('stale_output_removed_count', 0)}",
         f"Trimmed logs: {result.get('trimmed_log_count', 0)}",
         f"Trimmed histories: {result.get('trimmed_history_count', 0)}",
         f"Removed alert reports: {result.get('removed_alert_report_count', 0)}",
@@ -348,6 +420,10 @@ def render_text_report(result: Mapping[str, Any]) -> str:
     ]
     for pattern, count in dict(result.get("removed_counts") or {}).items():
         lines.append(f"- {pattern}: removed {count}, kept {dict(result.get('kept_counts') or {}).get(pattern, 0)}")
+    for pattern, count in dict(result.get("stale_output_removed_counts") or {}).items():
+        if count:
+            days = dict(result.get("stale_output_max_age_days_rules") or {}).get(pattern, "-")
+            lines.append(f"- stale {pattern}: removed {count}, max age {days}d")
     for item in result.get("trimmed_logs") or []:
         lines.append(f"- log trimmed: {item.get('path')} {item.get('before_bytes')} -> {item.get('after_bytes')} bytes")
     for item in result.get("trimmed_histories") or []:
@@ -394,6 +470,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Clean old generated Roxy output files by retention pattern.")
     parser.add_argument("--output-dir", default=str(OUTPUT_DIR))
     parser.add_argument("--rule", action="append", type=parse_rule, help="Retention rule like 'ma_live_strategy_*.csv=96'. Can be repeated.")
+    parser.add_argument(
+        "--stale-output-rule",
+        action="append",
+        type=parse_rule,
+        help="Stale output rule like 'fine_sweep_*=7'. Removes matching files older than N days.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--max-log-bytes", type=int, default=DEFAULT_MAX_LOG_BYTES)
     parser.add_argument("--max-history-lines", type=int, default=DEFAULT_MAX_HISTORY_LINES)
@@ -414,10 +496,12 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     rules = dict(args.rule or DEFAULT_RETENTION_RULES.items())
+    stale_output_rules = {pattern: float(days) for pattern, days in (args.stale_output_rule or STALE_OUTPUT_MAX_AGE_DAYS_RULES.items())}
     alert_report_rules = dict(args.alert_report_rule or DEFAULT_ALERT_REPORT_RETENTION_RULES.items())
     result = cleanup_runtime_artifacts(
         output_dir=args.output_dir,
         retention_rules=rules,
+        stale_output_rules=stale_output_rules,
         dry_run=args.dry_run,
         max_log_bytes=args.max_log_bytes,
         max_history_lines=args.max_history_lines,
@@ -436,6 +520,8 @@ def main() -> None:
             print(f"- {pattern}: {count}")
     if result.get("trimmed_log_count"):
         print(f"Trimmed logs: {result['trimmed_log_count']}")
+    if result.get("stale_output_removed_count"):
+        print(f"Removed stale output: {result['stale_output_removed_count']}")
     if result.get("trimmed_history_count"):
         print(f"Trimmed histories: {result['trimmed_history_count']}")
     if result.get("removed_alert_report_count"):

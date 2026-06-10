@@ -910,6 +910,7 @@ def test_output_maintenance_dashboard_status_uses_realtime_check():
                     "status": "OK",
                     "age_hours": 0.4,
                     "removed_count": 522,
+                    "stale_output_removed_count": 9,
                     "trimmed_log_count": 2,
                     "trimmed_history_count": 1,
                     "removed_alert_report_count": 3,
@@ -923,6 +924,7 @@ def test_output_maintenance_dashboard_status_uses_realtime_check():
     assert status["label"] == "OK"
     assert status["tone"] == "buy"
     assert "0.4h" in status["detail"]
+    assert "stale 9" in status["detail"]
     assert "removidos 522" in status["detail"]
     assert "logs 2" in status["detail"]
     assert "hist 1" in status["detail"]
@@ -1059,6 +1061,15 @@ def test_autoheal_dashboard_status_surfaces_recovery_and_failures():
     assert "cache yf recovered" in recovered["detail"]
     assert failed["label"] == "Falla"
     assert failed["tone"] == "avoid"
+
+
+def test_autoheal_report_keys_include_all_recovery_channels():
+    keys = set(streamlit_app.AUTOHEAL_REPORT_KEYS)
+
+    assert "storage_migration_autoheal" in keys
+    assert "yfinance_cache_autoheal" in keys
+    assert "live_data_autoheal" in keys
+    assert "alert_quality_autoheal" in keys
 
 
 def test_health_history_dashboard_status_summarizes_recent_stability():

@@ -214,6 +214,19 @@ PLATFORM_BADGE_BRANDS = {
 TIMEFRAME_OPTIONS = ["15m", "1h", "2h", "4h", "1d"]
 REALTIME_REFRESH_SECONDS = [30, 60, 120, 300]
 DEFAULT_REALTIME_REFRESH_SECONDS = 60
+AUTOHEAL_REPORT_KEYS = (
+    "launchd_autoheal",
+    "runtime_backup_autoheal",
+    "runtime_backup_report_autoheal",
+    "streamlit_app_autoheal",
+    "chart_health_autoheal",
+    "live_data_autoheal",
+    "storage_migration_autoheal",
+    "yfinance_cache_autoheal",
+    "output_maintenance_autoheal",
+    "ai_brief_autoheal",
+    "alert_quality_autoheal",
+)
 LIVE_SOURCE_LABEL = "Live intradia"
 
 STRATEGY_STUDY_GUIDES = {
@@ -4490,6 +4503,9 @@ def output_maintenance_dashboard_status(
     removed_count = safe_float(check_item.get("removed_count"))
     if removed_count is None:
         removed_count = safe_float(maintenance_report.get("removed_count"))
+    stale_output_removed = safe_float(check_item.get("stale_output_removed_count"))
+    if stale_output_removed is None:
+        stale_output_removed = safe_float(maintenance_report.get("stale_output_removed_count"))
     trimmed_logs = safe_float(check_item.get("trimmed_log_count"))
     if trimmed_logs is None:
         trimmed_logs = safe_float(maintenance_report.get("trimmed_log_count"))
@@ -4509,6 +4525,8 @@ def output_maintenance_dashboard_status(
         details.append(f"{age_hours:.1f}h")
     if removed_count is not None:
         details.append(f"removidos {int(removed_count)}")
+    if stale_output_removed is not None:
+        details.append(f"stale {int(stale_output_removed)}")
     if trimmed_logs is not None:
         details.append(f"logs {int(trimmed_logs)}")
     if trimmed_histories is not None:
@@ -4526,6 +4544,7 @@ def output_maintenance_dashboard_status(
         "detail": " | ".join(details) if details else "Ejecuta mantenimiento",
         "age_hours": age_hours,
         "removed_count": int(removed_count) if removed_count is not None else None,
+        "stale_output_removed_count": int(stale_output_removed) if stale_output_removed is not None else None,
         "trimmed_log_count": int(trimmed_logs) if trimmed_logs is not None else None,
         "trimmed_history_count": int(trimmed_histories) if trimmed_histories is not None else None,
         "removed_alert_report_count": int(removed_alert_reports) if removed_alert_reports is not None else None,
@@ -5514,17 +5533,7 @@ def show_ai_status_cards(
         if realtime_check:
             with st.expander("Reporte verificacion realtime", expanded=check_status["tone"] != "buy"):
                 st.json(realtime_check)
-            autoheal_keys = [
-                "launchd_autoheal",
-                "runtime_backup_autoheal",
-                "runtime_backup_report_autoheal",
-                "streamlit_app_autoheal",
-                "chart_health_autoheal",
-                "live_data_autoheal",
-                "output_maintenance_autoheal",
-                "ai_brief_autoheal",
-                "alert_quality_autoheal",
-            ]
+            autoheal_keys = AUTOHEAL_REPORT_KEYS
             if any(realtime_check.get(key) for key in autoheal_keys):
                 with st.expander("Reporte autoheal", expanded=autoheal_status["tone"] != "buy"):
                     st.json({key: realtime_check.get(key) for key in autoheal_keys})

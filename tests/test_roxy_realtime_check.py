@@ -1274,6 +1274,8 @@ def test_validate_output_maintenance_report_accepts_recent_run(tmp_path):
                 "output_dir": str(output),
                 "dry_run": False,
                 "removed_count": 3,
+                "stale_output_removed_count": 5,
+                "stale_output_removed_counts": {"fine_sweep_*": 5},
                 "trimmed_log_count": 2,
                 "trimmed_history_count": 1,
                 "removed_alert_report_count": 4,
@@ -1286,6 +1288,8 @@ def test_validate_output_maintenance_report_accepts_recent_run(tmp_path):
 
     assert status["status"] == "OK"
     assert status["removed_count"] == 3
+    assert status["stale_output_removed_count"] == 5
+    assert status["stale_output_removed_counts"] == {"fine_sweep_*": 5}
     assert status["trimmed_log_count"] == 2
     assert status["trimmed_history_count"] == 1
     assert status["removed_alert_report_count"] == 4

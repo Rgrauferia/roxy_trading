@@ -1395,11 +1395,13 @@ def validate_output_maintenance_report(
     if dry_run:
         details.append("last run was dry-run")
     removed_count = int(payload.get("removed_count", 0) or 0)
+    stale_output_removed_count = int(payload.get("stale_output_removed_count", 0) or 0)
     trimmed_log_count = int(payload.get("trimmed_log_count", 0) or 0)
     trimmed_history_count = int(payload.get("trimmed_history_count", 0) or 0)
     removed_alert_report_count = int(payload.get("removed_alert_report_count", 0) or 0)
     kept_counts = dict(payload.get("kept_counts") or {})
     details.append(f"removed {removed_count}")
+    details.append(f"removed stale output {stale_output_removed_count}")
     details.append(f"trimmed logs {trimmed_log_count}")
     details.append(f"trimmed histories {trimmed_history_count}")
     details.append(f"removed alert reports {removed_alert_report_count}")
@@ -1415,6 +1417,8 @@ def validate_output_maintenance_report(
         output_exists=output_exists,
         dry_run=dry_run,
         removed_count=removed_count,
+        stale_output_removed_count=stale_output_removed_count,
+        stale_output_removed_counts=dict(payload.get("stale_output_removed_counts") or {}),
         trimmed_log_count=trimmed_log_count,
         trimmed_history_count=trimmed_history_count,
         removed_alert_report_count=removed_alert_report_count,

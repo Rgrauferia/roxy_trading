@@ -1,13 +1,16 @@
 import os
 import json
+from datetime import datetime, timedelta, timezone
 
 from tools.output_maintenance import (
     DEFAULT_ALERT_REPORT_RETENTION_RULES,
     DEFAULT_HISTORY_FILES,
+    STALE_OUTPUT_MAX_AGE_DAYS_RULES,
     cleanup_alert_report_files,
     cleanup_log_snapshots,
     cleanup_output_files,
     cleanup_runtime_artifacts,
+    cleanup_stale_output_files,
     render_text_report,
     trim_history_file,
     trim_log_files,
@@ -55,6 +58,53 @@ def test_cleanup_output_files_dry_run_keeps_files(tmp_path):
     assert second.exists()
 
 
+def test_default_stale_output_rules_cover_transient_dev_artifacts():
+    assert STALE_OUTPUT_MAX_AGE_DAYS_RULES["fine_sweep_*"] == 7.0
+    assert STALE_OUTPUT_MAX_AGE_DAYS_RULES["synthetic_ohlcv.csv"] == 7.0
+    assert STALE_OUTPUT_MAX_AGE_DAYS_RULES["backtest_batch_summary_*.json"] == 30.0
+
+
+def test_cleanup_stale_output_files_removes_old_transient_artifacts(tmp_path):
+    now = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
+    stale = tmp_path / "fine_sweep_summary.csv"
+    fresh = tmp_path / "fine_sweep_latest.csv"
+    live = tmp_path / "ma_live_strategy_both_20260610_120000.csv"
+    stale.write_text("old")
+    fresh.write_text("new")
+    live.write_text("live")
+    os.utime(stale, ((now - timedelta(days=9)).timestamp(), (now - timedelta(days=9)).timestamp()))
+    os.utime(fresh, ((now - timedelta(days=1)).timestamp(), (now - timedelta(days=1)).timestamp()))
+    os.utime(live, ((now - timedelta(days=20)).timestamp(), (now - timedelta(days=20)).timestamp()))
+
+    result = cleanup_stale_output_files(
+        output_dir=tmp_path,
+        max_age_days_rules={"fine_sweep_*": 7.0},
+        now=now,
+    )
+
+    assert result["removed_count"] == 1
+    assert not stale.exists()
+    assert fresh.exists()
+    assert live.exists()
+
+
+def test_cleanup_stale_output_files_dry_run_keeps_files(tmp_path):
+    now = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
+    stale = tmp_path / "synthetic_ohlcv.csv"
+    stale.write_text("old")
+    os.utime(stale, ((now - timedelta(days=9)).timestamp(), (now - timedelta(days=9)).timestamp()))
+
+    result = cleanup_stale_output_files(
+        output_dir=tmp_path,
+        max_age_days_rules={"synthetic_ohlcv.csv": 7.0},
+        dry_run=True,
+        now=now,
+    )
+
+    assert result["removed_count"] == 1
+    assert stale.exists()
+
+
 def test_write_report_outputs_json_and_text(tmp_path):
     result = {
         "generated_at": "2026-06-10T12:00:00+00:00",
@@ -63,6 +113,9 @@ def test_write_report_outputs_json_and_text(tmp_path):
         "removed_count": 2,
         "removed_counts": {"ma_live_strategy_*.csv": 2},
         "kept_counts": {"ma_live_strategy_*.csv": 96},
+        "stale_output_removed_count": 1,
+        "stale_output_removed_counts": {"fine_sweep_*": 1},
+        "stale_output_max_age_days_rules": {"fine_sweep_*": 7.0},
         "removed": ["a.csv", "b.csv"],
     }
 
@@ -71,6 +124,8 @@ def test_write_report_outputs_json_and_text(tmp_path):
     assert json.loads(json_path.read_text())["removed_count"] == 2
     assert "Roxy output maintenance: DONE" in text_path.read_text()
     assert "removed 2, kept 96" in render_text_report(result)
+    assert "Removed stale output: 1" in render_text_report(result)
+    assert "stale fine_sweep_*: removed 1, max age 7.0d" in render_text_report(result)
 
 
 def test_default_history_files_include_realtime_health_history():
@@ -216,6 +271,7 @@ def test_cleanup_runtime_artifacts_reports_trimmed_logs_and_histories(tmp_path):
         alerts_path=alerts,
         log_dirs=[logs],
         retention_rules={"stocks_tech_*.csv": 1},
+        stale_output_rules={"fine_sweep_*": 7.0},
         alert_report_retention_rules={"weekly_report_*.txt": 1},
         max_log_bytes=20,
         max_history_lines=3,
@@ -224,6 +280,7 @@ def test_cleanup_runtime_artifacts_reports_trimmed_logs_and_histories(tmp_path):
     )
 
     assert result["removed_count"] == 1
+    assert result["stale_output_removed_count"] == 0
     assert result["trimmed_log_count"] == 1
     assert result["trimmed_history_count"] == 1
     assert result["removed_alert_report_count"] == 1
