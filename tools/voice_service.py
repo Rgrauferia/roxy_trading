@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 import os
 import time
 import logging
@@ -72,7 +73,14 @@ def setup_logger() -> logging.Logger:
 
 logger = setup_logger()
 
-app = FastAPI(title="Roxy Voice Assistant (prototype)")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("voice_service starting up; rate window=%s max=%s", RATE_LIMIT_WINDOW, RATE_LIMIT_MAX)
+    yield
+
+
+app = FastAPI(title="Roxy Voice Assistant (prototype)", lifespan=lifespan)
 if secrets_router is not None:
     app.include_router(secrets_router)
 if llm_agent_router is not None:
@@ -192,8 +200,3 @@ def assist(req: AssistRequest, token: Optional[str] = Depends(require_api_key)):
         reply = f"(assistant stub) You said: {q}"
 
     return {"reply": reply}
-
-
-@app.on_event("startup")
-def startup_event():
-    logger.info("voice_service starting up; rate window=%s max=%s", RATE_LIMIT_WINDOW, RATE_LIMIT_MAX)

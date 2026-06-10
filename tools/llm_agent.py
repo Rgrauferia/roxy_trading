@@ -35,6 +35,12 @@ class Signal(BaseModel):
     confidence: Optional[float] = None
 
 
+def _model_to_dict(model: BaseModel) -> dict:
+    if hasattr(model, "model_dump"):
+        return model.model_dump()
+    return model.dict()
+
+
 def _insert_ai_run(run_id: str, user: Optional[str], prompt: str, response: str, parsed_json: Optional[str], model: Optional[str] = None):
     try:
         conn = sqlite3.connect(DB_PATH)
@@ -192,7 +198,7 @@ def generate_signals(payload: SignalRequest = Body(...)):
 
         # persist audit
         try:
-            _insert_ai_run(run_id=run_id, user=None, prompt=prompt, response=text or "", parsed_json=json.dumps([r.dict() for r in results]), model=model_used)
+            _insert_ai_run(run_id=run_id, user=None, prompt=prompt, response=text or "", parsed_json=json.dumps([_model_to_dict(r) for r in results]), model=model_used)
         except Exception:
             logger.exception("failed to persist ai run")
 

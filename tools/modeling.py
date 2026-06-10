@@ -56,9 +56,9 @@ def load_feature_window(symbol: str, lookback: int = 100) -> pd.DataFrame:
         df = df.sort_values("ts").reset_index(drop=True)
         # basic features: returns, 3/10/30 SMA
         df["ret"] = df["close"].pct_change().fillna(0)
-        df["sma3"] = df["close"].rolling(3).mean().fillna(method="bfill")
-        df["sma10"] = df["close"].rolling(10).mean().fillna(method="bfill")
-        df["sma30"] = df["close"].rolling(30).mean().fillna(method="bfill")
+        df["sma3"] = df["close"].rolling(3).mean().bfill()
+        df["sma10"] = df["close"].rolling(10).mean().bfill()
+        df["sma30"] = df["close"].rolling(30).mean().bfill()
         df["momentum"] = df["close"] / df["sma10"] - 1.0
         return df.tail(lookback).reset_index(drop=True)
     except Exception:
