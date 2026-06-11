@@ -1,6 +1,11 @@
 import pandas as pd
 
-from streamlit_app import build_mini_opportunity_chart, focused_opportunity_table, mini_opportunity_rows
+from streamlit_app import (
+    build_mini_opportunity_chart,
+    focused_opportunity_table,
+    mini_opportunity_rows,
+    top_opportunity_card_details,
+)
 
 
 def test_mini_opportunity_rows_prioritize_trade_ready_then_score():
@@ -61,3 +66,26 @@ def test_build_mini_opportunity_chart_is_interactive_with_price_tooltips():
     assert any(param.get("name") == "mini_hover" for param in spec["params"])
     assert any(layer.get("mark", {}).get("type") == "rule" for layer in spec["layer"])
     assert any("tooltip" in layer.get("encoding", {}) for layer in spec["layer"])
+
+
+def test_top_opportunity_card_details_surface_next_action():
+    details = top_opportunity_card_details(
+        {
+            "status": "Vigilar",
+            "score": 88,
+            "risk": 0.022,
+            "target": 0.05,
+            "next": "Esperar cierre 15m sobre SMA20.",
+        }
+    )
+
+    assert details["metrics"] == "Score 88 · Riesgo 2.20% · Target 5.00%"
+    assert details["next"] == "Esperar cierre 15m sobre SMA20."
+
+
+def test_top_opportunity_card_details_fallback_depends_on_status():
+    operar = top_opportunity_card_details({"status": "Operar", "next": "-"})
+    evitar = top_opportunity_card_details({"status": "Evitar", "next": "-"})
+
+    assert "Confirmar ticket manual" in operar["next"]
+    assert "No tocar" in evitar["next"]
