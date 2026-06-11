@@ -184,6 +184,21 @@ def test_filter_trading_desk_display_searches_blocker_summary():
 
     assert filtered["Ticker"].tolist() == ["MSFT"]
 
+
+def test_filter_trading_desk_display_filters_blocker_summary():
+    rows = pd.DataFrame(
+        [
+            {"#": 1, "Ticker": "AAPL", "Estado": "Operar", "Paper": "Paper listo", "Falta": "Completo", "Score": "92", "Riesgo": "1.80%", "RVol": "1.4x", "Setup": "Pullback", "Siguiente": "Confirmar", "Razón": "1h confirma", "Mover": "Ruptura"},
+            {"#": 2, "Ticker": "MSFT", "Estado": "Vigilar", "Paper": "Setup", "Falta": "Falta 15m", "Score": "74", "Riesgo": "3.20%", "RVol": "0.8x", "Setup": "Canal", "Siguiente": "Esperar", "Razón": "Falta 15m", "Mover": "Pullback"},
+            {"#": 3, "Ticker": "TSLA", "Estado": "Evitar", "Paper": "No tocar", "Falta": "No tocar", "Score": "65", "Riesgo": "7.00%", "RVol": "0.7x", "Setup": "Debilidad", "Siguiente": "No tocar", "Razón": "Riesgo alto", "Mover": "Debilidad"},
+        ]
+    )
+
+    filtered = filter_trading_desk_display(rows, blocker="Falta 15m")
+
+    assert filtered["Ticker"].tolist() == ["MSFT"]
+    assert filtered["#"].tolist() == [1]
+
 def test_filter_trading_desk_display_applies_fast_presets():
     rows = pd.DataFrame(
         [

@@ -9398,6 +9398,7 @@ def filter_trading_desk_display(
     query: str = "",
     min_score: float = 0,
     preset: str = "Todos",
+    blocker: str = "Todos",
 ) -> pd.DataFrame:
     if rows.empty:
         return rows
@@ -9425,6 +9426,8 @@ def filter_trading_desk_display(
         filtered = filtered[filtered["Estado"].astype(str).eq("Evitar")]
     if status != "Todos" and "Estado" in filtered.columns:
         filtered = filtered[filtered["Estado"].astype(str).eq(status)]
+    if blocker != "Todos" and "Falta" in filtered.columns:
+        filtered = filtered[filtered["Falta"].astype(str).eq(blocker)]
     if min_score and "Score" in filtered.columns:
         scores = pd.to_numeric(filtered["Score"], errors="coerce").fillna(0)
         filtered = filtered[scores.ge(float(min_score))]
@@ -9626,7 +9629,7 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
     st.markdown("**Trading Desk**")
     preset_counts = trading_desk_preset_counts(rows)
     preset_labels = {preset: f"{preset} ({preset_counts.get(preset, 0)})" for preset in TRADING_DESK_PRESETS}
-    filter_cols = st.columns([0.82, 0.75, 0.75, 1.3])
+    filter_cols = st.columns([0.72, 0.72, 0.8, 0.72, 1.2])
     with filter_cols[0]:
         preset_filter = st.selectbox(
             "Preset",
@@ -9640,11 +9643,16 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
         )
         status_filter = st.selectbox("Estado desk", status_options, key="trading_desk_status_filter")
     with filter_cols[2]:
-        min_score = st.slider("Score min", min_value=0, max_value=100, value=0, step=5, key="trading_desk_score_filter")
+        blocker_options = ["Todos"] + sorted(
+            [value for value in rows["Falta"].dropna().astype(str).unique() if value and value != "-"]
+        )
+        blocker_filter = st.selectbox("Falta", blocker_options, key="trading_desk_blocker_filter")
     with filter_cols[3]:
-        query = st.text_input("Buscar ticker/setup/razon", value="", key="trading_desk_query_filter")
+        min_score = st.slider("Score min", min_value=0, max_value=100, value=0, step=5, key="trading_desk_score_filter")
+    with filter_cols[4]:
+        query = st.text_input("Buscar ticker/setup/falta", value="", key="trading_desk_query_filter")
     display_rows = filter_trading_desk_display(
-        rows, status=status_filter, query=query, min_score=min_score, preset=preset_filter
+        rows, status=status_filter, query=query, min_score=min_score, preset=preset_filter, blocker=blocker_filter
     )
     if display_rows.empty:
         st.info("El filtro actual no deja oportunidades visibles.")
