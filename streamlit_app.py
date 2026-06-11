@@ -9319,6 +9319,17 @@ def filter_trading_desk_display(
         filtered["#"] = filtered.index + 1
     return filtered
 
+TRADING_DESK_PRESETS = ["Todos", "Operar ahora", "Paper listo", "Alto score", "Bajo riesgo", "Volumen vivo", "No tocar"]
+
+
+def trading_desk_preset_counts(rows: pd.DataFrame) -> dict[str, int]:
+    if rows.empty:
+        return {preset: 0 for preset in TRADING_DESK_PRESETS}
+    return {
+        preset: len(rows) if preset == "Todos" else len(filter_trading_desk_display(rows, preset=preset))
+        for preset in TRADING_DESK_PRESETS
+    }
+
 
 def trading_desk_summary(rows: pd.DataFrame) -> dict[str, Any]:
     if rows.empty:
@@ -9454,21 +9465,28 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
     if rows.empty:
         return
     st.markdown("**Trading Desk**")
+    preset_counts = trading_desk_preset_counts(rows)
+    preset_labels = {preset: f"{preset} ({preset_counts.get(preset, 0)})" for preset in TRADING_DESK_PRESETS}
     filter_cols = st.columns([0.82, 0.75, 0.75, 1.3])
     with filter_cols[0]:
         preset_filter = st.selectbox(
             "Preset",
-            ["Todos", "Operar ahora", "Paper listo", "Alto score", "Bajo riesgo", "Volumen vivo", "No tocar"],
+            TRADING_DESK_PRESETS,
+            format_func=lambda preset: preset_labels.get(str(preset), str(preset)),
             key="trading_desk_preset_filter",
         )
     with filter_cols[1]:
-        status_options = ["Todos"] + sorted([status for status in rows["Estado"].dropna().astype(str).unique() if status and status != "-"])
+        status_options = ["Todos"] + sorted(
+            [status for status in rows["Estado"].dropna().astype(str).unique() if status and status != "-"]
+        )
         status_filter = st.selectbox("Estado desk", status_options, key="trading_desk_status_filter")
     with filter_cols[2]:
         min_score = st.slider("Score min", min_value=0, max_value=100, value=0, step=5, key="trading_desk_score_filter")
     with filter_cols[3]:
         query = st.text_input("Buscar ticker/setup/razon", value="", key="trading_desk_query_filter")
-    display_rows = filter_trading_desk_display(rows, status=status_filter, query=query, min_score=min_score, preset=preset_filter)
+    display_rows = filter_trading_desk_display(
+        rows, status=status_filter, query=query, min_score=min_score, preset=preset_filter
+    )
     if display_rows.empty:
         st.info("El filtro actual no deja oportunidades visibles.")
         return

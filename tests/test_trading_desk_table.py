@@ -5,6 +5,7 @@ from streamlit_app import (
     focused_opportunity_table,
     trading_desk_action_queue,
     trading_desk_paper_state,
+    trading_desk_preset_counts,
     trading_desk_rows,
     trading_desk_summary,
 )
@@ -165,6 +166,28 @@ def test_filter_trading_desk_display_applies_fast_presets():
     assert filter_trading_desk_display(rows, preset="Bajo riesgo")["Ticker"].tolist() == ["AAPL", "NVDA"]
     assert filter_trading_desk_display(rows, preset="Volumen vivo")["Ticker"].tolist() == ["AAPL", "NVDA"]
     assert filter_trading_desk_display(rows, preset="No tocar")["Ticker"].tolist() == ["TSLA"]
+
+
+def test_trading_desk_preset_counts_match_fast_presets():
+    rows = pd.DataFrame(
+        [
+            {"#": 1, "Ticker": "AAPL", "Estado": "Operar", "Paper": "Paper listo", "Score": "92", "Riesgo": "1.80%", "RVol": "1.4x", "Setup": "Pullback", "Siguiente": "Confirmar", "Razón": "1h confirma", "Mover": "Ruptura"},
+            {"#": 2, "Ticker": "NVDA", "Estado": "Vigilar", "Paper": "Setup", "Score": "88", "Riesgo": "2.20%", "RVol": "1.8x", "Setup": "Canal", "Siguiente": "Esperar", "Razón": "Volumen vivo", "Mover": "Ruptura"},
+            {"#": 3, "Ticker": "TSLA", "Estado": "Evitar", "Paper": "No tocar", "Score": "65", "Riesgo": "7.00%", "RVol": "0.7x", "Setup": "Debilidad", "Siguiente": "No tocar", "Razón": "Riesgo alto", "Mover": "Debilidad"},
+        ]
+    )
+
+    counts = trading_desk_preset_counts(rows)
+
+    assert counts == {
+        "Todos": 3,
+        "Operar ahora": 1,
+        "Paper listo": 1,
+        "Alto score": 2,
+        "Bajo riesgo": 2,
+        "Volumen vivo": 2,
+        "No tocar": 1,
+    }
 
 
 def test_trading_desk_summary_counts_visible_operational_state():
