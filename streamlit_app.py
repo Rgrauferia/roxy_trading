@@ -10030,7 +10030,21 @@ def render_buy_readiness_gap_panel(confluence_df: pd.DataFrame) -> None:
 
 def scanner_blotter_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, *, limit: int = 24) -> pd.DataFrame:
     wall_rows = scanner_wallboard_rows(table, confluence_df, limit=limit)
-    columns = ["#", "Prioridad", "Ticker", "Estado", "Edge", "Score", "Setup", "Riesgo", "Target", "RVol", "TF", "Siguiente"]
+    columns = [
+        "#",
+        "Acción",
+        "Ticker",
+        "Estado",
+        "Edge",
+        "Score",
+        "Calidad",
+        "Setup",
+        "Riesgo",
+        "Target",
+        "RVol",
+        "TF",
+        "Qué falta",
+    ]
     if wall_rows.empty:
         return pd.DataFrame(columns=columns)
     display = wall_rows.copy().head(limit).reset_index(drop=True)
@@ -10039,22 +10053,45 @@ def scanner_blotter_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, *, li
     target = pd.to_numeric(display["target"], errors="coerce").fillna(0.0)
     rel_volume = pd.to_numeric(display["rel_volume"], errors="coerce").fillna(0.0)
     status_bonus = display["status"].map({"Operar": 18.0, "Vigilar": 8.0, "Evitar": -28.0}).fillna(0.0)
-    edge = (score + (rel_volume.clip(0, 5) * 4.0) + (target.clip(0, 0.15) * 150.0) + status_bonus - (risk.clip(0, 0.20) * 180.0)).round(1)
+    edge = (
+        score
+        + (rel_volume.clip(0, 5) * 4.0)
+        + (target.clip(0, 0.15) * 150.0)
+        + status_bonus
+        - (risk.clip(0, 0.20) * 180.0)
+    ).round(1)
     display["#"] = display.index + 1
-    display["Prioridad"] = [
-        "🔥 Operar" if status == "Operar" else "👀 Vigilar" if status == "Vigilar" and (score_value >= 85 or volume_value >= 1.2) else "⛔ Evitar" if status == "Evitar" else "Neutral"
+    display["Acción"] = [
+        (
+            "🔥 OPERAR"
+            if status == "Operar"
+            else (
+                "👀 ESPERAR"
+                if status == "Vigilar" and (score_value >= 85 or volume_value >= 1.2)
+                else "⛔ NO TOCAR" if status == "Evitar" else "ESPERAR"
+            )
+        )
         for status, score_value, volume_value in zip(display["status"].astype(str), score, rel_volume)
     ]
     display["Ticker"] = display["symbol"].astype(str)
     display["Estado"] = display["status"].astype(str)
     display["Edge"] = edge
     display["Score"] = score.round(0).astype(int)
+    display["Calidad"] = [
+        "A+" if value >= 95 else "A" if value >= 80 else "B" if value >= 65 else "C" for value in edge
+    ]
     display["Setup"] = display["strategy"].astype(str)
-    display["Riesgo"] = pd.to_numeric(display["risk"], errors="coerce").map(lambda value: pct_display(value) if pd.notna(value) else "-")
-    display["Target"] = pd.to_numeric(display["target"], errors="coerce").map(lambda value: pct_display(value) if pd.notna(value) else "-")
-    display["RVol"] = pd.to_numeric(display["rel_volume"], errors="coerce").map(lambda value: f"{value:.1f}x" if pd.notna(value) else "-")
+    display["Riesgo"] = pd.to_numeric(display["risk"], errors="coerce").map(
+        lambda value: pct_display(value) if pd.notna(value) else "-"
+    )
+    display["Target"] = pd.to_numeric(display["target"], errors="coerce").map(
+        lambda value: pct_display(value) if pd.notna(value) else "-"
+    )
+    display["RVol"] = pd.to_numeric(display["rel_volume"], errors="coerce").map(
+        lambda value: f"{value:.1f}x" if pd.notna(value) else "-"
+    )
     display["TF"] = display["tf"].astype(str)
-    display["Siguiente"] = display["next"].astype(str)
+    display["Qué falta"] = display["next"].astype(str)
     return display[columns]
 
 
@@ -10062,12 +10099,29 @@ def render_scanner_blotter(table: pd.DataFrame, confluence_df: pd.DataFrame) -> 
     blotter = scanner_blotter_rows(table, confluence_df, limit=28)
     if blotter.empty:
         return
-    st.markdown("**Blotter operativo**")
+    ready_count = int(blotter["Estado"].eq("Operar").sum())
+    watch_count = int(blotter["Estado"].eq("Vigilar").sum())
+    avoid_count = int(blotter["Estado"].eq("Evitar").sum())
+    top_symbol = text_display(blotter.iloc[0].get("Ticker")).upper()
+    top_action = text_display(blotter.iloc[0].get("Acción"))
+    st.markdown(
+        f"""
+        <section class="roxy-radar-head">
+            <div><strong>Roxy Radar</strong><span>Tabla principal para decidir qué trabajar ahora.</span></div>
+            <aside><b>{html.escape(top_symbol)}</b><small>{html.escape(top_action)} · {ready_count} operar · {watch_count} esperar · {avoid_count} no tocar</small></aside>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
     quick_cols = st.columns(min(6, max(1, len(blotter))))
     for idx, row in enumerate(blotter.head(6).to_dict("records")):
         with quick_cols[idx]:
             symbol = text_display(row.get("Ticker")).upper()
-            if st.button(f"{symbol} · {text_display(row.get('Prioridad'))}", key=f"blotter_load_{idx}_{safe_key(symbol)}", use_container_width=True):
+            if st.button(
+                f"{symbol} · {text_display(row.get('Acción'))}",
+                key=f"blotter_load_{idx}_{safe_key(symbol)}",
+                use_container_width=True,
+            ):
                 st.session_state["command_symbol_pending"] = symbol
                 st.session_state["command_market_pending"] = "crypto" if "/" in symbol else "stock"
                 st.rerun()
@@ -10079,6 +10133,9 @@ def render_scanner_blotter(table: pd.DataFrame, confluence_df: pd.DataFrame) -> 
         column_config={
             "Score": st.column_config.ProgressColumn("Score", min_value=0, max_value=100, format="%d"),
             "Edge": st.column_config.NumberColumn("Edge", format="%.0f"),
+            "Acción": st.column_config.TextColumn("Acción", width="small"),
+            "Calidad": st.column_config.TextColumn("Calidad", width="small"),
+            "Qué falta": st.column_config.TextColumn("Qué falta", width="large"),
         },
     )
 
@@ -13157,6 +13214,7 @@ def main() -> None:
         .scanner-compass span{color:#e2e8f0;font-size:12px;line-height:1.25;font-weight:800}
         .scanner-compass em{color:#94a3b8;font-size:10px;line-height:1.25;font-style:normal;text-align:right}
         .scanner-compass-buy{border-left-color:#22c55e;background:rgba(21,93,62,.20)}.scanner-compass-watch{border-left-color:#f59e0b;background:rgba(120,74,15,.18)}.scanner-compass-avoid{border-left-color:#ef4444;background:rgba(127,29,29,.18)}
+        .roxy-radar-head{display:flex;justify-content:space-between;gap:14px;align-items:center;border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#111827;padding:8px 10px;margin:6px 0 8px}.roxy-radar-head strong{display:block;color:#f8fafc;font-size:12px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.roxy-radar-head span{display:block;color:#94a3b8;font-size:11px;line-height:1.2;margin-top:2px}.roxy-radar-head aside{text-align:right}.roxy-radar-head b{display:block;color:#f8fafc;font-size:18px;line-height:1;font-weight:950}.roxy-radar-head small{display:block;color:#cbd5e1;font-size:11px;line-height:1.2;margin-top:4px}
         .scanner-card-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 10px}
         .scanner-card{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#0b1220;padding:10px 12px;min-height:90px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
         .scanner-card span{display:block;color:#94a3b8;font-size:11px;line-height:1.2;font-weight:900;text-transform:uppercase}
