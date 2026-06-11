@@ -13186,6 +13186,36 @@ def _summarize_voice_context(row: dict) -> str:
     return f"{symbol} | {action} | {family} | Entry {entry} | Stop {stop}"
 
 
+
+def render_roxy_now_strip(brief: dict[str, Any]) -> None:
+    table = focused_opportunity_table(brief)
+    best = table.iloc[0].to_dict() if not table.empty else {}
+    symbol = text_display(best.get("symbol") if best else "-").upper()
+    action = human_trade_action(best) if best else "Esperar"
+    tone = signal_tone(best.get("signal", "")) if best else "watch"
+    if str(action).lower().startswith("esperar"):
+        tone = "watch"
+    reason = text_display(best.get("waiting_for") or best.get("por_que") or best.get("reason") or "Sin setup limpio ahora.")
+    entry = num_display(best.get("entry") or best.get("current_price") or best.get("price"), 2)
+    stop = num_display(best.get("stop"), 2)
+    target = num_display(best.get("target") or best.get("take_profit"), 2)
+    score = num_display(best.get("ai_score") or best.get("score"), 0)
+    st.markdown(
+        f"""
+        <section class="roxy-now roxy-now-{html.escape(tone)}">
+          <div class="roxy-now-main">
+            <span>Qué hago ahora</span>
+            <strong>{html.escape(action)}</strong>
+            <p>{html.escape(reason[:210])}</p>
+          </div>
+          <div><span>Activo</span><strong>{html.escape(symbol)}</strong><p>Score {html.escape(score)}</p></div>
+          <div><span>Niveles</span><strong>{html.escape(entry)} / {html.escape(stop)} / {html.escape(target)}</strong><p>Entrada · Stop · Target</p></div>
+          <div><span>Regla</span><strong>Confirmar antes de operar</strong><p>Educativo; no garantiza ganancias.</p></div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
 def show_focused_roxy_app() -> None:
     daily_path, daily_df = load_latest_ma_scan("ma_strategy")
     live_path, live_df = load_latest_ma_scan("ma_live_strategy")
@@ -13232,6 +13262,7 @@ def show_focused_roxy_app() -> None:
         brief=brief,
     )
     show_focused_controls()
+    render_roxy_now_strip(brief)
     with st.expander("Roxy IA / voz global", expanded=False):
         show_focused_voice(brief)
 
@@ -13259,6 +13290,15 @@ def main() -> None:
         [data-testid="stSidebar"]{background:#0f172a;border-right:1px solid rgba(148,163,184,.16)}
         [data-testid="stHeader"]{background:rgba(14,22,36,.9)}
         [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"], #MainMenu, footer{display:none!important}
+        .roxy-now{display:grid;grid-template-columns:1.35fr .55fr .85fr .9fr;gap:1px;border:1px solid rgba(148,163,184,.24);border-radius:8px;background:rgba(148,163,184,.16);overflow:hidden;margin:8px 0 10px;box-shadow:0 14px 34px rgba(0,0,0,.20)}
+        .roxy-now>div{background:#0b1220;padding:10px 12px;min-height:78px}
+        .roxy-now span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.05em}
+        .roxy-now strong{display:block;color:#f8fafc;font-size:18px;line-height:1.1;margin-top:5px;font-weight:950}
+        .roxy-now p{margin:5px 0 0;color:#cbd5e1;font-size:12px;line-height:1.28}
+        .roxy-now-main strong{font-size:24px}
+        .roxy-now-buy{border-left:4px solid #22c55e}.roxy-now-buy .roxy-now-main{background:rgba(21,93,62,.24)}
+        .roxy-now-watch{border-left:4px solid #f59e0b}.roxy-now-watch .roxy-now-main{background:rgba(120,74,15,.22)}
+        .roxy-now-avoid{border-left:4px solid #ef4444}.roxy-now-avoid .roxy-now-main{background:rgba(127,29,29,.24)}
         .roxy-hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,520px);gap:18px;align-items:stretch;border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0d1426;padding:16px 18px;margin:0 0 10px;box-shadow:0 16px 42px rgba(0,0,0,.24)}
         .roxy-brand-row{display:flex;align-items:center;gap:14px}
         .roxy-logo-svg{width:58px;height:58px;flex:0 0 auto;filter:drop-shadow(0 10px 18px rgba(34,197,94,.15))}
