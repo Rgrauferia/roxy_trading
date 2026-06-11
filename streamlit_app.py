@@ -1501,8 +1501,10 @@ def render_professional_chart_block(
         panels.append(oscillator_chart.properties(height=oscillator_height))
     st.caption("Gráfica interactiva: arrastra para mover precio/tiempo, usa scroll o trackpad para zoom y pasa el cursor por velas para ver OHLC, volumen y medias.")
     if len(panels) > 1:
-        combined_chart = alt.vconcat(*panels).resolve_scale(x="shared")
-        st.altair_chart(style_trading_chart(combined_chart), width="stretch")
+        st.altair_chart(style_trading_chart(price_chart), width="stretch")
+        with st.expander("Volumen y osciladores", expanded=False):
+            for panel_idx, panel in enumerate(panels[1:], start=1):
+                st.altair_chart(style_trading_chart(panel), width="stretch", key=f"chart_indicator_{panel_idx}")
     else:
         st.altair_chart(style_trading_chart(price_chart), width="stretch")
 
@@ -1528,10 +1530,11 @@ def render_command_center_analysis(
         source_freshness=app_brief.get("source_freshness"),
         market_session=app_brief.get("market_session"),
     )
+    render_professional_chart_block(chart_df, setup, confluence, trade_brief, price_height=520, volume_height=115)
     render_command_center_panel(trade_brief, platform_ticket=ticket)
-    render_chart_strategy_summary(setup, confluence, trade_brief, chart_df)
-    render_chart_level_plan(chart_df, setup, confluence, trade_brief)
-    render_professional_chart_block(chart_df, setup, confluence, trade_brief, price_height=450, volume_height=115)
+    with st.expander("Lectura técnica, niveles y contexto", expanded=False):
+        render_chart_strategy_summary(setup, confluence, trade_brief, chart_df)
+        render_chart_level_plan(chart_df, setup, confluence, trade_brief)
     render_operation_gate(trade_brief)
     with st.expander("Detalles: por que Roxy toma esta decision", expanded=False):
         render_trade_plan_platform_preview(ticket)
@@ -12108,7 +12111,8 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
             help="Muestra primero oportunidades accionables y oculta paneles secundarios del Centro.",
         )
 
-    render_alert_noise_contract(brief)
+    with st.expander("Estado técnico del scan", expanded=False):
+        render_alert_noise_contract(brief)
     render_dashboard_asset_panel(
         confluence_df,
         options_df,
