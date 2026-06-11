@@ -8468,7 +8468,7 @@ def render_technical_movers_strip(scan_df: pd.DataFrame) -> None:
 
 
 def trading_desk_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, scan_df: pd.DataFrame, *, limit: int = 18) -> pd.DataFrame:
-    columns = ["#", "Ticker", "Estado", "Edge", "Score", "Riesgo", "Target", "RVol", "HTF", "Mover", "Setup", "Siguiente", "Razón"]
+    columns = ["#", "Ticker", "Estado", "Paper", "Edge", "Score", "Riesgo", "Target", "RVol", "HTF", "Mover", "Setup", "Siguiente", "Razón"]
     matrix = scanner_opportunity_matrix_rows(table, confluence_df, limit=max(limit, 18))
     wall = scanner_wallboard_rows(table, confluence_df, limit=max(limit * 2, limit))
     if wall.empty and matrix.empty:
@@ -8492,10 +8492,18 @@ def trading_desk_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, scan_df:
         validation = validation_lookup.get(symbol, {})
         mover = mover_lookup.get(symbol, {})
         confluence = confluence_lookup.get(symbol, {})
+        paper_state = trading_desk_paper_state(
+            status=text_display(item.get("status")),
+            risk=safe_float(item.get("risk")) or safe_float(confluence.get("risk_pct")),
+            target=safe_float(item.get("target")) or safe_float(confluence.get("recommended_target_pct")),
+            rel_volume=safe_float(item.get("rel_volume")) or safe_float(confluence.get("relative_volume_15m") or confluence.get("relative_volume")),
+            htf=text_display(validation.get("htf")),
+        )
         rows.append(
             {
                 "Ticker": symbol,
                 "Estado": text_display(item.get("status")),
+                "Paper": paper_state,
                 "Edge": safe_float(edge_row.get("edge")),
                 "Score": safe_float(item.get("score")),
                 "Riesgo": safe_float(item.get("risk")) or safe_float(confluence.get("risk_pct")),
@@ -8522,6 +8530,33 @@ def trading_desk_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, scan_df:
     display["HTF"] = display["HTF"].replace("", "-")
     display["Mover"] = display["Mover"].replace("", "-")
     return display[columns]
+
+
+def trading_desk_paper_state(
+    *,
+    status: str,
+    risk: float | None,
+    target: float | None,
+    rel_volume: float | None,
+    htf: str,
+) -> str:
+    status_value = text_display(status)
+    if status_value == "Evitar":
+        return "No tocar"
+    if status_value != "Operar":
+        return "Setup"
+    missing = []
+    if risk is None or risk > 0.035:
+        missing.append("riesgo")
+    if target is None or target < 0.02:
+        missing.append("target")
+    if rel_volume is None or rel_volume < 0.8:
+        missing.append("volumen")
+    if text_display(htf).startswith("0/") or text_display(htf) == "-":
+        missing.append("HTF")
+    if missing:
+        return "Bloq " + "/".join(missing[:2])
+    return "Paper listo"
 
 
 def filter_trading_desk_display(
@@ -8556,7 +8591,7 @@ def filter_trading_desk_display(
         filtered = filtered[scores.ge(float(min_score))]
     search = str(query or "").strip().lower()
     if search:
-        searchable_columns = [col for col in ["Ticker", "Setup", "Siguiente", "Razón", "Mover"] if col in filtered.columns]
+        searchable_columns = [col for col in ["Ticker", "Paper", "Setup", "Siguiente", "Razón", "Mover"] if col in filtered.columns]
         if searchable_columns:
             mask = pd.Series(False, index=filtered.index)
             for column in searchable_columns:
