@@ -8573,6 +8573,8 @@ def filter_trading_desk_display(
     preset = str(preset or "Todos")
     if preset == "Operar ahora" and "Estado" in filtered.columns:
         filtered = filtered[filtered["Estado"].astype(str).eq("Operar")]
+    elif preset == "Paper listo" and "Paper" in filtered.columns:
+        filtered = filtered[filtered["Paper"].astype(str).eq("Paper listo")]
     elif preset == "Alto score" and "Score" in filtered.columns:
         scores = pd.to_numeric(filtered["Score"], errors="coerce").fillna(0)
         filtered = filtered[scores.ge(85)]
@@ -8661,7 +8663,7 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
     with filter_cols[0]:
         preset_filter = st.selectbox(
             "Preset",
-            ["Todos", "Operar ahora", "Alto score", "Bajo riesgo", "Volumen vivo", "No tocar"],
+            ["Todos", "Operar ahora", "Paper listo", "Alto score", "Bajo riesgo", "Volumen vivo", "No tocar"],
             key="trading_desk_preset_filter",
         )
     with filter_cols[1]:
