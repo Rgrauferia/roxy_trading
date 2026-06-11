@@ -1,6 +1,6 @@
 import pandas as pd
 
-from streamlit_app import market_index_strip_rows
+from streamlit_app import market_index_strip_rows, market_regime_summary
 
 
 def test_market_index_strip_rows_reads_major_etfs_and_crypto_context():
@@ -43,3 +43,36 @@ def test_market_index_strip_rows_reads_major_etfs_and_crypto_context():
     assert by_symbol["QQQ"]["status"] == "Vigilar"
     assert by_symbol["BTC/USD"]["status"] == "Evitar"
     assert by_symbol["BTC/USD"]["tone"] == "avoid"
+
+
+def test_market_regime_summary_flags_risk_off_and_risk_on():
+    risk_off = market_regime_summary(
+        [
+            {"symbol": "SPY", "tone": "avoid"},
+            {"symbol": "QQQ", "tone": "avoid"},
+            {"symbol": "DIA", "tone": "avoid"},
+            {"symbol": "IWM", "tone": "watch"},
+        ]
+    )
+    risk_on = market_regime_summary(
+        [
+            {"symbol": "SPY", "tone": "buy"},
+            {"symbol": "QQQ", "tone": "buy"},
+            {"symbol": "DIA", "tone": "buy"},
+            {"symbol": "IWM", "tone": "watch"},
+        ]
+    )
+    mixed = market_regime_summary(
+        [
+            {"symbol": "SPY", "tone": "buy"},
+            {"symbol": "QQQ", "tone": "avoid"},
+            {"symbol": "DIA", "tone": "watch"},
+        ]
+    )
+
+    assert risk_off["label"] == "Risk-off"
+    assert risk_off["tone"] == "avoid"
+    assert risk_on["label"] == "Risk-on"
+    assert risk_on["tone"] == "buy"
+    assert mixed["label"] == "Mixto"
+    assert mixed["tone"] == "watch"

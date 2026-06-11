@@ -6711,10 +6711,27 @@ def market_index_strip_rows(scan_df: pd.DataFrame, confluence_df: pd.DataFrame) 
     return rows
 
 
+def market_regime_summary(index_rows: list[dict[str, Any]]) -> dict[str, str]:
+    if not index_rows:
+        return {"label": "Sin contexto", "tone": "watch", "detail": "No hay datos de indices principales."}
+    core_rows = [row for row in index_rows if row.get("symbol") in {"SPY", "QQQ", "DIA", "IWM"}] or index_rows
+    tones = [str(row.get("tone") or "watch") for row in core_rows]
+    avoid_count = tones.count("avoid")
+    buy_count = tones.count("buy")
+    watch_count = tones.count("watch")
+    leaders = ", ".join(text_display(row.get("symbol")) for row in core_rows[:4])
+    if avoid_count >= max(2, buy_count + watch_count):
+        return {"label": "Risk-off", "tone": "avoid", "detail": f"Indices bloquean: {leaders}. Prioridad a esperar confirmacion."}
+    if buy_count >= max(2, avoid_count + watch_count):
+        return {"label": "Risk-on", "tone": "buy", "detail": f"Indices apoyan: {leaders}. Buscar setups con riesgo medido."}
+    return {"label": "Mixto", "tone": "watch", "detail": f"Mercado dividido: {leaders}. Operar solo gatillos limpios."}
+
+
 def render_market_index_strip(scan_df: pd.DataFrame, confluence_df: pd.DataFrame) -> None:
     rows = market_index_strip_rows(scan_df, confluence_df)
     if not rows:
         return
+    regime = market_regime_summary(rows)
     cards = []
     for row in rows:
         tone = text_display(row.get("tone"))
@@ -6726,7 +6743,9 @@ def render_market_index_strip(scan_df: pd.DataFrame, confluence_df: pd.DataFrame
             "</div>"
         )
     st.markdown(
-        '<section class="index-strip"><header>Índices y crypto mayor</header><div class="index-grid">'
+        f'<section class="index-strip"><header>Índices y crypto mayor</header>'
+        f'<div class="regime-banner regime-banner-{html.escape(regime["tone"])}"><strong>{html.escape(regime["label"])}</strong><span>{html.escape(regime["detail"])}</span></div>'
+        '<div class="index-grid">'
         + "".join(cards)
         + "</div></section>",
         unsafe_allow_html=True,
@@ -9780,6 +9799,7 @@ def main() -> None:
         .breadth-card{background:#0b1220;padding:8px 10px}.breadth-card div:first-child{display:flex;justify-content:space-between;gap:8px;align-items:center}.breadth-card strong{color:#e2e8f0;font-size:11px;font-weight:950;text-transform:uppercase}.breadth-card span{color:#f8fafc;font-size:14px;font-weight:950}.breadth-card small{display:block;color:#94a3b8;font-size:10px;line-height:1.2;margin-top:5px}.breadth-bar{height:7px;border-radius:999px;background:#1f2937;overflow:hidden;margin-top:6px}.breadth-bar i{display:block;height:100%;border-radius:999px;background:#64748b}.breadth-card-buy .breadth-bar i{background:#22c55e}.breadth-card-watch .breadth-bar i{background:#f59e0b}.breadth-card-avoid .breadth-bar i{background:#ef4444}
         .index-strip{border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0b1220;margin:0 0 12px;overflow:hidden}
         .index-strip header{padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14);color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}
+        .regime-banner{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;border-bottom:1px solid rgba(148,163,184,.14);background:#0f172a}.regime-banner strong{font-size:13px;font-weight:950;text-transform:uppercase}.regime-banner span{color:#cbd5e1;font-size:11px;line-height:1.25;text-align:right}.regime-banner-buy strong{color:#86efac}.regime-banner-watch strong{color:#fde68a}.regime-banner-avoid strong{color:#fecaca}
         .index-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .index-card{background:#0b1220;padding:8px 9px;min-width:0;border-top:2px solid rgba(148,163,184,.28)}.index-card div{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.index-card span{color:#94a3b8;font-size:10px;font-weight:900;text-transform:uppercase}.index-card strong{color:#f8fafc;font-size:15px;font-weight:950}.index-card em{display:block;color:#e2e8f0;font-size:12px;font-weight:850;font-style:normal;margin-top:5px}.index-card small{display:block;color:#94a3b8;font-size:10px;line-height:1.2;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.index-card-buy{border-top-color:#22c55e}.index-card-watch{border-top-color:#f59e0b}.index-card-avoid{border-top-color:#ef4444}
         .kpibox{display:inline-block;padding:8px 12px;background:#081023;border-radius:8px;margin-right:8px;color:var(--muted)}
