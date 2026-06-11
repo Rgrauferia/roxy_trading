@@ -2112,6 +2112,102 @@ def alpaca_paper_chart_markers(snapshot: dict[str, Any], chart_window: pd.DataFr
     return pd.DataFrame(rows, columns=columns).drop_duplicates(["ts", "price", "event", "side"]).sort_values("ts").reset_index(drop=True)
 
 
+def alpaca_paper_open_position_plan(
+    snapshot: dict[str, Any],
+    opportunity_table: pd.DataFrame,
+    *,
+    limit: int = 6,
+) -> pd.DataFrame:
+    columns = [
+        "symbol",
+        "qty",
+        "current",
+        "avg_entry",
+        "stop",
+        "target",
+        "risk_to_stop",
+        "reward_to_target",
+        "pnl",
+        "pnl_pct",
+        "time_in_trade",
+        "strategy",
+        "status",
+        "tone",
+    ]
+    opportunities: dict[str, dict[str, Any]] = {}
+    if not opportunity_table.empty and "symbol" in opportunity_table.columns:
+        for row in opportunity_table.to_dict("records"):
+            symbol = text_display(row.get("symbol")).upper()
+            if not symbol or symbol == "-":
+                continue
+            entry = safe_float(row.get("entry"))
+            target = safe_float(row.get("target_price") or row.get("recommended_target_price"))
+            target_pct = safe_float(row.get("target_pct") or row.get("recommended_target_pct"))
+            if target is None and entry is not None and target_pct is not None:
+                target = entry * (1.0 + target_pct)
+            opportunities.setdefault(
+                symbol,
+                {
+                    "stop": safe_float(row.get("stop")),
+                    "target": target,
+                    "strategy": text_display(row.get("strategy_family") or row.get("Setup") or row.get("setup")),
+                },
+            )
+    rows: list[dict[str, Any]] = []
+    for position in snapshot.get("positions") or []:
+        symbol = text_display(position.get("symbol")).upper()
+        if not symbol or symbol == "-":
+            continue
+        current = safe_float(position.get("current"))
+        avg_entry = safe_float(position.get("avg_entry"))
+        plan = opportunities.get(symbol, {})
+        stop = safe_float(plan.get("stop"))
+        target = safe_float(plan.get("target"))
+        risk_to_stop = ((current - stop) / current) if current and stop is not None else None
+        reward_to_target = ((target - current) / current) if current and target is not None else None
+        pnl = safe_float(position.get("unrealized_pl")) or 0.0
+        pnl_pct = safe_float(position.get("unrealized_plpc"))
+        if stop is None or target is None:
+            status = "Falta plan"
+            tone = "watch"
+        elif current is not None and current <= stop:
+            status = "Stop tocado"
+            tone = "avoid"
+        elif current is not None and current >= target:
+            status = "Target tocado"
+            tone = "buy"
+        elif risk_to_stop is not None and risk_to_stop > 0.035:
+            status = "Riesgo alto"
+            tone = "avoid"
+        elif reward_to_target is not None and reward_to_target <= 0:
+            status = "Sin upside"
+            tone = "watch"
+        else:
+            status = "Controlado"
+            tone = "buy" if pnl >= 0 else "watch"
+        rows.append(
+            {
+                "symbol": symbol,
+                "qty": safe_float(position.get("qty")),
+                "current": current,
+                "avg_entry": avg_entry,
+                "stop": stop,
+                "target": target,
+                "risk_to_stop": risk_to_stop,
+                "reward_to_target": reward_to_target,
+                "pnl": round(pnl, 2),
+                "pnl_pct": pnl_pct,
+                "time_in_trade": text_display(position.get("time_in_trade")),
+                "strategy": text_display(plan.get("strategy") or "Sin clasificar"),
+                "status": status,
+                "tone": tone,
+            }
+        )
+    if not rows:
+        return pd.DataFrame(columns=columns)
+    return pd.DataFrame(rows, columns=columns).sort_values(["tone", "pnl"], ascending=[True, False]).head(limit).reset_index(drop=True)
+
+
 def render_alpaca_paper_journal_panel(env: dict[str, str] | None = None) -> dict[str, Any]:
     snapshot = alpaca_paper_journal_snapshot(env, limit=8)
     st.session_state["alpaca_paper_journal_snapshot"] = snapshot
@@ -2186,6 +2282,37 @@ def render_alpaca_paper_strategy_ranking(snapshot: dict[str, Any], opportunity_t
         '<section class="paper-strategy-panel"><header><strong>Paper Strategy Ranking</strong><span>Rentabilidad paper agrupada por estrategia aproximada de Roxy.</span></header><div class="paper-strategy-grid">'
         + "".join(cards)
         + "</div></section>",
+        unsafe_allow_html=True,
+    )
+
+
+def render_alpaca_paper_open_positions_panel(snapshot: dict[str, Any], opportunity_table: pd.DataFrame) -> None:
+    rows = alpaca_paper_open_position_plan(snapshot, opportunity_table, limit=6)
+    if rows.empty:
+        st.markdown(
+            '<section class="paper-position-panel"><header><strong>Paper Open Positions</strong>'
+            '<span>Sin posiciones paper abiertas para controlar stop, target y tiempo.</span></header>'
+            '<div class="paper-position-empty">Cuando haya una posicion abierta, Roxy mostrara riesgo a stop, upside a target, P&L y tiempo en trade.</div></section>',
+            unsafe_allow_html=True,
+        )
+        return
+    cards = []
+    for row in rows.to_dict("records"):
+        tone = text_display(row.get("tone"))
+        cards.append(
+            f'<section class="paper-position-card paper-position-{html.escape(tone)}">'
+            f'<header><strong>{html.escape(text_display(row.get("symbol")))}</strong><span>{html.escape(text_display(row.get("status")))}</span></header>'
+            f'<div><b>Now {html.escape(num_display(row.get("current"), 2))}</b><b>Stop {html.escape(num_display(row.get("stop"), 2))}</b>'
+            f'<b>Target {html.escape(num_display(row.get("target"), 2))}</b><b>{html.escape(text_display(row.get("time_in_trade")))}</b></div>'
+            f'<p>P&L {html.escape(num_display(row.get("pnl"), 2))} · {html.escape(pct_display(row.get("pnl_pct")))} '
+            f'| Riesgo {html.escape(pct_display(row.get("risk_to_stop")))} | Upside {html.escape(pct_display(row.get("reward_to_target")))}</p>'
+            f'<small>{html.escape(text_display(row.get("strategy")))}</small>'
+            "</section>"
+        )
+    st.markdown(
+        '<section class="paper-position-panel"><header><strong>Paper Open Positions</strong>'
+        '<span>Control operativo: stop, target, P&L y tiempo en trade. Read-only.</span></header>'
+        f'<div class="paper-position-grid">{"".join(cards)}</div></section>',
         unsafe_allow_html=True,
     )
 
@@ -11088,6 +11215,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
     render_live_provider_center()
     render_alpaca_paper_execution_panel(best, account_equity=account_equity, risk_pct=risk_pct_ui / 100.0)
     paper_journal_snapshot = render_alpaca_paper_journal_panel()
+    render_alpaca_paper_open_positions_panel(paper_journal_snapshot, best)
     render_alpaca_paper_strategy_ranking(paper_journal_snapshot, best)
     render_screener_preset_deck(best, confluence_df)
     render_exit_plan_board(best, confluence_df)
@@ -12438,6 +12566,7 @@ def main() -> None:
         .alpaca-gate{display:grid;grid-template-columns:minmax(210px,.46fr) 1fr minmax(240px,.52fr);gap:10px;align-items:center;padding:9px 10px;border-bottom:1px solid rgba(148,163,184,.14);border-left:3px solid rgba(148,163,184,.45);background:rgba(15,23,42,.80)}.alpaca-gate span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.alpaca-gate strong{display:block;color:#f8fafc;font-size:18px;line-height:1.05;font-weight:950;margin-top:3px}.alpaca-gate em{display:block;color:#cbd5e1;font-style:normal;font-size:10px;font-weight:900;margin-top:4px}.alpaca-gate p{margin:0;color:#e2e8f0;font-size:12px;font-weight:850;line-height:1.25}.alpaca-gate aside{display:grid;gap:4px}.alpaca-gate b{color:#f8fafc;font-size:11px;line-height:1.05;text-transform:uppercase}.alpaca-gate small{color:#94a3b8;font-size:10px;line-height:1.2}.alpaca-gate-buy{border-left-color:#22c55e;background:rgba(21,93,62,.18)}.alpaca-gate-watch{border-left-color:#f59e0b;background:rgba(120,74,15,.17)}.alpaca-gate-avoid{border-left-color:#ef4444;background:rgba(127,29,29,.18)}
         .alpaca-paper-panel{display:grid;grid-template-columns:minmax(210px,.46fr) minmax(360px,1fr) minmax(320px,.7fr);gap:10px;align-items:center;padding:9px 10px;border-bottom:1px solid rgba(148,163,184,.14);border-left:3px solid rgba(148,163,184,.45);background:rgba(8,13,24,.86)}.alpaca-paper-panel span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.alpaca-paper-panel strong{display:block;color:#f8fafc;font-size:18px;line-height:1.05;font-weight:950;margin-top:3px}.alpaca-paper-panel em{display:block;color:#cbd5e1;font-style:normal;font-size:10px;font-weight:900;margin-top:4px}.alpaca-paper-panel aside{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border-radius:6px;overflow:hidden}.alpaca-paper-panel aside b,.alpaca-paper-panel aside strong{background:#0b1220;margin:0;padding:6px 7px;font-size:10px;line-height:1.05}.alpaca-paper-panel aside b{color:#94a3b8;text-transform:uppercase}.alpaca-paper-panel aside strong{font-size:13px;color:#f8fafc}.alpaca-paper-panel p{margin:0;color:#e2e8f0;font-size:11px;font-weight:850;line-height:1.25}.alpaca-paper-buy{border-left-color:#22c55e;background:rgba(21,93,62,.16)}.alpaca-paper-watch{border-left-color:#f59e0b;background:rgba(120,74,15,.16)}.alpaca-paper-avoid{border-left-color:#ef4444;background:rgba(127,29,29,.16)}
         .paper-journal-panel{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 10px;overflow:hidden}.paper-journal-panel>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.paper-journal-panel>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.paper-journal-panel>header span{color:#94a3b8;font-size:11px;text-align:right}.paper-journal-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.16)}.paper-journal-summary b{display:block;background:#0b1220;padding:7px 8px}.paper-journal-summary span{display:block;color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase}.paper-journal-summary strong{display:block;color:#f8fafc;font-size:15px;line-height:1;margin-top:4px}.paper-journal-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.paper-journal-card{background:rgba(21,93,62,.18);border-top:2px solid #22c55e;padding:8px 9px;min-width:0}.paper-journal-avoid{background:rgba(127,29,29,.20);border-top-color:#ef4444}.paper-journal-card header{display:flex;justify-content:space-between;gap:8px}.paper-journal-card header strong{color:#f8fafc;font-size:15px;line-height:1;font-weight:950}.paper-journal-card header span{color:#cbd5e1;font-size:10px;font-weight:900;text-align:right}.paper-journal-card div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border-radius:6px;overflow:hidden;margin-top:7px}.paper-journal-card b{background:#0b1220;color:#f8fafc;font-size:10px;line-height:1.05;padding:6px 5px}.paper-journal-card p{margin:7px 0 0;color:#cbd5e1;font-size:10px;line-height:1.18;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.paper-journal-empty{grid-column:1/-1;background:#0b1220;color:#94a3b8;font-size:12px;font-weight:850;padding:10px}.paper-journal-table{padding:7px;background:#080d18}.paper-journal-table table{width:100%;border-collapse:collapse}.paper-journal-table th,.paper-journal-table td{padding:5px 6px;border-bottom:1px solid rgba(148,163,184,.10);font-size:10px;line-height:1.15;text-align:left;color:#cbd5e1}.paper-journal-table th{color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase}.paper-journal-table td:first-child{color:#f8fafc;font-weight:950}
+        .paper-position-panel{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 10px;overflow:hidden}.paper-position-panel>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.paper-position-panel>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.paper-position-panel>header span{color:#94a3b8;font-size:11px;text-align:right}.paper-position-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.paper-position-card{background:rgba(21,93,62,.18);border-top:2px solid #22c55e;padding:8px 9px;min-width:0}.paper-position-watch{background:rgba(120,74,15,.20);border-top-color:#f59e0b}.paper-position-avoid{background:rgba(127,29,29,.20);border-top-color:#ef4444}.paper-position-card header{display:flex;justify-content:space-between;gap:8px}.paper-position-card header strong{color:#f8fafc;font-size:15px;line-height:1;font-weight:950}.paper-position-card header span{color:#bbf7d0;font-size:10px;font-weight:900;text-align:right}.paper-position-watch header span{color:#fde68a}.paper-position-avoid header span{color:#fecaca}.paper-position-card div{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border-radius:6px;overflow:hidden;margin-top:7px}.paper-position-card b{background:#0b1220;color:#f8fafc;font-size:9px;line-height:1.05;padding:6px 5px}.paper-position-card p{margin:7px 0 0;color:#cbd5e1;font-size:10px;line-height:1.18;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.paper-position-card small{display:block;color:#94a3b8;font-size:9px;line-height:1.15;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.paper-position-empty{padding:10px 12px;color:#cbd5e1;font-size:11px;font-weight:850;background:#0b1220;border-top:1px solid rgba(148,163,184,.12)}
         .paper-strategy-panel{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 10px;overflow:hidden}.paper-strategy-panel>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.paper-strategy-panel>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.paper-strategy-panel>header span{color:#94a3b8;font-size:11px;text-align:right}.paper-strategy-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.paper-strategy-card{background:rgba(21,93,62,.18);border-top:2px solid #22c55e;padding:8px 9px;min-width:0}.paper-strategy-avoid{background:rgba(127,29,29,.20);border-top-color:#ef4444}.paper-strategy-card header{display:flex;justify-content:space-between;gap:8px}.paper-strategy-card header strong{color:#f8fafc;font-size:12px;line-height:1.08;font-weight:950}.paper-strategy-card header span{color:#bbf7d0;font-size:10px;font-weight:900;text-align:right}.paper-strategy-avoid header span{color:#fecaca}.paper-strategy-card div{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border-radius:6px;overflow:hidden;margin-top:7px}.paper-strategy-card b{background:#0b1220;color:#f8fafc;font-size:9px;line-height:1.05;padding:6px 5px}.paper-strategy-card p{margin:7px 0 0;color:#cbd5e1;font-size:10px;line-height:1.18;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.paper-strategy-empty{padding:10px 12px;color:#cbd5e1;font-size:11px;font-weight:850;background:#0b1220;border-top:1px solid rgba(148,163,184,.12)}
         .paper-exec-panel{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 10px;overflow:hidden}.paper-exec-panel>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.paper-exec-panel>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.paper-exec-panel>header span{color:#94a3b8;font-size:11px;text-align:right}.paper-exec-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.paper-exec-summary{grid-column:1/-1;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.16)}.paper-exec-summary b{display:block;background:#0b1220;padding:7px 8px}.paper-exec-summary span{display:block;color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.paper-exec-summary strong{display:block;color:#f8fafc;font-size:14px;line-height:1;margin-top:4px;font-weight:950}.paper-exec-card,.paper-gap-card{background:rgba(21,93,62,.18);border-top:2px solid #22c55e;padding:8px 9px;min-width:0}.paper-gap-card{background:rgba(120,74,15,.18);border-top-color:#f59e0b}.paper-exec-muted{border-color:rgba(245,158,11,.35)}.paper-exec-card header,.paper-gap-card header{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.paper-exec-card header strong,.paper-gap-card header strong{color:#f8fafc;font-size:15px;line-height:1;font-weight:950}.paper-exec-card header span,.paper-gap-card header span{color:#bbf7d0;font-size:10px;line-height:1.12;text-align:right;font-weight:900}.paper-gap-card header span{color:#fde68a}.paper-exec-card div,.paper-gap-card div{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border-radius:6px;overflow:hidden;margin-top:7px}.paper-gap-card div{grid-template-columns:repeat(3,minmax(0,1fr))}.paper-exec-card b,.paper-gap-card b{background:#0b1220;color:#f8fafc;font-size:10px;line-height:1.05;padding:6px 5px}.paper-exec-card p,.paper-gap-card p{margin:7px 0 0;color:#cbd5e1;font-size:10px;line-height:1.18;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .provider-card{background:#0b1220;padding:8px 9px;border-top:2px solid rgba(148,163,184,.28);min-width:0}.provider-card header{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.provider-card header strong{color:#f8fafc;font-size:12px;font-weight:950;text-transform:uppercase}.provider-card header span{color:#e2e8f0;font-size:10px;line-height:1.1;text-align:right;font-weight:900}.provider-card div{display:flex;justify-content:space-between;gap:8px;margin-top:7px}.provider-card b{color:#f8fafc;font-size:13px;line-height:1;font-weight:950}.provider-card em{color:#94a3b8;font-size:10px;line-height:1;font-style:normal;text-align:right}.provider-card p{margin:6px 0 3px;color:#e2e8f0;font-size:11px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.provider-card small{display:block;color:#cbd5e1;font-size:10px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.provider-card i{display:block;color:#94a3b8;font-size:9px;line-height:1.15;font-style:normal;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.provider-card-buy{border-top-color:#22c55e;background:rgba(21,93,62,.22)}.provider-card-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.20)}.provider-card-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}.provider-card-neutral{border-top-color:#64748b}
@@ -12546,9 +12675,9 @@ def main() -> None:
         .stButton button:hover{border-color:#a78bfa;color:#f8fafc}
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media (max-width:1100px){.ticker-intel,.alpaca-gate,.alpaca-paper-panel{grid-template-columns:1fr}.ticker-intel-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.paper-journal-summary,.paper-exec-summary,.trading-desk-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.paper-strategy-grid,.paper-journal-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exit-grid,.provider-grid,.preset-grid,.research-grid,.paper-exec-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.confirm-radar-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-grid-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
+        @media (max-width:1100px){.ticker-intel,.alpaca-gate,.alpaca-paper-panel{grid-template-columns:1fr}.ticker-intel-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.paper-journal-summary,.paper-exec-summary,.trading-desk-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.paper-position-grid,.paper-strategy-grid,.paper-journal-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exit-grid,.provider-grid,.preset-grid,.research-grid,.paper-exec-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.confirm-radar-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-grid-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
         @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.brand-logo-img{width:150px;max-width:42vw}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
-        @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.ticker-intel-kpis{grid-template-columns:1fr 1fr}.ticker-intel-main h3{font-size:23px}.company-research>header,.confirmation-radar>header,.exit-board>header,.paper-strategy-panel>header,.paper-journal-panel>header,.paper-exec-panel>header,.provider-center>header,.screener-presets>header{display:block}.company-research>header span,.confirmation-radar>header span,.exit-board>header span,.paper-strategy-panel>header span,.paper-journal-panel>header span,.paper-exec-panel>header span,.provider-center>header span,.screener-presets>header span{display:block;text-align:left;margin-top:4px}.paper-strategy-grid,.paper-journal-grid{grid-template-columns:1fr}.exit-grid,.provider-grid,.preset-grid,.research-grid,.confirm-radar-grid,.paper-exec-grid{grid-template-columns:1fr}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.compare-board>header{display:block}.compare-board>header span{display:block;text-align:left;margin-top:4px}.compare-grid-cards{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
+        @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.ticker-intel-kpis{grid-template-columns:1fr 1fr}.ticker-intel-main h3{font-size:23px}.company-research>header,.confirmation-radar>header,.exit-board>header,.paper-position-panel>header,.paper-strategy-panel>header,.paper-journal-panel>header,.paper-exec-panel>header,.provider-center>header,.screener-presets>header{display:block}.company-research>header span,.confirmation-radar>header span,.exit-board>header span,.paper-position-panel>header span,.paper-strategy-panel>header span,.paper-journal-panel>header span,.paper-exec-panel>header span,.provider-center>header span,.screener-presets>header span{display:block;text-align:left;margin-top:4px}.paper-position-grid,.paper-strategy-grid,.paper-journal-grid{grid-template-columns:1fr}.exit-grid,.provider-grid,.preset-grid,.research-grid,.confirm-radar-grid,.paper-exec-grid{grid-template-columns:1fr}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.compare-board>header{display:block}.compare-board>header span{display:block;text-align:left;margin-top:4px}.compare-grid-cards{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
         </style>
         """,
         unsafe_allow_html=True,

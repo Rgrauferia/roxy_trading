@@ -6,6 +6,7 @@ import pandas as pd
 from streamlit_app import (
     alpaca_paper_chart_markers,
     alpaca_paper_journal_snapshot,
+    alpaca_paper_open_position_plan,
     alpaca_paper_strategy_ranking,
     alpaca_time_ago,
 )
@@ -178,3 +179,45 @@ def test_alpaca_paper_chart_markers_places_filled_orders_on_chart():
         {"event": "Paper salida", "side": "SELL", "price": 102.0, "tone": "avoid"},
     ]
     assert markers["label"].tolist() == ["Paper entrada AAPL 101.25", "Paper salida AAPL 102.00"]
+
+
+def test_alpaca_paper_open_position_plan_maps_stop_target_and_status():
+    snapshot = {
+        "positions": [
+            {
+                "symbol": "AAPL",
+                "qty": 2,
+                "avg_entry": 100.0,
+                "current": 103.0,
+                "unrealized_pl": 6.0,
+                "unrealized_plpc": 0.03,
+                "time_in_trade": "35m",
+            },
+            {
+                "symbol": "MSFT",
+                "qty": 1,
+                "avg_entry": 300.0,
+                "current": 297.0,
+                "unrealized_pl": -3.0,
+                "unrealized_plpc": -0.01,
+                "time_in_trade": "2h",
+            },
+        ]
+    }
+    opportunities = pd.DataFrame(
+        [
+            {"symbol": "AAPL", "stop": 100.0, "entry": 101.0, "target_pct": 0.05, "strategy_family": "Pullback"},
+            {"symbol": "MSFT", "stop": 298.0, "target_price": 306.0, "strategy_family": "Breakout"},
+        ]
+    )
+
+    rows = alpaca_paper_open_position_plan(snapshot, opportunities)
+
+    by_symbol = {row["symbol"]: row for row in rows.to_dict("records")}
+    assert by_symbol["AAPL"]["status"] == "Controlado"
+    assert by_symbol["AAPL"]["tone"] == "buy"
+    assert round(by_symbol["AAPL"]["risk_to_stop"], 4) == 0.0291
+    assert round(by_symbol["AAPL"]["target"], 2) == 106.05
+    assert by_symbol["AAPL"]["strategy"] == "Pullback"
+    assert by_symbol["MSFT"]["status"] == "Stop tocado"
+    assert by_symbol["MSFT"]["tone"] == "avoid"
