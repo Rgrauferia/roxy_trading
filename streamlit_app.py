@@ -1499,7 +1499,7 @@ def render_professional_chart_block(
         panels.append(volume_chart.properties(height=volume_height))
     if oscillator_chart is not None:
         panels.append(oscillator_chart.properties(height=oscillator_height))
-    st.caption("Gráfica interactiva: arrastra para mover precio/tiempo, usa scroll o trackpad para zoom y pasa el cursor por velas para ver OHLC, volumen y medias.")
+    st.caption("Interactiva: arrastra/zoom y pasa el cursor para OHLC, volumen y medias.")
     def render_price_chart_fallback() -> None:
         fallback_cols = [
             col
