@@ -10032,6 +10032,7 @@ def scanner_blotter_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, *, li
     wall_rows = scanner_wallboard_rows(table, confluence_df, limit=limit)
     columns = [
         "#",
+        "Semáforo",
         "Acción",
         "Ticker",
         "Estado",
@@ -10061,6 +10062,10 @@ def scanner_blotter_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, *, li
         - (risk.clip(0, 0.20) * 180.0)
     ).round(1)
     display["#"] = display.index + 1
+    display["Semáforo"] = [
+        "🟢" if status == "Operar" else "🔴" if status == "Evitar" else "🟡"
+        for status in display["status"].astype(str)
+    ]
     display["Acción"] = [
         (
             "🔥 OPERAR"
@@ -10141,6 +10146,7 @@ def render_scanner_blotter(table: pd.DataFrame, confluence_df: pd.DataFrame) -> 
         hide_index=True,
         height=min(520, 58 + len(blotter) * 27),
         column_config={
+            "Semáforo": st.column_config.TextColumn("Semáforo", width="small"),
             "Score": st.column_config.ProgressColumn("Score", min_value=0, max_value=100, format="%d"),
             "Edge": st.column_config.NumberColumn("Edge", format="%.0f"),
             "Acción": st.column_config.TextColumn("Acción", width="small"),
