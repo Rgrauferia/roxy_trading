@@ -1,6 +1,6 @@
 import pandas as pd
 
-from streamlit_app import filter_trading_desk_display, focused_opportunity_table, trading_desk_rows
+from streamlit_app import filter_trading_desk_display, focused_opportunity_table, trading_desk_rows, trading_desk_summary
 
 
 def test_trading_desk_rows_merge_edge_validation_and_movers():
@@ -142,3 +142,24 @@ def test_filter_trading_desk_display_applies_fast_presets():
     assert filter_trading_desk_display(rows, preset="Bajo riesgo")["Ticker"].tolist() == ["AAPL", "NVDA"]
     assert filter_trading_desk_display(rows, preset="Volumen vivo")["Ticker"].tolist() == ["AAPL", "NVDA"]
     assert filter_trading_desk_display(rows, preset="No tocar")["Ticker"].tolist() == ["TSLA"]
+
+
+def test_trading_desk_summary_counts_visible_operational_state():
+    rows = pd.DataFrame(
+        [
+            {"Ticker": "AAPL", "Estado": "Operar", "Score": "92", "Riesgo": "1.80%", "RVol": "1.4x"},
+            {"Ticker": "NVDA", "Estado": "Vigilar", "Score": "88", "Riesgo": "2.20%", "RVol": "1.8x"},
+            {"Ticker": "TSLA", "Estado": "Evitar", "Score": "65", "Riesgo": "7.00%", "RVol": "0.7x"},
+        ]
+    )
+
+    summary = trading_desk_summary(rows)
+
+    assert summary["visible"] == 3
+    assert summary["operar"] == 1
+    assert summary["vigilar"] == 1
+    assert summary["evitar"] == 1
+    assert summary["best_symbol"] == "AAPL"
+    assert summary["best_score"] == 92
+    assert summary["avg_risk"] == 3.67
+    assert summary["volume_live"] == 2
