@@ -2,6 +2,7 @@ import pandas as pd
 
 from streamlit_app import (
     alpaca_paper_execution_gaps,
+    alpaca_paper_execution_summary,
     alpaca_paper_order_candidates,
     focused_opportunity_table,
     submit_alpaca_paper_bracket_order,
@@ -102,6 +103,43 @@ def test_alpaca_paper_execution_gaps_explain_blocked_setups():
     assert "15m" in gaps.iloc[0]["next_step"]
     assert "entrada, stop" in gaps.iloc[1]["next_step"]
     assert "crypto" in gaps.iloc[2]["next_step"].lower()
+
+
+def test_alpaca_paper_execution_summary_counts_ready_and_risk_budget():
+    table = pd.DataFrame(
+        [
+            {
+                "action": "ALERT",
+                "symbol": "WMT",
+                "market": "stock",
+                "signal": "BUY",
+                "decision": "TRADE_FOR_2PCT",
+                "entry": 120.0,
+                "stop": 118.0,
+                "target_pct": 0.04,
+            },
+            {
+                "action": "WATCH",
+                "symbol": "MSFT",
+                "market": "stock",
+                "signal": "WATCH",
+                "decision": "WAIT",
+                "entry": 300.0,
+                "stop": 295.0,
+                "target_pct": 0.03,
+            },
+        ]
+    )
+
+    summary = alpaca_paper_execution_summary(table, account_equity=500.0, risk_pct=0.01)
+
+    assert summary["ready"] == 1
+    assert summary["blocked"] == 1
+    assert summary["risk_budget"] == 5.0
+    assert summary["projected_risk"] == 4.0
+    assert summary["projected_notional"] == 240.0
+    assert summary["risk_usage_pct"] == 80.0
+    assert summary["top_symbol"] == "WMT"
 
 
 def test_submit_alpaca_paper_bracket_order_blocks_live_env_before_client_call():
