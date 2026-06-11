@@ -11942,7 +11942,14 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
     with control_cols[2]:
         timeframe = st.selectbox("Marco", TIMEFRAME_OPTIONS, index=1, key="command_timeframe")
     with control_cols[3]:
-        account_equity = st.number_input("Cuenta", min_value=100.0, value=500.0, step=50.0, key="command_equity")
+        account_equity = st.number_input(
+            "Capital disponible",
+            min_value=50.0,
+            value=100.0,
+            step=50.0,
+            key="command_equity",
+            help="Roxy calcula tamaño, riesgo y potencial según este capital; no usa un riesgo fijo.",
+        )
     with control_cols[4]:
         risk_pct_ui = st.number_input("Riesgo %", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key="command_risk")
     with control_cols[5]:
