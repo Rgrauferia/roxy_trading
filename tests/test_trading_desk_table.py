@@ -4,6 +4,7 @@ from streamlit_app import (
     filter_trading_desk_display,
     focused_opportunity_table,
     trading_desk_action_queue,
+    trading_desk_blocker_summary,
     trading_desk_paper_state,
     trading_desk_preset_counts,
     trading_desk_priority_label,
@@ -104,11 +105,12 @@ def test_trading_desk_rows_merge_edge_validation_and_movers():
     rows = trading_desk_rows(table, confluence, scan, limit=10)
     by_symbol = {row["Ticker"]: row for row in rows.to_dict("records")}
 
-    assert rows.columns.tolist() == ["#", "Prioridad", "Ticker", "Estado", "Paper", "Edge", "Score", "Riesgo", "Target", "RVol", "HTF", "Mover", "Setup", "Siguiente", "Razón"]
+    assert rows.columns.tolist() == ["#", "Prioridad", "Ticker", "Estado", "Paper", "Falta", "Edge", "Score", "Riesgo", "Target", "RVol", "HTF", "Mover", "Setup", "Siguiente", "Razón"]
     assert rows.loc[0, "Ticker"] == "AAPL"
     assert by_symbol["AAPL"]["Estado"] == "Operar"
     assert by_symbol["AAPL"]["Prioridad"] == "🔥 Paper listo"
     assert by_symbol["AAPL"]["Paper"] == "Paper listo"
+    assert by_symbol["AAPL"]["Falta"] == "Completo"
     assert by_symbol["AAPL"]["Riesgo"] == "1.80%"
     assert by_symbol["AAPL"]["Target"] == "5.00%"
     assert by_symbol["AAPL"]["RVol"] == "1.7x"
@@ -118,12 +120,13 @@ def test_trading_desk_rows_merge_edge_validation_and_movers():
     assert by_symbol["MSFT"]["Mover"] == "Pullback"
     assert by_symbol["MSFT"]["Prioridad"] == "👀 Vigilar"
     assert by_symbol["MSFT"]["Paper"] == "Setup"
+    assert by_symbol["MSFT"]["Falta"] == "Falta 15m"
 
 
 def test_trading_desk_rows_returns_expected_columns_when_empty():
     rows = trading_desk_rows(pd.DataFrame(), pd.DataFrame(), pd.DataFrame())
 
-    assert rows.columns.tolist() == ["#", "Prioridad", "Ticker", "Estado", "Paper", "Edge", "Score", "Riesgo", "Target", "RVol", "HTF", "Mover", "Setup", "Siguiente", "Razón"]
+    assert rows.columns.tolist() == ["#", "Prioridad", "Ticker", "Estado", "Paper", "Falta", "Edge", "Score", "Riesgo", "Target", "RVol", "HTF", "Mover", "Setup", "Siguiente", "Razón"]
     assert rows.empty
 
 def test_filter_trading_desk_display_filters_status_score_and_query():
@@ -167,6 +170,19 @@ def test_filter_trading_desk_display_searches_priority_label():
 
     assert filtered["Ticker"].tolist() == ["AAPL"]
 
+
+def test_filter_trading_desk_display_searches_blocker_summary():
+    rows = pd.DataFrame(
+        [
+            {"#": 1, "Prioridad": "🔥 Paper listo", "Ticker": "AAPL", "Estado": "Operar", "Paper": "Paper listo", "Falta": "Completo", "Score": "92", "Riesgo": "1.80%", "RVol": "1.4x", "Setup": "Pullback", "Siguiente": "Confirmar", "Razón": "1h confirma", "Mover": "Ruptura"},
+            {"#": 2, "Prioridad": "👀 Vigilar", "Ticker": "MSFT", "Estado": "Vigilar", "Paper": "Setup", "Falta": "Falta 15m", "Score": "74", "Riesgo": "3.20%", "RVol": "0.8x", "Setup": "Canal", "Siguiente": "Esperar", "Razón": "Falta 15m", "Mover": "Pullback"},
+        ]
+    )
+
+    filtered = filter_trading_desk_display(rows, query="falta 15m")
+
+    assert filtered["Ticker"].tolist() == ["MSFT"]
+
 def test_filter_trading_desk_display_applies_fast_presets():
     rows = pd.DataFrame(
         [
@@ -206,6 +222,13 @@ def test_trading_desk_preset_counts_match_fast_presets():
     }
 
 
+
+
+def test_trading_desk_blocker_summary_explains_missing_requirement():
+    assert trading_desk_blocker_summary("Operar", "Paper listo", "Confirmar", "1h confirma") == "Completo"
+    assert trading_desk_blocker_summary("Operar", "Bloq riesgo/target", "Esperar", "Riesgo alto") == "Falta Riesgo + Target 2%"
+    assert trading_desk_blocker_summary("Vigilar", "Setup", "Esperar", "Falta 15m") == "Falta 15m"
+    assert trading_desk_blocker_summary("Evitar", "No tocar", "No tocar", "Riesgo alto") == "No tocar"
 
 def test_trading_desk_priority_label_marks_operational_state():
     assert trading_desk_priority_label("Operar", "Paper listo", 90, 0.018, 1.4) == "🔥 Paper listo"

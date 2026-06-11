@@ -9205,6 +9205,7 @@ def trading_desk_rows(
         "Ticker",
         "Estado",
         "Paper",
+        "Falta",
         "Edge",
         "Score",
         "Riesgo",
@@ -9260,11 +9261,14 @@ def trading_desk_rows(
         rel_volume_value = safe_float(item.get("rel_volume")) or safe_float(
             confluence.get("relative_volume_15m") or confluence.get("relative_volume")
         )
+        next_step = text_display(item.get("next"))
+        reason_text = text_display(validation.get("reason") or item.get("next"))
         rows.append(
             {
                 "Ticker": symbol,
                 "Estado": text_display(item.get("status")),
                 "Paper": paper_state,
+                "Falta": trading_desk_blocker_summary(text_display(item.get("status")), paper_state, next_step, reason_text),
                 "Edge": safe_float(edge_row.get("edge")),
                 "Score": score_value,
                 "Riesgo": risk_value,
@@ -9273,8 +9277,8 @@ def trading_desk_rows(
                 "HTF": text_display(validation.get("htf")),
                 "Mover": text_display(mover.get("lane")),
                 "Setup": text_display(item.get("strategy")),
-                "Siguiente": text_display(item.get("next")),
-                "Razón": text_display(validation.get("reason") or item.get("next")),
+                "Siguiente": next_step,
+                "Razón": reason_text,
                 "Prioridad": trading_desk_priority_label(
                     text_display(item.get("status")), paper_state, score_value, risk_value, rel_volume_value
                 ),
@@ -9335,6 +9339,36 @@ def trading_desk_paper_state(
     if missing:
         return "Bloq " + "/".join(missing[:2])
     return "Paper listo"
+
+def trading_desk_blocker_summary(status: str, paper: str, next_step: str, reason: str) -> str:
+    status_value = text_display(status)
+    paper_value = text_display(paper)
+    next_value = text_display(next_step)
+    reason_value = text_display(reason)
+    combined = f"{paper_value} {next_value} {reason_value}".lower()
+    if status_value == "Evitar" or paper_value == "No tocar":
+        return "No tocar"
+    if paper_value == "Paper listo":
+        return "Completo"
+    if paper_value.startswith("Bloq"):
+        raw_parts = [part.strip().lower() for part in paper_value.replace("Bloq", "", 1).split("/") if part.strip()]
+        labels = {"riesgo": "Riesgo", "target": "Target 2%", "volumen": "Volumen", "tf": "TF mayor"}
+        missing = [labels.get(part, part.title()) for part in raw_parts]
+        return "Falta " + " + ".join(missing[:2]) if missing else "Falta validar"
+    checks = [
+        ("15m", "Falta 15m"),
+        ("1h", "Falta 1h"),
+        ("2h", "Falta 2h"),
+        ("4h", "Falta 4h"),
+        ("volumen", "Falta volumen"),
+        ("target", "Falta target"),
+        ("riesgo", "Falta riesgo"),
+    ]
+    for token, label in checks:
+        if token in combined:
+            return label
+    return next_value if next_value != "-" else "Revisar setup"
+
 
 def trading_desk_priority_label(
     status: str, paper: str, score: float | None, risk: float | None, rel_volume: float | None
@@ -9398,7 +9432,7 @@ def filter_trading_desk_display(
     if search:
         searchable_columns = [
             col
-            for col in ["Ticker", "Prioridad", "Paper", "Setup", "Siguiente", "Razón", "Mover"]
+            for col in ["Ticker", "Prioridad", "Paper", "Falta", "Setup", "Siguiente", "Razón", "Mover"]
             if col in filtered.columns
         ]
         if searchable_columns:
