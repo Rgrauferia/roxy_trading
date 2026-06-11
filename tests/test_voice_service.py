@@ -33,6 +33,8 @@ def test_roxy_live_page():
     assert "Wake Roxy activo" in r.text
     assert "feedbackUp" in r.text
     assert "/v1/feedback" in r.text
+    assert "feedbackNote" in r.text
+    assert "note: $(\"feedbackNote\").value" in r.text
     assert "loadLearning" in r.text
     assert "/v1/learning/status" in r.text
     assert "/assets/roxy_avatar.jpg" in r.text

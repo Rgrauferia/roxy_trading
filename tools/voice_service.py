@@ -554,6 +554,7 @@ def roxy_live_page():
           <label class="slider">Velocidad <input id="voiceRate" type="range" min="0.75" max="1.15" step="0.05" value="0.95" /></label>
           <label class="slider">Tono <input id="voicePitch" type="range" min="0.85" max="1.2" step="0.05" value="1.05" /></label>
           <input id="wakeWord" placeholder="Wake: Roxy" value="Roxy" />
+          <input id="feedbackNote" placeholder="Nota feedback: mas corto, mas claro..." />
         </div>
         <div class="controls">
           <button id="start" class="primary">Hablar</button>
@@ -959,6 +960,7 @@ def roxy_live_page():
           intent: lastState.intent || "",
           query: lastQuery || $("query").value || "",
           reply: lastReply,
+          note: $("feedbackNote").value || "",
         })
       });
       if (!res.ok) {
@@ -966,6 +968,7 @@ def roxy_live_page():
         return;
       }
       appendMessage("system", rating === "up" ? "Feedback guardado: sirvio." : "Feedback guardado: Roxy debe mejorar esa respuesta.", "feedback");
+      if (rating === "down") $("feedbackNote").value = "";
     }
 
     function startListening() {
