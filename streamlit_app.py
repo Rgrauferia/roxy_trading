@@ -7144,6 +7144,98 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
     )
 
 
+def buy_readiness_gap_rows(confluence_df: pd.DataFrame, *, limit: int = 8) -> pd.DataFrame:
+    columns = ["symbol", "tone", "ready", "missing_count", "passed_count", "missing", "passed", "risk", "score", "decision"]
+    if confluence_df.empty or "symbol" not in confluence_df.columns:
+        return pd.DataFrame(columns=columns)
+    data = confluence_df.copy()
+    if "confluence_score" in data.columns:
+        data["sort_score"] = pd.to_numeric(data["confluence_score"], errors="coerce").fillna(0)
+        data = data.sort_values("sort_score", ascending=False)
+    rows: list[dict[str, Any]] = []
+    for _, item in data.head(max(limit * 3, limit)).iterrows():
+        row = item.to_dict()
+        symbol = text_display(row.get("symbol")).upper()
+        if not symbol or symbol == "-":
+            continue
+        signal = text_display(row.get("signal")).upper()
+        decision = text_display(row.get("trade_decision")).upper()
+        risk = safe_float(row.get("risk_pct"))
+        rel_volume = safe_float(row.get("relative_volume_15m") or row.get("relative_volume"))
+        target_ok = row.get("target_2pct_ok")
+        if isinstance(target_ok, str):
+            target_ok = target_ok.strip().lower() in {"true", "1", "yes"}
+        backtest_eligible = row.get("backtest_eligible")
+        if isinstance(backtest_eligible, str):
+            backtest_eligible = backtest_eligible.strip().lower() in {"true", "1", "yes"}
+        confirmations = int(safe_float(row.get("higher_tf_confirmations")) or 0)
+        blocks = int(safe_float(row.get("higher_tf_blocks")) or 0)
+        checks = [
+            ("15m gatillo BUY", signal == "BUY" or text_display(row.get("trigger_raw_signal")).upper() == "BUY"),
+            ("1h confirma", text_display(row.get("trend_signal")).upper() in {"BUY", "WATCH"} and text_display(row.get("trend_setup")) != "-"),
+            ("2h/4h no bloquean", blocks == 0 and confirmations >= 1),
+            ("riesgo <=3.5%", risk is not None and risk <= 0.035),
+            ("volumen acompaña", rel_volume is not None and rel_volume >= 0.8),
+            ("target 2% viable", bool(target_ok)),
+            ("backtest elegible", bool(backtest_eligible)),
+        ]
+        missing = [label for label, ok in checks if not ok]
+        passed = [label for label, ok in checks if ok]
+        ready = signal == "BUY" and decision.startswith("TRADE_FOR") and not missing
+        if ready:
+            tone = "buy"
+        elif decision.startswith("NO_TRADE") or signal == "AVOID":
+            tone = "avoid"
+        else:
+            tone = "watch"
+        rows.append(
+            {
+                "symbol": symbol,
+                "tone": tone,
+                "ready": ready,
+                "missing_count": len(missing),
+                "passed_count": len(passed),
+                "missing": " · ".join(missing[:4]) if missing else "Listo para operar",
+                "passed": " · ".join(passed[:4]) if passed else "-",
+                "risk": risk,
+                "score": safe_float(row.get("confluence_score")),
+                "decision": text_display(row.get("trade_decision") or row.get("action")),
+            }
+        )
+        if len(rows) >= limit:
+            break
+    result = pd.DataFrame(rows, columns=columns)
+    if result.empty:
+        return result
+    result["tone_order"] = result["tone"].map({"buy": 0, "watch": 1, "avoid": 2}).fillna(1)
+    result["score_sort"] = pd.to_numeric(result["score"], errors="coerce").fillna(0)
+    result = result.sort_values(["tone_order", "missing_count", "score_sort"], ascending=[True, True, False]).head(limit)
+    return result.drop(columns=["tone_order", "score_sort"]).reset_index(drop=True)
+
+
+def render_buy_readiness_gap_panel(confluence_df: pd.DataFrame) -> None:
+    rows = buy_readiness_gap_rows(confluence_df, limit=8)
+    if rows.empty:
+        return
+    cards = []
+    for row in rows.to_dict("records"):
+        tone = text_display(row.get("tone"))
+        cards.append(
+            f'<div class="buy-gap-card buy-gap-{html.escape(tone)}">'
+            f'<div><strong>{html.escape(text_display(row.get("symbol")))}</strong><span>{html.escape(text_display(row.get("decision")))}</span></div>'
+            f'<em>{html.escape(str(row.get("missing_count")))} faltan · {html.escape(str(row.get("passed_count")))} OK · R {html.escape(pct_display(row.get("risk")))} · Score {html.escape(num_display(row.get("score"), 0))}</em>'
+            f'<small>Falta: {html.escape(text_display(row.get("missing")))}</small>'
+            f'<i>OK: {html.escape(text_display(row.get("passed")))}</i>'
+            "</div>"
+        )
+    st.markdown(
+        '<section class="buy-gap-panel"><header><strong>Qué falta para BUY</strong><span>Diagnóstico directo antes de operar: gatillo, HTF, riesgo, volumen, target y backtest.</span></header><div class="buy-gap-grid">'
+        + "".join(cards)
+        + "</div></section>",
+        unsafe_allow_html=True,
+    )
+
+
 def scanner_blotter_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, *, limit: int = 24) -> pd.DataFrame:
     wall_rows = scanner_wallboard_rows(table, confluence_df, limit=limit)
     if wall_rows.empty:
@@ -8878,6 +8970,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
     render_alert_noise_contract(brief)
     render_executive_cockpit(best, confluence_df, scan_df, brief)
     render_trading_desk_table(best, confluence_df, scan_df)
+    render_buy_readiness_gap_panel(confluence_df)
     render_finviz_style_wallboard(best, confluence_df, brief)
     render_opportunity_matrix(best, confluence_df)
     render_confluence_validation_board(confluence_df)
@@ -10217,6 +10310,10 @@ def main() -> None:
         .technical-movers>header{padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14);color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}
         .mover-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .mover-table{background:#0b1220;overflow:hidden}.mover-table header{padding:7px 9px;font-size:11px;font-weight:950;text-transform:uppercase;color:#f8fafc;border-bottom:1px solid rgba(148,163,184,.12)}.mover-table table{width:100%;border-collapse:collapse}.mover-table th,.mover-table td{padding:6px 8px;border-bottom:1px solid rgba(148,163,184,.10);font-size:11px;line-height:1.15;text-align:left;color:#cbd5e1}.mover-table th{color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase}.mover-table td:first-child{color:#f8fafc;font-weight:950}.mover-table td:nth-child(2),.mover-table td:nth-child(3),.mover-table td:nth-child(4){text-align:right}.mover-table-buy header{background:rgba(21,128,61,.25);color:#bbf7d0}.mover-table-watch header{background:rgba(180,83,9,.25);color:#fde68a}.mover-table-avoid header{background:rgba(153,27,27,.25);color:#fecaca}
+        .buy-gap-panel{border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0b1220;margin:0 0 12px;overflow:hidden}
+        .buy-gap-panel header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.buy-gap-panel header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.buy-gap-panel header span{color:#94a3b8;font-size:11px;line-height:1.2;text-align:right}
+        .buy-gap-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
+        .buy-gap-card{background:#0b1220;border-top:2px solid rgba(148,163,184,.28);padding:8px 9px;min-height:112px}.buy-gap-card div{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.buy-gap-card strong{color:#f8fafc;font-size:15px;line-height:1;font-weight:950}.buy-gap-card span{color:#e2e8f0;font-size:10px;text-transform:uppercase;font-weight:950;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.buy-gap-card em{display:block;color:#f8fafc;font-size:10px;line-height:1.18;font-style:normal;margin-top:6px}.buy-gap-card small{display:block;color:#fecaca;font-size:10px;line-height:1.18;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.buy-gap-card i{display:block;color:#bbf7d0;font-size:10px;line-height:1.18;font-style:normal;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.buy-gap-buy{border-top-color:#22c55e;background:rgba(21,93,62,.25)}.buy-gap-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.22)}.buy-gap-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}
         .kpibox{display:inline-block;padding:8px 12px;background:#081023;border-radius:8px;margin-right:8px;color:var(--muted)}
         .metrics-row{display:flex;gap:12px;flex-wrap:wrap}
         .metric-card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:10px;border-radius:8px;min-width:160px}
@@ -10285,9 +10382,9 @@ def main() -> None:
         .stButton button:hover{border-color:#a78bfa;color:#f8fafc}
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media (max-width:1100px){.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
+        @media (max-width:1100px){.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
         @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
-        @media (max-width:600px){.metric-card{min-width:120px}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
+        @media (max-width:600px){.metric-card{min-width:120px}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
         </style>
         """,
         unsafe_allow_html=True,
