@@ -1,7 +1,9 @@
 from datetime import datetime
 from types import SimpleNamespace
 
-from streamlit_app import alpaca_paper_journal_snapshot, alpaca_time_ago
+import pandas as pd
+
+from streamlit_app import alpaca_paper_journal_snapshot, alpaca_paper_strategy_ranking, alpaca_time_ago
 
 
 def test_alpaca_time_ago_formats_recent_durations():
@@ -94,3 +96,37 @@ def test_alpaca_paper_journal_snapshot_blocks_live_before_client_call():
     assert snapshot["status"] == "Paper journal pendiente"
     assert "live-key-value" not in str(snapshot)
     assert "live-secret-value" not in str(snapshot)
+
+
+def test_alpaca_paper_strategy_ranking_groups_activity_by_setup():
+    snapshot = {
+        "positions": [
+            {"symbol": "AAPL", "unrealized_pl": 12.0, "market_value": 220.0},
+            {"symbol": "MSFT", "unrealized_pl": -5.0, "market_value": 300.0},
+        ],
+        "orders": [
+            {"symbol": "AAPL", "status": "FILLED"},
+            {"symbol": "MSFT", "status": "FILLED"},
+            {"symbol": "TSLA", "status": "NEW"},
+        ],
+    }
+    opportunities = pd.DataFrame(
+        [
+            {"symbol": "AAPL", "strategy_family": "Pullback"},
+            {"symbol": "MSFT", "strategy_family": "Canal alcista"},
+            {"symbol": "TSLA", "strategy_family": "Breakout"},
+        ]
+    )
+
+    rows = alpaca_paper_strategy_ranking(snapshot, opportunities)
+
+    assert list(rows.columns) == ["strategy", "symbols", "open_positions", "orders", "pnl", "exposure", "win_rate", "tone"]
+    by_strategy = {row["strategy"]: row for row in rows.to_dict("records")}
+    assert by_strategy["Pullback"]["symbols"] == "AAPL"
+    assert by_strategy["Pullback"]["open_positions"] == 1
+    assert by_strategy["Pullback"]["orders"] == 1
+    assert by_strategy["Pullback"]["pnl"] == 12.0
+    assert by_strategy["Pullback"]["win_rate"] == 1.0
+    assert by_strategy["Canal alcista"]["tone"] == "avoid"
+    assert by_strategy["Breakout"]["orders"] == 1
+    assert by_strategy["Breakout"]["open_positions"] == 0
