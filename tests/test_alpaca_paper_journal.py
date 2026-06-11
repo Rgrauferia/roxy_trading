@@ -5,6 +5,7 @@ import pandas as pd
 
 from streamlit_app import (
     alpaca_paper_chart_markers,
+    alpaca_paper_gap_checklist,
     alpaca_paper_journal_snapshot,
     alpaca_paper_open_position_plan,
     alpaca_paper_strategy_ranking,
@@ -221,3 +222,39 @@ def test_alpaca_paper_open_position_plan_maps_stop_target_and_status():
     assert by_symbol["AAPL"]["strategy"] == "Pullback"
     assert by_symbol["MSFT"]["status"] == "Stop tocado"
     assert by_symbol["MSFT"]["tone"] == "avoid"
+
+def test_alpaca_paper_gap_checklist_explains_missing_items():
+    table = pd.DataFrame(
+        [
+            {
+                "symbol": "AAPL",
+                "market": "stock",
+                "signal": "WATCH",
+                "decision": "WAIT",
+                "entry": 101.0,
+                "stop": 99.0,
+                "target_pct": 0.015,
+                "risk_pct": 0.02,
+                "cambia_si": "Necesita 15m BUY y target viable.",
+            },
+            {
+                "symbol": "BTC/USD",
+                "market": "crypto",
+                "signal": "BUY",
+                "decision": "TRADE_FOR_STOCK",
+                "entry": 60000.0,
+                "stop": 59000.0,
+                "target_pct": 0.03,
+                "risk_pct": 0.02,
+            },
+        ]
+    )
+
+    rows = alpaca_paper_gap_checklist(table)
+
+    by_symbol = {row["symbol"]: row for row in rows.to_dict("records")}
+    assert by_symbol["AAPL"]["status"] == "Falta 15m/1h BUY"
+    assert "Target >= 2%" in by_symbol["AAPL"]["missing"]
+    assert "Riesgo OK" in by_symbol["AAPL"]["ready"]
+    assert by_symbol["BTC/USD"]["status"] == "Falta Solo acciones paper"
+    assert by_symbol["BTC/USD"]["tone"] == "avoid"
