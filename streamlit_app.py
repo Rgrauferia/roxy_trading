@@ -6567,6 +6567,86 @@ def render_opportunity_matrix(table: pd.DataFrame, confluence_df: pd.DataFrame) 
     )
 
 
+def confluence_validation_rows(confluence_df: pd.DataFrame, *, limit: int = 10) -> pd.DataFrame:
+    columns = ["symbol", "tone", "decision", "trigger", "trend", "htf", "risk", "target_2pct", "backtest", "reason"]
+    if confluence_df.empty:
+        return pd.DataFrame(columns=columns)
+    data = confluence_df.copy()
+    if "confluence_score" in data.columns:
+        data["sort_score"] = pd.to_numeric(data["confluence_score"], errors="coerce").fillna(0)
+        data = data.sort_values("sort_score", ascending=False)
+    rows: list[dict[str, Any]] = []
+    for _, item in data.head(max(limit * 2, limit)).iterrows():
+        row = item.to_dict()
+        symbol = text_display(row.get("symbol")).upper()
+        if not symbol or symbol == "-":
+            continue
+        signal = text_display(row.get("signal")).upper()
+        trade_decision = text_display(row.get("trade_decision")).upper()
+        if signal == "BUY" and trade_decision.startswith("TRADE_FOR"):
+            tone, decision = "buy", "Validado"
+        elif signal == "AVOID" or trade_decision.startswith("NO_TRADE"):
+            tone, decision = "avoid", "Bloqueado"
+        else:
+            tone, decision = "watch", "Esperar"
+        confirmations = safe_float(row.get("higher_tf_confirmations"))
+        blocks = safe_float(row.get("higher_tf_blocks"))
+        if confirmations is not None or blocks is not None:
+            htf = f"{int(confirmations or 0)}/{int((confirmations or 0) + (blocks or 0))}"
+        else:
+            htf = text_display(row.get("higher_tf_bias"))
+        target_ok = row.get("target_2pct_ok")
+        if isinstance(target_ok, str):
+            target_ok = target_ok.strip().lower() in {"true", "1", "yes"}
+        target_label = "2% OK" if bool(target_ok) else "2% falta"
+        backtest_eligible = row.get("backtest_eligible")
+        if isinstance(backtest_eligible, str):
+            backtest_eligible = backtest_eligible.strip().lower() in {"true", "1", "yes"}
+        profit_factor = safe_float(row.get("backtest_profit_factor"))
+        backtest_label = f"PF {profit_factor:.1f}" if profit_factor is not None and bool(backtest_eligible) else "No hist"
+        rows.append(
+            {
+                "symbol": symbol,
+                "tone": tone,
+                "decision": decision,
+                "trigger": text_display(row.get("trigger_setup")),
+                "trend": text_display(row.get("trend_setup")),
+                "htf": htf,
+                "risk": safe_float(row.get("risk_pct")),
+                "target_2pct": target_label,
+                "backtest": backtest_label,
+                "reason": text_display(row.get("reasons")),
+            }
+        )
+        if len(rows) >= limit:
+            break
+    return pd.DataFrame(rows, columns=columns)
+
+
+def render_confluence_validation_board(confluence_df: pd.DataFrame) -> None:
+    rows = confluence_validation_rows(confluence_df, limit=10)
+    if rows.empty:
+        return
+    items = []
+    for row in rows.to_dict("records"):
+        tone = text_display(row.get("tone"))
+        items.append(
+            f'<div class="validation-row validation-row-{html.escape(tone)}">'
+            f'<strong>{html.escape(text_display(row.get("symbol")))}</strong>'
+            f'<span>{html.escape(text_display(row.get("decision")))}</span>'
+            f'<small>{html.escape(text_display(row.get("trigger")))} / {html.escape(text_display(row.get("trend")))}</small>'
+            f'<em>HTF {html.escape(text_display(row.get("htf")))} · R {html.escape(pct_display(row.get("risk")))} · {html.escape(text_display(row.get("target_2pct")))} · {html.escape(text_display(row.get("backtest")))}</em>'
+            f'<i>{html.escape(text_display(row.get("reason")))}</i>'
+            "</div>"
+        )
+    st.markdown(
+        '<section class="validation-board"><header><strong>Validación multi-timeframe</strong><span>15m gatillo · 1h tendencia · 2h/4h bloqueo · backtest · target 2%</span></header><div class="validation-grid">'
+        + "".join(items)
+        + "</div></section>",
+        unsafe_allow_html=True,
+    )
+
+
 def render_finviz_style_wallboard(table: pd.DataFrame, confluence_df: pd.DataFrame, brief: dict) -> None:
     rows = scanner_wallboard_rows(table, confluence_df, limit=32)
     if rows.empty:
@@ -8562,6 +8642,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
     render_alert_noise_contract(brief)
     render_finviz_style_wallboard(best, confluence_df, brief)
     render_opportunity_matrix(best, confluence_df)
+    render_confluence_validation_board(confluence_df)
     render_market_breadth_strip(scan_df, confluence_df)
     render_market_index_strip(scan_df, confluence_df)
     render_scanner_cockpit(best, confluence_df, options_df, brief)
@@ -9876,6 +9957,10 @@ def main() -> None:
         .matrix-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.matrix-summary div{background:#0b1220;padding:7px 10px}.matrix-summary span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase}.matrix-summary strong{display:block;color:#f8fafc;font-size:20px;line-height:1.05;margin-top:3px}
         .matrix-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .matrix-row{background:#0b1220;border-left:3px solid rgba(148,163,184,.32);padding:8px 9px;min-height:86px;display:grid;grid-template-columns:auto 1fr auto;gap:3px 8px;align-content:start}.matrix-row span{color:#94a3b8;font-size:10px;font-weight:950}.matrix-row strong{color:#f8fafc;font-size:15px;font-weight:950}.matrix-row em{color:#e2e8f0;font-size:11px;font-style:normal;text-align:right;font-weight:900}.matrix-row b{grid-column:1/2;color:#f8fafc;font-size:18px;line-height:1;font-weight:950}.matrix-row small{grid-column:2/4;color:#cbd5e1;font-size:10px;line-height:1.18;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.matrix-row i{grid-column:1/4;color:#94a3b8;font-size:10px;line-height:1.18;font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.matrix-row-buy{border-left-color:#22c55e;background:rgba(21,93,62,.30)}.matrix-row-watch{border-left-color:#f59e0b;background:rgba(120,74,15,.24)}.matrix-row-avoid{border-left-color:#ef4444;background:rgba(127,29,29,.24)}
+        .validation-board{border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0b1220;margin:0 0 12px;overflow:hidden}
+        .validation-board header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.validation-board header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.validation-board header span{color:#94a3b8;font-size:11px;line-height:1.2;text-align:right}
+        .validation-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
+        .validation-row{background:#0b1220;border-top:2px solid rgba(148,163,184,.28);padding:8px 9px;min-height:96px}.validation-row strong{display:block;color:#f8fafc;font-size:15px;line-height:1;font-weight:950}.validation-row span{display:block;color:#e2e8f0;font-size:11px;font-weight:950;text-transform:uppercase;margin-top:5px}.validation-row small{display:block;color:#cbd5e1;font-size:10px;line-height:1.18;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.validation-row em{display:block;color:#f8fafc;font-size:10px;line-height:1.18;font-style:normal;margin-top:5px}.validation-row i{display:block;color:#94a3b8;font-size:10px;line-height:1.18;font-style:normal;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.validation-row-buy{border-top-color:#22c55e;background:rgba(21,93,62,.25)}.validation-row-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.22)}.validation-row-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}
         .breadth-strip{border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0b1220;margin:0 0 12px;overflow:hidden}
         .breadth-strip header{padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14);color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}
         .breadth-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
@@ -9953,9 +10038,9 @@ def main() -> None:
         .stButton button:hover{border-color:#a78bfa;color:#f8fafc}
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media (max-width:1100px){.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+        @media (max-width:1100px){.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
         @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
-        @media (max-width:600px){.metric-card{min-width:120px}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
+        @media (max-width:600px){.metric-card{min-width:120px}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
         </style>
         """,
         unsafe_allow_html=True,
