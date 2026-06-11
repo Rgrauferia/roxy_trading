@@ -57,5 +57,7 @@ def test_build_mini_opportunity_chart_is_interactive_with_price_tooltips():
 
     spec = build_mini_opportunity_chart(chart_df, tone="buy").to_dict()
 
-    assert spec["params"][0]["bind"] == "scales"
+    assert any(param.get("bind") == "scales" for param in spec["params"])
+    assert any(param.get("name") == "mini_hover" for param in spec["params"])
+    assert any(layer.get("mark", {}).get("type") == "rule" for layer in spec["layer"])
     assert any("tooltip" in layer.get("encoding", {}) for layer in spec["layer"])

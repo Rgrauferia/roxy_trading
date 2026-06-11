@@ -8719,12 +8719,15 @@ def build_mini_opportunity_chart(chart_df: pd.DataFrame, tone: str = "watch") ->
             .properties(height=92)
         )
     color = {"buy": "#22c55e", "avoid": "#ef4444", "watch": "#f59e0b"}.get(str(tone), "#38bdf8")
+    hover = alt.selection_point(name="mini_hover", fields=["ts"], nearest=True, on="pointerover", empty=False)
     area = (
         alt.Chart(window)
         .mark_area(line=False, opacity=0.16, color=color)
         .encode(
             x=alt.X("ts:T", title=None, axis=alt.Axis(labels=False, ticks=False, grid=False)),
-            y=alt.Y("close:Q", title=None, scale=alt.Scale(zero=False), axis=alt.Axis(labels=False, ticks=False, grid=False)),
+            y=alt.Y(
+                "close:Q", title=None, scale=alt.Scale(zero=False), axis=alt.Axis(labels=False, ticks=False, grid=False)
+            ),
         )
     )
     line = (
@@ -8743,12 +8746,47 @@ def build_mini_opportunity_chart(chart_df: pd.DataFrame, tone: str = "watch") ->
             ],
         )
     )
+    selectors = (
+        alt.Chart(window)
+        .mark_point(opacity=0)
+        .encode(x="ts:T", y=alt.Y("close:Q", scale=alt.Scale(zero=False)))
+        .add_params(hover)
+    )
+    hover_rule = (
+        alt.Chart(window)
+        .mark_rule(color="#94a3b8", strokeDash=[3, 3])
+        .encode(
+            x="ts:T",
+            opacity=alt.condition(hover, alt.value(0.65), alt.value(0)),
+            tooltip=[
+                alt.Tooltip("ts:T", title="Tiempo"),
+                alt.Tooltip("open:Q", title="Open", format=".2f"),
+                alt.Tooltip("high:Q", title="High", format=".2f"),
+                alt.Tooltip("low:Q", title="Low", format=".2f"),
+                alt.Tooltip("close:Q", title="Close", format=".2f"),
+                alt.Tooltip("volume:Q", title="Volumen", format=",.0f"),
+            ],
+        )
+    )
+    hover_point = (
+        alt.Chart(window)
+        .mark_point(filled=True, size=70, color=color, stroke="#f8fafc", strokeWidth=1.3)
+        .encode(
+            x="ts:T",
+            y=alt.Y("close:Q", scale=alt.Scale(zero=False)),
+            opacity=alt.condition(hover, alt.value(1), alt.value(0)),
+        )
+    )
     last_point = (
         alt.Chart(window.tail(1))
         .mark_point(filled=True, size=55, color=color, stroke="#0b1220", strokeWidth=1.2)
-        .encode(x="ts:T", y=alt.Y("close:Q", scale=alt.Scale(zero=False)), tooltip=[alt.Tooltip("close:Q", title="Ultimo", format=".2f")])
+        .encode(
+            x="ts:T",
+            y=alt.Y("close:Q", scale=alt.Scale(zero=False)),
+            tooltip=[alt.Tooltip("close:Q", title="Ultimo", format=".2f")],
+        )
     )
-    return (area + line + last_point).interactive(bind_y=False).properties(height=92)
+    return (area + line + selectors + hover_rule + hover_point + last_point).interactive(bind_y=False).properties(height=92)
 
 
 def render_top_opportunity_cards(table: pd.DataFrame, confluence_df: pd.DataFrame) -> None:
