@@ -10134,7 +10134,7 @@ def render_scanner_blotter(table: pd.DataFrame, confluence_df: pd.DataFrame) -> 
         """,
         unsafe_allow_html=True,
     )
-    filter_cols = st.columns([1.2, 1])
+    filter_cols = st.columns([1.15, 1, 0.7])
     with filter_cols[0]:
         radar_filter = st.radio(
             "Filtro Roxy Radar",
@@ -10151,6 +10151,14 @@ def render_scanner_blotter(table: pd.DataFrame, confluence_df: pd.DataFrame) -> 
             label_visibility="collapsed",
             key="roxy_radar_quality_filter",
         )
+    with filter_cols[2]:
+        depth_filter = st.radio(
+            "Profundidad Roxy Radar",
+            ["Top 8", "Top 16", "Todos"],
+            horizontal=True,
+            label_visibility="collapsed",
+            key="roxy_radar_depth_filter",
+        )
     visible_blotter = blotter
     if radar_filter != "Todos":
         action_key = {"Operar": "OPERAR", "Esperar": "ESPERAR", "No tocar": "NO TOCAR"}[radar_filter]
@@ -10164,6 +10172,13 @@ def render_scanner_blotter(table: pd.DataFrame, confluence_df: pd.DataFrame) -> 
     if visible_blotter.empty:
         st.caption("Sin oportunidades para estos filtros del Radar.")
         return
+    total_after_filters = len(visible_blotter)
+    if depth_filter != "Todos":
+        visible_limit = int(depth_filter.split()[1])
+        visible_blotter = visible_blotter.head(visible_limit).reset_index(drop=True)
+    st.caption(
+        f"Mostrando {len(visible_blotter)} de {total_after_filters} oportunidades filtradas. Cambia a Todos para investigacion."
+    )
     quick_cols = st.columns(min(6, max(1, len(visible_blotter))))
     for idx, row in enumerate(visible_blotter.head(6).to_dict("records")):
         with quick_cols[idx]:
