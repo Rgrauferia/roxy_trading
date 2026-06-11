@@ -15,6 +15,7 @@ CONVERSATION_MEMORY_PATH = Path("alerts/roxy_conversation_memory.json")
 USER_PROFILE_PATH = Path("alerts/roxy_user_profile.json")
 FEEDBACK_PATH = Path("alerts/roxy_feedback.json")
 MAX_SESSION_TURNS = 20
+MAX_MEMORY_SESSIONS = 120
 MAX_FEEDBACK_ITEMS = 500
 KNOWLEDGE_PATHS = (
     Path("MASTER_CONTEXT.md"),
@@ -119,9 +120,15 @@ def build_voice_events(query: str, response: RoxyBrainReply) -> list[dict[str, A
 
 
 class RoxyConversationMemory:
-    def __init__(self, path: Path = CONVERSATION_MEMORY_PATH, max_turns: int = MAX_SESSION_TURNS):
+    def __init__(
+        self,
+        path: Path = CONVERSATION_MEMORY_PATH,
+        max_turns: int = MAX_SESSION_TURNS,
+        max_sessions: int = MAX_MEMORY_SESSIONS,
+    ):
         self.path = path
         self.max_turns = max_turns
+        self.max_sessions = max_sessions
 
     def recent_turns(self, session_id: str | None, limit: int = 6) -> list[dict[str, Any]]:
         if not session_id:
@@ -193,12 +200,27 @@ class RoxyConversationMemory:
             }
         )
         sessions[session_key] = turns[-self.max_turns :]
+        sessions = self._pruned_sessions(sessions)
         payload = {
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "sessions": sessions,
         }
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+    def _pruned_sessions(self, sessions: dict[str, Any]) -> dict[str, Any]:
+        if len(sessions) <= self.max_sessions:
+            return sessions
+
+        rows = []
+        for session_id, turns in sessions.items():
+            last_at = ""
+            if isinstance(turns, list) and turns and isinstance(turns[-1], dict):
+                last_at = _safe_text(turns[-1].get("at"))
+            rows.append((last_at, session_id, turns))
+        rows.sort(key=lambda row: row[0], reverse=True)
+        keep = rows[: self.max_sessions]
+        return {session_id: turns for _last_at, session_id, turns in keep}
 
 
 class RoxyUserProfile:

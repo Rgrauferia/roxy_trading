@@ -99,6 +99,25 @@ def test_roxy_brain_remembers_session_context(tmp_path):
     assert "oportunidad anterior" in second.reply
 
 
+def test_roxy_conversation_memory_prunes_old_sessions(tmp_path):
+    memory_path = tmp_path / "conversation.json"
+    memory = RoxyConversationMemory(path=memory_path, max_turns=2, max_sessions=2)
+    reply = RoxyInteractiveBrain(brief_path=tmp_path / "brief.json", memory_path=tmp_path / "memory.json").generate_reply(
+        "hola"
+    )
+
+    memory.append("session-a", "hola", reply)
+    memory.append("session-b", "hola", reply)
+    memory.append("session-c", "hola", reply)
+
+    saved = json.loads(memory_path.read_text(encoding="utf-8"))
+    sessions = saved["sessions"]
+    assert len(sessions) == 2
+    assert "session-c" in sessions
+    assert "session-b" in sessions
+    assert "session-a" not in sessions
+
+
 def test_roxy_brain_redacts_secrets_in_memory(tmp_path):
     memory_path = tmp_path / "conversation.json"
     memory = RoxyConversationMemory(path=memory_path)

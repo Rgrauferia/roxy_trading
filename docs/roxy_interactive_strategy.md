@@ -40,7 +40,7 @@ For a direct browser experience, run the voice service and open `/roxy-live`. Th
 
 Siri-style operation is available in Roxy Live with `Wake Roxy`. When active, the browser can keep listening and only sends a prompt after the wake word, for example: "Roxy, resume la oportunidad" or "Roxy, silencio". The browser still controls microphone permission and may pause recognition depending on Chrome/Edge policies.
 
-Session memory is stored locally in `alerts/roxy_conversation_memory.json` when a `session_id` is supplied. The memory is intentionally small, capped by session, and redacts long tokens or key/secret-looking text before writing. Clients can read it through `GET /v1/assist/session/{session_id}`.
+Session memory is stored locally in `alerts/roxy_conversation_memory.json` when a `session_id` is supplied. The memory is intentionally small, capped by turns per session and by total recent sessions, and redacts long tokens or key/secret-looking text before writing. Clients can read it through `GET /v1/assist/session/{session_id}`.
 
 User preferences are stored locally in `alerts/roxy_user_profile.json`. Only safe preference fields are allowed: preferred name, language, tone, trading mode, default symbol, watchlist, and browser voice settings. Secrets and unknown keys are ignored.
 
