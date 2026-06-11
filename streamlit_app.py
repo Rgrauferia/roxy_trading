@@ -7196,40 +7196,42 @@ def show_ai_status_cards(
         if freshness["tone"] == "avoid":
             st.warning("Datos live/confluencia estancados. Roxy puede seguir leyendo memoria, pero no conviene operar hasta refrescar el scan.")
         if heartbeat:
-            with st.expander("Heartbeat backend live", expanded=backend["tone"] == "avoid"):
+            with st.expander("Heartbeat backend live", expanded=False):
                 st.json(heartbeat)
         if realtime_check:
-            with st.expander("Reporte verificacion realtime", expanded=check_status["tone"] != "buy"):
-                st.json(realtime_check)
-            autoheal_keys = AUTOHEAL_REPORT_KEYS
-            if any(realtime_check.get(key) for key in autoheal_keys):
-                with st.expander("Reporte autoheal", expanded=autoheal_status["tone"] != "buy"):
-                    st.json({key: realtime_check.get(key) for key in autoheal_keys})
-        if health_history:
-            with st.expander("Historial health realtime", expanded=health_history_status["tone"] != "buy"):
-                history_display = health_history_display_table(health_history, limit=50)
-                if not history_display.empty:
-                    st.dataframe(history_display, width="stretch", hide_index=True, height=320)
-                with st.expander("JSON tecnico del historial", expanded=False):
-                    st.json(health_history[-50:])
-        if maintenance_report:
-            with st.expander("Reporte limpieza output", expanded=maintenance_status["tone"] != "buy"):
-                st.json(maintenance_report)
-        if runtime_backup_report:
-            with st.expander("Reporte backup runtime", expanded=runtime_backup_status["tone"] != "buy"):
-                st.json(runtime_backup_report)
-        if gate_summary:
-            with st.expander("Resumen compuertas de alertas", expanded=gate_summary_status["tone"] != "buy"):
-                st.json(gate_summary)
-        if alert_quality_report:
-            with st.expander("Historial calidad de alertas", expanded=alert_quality_status["tone"] == "avoid"):
-                st.json(alert_quality_report)
-        if delivery_summary:
-            with st.expander("Resumen delivery de alertas", expanded=delivery_summary_status["tone"] == "watch"):
-                st.json(delivery_summary)
-        if chart_health_report:
-            with st.expander("Reporte graficas realtime", expanded=chart_health_status["tone"] != "buy"):
-                st.json(chart_health_report)
+            with st.expander("Diagnostico tecnico avanzado", expanded=False):
+                st.caption("Reportes crudos para depuracion. Mantener cerrado durante trading para reducir ruido visual.")
+                with st.expander("Reporte verificacion realtime", expanded=False):
+                    st.json(realtime_check)
+                autoheal_keys = AUTOHEAL_REPORT_KEYS
+                if any(realtime_check.get(key) for key in autoheal_keys):
+                    with st.expander("Reporte autoheal", expanded=False):
+                        st.json({key: realtime_check.get(key) for key in autoheal_keys})
+                if health_history:
+                    with st.expander("Historial health realtime", expanded=False):
+                        history_display = health_history_display_table(health_history, limit=50)
+                        if not history_display.empty:
+                            st.dataframe(history_display, width="stretch", hide_index=True, height=320)
+                        with st.expander("JSON tecnico del historial", expanded=False):
+                            st.json(health_history[-50:])
+                if maintenance_report:
+                    with st.expander("Reporte limpieza output", expanded=False):
+                        st.json(maintenance_report)
+                if runtime_backup_report:
+                    with st.expander("Reporte backup runtime", expanded=False):
+                        st.json(runtime_backup_report)
+                if gate_summary:
+                    with st.expander("Resumen compuertas de alertas", expanded=False):
+                        st.json(gate_summary)
+                if alert_quality_report:
+                    with st.expander("Historial calidad de alertas", expanded=False):
+                        st.json(alert_quality_report)
+                if delivery_summary:
+                    with st.expander("Resumen delivery de alertas", expanded=False):
+                        st.json(delivery_summary)
+                if chart_health_report:
+                    with st.expander("Reporte graficas realtime", expanded=False):
+                        st.json(chart_health_report)
 
 
 def show_focused_controls() -> None:
