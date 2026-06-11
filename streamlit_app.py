@@ -10066,12 +10066,29 @@ def render_scanner_cockpit(
     brief: dict,
 ) -> None:
     summary = scanner_overview_summary(table, confluence_df, options_df, brief)
+    if summary["ready"]:
+        compass_tone = "buy"
+        compass_label = "Trabajar ahora"
+        compass_detail = f"{summary['ready']} setup(s) operables. Prioridad: {summary['top_symbol']}."
+    elif summary["watch"]:
+        compass_tone = "watch"
+        compass_label = "Esperar gatillo"
+        compass_detail = f"{summary['watch']} en vigilancia. Bloqueo dominante: {summary['top_gate']}."
+    else:
+        compass_tone = "avoid"
+        compass_label = "No operar"
+        compass_detail = "Sin setups limpios. Mantener capital y esperar nuevo scan."
     st.markdown(
         f"""
         <section class="scanner-tape">
             <div><strong>Roxy Scanner</strong><span>{summary['total']} setups · {summary['ready']} operables · {summary['watch']} en vigilancia · {summary['avoid']} evitados</span></div>
             <div><strong>Top</strong><span>{html.escape(summary['top_symbol'])} · {html.escape(summary['top_action'])} · {html.escape(summary['top_strategy'])}</span></div>
             <div><strong>Contexto</strong><span>{html.escape(summary['session'])} · {html.escape(summary['freshness'])}</span></div>
+        </section>
+        <section class="scanner-compass scanner-compass-{html.escape(compass_tone)}">
+            <strong>{html.escape(compass_label)}</strong>
+            <span>{html.escape(compass_detail)}</span>
+            <em>Foco: operar solo lo limpio; lo demás queda en watchlist.</em>
         </section>
         """,
         unsafe_allow_html=True,
@@ -13111,6 +13128,11 @@ def main() -> None:
         .scanner-tape div:last-child{border-right:0;padding-right:0}
         .scanner-tape strong{color:#f8fafc;font-size:12px;font-weight:950;text-transform:uppercase;white-space:nowrap}
         .scanner-tape span{color:#cbd5e1;font-size:12px;line-height:1.25;text-align:right;overflow-wrap:anywhere}
+        .scanner-compass{display:grid;grid-template-columns:.55fr 1.45fr .8fr;gap:10px;align-items:center;border:1px solid rgba(148,163,184,.24);border-left-width:4px;border-radius:8px;background:#0b1220;padding:8px 10px;margin:-2px 0 10px}
+        .scanner-compass strong{color:#f8fafc;font-size:17px;line-height:1;font-weight:950}
+        .scanner-compass span{color:#e2e8f0;font-size:12px;line-height:1.25;font-weight:800}
+        .scanner-compass em{color:#94a3b8;font-size:10px;line-height:1.25;font-style:normal;text-align:right}
+        .scanner-compass-buy{border-left-color:#22c55e;background:rgba(21,93,62,.20)}.scanner-compass-watch{border-left-color:#f59e0b;background:rgba(120,74,15,.18)}.scanner-compass-avoid{border-left-color:#ef4444;background:rgba(127,29,29,.18)}
         .scanner-card-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 10px}
         .scanner-card{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#0b1220;padding:10px 12px;min-height:90px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
         .scanner-card span{display:block;color:#94a3b8;font-size:11px;line-height:1.2;font-weight:900;text-transform:uppercase}
@@ -13272,7 +13294,7 @@ def main() -> None:
         .stButton button:hover{border-color:#a78bfa;color:#f8fafc}
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media (max-width:1100px){.ticker-intel,.alpaca-gate,.alpaca-paper-panel{grid-template-columns:1fr}.ticker-intel-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.paper-journal-summary,.paper-exec-summary,.trading-desk-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.trading-desk-queue>div{grid-template-columns:repeat(2,minmax(0,1fr))}.desk-opportunity-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.paper-position-grid,.paper-strategy-grid,.paper-journal-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exit-grid,.provider-grid,.preset-grid,.research-grid,.paper-exec-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.confirm-radar-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-grid-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
+        @media (max-width:1100px){.ticker-intel,.alpaca-gate,.alpaca-paper-panel{grid-template-columns:1fr}.ticker-intel-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.paper-journal-summary,.paper-exec-summary,.trading-desk-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.trading-desk-queue>div{grid-template-columns:repeat(2,minmax(0,1fr))}.desk-opportunity-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.paper-position-grid,.paper-strategy-grid,.paper-journal-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exit-grid,.provider-grid,.preset-grid,.research-grid,.paper-exec-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.confirm-radar-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.executive-cockpit{grid-template-columns:1fr}.scanner-tape,.scanner-compass{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-compass em{text-align:left}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-grid-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
         @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.brand-logo-img{width:150px;max-width:42vw}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
         @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.ticker-intel-kpis{grid-template-columns:1fr 1fr}.ticker-intel-main h3{font-size:23px}.company-research>header,.confirmation-radar>header,.exit-board>header,.paper-position-panel>header,.paper-strategy-panel>header,.paper-journal-panel>header,.paper-exec-panel>header,.provider-center>header,.screener-presets>header,.trading-desk-queue>header{display:block}.company-research>header span,.confirmation-radar>header span,.exit-board>header span,.paper-position-panel>header span,.paper-strategy-panel>header span,.paper-journal-panel>header span,.paper-exec-panel>header span,.provider-center>header span,.screener-presets>header span,.trading-desk-queue>header span{display:block;text-align:left;margin-top:4px}.trading-desk-focus{display:block}.trading-desk-focus p{margin-top:8px}.trading-desk-focus small{display:block;margin-top:5px;white-space:normal}.trading-desk-queue>div{grid-template-columns:1fr}.desk-opportunity-grid{grid-template-columns:1fr}.paper-position-grid,.paper-strategy-grid,.paper-journal-grid{grid-template-columns:1fr}.exit-grid,.provider-grid,.preset-grid,.research-grid,.confirm-radar-grid,.paper-exec-grid{grid-template-columns:1fr}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.compare-board>header{display:block}.compare-board>header span{display:block;text-align:left;margin-top:4px}.compare-grid-cards{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.buy-gap-strip{grid-template-columns:1fr}.buy-gap-strip em{white-space:normal}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
         </style>
