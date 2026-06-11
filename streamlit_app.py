@@ -1500,13 +1500,33 @@ def render_professional_chart_block(
     if oscillator_chart is not None:
         panels.append(oscillator_chart.properties(height=oscillator_height))
     st.caption("Gráfica interactiva: arrastra para mover precio/tiempo, usa scroll o trackpad para zoom y pasa el cursor por velas para ver OHLC, volumen y medias.")
+    def render_price_chart_fallback() -> None:
+        fallback_cols = [
+            col
+            for col in ["close", "ema9", "sma20", "sma40", "sma100", "sma200"]
+            if col in clean_window.columns
+        ]
+        st.warning("La gráfica avanzada no pudo renderizarse; Roxy muestra fallback simple de precio y medias.")
+        if fallback_cols:
+            fallback_df = clean_window[fallback_cols].apply(pd.to_numeric, errors="coerce")
+            st.line_chart(fallback_df, height=min(price_height, 420), width="stretch")
+
     if len(panels) > 1:
-        st.altair_chart(style_trading_chart(price_chart), width="stretch")
+        try:
+            st.altair_chart(style_trading_chart(price_chart), width="stretch")
+        except Exception:
+            render_price_chart_fallback()
         with st.expander("Volumen y osciladores", expanded=False):
             for panel_idx, panel in enumerate(panels[1:], start=1):
-                st.altair_chart(style_trading_chart(panel), width="stretch", key=f"chart_indicator_{panel_idx}")
+                try:
+                    st.altair_chart(style_trading_chart(panel), width="stretch", key=f"chart_indicator_{panel_idx}")
+                except Exception:
+                    st.caption("Indicador omitido por incompatibilidad temporal de gráfica.")
     else:
-        st.altair_chart(style_trading_chart(price_chart), width="stretch")
+        try:
+            st.altair_chart(style_trading_chart(price_chart), width="stretch")
+        except Exception:
+            render_price_chart_fallback()
 
 
 def render_command_center_analysis(
