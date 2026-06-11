@@ -1,0 +1,64 @@
+from streamlit_app import alpaca_operations_gate, render_alpaca_operations_gate
+
+
+def test_alpaca_operations_gate_defaults_configured_credentials_to_paper_only():
+    gate = alpaca_operations_gate(
+        {
+            "ALPACA_API_KEY": "paper-key-value",
+            "ALPACA_API_SECRET": "paper-secret-value",
+        }
+    )
+
+    assert gate["mode"] == "PAPER_ONLY"
+    assert gate["status"] == "Paper listo"
+    assert gate["paper_orders_allowed"] is True
+    assert gate["live_orders_allowed"] is False
+    assert gate["endpoint_mode"] == "paper"
+    assert "paper-key-value" not in str(gate)
+    assert "paper-secret-value" not in str(gate)
+
+
+def test_alpaca_operations_gate_blocks_live_endpoint_even_with_credentials():
+    gate = alpaca_operations_gate(
+        {
+            "ALPACA_API_KEY": "live-key-value",
+            "ALPACA_API_SECRET": "live-secret-value",
+            "ALPACA_PAPER": "false",
+            "ALPACA_BASE_URL": "https://api.alpaca.markets",
+        }
+    )
+
+    assert gate["mode"] == "LIVE_LOCKED"
+    assert gate["status"] == "Live bloqueado"
+    assert gate["tone"] == "avoid"
+    assert gate["paper_orders_allowed"] is False
+    assert gate["live_orders_allowed"] is False
+    assert gate["live_detected"] is True
+    assert "live-key-value" not in str(gate)
+    assert "live-secret-value" not in str(gate)
+
+
+def test_alpaca_operations_gate_reports_missing_secret_without_values():
+    gate = alpaca_operations_gate({"ALPACA_API_KEY": "key-only"})
+
+    assert gate["mode"] == "NOT_CONFIGURED"
+    assert gate["missing"] == "ALPACA_API_SECRET or ALPACA_SECRET_KEY"
+    assert gate["present_keys"] == "ALPACA_API_KEY"
+    assert "key-only" not in str(gate)
+
+
+def test_render_alpaca_operations_gate_hides_values_and_labels_live_as_locked():
+    html = render_alpaca_operations_gate(
+        {
+            "ALPACA_API_KEY": "live-key-value",
+            "ALPACA_SECRET_KEY": "live-secret-value",
+            "ALPACA_PAPER": "false",
+            "ALPACA_ENDPOINT": "https://api.alpaca.markets",
+        }
+    )
+
+    assert "Live orders: LOCKED" in html
+    assert "ALPACA_API_KEY" in html
+    assert "ALPACA_SECRET_KEY" in html
+    assert "live-key-value" not in html
+    assert "live-secret-value" not in html
