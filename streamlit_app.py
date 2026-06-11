@@ -8711,13 +8711,26 @@ def load_symbol_mini_chart(symbol: str, *, limit: int = 90) -> pd.DataFrame:
 def build_mini_opportunity_chart(chart_df: pd.DataFrame, tone: str = "watch") -> alt.Chart | alt.LayerChart:
     window = prepare_chart_window(chart_df, limit=90)
     if window.empty:
-        fallback = pd.DataFrame({"x": [0], "y": [0], "message": ["Sin historial local"]})
-        return (
-            alt.Chart(fallback)
-            .mark_text(color="#94a3b8", fontSize=12)
-            .encode(x=alt.X("x:Q", axis=None), y=alt.Y("y:Q", axis=None), text="message:N")
-            .properties(height=92)
+        fallback = pd.DataFrame(
+            {
+                "x": [0],
+                "y": [0],
+                "message": ["Sin historial local"],
+                "action": ["Validar proveedor / recargar scanner"],
+            }
         )
+        base = alt.Chart(fallback).encode(
+            x=alt.X("x:Q", axis=None, scale=alt.Scale(domain=[-1, 1])),
+            y=alt.Y("y:Q", axis=None, scale=alt.Scale(domain=[-1, 1])),
+        )
+        panel = (
+            alt.Chart(pd.DataFrame({"x": [0], "y": [0]}))
+            .mark_rect(color="#0f172a", opacity=0.92)
+            .encode(x=alt.value(0), x2=alt.value(520), y=alt.value(0), y2=alt.value(92))
+        )
+        title = base.mark_text(color="#f8fafc", fontSize=12, fontWeight="bold", dy=-8).encode(text="message:N")
+        action = base.mark_text(color="#94a3b8", fontSize=10, dy=12).encode(text="action:N")
+        return (panel + title + action).properties(height=92)
     color = {"buy": "#22c55e", "avoid": "#ef4444", "watch": "#f59e0b"}.get(str(tone), "#38bdf8")
     hover = alt.selection_point(name="mini_hover", fields=["ts"], nearest=True, on="pointerover", empty=False)
     area = (
@@ -8787,6 +8800,7 @@ def build_mini_opportunity_chart(chart_df: pd.DataFrame, tone: str = "watch") ->
         )
     )
     return (area + line + selectors + hover_rule + hover_point + last_point).interactive(bind_y=False).properties(height=92)
+
 
 def top_opportunity_card_details(row: dict[str, Any]) -> dict[str, str]:
     next_action = text_display(row.get("next"))

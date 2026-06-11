@@ -68,6 +68,15 @@ def test_build_mini_opportunity_chart_is_interactive_with_price_tooltips():
     assert any("tooltip" in layer.get("encoding", {}) for layer in spec["layer"])
 
 
+def test_build_mini_opportunity_chart_fallback_explains_data_gap():
+    spec = build_mini_opportunity_chart(pd.DataFrame(), tone="watch").to_dict()
+    datasets = " ".join(str(value) for value in spec.get("datasets", {}).values())
+
+    assert "Sin historial local" in datasets
+    assert "Validar proveedor / recargar scanner" in datasets
+    assert len(spec["layer"]) == 3
+
+
 def test_top_opportunity_card_details_surface_next_action():
     details = top_opportunity_card_details(
         {
