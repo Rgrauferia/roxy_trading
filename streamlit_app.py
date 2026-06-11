@@ -8451,6 +8451,18 @@ def render_executive_cockpit(table: pd.DataFrame, confluence_df: pd.DataFrame, s
     summary = executive_cockpit_summary(table, confluence_df, scan_df, brief)
     if not summary["total"] and not summary["tape"]:
         return
+    if summary["ready"]:
+        action_tone = "buy"
+        action_label = "Prioridad: operar confirmado"
+        action_detail = f"{summary['ready']} listas · validar stop/target antes de paper"
+    elif summary["watch"]:
+        action_tone = "watch"
+        action_label = "Prioridad: esperar gatillo"
+        action_detail = f"{summary['watch']} en watch · no anticipar entrada"
+    else:
+        action_tone = "avoid"
+        action_label = "Prioridad: proteger capital"
+        action_detail = "Sin setups limpios · esperar nuevo scan"
     tape_items = []
     for row in summary["tape"][:5]:
         tone = text_display(row.get("tone"))
@@ -8468,6 +8480,10 @@ def render_executive_cockpit(table: pd.DataFrame, confluence_df: pd.DataFrame, s
                 <span>Roxy live cockpit</span>
                 <h2>{html.escape(summary['headline'])}</h2>
                 <p>{html.escape(summary['top_strategy'])} · Edge {html.escape(num_display(summary['top_edge'], 0))} · {html.escape(summary['top_next'])}</p>
+                <div class="exec-action-line exec-action-{html.escape(action_tone)}">
+                    <strong>{html.escape(action_label)}</strong>
+                    <small>{html.escape(action_detail)}</small>
+                </div>
             </div>
             <div class="exec-kpis">
                 <div><span>Operar</span><strong>{summary['ready']}</strong><small>{summary['validated']} validadas</small></div>
@@ -13191,7 +13207,7 @@ def main() -> None:
         .exit-board{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 10px;overflow:hidden}.exit-board>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.exit-board>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.exit-board>header span{color:#94a3b8;font-size:11px;text-align:right}.exit-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .exit-card{background:#0b1220;padding:8px 9px;border-top:2px solid rgba(148,163,184,.28);min-width:0}.exit-card header{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.exit-card header strong{color:#f8fafc;font-size:14px;font-weight:950}.exit-card header span{color:#e2e8f0;font-size:10px;line-height:1.1;text-align:right;font-weight:900;text-transform:uppercase}.exit-levels{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;margin-top:7px;background:rgba(148,163,184,.12);border-radius:6px;overflow:hidden}.exit-levels div{background:#0f172a;padding:5px}.exit-levels span{display:block;color:#94a3b8;font-size:8px;font-weight:950;text-transform:uppercase}.exit-levels b{display:block;color:#f8fafc;font-size:11px;line-height:1.05;margin-top:3px}.exit-card p{margin:7px 0 3px;color:#e2e8f0;font-size:11px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.exit-card small{display:block;color:#cbd5e1;font-size:10px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.exit-card-buy{border-top-color:#22c55e;background:rgba(21,93,62,.22)}.exit-card-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.20)}.exit-card-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}
         .executive-cockpit{display:grid;grid-template-columns:minmax(260px,1.1fr) minmax(380px,1.35fr) minmax(300px,.95fr);gap:1px;border:1px solid rgba(148,163,184,.26);border-radius:8px;background:rgba(148,163,184,.14);margin:6px 0 10px;overflow:hidden;box-shadow:0 18px 48px rgba(0,0,0,.24)}
-        .exec-main,.exec-kpis,.exec-tape{background:#070c16}.exec-main{padding:12px 14px;border-left:4px solid #f59e0b}.executive-cockpit-buy .exec-main{border-left-color:#22c55e}.executive-cockpit-avoid .exec-main{border-left-color:#ef4444}.exec-main span{display:block;color:#93c5fd;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.exec-main h2{margin:5px 0;color:#f8fafc;font-size:28px;line-height:1.02;font-weight:950;letter-spacing:-.02em}.exec-main p{margin:0;color:#cbd5e1;font-size:12px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .exec-main,.exec-kpis,.exec-tape{background:#070c16}.exec-main{padding:12px 14px;border-left:4px solid #f59e0b}.executive-cockpit-buy .exec-main{border-left-color:#22c55e}.executive-cockpit-avoid .exec-main{border-left-color:#ef4444}.exec-main span{display:block;color:#93c5fd;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.exec-main h2{margin:5px 0;color:#f8fafc;font-size:28px;line-height:1.02;font-weight:950;letter-spacing:-.02em}.exec-main p{margin:0;color:#cbd5e1;font-size:12px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.exec-action-line{display:grid;grid-template-columns:1fr;gap:2px;border:1px solid rgba(148,163,184,.22);border-radius:7px;margin-top:9px;padding:7px 8px;background:rgba(15,23,42,.70)}.exec-action-line strong{color:#f8fafc;font-size:12px;line-height:1.1;font-weight:950}.exec-action-line small{color:#cbd5e1;font-size:10px;line-height:1.15;font-weight:800}.exec-action-buy{border-color:rgba(34,197,94,.34);background:rgba(21,93,62,.20)}.exec-action-watch{border-color:rgba(245,158,11,.34);background:rgba(120,74,15,.18)}.exec-action-avoid{border-color:rgba(239,68,68,.34);background:rgba(127,29,29,.18)}
         .exec-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.exec-kpis div{background:#0b1220;padding:9px 10px}.exec-kpis span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase}.exec-kpis strong{display:block;color:#f8fafc;font-size:20px;line-height:1.05;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.exec-kpis small{display:block;color:#cbd5e1;font-size:10px;line-height:1.18;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .exec-tape{display:grid;grid-template-columns:1fr;gap:1px;background:rgba(148,163,184,.14)}.exec-tape-item{display:grid;grid-template-columns:.58fr .85fr;gap:2px 8px;background:#0b1220;padding:6px 9px;border-left:3px solid rgba(148,163,184,.30)}.exec-tape-item strong{color:#f8fafc;font-size:13px;line-height:1;font-weight:950}.exec-tape-item span{color:#e2e8f0;font-size:11px;text-align:right;font-weight:900}.exec-tape-item small{grid-column:1/3;color:#94a3b8;font-size:10px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.exec-tape-buy{border-left-color:#22c55e}.exec-tape-watch{border-left-color:#f59e0b}.exec-tape-avoid{border-left-color:#ef4444}
         .opportunity-matrix{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#070c16;margin:0 0 12px;overflow:hidden;box-shadow:0 14px 38px rgba(0,0,0,.20)}
