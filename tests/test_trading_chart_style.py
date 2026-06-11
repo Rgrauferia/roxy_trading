@@ -16,3 +16,5 @@ def test_style_trading_chart_uses_compact_terminal_axis_config():
     assert spec["config"]["axisX"]["labelAngle"] == 0
     assert spec["config"]["legend"]["orient"] == "bottom"
     assert spec["config"]["background"] == "#0b1220"
+    assert spec["params"][0]["bind"] == "scales"
+    assert spec["params"][0]["select"]["encodings"] == ["x"]

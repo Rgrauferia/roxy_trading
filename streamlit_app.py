@@ -1352,6 +1352,7 @@ def render_professional_chart_block(
         panels.append(volume_chart.properties(height=volume_height))
     if oscillator_chart is not None:
         panels.append(oscillator_chart.properties(height=oscillator_height))
+    st.caption("Grafica interactiva: arrastra para mover el tiempo, usa scroll/trackpad para zoom y pasa el cursor por velas para ver OHLC, volumen y medias.")
     if len(panels) > 1:
         combined_chart = alt.vconcat(*panels).resolve_scale(x="shared")
         st.altair_chart(style_trading_chart(combined_chart), width="stretch")
@@ -3106,7 +3107,8 @@ def build_professional_price_chart(
 
 def style_trading_chart(chart):
     return (
-        chart.configure(background="#0b1220")
+        chart.interactive(bind_y=False)
+        .configure(background="#0b1220")
         .configure_axis(
             grid=True,
             gridColor="rgba(148,163,184,0.16)",
