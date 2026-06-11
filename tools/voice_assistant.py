@@ -6,6 +6,14 @@ from typing import Any, Optional
 
 import storage
 
+from tools.roxy_interactive_brain import RoxyBrainReply
+from tools.roxy_interactive_brain import RoxyConversationMemory
+from tools.roxy_interactive_brain import RoxyFeedbackMemory
+from tools.roxy_interactive_brain import RoxyInteractiveBrain
+from tools.roxy_interactive_brain import RoxyUserProfile
+from tools.roxy_interactive_brain import build_voice_events
+from tools.roxy_interactive_brain import list_knowledge_sources
+
 
 BRIEF_PATH = Path("alerts/roxy_ai_brief.json")
 MEMORY_PATH = Path("alerts/roxy_ai_memory.json")
@@ -164,17 +172,44 @@ def _account_reply(query: str, user: Optional[str]) -> str | None:
     return None
 
 
-def generate_reply(query: str, user: Optional[str] = None) -> str:
+def generate_reply_state(query: str, user: Optional[str] = None, session_id: Optional[str] = None) -> dict[str, Any]:
     q = (query or "").strip()
     if not q:
-        return (
-            "Estoy aqui. Puedes decir: resumen, aprendizaje, laboratorio, alertas, "
-            "o preguntarme por un simbolo como AAPL."
-        )
+        response = RoxyInteractiveBrain(BRIEF_PATH, MEMORY_PATH).generate_reply(q, user=user, session_id=session_id)
+        state = response.as_dict()
+        state["events"] = build_voice_events(q, response)
+        return state
 
     account = _account_reply(q, user)
     if account:
-        return account
+        response = RoxyBrainReply(
+            reply=account,
+            intent="account",
+            safety_level="guarded",
+            suggested_actions=("ask_positions", "ask_latest_opportunity"),
+        )
+        state = {
+            "reply": account,
+            "intent": "account",
+            "voice_style": "female_es_latam",
+            "avatar_state": "speaking",
+            "emotion": "focused",
+            "should_speak": True,
+            "needs_live_source": False,
+            "safety_level": "guarded",
+            "priority": "normal",
+            "suggested_actions": ["ask_positions", "ask_latest_opportunity"],
+        }
+        state["events"] = build_voice_events(q, response)
+        return state
+
+    try:
+        response = RoxyInteractiveBrain(BRIEF_PATH, MEMORY_PATH).generate_reply(q, user=user, session_id=session_id)
+        state = response.as_dict()
+        state["events"] = build_voice_events(q, response)
+        return state
+    except Exception:
+        pass
 
     lq = q.lower()
     if any(term in lq for term in ("hola", "hello", "hi", "hey")):
@@ -207,3 +242,34 @@ def generate_reply(query: str, user: Optional[str] = None) -> str:
         "No encontre una lectura especifica para esa pregunta. Prueba con: "
         "resumen, aprendizaje, laboratorio, alertas, o un simbolo como AAPL."
     )
+
+
+def generate_reply(query: str, user: Optional[str] = None, session_id: Optional[str] = None) -> str:
+    state = generate_reply_state(query, user=user, session_id=session_id)
+    if isinstance(state, dict):
+        return str(state.get("reply") or "")
+    return str(state or "")
+
+
+def get_session_state(session_id: Optional[str], limit: int = 8) -> dict[str, Any]:
+    return RoxyConversationMemory().session_state(session_id, limit=limit)
+
+
+def get_user_profile(user: Optional[str]) -> dict[str, Any]:
+    return RoxyUserProfile().read(user)
+
+
+def update_user_profile(user: Optional[str], updates: dict[str, Any]) -> dict[str, Any]:
+    return RoxyUserProfile().update(user, updates)
+
+
+def get_knowledge_sources() -> list[dict[str, Any]]:
+    return list_knowledge_sources()
+
+
+def record_feedback(feedback: dict[str, Any]) -> dict[str, Any]:
+    return RoxyFeedbackMemory().record(feedback)
+
+
+def get_feedback_summary(user: Optional[str] = None) -> dict[str, Any]:
+    return RoxyFeedbackMemory().summary(user=user)
