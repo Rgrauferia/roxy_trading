@@ -24,6 +24,10 @@ import pandas as pd
 import sqlite3
 import streamlit as st
 import altair as alt
+try:
+    import yfinance as yf
+except Exception:  # pragma: no cover - optional runtime dependency
+    yf = None
 
 from chart_health import chart_freshness_status as shared_chart_freshness_status
 from chart_health import latest_chart_timestamp as shared_latest_chart_timestamp
@@ -970,6 +974,33 @@ def num_display(value, digits: int = 2) -> str:
         return "-"
 
 
+def compact_large_number(value) -> str:
+    number = safe_float(value)
+    if number is None:
+        return "-"
+    abs_number = abs(number)
+    for suffix, divisor in (("T", 1_000_000_000_000), ("B", 1_000_000_000), ("M", 1_000_000), ("K", 1_000)):
+        if abs_number >= divisor:
+            return f"{number / divisor:.2f}{suffix}"
+    return f"{number:.0f}"
+
+
+def company_profile_summary(profile: dict[str, Any]) -> dict[str, str]:
+    return {
+        "name": text_display(profile.get("longName") or profile.get("shortName")),
+        "sector": text_display(profile.get("sector")),
+        "industry": text_display(profile.get("industry")),
+        "country": text_display(profile.get("country")),
+        "market_cap": compact_large_number(profile.get("marketCap")),
+        "price": num_display(profile.get("currentPrice") or profile.get("regularMarketPrice"), 2),
+        "pe": num_display(profile.get("trailingPE"), 2),
+        "beta": num_display(profile.get("beta"), 2),
+        "range_52w": f"{num_display(profile.get('fiftyTwoWeekLow'), 2)} / {num_display(profile.get('fiftyTwoWeekHigh'), 2)}",
+        "website": text_display(profile.get("website")),
+        "summary": text_display(profile.get("longBusinessSummary")),
+    }
+
+
 def text_display(value) -> str:
     try:
         if pd.isna(value):
@@ -1326,6 +1357,70 @@ def load_symbol_trade_context(
         "confluence": confluence,
         "trade_brief": trade_brief,
     }
+
+
+@st.cache_data(ttl=21_600, show_spinner=False)
+def load_company_profile(symbol: str, market: str) -> dict[str, Any]:
+    clean_symbol = str(symbol or "").strip().upper()
+    if not clean_symbol or "/" in clean_symbol or str(market or "").lower() != "stock" or yf is None:
+        return {}
+    try:
+        ticker = yf.Ticker(clean_symbol)
+        info = getattr(ticker, "info", None) or {}
+    except Exception:
+        return {}
+    if not isinstance(info, dict):
+        return {}
+    return {
+        key: info.get(key)
+        for key in [
+            "longName",
+            "shortName",
+            "sector",
+            "industry",
+            "country",
+            "marketCap",
+            "currentPrice",
+            "regularMarketPrice",
+            "trailingPE",
+            "beta",
+            "fiftyTwoWeekLow",
+            "fiftyTwoWeekHigh",
+            "website",
+            "longBusinessSummary",
+        ]
+    }
+
+
+def render_company_profile_card(symbol: str, market: str) -> None:
+    profile = load_company_profile(symbol, market)
+    if not profile:
+        st.caption("Perfil de compania no disponible para este simbolo o mercado.")
+        return
+    summary = company_profile_summary(profile)
+    st.markdown("**Compañía**")
+    st.markdown(
+        f"""
+        <section class="company-profile-card">
+            <header>
+                <strong>{html.escape(summary['name'])}</strong>
+                <span>{html.escape(symbol.upper())} · {html.escape(summary['sector'])}</span>
+            </header>
+            <div class="company-profile-grid">
+                <div><span>Industria</span><strong>{html.escape(summary['industry'])}</strong></div>
+                <div><span>Market cap</span><strong>{html.escape(summary['market_cap'])}</strong></div>
+                <div><span>Precio</span><strong>{html.escape(summary['price'])}</strong></div>
+                <div><span>P/E</span><strong>{html.escape(summary['pe'])}</strong></div>
+                <div><span>Beta</span><strong>{html.escape(summary['beta'])}</strong></div>
+                <div><span>52W</span><strong>{html.escape(summary['range_52w'])}</strong></div>
+            </div>
+            <p>{html.escape(summary['summary'][:420])}</p>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+    if summary["website"] != "-":
+        st.link_button("Web compañía", summary["website"], use_container_width=True)
 
 
 def render_professional_chart_block(
@@ -9022,6 +9117,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
                 risk_per_trade_pct=float(risk_pct_ui) / 100.0,
             )
     with right:
+        render_company_profile_card(symbol, market)
         st.subheader("Carga rapida")
         quick_rows = best.head(7).to_dict("records") if not best.empty else []
         if quick_rows:
@@ -10390,6 +10486,9 @@ def main() -> None:
         .chart-context-buy{border-color:rgba(34,197,94,.44)}
         .chart-context-watch{border-color:rgba(245,158,11,.44)}
         .chart-context-avoid{border-color:rgba(239,68,68,.44)}
+        .company-profile-card{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#0b1220;margin:0 0 12px;overflow:hidden}
+        .company-profile-card header{padding:9px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.company-profile-card header strong{display:block;color:#f8fafc;font-size:15px;line-height:1.1;font-weight:950}.company-profile-card header span{display:block;color:#94a3b8;font-size:11px;line-height:1.2;margin-top:4px}
+        .company-profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:rgba(148,163,184,.14)}.company-profile-grid div{background:#0b1220;padding:7px 9px}.company-profile-grid span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase}.company-profile-grid strong{display:block;color:#f8fafc;font-size:12px;line-height:1.15;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.company-profile-card p{margin:0;padding:9px 10px;color:#cbd5e1;font-size:11px;line-height:1.32}
         [data-testid="stTabs"] button{font-weight:800;color:#cbd5e1}
         [data-testid="stTabs"] button[aria-selected="true"]{color:#a78bfa}
         [data-testid="stVegaLiteChart"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;background:#0b1220;padding:10px}
