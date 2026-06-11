@@ -11915,85 +11915,20 @@ def render_roxy_lab_visual(brief: dict, memory: dict) -> None:
     st.caption("Los cambios del laboratorio afectan ranking y alertas paper. Las ordenes reales siguen manuales hasta conectar un broker explicitamente.")
 
 
-def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, options_df: pd.DataFrame, brief: dict) -> None:
-    best = focused_opportunity_table(brief)
-    default_symbol = default_trade_plan_symbol(confluence_df, brief)
-    if "command_symbol" not in st.session_state:
-        st.session_state["command_symbol"] = default_symbol
-    pending_symbol = st.session_state.pop("command_symbol_pending", None)
-    if pending_symbol:
-        st.session_state["command_symbol"] = str(pending_symbol)
-    pending_market = st.session_state.pop("command_market_pending", None)
-    if pending_market:
-        st.session_state["command_market"] = str(pending_market)
 
-    st.subheader("Command Center")
-    control_cols = st.columns([1.0, 0.7, 0.65, 0.65, 0.65, 0.65])
-    with control_cols[0]:
-        symbol_input = st.text_input("Simbolo o crypto", value=st.session_state.get("command_symbol", default_symbol), key="command_symbol")
-    with control_cols[1]:
-        inferred_market = "crypto" if "/" in str(symbol_input) else "stock"
-        market = st.selectbox(
-            "Mercado",
-            ["stock", "crypto"],
-            index=1 if inferred_market == "crypto" else 0,
-            key="command_market",
-        )
-    with control_cols[2]:
-        timeframe = st.selectbox("Marco", TIMEFRAME_OPTIONS, index=1, key="command_timeframe")
-    with control_cols[3]:
-        account_equity = st.number_input(
-            "Capital disponible",
-            min_value=50.0,
-            value=100.0,
-            step=50.0,
-            key="command_equity",
-            help="Roxy calcula tamaño, riesgo y potencial según este capital; no usa un riesgo fijo.",
-        )
-    with control_cols[4]:
-        risk_pct_ui = st.number_input("Riesgo %", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key="command_risk")
-    with control_cols[5]:
-        clean_mode = st.toggle(
-            "Modo limpio",
-            value=True,
-            key="command_clean_mode",
-            help="Muestra primero oportunidades accionables y oculta paneles secundarios del Centro.",
-        )
-
-    render_alert_noise_contract(brief)
-    if clean_mode:
-        render_top_opportunity_cards(best, confluence_df)
-        render_trading_desk_table(best, confluence_df, scan_df)
-        render_confirmation_radar(confluence_df)
-        render_buy_readiness_gap_panel(confluence_df)
-        render_exit_plan_board(best, confluence_df)
-    else:
-        render_ticker_intel_strip(best, confluence_df, symbol_input)
-        render_company_research_hub(symbol_input, market)
-        render_live_provider_center()
-        render_alpaca_paper_execution_panel(best, account_equity=account_equity, risk_pct=risk_pct_ui / 100.0)
-        paper_journal_snapshot = render_alpaca_paper_journal_panel()
-        render_alpaca_paper_open_positions_panel(paper_journal_snapshot, best)
-        render_alpaca_paper_strategy_ranking(paper_journal_snapshot, best)
-        render_screener_preset_deck(best, confluence_df)
-        render_exit_plan_board(best, confluence_df)
-        render_executive_cockpit(best, confluence_df, scan_df, brief)
-        render_top_opportunity_cards(best, confluence_df)
-        render_market_movers_tape(best, confluence_df)
-        render_opportunity_compare_board(best, confluence_df)
-        render_opportunity_edge_heatmap(best, confluence_df)
-        render_trading_desk_table(best, confluence_df, scan_df)
-        render_confirmation_radar(confluence_df)
-        render_buy_readiness_gap_panel(confluence_df)
-        render_finviz_style_wallboard(best, confluence_df, brief)
-        render_opportunity_matrix(best, confluence_df)
-        render_confluence_validation_board(confluence_df)
-        render_market_breadth_strip(scan_df, confluence_df)
-        render_market_index_strip(scan_df, confluence_df)
-        render_technical_movers_strip(scan_df)
-        render_scanner_cockpit(best, confluence_df, options_df, brief)
-        render_market_pulse_dashboard(best)
-
+def render_dashboard_asset_panel(
+    confluence_df: pd.DataFrame,
+    options_df: pd.DataFrame,
+    brief: dict,
+    best: pd.DataFrame,
+    *,
+    default_symbol: str,
+    symbol_input: str,
+    market: str,
+    timeframe: str,
+    account_equity: float,
+    risk_pct: float,
+) -> None:
     left, right = st.columns([1.6, 0.72])
     with left:
         symbol = str(symbol_input or default_symbol or "AAPL").strip().upper()
@@ -12008,7 +11943,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
                     confluence_df=confluence_df,
                     options_df=options_df,
                     account_equity=float(account_equity),
-                    risk_per_trade_pct=float(risk_pct_ui) / 100.0,
+                    risk_per_trade_pct=float(risk_pct),
                     memory=load_memory(),
                 )
             except Exception as exc:
@@ -12019,7 +11954,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
                 context,
                 app_brief=brief,
                 account_equity=float(account_equity),
-                risk_per_trade_pct=float(risk_pct_ui) / 100.0,
+                risk_per_trade_pct=float(risk_pct),
             )
     with right:
         render_company_profile_card(symbol, market)
@@ -12107,6 +12042,98 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
                 else:
                     st.caption(f"Mostrando {min(len(filtered_watchlist), 15)} de {len(best)} oportunidades priorizadas.")
                     st.dataframe(focused_display_table_es(filtered_watchlist).head(15), width="stretch", height=320)
+
+def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, options_df: pd.DataFrame, brief: dict) -> None:
+    best = focused_opportunity_table(brief)
+    default_symbol = default_trade_plan_symbol(confluence_df, brief)
+    if "command_symbol" not in st.session_state:
+        st.session_state["command_symbol"] = default_symbol
+    pending_symbol = st.session_state.pop("command_symbol_pending", None)
+    if pending_symbol:
+        st.session_state["command_symbol"] = str(pending_symbol)
+    pending_market = st.session_state.pop("command_market_pending", None)
+    if pending_market:
+        st.session_state["command_market"] = str(pending_market)
+
+    st.subheader("Command Center")
+    control_cols = st.columns([1.0, 0.7, 0.65, 0.65, 0.65, 0.65])
+    with control_cols[0]:
+        symbol_input = st.text_input("Simbolo o crypto", value=st.session_state.get("command_symbol", default_symbol), key="command_symbol")
+    with control_cols[1]:
+        inferred_market = "crypto" if "/" in str(symbol_input) else "stock"
+        market = st.selectbox(
+            "Mercado",
+            ["stock", "crypto"],
+            index=1 if inferred_market == "crypto" else 0,
+            key="command_market",
+        )
+    with control_cols[2]:
+        timeframe = st.selectbox("Marco", TIMEFRAME_OPTIONS, index=1, key="command_timeframe")
+    with control_cols[3]:
+        account_equity = st.number_input(
+            "Capital disponible",
+            min_value=50.0,
+            value=100.0,
+            step=50.0,
+            key="command_equity",
+            help="Roxy calcula tamaño, riesgo y potencial según este capital; no usa un riesgo fijo.",
+        )
+    with control_cols[4]:
+        risk_pct_ui = st.number_input("Riesgo %", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key="command_risk")
+    with control_cols[5]:
+        clean_mode = st.toggle(
+            "Modo limpio",
+            value=True,
+            key="command_clean_mode",
+            help="Muestra primero oportunidades accionables y oculta paneles secundarios del Centro.",
+        )
+
+    render_alert_noise_contract(brief)
+    render_dashboard_asset_panel(
+        confluence_df,
+        options_df,
+        brief,
+        best,
+        default_symbol=default_symbol,
+        symbol_input=symbol_input,
+        market=market,
+        timeframe=timeframe,
+        account_equity=float(account_equity),
+        risk_pct=float(risk_pct_ui) / 100.0,
+    )
+    if clean_mode:
+        render_top_opportunity_cards(best, confluence_df)
+        render_trading_desk_table(best, confluence_df, scan_df)
+        render_confirmation_radar(confluence_df)
+        render_buy_readiness_gap_panel(confluence_df)
+        render_exit_plan_board(best, confluence_df)
+    else:
+        render_ticker_intel_strip(best, confluence_df, symbol_input)
+        render_company_research_hub(symbol_input, market)
+        render_live_provider_center()
+        render_alpaca_paper_execution_panel(best, account_equity=account_equity, risk_pct=risk_pct_ui / 100.0)
+        paper_journal_snapshot = render_alpaca_paper_journal_panel()
+        render_alpaca_paper_open_positions_panel(paper_journal_snapshot, best)
+        render_alpaca_paper_strategy_ranking(paper_journal_snapshot, best)
+        render_screener_preset_deck(best, confluence_df)
+        render_exit_plan_board(best, confluence_df)
+        render_executive_cockpit(best, confluence_df, scan_df, brief)
+        render_top_opportunity_cards(best, confluence_df)
+        render_market_movers_tape(best, confluence_df)
+        render_opportunity_compare_board(best, confluence_df)
+        render_opportunity_edge_heatmap(best, confluence_df)
+        render_trading_desk_table(best, confluence_df, scan_df)
+        render_confirmation_radar(confluence_df)
+        render_buy_readiness_gap_panel(confluence_df)
+        render_finviz_style_wallboard(best, confluence_df, brief)
+        render_opportunity_matrix(best, confluence_df)
+        render_confluence_validation_board(confluence_df)
+        render_market_breadth_strip(scan_df, confluence_df)
+        render_market_index_strip(scan_df, confluence_df)
+        render_technical_movers_strip(scan_df)
+        render_scanner_cockpit(best, confluence_df, options_df, brief)
+        render_market_pulse_dashboard(best)
+
 
 
 def show_focused_opportunities(confluence_df: pd.DataFrame, options_df: pd.DataFrame, brief: dict) -> None:
