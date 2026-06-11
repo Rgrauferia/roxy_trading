@@ -1,6 +1,6 @@
 import pandas as pd
 
-from streamlit_app import buy_gap_next_step, buy_readiness_gap_rows
+from streamlit_app import buy_gap_next_step, buy_readiness_blocker_summary, buy_readiness_gap_rows
 
 
 def test_buy_readiness_gap_rows_lists_missing_buy_requirements():
@@ -67,3 +67,66 @@ def test_buy_readiness_gap_rows_handles_empty_input():
 
 def test_buy_gap_next_step_uses_first_blocker_as_action():
     assert buy_gap_next_step(["riesgo <=3.5%", "volumen acompaña"], False) == "Mejorar entrada/stop o descartar si el riesgo sigue alto."
+
+
+def test_buy_readiness_blocker_summary_prioritizes_repeated_gap():
+    confluence = pd.DataFrame(
+        [
+            {
+                "symbol": "WMT",
+                "signal": "WATCH",
+                "trade_decision": "WAIT",
+                "confluence_score": 88,
+                "trigger_raw_signal": "BUY",
+                "trend_signal": "WATCH",
+                "trend_setup": "CHANNEL_BREAK",
+                "higher_tf_confirmations": 2,
+                "higher_tf_blocks": 0,
+                "risk_pct": 0.022,
+                "relative_volume_15m": 1.1,
+                "target_2pct_ok": False,
+                "backtest_eligible": True,
+            },
+            {
+                "symbol": "SCHW",
+                "signal": "WATCH",
+                "trade_decision": "WAIT",
+                "confluence_score": 84,
+                "trigger_raw_signal": "BUY",
+                "trend_signal": "WATCH",
+                "trend_setup": "PULLBACK",
+                "higher_tf_confirmations": 1,
+                "higher_tf_blocks": 0,
+                "risk_pct": 0.026,
+                "relative_volume_15m": 0.9,
+                "target_2pct_ok": False,
+                "backtest_eligible": True,
+            },
+            {
+                "symbol": "COST",
+                "signal": "BUY",
+                "trade_decision": "TRADE_FOR_2PCT",
+                "confluence_score": 90,
+                "trigger_raw_signal": "BUY",
+                "trend_signal": "BUY",
+                "trend_setup": "TREND_CONTINUATION",
+                "higher_tf_confirmations": 2,
+                "higher_tf_blocks": 0,
+                "risk_pct": 0.017,
+                "relative_volume_15m": 1.3,
+                "target_2pct_ok": True,
+                "backtest_eligible": True,
+            },
+        ]
+    )
+
+    summary = buy_readiness_blocker_summary(confluence)
+
+    assert summary["dominant"] == "target 2% viable"
+    assert summary["count"] == 2
+    assert summary["ready"] == 1
+    assert summary["watch"] == 2
+    assert summary["avoid"] == 0
+    assert summary["avg_readiness"] is not None
+    assert "target mínimo 2%" in summary["next_step"]
+    assert summary["symbols"] == "WMT · SCHW"

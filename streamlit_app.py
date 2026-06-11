@@ -9427,6 +9427,65 @@ def buy_readiness_gap_rows(confluence_df: pd.DataFrame, *, limit: int = 8) -> pd
     result = result.sort_values(["tone_order", "missing_count", "score_sort"], ascending=[True, True, False]).head(limit)
     return result.drop(columns=["tone_order", "score_sort"]).reset_index(drop=True)
 
+def buy_readiness_blocker_summary(confluence_df: pd.DataFrame) -> dict[str, Any]:
+    gap_rows = buy_readiness_gap_rows(confluence_df, limit=50)
+    if gap_rows.empty:
+        return {
+            "dominant": "-",
+            "count": 0,
+            "tone": "neutral",
+            "ready": 0,
+            "watch": 0,
+            "avoid": 0,
+            "avg_readiness": None,
+            "next_step": "Sin datos suficientes para priorizar.",
+            "symbols": "-",
+        }
+    blocker_counts: dict[str, int] = {}
+    blocker_symbols: dict[str, list[str]] = {}
+    for row in gap_rows.to_dict("records"):
+        symbol = text_display(row.get("symbol")).upper()
+        missing_text = text_display(row.get("missing"))
+        if missing_text in {"-", "Listo para operar"}:
+            continue
+        for blocker in [part.strip() for part in missing_text.split("·") if part.strip()]:
+            blocker_counts[blocker] = blocker_counts.get(blocker, 0) + 1
+            symbols = blocker_symbols.setdefault(blocker, [])
+            if symbol and symbol not in symbols and len(symbols) < 5:
+                symbols.append(symbol)
+    if blocker_counts:
+        dominant = sorted(blocker_counts, key=lambda item: (-blocker_counts[item], item))[0]
+        count = blocker_counts[dominant]
+        next_step = buy_gap_next_step([dominant], False)
+        symbols_text = " · ".join(blocker_symbols.get(dominant, [])) or "-"
+    else:
+        dominant = "Listos para operar"
+        count = int(gap_rows["ready"].fillna(False).astype(bool).sum())
+        next_step = "Revisar ticket manual, stop, target y tamaño antes de operar."
+        symbols_text = " · ".join(gap_rows["symbol"].astype(str).head(5).tolist())
+    tones = gap_rows["tone"].astype(str).str.lower()
+    avg_readiness = safe_float(pd.to_numeric(gap_rows["readiness_pct"], errors="coerce").mean())
+    if dominant in {"riesgo <=3.5%", "2h/4h no bloquean"}:
+        tone = "avoid"
+    elif dominant == "Listos para operar":
+        tone = "buy"
+    elif count >= 3:
+        tone = "watch"
+    else:
+        tone = "neutral"
+    return {
+        "dominant": dominant,
+        "count": count,
+        "tone": tone,
+        "ready": int((tones == "buy").sum()),
+        "watch": int((tones == "watch").sum()),
+        "avoid": int((tones == "avoid").sum()),
+        "avg_readiness": avg_readiness,
+        "next_step": next_step,
+        "symbols": symbols_text,
+    }
+
+
 
 def confirmation_radar_action(requirement: str) -> str:
     actions = {
@@ -9510,6 +9569,20 @@ def render_buy_readiness_gap_panel(confluence_df: pd.DataFrame) -> None:
     rows = buy_readiness_gap_rows(confluence_df, limit=8)
     if rows.empty:
         return
+    summary = buy_readiness_blocker_summary(confluence_df)
+    summary_tone = text_display(summary.get("tone"))
+    avg_readiness = summary.get("avg_readiness")
+    readiness_label = "-" if avg_readiness is None else f"{avg_readiness:.0f}%"
+    strip = (
+        f'<div class="buy-gap-strip buy-gap-strip-{html.escape(summary_tone)}">'
+        '<section><span>Bloqueo dominante</span>'
+        f'<strong>{html.escape(text_display(summary.get("dominant")))}</strong>'
+        f'<em>{int(summary.get("count") or 0)} tickers · readiness avg {html.escape(readiness_label)} · {html.escape(text_display(summary.get("symbols")))}</em></section>'
+        '<section><span>Estado scanner</span>'
+        f'<strong>{int(summary.get("ready") or 0)} operar · {int(summary.get("watch") or 0)} vigilar · {int(summary.get("avoid") or 0)} evitar</strong>'
+        f'<em>{html.escape(text_display(summary.get("next_step")))}</em></section>'
+        "</div>"
+    )
     cards = []
     for row in rows.to_dict("records"):
         tone = text_display(row.get("tone"))
@@ -9525,10 +9598,12 @@ def render_buy_readiness_gap_panel(confluence_df: pd.DataFrame) -> None:
         )
     st.markdown(
         '<section class="buy-gap-panel"><header><strong>Qué falta para BUY</strong><span>Diagnóstico directo antes de operar: gatillo, HTF, riesgo, volumen, target y backtest.</span></header><div class="buy-gap-grid">'
+        + strip
         + "".join(cards)
         + "</div></section>",
         unsafe_allow_html=True,
     )
+
 
 
 def scanner_blotter_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, *, limit: int = 24) -> pd.DataFrame:
@@ -12686,6 +12761,7 @@ def main() -> None:
         .buy-gap-panel{border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0b1220;margin:0 0 12px;overflow:hidden}
         .buy-gap-panel header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.buy-gap-panel header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.buy-gap-panel header span{color:#94a3b8;font-size:11px;line-height:1.2;text-align:right}
         .buy-gap-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
+        .buy-gap-strip{grid-column:1/-1;display:grid;grid-template-columns:1.08fr .92fr;gap:1px;background:rgba(148,163,184,.14);border-bottom:1px solid rgba(148,163,184,.14)}.buy-gap-strip section{background:#0f172a;padding:9px 11px;border-top:2px solid rgba(96,165,250,.55)}.buy-gap-strip span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.buy-gap-strip strong{display:block;color:#f8fafc;font-size:16px;line-height:1.08;font-weight:950;margin-top:3px}.buy-gap-strip em{display:block;color:#cbd5e1;font-size:10.5px;line-height:1.2;font-style:normal;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.buy-gap-strip-buy section{border-top-color:#22c55e;background:rgba(21,93,62,.26)}.buy-gap-strip-watch section{border-top-color:#f59e0b;background:rgba(120,74,15,.24)}.buy-gap-strip-avoid section{border-top-color:#ef4444;background:rgba(127,29,29,.24)}
         .confirmation-radar{border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#080d18;margin:0 0 10px;overflow:hidden}.confirmation-radar header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.confirmation-radar header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.confirmation-radar header span{color:#94a3b8;font-size:11px;line-height:1.2;text-align:right}.confirm-radar-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.confirm-radar-card{background:#0b1220;border-top:2px solid rgba(148,163,184,.30);padding:8px 9px;min-width:0}.confirm-radar-card header{display:flex;background:transparent;border:0;padding:0;align-items:flex-start}.confirm-radar-card header strong{color:#f8fafc;font-size:12px;line-height:1.08;text-transform:none;letter-spacing:0}.confirm-radar-card header span{color:#f8fafc;font-size:18px;line-height:1;font-weight:950;text-align:right}.confirm-radar-card p{margin:7px 0 4px;color:#e2e8f0;font-size:10.5px;line-height:1.15;font-weight:850}.confirm-radar-card small{display:block;color:#93c5fd;font-size:10px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.confirm-radar-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.20)}.confirm-radar-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.20)}.confirm-radar-neutral{border-top-color:#60a5fa}
         .buy-gap-card{background:#0b1220;border-top:2px solid rgba(148,163,184,.28);padding:8px 9px;min-height:132px}.buy-gap-card div{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.buy-gap-card strong{color:#f8fafc;font-size:15px;line-height:1;font-weight:950}.buy-gap-card span{color:#e2e8f0;font-size:10px;text-transform:uppercase;font-weight:950;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.buy-gap-card em{display:block;color:#f8fafc;font-size:10px;line-height:1.18;font-style:normal;margin-top:6px}.buy-gap-progress{display:block;height:7px;border-radius:999px;background:#1f2937;overflow:hidden;margin-top:6px}.buy-gap-progress u{display:block;height:100%;border-radius:999px;background:#f59e0b;text-decoration:none}.buy-gap-card small{display:block;color:#fecaca;font-size:10px;line-height:1.18;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.buy-gap-card i{display:block;color:#bbf7d0;font-size:10px;line-height:1.18;font-style:normal;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.buy-gap-buy{border-top-color:#22c55e;background:rgba(21,93,62,.25)}.buy-gap-buy .buy-gap-progress u{background:#22c55e}.buy-gap-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.22)}.buy-gap-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}.buy-gap-avoid .buy-gap-progress u{background:#ef4444}
         .kpibox{display:inline-block;padding:8px 12px;background:#081023;border-radius:8px;margin-right:8px;color:var(--muted)}
@@ -12761,7 +12837,7 @@ def main() -> None:
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
         @media (max-width:1100px){.ticker-intel,.alpaca-gate,.alpaca-paper-panel{grid-template-columns:1fr}.ticker-intel-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.paper-journal-summary,.paper-exec-summary,.trading-desk-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.paper-position-grid,.paper-strategy-grid,.paper-journal-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exit-grid,.provider-grid,.preset-grid,.research-grid,.paper-exec-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.confirm-radar-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-grid-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
         @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.brand-logo-img{width:150px;max-width:42vw}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
-        @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.ticker-intel-kpis{grid-template-columns:1fr 1fr}.ticker-intel-main h3{font-size:23px}.company-research>header,.confirmation-radar>header,.exit-board>header,.paper-position-panel>header,.paper-strategy-panel>header,.paper-journal-panel>header,.paper-exec-panel>header,.provider-center>header,.screener-presets>header{display:block}.company-research>header span,.confirmation-radar>header span,.exit-board>header span,.paper-position-panel>header span,.paper-strategy-panel>header span,.paper-journal-panel>header span,.paper-exec-panel>header span,.provider-center>header span,.screener-presets>header span{display:block;text-align:left;margin-top:4px}.paper-position-grid,.paper-strategy-grid,.paper-journal-grid{grid-template-columns:1fr}.exit-grid,.provider-grid,.preset-grid,.research-grid,.confirm-radar-grid,.paper-exec-grid{grid-template-columns:1fr}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.compare-board>header{display:block}.compare-board>header span{display:block;text-align:left;margin-top:4px}.compare-grid-cards{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
+        @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.ticker-intel-kpis{grid-template-columns:1fr 1fr}.ticker-intel-main h3{font-size:23px}.company-research>header,.confirmation-radar>header,.exit-board>header,.paper-position-panel>header,.paper-strategy-panel>header,.paper-journal-panel>header,.paper-exec-panel>header,.provider-center>header,.screener-presets>header{display:block}.company-research>header span,.confirmation-radar>header span,.exit-board>header span,.paper-position-panel>header span,.paper-strategy-panel>header span,.paper-journal-panel>header span,.paper-exec-panel>header span,.provider-center>header span,.screener-presets>header span{display:block;text-align:left;margin-top:4px}.paper-position-grid,.paper-strategy-grid,.paper-journal-grid{grid-template-columns:1fr}.exit-grid,.provider-grid,.preset-grid,.research-grid,.confirm-radar-grid,.paper-exec-grid{grid-template-columns:1fr}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.compare-board>header{display:block}.compare-board>header span{display:block;text-align:left;margin-top:4px}.compare-grid-cards{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.buy-gap-strip{grid-template-columns:1fr}.buy-gap-strip em{white-space:normal}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
         </style>
         """,
         unsafe_allow_html=True,
