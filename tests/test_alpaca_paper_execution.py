@@ -1,6 +1,7 @@
 import pandas as pd
 
 from streamlit_app import (
+    alpaca_paper_execution_gaps,
     alpaca_paper_order_candidates,
     focused_opportunity_table,
     submit_alpaca_paper_bracket_order,
@@ -56,6 +57,51 @@ def test_alpaca_paper_order_candidates_skip_crypto_and_missing_levels():
     )
 
     assert alpaca_paper_order_candidates(table).empty
+
+
+def test_alpaca_paper_execution_gaps_explain_blocked_setups():
+    table = pd.DataFrame(
+        [
+            {
+                "action": "WATCH",
+                "symbol": "WMT",
+                "market": "stock",
+                "signal": "WATCH",
+                "decision": "WAIT",
+                "entry": 120.0,
+                "stop": 118.0,
+                "target_pct": 0.03,
+            },
+            {
+                "action": "ALERT",
+                "symbol": "AAPL",
+                "market": "stock",
+                "signal": "BUY",
+                "decision": "TRADE_FOR_2PCT",
+                "entry": 180.0,
+                "stop": None,
+                "target_price": 185.0,
+            },
+            {
+                "action": "ALERT",
+                "symbol": "BTC/USD",
+                "market": "crypto",
+                "signal": "BUY",
+                "decision": "TRADE_FOR_2PCT",
+                "entry": 1.0,
+                "stop": 0.9,
+                "target_price": 1.1,
+            },
+        ]
+    )
+
+    gaps = alpaca_paper_execution_gaps(table)
+
+    assert gaps["symbol"].tolist() == ["WMT", "AAPL", "BTC/USD"]
+    assert gaps["status"].tolist() == ["Esperando setup", "Faltan niveles", "No soportado"]
+    assert "15m" in gaps.iloc[0]["next_step"]
+    assert "entrada, stop" in gaps.iloc[1]["next_step"]
+    assert "crypto" in gaps.iloc[2]["next_step"].lower()
 
 
 def test_submit_alpaca_paper_bracket_order_blocks_live_env_before_client_call():
