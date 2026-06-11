@@ -7344,16 +7344,57 @@ def trading_desk_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, scan_df:
     return display[columns]
 
 
+def filter_trading_desk_display(
+    rows: pd.DataFrame,
+    *,
+    status: str = "Todos",
+    query: str = "",
+    min_score: float = 0,
+) -> pd.DataFrame:
+    if rows.empty:
+        return rows
+    filtered = rows.copy()
+    if status != "Todos" and "Estado" in filtered.columns:
+        filtered = filtered[filtered["Estado"].astype(str).eq(status)]
+    if min_score and "Score" in filtered.columns:
+        scores = pd.to_numeric(filtered["Score"], errors="coerce").fillna(0)
+        filtered = filtered[scores.ge(float(min_score))]
+    search = str(query or "").strip().lower()
+    if search:
+        searchable_columns = [col for col in ["Ticker", "Setup", "Siguiente", "Razón", "Mover"] if col in filtered.columns]
+        if searchable_columns:
+            mask = pd.Series(False, index=filtered.index)
+            for column in searchable_columns:
+                mask |= filtered[column].astype(str).str.lower().str.contains(search, regex=False, na=False)
+            filtered = filtered[mask]
+    filtered = filtered.reset_index(drop=True)
+    if "#" in filtered.columns:
+        filtered["#"] = filtered.index + 1
+    return filtered
+
+
 def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, scan_df: pd.DataFrame) -> None:
     rows = trading_desk_rows(table, confluence_df, scan_df, limit=18)
     if rows.empty:
         return
     st.markdown("**Trading Desk**")
+    filter_cols = st.columns([0.75, 0.75, 1.3])
+    with filter_cols[0]:
+        status_options = ["Todos"] + sorted([status for status in rows["Estado"].dropna().astype(str).unique() if status and status != "-"])
+        status_filter = st.selectbox("Estado desk", status_options, key="trading_desk_status_filter")
+    with filter_cols[1]:
+        min_score = st.slider("Score min", min_value=0, max_value=100, value=0, step=5, key="trading_desk_score_filter")
+    with filter_cols[2]:
+        query = st.text_input("Buscar ticker/setup/razon", value="", key="trading_desk_query_filter")
+    display_rows = filter_trading_desk_display(rows, status=status_filter, query=query, min_score=min_score)
+    if display_rows.empty:
+        st.info("El filtro actual no deja oportunidades visibles.")
+        return
     st.dataframe(
-        rows,
+        display_rows,
         use_container_width=True,
         hide_index=True,
-        height=min(560, 58 + len(rows) * 28),
+        height=min(560, 58 + len(display_rows) * 28),
     )
 
 

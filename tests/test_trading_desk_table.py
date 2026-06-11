@@ -1,6 +1,6 @@
 import pandas as pd
 
-from streamlit_app import focused_opportunity_table, trading_desk_rows
+from streamlit_app import filter_trading_desk_display, focused_opportunity_table, trading_desk_rows
 
 
 def test_trading_desk_rows_merge_edge_validation_and_movers():
@@ -112,3 +112,17 @@ def test_trading_desk_rows_returns_expected_columns_when_empty():
 
     assert rows.columns.tolist() == ["#", "Ticker", "Estado", "Edge", "Score", "Riesgo", "Target", "RVol", "HTF", "Mover", "Setup", "Siguiente", "Razón"]
     assert rows.empty
+
+def test_filter_trading_desk_display_filters_status_score_and_query():
+    rows = pd.DataFrame(
+        [
+            {"#": 1, "Ticker": "AAPL", "Estado": "Operar", "Score": "92", "Setup": "Pullback", "Siguiente": "Confirmar", "Razón": "1h confirma", "Mover": "Ruptura"},
+            {"#": 2, "Ticker": "MSFT", "Estado": "Vigilar", "Score": "74", "Setup": "Canal", "Siguiente": "Esperar", "Razón": "Falta 15m", "Mover": "Pullback"},
+            {"#": 3, "Ticker": "TSLA", "Estado": "Evitar", "Score": "65", "Setup": "Debilidad", "Siguiente": "No tocar", "Razón": "Riesgo alto", "Mover": "Debilidad"},
+        ]
+    )
+
+    filtered = filter_trading_desk_display(rows, status="Vigilar", min_score=70, query="canal")
+
+    assert filtered["Ticker"].tolist() == ["MSFT"]
+    assert filtered["#"].tolist() == [1]
