@@ -241,6 +241,20 @@ def test_roxy_feedback_memory_records_and_summarizes(tmp_path):
     assert "secret123" not in json.dumps(summary)
 
 
+def test_roxy_feedback_memory_returns_intent_guidance(tmp_path):
+    feedback = RoxyFeedbackMemory(path=tmp_path / "feedback.json")
+
+    feedback.record({"rating": "down", "user": "local", "intent": "opportunity", "note": "mas corto"})
+    feedback.record({"rating": "up", "user": "local", "intent": "capabilities"})
+
+    guidance = feedback.guidance_for_intent("opportunity", user="local")
+
+    assert guidance["total"] == 1
+    assert guidance["down"] == 1
+    assert guidance["needs_adjustment"] is True
+    assert guidance["latest_note"] == "mas corto"
+
+
 def test_roxy_brain_reports_feedback_learning(tmp_path):
     feedback = RoxyFeedbackMemory(path=tmp_path / "feedback.json")
     feedback.record({"rating": "up", "user": "local", "intent": "capabilities", "query": "q", "reply": "r"})
@@ -255,3 +269,45 @@ def test_roxy_brain_reports_feedback_learning(tmp_path):
     assert response.intent == "feedback_learning"
     assert "1 feedback" in response.reply
     assert "capabilities" in response.reply
+
+
+def test_roxy_brain_applies_negative_feedback_to_next_same_intent(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "symbol": "SPY",
+                        "ai_action": "WATCH",
+                        "strategy_family": "Trend",
+                        "trade_decision": "WAIT",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    feedback = RoxyFeedbackMemory(path=tmp_path / "feedback.json")
+    feedback.record(
+        {
+            "rating": "down",
+            "user": "local",
+            "intent": "opportunity",
+            "query": "resumen",
+            "reply": "demasiado largo",
+            "note": "mas directo",
+        }
+    )
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        feedback_memory=feedback,
+    )
+
+    response = brain.generate_reply("resumen de oportunidad", user="local")
+
+    assert response.intent == "opportunity"
+    assert response.reply.startswith("Ajuste por tu feedback")
+    assert "mas directo" in response.reply
+    assert "feedback_adjusted" in response.suggested_actions

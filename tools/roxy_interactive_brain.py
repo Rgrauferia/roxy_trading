@@ -277,7 +277,7 @@ class RoxyFeedbackMemory:
         self.path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
         return item
 
-    def summary(self, user: str | None = None, limit: int = 200) -> dict[str, Any]:
+    def _items(self, user: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
         payload = _load_json(self.path)
         items = payload.get("items") if isinstance(payload, dict) else []
         if not isinstance(items, list):
@@ -285,7 +285,10 @@ class RoxyFeedbackMemory:
         if user:
             safe_user = _safe_session_id(user)
             items = [item for item in items if isinstance(item, dict) and item.get("user") == safe_user]
-        clean_items = [item for item in items[-limit:] if isinstance(item, dict)]
+        return [item for item in items[-limit:] if isinstance(item, dict)]
+
+    def summary(self, user: str | None = None, limit: int = 200) -> dict[str, Any]:
+        clean_items = self._items(user=user, limit=limit)
         by_intent: dict[str, dict[str, int]] = {}
         for item in clean_items:
             intent = _safe_text(item.get("intent")) or "unknown"
@@ -308,6 +311,27 @@ class RoxyFeedbackMemory:
             "down": down,
             "top_intents": top_intents[:8],
             "recent": clean_items[-10:],
+        }
+
+    def guidance_for_intent(self, intent: str, user: str | None = None) -> dict[str, Any]:
+        target = _safe_text(intent)
+        if not target:
+            return {"total": 0, "up": 0, "down": 0, "needs_adjustment": False, "latest_note": ""}
+
+        rows = [item for item in self._items(user=user) if _safe_text(item.get("intent")) == target]
+        up = sum(1 for item in rows if item.get("rating") == "up")
+        down = sum(1 for item in rows if item.get("rating") == "down")
+        latest_note = ""
+        for item in reversed(rows):
+            if item.get("rating") == "down":
+                latest_note = _safe_text(item.get("note"))
+                break
+        return {
+            "total": len(rows),
+            "up": up,
+            "down": down,
+            "needs_adjustment": down > 0 and down >= up,
+            "latest_note": latest_note[:180],
         }
 
 
@@ -497,26 +521,28 @@ class RoxyInteractiveBrain:
         q = (query or "").strip()
         recent_turns = self.conversation_memory.recent_turns(session_id)
         profile = self.user_profile.read(user)
+
+        def finish(response: RoxyBrainReply) -> RoxyBrainReply:
+            adjusted = self._apply_feedback_guidance(response, user)
+            self.conversation_memory.append(session_id, q, adjusted)
+            return adjusted
+
         if not q:
             response = self._idle_reply(user, recent_turns, profile)
-            self.conversation_memory.append(session_id, q, response)
-            return response
+            return finish(response)
 
         lq = q.lower()
         if _contains_any(lq, ("hola", "hello", "hi", "hey", "buenos dias", "buenas")):
             response = self._greeting_reply(user, profile)
-            self.conversation_memory.append(session_id, q, response)
-            return response
+            return finish(response)
 
         if _contains_any(lq, ("quien eres", "tu rostro", "cara", "avatar", "identidad", "roxy")):
             response = self._identity_reply()
-            self.conversation_memory.append(session_id, q, response)
-            return response
+            return finish(response)
 
         if _contains_any(lq, ("que puedes", "ayuda", "hablar", "conversacion", "voz", "fluida")):
             response = self._capability_reply(profile)
-            self.conversation_memory.append(session_id, q, response)
-            return response
+            return finish(response)
 
         if _contains_any(
             lq,
@@ -534,13 +560,11 @@ class RoxyInteractiveBrain:
             ),
         ):
             response = self._action_guardrail_reply(q)
-            self.conversation_memory.append(session_id, q, response)
-            return response
+            return finish(response)
 
         if _contains_any(lq, ("noticia", "news", "titular", "mercado hoy", "actualidad")):
             response = self._news_reply()
-            self.conversation_memory.append(session_id, q, response)
-            return response
+            return finish(response)
 
         if _contains_any(
             lq,
@@ -556,21 +580,18 @@ class RoxyInteractiveBrain:
             ),
         ):
             response = self._knowledge_reply(q)
-            self.conversation_memory.append(session_id, q, response)
-            return response
+            return finish(response)
 
         if _contains_any(lq, ("aprendizaje", "aprendiendo", "aprendiste", "aprendi", "learning", "memoria")):
             if _contains_any(lq, ("feedback", "opinion", "calificacion", "calificaciones", "te sirvio")):
                 response = self._feedback_learning_reply(user)
             else:
                 response = self._learning_reply()
-            self.conversation_memory.append(session_id, q, response)
-            return response
+            return finish(response)
 
         if _contains_any(lq, ("laboratorio", "experimento", "estrategia nueva", "mejora")):
             response = self._lab_reply()
-            self.conversation_memory.append(session_id, q, response)
-            return response
+            return finish(response)
 
         if _contains_any(
             lq,
@@ -588,18 +609,42 @@ class RoxyInteractiveBrain:
             ),
         ):
             response = self._opportunity_reply(q)
-            self.conversation_memory.append(session_id, q, response)
-            return response
+            return finish(response)
 
         symbol = _extract_symbol(q)
         if symbol:
             response = self._opportunity_reply(q)
-            self.conversation_memory.append(session_id, q, response)
-            return response
+            return finish(response)
 
         response = self._contextual_fallback(recent_turns)
-        self.conversation_memory.append(session_id, q, response)
-        return response
+        return finish(response)
+
+    def _apply_feedback_guidance(self, response: RoxyBrainReply, user: str | None) -> RoxyBrainReply:
+        if response.intent in {"feedback_learning", "action_confirmation_required"}:
+            return response
+
+        guidance = self.feedback_memory.guidance_for_intent(response.intent, user=user)
+        if not guidance.get("needs_adjustment"):
+            return response
+
+        note = _safe_text(guidance.get("latest_note"))
+        note_text = f" Nota que voy a corregir: {note}." if note else ""
+        reply = (
+            "Ajuste por tu feedback: voy mas directo, separando lectura, riesgo y siguiente paso. "
+            f"{response.reply}{note_text}"
+        )
+        return RoxyBrainReply(
+            reply=reply,
+            intent=response.intent,
+            voice_style=response.voice_style,
+            avatar_state=response.avatar_state,
+            emotion=response.emotion,
+            should_speak=response.should_speak,
+            needs_live_source=response.needs_live_source,
+            safety_level=response.safety_level,
+            priority=response.priority,
+            suggested_actions=response.suggested_actions + ("feedback_adjusted",),
+        )
 
     def _contextual_fallback(self, recent_turns: list[dict[str, Any]]) -> RoxyBrainReply:
         last_intent = ""
