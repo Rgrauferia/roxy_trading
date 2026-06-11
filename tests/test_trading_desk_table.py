@@ -116,9 +116,9 @@ def test_trading_desk_rows_returns_expected_columns_when_empty():
 def test_filter_trading_desk_display_filters_status_score_and_query():
     rows = pd.DataFrame(
         [
-            {"#": 1, "Ticker": "AAPL", "Estado": "Operar", "Score": "92", "Setup": "Pullback", "Siguiente": "Confirmar", "Razón": "1h confirma", "Mover": "Ruptura"},
-            {"#": 2, "Ticker": "MSFT", "Estado": "Vigilar", "Score": "74", "Setup": "Canal", "Siguiente": "Esperar", "Razón": "Falta 15m", "Mover": "Pullback"},
-            {"#": 3, "Ticker": "TSLA", "Estado": "Evitar", "Score": "65", "Setup": "Debilidad", "Siguiente": "No tocar", "Razón": "Riesgo alto", "Mover": "Debilidad"},
+            {"#": 1, "Ticker": "AAPL", "Estado": "Operar", "Score": "92", "Riesgo": "1.80%", "RVol": "1.4x", "Setup": "Pullback", "Siguiente": "Confirmar", "Razón": "1h confirma", "Mover": "Ruptura"},
+            {"#": 2, "Ticker": "MSFT", "Estado": "Vigilar", "Score": "74", "Riesgo": "3.20%", "RVol": "0.8x", "Setup": "Canal", "Siguiente": "Esperar", "Razón": "Falta 15m", "Mover": "Pullback"},
+            {"#": 3, "Ticker": "TSLA", "Estado": "Evitar", "Score": "65", "Riesgo": "7.00%", "RVol": "1.1x", "Setup": "Debilidad", "Siguiente": "No tocar", "Razón": "Riesgo alto", "Mover": "Debilidad"},
         ]
     )
 
@@ -126,3 +126,19 @@ def test_filter_trading_desk_display_filters_status_score_and_query():
 
     assert filtered["Ticker"].tolist() == ["MSFT"]
     assert filtered["#"].tolist() == [1]
+
+
+def test_filter_trading_desk_display_applies_fast_presets():
+    rows = pd.DataFrame(
+        [
+            {"#": 1, "Ticker": "AAPL", "Estado": "Operar", "Score": "92", "Riesgo": "1.80%", "RVol": "1.4x", "Setup": "Pullback", "Siguiente": "Confirmar", "Razón": "1h confirma", "Mover": "Ruptura"},
+            {"#": 2, "Ticker": "NVDA", "Estado": "Vigilar", "Score": "88", "Riesgo": "2.20%", "RVol": "1.8x", "Setup": "Canal", "Siguiente": "Esperar", "Razón": "Volumen vivo", "Mover": "Ruptura"},
+            {"#": 3, "Ticker": "TSLA", "Estado": "Evitar", "Score": "65", "Riesgo": "7.00%", "RVol": "0.7x", "Setup": "Debilidad", "Siguiente": "No tocar", "Razón": "Riesgo alto", "Mover": "Debilidad"},
+        ]
+    )
+
+    assert filter_trading_desk_display(rows, preset="Operar ahora")["Ticker"].tolist() == ["AAPL"]
+    assert filter_trading_desk_display(rows, preset="Alto score")["Ticker"].tolist() == ["AAPL", "NVDA"]
+    assert filter_trading_desk_display(rows, preset="Bajo riesgo")["Ticker"].tolist() == ["AAPL", "NVDA"]
+    assert filter_trading_desk_display(rows, preset="Volumen vivo")["Ticker"].tolist() == ["AAPL", "NVDA"]
+    assert filter_trading_desk_display(rows, preset="No tocar")["Ticker"].tolist() == ["TSLA"]

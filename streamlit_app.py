@@ -7528,10 +7528,25 @@ def filter_trading_desk_display(
     status: str = "Todos",
     query: str = "",
     min_score: float = 0,
+    preset: str = "Todos",
 ) -> pd.DataFrame:
     if rows.empty:
         return rows
     filtered = rows.copy()
+    preset = str(preset or "Todos")
+    if preset == "Operar ahora" and "Estado" in filtered.columns:
+        filtered = filtered[filtered["Estado"].astype(str).eq("Operar")]
+    elif preset == "Alto score" and "Score" in filtered.columns:
+        scores = pd.to_numeric(filtered["Score"], errors="coerce").fillna(0)
+        filtered = filtered[scores.ge(85)]
+    elif preset == "Bajo riesgo" and "Riesgo" in filtered.columns:
+        risk = pd.to_numeric(filtered["Riesgo"].astype(str).str.replace("%", "", regex=False), errors="coerce").fillna(999) / 100.0
+        filtered = filtered[risk.le(0.025)]
+    elif preset == "Volumen vivo" and "RVol" in filtered.columns:
+        volume = pd.to_numeric(filtered["RVol"].astype(str).str.replace("x", "", regex=False), errors="coerce").fillna(0)
+        filtered = filtered[volume.ge(1.2)]
+    elif preset == "No tocar" and "Estado" in filtered.columns:
+        filtered = filtered[filtered["Estado"].astype(str).eq("Evitar")]
     if status != "Todos" and "Estado" in filtered.columns:
         filtered = filtered[filtered["Estado"].astype(str).eq(status)]
     if min_score and "Score" in filtered.columns:
@@ -7556,15 +7571,21 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
     if rows.empty:
         return
     st.markdown("**Trading Desk**")
-    filter_cols = st.columns([0.75, 0.75, 1.3])
+    filter_cols = st.columns([0.82, 0.75, 0.75, 1.3])
     with filter_cols[0]:
+        preset_filter = st.selectbox(
+            "Preset",
+            ["Todos", "Operar ahora", "Alto score", "Bajo riesgo", "Volumen vivo", "No tocar"],
+            key="trading_desk_preset_filter",
+        )
+    with filter_cols[1]:
         status_options = ["Todos"] + sorted([status for status in rows["Estado"].dropna().astype(str).unique() if status and status != "-"])
         status_filter = st.selectbox("Estado desk", status_options, key="trading_desk_status_filter")
-    with filter_cols[1]:
-        min_score = st.slider("Score min", min_value=0, max_value=100, value=0, step=5, key="trading_desk_score_filter")
     with filter_cols[2]:
+        min_score = st.slider("Score min", min_value=0, max_value=100, value=0, step=5, key="trading_desk_score_filter")
+    with filter_cols[3]:
         query = st.text_input("Buscar ticker/setup/razon", value="", key="trading_desk_query_filter")
-    display_rows = filter_trading_desk_display(rows, status=status_filter, query=query, min_score=min_score)
+    display_rows = filter_trading_desk_display(rows, status=status_filter, query=query, min_score=min_score, preset=preset_filter)
     if display_rows.empty:
         st.info("El filtro actual no deja oportunidades visibles.")
         return
