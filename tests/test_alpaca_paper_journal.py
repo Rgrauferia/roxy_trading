@@ -1,0 +1,96 @@
+from datetime import datetime
+from types import SimpleNamespace
+
+from streamlit_app import alpaca_paper_journal_snapshot, alpaca_time_ago
+
+
+def test_alpaca_time_ago_formats_recent_durations():
+    now = datetime(2026, 6, 11, 12, 0, 0)
+
+    assert alpaca_time_ago(datetime(2026, 6, 11, 11, 58, 0), now=now) == "2m"
+    assert alpaca_time_ago(datetime(2026, 6, 11, 9, 0, 0), now=now) == "3h"
+    assert alpaca_time_ago(datetime(2026, 6, 8, 12, 0, 0), now=now) == "3d"
+
+
+def test_alpaca_paper_journal_snapshot_reads_positions_and_orders():
+    calls = {}
+
+    class FakeClient:
+        def get_all_positions(self):
+            return [
+                SimpleNamespace(
+                    symbol="AAPL",
+                    qty="2",
+                    avg_entry_price="100.00",
+                    current_price="105.00",
+                    market_value="210.00",
+                    unrealized_pl="10.00",
+                    unrealized_plpc="0.05",
+                )
+            ]
+
+        def get_orders(self):
+            return [
+                SimpleNamespace(
+                    symbol="AAPL",
+                    side="buy",
+                    status="filled",
+                    qty="2",
+                    filled_qty="2",
+                    type="market",
+                    order_class="bracket",
+                    submitted_at=datetime(2026, 6, 11, 10, 0, 0),
+                    filled_at=datetime(2026, 6, 11, 10, 5, 0),
+                    limit_price=None,
+                    stop_price=None,
+                )
+            ]
+
+    def factory(api_key, secret_key):
+        calls["api_key"] = api_key
+        calls["secret_key"] = secret_key
+        return FakeClient()
+
+    snapshot = alpaca_paper_journal_snapshot(
+        {"ALPACA_API_KEY": "paper-key-value", "ALPACA_API_SECRET": "paper-secret-value"},
+        client_factory=factory,
+        now=datetime(2026, 6, 11, 12, 5, 0),
+    )
+
+    assert snapshot["connected"] is True
+    assert snapshot["status"] == "Paper journal conectado"
+    assert snapshot["summary"]["open_positions"] == 1
+    assert snapshot["summary"]["recent_orders"] == 1
+    assert snapshot["summary"]["unrealized_pl"] == 10.0
+    assert snapshot["summary"]["exposure"] == 210.0
+    assert snapshot["positions"][0]["symbol"] == "AAPL"
+    assert snapshot["positions"][0]["time_in_trade"] == "2h"
+    assert snapshot["orders"][0]["status"] == "FILLED"
+    assert calls == {"api_key": "paper-key-value", "secret_key": "paper-secret-value"}
+    assert "paper-key-value" not in str(snapshot)
+    assert "paper-secret-value" not in str(snapshot)
+
+
+def test_alpaca_paper_journal_snapshot_blocks_live_before_client_call():
+    called = False
+
+    def factory(api_key, secret_key):
+        nonlocal called
+        called = True
+        raise AssertionError("client should not be created for live endpoint")
+
+    snapshot = alpaca_paper_journal_snapshot(
+        {
+            "ALPACA_API_KEY": "live-key-value",
+            "ALPACA_API_SECRET": "live-secret-value",
+            "ALPACA_PAPER": "false",
+            "ALPACA_BASE_URL": "https://api.alpaca.markets",
+        },
+        client_factory=factory,
+    )
+
+    assert called is False
+    assert snapshot["connected"] is False
+    assert snapshot["status"] == "Paper journal pendiente"
+    assert "live-key-value" not in str(snapshot)
+    assert "live-secret-value" not in str(snapshot)

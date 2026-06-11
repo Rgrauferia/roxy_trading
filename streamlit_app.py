@@ -1811,6 +1811,202 @@ def render_alpaca_paper_account_panel(env: dict[str, str] | None = None) -> str:
 
 
 
+def alpaca_attr(item: Any, name: str) -> Any:
+    if isinstance(item, dict):
+        return item.get(name)
+    return getattr(item, name, None)
+
+
+def alpaca_time_ago(value: Any, now: datetime | None = None) -> str:
+    if value in (None, "", "-"):
+        return "-"
+    if isinstance(value, str):
+        raw = value.strip()
+        try:
+            parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except Exception:
+            return text_display(value)
+    elif isinstance(value, datetime):
+        parsed = value
+    else:
+        return text_display(value)
+    current = now or datetime.utcnow()
+    if parsed.tzinfo is not None and current.tzinfo is None:
+        current = current.replace(tzinfo=parsed.tzinfo)
+    delta = current - parsed
+    seconds = max(0, int(delta.total_seconds()))
+    minutes = seconds // 60
+    if minutes < 1:
+        return "ahora"
+    if minutes < 60:
+        return f"{minutes}m"
+    hours = minutes // 60
+    if hours < 48:
+        return f"{hours}h"
+    return f"{hours // 24}d"
+
+
+def alpaca_paper_journal_snapshot(
+    env: dict[str, str] | None = None,
+    client_factory: Any | None = None,
+    *,
+    limit: int = 8,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    source = env if env is not None else os.environ
+    gate = alpaca_operations_gate(source)
+    base = {
+        "status": "Paper journal pendiente",
+        "tone": text_display(gate.get("tone")),
+        "connected": False,
+        "positions": [],
+        "orders": [],
+        "summary": {"open_positions": 0, "recent_orders": 0, "unrealized_pl": 0.0, "exposure": 0.0, "open_winners": 0},
+        "detail": text_display(gate.get("next")),
+    }
+    if not gate.get("paper_ready"):
+        return base
+    key = str(source.get("ALPACA_API_KEY") or "").strip()
+    secret = str(source.get("ALPACA_API_SECRET") or source.get("ALPACA_SECRET_KEY") or "").strip()
+    if not key or not secret:
+        return base
+    try:
+        if client_factory is None:
+            from alpaca.trading.client import TradingClient
+            from alpaca.trading.enums import QueryOrderStatus
+            from alpaca.trading.requests import GetOrdersRequest
+
+            def client_factory(api_key: str, secret_key: str):
+                return TradingClient(api_key=api_key, secret_key=secret_key, paper=True)
+
+            order_filter = GetOrdersRequest(status=QueryOrderStatus.ALL, limit=int(limit), nested=True)
+        else:
+            order_filter = None
+        client = client_factory(key, secret)
+        positions_raw = client.get_all_positions()
+        try:
+            orders_raw = client.get_orders(filter=order_filter) if order_filter is not None else client.get_orders()
+        except TypeError:
+            orders_raw = client.get_orders()
+    except Exception as exc:
+        return {
+            **base,
+            "status": "Paper journal sin conexion",
+            "tone": "watch",
+            "detail": f"No se pudo leer journal paper: {type(exc).__name__}. Revisar env/permiso sin exponer secretos.",
+        }
+    if isinstance(positions_raw, dict):
+        positions_raw = positions_raw.get("positions") or positions_raw.get("data") or []
+    if isinstance(orders_raw, dict):
+        orders_raw = orders_raw.get("orders") or orders_raw.get("data") or []
+    entry_time_lookup: dict[str, Any] = {}
+    orders: list[dict[str, Any]] = []
+    for order in list(orders_raw or [])[: max(1, int(limit))]:
+        symbol = text_display(alpaca_attr(order, "symbol")).upper()
+        submitted_at = alpaca_attr(order, "submitted_at")
+        filled_at = alpaca_attr(order, "filled_at")
+        side = text_display(alpaca_attr(order, "side")).lower()
+        status = text_display(alpaca_attr(order, "status")).lower()
+        if symbol and symbol != "-" and side == "buy" and status in {"filled", "partially_filled"}:
+            entry_time_lookup.setdefault(symbol, filled_at or submitted_at)
+        orders.append(
+            {
+                "symbol": symbol,
+                "side": side.upper(),
+                "status": status.upper(),
+                "qty": safe_float(alpaca_attr(order, "qty")),
+                "filled_qty": safe_float(alpaca_attr(order, "filled_qty")),
+                "type": text_display(alpaca_attr(order, "type")).upper(),
+                "order_class": text_display(alpaca_attr(order, "order_class")).upper(),
+                "submitted": alpaca_time_ago(submitted_at, now=now),
+                "filled": alpaca_time_ago(filled_at, now=now),
+                "limit_price": safe_float(alpaca_attr(order, "limit_price")),
+                "stop_price": safe_float(alpaca_attr(order, "stop_price")),
+            }
+        )
+    positions: list[dict[str, Any]] = []
+    for position in list(positions_raw or [])[: max(1, int(limit))]:
+        symbol = text_display(alpaca_attr(position, "symbol")).upper()
+        unrealized = safe_float(alpaca_attr(position, "unrealized_pl")) or 0.0
+        positions.append(
+            {
+                "symbol": symbol,
+                "qty": safe_float(alpaca_attr(position, "qty")),
+                "avg_entry": safe_float(alpaca_attr(position, "avg_entry_price")),
+                "current": safe_float(alpaca_attr(position, "current_price")),
+                "market_value": safe_float(alpaca_attr(position, "market_value")) or 0.0,
+                "unrealized_pl": unrealized,
+                "unrealized_plpc": safe_float(alpaca_attr(position, "unrealized_plpc")),
+                "time_in_trade": alpaca_time_ago(entry_time_lookup.get(symbol), now=now),
+                "tone": "buy" if unrealized >= 0 else "avoid",
+            }
+        )
+    summary = {
+        "open_positions": len(positions),
+        "recent_orders": len(orders),
+        "unrealized_pl": round(sum(safe_float(row.get("unrealized_pl")) or 0.0 for row in positions), 2),
+        "exposure": round(sum(safe_float(row.get("market_value")) or 0.0 for row in positions), 2),
+        "open_winners": sum(1 for row in positions if (safe_float(row.get("unrealized_pl")) or 0.0) >= 0),
+    }
+    return {
+        **base,
+        "status": "Paper journal conectado",
+        "tone": "buy",
+        "connected": True,
+        "positions": positions,
+        "orders": orders,
+        "summary": summary,
+        "detail": "Lectura read-only de posiciones y ordenes paper; no modifica cuenta.",
+    }
+
+
+def render_alpaca_paper_journal_panel(env: dict[str, str] | None = None) -> None:
+    snapshot = alpaca_paper_journal_snapshot(env, limit=8)
+    summary = snapshot.get("summary") if isinstance(snapshot.get("summary"), dict) else {}
+    positions = snapshot.get("positions") if isinstance(snapshot.get("positions"), list) else []
+    orders = snapshot.get("orders") if isinstance(snapshot.get("orders"), list) else []
+    position_cards = []
+    for row in positions[:4]:
+        tone = text_display(row.get("tone"))
+        position_cards.append(
+            f'<section class="paper-journal-card paper-journal-{html.escape(tone)}">'
+            f'<header><strong>{html.escape(text_display(row.get("symbol")))}</strong><span>{html.escape(text_display(row.get("time_in_trade")))}</span></header>'
+            f'<div><b>Qty {html.escape(num_display(row.get("qty"), 2))}</b><b>Entry {html.escape(num_display(row.get("avg_entry"), 2))}</b><b>Now {html.escape(num_display(row.get("current"), 2))}</b></div>'
+            f'<p>P&L {html.escape(num_display(row.get("unrealized_pl"), 2))} · {html.escape(pct_display(row.get("unrealized_plpc")))}</p>'
+            "</section>"
+        )
+    order_rows = []
+    for row in orders[:6]:
+        order_rows.append(
+            "<tr>"
+            f"<td>{html.escape(text_display(row.get('symbol')))}</td>"
+            f"<td>{html.escape(text_display(row.get('side')))}</td>"
+            f"<td>{html.escape(text_display(row.get('status')))}</td>"
+            f"<td>{html.escape(num_display(row.get('filled_qty') or row.get('qty'), 2))}</td>"
+            f"<td>{html.escape(text_display(row.get('submitted')))}</td>"
+            f"<td>{html.escape(text_display(row.get('type')))}</td>"
+            "</tr>"
+        )
+    empty_positions = '<section class="paper-journal-empty">Sin posiciones paper abiertas.</section>' if not position_cards else ""
+    empty_orders = '<tr><td colspan="6">Sin ordenes paper recientes.</td></tr>' if not order_rows else ""
+    st.markdown(
+        f'<section class="paper-journal-panel paper-journal-panel-{html.escape(text_display(snapshot.get("tone")))}">'
+        f'<header><strong>Paper Trade Journal</strong><span>{html.escape(text_display(snapshot.get("status")))} · {html.escape(text_display(snapshot.get("detail")))}</span></header>'
+        '<div class="paper-journal-summary">'
+        f'<b><span>Posiciones</span><strong>{int(summary.get("open_positions") or 0)}</strong></b>'
+        f'<b><span>P&L abierto</span><strong>{html.escape(num_display(summary.get("unrealized_pl"), 2))}</strong></b>'
+        f'<b><span>Exposicion</span><strong>{html.escape(num_display(summary.get("exposure"), 2))}</strong></b>'
+        f'<b><span>Ganadoras</span><strong>{int(summary.get("open_winners") or 0)}</strong></b>'
+        f'<b><span>Ordenes</span><strong>{int(summary.get("recent_orders") or 0)}</strong></b>'
+        "</div>"
+        f'<div class="paper-journal-grid">{"".join(position_cards)}{empty_positions}</div>'
+        '<div class="paper-journal-table"><table><thead><tr><th>Ticker</th><th>Side</th><th>Status</th><th>Qty</th><th>Hace</th><th>Tipo</th></tr></thead>'
+        f'<tbody>{"".join(order_rows) or empty_orders}</tbody></table></div>'
+        "</section>",
+        unsafe_allow_html=True,
+    )
+
+
 def alpaca_paper_autotrade_enabled(env: dict[str, str] | None = None) -> bool:
     source = env if env is not None else os.environ
     raw = str(source.get("ROXY_ALPACA_PAPER_AUTOTRADE") or "").strip().lower()
@@ -10638,6 +10834,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
     render_company_research_hub(symbol_input, market)
     render_live_provider_center()
     render_alpaca_paper_execution_panel(best, account_equity=account_equity, risk_pct=risk_pct_ui / 100.0)
+    render_alpaca_paper_journal_panel()
     render_screener_preset_deck(best, confluence_df)
     render_exit_plan_board(best, confluence_df)
     render_executive_cockpit(best, confluence_df, scan_df, brief)
@@ -11979,6 +12176,7 @@ def main() -> None:
         .provider-center{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 10px;overflow:hidden}.provider-center>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.provider-center>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.provider-center>header span{color:#94a3b8;font-size:11px;text-align:right}.provider-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .alpaca-gate{display:grid;grid-template-columns:minmax(210px,.46fr) 1fr minmax(240px,.52fr);gap:10px;align-items:center;padding:9px 10px;border-bottom:1px solid rgba(148,163,184,.14);border-left:3px solid rgba(148,163,184,.45);background:rgba(15,23,42,.80)}.alpaca-gate span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.alpaca-gate strong{display:block;color:#f8fafc;font-size:18px;line-height:1.05;font-weight:950;margin-top:3px}.alpaca-gate em{display:block;color:#cbd5e1;font-style:normal;font-size:10px;font-weight:900;margin-top:4px}.alpaca-gate p{margin:0;color:#e2e8f0;font-size:12px;font-weight:850;line-height:1.25}.alpaca-gate aside{display:grid;gap:4px}.alpaca-gate b{color:#f8fafc;font-size:11px;line-height:1.05;text-transform:uppercase}.alpaca-gate small{color:#94a3b8;font-size:10px;line-height:1.2}.alpaca-gate-buy{border-left-color:#22c55e;background:rgba(21,93,62,.18)}.alpaca-gate-watch{border-left-color:#f59e0b;background:rgba(120,74,15,.17)}.alpaca-gate-avoid{border-left-color:#ef4444;background:rgba(127,29,29,.18)}
         .alpaca-paper-panel{display:grid;grid-template-columns:minmax(210px,.46fr) minmax(360px,1fr) minmax(320px,.7fr);gap:10px;align-items:center;padding:9px 10px;border-bottom:1px solid rgba(148,163,184,.14);border-left:3px solid rgba(148,163,184,.45);background:rgba(8,13,24,.86)}.alpaca-paper-panel span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.alpaca-paper-panel strong{display:block;color:#f8fafc;font-size:18px;line-height:1.05;font-weight:950;margin-top:3px}.alpaca-paper-panel em{display:block;color:#cbd5e1;font-style:normal;font-size:10px;font-weight:900;margin-top:4px}.alpaca-paper-panel aside{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border-radius:6px;overflow:hidden}.alpaca-paper-panel aside b,.alpaca-paper-panel aside strong{background:#0b1220;margin:0;padding:6px 7px;font-size:10px;line-height:1.05}.alpaca-paper-panel aside b{color:#94a3b8;text-transform:uppercase}.alpaca-paper-panel aside strong{font-size:13px;color:#f8fafc}.alpaca-paper-panel p{margin:0;color:#e2e8f0;font-size:11px;font-weight:850;line-height:1.25}.alpaca-paper-buy{border-left-color:#22c55e;background:rgba(21,93,62,.16)}.alpaca-paper-watch{border-left-color:#f59e0b;background:rgba(120,74,15,.16)}.alpaca-paper-avoid{border-left-color:#ef4444;background:rgba(127,29,29,.16)}
+        .paper-journal-panel{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 10px;overflow:hidden}.paper-journal-panel>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.paper-journal-panel>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.paper-journal-panel>header span{color:#94a3b8;font-size:11px;text-align:right}.paper-journal-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.16)}.paper-journal-summary b{display:block;background:#0b1220;padding:7px 8px}.paper-journal-summary span{display:block;color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase}.paper-journal-summary strong{display:block;color:#f8fafc;font-size:15px;line-height:1;margin-top:4px}.paper-journal-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.paper-journal-card{background:rgba(21,93,62,.18);border-top:2px solid #22c55e;padding:8px 9px;min-width:0}.paper-journal-avoid{background:rgba(127,29,29,.20);border-top-color:#ef4444}.paper-journal-card header{display:flex;justify-content:space-between;gap:8px}.paper-journal-card header strong{color:#f8fafc;font-size:15px;line-height:1;font-weight:950}.paper-journal-card header span{color:#cbd5e1;font-size:10px;font-weight:900;text-align:right}.paper-journal-card div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border-radius:6px;overflow:hidden;margin-top:7px}.paper-journal-card b{background:#0b1220;color:#f8fafc;font-size:10px;line-height:1.05;padding:6px 5px}.paper-journal-card p{margin:7px 0 0;color:#cbd5e1;font-size:10px;line-height:1.18;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.paper-journal-empty{grid-column:1/-1;background:#0b1220;color:#94a3b8;font-size:12px;font-weight:850;padding:10px}.paper-journal-table{padding:7px;background:#080d18}.paper-journal-table table{width:100%;border-collapse:collapse}.paper-journal-table th,.paper-journal-table td{padding:5px 6px;border-bottom:1px solid rgba(148,163,184,.10);font-size:10px;line-height:1.15;text-align:left;color:#cbd5e1}.paper-journal-table th{color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase}.paper-journal-table td:first-child{color:#f8fafc;font-weight:950}
         .paper-exec-panel{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 10px;overflow:hidden}.paper-exec-panel>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.paper-exec-panel>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.paper-exec-panel>header span{color:#94a3b8;font-size:11px;text-align:right}.paper-exec-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.paper-exec-summary{grid-column:1/-1;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.16)}.paper-exec-summary b{display:block;background:#0b1220;padding:7px 8px}.paper-exec-summary span{display:block;color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.paper-exec-summary strong{display:block;color:#f8fafc;font-size:14px;line-height:1;margin-top:4px;font-weight:950}.paper-exec-card,.paper-gap-card{background:rgba(21,93,62,.18);border-top:2px solid #22c55e;padding:8px 9px;min-width:0}.paper-gap-card{background:rgba(120,74,15,.18);border-top-color:#f59e0b}.paper-exec-muted{border-color:rgba(245,158,11,.35)}.paper-exec-card header,.paper-gap-card header{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.paper-exec-card header strong,.paper-gap-card header strong{color:#f8fafc;font-size:15px;line-height:1;font-weight:950}.paper-exec-card header span,.paper-gap-card header span{color:#bbf7d0;font-size:10px;line-height:1.12;text-align:right;font-weight:900}.paper-gap-card header span{color:#fde68a}.paper-exec-card div,.paper-gap-card div{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border-radius:6px;overflow:hidden;margin-top:7px}.paper-gap-card div{grid-template-columns:repeat(3,minmax(0,1fr))}.paper-exec-card b,.paper-gap-card b{background:#0b1220;color:#f8fafc;font-size:10px;line-height:1.05;padding:6px 5px}.paper-exec-card p,.paper-gap-card p{margin:7px 0 0;color:#cbd5e1;font-size:10px;line-height:1.18;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .provider-card{background:#0b1220;padding:8px 9px;border-top:2px solid rgba(148,163,184,.28);min-width:0}.provider-card header{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.provider-card header strong{color:#f8fafc;font-size:12px;font-weight:950;text-transform:uppercase}.provider-card header span{color:#e2e8f0;font-size:10px;line-height:1.1;text-align:right;font-weight:900}.provider-card div{display:flex;justify-content:space-between;gap:8px;margin-top:7px}.provider-card b{color:#f8fafc;font-size:13px;line-height:1;font-weight:950}.provider-card em{color:#94a3b8;font-size:10px;line-height:1;font-style:normal;text-align:right}.provider-card p{margin:6px 0 3px;color:#e2e8f0;font-size:11px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.provider-card small{display:block;color:#cbd5e1;font-size:10px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.provider-card i{display:block;color:#94a3b8;font-size:9px;line-height:1.15;font-style:normal;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.provider-card-buy{border-top-color:#22c55e;background:rgba(21,93,62,.22)}.provider-card-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.20)}.provider-card-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}.provider-card-neutral{border-top-color:#64748b}
         .exit-board{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 10px;overflow:hidden}.exit-board>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.exit-board>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.exit-board>header span{color:#94a3b8;font-size:11px;text-align:right}.exit-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
@@ -12086,9 +12284,9 @@ def main() -> None:
         .stButton button:hover{border-color:#a78bfa;color:#f8fafc}
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media (max-width:1100px){.ticker-intel,.alpaca-gate,.alpaca-paper-panel{grid-template-columns:1fr}.ticker-intel-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.paper-exec-summary,.trading-desk-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.exit-grid,.provider-grid,.preset-grid,.research-grid,.paper-exec-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.confirm-radar-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-grid-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
+        @media (max-width:1100px){.ticker-intel,.alpaca-gate,.alpaca-paper-panel{grid-template-columns:1fr}.ticker-intel-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.paper-journal-summary,.paper-exec-summary,.trading-desk-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.paper-journal-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exit-grid,.provider-grid,.preset-grid,.research-grid,.paper-exec-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.confirm-radar-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-grid-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
         @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.brand-logo-img{width:150px;max-width:42vw}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
-        @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.ticker-intel-kpis{grid-template-columns:1fr 1fr}.ticker-intel-main h3{font-size:23px}.company-research>header,.confirmation-radar>header,.exit-board>header,.paper-exec-panel>header,.provider-center>header,.screener-presets>header{display:block}.company-research>header span,.confirmation-radar>header span,.exit-board>header span,.paper-exec-panel>header span,.provider-center>header span,.screener-presets>header span{display:block;text-align:left;margin-top:4px}.exit-grid,.provider-grid,.preset-grid,.research-grid,.confirm-radar-grid,.paper-exec-grid{grid-template-columns:1fr}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.compare-board>header{display:block}.compare-board>header span{display:block;text-align:left;margin-top:4px}.compare-grid-cards{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
+        @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.ticker-intel-kpis{grid-template-columns:1fr 1fr}.ticker-intel-main h3{font-size:23px}.company-research>header,.confirmation-radar>header,.exit-board>header,.paper-journal-panel>header,.paper-exec-panel>header,.provider-center>header,.screener-presets>header{display:block}.company-research>header span,.confirmation-radar>header span,.exit-board>header span,.paper-journal-panel>header span,.paper-exec-panel>header span,.provider-center>header span,.screener-presets>header span{display:block;text-align:left;margin-top:4px}.exit-grid,.provider-grid,.preset-grid,.research-grid,.confirm-radar-grid,.paper-exec-grid{grid-template-columns:1fr}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.compare-board>header{display:block}.compare-board>header span{display:block;text-align:left;margin-top:4px}.compare-grid-cards{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
         </style>
         """,
         unsafe_allow_html=True,
