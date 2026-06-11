@@ -32,6 +32,8 @@ def test_roxy_live_page():
     assert "Wake Roxy activo" in r.text
     assert "feedbackUp" in r.text
     assert "/v1/feedback" in r.text
+    assert "loadLearning" in r.text
+    assert "/v1/learning/status" in r.text
     assert "/assets/roxy_avatar.jpg" in r.text
     assert "/assets/roxy_avatar_icon.jpg" in r.text
     assert "/assets/roxy_avatar_card.jpg" in r.text
@@ -251,6 +253,39 @@ def test_feedback_endpoints(monkeypatch):
     assert posted.status_code == 200
     assert summary.status_code == 200
     assert summary.json()["total"] == 1
+
+
+def test_learning_status_endpoint(monkeypatch):
+    os.environ["VOICE_API_KEY"] = "testkey"
+    from tools import voice_service
+
+    monkeypatch.setattr(voice_service, "VOICE_API_KEY", "testkey")
+    monkeypatch.setattr(
+        voice_service.va_backend,
+        "get_learning_snapshot",
+        lambda user=None, session_id=None: {
+            "status": "learning",
+            "mode": "local_feedback_profile_memory",
+            "user": user,
+            "session_id": session_id,
+            "feedback": {"total": 2, "up": 1, "down": 1, "top_intents": [], "recent": []},
+            "memory": {"turn_count": 3, "recent_turns": []},
+            "knowledge_sources": [],
+            "recommendations": ["Revisar oportunidad."],
+        },
+    )
+
+    client = TestClient(voice_service.app)
+    r = client.get(
+        "/v1/learning/status?user=local&session_id=demo",
+        headers={"Authorization": "Bearer testkey"},
+    )
+
+    assert r.status_code == 200
+    payload = r.json()
+    assert payload["status"] == "learning"
+    assert payload["feedback"]["down"] == 1
+    assert payload["memory"]["turn_count"] == 3
 
 
 def test_dev_auth_warning_logs_once(monkeypatch, caplog):

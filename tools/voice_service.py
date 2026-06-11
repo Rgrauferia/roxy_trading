@@ -562,6 +562,7 @@ def roxy_live_page():
           <button id="feedbackUp">Sirvio</button>
           <button id="feedbackDown">No sirvio</button>
           <button id="loadMemory">Cargar memoria</button>
+          <button id="loadLearning">Aprendizaje</button>
           <button id="loadSources">Fuentes</button>
           <button id="clearChat" class="danger">Limpiar chat</button>
         </div>
@@ -918,6 +919,27 @@ def roxy_live_page():
       appendMessage("system", "Fuentes cargadas: " + sources.filter(s => s.exists).length + " disponible(s).", "sources");
     }
 
+    async function loadLearning() {
+      const headers = {};
+      const key = $("apiKey").value.trim();
+      if (key) headers.Authorization = "Bearer " + key;
+      const params = new URLSearchParams({user: $("user").value || "local", session_id: session.value || ""});
+      const res = await fetch("/v1/learning/status?" + params.toString(), {headers});
+      if (!res.ok) {
+        appendMessage("system", "No pude cargar aprendizaje: " + res.status, "learning");
+        return;
+      }
+      const payload = await res.json();
+      const feedback = payload.feedback || {};
+      const memory = payload.memory || {};
+      const recommendations = Array.isArray(payload.recommendations) ? payload.recommendations : [];
+      const text = "Aprendizaje local: feedback " + (feedback.total || 0) +
+        " total, " + (feedback.down || 0) + " a mejorar. Memoria: " +
+        (memory.turn_count || memory.total_turns || 0) + " turno(s). " +
+        recommendations.join(" ");
+      appendMessage("system", text.trim(), "learning");
+    }
+
     async function submitFeedback(rating) {
       if (!lastReply) {
         appendMessage("system", "No hay respuesta de Roxy para calificar todavia.", "feedback");
@@ -993,6 +1015,7 @@ def roxy_live_page():
     $("feedbackUp").onclick = () => submitFeedback("up");
     $("feedbackDown").onclick = () => submitFeedback("down");
     $("loadMemory").onclick = loadMemory;
+    $("loadLearning").onclick = loadLearning;
     $("loadSources").onclick = loadSources;
     $("saveProfile").onclick = saveProfile;
     $("loadProfile").onclick = loadProfile;
@@ -1235,3 +1258,25 @@ def feedback_summary(user: Optional[str] = None, token: Optional[str] = Depends(
             logger.exception("feedback summary error")
             raise HTTPException(status_code=500, detail="feedback backend error")
     return {"total": 0, "up": 0, "down": 0, "top_intents": [], "recent": []}
+
+
+@app.get("/v1/learning/status")
+def learning_status(
+    user: Optional[str] = None, session_id: Optional[str] = None, token: Optional[str] = Depends(require_api_key)
+):
+    if va_backend is not None and hasattr(va_backend, "get_learning_snapshot"):
+        try:
+            return va_backend.get_learning_snapshot(user=user, session_id=session_id)
+        except Exception:
+            logger.exception("learning status error")
+            raise HTTPException(status_code=500, detail="learning backend error")
+    return {
+        "status": "unavailable",
+        "mode": "none",
+        "user": user or "local",
+        "session_id": session_id or "",
+        "feedback": {"total": 0, "up": 0, "down": 0, "top_intents": [], "recent": []},
+        "memory": {"turn_count": 0, "recent_turns": []},
+        "knowledge_sources": [],
+        "recommendations": ["Conectar el backend de Roxy para activar aprendizaje local."],
+    }

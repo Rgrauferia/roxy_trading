@@ -144,6 +144,33 @@ class RoxyConversationMemory:
             "recent_turns": turns,
         }
 
+    def overview(self, limit: int = 8) -> dict[str, Any]:
+        payload = _load_json(self.path)
+        sessions = payload.get("sessions") if isinstance(payload, dict) else {}
+        if not isinstance(sessions, dict):
+            sessions = {}
+        rows = []
+        total_turns = 0
+        for session_id, turns in sessions.items():
+            if not isinstance(turns, list):
+                continue
+            total_turns += len(turns)
+            last_turn = turns[-1] if turns and isinstance(turns[-1], dict) else {}
+            rows.append(
+                {
+                    "session_id": _safe_session_id(session_id),
+                    "turn_count": len(turns),
+                    "last_intent": _safe_text(last_turn.get("intent")),
+                    "last_at": _safe_text(last_turn.get("at")),
+                }
+            )
+        rows.sort(key=lambda row: row.get("last_at") or "", reverse=True)
+        return {
+            "session_count": len(rows),
+            "total_turns": total_turns,
+            "recent_sessions": rows[: max(1, min(int(limit), 20))],
+        }
+
     def append(self, session_id: str | None, query: str, response: RoxyBrainReply) -> None:
         if not session_id:
             return
@@ -645,6 +672,56 @@ class RoxyInteractiveBrain:
             priority=response.priority,
             suggested_actions=response.suggested_actions + ("feedback_adjusted",),
         )
+
+    def learning_snapshot(self, user: str | None = None, session_id: str | None = None) -> dict[str, Any]:
+        profile = self.user_profile.read(user)
+        feedback = self.feedback_memory.summary(user=user)
+        sources = list_knowledge_sources(self.knowledge_paths)
+        memory = (
+            self.conversation_memory.session_state(session_id=session_id, limit=8)
+            if session_id
+            else self.conversation_memory.overview(limit=8)
+        )
+        recommendations = self._learning_recommendations(profile, feedback, sources, memory)
+        return {
+            "status": "learning",
+            "mode": "local_feedback_profile_memory",
+            "user": _safe_session_id(user or "local"),
+            "session_id": _safe_session_id(session_id) if session_id else "",
+            "profile": profile,
+            "feedback": feedback,
+            "memory": memory,
+            "knowledge_sources": sources,
+            "recommendations": recommendations,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def _learning_recommendations(
+        self,
+        profile: dict[str, Any],
+        feedback: dict[str, Any],
+        sources: list[dict[str, Any]],
+        memory: dict[str, Any],
+    ) -> list[str]:
+        recommendations: list[str] = []
+        if not profile:
+            recommendations.append("Guardar perfil local para adaptar nombre, watchlist, modo y voz.")
+        if int(feedback.get("down", 0) or 0) > 0:
+            top_down = [
+                row.get("intent")
+                for row in feedback.get("top_intents", [])
+                if isinstance(row, dict) and int(row.get("down", 0) or 0) > 0
+            ]
+            label = ", ".join(_safe_text(item) for item in top_down[:3] if item) or "respuestas marcadas"
+            recommendations.append(f"Revisar y acortar los intents con feedback negativo: {label}.")
+        if int(memory.get("total_turns", memory.get("turn_count", 0)) or 0) <= 0:
+            recommendations.append("Mantener una sesion conversacional para construir contexto local.")
+        missing_sources = [source.get("path") for source in sources if isinstance(source, dict) and not source.get("exists")]
+        if missing_sources:
+            recommendations.append("Completar fuentes locales faltantes para mejorar lectura del universo Roxy.")
+        if not recommendations:
+            recommendations.append("Continuar recolectando conversaciones y feedback; el aprendizaje local esta operativo.")
+        return recommendations[:5]
 
     def _contextual_fallback(self, recent_turns: list[dict[str, Any]]) -> RoxyBrainReply:
         last_intent = ""

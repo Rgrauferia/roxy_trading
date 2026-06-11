@@ -273,3 +273,7 @@ def record_feedback(feedback: dict[str, Any]) -> dict[str, Any]:
 
 def get_feedback_summary(user: Optional[str] = None) -> dict[str, Any]:
     return RoxyFeedbackMemory().summary(user=user)
+
+
+def get_learning_snapshot(user: Optional[str] = None, session_id: Optional[str] = None) -> dict[str, Any]:
+    return RoxyInteractiveBrain(BRIEF_PATH, MEMORY_PATH).learning_snapshot(user=user, session_id=session_id)

@@ -311,3 +311,31 @@ def test_roxy_brain_applies_negative_feedback_to_next_same_intent(tmp_path):
     assert response.reply.startswith("Ajuste por tu feedback")
     assert "mas directo" in response.reply
     assert "feedback_adjusted" in response.suggested_actions
+
+
+def test_roxy_learning_snapshot_combines_profile_feedback_memory_and_sources(tmp_path):
+    profile = RoxyUserProfile(path=tmp_path / "profile.json")
+    profile.update("local", {"preferred_name": "Roberto", "watchlist": ["SPY"]})
+    feedback = RoxyFeedbackMemory(path=tmp_path / "feedback.json")
+    feedback.record({"rating": "down", "user": "local", "intent": "opportunity", "note": "mas claro"})
+    memory = RoxyConversationMemory(path=tmp_path / "conversation.json")
+    knowledge_path = tmp_path / "manual.md"
+    knowledge_path.write_text("Manual Roxy", encoding="utf-8")
+    brain = RoxyInteractiveBrain(
+        brief_path=tmp_path / "brief.json",
+        memory_path=tmp_path / "memory.json",
+        conversation_memory=memory,
+        user_profile=profile,
+        feedback_memory=feedback,
+        knowledge_paths=(knowledge_path,),
+    )
+    brain.generate_reply("hola", user="local", session_id="demo")
+
+    snapshot = brain.learning_snapshot(user="local", session_id="demo")
+
+    assert snapshot["status"] == "learning"
+    assert snapshot["profile"]["preferred_name"] == "Roberto"
+    assert snapshot["feedback"]["down"] == 1
+    assert snapshot["memory"]["turn_count"] == 1
+    assert snapshot["knowledge_sources"][0]["exists"] is True
+    assert any("feedback negativo" in item for item in snapshot["recommendations"])
