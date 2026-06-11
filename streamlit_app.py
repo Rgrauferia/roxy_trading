@@ -13227,7 +13227,7 @@ def show_focused_roxy_app() -> None:
     show_focused_controls()
 
     page_tabs = st.tabs(
-        ["Centro", "Plan de trade", "Riesgo $500", "Plataformas", "Opciones", "Backtest", "Precision", "Estudios", "Roxy Lab", "Voz"]
+        ["Centro", "Plan de trade", "Capital", "Plataformas", "Opciones", "Backtest", "Precision", "Estudios", "Roxy Lab", "Voz"]
     )
     with page_tabs[0]:
         show_focused_home(scan_df, confluence_df, options_df, brief)
