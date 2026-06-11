@@ -6253,6 +6253,7 @@ def focused_opportunity_table(brief: dict) -> pd.DataFrame:
                 "risk_pct": row.get("risk_pct"),
                 "target_pct": row.get("recommended_target_pct"),
                 "target_price": row.get("recommended_target_price"),
+                "rel_volume": row.get("relative_volume_15m") or row.get("relative_volume"),
                 "strategy_family": dashboard_strategy_label(row),
                 "trigger": row.get("trigger_setup"),
                 "trend": row.get("trend_setup"),
@@ -6262,6 +6263,7 @@ def focused_opportunity_table(brief: dict) -> pd.DataFrame:
                 "readiness": row.get("alert_readiness_score"),
                 "confidence": opportunity_confidence_label(row),
                 "learning_bias": row.get("learning_bias"),
+                "raw_reason": row.get("reason"),
                 "por_que": human_alert_reason(row) or opportunity_reason_label(row),
                 "waiting_for": watch_movement_label(row),
                 "cambia_si": opportunity_change_label(row),
@@ -6553,7 +6555,7 @@ def scanner_wallboard_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, *, 
                 "readiness": safe_float(row.get("readiness")),
                 "risk": safe_float(row.get("risk_pct")),
                 "target": safe_float(row.get("target_pct")),
-                "rel_volume": safe_float(row.get("relative_volume_15m") or row.get("relative_volume")),
+                "rel_volume": safe_float(row.get("relative_volume_15m") or row.get("relative_volume") or row.get("rel_volume")),
                 "tf": text_display(row.get("entry_tf") or row.get("tf") or row.get("timeframe")),
                 "next": text_display(row.get("waiting_for") or row.get("gate")),
             }
@@ -6587,7 +6589,7 @@ def scanner_wallboard_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, *, 
                     "readiness": None,
                     "risk": safe_float(row.get("risk_pct")),
                     "target": safe_float(row.get("recommended_target_pct")),
-                    "rel_volume": safe_float(row.get("relative_volume_15m") or row.get("relative_volume")),
+                    "rel_volume": safe_float(row.get("relative_volume_15m") or row.get("relative_volume") or row.get("rel_volume")),
                     "tf": text_display(row.get("entry_tf") or row.get("tf")),
                     "next": text_display(row.get("trade_decision") or row.get("action")),
                 }
@@ -6724,6 +6726,119 @@ def render_opportunity_compare_board(table: pd.DataFrame, confluence_df: pd.Data
         '<section class="compare-board"><header><strong>Compare Board</strong><span>Comparación rápida para decidir cuál merece atención ahora.</span></header><div class="compare-grid-cards">'
         + "".join(cards)
         + "</div></section>",
+        unsafe_allow_html=True,
+    )
+
+
+
+def ticker_intel_snapshot(table: pd.DataFrame, confluence_df: pd.DataFrame, symbol: str | None = None) -> dict[str, Any]:
+    columns = ["symbol", "status", "tone", "edge", "score", "risk", "target", "rel_volume", "strategy", "next"]
+    matrix = scanner_opportunity_matrix_rows(table, confluence_df, limit=12)
+    if matrix.empty:
+        return {
+            "symbol": text_display(symbol).upper() if symbol else "-",
+            "status": "Sin datos",
+            "tone": "watch",
+            "edge": None,
+            "score": None,
+            "risk": None,
+            "target": None,
+            "entry": None,
+            "stop": None,
+            "rel_volume": None,
+            "strategy": "-",
+            "next": "No hay lectura suficiente para priorizar.",
+            "why": "Roxy necesita datos frescos del scanner o confluencia para construir una ficha operativa.",
+            "blockers": ["Actualizar datos", "Esperar lectura 15m/1h"],
+        }
+    target_symbol = text_display(symbol).upper()
+    rows = matrix.copy()
+    if target_symbol and target_symbol != "-":
+        selected = rows[rows["symbol"].astype(str).str.upper().eq(target_symbol)]
+        if selected.empty:
+            selected = rows.head(1)
+    else:
+        selected = rows.head(1)
+    item = selected.iloc[0].to_dict()
+    item = {key: item.get(key) for key in columns}
+    selected_symbol = text_display(item.get("symbol")).upper()
+    source_row: dict[str, Any] = {}
+    if not table.empty and selected_symbol:
+        matches = table[table.get("symbol", pd.Series(dtype=str)).astype(str).str.upper().eq(selected_symbol)]
+        if not matches.empty:
+            source_row = matches.iloc[0].to_dict()
+    wall = scanner_wallboard_rows(table, confluence_df, limit=30)
+    if not wall.empty:
+        wall_matches = wall[wall["symbol"].astype(str).str.upper().eq(selected_symbol)]
+        if not wall_matches.empty:
+            wall_row = wall_matches.iloc[0].to_dict()
+            item["target"] = wall_row.get("target")
+            item["rel_volume"] = wall_row.get("rel_volume")
+    risk = safe_float(item.get("risk"))
+    target = safe_float(item.get("target"))
+    rel_volume = safe_float(item.get("rel_volume"))
+    blockers: list[str] = []
+    if risk is not None and risk > 0.035:
+        blockers.append(f"Riesgo {pct_display(risk)} > 3.5%")
+    if target is None or target < 0.02:
+        blockers.append("Target minimo 2% sin confirmar")
+    if rel_volume is None or rel_volume < 0.8:
+        blockers.append(f"Volumen relativo {num_display(rel_volume, 1)}x")
+    status = text_display(item.get("status"))
+    next_step = text_display(item.get("next") or source_row.get("waiting_for") or source_row.get("gate"))
+    if status == "Operar" and not blockers:
+        blockers.append("Listo para validacion manual final")
+    elif next_step and next_step != "-":
+        blockers.append(next_step[:90])
+    why = text_display(source_row.get("raw_reason") or source_row.get("por_que") or opportunity_reason_label(source_row) if source_row else "")
+    if why == "-":
+        why = "Ficha priorizada por edge, score IA, riesgo, volumen relativo y estado multi-timeframe."
+    return {
+        "symbol": selected_symbol,
+        "status": status,
+        "tone": text_display(item.get("tone")),
+        "edge": safe_float(item.get("edge")),
+        "score": safe_float(item.get("score")),
+        "risk": risk,
+        "target": target,
+        "entry": safe_float(source_row.get("entry")),
+        "stop": safe_float(source_row.get("stop")),
+        "rel_volume": rel_volume,
+        "strategy": text_display(item.get("strategy")),
+        "next": next_step,
+        "why": why,
+        "blockers": blockers[:4],
+    }
+
+
+def render_ticker_intel_strip(table: pd.DataFrame, confluence_df: pd.DataFrame, symbol: str | None = None) -> None:
+    intel = ticker_intel_snapshot(table, confluence_df, symbol)
+    tone = text_display(intel.get("tone"))
+    blockers = intel.get("blockers") if isinstance(intel.get("blockers"), list) else []
+    blocker_html = "".join(f"<li>{html.escape(text_display(item))}</li>" for item in blockers[:4])
+    st.markdown(
+        f"""
+        <section class="ticker-intel ticker-intel-{html.escape(tone)}">
+            <div class="ticker-intel-main">
+                <span>Ticker Intel</span>
+                <h3>{html.escape(text_display(intel.get("symbol")))}</h3>
+                <strong>{html.escape(text_display(intel.get("status")))} · {html.escape(text_display(intel.get("strategy")))}</strong>
+                <p>{html.escape(text_display(intel.get("why")))}</p>
+            </div>
+            <div class="ticker-intel-kpis">
+                <div><span>Edge</span><strong>{html.escape(num_display(intel.get("edge"), 0))}</strong></div>
+                <div><span>Score</span><strong>{html.escape(num_display(intel.get("score"), 0))}</strong></div>
+                <div><span>Riesgo</span><strong>{html.escape(pct_display(intel.get("risk")))}</strong></div>
+                <div><span>Target</span><strong>{html.escape(pct_display(intel.get("target")))}</strong></div>
+                <div><span>Entrada</span><strong>{html.escape(num_display(intel.get("entry"), 2))}</strong></div>
+                <div><span>Stop</span><strong>{html.escape(num_display(intel.get("stop"), 2))}</strong></div>
+            </div>
+            <div class="ticker-intel-next">
+                <span>Que falta / siguiente accion</span>
+                <ul>{blocker_html}</ul>
+            </div>
+        </section>
+        """,
         unsafe_allow_html=True,
     )
 
@@ -9540,6 +9655,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
         risk_pct_ui = st.number_input("Riesgo %", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key="command_risk")
 
     render_alert_noise_contract(brief)
+    render_ticker_intel_strip(best, confluence_df, symbol_input)
     render_executive_cockpit(best, confluence_df, scan_df, brief)
     render_top_opportunity_cards(best, confluence_df)
     render_market_movers_tape(best, confluence_df)
@@ -10867,6 +10983,9 @@ def main() -> None:
         .market-mover-table{background:#0b1220;overflow:hidden;border-top:2px solid rgba(148,163,184,.25)}.market-mover-table header{padding:6px 8px;color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;background:#0f172a;border-bottom:1px solid rgba(148,163,184,.12)}.market-mover-table table{width:100%;border-collapse:collapse}.market-mover-table th,.market-mover-table td{padding:5px 6px;border-bottom:1px solid rgba(148,163,184,.10);font-size:10px;line-height:1.15;text-align:left;color:#cbd5e1}.market-mover-table th{color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase}.market-mover-table td:first-child{color:#f8fafc;font-weight:950}.market-mover-table td:nth-child(2),.market-mover-table td:nth-child(3),.market-mover-table td:nth-child(4){text-align:right}.market-mover-table td:last-child{max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.market-mover-buy{border-top-color:#22c55e}.market-mover-watch{border-top-color:#f59e0b}.market-mover-avoid{border-top-color:#ef4444}
         .compare-board{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 12px;overflow:hidden}.compare-board>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.15)}.compare-board>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.compare-board>header span{color:#94a3b8;font-size:11px;text-align:right}.compare-grid-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .compare-card{background:#0b1220;border-top:2px solid rgba(148,163,184,.25);padding:9px 10px;min-height:168px}.compare-card header{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:start}.compare-card header span{color:#94a3b8;font-size:10px;font-weight:950}.compare-card header strong{color:#f8fafc;font-size:19px;line-height:1;font-weight:950}.compare-card header em{color:#e2e8f0;font-size:10px;font-style:normal;font-weight:950;text-transform:uppercase;text-align:right}.compare-score{display:flex;justify-content:space-between;gap:10px;align-items:end;margin:8px 0}.compare-score b{color:#f8fafc;font-size:30px;line-height:1}.compare-score span{color:#94a3b8;font-size:10px;text-transform:uppercase;font-weight:950}.compare-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.12);border-radius:6px;overflow:hidden}.compare-grid div{background:#0f172a;padding:6px}.compare-grid span{display:block;color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase}.compare-grid strong{display:block;color:#f8fafc;font-size:12px;line-height:1.1;margin-top:3px}.compare-card p{margin:8px 0 4px;color:#e2e8f0;font-size:11px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.compare-card small{display:block;color:#cbd5e1;font-size:10px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.compare-card-buy{border-top-color:#22c55e;background:rgba(21,93,62,.25)}.compare-card-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.22)}.compare-card-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}
+        .ticker-intel{display:grid;grid-template-columns:minmax(260px,.95fr) minmax(360px,1.45fr) minmax(260px,.9fr);gap:1px;border:1px solid rgba(148,163,184,.24);border-radius:8px;background:rgba(148,163,184,.14);margin:6px 0 10px;overflow:hidden;box-shadow:0 16px 42px rgba(0,0,0,.22)}
+        .ticker-intel-main,.ticker-intel-kpis,.ticker-intel-next{background:#070c16}.ticker-intel-main{padding:10px 12px;border-left:4px solid #f59e0b}.ticker-intel-buy .ticker-intel-main{border-left-color:#22c55e}.ticker-intel-avoid .ticker-intel-main{border-left-color:#ef4444}.ticker-intel-main span,.ticker-intel-next span{display:block;color:#93c5fd;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.ticker-intel-main h3{margin:4px 0;color:#f8fafc;font-size:26px;line-height:1;font-weight:950}.ticker-intel-main strong{display:block;color:#e2e8f0;font-size:12px;line-height:1.15;font-weight:950;text-transform:uppercase}.ticker-intel-main p{margin:6px 0 0;color:#cbd5e1;font-size:11px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .ticker-intel-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.ticker-intel-kpis div{background:#0b1220;padding:8px 9px;min-width:0}.ticker-intel-kpis span{display:block;color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase}.ticker-intel-kpis strong{display:block;color:#f8fafc;font-size:16px;line-height:1.05;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ticker-intel-next{padding:9px 11px}.ticker-intel-next ul{margin:6px 0 0;padding-left:16px;color:#e2e8f0}.ticker-intel-next li{font-size:11px;line-height:1.22;margin:0 0 3px;font-weight:850}.ticker-intel-buy .ticker-intel-next li:first-child{color:#bbf7d0}.ticker-intel-watch .ticker-intel-next li:first-child{color:#fde68a}.ticker-intel-avoid .ticker-intel-next li:first-child{color:#fecaca}
         .executive-cockpit{display:grid;grid-template-columns:minmax(260px,1.1fr) minmax(380px,1.35fr) minmax(300px,.95fr);gap:1px;border:1px solid rgba(148,163,184,.26);border-radius:8px;background:rgba(148,163,184,.14);margin:6px 0 10px;overflow:hidden;box-shadow:0 18px 48px rgba(0,0,0,.24)}
         .exec-main,.exec-kpis,.exec-tape{background:#070c16}.exec-main{padding:12px 14px;border-left:4px solid #f59e0b}.executive-cockpit-buy .exec-main{border-left-color:#22c55e}.executive-cockpit-avoid .exec-main{border-left-color:#ef4444}.exec-main span{display:block;color:#93c5fd;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.exec-main h2{margin:5px 0;color:#f8fafc;font-size:28px;line-height:1.02;font-weight:950;letter-spacing:-.02em}.exec-main p{margin:0;color:#cbd5e1;font-size:12px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .exec-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.exec-kpis div{background:#0b1220;padding:9px 10px}.exec-kpis span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase}.exec-kpis strong{display:block;color:#f8fafc;font-size:20px;line-height:1.05;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.exec-kpis small{display:block;color:#cbd5e1;font-size:10px;line-height:1.18;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -10969,9 +11088,9 @@ def main() -> None:
         .stButton button:hover{border-color:#a78bfa;color:#f8fafc}
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media (max-width:1100px){.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-grid-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
+        @media (max-width:1100px){.ticker-intel{grid-template-columns:1fr}.ticker-intel-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-grid-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
         @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.brand-logo-img{width:150px;max-width:42vw}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
-        @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.compare-board>header{display:block}.compare-board>header span{display:block;text-align:left;margin-top:4px}.compare-grid-cards{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
+        @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.ticker-intel-kpis{grid-template-columns:1fr 1fr}.ticker-intel-main h3{font-size:23px}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.compare-board>header{display:block}.compare-board>header span{display:block;text-align:left;margin-top:4px}.compare-grid-cards{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
         </style>
         """,
         unsafe_allow_html=True,
