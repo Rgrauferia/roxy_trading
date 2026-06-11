@@ -10128,21 +10128,35 @@ def render_scanner_blotter(table: pd.DataFrame, confluence_df: pd.DataFrame) -> 
         """,
         unsafe_allow_html=True,
     )
-    radar_filter = st.radio(
-        "Filtro Roxy Radar",
-        ["Todos", "Operar", "Esperar", "No tocar"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="roxy_radar_action_filter",
-    )
+    filter_cols = st.columns([1.2, 1])
+    with filter_cols[0]:
+        radar_filter = st.radio(
+            "Filtro Roxy Radar",
+            ["Todos", "Operar", "Esperar", "No tocar"],
+            horizontal=True,
+            label_visibility="collapsed",
+            key="roxy_radar_action_filter",
+        )
+    with filter_cols[1]:
+        quality_filter = st.radio(
+            "Calidad Roxy Radar",
+            ["Todas calidades", "A+ solamente", "A o mejor", "B o mejor"],
+            horizontal=True,
+            label_visibility="collapsed",
+            key="roxy_radar_quality_filter",
+        )
     visible_blotter = blotter
     if radar_filter != "Todos":
         action_key = {"Operar": "OPERAR", "Esperar": "ESPERAR", "No tocar": "NO TOCAR"}[radar_filter]
         visible_blotter = blotter[blotter["Acción"].astype(str).str.contains(action_key, regex=False)].reset_index(
             drop=True
         )
+    if quality_filter != "Todas calidades":
+        minimum_quality = {"A+ solamente": 3, "A o mejor": 2, "B o mejor": 1}[quality_filter]
+        quality_rank = visible_blotter["Calidad"].map({"A+": 3, "A": 2, "B": 1, "C": 0}).fillna(0)
+        visible_blotter = visible_blotter[quality_rank.ge(minimum_quality)].reset_index(drop=True)
     if visible_blotter.empty:
-        st.caption("Sin oportunidades en este filtro del Radar.")
+        st.caption("Sin oportunidades para estos filtros del Radar.")
         return
     quick_cols = st.columns(min(6, max(1, len(visible_blotter))))
     for idx, row in enumerate(visible_blotter.head(6).to_dict("records")):
