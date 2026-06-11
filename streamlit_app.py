@@ -7045,6 +7045,78 @@ def render_top_opportunity_cards(table: pd.DataFrame, confluence_df: pd.DataFram
 
 
 
+def market_movers_tape_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, *, limit_per_group: int = 5) -> pd.DataFrame:
+    columns = ["group", "tone", "symbol", "status", "score", "risk", "rel_volume", "strategy", "next"]
+    rows = scanner_wallboard_rows(table, confluence_df, limit=max(limit_per_group * 8, 32))
+    if rows.empty:
+        return pd.DataFrame(columns=columns)
+    data = rows.copy()
+    data["score_sort"] = pd.to_numeric(data["score"], errors="coerce").fillna(0)
+    data["risk_sort"] = pd.to_numeric(data["risk"], errors="coerce")
+    data["volume_sort"] = pd.to_numeric(data["rel_volume"], errors="coerce").fillna(0)
+    groups: list[tuple[str, str, pd.DataFrame]] = [
+        ("Top Score", "buy", data.sort_values(["score_sort", "volume_sort"], ascending=[False, False])),
+        ("Volumen", "watch", data.sort_values(["volume_sort", "score_sort"], ascending=[False, False])),
+        ("Riesgo Bajo", "buy", data.dropna(subset=["risk_sort"]).sort_values(["risk_sort", "score_sort"], ascending=[True, False])),
+        ("Gatillo Cerca", "watch", data[data["status"].eq("Vigilar")].sort_values(["score_sort", "volume_sort"], ascending=[False, False])),
+        ("No Tocar", "avoid", data[data["status"].eq("Evitar")].sort_values(["risk_sort", "score_sort"], ascending=[False, False])),
+    ]
+    output: list[dict[str, Any]] = []
+    for group, tone, group_rows in groups:
+        for _, item in group_rows.head(max(1, int(limit_per_group))).iterrows():
+            row = item.to_dict()
+            output.append(
+                {
+                    "group": group,
+                    "tone": tone,
+                    "symbol": text_display(row.get("symbol")).upper(),
+                    "status": text_display(row.get("status")),
+                    "score": safe_float(row.get("score")),
+                    "risk": safe_float(row.get("risk")),
+                    "rel_volume": safe_float(row.get("rel_volume")),
+                    "strategy": text_display(row.get("strategy")),
+                    "next": text_display(row.get("next")),
+                }
+            )
+    return pd.DataFrame(output, columns=columns)
+
+
+def render_market_movers_tape(table: pd.DataFrame, confluence_df: pd.DataFrame) -> None:
+    rows = market_movers_tape_rows(table, confluence_df, limit_per_group=5)
+    if rows.empty:
+        return
+    sections = []
+    for group in ["Top Score", "Volumen", "Riesgo Bajo", "Gatillo Cerca", "No Tocar"]:
+        group_rows = rows[rows["group"].eq(group)].to_dict("records")
+        if not group_rows:
+            continue
+        tone = text_display(group_rows[0].get("tone"))
+        body = []
+        for row in group_rows:
+            body.append(
+                "<tr>"
+                f"<td>{html.escape(text_display(row.get('symbol')))}</td>"
+                f"<td>{html.escape(num_display(row.get('score'), 0))}</td>"
+                f"<td>{html.escape(num_display(row.get('rel_volume'), 1))}x</td>"
+                f"<td>{html.escape(pct_display(row.get('risk')))}</td>"
+                f"<td>{html.escape(text_display(row.get('next')))}</td>"
+                "</tr>"
+            )
+        sections.append(
+            f'<section class="market-mover-table market-mover-{html.escape(tone)}">'
+            f"<header>{html.escape(group)}</header>"
+            "<table><thead><tr><th>Ticker</th><th>Score</th><th>RVol</th><th>Riesgo</th><th>Next</th></tr></thead>"
+            f"<tbody>{''.join(body)}</tbody></table></section>"
+        )
+    st.markdown(
+        '<section class="market-movers-tape"><header><strong>Market Movers Tape</strong><span>Listas rápidas tipo Finviz para decidir dónde mirar primero.</span></header><div class="market-mover-grid">'
+        + "".join(sections)
+        + "</div></section>",
+        unsafe_allow_html=True,
+    )
+
+
+
 def scanner_breadth_summary(scan_df: pd.DataFrame, confluence_df: pd.DataFrame) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
 
@@ -9269,6 +9341,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
     render_alert_noise_contract(brief)
     render_executive_cockpit(best, confluence_df, scan_df, brief)
     render_top_opportunity_cards(best, confluence_df)
+    render_market_movers_tape(best, confluence_df)
     render_trading_desk_table(best, confluence_df, scan_df)
     render_buy_readiness_gap_panel(confluence_df)
     render_finviz_style_wallboard(best, confluence_df, brief)
@@ -10587,6 +10660,8 @@ def main() -> None:
         .wall-tables{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.wall-table{border:1px solid rgba(148,163,184,.18);border-radius:6px;overflow:hidden;background:#0b1220}.wall-table header{padding:6px 8px;color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.wall-table table{width:100%;border-collapse:collapse}.wall-table th,.wall-table td{padding:5px 6px;border-bottom:1px solid rgba(148,163,184,.10);font-size:10px;line-height:1.15;text-align:left;color:#cbd5e1}.wall-table th{color:#94a3b8;font-weight:900;text-transform:uppercase}.wall-table td:first-child{color:#f8fafc;font-weight:950}.wall-table tr:last-child td{border-bottom:0}
         .top-opps-header{display:flex;justify-content:space-between;gap:12px;align-items:center;border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#111827;padding:8px 10px;margin:4px 0 8px}.top-opps-header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.top-opps-header span{color:#94a3b8;font-size:11px;text-align:right}
         .top-opp-card{border:1px solid rgba(148,163,184,.22);border-radius:8px 8px 0 0;background:#0b1220;padding:9px 10px;min-height:98px;border-bottom:0}.top-opp-card div{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.top-opp-card span{color:#94a3b8;font-size:10px;text-transform:uppercase;font-weight:950}.top-opp-card strong{color:#f8fafc;font-size:20px;line-height:1;font-weight:950}.top-opp-card p{margin:8px 0 6px;color:#e2e8f0;font-size:12px;line-height:1.2;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top-opp-card small{display:block;color:#94a3b8;font-size:10px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top-opp-buy{border-color:rgba(34,197,94,.42);background:rgba(21,93,62,.24)}.top-opp-watch{border-color:rgba(245,158,11,.42);background:rgba(120,74,15,.22)}.top-opp-avoid{border-color:rgba(239,68,68,.42);background:rgba(127,29,29,.22)}
+        .market-movers-tape{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 12px;overflow:hidden}.market-movers-tape>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.15)}.market-movers-tape>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.market-movers-tape>header span{color:#94a3b8;font-size:11px;text-align:right}.market-mover-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
+        .market-mover-table{background:#0b1220;overflow:hidden;border-top:2px solid rgba(148,163,184,.25)}.market-mover-table header{padding:6px 8px;color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;background:#0f172a;border-bottom:1px solid rgba(148,163,184,.12)}.market-mover-table table{width:100%;border-collapse:collapse}.market-mover-table th,.market-mover-table td{padding:5px 6px;border-bottom:1px solid rgba(148,163,184,.10);font-size:10px;line-height:1.15;text-align:left;color:#cbd5e1}.market-mover-table th{color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase}.market-mover-table td:first-child{color:#f8fafc;font-weight:950}.market-mover-table td:nth-child(2),.market-mover-table td:nth-child(3),.market-mover-table td:nth-child(4){text-align:right}.market-mover-table td:last-child{max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.market-mover-buy{border-top-color:#22c55e}.market-mover-watch{border-top-color:#f59e0b}.market-mover-avoid{border-top-color:#ef4444}
         .executive-cockpit{display:grid;grid-template-columns:minmax(260px,1.1fr) minmax(380px,1.35fr) minmax(300px,.95fr);gap:1px;border:1px solid rgba(148,163,184,.26);border-radius:8px;background:rgba(148,163,184,.14);margin:6px 0 10px;overflow:hidden;box-shadow:0 18px 48px rgba(0,0,0,.24)}
         .exec-main,.exec-kpis,.exec-tape{background:#070c16}.exec-main{padding:12px 14px;border-left:4px solid #f59e0b}.executive-cockpit-buy .exec-main{border-left-color:#22c55e}.executive-cockpit-avoid .exec-main{border-left-color:#ef4444}.exec-main span{display:block;color:#93c5fd;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.exec-main h2{margin:5px 0;color:#f8fafc;font-size:28px;line-height:1.02;font-weight:950;letter-spacing:-.02em}.exec-main p{margin:0;color:#cbd5e1;font-size:12px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .exec-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.exec-kpis div{background:#0b1220;padding:9px 10px}.exec-kpis span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase}.exec-kpis strong{display:block;color:#f8fafc;font-size:20px;line-height:1.05;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.exec-kpis small{display:block;color:#cbd5e1;font-size:10px;line-height:1.18;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -10689,7 +10764,7 @@ def main() -> None:
         .stButton button:hover{border-color:#a78bfa;color:#f8fafc}
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media (max-width:1100px){.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
+        @media (max-width:1100px){.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
         @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.brand-logo-img{width:150px;max-width:42vw}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
         @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
         </style>
