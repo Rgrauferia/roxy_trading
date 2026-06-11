@@ -1723,6 +1723,94 @@ def render_alpaca_operations_gate(env: dict[str, str] | None = None) -> str:
 
 
 
+def alpaca_paper_account_snapshot(env: dict[str, str] | None = None, client_factory: Any | None = None) -> dict[str, Any]:
+    source = env if env is not None else os.environ
+    gate = alpaca_operations_gate(source)
+    base = {
+        "status": "No conectado",
+        "tone": "avoid",
+        "mode": gate.get("mode"),
+        "connected": False,
+        "paper_ready": bool(gate.get("paper_ready")),
+        "buying_power": None,
+        "cash": None,
+        "portfolio_value": None,
+        "equity": None,
+        "account_status": "-",
+        "trading_blocked": None,
+        "pattern_day_trader": None,
+        "detail": text_display(gate.get("next")),
+    }
+    if not gate.get("paper_ready"):
+        base["status"] = "Paper pendiente" if gate.get("configured") else "Credenciales pendientes"
+        base["tone"] = text_display(gate.get("tone"))
+        return base
+
+    key = str(source.get("ALPACA_API_KEY") or "").strip()
+    secret = str(source.get("ALPACA_API_SECRET") or source.get("ALPACA_SECRET_KEY") or "").strip()
+    if not key or not secret:
+        return base
+
+    try:
+        if client_factory is None:
+            from alpaca.trading.client import TradingClient
+
+            def client_factory(api_key: str, secret_key: str):
+                return TradingClient(api_key=api_key, secret_key=secret_key, paper=True)
+
+        client = client_factory(key, secret)
+        account = client.get_account()
+    except Exception as exc:
+        return {
+            **base,
+            "status": "Paper sin conexion",
+            "tone": "watch",
+            "detail": f"No se pudo leer cuenta paper: {type(exc).__name__}. Revisar env/permiso sin exponer secretos.",
+        }
+
+    def attr(name: str) -> Any:
+        if isinstance(account, dict):
+            return account.get(name)
+        return getattr(account, name, None)
+
+    return {
+        **base,
+        "status": "Paper conectado",
+        "tone": "buy",
+        "mode": "PAPER_ACCOUNT_SYNC",
+        "connected": True,
+        "buying_power": safe_float(attr("buying_power")),
+        "cash": safe_float(attr("cash")),
+        "portfolio_value": safe_float(attr("portfolio_value")),
+        "equity": safe_float(attr("equity")),
+        "account_status": text_display(attr("status")),
+        "trading_blocked": bool(attr("trading_blocked")) if attr("trading_blocked") is not None else None,
+        "pattern_day_trader": bool(attr("pattern_day_trader")) if attr("pattern_day_trader") is not None else None,
+        "detail": "Lectura read-only de Alpaca paper. Ordenes reales siguen bloqueadas.",
+    }
+
+
+def render_alpaca_paper_account_panel(env: dict[str, str] | None = None) -> str:
+    snapshot = alpaca_paper_account_snapshot(env)
+    tone = text_display(snapshot.get("tone"))
+    blocked = "SI" if snapshot.get("trading_blocked") else "NO" if snapshot.get("trading_blocked") is not None else "-"
+    pdt = "SI" if snapshot.get("pattern_day_trader") else "NO" if snapshot.get("pattern_day_trader") is not None else "-"
+    return (
+        f'<section class="alpaca-paper-panel alpaca-paper-{html.escape(tone)}">'
+        '<div><span>Alpaca Paper Account</span>'
+        f'<strong>{html.escape(text_display(snapshot.get("status")))}</strong>'
+        f'<em>{html.escape(text_display(snapshot.get("mode")))} · Estado {html.escape(text_display(snapshot.get("account_status")))}</em></div>'
+        '<aside>'
+        f'<b>Buying power</b><strong>{html.escape(num_display(snapshot.get("buying_power"), 2))}</strong>'
+        f'<b>Portfolio</b><strong>{html.escape(num_display(snapshot.get("portfolio_value"), 2))}</strong>'
+        f'<b>Cash</b><strong>{html.escape(num_display(snapshot.get("cash"), 2))}</strong>'
+        '</aside>'
+        f'<p>{html.escape(text_display(snapshot.get("detail")))} · Blocked: {html.escape(blocked)} · PDT: {html.escape(pdt)}</p>'
+        '</section>'
+    )
+
+
+
 def render_live_provider_center(env: dict[str, str] | None = None) -> None:
     rows = live_provider_rows(env)
     cards = []
@@ -1740,6 +1828,7 @@ def render_live_provider_center(env: dict[str, str] | None = None) -> None:
     st.markdown(
         '<section class="provider-center"><header><strong>Live Provider Center</strong><span>Preparacion para datos live/paper sin activar trading real.</span></header>'
         + render_alpaca_operations_gate(env)
+        + render_alpaca_paper_account_panel(env)
         + '<div class="provider-grid">'
         + "".join(cards)
         + "</div></section>",
@@ -11542,6 +11631,7 @@ def main() -> None:
         .preset-card{background:#0b1220;padding:8px 9px;border-top:2px solid rgba(148,163,184,.28);min-width:0}.preset-card header{display:flex;justify-content:space-between;gap:8px;align-items:center}.preset-card header strong{color:#f8fafc;font-size:12px;font-weight:950;text-transform:uppercase}.preset-card header span{color:#f8fafc;font-size:18px;line-height:1;font-weight:950}.preset-card div{display:flex;justify-content:space-between;gap:8px;margin-top:7px}.preset-card div span{color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase}.preset-card b{color:#f8fafc;font-size:18px;line-height:1}.preset-card p{margin:6px 0 3px;color:#e2e8f0;font-size:11px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.preset-card small{display:block;color:#94a3b8;font-size:10px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.preset-card-buy{border-top-color:#22c55e;background:rgba(21,93,62,.22)}.preset-card-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.20)}.preset-card-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}
         .provider-center{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 10px;overflow:hidden}.provider-center>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.provider-center>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.provider-center>header span{color:#94a3b8;font-size:11px;text-align:right}.provider-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .alpaca-gate{display:grid;grid-template-columns:minmax(210px,.46fr) 1fr minmax(240px,.52fr);gap:10px;align-items:center;padding:9px 10px;border-bottom:1px solid rgba(148,163,184,.14);border-left:3px solid rgba(148,163,184,.45);background:rgba(15,23,42,.80)}.alpaca-gate span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.alpaca-gate strong{display:block;color:#f8fafc;font-size:18px;line-height:1.05;font-weight:950;margin-top:3px}.alpaca-gate em{display:block;color:#cbd5e1;font-style:normal;font-size:10px;font-weight:900;margin-top:4px}.alpaca-gate p{margin:0;color:#e2e8f0;font-size:12px;font-weight:850;line-height:1.25}.alpaca-gate aside{display:grid;gap:4px}.alpaca-gate b{color:#f8fafc;font-size:11px;line-height:1.05;text-transform:uppercase}.alpaca-gate small{color:#94a3b8;font-size:10px;line-height:1.2}.alpaca-gate-buy{border-left-color:#22c55e;background:rgba(21,93,62,.18)}.alpaca-gate-watch{border-left-color:#f59e0b;background:rgba(120,74,15,.17)}.alpaca-gate-avoid{border-left-color:#ef4444;background:rgba(127,29,29,.18)}
+        .alpaca-paper-panel{display:grid;grid-template-columns:minmax(210px,.46fr) minmax(360px,1fr) minmax(320px,.7fr);gap:10px;align-items:center;padding:9px 10px;border-bottom:1px solid rgba(148,163,184,.14);border-left:3px solid rgba(148,163,184,.45);background:rgba(8,13,24,.86)}.alpaca-paper-panel span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.alpaca-paper-panel strong{display:block;color:#f8fafc;font-size:18px;line-height:1.05;font-weight:950;margin-top:3px}.alpaca-paper-panel em{display:block;color:#cbd5e1;font-style:normal;font-size:10px;font-weight:900;margin-top:4px}.alpaca-paper-panel aside{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border-radius:6px;overflow:hidden}.alpaca-paper-panel aside b,.alpaca-paper-panel aside strong{background:#0b1220;margin:0;padding:6px 7px;font-size:10px;line-height:1.05}.alpaca-paper-panel aside b{color:#94a3b8;text-transform:uppercase}.alpaca-paper-panel aside strong{font-size:13px;color:#f8fafc}.alpaca-paper-panel p{margin:0;color:#e2e8f0;font-size:11px;font-weight:850;line-height:1.25}.alpaca-paper-buy{border-left-color:#22c55e;background:rgba(21,93,62,.16)}.alpaca-paper-watch{border-left-color:#f59e0b;background:rgba(120,74,15,.16)}.alpaca-paper-avoid{border-left-color:#ef4444;background:rgba(127,29,29,.16)}
         .provider-card{background:#0b1220;padding:8px 9px;border-top:2px solid rgba(148,163,184,.28);min-width:0}.provider-card header{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.provider-card header strong{color:#f8fafc;font-size:12px;font-weight:950;text-transform:uppercase}.provider-card header span{color:#e2e8f0;font-size:10px;line-height:1.1;text-align:right;font-weight:900}.provider-card div{display:flex;justify-content:space-between;gap:8px;margin-top:7px}.provider-card b{color:#f8fafc;font-size:13px;line-height:1;font-weight:950}.provider-card em{color:#94a3b8;font-size:10px;line-height:1;font-style:normal;text-align:right}.provider-card p{margin:6px 0 3px;color:#e2e8f0;font-size:11px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.provider-card small{display:block;color:#cbd5e1;font-size:10px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.provider-card i{display:block;color:#94a3b8;font-size:9px;line-height:1.15;font-style:normal;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.provider-card-buy{border-top-color:#22c55e;background:rgba(21,93,62,.22)}.provider-card-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.20)}.provider-card-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}.provider-card-neutral{border-top-color:#64748b}
         .exit-board{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 10px;overflow:hidden}.exit-board>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.exit-board>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.exit-board>header span{color:#94a3b8;font-size:11px;text-align:right}.exit-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .exit-card{background:#0b1220;padding:8px 9px;border-top:2px solid rgba(148,163,184,.28);min-width:0}.exit-card header{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.exit-card header strong{color:#f8fafc;font-size:14px;font-weight:950}.exit-card header span{color:#e2e8f0;font-size:10px;line-height:1.1;text-align:right;font-weight:900;text-transform:uppercase}.exit-levels{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;margin-top:7px;background:rgba(148,163,184,.12);border-radius:6px;overflow:hidden}.exit-levels div{background:#0f172a;padding:5px}.exit-levels span{display:block;color:#94a3b8;font-size:8px;font-weight:950;text-transform:uppercase}.exit-levels b{display:block;color:#f8fafc;font-size:11px;line-height:1.05;margin-top:3px}.exit-card p{margin:7px 0 3px;color:#e2e8f0;font-size:11px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.exit-card small{display:block;color:#cbd5e1;font-size:10px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.exit-card-buy{border-top-color:#22c55e;background:rgba(21,93,62,.22)}.exit-card-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.20)}.exit-card-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}
@@ -11648,7 +11738,7 @@ def main() -> None:
         .stButton button:hover{border-color:#a78bfa;color:#f8fafc}
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media (max-width:1100px){.ticker-intel,.alpaca-gate{grid-template-columns:1fr}.ticker-intel-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.exit-grid,.provider-grid,.preset-grid,.research-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.confirm-radar-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-grid-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
+        @media (max-width:1100px){.ticker-intel,.alpaca-gate,.alpaca-paper-panel{grid-template-columns:1fr}.ticker-intel-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.exit-grid,.provider-grid,.preset-grid,.research-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.confirm-radar-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-grid-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
         @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.brand-logo-img{width:150px;max-width:42vw}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
         @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.ticker-intel-kpis{grid-template-columns:1fr 1fr}.ticker-intel-main h3{font-size:23px}.company-research>header,.confirmation-radar>header,.exit-board>header,.provider-center>header,.screener-presets>header{display:block}.company-research>header span,.confirmation-radar>header span,.exit-board>header span,.provider-center>header span,.screener-presets>header span{display:block;text-align:left;margin-top:4px}.exit-grid,.provider-grid,.preset-grid,.research-grid,.confirm-radar-grid{grid-template-columns:1fr}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.compare-board>header{display:block}.compare-board>header span{display:block;text-align:left;margin-top:4px}.compare-grid-cards{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
         </style>
