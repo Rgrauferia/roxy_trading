@@ -537,6 +537,7 @@ def roxy_live_page():
         <textarea id="query" placeholder="Pulsa Hablar o escribe aqui..."></textarea>
         <div class="quick">
           <button data-prompt="hola roxy">Saludo</button>
+          <button data-prompt="estado de roxy">Estado</button>
           <button data-prompt="que puedes hacer">Capacidades</button>
           <button data-prompt="resumen de oportunidad">Oportunidad</button>
           <button data-prompt="lee el manual de Roxy Trading">Manual</button>

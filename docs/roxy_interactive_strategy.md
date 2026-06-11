@@ -48,6 +48,8 @@ Feedback learning is stored locally in `alerts/roxy_feedback.json`. Roxy Live ca
 
 The full local learning state is available through `GET /v1/learning/status`. It combines safe user profile fields, session memory, feedback counts, approved knowledge sources, and recommendations. Roxy Live exposes it with the `Aprendizaje` button so the assistant can explain what she is improving without needing a broker connection or external LLM.
 
+Roxy also understands operational status prompts such as "estado", "estado de Roxy", or "modo autonomo". These return the `autonomy_status` intent with voice readiness, session memory, feedback count, and next recommended action. The word "estado" is explicitly excluded from ticker detection so a status check cannot become a fake symbol lookup.
+
 ## Integration Points
 
 - Visual tab: use `voice_style`, `intent`, `avatar_state`, `emotion`, and `suggested_actions` to animate avatar state, listening state, expression, and recommended buttons.

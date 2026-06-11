@@ -224,6 +224,32 @@ def test_roxy_brain_uses_preferred_name_and_watchlist(tmp_path):
     assert "SPY, QQQ" in capabilities.reply
 
 
+def test_roxy_brain_reports_autonomy_status_without_symbol_confusion(tmp_path):
+    profile = RoxyUserProfile(path=tmp_path / "profile.json")
+    profile.update("local", {"preferred_name": "Roberto"})
+    feedback = RoxyFeedbackMemory(path=tmp_path / "feedback.json")
+    feedback.record({"rating": "down", "user": "local", "intent": "capabilities"})
+    memory = RoxyConversationMemory(path=tmp_path / "conversation.json")
+    brain = RoxyInteractiveBrain(
+        brief_path=tmp_path / "brief.json",
+        memory_path=tmp_path / "memory.json",
+        conversation_memory=memory,
+        user_profile=profile,
+        feedback_memory=feedback,
+    )
+    brain.generate_reply("hola", user="local", session_id="demo")
+
+    response = brain.generate_reply("estado", user="local", session_id="demo")
+
+    assert response.intent == "autonomy_status"
+    assert response.avatar_state == "ready"
+    assert response.safety_level == "guarded"
+    assert "Estoy activa Roberto" in response.reply
+    assert "Feedback aprendido" in response.reply
+    assert "enable_wake_roxy" in response.suggested_actions
+    assert "ESTADO:" not in response.reply
+
+
 def test_roxy_feedback_memory_records_and_summarizes(tmp_path):
     feedback = RoxyFeedbackMemory(path=tmp_path / "feedback.json")
 

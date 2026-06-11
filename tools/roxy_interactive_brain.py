@@ -505,9 +505,11 @@ def _extract_symbol(query: str) -> str | None:
         "STOP",
         "ENTRA",
         "ENTRADA",
+        "ESTADO",
         "FALTA",
         "PORQUE",
         "SIGUE",
+        "STATUS",
     }
     for raw_word in query.split():
         word = raw_word.strip(".,:;!?()[]{}\"'").upper()
@@ -569,6 +571,23 @@ class RoxyInteractiveBrain:
 
         if _contains_any(lq, ("que puedes", "ayuda", "hablar", "conversacion", "voz", "fluida")):
             response = self._capability_reply(profile)
+            return finish(response)
+
+        if _contains_any(
+            lq,
+            (
+                "estado de roxy",
+                "estado roxy",
+                "estado local",
+                "modo autonomo",
+                "autonomia",
+                "estas activa",
+                "estas escuchando",
+                "sigues activa",
+                "status",
+            ),
+        ) or lq in {"estado", "status"}:
+            response = self._autonomy_status_reply(user, session_id, recent_turns, profile)
             return finish(response)
 
         if _contains_any(
@@ -833,6 +852,40 @@ class RoxyInteractiveBrain:
             emotion="confident",
             safety_level="guarded",
             suggested_actions=("connect_realtime_voice", "connect_news_source", "confirm_trade_guardrails"),
+        )
+
+    def _autonomy_status_reply(
+        self,
+        user: str | None,
+        session_id: str | None,
+        recent_turns: list[dict[str, Any]],
+        profile: dict[str, Any],
+    ) -> RoxyBrainReply:
+        name = self._display_name(user, profile)
+        feedback = self.feedback_memory.summary(user=user)
+        feedback_total = int(feedback.get("total", 0) or 0)
+        feedback_down = int(feedback.get("down", 0) or 0)
+        last_intent = "-"
+        for turn in reversed(recent_turns):
+            last_intent = _safe_text(turn.get("intent")) or "-"
+            if last_intent != "-":
+                break
+        if session_id:
+            session_text = f"Sesion {session_id}: {len(recent_turns)} turno(s), ultimo intent {last_intent}."
+        else:
+            session_text = "Sin session_id activo; puedo conversar, pero la memoria de sesion no se guarda."
+        return RoxyBrainReply(
+            intent="autonomy_status",
+            reply=(
+                f"Estoy activa{name}. Voz local lista en Roxy Live, memoria local operativa y guardrails de trading "
+                f"encendidos. {session_text} Feedback aprendido: {feedback_total} marca(s), {feedback_down} a mejorar. "
+                "Siguiente paso recomendado: mantener Wake Roxy activo, hacer una pregunta concreta y usar feedback "
+                "cuando mi respuesta no sea util."
+            ),
+            avatar_state="ready",
+            emotion="attentive",
+            safety_level="guarded",
+            suggested_actions=("enable_wake_roxy", "ask_latest_opportunity", "review_learning_status"),
         )
 
     def _display_name(self, user: str | None, profile: dict[str, Any]) -> str:

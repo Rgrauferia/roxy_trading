@@ -22,6 +22,7 @@ def test_roxy_live_page():
     assert "/v1/assist/state" in r.text
     assert "loadMemory" in r.text
     assert "data-prompt" in r.text
+    assert 'data-prompt="estado de roxy"' in r.text
     assert "chat" in r.text
     assert "conversationMode" in r.text
     assert "Modo conversacion" in r.text
