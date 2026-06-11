@@ -15,10 +15,16 @@ def test_company_profile_summary_normalizes_key_fields():
             "sector": "Technology",
             "industry": "Consumer Electronics",
             "country": "United States",
+            "exchange": "NMS",
             "marketCap": 3_000_000_000_000,
+            "fullTimeEmployees": 164_000,
             "currentPrice": 200.12,
             "trailingPE": 31.4,
+            "forwardPE": 28.2,
             "beta": 1.18,
+            "dividendYield": 0.0049,
+            "recommendationKey": "buy",
+            "targetMeanPrice": 230.14,
             "fiftyTwoWeekLow": 164.08,
             "fiftyTwoWeekHigh": 237.49,
             "website": "https://www.apple.com",
@@ -29,8 +35,15 @@ def test_company_profile_summary_normalizes_key_fields():
     assert summary["name"] == "Apple Inc."
     assert summary["sector"] == "Technology"
     assert summary["industry"] == "Consumer Electronics"
+    assert summary["exchange"] == "NMS"
     assert summary["market_cap"] == "3.00T"
+    assert summary["employees"] == "164.00K"
     assert summary["price"] == "200.12"
     assert summary["pe"] == "31.40"
+    assert summary["forward_pe"] == "28.20"
     assert summary["beta"] == "1.18"
+    assert summary["dividend_yield"] == "0.49%"
+    assert summary["recommendation"] == "Buy"
+    assert summary["target_price"] == "230.14"
+    assert summary["target_upside"] == "15.00%"
     assert summary["range_52w"] == "164.08 / 237.49"

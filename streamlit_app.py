@@ -986,15 +986,25 @@ def compact_large_number(value) -> str:
 
 
 def company_profile_summary(profile: dict[str, Any]) -> dict[str, str]:
+    current_price = safe_float(profile.get("currentPrice") or profile.get("regularMarketPrice"))
+    target_price = safe_float(profile.get("targetMeanPrice"))
+    target_upside = ((target_price / current_price) - 1.0) if current_price and target_price else None
     return {
         "name": text_display(profile.get("longName") or profile.get("shortName")),
         "sector": text_display(profile.get("sector")),
         "industry": text_display(profile.get("industry")),
         "country": text_display(profile.get("country")),
+        "exchange": text_display(profile.get("exchange") or profile.get("fullExchangeName")),
         "market_cap": compact_large_number(profile.get("marketCap")),
-        "price": num_display(profile.get("currentPrice") or profile.get("regularMarketPrice"), 2),
+        "employees": compact_large_number(profile.get("fullTimeEmployees")),
+        "price": num_display(current_price, 2),
         "pe": num_display(profile.get("trailingPE"), 2),
+        "forward_pe": num_display(profile.get("forwardPE"), 2),
         "beta": num_display(profile.get("beta"), 2),
+        "dividend_yield": pct_display(profile.get("dividendYield")),
+        "recommendation": text_display(profile.get("recommendationKey")).title(),
+        "target_price": num_display(target_price, 2),
+        "target_upside": pct_display(target_upside),
         "range_52w": f"{num_display(profile.get('fiftyTwoWeekLow'), 2)} / {num_display(profile.get('fiftyTwoWeekHigh'), 2)}",
         "website": text_display(profile.get("website")),
         "summary": text_display(profile.get("longBusinessSummary")),
@@ -1379,11 +1389,18 @@ def load_company_profile(symbol: str, market: str) -> dict[str, Any]:
             "sector",
             "industry",
             "country",
+            "exchange",
+            "fullExchangeName",
             "marketCap",
+            "fullTimeEmployees",
             "currentPrice",
             "regularMarketPrice",
             "trailingPE",
+            "forwardPE",
             "beta",
+            "dividendYield",
+            "recommendationKey",
+            "targetMeanPrice",
             "fiftyTwoWeekLow",
             "fiftyTwoWeekHigh",
             "website",
@@ -1404,15 +1421,21 @@ def render_company_profile_card(symbol: str, market: str) -> None:
         <section class="company-profile-card">
             <header>
                 <strong>{html.escape(summary['name'])}</strong>
-                <span>{html.escape(symbol.upper())} · {html.escape(summary['sector'])}</span>
+                <span>{html.escape(symbol.upper())} · {html.escape(summary['exchange'])} · {html.escape(summary['sector'])}</span>
             </header>
             <div class="company-profile-grid">
                 <div><span>Industria</span><strong>{html.escape(summary['industry'])}</strong></div>
                 <div><span>Market cap</span><strong>{html.escape(summary['market_cap'])}</strong></div>
                 <div><span>Precio</span><strong>{html.escape(summary['price'])}</strong></div>
                 <div><span>P/E</span><strong>{html.escape(summary['pe'])}</strong></div>
+                <div><span>Forward P/E</span><strong>{html.escape(summary['forward_pe'])}</strong></div>
                 <div><span>Beta</span><strong>{html.escape(summary['beta'])}</strong></div>
+                <div><span>Div yield</span><strong>{html.escape(summary['dividend_yield'])}</strong></div>
+                <div><span>Empleados</span><strong>{html.escape(summary['employees'])}</strong></div>
+                <div><span>Analistas</span><strong>{html.escape(summary['recommendation'])}</strong></div>
+                <div><span>Target/upside</span><strong>{html.escape(summary['target_price'])} · {html.escape(summary['target_upside'])}</strong></div>
                 <div><span>52W</span><strong>{html.escape(summary['range_52w'])}</strong></div>
+                <div><span>País</span><strong>{html.escape(summary['country'])}</strong></div>
             </div>
             <p>{html.escape(summary['summary'][:420])}</p>
         </section>
