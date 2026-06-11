@@ -1811,6 +1811,163 @@ def render_alpaca_paper_account_panel(env: dict[str, str] | None = None) -> str:
 
 
 
+def alpaca_paper_autotrade_enabled(env: dict[str, str] | None = None) -> bool:
+    source = env if env is not None else os.environ
+    raw = str(source.get("ROXY_ALPACA_PAPER_AUTOTRADE") or "").strip().lower()
+    return raw in {"1", "true", "yes", "on", "paper"}
+
+
+def alpaca_paper_order_candidates(
+    table: pd.DataFrame,
+    *,
+    account_equity: float = 500.0,
+    risk_pct: float = 0.01,
+    limit: int = 3,
+) -> pd.DataFrame:
+    columns = ["symbol", "side", "qty", "entry", "stop", "take_profit", "risk_dollars", "notional", "reason"]
+    if table.empty:
+        return pd.DataFrame(columns=columns)
+    risk_budget = max(0.0, safe_float(account_equity) or 0.0) * max(0.0, safe_float(risk_pct) or 0.0)
+    rows: list[dict[str, Any]] = []
+    for item in table.to_dict("records"):
+        if not opportunity_is_trade_ready(item):
+            continue
+        symbol = text_display(item.get("symbol")).upper()
+        market = text_display(item.get("market")).lower()
+        if not symbol or symbol == "-" or market == "crypto" or "/" in symbol:
+            continue
+        entry = safe_float(item.get("entry"))
+        stop = safe_float(item.get("stop"))
+        target = safe_float(item.get("target_price"))
+        target_pct = safe_float(item.get("target_pct"))
+        if target is None and entry is not None and target_pct is not None:
+            target = entry * (1.0 + target_pct)
+        if entry is None or stop is None or target is None:
+            continue
+        per_share_risk = abs(entry - stop)
+        if per_share_risk <= 0:
+            continue
+        qty = int(risk_budget // per_share_risk)
+        if qty <= 0:
+            qty = 1
+        rows.append(
+            {
+                "symbol": symbol,
+                "side": "buy",
+                "qty": qty,
+                "entry": round(entry, 2),
+                "stop": round(stop, 2),
+                "take_profit": round(target, 2),
+                "risk_dollars": round(qty * per_share_risk, 2),
+                "notional": round(qty * entry, 2),
+                "reason": text_display(item.get("por_que") or item.get("raw_reason") or item.get("strategy_family")),
+            }
+        )
+        if len(rows) >= limit:
+            break
+    return pd.DataFrame(rows, columns=columns)
+
+
+def submit_alpaca_paper_bracket_order(
+    candidate: dict[str, Any],
+    env: dict[str, str] | None = None,
+    client_factory: Any | None = None,
+) -> dict[str, Any]:
+    source = env if env is not None else os.environ
+    gate = alpaca_operations_gate(source)
+    if not gate.get("paper_orders_allowed"):
+        return {"submitted": False, "status": "blocked", "detail": text_display(gate.get("next"))}
+    symbol = text_display(candidate.get("symbol")).upper()
+    qty = int(safe_float(candidate.get("qty")) or 0)
+    stop = safe_float(candidate.get("stop"))
+    take_profit = safe_float(candidate.get("take_profit"))
+    if not symbol or symbol == "-" or qty <= 0 or stop is None or take_profit is None:
+        return {"submitted": False, "status": "invalid", "detail": "Candidato paper incompleto."}
+    key = str(source.get("ALPACA_API_KEY") or "").strip()
+    secret = str(source.get("ALPACA_API_SECRET") or source.get("ALPACA_SECRET_KEY") or "").strip()
+    if not key or not secret:
+        return {"submitted": False, "status": "missing_credentials", "detail": "Faltan credenciales paper en entorno."}
+    try:
+        if client_factory is None:
+            from alpaca.trading.client import TradingClient
+            from alpaca.trading.enums import OrderClass, OrderSide, TimeInForce
+            from alpaca.trading.requests import MarketOrderRequest, StopLossRequest, TakeProfitRequest
+
+            def client_factory(api_key: str, secret_key: str):
+                return TradingClient(api_key=api_key, secret_key=secret_key, paper=True)
+
+            order_data = MarketOrderRequest(
+                symbol=symbol,
+                qty=qty,
+                side=OrderSide.BUY,
+                time_in_force=TimeInForce.DAY,
+                order_class=OrderClass.BRACKET,
+                take_profit=TakeProfitRequest(limit_price=round(take_profit, 2)),
+                stop_loss=StopLossRequest(stop_price=round(stop, 2)),
+            )
+        else:
+            order_data = {
+                "symbol": symbol,
+                "qty": qty,
+                "side": "buy",
+                "time_in_force": "day",
+                "order_class": "bracket",
+                "take_profit": round(take_profit, 2),
+                "stop_loss": round(stop, 2),
+            }
+        client = client_factory(key, secret)
+        order = client.submit_order(order_data=order_data)
+    except Exception as exc:
+        return {"submitted": False, "status": "error", "detail": f"Alpaca paper rechazo la orden: {type(exc).__name__}."}
+    order_id = getattr(order, "id", None) if not isinstance(order, dict) else order.get("id")
+    return {
+        "submitted": True,
+        "status": "submitted",
+        "symbol": symbol,
+        "qty": qty,
+        "order_id": text_display(order_id),
+        "detail": "Orden bracket enviada a Alpaca paper.",
+    }
+
+
+def render_alpaca_paper_execution_panel(
+    table: pd.DataFrame,
+    *,
+    account_equity: float,
+    risk_pct: float,
+    env: dict[str, str] | None = None,
+) -> None:
+    candidates = alpaca_paper_order_candidates(table, account_equity=account_equity, risk_pct=risk_pct, limit=3)
+    if candidates.empty:
+        return
+    auto_enabled = alpaca_paper_autotrade_enabled(env)
+    cards = []
+    for row in candidates.to_dict("records"):
+        key = f"alpaca_paper_sent_{text_display(row.get('symbol'))}_{num_display(row.get('entry'), 2)}"
+        status_line = "Auto paper armado" if auto_enabled else "Paper listo / auto OFF"
+        if auto_enabled and key not in st.session_state:
+            result = submit_alpaca_paper_bracket_order(row, env=env)
+            st.session_state[key] = result
+        result = st.session_state.get(key)
+        if isinstance(result, dict):
+            status_line = text_display(result.get("detail"))
+        cards.append(
+            f'<section class="paper-exec-card">'
+            f'<header><strong>{html.escape(text_display(row.get("symbol")))}</strong><span>{html.escape(status_line)}</span></header>'
+            f'<div><b>Qty {int(row.get("qty") or 0)}</b><b>Entry {html.escape(num_display(row.get("entry"), 2))}</b><b>Stop {html.escape(num_display(row.get("stop"), 2))}</b><b>TP {html.escape(num_display(row.get("take_profit"), 2))}</b></div>'
+            f'<p>Riesgo {html.escape(num_display(row.get("risk_dollars"), 2))} · Notional {html.escape(num_display(row.get("notional"), 2))} · {html.escape(text_display(row.get("reason")))}</p>'
+            "</section>"
+        )
+    state_label = "AUTO ON" if auto_enabled else "AUTO OFF"
+    st.markdown(
+        f'<section class="paper-exec-panel"><header><strong>Alpaca Paper Execution Queue</strong><span>{html.escape(state_label)} · Solo paper bracket orders: market + take profit + stop.</span></header><div class="paper-exec-grid">'
+        + "".join(cards)
+        + "</div></section>",
+        unsafe_allow_html=True,
+    )
+
+
+
 def render_live_provider_center(env: dict[str, str] | None = None) -> None:
     rows = live_provider_rows(env)
     cards = []
@@ -10292,6 +10449,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
     render_ticker_intel_strip(best, confluence_df, symbol_input)
     render_company_research_hub(symbol_input, market)
     render_live_provider_center()
+    render_alpaca_paper_execution_panel(best, account_equity=account_equity, risk_pct=risk_pct_ui / 100.0)
     render_screener_preset_deck(best, confluence_df)
     render_exit_plan_board(best, confluence_df)
     render_executive_cockpit(best, confluence_df, scan_df, brief)
@@ -11632,6 +11790,7 @@ def main() -> None:
         .provider-center{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 10px;overflow:hidden}.provider-center>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.provider-center>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.provider-center>header span{color:#94a3b8;font-size:11px;text-align:right}.provider-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .alpaca-gate{display:grid;grid-template-columns:minmax(210px,.46fr) 1fr minmax(240px,.52fr);gap:10px;align-items:center;padding:9px 10px;border-bottom:1px solid rgba(148,163,184,.14);border-left:3px solid rgba(148,163,184,.45);background:rgba(15,23,42,.80)}.alpaca-gate span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.alpaca-gate strong{display:block;color:#f8fafc;font-size:18px;line-height:1.05;font-weight:950;margin-top:3px}.alpaca-gate em{display:block;color:#cbd5e1;font-style:normal;font-size:10px;font-weight:900;margin-top:4px}.alpaca-gate p{margin:0;color:#e2e8f0;font-size:12px;font-weight:850;line-height:1.25}.alpaca-gate aside{display:grid;gap:4px}.alpaca-gate b{color:#f8fafc;font-size:11px;line-height:1.05;text-transform:uppercase}.alpaca-gate small{color:#94a3b8;font-size:10px;line-height:1.2}.alpaca-gate-buy{border-left-color:#22c55e;background:rgba(21,93,62,.18)}.alpaca-gate-watch{border-left-color:#f59e0b;background:rgba(120,74,15,.17)}.alpaca-gate-avoid{border-left-color:#ef4444;background:rgba(127,29,29,.18)}
         .alpaca-paper-panel{display:grid;grid-template-columns:minmax(210px,.46fr) minmax(360px,1fr) minmax(320px,.7fr);gap:10px;align-items:center;padding:9px 10px;border-bottom:1px solid rgba(148,163,184,.14);border-left:3px solid rgba(148,163,184,.45);background:rgba(8,13,24,.86)}.alpaca-paper-panel span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.alpaca-paper-panel strong{display:block;color:#f8fafc;font-size:18px;line-height:1.05;font-weight:950;margin-top:3px}.alpaca-paper-panel em{display:block;color:#cbd5e1;font-style:normal;font-size:10px;font-weight:900;margin-top:4px}.alpaca-paper-panel aside{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border-radius:6px;overflow:hidden}.alpaca-paper-panel aside b,.alpaca-paper-panel aside strong{background:#0b1220;margin:0;padding:6px 7px;font-size:10px;line-height:1.05}.alpaca-paper-panel aside b{color:#94a3b8;text-transform:uppercase}.alpaca-paper-panel aside strong{font-size:13px;color:#f8fafc}.alpaca-paper-panel p{margin:0;color:#e2e8f0;font-size:11px;font-weight:850;line-height:1.25}.alpaca-paper-buy{border-left-color:#22c55e;background:rgba(21,93,62,.16)}.alpaca-paper-watch{border-left-color:#f59e0b;background:rgba(120,74,15,.16)}.alpaca-paper-avoid{border-left-color:#ef4444;background:rgba(127,29,29,.16)}
+        .paper-exec-panel{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 10px;overflow:hidden}.paper-exec-panel>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.paper-exec-panel>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.paper-exec-panel>header span{color:#94a3b8;font-size:11px;text-align:right}.paper-exec-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.paper-exec-card{background:rgba(21,93,62,.18);border-top:2px solid #22c55e;padding:8px 9px;min-width:0}.paper-exec-card header{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.paper-exec-card header strong{color:#f8fafc;font-size:15px;line-height:1;font-weight:950}.paper-exec-card header span{color:#bbf7d0;font-size:10px;line-height:1.12;text-align:right;font-weight:900}.paper-exec-card div{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border-radius:6px;overflow:hidden;margin-top:7px}.paper-exec-card b{background:#0b1220;color:#f8fafc;font-size:10px;line-height:1.05;padding:6px 5px}.paper-exec-card p{margin:7px 0 0;color:#cbd5e1;font-size:10px;line-height:1.18;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .provider-card{background:#0b1220;padding:8px 9px;border-top:2px solid rgba(148,163,184,.28);min-width:0}.provider-card header{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.provider-card header strong{color:#f8fafc;font-size:12px;font-weight:950;text-transform:uppercase}.provider-card header span{color:#e2e8f0;font-size:10px;line-height:1.1;text-align:right;font-weight:900}.provider-card div{display:flex;justify-content:space-between;gap:8px;margin-top:7px}.provider-card b{color:#f8fafc;font-size:13px;line-height:1;font-weight:950}.provider-card em{color:#94a3b8;font-size:10px;line-height:1;font-style:normal;text-align:right}.provider-card p{margin:6px 0 3px;color:#e2e8f0;font-size:11px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.provider-card small{display:block;color:#cbd5e1;font-size:10px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.provider-card i{display:block;color:#94a3b8;font-size:9px;line-height:1.15;font-style:normal;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.provider-card-buy{border-top-color:#22c55e;background:rgba(21,93,62,.22)}.provider-card-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.20)}.provider-card-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}.provider-card-neutral{border-top-color:#64748b}
         .exit-board{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 10px;overflow:hidden}.exit-board>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.exit-board>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.exit-board>header span{color:#94a3b8;font-size:11px;text-align:right}.exit-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .exit-card{background:#0b1220;padding:8px 9px;border-top:2px solid rgba(148,163,184,.28);min-width:0}.exit-card header{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.exit-card header strong{color:#f8fafc;font-size:14px;font-weight:950}.exit-card header span{color:#e2e8f0;font-size:10px;line-height:1.1;text-align:right;font-weight:900;text-transform:uppercase}.exit-levels{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;margin-top:7px;background:rgba(148,163,184,.12);border-radius:6px;overflow:hidden}.exit-levels div{background:#0f172a;padding:5px}.exit-levels span{display:block;color:#94a3b8;font-size:8px;font-weight:950;text-transform:uppercase}.exit-levels b{display:block;color:#f8fafc;font-size:11px;line-height:1.05;margin-top:3px}.exit-card p{margin:7px 0 3px;color:#e2e8f0;font-size:11px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.exit-card small{display:block;color:#cbd5e1;font-size:10px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.exit-card-buy{border-top-color:#22c55e;background:rgba(21,93,62,.22)}.exit-card-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.20)}.exit-card-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}
@@ -11738,9 +11897,9 @@ def main() -> None:
         .stButton button:hover{border-color:#a78bfa;color:#f8fafc}
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media (max-width:1100px){.ticker-intel,.alpaca-gate,.alpaca-paper-panel{grid-template-columns:1fr}.ticker-intel-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.exit-grid,.provider-grid,.preset-grid,.research-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.confirm-radar-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-grid-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
+        @media (max-width:1100px){.ticker-intel,.alpaca-gate,.alpaca-paper-panel{grid-template-columns:1fr}.ticker-intel-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.exit-grid,.provider-grid,.preset-grid,.research-grid,.paper-exec-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.confirm-radar-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-grid-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
         @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.brand-logo-img{width:150px;max-width:42vw}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
-        @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.ticker-intel-kpis{grid-template-columns:1fr 1fr}.ticker-intel-main h3{font-size:23px}.company-research>header,.confirmation-radar>header,.exit-board>header,.provider-center>header,.screener-presets>header{display:block}.company-research>header span,.confirmation-radar>header span,.exit-board>header span,.provider-center>header span,.screener-presets>header span{display:block;text-align:left;margin-top:4px}.exit-grid,.provider-grid,.preset-grid,.research-grid,.confirm-radar-grid{grid-template-columns:1fr}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.compare-board>header{display:block}.compare-board>header span{display:block;text-align:left;margin-top:4px}.compare-grid-cards{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
+        @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.ticker-intel-kpis{grid-template-columns:1fr 1fr}.ticker-intel-main h3{font-size:23px}.company-research>header,.confirmation-radar>header,.exit-board>header,.paper-exec-panel>header,.provider-center>header,.screener-presets>header{display:block}.company-research>header span,.confirmation-radar>header span,.exit-board>header span,.paper-exec-panel>header span,.provider-center>header span,.screener-presets>header span{display:block;text-align:left;margin-top:4px}.exit-grid,.provider-grid,.preset-grid,.research-grid,.confirm-radar-grid,.paper-exec-grid{grid-template-columns:1fr}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.compare-board>header{display:block}.compare-board>header span{display:block;text-align:left;margin-top:4px}.compare-grid-cards{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
         </style>
         """,
         unsafe_allow_html=True,
