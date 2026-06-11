@@ -3,6 +3,7 @@ import pandas as pd
 from streamlit_app import (
     filter_trading_desk_display,
     focused_opportunity_table,
+    trading_desk_action_queue,
     trading_desk_paper_state,
     trading_desk_rows,
     trading_desk_summary,
@@ -185,6 +186,55 @@ def test_trading_desk_summary_counts_visible_operational_state():
     assert summary["best_score"] == 92
     assert summary["avg_risk"] == 3.67
     assert summary["volume_live"] == 2
+
+
+def test_trading_desk_action_queue_prioritizes_paper_ready_then_watch():
+    rows = pd.DataFrame(
+        [
+            {
+                "Ticker": "NVDA",
+                "Estado": "Vigilar",
+                "Paper": "Setup",
+                "Score": "94",
+                "Riesgo": "2.20%",
+                "RVol": "1.8x",
+                "Setup": "Canal",
+                "Siguiente": "Esperar gatillo",
+                "Razón": "Falta 15m",
+            },
+            {
+                "Ticker": "AAPL",
+                "Estado": "Operar",
+                "Paper": "Paper listo",
+                "Score": "90",
+                "Riesgo": "1.80%",
+                "RVol": "1.4x",
+                "Setup": "Pullback",
+                "Siguiente": "Confirmar ticket",
+                "Razón": "1h confirma",
+            },
+            {
+                "Ticker": "TSLA",
+                "Estado": "Evitar",
+                "Paper": "No tocar",
+                "Score": "99",
+                "Riesgo": "7.00%",
+                "RVol": "2.0x",
+                "Setup": "Debilidad",
+                "Siguiente": "No tocar",
+                "Razón": "Riesgo alto",
+            },
+        ]
+    )
+
+    queue = trading_desk_action_queue(rows, limit=3)
+
+    assert queue["ticker"].tolist() == ["AAPL", "NVDA", "TSLA"]
+    assert queue.loc[0, "tone"] == "buy"
+    assert queue.loc[0, "action"] == "Preparar paper: confirmar stop, target y tamaño."
+    assert queue.loc[1, "tone"] == "watch"
+    assert queue.loc[1, "action"] == "Esperar gatillo"
+    assert queue.loc[2, "tone"] == "avoid"
 
 
 def test_trading_desk_paper_state_flags_blockers():

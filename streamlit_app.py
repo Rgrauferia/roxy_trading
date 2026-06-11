@@ -9291,6 +9291,84 @@ def trading_desk_summary(rows: pd.DataFrame) -> dict[str, Any]:
         "volume_live": int(volume.ge(1.2).sum()),
     }
 
+def trading_desk_action_queue(rows: pd.DataFrame, *, limit: int = 3) -> pd.DataFrame:
+    columns = ["rank", "ticker", "tone", "status", "paper", "score", "risk", "rvol", "setup", "action", "reason"]
+    if rows.empty:
+        return pd.DataFrame(columns=columns)
+    data = rows.copy()
+    status = data.get("Estado", pd.Series("", index=data.index)).astype(str)
+    paper = data.get("Paper", pd.Series("", index=data.index)).astype(str)
+    score = pd.to_numeric(data.get("Score", pd.Series(0, index=data.index)), errors="coerce").fillna(0)
+    risk = pd.to_numeric(
+        data.get("Riesgo", pd.Series("", index=data.index)).astype(str).str.replace("%", "", regex=False),
+        errors="coerce",
+    )
+    rvol = pd.to_numeric(
+        data.get("RVol", pd.Series("", index=data.index)).astype(str).str.replace("x", "", regex=False), errors="coerce"
+    )
+    data["_status_order"] = status.map({"Operar": 0, "Vigilar": 1, "Evitar": 2}).fillna(3)
+    data["_paper_order"] = paper.map({"Paper listo": 0, "Setup": 1, "No tocar": 3}).fillna(2)
+    data["_score"] = score
+    data["_risk"] = risk
+    data["_rvol"] = rvol
+    ranked = data.sort_values(["_status_order", "_paper_order", "_score"], ascending=[True, True, False]).head(limit)
+    queue: list[dict[str, Any]] = []
+    for idx, row in enumerate(ranked.to_dict("records"), start=1):
+        row_status = text_display(row.get("Estado"))
+        row_paper = text_display(row.get("Paper"))
+        if row_status == "Operar" and row_paper == "Paper listo":
+            tone = "buy"
+            action = "Preparar paper: confirmar stop, target y tamaño."
+        elif row_status == "Evitar" or row_paper == "No tocar":
+            tone = "avoid"
+            action = "No tocar hasta que cambie estructura."
+        elif row_paper.startswith("Bloq"):
+            tone = "watch"
+            action = f"Resolver {row_paper.replace('Bloq ', '')} antes de paper."
+        else:
+            tone = "watch"
+            action = text_display(row.get("Siguiente")) if text_display(row.get("Siguiente")) != "-" else "Esperar gatillo."
+        queue.append(
+            {
+                "rank": idx,
+                "ticker": text_display(row.get("Ticker")).upper(),
+                "tone": tone,
+                "status": row_status,
+                "paper": row_paper,
+                "score": safe_float(row.get("_score")),
+                "risk": safe_float(row.get("_risk")),
+                "rvol": safe_float(row.get("_rvol")),
+                "setup": text_display(row.get("Setup")),
+                "action": action,
+                "reason": text_display(row.get("Razón")),
+            }
+        )
+    return pd.DataFrame(queue, columns=columns)
+
+
+def render_trading_desk_action_queue(rows: pd.DataFrame) -> None:
+    queue = trading_desk_action_queue(rows, limit=3)
+    if queue.empty:
+        return
+    cards = []
+    for row in queue.to_dict("records"):
+        tone = text_display(row.get("tone"))
+        cards.append(
+            f'<article class="desk-queue-card desk-queue-{html.escape(tone)}">'
+            f'<header><span>#{int(row.get("rank") or 0)}</span><strong>{html.escape(text_display(row.get("ticker")))}</strong><em>{html.escape(num_display(row.get("score"), 0))}</em></header>'
+            f'<p>{html.escape(text_display(row.get("action")))}</p>'
+            f'<small>{html.escape(text_display(row.get("status")))} · {html.escape(text_display(row.get("paper")))} · R {html.escape(num_display(row.get("risk"), 2))}% · RVOL {html.escape(num_display(row.get("rvol"), 1))}x</small>'
+            f'<i>{html.escape(text_display(row.get("setup")))} · {html.escape(text_display(row.get("reason")))}</i>'
+            "</article>"
+        )
+    st.markdown(
+        '<section class="trading-desk-queue"><header><strong>Fila de ejecución</strong><span>Top 3 ordenados por estado, paper-readiness y score.</span></header><div>'
+        + "".join(cards)
+        + "</div></section>",
+        unsafe_allow_html=True,
+    )
+
+
 
 def render_trading_desk_summary(rows: pd.DataFrame) -> None:
     summary = trading_desk_summary(rows)
@@ -9305,6 +9383,8 @@ def render_trading_desk_summary(rows: pd.DataFrame) -> None:
         "</section>",
         unsafe_allow_html=True,
     )
+    render_trading_desk_action_queue(rows)
+
 
 
 def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, scan_df: pd.DataFrame) -> None:
@@ -12713,6 +12793,7 @@ def main() -> None:
         .market-movers-tape{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 12px;overflow:hidden}.market-movers-tape>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.15)}.market-movers-tape>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.market-movers-tape>header span{color:#94a3b8;font-size:11px;text-align:right}.market-mover-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .market-mover-table{background:#0b1220;overflow:hidden;border-top:2px solid rgba(148,163,184,.25)}.market-mover-table header{padding:6px 8px;color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;background:#0f172a;border-bottom:1px solid rgba(148,163,184,.12)}.market-mover-table table{width:100%;border-collapse:collapse}.market-mover-table th,.market-mover-table td{padding:5px 6px;border-bottom:1px solid rgba(148,163,184,.10);font-size:10px;line-height:1.15;text-align:left;color:#cbd5e1}.market-mover-table th{color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase}.market-mover-table td:first-child{color:#f8fafc;font-weight:950}.market-mover-table td:nth-child(2),.market-mover-table td:nth-child(3),.market-mover-table td:nth-child(4){text-align:right}.market-mover-table td:last-child{max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.market-mover-buy{border-top-color:#22c55e}.market-mover-watch{border-top-color:#f59e0b}.market-mover-avoid{border-top-color:#ef4444}
         .trading-desk-strip{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;border:1px solid rgba(148,163,184,.22);border-radius:8px;background:rgba(148,163,184,.16);overflow:hidden;margin:4px 0 8px}.desk-chip{background:#0b1220;padding:8px 9px;min-width:0;border-top:2px solid rgba(148,163,184,.28)}.desk-chip span{display:block;color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.desk-chip strong{display:block;color:#f8fafc;font-size:20px;line-height:1;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.desk-chip small{display:block;color:#cbd5e1;font-size:10px;line-height:1.12;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.desk-buy{border-top-color:#22c55e;background:rgba(21,93,62,.22)}.desk-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.20)}.desk-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}
+        .trading-desk-queue{border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0b1220;margin:0 0 8px;overflow:hidden}.trading-desk-queue>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.trading-desk-queue>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.trading-desk-queue>header span{color:#94a3b8;font-size:11px;line-height:1.2;text-align:right}.trading-desk-queue>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.desk-queue-card{background:#0b1220;border-top:2px solid rgba(148,163,184,.30);padding:8px 10px;min-width:0}.desk-queue-card header{display:flex;align-items:center;gap:8px}.desk-queue-card header span{color:#94a3b8;font-size:10px;font-weight:950}.desk-queue-card header strong{color:#f8fafc;font-size:16px;font-weight:950;line-height:1}.desk-queue-card header em{margin-left:auto;color:#f8fafc;font-size:12px;font-style:normal;font-weight:950}.desk-queue-card p{margin:6px 0 4px;color:#f8fafc;font-size:11px;line-height:1.15;font-weight:850}.desk-queue-card small,.desk-queue-card i{display:block;color:#cbd5e1;font-size:10px;line-height:1.16;font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.desk-queue-card i{color:#94a3b8;margin-top:4px}.desk-queue-buy{border-top-color:#22c55e;background:rgba(21,93,62,.24)}.desk-queue-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.22)}.desk-queue-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}
         .compare-board{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 12px;overflow:hidden}.compare-board>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.15)}.compare-board>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.compare-board>header span{color:#94a3b8;font-size:11px;text-align:right}.compare-grid-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .compare-card{background:#0b1220;border-top:2px solid rgba(148,163,184,.25);padding:9px 10px;min-height:168px}.compare-card header{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:start}.compare-card header span{color:#94a3b8;font-size:10px;font-weight:950}.compare-card header strong{color:#f8fafc;font-size:19px;line-height:1;font-weight:950}.compare-card header em{color:#e2e8f0;font-size:10px;font-style:normal;font-weight:950;text-transform:uppercase;text-align:right}.compare-score{display:flex;justify-content:space-between;gap:10px;align-items:end;margin:8px 0}.compare-score b{color:#f8fafc;font-size:30px;line-height:1}.compare-score span{color:#94a3b8;font-size:10px;text-transform:uppercase;font-weight:950}.compare-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.12);border-radius:6px;overflow:hidden}.compare-grid div{background:#0f172a;padding:6px}.compare-grid span{display:block;color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase}.compare-grid strong{display:block;color:#f8fafc;font-size:12px;line-height:1.1;margin-top:3px}.compare-card p{margin:8px 0 4px;color:#e2e8f0;font-size:11px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.compare-card small{display:block;color:#cbd5e1;font-size:10px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.compare-card-buy{border-top-color:#22c55e;background:rgba(21,93,62,.25)}.compare-card-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.22)}.compare-card-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}
         .ticker-intel{display:grid;grid-template-columns:minmax(260px,.95fr) minmax(360px,1.45fr) minmax(260px,.9fr);gap:1px;border:1px solid rgba(148,163,184,.24);border-radius:8px;background:rgba(148,163,184,.14);margin:6px 0 10px;overflow:hidden;box-shadow:0 16px 42px rgba(0,0,0,.22)}
@@ -12835,9 +12916,9 @@ def main() -> None:
         .stButton button:hover{border-color:#a78bfa;color:#f8fafc}
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media (max-width:1100px){.ticker-intel,.alpaca-gate,.alpaca-paper-panel{grid-template-columns:1fr}.ticker-intel-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.paper-journal-summary,.paper-exec-summary,.trading-desk-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.paper-position-grid,.paper-strategy-grid,.paper-journal-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exit-grid,.provider-grid,.preset-grid,.research-grid,.paper-exec-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.confirm-radar-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-grid-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
+        @media (max-width:1100px){.ticker-intel,.alpaca-gate,.alpaca-paper-panel{grid-template-columns:1fr}.ticker-intel-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.paper-journal-summary,.paper-exec-summary,.trading-desk-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.trading-desk-queue>div{grid-template-columns:repeat(2,minmax(0,1fr))}.paper-position-grid,.paper-strategy-grid,.paper-journal-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exit-grid,.provider-grid,.preset-grid,.research-grid,.paper-exec-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.confirm-radar-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-grid-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
         @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.brand-logo-img{width:150px;max-width:42vw}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
-        @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.ticker-intel-kpis{grid-template-columns:1fr 1fr}.ticker-intel-main h3{font-size:23px}.company-research>header,.confirmation-radar>header,.exit-board>header,.paper-position-panel>header,.paper-strategy-panel>header,.paper-journal-panel>header,.paper-exec-panel>header,.provider-center>header,.screener-presets>header{display:block}.company-research>header span,.confirmation-radar>header span,.exit-board>header span,.paper-position-panel>header span,.paper-strategy-panel>header span,.paper-journal-panel>header span,.paper-exec-panel>header span,.provider-center>header span,.screener-presets>header span{display:block;text-align:left;margin-top:4px}.paper-position-grid,.paper-strategy-grid,.paper-journal-grid{grid-template-columns:1fr}.exit-grid,.provider-grid,.preset-grid,.research-grid,.confirm-radar-grid,.paper-exec-grid{grid-template-columns:1fr}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.compare-board>header{display:block}.compare-board>header span{display:block;text-align:left;margin-top:4px}.compare-grid-cards{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.buy-gap-strip{grid-template-columns:1fr}.buy-gap-strip em{white-space:normal}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
+        @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.ticker-intel-kpis{grid-template-columns:1fr 1fr}.ticker-intel-main h3{font-size:23px}.company-research>header,.confirmation-radar>header,.exit-board>header,.paper-position-panel>header,.paper-strategy-panel>header,.paper-journal-panel>header,.paper-exec-panel>header,.provider-center>header,.screener-presets>header,.trading-desk-queue>header{display:block}.company-research>header span,.confirmation-radar>header span,.exit-board>header span,.paper-position-panel>header span,.paper-strategy-panel>header span,.paper-journal-panel>header span,.paper-exec-panel>header span,.provider-center>header span,.screener-presets>header span,.trading-desk-queue>header span{display:block;text-align:left;margin-top:4px}.trading-desk-queue>div{grid-template-columns:1fr}.paper-position-grid,.paper-strategy-grid,.paper-journal-grid{grid-template-columns:1fr}.exit-grid,.provider-grid,.preset-grid,.research-grid,.confirm-radar-grid,.paper-exec-grid{grid-template-columns:1fr}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.compare-board>header{display:block}.compare-board>header span{display:block;text-align:left;margin-top:4px}.compare-grid-cards{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.buy-gap-strip{grid-template-columns:1fr}.buy-gap-strip em{white-space:normal}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
         </style>
         """,
         unsafe_allow_html=True,
