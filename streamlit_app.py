@@ -6656,6 +6656,89 @@ def scanner_matrix_summary(rows: pd.DataFrame) -> dict[str, Any]:
     }
 
 
+def opportunity_edge_heatmap_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, *, limit: int = 40) -> pd.DataFrame:
+    columns = ["strategy", "status", "tone", "count", "avg_edge", "avg_score", "avg_risk", "avg_volume", "symbols"]
+    rows = scanner_wallboard_rows(table, confluence_df, limit=max(limit, 12))
+    if rows.empty:
+        return pd.DataFrame(columns=columns)
+    data = rows.copy()
+    score = pd.to_numeric(data["score"], errors="coerce").fillna(0.0)
+    risk = pd.to_numeric(data["risk"], errors="coerce").fillna(0.99)
+    rel_volume = pd.to_numeric(data["rel_volume"], errors="coerce").fillna(0.0)
+    target = pd.to_numeric(data["target"], errors="coerce").fillna(0.0)
+    status_bonus = data["status"].map({"Operar": 18.0, "Vigilar": 8.0, "Evitar": -28.0}).fillna(0.0)
+    data["edge"] = (score + (rel_volume.clip(0, 5) * 4.0) + (target.clip(0, 0.15) * 150.0) + status_bonus - (risk.clip(0, 0.20) * 180.0)).round(1)
+    data["strategy"] = data["strategy"].replace("", "-").fillna("-")
+    grouped_rows: list[dict[str, Any]] = []
+    for (strategy, status), group in data.groupby(["strategy", "status"], sort=False):
+        ranked = group.sort_values(["edge", "score"], ascending=[False, False])
+        grouped_rows.append(
+            {
+                "strategy": text_display(strategy),
+                "status": text_display(status),
+                "tone": text_display(ranked.iloc[0].get("tone")),
+                "count": int(len(group)),
+                "avg_edge": safe_float(pd.to_numeric(group["edge"], errors="coerce").mean()),
+                "avg_score": safe_float(pd.to_numeric(group["score"], errors="coerce").mean()),
+                "avg_risk": safe_float(pd.to_numeric(group["risk"], errors="coerce").mean()),
+                "avg_volume": safe_float(pd.to_numeric(group["rel_volume"], errors="coerce").mean()),
+                "symbols": ", ".join(ranked["symbol"].astype(str).head(4).tolist()),
+            }
+        )
+    result = pd.DataFrame(grouped_rows, columns=columns)
+    if result.empty:
+        return result
+    result["edge_sort"] = pd.to_numeric(result["avg_edge"], errors="coerce").fillna(-999)
+    result["count_sort"] = pd.to_numeric(result["count"], errors="coerce").fillna(0)
+    return result.sort_values(["edge_sort", "count_sort"], ascending=[False, False]).drop(columns=["edge_sort", "count_sort"]).reset_index(drop=True)
+
+
+def render_opportunity_edge_heatmap(table: pd.DataFrame, confluence_df: pd.DataFrame) -> None:
+    rows = opportunity_edge_heatmap_rows(table, confluence_df, limit=40)
+    if rows.empty:
+        return
+    chart_df = rows.copy()
+    chart_df["avg_edge"] = pd.to_numeric(chart_df["avg_edge"], errors="coerce").fillna(0)
+    chart_df["count"] = pd.to_numeric(chart_df["count"], errors="coerce").fillna(0).astype(int)
+    chart_df["label"] = chart_df["count"].astype(str) + " · " + chart_df["symbols"].astype(str)
+    heatmap = (
+        alt.Chart(chart_df)
+        .mark_rect(cornerRadius=4)
+        .encode(
+            x=alt.X("status:N", title=None, sort=["Operar", "Vigilar", "Evitar"]),
+            y=alt.Y("strategy:N", title=None, sort="-x"),
+            color=alt.Color(
+                "avg_edge:Q",
+                title="Edge",
+                scale=alt.Scale(scheme="redyellowgreen"),
+            ),
+            tooltip=[
+                alt.Tooltip("strategy:N", title="Estrategia"),
+                alt.Tooltip("status:N", title="Estado"),
+                alt.Tooltip("count:Q", title="Setups"),
+                alt.Tooltip("avg_edge:Q", title="Edge avg", format=".1f"),
+                alt.Tooltip("avg_score:Q", title="Score avg", format=".1f"),
+                alt.Tooltip("avg_risk:Q", title="Riesgo avg", format=".2%"),
+                alt.Tooltip("avg_volume:Q", title="RVol avg", format=".1f"),
+                alt.Tooltip("symbols:N", title="Símbolos"),
+            ],
+        )
+    )
+    labels = (
+        alt.Chart(chart_df)
+        .mark_text(color="#f8fafc", fontSize=11, fontWeight="bold", lineBreak=", ")
+        .encode(
+            x=alt.X("status:N", title=None, sort=["Operar", "Vigilar", "Evitar"]),
+            y=alt.Y("strategy:N", title=None, sort="-x"),
+            text=alt.Text("label:N"),
+        )
+    )
+    st.markdown("**Edge Heatmap**")
+    st.caption("Mapa compacto por estrategia y estado: más verde = mejor mezcla de score, volumen, target y riesgo.")
+    st.altair_chart(style_trading_chart((heatmap + labels).properties(height=max(220, min(520, 54 + len(rows) * 26)))), use_container_width=True)
+
+
+
 def executive_cockpit_summary(table: pd.DataFrame, confluence_df: pd.DataFrame, scan_df: pd.DataFrame, brief: dict) -> dict[str, Any]:
     matrix_rows = scanner_opportunity_matrix_rows(table, confluence_df, limit=6)
     wall_rows = scanner_wallboard_rows(table, confluence_df, limit=32)
@@ -9342,6 +9425,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
     render_executive_cockpit(best, confluence_df, scan_df, brief)
     render_top_opportunity_cards(best, confluence_df)
     render_market_movers_tape(best, confluence_df)
+    render_opportunity_edge_heatmap(best, confluence_df)
     render_trading_desk_table(best, confluence_df, scan_df)
     render_buy_readiness_gap_panel(confluence_df)
     render_finviz_style_wallboard(best, confluence_df, brief)
