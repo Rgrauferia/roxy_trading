@@ -6918,6 +6918,110 @@ def render_finviz_style_wallboard(table: pd.DataFrame, confluence_df: pd.DataFra
     )
 
 
+def mini_opportunity_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, *, limit: int = 4) -> pd.DataFrame:
+    columns = ["symbol", "status", "tone", "market", "score", "risk", "target", "strategy", "next"]
+    rows = scanner_wallboard_rows(table, confluence_df, limit=max(limit * 2, limit))
+    if rows.empty:
+        return pd.DataFrame(columns=columns)
+    display = rows.copy()
+    display["score_sort"] = pd.to_numeric(display["score"], errors="coerce").fillna(0)
+    display["status_order"] = display["status"].map({"Operar": 0, "Vigilar": 1, "Evitar": 2}).fillna(1)
+    display = display.sort_values(["status_order", "score_sort"], ascending=[True, False]).head(limit)
+    return display[[col for col in columns if col in display.columns]].reset_index(drop=True)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_symbol_mini_chart(symbol: str, *, limit: int = 90) -> pd.DataFrame:
+    clean_symbol = str(symbol or "").strip().upper()
+    if not clean_symbol:
+        return pd.DataFrame()
+    try:
+        history = get_ohlcv(clean_symbol)
+    except Exception:
+        return pd.DataFrame()
+    if history.empty:
+        return pd.DataFrame()
+    data = history.reset_index().tail(max(12, int(limit))).copy()
+    if "ts" not in data.columns:
+        data = data.rename(columns={data.columns[0]: "ts"})
+    return prepare_chart_window(data, limit=limit)
+
+
+def build_mini_opportunity_chart(chart_df: pd.DataFrame, tone: str = "watch") -> alt.Chart | alt.LayerChart:
+    window = prepare_chart_window(chart_df, limit=90)
+    if window.empty:
+        fallback = pd.DataFrame({"x": [0], "y": [0], "message": ["Sin historial local"]})
+        return (
+            alt.Chart(fallback)
+            .mark_text(color="#94a3b8", fontSize=12)
+            .encode(x=alt.X("x:Q", axis=None), y=alt.Y("y:Q", axis=None), text="message:N")
+            .properties(height=92)
+        )
+    color = {"buy": "#22c55e", "avoid": "#ef4444", "watch": "#f59e0b"}.get(str(tone), "#38bdf8")
+    area = (
+        alt.Chart(window)
+        .mark_area(line=False, opacity=0.16, color=color)
+        .encode(
+            x=alt.X("ts:T", title=None, axis=alt.Axis(labels=False, ticks=False, grid=False)),
+            y=alt.Y("close:Q", title=None, scale=alt.Scale(zero=False), axis=alt.Axis(labels=False, ticks=False, grid=False)),
+        )
+    )
+    line = (
+        alt.Chart(window)
+        .mark_line(color=color, strokeWidth=2)
+        .encode(
+            x=alt.X("ts:T", title=None),
+            y=alt.Y("close:Q", title=None, scale=alt.Scale(zero=False)),
+            tooltip=[
+                alt.Tooltip("ts:T", title="Tiempo"),
+                alt.Tooltip("open:Q", title="Open", format=".2f"),
+                alt.Tooltip("high:Q", title="High", format=".2f"),
+                alt.Tooltip("low:Q", title="Low", format=".2f"),
+                alt.Tooltip("close:Q", title="Close", format=".2f"),
+                alt.Tooltip("volume:Q", title="Volumen", format=",.0f"),
+            ],
+        )
+    )
+    last_point = (
+        alt.Chart(window.tail(1))
+        .mark_point(filled=True, size=55, color=color, stroke="#0b1220", strokeWidth=1.2)
+        .encode(x="ts:T", y=alt.Y("close:Q", scale=alt.Scale(zero=False)), tooltip=[alt.Tooltip("close:Q", title="Ultimo", format=".2f")])
+    )
+    return (area + line + last_point).interactive(bind_y=False).properties(height=92)
+
+
+def render_top_opportunity_cards(table: pd.DataFrame, confluence_df: pd.DataFrame) -> None:
+    rows = mini_opportunity_rows(table, confluence_df, limit=4)
+    if rows.empty:
+        return
+    st.markdown(
+        '<section class="top-opps-header"><strong>Top oportunidades</strong><span>Sparklines locales · hover para precios previos · click para cargar plan</span></section>',
+        unsafe_allow_html=True,
+    )
+    cols = st.columns(len(rows))
+    for idx, row in enumerate(rows.to_dict("records")):
+        symbol = text_display(row.get("symbol")).upper()
+        tone = text_display(row.get("tone"))
+        market = text_display(row.get("market"))
+        with cols[idx]:
+            st.markdown(
+                f"""
+                <div class="top-opp-card top-opp-{html.escape(tone)}">
+                    <div><span>{html.escape(text_display(row.get("status")))}</span><strong>{html.escape(symbol)}</strong></div>
+                    <p>{html.escape(text_display(row.get("strategy")))}</p>
+                    <small>Score {html.escape(num_display(row.get("score"), 0))} · Riesgo {html.escape(pct_display(row.get("risk")))} · Target {html.escape(pct_display(row.get("target")))}</small>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.altair_chart(build_mini_opportunity_chart(load_symbol_mini_chart(symbol), tone=tone), use_container_width=True)
+            if st.button("Cargar plan", key=f"top_opp_load_{idx}_{safe_key(symbol)}", use_container_width=True):
+                st.session_state["command_symbol_pending"] = symbol
+                st.session_state["command_market_pending"] = "crypto" if "/" in symbol or market.lower().startswith("crypto") else "stock"
+                st.rerun()
+
+
+
 def scanner_breadth_summary(scan_df: pd.DataFrame, confluence_df: pd.DataFrame) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
 
@@ -9078,6 +9182,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
 
     render_alert_noise_contract(brief)
     render_executive_cockpit(best, confluence_df, scan_df, brief)
+    render_top_opportunity_cards(best, confluence_df)
     render_trading_desk_table(best, confluence_df, scan_df)
     render_buy_readiness_gap_panel(confluence_df)
     render_finviz_style_wallboard(best, confluence_df, brief)
@@ -10394,6 +10499,8 @@ def main() -> None:
         .wall-tile{border:1px solid rgba(148,163,184,.18);border-radius:4px;padding:7px;min-width:0;display:grid;grid-template-columns:1fr auto;grid-template-rows:auto 1fr auto;gap:2px;background:#172033;overflow:hidden}.wall-tile strong{color:#f8fafc;font-size:16px;line-height:1;font-weight:950}.wall-tile span{font-size:13px;color:#e2e8f0;font-weight:900;text-align:right}.wall-tile small{grid-column:1/3;color:#e2e8f0;font-size:11px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wall-tile em{grid-column:1/3;color:#cbd5e1;font-size:10px;font-style:normal;line-height:1.1}
         .wall-tile-buy{background:rgba(21,128,61,var(--tile-alpha))}.wall-tile-watch{background:rgba(180,83,9,var(--tile-alpha))}.wall-tile-avoid{background:rgba(153,27,27,var(--tile-alpha))}
         .wall-tables{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.wall-table{border:1px solid rgba(148,163,184,.18);border-radius:6px;overflow:hidden;background:#0b1220}.wall-table header{padding:6px 8px;color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.wall-table table{width:100%;border-collapse:collapse}.wall-table th,.wall-table td{padding:5px 6px;border-bottom:1px solid rgba(148,163,184,.10);font-size:10px;line-height:1.15;text-align:left;color:#cbd5e1}.wall-table th{color:#94a3b8;font-weight:900;text-transform:uppercase}.wall-table td:first-child{color:#f8fafc;font-weight:950}.wall-table tr:last-child td{border-bottom:0}
+        .top-opps-header{display:flex;justify-content:space-between;gap:12px;align-items:center;border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#111827;padding:8px 10px;margin:4px 0 8px}.top-opps-header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.top-opps-header span{color:#94a3b8;font-size:11px;text-align:right}
+        .top-opp-card{border:1px solid rgba(148,163,184,.22);border-radius:8px 8px 0 0;background:#0b1220;padding:9px 10px;min-height:98px;border-bottom:0}.top-opp-card div{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.top-opp-card span{color:#94a3b8;font-size:10px;text-transform:uppercase;font-weight:950}.top-opp-card strong{color:#f8fafc;font-size:20px;line-height:1;font-weight:950}.top-opp-card p{margin:8px 0 6px;color:#e2e8f0;font-size:12px;line-height:1.2;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top-opp-card small{display:block;color:#94a3b8;font-size:10px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top-opp-buy{border-color:rgba(34,197,94,.42);background:rgba(21,93,62,.24)}.top-opp-watch{border-color:rgba(245,158,11,.42);background:rgba(120,74,15,.22)}.top-opp-avoid{border-color:rgba(239,68,68,.42);background:rgba(127,29,29,.22)}
         .executive-cockpit{display:grid;grid-template-columns:minmax(260px,1.1fr) minmax(380px,1.35fr) minmax(300px,.95fr);gap:1px;border:1px solid rgba(148,163,184,.26);border-radius:8px;background:rgba(148,163,184,.14);margin:6px 0 10px;overflow:hidden;box-shadow:0 18px 48px rgba(0,0,0,.24)}
         .exec-main,.exec-kpis,.exec-tape{background:#070c16}.exec-main{padding:12px 14px;border-left:4px solid #f59e0b}.executive-cockpit-buy .exec-main{border-left-color:#22c55e}.executive-cockpit-avoid .exec-main{border-left-color:#ef4444}.exec-main span{display:block;color:#93c5fd;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.exec-main h2{margin:5px 0;color:#f8fafc;font-size:28px;line-height:1.02;font-weight:950;letter-spacing:-.02em}.exec-main p{margin:0;color:#cbd5e1;font-size:12px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .exec-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.exec-kpis div{background:#0b1220;padding:9px 10px}.exec-kpis span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase}.exec-kpis strong{display:block;color:#f8fafc;font-size:20px;line-height:1.05;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.exec-kpis small{display:block;color:#cbd5e1;font-size:10px;line-height:1.18;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -10498,7 +10605,7 @@ def main() -> None:
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
         @media (max-width:1100px){.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
         @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.brand-logo-img{width:150px;max-width:42vw}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
-        @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
+        @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
         </style>
         """,
         unsafe_allow_html=True,
