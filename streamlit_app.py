@@ -9772,28 +9772,31 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
     st.markdown("**Trading Desk**")
     preset_counts = trading_desk_preset_counts(rows)
     preset_labels = {preset: f"{preset} ({preset_counts.get(preset, 0)})" for preset in TRADING_DESK_PRESETS}
-    filter_cols = st.columns([0.72, 0.72, 0.8, 0.72, 1.2])
-    with filter_cols[0]:
-        preset_filter = st.selectbox(
-            "Preset",
-            TRADING_DESK_PRESETS,
-            format_func=lambda preset: preset_labels.get(str(preset), str(preset)),
-            key="trading_desk_preset_filter",
-        )
-    with filter_cols[1]:
-        status_options = ["Todos"] + sorted(
-            [status for status in rows["Estado"].dropna().astype(str).unique() if status and status != "-"]
-        )
-        status_filter = st.selectbox("Estado desk", status_options, key="trading_desk_status_filter")
-    with filter_cols[2]:
-        blocker_options = ["Todos"] + sorted(
-            [value for value in rows["Falta"].dropna().astype(str).unique() if value and value != "-"]
-        )
-        blocker_filter = st.selectbox("Falta", blocker_options, key="trading_desk_blocker_filter")
-    with filter_cols[3]:
-        min_score = st.slider("Score min", min_value=0, max_value=100, value=0, step=5, key="trading_desk_score_filter")
-    with filter_cols[4]:
-        query = st.text_input("Buscar ticker/setup/falta", value="", key="trading_desk_query_filter")
+    with st.expander("Filtros del Trading Desk", expanded=False):
+        filter_cols = st.columns([0.72, 0.72, 0.8, 0.72, 1.2])
+        with filter_cols[0]:
+            preset_filter = st.selectbox(
+                "Preset",
+                TRADING_DESK_PRESETS,
+                format_func=lambda preset: preset_labels.get(str(preset), str(preset)),
+                key="trading_desk_preset_filter",
+            )
+        with filter_cols[1]:
+            status_options = ["Todos"] + sorted(
+                [status for status in rows["Estado"].dropna().astype(str).unique() if status and status != "-"]
+            )
+            status_filter = st.selectbox("Estado desk", status_options, key="trading_desk_status_filter")
+        with filter_cols[2]:
+            blocker_options = ["Todos"] + sorted(
+                [value for value in rows["Falta"].dropna().astype(str).unique() if value and value != "-"]
+            )
+            blocker_filter = st.selectbox("Falta", blocker_options, key="trading_desk_blocker_filter")
+        with filter_cols[3]:
+            min_score = st.slider(
+                "Score min", min_value=0, max_value=100, value=0, step=5, key="trading_desk_score_filter"
+            )
+        with filter_cols[4]:
+            query = st.text_input("Buscar ticker/setup/falta", value="", key="trading_desk_query_filter")
     display_rows = filter_trading_desk_display(
         rows, status=status_filter, query=query, min_score=min_score, preset=preset_filter, blocker=blocker_filter
     )
