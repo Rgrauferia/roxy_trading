@@ -9196,20 +9196,46 @@ def render_technical_movers_strip(scan_df: pd.DataFrame) -> None:
     )
 
 
-def trading_desk_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, scan_df: pd.DataFrame, *, limit: int = 18) -> pd.DataFrame:
-    columns = ["#", "Ticker", "Estado", "Paper", "Edge", "Score", "Riesgo", "Target", "RVol", "HTF", "Mover", "Setup", "Siguiente", "Razón"]
+def trading_desk_rows(
+    table: pd.DataFrame, confluence_df: pd.DataFrame, scan_df: pd.DataFrame, *, limit: int = 18
+) -> pd.DataFrame:
+    columns = [
+        "#",
+        "Prioridad",
+        "Ticker",
+        "Estado",
+        "Paper",
+        "Edge",
+        "Score",
+        "Riesgo",
+        "Target",
+        "RVol",
+        "HTF",
+        "Mover",
+        "Setup",
+        "Siguiente",
+        "Razón",
+    ]
     matrix = scanner_opportunity_matrix_rows(table, confluence_df, limit=max(limit, 18))
     wall = scanner_wallboard_rows(table, confluence_df, limit=max(limit * 2, limit))
     if wall.empty and matrix.empty:
         return pd.DataFrame(columns=columns)
     edge_lookup = {text_display(row.get("symbol")).upper(): row for row in matrix.to_dict("records")}
-    validation_lookup = {text_display(row.get("symbol")).upper(): row for row in confluence_validation_rows(confluence_df, limit=max(limit * 2, limit)).to_dict("records")}
-    mover_lookup = {text_display(row.get("symbol")).upper(): row for row in technical_mover_rows(scan_df, limit_per_lane=max(6, limit // 2)).to_dict("records")}
+    validation_lookup = {
+        text_display(row.get("symbol")).upper(): row
+        for row in confluence_validation_rows(confluence_df, limit=max(limit * 2, limit)).to_dict("records")
+    }
+    mover_lookup = {
+        text_display(row.get("symbol")).upper(): row
+        for row in technical_mover_rows(scan_df, limit_per_lane=max(6, limit // 2)).to_dict("records")
+    }
     confluence_lookup: dict[str, dict[str, Any]] = {}
     if not confluence_df.empty and "symbol" in confluence_df.columns:
         confluence_data = confluence_df.copy()
         if "confluence_score" in confluence_data.columns:
-            confluence_data["sort_score"] = pd.to_numeric(confluence_data["confluence_score"], errors="coerce").fillna(0)
+            confluence_data["sort_score"] = pd.to_numeric(confluence_data["confluence_score"], errors="coerce").fillna(
+                0
+            )
             confluence_data = confluence_data.sort_values("sort_score", ascending=False)
         for _, row in confluence_data.iterrows():
             item = row.to_dict()
@@ -9225,8 +9251,14 @@ def trading_desk_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, scan_df:
             status=text_display(item.get("status")),
             risk=safe_float(item.get("risk")) or safe_float(confluence.get("risk_pct")),
             target=safe_float(item.get("target")) or safe_float(confluence.get("recommended_target_pct")),
-            rel_volume=safe_float(item.get("rel_volume")) or safe_float(confluence.get("relative_volume_15m") or confluence.get("relative_volume")),
+            rel_volume=safe_float(item.get("rel_volume"))
+            or safe_float(confluence.get("relative_volume_15m") or confluence.get("relative_volume")),
             htf=text_display(validation.get("htf")),
+        )
+        score_value = safe_float(item.get("score"))
+        risk_value = safe_float(item.get("risk")) or safe_float(confluence.get("risk_pct"))
+        rel_volume_value = safe_float(item.get("rel_volume")) or safe_float(
+            confluence.get("relative_volume_15m") or confluence.get("relative_volume")
         )
         rows.append(
             {
@@ -9234,28 +9266,45 @@ def trading_desk_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, scan_df:
                 "Estado": text_display(item.get("status")),
                 "Paper": paper_state,
                 "Edge": safe_float(edge_row.get("edge")),
-                "Score": safe_float(item.get("score")),
-                "Riesgo": safe_float(item.get("risk")) or safe_float(confluence.get("risk_pct")),
+                "Score": score_value,
+                "Riesgo": risk_value,
                 "Target": safe_float(item.get("target")) or safe_float(confluence.get("recommended_target_pct")),
-                "RVol": safe_float(item.get("rel_volume")) or safe_float(confluence.get("relative_volume_15m") or confluence.get("relative_volume")),
+                "RVol": rel_volume_value,
                 "HTF": text_display(validation.get("htf")),
                 "Mover": text_display(mover.get("lane")),
                 "Setup": text_display(item.get("strategy")),
                 "Siguiente": text_display(item.get("next")),
                 "Razón": text_display(validation.get("reason") or item.get("next")),
+                "Prioridad": trading_desk_priority_label(
+                    text_display(item.get("status")), paper_state, score_value, risk_value, rel_volume_value
+                ),
             }
         )
     display = pd.DataFrame(rows)
     display["edge_sort"] = pd.to_numeric(display["Edge"], errors="coerce").fillna(-999)
     display["score_sort"] = pd.to_numeric(display["Score"], errors="coerce").fillna(0)
     display["status_order"] = display["Estado"].map({"Operar": 0, "Vigilar": 1, "Evitar": 2}).fillna(1)
-    display = display.sort_values(["status_order", "edge_sort", "score_sort"], ascending=[True, False, False]).head(limit).reset_index(drop=True)
+    display = (
+        display.sort_values(["status_order", "edge_sort", "score_sort"], ascending=[True, False, False])
+        .head(limit)
+        .reset_index(drop=True)
+    )
     display["#"] = display.index + 1
-    display["Edge"] = pd.to_numeric(display["Edge"], errors="coerce").map(lambda value: num_display(value, 0) if pd.notna(value) else "-")
-    display["Score"] = pd.to_numeric(display["Score"], errors="coerce").map(lambda value: num_display(value, 0) if pd.notna(value) else "-")
-    display["Riesgo"] = pd.to_numeric(display["Riesgo"], errors="coerce").map(lambda value: pct_display(value) if pd.notna(value) else "-")
-    display["Target"] = pd.to_numeric(display["Target"], errors="coerce").map(lambda value: pct_display(value) if pd.notna(value) else "-")
-    display["RVol"] = pd.to_numeric(display["RVol"], errors="coerce").map(lambda value: f"{value:.1f}x" if pd.notna(value) else "-")
+    display["Edge"] = pd.to_numeric(display["Edge"], errors="coerce").map(
+        lambda value: num_display(value, 0) if pd.notna(value) else "-"
+    )
+    display["Score"] = pd.to_numeric(display["Score"], errors="coerce").map(
+        lambda value: num_display(value, 0) if pd.notna(value) else "-"
+    )
+    display["Riesgo"] = pd.to_numeric(display["Riesgo"], errors="coerce").map(
+        lambda value: pct_display(value) if pd.notna(value) else "-"
+    )
+    display["Target"] = pd.to_numeric(display["Target"], errors="coerce").map(
+        lambda value: pct_display(value) if pd.notna(value) else "-"
+    )
+    display["RVol"] = pd.to_numeric(display["RVol"], errors="coerce").map(
+        lambda value: f"{value:.1f}x" if pd.notna(value) else "-"
+    )
     display["HTF"] = display["HTF"].replace("", "-")
     display["Mover"] = display["Mover"].replace("", "-")
     return display[columns]
@@ -9287,6 +9336,26 @@ def trading_desk_paper_state(
         return "Bloq " + "/".join(missing[:2])
     return "Paper listo"
 
+def trading_desk_priority_label(
+    status: str, paper: str, score: float | None, risk: float | None, rel_volume: float | None
+) -> str:
+    status_value = text_display(status)
+    paper_value = text_display(paper)
+    score_value = safe_float(score) or 0
+    if status_value == "Evitar" or paper_value == "No tocar":
+        return "⛔ No tocar"
+    if status_value == "Operar" and paper_value == "Paper listo":
+        return "🔥 Paper listo"
+    if status_value == "Operar" and paper_value.startswith("Bloq"):
+        return "⚠ Bloqueada"
+    if status_value == "Operar":
+        return "✅ Operar"
+    if status_value == "Vigilar" and (score_value >= 85 or (safe_float(rel_volume) or 0) >= 1.2):
+        return "👀 Alta vigilancia"
+    if status_value == "Vigilar":
+        return "👀 Vigilar"
+    return "Radar"
+
 
 def filter_trading_desk_display(
     rows: pd.DataFrame,
@@ -9308,10 +9377,15 @@ def filter_trading_desk_display(
         scores = pd.to_numeric(filtered["Score"], errors="coerce").fillna(0)
         filtered = filtered[scores.ge(85)]
     elif preset == "Bajo riesgo" and "Riesgo" in filtered.columns:
-        risk = pd.to_numeric(filtered["Riesgo"].astype(str).str.replace("%", "", regex=False), errors="coerce").fillna(999) / 100.0
+        risk = (
+            pd.to_numeric(filtered["Riesgo"].astype(str).str.replace("%", "", regex=False), errors="coerce").fillna(999)
+            / 100.0
+        )
         filtered = filtered[risk.le(0.025)]
     elif preset == "Volumen vivo" and "RVol" in filtered.columns:
-        volume = pd.to_numeric(filtered["RVol"].astype(str).str.replace("x", "", regex=False), errors="coerce").fillna(0)
+        volume = pd.to_numeric(filtered["RVol"].astype(str).str.replace("x", "", regex=False), errors="coerce").fillna(
+            0
+        )
         filtered = filtered[volume.ge(1.2)]
     elif preset == "No tocar" and "Estado" in filtered.columns:
         filtered = filtered[filtered["Estado"].astype(str).eq("Evitar")]
@@ -9322,7 +9396,11 @@ def filter_trading_desk_display(
         filtered = filtered[scores.ge(float(min_score))]
     search = str(query or "").strip().lower()
     if search:
-        searchable_columns = [col for col in ["Ticker", "Paper", "Setup", "Siguiente", "Razón", "Mover"] if col in filtered.columns]
+        searchable_columns = [
+            col
+            for col in ["Ticker", "Prioridad", "Paper", "Setup", "Siguiente", "Razón", "Mover"]
+            if col in filtered.columns
+        ]
         if searchable_columns:
             mask = pd.Series(False, index=filtered.index)
             for column in searchable_columns:
@@ -9332,6 +9410,7 @@ def filter_trading_desk_display(
     if "#" in filtered.columns:
         filtered["#"] = filtered.index + 1
     return filtered
+
 
 TRADING_DESK_PRESETS = ["Todos", "Operar ahora", "Paper listo", "Alto score", "Bajo riesgo", "Volumen vivo", "No tocar"]
 
