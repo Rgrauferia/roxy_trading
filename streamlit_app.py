@@ -12348,8 +12348,8 @@ def show_strategy_study_center(
 
 
 def show_focused_voice(brief: dict) -> None:
-    st.subheader("Roxy Voice")
-    st.caption("Panel local: Roxy puede leer oportunidades, aprendizaje, laboratorio y estado simple de cuenta.")
+    st.subheader("Roxy Voice Desk")
+    st.caption("Respuesta operativa limpia: oportunidad actual, que falta y proximo paso. Los detalles tecnicos quedan ocultos.")
     try:
         from tools import voice_assistant as va
     except Exception as exc:
@@ -12357,11 +12357,34 @@ def show_focused_voice(brief: dict) -> None:
         return
 
     user = st.session_state.get("user")
+    opportunity = (brief.get("opportunities") or [{}])[0] if brief.get("opportunities") else {}
+    if opportunity:
+        symbol = html.escape(text_display(opportunity.get("symbol") or opportunity.get("ticker") or "-"))
+        decision = html.escape(text_display(opportunity.get("decision") or opportunity.get("action") or "Esperar"))
+        setup = html.escape(text_display(opportunity.get("setup") or opportunity.get("strategy") or "-"))
+        score = html.escape(text_display(opportunity.get("score") or opportunity.get("ai_score") or "-"))
+        reason = html.escape(_summarize_voice_context(opportunity))
+        st.markdown(
+            f"""
+            <div style="border:1px solid rgba(96,165,250,.34);border-radius:18px;padding:16px 18px;
+                        background:linear-gradient(135deg,rgba(15,23,42,.94),rgba(30,41,59,.78));margin:10px 0 14px;">
+              <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#93c5fd;font-weight:900;">Roxy esta mirando</div>
+              <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:8px;">
+                <div style="font-size:30px;font-weight:950;color:#f8fafc;line-height:1;">{symbol}</div>
+                <div style="padding:5px 10px;border-radius:999px;background:rgba(251,191,36,.18);color:#fde68a;font-weight:900;">{decision}</div>
+                <div style="padding:5px 10px;border-radius:999px;background:rgba(59,130,246,.16);color:#bfdbfe;font-weight:800;">{setup}</div>
+                <div style="padding:5px 10px;border-radius:999px;background:rgba(16,185,129,.14);color:#bbf7d0;font-weight:800;">Score {score}</div>
+              </div>
+              <div style="margin-top:10px;color:#cbd5e1;font-size:13px;line-height:1.35;">{reason}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     quick_cols = st.columns(4)
     quick_prompts = [
-        ("Oportunidad", "resumen de oportunidad"),
-        ("Aprendizaje", "que estas aprendiendo"),
-        ("Laboratorio", "que experimento sigue en el laboratorio"),
+        ("Ahora", "resumen de oportunidad"),
+        ("Que falta", "que falta para operar la mejor oportunidad"),
+        ("Salida", "como salgo a tiempo de la oportunidad actual"),
         ("Cuenta", "como esta mi cuenta"),
     ]
     for idx, (label, prompt) in enumerate(quick_prompts):
@@ -12388,7 +12411,7 @@ def show_focused_voice(brief: dict) -> None:
 
     reply = st.session_state.get("voice_last_reply")
     if reply:
-        st.markdown("**Roxy dice**")
+        st.markdown("**Respuesta operativa de Roxy**")
         st.info(reply)
         if auto_speak:
             speak_in_browser(str(reply), key="voice-panel")
@@ -12432,10 +12455,9 @@ def show_focused_voice(brief: dict) -> None:
             height=170,
         )
 
-    opportunity = (brief.get("opportunities") or [{}])[0] if brief.get("opportunities") else {}
     if opportunity:
-        st.markdown("**Contexto actual de voz**")
-        st.write(_summarize_voice_context(opportunity))
+        with st.expander("Contexto completo que esta leyendo Roxy", expanded=False):
+            st.write(_summarize_voice_context(opportunity))
 
 
 def show_million_plan_screen() -> None:
