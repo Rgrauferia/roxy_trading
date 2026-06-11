@@ -10128,8 +10128,24 @@ def render_scanner_blotter(table: pd.DataFrame, confluence_df: pd.DataFrame) -> 
         """,
         unsafe_allow_html=True,
     )
-    quick_cols = st.columns(min(6, max(1, len(blotter))))
-    for idx, row in enumerate(blotter.head(6).to_dict("records")):
+    radar_filter = st.radio(
+        "Filtro Roxy Radar",
+        ["Todos", "Operar", "Esperar", "No tocar"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="roxy_radar_action_filter",
+    )
+    visible_blotter = blotter
+    if radar_filter != "Todos":
+        action_key = {"Operar": "OPERAR", "Esperar": "ESPERAR", "No tocar": "NO TOCAR"}[radar_filter]
+        visible_blotter = blotter[blotter["Acción"].astype(str).str.contains(action_key, regex=False)].reset_index(
+            drop=True
+        )
+    if visible_blotter.empty:
+        st.caption("Sin oportunidades en este filtro del Radar.")
+        return
+    quick_cols = st.columns(min(6, max(1, len(visible_blotter))))
+    for idx, row in enumerate(visible_blotter.head(6).to_dict("records")):
         with quick_cols[idx]:
             symbol = text_display(row.get("Ticker")).upper()
             if st.button(
@@ -10141,10 +10157,10 @@ def render_scanner_blotter(table: pd.DataFrame, confluence_df: pd.DataFrame) -> 
                 st.session_state["command_market_pending"] = "crypto" if "/" in symbol else "stock"
                 st.rerun()
     st.dataframe(
-        blotter,
+        visible_blotter,
         use_container_width=True,
         hide_index=True,
-        height=min(520, 58 + len(blotter) * 27),
+        height=min(520, 58 + len(visible_blotter) * 27),
         column_config={
             "Semáforo": st.column_config.TextColumn("Semáforo", width="small"),
             "Score": st.column_config.ProgressColumn("Score", min_value=0, max_value=100, format="%d"),
