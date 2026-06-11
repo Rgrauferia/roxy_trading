@@ -4,6 +4,7 @@ from streamlit_app import (
     filter_trading_desk_display,
     focused_opportunity_table,
     trading_desk_action_queue,
+    trading_desk_blocker_counts,
     trading_desk_blocker_summary,
     trading_desk_paper_state,
     trading_desk_preset_counts,
@@ -236,6 +237,25 @@ def test_trading_desk_priority_label_marks_operational_state():
     assert trading_desk_priority_label("Vigilar", "Setup", 88, 0.022, 0.9) == "👀 Alta vigilancia"
     assert trading_desk_priority_label("Vigilar", "Setup", 70, 0.022, 0.9) == "👀 Vigilar"
     assert trading_desk_priority_label("Evitar", "No tocar", 99, 0.07, 2.0) == "⛔ No tocar"
+
+
+def test_trading_desk_blocker_counts_groups_visible_requirements():
+    rows = pd.DataFrame(
+        [
+            {"Ticker": "AAPL", "Falta": "Completo"},
+            {"Ticker": "NVDA", "Falta": "Falta 15m"},
+            {"Ticker": "MSFT", "Falta": "Falta 15m"},
+            {"Ticker": "TSLA", "Falta": "No tocar"},
+        ]
+    )
+
+    counts = trading_desk_blocker_counts(rows)
+
+    assert counts[["blocker", "count", "tone"]].to_dict("records") == [
+        {"blocker": "Falta 15m", "count": 2, "tone": "watch"},
+        {"blocker": "Completo", "count": 1, "tone": "buy"},
+        {"blocker": "No tocar", "count": 1, "tone": "avoid"},
+    ]
 
 def test_trading_desk_summary_counts_visible_operational_state():
     rows = pd.DataFrame(

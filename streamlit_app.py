@@ -9491,6 +9491,26 @@ def trading_desk_summary(rows: pd.DataFrame) -> dict[str, Any]:
         "volume_live": int(volume.ge(1.2).sum()),
     }
 
+def trading_desk_blocker_counts(rows: pd.DataFrame, *, limit: int = 4) -> pd.DataFrame:
+    columns = ["blocker", "count", "tone"]
+    if rows.empty or "Falta" not in rows.columns:
+        return pd.DataFrame(columns=columns)
+    blockers = rows["Falta"].fillna("-").astype(str).str.strip()
+    blockers = blockers[(blockers != "") & (blockers != "-")]
+    if blockers.empty:
+        return pd.DataFrame(columns=columns)
+    data = []
+    for blocker, count in blockers.value_counts().head(limit).items():
+        if blocker == "Completo":
+            tone = "buy"
+        elif blocker == "No tocar":
+            tone = "avoid"
+        else:
+            tone = "watch"
+        data.append({"blocker": blocker, "count": int(count), "tone": tone})
+    return pd.DataFrame(data, columns=columns)
+
+
 def trading_desk_action_queue(rows: pd.DataFrame, *, limit: int = 3) -> pd.DataFrame:
     columns = ["rank", "ticker", "tone", "status", "paper", "score", "risk", "rvol", "setup", "action", "reason"]
     if rows.empty:
@@ -9572,6 +9592,16 @@ def render_trading_desk_action_queue(rows: pd.DataFrame) -> None:
 
 def render_trading_desk_summary(rows: pd.DataFrame) -> None:
     summary = trading_desk_summary(rows)
+    blocker_counts = trading_desk_blocker_counts(rows, limit=4)
+    blocker_html = ""
+    if not blocker_counts.empty:
+        blocker_cards = []
+        for row in blocker_counts.to_dict("records"):
+            tone = text_display(row.get("tone"))
+            blocker_cards.append(
+                f'<div class="desk-chip desk-{html.escape(tone)}"><span>{html.escape(text_display(row.get("blocker")))}</span><strong>{int(row.get("count") or 0)}</strong><small>bloqueo visible</small></div>'
+            )
+        blocker_html = '<section class="trading-desk-strip trading-desk-blockers">' + "".join(blocker_cards) + "</section>"
     st.markdown(
         '<section class="trading-desk-strip">'
         f'<div class="desk-chip desk-buy"><span>Operar</span><strong>{int(summary.get("operar") or 0)}</strong><small>listas visibles</small></div>'
@@ -9583,6 +9613,8 @@ def render_trading_desk_summary(rows: pd.DataFrame) -> None:
         "</section>",
         unsafe_allow_html=True,
     )
+    if blocker_html:
+        st.markdown(blocker_html, unsafe_allow_html=True)
     render_trading_desk_action_queue(rows)
 
 
