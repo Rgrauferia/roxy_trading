@@ -12079,37 +12079,55 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
         st.session_state["command_market"] = str(pending_market)
 
     st.subheader("Command Center")
-    control_cols = st.columns([1.0, 0.7, 0.65, 0.65, 0.65, 0.65])
-    with control_cols[0]:
-        symbol_input = st.text_input("Simbolo o crypto", value=st.session_state.get("command_symbol", default_symbol), key="command_symbol")
-    with control_cols[1]:
-        inferred_market = "crypto" if "/" in str(symbol_input) else "stock"
-        market = st.selectbox(
-            "Mercado",
-            ["stock", "crypto"],
-            index=1 if inferred_market == "crypto" else 0,
-            key="command_market",
-        )
-    with control_cols[2]:
-        timeframe = st.selectbox("Marco", TIMEFRAME_OPTIONS, index=1, key="command_timeframe")
-    with control_cols[3]:
-        account_equity = st.number_input(
-            "Capital disponible",
-            min_value=50.0,
-            value=100.0,
-            step=50.0,
-            key="command_equity",
-            help="Roxy calcula tamaño, riesgo y potencial según este capital; no usa un riesgo fijo.",
-        )
-    with control_cols[4]:
-        risk_pct_ui = st.number_input("Riesgo %", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key="command_risk")
-    with control_cols[5]:
-        clean_mode = st.toggle(
-            "Modo limpio",
-            value=True,
-            key="command_clean_mode",
-            help="Muestra primero oportunidades accionables y oculta paneles secundarios del Centro.",
-        )
+    current_symbol = st.session_state.get("command_symbol", default_symbol)
+    current_market = normalize_command_market(st.session_state.get("command_market"), current_symbol)
+    current_timeframe = normalize_command_timeframe(st.session_state.get("command_timeframe"))
+    current_equity = float(st.session_state.get("command_equity", 100.0) or 100.0)
+    current_risk = float(st.session_state.get("command_risk", 1.0) or 1.0)
+    st.markdown(
+        f"""
+        <section class="command-quick-strip">
+          <b>{html.escape(text_display(current_symbol).upper())}</b>
+          <span>{html.escape(current_market.upper())}</span>
+          <span>{html.escape(current_timeframe)}</span>
+          <span>Capital ${current_equity:,.0f}</span>
+          <span>Riesgo {current_risk:.1f}%</span>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+    with st.expander("Cambiar activo, mercado y capital", expanded=False):
+        control_cols = st.columns([1.0, 0.7, 0.65, 0.65, 0.65, 0.65])
+        with control_cols[0]:
+            symbol_input = st.text_input("Simbolo o crypto", value=current_symbol, key="command_symbol")
+        with control_cols[1]:
+            inferred_market = "crypto" if "/" in str(symbol_input) else "stock"
+            market = st.selectbox(
+                "Mercado",
+                ["stock", "crypto"],
+                index=1 if inferred_market == "crypto" else 0,
+                key="command_market",
+            )
+        with control_cols[2]:
+            timeframe = st.selectbox("Marco", TIMEFRAME_OPTIONS, index=1, key="command_timeframe")
+        with control_cols[3]:
+            account_equity = st.number_input(
+                "Capital disponible",
+                min_value=50.0,
+                value=100.0,
+                step=50.0,
+                key="command_equity",
+                help="Roxy calcula tamaño, riesgo y potencial según este capital; no usa un riesgo fijo.",
+            )
+        with control_cols[4]:
+            risk_pct_ui = st.number_input("Riesgo %", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key="command_risk")
+        with control_cols[5]:
+            clean_mode = st.toggle(
+                "Modo limpio",
+                value=True,
+                key="command_clean_mode",
+                help="Muestra primero oportunidades accionables y oculta paneles secundarios del Centro.",
+            )
 
     with st.expander("Estado técnico del scan", expanded=False):
         render_alert_noise_contract(brief)
@@ -13346,6 +13364,9 @@ def main() -> None:
         .chart-command-head strong{display:block;color:#f8fafc;font-size:22px;line-height:1.05;margin-top:3px}
         .chart-command-head aside{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
         .chart-command-head b{display:inline-flex;border:1px solid rgba(148,163,184,.24);border-radius:999px;background:#0b1220;color:#e2e8f0;padding:6px 9px;font-size:11px;line-height:1;font-weight:950}
+        .command-quick-strip{display:flex;gap:7px;align-items:center;flex-wrap:wrap;border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0d1426;padding:7px 8px;margin:0 0 6px}
+        .command-quick-strip b{color:#f8fafc;font-size:16px;line-height:1}
+        .command-quick-strip span{display:inline-flex;align-items:center;border:1px solid rgba(148,163,184,.18);border-radius:999px;background:#111827;color:#cbd5e1;padding:4px 8px;font-size:11px;font-weight:850;line-height:1}
         .roxy-now{display:grid;grid-template-columns:1.35fr .55fr .85fr .9fr;gap:1px;border:1px solid rgba(148,163,184,.24);border-radius:8px;background:rgba(148,163,184,.16);overflow:hidden;margin:8px 0 10px;box-shadow:0 14px 34px rgba(0,0,0,.20)}
         .roxy-now>div{background:#0b1220;padding:10px 12px;min-height:78px}
         .roxy-now span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.05em}
