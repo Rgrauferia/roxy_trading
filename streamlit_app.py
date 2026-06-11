@@ -11680,7 +11680,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
         st.session_state["command_market"] = str(pending_market)
 
     st.subheader("Command Center")
-    control_cols = st.columns([1.0, 0.7, 0.65, 0.65, 0.65])
+    control_cols = st.columns([1.0, 0.7, 0.65, 0.65, 0.65, 0.65])
     with control_cols[0]:
         symbol_input = st.text_input("Simbolo o crypto", value=st.session_state.get("command_symbol", default_symbol), key="command_symbol")
     with control_cols[1]:
@@ -11697,33 +11697,47 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
         account_equity = st.number_input("Cuenta", min_value=100.0, value=500.0, step=50.0, key="command_equity")
     with control_cols[4]:
         risk_pct_ui = st.number_input("Riesgo %", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key="command_risk")
+    with control_cols[5]:
+        clean_mode = st.toggle(
+            "Modo limpio",
+            value=True,
+            key="command_clean_mode",
+            help="Muestra primero oportunidades accionables y oculta paneles secundarios del Centro.",
+        )
 
     render_alert_noise_contract(brief)
-    render_ticker_intel_strip(best, confluence_df, symbol_input)
-    render_company_research_hub(symbol_input, market)
-    render_live_provider_center()
-    render_alpaca_paper_execution_panel(best, account_equity=account_equity, risk_pct=risk_pct_ui / 100.0)
-    paper_journal_snapshot = render_alpaca_paper_journal_panel()
-    render_alpaca_paper_open_positions_panel(paper_journal_snapshot, best)
-    render_alpaca_paper_strategy_ranking(paper_journal_snapshot, best)
-    render_screener_preset_deck(best, confluence_df)
-    render_exit_plan_board(best, confluence_df)
-    render_executive_cockpit(best, confluence_df, scan_df, brief)
-    render_top_opportunity_cards(best, confluence_df)
-    render_market_movers_tape(best, confluence_df)
-    render_opportunity_compare_board(best, confluence_df)
-    render_opportunity_edge_heatmap(best, confluence_df)
-    render_trading_desk_table(best, confluence_df, scan_df)
-    render_confirmation_radar(confluence_df)
-    render_buy_readiness_gap_panel(confluence_df)
-    render_finviz_style_wallboard(best, confluence_df, brief)
-    render_opportunity_matrix(best, confluence_df)
-    render_confluence_validation_board(confluence_df)
-    render_market_breadth_strip(scan_df, confluence_df)
-    render_market_index_strip(scan_df, confluence_df)
-    render_technical_movers_strip(scan_df)
-    render_scanner_cockpit(best, confluence_df, options_df, brief)
-    render_market_pulse_dashboard(best)
+    if clean_mode:
+        render_top_opportunity_cards(best, confluence_df)
+        render_trading_desk_table(best, confluence_df, scan_df)
+        render_confirmation_radar(confluence_df)
+        render_buy_readiness_gap_panel(confluence_df)
+        render_exit_plan_board(best, confluence_df)
+    else:
+        render_ticker_intel_strip(best, confluence_df, symbol_input)
+        render_company_research_hub(symbol_input, market)
+        render_live_provider_center()
+        render_alpaca_paper_execution_panel(best, account_equity=account_equity, risk_pct=risk_pct_ui / 100.0)
+        paper_journal_snapshot = render_alpaca_paper_journal_panel()
+        render_alpaca_paper_open_positions_panel(paper_journal_snapshot, best)
+        render_alpaca_paper_strategy_ranking(paper_journal_snapshot, best)
+        render_screener_preset_deck(best, confluence_df)
+        render_exit_plan_board(best, confluence_df)
+        render_executive_cockpit(best, confluence_df, scan_df, brief)
+        render_top_opportunity_cards(best, confluence_df)
+        render_market_movers_tape(best, confluence_df)
+        render_opportunity_compare_board(best, confluence_df)
+        render_opportunity_edge_heatmap(best, confluence_df)
+        render_trading_desk_table(best, confluence_df, scan_df)
+        render_confirmation_radar(confluence_df)
+        render_buy_readiness_gap_panel(confluence_df)
+        render_finviz_style_wallboard(best, confluence_df, brief)
+        render_opportunity_matrix(best, confluence_df)
+        render_confluence_validation_board(confluence_df)
+        render_market_breadth_strip(scan_df, confluence_df)
+        render_market_index_strip(scan_df, confluence_df)
+        render_technical_movers_strip(scan_df)
+        render_scanner_cockpit(best, confluence_df, options_df, brief)
+        render_market_pulse_dashboard(best)
 
     left, right = st.columns([1.6, 0.72])
     with left:
