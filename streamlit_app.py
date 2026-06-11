@@ -6,6 +6,7 @@ confluence, symbol analysis, AI-ranked opportunities, and 24h watch status.
 
 from __future__ import annotations
 
+import base64
 import html
 import json
 import math
@@ -189,6 +190,17 @@ ROXY_LOGO_SVG = """
   <text x="17" y="28" font-size="18" font-weight="800" fill="#f8fafc" font-family="Arial, sans-serif">R</text>
 </svg>
 """
+
+BRAND_LOGO_PATH = project_path("assets/grau_service_logo.png")
+
+
+def brand_logo_html() -> str:
+    try:
+        data = BRAND_LOGO_PATH.read_bytes()
+    except OSError:
+        return ROXY_LOGO_SVG.strip()
+    encoded = base64.b64encode(data).decode("ascii")
+    return f'<img class="brand-logo-img" src="data:image/png;base64,{encoded}" alt="Grau Service LLC logo"/>'
 
 PLATFORM_BADGE_BRANDS = {
     "crypto_com": {
@@ -1567,7 +1579,7 @@ def render_roxy_brand_header(
         '<section class="roxy-hero">'
         '<div class="roxy-hero-left">'
         '<div class="roxy-brand-row">'
-        f'{ROXY_LOGO_SVG.strip()}'
+        f'{brand_logo_html()}'
         '<div><h1>Roxy Trading</h1>'
         '<p>Scanner profesional · SMA 20/40/100/200 · saltos · alertas IA 24h</p></div>'
         '</div>'
@@ -10227,6 +10239,7 @@ def main() -> None:
         .roxy-hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,520px);gap:18px;align-items:stretch;border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0d1426;padding:16px 18px;margin:0 0 10px;box-shadow:0 16px 42px rgba(0,0,0,.24)}
         .roxy-brand-row{display:flex;align-items:center;gap:14px}
         .roxy-logo-svg{width:58px;height:58px;flex:0 0 auto;filter:drop-shadow(0 10px 18px rgba(34,197,94,.15))}
+        .brand-logo-img{width:178px;max-width:32vw;height:auto;display:block;border:1px solid rgba(212,175,96,.32);border-radius:8px;background:#030307;box-shadow:0 12px 30px rgba(0,0,0,.32)}
         .roxy-hero h1{font-size:34px;line-height:1.05;margin:0;color:#f8fafc;letter-spacing:0}
         .roxy-hero p{margin:6px 0 0;color:#b7c1d0;font-size:14px;line-height:1.35}
         .hero-flow{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
@@ -10383,8 +10396,8 @@ def main() -> None:
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
         @media (max-width:1100px){.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
-        @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
-        @media (max-width:600px){.metric-card{min-width:120px}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
+        @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.brand-logo-img{width:150px;max-width:42vw}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
+        @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
         </style>
         """,
         unsafe_allow_html=True,
