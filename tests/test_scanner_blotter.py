@@ -41,8 +41,11 @@ def test_scanner_blotter_rows_formats_dense_screener_columns():
 
     rows = scanner_blotter_rows(table, confluence, limit=10)
 
-    assert rows.columns.tolist() == ["#", "Ticker", "Estado", "Score", "Setup", "Riesgo", "Target", "RVol", "TF", "Siguiente"]
+    assert rows.columns.tolist() == ["#", "Prioridad", "Ticker", "Estado", "Edge", "Score", "Setup", "Riesgo", "Target", "RVol", "TF", "Siguiente"]
     assert rows["Ticker"].tolist() == ["AAPL", "NVDA"]
+    assert rows.loc[0, "Prioridad"] == "🔥 Operar"
     assert rows.loc[0, "Estado"] == "Operar"
+    assert rows.loc[0, "Edge"] > rows.loc[1, "Edge"]
+    assert rows.loc[0, "Score"] == 91
     assert rows.loc[0, "Riesgo"] == "1.80%"
     assert rows.loc[1, "RVol"] == "1.6x"

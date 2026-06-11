@@ -7713,20 +7713,32 @@ def render_buy_readiness_gap_panel(confluence_df: pd.DataFrame) -> None:
 
 def scanner_blotter_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, *, limit: int = 24) -> pd.DataFrame:
     wall_rows = scanner_wallboard_rows(table, confluence_df, limit=limit)
+    columns = ["#", "Prioridad", "Ticker", "Estado", "Edge", "Score", "Setup", "Riesgo", "Target", "RVol", "TF", "Siguiente"]
     if wall_rows.empty:
-        return pd.DataFrame(columns=["#", "Ticker", "Estado", "Score", "Setup", "Riesgo", "Target", "RVol", "TF", "Siguiente"])
+        return pd.DataFrame(columns=columns)
     display = wall_rows.copy().head(limit).reset_index(drop=True)
+    score = pd.to_numeric(display["score"], errors="coerce").fillna(0.0)
+    risk = pd.to_numeric(display["risk"], errors="coerce").fillna(0.99)
+    target = pd.to_numeric(display["target"], errors="coerce").fillna(0.0)
+    rel_volume = pd.to_numeric(display["rel_volume"], errors="coerce").fillna(0.0)
+    status_bonus = display["status"].map({"Operar": 18.0, "Vigilar": 8.0, "Evitar": -28.0}).fillna(0.0)
+    edge = (score + (rel_volume.clip(0, 5) * 4.0) + (target.clip(0, 0.15) * 150.0) + status_bonus - (risk.clip(0, 0.20) * 180.0)).round(1)
     display["#"] = display.index + 1
+    display["Prioridad"] = [
+        "🔥 Operar" if status == "Operar" else "👀 Vigilar" if status == "Vigilar" and (score_value >= 85 or volume_value >= 1.2) else "⛔ Evitar" if status == "Evitar" else "Neutral"
+        for status, score_value, volume_value in zip(display["status"].astype(str), score, rel_volume)
+    ]
     display["Ticker"] = display["symbol"].astype(str)
     display["Estado"] = display["status"].astype(str)
-    display["Score"] = pd.to_numeric(display["score"], errors="coerce").map(lambda value: num_display(value, 0) if pd.notna(value) else "-")
+    display["Edge"] = edge
+    display["Score"] = score.round(0).astype(int)
     display["Setup"] = display["strategy"].astype(str)
     display["Riesgo"] = pd.to_numeric(display["risk"], errors="coerce").map(lambda value: pct_display(value) if pd.notna(value) else "-")
     display["Target"] = pd.to_numeric(display["target"], errors="coerce").map(lambda value: pct_display(value) if pd.notna(value) else "-")
     display["RVol"] = pd.to_numeric(display["rel_volume"], errors="coerce").map(lambda value: f"{value:.1f}x" if pd.notna(value) else "-")
     display["TF"] = display["tf"].astype(str)
     display["Siguiente"] = display["next"].astype(str)
-    return display[["#", "Ticker", "Estado", "Score", "Setup", "Riesgo", "Target", "RVol", "TF", "Siguiente"]]
+    return display[columns]
 
 
 def render_scanner_blotter(table: pd.DataFrame, confluence_df: pd.DataFrame) -> None:
@@ -7734,11 +7746,23 @@ def render_scanner_blotter(table: pd.DataFrame, confluence_df: pd.DataFrame) -> 
     if blotter.empty:
         return
     st.markdown("**Blotter operativo**")
+    quick_cols = st.columns(min(6, max(1, len(blotter))))
+    for idx, row in enumerate(blotter.head(6).to_dict("records")):
+        with quick_cols[idx]:
+            symbol = text_display(row.get("Ticker")).upper()
+            if st.button(f"{symbol} · {text_display(row.get('Prioridad'))}", key=f"blotter_load_{idx}_{safe_key(symbol)}", use_container_width=True):
+                st.session_state["command_symbol_pending"] = symbol
+                st.session_state["command_market_pending"] = "crypto" if "/" in symbol else "stock"
+                st.rerun()
     st.dataframe(
         blotter,
         use_container_width=True,
         hide_index=True,
         height=min(520, 58 + len(blotter) * 27),
+        column_config={
+            "Score": st.column_config.ProgressColumn("Score", min_value=0, max_value=100, format="%d"),
+            "Edge": st.column_config.NumberColumn("Edge", format="%.0f"),
+        },
     )
 
 
