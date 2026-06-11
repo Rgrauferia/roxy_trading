@@ -7037,7 +7037,13 @@ def show_ai_status_cards(
     session = brief.get("market_session") or market_session_status()
     realtime = brief.get("realtime") or {}
     realtime_refresh_status = realtime_refresh_dashboard_status(realtime)
-    with st.expander("Estado tecnico del scan", expanded=False):
+    show_technical_reports = st.sidebar.toggle(
+        "Modo tecnico",
+        value=False,
+        key="roxy_show_technical_reports",
+        help="Muestra JSON crudos, health, backups y reportes para depuracion. Mantener apagado durante trading.",
+    )
+    with st.expander("Estado operativo de Roxy", expanded=False):
         primary_cols = st.columns(6)
         with primary_cols[0]:
             render_kpi_card("Modo ops", operational_mode_status["label"], tone=operational_mode_status["tone"], detail=operational_mode_status["detail"])
@@ -7199,7 +7205,7 @@ def show_ai_status_cards(
         if heartbeat:
             with st.expander("Heartbeat backend live", expanded=False):
                 st.json(heartbeat)
-        if realtime_check:
+        if realtime_check and show_technical_reports:
             with st.expander("Diagnostico tecnico avanzado", expanded=False):
                 st.caption("Reportes crudos para depuracion. Mantener cerrado durante trading para reducir ruido visual.")
                 with st.expander("Reporte verificacion realtime", expanded=False):
