@@ -10191,11 +10191,26 @@ def render_scanner_blotter(table: pd.DataFrame, confluence_df: pd.DataFrame) -> 
                 st.session_state["command_symbol_pending"] = symbol
                 st.session_state["command_market_pending"] = "crypto" if "/" in symbol else "stock"
                 st.rerun()
+    radar_columns = [
+        "Semáforo",
+        "Ticker",
+        "Acción",
+        "Calidad",
+        "Edge",
+        "Score",
+        "Riesgo",
+        "Target",
+        "RVol",
+        "TF",
+        "Setup",
+        "Qué falta",
+    ]
+    radar_table = visible_blotter[radar_columns]
     st.dataframe(
-        visible_blotter,
+        radar_table,
         use_container_width=True,
         hide_index=True,
-        height=min(520, 58 + len(visible_blotter) * 27),
+        height=min(360, 58 + len(radar_table) * 27),
         column_config={
             "Semáforo": st.column_config.TextColumn("Semáforo", width="small"),
             "Score": st.column_config.ProgressColumn("Score", min_value=0, max_value=100, format="%d"),
