@@ -3,7 +3,12 @@ from types import SimpleNamespace
 
 import pandas as pd
 
-from streamlit_app import alpaca_paper_journal_snapshot, alpaca_paper_strategy_ranking, alpaca_time_ago
+from streamlit_app import (
+    alpaca_paper_chart_markers,
+    alpaca_paper_journal_snapshot,
+    alpaca_paper_strategy_ranking,
+    alpaca_time_ago,
+)
 
 
 def test_alpaca_time_ago_formats_recent_durations():
@@ -130,3 +135,46 @@ def test_alpaca_paper_strategy_ranking_groups_activity_by_setup():
     assert by_strategy["Canal alcista"]["tone"] == "avoid"
     assert by_strategy["Breakout"]["orders"] == 1
     assert by_strategy["Breakout"]["open_positions"] == 0
+
+
+def test_alpaca_paper_chart_markers_places_filled_orders_on_chart():
+    chart_window = pd.DataFrame(
+        {
+            "ts": pd.to_datetime(["2026-06-11T10:00:00", "2026-06-11T10:05:00", "2026-06-11T10:10:00"]),
+            "close": [100.0, 101.5, 102.0],
+        }
+    )
+    snapshot = {
+        "orders": [
+            {
+                "symbol": "AAPL",
+                "side": "BUY",
+                "status": "FILLED",
+                "filled_at": "2026-06-11T10:05:00",
+                "filled_avg_price": 101.25,
+            },
+            {
+                "symbol": "AAPL",
+                "side": "SELL",
+                "status": "FILLED",
+                "filled_at": "2026-06-11T10:10:00",
+                "filled_avg_price": 102.0,
+            },
+            {
+                "symbol": "MSFT",
+                "side": "BUY",
+                "status": "FILLED",
+                "filled_at": "2026-06-11T10:05:00",
+                "filled_avg_price": 300.0,
+            },
+        ],
+        "positions": [],
+    }
+
+    markers = alpaca_paper_chart_markers(snapshot, chart_window, "AAPL")
+
+    assert markers[["event", "side", "price", "tone"]].to_dict("records") == [
+        {"event": "Paper entrada", "side": "BUY", "price": 101.25, "tone": "buy"},
+        {"event": "Paper salida", "side": "SELL", "price": 102.0, "tone": "avoid"},
+    ]
+    assert markers["label"].tolist() == ["Paper entrada AAPL 101.25", "Paper salida AAPL 102.00"]

@@ -1463,7 +1463,15 @@ def render_professional_chart_block(
         return
     if len(clean_window) < 40:
         st.info("Grafica limitada: hay pocas velas limpias para este simbolo/timeframe. Roxy muestra niveles, pero exige confirmacion extra.")
-    price_chart = build_professional_price_chart(clean_window, setup, confluence, trade_brief or {}).properties(height=price_height)
+    chart_symbol = text_display((trade_brief or {}).get("symbol") or setup.get("symbol"))
+    price_chart = build_professional_price_chart(
+        clean_window,
+        setup,
+        confluence,
+        trade_brief or {},
+        paper_snapshot=st.session_state.get("alpaca_paper_journal_snapshot"),
+        symbol=chart_symbol,
+    ).properties(height=price_height)
     volume_chart = build_professional_volume_chart(clean_window)
     oscillator_chart = build_professional_oscillator_chart(clean_window)
     panels = [price_chart]
@@ -1920,8 +1928,11 @@ def alpaca_paper_journal_snapshot(
                 "order_class": text_display(alpaca_attr(order, "order_class")).upper(),
                 "submitted": alpaca_time_ago(submitted_at, now=now),
                 "filled": alpaca_time_ago(filled_at, now=now),
+                "submitted_at": text_display(submitted_at),
+                "filled_at": text_display(filled_at),
                 "limit_price": safe_float(alpaca_attr(order, "limit_price")),
                 "stop_price": safe_float(alpaca_attr(order, "stop_price")),
+                "filled_avg_price": safe_float(alpaca_attr(order, "filled_avg_price")),
             }
         )
     positions: list[dict[str, Any]] = []
@@ -1937,6 +1948,7 @@ def alpaca_paper_journal_snapshot(
                 "market_value": safe_float(alpaca_attr(position, "market_value")) or 0.0,
                 "unrealized_pl": unrealized,
                 "unrealized_plpc": safe_float(alpaca_attr(position, "unrealized_plpc")),
+                "entry_at": text_display(entry_time_lookup.get(symbol)),
                 "time_in_trade": alpaca_time_ago(entry_time_lookup.get(symbol), now=now),
                 "tone": "buy" if unrealized >= 0 else "avoid",
             }
@@ -2030,8 +2042,79 @@ def alpaca_paper_strategy_ranking(snapshot: dict[str, Any], opportunity_table: p
     return result.sort_values(["pnl", "open_positions", "orders"], ascending=[False, False, False]).head(limit).reset_index(drop=True)
 
 
+def alpaca_marker_timestamp(value: Any) -> pd.Timestamp | None:
+    if value in (None, "", "-"):
+        return None
+    try:
+        parsed = pd.to_datetime(value, errors="coerce")
+    except Exception:
+        return None
+    if pd.isna(parsed):
+        return None
+    timestamp = pd.Timestamp(parsed)
+    if timestamp.tzinfo is not None:
+        timestamp = timestamp.tz_convert(None)
+    return timestamp
+
+
+def alpaca_paper_chart_markers(snapshot: dict[str, Any], chart_window: pd.DataFrame, symbol: str) -> pd.DataFrame:
+    columns = ["ts", "price", "event", "side", "status", "label", "tone"]
+    if chart_window.empty or "ts" not in chart_window.columns:
+        return pd.DataFrame(columns=columns)
+    clean_symbol = text_display(symbol).upper()
+    if not clean_symbol or clean_symbol == "-":
+        return pd.DataFrame(columns=columns)
+    ts_series = pd.to_datetime(chart_window["ts"], errors="coerce").dropna()
+    if ts_series.empty:
+        return pd.DataFrame(columns=columns)
+    first_raw = pd.Timestamp(ts_series.min())
+    last_raw = pd.Timestamp(ts_series.max())
+    first_ts = first_raw.tz_convert(None) if first_raw.tzinfo is not None else first_raw
+    last_ts = last_raw.tz_convert(None) if last_raw.tzinfo is not None else last_raw
+    rows: list[dict[str, Any]] = []
+
+    def add_marker(ts_value: Any, price_value: Any, event: str, side: str, status: str, tone: str) -> None:
+        ts = alpaca_marker_timestamp(ts_value)
+        price = safe_float(price_value)
+        if ts is None or price is None or price <= 0:
+            return
+        if ts < first_ts or ts > last_ts:
+            return
+        label = f"{event} {clean_symbol} {price:.2f}"
+        rows.append(
+            {"ts": ts, "price": price, "event": event, "side": side, "status": status, "label": label, "tone": tone}
+        )
+
+    for order in snapshot.get("orders") or []:
+        order_symbol = text_display(order.get("symbol")).upper()
+        if order_symbol != clean_symbol:
+            continue
+        side = text_display(order.get("side")).upper()
+        status = text_display(order.get("status")).upper()
+        if status not in {"FILLED", "PARTIALLY_FILLED"}:
+            continue
+        event = "Paper entrada" if side == "BUY" else "Paper salida"
+        tone = "buy" if side == "BUY" else "avoid"
+        price = safe_float(order.get("filled_avg_price")) or safe_float(order.get("limit_price")) or safe_float(order.get("stop_price"))
+        add_marker(order.get("filled_at") or order.get("submitted_at"), price, event, side, status, tone)
+
+    for position in snapshot.get("positions") or []:
+        position_symbol = text_display(position.get("symbol")).upper()
+        if position_symbol != clean_symbol:
+            continue
+        if any(row.get("side") == "BUY" for row in rows):
+            continue
+        ts = alpaca_marker_timestamp(position.get("entry_at")) or last_ts
+        add_marker(ts, position.get("avg_entry") or position.get("current"), "Paper abierta", "BUY", "OPEN", "buy")
+
+    if not rows:
+        return pd.DataFrame(columns=columns)
+    return pd.DataFrame(rows, columns=columns).drop_duplicates(["ts", "price", "event", "side"]).sort_values("ts").reset_index(drop=True)
+
+
 def render_alpaca_paper_journal_panel(env: dict[str, str] | None = None) -> dict[str, Any]:
     snapshot = alpaca_paper_journal_snapshot(env, limit=8)
+    st.session_state["alpaca_paper_journal_snapshot"] = snapshot
     summary = snapshot.get("summary") if isinstance(snapshot.get("summary"), dict) else {}
     positions = snapshot.get("positions") if isinstance(snapshot.get("positions"), list) else []
     orders = snapshot.get("orders") if isinstance(snapshot.get("orders"), list) else []
@@ -3745,11 +3828,65 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
     return [selector, crosshair, marker]
 
 
+def build_alpaca_paper_marker_layers(
+    chart_window: pd.DataFrame,
+    paper_snapshot: dict[str, Any] | None,
+    symbol: str,
+    price_scale: alt.Scale,
+) -> list[alt.Chart]:
+    markers = alpaca_paper_chart_markers(paper_snapshot or {}, chart_window, symbol)
+    if markers.empty:
+        return []
+    point_layer = (
+        alt.Chart(markers)
+        .mark_point(filled=True, size=155, stroke="#020617", strokeWidth=1.4)
+        .encode(
+            x=alt.X("ts:T", title="Tiempo"),
+            y=alt.Y("price:Q", title="Precio", scale=price_scale),
+            color=alt.Color(
+                "tone:N",
+                legend=None,
+                scale=alt.Scale(domain=["buy", "avoid"], range=["#22c55e", "#ef4444"]),
+            ),
+            shape=alt.Shape(
+                "side:N",
+                legend=None,
+                scale=alt.Scale(domain=["BUY", "SELL"], range=["triangle-up", "triangle-down"]),
+            ),
+            tooltip=[
+                alt.Tooltip("event:N", title="Paper"),
+                alt.Tooltip("side:N", title="Side"),
+                alt.Tooltip("status:N", title="Estado"),
+                alt.Tooltip("price:Q", title="Precio", format=".2f"),
+                alt.Tooltip("ts:T", title="Tiempo"),
+            ],
+        )
+    )
+    label_layer = (
+        alt.Chart(markers)
+        .mark_text(align="left", dx=9, dy=-12, fontSize=11, fontWeight="bold")
+        .encode(
+            x=alt.X("ts:T", title="Tiempo"),
+            y=alt.Y("price:Q", title="Precio", scale=price_scale),
+            text="label:N",
+            color=alt.Color(
+                "tone:N",
+                legend=None,
+                scale=alt.Scale(domain=["buy", "avoid"], range=["#bbf7d0", "#fecaca"]),
+            ),
+        )
+    )
+    return [point_layer, label_layer]
+
+
 def build_professional_price_chart(
     chart_df: pd.DataFrame,
     setup: dict,
     confluence: dict | None,
     brief: dict | None = None,
+    *,
+    paper_snapshot: dict[str, Any] | None = None,
+    symbol: str | None = None,
 ) -> alt.LayerChart:
     chart_window = prepare_chart_window(chart_df)
     confluence = confluence or {}
@@ -3916,6 +4053,8 @@ def build_professional_price_chart(
         )
     )
     layers.extend(build_price_hover_layers(chart_window, price_scale))
+    chart_symbol = text_display(symbol or brief.get("symbol") or confluence.get("symbol") or setup.get("symbol"))
+    layers.extend(build_alpaca_paper_marker_layers(chart_window, paper_snapshot, chart_symbol, price_scale))
 
     event_rows = [row for row in latest_chart_strategy_events(chart_window, setup) if row.get("status") in {"ACTIVE", "WATCH"}]
     if event_rows:
@@ -4705,7 +4844,14 @@ def show_sma_symbol_analyzer(scan_df: pd.DataFrame, confluence_df: pd.DataFrame,
     )
     render_chart_readout(setup, confluence, ai_trade_brief, chart_df)
     render_chart_strategy_summary(setup, confluence, ai_trade_brief, chart_df)
-    price_chart = build_professional_price_chart(chart_df, setup, confluence, ai_trade_brief).properties(height=460)
+    price_chart = build_professional_price_chart(
+        chart_df,
+        setup,
+        confluence,
+        ai_trade_brief,
+        paper_snapshot=st.session_state.get("alpaca_paper_journal_snapshot"),
+        symbol=symbol,
+    ).properties(height=460)
     volume_chart = build_professional_volume_chart(chart_df)
     oscillator_chart = build_professional_oscillator_chart(chart_df)
     chart_panels = [price_chart]
@@ -9782,7 +9928,14 @@ def render_focus_opportunity_chart(
         market_session=(app_brief or {}).get("market_session"),
     )
     render_trade_plan_platform_preview(platform_ticket)
-    price_chart = build_professional_price_chart(chart_df, setup, confluence, trade_brief).properties(height=390)
+    price_chart = build_professional_price_chart(
+        chart_df,
+        setup,
+        confluence,
+        trade_brief,
+        paper_snapshot=st.session_state.get("alpaca_paper_journal_snapshot"),
+        symbol=resolved_symbol,
+    ).properties(height=390)
     volume_chart = build_professional_volume_chart(chart_df)
     oscillator_chart = build_professional_oscillator_chart(chart_df)
     chart_panels = [price_chart]
@@ -11467,7 +11620,14 @@ def show_strategy_study_center(
             render_chart_strategy_summary(setup, confluence, trade_brief, chart_df)
             render_strategy_event_panel(chart_df, setup)
             render_chart_level_plan(chart_df, setup, confluence, trade_brief)
-            price_chart = build_professional_price_chart(chart_df, setup, confluence, trade_brief).properties(height=440)
+            price_chart = build_professional_price_chart(
+                chart_df,
+                setup,
+                confluence,
+                trade_brief,
+                paper_snapshot=st.session_state.get("alpaca_paper_journal_snapshot"),
+                symbol=resolved_symbol,
+            ).properties(height=440)
             volume_chart = build_professional_volume_chart(chart_df)
             oscillator_chart = build_professional_oscillator_chart(chart_df)
             chart_panels = [price_chart]
