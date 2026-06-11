@@ -13225,9 +13225,11 @@ def show_focused_roxy_app() -> None:
         brief=brief,
     )
     show_focused_controls()
+    with st.expander("Roxy IA / voz global", expanded=False):
+        show_focused_voice(brief)
 
     page_tabs = st.tabs(
-        ["Centro", "Plan de trade", "Capital", "Plataformas", "Opciones", "Backtest", "Precision", "Estudios", "Roxy Lab", "Voz"]
+        ["Centro", "Plan de trade", "Capital", "Plataformas", "Opciones", "Backtest", "Precision", "Estudios", "Roxy Lab"]
     )
     with page_tabs[0]:
         show_focused_home(scan_df, confluence_df, options_df, brief)
@@ -13247,8 +13249,6 @@ def show_focused_roxy_app() -> None:
         show_strategy_study_center(scan_df, confluence_df, options_df, brief)
     with page_tabs[8]:
         show_focused_ai_24h(brief)
-    with page_tabs[9]:
-        show_focused_voice(brief)
 
 
 def main() -> None:
