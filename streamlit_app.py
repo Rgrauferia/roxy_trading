@@ -1464,6 +1464,26 @@ def render_professional_chart_block(
     if len(clean_window) < 40:
         st.info("Grafica limitada: hay pocas velas limpias para este simbolo/timeframe. Roxy muestra niveles, pero exige confirmacion extra.")
     chart_symbol = text_display((trade_brief or {}).get("symbol") or setup.get("symbol"))
+    timeframe = text_display((trade_brief or {}).get("timeframe") or setup.get("timeframe") or setup.get("tf"))
+    entry = num_display((trade_brief or {}).get("entry") or (confluence or {}).get("entry"), 2)
+    stop = num_display((trade_brief or {}).get("stop") or (confluence or {}).get("stop"), 2)
+    target = num_display((trade_brief or {}).get("target") or (trade_brief or {}).get("target_price"), 2)
+    st.markdown(
+        f"""
+        <section class="chart-command-head">
+          <div>
+            <span>Gráfica profesional</span>
+            <strong>{html.escape(chart_symbol)} · {html.escape(timeframe)}</strong>
+          </div>
+          <aside>
+            <b>Entrada {html.escape(entry)}</b>
+            <b>Stop {html.escape(stop)}</b>
+            <b>Target {html.escape(target)}</b>
+          </aside>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
     price_chart = build_professional_price_chart(
         clean_window,
         setup,
@@ -13317,6 +13337,11 @@ def main() -> None:
         [data-testid="stSidebar"]{background:#0f172a;border-right:1px solid rgba(148,163,184,.16)}
         [data-testid="stHeader"]{background:rgba(14,22,36,.9)}
         [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"], #MainMenu, footer{display:none!important}
+        .chart-command-head{display:flex;justify-content:space-between;gap:14px;align-items:center;border:1px solid rgba(96,165,250,.30);border-left:4px solid #38bdf8;border-radius:8px;background:linear-gradient(135deg,rgba(15,23,42,.95),rgba(8,47,73,.45));padding:10px 12px;margin:10px 0 6px}
+        .chart-command-head span{display:block;color:#93c5fd;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}
+        .chart-command-head strong{display:block;color:#f8fafc;font-size:22px;line-height:1.05;margin-top:3px}
+        .chart-command-head aside{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+        .chart-command-head b{display:inline-flex;border:1px solid rgba(148,163,184,.24);border-radius:999px;background:#0b1220;color:#e2e8f0;padding:6px 9px;font-size:11px;line-height:1;font-weight:950}
         .roxy-now{display:grid;grid-template-columns:1.35fr .55fr .85fr .9fr;gap:1px;border:1px solid rgba(148,163,184,.24);border-radius:8px;background:rgba(148,163,184,.16);overflow:hidden;margin:8px 0 10px;box-shadow:0 14px 34px rgba(0,0,0,.20)}
         .roxy-now>div{background:#0b1220;padding:10px 12px;min-height:78px}
         .roxy-now span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.05em}
