@@ -6524,6 +6524,91 @@ def scanner_matrix_summary(rows: pd.DataFrame) -> dict[str, Any]:
     }
 
 
+def executive_cockpit_summary(table: pd.DataFrame, confluence_df: pd.DataFrame, scan_df: pd.DataFrame, brief: dict) -> dict[str, Any]:
+    matrix_rows = scanner_opportunity_matrix_rows(table, confluence_df, limit=6)
+    wall_rows = scanner_wallboard_rows(table, confluence_df, limit=32)
+    wall_summary = scanner_wallboard_summary(wall_rows) if not wall_rows.empty else {
+        "total": 0,
+        "ready": 0,
+        "watch": 0,
+        "avoid": 0,
+        "avg_score": None,
+        "avg_risk": None,
+        "top_strategy": "-",
+        "top_symbol": "-",
+    }
+    top = matrix_rows.iloc[0].to_dict() if not matrix_rows.empty else {}
+    freshness = brief.get("source_freshness") if isinstance(brief.get("source_freshness"), dict) else {}
+    session = brief.get("market_session") if isinstance(brief.get("market_session"), dict) else {}
+    index_regime = market_regime_summary(market_index_strip_rows(scan_df, confluence_df))
+    validation_rows = confluence_validation_rows(confluence_df, limit=12)
+    validated = int(validation_rows["decision"].eq("Validado").sum()) if not validation_rows.empty else 0
+    blocked = int(validation_rows["decision"].eq("Bloqueado").sum()) if not validation_rows.empty else 0
+    top_status = text_display(top.get("status") or wall_summary.get("top_symbol"))
+    top_symbol = text_display(top.get("symbol") or wall_summary.get("top_symbol")).upper()
+    if not top_symbol or top_symbol == "-":
+        headline = "Sin oportunidad priorizada"
+    else:
+        headline = f"{top_symbol} · {top_status}"
+    return {
+        "headline": headline,
+        "top_symbol": top_symbol,
+        "top_status": top_status,
+        "top_edge": safe_float(top.get("edge")),
+        "top_strategy": text_display(top.get("strategy") or wall_summary.get("top_strategy")),
+        "top_next": text_display(top.get("next")),
+        "total": wall_summary["total"],
+        "ready": wall_summary["ready"],
+        "watch": wall_summary["watch"],
+        "avoid": wall_summary["avoid"],
+        "avg_score": wall_summary["avg_score"],
+        "avg_risk": wall_summary["avg_risk"],
+        "validated": validated,
+        "blocked": blocked,
+        "regime_label": index_regime["label"],
+        "regime_tone": index_regime["tone"],
+        "regime_detail": index_regime["detail"],
+        "session": text_display(session.get("stock_session") or session.get("crypto_session")),
+        "freshness": text_display(freshness.get("label")),
+        "tape": matrix_rows.to_dict("records"),
+    }
+
+
+def render_executive_cockpit(table: pd.DataFrame, confluence_df: pd.DataFrame, scan_df: pd.DataFrame, brief: dict) -> None:
+    summary = executive_cockpit_summary(table, confluence_df, scan_df, brief)
+    if not summary["total"] and not summary["tape"]:
+        return
+    tape_items = []
+    for row in summary["tape"][:5]:
+        tone = text_display(row.get("tone"))
+        tape_items.append(
+            f'<div class="exec-tape-item exec-tape-{html.escape(tone)}">'
+            f'<strong>{html.escape(text_display(row.get("symbol")))}</strong>'
+            f'<span>{html.escape(text_display(row.get("status")))} · {html.escape(num_display(row.get("edge"), 0))}</span>'
+            f'<small>R {html.escape(pct_display(row.get("risk")))} · {html.escape(text_display(row.get("strategy")))}</small>'
+            "</div>"
+        )
+    st.markdown(
+        f"""
+        <section class="executive-cockpit executive-cockpit-{html.escape(summary['regime_tone'])}">
+            <div class="exec-main">
+                <span>Roxy live cockpit</span>
+                <h2>{html.escape(summary['headline'])}</h2>
+                <p>{html.escape(summary['top_strategy'])} · Edge {html.escape(num_display(summary['top_edge'], 0))} · {html.escape(summary['top_next'])}</p>
+            </div>
+            <div class="exec-kpis">
+                <div><span>Operar</span><strong>{summary['ready']}</strong><small>{summary['validated']} validadas</small></div>
+                <div><span>Vigilar</span><strong>{summary['watch']}</strong><small>gatillo pendiente</small></div>
+                <div><span>Bloqueos</span><strong>{summary['avoid']}</strong><small>{summary['blocked']} MTF</small></div>
+                <div><span>Régimen</span><strong>{html.escape(summary['regime_label'])}</strong><small>{html.escape(summary['session'])} · {html.escape(summary['freshness'])}</small></div>
+            </div>
+            <div class="exec-tape">{''.join(tape_items)}</div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_opportunity_matrix(table: pd.DataFrame, confluence_df: pd.DataFrame) -> None:
     rows = scanner_opportunity_matrix_rows(table, confluence_df, limit=12)
     if rows.empty:
@@ -8721,6 +8806,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
         risk_pct_ui = st.number_input("Riesgo %", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key="command_risk")
 
     render_alert_noise_contract(brief)
+    render_executive_cockpit(best, confluence_df, scan_df, brief)
     render_finviz_style_wallboard(best, confluence_df, brief)
     render_opportunity_matrix(best, confluence_df)
     render_confluence_validation_board(confluence_df)
@@ -10033,6 +10119,10 @@ def main() -> None:
         .wall-tile{border:1px solid rgba(148,163,184,.18);border-radius:4px;padding:7px;min-width:0;display:grid;grid-template-columns:1fr auto;grid-template-rows:auto 1fr auto;gap:2px;background:#172033;overflow:hidden}.wall-tile strong{color:#f8fafc;font-size:16px;line-height:1;font-weight:950}.wall-tile span{font-size:13px;color:#e2e8f0;font-weight:900;text-align:right}.wall-tile small{grid-column:1/3;color:#e2e8f0;font-size:11px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wall-tile em{grid-column:1/3;color:#cbd5e1;font-size:10px;font-style:normal;line-height:1.1}
         .wall-tile-buy{background:rgba(21,128,61,var(--tile-alpha))}.wall-tile-watch{background:rgba(180,83,9,var(--tile-alpha))}.wall-tile-avoid{background:rgba(153,27,27,var(--tile-alpha))}
         .wall-tables{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.wall-table{border:1px solid rgba(148,163,184,.18);border-radius:6px;overflow:hidden;background:#0b1220}.wall-table header{padding:6px 8px;color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.wall-table table{width:100%;border-collapse:collapse}.wall-table th,.wall-table td{padding:5px 6px;border-bottom:1px solid rgba(148,163,184,.10);font-size:10px;line-height:1.15;text-align:left;color:#cbd5e1}.wall-table th{color:#94a3b8;font-weight:900;text-transform:uppercase}.wall-table td:first-child{color:#f8fafc;font-weight:950}.wall-table tr:last-child td{border-bottom:0}
+        .executive-cockpit{display:grid;grid-template-columns:minmax(260px,1.1fr) minmax(380px,1.35fr) minmax(300px,.95fr);gap:1px;border:1px solid rgba(148,163,184,.26);border-radius:8px;background:rgba(148,163,184,.14);margin:6px 0 10px;overflow:hidden;box-shadow:0 18px 48px rgba(0,0,0,.24)}
+        .exec-main,.exec-kpis,.exec-tape{background:#070c16}.exec-main{padding:12px 14px;border-left:4px solid #f59e0b}.executive-cockpit-buy .exec-main{border-left-color:#22c55e}.executive-cockpit-avoid .exec-main{border-left-color:#ef4444}.exec-main span{display:block;color:#93c5fd;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.exec-main h2{margin:5px 0;color:#f8fafc;font-size:28px;line-height:1.02;font-weight:950;letter-spacing:-.02em}.exec-main p{margin:0;color:#cbd5e1;font-size:12px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .exec-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.exec-kpis div{background:#0b1220;padding:9px 10px}.exec-kpis span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase}.exec-kpis strong{display:block;color:#f8fafc;font-size:20px;line-height:1.05;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.exec-kpis small{display:block;color:#cbd5e1;font-size:10px;line-height:1.18;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .exec-tape{display:grid;grid-template-columns:1fr;gap:1px;background:rgba(148,163,184,.14)}.exec-tape-item{display:grid;grid-template-columns:.58fr .85fr;gap:2px 8px;background:#0b1220;padding:6px 9px;border-left:3px solid rgba(148,163,184,.30)}.exec-tape-item strong{color:#f8fafc;font-size:13px;line-height:1;font-weight:950}.exec-tape-item span{color:#e2e8f0;font-size:11px;text-align:right;font-weight:900}.exec-tape-item small{grid-column:1/3;color:#94a3b8;font-size:10px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.exec-tape-buy{border-left-color:#22c55e}.exec-tape-watch{border-left-color:#f59e0b}.exec-tape-avoid{border-left-color:#ef4444}
         .opportunity-matrix{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#070c16;margin:0 0 12px;overflow:hidden;box-shadow:0 14px 38px rgba(0,0,0,.20)}
         .opportunity-matrix header{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:8px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.16)}
         .opportunity-matrix header strong{display:block;color:#f8fafc;font-size:12px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.opportunity-matrix header span{display:block;color:#94a3b8;font-size:11px;line-height:1.25;margin-top:2px}.opportunity-matrix aside{text-align:right}.opportunity-matrix aside b{display:block;color:#f8fafc;font-size:18px;line-height:1;font-weight:950}.opportunity-matrix aside small{display:block;color:#cbd5e1;font-size:11px;line-height:1.2;margin-top:4px}
@@ -10124,9 +10214,9 @@ def main() -> None:
         .stButton button:hover{border-color:#a78bfa;color:#f8fafc}
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media (max-width:1100px){.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
+        @media (max-width:1100px){.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
         @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
-        @media (max-width:600px){.metric-card{min-width:120px}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
+        @media (max-width:600px){.metric-card{min-width:120px}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
         </style>
         """,
         unsafe_allow_html=True,
