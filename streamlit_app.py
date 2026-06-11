@@ -7074,6 +7074,76 @@ def render_technical_movers_strip(scan_df: pd.DataFrame) -> None:
     )
 
 
+def trading_desk_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, scan_df: pd.DataFrame, *, limit: int = 18) -> pd.DataFrame:
+    columns = ["#", "Ticker", "Estado", "Edge", "Score", "Riesgo", "Target", "RVol", "HTF", "Mover", "Setup", "Siguiente", "Razón"]
+    matrix = scanner_opportunity_matrix_rows(table, confluence_df, limit=max(limit, 18))
+    wall = scanner_wallboard_rows(table, confluence_df, limit=max(limit * 2, limit))
+    if wall.empty and matrix.empty:
+        return pd.DataFrame(columns=columns)
+    edge_lookup = {text_display(row.get("symbol")).upper(): row for row in matrix.to_dict("records")}
+    validation_lookup = {text_display(row.get("symbol")).upper(): row for row in confluence_validation_rows(confluence_df, limit=max(limit * 2, limit)).to_dict("records")}
+    mover_lookup = {text_display(row.get("symbol")).upper(): row for row in technical_mover_rows(scan_df, limit_per_lane=max(6, limit // 2)).to_dict("records")}
+    confluence_lookup: dict[str, dict[str, Any]] = {}
+    if not confluence_df.empty and "symbol" in confluence_df.columns:
+        confluence_data = confluence_df.copy()
+        if "confluence_score" in confluence_data.columns:
+            confluence_data["sort_score"] = pd.to_numeric(confluence_data["confluence_score"], errors="coerce").fillna(0)
+            confluence_data = confluence_data.sort_values("sort_score", ascending=False)
+        for _, row in confluence_data.iterrows():
+            item = row.to_dict()
+            confluence_lookup.setdefault(text_display(item.get("symbol")).upper(), item)
+    rows: list[dict[str, Any]] = []
+    for item in wall.to_dict("records"):
+        symbol = text_display(item.get("symbol")).upper()
+        edge_row = edge_lookup.get(symbol, {})
+        validation = validation_lookup.get(symbol, {})
+        mover = mover_lookup.get(symbol, {})
+        confluence = confluence_lookup.get(symbol, {})
+        rows.append(
+            {
+                "Ticker": symbol,
+                "Estado": text_display(item.get("status")),
+                "Edge": safe_float(edge_row.get("edge")),
+                "Score": safe_float(item.get("score")),
+                "Riesgo": safe_float(item.get("risk")) or safe_float(confluence.get("risk_pct")),
+                "Target": safe_float(item.get("target")) or safe_float(confluence.get("recommended_target_pct")),
+                "RVol": safe_float(item.get("rel_volume")) or safe_float(confluence.get("relative_volume_15m") or confluence.get("relative_volume")),
+                "HTF": text_display(validation.get("htf")),
+                "Mover": text_display(mover.get("lane")),
+                "Setup": text_display(item.get("strategy")),
+                "Siguiente": text_display(item.get("next")),
+                "Razón": text_display(validation.get("reason") or item.get("next")),
+            }
+        )
+    display = pd.DataFrame(rows)
+    display["edge_sort"] = pd.to_numeric(display["Edge"], errors="coerce").fillna(-999)
+    display["score_sort"] = pd.to_numeric(display["Score"], errors="coerce").fillna(0)
+    display["status_order"] = display["Estado"].map({"Operar": 0, "Vigilar": 1, "Evitar": 2}).fillna(1)
+    display = display.sort_values(["status_order", "edge_sort", "score_sort"], ascending=[True, False, False]).head(limit).reset_index(drop=True)
+    display["#"] = display.index + 1
+    display["Edge"] = pd.to_numeric(display["Edge"], errors="coerce").map(lambda value: num_display(value, 0) if pd.notna(value) else "-")
+    display["Score"] = pd.to_numeric(display["Score"], errors="coerce").map(lambda value: num_display(value, 0) if pd.notna(value) else "-")
+    display["Riesgo"] = pd.to_numeric(display["Riesgo"], errors="coerce").map(lambda value: pct_display(value) if pd.notna(value) else "-")
+    display["Target"] = pd.to_numeric(display["Target"], errors="coerce").map(lambda value: pct_display(value) if pd.notna(value) else "-")
+    display["RVol"] = pd.to_numeric(display["RVol"], errors="coerce").map(lambda value: f"{value:.1f}x" if pd.notna(value) else "-")
+    display["HTF"] = display["HTF"].replace("", "-")
+    display["Mover"] = display["Mover"].replace("", "-")
+    return display[columns]
+
+
+def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, scan_df: pd.DataFrame) -> None:
+    rows = trading_desk_rows(table, confluence_df, scan_df, limit=18)
+    if rows.empty:
+        return
+    st.markdown("**Trading Desk**")
+    st.dataframe(
+        rows,
+        use_container_width=True,
+        hide_index=True,
+        height=min(560, 58 + len(rows) * 28),
+    )
+
+
 def scanner_blotter_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, *, limit: int = 24) -> pd.DataFrame:
     wall_rows = scanner_wallboard_rows(table, confluence_df, limit=limit)
     if wall_rows.empty:
@@ -8807,6 +8877,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
 
     render_alert_noise_contract(brief)
     render_executive_cockpit(best, confluence_df, scan_df, brief)
+    render_trading_desk_table(best, confluence_df, scan_df)
     render_finviz_style_wallboard(best, confluence_df, brief)
     render_opportunity_matrix(best, confluence_df)
     render_confluence_validation_board(confluence_df)
