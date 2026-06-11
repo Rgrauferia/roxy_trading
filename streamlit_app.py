@@ -7398,8 +7398,25 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
     )
 
 
+def buy_gap_next_step(missing: list[str], ready: bool) -> str:
+    if ready:
+        return "Listo: revisar ticket manual, stop y tamaño antes de operar."
+    if not missing:
+        return "Esperar confirmación final antes de actuar."
+    guidance = {
+        "15m gatillo BUY": "Esperar vela 15m en BUY; no anticipar entrada.",
+        "1h confirma": "Esperar que 1h confirme tendencia y estructura.",
+        "2h/4h no bloquean": "Esperar desbloqueo multi-timeframe; no luchar contra HTF.",
+        "riesgo <=3.5%": "Mejorar entrada/stop o descartar si el riesgo sigue alto.",
+        "volumen acompaña": "Esperar volumen relativo >=0.8x antes de confiar.",
+        "target 2% viable": "No operar hasta que el target mínimo 2% sea viable.",
+        "backtest elegible": "Mantener en vigilancia; falta validación histórica.",
+    }
+    return guidance.get(missing[0], f"Resolver: {missing[0]}.")
+
+
 def buy_readiness_gap_rows(confluence_df: pd.DataFrame, *, limit: int = 8) -> pd.DataFrame:
-    columns = ["symbol", "tone", "ready", "missing_count", "passed_count", "missing", "passed", "risk", "score", "decision"]
+    columns = ["symbol", "tone", "ready", "readiness_pct", "missing_count", "passed_count", "next_step", "missing", "passed", "risk", "score", "decision"]
     if confluence_df.empty or "symbol" not in confluence_df.columns:
         return pd.DataFrame(columns=columns)
     data = confluence_df.copy()
@@ -7436,6 +7453,7 @@ def buy_readiness_gap_rows(confluence_df: pd.DataFrame, *, limit: int = 8) -> pd
         missing = [label for label, ok in checks if not ok]
         passed = [label for label, ok in checks if ok]
         ready = signal == "BUY" and decision.startswith("TRADE_FOR") and not missing
+        readiness_pct = round((len(passed) / len(checks)) * 100) if checks else 0
         if ready:
             tone = "buy"
         elif decision.startswith("NO_TRADE") or signal == "AVOID":
@@ -7447,8 +7465,10 @@ def buy_readiness_gap_rows(confluence_df: pd.DataFrame, *, limit: int = 8) -> pd
                 "symbol": symbol,
                 "tone": tone,
                 "ready": ready,
+                "readiness_pct": readiness_pct,
                 "missing_count": len(missing),
                 "passed_count": len(passed),
+                "next_step": buy_gap_next_step(missing, ready),
                 "missing": " · ".join(missing[:4]) if missing else "Listo para operar",
                 "passed": " · ".join(passed[:4]) if passed else "-",
                 "risk": risk,
@@ -7477,7 +7497,9 @@ def render_buy_readiness_gap_panel(confluence_df: pd.DataFrame) -> None:
         cards.append(
             f'<div class="buy-gap-card buy-gap-{html.escape(tone)}">'
             f'<div><strong>{html.escape(text_display(row.get("symbol")))}</strong><span>{html.escape(text_display(row.get("decision")))}</span></div>'
-            f'<em>{html.escape(str(row.get("missing_count")))} faltan · {html.escape(str(row.get("passed_count")))} OK · R {html.escape(pct_display(row.get("risk")))} · Score {html.escape(num_display(row.get("score"), 0))}</em>'
+            f'<em>{html.escape(num_display(row.get("readiness_pct"), 0))}% listo · {html.escape(str(row.get("missing_count")))} faltan · R {html.escape(pct_display(row.get("risk")))} · Score {html.escape(num_display(row.get("score"), 0))}</em>'
+            f'<b class="buy-gap-progress"><u style="width:{max(0, min(100, safe_float(row.get("readiness_pct")) or 0)):.0f}%"></u></b>'
+            f'<i>Siguiente: {html.escape(text_display(row.get("next_step")))}</i>'
             f'<small>Falta: {html.escape(text_display(row.get("missing")))}</small>'
             f'<i>OK: {html.escape(text_display(row.get("passed")))}</i>'
             "</div>"
@@ -10572,7 +10594,7 @@ def main() -> None:
         .buy-gap-panel{border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0b1220;margin:0 0 12px;overflow:hidden}
         .buy-gap-panel header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.buy-gap-panel header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.buy-gap-panel header span{color:#94a3b8;font-size:11px;line-height:1.2;text-align:right}
         .buy-gap-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
-        .buy-gap-card{background:#0b1220;border-top:2px solid rgba(148,163,184,.28);padding:8px 9px;min-height:112px}.buy-gap-card div{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.buy-gap-card strong{color:#f8fafc;font-size:15px;line-height:1;font-weight:950}.buy-gap-card span{color:#e2e8f0;font-size:10px;text-transform:uppercase;font-weight:950;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.buy-gap-card em{display:block;color:#f8fafc;font-size:10px;line-height:1.18;font-style:normal;margin-top:6px}.buy-gap-card small{display:block;color:#fecaca;font-size:10px;line-height:1.18;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.buy-gap-card i{display:block;color:#bbf7d0;font-size:10px;line-height:1.18;font-style:normal;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.buy-gap-buy{border-top-color:#22c55e;background:rgba(21,93,62,.25)}.buy-gap-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.22)}.buy-gap-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}
+        .buy-gap-card{background:#0b1220;border-top:2px solid rgba(148,163,184,.28);padding:8px 9px;min-height:132px}.buy-gap-card div{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.buy-gap-card strong{color:#f8fafc;font-size:15px;line-height:1;font-weight:950}.buy-gap-card span{color:#e2e8f0;font-size:10px;text-transform:uppercase;font-weight:950;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.buy-gap-card em{display:block;color:#f8fafc;font-size:10px;line-height:1.18;font-style:normal;margin-top:6px}.buy-gap-progress{display:block;height:7px;border-radius:999px;background:#1f2937;overflow:hidden;margin-top:6px}.buy-gap-progress u{display:block;height:100%;border-radius:999px;background:#f59e0b;text-decoration:none}.buy-gap-card small{display:block;color:#fecaca;font-size:10px;line-height:1.18;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.buy-gap-card i{display:block;color:#bbf7d0;font-size:10px;line-height:1.18;font-style:normal;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.buy-gap-buy{border-top-color:#22c55e;background:rgba(21,93,62,.25)}.buy-gap-buy .buy-gap-progress u{background:#22c55e}.buy-gap-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.22)}.buy-gap-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}.buy-gap-avoid .buy-gap-progress u{background:#ef4444}
         .kpibox{display:inline-block;padding:8px 12px;background:#081023;border-radius:8px;margin-right:8px;color:var(--muted)}
         .metrics-row{display:flex;gap:12px;flex-wrap:wrap}
         .metric-card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:10px;border-radius:8px;min-width:160px}

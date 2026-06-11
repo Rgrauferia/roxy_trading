@@ -1,6 +1,6 @@
 import pandas as pd
 
-from streamlit_app import buy_readiness_gap_rows
+from streamlit_app import buy_gap_next_step, buy_readiness_gap_rows
 
 
 def test_buy_readiness_gap_rows_lists_missing_buy_requirements():
@@ -42,12 +42,16 @@ def test_buy_readiness_gap_rows_lists_missing_buy_requirements():
     rows = buy_readiness_gap_rows(confluence, limit=5)
     by_symbol = {row["symbol"]: row for row in rows.to_dict("records")}
 
-    assert rows.columns.tolist() == ["symbol", "tone", "ready", "missing_count", "passed_count", "missing", "passed", "risk", "score", "decision"]
+    assert rows.columns.tolist() == ["symbol", "tone", "ready", "readiness_pct", "missing_count", "passed_count", "next_step", "missing", "passed", "risk", "score", "decision"]
     assert by_symbol["AAPL"]["tone"] == "buy"
     assert by_symbol["AAPL"]["ready"] is True
+    assert by_symbol["AAPL"]["readiness_pct"] == 100
+    assert by_symbol["AAPL"]["next_step"].startswith("Listo")
     assert by_symbol["AAPL"]["missing"] == "Listo para operar"
     assert by_symbol["MSFT"]["tone"] == "watch"
     assert by_symbol["MSFT"]["missing_count"] == 5
+    assert by_symbol["MSFT"]["readiness_pct"] == 29
+    assert "desbloqueo multi-timeframe" in by_symbol["MSFT"]["next_step"]
     assert "2h/4h no bloquean" in by_symbol["MSFT"]["missing"]
     assert "riesgo <=3.5%" in by_symbol["MSFT"]["missing"]
     assert "volumen acompaña" in by_symbol["MSFT"]["missing"]
@@ -57,5 +61,9 @@ def test_buy_readiness_gap_rows_lists_missing_buy_requirements():
 def test_buy_readiness_gap_rows_handles_empty_input():
     rows = buy_readiness_gap_rows(pd.DataFrame())
 
-    assert rows.columns.tolist() == ["symbol", "tone", "ready", "missing_count", "passed_count", "missing", "passed", "risk", "score", "decision"]
+    assert rows.columns.tolist() == ["symbol", "tone", "ready", "readiness_pct", "missing_count", "passed_count", "next_step", "missing", "passed", "risk", "score", "decision"]
     assert rows.empty
+
+
+def test_buy_gap_next_step_uses_first_blocker_as_action():
+    assert buy_gap_next_step(["riesgo <=3.5%", "volumen acompaña"], False) == "Mejorar entrada/stop o descartar si el riesgo sigue alto."
