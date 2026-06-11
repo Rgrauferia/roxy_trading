@@ -1536,6 +1536,127 @@ def platform_badge_rows(env: dict[str, str] | None = None) -> list[dict[str, str
     return rows
 
 
+def live_provider_rows(env: dict[str, str] | None = None) -> list[dict[str, Any]]:
+    source = env if env is not None else os.environ
+
+    def has_keys(keys: tuple[str, ...]) -> tuple[list[str], list[str]]:
+        present = [key for key in keys if str(source.get(key) or "").strip()]
+        missing = [key for key in keys if key not in present]
+        return present, missing
+
+    provider_specs = [
+        {
+            "provider": "yfinance",
+            "role": "Fallback charts",
+            "keys": (),
+            "mode": "ON",
+            "tone": "watch",
+            "latency": "Delay/limitado",
+            "next": "Mantener como respaldo; no usar como fuente principal de ejecucion.",
+        },
+        {
+            "provider": "Alpaca",
+            "role": "Stocks/Crypto live + paper",
+            "keys": ("ALPACA_API_KEY", "ALPACA_API_SECRET"),
+            "mode": "PAPER_READY",
+            "tone": "buy",
+            "latency": "WebSocket",
+            "next": "Guardar key/secret en vault o env; iniciar solo paper trading.",
+        },
+        {
+            "provider": "Tradier",
+            "role": "Opciones/Greeks",
+            "keys": ("TRADIER_ACCESS_TOKEN",),
+            "mode": "OPTIONS_READY",
+            "tone": "buy",
+            "latency": "API",
+            "next": "Usar para chain de opciones y scoring con spreads.",
+        },
+        {
+            "provider": "Schwab",
+            "role": "Stocks/options broker",
+            "keys": ("SCHWAB_CLIENT_ID", "SCHWAB_CLIENT_SECRET", "SCHWAB_ACCESS_TOKEN", "SCHWAB_ACCOUNT_HASH"),
+            "mode": "PREVIEW_READY",
+            "tone": "watch",
+            "latency": "OAuth/API",
+            "next": "Completar OAuth; mantener envio real apagado.",
+        },
+        {
+            "provider": "Finviz",
+            "role": "Screener visual",
+            "keys": (),
+            "mode": "REFERENCE",
+            "tone": "watch",
+            "latency": "No broker",
+            "next": "Usar como benchmark visual, no fuente principal live.",
+        },
+        {
+            "provider": "TC2000",
+            "role": "Charting externo",
+            "keys": (),
+            "mode": "MANUAL_LINK",
+            "tone": "neutral",
+            "latency": "Plataforma",
+            "next": "Abrir simbolo/contexto externo; no depender de API para ejecucion.",
+        },
+    ]
+    rows: list[dict[str, Any]] = []
+    for spec in provider_specs:
+        keys = tuple(spec.get("keys") or ())
+        present, missing = has_keys(keys)
+        configured = not missing if keys else True
+        if keys and not configured:
+            status = "Faltan credenciales"
+            tone = "avoid" if spec["provider"] == "Alpaca" else "watch"
+        elif spec["provider"] == "yfinance":
+            status = "Activo fallback"
+            tone = spec["tone"]
+        elif not keys:
+            status = "Referencia"
+            tone = spec["tone"]
+        else:
+            status = "Listo paper/preview"
+            tone = spec["tone"]
+        rows.append(
+            {
+                "provider": spec["provider"],
+                "role": spec["role"],
+                "status": status,
+                "tone": tone,
+                "mode": spec["mode"],
+                "latency": spec["latency"],
+                "configured": configured,
+                "present": len(present),
+                "missing": ", ".join(missing) if missing else "-",
+                "next": spec["next"],
+            }
+        )
+    return rows
+
+
+def render_live_provider_center(env: dict[str, str] | None = None) -> None:
+    rows = live_provider_rows(env)
+    cards = []
+    for row in rows:
+        tone = text_display(row.get("tone"))
+        cards.append(
+            f'<section class="provider-card provider-card-{html.escape(tone)}">'
+            f'<header><strong>{html.escape(text_display(row.get("provider")))}</strong><span>{html.escape(text_display(row.get("status")))}</span></header>'
+            f'<div><b>{html.escape(text_display(row.get("mode")))}</b><em>{html.escape(text_display(row.get("latency")))}</em></div>'
+            f'<p>{html.escape(text_display(row.get("role")))}</p>'
+            f'<small>{html.escape(text_display(row.get("next")))}</small>'
+            f'<i>Faltan: {html.escape(text_display(row.get("missing")))}</i>'
+            "</section>"
+        )
+    st.markdown(
+        '<section class="provider-center"><header><strong>Live Provider Center</strong><span>Preparacion para datos live/paper sin activar trading real.</span></header><div class="provider-grid">'
+        + "".join(cards)
+        + "</div></section>",
+        unsafe_allow_html=True,
+    )
+
+
+
 def render_platform_logo_strip() -> None:
     badges = platform_badge_rows()
     if not badges:
@@ -9720,6 +9841,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
 
     render_alert_noise_contract(brief)
     render_ticker_intel_strip(best, confluence_df, symbol_input)
+    render_live_provider_center()
     render_screener_preset_deck(best, confluence_df)
     render_executive_cockpit(best, confluence_df, scan_df, brief)
     render_top_opportunity_cards(best, confluence_df)
@@ -10567,6 +10689,7 @@ def show_platform_router_screen(brief: dict) -> None:
     st.info(
         "Uso actual: Roxy detecta oportunidad, calcula entrada/stop/tamano y te prepara la orden para copiarla manualmente en Crypto.com, Charles Schwab o Webull."
     )
+    render_live_provider_center()
 
     platform_name = lambda platform_id: PLATFORM_PROFILES[platform_id]["name"]
     crypto_platforms = [pid for pid, profile in PLATFORM_PROFILES.items() if "crypto" in profile["assets"]]
@@ -11053,6 +11176,8 @@ def main() -> None:
         .ticker-intel-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.ticker-intel-kpis div{background:#0b1220;padding:8px 9px;min-width:0}.ticker-intel-kpis span{display:block;color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase}.ticker-intel-kpis strong{display:block;color:#f8fafc;font-size:16px;line-height:1.05;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ticker-intel-next{padding:9px 11px}.ticker-intel-next ul{margin:6px 0 0;padding-left:16px;color:#e2e8f0}.ticker-intel-next li{font-size:11px;line-height:1.22;margin:0 0 3px;font-weight:850}.ticker-intel-buy .ticker-intel-next li:first-child{color:#bbf7d0}.ticker-intel-watch .ticker-intel-next li:first-child{color:#fde68a}.ticker-intel-avoid .ticker-intel-next li:first-child{color:#fecaca}
         .screener-presets{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 10px;overflow:hidden}.screener-presets>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.screener-presets>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.screener-presets>header span{color:#94a3b8;font-size:11px;text-align:right}.preset-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .preset-card{background:#0b1220;padding:8px 9px;border-top:2px solid rgba(148,163,184,.28);min-width:0}.preset-card header{display:flex;justify-content:space-between;gap:8px;align-items:center}.preset-card header strong{color:#f8fafc;font-size:12px;font-weight:950;text-transform:uppercase}.preset-card header span{color:#f8fafc;font-size:18px;line-height:1;font-weight:950}.preset-card div{display:flex;justify-content:space-between;gap:8px;margin-top:7px}.preset-card div span{color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase}.preset-card b{color:#f8fafc;font-size:18px;line-height:1}.preset-card p{margin:6px 0 3px;color:#e2e8f0;font-size:11px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.preset-card small{display:block;color:#94a3b8;font-size:10px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.preset-card-buy{border-top-color:#22c55e;background:rgba(21,93,62,.22)}.preset-card-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.20)}.preset-card-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}
+        .provider-center{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 10px;overflow:hidden}.provider-center>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.provider-center>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.provider-center>header span{color:#94a3b8;font-size:11px;text-align:right}.provider-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
+        .provider-card{background:#0b1220;padding:8px 9px;border-top:2px solid rgba(148,163,184,.28);min-width:0}.provider-card header{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.provider-card header strong{color:#f8fafc;font-size:12px;font-weight:950;text-transform:uppercase}.provider-card header span{color:#e2e8f0;font-size:10px;line-height:1.1;text-align:right;font-weight:900}.provider-card div{display:flex;justify-content:space-between;gap:8px;margin-top:7px}.provider-card b{color:#f8fafc;font-size:13px;line-height:1;font-weight:950}.provider-card em{color:#94a3b8;font-size:10px;line-height:1;font-style:normal;text-align:right}.provider-card p{margin:6px 0 3px;color:#e2e8f0;font-size:11px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.provider-card small{display:block;color:#cbd5e1;font-size:10px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.provider-card i{display:block;color:#94a3b8;font-size:9px;line-height:1.15;font-style:normal;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.provider-card-buy{border-top-color:#22c55e;background:rgba(21,93,62,.22)}.provider-card-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.20)}.provider-card-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}.provider-card-neutral{border-top-color:#64748b}
         .executive-cockpit{display:grid;grid-template-columns:minmax(260px,1.1fr) minmax(380px,1.35fr) minmax(300px,.95fr);gap:1px;border:1px solid rgba(148,163,184,.26);border-radius:8px;background:rgba(148,163,184,.14);margin:6px 0 10px;overflow:hidden;box-shadow:0 18px 48px rgba(0,0,0,.24)}
         .exec-main,.exec-kpis,.exec-tape{background:#070c16}.exec-main{padding:12px 14px;border-left:4px solid #f59e0b}.executive-cockpit-buy .exec-main{border-left-color:#22c55e}.executive-cockpit-avoid .exec-main{border-left-color:#ef4444}.exec-main span{display:block;color:#93c5fd;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.exec-main h2{margin:5px 0;color:#f8fafc;font-size:28px;line-height:1.02;font-weight:950;letter-spacing:-.02em}.exec-main p{margin:0;color:#cbd5e1;font-size:12px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .exec-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.exec-kpis div{background:#0b1220;padding:9px 10px}.exec-kpis span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase}.exec-kpis strong{display:block;color:#f8fafc;font-size:20px;line-height:1.05;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.exec-kpis small{display:block;color:#cbd5e1;font-size:10px;line-height:1.18;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -11155,9 +11280,9 @@ def main() -> None:
         .stButton button:hover{border-color:#a78bfa;color:#f8fafc}
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media (max-width:1100px){.ticker-intel{grid-template-columns:1fr}.ticker-intel-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.preset-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-grid-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
+        @media (max-width:1100px){.ticker-intel{grid-template-columns:1fr}.ticker-intel-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.provider-grid,.preset-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.executive-cockpit{grid-template-columns:1fr}.scanner-tape{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-grid-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}}
         @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.brand-logo-img{width:150px;max-width:42vw}.roxy-hero-right{grid-template-columns:1fr 1fr}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}}
-        @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.ticker-intel-kpis{grid-template-columns:1fr 1fr}.ticker-intel-main h3{font-size:23px}.screener-presets>header{display:block}.screener-presets>header span{display:block;text-align:left;margin-top:4px}.preset-grid{grid-template-columns:1fr}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.compare-board>header{display:block}.compare-board>header span{display:block;text-align:left;margin-top:4px}.compare-grid-cards{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
+        @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.command-checklist{grid-template-columns:1fr}.command-main h2{font-size:25px}.ticker-intel-kpis{grid-template-columns:1fr 1fr}.ticker-intel-main h3{font-size:23px}.provider-center>header,.screener-presets>header{display:block}.provider-center>header span,.screener-presets>header span{display:block;text-align:left;margin-top:4px}.provider-grid,.preset-grid{grid-template-columns:1fr}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.compare-board>header{display:block}.compare-board>header span{display:block;text-align:left;margin-top:4px}.compare-grid-cards{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{text-align:left;display:block;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}}
         </style>
         """,
         unsafe_allow_html=True,
