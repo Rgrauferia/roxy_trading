@@ -12,6 +12,7 @@ Roxy Interactive is the conversation and strategy brain for the assistant. It do
 - Style: explain first, recommend with context, avoid hype, avoid guaranteed outcomes.
 - Trading safety: never imply certainty, never execute or approve sensitive actions without explicit user confirmation.
 - News safety: if no live news source is connected, Roxy must say that instead of inventing headlines.
+- News impact safety: Roxy can analyze a pasted headline or local brief item, but she must label it as decision support and ask for source, timestamp, and price-volume confirmation.
 - Action safety: spoken commands like "buy now" or "send order" produce `action_confirmation_required`, not execution.
 
 ## Module Boundary
@@ -43,6 +44,8 @@ For market regime questions, Roxy uses the `market_summary` intent. It reads loc
 For entry, stop, target, and risk questions, Roxy uses the `opportunity_risk` intent. It reads the selected local opportunity from `daily_opportunity_plan`, `opportunities`, or `crypto_scan_candidates` and explains entry, stop, risk percentage, targets, trigger, invalidation, missing checklist items, readiness, probability, and quality. It must end with a no-execution guardrail.
 
 For executive voice updates, Roxy uses the `daily_briefing` intent. It combines the local market regime, top watch opportunity, entry/stop/risk, missing checklist items, alert count, policy, and generated timestamp into one short speakable briefing in Spanish or English. It is a briefing only, not a trading approval.
+
+For headline analysis, Roxy uses the `news_impact` intent. It can read a pasted headline such as `news impact: ...` / `analiza impacto de noticia: ...`, or the first `news` / `market_news` item in the local brief. The response classifies a conservative tone as bullish, bearish, or neutral, explains likely market impact, asks the user to verify source and timestamp, and refuses to treat the headline as a standalone trade signal. If no headline or local news item exists, Roxy returns `news_impact_unavailable` with `needs_live_source=true`.
 
 For a direct browser experience, run the voice service and open `/roxy-live`. That page provides microphone capture, text fallback, Roxy avatar, browser voice selection, voice rate/pitch controls, Roxy state chips, event trace, quick prompts, chat history, session-memory reload, browser text-to-speech, and conversation mode that resumes listening after Roxy finishes speaking.
 

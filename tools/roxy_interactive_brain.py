@@ -569,6 +569,159 @@ def _symbol_matches(row_symbol: Any, requested_symbol: str) -> bool:
     return row.split("/", 1)[0] == requested.split("/", 1)[0]
 
 
+def _is_placeholder_headline(text: str) -> bool:
+    normalized = re.sub(r"\s+", " ", _safe_text(text).lower()).strip(" .:-")
+    if not normalized:
+        return True
+    placeholders = {
+        "headline",
+        "news",
+        "noticia",
+        "titular",
+        "paste headline",
+        "paste the headline",
+        "pega titular",
+        "pega el titular",
+        "pega aqui el titular",
+        "pega aqui la noticia",
+        "pega aqui el titular real",
+    }
+    return normalized in placeholders
+
+
+def _extract_headline_from_query(query: str) -> str:
+    text = _safe_text(query)
+    if not text:
+        return ""
+
+    quoted = re.search(r"[\"']([^\"']{12,500})[\"']", text)
+    if quoted:
+        candidate = quoted.group(1).strip()
+        return "" if _is_placeholder_headline(candidate) else candidate[:500]
+
+    marker_pattern = re.compile(
+        r"(?is)(?:news impact|headline impact|impacto de noticia|impacto del titular|"
+        r"analiza(?:r)?(?: la| el)? noticia|analiza(?:r)?(?: el)? titular|analyze news|"
+        r"news sentiment|sentimiento de noticia|sentimiento del titular|headline|titular|noticia|news)"
+        r"\s*[:\-]\s*(.+)"
+    )
+    match = marker_pattern.search(text)
+    if match:
+        candidate = re.sub(r"\s+", " ", match.group(1)).strip(" .")
+        return "" if _is_placeholder_headline(candidate) else candidate[:500]
+
+    stripped = re.sub(
+        r"(?is)^\s*(?:roxy,?\s*)?(?:analiza(?:r)?(?: el)? impacto(?: de)?(?: la)? noticia|"
+        r"analiza(?:r)?(?: el)? titular|analyze(?: the)? news(?: impact)?|news impact|"
+        r"headline impact|sentimiento de noticia|news sentiment)\s+",
+        "",
+        text,
+    ).strip(" .:-")
+    if stripped != text and len(re.findall(r"\w+", stripped)) >= 5 and not _is_placeholder_headline(stripped):
+        return stripped[:500]
+    return ""
+
+
+def _first_news_item_from_brief(brief: dict[str, Any]) -> tuple[str, str]:
+    news_items = brief.get("news") or brief.get("market_news") or []
+    if not isinstance(news_items, list):
+        return "", ""
+    for item in news_items:
+        if isinstance(item, dict):
+            headline = _safe_text(item.get("title") or item.get("headline") or item.get("summary"))
+            source = _safe_text(item.get("source") or item.get("publisher"))
+        else:
+            headline = _safe_text(item)
+            source = ""
+        if headline:
+            return headline[:500], source[:80]
+    return "", ""
+
+
+def _keyword_hits(text: str, terms: Iterable[str]) -> list[str]:
+    normalized = f" {str(text or '').lower()} "
+    hits = []
+    for term in terms:
+        clean = _safe_text(term).lower()
+        if not clean:
+            continue
+        if " " in clean:
+            matched = clean in normalized
+        else:
+            matched = re.search(rf"\b{re.escape(clean)}\b", normalized) is not None
+        if matched and clean not in hits:
+            hits.append(clean)
+    return hits
+
+
+def _news_sentiment(headline: str) -> tuple[str, list[str]]:
+    bullish_terms = (
+        "beat",
+        "beats",
+        "upgrade",
+        "approval",
+        "approved",
+        "deal",
+        "partnership",
+        "acquisition",
+        "record revenue",
+        "rate cut",
+        "lower inflation",
+        "surge",
+        "rally",
+        "guidance raised",
+        "supera",
+        "mejora",
+        "aprobacion",
+        "aprobado",
+        "acuerdo",
+        "alianza",
+        "adquisicion",
+        "ingresos record",
+        "recorte de tasas",
+        "baja inflacion",
+        "sube tras",
+        "repunte",
+    )
+    bearish_terms = (
+        "miss",
+        "misses",
+        "lawsuit",
+        "investigation",
+        "cut",
+        "downgrade",
+        "inflation",
+        "rate hike",
+        "war",
+        "hack",
+        "bankruptcy",
+        "recall",
+        "guidance cut",
+        "weak",
+        "falls",
+        "drops",
+        "demanda",
+        "investigacion",
+        "recorte",
+        "inflacion",
+        "subida de tasas",
+        "guerra",
+        "hackeo",
+        "bancarrota",
+        "retiro",
+        "debil",
+        "cae",
+        "baja por",
+    )
+    bullish_hits = _keyword_hits(headline, bullish_terms)
+    bearish_hits = _keyword_hits(headline, bearish_terms)
+    if len(bullish_hits) > len(bearish_hits):
+        return "bullish", bullish_hits[:4]
+    if len(bearish_hits) > len(bullish_hits):
+        return "bearish", bearish_hits[:4]
+    return "neutral", (bullish_hits + bearish_hits)[:4]
+
+
 def _tokenize(text: str) -> set[str]:
     stopwords = {
         "como",
@@ -731,6 +884,19 @@ class RoxyInteractiveBrain:
             return finish(response)
 
         lq = q.lower()
+        news_impact_terms = (
+            "news impact",
+            "headline impact",
+            "impacto de noticia",
+            "impacto del titular",
+            "analiza noticia",
+            "analiza la noticia",
+            "analiza el titular",
+            "analyze news",
+            "news sentiment",
+            "sentimiento de noticia",
+            "sentimiento del titular",
+        )
         if _contains_any(lq, ("hola", "hello", "hi", "hey", "buenos dias", "buenas")):
             response = self._greeting_reply(user, profile)
             return finish(response)
@@ -753,6 +919,10 @@ class RoxyInteractiveBrain:
             ),
         ) or lq in {"estado", "status"}:
             response = self._autonomy_status_reply(user, session_id, recent_turns, profile)
+            return finish(response)
+
+        if _contains_any(lq, news_impact_terms):
+            response = self._news_impact_reply(q, language)
             return finish(response)
 
         if _contains_any(lq, ("quien eres", "who are you", "tu rostro", "cara", "avatar", "identidad", "identity", "roxy")):
@@ -1358,6 +1528,88 @@ class RoxyInteractiveBrain:
             needs_live_source=True,
             safety_level="guarded",
             suggested_actions=("connect_news_source", "ask_market_summary"),
+        )
+
+    def _news_impact_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
+        brief = _load_json(self.brief_path)
+        headline = _extract_headline_from_query(query)
+        source = ""
+        if not headline:
+            headline, source = _first_news_item_from_brief(brief)
+
+        if not headline:
+            if language == "en":
+                return RoxyBrainReply(
+                    intent="news_impact_unavailable",
+                    reply=(
+                        "I can analyze the impact of a specific headline, but I do not see one in the prompt or "
+                        "the local brief. I will not invent live news. Paste the headline with its source and time, "
+                        "or connect a news feed, and I will explain sentiment, likely market impact, and risk checks."
+                    ),
+                    emotion="cautious",
+                    needs_live_source=True,
+                    safety_level="guarded",
+                    suggested_actions=("paste_headline", "connect_news_source", "ask_market_summary"),
+                )
+            return RoxyBrainReply(
+                intent="news_impact_unavailable",
+                reply=(
+                    "Puedo analizar el impacto de un titular especifico, pero no veo uno en el mensaje ni en el "
+                    "brief local. No voy a inventar noticias live. Pegame el titular con fuente y hora, o conecta "
+                    "un feed de noticias, y explico sentimiento, impacto probable y controles de riesgo."
+                ),
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                suggested_actions=("paste_headline", "connect_news_source", "ask_market_summary"),
+            )
+
+        sentiment, cues = _news_sentiment(headline)
+        symbol = _extract_symbol(headline) or _extract_symbol(query)
+        source_text = f" Source: {source}." if source and language == "en" else f" Fuente: {source}." if source else ""
+        cue_text = ", ".join(cues) if cues else ("no strong keyword cue" if language == "en" else "sin palabra clave fuerte")
+
+        if language == "en":
+            sentiment_label = {"bullish": "bullish", "bearish": "bearish", "neutral": "neutral"}[sentiment]
+            if sentiment == "bullish":
+                impact = "likely positive for risk appetite, but only if price and volume confirm instead of fading the move"
+            elif sentiment == "bearish":
+                impact = "likely defensive or volatile; protect downside first and avoid chasing before confirmation"
+            else:
+                impact = "unclear by itself; the market reaction, volume, and related sector move matter more than the words"
+            asset = f" for {symbol}" if symbol else ""
+            reply = (
+                f"News impact{asset}: '{headline}'.{source_text} Tone: {sentiment_label}; cues: {cue_text}. "
+                f"Likely impact: {impact}. Verify source, timestamp, whether the headline is confirmed, and the first "
+                "price-volume reaction. This is not a trade signal by itself; I would pair it with the market summary, "
+                "entry trigger, stop, and position risk before recommending action."
+            )
+        else:
+            sentiment_label = {"bullish": "alcista", "bearish": "bajista", "neutral": "neutral"}[sentiment]
+            if sentiment == "bullish":
+                impact = (
+                    "puede favorecer apetito por riesgo, pero solo si precio y volumen confirman y el movimiento no se revierte"
+                )
+            elif sentiment == "bearish":
+                impact = "puede activar defensa o volatilidad; primero protege downside y evita perseguir sin confirmacion"
+            else:
+                impact = (
+                    "no es claro por si solo; pesa mas la reaccion del precio, volumen y sector que las palabras del titular"
+                )
+            asset = f" para {symbol}" if symbol else ""
+            reply = (
+                f"Impacto de noticia{asset}: '{headline}'.{source_text} Tono: {sentiment_label}; pistas: {cue_text}. "
+                f"Impacto probable: {impact}. Verifica fuente, hora, si el titular esta confirmado y la primera reaccion "
+                "precio-volumen. Esto no es una senal de trade por si solo; lo cruzaria con resumen de mercado, gatillo "
+                "de entrada, stop y riesgo de posicion antes de recomendar accion."
+            )
+
+        return RoxyBrainReply(
+            intent="news_impact",
+            reply=reply,
+            emotion="analytical",
+            safety_level="guarded",
+            suggested_actions=("ask_market_summary", "ask_latest_opportunity", "paste_source"),
         )
 
     def _market_summary_reply(self, language: str = "es") -> RoxyBrainReply:

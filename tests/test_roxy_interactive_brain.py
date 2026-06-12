@@ -34,6 +34,66 @@ def test_roxy_brain_does_not_invent_news_without_source(tmp_path):
     assert "no voy a inventarlos" in response.reply
 
 
+def test_roxy_brain_requires_headline_for_news_impact(tmp_path):
+    brain = RoxyInteractiveBrain(brief_path=tmp_path / "brief.json", memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("analiza impacto de noticia")
+
+    assert response.intent == "news_impact_unavailable"
+    assert response.needs_live_source is True
+    assert response.safety_level == "guarded"
+    assert "No voy a inventar noticias live" in response.reply
+
+
+def test_roxy_brain_analyzes_english_news_impact_from_headline(tmp_path):
+    brain = RoxyInteractiveBrain(brief_path=tmp_path / "brief.json", memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("Roxy, news impact: NVDA shares rise after analyst upgrade and record revenue")
+
+    assert response.intent == "news_impact"
+    assert response.language == "en"
+    assert response.safety_level == "guarded"
+    assert "Tone: bullish" in response.reply
+    assert "NVDA" in response.reply
+    assert "not a trade signal" in response.reply
+
+
+def test_roxy_brain_analyzes_spanish_news_impact_from_headline(tmp_path):
+    brain = RoxyInteractiveBrain(brief_path=tmp_path / "brief.json", memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("analiza impacto de noticia: Inflacion sube y mercado teme subida de tasas")
+
+    assert response.intent == "news_impact"
+    assert response.language == "es"
+    assert "Tono: bajista" in response.reply
+    assert "Verifica fuente" in response.reply
+
+
+def test_roxy_brain_analyzes_news_impact_from_local_brief(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "market_news": [
+                    {
+                        "headline": "TSLA faces investigation after vehicle recall",
+                        "source": "LocalTest",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("news impact")
+
+    assert response.intent == "news_impact"
+    assert response.language == "en"
+    assert "Tone: bearish" in response.reply
+    assert "Source: LocalTest" in response.reply
+
+
 def test_roxy_brain_reads_latest_opportunity_from_brief(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(
