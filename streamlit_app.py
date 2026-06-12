@@ -13477,18 +13477,22 @@ def render_selected_asset_banner(symbol: str, market: str, timeframe: str, *, to
     active_market = normalize_command_market(market, active_symbol).upper()
     active_timeframe = normalize_command_timeframe(timeframe)
     top_label = text_display(top_symbol).upper()
+    scanner_scope = f"Scanner global: {top_label}" if top_label and top_label != active_symbol else "Scanner alineado"
+    detail = "Grafica, indicadores y simulacion usan esta busqueda."
     if top_label and top_label != active_symbol:
-        detail = f"La grafica y analisis principal deben seguir {active_symbol}; el scanner global puede seguir mostrando {top_label} debajo."
-    else:
-        detail = "La grafica, indicadores y simulacion pertenecen al activo seleccionado."
+        detail = "Tu grafica no cambia al top global; las oportunidades de abajo siguen siendo del scanner."
     st.markdown(
         f"""
         <section class="selected-asset-banner">
-          <div>
+          <div class="selected-asset-main">
             <span>Activo seleccionado</span>
             <strong>{html.escape(active_symbol)} · {html.escape(active_market)} · {html.escape(active_timeframe)}</strong>
+            <small>{html.escape(detail)}</small>
           </div>
-          <p>{html.escape(detail)}</p>
+          <div class="selected-asset-scope">
+            <span>Contexto</span>
+            <b>{html.escape(scanner_scope)}</b>
+          </div>
         </section>
         """,
         unsafe_allow_html=True,
@@ -13708,7 +13712,9 @@ def main() -> None:
         .selected-asset-banner{display:flex;justify-content:space-between;gap:14px;align-items:center;border:1px solid rgba(34,211,238,.36);border-left:4px solid #22d3ee;border-radius:8px;background:linear-gradient(135deg,rgba(8,47,73,.72),rgba(15,23,42,.92));padding:9px 11px;margin:7px 0 8px;box-shadow:0 12px 28px rgba(8,47,73,.18)}
         .selected-asset-banner span{display:block;color:#67e8f9;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em;line-height:1}
         .selected-asset-banner strong{display:block;color:#f8fafc;font-size:16px;line-height:1.1;margin-top:4px}
-        .selected-asset-banner p{margin:0;color:#cbd5e1;font-size:11px;line-height:1.25;text-align:right;max-width:560px}
+        .selected-asset-banner small{display:block;color:#cbd5e1;font-size:11px;line-height:1.25;margin-top:4px}
+        .selected-asset-scope{border:1px solid rgba(148,163,184,.20);border-radius:7px;background:rgba(15,23,42,.66);padding:7px 9px;text-align:right;min-width:180px}
+        .selected-asset-scope b{display:block;color:#e2e8f0;font-size:12px;line-height:1.15;margin-top:4px}
         .dashboard-action-queue{border:1px solid rgba(148,163,184,.18);border-radius:8px;background:#0b1220;margin:-2px 0 8px;overflow:hidden}
         .dashboard-action-queue header{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 10px;border-bottom:1px solid rgba(148,163,184,.14)}
         .dashboard-action-queue header strong{color:#f8fafc;font-size:14px;line-height:1}
