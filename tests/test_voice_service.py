@@ -194,6 +194,44 @@ def test_assist_session_returns_memory_state(monkeypatch):
     assert payload["active_context"]["active_symbol"] == "SPY"
 
 
+def test_assist_context_returns_compact_session_context(monkeypatch):
+    os.environ["VOICE_API_KEY"] = "testkey"
+    from tools import voice_service
+
+    monkeypatch.setattr(voice_service, "VOICE_API_KEY", "testkey")
+    monkeypatch.setattr(
+        voice_service.va_backend,
+        "get_session_state",
+        lambda session_id, limit=8: {
+            "session_id": session_id,
+            "turn_count": 2,
+            "last_intent": "trade_readiness",
+            "last_safety_level": "critical",
+            "active_context": {
+                "active_intent": "trade_readiness",
+                "active_symbol": "SPY",
+                "active_topic": "puedo operar ahora",
+                "last_safety_level": "critical",
+                "needs_confirmation": True,
+                "next_best_actions": ["show_risk_check", "show_trade_ticket"],
+            },
+            "recent_turns": [{"intent": "opportunity"}, {"intent": "trade_readiness"}],
+        },
+    )
+    voice_service._RATE_STATE.clear()
+
+    client = TestClient(voice_service.app)
+    r = client.get("/v1/assist/context/demo-session", headers={"Authorization": "Bearer testkey"})
+
+    assert r.status_code == 200
+    payload = r.json()
+    assert payload["session_id"] == "demo-session"
+    assert payload["turn_count"] == 2
+    assert "recent_turns" not in payload
+    assert payload["active_context"]["active_symbol"] == "SPY"
+    assert payload["active_context"]["needs_confirmation"] is True
+
+
 def test_assist_events_returns_ordered_events(monkeypatch):
     os.environ["VOICE_API_KEY"] = "testkey"
     from tools import voice_service

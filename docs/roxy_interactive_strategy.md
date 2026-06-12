@@ -69,7 +69,7 @@ Siri-style operation is available in Roxy Live with `Wake Roxy`. When active, th
 
 Session memory is stored locally in `alerts/roxy_conversation_memory.json` when a `session_id` is supplied. The memory is intentionally small, capped by turns per session and by total recent sessions, and redacts long tokens or key/secret-looking text before writing. Clients can read it through `GET /v1/assist/session/{session_id}`.
 
-The session response includes `active_context`, a compact handoff for UI and operations clients. It exposes the active intent, active symbol, latest topic, confirmation requirement, and safe `next_best_actions` without requiring a client to parse full transcript history. Roxy Live displays this as the `Context` chip and reuses `next_best_actions` for suggested action buttons.
+The session response includes `active_context`, a compact handoff for UI and operations clients. It exposes the active intent, active symbol, latest topic, confirmation requirement, and safe `next_best_actions` without requiring a client to parse full transcript history. Roxy Live displays this as the `Context` chip and reuses `next_best_actions` for suggested action buttons. Lightweight clients can call `GET /v1/assist/context/{session_id}` when they need only this compact context and not the recent transcript.
 
 When session memory is available, Roxy can resolve short follow-ups such as "por que?", "dame el plan", "continue", or "why?" against the last meaningful topic. For opportunity conversations this can produce `opportunity_reason` or `opportunity_risk` without forcing the user to repeat the symbol, which makes voice conversation feel closer to a natural assistant.
 

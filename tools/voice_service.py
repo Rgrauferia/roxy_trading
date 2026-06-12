@@ -129,6 +129,17 @@ class FeedbackRequest(BaseModel):
     note: Optional[str] = None
 
 
+def empty_active_context() -> dict[str, object]:
+    return {
+        "active_intent": "",
+        "active_symbol": "",
+        "active_topic": "",
+        "last_safety_level": "",
+        "needs_confirmation": False,
+        "next_best_actions": ["ask_latest_opportunity", "ask_market_summary"],
+    }
+
+
 def require_api_key(request: Request):
     global _DEV_AUTH_WARNING_LOGGED
     if VOICE_API_KEY is None:
@@ -1348,15 +1359,22 @@ def assist_session(session_id: str, token: Optional[str] = Depends(require_api_k
         "turn_count": 0,
         "last_intent": "",
         "last_safety_level": "",
-        "active_context": {
-            "active_intent": "",
-            "active_symbol": "",
-            "active_topic": "",
-            "last_safety_level": "",
-            "needs_confirmation": False,
-            "next_best_actions": ["ask_latest_opportunity", "ask_market_summary"],
-        },
+        "active_context": empty_active_context(),
         "recent_turns": [],
+    }
+
+
+@app.get("/v1/assist/context/{session_id}")
+def assist_context(session_id: str, token: Optional[str] = Depends(require_api_key), limit: int = 8):
+    """Return only active session context for lightweight UI clients."""
+    state = assist_session(session_id, token=token, limit=limit)
+    context = state.get("active_context") if isinstance(state, dict) else None
+    return {
+        "session_id": state.get("session_id", session_id) if isinstance(state, dict) else session_id,
+        "turn_count": state.get("turn_count", 0) if isinstance(state, dict) else 0,
+        "last_intent": state.get("last_intent", "") if isinstance(state, dict) else "",
+        "last_safety_level": state.get("last_safety_level", "") if isinstance(state, dict) else "",
+        "active_context": context if isinstance(context, dict) else empty_active_context(),
     }
 
 
@@ -1435,14 +1453,7 @@ def learning_status(
         "feedback": {"total": 0, "up": 0, "down": 0, "top_intents": [], "recent": []},
         "memory": {
             "turn_count": 0,
-            "active_context": {
-                "active_intent": "",
-                "active_symbol": "",
-                "active_topic": "",
-                "last_safety_level": "",
-                "needs_confirmation": False,
-                "next_best_actions": ["ask_latest_opportunity", "ask_market_summary"],
-            },
+            "active_context": empty_active_context(),
             "recent_turns": [],
         },
         "knowledge_sources": [],
