@@ -706,6 +706,28 @@ class RoxyInteractiveBrain:
         if _contains_any(
             lq,
             (
+                "market trend",
+                "market condition",
+                "market summary",
+                "market regime",
+                "bullish",
+                "bearish",
+                "sideways",
+                "tendencia del mercado",
+                "condicion del mercado",
+                "resumen del mercado",
+                "regimen del mercado",
+                "alcista",
+                "bajista",
+                "lateral",
+            ),
+        ):
+            response = self._market_summary_reply(language)
+            return finish(response)
+
+        if _contains_any(
+            lq,
+            (
                 "ejecuta",
                 "execute",
                 "ejecutar",
@@ -1219,6 +1241,133 @@ class RoxyInteractiveBrain:
             safety_level="guarded",
             suggested_actions=("connect_news_source", "ask_market_summary"),
         )
+
+    def _market_summary_reply(self, language: str = "es") -> RoxyBrainReply:
+        brief = _load_json(self.brief_path)
+        gate = brief.get("alert_gate_summary") if isinstance(brief.get("alert_gate_summary"), dict) else {}
+        plan = brief.get("daily_opportunity_plan") if isinstance(brief.get("daily_opportunity_plan"), dict) else {}
+        rows = plan.get("opportunities") if isinstance(plan.get("opportunities"), list) else []
+        if not rows:
+            rows = brief.get("opportunities") if isinstance(brief.get("opportunities"), list) else []
+        if not rows:
+            rows = brief.get("crypto_scan_candidates") if isinstance(brief.get("crypto_scan_candidates"), list) else []
+
+        if not rows and not gate:
+            if language == "en":
+                reply = (
+                    "I do not have enough local market data to classify the regime yet. Connect or refresh the scan "
+                    "before relying on a trend read."
+                )
+            else:
+                reply = (
+                    "Todavia no tengo suficientes datos locales para clasificar el regimen del mercado. "
+                    "Conecta o refresca el escaneo antes de usar una lectura de tendencia."
+                )
+            return RoxyBrainReply(
+                intent="market_summary",
+                reply=reply,
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                suggested_actions=("run_scan", "connect_live_data"),
+            )
+
+        condition = self._infer_market_condition(rows)
+        total = int(gate.get("total_opportunities") or len(rows))
+        watch_count = int(
+            gate.get("watch_count")
+            or sum(1 for row in rows if isinstance(row, dict) and _safe_text(row.get("signal")).upper() == "WATCH")
+        )
+        ready_ratio = _safe_float(gate.get("ready_ratio"))
+        top_gate = _safe_text(gate.get("top_gate_label") or gate.get("top_gate") or "-")
+        top_readiness = _safe_float(gate.get("top_readiness"))
+        market_counts = plan.get("market_counts") if isinstance(plan.get("market_counts"), dict) else {}
+        markets = ", ".join(f"{key}:{value}" for key, value in sorted(market_counts.items())) if market_counts else "-"
+        session = plan.get("market_session") if isinstance(plan.get("market_session"), dict) else {}
+        stock_session = _safe_text(session.get("stock_session") or "-")
+        crypto_session = _safe_text(session.get("crypto_session") or "-")
+
+        if language == "en":
+            condition_text = {
+                "bullish": "bullish watch",
+                "bearish": "bearish watch",
+                "sideways": "sideways/wait",
+                "unknown": "unclear/wait",
+            }[condition]
+            ready_text = "-" if ready_ratio is None else f"{ready_ratio * 100:.1f}%"
+            top_readiness_text = "-" if top_readiness is None else f"{top_readiness:.1f}"
+            reply = (
+                f"Local market regime: {condition_text}. I see {total} opportunity row(s), {watch_count} in watch mode, "
+                f"ready ratio {ready_text}, top gate {top_gate}, top readiness {top_readiness_text}. "
+                f"Markets: {markets}. Stock session: {stock_session}; crypto session: {crypto_session}. "
+                "Risk note: this is a decision-support read, not a guarantee or an execution command."
+            )
+        else:
+            condition_text = {
+                "bullish": "alcista en observacion",
+                "bearish": "bajista en observacion",
+                "sideways": "lateral/esperar",
+                "unknown": "poco claro/esperar",
+            }[condition]
+            ready_text = "-" if ready_ratio is None else f"{ready_ratio * 100:.1f}%"
+            top_readiness_text = "-" if top_readiness is None else f"{top_readiness:.1f}"
+            reply = (
+                f"Regimen local del mercado: {condition_text}. Veo {total} oportunidad(es), {watch_count} en modo watch, "
+                f"ready ratio {ready_text}, filtro principal {top_gate}, readiness maxima {top_readiness_text}. "
+                f"Mercados: {markets}. Sesion acciones: {stock_session}; cripto: {crypto_session}. "
+                "Nota de riesgo: esto es apoyo de decision, no garantia ni orden de ejecucion."
+            )
+
+        return RoxyBrainReply(
+            intent="market_summary",
+            reply=reply,
+            emotion="analytical",
+            safety_level="guarded",
+            suggested_actions=("ask_latest_opportunity", "ask_risk", "run_scan"),
+        )
+
+    def _infer_market_condition(self, rows: list[Any]) -> str:
+        bullish = 0
+        bearish = 0
+        sideways = 0
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            text = " ".join(
+                _safe_text(row.get(key))
+                for key in (
+                    "signal",
+                    "raw_signal",
+                    "trend_setup",
+                    "trigger_setup",
+                    "mtf_explanation",
+                    "mtf_channel",
+                    "strategy",
+                    "reasons",
+                )
+            ).lower()
+            trend_score = _safe_float(row.get("trend_score") or row.get("ai_score") or row.get("readiness"))
+            if "sell" in text or "bearish" in text or "bajista" in text or "downtrend" in text:
+                bearish += 1
+            elif "lateral" in text or "sideways" in text or "range" in text:
+                sideways += 1
+            elif (
+                "buy" in text
+                or "bullish" in text
+                or "alcista" in text
+                or "uptrend" in text
+                or "pullback" in text
+                or (trend_score is not None and trend_score >= 70)
+            ):
+                bullish += 1
+
+        if bullish > max(bearish, sideways):
+            return "bullish"
+        if bearish > max(bullish, sideways):
+            return "bearish"
+        if sideways > 0:
+            return "sideways"
+        return "unknown"
 
     def _learning_reply(self) -> RoxyBrainReply:
         brief = _load_json(self.brief_path)

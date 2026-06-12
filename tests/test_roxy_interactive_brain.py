@@ -67,6 +67,85 @@ def test_roxy_brain_reads_latest_opportunity_from_brief(tmp_path):
     assert "Falta confirmacion" in response.reply
 
 
+def test_roxy_brain_summarizes_market_regime_in_spanish(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "alert_gate_summary": {
+                    "total_opportunities": 2,
+                    "watch_count": 2,
+                    "ready_ratio": 0.0,
+                    "top_gate_label": "Esperar entrada 15m",
+                    "top_readiness": 73.7,
+                },
+                "daily_opportunity_plan": {
+                    "market_counts": {"crypto": 2},
+                    "market_session": {"stock_session": "After-hours", "crypto_session": "24h"},
+                    "opportunities": [
+                        {
+                            "symbol": "BTC/USD",
+                            "signal": "WATCH",
+                            "mtf_explanation": "Lectura actual ALCISTA/canal alcista corto plazo",
+                            "readiness": 73.7,
+                        },
+                        {
+                            "symbol": "ETH/USD",
+                            "signal": "WATCH",
+                            "trend_setup": "PULLBACK",
+                            "readiness": 68.0,
+                        },
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("resumen del mercado")
+
+    assert response.intent == "market_summary"
+    assert response.language == "es"
+    assert response.safety_level == "guarded"
+    assert "Regimen local del mercado: alcista" in response.reply
+    assert "Nota de riesgo" in response.reply
+
+
+def test_roxy_brain_summarizes_market_regime_in_english(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "alert_gate_summary": {
+                    "total_opportunities": 1,
+                    "watch_count": 1,
+                    "ready_ratio": 0.25,
+                    "top_gate_label": "Wait for trigger",
+                    "top_readiness": 80,
+                },
+                "daily_opportunity_plan": {
+                    "market_counts": {"stock": 1},
+                    "market_session": {"stock_session": "Regular", "crypto_session": "24h"},
+                    "opportunities": [
+                        {"symbol": "SPY", "signal": "WATCH", "trend_setup": "TREND_CONTINUATION", "trend_score": 82}
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("market trend")
+
+    assert response.intent == "market_summary"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert "Local market regime: bullish" in response.reply
+    assert "Risk note" in response.reply
+
+
 def test_roxy_brain_remembers_session_context(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(
