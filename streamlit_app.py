@@ -1598,7 +1598,16 @@ def render_professional_chart_block(
             for col in ["close", "ema9", "sma20", "sma40", "sma100", "sma200"]
             if col in clean_window.columns
         ]
-        st.warning("La gráfica avanzada no pudo renderizarse; Roxy muestra fallback simple de precio y medias.")
+        st.markdown(
+            f"""
+            <section class="chart-fallback-state">
+              <span>Fallback seguro</span>
+              <strong>{html.escape(chart_symbol)} · precio y medias</strong>
+              <p>La gráfica avanzada no renderizó, pero Roxy mantiene una vista simple para no perder contexto.</p>
+            </section>
+            """,
+            unsafe_allow_html=True,
+        )
         if fallback_cols:
             fallback_df = clean_window[fallback_cols].apply(pd.to_numeric, errors="coerce")
             st.line_chart(fallback_df, height=min(price_height, 420), width="stretch")
@@ -13690,6 +13699,10 @@ def main() -> None:
         .chart-empty-state strong{display:block;color:#f8fafc;font-size:20px;line-height:1.08;margin-top:4px}
         .chart-empty-state p{margin:5px 0 0;color:#cbd5e1;font-size:12px;line-height:1.3}
         .chart-empty-state ul{margin:0;padding-left:18px;color:#e2e8f0;font-size:12px;line-height:1.35}
+        .chart-fallback-state{border:1px solid rgba(56,189,248,.30);border-left:4px solid #38bdf8;border-radius:8px;background:linear-gradient(135deg,rgba(8,47,73,.34),rgba(15,23,42,.92));padding:10px 12px;margin:8px 0}
+        .chart-fallback-state span{display:block;color:#7dd3fc;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.07em}
+        .chart-fallback-state strong{display:block;color:#f8fafc;font-size:16px;line-height:1.1;margin-top:4px}
+        .chart-fallback-state p{margin:5px 0 0;color:#cbd5e1;font-size:11px;line-height:1.3}
         .chart-command-head{display:flex;justify-content:space-between;gap:14px;align-items:center;border:1px solid rgba(96,165,250,.30);border-left:4px solid #38bdf8;border-radius:8px;background:linear-gradient(135deg,rgba(15,23,42,.95),rgba(8,47,73,.45));padding:10px 12px;margin:10px 0 6px}
         .chart-command-head span{display:block;color:#93c5fd;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}
         .chart-command-head strong{display:block;color:#f8fafc;font-size:22px;line-height:1.05;margin-top:3px}
