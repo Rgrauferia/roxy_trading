@@ -13710,6 +13710,8 @@ def main() -> None:
         .broker-feature-grid span{display:block;color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .broker-feature-grid strong{display:block;color:#f8fafc;font-size:14px;line-height:1;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .broker-feature-grid p{margin:5px 0 0;color:#cbd5e1;font-size:10px;line-height:1.18}
+        @media (max-width:1200px){.broker-sim-grid,.broker-feature-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-now{grid-template-columns:1fr 1fr}}
+        @media (max-width:760px){.broker-sim-hub>header{display:block}.broker-sim-hub>header em{display:inline-flex;margin-top:7px}.broker-sim-grid,.broker-feature-grid,.roxy-now{grid-template-columns:1fr}.broker-sim-card p{min-height:0}.broker-feature-grid p{min-height:0}}
         .roxy-hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,520px);gap:18px;align-items:stretch;border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0d1426;padding:16px 18px;margin:0 0 10px;box-shadow:0 16px 42px rgba(0,0,0,.24)}
         .roxy-brand-row{display:flex;align-items:center;gap:14px}
         .roxy-logo-svg{width:58px;height:58px;flex:0 0 auto;filter:drop-shadow(0 10px 18px rgba(34,197,94,.15))}
