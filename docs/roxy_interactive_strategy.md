@@ -83,6 +83,8 @@ Wake Roxy also supports local language control commands such as "Roxy, speak Eng
 
 Wake Roxy also supports local conversation controls such as "Roxy, repite" / "Roxy, repeat" for replaying the last answer and "Roxy, ayuda" / "Roxy, help" for a short command reminder. These controls run in the browser and return to listening without creating a new assistant turn.
 
+Wake Roxy can also expand short bilingual market commands into full assistant prompts. Examples include "Roxy, mercado" / "Roxy, market" for market summary, "Roxy, oportunidades" / "Roxy, opportunities" for top setups, "Roxy, riesgo" / "Roxy, risk" for entry-stop-target risk explanation, and "Roxy, puedo operar ahora" / "Roxy, can I trade now" for the trade-readiness gate. These shortcuts still call the assistant backend and preserve the normal trading safety contract.
+
 In conversation or wake mode, browser microphone errors such as `no-speech` or `aborted` are treated as recoverable. Roxy Live returns the avatar to ready, records a retry event, and schedules listening again instead of blocking the assistant.
 
 Roxy Live suppresses duplicate final speech transcripts that arrive within a short window. This prevents Chrome or Edge from sending the same voice turn twice during continuous conversation or wake-word listening.

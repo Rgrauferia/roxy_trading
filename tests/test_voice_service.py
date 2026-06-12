@@ -90,12 +90,19 @@ def test_roxy_live_page():
     assert "applyVoiceLanguageCommand" in r.text
     assert "repeatLastReplyByVoice" in r.text
     assert "explainVoiceCommands" in r.text
+    assert "marketVoicePrompt" in r.text
+    assert "sendVoiceMarketPrompt" in r.text
     assert "handleVoiceControlCommand" in r.text
     assert "voice: language " in r.text
     assert "voice: repeat" in r.text
     assert "voice: help" in r.text
+    assert "voice: market shortcut" in r.text
     assert "English mode." in r.text
     assert "Modo español." in r.text
+    assert "Roxy, mercado" in r.text
+    assert "Roxy, market" in r.text
+    assert "top opportunities" in r.text
+    assert "can I trade now" in r.text
     assert "Roxy, repite" in r.text
     assert "Roxy, repeat" in r.text
     assert "Wake Roxy activo" in r.text

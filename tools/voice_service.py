@@ -963,11 +963,70 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, habla español; Roxy, speak English; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, speak English; Roxy, habla español; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, mercado; Roxy, oportunidades; Roxy, riesgo; Roxy, habla español; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, market; Roxy, opportunities; Roxy, risk; Roxy, speak English; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
+    }
+
+    function marketVoicePrompt(command) {
+      const language = $("language").value || "es";
+      const shortcuts = [
+        {
+          phrases: ["mercado", "resumen mercado", "resumen del mercado", "market", "market summary"],
+          es: "resumen del mercado",
+          en: "market summary",
+        },
+        {
+          phrases: ["briefing", "briefing diario", "daily briefing", "daily brief"],
+          es: "briefing diario",
+          en: "daily briefing",
+        },
+        {
+          phrases: ["oportunidades", "top oportunidades", "mejores oportunidades", "opportunities", "top opportunities", "best opportunities"],
+          es: "top oportunidades",
+          en: "top opportunities",
+        },
+        {
+          phrases: ["watchlist", "vigila watchlist", "vigila mi watchlist", "watch my watchlist"],
+          es: "vigila mi watchlist",
+          en: "watch my watchlist",
+        },
+        {
+          phrases: ["riesgo", "explica riesgo", "entrada stop target", "risk", "explain risk", "entry stop target"],
+          es: "explica riesgo entrada stop target",
+          en: "explain entry stop target risk",
+        },
+        {
+          phrases: ["checklist", "checklist entrada", "checklist de entrada", "entry checklist"],
+          es: "checklist de entrada",
+          en: "entry checklist",
+        },
+        {
+          phrases: ["datos", "frescura datos", "frescura de datos", "data freshness", "source status"],
+          es: "frescura de datos",
+          en: "data freshness",
+        },
+        {
+          phrases: ["puedo operar", "puedo operar ahora", "operar ahora", "can i trade", "can i trade now", "trade now"],
+          es: "puedo operar ahora",
+          en: "can I trade now",
+        },
+      ];
+      const shortcut = shortcuts.find(item => commandMatches(command, item.phrases));
+      if (!shortcut) return "";
+      return language === "en" ? shortcut.en : shortcut.es;
+    }
+
+    function sendVoiceMarketPrompt(command) {
+      const prompt = marketVoicePrompt(command);
+      if (!prompt) return false;
+      $("query").value = prompt;
+      $("events").textContent = "voice: market shortcut";
+      appendMessage("system", "Voice shortcut: " + prompt, "voice-market");
+      send();
+      return true;
     }
 
     function handleVoiceControlCommand(command) {
@@ -984,6 +1043,7 @@ def roxy_live_page():
         explainVoiceCommands();
         return true;
       }
+      if (sendVoiceMarketPrompt(command)) return true;
       return false;
     }
 
