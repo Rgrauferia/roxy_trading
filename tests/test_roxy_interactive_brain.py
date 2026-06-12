@@ -582,6 +582,133 @@ def test_roxy_brain_requires_scan_when_data_freshness_has_no_brief(tmp_path):
     assert "run_scan" in response.suggested_actions
 
 
+def test_roxy_brain_trade_readiness_prepares_only_when_gates_are_clean_spanish(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "generated_at": now.isoformat(),
+                    "opportunities": [
+                        {
+                            "symbol": "NVDA",
+                            "signal": "ALERT",
+                            "decision": "TRADE_FOR_2PCT",
+                            "entry": 142.25,
+                            "stop": 139.5,
+                            "risk_pct": 0.0193,
+                            "readiness": 86,
+                            "entry_trigger": "Ruptura confirmada en 15m.",
+                            "why": "Checklist completo.",
+                        }
+                    ],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        feedback_memory=RoxyFeedbackMemory(path=tmp_path / "feedback.json"),
+    )
+
+    response = brain.generate_reply("puedo operar ahora")
+
+    assert response.intent == "trade_readiness"
+    assert response.language == "es"
+    assert response.priority == "high"
+    assert "Go/no-go NVDA: PREPARAR SOLO" in response.reply
+    assert "Puertas faltantes: ninguno" in response.reply
+    assert "Esto no es permiso de ejecucion" in response.reply
+    assert "entry_checklist" in response.suggested_actions
+
+
+def test_roxy_brain_trade_readiness_waits_on_missing_confirmations_english(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "generated_at": now.isoformat(),
+                    "opportunities": [
+                        {
+                            "symbol": "SPY",
+                            "signal": "WATCH",
+                            "decision": "Esperar",
+                            "entry": 505.5,
+                            "stop": 501.0,
+                            "risk_pct": 0.0089,
+                            "readiness": 66,
+                            "what_is_missing": "Volumen acompana: falta volumen",
+                            "entry_trigger": "Esperar gatillo BUY en 15m mientras 1h sigue valido.",
+                        }
+                    ],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        feedback_memory=RoxyFeedbackMemory(path=tmp_path / "feedback.json"),
+    )
+
+    response = brain.generate_reply("should I trade SPY")
+
+    assert response.intent == "trade_readiness"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert "Go/no-go SPY: WAIT" in response.reply
+    assert "Missing gates: confirmations" in response.reply
+    assert "not execution permission" in response.reply
+    assert response.needs_live_source is False
+    assert "monitoring_plan" in response.suggested_actions
+
+
+def test_roxy_brain_trade_readiness_blocks_stale_data(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    stale = datetime.now(timezone.utc) - timedelta(hours=2)
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "generated_at": stale.isoformat(),
+                    "opportunities": [
+                        {
+                            "symbol": "NVDA",
+                            "signal": "ALERT",
+                            "decision": "TRADE_FOR_2PCT",
+                            "entry": 142.25,
+                            "stop": 139.5,
+                            "risk_pct": 0.0193,
+                            "readiness": 86,
+                        }
+                    ],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        feedback_memory=RoxyFeedbackMemory(path=tmp_path / "feedback.json"),
+    )
+
+    response = brain.generate_reply("puedo operar ahora")
+
+    assert response.intent == "trade_readiness"
+    assert response.needs_live_source is True
+    assert response.avatar_state == "blocked"
+    assert "BLOQUEADO" in response.reply
+    assert "datos frescos" in response.reply
+    assert "run_scan" in response.suggested_actions
+
+
 def test_roxy_brain_summarizes_market_regime_in_spanish(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(

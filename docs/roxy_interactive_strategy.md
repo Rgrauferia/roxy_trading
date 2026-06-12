@@ -43,6 +43,8 @@ For market regime questions, Roxy uses the `market_summary` intent. It reads loc
 
 For data freshness prompts such as "frescura de datos" or "source status", Roxy uses the `data_freshness` intent. It reads `daily_opportunity_plan.generated_at`, top-level brief timestamps, or the brief file modified time, then labels the local read as fresh, usable but aging, or stale. Stale data sets `needs_live_source=true` and should force a scan refresh before ranking, sizing, alerts, or trade decisions.
 
+For go/no-go prompts such as "puedo operar ahora" or "should I trade", Roxy uses the `trade_readiness` intent. It combines data freshness, the selected/top-ranked opportunity, entry/stop/risk completeness, readiness, missing confirmations, and action state into `BLOCKED`, `WAIT`, or `PREPARE ONLY`. This is a decision-support gate only and never permission to execute.
+
 When the user asks for an opportunity without naming a symbol, Roxy ranks local rows instead of taking the first file row. Ranking favors actionable signals such as ALERT/BUY/SELL, higher readiness/probability, complete entry/stop/risk data, and penalizes missing confirmations. If the user names a symbol, that symbol still takes priority.
 
 For top-opportunity comparison questions such as "top oportunidades" or "compare opportunities", Roxy uses the `opportunity_compare` intent. It reads the ranked local rows, explains the top three setups with action, decision, readiness, entry, stop, risk, reason, and missing confirmations, then labels the answer as decision support, not execution.

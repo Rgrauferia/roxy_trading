@@ -28,6 +28,7 @@ def test_roxy_live_page():
     assert 'data-prompt="frescura de datos"' in r.text
     assert 'data-prompt="vigila mi watchlist"' in r.text
     assert 'data-prompt="analiza impacto de noticia: pega aqui el titular"' in r.text
+    assert 'data-prompt="puedo operar ahora"' in r.text
     assert 'data-prompt="explica riesgo entrada stop target"' in r.text
     assert 'data-prompt="top oportunidades"' in r.text
     assert 'data-prompt="plan de monitoreo"' in r.text

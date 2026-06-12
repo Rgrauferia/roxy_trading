@@ -586,6 +586,11 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "freshness",
         "source",
         "updated",
+        "should",
+        "safe",
+        "go",
+        "no",
+        "readiness",
     }
     spanish_terms = {
         "hola",
@@ -637,6 +642,11 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "fuente",
         "actualizado",
         "actualizaste",
+        "debo",
+        "puedo",
+        "seguro",
+        "decision",
+        "decisión",
     }
     tokens = set(re.findall(r"[a-záéíóúñ]+", normalized))
     english_score = len(tokens.intersection(english_terms))
@@ -1091,6 +1101,21 @@ def _extract_symbol(query: str) -> str | None:
         "ACTUALIZADO",
         "ACTUALIZASTE",
         "TIMESTAMP",
+        "SHOULD",
+        "SAFE",
+        "GO",
+        "NO",
+        "DEBO",
+        "PUEDO",
+        "SEGURO",
+        "DECISION",
+        "DECISIÓN",
+        "I",
+        "CAN",
+        "NOW",
+        "AHORA",
+        "OPERAR",
+        "OPERA",
     }
     for raw_word in query.split():
         word = raw_word.strip(".,:;!?()[]{}\"'").upper().replace("-", "/")
@@ -1250,6 +1275,22 @@ class RoxyInteractiveBrain:
             "when was data updated",
             "when did you update",
         )
+        trade_readiness_terms = (
+            "puedo operar",
+            "debo operar",
+            "operar ahora",
+            "decision de trade",
+            "decisión de trade",
+            "decision operativa",
+            "decisión operativa",
+            "go no go",
+            "go/no-go",
+            "trade readiness",
+            "should i trade",
+            "can i trade",
+            "is it safe to trade",
+            "trade decision",
+        )
         if _contains_any(lq, ("hola", "hello", "hi", "hey", "buenos dias", "buenas")):
             response = self._greeting_reply(user, profile)
             return finish(response)
@@ -1317,6 +1358,10 @@ class RoxyInteractiveBrain:
 
         if _contains_any(lq, alert_plan_terms):
             response = self._alert_plan_reply(q, language)
+            return finish(response)
+
+        if _contains_any(lq, trade_readiness_terms):
+            response = self._trade_readiness_reply(q, language)
             return finish(response)
 
         if _contains_any(
@@ -1949,7 +1994,7 @@ class RoxyInteractiveBrain:
             suggested_actions=("show_trade_ticket", "show_risk_check", "require_explicit_confirmation"),
         )
 
-    def _data_freshness_reply(self, language: str = "es") -> RoxyBrainReply:
+    def _data_freshness_snapshot(self) -> dict[str, Any]:
         brief = _load_json(self.brief_path)
         plan = brief.get("daily_opportunity_plan") if isinstance(brief.get("daily_opportunity_plan"), dict) else {}
         summary = brief.get("alert_gate_summary") if isinstance(brief.get("alert_gate_summary"), dict) else {}
@@ -1972,6 +2017,35 @@ class RoxyInteractiveBrain:
             source = "brief file modified_at"
 
         if timestamp is None:
+            return {
+                "state": "missing",
+                "source": "",
+                "timestamp": None,
+                "age_minutes": None,
+                "age_text": "-",
+                "needs_live_source": True,
+            }
+
+        age_minutes = max(0.0, (datetime.now(timezone.utc) - timestamp).total_seconds() / 60)
+        if age_minutes <= 15:
+            state = "fresh"
+        elif age_minutes <= 60:
+            state = "usable"
+        else:
+            state = "stale"
+        age_text = f"{age_minutes:.0f} min" if age_minutes < 120 else f"{age_minutes / 60:.1f} h"
+        return {
+            "state": state,
+            "source": source,
+            "timestamp": timestamp,
+            "age_minutes": age_minutes,
+            "age_text": age_text,
+            "needs_live_source": state == "stale",
+        }
+
+    def _data_freshness_reply(self, language: str = "es") -> RoxyBrainReply:
+        freshness = self._data_freshness_snapshot()
+        if freshness["timestamp"] is None:
             reply = (
                 "I do not see a local market brief timestamp yet. Run or connect a scan before treating any opportunity as current."
                 if language == "en"
@@ -1988,16 +2062,12 @@ class RoxyInteractiveBrain:
                 suggested_actions=("run_scan", "ask_market_summary"),
             )
 
-        age_minutes = max(0.0, (datetime.now(timezone.utc) - timestamp).total_seconds() / 60)
-        if age_minutes <= 15:
-            state = "fresh"
-        elif age_minutes <= 60:
-            state = "usable"
-        else:
-            state = "stale"
-        age_text = f"{age_minutes:.0f} min" if age_minutes < 120 else f"{age_minutes / 60:.1f} h"
-        timestamp_text = timestamp.isoformat()
-        needs_live_source = state == "stale"
+        state = _safe_text(freshness["state"])
+        source = _safe_text(freshness["source"])
+        timestamp = freshness["timestamp"]
+        timestamp_text = timestamp.isoformat() if isinstance(timestamp, datetime) else "-"
+        age_text = _safe_text(freshness["age_text"])
+        needs_live_source = bool(freshness["needs_live_source"])
 
         if language == "en":
             state_text = {"fresh": "fresh", "usable": "usable but aging", "stale": "stale"}[state]
@@ -2822,6 +2892,135 @@ class RoxyInteractiveBrain:
             safety_level="guarded",
             priority="high" if action in {"ALERT", "BUY", "SELL", "READY"} else "normal",
             suggested_actions=("confirm_alert", "entry_checklist", "position_size", "confirm_before_execution"),
+        )
+
+    def _trade_readiness_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
+        symbol = _extract_symbol(query)
+        freshness = self._data_freshness_snapshot()
+        freshness_state = _safe_text(freshness.get("state"))
+        freshness_age = _safe_text(freshness.get("age_text"))
+        row = self._latest_opportunity(symbol)
+
+        if not row:
+            target = f" for {symbol}" if symbol and language == "en" else f" para {symbol}" if symbol else ""
+            reply = (
+                f"Go/no-go{target}: BLOCKED. I do not have a local opportunity to evaluate. Refresh the scan first."
+                if language == "en"
+                else f"Go/no-go{target}: BLOQUEADO. No tengo una oportunidad local para evaluar. Refresca el scan primero."
+            )
+            return RoxyBrainReply(
+                intent="trade_readiness",
+                reply=reply,
+                avatar_state="blocked",
+                emotion="serious",
+                needs_live_source=True,
+                safety_level="guarded",
+                priority="high",
+                suggested_actions=("run_scan", "ask_market_summary"),
+            )
+
+        symbol_text = _safe_text(row.get("symbol") or symbol or "-").upper()
+        action = _safe_text(row.get("signal") or row.get("ai_action") or "WATCH").upper()
+        decision = _safe_text(row.get("decision") or row.get("trade_decision") or "-")
+        entry = _safe_float(row.get("entry"))
+        stop = _safe_float(row.get("stop"))
+        risk_pct = _safe_float(row.get("risk_pct"))
+        readiness = _safe_float(row.get("readiness") or row.get("ai_score") or row.get("confluence_score"))
+        missing = _safe_text(row.get("what_is_missing") or row.get("missing") or row.get("blockers"))
+        trigger = _safe_text(row.get("entry_trigger") or row.get("trigger") or row.get("entry_tf"))
+        reason = _safe_text(row.get("why") or row.get("explanation") or row.get("memory_note") or row.get("alert_quality_reason"))
+        combined_text = " ".join([action, decision, missing, trigger, reason]).lower()
+
+        missing_labels: list[str] = []
+        if entry is None or entry <= 0:
+            missing_labels.append("entry")
+        if stop is None or stop <= 0:
+            missing_labels.append("stop")
+        if risk_pct is None or risk_pct <= 0:
+            missing_labels.append("risk")
+        if freshness_state in {"missing", "stale"}:
+            missing_labels.append("fresh_data")
+        if missing:
+            missing_labels.append("confirmations")
+
+        explicit_wait = any(term in combined_text for term in ("wait", "esperar", "no operar", "missing", "falta"))
+        explicit_ready = action in {"ALERT", "BUY", "SELL", "READY"} or "trade" in combined_text or "operar" in combined_text
+        readiness_ok = readiness is None or readiness >= 70
+
+        if freshness_state in {"missing", "stale"} or entry is None or stop is None or risk_pct is None:
+            status = "blocked"
+        elif missing or explicit_wait or not readiness_ok or not explicit_ready:
+            status = "wait"
+        else:
+            status = "prepare"
+
+        readiness_text = "-" if readiness is None else f"{readiness:.1f}"
+        data_text = f"{freshness_state or 'unknown'} / {freshness_age or '-'}"
+        priority = "high" if status in {"blocked", "prepare"} else "normal"
+        needs_live_source = freshness_state in {"missing", "stale"}
+
+        if language == "en":
+            decision = _localize_market_phrase(decision, language)
+            missing = _sentence_fragment(_localize_market_phrase(missing, language))
+            trigger = _sentence_fragment(_localize_market_phrase(trigger, language))
+            reason = _sentence_fragment(_localize_market_phrase(reason, language))
+            status_label = {"blocked": "BLOCKED", "wait": "WAIT", "prepare": "PREPARE ONLY"}[status]
+            missing_text = ", ".join(missing_labels) if missing_labels else "none"
+            next_step = (
+                "Refresh the scan before any decision."
+                if needs_live_source
+                else "Run checklist and sizing before any explicit approval."
+                if status == "prepare"
+                else "Keep monitoring the trigger and missing confirmations."
+            )
+            reply = (
+                f"Go/no-go {symbol_text}: {status_label}. Data {data_text}. Action {action}, decision {decision}, "
+                f"readiness {readiness_text}, entry {_money(entry)}, stop {_money(stop)}, risk {_pct(risk_pct)}. "
+                f"Missing gates: {missing_text}. Trigger: {trigger or '-'}. Context: {reason or missing or '-'}. "
+                f"Next step: {next_step} This is not execution permission."
+            )
+        else:
+            missing = _sentence_fragment(missing)
+            trigger = _sentence_fragment(trigger)
+            reason = _sentence_fragment(reason)
+            status_label = {"blocked": "BLOQUEADO", "wait": "ESPERAR", "prepare": "PREPARAR SOLO"}[status]
+            label_translations = {
+                "entry": "entrada",
+                "stop": "stop",
+                "risk": "riesgo",
+                "fresh_data": "datos frescos",
+                "confirmations": "confirmaciones",
+            }
+            missing_text = ", ".join(label_translations.get(label, label) for label in missing_labels) if missing_labels else "ninguno"
+            next_step = (
+                "Refresca el scan antes de decidir."
+                if needs_live_source
+                else "Corre checklist y sizing antes de cualquier aprobacion explicita."
+                if status == "prepare"
+                else "Sigue vigilando el gatillo y las confirmaciones faltantes."
+            )
+            reply = (
+                f"Go/no-go {symbol_text}: {status_label}. Datos {data_text}. Accion {action}, decision {decision}, "
+                f"readiness {readiness_text}, entrada {_money(entry)}, stop {_money(stop)}, riesgo {_pct(risk_pct)}. "
+                f"Puertas faltantes: {missing_text}. Gatillo: {trigger or '-'}. Contexto: {reason or missing or '-'}. "
+                f"Siguiente paso: {next_step} Esto no es permiso de ejecucion."
+            )
+
+        return RoxyBrainReply(
+            intent="trade_readiness",
+            reply=reply,
+            avatar_state="blocked" if status == "blocked" else "ready" if status == "prepare" else "speaking",
+            emotion="serious" if status == "blocked" else "analytical",
+            needs_live_source=needs_live_source,
+            safety_level="guarded",
+            priority=priority,
+            suggested_actions=(
+                ("run_scan", "ask_market_summary")
+                if needs_live_source
+                else ("entry_checklist", "position_size", "confirm_before_execution")
+                if status == "prepare"
+                else ("monitoring_plan", "ask_market_summary", "set_alert")
+            ),
         )
 
     def _opportunity_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
