@@ -13362,12 +13362,15 @@ def render_dashboard_action_queue(table: pd.DataFrame) -> None:
         return
     pulse = market_pulse_summary(table)
     readiness = num_display(pulse.get("avg_readiness"), 0)
+    dominant_filter = text_display(pulse.get("top_gate"))
     header_status = (
         f"Operar {int(pulse.get('ready') or 0)} · "
         f"Vigilar {int(pulse.get('watch') or 0)} · "
         f"Evitar {int(pulse.get('avoid') or 0)} · "
         f"Readiness {readiness}"
     )
+    if dominant_filter != "-":
+        header_status += f" · Filtro {dominant_filter}"
     cards = []
     for _, item in table.head(3).iterrows():
         row = item.to_dict()
