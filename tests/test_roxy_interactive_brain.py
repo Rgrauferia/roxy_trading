@@ -237,6 +237,7 @@ def test_roxy_brain_explains_opportunity_risk_plan_in_english(tmp_path):
     assert "decision Wait" in response.reply
     assert "Trigger: Wait for a 15m BUY trigger while 1h remains valid." in response.reply
     assert "Missing: 15m entry: WAIT | Volume confirms: missing volume" in response.reply
+    assert ".." not in response.reply
     assert "not an execution order" in response.reply
 
 

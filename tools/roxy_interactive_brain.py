@@ -547,6 +547,10 @@ def _localize_market_phrase(value: Any, language: str) -> str:
     return localized
 
 
+def _sentence_fragment(value: Any) -> str:
+    return _safe_text(value).rstrip(" .")
+
+
 def _tokenize(text: str) -> set[str]:
     stopwords = {
         "como",
@@ -1671,6 +1675,10 @@ class RoxyInteractiveBrain:
             invalidation = _localize_market_phrase(invalidation, language)
             missing = _localize_market_phrase(missing, language)
             why = _localize_market_phrase(why, language)
+        trigger = _sentence_fragment(trigger)
+        invalidation = _sentence_fragment(invalidation)
+        missing = _sentence_fragment(missing)
+        why = _sentence_fragment(why)
         readiness = _safe_float(row.get("readiness") or row.get("ai_score") or row.get("confluence_score"))
         probability = _safe_float(row.get("probability"))
         quality = _safe_text(row.get("quality"))
