@@ -12333,6 +12333,9 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
 
     with st.expander("Estado técnico del scan", expanded=False):
         render_alert_noise_contract(brief)
+
+    top_symbol = selected_dashboard_symbol(best)
+    render_selected_asset_banner(symbol_input, market, timeframe, top_symbol=top_symbol)
     render_dashboard_asset_panel(
         confluence_df,
         options_df,
@@ -13459,6 +13462,38 @@ def _summarize_voice_context(row: dict) -> str:
 
 
 
+
+def selected_dashboard_symbol(table: pd.DataFrame) -> str:
+    if not isinstance(table, pd.DataFrame) or table.empty:
+        return ""
+    try:
+        return text_display(table.iloc[0].get("symbol")).upper()
+    except Exception:
+        return ""
+
+
+def render_selected_asset_banner(symbol: str, market: str, timeframe: str, *, top_symbol: str = "") -> None:
+    active_symbol = text_display(symbol).upper() or "AAPL"
+    active_market = normalize_command_market(market, active_symbol).upper()
+    active_timeframe = normalize_command_timeframe(timeframe)
+    top_label = text_display(top_symbol).upper()
+    if top_label and top_label != active_symbol:
+        detail = f"La grafica y analisis principal deben seguir {active_symbol}; el scanner global puede seguir mostrando {top_label} debajo."
+    else:
+        detail = "La grafica, indicadores y simulacion pertenecen al activo seleccionado."
+    st.markdown(
+        f"""
+        <section class="selected-asset-banner">
+          <div>
+            <span>Activo seleccionado</span>
+            <strong>{html.escape(active_symbol)} · {html.escape(active_market)} · {html.escape(active_timeframe)}</strong>
+          </div>
+          <p>{html.escape(detail)}</p>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
 def render_dashboard_action_queue(table: pd.DataFrame) -> None:
     if table.empty:
         return
@@ -13669,6 +13704,11 @@ def main() -> None:
         .roxy-now-buy{border-left:4px solid #22c55e}.roxy-now-buy .roxy-now-main{background:rgba(21,93,62,.24)}
         .roxy-now-watch{border-left:4px solid #f59e0b}.roxy-now-watch .roxy-now-main{background:rgba(120,74,15,.22)}
         .roxy-now-avoid{border-left:4px solid #ef4444}.roxy-now-avoid .roxy-now-main{background:rgba(127,29,29,.24)}
+
+        .selected-asset-banner{display:flex;justify-content:space-between;gap:14px;align-items:center;border:1px solid rgba(34,211,238,.36);border-left:4px solid #22d3ee;border-radius:8px;background:linear-gradient(135deg,rgba(8,47,73,.72),rgba(15,23,42,.92));padding:9px 11px;margin:7px 0 8px;box-shadow:0 12px 28px rgba(8,47,73,.18)}
+        .selected-asset-banner span{display:block;color:#67e8f9;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em;line-height:1}
+        .selected-asset-banner strong{display:block;color:#f8fafc;font-size:16px;line-height:1.1;margin-top:4px}
+        .selected-asset-banner p{margin:0;color:#cbd5e1;font-size:11px;line-height:1.25;text-align:right;max-width:560px}
         .dashboard-action-queue{border:1px solid rgba(148,163,184,.18);border-radius:8px;background:#0b1220;margin:-2px 0 8px;overflow:hidden}
         .dashboard-action-queue header{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 10px;border-bottom:1px solid rgba(148,163,184,.14)}
         .dashboard-action-queue header strong{color:#f8fafc;font-size:14px;line-height:1}
