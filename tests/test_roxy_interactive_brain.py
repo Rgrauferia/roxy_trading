@@ -523,6 +523,34 @@ def test_roxy_brain_requires_account_equity_for_position_size(tmp_path):
     assert "provide_account_equity" in response.suggested_actions
 
 
+def test_roxy_brain_keeps_small_crypto_precision_for_position_size(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "crypto_scan_candidates": [
+                    {
+                        "symbol": "DOGE/USD",
+                        "signal": "WATCH",
+                        "entry": 0.0875,
+                        "stop": 0.085581,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("tamaño de posicion DOGE con capital 10000 riesgo 0.5%")
+
+    assert response.intent == "position_size"
+    assert "Entrada 0.0875" in response.reply
+    assert "stop 0.085581" in response.reply
+    assert "riesgo por unidad 0.001919" in response.reply
+    assert "0.00. Cantidad" not in response.reply
+
+
 def test_roxy_brain_remembers_session_context(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(

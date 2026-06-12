@@ -458,6 +458,8 @@ def _money(value: Any) -> str:
     number = _safe_float(value)
     if number is None:
         return "-"
+    if 0 < abs(number) < 1:
+        return f"{number:.6f}".rstrip("0").rstrip(".")
     return f"{number:.2f}"
 
 
