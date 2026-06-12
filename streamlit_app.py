@@ -1509,6 +1509,7 @@ def render_professional_chart_block(
             <b class="chart-level-stop">Stop {html.escape(stop)}</b>
             <b class="chart-level-target">Target {html.escape(target)}</b>
             <b class="chart-level-rr">R:R {html.escape(rr_display)}</b>
+            <b class="chart-level-interact">Arrastra · Zoom · OHLC</b>
           </aside>
         </section>
         <section class="chart-check-strip">{confirmation_html}</section>
@@ -1530,7 +1531,6 @@ def render_professional_chart_block(
         panels.append(volume_chart.properties(height=volume_height))
     if oscillator_chart is not None:
         panels.append(oscillator_chart.properties(height=oscillator_height))
-    st.caption("Interactiva: arrastra/zoom y pasa el cursor para OHLC, volumen y medias.")
     def render_price_chart_fallback() -> None:
         fallback_cols = [
             col
@@ -13423,6 +13423,7 @@ def main() -> None:
         .chart-level-stop{border-color:rgba(248,113,113,.60)!important;color:#fecaca!important;background:rgba(127,29,29,.20)!important}
         .chart-level-target{border-color:rgba(34,197,94,.55)!important;color:#bbf7d0!important;background:rgba(20,83,45,.20)!important}
         .chart-level-rr{border-color:rgba(245,158,11,.58)!important;color:#fde68a!important;background:rgba(120,53,15,.18)!important}
+        .chart-level-interact{border-color:rgba(168,85,247,.50)!important;color:#ddd6fe!important;background:rgba(76,29,149,.18)!important}
         .chart-check-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;border:1px solid rgba(148,163,184,.18);border-radius:8px;background:rgba(148,163,184,.14);overflow:hidden;margin:-2px 0 6px}
         .chart-check-pill{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#0b1220;padding:6px 8px;min-width:0;border-top:2px solid rgba(148,163,184,.28)}
         .chart-check-pill span{min-width:0}
