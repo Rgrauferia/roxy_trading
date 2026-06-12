@@ -1475,14 +1475,30 @@ def render_professional_chart_block(
     volume_height: int = 130,
     oscillator_height: int = 120,
 ) -> None:
+    chart_symbol = text_display((trade_brief or {}).get("symbol") or setup.get("symbol"))
+    timeframe = text_display((trade_brief or {}).get("timeframe") or setup.get("timeframe") or setup.get("tf"))
     clean_window = prepare_chart_window(chart_df)
     if clean_window.empty:
-        st.warning("Roxy no tiene suficientes velas limpias para dibujar la grafica.")
+        st.markdown(
+            f"""
+            <section class="chart-empty-state">
+              <div>
+                <span>Gráfica pendiente</span>
+                <strong>{html.escape(chart_symbol)} · {html.escape(timeframe)}</strong>
+                <p>Roxy no encontró velas limpias suficientes para dibujar precio, volumen e indicadores.</p>
+              </div>
+              <ul>
+                <li>Cambiar timeframe o símbolo.</li>
+                <li>Verificar proveedor live.</li>
+                <li>Esperar nueva lectura del scanner.</li>
+              </ul>
+            </section>
+            """,
+            unsafe_allow_html=True,
+        )
         return
     if len(clean_window) < 40:
         st.info("Grafica limitada: hay pocas velas limpias para este simbolo/timeframe. Roxy muestra niveles, pero exige confirmacion extra.")
-    chart_symbol = text_display((trade_brief or {}).get("symbol") or setup.get("symbol"))
-    timeframe = text_display((trade_brief or {}).get("timeframe") or setup.get("timeframe") or setup.get("tf"))
     visible_candles = len(clean_window)
     latest_candle = "-"
     if "ts" in clean_window.columns:
@@ -13669,6 +13685,11 @@ def main() -> None:
         [data-testid="stSidebar"]{background:#0f172a;border-right:1px solid rgba(148,163,184,.16)}
         [data-testid="stHeader"]{background:rgba(14,22,36,.9)}
         [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"], #MainMenu, footer{display:none!important}
+        .chart-empty-state{display:flex;justify-content:space-between;gap:14px;align-items:center;border:1px dashed rgba(251,191,36,.46);border-left:4px solid #f59e0b;border-radius:8px;background:linear-gradient(135deg,rgba(120,74,15,.24),rgba(15,23,42,.92));padding:12px;margin:10px 0 8px}
+        .chart-empty-state span{display:block;color:#fbbf24;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.07em}
+        .chart-empty-state strong{display:block;color:#f8fafc;font-size:20px;line-height:1.08;margin-top:4px}
+        .chart-empty-state p{margin:5px 0 0;color:#cbd5e1;font-size:12px;line-height:1.3}
+        .chart-empty-state ul{margin:0;padding-left:18px;color:#e2e8f0;font-size:12px;line-height:1.35}
         .chart-command-head{display:flex;justify-content:space-between;gap:14px;align-items:center;border:1px solid rgba(96,165,250,.30);border-left:4px solid #38bdf8;border-radius:8px;background:linear-gradient(135deg,rgba(15,23,42,.95),rgba(8,47,73,.45));padding:10px 12px;margin:10px 0 6px}
         .chart-command-head span{display:block;color:#93c5fd;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}
         .chart-command-head strong{display:block;color:#f8fafc;font-size:22px;line-height:1.05;margin-top:3px}
