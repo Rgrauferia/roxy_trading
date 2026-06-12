@@ -26,6 +26,12 @@ def test_roxy_live_page():
     assert "activeContext" in r.text
     assert "latency" in r.text
     assert "server_latency_ms" in r.text
+    assert "assistStreamEndpoint" in r.text
+    assert "readAssistStream" in r.text
+    assert "sendViaStream" in r.text
+    assert "sendViaState" in r.text
+    assert "parseSseBlock" in r.text
+    assert "Streaming no disponible" in r.text
     assert "suggestedActionPrompts" in r.text
     assert "renderSuggestedActions" in r.text
     assert "renderActiveContext" in r.text

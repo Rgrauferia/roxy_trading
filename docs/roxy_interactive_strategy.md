@@ -41,7 +41,7 @@ For real-time UI flows, use `POST /v1/assist/events`. It returns ordered events 
 
 Every structured `POST /v1/assist/state` response includes `turn_id`, `server_latency_ms`, and `response_source`. Roxy Live displays the latency chip so voice work can watch response speed while preserving the same safety contract.
 
-For lower-latency clients, `POST /v1/assist/stream` returns Server-Sent Events in order: `transcript_received`, `thinking`, `reply_ready`, optional `speak`, and `done`. This lets the visual avatar react immediately while the brain prepares the final answer.
+For lower-latency clients, `POST /v1/assist/stream` returns Server-Sent Events in order: `transcript_received`, `thinking`, `reply_ready`, optional `speak`, and `done`. This lets the visual avatar react immediately while the brain prepares the final answer. Roxy Live attempts this stream first and falls back to `POST /v1/assist/state` if browser streaming is unavailable.
 
 For market regime questions, Roxy uses the `market_summary` intent. It reads local brief fields such as `alert_gate_summary`, `daily_opportunity_plan`, opportunities, and crypto scan candidates to classify the current local read as bullish watch, bearish watch, sideways/wait, or unclear/wait. This is decision support only; it does not execute trades.
 

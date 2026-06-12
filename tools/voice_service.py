@@ -947,30 +947,26 @@ def roxy_live_page():
       }
     }
 
-    async function send() {
-      const text = $("query").value.trim();
-      if (!text) return;
-      saveSettings();
-      setAvatar("thinking", "focused");
-      $("reply").textContent = "Roxy esta pensando...";
-      renderSuggestedActions([]);
-      appendMessage("user", text, new Date().toLocaleTimeString());
+    function requestHeaders() {
       const headers = {"Content-Type": "application/json"};
       const key = $("apiKey").value.trim();
       if (key) headers.Authorization = "Bearer " + key;
-      const res = await fetch("/v1/assist/state", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({query: text, user: $("user").value || "local", session_id: session.value})
-      });
-      if (!res.ok) {
-        const message = "Error " + res.status + ": revisa VOICE_API_KEY o el servicio.";
-        $("reply").textContent = message;
-        appendMessage("system", message, "error");
-        setAvatar("blocked", "serious");
-        return;
-      }
-      const state = await res.json();
+      return headers;
+    }
+
+    function requestBody(text) {
+      return JSON.stringify({query: text, user: $("user").value || "local", session_id: session.value});
+    }
+
+    function showAssistError(status) {
+      const message = "Error " + status + ": revisa VOICE_API_KEY o el servicio.";
+      $("reply").textContent = message;
+      appendMessage("system", message, "error");
+      setAvatar("blocked", "serious");
+    }
+
+    function applyAssistState(state, text, options) {
+      const opts = options || {};
       lastReply = state.reply || "";
       lastQuery = text;
       lastState = state || {};
@@ -984,12 +980,122 @@ def roxy_live_page():
       updateVoiceDiagnostics(state.language || $("language").value);
       $("reply").textContent = lastReply || "(sin respuesta)";
       renderSuggestedActions(state.suggested_actions || []);
-      const events = Array.isArray(state.events) ? state.events.map(e => e.type).join(" -> ") : "";
-      $("events").textContent = "events: " + (events || "-");
-      appendMessage("roxy", lastReply || "(sin respuesta)", [state.intent, state.safety_level].filter(Boolean).join(" / "));
+      if (Array.isArray(state.events) && opts.eventsText === undefined) {
+        $("events").textContent = "events: " + (state.events.map(e => e.type).join(" -> ") || "-");
+      }
+      if (opts.eventsText !== undefined) $("events").textContent = opts.eventsText;
+      if (opts.appendRoxy !== false) {
+        appendMessage("roxy", lastReply || "(sin respuesta)", [state.intent, state.safety_level].filter(Boolean).join(" / "));
+      }
       setAvatar(state.avatar_state || "speaking", state.emotion || "focused");
-      if (state.should_speak !== false && $("autoSpeak").checked) speak(lastReply, state.language || $("language").value);
-      else scheduleListen();
+      if (opts.speakNow !== false && state.should_speak !== false && $("autoSpeak").checked) {
+        speak(lastReply, state.language || $("language").value);
+      } else if (opts.scheduleAfter !== false) {
+        scheduleListen();
+      }
+    }
+
+    function parseSseBlock(block) {
+      const lines = (block || "").split(/\\r?\\n/);
+      let eventName = "message";
+      const dataLines = [];
+      for (const line of lines) {
+        if (line.startsWith("event:")) eventName = line.slice(6).trim();
+        if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+      }
+      let payload = {};
+      if (dataLines.length) {
+        try { payload = JSON.parse(dataLines.join("\\n")); }
+        catch (_err) { payload = {type: eventName, raw: dataLines.join("\\n")}; }
+      }
+      return {eventName, payload};
+    }
+
+    async function readAssistStream(res, text) {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      const eventNames = [];
+      let finalState = null;
+      let spoke = false;
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, {stream: true});
+        const blocks = buffer.split("\\n\\n");
+        buffer = blocks.pop() || "";
+        for (const block of blocks) {
+          if (!block.trim()) continue;
+          const parsed = parseSseBlock(block);
+          const payload = parsed.payload || {};
+          const eventName = payload.type || parsed.eventName;
+          eventNames.push(eventName);
+          $("events").textContent = "events: " + eventNames.join(" -> ");
+          if (eventName === "transcript_received") {
+            setAvatar("listening", "attentive");
+          } else if (eventName === "thinking") {
+            setAvatar("thinking", "focused");
+            $("reply").textContent = "Roxy esta pensando...";
+          } else if (eventName === "reply_ready") {
+            finalState = payload;
+            applyAssistState(finalState, text, {
+              eventsText: "events: " + eventNames.join(" -> "),
+              speakNow: false,
+              scheduleAfter: false,
+            });
+          } else if (eventName === "speak") {
+            spoke = true;
+            if (finalState && $("autoSpeak").checked) speak(finalState.reply || payload.text || "", finalState.language || payload.language || $("language").value);
+            else scheduleListen();
+          } else if (eventName === "error") {
+            $("reply").textContent = payload.detail || "Error en streaming.";
+            appendMessage("system", $("reply").textContent, "stream");
+            setAvatar("blocked", "serious");
+          }
+        }
+      }
+      if (finalState && !spoke) scheduleListen();
+      return Boolean(finalState);
+    }
+
+    async function sendViaStream(text, headers, body) {
+      if (typeof TextDecoder === "undefined") return false;
+      const res = await fetch(assistStreamEndpoint, {method: "POST", headers, body});
+      if (!res.ok) {
+        showAssistError(res.status);
+        return true;
+      }
+      if (!res.body || !res.body.getReader) return false;
+      const handled = await readAssistStream(res, text);
+      return handled;
+    }
+
+    async function sendViaState(text, headers, body) {
+      const res = await fetch("/v1/assist/state", {method: "POST", headers, body});
+      if (!res.ok) {
+        showAssistError(res.status);
+        return;
+      }
+      const state = await res.json();
+      applyAssistState(state, text);
+    }
+
+    async function send() {
+      const text = $("query").value.trim();
+      if (!text) return;
+      saveSettings();
+      setAvatar("thinking", "focused");
+      $("reply").textContent = "Roxy esta pensando...";
+      renderSuggestedActions([]);
+      appendMessage("user", text, new Date().toLocaleTimeString());
+      const headers = requestHeaders();
+      const body = requestBody(text);
+      try {
+        if (await sendViaStream(text, headers, body)) return;
+      } catch (err) {
+        appendMessage("system", "Streaming no disponible, usando respuesta normal.", "stream");
+      }
+      await sendViaState(text, headers, body);
     }
 
     async function loadMemory() {
