@@ -9987,6 +9987,14 @@ def render_trading_desk_summary(rows: pd.DataFrame) -> None:
 
 
 
+
+def reset_trading_desk_filters() -> None:
+    st.session_state["trading_desk_preset_filter"] = "Todos"
+    st.session_state["trading_desk_status_filter"] = "Todos"
+    st.session_state["trading_desk_blocker_filter"] = "Todos"
+    st.session_state["trading_desk_score_filter"] = 0
+    st.session_state["trading_desk_query_filter"] = ""
+
 def render_trading_desk_empty_filter_state(
     total_rows: int,
     *,
@@ -10015,6 +10023,12 @@ def render_trading_desk_empty_filter_state(
         unsafe_allow_html=True,
     )
     st.caption("Para recuperar la vista rápida: Preset Todos, Estado Todos, Falta Todos, Score min 0 y búsqueda vacía.")
+    st.button(
+        "Limpiar filtros y volver a todo",
+        key="trading_desk_empty_reset",
+        on_click=reset_trading_desk_filters,
+        use_container_width=True,
+    )
 
 def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, scan_df: pd.DataFrame) -> None:
     rows = trading_desk_rows(table, confluence_df, scan_df, limit=18)
@@ -10024,6 +10038,16 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
     preset_counts = trading_desk_preset_counts(rows)
     preset_labels = {preset: f"{preset} ({preset_counts.get(preset, 0)})" for preset in TRADING_DESK_PRESETS}
     with st.expander("Filtros del Trading Desk", expanded=False):
+        reset_col, hint_col = st.columns([0.28, 1.72])
+        with reset_col:
+            st.button(
+                "Limpiar filtros",
+                key="trading_desk_reset_filters",
+                on_click=reset_trading_desk_filters,
+                use_container_width=True,
+            )
+        with hint_col:
+            st.caption("Usa filtros para aislar oportunidades; limpia para volver al ranking completo.")
         filter_cols = st.columns([0.72, 0.72, 0.8, 0.72, 1.2])
         with filter_cols[0]:
             preset_filter = st.selectbox(
