@@ -462,6 +462,91 @@ def test_roxy_brain_remembers_session_context(tmp_path):
     assert "SPY plan de riesgo" in second.reply
 
 
+def test_roxy_brain_answers_spanish_why_followup_from_session_context(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "symbol": "SPY",
+                        "ai_action": "WATCH",
+                        "strategy_family": "Trend",
+                        "trade_decision": "WAIT",
+                        "entry": 505.5,
+                        "stop": 501.0,
+                        "risk_pct": 0.0089,
+                        "explanation": "Falta confirmacion de volumen.",
+                        "what_is_missing": "Volumen acompana: falta volumen",
+                        "entry_trigger": "Esperar rompimiento en 15m.",
+                        "readiness": 71.2,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    memory = RoxyConversationMemory(path=tmp_path / "conversation.json")
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        conversation_memory=memory,
+    )
+
+    first = brain.generate_reply("resumen de oportunidad", session_id="demo")
+    second = brain.generate_reply("por que?", session_id="demo")
+    third = brain.generate_reply("dame el plan", session_id="demo")
+
+    assert first.intent == "opportunity"
+    assert second.intent == "opportunity_reason"
+    assert "SPY motivo" in second.reply
+    assert "Falta confirmacion de volumen" in second.reply
+    assert third.intent == "opportunity_risk"
+    assert "SPY plan de riesgo" in third.reply
+
+
+def test_roxy_brain_answers_english_why_followup_from_session_context(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "symbol": "NVDA",
+                        "ai_action": "WATCH",
+                        "strategy_family": "Pullback",
+                        "trade_decision": "WAIT",
+                        "entry": 142.25,
+                        "stop": 139.5,
+                        "risk_pct": 0.0193,
+                        "explanation": "No operar todavia: faltan condiciones importantes del checklist.",
+                        "what_is_missing": "15m da entrada: WAIT | Volumen acompana: falta volumen",
+                        "entry_trigger": "Esperar gatillo BUY en 15m mientras 1h sigue valido.",
+                        "readiness": 72,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    memory = RoxyConversationMemory(path=tmp_path / "conversation.json")
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        conversation_memory=memory,
+    )
+
+    first = brain.generate_reply("recommend NVDA", session_id="demo")
+    second = brain.generate_reply("why?", session_id="demo")
+
+    assert first.intent == "opportunity"
+    assert second.intent == "opportunity_reason"
+    assert second.language == "en"
+    assert second.voice_style == "female_en_us"
+    assert "NVDA reason" in second.reply
+    assert "Do not trade yet" in second.reply
+
+
 def test_roxy_conversation_memory_prunes_old_sessions(tmp_path):
     memory_path = tmp_path / "conversation.json"
     memory = RoxyConversationMemory(path=memory_path, max_turns=2, max_sessions=2)

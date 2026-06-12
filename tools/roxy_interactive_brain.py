@@ -491,6 +491,10 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "learning",
         "memory",
         "autonomous",
+        "continue",
+        "details",
+        "more",
+        "why",
     }
     spanish_terms = {
         "hola",
@@ -512,6 +516,10 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "aprendizaje",
         "memoria",
         "autonomo",
+        "continua",
+        "detalles",
+        "mas",
+        "porque",
     }
     tokens = set(re.findall(r"[a-záéíóúñ]+", normalized))
     english_score = len(tokens.intersection(english_terms))
@@ -720,6 +728,58 @@ def _news_sentiment(headline: str) -> tuple[str, list[str]]:
     if len(bearish_hits) > len(bullish_hits):
         return "bearish", bearish_hits[:4]
     return "neutral", (bullish_hits + bearish_hits)[:4]
+
+
+def _last_turn_intent(recent_turns: list[dict[str, Any]]) -> str:
+    ignored = {"", "fallback", "followup", "idle", "greeting", "autonomy_status"}
+    for turn in reversed(recent_turns):
+        intent = _safe_text(turn.get("intent"))
+        if intent not in ignored:
+            return intent
+    return ""
+
+
+def _last_symbol_from_turns(recent_turns: list[dict[str, Any]]) -> str | None:
+    for turn in reversed(recent_turns):
+        for key in ("query", "reply"):
+            symbol = _extract_symbol(_safe_text(turn.get(key)))
+            if symbol:
+                return symbol
+    return None
+
+
+def _is_contextual_followup_query(query: str) -> bool:
+    normalized = str(query or "").lower().strip()
+    if not normalized:
+        return False
+    tokens = re.findall(r"[a-záéíóúñ]+", normalized)
+    if len(tokens) > 8:
+        return False
+    followup_terms = {
+        "continua",
+        "continue",
+        "sigue",
+        "more",
+        "mas",
+        "más",
+        "detalle",
+        "detalles",
+        "details",
+        "plan",
+        "why",
+        "porque",
+        "por que",
+        "por qué",
+        "motivo",
+        "razon",
+        "razón",
+        "reason",
+        "falta",
+        "missing",
+        "next",
+        "siguiente",
+    }
+    return any(term in normalized for term in followup_terms)
 
 
 def _tokenize(text: str) -> set[str]:
@@ -1098,6 +1158,10 @@ class RoxyInteractiveBrain:
             response = self._opportunity_reply(q, language=language)
             return finish(response)
 
+        contextual = self._contextual_followup_reply(q, recent_turns, language)
+        if contextual:
+            return finish(contextual)
+
         symbol = _extract_symbol(q)
         if symbol:
             response = self._opportunity_reply(q, language=language)
@@ -1352,6 +1416,53 @@ class RoxyInteractiveBrain:
             emotion="attentive",
             suggested_actions=("ask_latest_opportunity", "ask_learning", "ask_strategy_lab"),
         )
+
+    def _contextual_followup_reply(
+        self, query: str, recent_turns: list[dict[str, Any]], language: str
+    ) -> RoxyBrainReply | None:
+        if not recent_turns or not _is_contextual_followup_query(query):
+            return None
+
+        lq = query.lower()
+        last_intent = _last_turn_intent(recent_turns)
+        symbol = _last_symbol_from_turns(recent_turns)
+        symbol_query = f"{query} {symbol}" if symbol else query
+        opportunity_intents = {"opportunity", "opportunity_risk", "opportunity_reason", "daily_briefing"}
+
+        asks_reason = _contains_any(lq, ("por que", "por qué", "porque", "why", "motivo", "razon", "razón", "reason"))
+        asks_missing = _contains_any(lq, ("falta", "missing", "bloquea", "blocker", "confirmacion", "confirmation"))
+        asks_plan = _contains_any(lq, ("plan", "detalle", "detalles", "details", "more", "mas", "más", "continua", "continue", "sigue"))
+
+        if last_intent in opportunity_intents and asks_reason:
+            return self._opportunity_reason_reply(symbol_query, language=language)
+        if last_intent in opportunity_intents and (asks_missing or asks_plan):
+            return self._opportunity_risk_reply(symbol_query, language=language)
+        if last_intent == "market_summary" and asks_plan:
+            return self._daily_briefing_reply(language)
+        if last_intent in {"news_unavailable", "news_impact_unavailable"}:
+            return RoxyBrainReply(
+                intent="followup",
+                reply=(
+                    "Sobre noticias, necesito un titular o una fuente live conectada. Pegame el titular con fuente "
+                    "y hora, y te explico impacto, tono, confirmacion necesaria y riesgo."
+                ),
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                suggested_actions=("paste_headline", "connect_news_source"),
+            )
+        if last_intent == "news_impact" and asks_plan:
+            return RoxyBrainReply(
+                intent="followup",
+                reply=(
+                    "Puedo continuar cruzando esa noticia con el resumen de mercado y una oportunidad concreta. "
+                    "El titular solo no basta; necesito ver reaccion precio-volumen, tendencia y plan de riesgo."
+                ),
+                emotion="analytical",
+                safety_level="guarded",
+                suggested_actions=("ask_market_summary", "ask_latest_opportunity", "ask_risk"),
+            )
+        return None
 
     def _idle_reply(
         self, user: str | None, recent_turns: list[dict[str, Any]], profile: dict[str, Any]
@@ -2012,6 +2123,63 @@ class RoxyInteractiveBrain:
             safety_level="guarded",
             priority="high" if action.upper() in {"ALERT", "BUY", "SELL"} else "normal",
             suggested_actions=("ask_why", "ask_risk", "confirm_before_execution"),
+        )
+
+    def _opportunity_reason_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
+        symbol = _extract_symbol(query)
+        row = self._latest_opportunity(symbol)
+        if not row:
+            target = f" for {symbol}" if symbol and language == "en" else f" para {symbol}" if symbol else ""
+            reply = (
+                f"I do not have a local opportunity{target} with enough context to explain the reason. Refresh the scan first."
+                if language == "en"
+                else f"No tengo una oportunidad local{target} con suficiente contexto para explicar el motivo. Refresca el escaneo primero."
+            )
+            return RoxyBrainReply(
+                intent="opportunity_reason",
+                reply=reply,
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                suggested_actions=("run_scan", "ask_market_summary"),
+            )
+
+        symbol_text = _safe_text(row.get("symbol") or symbol or "-").upper()
+        decision = _safe_text(row.get("decision") or row.get("trade_decision") or "-")
+        strategy = _safe_text(row.get("strategy_family") or row.get("strategy") or row.get("trend_setup") or "-")
+        why = _safe_text(row.get("why") or row.get("explanation") or row.get("memory_note") or row.get("alert_quality_reason"))
+        missing = _safe_text(row.get("what_is_missing") or row.get("missing") or row.get("blockers"))
+        trigger = _safe_text(row.get("entry_trigger") or row.get("trigger") or row.get("entry_tf"))
+        readiness = _safe_float(row.get("readiness") or row.get("ai_score") or row.get("confluence_score"))
+        risk = _pct(row.get("risk_pct"))
+
+        if language == "en":
+            decision = _localize_market_phrase(decision, language)
+            why = _sentence_fragment(_localize_market_phrase(why, language))
+            missing = _sentence_fragment(_localize_market_phrase(missing, language))
+            trigger = _sentence_fragment(_localize_market_phrase(trigger, language))
+            readiness_text = "-" if readiness is None else f"{readiness:.1f}"
+            reply = (
+                f"{symbol_text} reason: strategy {strategy}, decision {decision}, readiness {readiness_text}, risk {risk}. "
+                f"Why: {why or '-'}. Missing confirmation: {missing or '-'}. Trigger to monitor: {trigger or '-'}. "
+                "My read stays guarded until the missing confirmations are resolved and price-volume agrees."
+            )
+        else:
+            why = _sentence_fragment(why)
+            missing = _sentence_fragment(missing)
+            trigger = _sentence_fragment(trigger)
+            readiness_text = "-" if readiness is None else f"{readiness:.1f}"
+            reply = (
+                f"{symbol_text} motivo: estrategia {strategy}, decision {decision}, readiness {readiness_text}, riesgo {risk}. "
+                f"Por que: {why or '-'}. Confirmacion faltante: {missing or '-'}. Gatillo a vigilar: {trigger or '-'}. "
+                "Mi lectura sigue protegida hasta que se resuelvan las confirmaciones faltantes y precio-volumen acompanen."
+            )
+        return RoxyBrainReply(
+            intent="opportunity_reason",
+            reply=reply,
+            emotion="analytical",
+            safety_level="guarded",
+            suggested_actions=("ask_risk", "ask_market_summary", "monitor_trigger"),
         )
 
     def _opportunity_risk_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
