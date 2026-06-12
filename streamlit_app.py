@@ -13372,7 +13372,7 @@ def render_dashboard_action_queue(table: pd.DataFrame) -> None:
     if dominant_filter != "-":
         header_status += f" · Filtro {dominant_filter}"
     cards = []
-    for _, item in table.head(3).iterrows():
+    for rank, (_, item) in enumerate(table.head(3).iterrows(), start=1):
         row = item.to_dict()
         action = human_trade_action(row)
         tone = signal_tone(row.get("signal", ""))
@@ -13402,9 +13402,11 @@ def render_dashboard_action_queue(table: pd.DataFrame) -> None:
         if entry_value is not None and stop_value is not None and target_value is not None and abs(entry_value - stop_value) > 0:
             rr_value = abs(target_value - entry_value) / abs(entry_value - stop_value)
         rr_text = f"1:{rr_value:.2f}" if rr_value is not None else "pendiente"
+        rank_label = "prioridad" if rank == 1 else "seguimiento" if rank == 2 else "alternativa"
         cards.append(
             f'<article class="dashboard-action-card dashboard-action-{html.escape(tone)}">'
             f'<span>{html.escape(action)}</span>'
+            f'<i class="dashboard-action-rank">#{rank} {html.escape(rank_label)}</i>'
             f'<a class="dashboard-action-symbol" href="{html.escape(asset_href)}">{html.escape(symbol)}</a>'
             f'<small>{html.escape(context_line)}</small>'
             f'<p><strong>{html.escape(next_prefix)}:</strong> {html.escape(next_step[:100])}</p>'
@@ -13572,6 +13574,7 @@ def main() -> None:
         .dashboard-action-queue>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .dashboard-action-card{background:#0f172a;padding:9px 10px;border-top:3px solid rgba(148,163,184,.36);min-width:0}
         .dashboard-action-card span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}
+        .dashboard-action-rank{display:inline-flex;margin-top:6px;padding:2px 6px;border-radius:999px;background:rgba(59,130,246,.16);border:1px solid rgba(147,197,253,.28);color:#bfdbfe;font-size:9px;font-style:normal;font-weight:950;text-transform:uppercase;letter-spacing:.05em}
         .dashboard-action-card strong,.dashboard-action-symbol{display:block;color:#f8fafc!important;font-size:22px;line-height:1;margin-top:3px;font-weight:950;text-decoration:none!important}
         .dashboard-action-symbol:hover{text-decoration:underline!important;text-underline-offset:3px}
         .dashboard-action-card small{display:block;color:#cbd5e1;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
