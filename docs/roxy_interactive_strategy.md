@@ -83,6 +83,8 @@ For session recap prompts such as "resumen de sesion" or "conversation recap", R
 
 User preferences are stored locally in `alerts/roxy_user_profile.json`. Only safe preference fields are allowed: preferred name, language, tone, trading mode, default symbol, watchlist, and browser voice settings. Language is normalized to `es` or `en`. Secrets and unknown keys are ignored.
 
+Voice clients may also include an optional `profile` object in `POST /v1/assist`, `POST /v1/assist/state`, or `POST /v1/assist/stream`. Roxy persists those safe fields before generating the reply, so the visible Roxy Live controls immediately influence language, default symbol, watchlist, trading mode, and voice behavior even before a manual profile save.
+
 For profile-based monitoring, Roxy uses the `watchlist_summary` intent. It reads the saved watchlist and local opportunity rows, summarizes action, decision, readiness, entry, stop, risk, and missing confirmations for each matching symbol, and clearly labels symbols with no local row instead of inventing data.
 
 Feedback learning is stored locally in `alerts/roxy_feedback.json`. Roxy Live can send "Sirvio" or "No sirvio" for the latest answer through `POST /v1/feedback`, including an optional correction note such as "mas corto" or "mas claro". Clients can inspect the aggregate with `GET /v1/feedback/summary`. Roxy can summarize this memory when asked what she learned from feedback. When an intent receives negative feedback, the strategy brain marks the next response for that same intent as feedback-adjusted and makes the answer more direct, separating reading, risk, and next step.

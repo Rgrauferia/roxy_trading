@@ -93,6 +93,9 @@ def test_roxy_live_page():
     assert 'id="language"' in r.text
     assert "roxyLiveLanguage" in r.text
     assert '"user", "session", "apiKey", "language"' in r.text
+    assert "parseWatchlist" in r.text
+    assert "currentProfilePayload" in r.text
+    assert "profile: currentProfilePayload()" in r.text
     assert "language: $(\"language\").value" in r.text
     assert "/v1/profile" in r.text
     assert "loadSources" in r.text
@@ -176,6 +179,53 @@ def test_assist_state_returns_structured_roxy_state(monkeypatch):
     assert isinstance(payload["turn_id"], str)
     assert payload["server_latency_ms"] >= 0
     assert "reply" in payload
+
+
+def test_assist_state_syncs_inline_profile_before_reply(monkeypatch):
+    os.environ["VOICE_API_KEY"] = "testkey"
+    from tools import voice_service
+
+    calls = []
+    monkeypatch.setattr(voice_service, "VOICE_API_KEY", "testkey")
+    monkeypatch.setattr(voice_service, "llm", None)
+    monkeypatch.setattr(
+        voice_service.va_backend,
+        "update_user_profile",
+        lambda user, profile: calls.append(("profile", user, profile)) or profile,
+    )
+    monkeypatch.setattr(
+        voice_service.va_backend,
+        "generate_reply_state",
+        lambda q, user=None, session_id=None: calls.append(("reply", user, session_id))
+        or {
+            "reply": "Perfil aplicado.",
+            "intent": "profile_context",
+            "voice_style": "female_es_latam",
+            "should_speak": True,
+            "needs_live_source": False,
+            "safety_level": "normal",
+            "suggested_actions": [],
+        },
+    )
+    voice_service._RATE_STATE.clear()
+
+    client = TestClient(voice_service.app)
+    headers = {"Authorization": "Bearer testkey", "Content-Type": "application/json"}
+    r = client.post(
+        "/v1/assist/state",
+        json={
+            "query": "vigila mi watchlist",
+            "user": "alice",
+            "session_id": "profile-session",
+            "profile": {"language": "en", "default_symbol": "SPY", "watchlist": ["SPY", "QQQ"]},
+        },
+        headers=headers,
+    )
+
+    assert r.status_code == 200
+    assert r.json()["intent"] == "profile_context"
+    assert calls[0] == ("profile", "alice", {"language": "en", "default_symbol": "SPY", "watchlist": ["SPY", "QQQ"]})
+    assert calls[1] == ("reply", "alice", "profile-session")
 
 
 def test_assist_session_returns_memory_state(monkeypatch):

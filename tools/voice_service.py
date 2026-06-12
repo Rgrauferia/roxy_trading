@@ -13,7 +13,7 @@ from typing import Dict, Optional
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 try:
     # mount secrets router if available
@@ -114,11 +114,12 @@ class AssistRequest(BaseModel):
     query: str
     user: Optional[str] = None
     session_id: Optional[str] = None
+    profile: Dict[str, object] = Field(default_factory=dict)
 
 
 class ProfileRequest(BaseModel):
     user: Optional[str] = None
-    profile: Dict[str, object] = {}
+    profile: Dict[str, object] = Field(default_factory=dict)
 
 
 class FeedbackRequest(BaseModel):
@@ -148,6 +149,16 @@ def add_turn_metadata(state: dict[str, object], started_at: float, response_sour
     payload["server_latency_ms"] = max(0.0, round((time.perf_counter() - started_at) * 1000, 1))
     payload["response_source"] = response_source
     return payload
+
+
+def sync_request_profile(req: AssistRequest) -> None:
+    """Persist safe visible profile fields before the brain reads user context."""
+    if not req.profile or va_backend is None or not hasattr(va_backend, "update_user_profile"):
+        return
+    try:
+        va_backend.update_user_profile(req.user, req.profile)
+    except Exception:
+        logger.exception("inline profile sync error")
 
 
 def sse_event(event_name: str, payload: dict[str, object]) -> str:
@@ -969,8 +980,34 @@ def roxy_live_page():
       return headers;
     }
 
+    function parseWatchlist(value) {
+      return (value || "")
+        .split(/[,\\s]+/)
+        .map(item => item.trim().toUpperCase())
+        .filter(Boolean)
+        .slice(0, 20);
+    }
+
+    function currentProfilePayload() {
+      return {
+        preferred_name: $("preferredName").value,
+        language: $("language").value || "es",
+        trading_mode: $("tradingMode").value,
+        default_symbol: $("defaultSymbol").value,
+        watchlist: parseWatchlist($("watchlist").value),
+        voice_name: $("voiceSelect").value,
+        voice_rate: Number($("voiceRate").value || 0.95),
+        voice_pitch: Number($("voicePitch").value || 1.05),
+      };
+    }
+
     function requestBody(text) {
-      return JSON.stringify({query: text, user: $("user").value || "local", session_id: session.value});
+      return JSON.stringify({
+        query: text,
+        user: $("user").value || "local",
+        session_id: session.value,
+        profile: currentProfilePayload(),
+      });
     }
 
     function showAssistError(status) {
@@ -1164,16 +1201,7 @@ def roxy_live_page():
       const headers = {"Content-Type": "application/json"};
       const key = $("apiKey").value.trim();
       if (key) headers.Authorization = "Bearer " + key;
-      const profile = {
-        preferred_name: $("preferredName").value,
-        language: $("language").value || "es",
-        trading_mode: $("tradingMode").value,
-        default_symbol: $("defaultSymbol").value,
-        watchlist: $("watchlist").value,
-        voice_name: $("voiceSelect").value,
-        voice_rate: Number($("voiceRate").value || 0.95),
-        voice_pitch: Number($("voicePitch").value || 1.05),
-      };
+      const profile = currentProfilePayload();
       const res = await fetch("/v1/profile", {
         method: "POST",
         headers,
@@ -1412,6 +1440,7 @@ def assist(req: AssistRequest, token: Optional[str] = Depends(require_api_key)):
     user = req.user
     session_id = req.session_id
     logger.info("assist request user=%s query=%s", user, q[:200])
+    sync_request_profile(req)
 
     # Prefer the local Roxy brain because it owns safety and product context.
     reply = None
@@ -1443,6 +1472,7 @@ def build_assist_state(req: AssistRequest, started_at: float) -> dict[str, objec
     user = req.user
     session_id = req.session_id
     logger.info("assist state request user=%s session=%s query=%s", user, session_id, q[:200])
+    sync_request_profile(req)
 
     if va_backend is not None:
         try:
