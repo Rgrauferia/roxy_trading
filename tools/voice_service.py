@@ -963,8 +963,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, mercado; Roxy, oportunidades; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, market; Roxy, opportunities; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -1019,7 +1019,8 @@ def roxy_live_page():
         "RISK", "EXPLAIN", "ENTRY", "STOP", "CHECKLIST", "DATOS", "FRESCURA", "DATA",
         "FRESHNESS", "SOURCE", "STATUS", "PUEDO", "OPERAR", "AHORA", "CAN", "I", "TRADE",
         "NOW", "PARA", "FOR", "OF", "ABOUT", "ON", "EN", "CON", "WITH", "PLAN", "MONITOREO",
-        "ALERTA", "ALERT", "THE", "A", "AN", "TO", "AND", "OR",
+        "ALERTA", "ALERT", "THE", "A", "AN", "TO", "AND", "OR", "USD", "USDT",
+        "BASE", "SYMBOL", "TICKER", "ACTIVO", "LIST", "LISTA", "TRACKING", "SEGUIMIENTO",
       ]);
     }
 
@@ -1053,10 +1054,74 @@ def roxy_live_page():
       return "";
     }
 
+    function voiceCommandSymbols(command) {
+      const normalized = normalizeSpeech(command);
+      const tokens = normalized.split(" ").filter(Boolean);
+      const preferredSymbols = preferredVoiceSymbols();
+      const symbols = [];
+      for (let index = 0; index < tokens.length; index++) {
+        const symbol = normalizeVoiceSymbol(tokens[index], tokens[index + 1], preferredSymbols);
+        if (symbol && !symbols.includes(symbol)) symbols.push(symbol);
+      }
+      return symbols;
+    }
+
     function withVoiceSymbol(prompt, command) {
       const symbol = voiceCommandSymbol(command);
       if (!symbol) return prompt;
       return prompt + " " + symbol;
+    }
+
+    function commandRemainder(command, prefixes) {
+      const normalized = normalizeSpeech(command);
+      for (const prefix of prefixes) {
+        if (normalized === prefix) return "";
+        if (normalized.startsWith(prefix + " ")) return normalized.slice(prefix.length).trim();
+      }
+      return "";
+    }
+
+    function applyVoiceDefaultSymbol(command) {
+      const remainder = commandRemainder(command, [
+        "simbolo base", "default symbol", "base symbol", "ticker symbol", "simbolo", "ticker", "activo", "symbol"
+      ]);
+      if (!remainder) return false;
+      const symbol = voiceCommandSymbol(remainder);
+      if (!symbol) return false;
+      const language = $("language").value || "es";
+      $("defaultSymbol").value = symbol;
+      saveSettings();
+      const message = localizedText(
+        "Símbolo base actualizado a " + symbol + ".",
+        "Default symbol updated to " + symbol + ".",
+        language
+      );
+      speakLocalControlMessage(message, language, "voice: profile symbol", "voice-profile");
+      return true;
+    }
+
+    function applyVoiceWatchlist(command) {
+      const remainder = commandRemainder(command, [
+        "lista de seguimiento", "lista seguimiento", "mi watchlist", "watch list", "tracking list",
+        "watchlist", "lista", "vigilar", "vigila", "watch"
+      ]);
+      if (!remainder) return false;
+      const symbols = voiceCommandSymbols(remainder).slice(0, 20);
+      if (!symbols.length) return false;
+      const language = $("language").value || "es";
+      $("watchlist").value = symbols.join(", ");
+      saveSettings();
+      const message = localizedText(
+        "Watchlist actualizada: " + symbols.join(", ") + ".",
+        "Watchlist updated: " + symbols.join(", ") + ".",
+        language
+      );
+      speakLocalControlMessage(message, language, "voice: profile watchlist", "voice-profile");
+      return true;
+    }
+
+    function handleVoiceProfileCommand(command) {
+      return applyVoiceDefaultSymbol(command) || applyVoiceWatchlist(command);
     }
 
     function marketVoicePrompt(command) {
@@ -1132,6 +1197,7 @@ def roxy_live_page():
         explainVoiceCommands();
         return true;
       }
+      if (handleVoiceProfileCommand(command)) return true;
       if (sendVoiceNewsPrompt(command)) return true;
       if (sendVoiceMarketPrompt(command)) return true;
       return false;
@@ -1163,6 +1229,23 @@ def roxy_live_page():
         if (handleVoiceControlCommand(command)) return;
         $("query").value = command;
         send();
+        return;
+      }
+      const manualWakeCommand = extractWakeCommand(finalText);
+      if (manualWakeCommand !== null) {
+        if (!manualWakeCommand) {
+          $("query").value = "";
+          $("reply").textContent = "Te escucho. Di: Roxy, seguido de tu pregunta.";
+          speak("Te escucho.");
+          return;
+        }
+        if (["para", "parar", "silencio", "calla", "callate", "detente", "stop"].includes(manualWakeCommand)) {
+          stopAll("Comando recibido: " + manualWakeCommand);
+          return;
+        }
+        if (handleVoiceControlCommand(manualWakeCommand)) return;
+        $("query").value = manualWakeCommand;
+        if ($("autoSendVoice").checked) send();
         return;
       }
       if (handleVoiceControlCommand(finalText)) return;

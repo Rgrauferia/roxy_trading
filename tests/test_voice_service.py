@@ -94,18 +94,35 @@ def test_roxy_live_page():
     assert "newsVoicePrompt" in r.text
     assert "sendVoiceNewsPrompt" in r.text
     assert "voiceCommandSymbol" in r.text
+    assert "voiceCommandSymbols" in r.text
     assert "normalizeVoiceSymbol" in r.text
     assert "withVoiceSymbol" in r.text
+    assert "commandRemainder" in r.text
+    assert "applyVoiceDefaultSymbol" in r.text
+    assert "applyVoiceWatchlist" in r.text
+    assert "handleVoiceProfileCommand" in r.text
     assert "marketVoicePrompt" in r.text
     assert "sendVoiceMarketPrompt" in r.text
     assert "handleVoiceControlCommand" in r.text
+    assert "manualWakeCommand" in r.text
+    assert "if (handleVoiceControlCommand(manualWakeCommand)) return;" in r.text
+    assert r.text.index("const manualWakeCommand = extractWakeCommand(finalText);") < r.text.index(
+        "if (handleVoiceControlCommand(finalText)) return;"
+    )
     assert "voice: language " in r.text
     assert "voice: repeat" in r.text
     assert "voice: help" in r.text
     assert "voice: news shortcut" in r.text
     assert "voice: market shortcut" in r.text
+    assert "voice: profile symbol" in r.text
+    assert "voice: profile watchlist" in r.text
     assert "English mode." in r.text
     assert "Modo español." in r.text
+    assert "Roxy, símbolo NVDA" in r.text
+    assert "Roxy, symbol NVDA" in r.text
+    assert "Roxy, watchlist SPY QQQ NVDA" in r.text
+    assert "Default symbol updated to " in r.text
+    assert "Watchlist updated: " in r.text
     assert "Roxy, noticia Tesla sube" in r.text
     assert "news impact Nvidia reports revenue" in r.text
     assert "analiza impacto de noticia: " in r.text

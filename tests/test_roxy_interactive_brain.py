@@ -1,6 +1,9 @@
 import json
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
+import tools.roxy_interactive_brain as roxy_brain_module
 from tools.roxy_interactive_brain import (
     RoxyBrainReply,
     RoxyConversationMemory,
@@ -10,6 +13,15 @@ from tools.roxy_interactive_brain import (
     build_voice_events,
     list_knowledge_sources,
 )
+
+
+@pytest.fixture(autouse=True)
+def isolate_default_roxy_user_profile(tmp_path, monkeypatch):
+    class IsolatedRoxyUserProfile(RoxyUserProfile):
+        def __init__(self, path=None):
+            super().__init__(path or tmp_path / "profile.json")
+
+    monkeypatch.setattr(roxy_brain_module, "RoxyUserProfile", IsolatedRoxyUserProfile)
 
 
 def test_roxy_brain_identity_defines_female_voice_and_guardrails(tmp_path):
