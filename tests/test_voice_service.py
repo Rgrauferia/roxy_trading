@@ -21,6 +21,11 @@ def test_roxy_live_page():
     assert "Roxy Live" in r.text
     assert "/v1/assist/state" in r.text
     assert "loadMemory" in r.text
+    assert "nextActions" in r.text
+    assert "suggestedActionPrompts" in r.text
+    assert "renderSuggestedActions" in r.text
+    assert "state.suggested_actions" in r.text
+    assert "confirm_before_execution" in r.text
     assert "data-prompt" in r.text
     assert 'data-prompt="estado de roxy"' in r.text
     assert 'data-prompt="resumen de sesion"' in r.text

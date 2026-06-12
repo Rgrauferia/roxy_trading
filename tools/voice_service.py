@@ -378,6 +378,18 @@ def roxy_live_page():
       color: var(--muted);
       font-weight: 600;
     }
+    .next-actions {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      margin-top: 10px;
+    }
+    .next-actions:empty {
+      display: none;
+    }
+    .next-actions button {
+      border-color: rgba(66,211,146,.35);
+      color: #d9fbea;
+      background: rgba(15,81,50,.34);
+    }
     .toggles {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -600,6 +612,7 @@ def roxy_live_page():
       </div>
       <div id="reply" class="reply">Roxy esta lista.</div>
       <div id="events" class="events">events: ready</div>
+      <div id="nextActions" class="quick next-actions" aria-label="Siguientes acciones de Roxy"></div>
       <div id="sources" class="sources"></div>
       <div id="chat" class="chat" aria-live="polite"></div>
     </section>
@@ -663,6 +676,53 @@ def roxy_live_page():
       node.querySelector("span").textContent = text || "";
       $("chat").appendChild(node);
       $("chat").scrollTop = $("chat").scrollHeight;
+    }
+
+    const suggestedActionPrompts = {
+      ask_latest_opportunity: ["Oportunidad", "resumen de oportunidad"],
+      ask_market_summary: ["Mercado", "resumen del mercado"],
+      run_scan: ["Datos", "frescura de datos"],
+      entry_checklist: ["Checklist", "checklist de entrada"],
+      position_size: ["Sizing", "tamaño de posicion con capital 10000 riesgo 0.5%"],
+      monitoring_plan: ["Monitoreo", "plan de monitoreo"],
+      set_alert: ["Alerta", "prepara alerta"],
+      confirm_alert: ["Confirmar alerta", "prepara alerta"],
+      trade_readiness: ["Decisión", "puedo operar ahora"],
+      confirm_before_execution: ["Go/no-go", "puedo operar ahora"],
+      ask_risk: ["Riesgo", "explica riesgo entrada stop target"],
+      ask_why: ["Por qué", "por que?"],
+      ask_followup: ["Sesión", "resumen de sesion"],
+      review_learning_status: ["Aprendizaje", "aprendizaje"],
+      keep_session_id: ["Sesión", "resumen de sesion"],
+      enable_wake_roxy: ["Estado", "estado de roxy"],
+      ask_news_impact: ["Impacto news", "analiza impacto de noticia: pega aqui el titular"],
+    };
+
+    function fallbackActionPrompt(action) {
+      const label = (action || "").replace(/_/g, " ").replace(/\\b\\w/g, c => c.toUpperCase()).slice(0, 28);
+      return [label || "Siguiente", (action || "").replace(/_/g, " ") || "que puedes hacer"];
+    }
+
+    function renderSuggestedActions(actions) {
+      const target = $("nextActions");
+      target.innerHTML = "";
+      const unique = [];
+      for (const action of Array.isArray(actions) ? actions : []) {
+        if (action && !unique.includes(action)) unique.push(action);
+      }
+      for (const action of unique.slice(0, 6)) {
+        const config = suggestedActionPrompts[action] || fallbackActionPrompt(action);
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = config[0];
+        button.title = action;
+        button.dataset.prompt = config[1];
+        button.addEventListener("click", () => {
+          $("query").value = config[1];
+          send();
+        });
+        target.appendChild(button);
+      }
     }
 
     function setAvatar(state, emotion) {
@@ -841,6 +901,7 @@ def roxy_live_page():
       saveSettings();
       setAvatar("thinking", "focused");
       $("reply").textContent = "Roxy esta pensando...";
+      renderSuggestedActions([]);
       appendMessage("user", text, new Date().toLocaleTimeString());
       const headers = {"Content-Type": "application/json"};
       const key = $("apiKey").value.trim();
@@ -869,6 +930,7 @@ def roxy_live_page():
       $("liveSource").textContent = state.needs_live_source ? "Needed" : "OK";
       updateVoiceDiagnostics(state.language || $("language").value);
       $("reply").textContent = lastReply || "(sin respuesta)";
+      renderSuggestedActions(state.suggested_actions || []);
       const events = Array.isArray(state.events) ? state.events.map(e => e.type).join(" -> ") : "";
       $("events").textContent = "events: " + (events || "-");
       appendMessage("roxy", lastReply || "(sin respuesta)", [state.intent, state.safety_level].filter(Boolean).join(" / "));
