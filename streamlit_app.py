@@ -13363,6 +13363,7 @@ def render_dashboard_action_queue(table: pd.DataFrame) -> None:
         readiness = num_display(row.get("readiness"), 0)
         risk = pct_display(row.get("risk_pct"))
         next_step = text_display(row.get("waiting_for") or row.get("next") or row.get("gate") or "Confirmar estructura.")
+        next_prefix = "Acción" if tone == "buy" else "Evitar" if tone == "avoid" else "Falta"
         entry = num_display(row.get("entry") or row.get("current_price") or row.get("price"), 2)
         stop = num_display(row.get("stop"), 2)
         cards.append(
@@ -13370,7 +13371,7 @@ def render_dashboard_action_queue(table: pd.DataFrame) -> None:
             f'<span>{html.escape(action)}</span>'
             f'<strong>{html.escape(symbol)}</strong>'
             f'<small>{html.escape(strategy)}</small>'
-            f'<p>{html.escape(next_step[:110])}</p>'
+            f'<p>{html.escape(next_prefix)}: {html.escape(next_step[:100])}</p>'
             f'<em>Score {html.escape(score)} · Ready {html.escape(readiness)} · Riesgo {html.escape(risk)}</em>'
             f'<b>Entrada {html.escape(entry)} · Stop {html.escape(stop)}</b>'
             "</article>"
