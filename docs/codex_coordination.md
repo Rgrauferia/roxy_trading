@@ -26,6 +26,36 @@ Este proyecto puede tener varias sesiones de Codex trabajando al mismo tiempo. P
 - Puede consumir artefactos de `alerts/`, `output/` y reportes generados, pero no cambia los productores backend si no es necesario.
 - No toca LaunchAgents, backups, limpieza automatica, `tools/roxy_realtime_check.py`, `training_videos/` ni `tools/video_learning_ingest.py`.
 - No cambia ejecucion real de trades ni reglas profundas de estrategia/cerebro.
+- Prioridad fija: Dashboard/UI/Graficas primero. En cada ciclo buscar una mejora concreta en scroll, Trading Desk, top cards, tablas/filtros, velas, fallbacks o responsive.
+- Mantener la rama dedicada `codex/roxy-interactive-learning` para trabajo visual y no mezclar commits con operacion/producto o aprendizaje/videos.
+
+## Validacion rapida oficial
+
+Antes de cada commit de Dashboard/UI/Graficas:
+
+1. `git status --short`
+2. `python -m py_compile streamlit_app.py`
+3. `python -m pytest tests/test_trading_desk_table.py tests/test_alpaca_operations_gate.py tests/test_alpaca_paper_execution.py -q`
+4. Validar localhost si esta disponible: `http://127.0.0.1:8501/?view=Dashboard&symbol=AAPL&market=stock&tf=1h`
+5. Escanear secretos antes de commitear usando patrones locales seguros; no escribir llaves ni fragmentos reales en documentacion o codigo.
+
+Si el cambio solo toca documentacion, basta con `git diff --check` y revisar `git status --short`, salvo que el cambio documente comandos nuevos o afecte flujo de validacion.
+
+## Prioridad 24/7 para Dashboard/UI/Graficas
+
+- Mejorar refresh al cambiar simbolo, crypto o timeframe.
+- Hacer velas mas claras tipo TradingView/Finviz: OHLC, volumen, hover, soportes, resistencias, entradas, stops, targets y fallbacks visibles.
+- Compactar filtros del Trading Desk y reducir scroll sin esconder la decision principal.
+- Convertir tablas de oportunidades en informacion accionable: estado, razon, que falta, riesgo, target y siguiente paso.
+- Mostrar alertas visuales directamente sobre la grafica cuando existan datos suficientes.
+- Mostrar proveedor/fallback solo cuando afecte una oportunidad; los reportes tecnicos quedan en modo soporte.
+
+## Seguridad de credenciales y trading
+
+- Credenciales fuera del chat: usar `.env`, secrets locales o configuracion del sistema. No commitear llaves.
+- Paper trading primero para cualquier practica o simulacion.
+- Analisis y simulacion estan permitidos; trading real automatico queda bloqueado hasta confirmacion explicita futura del usuario.
+- Nunca activar ejecucion real de trades desde una mejora visual.
 
 ## Reglas de seguridad
 
