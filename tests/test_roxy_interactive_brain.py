@@ -193,6 +193,33 @@ def test_roxy_brain_explains_opportunity_risk_plan_in_spanish(tmp_path):
     assert "requiere confirmacion" in response.reply
 
 
+def test_roxy_brain_matches_crypto_base_symbol_for_risk_plan(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "opportunities": [
+                        {"symbol": "SOL/USD", "signal": "WATCH", "entry": 66.67, "stop": 65.92},
+                        {"symbol": "BTC/USD", "signal": "WATCH", "entry": 63510.94, "stop": 62564.50},
+                        {"symbol": "ETH/USD", "signal": "WATCH", "entry": 1666.28, "stop": 1632.20},
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    btc = brain.generate_reply("explain risk BTC")
+    eth = brain.generate_reply("explain risk ETH-USD")
+
+    assert "BTC/USD risk plan" in btc.reply
+    assert "entry 63510.94" in btc.reply
+    assert "ETH/USD risk plan" in eth.reply
+    assert "entry 1666.28" in eth.reply
+
+
 def test_roxy_brain_explains_opportunity_risk_plan_in_english(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(

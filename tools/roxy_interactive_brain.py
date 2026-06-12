@@ -551,6 +551,16 @@ def _sentence_fragment(value: Any) -> str:
     return _safe_text(value).rstrip(" .")
 
 
+def _symbol_matches(row_symbol: Any, requested_symbol: str) -> bool:
+    row = _safe_text(row_symbol).upper().replace("-", "/")
+    requested = _safe_text(requested_symbol).upper().replace("-", "/")
+    if not row or not requested:
+        return False
+    if row == requested:
+        return True
+    return row.split("/", 1)[0] == requested.split("/", 1)[0]
+
+
 def _tokenize(text: str) -> set[str]:
     stopwords = {
         "como",
@@ -604,6 +614,13 @@ def _extract_symbol(query: str) -> str | None:
         "TESLA": "TSLA",
         "MICROSOFT": "MSFT",
         "META": "META",
+        "BITCOIN": "BTC/USD",
+        "BTC": "BTC/USD",
+        "ETHEREUM": "ETH/USD",
+        "ETH": "ETH/USD",
+        "SOLANA": "SOL/USD",
+        "SOL": "SOL/USD",
+        "DOGE": "DOGE/USD",
         "SPY": "SPY",
         "QQQ": "QQQ",
     }
@@ -624,6 +641,9 @@ def _extract_symbol(query: str) -> str | None:
         "Y",
         "HOY",
         "RIESGO",
+        "RISK",
+        "EXPLAIN",
+        "READ",
         "STOP",
         "ENTRA",
         "ENTRADA",
@@ -647,9 +667,14 @@ def _extract_symbol(query: str) -> str | None:
         "TRADE",
     }
     for raw_word in query.split():
-        word = raw_word.strip(".,:;!?()[]{}\"'").upper()
+        word = raw_word.strip(".,:;!?()[]{}\"'").upper().replace("-", "/")
+        base_word = word.split("/", 1)[0]
         if word in aliases:
             return aliases[word]
+        if base_word in aliases:
+            return aliases[base_word]
+        if "/" in word and 1 <= len(base_word) <= 6 and base_word.isalpha() and base_word not in ignored:
+            return word
         if 1 <= len(word) <= 6 and word.isalpha() and word not in ignored:
             return word
     return None
@@ -1721,9 +1746,8 @@ class RoxyInteractiveBrain:
         if not isinstance(rows, list):
             return {}
         if symbol:
-            target = symbol.upper()
             for row in rows:
-                if isinstance(row, dict) and _safe_text(row.get("symbol")).upper() == target:
+                if isinstance(row, dict) and _symbol_matches(row.get("symbol"), symbol):
                     return row
         for row in rows:
             if isinstance(row, dict):
