@@ -1486,6 +1486,16 @@ def render_professional_chart_block(
         next_hint = f"{text_display(blocking_check.get('label'))}: {text_display(blocking_check.get('detail'))}"
     else:
         next_hint = "Listo si respeta entrada, stop, volumen y gestion de riesgo."
+    confirmation_html = "".join(
+        '<span class="chart-check-pill chart-check-{tone}" title="{detail}">'
+        "<em>{label}</em><strong>{status}</strong></span>".format(
+            tone=html.escape(text_display(item.get("tone"))),
+            label=html.escape(text_display(item.get("label"))),
+            status=html.escape(text_display(item.get("status"))),
+            detail=html.escape(text_display(item.get("detail"))),
+        )
+        for item in checklist_rows[:5]
+    )
     st.markdown(
         f"""
         <section class="chart-command-head">
@@ -1501,6 +1511,7 @@ def render_professional_chart_block(
             <b class="chart-level-rr">R:R {html.escape(rr_display)}</b>
           </aside>
         </section>
+        <section class="chart-check-strip">{confirmation_html}</section>
         """,
         unsafe_allow_html=True,
     )
@@ -13412,6 +13423,13 @@ def main() -> None:
         .chart-level-stop{border-color:rgba(248,113,113,.60)!important;color:#fecaca!important;background:rgba(127,29,29,.20)!important}
         .chart-level-target{border-color:rgba(34,197,94,.55)!important;color:#bbf7d0!important;background:rgba(20,83,45,.20)!important}
         .chart-level-rr{border-color:rgba(245,158,11,.58)!important;color:#fde68a!important;background:rgba(120,53,15,.18)!important}
+        .chart-check-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;border:1px solid rgba(148,163,184,.18);border-radius:8px;background:rgba(148,163,184,.14);overflow:hidden;margin:-2px 0 6px}
+        .chart-check-pill{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#0b1220;padding:6px 8px;min-width:0;border-top:2px solid rgba(148,163,184,.28)}
+        .chart-check-pill em{font-style:normal;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .chart-check-pill strong{color:#f8fafc;font-size:11px;line-height:1;font-weight:950;white-space:nowrap}
+        .chart-check-buy{border-top-color:#22c55e;background:rgba(21,93,62,.20)}
+        .chart-check-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.18)}
+        .chart-check-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.20)}
         .command-quick-strip{display:flex;gap:7px;align-items:center;flex-wrap:wrap;border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0d1426;padding:7px 8px;margin:0 0 6px}
         .command-quick-strip b{color:#f8fafc;font-size:16px;line-height:1}
         .command-quick-strip span{display:inline-flex;align-items:center;border:1px solid rgba(148,163,184,.18);border-radius:999px;background:#111827;color:#cbd5e1;padding:4px 8px;font-size:11px;font-weight:850;line-height:1}
