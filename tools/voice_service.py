@@ -869,6 +869,19 @@ def roxy_live_page():
       return Boolean(isDuplicate);
     }
 
+    function isRecoverableMicError(error) {
+      return ["no-speech", "aborted"].includes(error || "");
+    }
+
+    function recoverFromMicError(error) {
+      $("voiceStatus").textContent = "mic waiting · " + error;
+      $("events").textContent = "voice: retry after " + error;
+      isListening = false;
+      manualStop = false;
+      setAvatar("ready", $("emotion").textContent);
+      scheduleListen();
+    }
+
     function extractWakeCommand(text) {
       const wake = normalizeSpeech($("wakeWord").value || "Roxy");
       const normalized = normalizeSpeech(text);
@@ -1421,8 +1434,18 @@ def roxy_live_page():
         }
       };
       recognition.onerror = (event) => {
-        $("reply").textContent = "Microfono: " + event.error;
-        $("voiceStatus").textContent = "mic error · " + event.error;
+        const error = event.error || "unknown";
+        if (manualStop && error === "aborted") {
+          isListening = false;
+          setAvatar("ready", $("emotion").textContent);
+          return;
+        }
+        if (($("conversationMode").checked || $("wakeMode").checked) && isRecoverableMicError(error)) {
+          recoverFromMicError(error);
+          return;
+        }
+        $("reply").textContent = "Microfono: " + error;
+        $("voiceStatus").textContent = "mic error · " + error;
         isListening = false;
         manualStop = true;
         setAvatar("blocked", "serious");

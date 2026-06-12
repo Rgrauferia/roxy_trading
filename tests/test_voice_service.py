@@ -41,6 +41,10 @@ def test_roxy_live_page():
     assert "prepareListeningTurn" in r.text
     assert "isDuplicateFinalTranscript" in r.text
     assert "voice: duplicate ignored" in r.text
+    assert "isRecoverableMicError" in r.text
+    assert "recoverFromMicError" in r.text
+    assert "voice: retry after " in r.text
+    assert "mic waiting · " in r.text
     assert "assistTimeoutMs" in r.text
     assert "showAssistTimeout" in r.text
     assert "events: timeout" in r.text

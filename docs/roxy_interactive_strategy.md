@@ -79,6 +79,8 @@ When a structured response returns `language: "en"` or `language: "es"`, Roxy Li
 
 Siri-style operation is available in Roxy Live with `Wake Roxy`. When active, the browser can keep listening and only sends a prompt after the wake word, for example: "Roxy, resume la oportunidad" or "Roxy, silencio". The browser still controls microphone permission and may pause recognition depending on Chrome/Edge policies.
 
+In conversation or wake mode, browser microphone errors such as `no-speech` or `aborted` are treated as recoverable. Roxy Live returns the avatar to ready, records a retry event, and schedules listening again instead of blocking the assistant.
+
 Roxy Live suppresses duplicate final speech transcripts that arrive within a short window. This prevents Chrome or Edge from sending the same voice turn twice during continuous conversation or wake-word listening.
 
 Session memory is stored locally in `alerts/roxy_conversation_memory.json` when a `session_id` is supplied. The memory is intentionally small, capped by turns per session and by total recent sessions, and redacts long tokens or key/secret-looking text before writing. Clients can read it through `GET /v1/assist/session/{session_id}`.
