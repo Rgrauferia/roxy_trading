@@ -147,6 +147,97 @@ def test_roxy_brain_summarizes_market_regime_in_english(tmp_path):
     assert "Risk note" in response.reply
 
 
+def test_roxy_brain_explains_opportunity_risk_plan_in_spanish(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "opportunities": [
+                        {
+                            "symbol": "BTC/USD",
+                            "signal": "WATCH",
+                            "decision": "Esperar",
+                            "entry": 63510.94,
+                            "stop": 62564.50,
+                            "risk_pct": 0.0149,
+                            "target_2": 64781.15,
+                            "target_5": 66686.48,
+                            "target_10": 69862.03,
+                            "entry_trigger": "Esperar gatillo BUY en 15m mientras 1h sigue valido.",
+                            "invalidation": "Invalidar si pierde 62564.50.",
+                            "what_is_missing": "15m da entrada: WAIT | Volumen acompana: falta volumen",
+                            "why": "No operar todavia.",
+                            "readiness": 68.4,
+                            "probability": 69,
+                            "quality": "C",
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("explica riesgo de BTC")
+
+    assert response.intent == "opportunity_risk"
+    assert response.language == "es"
+    assert response.safety_level == "guarded"
+    assert "BTC/USD plan de riesgo" in response.reply
+    assert "entrada 63510.94" in response.reply
+    assert "stop 62564.50" in response.reply
+    assert "riesgo 1.49%" in response.reply
+    assert "Falta: 15m da entrada: WAIT" in response.reply
+    assert "requiere confirmacion" in response.reply
+
+
+def test_roxy_brain_explains_opportunity_risk_plan_in_english(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "opportunities": [
+                        {
+                            "symbol": "NVDA",
+                            "signal": "WATCH",
+                            "decision": "Wait",
+                            "entry": 142.25,
+                            "stop": 139.5,
+                            "risk_pct": 0.0193,
+                            "target_2": 145.09,
+                            "target_5": 149.36,
+                            "target_10": 156.48,
+                            "entry_trigger": "Wait for 15m BUY trigger.",
+                            "invalidation": "Invalidate below 139.50.",
+                            "what_is_missing": "15m entry: WAIT",
+                            "why": "Volume confirmation is missing.",
+                            "readiness": 72,
+                            "probability": 65,
+                            "quality": "B",
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("explain risk entry stop target NVDA")
+
+    assert response.intent == "opportunity_risk"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert "NVDA risk plan" in response.reply
+    assert "entry 142.25" in response.reply
+    assert "risk 1.93%" in response.reply
+    assert "Missing: 15m entry: WAIT" in response.reply
+    assert "not an execution order" in response.reply
+
+
 def test_roxy_brain_remembers_session_context(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(
@@ -175,8 +266,8 @@ def test_roxy_brain_remembers_session_context(tmp_path):
     second = brain.generate_reply("y el riesgo?", session_id="demo")
 
     assert first.intent == "opportunity"
-    assert second.intent == "followup"
-    assert "oportunidad anterior" in second.reply
+    assert second.intent == "opportunity_risk"
+    assert "SPY plan de riesgo" in second.reply
 
 
 def test_roxy_conversation_memory_prunes_old_sessions(tmp_path):

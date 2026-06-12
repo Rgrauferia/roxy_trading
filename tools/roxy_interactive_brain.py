@@ -615,6 +615,19 @@ def _extract_symbol(query: str) -> str | None:
         "PORQUE",
         "SIGUE",
         "STATUS",
+        "ENTRY",
+        "TARGET",
+        "TRIGGER",
+        "MISSING",
+        "WHAT",
+        "WHY",
+        "HOW",
+        "PLAN",
+        "ACTION",
+        "DECISION",
+        "BUY",
+        "SELL",
+        "TRADE",
     }
     for raw_word in query.split():
         word = raw_word.strip(".,:;!?()[]{}\"'").upper()
@@ -801,6 +814,29 @@ class RoxyInteractiveBrain:
         if _contains_any(
             lq,
             (
+                "riesgo",
+                "risk",
+                "stop",
+                "target",
+                "objetivo",
+                "take profit",
+                "entry",
+                "entrada",
+                "trigger",
+                "gatillo",
+                "invalidation",
+                "invalidar",
+                "que falta",
+                "what is missing",
+                "missing",
+            ),
+        ):
+            response = self._opportunity_risk_reply(q, language=language)
+            return finish(response)
+
+        if _contains_any(
+            lq,
+            (
                 "alerta",
                 "alert",
                 "oportunidad",
@@ -813,7 +849,6 @@ class RoxyInteractiveBrain:
                 "vender",
                 "sell",
                 "trade",
-                "entrada",
                 "entry",
                 "recomienda",
                 "recommend",
@@ -1583,9 +1618,78 @@ class RoxyInteractiveBrain:
             suggested_actions=("ask_why", "ask_risk", "confirm_before_execution"),
         )
 
+    def _opportunity_risk_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
+        symbol = _extract_symbol(query)
+        row = self._latest_opportunity(symbol)
+        if not row:
+            target = f" for {symbol}" if symbol and language == "en" else f" para {symbol}" if symbol else ""
+            reply = (
+                f"I do not have a local opportunity{target} with enough risk data. Run or refresh the scan first."
+                if language == "en"
+                else f"No tengo una oportunidad local{target} con suficientes datos de riesgo. Refresca el escaneo primero."
+            )
+            return RoxyBrainReply(
+                intent="opportunity_risk",
+                reply=reply,
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                suggested_actions=("run_scan", "ask_market_summary"),
+            )
+
+        symbol_text = _safe_text(row.get("symbol") or symbol or "-").upper()
+        action = _safe_text(row.get("signal") or row.get("ai_action") or "WATCH")
+        decision = _safe_text(row.get("decision") or row.get("trade_decision") or "-")
+        entry = _price(row.get("entry"))
+        stop = _price(row.get("stop"))
+        risk = _pct(row.get("risk_pct"))
+        target_2 = _price(row.get("target_2") or row.get("target_2pct"))
+        target_5 = _price(row.get("target_5") or row.get("target_5pct"))
+        target_10 = _price(row.get("target_10") or row.get("target_10pct"))
+        target_pct = _pct(row.get("recommended_target_pct") or row.get("target_pct"))
+        trigger = _safe_text(row.get("entry_trigger") or row.get("trigger") or row.get("entry_tf"))
+        invalidation = _safe_text(row.get("invalidation") or row.get("exit_condition"))
+        missing = _safe_text(row.get("what_is_missing") or row.get("missing") or row.get("blockers"))
+        why = _safe_text(row.get("why") or row.get("explanation") or row.get("memory_note") or row.get("alert_quality_reason"))
+        readiness = _safe_float(row.get("readiness") or row.get("ai_score") or row.get("confluence_score"))
+        probability = _safe_float(row.get("probability"))
+        quality = _safe_text(row.get("quality"))
+
+        readiness_text = "-" if readiness is None else f"{readiness:.1f}"
+        probability_text = "-" if probability is None else f"{probability:.0f}%"
+        if language == "en":
+            reply = (
+                f"{symbol_text} risk plan: action {action}, decision {decision}, entry {entry}, stop {stop}, "
+                f"risk {risk}. Targets: 2% {target_2}, 5% {target_5}, 10% {target_10}, recommended target {target_pct}. "
+                f"Trigger: {trigger or '-'}. Invalidation: {invalidation or '-'}. "
+                f"Missing: {missing or '-'}. Readiness {readiness_text}, probability {probability_text}, quality {quality or '-'}. "
+                f"Reason: {why or '-'}. This is not an execution order; confirmation is required before any trade."
+            )
+        else:
+            reply = (
+                f"{symbol_text} plan de riesgo: accion {action}, decision {decision}, entrada {entry}, stop {stop}, "
+                f"riesgo {risk}. Targets: 2% {target_2}, 5% {target_5}, 10% {target_10}, objetivo recomendado {target_pct}. "
+                f"Gatillo: {trigger or '-'}. Invalidacion: {invalidation or '-'}. "
+                f"Falta: {missing or '-'}. Readiness {readiness_text}, probabilidad {probability_text}, calidad {quality or '-'}. "
+                f"Razon: {why or '-'}. Esto no es una orden de ejecucion; requiere confirmacion antes de operar."
+            )
+        return RoxyBrainReply(
+            intent="opportunity_risk",
+            reply=reply,
+            emotion="analytical",
+            safety_level="guarded",
+            priority="high" if action.upper() in {"ALERT", "BUY", "SELL"} else "normal",
+            suggested_actions=("show_trade_ticket", "ask_market_summary", "confirm_before_execution"),
+        )
+
     def _latest_opportunity(self, symbol: str | None) -> dict[str, Any]:
         brief = _load_json(self.brief_path)
-        rows = brief.get("opportunities") or []
+        plan = brief.get("daily_opportunity_plan") if isinstance(brief.get("daily_opportunity_plan"), dict) else {}
+        rows = plan.get("opportunities") if isinstance(plan.get("opportunities"), list) else []
+        if not rows:
+            rows = brief.get("opportunities") or []
+        if not rows:
+            rows = brief.get("crypto_scan_candidates") or []
         if not isinstance(rows, list):
             return {}
         if symbol:
