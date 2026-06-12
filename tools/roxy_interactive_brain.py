@@ -543,6 +543,9 @@ def _localize_market_phrase(value: Any, language: str) -> str:
         "2h/4h contradicen el gatillo": "2h/4h contradict the trigger",
         "Volumen acompana": "Volume confirms",
         "falta volumen": "missing volume",
+        "Solo alertar cuando 1h confirma, 15m da entrada, volumen acompana, riesgo es bajo y target 2% es viable.": (
+            "Only alert when 1h confirms, 15m gives entry, volume confirms, risk is low, and 2% target is viable."
+        ),
     }
     if text in translations:
         return translations[text]
@@ -1452,6 +1455,10 @@ class RoxyInteractiveBrain:
         session = plan.get("market_session") if isinstance(plan.get("market_session"), dict) else {}
         local_time = _safe_text(session.get("local_time") or "")
         alert_count = int(gate.get("alert_count") or brief.get("alert_count") or 0)
+        if language == "en":
+            policy = _sentence_fragment(_localize_market_phrase(policy, language))
+        else:
+            policy = _sentence_fragment(policy)
 
         if not top:
             if language == "en":

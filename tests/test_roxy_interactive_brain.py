@@ -211,7 +211,7 @@ def test_roxy_brain_generates_daily_briefing_in_english(tmp_path):
                 },
                 "daily_opportunity_plan": {
                     "generated_at": "2026-06-12T20:40:00+00:00",
-                    "alert_policy": "Only alert with full checklist.",
+                    "alert_policy": "Solo alertar cuando 1h confirma, 15m da entrada, volumen acompana, riesgo es bajo y target 2% es viable.",
                     "market_counts": {"crypto": 1},
                     "market_session": {"local_time": "2026-06-12 16:40", "stock_session": "After-hours", "crypto_session": "24h"},
                     "opportunities": [
@@ -243,6 +243,9 @@ def test_roxy_brain_generates_daily_briefing_in_english(tmp_path):
     assert "Local market regime" in response.reply
     assert "Top watch: BTC/USD" in response.reply
     assert "risk 1.49%" in response.reply
+    assert "Policy: Only alert when 1h confirms" in response.reply
+    assert "Solo alertar" not in response.reply
+    assert ".." not in response.reply
     assert "do not execute without explicit confirmation" in response.reply
 
 
