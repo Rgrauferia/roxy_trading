@@ -13400,7 +13400,7 @@ def render_dashboard_action_queue(table: pd.DataFrame) -> None:
             f'<span>{html.escape(action)}</span>'
             f'<strong>{html.escape(symbol)}</strong>'
             f'<small>{html.escape(context_line)}</small>'
-            f'<p>{html.escape(next_prefix)}: {html.escape(next_step[:100])}</p>'
+            f'<p><strong>{html.escape(next_prefix)}:</strong> {html.escape(next_step[:100])}</p>'
             f'<em>Score {html.escape(score)} · Ready {html.escape(readiness)} · Riesgo {html.escape(risk)}</em>'
             f'<b>Entrada {html.escape(entry)} · Stop {html.escape(stop)} · Target {html.escape(target)} · R:R {html.escape(rr_text)}</b>'
             "</article>"
@@ -13567,6 +13567,7 @@ def main() -> None:
         .dashboard-action-card strong{display:block;color:#f8fafc;font-size:22px;line-height:1;margin-top:3px}
         .dashboard-action-card small{display:block;color:#cbd5e1;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .dashboard-action-card p{margin:6px 0 0;color:#e2e8f0;font-size:11px;line-height:1.25;min-height:28px}
+        .dashboard-action-card p strong{color:#f8fafc;font-weight:950}
         .dashboard-action-card em,.dashboard-action-card b{display:block;font-style:normal;color:#94a3b8;font-size:10px;line-height:1.2;margin-top:5px;font-weight:850}
         .dashboard-action-buy{border-top-color:#22c55e;background:rgba(21,93,62,.18)}
         .dashboard-action-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.16)}
