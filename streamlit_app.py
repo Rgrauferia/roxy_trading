@@ -1480,12 +1480,19 @@ def render_professional_chart_block(
     ):
         rr_value = abs(target_value - entry_value) / abs(entry_value - stop_value)
     rr_display = f"1:{rr_value:.2f}" if rr_value is not None else "-"
+    checklist_rows = command_center_checklist_rows(trade_brief or {})
+    blocking_check = next((item for item in checklist_rows if item.get("tone") != "buy"), None)
+    if blocking_check:
+        next_hint = f"{text_display(blocking_check.get('label'))}: {text_display(blocking_check.get('detail'))}"
+    else:
+        next_hint = "Listo si respeta entrada, stop, volumen y gestion de riesgo."
     st.markdown(
         f"""
         <section class="chart-command-head">
           <div>
             <span>Gráfica profesional</span>
             <strong>{html.escape(chart_symbol)} · {html.escape(timeframe)}</strong>
+            <small class="chart-next-action">Ahora: {html.escape(next_hint)}</small>
           </div>
           <aside>
             <b class="chart-level-entry">Entrada {html.escape(entry)}</b>
@@ -13398,6 +13405,7 @@ def main() -> None:
         .chart-command-head{display:flex;justify-content:space-between;gap:14px;align-items:center;border:1px solid rgba(96,165,250,.30);border-left:4px solid #38bdf8;border-radius:8px;background:linear-gradient(135deg,rgba(15,23,42,.95),rgba(8,47,73,.45));padding:10px 12px;margin:10px 0 6px}
         .chart-command-head span{display:block;color:#93c5fd;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}
         .chart-command-head strong{display:block;color:#f8fafc;font-size:22px;line-height:1.05;margin-top:3px}
+        .chart-next-action{display:block;color:#cbd5e1;font-size:11px;line-height:1.25;margin-top:5px;max-width:760px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .chart-command-head aside{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
         .chart-command-head b{display:inline-flex;border:1px solid rgba(148,163,184,.24);border-radius:999px;background:#0b1220;color:#e2e8f0;padding:6px 9px;font-size:11px;line-height:1;font-weight:950}
         .chart-level-entry{border-color:rgba(56,189,248,.55)!important;color:#bae6fd!important;background:rgba(8,47,73,.20)!important}
