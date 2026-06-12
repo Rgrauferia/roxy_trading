@@ -1465,9 +1465,21 @@ def render_professional_chart_block(
         st.info("Grafica limitada: hay pocas velas limpias para este simbolo/timeframe. Roxy muestra niveles, pero exige confirmacion extra.")
     chart_symbol = text_display((trade_brief or {}).get("symbol") or setup.get("symbol"))
     timeframe = text_display((trade_brief or {}).get("timeframe") or setup.get("timeframe") or setup.get("tf"))
-    entry = num_display((trade_brief or {}).get("entry") or (confluence or {}).get("entry"), 2)
-    stop = num_display((trade_brief or {}).get("stop") or (confluence or {}).get("stop"), 2)
-    target = num_display((trade_brief or {}).get("target") or (trade_brief or {}).get("target_price"), 2)
+    entry_value = safe_float((trade_brief or {}).get("entry") or (confluence or {}).get("entry"))
+    stop_value = safe_float((trade_brief or {}).get("stop") or (confluence or {}).get("stop"))
+    target_value = safe_float((trade_brief or {}).get("target") or (trade_brief or {}).get("target_price"))
+    entry = num_display(entry_value, 2)
+    stop = num_display(stop_value, 2)
+    target = num_display(target_value, 2)
+    rr_value = None
+    if (
+        entry_value is not None
+        and stop_value is not None
+        and target_value is not None
+        and abs(entry_value - stop_value) > 0
+    ):
+        rr_value = abs(target_value - entry_value) / abs(entry_value - stop_value)
+    rr_display = f"1:{rr_value:.2f}" if rr_value is not None else "-"
     st.markdown(
         f"""
         <section class="chart-command-head">
@@ -1476,9 +1488,10 @@ def render_professional_chart_block(
             <strong>{html.escape(chart_symbol)} · {html.escape(timeframe)}</strong>
           </div>
           <aside>
-            <b>Entrada {html.escape(entry)}</b>
-            <b>Stop {html.escape(stop)}</b>
-            <b>Target {html.escape(target)}</b>
+            <b class="chart-level-entry">Entrada {html.escape(entry)}</b>
+            <b class="chart-level-stop">Stop {html.escape(stop)}</b>
+            <b class="chart-level-target">Target {html.escape(target)}</b>
+            <b class="chart-level-rr">R:R {html.escape(rr_display)}</b>
           </aside>
         </section>
         """,
@@ -13387,6 +13400,10 @@ def main() -> None:
         .chart-command-head strong{display:block;color:#f8fafc;font-size:22px;line-height:1.05;margin-top:3px}
         .chart-command-head aside{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
         .chart-command-head b{display:inline-flex;border:1px solid rgba(148,163,184,.24);border-radius:999px;background:#0b1220;color:#e2e8f0;padding:6px 9px;font-size:11px;line-height:1;font-weight:950}
+        .chart-level-entry{border-color:rgba(56,189,248,.55)!important;color:#bae6fd!important;background:rgba(8,47,73,.20)!important}
+        .chart-level-stop{border-color:rgba(248,113,113,.60)!important;color:#fecaca!important;background:rgba(127,29,29,.20)!important}
+        .chart-level-target{border-color:rgba(34,197,94,.55)!important;color:#bbf7d0!important;background:rgba(20,83,45,.20)!important}
+        .chart-level-rr{border-color:rgba(245,158,11,.58)!important;color:#fde68a!important;background:rgba(120,53,15,.18)!important}
         .command-quick-strip{display:flex;gap:7px;align-items:center;flex-wrap:wrap;border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0d1426;padding:7px 8px;margin:0 0 6px}
         .command-quick-strip b{color:#f8fafc;font-size:16px;line-height:1}
         .command-quick-strip span{display:inline-flex;align-items:center;border:1px solid rgba(148,163,184,.18);border-radius:999px;background:#111827;color:#cbd5e1;padding:4px 8px;font-size:11px;font-weight:850;line-height:1}
