@@ -9000,6 +9000,21 @@ def load_symbol_mini_chart(symbol: str, *, limit: int = 90) -> pd.DataFrame:
     return prepare_chart_window(data, limit=limit)
 
 
+def mini_chart_status_label(chart_df: pd.DataFrame) -> str:
+    window = prepare_chart_window(chart_df, limit=90)
+    if window.empty:
+        return "Sin mini historial · revisar proveedor"
+    latest = "-"
+    if "ts" in window.columns:
+        try:
+            ts_values = pd.to_datetime(window["ts"], errors="coerce").dropna()
+            if not ts_values.empty:
+                latest = pd.Timestamp(ts_values.max()).strftime("%m/%d %H:%M")
+        except Exception:
+            latest = "-"
+    return f"{len(window)} velas · última {latest}"
+
+
 def build_mini_opportunity_chart(chart_df: pd.DataFrame, tone: str = "watch") -> alt.Chart | alt.LayerChart:
     window = prepare_chart_window(chart_df, limit=90)
     if window.empty:
@@ -9134,6 +9149,8 @@ def render_top_opportunity_cards(table: pd.DataFrame, confluence_df: pd.DataFram
         market = text_display(row.get("market"))
         with cols[idx]:
             details = top_opportunity_card_details(row)
+            mini_df = load_symbol_mini_chart(symbol)
+            mini_status = mini_chart_status_label(mini_df)
             st.markdown(
                 f"""
                 <div class="top-opp-card top-opp-{html.escape(tone)}">
@@ -9143,12 +9160,13 @@ def render_top_opportunity_cards(table: pd.DataFrame, confluence_df: pd.DataFram
                     <p>{html.escape(text_display(row.get("strategy")))}</p>
                     <small>{html.escape(details["metrics"])}</small>
                     <small class="top-opp-next">Siguiente: {html.escape(details["next"])}</small>
+                    <small class="top-opp-mini-status">{html.escape(mini_status)}</small>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
             st.altair_chart(
-                build_mini_opportunity_chart(load_symbol_mini_chart(symbol), tone=tone), use_container_width=True
+                build_mini_opportunity_chart(mini_df, tone=tone), use_container_width=True
             )
             if st.button("Cargar plan", key=f"top_opp_load_{idx}_{safe_key(symbol)}", use_container_width=True):
                 st.session_state["command_symbol_pending"] = symbol
@@ -13983,7 +14001,7 @@ def main() -> None:
         .wall-tile-buy{background:rgba(21,128,61,var(--tile-alpha))}.wall-tile-watch{background:rgba(180,83,9,var(--tile-alpha))}.wall-tile-avoid{background:rgba(153,27,27,var(--tile-alpha))}
         .wall-tables{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.wall-table{border:1px solid rgba(148,163,184,.18);border-radius:6px;overflow:hidden;background:#0b1220}.wall-table header{padding:6px 8px;color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.wall-table table{width:100%;border-collapse:collapse}.wall-table th,.wall-table td{padding:5px 6px;border-bottom:1px solid rgba(148,163,184,.10);font-size:10px;line-height:1.15;text-align:left;color:#cbd5e1}.wall-table th{color:#94a3b8;font-weight:900;text-transform:uppercase}.wall-table td:first-child{color:#f8fafc;font-weight:950}.wall-table tr:last-child td{border-bottom:0}
         .top-opps-header{display:flex;justify-content:space-between;gap:12px;align-items:center;border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#111827;padding:8px 10px;margin:4px 0 8px}.top-opps-header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.top-opps-header span{color:#94a3b8;font-size:11px;text-align:right}
-        .top-opp-card{border:1px solid rgba(148,163,184,.22);border-radius:8px 8px 0 0;background:#0b1220;padding:9px 10px;min-height:110px;border-bottom:0}.top-opp-card div{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.top-opp-card span{color:#94a3b8;font-size:10px;text-transform:uppercase;font-weight:950}.top-opp-card strong{color:#f8fafc;font-size:20px;line-height:1;font-weight:950}.top-opp-route{display:inline-flex;margin-top:7px;border:1px solid rgba(148,163,184,.24);border-radius:999px;background:rgba(15,23,42,.56);padding:3px 7px;color:#cbd5e1;font-size:9px;font-style:normal;font-weight:950;text-transform:uppercase;letter-spacing:.03em}.top-opp-card .top-opp-meter{display:block;position:relative;height:15px;border:1px solid rgba(148,163,184,.18);border-radius:999px;background:rgba(15,23,42,.70);overflow:hidden;margin:7px 0 0}.top-opp-meter span{display:block;height:100%;background:linear-gradient(90deg,#38bdf8,#22c55e);opacity:.92}.top-opp-meter em{position:absolute;inset:0;display:grid;place-items:center;color:#f8fafc;font-size:9px;font-style:normal;font-weight:950;text-shadow:0 1px 6px rgba(0,0,0,.55)}.top-opp-card p{margin:8px 0 6px;color:#e2e8f0;font-size:12px;line-height:1.2;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top-opp-card small{display:block;color:#94a3b8;font-size:10px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top-opp-card .top-opp-next{color:#f8fafc;margin-top:4px;font-weight:850}.top-opp-buy{border-color:rgba(34,197,94,.42);background:rgba(21,93,62,.24)}.top-opp-watch{border-color:rgba(245,158,11,.42);background:rgba(120,74,15,.22)}.top-opp-avoid{border-color:rgba(239,68,68,.42);background:rgba(127,29,29,.22)}
+        .top-opp-card{border:1px solid rgba(148,163,184,.22);border-radius:8px 8px 0 0;background:#0b1220;padding:9px 10px;min-height:110px;border-bottom:0}.top-opp-card div{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.top-opp-card span{color:#94a3b8;font-size:10px;text-transform:uppercase;font-weight:950}.top-opp-card strong{color:#f8fafc;font-size:20px;line-height:1;font-weight:950}.top-opp-route{display:inline-flex;margin-top:7px;border:1px solid rgba(148,163,184,.24);border-radius:999px;background:rgba(15,23,42,.56);padding:3px 7px;color:#cbd5e1;font-size:9px;font-style:normal;font-weight:950;text-transform:uppercase;letter-spacing:.03em}.top-opp-card .top-opp-meter{display:block;position:relative;height:15px;border:1px solid rgba(148,163,184,.18);border-radius:999px;background:rgba(15,23,42,.70);overflow:hidden;margin:7px 0 0}.top-opp-meter span{display:block;height:100%;background:linear-gradient(90deg,#38bdf8,#22c55e);opacity:.92}.top-opp-meter em{position:absolute;inset:0;display:grid;place-items:center;color:#f8fafc;font-size:9px;font-style:normal;font-weight:950;text-shadow:0 1px 6px rgba(0,0,0,.55)}.top-opp-card p{margin:8px 0 6px;color:#e2e8f0;font-size:12px;line-height:1.2;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top-opp-card small{display:block;color:#94a3b8;font-size:10px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top-opp-card .top-opp-next{color:#f8fafc;margin-top:4px;font-weight:850}.top-opp-card .top-opp-mini-status{color:#7dd3fc;margin-top:4px;font-weight:900}.top-opp-buy{border-color:rgba(34,197,94,.42);background:rgba(21,93,62,.24)}.top-opp-watch{border-color:rgba(245,158,11,.42);background:rgba(120,74,15,.22)}.top-opp-avoid{border-color:rgba(239,68,68,.42);background:rgba(127,29,29,.22)}
         .market-movers-tape{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 12px;overflow:hidden}.market-movers-tape>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.15)}.market-movers-tape>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.market-movers-tape>header span{color:#94a3b8;font-size:11px;text-align:right}.market-mover-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .market-mover-table{background:#0b1220;overflow:hidden;border-top:2px solid rgba(148,163,184,.25)}.market-mover-table header{padding:6px 8px;color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;background:#0f172a;border-bottom:1px solid rgba(148,163,184,.12)}.market-mover-table table{width:100%;border-collapse:collapse}.market-mover-table th,.market-mover-table td{padding:5px 6px;border-bottom:1px solid rgba(148,163,184,.10);font-size:10px;line-height:1.15;text-align:left;color:#cbd5e1}.market-mover-table th{color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase}.market-mover-table td:first-child{color:#f8fafc;font-weight:950}.market-mover-table td:nth-child(2),.market-mover-table td:nth-child(3),.market-mover-table td:nth-child(4){text-align:right}.market-mover-table td:last-child{max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.market-mover-buy{border-top-color:#22c55e}.market-mover-watch{border-top-color:#f59e0b}.market-mover-avoid{border-top-color:#ef4444}
         .trading-desk-empty{display:flex;justify-content:space-between;gap:14px;align-items:center;border:1px dashed rgba(251,191,36,.44);border-left:4px solid #f59e0b;border-radius:8px;background:linear-gradient(135deg,rgba(120,74,15,.22),rgba(15,23,42,.92));padding:10px 12px;margin:6px 0 8px}.trading-desk-empty span{display:block;color:#fbbf24;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.trading-desk-empty strong{display:block;color:#f8fafc;font-size:18px;line-height:1.1;margin-top:4px}.trading-desk-empty p{margin:5px 0 0;color:#cbd5e1;font-size:12px;line-height:1.25}.trading-desk-empty ul{margin:0;padding-left:18px;color:#e2e8f0;font-size:11px;line-height:1.35}
