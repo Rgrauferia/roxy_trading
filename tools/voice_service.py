@@ -609,6 +609,7 @@ def roxy_live_page():
         <div class="chip"><span>Priority</span><b id="priority">-</b></div>
         <div class="chip"><span>Live source</span><b id="liveSource">-</b></div>
         <div class="chip"><span>Voice</span><b id="voiceStatus">-</b></div>
+        <div class="chip"><span>Context</span><b id="activeContext">-</b></div>
       </div>
       <div id="reply" class="reply">Roxy esta lista.</div>
       <div id="events" class="events">events: ready</div>
@@ -685,10 +686,16 @@ def roxy_live_page():
       entry_checklist: ["Checklist", "checklist de entrada"],
       position_size: ["Sizing", "tamaño de posicion con capital 10000 riesgo 0.5%"],
       monitoring_plan: ["Monitoreo", "plan de monitoreo"],
+      compare_opportunities: ["Ranking", "top oportunidades"],
+      data_freshness: ["Datos", "frescura de datos"],
       set_alert: ["Alerta", "prepara alerta"],
+      alert_draft: ["Alerta", "prepara alerta"],
       confirm_alert: ["Confirmar alerta", "prepara alerta"],
       trade_readiness: ["Decisión", "puedo operar ahora"],
       confirm_before_execution: ["Go/no-go", "puedo operar ahora"],
+      show_risk_check: ["Riesgo", "explica riesgo entrada stop target"],
+      show_trade_ticket: ["Ticket", "checklist de entrada"],
+      require_explicit_confirmation: ["Confirmar", "puedo operar ahora"],
       ask_risk: ["Riesgo", "explica riesgo entrada stop target"],
       ask_why: ["Por qué", "por que?"],
       ask_followup: ["Sesión", "resumen de sesion"],
@@ -723,6 +730,18 @@ def roxy_live_page():
         });
         target.appendChild(button);
       }
+    }
+
+    function renderActiveContext(context) {
+      const ctx = context && typeof context === "object" ? context : {};
+      const parts = [];
+      if (ctx.active_symbol) parts.push(ctx.active_symbol);
+      if (ctx.active_intent) parts.push(ctx.active_intent);
+      if (ctx.needs_confirmation) parts.push("confirmar");
+      const actions = Array.isArray(ctx.next_best_actions) ? ctx.next_best_actions : [];
+      if (actions.length) parts.push(actions.slice(0, 2).join(", "));
+      $("activeContext").textContent = parts.join(" · ") || "-";
+      if (actions.length) renderSuggestedActions(actions);
     }
 
     function setAvatar(state, emotion) {
@@ -951,6 +970,7 @@ def roxy_live_page():
       }
       const memory = await res.json();
       const turns = Array.isArray(memory.recent_turns) ? memory.recent_turns : [];
+      renderActiveContext(memory.active_context || {});
       appendMessage("system", "Memoria cargada: " + turns.length + " turno(s). Ultima intencion: " + (memory.last_intent || "-"), "memory");
       for (const turn of turns.slice(-6)) {
         if (turn.query) appendMessage("user", turn.query, "memoria");
@@ -1047,6 +1067,7 @@ def roxy_live_page():
       const feedback = payload.feedback || {};
       const memory = payload.memory || {};
       const recommendations = Array.isArray(payload.recommendations) ? payload.recommendations : [];
+      renderActiveContext(memory.active_context || {});
       const text = "Aprendizaje local: feedback " + (feedback.total || 0) +
         " total, " + (feedback.down || 0) + " a mejorar. Memoria: " +
         (memory.turn_count || memory.total_turns || 0) + " turno(s). " +
@@ -1327,6 +1348,14 @@ def assist_session(session_id: str, token: Optional[str] = Depends(require_api_k
         "turn_count": 0,
         "last_intent": "",
         "last_safety_level": "",
+        "active_context": {
+            "active_intent": "",
+            "active_symbol": "",
+            "active_topic": "",
+            "last_safety_level": "",
+            "needs_confirmation": False,
+            "next_best_actions": ["ask_latest_opportunity", "ask_market_summary"],
+        },
         "recent_turns": [],
     }
 
@@ -1404,7 +1433,18 @@ def learning_status(
         "user": user or "local",
         "session_id": session_id or "",
         "feedback": {"total": 0, "up": 0, "down": 0, "top_intents": [], "recent": []},
-        "memory": {"turn_count": 0, "recent_turns": []},
+        "memory": {
+            "turn_count": 0,
+            "active_context": {
+                "active_intent": "",
+                "active_symbol": "",
+                "active_topic": "",
+                "last_safety_level": "",
+                "needs_confirmation": False,
+                "next_best_actions": ["ask_latest_opportunity", "ask_market_summary"],
+            },
+            "recent_turns": [],
+        },
         "knowledge_sources": [],
         "recommendations": ["Conectar el backend de Roxy para activar aprendizaje local."],
     }

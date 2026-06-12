@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from tools.roxy_interactive_brain import (
+    RoxyBrainReply,
     RoxyConversationMemory,
     RoxyFeedbackMemory,
     RoxyInteractiveBrain,
@@ -1309,6 +1310,66 @@ def test_roxy_brain_remembers_session_context(tmp_path):
     assert first.intent == "opportunity"
     assert second.intent == "opportunity_risk"
     assert "SPY plan de riesgo" in second.reply
+
+
+def test_roxy_memory_exposes_active_conversation_context(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "symbol": "SPY",
+                        "ai_action": "WATCH",
+                        "strategy_family": "Trend",
+                        "trade_decision": "WAIT",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    memory = RoxyConversationMemory(path=tmp_path / "conversation.json")
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        conversation_memory=memory,
+    )
+
+    brain.generate_reply("resumen de oportunidad", session_id="demo")
+    brain.generate_reply("y el riesgo?", session_id="demo")
+
+    active_context = memory.session_state("demo")["active_context"]
+
+    assert active_context["active_intent"] == "opportunity_risk"
+    assert active_context["active_symbol"] == "SPY"
+    assert active_context["active_topic"] == "y el riesgo?"
+    assert active_context["needs_confirmation"] is False
+    assert active_context["next_best_actions"][:3] == ["trade_readiness", "monitoring_plan", "position_size"]
+
+
+def test_roxy_memory_marks_critical_context_as_confirmation_required(tmp_path):
+    memory = RoxyConversationMemory(path=tmp_path / "conversation.json")
+    memory.append(
+        "demo",
+        "compra SPY ahora con mi cuenta",
+        RoxyBrainReply(
+            reply="Necesito confirmacion explicita antes de cualquier operacion.",
+            intent="action_confirmation_required",
+            safety_level="critical",
+            suggested_actions=("show_trade_ticket", "require_explicit_confirmation"),
+        ),
+    )
+
+    active_context = memory.session_state("demo")["active_context"]
+
+    assert active_context["active_symbol"] == "SPY"
+    assert active_context["needs_confirmation"] is True
+    assert active_context["next_best_actions"] == [
+        "show_risk_check",
+        "show_trade_ticket",
+        "require_explicit_confirmation",
+    ]
 
 
 def test_roxy_brain_answers_spanish_why_followup_from_session_context(tmp_path):

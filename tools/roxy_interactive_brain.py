@@ -147,11 +147,13 @@ class RoxyConversationMemory:
     def session_state(self, session_id: str | None, limit: int = 8) -> dict[str, Any]:
         turns = self.recent_turns(session_id, limit=limit)
         last_turn = turns[-1] if turns else {}
+        active_context = _active_conversation_context(turns)
         return {
             "session_id": _safe_session_id(session_id or "local"),
             "turn_count": len(turns),
             "last_intent": _safe_text(last_turn.get("intent")),
             "last_safety_level": _safe_text(last_turn.get("safety_level")),
+            "active_context": active_context,
             "recent_turns": turns,
         }
 
@@ -883,6 +885,55 @@ def _last_symbol_from_turns(recent_turns: list[dict[str, Any]]) -> str | None:
     return None
 
 
+def _active_conversation_context(recent_turns: list[dict[str, Any]]) -> dict[str, Any]:
+    if not recent_turns:
+        return {
+            "active_intent": "",
+            "active_symbol": "",
+            "active_topic": "",
+            "last_safety_level": "",
+            "needs_confirmation": False,
+            "next_best_actions": ["ask_latest_opportunity", "ask_market_summary"],
+        }
+
+    last_turn = recent_turns[-1] if isinstance(recent_turns[-1], dict) else {}
+    active_intent = _last_turn_intent(recent_turns) or _safe_text(last_turn.get("intent"))
+    active_symbol = _last_symbol_from_turns(recent_turns) or ""
+    active_topic = ""
+    for turn in reversed(recent_turns):
+        query = _redact_sensitive_text(_safe_text(turn.get("query")))[:120]
+        if query:
+            active_topic = query
+            break
+    last_safety_level = _safe_text(last_turn.get("safety_level"))
+    needs_confirmation = last_safety_level == "critical" or active_intent == "action_confirmation_required"
+    return {
+        "active_intent": active_intent,
+        "active_symbol": active_symbol,
+        "active_topic": active_topic,
+        "last_safety_level": last_safety_level,
+        "needs_confirmation": needs_confirmation,
+        "next_best_actions": _next_best_actions_for_context(active_intent, last_safety_level, bool(active_symbol)),
+    }
+
+
+def _next_best_actions_for_context(intent: str, safety_level: str, has_symbol: bool) -> list[str]:
+    if safety_level == "critical" or intent == "action_confirmation_required":
+        return ["show_risk_check", "show_trade_ticket", "require_explicit_confirmation"]
+    if intent in {"opportunity", "opportunity_reason", "opportunity_risk", "trade_readiness"}:
+        actions = ["trade_readiness", "monitoring_plan", "position_size"]
+        if has_symbol:
+            actions.append("alert_draft")
+        return actions
+    if intent in {"market_summary", "data_freshness"}:
+        return ["ask_latest_opportunity", "compare_opportunities", "data_freshness"]
+    if intent in {"watchlist", "monitoring_plan"}:
+        return ["monitoring_plan", "market_summary", "alert_draft"]
+    if intent == "session_recap":
+        return ["trade_readiness", "monitoring_plan", "session_recap"]
+    return ["ask_latest_opportunity", "ask_market_summary", "session_recap"]
+
+
 def _is_contextual_followup_query(query: str) -> bool:
     normalized = str(query or "").lower().strip()
     if not normalized:
@@ -1063,8 +1114,13 @@ def _extract_symbol(query: str) -> str | None:
         "ACTION",
         "DECISION",
         "BUY",
+        "COMPRA",
+        "COMPRAR",
         "SELL",
+        "VENDE",
+        "VENDER",
         "TRADE",
+        "AHORA",
         "TOP",
         "BEST",
         "COMPARE",

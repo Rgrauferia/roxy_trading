@@ -22,10 +22,14 @@ def test_roxy_live_page():
     assert "/v1/assist/state" in r.text
     assert "loadMemory" in r.text
     assert "nextActions" in r.text
+    assert "activeContext" in r.text
     assert "suggestedActionPrompts" in r.text
     assert "renderSuggestedActions" in r.text
+    assert "renderActiveContext" in r.text
     assert "state.suggested_actions" in r.text
     assert "confirm_before_execution" in r.text
+    assert "alert_draft" in r.text
+    assert "show_trade_ticket" in r.text
     assert "data-prompt" in r.text
     assert 'data-prompt="estado de roxy"' in r.text
     assert 'data-prompt="resumen de sesion"' in r.text
@@ -166,6 +170,14 @@ def test_assist_session_returns_memory_state(monkeypatch):
             "turn_count": 1,
             "last_intent": "opportunity",
             "last_safety_level": "guarded",
+            "active_context": {
+                "active_intent": "opportunity",
+                "active_symbol": "SPY",
+                "active_topic": "resumen de oportunidad",
+                "last_safety_level": "guarded",
+                "needs_confirmation": False,
+                "next_best_actions": ["trade_readiness", "monitoring_plan"],
+            },
             "recent_turns": [{"intent": "opportunity"}],
         },
     )
@@ -179,6 +191,7 @@ def test_assist_session_returns_memory_state(monkeypatch):
     payload = r.json()
     assert payload["session_id"] == "demo-session"
     assert payload["last_intent"] == "opportunity"
+    assert payload["active_context"]["active_symbol"] == "SPY"
 
 
 def test_assist_events_returns_ordered_events(monkeypatch):
@@ -299,7 +312,18 @@ def test_learning_status_endpoint(monkeypatch):
             "user": user,
             "session_id": session_id,
             "feedback": {"total": 2, "up": 1, "down": 1, "top_intents": [], "recent": []},
-            "memory": {"turn_count": 3, "recent_turns": []},
+            "memory": {
+                "turn_count": 3,
+                "active_context": {
+                    "active_intent": "opportunity",
+                    "active_symbol": "SPY",
+                    "active_topic": "resumen de oportunidad",
+                    "last_safety_level": "guarded",
+                    "needs_confirmation": False,
+                    "next_best_actions": ["trade_readiness", "monitoring_plan"],
+                },
+                "recent_turns": [],
+            },
             "knowledge_sources": [],
             "recommendations": ["Revisar oportunidad."],
         },
@@ -316,6 +340,7 @@ def test_learning_status_endpoint(monkeypatch):
     assert payload["status"] == "learning"
     assert payload["feedback"]["down"] == 1
     assert payload["memory"]["turn_count"] == 3
+    assert payload["memory"]["active_context"]["active_symbol"] == "SPY"
 
 
 def test_dev_auth_warning_logs_once(monkeypatch, caplog):
