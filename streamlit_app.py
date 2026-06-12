@@ -7452,7 +7452,7 @@ def show_ai_status_cards(
         )
         if freshness["tone"] == "avoid":
             st.warning("Datos live/confluencia estancados. Roxy puede seguir leyendo memoria, pero no conviene operar hasta refrescar el scan.")
-        if heartbeat:
+        if heartbeat and show_technical_reports:
             with st.expander("Heartbeat backend live", expanded=False):
                 st.json(heartbeat)
         if realtime_check and show_technical_reports:
