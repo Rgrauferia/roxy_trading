@@ -55,9 +55,15 @@ def test_roxy_live_page():
     assert "voiceSelect" in r.text
     assert "voiceRate" in r.text
     assert "voicePitch" in r.text
+    assert "voiceStatus" in r.text
+    assert "updateVoiceDiagnostics" in r.text
+    assert "function speechLang" in r.text
+    assert "function chooseVoice(languageOverride)" in r.text
+    assert 'speak(lastReply, state.language || $("language").value)' in r.text
     assert "preferredName" in r.text
     assert 'id="language"' in r.text
     assert "roxyLiveLanguage" in r.text
+    assert '"user", "session", "apiKey", "language"' in r.text
     assert "language: $(\"language\").value" in r.text
     assert "/v1/profile" in r.text
     assert "loadSources" in r.text

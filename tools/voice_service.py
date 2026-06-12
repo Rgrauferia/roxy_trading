@@ -594,6 +594,7 @@ def roxy_live_page():
         <div class="chip"><span>Safety</span><b id="safety">-</b></div>
         <div class="chip"><span>Priority</span><b id="priority">-</b></div>
         <div class="chip"><span>Live source</span><b id="liveSource">-</b></div>
+        <div class="chip"><span>Voice</span><b id="voiceStatus">-</b></div>
       </div>
       <div id="reply" class="reply">Roxy esta lista.</div>
       <div id="events" class="events">events: ready</div>
@@ -733,14 +734,18 @@ def roxy_live_page():
       if ($("autoSendVoice").checked) send();
     }
 
-    function chooseVoice() {
+    function speechLang(languageValue) {
+      return (languageValue || "es") === "en" ? "en-US" : "es-US";
+    }
+
+    function chooseVoice(languageOverride) {
       const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
       const selected = $("voiceSelect").value;
       if (selected) {
         const exact = voices.find(v => v.name === selected);
         if (exact) return exact;
       }
-      const lang = $("language").value || "es";
+      const lang = languageOverride || $("language").value || "es";
       if (lang === "en") {
         return voices.find(v => (v.lang || "").toLowerCase().startsWith("en") && /female|samantha|victoria|zira|google/i.test(v.name || ""))
           || voices.find(v => (v.lang || "").toLowerCase().startsWith("en"))
@@ -750,6 +755,20 @@ def roxy_live_page():
       return voices.find(v => preferredNames.some(name => (v.name || "").toLowerCase().includes(name)))
         || voices.find(v => (v.lang || "").toLowerCase().startsWith("es"))
         || voices[0];
+    }
+
+    function updateVoiceDiagnostics(languageOverride) {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const ttsReady = "speechSynthesis" in window;
+      const lang = languageOverride || $("language").value || "es";
+      const voice = chooseVoice(lang);
+      const parts = [
+        SR ? "mic OK" : "mic no soportado",
+        ttsReady ? "voz OK" : "voz no soportada",
+        speechLang(lang),
+      ];
+      if (voice) parts.push(voice.name + " / " + voice.lang);
+      $("voiceStatus").textContent = parts.join(" · ");
     }
 
     function populateVoices() {
@@ -775,19 +794,22 @@ def roxy_live_page():
         const preferred = chooseVoice();
         if (preferred) select.value = preferred.name;
       }
+      updateVoiceDiagnostics();
     }
 
-    function speak(text) {
+    function speak(text, languageOverride) {
       if (!text || !("speechSynthesis" in window)) return;
       const run = () => {
+        const lang = languageOverride || $("language").value || "es";
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = ($("language").value || "es") === "en" ? "en-US" : "es-US";
+        utterance.lang = speechLang(lang);
         utterance.rate = Number($("voiceRate").value || 0.95);
         utterance.pitch = Number($("voicePitch").value || 1.05);
-        const voice = chooseVoice();
+        const voice = chooseVoice(lang);
         if (voice) utterance.voice = voice;
         utterance.onstart = () => {
           isSpeaking = true;
+          updateVoiceDiagnostics(lang);
           setAvatar("speaking", $("emotion").textContent);
         };
         utterance.onend = () => {
@@ -843,12 +865,13 @@ def roxy_live_page():
       $("safety").textContent = state.safety_level || "-";
       $("priority").textContent = state.priority || "-";
       $("liveSource").textContent = state.needs_live_source ? "Needed" : "OK";
+      updateVoiceDiagnostics(state.language || $("language").value);
       $("reply").textContent = lastReply || "(sin respuesta)";
       const events = Array.isArray(state.events) ? state.events.map(e => e.type).join(" -> ") : "";
       $("events").textContent = "events: " + (events || "-");
       appendMessage("roxy", lastReply || "(sin respuesta)", [state.intent, state.safety_level].filter(Boolean).join(" / "));
       setAvatar(state.avatar_state || "speaking", state.emotion || "focused");
-      if (state.should_speak !== false && $("autoSpeak").checked) speak(lastReply);
+      if (state.should_speak !== false && $("autoSpeak").checked) speak(lastReply, state.language || $("language").value);
       else scheduleListen();
     }
 
@@ -1006,11 +1029,12 @@ def roxy_live_page():
       if (isListening) return;
       manualStop = false;
       recognition = new SR();
-      recognition.lang = ($("language").value || "es") === "en" ? "en-US" : "es-US";
+      recognition.lang = speechLang($("language").value);
       recognition.interimResults = true;
       recognition.continuous = $("wakeMode").checked || $("conversationMode").checked;
       recognition.onstart = () => {
         isListening = true;
+        $("voiceStatus").textContent = "escuchando · " + recognition.lang;
         setAvatar("listening", "attentive");
       };
       recognition.onresult = (event) => {
@@ -1024,12 +1048,14 @@ def roxy_live_page():
       };
       recognition.onerror = (event) => {
         $("reply").textContent = "Microfono: " + event.error;
+        $("voiceStatus").textContent = "mic error · " + event.error;
         isListening = false;
         manualStop = true;
         setAvatar("blocked", "serious");
       };
       recognition.onend = () => {
         isListening = false;
+        updateVoiceDiagnostics();
         setAvatar("ready", $("emotion").textContent);
         if (($("conversationMode").checked || $("wakeMode").checked) && !manualStop) scheduleListen();
         lastFinalTranscript = "";
@@ -1040,7 +1066,7 @@ def roxy_live_page():
     $("start").onclick = startListening;
     $("stop").onclick = () => stopAll("Escucha detenida.");
     $("send").onclick = send;
-    $("repeat").onclick = () => speak(lastReply);
+    $("repeat").onclick = () => speak(lastReply, lastState.language || $("language").value);
     $("feedbackUp").onclick = () => submitFeedback("up");
     $("feedbackDown").onclick = () => submitFeedback("down");
     $("loadMemory").onclick = loadMemory;
@@ -1068,17 +1094,26 @@ def roxy_live_page():
       scheduleListen();
     });
     [
-      "user", "session", "apiKey", "autoSpeak", "autoSendVoice", "voiceSelect", "voiceRate", "voicePitch", "wakeWord",
+      "user", "session", "apiKey", "language", "autoSpeak", "autoSendVoice", "voiceSelect", "voiceRate", "voicePitch", "wakeWord",
       "preferredName", "tradingMode", "defaultSymbol", "watchlist"
     ].forEach((id) => {
       $(id).addEventListener("change", saveSettings);
+    });
+    ["language", "voiceSelect", "voiceRate", "voicePitch"].forEach((id) => {
+      $(id).addEventListener("change", () => updateVoiceDiagnostics());
     });
     $("query").addEventListener("keydown", (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") send();
     });
     restoreSettings();
     populateVoices();
-    if ("speechSynthesis" in window) window.speechSynthesis.onvoiceschanged = populateVoices;
+    updateVoiceDiagnostics();
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        populateVoices();
+        updateVoiceDiagnostics();
+      };
+    }
     $("roxyAvatar").onerror = () => {
       $("roxyAvatar").style.display = "none";
       $("roxyFallback").style.display = "block";
