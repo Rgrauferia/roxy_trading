@@ -80,3 +80,28 @@ def test_voice_assistant_summarizes_lab_queue(tmp_path, monkeypatch):
 
     assert "Canal lateral" in reply
     assert "Volumen relativo" in reply
+
+
+def test_voice_assistant_routes_position_sizing_to_roxy_brain(tmp_path, monkeypatch):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "symbol": "AAPL",
+                        "signal": "WATCH",
+                        "entry": 203.4,
+                        "stop": 199.8,
+                    }
+                ]
+            }
+        )
+    )
+    monkeypatch.setattr(voice_assistant, "BRIEF_PATH", brief_path)
+
+    state = voice_assistant.generate_reply_state("tamaño de posicion AAPL con capital 10000 riesgo 0.5%", user="local")
+
+    assert state["intent"] == "position_size"
+    assert "AAPL tamaño de posicion" in state["reply"]
+    assert "Cantidad 13" in state["reply"]

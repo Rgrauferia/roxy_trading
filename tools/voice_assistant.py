@@ -147,8 +147,34 @@ def _extract_symbol(query: str) -> str | None:
     return None
 
 
+def _is_position_sizing_query(query: str) -> bool:
+    lq = query.lower()
+    return any(
+        term in lq
+        for term in (
+            "position size",
+            "position sizing",
+            "size position",
+            "tamano de posicion",
+            "tamaño de posicion",
+            "tamano posicion",
+            "tamaño posicion",
+            "cantidad de acciones",
+            "cuantas acciones",
+            "cuántas acciones",
+            "cuanto comprar",
+            "cuánto comprar",
+            "qty",
+            "shares",
+            "risk budget",
+        )
+    )
+
+
 def _account_reply(query: str, user: Optional[str]) -> str | None:
     lq = query.lower()
+    if _is_position_sizing_query(query):
+        return None
     if any(term in lq for term in ("balance", "equity", "cuenta", "capital")):
         if user:
             try:
