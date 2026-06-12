@@ -39,6 +39,8 @@ For richer clients, use `generate_reply_state()` or the FastAPI endpoint `POST /
 
 For real-time UI flows, use `POST /v1/assist/events`. It returns ordered events such as `transcript_received`, `thinking`, `reply_ready`, `speak`, `live_source_required`, and `action_confirmation_required`.
 
+Every structured `POST /v1/assist/state` response includes `turn_id`, `server_latency_ms`, and `response_source`. Roxy Live displays the latency chip so voice work can watch response speed while preserving the same safety contract.
+
 For market regime questions, Roxy uses the `market_summary` intent. It reads local brief fields such as `alert_gate_summary`, `daily_opportunity_plan`, opportunities, and crypto scan candidates to classify the current local read as bullish watch, bearish watch, sideways/wait, or unclear/wait. This is decision support only; it does not execute trades.
 
 For data freshness prompts such as "frescura de datos" or "source status", Roxy uses the `data_freshness` intent. It reads `daily_opportunity_plan.generated_at`, top-level brief timestamps, or the brief file modified time, then labels the local read as fresh, usable but aging, or stale. Stale data sets `needs_live_source=true` and should force a scan refresh before ranking, sizing, alerts, or trade decisions.

@@ -23,6 +23,8 @@ def test_roxy_live_page():
     assert "loadMemory" in r.text
     assert "nextActions" in r.text
     assert "activeContext" in r.text
+    assert "latency" in r.text
+    assert "server_latency_ms" in r.text
     assert "suggestedActionPrompts" in r.text
     assert "renderSuggestedActions" in r.text
     assert "renderActiveContext" in r.text
@@ -30,6 +32,8 @@ def test_roxy_live_page():
     assert "confirm_before_execution" in r.text
     assert "alert_draft" in r.text
     assert "show_trade_ticket" in r.text
+    assert "ask_capabilities" in r.text
+    assert "connect_realtime_voice" in r.text
     assert "data-prompt" in r.text
     assert 'data-prompt="estado de roxy"' in r.text
     assert 'data-prompt="resumen de sesion"' in r.text
@@ -154,6 +158,9 @@ def test_assist_state_returns_structured_roxy_state(monkeypatch):
     payload = r.json()
     assert payload["intent"] == "capabilities"
     assert payload["voice_style"] == "female_es_latam"
+    assert payload["response_source"] == "local_brain"
+    assert isinstance(payload["turn_id"], str)
+    assert payload["server_latency_ms"] >= 0
     assert "reply" in payload
 
 

@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 import os
 import time
 import logging
+import uuid
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from typing import Dict, Optional
@@ -138,6 +139,14 @@ def empty_active_context() -> dict[str, object]:
         "needs_confirmation": False,
         "next_best_actions": ["ask_latest_opportunity", "ask_market_summary"],
     }
+
+
+def add_turn_metadata(state: dict[str, object], started_at: float, response_source: str) -> dict[str, object]:
+    payload = dict(state or {})
+    payload.setdefault("turn_id", uuid.uuid4().hex[:12])
+    payload["server_latency_ms"] = max(0.0, round((time.perf_counter() - started_at) * 1000, 1))
+    payload["response_source"] = response_source
+    return payload
 
 
 def require_api_key(request: Request):
@@ -621,6 +630,7 @@ def roxy_live_page():
         <div class="chip"><span>Live source</span><b id="liveSource">-</b></div>
         <div class="chip"><span>Voice</span><b id="voiceStatus">-</b></div>
         <div class="chip"><span>Context</span><b id="activeContext">-</b></div>
+        <div class="chip"><span>Latency</span><b id="latency">-</b></div>
       </div>
       <div id="reply" class="reply">Roxy esta lista.</div>
       <div id="events" class="events">events: ready</div>
@@ -692,7 +702,11 @@ def roxy_live_page():
 
     const suggestedActionPrompts = {
       ask_latest_opportunity: ["Oportunidad", "resumen de oportunidad"],
+      ask_capabilities: ["Capacidades", "que puedes hacer"],
       ask_market_summary: ["Mercado", "resumen del mercado"],
+      connect_realtime_voice: ["Voz", "estado de roxy"],
+      connect_news_source: ["Noticias", "analiza impacto de noticia: pega aqui el titular"],
+      confirm_trade_guardrails: ["Guardrails", "puedo operar ahora"],
       run_scan: ["Datos", "frescura de datos"],
       entry_checklist: ["Checklist", "checklist de entrada"],
       position_size: ["Sizing", "tamaño de posicion con capital 10000 riesgo 0.5%"],
@@ -711,6 +725,7 @@ def roxy_live_page():
       ask_why: ["Por qué", "por que?"],
       ask_followup: ["Sesión", "resumen de sesion"],
       review_learning_status: ["Aprendizaje", "aprendizaje"],
+      review_feedback: ["Feedback", "aprendizaje"],
       keep_session_id: ["Sesión", "resumen de sesion"],
       enable_wake_roxy: ["Estado", "estado de roxy"],
       ask_news_impact: ["Impacto news", "analiza impacto de noticia: pega aqui el titular"],
@@ -958,6 +973,7 @@ def roxy_live_page():
       $("safety").textContent = state.safety_level || "-";
       $("priority").textContent = state.priority || "-";
       $("liveSource").textContent = state.needs_live_source ? "Needed" : "OK";
+      $("latency").textContent = Number.isFinite(Number(state.server_latency_ms)) ? state.server_latency_ms + " ms" : "-";
       updateVoiceDiagnostics(state.language || $("language").value);
       $("reply").textContent = lastReply || "(sin respuesta)";
       renderSuggestedActions(state.suggested_actions || []);
@@ -1271,6 +1287,7 @@ def assist(req: AssistRequest, token: Optional[str] = Depends(require_api_key)):
 @app.post("/v1/assist/state")
 def assist_state(req: AssistRequest, token: Optional[str] = Depends(require_api_key)):
     """Return Roxy's structured voice state for visual and operational clients."""
+    started_at = time.perf_counter()
     try:
         rate_limited(token)
     except HTTPException:
@@ -1286,16 +1303,21 @@ def assist_state(req: AssistRequest, token: Optional[str] = Depends(require_api_
     if va_backend is not None:
         try:
             if hasattr(va_backend, "generate_reply_state"):
-                return va_backend.generate_reply_state(q, user=user, session_id=session_id)
-            return {
-                "reply": va_backend.generate_reply(q, user=user),
-                "intent": "legacy",
-                "voice_style": "female_es_latam",
-                "should_speak": True,
-                "needs_live_source": False,
-                "safety_level": "normal",
-                "suggested_actions": [],
-            }
+                state = va_backend.generate_reply_state(q, user=user, session_id=session_id)
+                return add_turn_metadata(state, started_at, "local_brain")
+            return add_turn_metadata(
+                {
+                    "reply": va_backend.generate_reply(q, user=user),
+                    "intent": "legacy",
+                    "voice_style": "female_es_latam",
+                    "should_speak": True,
+                    "needs_live_source": False,
+                    "safety_level": "normal",
+                    "suggested_actions": [],
+                },
+                started_at,
+                "legacy_backend",
+            )
         except Exception:
             logger.exception("voice backend state error")
             raise HTTPException(status_code=500, detail="assistant backend error")
@@ -1303,27 +1325,35 @@ def assist_state(req: AssistRequest, token: Optional[str] = Depends(require_api_
     if llm is not None:
         try:
             reply = llm.generate_reply(q, user=user)
-            return {
-                "reply": reply,
-                "intent": "llm",
-                "voice_style": "female_es_latam",
-                "should_speak": True,
-                "needs_live_source": False,
-                "safety_level": "normal",
-                "suggested_actions": [],
-            }
+            return add_turn_metadata(
+                {
+                    "reply": reply,
+                    "intent": "llm",
+                    "voice_style": "female_es_latam",
+                    "should_speak": True,
+                    "needs_live_source": False,
+                    "safety_level": "normal",
+                    "suggested_actions": [],
+                },
+                started_at,
+                "llm_provider",
+            )
         except Exception:
             logger.exception("LLM provider error")
 
-    return {
-        "reply": f"(assistant stub) You said: {q}",
-        "intent": "stub",
-        "voice_style": "female_es_latam",
-        "should_speak": True,
-        "needs_live_source": False,
-        "safety_level": "normal",
-        "suggested_actions": [],
-    }
+    return add_turn_metadata(
+        {
+            "reply": f"(assistant stub) You said: {q}",
+            "intent": "stub",
+            "voice_style": "female_es_latam",
+            "should_speak": True,
+            "needs_live_source": False,
+            "safety_level": "normal",
+            "suggested_actions": [],
+        },
+        started_at,
+        "stub",
+    )
 
 
 @app.post("/v1/assist/events")
