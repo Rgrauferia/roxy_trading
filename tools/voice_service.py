@@ -794,7 +794,7 @@ def roxy_live_page():
     }
 
     function extractContextSymbol(text) {
-      const blocked = ["ROXY", "BUY", "SELL", "WATCH", "WAIT", "READY", "BLOCKED", "LONG", "SHORT", "STOP", "TARGET"];
+      const blocked = ["ROXY", "I", "A", "OK", "BUY", "SELL", "WATCH", "WAIT", "READY", "BLOCKED", "LONG", "SHORT", "STOP", "TARGET"];
       const matches = (text || "").match(/\\b[A-Z][A-Z0-9.:-]{0,11}\\b/g) || [];
       return matches.map(symbol => symbol.toUpperCase()).find(symbol => !blocked.includes(symbol)) || "";
     }
@@ -943,6 +943,15 @@ def roxy_live_page():
       ];
       if (voice) parts.push(voice.name + " / " + voice.lang);
       $("voiceStatus").textContent = parts.join(" · ");
+    }
+
+    function syncLanguageFromState(state) {
+      const language = state && (state.language === "en" || state.language === "es") ? state.language : "";
+      if (language && $("language").value !== language) {
+        $("language").value = language;
+        saveSettings();
+      }
+      return language || $("language").value || "es";
     }
 
     function populateVoices() {
@@ -1097,7 +1106,8 @@ def roxy_live_page():
       $("priority").textContent = state.priority || "-";
       $("liveSource").textContent = state.needs_live_source ? "Needed" : "OK";
       $("latency").textContent = Number.isFinite(Number(state.server_latency_ms)) ? state.server_latency_ms + " ms" : "-";
-      updateVoiceDiagnostics(state.language || $("language").value);
+      const activeLanguage = syncLanguageFromState(state);
+      updateVoiceDiagnostics(activeLanguage);
       $("reply").textContent = lastReply || "(sin respuesta)";
       renderSuggestedActions(state.suggested_actions || []);
       renderActiveContext(currentTurnContext(state, text));
