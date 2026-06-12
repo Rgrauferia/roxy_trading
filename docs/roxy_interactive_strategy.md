@@ -85,6 +85,8 @@ Wake Roxy also supports local conversation controls such as "Roxy, repite" / "Ro
 
 Wake Roxy can also expand short bilingual market commands into full assistant prompts. Examples include "Roxy, mercado" / "Roxy, market" for market summary, "Roxy, oportunidades" / "Roxy, opportunities" for top setups, "Roxy, riesgo de SPY" / "Roxy, risk SPY" for entry-stop-target risk explanation, and "Roxy, puedo operar ahora" / "Roxy, can I trade now" for the trade-readiness gate. When the command includes a symbol from the watchlist, default symbol, or a common stock/crypto ticker such as `SPY`, `NVDA`, or `BTC/USD`, Roxy Live appends it to the expanded prompt. These shortcuts still call the assistant backend and preserve the normal trading safety contract.
 
+Wake Roxy supports news voice shortcuts as well. "Roxy, noticias" / "Roxy, news" asks for connected/local news, while "Roxy, noticia Tesla sube por resultados" or "Roxy, news impact Nvidia reports revenue" expands into the guarded headline-impact prompt. Roxy must still ask for source, timestamp, confirmation, and price-volume validation before treating a headline as decision support.
+
 In conversation or wake mode, browser microphone errors such as `no-speech` or `aborted` are treated as recoverable. Roxy Live returns the avatar to ready, records a retry event, and schedules listening again instead of blocking the assistant.
 
 Roxy Live suppresses duplicate final speech transcripts that arrive within a short window. This prevents Chrome or Edge from sending the same voice turn twice during continuous conversation or wake-word listening.

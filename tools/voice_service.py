@@ -963,11 +963,52 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, mercado; Roxy, oportunidades; Roxy, riesgo de SPY; Roxy, habla español; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, market; Roxy, opportunities; Roxy, risk SPY; Roxy, speak English; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, mercado; Roxy, oportunidades; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, market; Roxy, opportunities; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
+    }
+
+    function voiceNewsHeadline(command) {
+      const normalized = normalizeSpeech(command);
+      const impactPrefixes = [
+        "impacto noticia", "impacto de noticia", "impacto del titular",
+        "analiza noticia", "analiza la noticia", "analiza titular",
+        "noticia", "titular", "sentimiento noticia", "sentimiento de noticia",
+        "news impact", "headline impact", "analyze news", "analyze the news",
+        "news sentiment", "headline", "news"
+      ];
+      for (const prefix of impactPrefixes) {
+        if (normalized === prefix) return "";
+        if (normalized.startsWith(prefix + " ")) return normalized.slice(prefix.length).trim();
+      }
+      return "";
+    }
+
+    function newsVoicePrompt(command) {
+      const language = $("language").value || "es";
+      const normalized = normalizeSpeech(command);
+      const summaryPhrases = ["noticias", "noticias mercado", "actualidad", "mercado hoy", "news", "market news"];
+      if (summaryPhrases.includes(normalized)) return language === "en" ? "news" : "noticias";
+      const headline = voiceNewsHeadline(command);
+      if (headline) {
+        return (language === "en" ? "news impact: " : "analiza impacto de noticia: ") + headline;
+      }
+      if (commandMatches(command, ["impacto noticia", "impacto de noticia", "impacto titular", "news impact", "headline impact"])) {
+        return language === "en" ? "news impact: paste the headline" : "analiza impacto de noticia: pega aqui el titular";
+      }
+      return "";
+    }
+
+    function sendVoiceNewsPrompt(command) {
+      const prompt = newsVoicePrompt(command);
+      if (!prompt) return false;
+      $("query").value = prompt;
+      $("events").textContent = "voice: news shortcut";
+      appendMessage("system", "Voice shortcut: " + prompt, "voice-news");
+      send();
+      return true;
     }
 
     function voiceSymbolBlocklist() {
@@ -1091,6 +1132,7 @@ def roxy_live_page():
         explainVoiceCommands();
         return true;
       }
+      if (sendVoiceNewsPrompt(command)) return true;
       if (sendVoiceMarketPrompt(command)) return true;
       return false;
     }

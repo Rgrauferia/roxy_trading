@@ -90,6 +90,9 @@ def test_roxy_live_page():
     assert "applyVoiceLanguageCommand" in r.text
     assert "repeatLastReplyByVoice" in r.text
     assert "explainVoiceCommands" in r.text
+    assert "voiceNewsHeadline" in r.text
+    assert "newsVoicePrompt" in r.text
+    assert "sendVoiceNewsPrompt" in r.text
     assert "voiceCommandSymbol" in r.text
     assert "normalizeVoiceSymbol" in r.text
     assert "withVoiceSymbol" in r.text
@@ -99,9 +102,14 @@ def test_roxy_live_page():
     assert "voice: language " in r.text
     assert "voice: repeat" in r.text
     assert "voice: help" in r.text
+    assert "voice: news shortcut" in r.text
     assert "voice: market shortcut" in r.text
     assert "English mode." in r.text
     assert "Modo español." in r.text
+    assert "Roxy, noticia Tesla sube" in r.text
+    assert "news impact Nvidia reports revenue" in r.text
+    assert "analiza impacto de noticia: " in r.text
+    assert "news impact: " in r.text
     assert "Roxy, mercado" in r.text
     assert "Roxy, market" in r.text
     assert "Roxy, riesgo de SPY" in r.text
