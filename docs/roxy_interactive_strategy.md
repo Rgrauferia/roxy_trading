@@ -79,6 +79,8 @@ Session memory is stored locally in `alerts/roxy_conversation_memory.json` when 
 
 The session response includes `active_context`, a compact handoff for UI and operations clients. It exposes the active intent, active symbol, latest topic, confirmation requirement, and safe `next_best_actions` without requiring a client to parse full transcript history. Roxy Live displays this as the `Context` chip and reuses `next_best_actions` for suggested action buttons. Lightweight clients can call `GET /v1/assist/context/{session_id}` when they need only this compact context and not the recent transcript.
 
+Roxy Live also refreshes the `Context` chip after every state or streamed reply using the current turn intent, detected symbol, safety level, and suggested actions. This keeps voice users oriented during a live conversation without requiring a manual memory reload.
+
 When session memory is available, Roxy can resolve short follow-ups such as "por que?", "dame el plan", "continue", or "why?" against the last meaningful topic. For opportunity conversations this can produce `opportunity_reason` or `opportunity_risk` without forcing the user to repeat the symbol, which makes voice conversation feel closer to a natural assistant.
 
 For session recap prompts such as "resumen de sesion" or "conversation recap", Roxy uses the `session_recap` intent. It summarizes the recent saved turns for the active `session_id`, main intents, last topic, and a safe next step. It does not expose long raw history and relies on the existing local redaction used by conversation memory.

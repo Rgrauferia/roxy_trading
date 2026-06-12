@@ -789,6 +789,24 @@ def roxy_live_page():
       if (actions.length) renderSuggestedActions(actions);
     }
 
+    function extractContextSymbol(text) {
+      const blocked = ["ROXY", "BUY", "SELL", "WATCH", "WAIT", "READY", "BLOCKED", "LONG", "SHORT", "STOP", "TARGET"];
+      const matches = (text || "").match(/\\b[A-Z][A-Z0-9.:-]{0,11}\\b/g) || [];
+      return matches.map(symbol => symbol.toUpperCase()).find(symbol => !blocked.includes(symbol)) || "";
+    }
+
+    function currentTurnContext(state, text) {
+      const actions = Array.isArray(state.suggested_actions) ? state.suggested_actions : [];
+      return {
+        active_intent: state.intent || "",
+        active_symbol: state.active_symbol || extractContextSymbol([text, state.reply].join(" ")),
+        active_topic: text || "",
+        last_safety_level: state.safety_level || "",
+        needs_confirmation: state.safety_level === "critical" || actions.includes("require_explicit_confirmation"),
+        next_best_actions: actions,
+      };
+    }
+
     function setAvatar(state, emotion) {
       const avatar = $("avatar");
       avatar.className = "avatar " + (state || "ready");
@@ -1048,6 +1066,7 @@ def roxy_live_page():
       updateVoiceDiagnostics(state.language || $("language").value);
       $("reply").textContent = lastReply || "(sin respuesta)";
       renderSuggestedActions(state.suggested_actions || []);
+      renderActiveContext(currentTurnContext(state, text));
       if (Array.isArray(state.events) && opts.eventsText === undefined) {
         $("events").textContent = "events: " + (state.events.map(e => e.type).join(" -> ") || "-");
       }

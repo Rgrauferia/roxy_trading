@@ -43,6 +43,9 @@ def test_roxy_live_page():
     assert "suggestedActionPrompts" in r.text
     assert "renderSuggestedActions" in r.text
     assert "renderActiveContext" in r.text
+    assert "extractContextSymbol" in r.text
+    assert "currentTurnContext" in r.text
+    assert "renderActiveContext(currentTurnContext(state, text))" in r.text
     assert "state.suggested_actions" in r.text
     assert "confirm_before_execution" in r.text
     assert "alert_draft" in r.text
