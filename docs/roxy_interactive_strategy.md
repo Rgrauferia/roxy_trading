@@ -81,6 +81,8 @@ Siri-style operation is available in Roxy Live with `Wake Roxy`. When active, th
 
 Wake Roxy also supports local language control commands such as "Roxy, speak English" or "Roxy, habla español". These switch the browser recognition language and compatible voice without calling the assistant backend.
 
+Wake Roxy also supports local conversation controls such as "Roxy, repite" / "Roxy, repeat" for replaying the last answer and "Roxy, ayuda" / "Roxy, help" for a short command reminder. These controls run in the browser and return to listening without creating a new assistant turn.
+
 In conversation or wake mode, browser microphone errors such as `no-speech` or `aborted` are treated as recoverable. Roxy Live returns the avatar to ready, records a retry event, and schedules listening again instead of blocking the assistant.
 
 Roxy Live suppresses duplicate final speech transcripts that arrive within a short window. This prevents Chrome or Edge from sending the same voice turn twice during continuous conversation or wake-word listening.

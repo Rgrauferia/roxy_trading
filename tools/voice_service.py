@@ -908,6 +908,23 @@ def roxy_live_page():
       return "";
     }
 
+    function commandMatches(command, phrases) {
+      const normalized = normalizeSpeech(command);
+      return phrases.some(phrase => normalized === phrase || normalized.includes(phrase));
+    }
+
+    function localizedText(esText, enText, languageOverride) {
+      const language = languageOverride || $("language").value || "es";
+      return language === "en" ? enText : esText;
+    }
+
+    function speakLocalControlMessage(message, language, eventName, messageType) {
+      $("reply").textContent = message;
+      $("events").textContent = eventName;
+      appendMessage("system", message, messageType || "voice-control");
+      if (!speak(message, language)) scheduleListen();
+    }
+
     function applyVoiceLanguageCommand(languageValue) {
       const language = languageValue === "en" ? "en" : "es";
       const message = language === "en" ? "English mode." : "Modo español.";
@@ -922,10 +939,49 @@ def roxy_live_page():
       if (!speak(message, language)) scheduleListen();
     }
 
+    function repeatLastReplyByVoice() {
+      const language = lastState.language || $("language").value || "es";
+      if (!lastReply) {
+        const message = localizedText(
+          "No tengo una respuesta anterior para repetir.",
+          "I do not have a previous answer to repeat.",
+          language
+        );
+        speakLocalControlMessage(message, language, "voice: repeat unavailable", "voice-control");
+        return;
+      }
+      $("reply").textContent = lastReply;
+      $("events").textContent = "voice: repeat";
+      appendMessage(
+        "system",
+        localizedText("Repitiendo la ultima respuesta.", "Repeating the last answer.", language),
+        "voice-control"
+      );
+      if (!speak(lastReply, language)) scheduleListen();
+    }
+
+    function explainVoiceCommands() {
+      const language = $("language").value || "es";
+      const message = localizedText(
+        "Puedes decir: Roxy, habla español; Roxy, speak English; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, speak English; Roxy, habla español; Roxy, repeat; or Roxy, stop.",
+        language
+      );
+      speakLocalControlMessage(message, language, "voice: help", "voice-help");
+    }
+
     function handleVoiceControlCommand(command) {
       const language = languageCommandTarget(command);
       if (language) {
         applyVoiceLanguageCommand(language);
+        return true;
+      }
+      if (commandMatches(command, ["repite", "repetir", "repite eso", "otra vez", "dilo otra vez", "repeat", "repeat that", "say again", "say that again"])) {
+        repeatLastReplyByVoice();
+        return true;
+      }
+      if (commandMatches(command, ["ayuda", "comandos", "que puedo decir", "help", "commands", "what can i say"])) {
+        explainVoiceCommands();
         return true;
       }
       return false;
