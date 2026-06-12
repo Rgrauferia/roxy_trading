@@ -292,6 +292,123 @@ def test_roxy_brain_requires_scan_before_comparing_opportunities(tmp_path):
     assert "run_scan" in response.suggested_actions
 
 
+def test_roxy_brain_builds_monitoring_plan_for_top_ranked_opportunity_spanish(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "symbol": "SPY",
+                        "signal": "WATCH",
+                        "decision": "Esperar",
+                        "entry": 505.5,
+                        "stop": 501.0,
+                        "risk_pct": 0.0089,
+                        "readiness": 62,
+                        "entry_trigger": "Esperar cierre sobre VWAP.",
+                        "invalidation": "Invalidar si pierde 501.",
+                    },
+                    {
+                        "symbol": "NVDA",
+                        "signal": "ALERT",
+                        "decision": "TRADE_FOR_2PCT",
+                        "entry": 142.25,
+                        "stop": 139.5,
+                        "risk_pct": 0.0193,
+                        "readiness": 86,
+                        "entry_trigger": "Esperar ruptura con volumen en 15m.",
+                        "invalidation": "Invalidar bajo 139.50.",
+                        "what_is_missing": "Confirmar volumen.",
+                        "why": "Momentum favorable con riesgo definido.",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        feedback_memory=RoxyFeedbackMemory(path=tmp_path / "feedback.json"),
+    )
+
+    response = brain.generate_reply("plan de monitoreo")
+
+    assert response.intent == "monitoring_plan"
+    assert response.language == "es"
+    assert response.priority == "high"
+    assert "Monitoreo NVDA" in response.reply
+    assert "Vigila: Esperar ruptura con volumen en 15m" in response.reply
+    assert "Invalidacion: Invalidar bajo 139.50" in response.reply
+    assert "no ejecucion" in response.reply
+
+
+def test_roxy_brain_builds_monitoring_plan_for_requested_symbol_english(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "symbol": "SPY",
+                        "signal": "WATCH",
+                        "decision": "Esperar",
+                        "entry": 505.5,
+                        "stop": 501.0,
+                        "risk_pct": 0.0089,
+                        "readiness": 62,
+                        "entry_trigger": "Esperar gatillo BUY en 15m mientras 1h sigue valido.",
+                        "invalidation": "Invalidar si pierde 501.",
+                        "what_is_missing": "Volumen acompana: falta volumen",
+                    },
+                    {
+                        "symbol": "NVDA",
+                        "signal": "ALERT",
+                        "decision": "TRADE_FOR_2PCT",
+                        "entry": 142.25,
+                        "stop": 139.5,
+                        "risk_pct": 0.0193,
+                        "readiness": 86,
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        feedback_memory=RoxyFeedbackMemory(path=tmp_path / "feedback.json"),
+    )
+
+    response = brain.generate_reply("monitoring plan for SPY")
+
+    assert response.intent == "monitoring_plan"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert "Monitoring SPY" in response.reply
+    assert "Wait for a 15m BUY trigger" in response.reply
+    assert "missing volume" in response.reply
+    assert "not execution" in response.reply
+
+
+def test_roxy_brain_requires_scan_before_monitoring_plan(tmp_path):
+    brain = RoxyInteractiveBrain(
+        brief_path=tmp_path / "brief.json",
+        memory_path=tmp_path / "memory.json",
+        feedback_memory=RoxyFeedbackMemory(path=tmp_path / "feedback.json"),
+    )
+
+    response = brain.generate_reply("plan de monitoreo")
+
+    assert response.intent == "monitoring_plan"
+    assert response.needs_live_source is True
+    assert response.safety_level == "guarded"
+    assert "scan fresco" in response.reply
+    assert "run_scan" in response.suggested_actions
+
+
 def test_roxy_brain_summarizes_market_regime_in_spanish(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(

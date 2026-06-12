@@ -558,6 +558,10 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "best",
         "ranking",
         "rank",
+        "monitor",
+        "monitoring",
+        "watch",
+        "track",
     }
     spanish_terms = {
         "hola",
@@ -596,6 +600,9 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "oportunidades",
         "mejores",
         "ranking",
+        "monitoreo",
+        "vigilar",
+        "seguimiento",
     }
     tokens = set(re.findall(r"[a-záéíóúñ]+", normalized))
     english_score = len(tokens.intersection(english_terms))
@@ -1016,6 +1023,15 @@ def _extract_symbol(query: str) -> str | None:
         "MEJORES",
         "RANKING",
         "RANK",
+        "WATCH",
+        "MONITORING",
+        "MONITOREO",
+        "SEGUIMIENTO",
+        "VIGILAR",
+        "VIGILO",
+        "TRACK",
+        "OBSERVAR",
+        "OBSERVE",
     }
     for raw_word in query.split():
         word = raw_word.strip(".,:;!?()[]{}\"'").upper().replace("-", "/")
@@ -1121,6 +1137,24 @@ class RoxyInteractiveBrain:
             "opportunity ranking",
             "best opportunities",
         )
+        monitoring_plan_terms = (
+            "plan de monitoreo",
+            "plan seguimiento",
+            "plan de seguimiento",
+            "seguimiento de oportunidad",
+            "monitorea oportunidad",
+            "vigilar oportunidad",
+            "que debo vigilar en",
+            "qué debo vigilar en",
+            "que debo vigilar para",
+            "qué debo vigilar para",
+            "monitoring plan",
+            "watch plan",
+            "monitor this setup",
+            "track this setup",
+            "what should i monitor on",
+            "what should i watch on",
+        )
         if _contains_any(lq, ("hola", "hello", "hi", "hey", "buenos dias", "buenas")):
             response = self._greeting_reply(user, profile)
             return finish(response)
@@ -1176,6 +1210,10 @@ class RoxyInteractiveBrain:
             ),
         ):
             response = self._capability_reply(profile)
+            return finish(response)
+
+        if _contains_any(lq, monitoring_plan_terms):
+            response = self._monitoring_plan_reply(q, language)
             return finish(response)
 
         if _contains_any(
@@ -2469,6 +2507,75 @@ class RoxyInteractiveBrain:
             safety_level="guarded",
             priority="high" if top_priority else "normal",
             suggested_actions=("entry_checklist", "ask_risk", "position_size", "confirm_before_execution"),
+        )
+
+    def _monitoring_plan_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
+        symbol = _extract_symbol(query)
+        row = self._latest_opportunity(symbol)
+        if not row:
+            target = f" for {symbol}" if symbol and language == "en" else f" para {symbol}" if symbol else ""
+            reply = (
+                f"I do not have a local opportunity{target} to monitor yet. Run a fresh scan first so I can define trigger, invalidation, and risk."
+                if language == "en"
+                else f"No tengo una oportunidad local{target} para monitorear todavia. Ejecuta un scan fresco primero para definir gatillo, invalidacion y riesgo."
+            )
+            return RoxyBrainReply(
+                intent="monitoring_plan",
+                reply=reply,
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                suggested_actions=("run_scan", "ask_market_summary"),
+            )
+
+        symbol_text = _safe_text(row.get("symbol") or symbol or "-").upper()
+        action = _safe_text(row.get("signal") or row.get("ai_action") or "WATCH").upper()
+        decision = _safe_text(row.get("decision") or row.get("trade_decision") or "-")
+        trigger = _safe_text(row.get("entry_trigger") or row.get("trigger") or row.get("entry_tf"))
+        invalidation = _safe_text(row.get("invalidation") or row.get("exit_condition"))
+        missing = _safe_text(row.get("what_is_missing") or row.get("missing") or row.get("blockers"))
+        reason = _safe_text(row.get("why") or row.get("explanation") or row.get("memory_note") or row.get("alert_quality_reason"))
+        readiness = _safe_float(row.get("readiness") or row.get("ai_score") or row.get("confluence_score"))
+        readiness_text = "-" if readiness is None else f"{readiness:.1f}"
+        entry = _price(row.get("entry"))
+        stop = _price(row.get("stop"))
+        risk = _pct(row.get("risk_pct"))
+
+        if not invalidation and stop != "-":
+            invalidation = f"stop {stop}"
+        if not trigger:
+            trigger = "esperar confirmacion de precio y volumen" if language != "en" else "wait for price and volume confirmation"
+
+        if language == "en":
+            decision = _localize_market_phrase(decision, language)
+            trigger = _sentence_fragment(_localize_market_phrase(trigger, language))
+            invalidation = _sentence_fragment(_localize_market_phrase(invalidation, language))
+            missing = _sentence_fragment(_localize_market_phrase(missing, language))
+            reason = _sentence_fragment(_localize_market_phrase(reason, language))
+            reply = (
+                f"Monitoring {symbol_text}: current action {action}, decision {decision}, readiness {readiness_text}. "
+                f"Watch: {trigger}. Invalidation: {invalidation or '-'}. Confirm before action: {missing or 'price-volume confirmation'}. "
+                f"Risk frame: entry {entry}, stop {stop}, risk {risk}. Context: {reason or '-'}. "
+                "This is a monitoring plan, not execution; ask for checklist or position size only after live data confirms the trigger."
+            )
+        else:
+            trigger = _sentence_fragment(trigger)
+            invalidation = _sentence_fragment(invalidation)
+            missing = _sentence_fragment(missing)
+            reason = _sentence_fragment(reason)
+            reply = (
+                f"Monitoreo {symbol_text}: accion actual {action}, decision {decision}, readiness {readiness_text}. "
+                f"Vigila: {trigger}. Invalidacion: {invalidation or '-'}. Confirma antes de actuar: {missing or 'precio-volumen acompana'}. "
+                f"Marco de riesgo: entrada {entry}, stop {stop}, riesgo {risk}. Contexto: {reason or '-'}. "
+                "Esto es plan de monitoreo, no ejecucion; pide checklist o sizing solo si los datos en vivo confirman el gatillo."
+            )
+        return RoxyBrainReply(
+            intent="monitoring_plan",
+            reply=reply,
+            emotion="analytical",
+            safety_level="guarded",
+            priority="high" if action in {"ALERT", "BUY", "SELL", "READY"} else "normal",
+            suggested_actions=("entry_checklist", "position_size", "ask_market_summary", "set_alert"),
         )
 
     def _opportunity_reply(self, query: str, language: str = "es") -> RoxyBrainReply:

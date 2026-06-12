@@ -549,6 +549,7 @@ def roxy_live_page():
           <button data-prompt="analiza impacto de noticia: pega aqui el titular">Impacto news</button>
           <button data-prompt="resumen de oportunidad">Oportunidad</button>
           <button data-prompt="top oportunidades">Ranking</button>
+          <button data-prompt="plan de monitoreo">Monitoreo</button>
           <button data-prompt="explica riesgo entrada stop target">Riesgo</button>
           <button data-prompt="checklist de entrada">Checklist</button>
           <button data-prompt="tamaño de posicion con capital 10000 riesgo 0.5%">Sizing</button>
