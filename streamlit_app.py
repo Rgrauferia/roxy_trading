@@ -7366,36 +7366,37 @@ def show_ai_status_cards(
                 detail=maintenance_status["detail"],
             )
 
-        ops_cols = st.columns(4)
-        with ops_cols[0]:
-            render_kpi_card(
-                "Estabilidad RT",
-                health_history_status["label"],
-                tone=health_history_status["tone"],
-                detail=health_history_status["detail"],
-            )
-        with ops_cols[1]:
-            render_kpi_card(
-                "Ultimo estado",
-                text_display(realtime_check.get("status") if realtime_check else "-"),
-                tone=check_status["tone"],
-                detail=text_display(realtime_check.get("generated_at") if realtime_check else "Sin reporte"),
-            )
-        with ops_cols[2]:
-            history_path = str(runtime_path("alerts/roxy_realtime_history.jsonl"))
-            render_kpi_card("Historial health", len(health_history), tone="neutral", detail=history_path)
-        with ops_cols[3]:
-            mac_media_tone = mac_disk_status["tone"]
-            mac_media_label = mac_disk_status["label"]
-            if mac_media_tone == "buy" and local_media_status["tone"] != "buy":
-                mac_media_tone = local_media_status["tone"]
-                mac_media_label = local_media_status["label"]
-            render_kpi_card(
-                "Mac/media",
-                mac_media_label,
-                tone=mac_media_tone,
-                detail=f"Mac {mac_disk_status['detail']} | Media {local_media_status['detail']}",
-            )
+        if show_technical_reports:
+            ops_cols = st.columns(4)
+            with ops_cols[0]:
+                render_kpi_card(
+                    "Estabilidad RT",
+                    health_history_status["label"],
+                    tone=health_history_status["tone"],
+                    detail=health_history_status["detail"],
+                )
+            with ops_cols[1]:
+                render_kpi_card(
+                    "Ultimo estado",
+                    text_display(realtime_check.get("status") if realtime_check else "-"),
+                    tone=check_status["tone"],
+                    detail=text_display(realtime_check.get("generated_at") if realtime_check else "Sin reporte"),
+                )
+            with ops_cols[2]:
+                history_path = str(runtime_path("alerts/roxy_realtime_history.jsonl"))
+                render_kpi_card("Historial health", len(health_history), tone="neutral", detail=history_path)
+            with ops_cols[3]:
+                mac_media_tone = mac_disk_status["tone"]
+                mac_media_label = mac_disk_status["label"]
+                if mac_media_tone == "buy" and local_media_status["tone"] != "buy":
+                    mac_media_tone = local_media_status["tone"]
+                    mac_media_label = local_media_status["label"]
+                render_kpi_card(
+                    "Mac/media",
+                    mac_media_label,
+                    tone=mac_media_tone,
+                    detail=f"Mac {mac_disk_status['detail']} | Media {local_media_status['detail']}",
+                )
 
         if show_technical_reports:
             with st.expander("Infraestructura tecnica", expanded=False):
