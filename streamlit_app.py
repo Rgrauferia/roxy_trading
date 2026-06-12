@@ -7843,6 +7843,23 @@ def market_pulse_risk_map(table: pd.DataFrame) -> pd.DataFrame:
     return risk_map
 
 
+
+def dashboard_now_reason(row: dict[str, Any], brief: dict[str, Any] | None = None) -> str:
+    brief = brief or {}
+    if not row:
+        return text_display(brief.get("summary") or "Esperar el próximo scan con datos frescos.")
+    for key in ("waiting_for", "next", "por_que", "reason", "raw_reason"):
+        value = text_display(row.get(key))
+        if value != "-":
+            return value
+    movement = watch_movement_label(row)
+    if movement and movement != "-":
+        return movement
+    reason = opportunity_reason_label(row)
+    if reason and reason != "-":
+        return reason
+    return text_display(brief.get("summary") or "Esperar confirmación de 15m, 1h, volumen y riesgo.")
+
 def scanner_overview_summary(
     table: pd.DataFrame,
     confluence_df: pd.DataFrame,
@@ -13598,7 +13615,7 @@ def render_roxy_now_strip(brief: dict[str, Any]) -> None:
     tone = signal_tone(best.get("signal", "")) if best else "watch"
     if str(action).lower().startswith("esperar"):
         tone = "watch"
-    reason = text_display(best.get("waiting_for") or best.get("por_que") or best.get("reason") or "Sin setup limpio ahora.")
+    reason = dashboard_now_reason(best, brief)
     entry = num_display(best.get("entry") or best.get("current_price") or best.get("price"), 2)
     stop = num_display(best.get("stop"), 2)
     target = num_display(best.get("target") or best.get("take_profit"), 2)
