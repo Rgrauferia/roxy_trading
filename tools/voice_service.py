@@ -891,6 +891,46 @@ def roxy_live_page():
       return words.slice(wakeIndex + 1).join(" ").trim();
     }
 
+    function languageCommandTarget(command) {
+      const normalized = normalizeSpeech(command);
+      const englishPhrases = [
+        "english", "ingles", "en ingles", "habla ingles", "hablar ingles",
+        "speak english", "speak in english", "english mode", "modo ingles",
+        "cambia a ingles", "change to english"
+      ];
+      const spanishPhrases = [
+        "espanol", "spanish", "en espanol", "habla espanol", "hablar espanol",
+        "speak spanish", "speak in spanish", "spanish mode", "modo espanol",
+        "cambia a espanol", "change to spanish"
+      ];
+      if (englishPhrases.some(phrase => normalized === phrase || normalized.includes(phrase))) return "en";
+      if (spanishPhrases.some(phrase => normalized === phrase || normalized.includes(phrase))) return "es";
+      return "";
+    }
+
+    function applyVoiceLanguageCommand(languageValue) {
+      const language = languageValue === "en" ? "en" : "es";
+      const message = language === "en" ? "English mode." : "Modo español.";
+      $("language").value = language;
+      alignVoiceSelection(language);
+      saveSettings();
+      updateVoiceDiagnostics(language);
+      if (recognition) recognition.lang = speechLang(language);
+      $("reply").textContent = message;
+      $("events").textContent = "voice: language " + language;
+      appendMessage("system", message, "language");
+      if (!speak(message, language)) scheduleListen();
+    }
+
+    function handleVoiceControlCommand(command) {
+      const language = languageCommandTarget(command);
+      if (language) {
+        applyVoiceLanguageCommand(language);
+        return true;
+      }
+      return false;
+    }
+
     function handleFinalTranscript(text) {
       const finalText = (text || "").trim();
       if (!finalText) return;
@@ -914,10 +954,12 @@ def roxy_live_page():
           stopAll("Comando recibido: " + command);
           return;
         }
+        if (handleVoiceControlCommand(command)) return;
         $("query").value = command;
         send();
         return;
       }
+      if (handleVoiceControlCommand(finalText)) return;
       if ($("autoSendVoice").checked) send();
     }
 

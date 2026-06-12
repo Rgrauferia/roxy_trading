@@ -83,6 +83,12 @@ def test_roxy_live_page():
     assert "wakeMode" in r.text
     assert "wakeWord" in r.text
     assert "extractWakeCommand" in r.text
+    assert "languageCommandTarget" in r.text
+    assert "applyVoiceLanguageCommand" in r.text
+    assert "handleVoiceControlCommand" in r.text
+    assert "voice: language " in r.text
+    assert "English mode." in r.text
+    assert "Modo español." in r.text
     assert "Wake Roxy activo" in r.text
     assert "feedbackUp" in r.text
     assert "/v1/feedback" in r.text
