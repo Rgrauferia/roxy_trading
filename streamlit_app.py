@@ -1488,7 +1488,7 @@ def render_professional_chart_block(
         next_hint = "Listo si respeta entrada, stop, volumen y gestion de riesgo."
     confirmation_html = "".join(
         '<span class="chart-check-pill chart-check-{tone}" title="{detail}">'
-        "<em>{label}</em><strong>{status}</strong></span>".format(
+        "<span><em>{label}</em><small>{detail}</small></span><strong>{status}</strong></span>".format(
             tone=html.escape(text_display(item.get("tone"))),
             label=html.escape(text_display(item.get("label"))),
             status=html.escape(text_display(item.get("status"))),
@@ -13425,7 +13425,9 @@ def main() -> None:
         .chart-level-rr{border-color:rgba(245,158,11,.58)!important;color:#fde68a!important;background:rgba(120,53,15,.18)!important}
         .chart-check-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;border:1px solid rgba(148,163,184,.18);border-radius:8px;background:rgba(148,163,184,.14);overflow:hidden;margin:-2px 0 6px}
         .chart-check-pill{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#0b1220;padding:6px 8px;min-width:0;border-top:2px solid rgba(148,163,184,.28)}
+        .chart-check-pill span{min-width:0}
         .chart-check-pill em{font-style:normal;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .chart-check-pill small{display:block;color:#cbd5e1;font-size:9px;line-height:1.1;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .chart-check-pill strong{color:#f8fafc;font-size:11px;line-height:1;font-weight:950;white-space:nowrap}
         .chart-check-buy{border-top-color:#22c55e;background:rgba(21,93,62,.20)}
         .chart-check-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.18)}
