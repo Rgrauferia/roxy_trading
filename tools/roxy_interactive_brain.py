@@ -454,8 +454,55 @@ def _pct(value: Any) -> str:
     return f"{number * 100:.2f}%"
 
 
+def _money(value: Any) -> str:
+    number = _safe_float(value)
+    if number is None:
+        return "-"
+    return f"{number:.2f}"
+
+
 def _contains_any(text: str, terms: Iterable[str]) -> bool:
     return any(term in text for term in terms)
+
+
+def _parse_compact_number(raw: str, suffix: str = "") -> float | None:
+    try:
+        number = float(str(raw or "").replace(",", ""))
+    except ValueError:
+        return None
+    suffix = str(suffix or "").lower()
+    if suffix == "k":
+        number *= 1_000
+    elif suffix == "m":
+        number *= 1_000_000
+    return number
+
+
+def _extract_query_equity(query: str) -> float | None:
+    text = str(query or "")
+    number = r"([\d][\d,]*(?:\.\d+)?)\s*([kKmM]?)"
+    for marker in ("capital", "cuenta", "saldo", "account", "equity", "balance", "portfolio"):
+        match = re.search(
+            rf"(?i)\b{marker}\b\s*(?:de|of|is|=|:|con|with)?\s*\$?\s*{number}",
+            text,
+        )
+        if match:
+            return _parse_compact_number(match.group(1), match.group(2))
+    match = re.search(rf"\$\s*{number}", text)
+    if match:
+        return _parse_compact_number(match.group(1), match.group(2))
+    return None
+
+
+def _extract_query_risk_fraction(query: str) -> tuple[float | None, bool]:
+    text = str(query or "")
+    for marker in ("riesgo", "risk", "arriesga", "arriesgar", "risking"):
+        match = re.search(rf"(?i)\b{marker}\b\s*(?:de|=|:)?\s*([\d]+(?:\.\d+)?)\s*%", text)
+        if match:
+            value = _safe_float(match.group(1))
+            if value is not None and value > 0:
+                return value / 100, True
+    return None, False
 
 
 def _detect_language(query: str, profile: dict[str, Any]) -> str:
@@ -495,6 +542,11 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "details",
         "more",
         "why",
+        "position",
+        "size",
+        "shares",
+        "equity",
+        "capital",
     }
     spanish_terms = {
         "hola",
@@ -520,6 +572,11 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "detalles",
         "mas",
         "porque",
+        "tamano",
+        "tamaño",
+        "cantidad",
+        "acciones",
+        "capital",
     }
     tokens = set(re.findall(r"[a-záéíóúñ]+", normalized))
     english_score = len(tokens.intersection(english_terms))
@@ -881,6 +938,22 @@ def _extract_symbol(query: str) -> str | None:
         "WHY",
         "HOW",
         "PLAN",
+        "SIZE",
+        "SIZING",
+        "POSITION",
+        "POSICION",
+        "POSICIÓN",
+        "TAMANO",
+        "TAMAÑO",
+        "CAPITAL",
+        "CUENTA",
+        "SALDO",
+        "EQUITY",
+        "BALANCE",
+        "ACCIONES",
+        "SHARES",
+        "QTY",
+        "CANTIDAD",
         "WATCHLIST",
         "LISTA",
         "VIGILA",
@@ -1140,6 +1213,29 @@ class RoxyInteractiveBrain:
 
         if _contains_any(lq, ("laboratorio", "experimento", "estrategia nueva", "mejora")):
             response = self._lab_reply()
+            return finish(response)
+
+        if _contains_any(
+            lq,
+            (
+                "position size",
+                "position sizing",
+                "size position",
+                "tamano de posicion",
+                "tamaño de posicion",
+                "tamano posicion",
+                "tamaño posicion",
+                "cantidad de acciones",
+                "cuantas acciones",
+                "cuántas acciones",
+                "cuanto comprar",
+                "cuánto comprar",
+                "qty",
+                "shares",
+                "risk budget",
+            ),
+        ):
+            response = self._position_size_reply(q, language=language)
             return finish(response)
 
         if _contains_any(
@@ -2313,6 +2409,119 @@ class RoxyInteractiveBrain:
             emotion="analytical",
             safety_level="guarded",
             suggested_actions=("ask_risk", "ask_market_summary", "monitor_trigger"),
+        )
+
+    def _account_equity_from_brief(self) -> float | None:
+        brief = _load_json(self.brief_path)
+        containers = [
+            brief,
+            brief.get("account") if isinstance(brief.get("account"), dict) else {},
+            brief.get("account_summary") if isinstance(brief.get("account_summary"), dict) else {},
+            brief.get("portfolio") if isinstance(brief.get("portfolio"), dict) else {},
+        ]
+        keys = ("equity", "account_equity", "portfolio_value", "cash", "buying_power")
+        for container in containers:
+            if not isinstance(container, dict):
+                continue
+            for key in keys:
+                value = _safe_float(container.get(key))
+                if value is not None and value > 0:
+                    return value
+        return None
+
+    def _position_size_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
+        symbol = _extract_symbol(query)
+        row = self._latest_opportunity(symbol)
+        if not row:
+            target = f" for {symbol}" if symbol and language == "en" else f" para {symbol}" if symbol else ""
+            reply = (
+                f"I do not have a local opportunity{target} with entry and stop. Refresh the scan before sizing."
+                if language == "en"
+                else f"No tengo una oportunidad local{target} con entrada y stop. Refresca el scan antes de calcular tamaño."
+            )
+            return RoxyBrainReply(
+                intent="position_size",
+                reply=reply,
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                suggested_actions=("run_scan", "ask_risk"),
+            )
+
+        equity = _extract_query_equity(query) or self._account_equity_from_brief()
+        if equity is None or equity <= 0:
+            if language == "en":
+                reply = (
+                    "I can size the position, but I need account equity or capital first. Ask like: "
+                    "'position size NVDA with account 25000 risk 0.5%'. I will not infer account size."
+                )
+            else:
+                reply = (
+                    "Puedo calcular el tamaño de posición, pero primero necesito capital o equity de cuenta. "
+                    "Pregunta por ejemplo: 'tamaño de posicion NVDA con capital 25000 riesgo 0.5%'. No voy a inferir tamaño de cuenta."
+                )
+            return RoxyBrainReply(
+                intent="position_size",
+                reply=reply,
+                emotion="cautious",
+                safety_level="guarded",
+                suggested_actions=("provide_account_equity", "ask_risk", "run_scan"),
+            )
+
+        entry = _safe_float(row.get("entry"))
+        stop = _safe_float(row.get("stop"))
+        if entry is None or stop is None or entry <= 0 or stop <= 0 or entry == stop:
+            symbol_text = _safe_text(row.get("symbol") or symbol or "-").upper()
+            reply = (
+                f"{symbol_text} is missing a valid entry/stop pair, so I cannot size it safely."
+                if language == "en"
+                else f"{symbol_text} no tiene un par entrada/stop valido, asi que no puedo calcular tamaño con seguridad."
+            )
+            return RoxyBrainReply(
+                intent="position_size",
+                reply=reply,
+                emotion="cautious",
+                safety_level="guarded",
+                suggested_actions=("ask_risk", "run_scan"),
+            )
+
+        risk_fraction, explicit_risk = _extract_query_risk_fraction(query)
+        if risk_fraction is None:
+            risk_fraction = 0.005
+        risk_fraction = max(0.0001, min(risk_fraction, 0.05))
+        risk_budget = equity * risk_fraction
+        per_unit_risk = abs(entry - stop)
+        raw_qty = risk_budget / per_unit_risk if per_unit_risk > 0 else 0
+        symbol_text = _safe_text(row.get("symbol") or symbol or "-").upper()
+        is_fractional = "/" in symbol_text
+        qty = raw_qty if is_fractional else int(raw_qty)
+        notional = qty * entry
+        used_risk = qty * per_unit_risk
+        risk_source = "explicito" if explicit_risk and language != "en" else "explicit" if explicit_risk else (
+            "default 0.5%" if language == "en" else "default 0.5%"
+        )
+        qty_text = f"{qty:.6f}".rstrip("0").rstrip(".") if is_fractional else str(int(qty))
+
+        if language == "en":
+            reply = (
+                f"{symbol_text} position size: account {_money(equity)}, account risk {_pct(risk_fraction)} "
+                f"({risk_source}), risk budget {_money(risk_budget)}. Entry {_money(entry)}, stop {_money(stop)}, "
+                f"risk per unit {_money(per_unit_risk)}. Qty {qty_text}, notional {_money(notional)}, "
+                f"risk used {_money(used_risk)}. This is sizing math only, not an execution order; confirm source data and account state first."
+            )
+        else:
+            reply = (
+                f"{symbol_text} tamaño de posicion: cuenta {_money(equity)}, riesgo de cuenta {_pct(risk_fraction)} "
+                f"({risk_source}), presupuesto de riesgo {_money(risk_budget)}. Entrada {_money(entry)}, stop {_money(stop)}, "
+                f"riesgo por unidad {_money(per_unit_risk)}. Cantidad {qty_text}, nocional {_money(notional)}, "
+                f"riesgo usado {_money(used_risk)}. Esto es solo calculo de sizing, no una orden; confirma datos y estado de cuenta primero."
+            )
+        return RoxyBrainReply(
+            intent="position_size",
+            reply=reply,
+            emotion="analytical",
+            safety_level="guarded",
+            suggested_actions=("show_trade_ticket", "ask_market_summary", "confirm_before_execution"),
         )
 
     def _opportunity_risk_reply(self, query: str, language: str = "es") -> RoxyBrainReply:

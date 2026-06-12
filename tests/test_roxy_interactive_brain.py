@@ -430,6 +430,99 @@ def test_roxy_brain_explains_opportunity_risk_plan_in_english(tmp_path):
     assert "not an execution order" in response.reply
 
 
+def test_roxy_brain_calculates_position_size_in_spanish(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "symbol": "SPY",
+                        "signal": "WATCH",
+                        "entry": 505.5,
+                        "stop": 501.0,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("tamaño de posicion SPY con capital 10000 riesgo 0.5%")
+
+    assert response.intent == "position_size"
+    assert response.language == "es"
+    assert response.safety_level == "guarded"
+    assert "SPY tamaño de posicion" in response.reply
+    assert "cuenta 10000.00" in response.reply
+    assert "riesgo de cuenta 0.50%" in response.reply
+    assert "presupuesto de riesgo 50.00" in response.reply
+    assert "Cantidad 11" in response.reply
+    assert "no una orden" in response.reply
+
+
+def test_roxy_brain_calculates_position_size_in_english(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "opportunities": [
+                        {
+                            "symbol": "NVDA",
+                            "signal": "WATCH",
+                            "entry": 142.25,
+                            "stop": 139.5,
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("position size NVDA with account 25000 risk 1%")
+
+    assert response.intent == "position_size"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert "NVDA position size" in response.reply
+    assert "account 25000.00" in response.reply
+    assert "account risk 1.00%" in response.reply
+    assert "risk budget 250.00" in response.reply
+    assert "Qty 90" in response.reply
+    assert "not an execution order" in response.reply
+
+
+def test_roxy_brain_requires_account_equity_for_position_size(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "symbol": "NVDA",
+                        "signal": "WATCH",
+                        "entry": 142.25,
+                        "stop": 139.5,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("tamaño de posicion NVDA")
+
+    assert response.intent == "position_size"
+    assert response.safety_level == "guarded"
+    assert "necesito capital" in response.reply
+    assert "provide_account_equity" in response.suggested_actions
+
+
 def test_roxy_brain_remembers_session_context(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(
