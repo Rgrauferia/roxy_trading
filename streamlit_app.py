@@ -1489,6 +1489,13 @@ def render_professional_chart_block(
     ):
         rr_value = abs(target_value - entry_value) / abs(entry_value - stop_value)
     rr_display = f"1:{rr_value:.2f}" if rr_value is not None else "-"
+    decision_label = human_trade_action(trade_brief or {}) if trade_brief else action_label((confluence or {}).get("signal"))
+    if decision_label in {"Operar", "Comprar"}:
+        decision_tone = "buy"
+    elif decision_label in {"No operar", "Evitar"}:
+        decision_tone = "avoid"
+    else:
+        decision_tone = "watch"
     checklist_rows = command_center_checklist_rows(trade_brief or {})
     blocking_check = next((item for item in checklist_rows if item.get("tone") != "buy"), None)
     if blocking_check:
@@ -1521,6 +1528,7 @@ def render_professional_chart_block(
             <small class="chart-next-action">Ahora: {html.escape(next_hint)}</small>
           </div>
           <aside>
+            <b class="chart-level-decision chart-level-decision-{decision_tone}">Roxy {html.escape(decision_label)}</b>
             <b class="chart-level-entry">Entrada {html.escape(entry)}</b>
             <b class="chart-level-stop">Stop {html.escape(stop)}</b>
             <b class="chart-level-target">Target {html.escape(target)}</b>
@@ -13438,6 +13446,9 @@ def main() -> None:
         .chart-next-action{display:block;color:#cbd5e1;font-size:11px;line-height:1.25;margin-top:5px;max-width:760px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .chart-command-head aside{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
         .chart-command-head b{display:inline-flex;border:1px solid rgba(148,163,184,.24);border-radius:999px;background:#0b1220;color:#e2e8f0;padding:6px 9px;font-size:11px;line-height:1;font-weight:950}
+        .chart-level-decision-buy{border-color:rgba(34,197,94,.70)!important;color:#dcfce7!important;background:rgba(22,101,52,.30)!important}
+        .chart-level-decision-watch{border-color:rgba(245,158,11,.70)!important;color:#fef3c7!important;background:rgba(146,64,14,.28)!important}
+        .chart-level-decision-avoid{border-color:rgba(248,113,113,.70)!important;color:#fee2e2!important;background:rgba(153,27,27,.30)!important}
         .chart-level-entry{border-color:rgba(56,189,248,.55)!important;color:#bae6fd!important;background:rgba(8,47,73,.20)!important}
         .chart-level-stop{border-color:rgba(248,113,113,.60)!important;color:#fecaca!important;background:rgba(127,29,29,.20)!important}
         .chart-level-target{border-color:rgba(34,197,94,.55)!important;color:#bbf7d0!important;background:rgba(20,83,45,.20)!important}
