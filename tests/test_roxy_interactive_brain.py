@@ -169,6 +169,129 @@ def test_roxy_brain_ranks_best_opportunity_when_symbol_is_not_requested(tmp_path
     assert explicit.reply.startswith("SPY:")
 
 
+def test_roxy_brain_compares_top_opportunities_in_ranked_order_spanish(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "symbol": "SPY",
+                        "signal": "WATCH",
+                        "decision": "Esperar",
+                        "entry": 505.5,
+                        "stop": 501.0,
+                        "risk_pct": 0.0089,
+                        "readiness": 62,
+                        "what_is_missing": "Volumen acompana: falta volumen",
+                    },
+                    {
+                        "symbol": "NVDA",
+                        "signal": "ALERT",
+                        "decision": "TRADE_FOR_2PCT",
+                        "entry": 142.25,
+                        "stop": 139.5,
+                        "risk_pct": 0.0193,
+                        "readiness": 84,
+                        "probability": 82,
+                        "explanation": "Checklist completo.",
+                    },
+                    {
+                        "symbol": "QQQ",
+                        "signal": "WATCH",
+                        "decision": "Esperar pullback",
+                        "entry": 438.2,
+                        "stop": 434.1,
+                        "risk_pct": 0.0094,
+                        "readiness": 80,
+                        "explanation": "Tendencia favorable, esperar gatillo.",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        feedback_memory=RoxyFeedbackMemory(path=tmp_path / "feedback.json"),
+    )
+
+    response = brain.generate_reply("top oportunidades")
+
+    assert response.intent == "opportunity_compare"
+    assert response.language == "es"
+    assert response.safety_level == "guarded"
+    assert response.priority == "high"
+    assert response.reply.index("1. NVDA") < response.reply.index("2. QQQ") < response.reply.index("3. SPY")
+    assert "no ejecucion" in response.reply
+    assert "confirmaciones faltantes" not in response.reply
+
+
+def test_roxy_brain_compares_top_opportunities_in_english(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "symbol": "SPY",
+                        "signal": "WATCH",
+                        "decision": "Esperar",
+                        "entry": 505.5,
+                        "stop": 501.0,
+                        "risk_pct": 0.0089,
+                        "readiness": 62,
+                        "what_is_missing": "Volumen acompana: falta volumen",
+                    },
+                    {
+                        "symbol": "NVDA",
+                        "signal": "ALERT",
+                        "decision": "TRADE_FOR_2PCT",
+                        "entry": 142.25,
+                        "stop": 139.5,
+                        "risk_pct": 0.0193,
+                        "readiness": 84,
+                        "explanation": "Checklist completo.",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        feedback_memory=RoxyFeedbackMemory(path=tmp_path / "feedback.json"),
+    )
+
+    response = brain.generate_reply("compare opportunities")
+
+    assert response.intent == "opportunity_compare"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert "Top opportunities" in response.reply
+    assert "1. NVDA" in response.reply
+    assert "not execution" in response.reply
+    assert "explicit approval" in response.reply
+
+
+def test_roxy_brain_requires_scan_before_comparing_opportunities(tmp_path):
+    brain = RoxyInteractiveBrain(
+        brief_path=tmp_path / "brief.json",
+        memory_path=tmp_path / "memory.json",
+        feedback_memory=RoxyFeedbackMemory(path=tmp_path / "feedback.json"),
+    )
+
+    response = brain.generate_reply("top oportunidades")
+
+    assert response.intent == "opportunity_compare"
+    assert response.needs_live_source is True
+    assert response.safety_level == "guarded"
+    assert "scan fresco" in response.reply
+    assert "run_scan" in response.suggested_actions
+
+
 def test_roxy_brain_summarizes_market_regime_in_spanish(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(

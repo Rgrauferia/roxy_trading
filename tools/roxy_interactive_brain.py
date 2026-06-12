@@ -552,6 +552,12 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "checklist",
         "valid",
         "ready",
+        "compare",
+        "opportunities",
+        "top",
+        "best",
+        "ranking",
+        "rank",
     }
     spanish_terms = {
         "hola",
@@ -585,6 +591,11 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "checklist",
         "valida",
         "listo",
+        "compara",
+        "comparar",
+        "oportunidades",
+        "mejores",
+        "ranking",
     }
     tokens = set(re.findall(r"[a-záéíóúñ]+", normalized))
     english_score = len(tokens.intersection(english_terms))
@@ -995,6 +1006,16 @@ def _extract_symbol(query: str) -> str | None:
         "BUY",
         "SELL",
         "TRADE",
+        "TOP",
+        "BEST",
+        "COMPARE",
+        "COMPARA",
+        "COMPARAR",
+        "OPPORTUNITIES",
+        "OPORTUNIDADES",
+        "MEJORES",
+        "RANKING",
+        "RANK",
     }
     for raw_word in query.split():
         word = raw_word.strip(".,:;!?()[]{}\"'").upper().replace("-", "/")
@@ -1086,6 +1107,19 @@ class RoxyInteractiveBrain:
             "vigila mi watchlist",
             "monitorea mi lista",
             "monitor my list",
+        )
+        opportunity_compare_terms = (
+            "top oportunidades",
+            "compara oportunidades",
+            "comparar oportunidades",
+            "ranking de oportunidades",
+            "ranking oportunidades",
+            "mejores oportunidades",
+            "top trades",
+            "top opportunities",
+            "compare opportunities",
+            "opportunity ranking",
+            "best opportunities",
         )
         if _contains_any(lq, ("hola", "hello", "hi", "hey", "buenos dias", "buenas")):
             response = self._greeting_reply(user, profile)
@@ -1183,6 +1217,10 @@ class RoxyInteractiveBrain:
             ),
         ):
             response = self._market_summary_reply(language)
+            return finish(response)
+
+        if _contains_any(lq, opportunity_compare_terms):
+            response = self._opportunity_compare_reply(language)
             return finish(response)
 
         if _contains_any(
@@ -2351,6 +2389,87 @@ class RoxyInteractiveBrain:
         if best_score <= 0 or best_path is None:
             return None
         return str(best_path), _knowledge_excerpt(best_text, query_terms)
+
+    def _opportunity_compare_reply(self, language: str = "es") -> RoxyBrainReply:
+        rows = self._ranked_opportunities(self._opportunity_rows())[:3]
+        if not rows:
+            if language == "en":
+                reply = (
+                    "I do not have local opportunity rows to rank yet. Run a fresh scan or connect the market brief, "
+                    "then I can compare the top setups with entry, stop, risk, and missing confirmations."
+                )
+            else:
+                reply = (
+                    "Todavia no tengo oportunidades locales para rankear. Ejecuta un scan fresco o conecta el brief de mercado, "
+                    "y puedo comparar los mejores setups con entrada, stop, riesgo y confirmaciones faltantes."
+                )
+            return RoxyBrainReply(
+                intent="opportunity_compare",
+                reply=reply,
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                suggested_actions=("run_scan", "ask_market_summary"),
+            )
+
+        lines: list[str] = []
+        top_priority = False
+        for idx, row in enumerate(rows, start=1):
+            symbol = _safe_text(row.get("symbol") or "-").upper()
+            action = _safe_text(row.get("signal") or row.get("ai_action") or "WATCH").upper()
+            decision = _safe_text(row.get("decision") or row.get("trade_decision") or "-")
+            missing = _safe_text(row.get("what_is_missing") or row.get("missing") or row.get("blockers"))
+            reason = _safe_text(row.get("why") or row.get("explanation") or row.get("memory_note") or row.get("alert_quality_reason"))
+            trigger = _safe_text(row.get("entry_trigger") or row.get("trigger") or row.get("entry_tf"))
+            readiness = _safe_float(row.get("readiness") or row.get("ai_score") or row.get("confluence_score"))
+            readiness_text = "-" if readiness is None else f"{readiness:.1f}"
+            if action in {"ALERT", "BUY", "SELL", "READY"}:
+                top_priority = True
+
+            if language == "en":
+                decision = _localize_market_phrase(decision, language)
+                missing = _sentence_fragment(_localize_market_phrase(missing, language))
+                reason = _sentence_fragment(_localize_market_phrase(reason, language))
+                trigger = _sentence_fragment(_localize_market_phrase(trigger, language))
+                blocker = missing or "none"
+                why = reason or trigger or "local ranking score"
+                lines.append(
+                    f"{idx}. {symbol}: {action}, decision {decision}, readiness {readiness_text}, "
+                    f"entry {_price(row.get('entry'))}, stop {_price(row.get('stop'))}, risk {_pct(row.get('risk_pct'))}. "
+                    f"Why: {why}. Missing: {blocker}."
+                )
+            else:
+                missing = _sentence_fragment(missing)
+                reason = _sentence_fragment(reason)
+                trigger = _sentence_fragment(trigger)
+                blocker = missing or "ninguna"
+                why = reason or trigger or "score local del ranking"
+                lines.append(
+                    f"{idx}. {symbol}: {action}, decision {decision}, readiness {readiness_text}, "
+                    f"entrada {_price(row.get('entry'))}, stop {_price(row.get('stop'))}, riesgo {_pct(row.get('risk_pct'))}. "
+                    f"Por que: {why}. Falta: {blocker}."
+                )
+
+        if language == "en":
+            reply = (
+                "Top opportunities from the local brief: "
+                + " ".join(lines)
+                + " Guardrail: this ranking is decision support, not execution. Confirm live data, liquidity, account risk, and explicit approval first."
+            )
+        else:
+            reply = (
+                "Top oportunidades del brief local: "
+                + " ".join(lines)
+                + " Guardrail: este ranking es apoyo de decision, no ejecucion. Confirma datos en vivo, liquidez, riesgo de cuenta y aprobacion explicita primero."
+            )
+        return RoxyBrainReply(
+            intent="opportunity_compare",
+            reply=reply,
+            emotion="analytical",
+            safety_level="guarded",
+            priority="high" if top_priority else "normal",
+            suggested_actions=("entry_checklist", "ask_risk", "position_size", "confirm_before_execution"),
+        )
 
     def _opportunity_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
         symbol = _extract_symbol(query)
