@@ -1654,6 +1654,40 @@ def render_professional_chart_block(
         except Exception:
             render_price_chart_fallback()
 
+    candle_table_cols = [col for col in ["ts", "open", "high", "low", "close", "volume"] if col in clean_window.columns]
+    if {"open", "high", "low", "close"}.issubset(clean_window.columns):
+        candle_table = clean_window[candle_table_cols].copy()
+        close_values = pd.to_numeric(candle_table["close"], errors="coerce")
+        high_values = pd.to_numeric(candle_table["high"], errors="coerce")
+        low_values = pd.to_numeric(candle_table["low"], errors="coerce")
+        candle_table["change_pct"] = close_values.pct_change()
+        candle_table["range_pct"] = (high_values - low_values) / close_values.replace(0, pd.NA)
+        candle_table = candle_table.tail(8).copy()
+        if "ts" in candle_table.columns:
+            candle_table["ts"] = pd.to_datetime(candle_table["ts"], errors="coerce").dt.strftime("%m/%d %H:%M")
+        for column in ["open", "high", "low", "close"]:
+            if column in candle_table.columns:
+                candle_table[column] = candle_table[column].map(lambda value: num_display(value, 2))
+        if "volume" in candle_table.columns:
+            candle_table["volume"] = candle_table["volume"].map(lambda value: num_display(value, 0))
+        candle_table["change_pct"] = candle_table["change_pct"].map(lambda value: pct_display(value))
+        candle_table["range_pct"] = candle_table["range_pct"].map(lambda value: pct_display(value))
+        candle_table = candle_table.rename(
+            columns={
+                "ts": "Hora",
+                "open": "Open",
+                "high": "High",
+                "low": "Low",
+                "close": "Close",
+                "volume": "Volumen",
+                "change_pct": "Cambio",
+                "range_pct": "Rango",
+            }
+        )
+        with st.expander("Últimas 8 velas OHLC", expanded=False):
+            st.caption("Lectura rápida para comparar la vela actual contra las previas sin salir de la gráfica.")
+            st.dataframe(candle_table, width="stretch", hide_index=True, height=260)
+
 
 def render_command_center_analysis(
     context: dict[str, Any],
