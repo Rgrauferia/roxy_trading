@@ -47,6 +47,8 @@ The `Parar` control in Roxy Live cancels microphone listening, speech synthesis,
 
 The `Hablar` control also acts as a barge-in control. If Roxy is speaking or still waiting on an assist response, starting a new listening turn cancels browser speech synthesis and the active assist HTTP request before opening the microphone.
 
+Roxy Live applies a client-side timeout to active assist requests. If the service stalls, the browser aborts the request, shows a timeout event, and returns Roxy to a ready state so the user can retry without refreshing the page.
+
 For market regime questions, Roxy uses the `market_summary` intent. It reads local brief fields such as `alert_gate_summary`, `daily_opportunity_plan`, opportunities, and crypto scan candidates to classify the current local read as bullish watch, bearish watch, sideways/wait, or unclear/wait. This is decision support only; it does not execute trades.
 
 For data freshness prompts such as "frescura de datos" or "source status", Roxy uses the `data_freshness` intent. It reads `daily_opportunity_plan.generated_at`, top-level brief timestamps, or the brief file modified time, then labels the local read as fresh, usable but aging, or stale. Stale data sets `needs_live_source=true` and should force a scan refresh before ranking, sizing, alerts, or trade decisions.

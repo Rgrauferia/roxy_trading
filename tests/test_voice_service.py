@@ -41,6 +41,9 @@ def test_roxy_live_page():
     assert "prepareListeningTurn" in r.text
     assert "isDuplicateFinalTranscript" in r.text
     assert "voice: duplicate ignored" in r.text
+    assert "assistTimeoutMs" in r.text
+    assert "showAssistTimeout" in r.text
+    assert "events: timeout" in r.text
     assert "controller.signal" in r.text
     assert "suggestedActionPrompts" in r.text
     assert "renderSuggestedActions" in r.text

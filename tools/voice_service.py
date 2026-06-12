@@ -672,6 +672,7 @@ def roxy_live_page():
     let lastHandledVoiceText = "";
     let lastHandledVoiceAt = 0;
     const duplicateVoiceWindowMs = 2500;
+    const defaultAssistTimeoutMs = 45000;
     const assistStreamEndpoint = "/v1/assist/stream";
 
     function restoreSettings() {
@@ -1019,6 +1020,19 @@ def roxy_live_page():
       return err && (err.name === "AbortError" || String(err.message || "").toLowerCase().includes("abort"));
     }
 
+    function assistTimeoutMs() {
+      const configured = Number(window.__roxyAssistTimeoutMs || defaultAssistTimeoutMs);
+      return Number.isFinite(configured) && configured > 0 ? configured : defaultAssistTimeoutMs;
+    }
+
+    function showAssistTimeout() {
+      const message = "Roxy tardo demasiado en responder. Intenta de nuevo o revisa el servicio.";
+      $("reply").textContent = message;
+      $("events").textContent = "events: timeout";
+      appendMessage("system", message, "timeout");
+      settleAfterTurn(lastState || {});
+    }
+
     function requestHeaders() {
       const headers = {"Content-Type": "application/json"};
       const key = $("apiKey").value.trim();
@@ -1202,12 +1216,20 @@ def roxy_live_page():
       cancelActiveAssist();
       const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
       activeAssistController = controller;
+      let timedOut = false;
+      const timeoutId = controller ? setTimeout(() => {
+        if (activeAssistController === controller) {
+          timedOut = true;
+          controller.abort();
+        }
+      }, assistTimeoutMs()) : null;
       try {
         try {
           if (await sendViaStream(text, headers, body, controller ? controller.signal : undefined)) return;
         } catch (err) {
           if (isAbortError(err)) {
-            if (activeAssistController === controller) settleAfterTurn(lastState || {});
+            if (timedOut) showAssistTimeout();
+            else if (activeAssistController === controller) settleAfterTurn(lastState || {});
             return;
           }
           appendMessage("system", "Streaming no disponible, usando respuesta normal.", "stream");
@@ -1216,9 +1238,11 @@ def roxy_live_page():
           await sendViaState(text, headers, body, controller ? controller.signal : undefined);
         } catch (err) {
           if (!isAbortError(err)) throw err;
-          if (activeAssistController === controller) settleAfterTurn(lastState || {});
+          if (timedOut) showAssistTimeout();
+          else if (activeAssistController === controller) settleAfterTurn(lastState || {});
         }
       } finally {
+        if (timeoutId) clearTimeout(timeoutId);
         if (activeAssistController === controller) activeAssistController = null;
       }
     }
