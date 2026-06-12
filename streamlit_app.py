@@ -7139,11 +7139,13 @@ def show_ai_status_cards(
     realtime = brief.get("realtime") or {}
     realtime_refresh_status = realtime_refresh_dashboard_status(realtime)
     show_technical_reports = st.sidebar.toggle(
-        "Modo tecnico",
+        "Mostrar diagnostico tecnico",
         value=False,
-        key="roxy_show_technical_reports",
-        help="Muestra JSON crudos, health, backups y reportes para depuracion. Mantener apagado durante trading.",
+        key="roxy_support_mode_enabled",
+        help="Solo para soporte: muestra JSON crudos, health, backups y reportes. Mantener apagado durante trading.",
     )
+    if not show_technical_reports:
+        st.sidebar.caption("Modo trading limpio: JSON y reportes tecnicos ocultos.")
     with st.expander("Estado operativo de Roxy", expanded=False):
         primary_cols = st.columns(6)
         with primary_cols[0]:
