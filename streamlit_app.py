@@ -975,6 +975,24 @@ def num_display(value, digits: int = 2) -> str:
         return "-"
 
 
+def price_display(value) -> str:
+    number = safe_float(value)
+    if number is None:
+        return "-"
+    abs_number = abs(number)
+    if abs_number >= 100:
+        digits = 2
+    elif abs_number >= 1:
+        digits = 4
+    elif abs_number >= 0.01:
+        digits = 5
+    elif abs_number >= 0.0001:
+        digits = 6
+    else:
+        digits = 8
+    return num_display(number, digits)
+
+
 def compact_large_number(value) -> str:
     number = safe_float(value)
     if number is None:
@@ -13367,9 +13385,9 @@ def render_dashboard_action_queue(table: pd.DataFrame) -> None:
         entry_value = safe_float(row.get("entry") or row.get("current_price") or row.get("price"))
         stop_value = safe_float(row.get("stop"))
         target_value = safe_float(row.get("target") or row.get("take_profit") or row.get("target_price"))
-        entry = num_display(entry_value, 2)
-        stop = num_display(stop_value, 2)
-        target = num_display(target_value, 2)
+        entry = price_display(entry_value)
+        stop = price_display(stop_value)
+        target = price_display(target_value)
         rr_value = None
         if entry_value is not None and stop_value is not None and target_value is not None and abs(entry_value - stop_value) > 0:
             rr_value = abs(target_value - entry_value) / abs(entry_value - stop_value)
