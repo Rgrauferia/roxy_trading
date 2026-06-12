@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta, timezone
 
 from tools.roxy_interactive_brain import (
     RoxyConversationMemory,
@@ -520,6 +521,64 @@ def test_roxy_brain_requires_scan_before_alert_draft(tmp_path):
     assert response.needs_live_source is True
     assert response.safety_level == "guarded"
     assert "scan primero" in response.reply
+    assert "run_scan" in response.suggested_actions
+
+
+def test_roxy_brain_reports_fresh_local_data_in_spanish(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    brief_path.write_text(
+        json.dumps({"daily_opportunity_plan": {"generated_at": now.isoformat(), "opportunities": []}}),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        feedback_memory=RoxyFeedbackMemory(path=tmp_path / "feedback.json"),
+    )
+
+    response = brain.generate_reply("frescura de datos")
+
+    assert response.intent == "data_freshness"
+    assert response.language == "es"
+    assert response.needs_live_source is False
+    assert "Frescura de datos: frescos" in response.reply
+    assert "daily_opportunity_plan.generated_at" in response.reply
+
+
+def test_roxy_brain_flags_stale_local_data_in_english(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    stale = datetime.now(timezone.utc) - timedelta(hours=3)
+    brief_path.write_text(json.dumps({"generated_at": stale.isoformat()}), encoding="utf-8")
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        feedback_memory=RoxyFeedbackMemory(path=tmp_path / "feedback.json"),
+    )
+
+    response = brain.generate_reply("source status")
+
+    assert response.intent == "data_freshness"
+    assert response.language == "en"
+    assert response.needs_live_source is True
+    assert response.priority == "high"
+    assert "Data freshness: stale" in response.reply
+    assert "refresh the scan" in response.reply
+
+
+def test_roxy_brain_requires_scan_when_data_freshness_has_no_brief(tmp_path):
+    brain = RoxyInteractiveBrain(
+        brief_path=tmp_path / "missing.json",
+        memory_path=tmp_path / "memory.json",
+        feedback_memory=RoxyFeedbackMemory(path=tmp_path / "feedback.json"),
+    )
+
+    response = brain.generate_reply("frescura de datos")
+
+    assert response.intent == "data_freshness"
+    assert response.needs_live_source is True
+    assert response.safety_level == "guarded"
+    assert "timestamp local" in response.reply
     assert "run_scan" in response.suggested_actions
 
 

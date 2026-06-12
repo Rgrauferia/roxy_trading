@@ -401,6 +401,21 @@ def _load_json(path: Path) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _parse_iso_datetime(value: Any) -> datetime | None:
+    text = _safe_text(value)
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
 def list_knowledge_sources(knowledge_paths: tuple[Path, ...] = KNOWLEDGE_PATHS) -> list[dict[str, Any]]:
     sources: list[dict[str, Any]] = []
     for path in knowledge_paths:
@@ -566,6 +581,11 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "notify",
         "notification",
         "when",
+        "data",
+        "fresh",
+        "freshness",
+        "source",
+        "updated",
     }
     spanish_terms = {
         "hola",
@@ -612,6 +632,11 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "avísame",
         "cuando",
         "prepara",
+        "datos",
+        "frescura",
+        "fuente",
+        "actualizado",
+        "actualizaste",
     }
     tokens = set(re.findall(r"[a-záéíóúñ]+", normalized))
     english_score = len(tokens.intersection(english_terms))
@@ -1056,6 +1081,16 @@ def _extract_symbol(query: str) -> str | None:
         "CREA",
         "CREAR",
         "DRAFT",
+        "DATA",
+        "DATOS",
+        "FRESH",
+        "FRESHNESS",
+        "SOURCE",
+        "FUENTE",
+        "UPDATED",
+        "ACTUALIZADO",
+        "ACTUALIZASTE",
+        "TIMESTAMP",
     }
     for raw_word in query.split():
         word = raw_word.strip(".,:;!?()[]{}\"'").upper().replace("-", "/")
@@ -1196,12 +1231,35 @@ class RoxyInteractiveBrain:
             "prepare alert",
             "create alert",
         )
+        data_freshness_terms = (
+            "frescura de datos",
+            "datos frescos",
+            "estado de datos",
+            "timestamp del brief",
+            "cuando actualizaste",
+            "cuándo actualizaste",
+            "cuando se actualizo",
+            "cuándo se actualizo",
+            "cuando se actualizó",
+            "cuándo se actualizó",
+            "data freshness",
+            "fresh data",
+            "source status",
+            "data status",
+            "brief timestamp",
+            "when was data updated",
+            "when did you update",
+        )
         if _contains_any(lq, ("hola", "hello", "hi", "hey", "buenos dias", "buenas")):
             response = self._greeting_reply(user, profile)
             return finish(response)
 
         if _contains_any(lq, watchlist_terms):
             response = self._watchlist_reply(profile, q, language)
+            return finish(response)
+
+        if _contains_any(lq, data_freshness_terms):
+            response = self._data_freshness_reply(language)
             return finish(response)
 
         if _contains_any(
@@ -1889,6 +1947,79 @@ class RoxyInteractiveBrain:
             safety_level="critical",
             priority="high",
             suggested_actions=("show_trade_ticket", "show_risk_check", "require_explicit_confirmation"),
+        )
+
+    def _data_freshness_reply(self, language: str = "es") -> RoxyBrainReply:
+        brief = _load_json(self.brief_path)
+        plan = brief.get("daily_opportunity_plan") if isinstance(brief.get("daily_opportunity_plan"), dict) else {}
+        summary = brief.get("alert_gate_summary") if isinstance(brief.get("alert_gate_summary"), dict) else {}
+        candidates = (
+            ("daily_opportunity_plan.generated_at", plan.get("generated_at")),
+            ("brief.generated_at", brief.get("generated_at")),
+            ("brief.updated_at", brief.get("updated_at")),
+            ("alert_gate_summary.generated_at", summary.get("generated_at")),
+        )
+        timestamp: datetime | None = None
+        source = ""
+        for label, value in candidates:
+            timestamp = _parse_iso_datetime(value)
+            if timestamp is not None:
+                source = label
+                break
+
+        if timestamp is None and self.brief_path.exists():
+            timestamp = datetime.fromtimestamp(self.brief_path.stat().st_mtime, timezone.utc)
+            source = "brief file modified_at"
+
+        if timestamp is None:
+            reply = (
+                "I do not see a local market brief timestamp yet. Run or connect a scan before treating any opportunity as current."
+                if language == "en"
+                else "No veo timestamp local del brief de mercado todavia. Ejecuta o conecta un scan antes de tratar cualquier oportunidad como actual."
+            )
+            return RoxyBrainReply(
+                intent="data_freshness",
+                reply=reply,
+                avatar_state="waiting",
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                priority="high",
+                suggested_actions=("run_scan", "ask_market_summary"),
+            )
+
+        age_minutes = max(0.0, (datetime.now(timezone.utc) - timestamp).total_seconds() / 60)
+        if age_minutes <= 15:
+            state = "fresh"
+        elif age_minutes <= 60:
+            state = "usable"
+        else:
+            state = "stale"
+        age_text = f"{age_minutes:.0f} min" if age_minutes < 120 else f"{age_minutes / 60:.1f} h"
+        timestamp_text = timestamp.isoformat()
+        needs_live_source = state == "stale"
+
+        if language == "en":
+            state_text = {"fresh": "fresh", "usable": "usable but aging", "stale": "stale"}[state]
+            reply = (
+                f"Data freshness: {state_text}. Source {source}, timestamp UTC {timestamp_text}, age {age_text}. "
+                "Guardrail: if the read is stale, refresh the scan before ranking, sizing, alerts, or any trade decision."
+            )
+        else:
+            state_text = {"fresh": "frescos", "usable": "usables pero envejeciendo", "stale": "viejos"}[state]
+            reply = (
+                f"Frescura de datos: {state_text}. Fuente {source}, timestamp UTC {timestamp_text}, edad {age_text}. "
+                "Guardrail: si la lectura esta vieja, refresca el scan antes de rankear, calcular sizing, preparar alertas o decidir una operacion."
+            )
+        return RoxyBrainReply(
+            intent="data_freshness",
+            reply=reply,
+            avatar_state="ready" if state != "stale" else "waiting",
+            emotion="cautious" if state == "stale" else "informative",
+            needs_live_source=needs_live_source,
+            safety_level="guarded",
+            priority="high" if state == "stale" else "normal",
+            suggested_actions=("run_scan", "ask_market_summary") if state == "stale" else ("ask_market_summary", "ask_latest_opportunity"),
         )
 
     def _watchlist_symbols(self, profile: dict[str, Any], query: str) -> list[str]:
