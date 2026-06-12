@@ -13383,6 +13383,9 @@ def render_dashboard_action_queue(table: pd.DataFrame) -> None:
         market = text_display(row.get("market")).upper()
         timeframe = text_display(row.get("timeframe") or row.get("tf"))
         context_line = " · ".join(part for part in [strategy, market, timeframe] if part and part != "-")
+        market_slug = "crypto" if market.lower().startswith("crypto") or "/" in symbol else "stock"
+        tf_slug = timeframe if timeframe != "-" else "1h"
+        asset_href = f"?view=Activo&symbol={quote(symbol, safe='')}&market={quote(market_slug, safe='')}&tf={quote(tf_slug, safe='')}"
         score = num_display(row.get("ai_score") or row.get("score"), 0)
         readiness = num_display(row.get("readiness"), 0)
         risk = pct_display(row.get("risk_pct"))
@@ -13402,7 +13405,7 @@ def render_dashboard_action_queue(table: pd.DataFrame) -> None:
         cards.append(
             f'<article class="dashboard-action-card dashboard-action-{html.escape(tone)}">'
             f'<span>{html.escape(action)}</span>'
-            f'<strong>{html.escape(symbol)}</strong>'
+            f'<a class="dashboard-action-symbol" href="{html.escape(asset_href)}">{html.escape(symbol)}</a>'
             f'<small>{html.escape(context_line)}</small>'
             f'<p><strong>{html.escape(next_prefix)}:</strong> {html.escape(next_step[:100])}</p>'
             f'<em>Score {html.escape(score)} · Ready {html.escape(readiness)} · Riesgo {html.escape(risk)}</em>'
@@ -13568,7 +13571,8 @@ def main() -> None:
         .dashboard-action-queue>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .dashboard-action-card{background:#0f172a;padding:9px 10px;border-top:3px solid rgba(148,163,184,.36);min-width:0}
         .dashboard-action-card span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}
-        .dashboard-action-card strong{display:block;color:#f8fafc;font-size:22px;line-height:1;margin-top:3px}
+        .dashboard-action-card strong,.dashboard-action-symbol{display:block;color:#f8fafc!important;font-size:22px;line-height:1;margin-top:3px;font-weight:950;text-decoration:none!important}
+        .dashboard-action-symbol:hover{text-decoration:underline!important;text-underline-offset:3px}
         .dashboard-action-card small{display:block;color:#cbd5e1;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .dashboard-action-card p{margin:6px 0 0;color:#e2e8f0;font-size:11px;line-height:1.25;min-height:28px}
         .dashboard-action-card p strong{color:#f8fafc;font-weight:950}
