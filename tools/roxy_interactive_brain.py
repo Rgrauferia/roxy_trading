@@ -474,6 +474,9 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "status",
         "market",
         "news",
+        "daily",
+        "brief",
+        "briefing",
         "trade",
         "trading",
         "opportunity",
@@ -496,6 +499,8 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "estado",
         "mercado",
         "noticia",
+        "diario",
+        "briefing",
         "operacion",
         "oportunidad",
         "riesgo",
@@ -770,6 +775,25 @@ class RoxyInteractiveBrain:
             ),
         ):
             response = self._capability_reply(profile)
+            return finish(response)
+
+        if _contains_any(
+            lq,
+            (
+                "briefing",
+                "daily brief",
+                "daily briefing",
+                "morning brief",
+                "market briefing",
+                "que debo vigilar",
+                "qué debo vigilar",
+                "briefing diario",
+                "resumen ejecutivo",
+                "plan del dia",
+                "plan del día",
+            ),
+        ):
+            response = self._daily_briefing_reply(language)
             return finish(response)
 
         if _contains_any(
@@ -1415,6 +1439,77 @@ class RoxyInteractiveBrain:
             emotion="analytical",
             safety_level="guarded",
             suggested_actions=("ask_latest_opportunity", "ask_risk", "run_scan"),
+        )
+
+    def _daily_briefing_reply(self, language: str = "es") -> RoxyBrainReply:
+        brief = _load_json(self.brief_path)
+        plan = brief.get("daily_opportunity_plan") if isinstance(brief.get("daily_opportunity_plan"), dict) else {}
+        gate = brief.get("alert_gate_summary") if isinstance(brief.get("alert_gate_summary"), dict) else {}
+        market_summary = self._market_summary_reply(language)
+        top = self._latest_opportunity(None)
+        generated_at = _safe_text(plan.get("generated_at") or brief.get("generated_at"))
+        policy = _safe_text(plan.get("alert_policy") or "")
+        session = plan.get("market_session") if isinstance(plan.get("market_session"), dict) else {}
+        local_time = _safe_text(session.get("local_time") or "")
+        alert_count = int(gate.get("alert_count") or brief.get("alert_count") or 0)
+
+        if not top:
+            if language == "en":
+                reply = (
+                    "Daily briefing: I do not have a ranked local opportunity yet. Refresh the scan, then ask me "
+                    "for market trend or risk plan. Guardrail: no execution without confirmation."
+                )
+            else:
+                reply = (
+                    "Briefing diario: todavia no tengo una oportunidad local ordenada. Refresca el escaneo y luego "
+                    "pideme tendencia del mercado o plan de riesgo. Guardrail: no ejecuto sin confirmacion."
+                )
+            return RoxyBrainReply(
+                intent="daily_briefing",
+                reply=reply,
+                avatar_state="ready",
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                suggested_actions=("run_scan", "ask_market_summary"),
+            )
+
+        symbol = _safe_text(top.get("symbol") or "-").upper()
+        decision = _safe_text(top.get("decision") or top.get("trade_decision") or "-")
+        if language == "en":
+            decision = _localize_market_phrase(decision, language)
+        entry = _price(top.get("entry"))
+        stop = _price(top.get("stop"))
+        risk = _pct(top.get("risk_pct"))
+        readiness = _safe_float(top.get("readiness") or top.get("ai_score") or top.get("confluence_score"))
+        readiness_text = "-" if readiness is None else f"{readiness:.1f}"
+        missing = _safe_text(top.get("what_is_missing") or top.get("why") or "")
+        if language == "en":
+            missing = _sentence_fragment(_localize_market_phrase(missing, language))
+            reply = (
+                f"Daily briefing{f' at {local_time}' if local_time else ''}: {market_summary.reply} "
+                f"Top watch: {symbol}, decision {decision}, entry {entry}, stop {stop}, risk {risk}, "
+                f"readiness {readiness_text}. Missing: {missing or '-'}. Alerts ready: {alert_count}. "
+                f"Policy: {policy or 'wait for full checklist confirmation'}. Generated: {generated_at or '-'}. "
+                "Next: monitor the trigger, ask for the risk plan, and do not execute without explicit confirmation."
+            )
+        else:
+            missing = _sentence_fragment(missing)
+            reply = (
+                f"Briefing diario{f' a las {local_time}' if local_time else ''}: {market_summary.reply} "
+                f"Top watch: {symbol}, decision {decision}, entrada {entry}, stop {stop}, riesgo {risk}, "
+                f"readiness {readiness_text}. Falta: {missing or '-'}. Alertas listas: {alert_count}. "
+                f"Politica: {policy or 'esperar confirmacion completa del checklist'}. Generado: {generated_at or '-'}. "
+                "Siguiente: vigilar el gatillo, pedir plan de riesgo y no ejecutar sin confirmacion explicita."
+            )
+        return RoxyBrainReply(
+            intent="daily_briefing",
+            reply=reply,
+            avatar_state="ready",
+            emotion="analytical",
+            safety_level="guarded",
+            priority="high" if alert_count > 0 else "normal",
+            suggested_actions=("ask_market_summary", "ask_risk", "monitor_trigger"),
         )
 
     def _infer_market_condition(self, rows: list[Any]) -> str:

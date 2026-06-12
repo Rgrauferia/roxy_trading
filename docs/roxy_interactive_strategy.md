@@ -42,6 +42,8 @@ For market regime questions, Roxy uses the `market_summary` intent. It reads loc
 
 For entry, stop, target, and risk questions, Roxy uses the `opportunity_risk` intent. It reads the selected local opportunity from `daily_opportunity_plan`, `opportunities`, or `crypto_scan_candidates` and explains entry, stop, risk percentage, targets, trigger, invalidation, missing checklist items, readiness, probability, and quality. It must end with a no-execution guardrail.
 
+For executive voice updates, Roxy uses the `daily_briefing` intent. It combines the local market regime, top watch opportunity, entry/stop/risk, missing checklist items, alert count, policy, and generated timestamp into one short speakable briefing in Spanish or English. It is a briefing only, not a trading approval.
+
 For a direct browser experience, run the voice service and open `/roxy-live`. That page provides microphone capture, text fallback, Roxy avatar, browser voice selection, voice rate/pitch controls, Roxy state chips, event trace, quick prompts, chat history, session-memory reload, browser text-to-speech, and conversation mode that resumes listening after Roxy finishes speaking.
 
 Siri-style operation is available in Roxy Live with `Wake Roxy`. When active, the browser can keep listening and only sends a prompt after the wake word, for example: "Roxy, resume la oportunidad" or "Roxy, silencio". The browser still controls microphone permission and may pause recognition depending on Chrome/Edge policies.

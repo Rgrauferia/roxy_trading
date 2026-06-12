@@ -23,6 +23,7 @@ def test_roxy_live_page():
     assert "loadMemory" in r.text
     assert "data-prompt" in r.text
     assert 'data-prompt="estado de roxy"' in r.text
+    assert 'data-prompt="briefing diario"' in r.text
     assert 'data-prompt="resumen del mercado"' in r.text
     assert 'data-prompt="explica riesgo entrada stop target"' in r.text
     assert "chat" in r.text

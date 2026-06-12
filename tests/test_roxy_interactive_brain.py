@@ -147,6 +147,105 @@ def test_roxy_brain_summarizes_market_regime_in_english(tmp_path):
     assert "Risk note" in response.reply
 
 
+def test_roxy_brain_generates_daily_briefing_in_spanish(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "alert_gate_summary": {
+                    "alert_count": 0,
+                    "total_opportunities": 1,
+                    "watch_count": 1,
+                    "ready_ratio": 0.0,
+                    "top_gate_label": "Esperar entrada 15m",
+                    "top_readiness": 70,
+                },
+                "daily_opportunity_plan": {
+                    "generated_at": "2026-06-12T20:40:00+00:00",
+                    "alert_policy": "Solo alertar con checklist completo.",
+                    "market_counts": {"crypto": 1},
+                    "market_session": {"local_time": "2026-06-12 16:40", "stock_session": "After-hours", "crypto_session": "24h"},
+                    "opportunities": [
+                        {
+                            "symbol": "BTC/USD",
+                            "signal": "WATCH",
+                            "decision": "Esperar",
+                            "entry": 63510.94,
+                            "stop": 62564.50,
+                            "risk_pct": 0.0149,
+                            "readiness": 70,
+                            "what_is_missing": "15m da entrada: WAIT",
+                            "mtf_explanation": "Lectura actual ALCISTA",
+                        }
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("briefing diario")
+
+    assert response.intent == "daily_briefing"
+    assert response.language == "es"
+    assert "Briefing diario" in response.reply
+    assert "Regimen local del mercado" in response.reply
+    assert "Top watch: BTC/USD" in response.reply
+    assert "riesgo 1.49%" in response.reply
+    assert "no ejecutar sin confirmacion explicita" in response.reply
+
+
+def test_roxy_brain_generates_daily_briefing_in_english(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "alert_gate_summary": {
+                    "alert_count": 0,
+                    "total_opportunities": 1,
+                    "watch_count": 1,
+                    "ready_ratio": 0.0,
+                    "top_gate_label": "Esperar entrada 15m",
+                    "top_readiness": 70,
+                },
+                "daily_opportunity_plan": {
+                    "generated_at": "2026-06-12T20:40:00+00:00",
+                    "alert_policy": "Only alert with full checklist.",
+                    "market_counts": {"crypto": 1},
+                    "market_session": {"local_time": "2026-06-12 16:40", "stock_session": "After-hours", "crypto_session": "24h"},
+                    "opportunities": [
+                        {
+                            "symbol": "BTC/USD",
+                            "signal": "WATCH",
+                            "decision": "Esperar",
+                            "entry": 63510.94,
+                            "stop": 62564.50,
+                            "risk_pct": 0.0149,
+                            "readiness": 70,
+                            "what_is_missing": "15m da entrada: WAIT",
+                            "mtf_explanation": "Bullish watch",
+                        }
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("daily briefing")
+
+    assert response.intent == "daily_briefing"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert "Daily briefing" in response.reply
+    assert "Local market regime" in response.reply
+    assert "Top watch: BTC/USD" in response.reply
+    assert "risk 1.49%" in response.reply
+    assert "do not execute without explicit confirmation" in response.reply
+
+
 def test_roxy_brain_explains_opportunity_risk_plan_in_spanish(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(
