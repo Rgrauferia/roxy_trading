@@ -32,6 +32,8 @@ def test_roxy_live_page():
     assert "sendViaState" in r.text
     assert "parseSseBlock" in r.text
     assert "Streaming no disponible" in r.text
+    assert "settleAfterTurn" in r.text
+    assert "if (!started) settleAfterTurn" in r.text
     assert "suggestedActionPrompts" in r.text
     assert "renderSuggestedActions" in r.text
     assert "renderActiveContext" in r.text

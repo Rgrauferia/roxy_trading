@@ -912,7 +912,7 @@ def roxy_live_page():
     }
 
     function speak(text, languageOverride) {
-      if (!text || !("speechSynthesis" in window)) return;
+      if (!text || !("speechSynthesis" in window)) return false;
       const run = () => {
         const lang = languageOverride || $("language").value || "es";
         const utterance = new SpeechSynthesisUtterance(text);
@@ -945,6 +945,7 @@ def roxy_live_page():
       } else {
         run();
       }
+      return true;
     }
 
     function requestHeaders() {
@@ -963,6 +964,14 @@ def roxy_live_page():
       $("reply").textContent = message;
       appendMessage("system", message, "error");
       setAvatar("blocked", "serious");
+    }
+
+    function settleAfterTurn(state) {
+      const blocked = state && (state.avatar_state === "blocked" || state.safety_level === "critical");
+      const emotion = state && state.emotion ? state.emotion : $("emotion").textContent;
+      isSpeaking = false;
+      setAvatar(blocked ? "blocked" : "ready", blocked ? "serious" : emotion);
+      scheduleListen();
     }
 
     function applyAssistState(state, text, options) {
@@ -989,9 +998,9 @@ def roxy_live_page():
       }
       setAvatar(state.avatar_state || "speaking", state.emotion || "focused");
       if (opts.speakNow !== false && state.should_speak !== false && $("autoSpeak").checked) {
-        speak(lastReply, state.language || $("language").value);
+        if (!speak(lastReply, state.language || $("language").value)) settleAfterTurn(state);
       } else if (opts.scheduleAfter !== false) {
-        scheduleListen();
+        settleAfterTurn(state);
       }
     }
 
@@ -1045,8 +1054,10 @@ def roxy_live_page():
             });
           } else if (eventName === "speak") {
             spoke = true;
-            if (finalState && $("autoSpeak").checked) speak(finalState.reply || payload.text || "", finalState.language || payload.language || $("language").value);
-            else scheduleListen();
+            const started = finalState && $("autoSpeak").checked
+              ? speak(finalState.reply || payload.text || "", finalState.language || payload.language || $("language").value)
+              : false;
+            if (!started) settleAfterTurn(finalState || payload);
           } else if (eventName === "error") {
             $("reply").textContent = payload.detail || "Error en streaming.";
             appendMessage("system", $("reply").textContent, "stream");
@@ -1054,7 +1065,7 @@ def roxy_live_page():
           }
         }
       }
-      if (finalState && !spoke) scheduleListen();
+      if (finalState && !spoke) settleAfterTurn(finalState);
       return Boolean(finalState);
     }
 
