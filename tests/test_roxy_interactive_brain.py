@@ -156,10 +156,23 @@ def test_roxy_reply_state_includes_visual_contract(tmp_path):
     response = brain.generate_reply("hola")
     payload = response.as_dict()
 
+    assert payload["language"] == "es"
     assert payload["voice_style"] == "female_es_latam"
     assert payload["avatar_state"] == "speaking"
     assert payload["emotion"] == "warm"
     assert payload["priority"] == "normal"
+
+
+def test_roxy_brain_answers_core_prompts_in_english(tmp_path):
+    brain = RoxyInteractiveBrain(brief_path=tmp_path / "brief.json", memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("what can you do")
+
+    assert response.intent == "capabilities"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert "I can hold a natural conversation" in response.reply
+    assert "Puedo" not in response.reply
 
 
 def test_roxy_voice_events_include_speak_event(tmp_path):
@@ -217,12 +230,14 @@ def test_roxy_user_profile_updates_are_sanitized(tmp_path):
             "preferred_name": "Roberto",
             "watchlist": "spy, qqq, nvda, tokensecretabcdefghijklmnopqrstuvwxyz123",
             "api_key": "should-not-save",
+            "language": "English",
             "voice_rate": 9,
         },
     )
 
     assert saved["preferred_name"] == "Roberto"
     assert "api_key" not in saved
+    assert saved["language"] == "en"
     assert saved["voice_rate"] == 1.5
     assert saved["watchlist"] == ["SPY", "QQQ", "NVDA"]
 
@@ -241,6 +256,22 @@ def test_roxy_brain_uses_preferred_name_and_watchlist(tmp_path):
 
     assert "Hola Roberto" in greeting.reply
     assert "SPY, QQQ" in capabilities.reply
+
+
+def test_roxy_brain_uses_profile_language_preference(tmp_path):
+    profile = RoxyUserProfile(path=tmp_path / "profile.json")
+    profile.update("local", {"preferred_name": "Roberto", "language": "en"})
+    brain = RoxyInteractiveBrain(
+        brief_path=tmp_path / "brief.json",
+        memory_path=tmp_path / "memory.json",
+        user_profile=profile,
+    )
+
+    response = brain.generate_reply("hola", user="local")
+
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert response.reply.startswith("Hi Roberto")
 
 
 def test_roxy_brain_reports_autonomy_status_without_symbol_confusion(tmp_path):
@@ -267,6 +298,17 @@ def test_roxy_brain_reports_autonomy_status_without_symbol_confusion(tmp_path):
     assert "Feedback aprendido" in response.reply
     assert "enable_wake_roxy" in response.suggested_actions
     assert "ESTADO:" not in response.reply
+
+
+def test_roxy_brain_reports_english_autonomy_status(tmp_path):
+    brain = RoxyInteractiveBrain(brief_path=tmp_path / "brief.json", memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("status roxy", user="local", session_id="demo")
+
+    assert response.intent == "autonomy_status"
+    assert response.language == "en"
+    assert "I'm active" in response.reply
+    assert "guardrails are on" in response.reply
 
 
 def test_roxy_feedback_memory_records_and_summarizes(tmp_path):
@@ -356,6 +398,38 @@ def test_roxy_brain_applies_negative_feedback_to_next_same_intent(tmp_path):
     assert response.reply.startswith("Ajuste por tu feedback")
     assert "mas directo" in response.reply
     assert "feedback_adjusted" in response.suggested_actions
+
+
+def test_roxy_brain_reads_opportunity_in_english(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "symbol": "NVDA",
+                        "ai_action": "WATCH",
+                        "strategy_family": "Pullback",
+                        "trade_decision": "WAIT",
+                        "entry": 142.25,
+                        "stop": 139.5,
+                        "risk_pct": 0.0193,
+                        "recommended_target_pct": 0.02,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("recommend NVDA")
+
+    assert response.intent == "opportunity"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert "Entry 142.25" in response.reply
+    assert "risk 1.93%" in response.reply
 
 
 def test_roxy_learning_snapshot_combines_profile_feedback_memory_and_sources(tmp_path):

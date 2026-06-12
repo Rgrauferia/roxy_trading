@@ -7,6 +7,7 @@ Roxy Interactive is the conversation and strategy brain for the assistant. It do
 ## Personality Contract
 
 - Voice: feminine, calm, direct, conversational Spanish by default.
+- Languages: Spanish and English are supported. Roxy detects the prompt language, can honor the saved profile language, and returns a `language` field so voice clients choose the right speech engine.
 - Identity: professional synthetic assistant for Grau Service LLC / Roxy Trading.
 - Style: explain first, recommend with context, avoid hype, avoid guaranteed outcomes.
 - Trading safety: never imply certainty, never execute or approve sensitive actions without explicit user confirmation.
@@ -21,6 +22,7 @@ It returns a `RoxyBrainReply` object with:
 
 - `reply`: speakable text.
 - `intent`: detected user intent.
+- `language`: `es` or `en`.
 - `voice_style`: requested voice family, currently `female_es_latam`.
 - `avatar_state`: visual state such as `ready`, `speaking`, or `blocked`.
 - `emotion`: controlled expression such as `calm`, `warm`, `analytical`, `cautious`, or `serious`.
@@ -42,7 +44,7 @@ Siri-style operation is available in Roxy Live with `Wake Roxy`. When active, th
 
 Session memory is stored locally in `alerts/roxy_conversation_memory.json` when a `session_id` is supplied. The memory is intentionally small, capped by turns per session and by total recent sessions, and redacts long tokens or key/secret-looking text before writing. Clients can read it through `GET /v1/assist/session/{session_id}`.
 
-User preferences are stored locally in `alerts/roxy_user_profile.json`. Only safe preference fields are allowed: preferred name, language, tone, trading mode, default symbol, watchlist, and browser voice settings. Secrets and unknown keys are ignored.
+User preferences are stored locally in `alerts/roxy_user_profile.json`. Only safe preference fields are allowed: preferred name, language, tone, trading mode, default symbol, watchlist, and browser voice settings. Language is normalized to `es` or `en`. Secrets and unknown keys are ignored.
 
 Feedback learning is stored locally in `alerts/roxy_feedback.json`. Roxy Live can send "Sirvio" or "No sirvio" for the latest answer through `POST /v1/feedback`, including an optional correction note such as "mas corto" or "mas claro". Clients can inspect the aggregate with `GET /v1/feedback/summary`. Roxy can summarize this memory when asked what she learned from feedback. When an intent receives negative feedback, the strategy brain marks the next response for that same intent as feedback-adjusted and makes the answer more direct, separating reading, risk, and next step.
 

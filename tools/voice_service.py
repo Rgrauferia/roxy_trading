@@ -522,6 +522,10 @@ def roxy_live_page():
         </div>
         <div class="row">
           <input id="preferredName" placeholder="Nombre preferido" />
+          <select id="language" aria-label="Idioma de Roxy">
+            <option value="es">Español</option>
+            <option value="en">English</option>
+          </select>
           <select id="tradingMode" aria-label="Modo trading">
             <option value="paper">paper</option>
             <option value="semi-auto">semi-auto</option>
@@ -611,6 +615,7 @@ def roxy_live_page():
       $("voiceRate").value = localStorage.getItem("roxyLiveVoiceRate") || "0.95";
       $("voicePitch").value = localStorage.getItem("roxyLiveVoicePitch") || "1.05";
       $("preferredName").value = localStorage.getItem("roxyLivePreferredName") || "";
+      $("language").value = localStorage.getItem("roxyLiveLanguage") || "es";
       $("tradingMode").value = localStorage.getItem("roxyLiveTradingMode") || "paper";
       $("defaultSymbol").value = localStorage.getItem("roxyLiveDefaultSymbol") || "SPY";
       $("watchlist").value = localStorage.getItem("roxyLiveWatchlist") || "SPY, QQQ";
@@ -629,6 +634,7 @@ def roxy_live_page():
       localStorage.setItem("roxyLiveVoiceRate", $("voiceRate").value || "0.95");
       localStorage.setItem("roxyLiveVoicePitch", $("voicePitch").value || "1.05");
       localStorage.setItem("roxyLivePreferredName", $("preferredName").value || "");
+      localStorage.setItem("roxyLiveLanguage", $("language").value || "es");
       localStorage.setItem("roxyLiveTradingMode", $("tradingMode").value || "paper");
       localStorage.setItem("roxyLiveDefaultSymbol", $("defaultSymbol").value || "SPY");
       localStorage.setItem("roxyLiveWatchlist", $("watchlist").value || "");
@@ -723,6 +729,12 @@ def roxy_live_page():
         const exact = voices.find(v => v.name === selected);
         if (exact) return exact;
       }
+      const lang = $("language").value || "es";
+      if (lang === "en") {
+        return voices.find(v => (v.lang || "").toLowerCase().startsWith("en") && /female|samantha|victoria|zira|google/i.test(v.name || ""))
+          || voices.find(v => (v.lang || "").toLowerCase().startsWith("en"))
+          || voices[0];
+      }
       const preferredNames = ["paulina", "monica", "sabina", "google español", "spanish", "español"];
       return voices.find(v => preferredNames.some(name => (v.name || "").toLowerCase().includes(name)))
         || voices.find(v => (v.lang || "").toLowerCase().startsWith("es"))
@@ -758,7 +770,7 @@ def roxy_live_page():
       if (!text || !("speechSynthesis" in window)) return;
       const run = () => {
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = "es-US";
+        utterance.lang = ($("language").value || "es") === "en" ? "en-US" : "es-US";
         utterance.rate = Number($("voiceRate").value || 0.95);
         utterance.pitch = Number($("voicePitch").value || 1.05);
         const voice = chooseVoice();
@@ -855,6 +867,7 @@ def roxy_live_page():
       if (key) headers.Authorization = "Bearer " + key;
       const profile = {
         preferred_name: $("preferredName").value,
+        language: $("language").value || "es",
         trading_mode: $("tradingMode").value,
         default_symbol: $("defaultSymbol").value,
         watchlist: $("watchlist").value,
@@ -886,6 +899,7 @@ def roxy_live_page():
       }
       const profile = await res.json();
       $("preferredName").value = profile.preferred_name || "";
+      $("language").value = profile.language || "es";
       $("tradingMode").value = profile.trading_mode || "paper";
       $("defaultSymbol").value = profile.default_symbol || "SPY";
       $("watchlist").value = Array.isArray(profile.watchlist) ? profile.watchlist.join(", ") : "";
@@ -981,7 +995,7 @@ def roxy_live_page():
       if (isListening) return;
       manualStop = false;
       recognition = new SR();
-      recognition.lang = "es-US";
+      recognition.lang = ($("language").value || "es") === "en" ? "en-US" : "es-US";
       recognition.interimResults = true;
       recognition.continuous = $("wakeMode").checked || $("conversationMode").checked;
       recognition.onstart = () => {

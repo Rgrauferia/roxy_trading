@@ -31,6 +31,7 @@ MAX_KNOWLEDGE_CHARS = 8000
 class RoxyBrainReply:
     reply: str
     intent: str
+    language: str = "es"
     voice_style: str = "female_es_latam"
     avatar_state: str = "speaking"
     emotion: str = "focused"
@@ -44,6 +45,7 @@ class RoxyBrainReply:
         return {
             "reply": self.reply,
             "intent": self.intent,
+            "language": self.language,
             "voice_style": self.voice_style,
             "avatar_state": self.avatar_state,
             "emotion": self.emotion,
@@ -81,6 +83,7 @@ def build_voice_events(query: str, response: RoxyBrainReply) -> list[dict[str, A
             "type": "reply_ready",
             "text": response.reply,
             "intent": response.intent,
+            "language": response.language,
             "avatar_state": response.avatar_state,
             "emotion": response.emotion,
             "priority": response.priority,
@@ -92,6 +95,7 @@ def build_voice_events(query: str, response: RoxyBrainReply) -> list[dict[str, A
             {
                 "type": "speak",
                 "text": response.reply,
+                "language": response.language,
                 "voice_style": response.voice_style,
                 "avatar_state": "speaking",
                 "emotion": response.emotion,
@@ -288,6 +292,9 @@ class RoxyUserProfile:
                 number = _safe_float(value)
                 if number is not None:
                     clean[key] = max(0.5, min(1.5, number))
+            elif key == "language":
+                language = _safe_text(value).lower()
+                clean[key] = "en" if language.startswith("en") or "english" in language else "es"
             else:
                 clean[key] = _redact_sensitive_text(str(value or ""))[:160]
         return clean
@@ -451,6 +458,68 @@ def _contains_any(text: str, terms: Iterable[str]) -> bool:
     return any(term in text for term in terms)
 
 
+def _detect_language(query: str, profile: dict[str, Any]) -> str:
+    preferred = _safe_text(profile.get("language")).lower()
+    if preferred.startswith("en"):
+        return "en"
+    if preferred.startswith("es"):
+        return "es"
+
+    normalized = str(query or "").lower()
+    english_terms = {
+        "hello",
+        "hi",
+        "what",
+        "who",
+        "status",
+        "market",
+        "news",
+        "trade",
+        "trading",
+        "opportunity",
+        "risk",
+        "buy",
+        "sell",
+        "recommend",
+        "recommendation",
+        "help",
+        "explain",
+        "read",
+        "learning",
+        "memory",
+        "autonomous",
+    }
+    spanish_terms = {
+        "hola",
+        "que",
+        "quien",
+        "estado",
+        "mercado",
+        "noticia",
+        "operacion",
+        "oportunidad",
+        "riesgo",
+        "compra",
+        "vende",
+        "ayuda",
+        "explica",
+        "lee",
+        "aprendizaje",
+        "memoria",
+        "autonomo",
+    }
+    tokens = set(re.findall(r"[a-záéíóúñ]+", normalized))
+    english_score = len(tokens.intersection(english_terms))
+    spanish_score = len(tokens.intersection(spanish_terms))
+    if english_score > spanish_score:
+        return "en"
+    return "es"
+
+
+def _voice_style_for_language(language: str) -> str:
+    return "female_en_us" if language == "en" else "female_es_latam"
+
+
 def _tokenize(text: str) -> set[str]:
     stopwords = {
         "como",
@@ -572,9 +641,11 @@ class RoxyInteractiveBrain:
         q = (query or "").strip()
         recent_turns = self.conversation_memory.recent_turns(session_id)
         profile = self.user_profile.read(user)
+        language = _detect_language(q, profile)
 
         def finish(response: RoxyBrainReply) -> RoxyBrainReply:
-            adjusted = self._apply_feedback_guidance(response, user)
+            localized = self._apply_language(response, language, user, session_id, recent_turns, profile, q)
+            adjusted = self._apply_feedback_guidance(localized, user)
             self.conversation_memory.append(session_id, q, adjusted)
             return adjusted
 
@@ -585,14 +656,6 @@ class RoxyInteractiveBrain:
         lq = q.lower()
         if _contains_any(lq, ("hola", "hello", "hi", "hey", "buenos dias", "buenas")):
             response = self._greeting_reply(user, profile)
-            return finish(response)
-
-        if _contains_any(lq, ("quien eres", "tu rostro", "cara", "avatar", "identidad", "roxy")):
-            response = self._identity_reply()
-            return finish(response)
-
-        if _contains_any(lq, ("que puedes", "ayuda", "hablar", "conversacion", "voz", "fluida")):
-            response = self._capability_reply(profile)
             return finish(response)
 
         if _contains_any(
@@ -607,23 +670,57 @@ class RoxyInteractiveBrain:
                 "estas escuchando",
                 "sigues activa",
                 "status",
+                "are you active",
+                "are you listening",
+                "autonomous mode",
             ),
         ) or lq in {"estado", "status"}:
             response = self._autonomy_status_reply(user, session_id, recent_turns, profile)
+            return finish(response)
+
+        if _contains_any(lq, ("quien eres", "who are you", "tu rostro", "cara", "avatar", "identidad", "identity", "roxy")):
+            response = self._identity_reply()
+            return finish(response)
+
+        if _contains_any(
+            lq,
+            (
+                "que puedes",
+                "what can you",
+                "can you do",
+                "capabilities",
+                "ayuda",
+                "help",
+                "hablar",
+                "talk",
+                "conversacion",
+                "conversation",
+                "voz",
+                "voice",
+                "fluida",
+            ),
+        ):
+            response = self._capability_reply(profile)
             return finish(response)
 
         if _contains_any(
             lq,
             (
                 "ejecuta",
+                "execute",
                 "ejecutar",
                 "manda orden",
+                "send order",
                 "enviar orden",
                 "abrir posicion",
+                "open position",
                 "abre posicion",
                 "compra ahora",
+                "buy now",
                 "vende ahora",
+                "sell now",
                 "operar real",
+                "real trading",
                 "live trade",
             ),
         ):
@@ -631,26 +728,30 @@ class RoxyInteractiveBrain:
             return finish(response)
 
         if _contains_any(lq, ("noticia", "news", "titular", "mercado hoy", "actualidad")):
-            response = self._news_reply()
+            response = self._news_reply(language)
             return finish(response)
 
         if _contains_any(
             lq,
             (
                 "explica el sistema",
+                "explain the system",
                 "explicame el sistema",
                 "lee",
+                "read",
                 "documento",
+                "document",
                 "manual",
                 "universo roxy",
                 "roxy trading",
                 "como funciona",
+                "how does it work",
             ),
         ):
             response = self._knowledge_reply(q)
             return finish(response)
 
-        if _contains_any(lq, ("aprendizaje", "aprendiendo", "aprendiste", "aprendi", "learning", "memoria")):
+        if _contains_any(lq, ("aprendizaje", "aprendiendo", "aprendiste", "aprendi", "learning", "memoria", "memory")):
             if _contains_any(lq, ("feedback", "opinion", "calificacion", "calificaciones", "te sirvio")):
                 response = self._feedback_learning_reply(user)
             else:
@@ -665,27 +766,157 @@ class RoxyInteractiveBrain:
             lq,
             (
                 "alerta",
+                "alert",
                 "oportunidad",
+                "opportunity",
                 "resumen",
+                "summary",
                 "comprar",
                 "compra",
+                "buy",
                 "vender",
+                "sell",
                 "trade",
                 "entrada",
+                "entry",
                 "recomienda",
+                "recommend",
                 "recomendacion",
+                "recommendation",
             ),
         ):
-            response = self._opportunity_reply(q)
+            response = self._opportunity_reply(q, language=language)
             return finish(response)
 
         symbol = _extract_symbol(q)
         if symbol:
-            response = self._opportunity_reply(q)
+            response = self._opportunity_reply(q, language=language)
             return finish(response)
 
         response = self._contextual_fallback(recent_turns)
         return finish(response)
+
+    def _apply_language(
+        self,
+        response: RoxyBrainReply,
+        language: str,
+        user: str | None,
+        session_id: str | None,
+        recent_turns: list[dict[str, Any]],
+        profile: dict[str, Any],
+        query: str,
+    ) -> RoxyBrainReply:
+        reply = response.reply
+        if language == "en":
+            reply = self._english_reply_text(response, user, session_id, recent_turns, profile, query)
+        return RoxyBrainReply(
+            reply=reply,
+            intent=response.intent,
+            language=language,
+            voice_style=_voice_style_for_language(language),
+            avatar_state=response.avatar_state,
+            emotion=response.emotion,
+            should_speak=response.should_speak,
+            needs_live_source=response.needs_live_source,
+            safety_level=response.safety_level,
+            priority=response.priority,
+            suggested_actions=response.suggested_actions,
+        )
+
+    def _english_reply_text(
+        self,
+        response: RoxyBrainReply,
+        user: str | None,
+        session_id: str | None,
+        recent_turns: list[dict[str, Any]],
+        profile: dict[str, Any],
+        query: str,
+    ) -> str:
+        name = self._display_name(user, profile)
+        if response.intent == "greeting":
+            mode = _safe_text(profile.get("trading_mode"))
+            mode_text = f" Current mode: {mode}." if mode else ""
+            return (
+                f"Hi{name}. I'm Roxy, your intelligent assistant. I can talk with you in real time, "
+                "explain market data, read opportunities, and help you make decisions with more context."
+                f"{mode_text}"
+            )
+        if response.intent == "identity":
+            return (
+                "My identity should feel professional, clear, and approachable: a synthetic human face, "
+                "a professional female voice, calm tone, and direct answers. I should not act like an impulsive "
+                "trader; I should explain, compare options, and request confirmation before sensitive actions."
+            )
+        if response.intent == "capabilities":
+            watchlist = profile.get("watchlist") if isinstance(profile.get("watchlist"), list) else []
+            watchlist_text = f" Your current watchlist is: {', '.join(watchlist[:6])}." if watchlist else ""
+            return (
+                "I can hold a natural conversation, read information from the Roxy universe, explain a signal, "
+                "summarize news when a source is connected, compare strategies, and recommend next steps. "
+                "For live trading, my rule is clear: inform first and execute only with explicit permission."
+                f"{watchlist_text}"
+            )
+        if response.intent == "autonomy_status":
+            feedback = self.feedback_memory.summary(user=user)
+            feedback_total = int(feedback.get("total", 0) or 0)
+            feedback_down = int(feedback.get("down", 0) or 0)
+            last_intent = "-"
+            for turn in reversed(recent_turns):
+                last_intent = _safe_text(turn.get("intent")) or "-"
+                if last_intent != "-":
+                    break
+            if session_id:
+                session_text = f"Session {session_id}: {len(recent_turns)} turn(s), last intent {last_intent}."
+            else:
+                session_text = "No active session_id; I can talk, but session memory will not be saved."
+            return (
+                f"I'm active{name}. Local voice is ready in Roxy Live, local memory is working, and trading "
+                f"guardrails are on. {session_text} Learned feedback: {feedback_total} mark(s), "
+                f"{feedback_down} to improve. Recommended next step: keep Wake Roxy on, ask one concrete "
+                "question, and use feedback when my answer is not useful."
+            )
+        if response.intent == "action_confirmation_required":
+            symbol = _extract_symbol(query)
+            target = f" for {symbol}" if symbol else ""
+            return (
+                f"I will not execute a trade{target} from a conversational phrase alone. First I need to show "
+                "entry, stop, risk, data source, and account status. Then I need explicit confirmation in the "
+                "operational flow."
+            )
+        if response.intent == "news_unavailable":
+            return (
+                "I can discuss news when the project has a live source connected to the brain. I do not see "
+                "fresh headlines in the local brief right now, so I will not invent them. Give me a headline "
+                "or connect a news feed and I can explain likely impact."
+            )
+        if response.intent == "idle":
+            if recent_turns:
+                last_intent = _safe_text(recent_turns[-1].get("intent"))
+                if last_intent:
+                    return (
+                        f"I'm here{name}. The last topic was {last_intent}. I can continue from there or read "
+                        "a new opportunity."
+                    )
+            return (
+                f"I'm here{name}. Ask me about opportunities, learning, the strategy lab, connected news, "
+                "or any information you want me to read by voice."
+            )
+        if response.intent == "followup":
+            if recent_turns and _safe_text(recent_turns[-1].get("intent")) == "news_unavailable":
+                return (
+                    "For news, I need a headline or a connected live source. With that I can summarize impact, "
+                    "affected sectors, and possible effect on opportunities."
+                )
+            return (
+                "If you mean the previous opportunity, I can explain the reason, risk, stop, or what is missing "
+                "before it becomes a valid entry."
+            )
+        if response.intent == "fallback":
+            return (
+                "I'm listening. I can talk, explain dashboard information, read opportunities, summarize learning, "
+                "review the strategy lab, or prepare a voice-ready answer."
+            )
+        return response.reply
 
     def _apply_feedback_guidance(self, response: RoxyBrainReply, user: str | None) -> RoxyBrainReply:
         if response.intent in {"feedback_learning", "action_confirmation_required"}:
@@ -696,14 +927,22 @@ class RoxyInteractiveBrain:
             return response
 
         note = _safe_text(guidance.get("latest_note"))
-        note_text = f" Nota que voy a corregir: {note}." if note else ""
-        reply = (
-            "Ajuste por tu feedback: voy mas directo, separando lectura, riesgo y siguiente paso. "
-            f"{response.reply}{note_text}"
-        )
+        if response.language == "en":
+            note_text = f" Correction note: {note}." if note else ""
+            reply = (
+                "Adjustment from your feedback: I will be more direct and separate the read, risk, and next step. "
+                f"{response.reply}{note_text}"
+            )
+        else:
+            note_text = f" Nota que voy a corregir: {note}." if note else ""
+            reply = (
+                "Ajuste por tu feedback: voy mas directo, separando lectura, riesgo y siguiente paso. "
+                f"{response.reply}{note_text}"
+            )
         return RoxyBrainReply(
             reply=reply,
             intent=response.intent,
+            language=response.language,
             voice_style=response.voice_style,
             avatar_state=response.avatar_state,
             emotion=response.emotion,
@@ -932,7 +1171,7 @@ class RoxyInteractiveBrain:
             suggested_actions=("show_trade_ticket", "show_risk_check", "require_explicit_confirmation"),
         )
 
-    def _news_reply(self) -> RoxyBrainReply:
+    def _news_reply(self, language: str = "es") -> RoxyBrainReply:
         brief = _load_json(self.brief_path)
         news_items = brief.get("news") or brief.get("market_news") or []
         if isinstance(news_items, list) and news_items:
@@ -946,13 +1185,27 @@ class RoxyInteractiveBrain:
                 elif item:
                     headlines.append(_safe_text(item))
             if headlines:
+                prefix = "Relevant news: " if language == "en" else "Noticias relevantes: "
                 return RoxyBrainReply(
                     intent="news",
-                    reply="Noticias relevantes: "
-                    + " ".join(f"{idx + 1}. {headline}." for idx, headline in enumerate(headlines)),
+                    reply=prefix + " ".join(f"{idx + 1}. {headline}." for idx, headline in enumerate(headlines)),
                     emotion="informative",
                     suggested_actions=("ask_news_impact", "ask_latest_opportunity"),
                 )
+
+        if language == "en":
+            return RoxyBrainReply(
+                intent="news_unavailable",
+                reply=(
+                    "I can discuss news when the project has a live source connected to the brain. I do not see "
+                    "fresh headlines in the local brief right now, so I will not invent them. Give me a headline "
+                    "or connect a news feed and I can explain likely impact."
+                ),
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                suggested_actions=("connect_news_source", "ask_market_summary"),
+            )
 
         return RoxyBrainReply(
             intent="news_unavailable",
@@ -1115,17 +1368,25 @@ class RoxyInteractiveBrain:
             return None
         return str(best_path), _knowledge_excerpt(best_text, query_terms)
 
-    def _opportunity_reply(self, query: str) -> RoxyBrainReply:
+    def _opportunity_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
         symbol = _extract_symbol(query)
         row = self._latest_opportunity(symbol)
         if not row:
-            target = f" para {symbol}" if symbol else ""
-            return RoxyBrainReply(
-                intent="opportunity",
-                reply=(
+            if language == "en":
+                target = f" for {symbol}" if symbol else ""
+                reply = (
+                    f"I do not see a clear opportunity{target} in the current brief. The right response is to wait "
+                    "for fresh data or run a scan before recommending an entry."
+                )
+            else:
+                target = f" para {symbol}" if symbol else ""
+                reply = (
                     f"No veo una oportunidad clara{target} en el brief actual. La respuesta correcta es esperar "
                     "datos nuevos o pedir un escaneo antes de recomendar entrada."
-                ),
+                )
+            return RoxyBrainReply(
+                intent="opportunity",
+                reply=reply,
                 emotion="cautious",
                 safety_level="guarded",
                 suggested_actions=("run_scan", "ask_market_summary"),
@@ -1136,12 +1397,20 @@ class RoxyInteractiveBrain:
         family = _safe_text(row.get("strategy_family") or "-")
         decision = _safe_text(row.get("trade_decision") or row.get("decision") or "-")
         explanation = _safe_text(row.get("explanation") or row.get("memory_note") or row.get("alert_quality_reason"))
-        reply = (
-            f"{symbol_text}: estado {action}, estrategia {family}, decision {decision}. "
-            f"Entrada {_price(row.get('entry'))}, stop {_price(row.get('stop'))}, "
-            f"riesgo {_pct(row.get('risk_pct'))}, objetivo {_pct(row.get('recommended_target_pct') or row.get('target_pct'))}. "
-            f"{explanation}"
-        ).strip()
+        if language == "en":
+            reply = (
+                f"{symbol_text}: status {action}, strategy {family}, decision {decision}. "
+                f"Entry {_price(row.get('entry'))}, stop {_price(row.get('stop'))}, "
+                f"risk {_pct(row.get('risk_pct'))}, target {_pct(row.get('recommended_target_pct') or row.get('target_pct'))}. "
+                f"{explanation}"
+            ).strip()
+        else:
+            reply = (
+                f"{symbol_text}: estado {action}, estrategia {family}, decision {decision}. "
+                f"Entrada {_price(row.get('entry'))}, stop {_price(row.get('stop'))}, "
+                f"riesgo {_pct(row.get('risk_pct'))}, objetivo {_pct(row.get('recommended_target_pct') or row.get('target_pct'))}. "
+                f"{explanation}"
+            ).strip()
         return RoxyBrainReply(
             intent="opportunity",
             reply=reply,
