@@ -657,6 +657,7 @@ def roxy_live_page():
     let isSpeaking = false;
     let manualStop = false;
     let pendingListenTimer = null;
+    let activeAssistController = null;
     const assistStreamEndpoint = "/v1/assist/stream";
 
     function restoreSettings() {
@@ -805,6 +806,7 @@ def roxy_live_page():
     function stopAll(reason) {
       manualStop = true;
       clearTimeout(pendingListenTimer);
+      cancelActiveAssist();
       if (recognition) recognition.stop();
       if ("speechSynthesis" in window) window.speechSynthesis.cancel();
       isSpeaking = false;
@@ -948,6 +950,18 @@ def roxy_live_page():
       return true;
     }
 
+    function cancelActiveAssist() {
+      if (activeAssistController) {
+        activeAssistController.abort();
+        activeAssistController = null;
+        $("events").textContent = "events: aborted";
+      }
+    }
+
+    function isAbortError(err) {
+      return err && (err.name === "AbortError" || String(err.message || "").toLowerCase().includes("abort"));
+    }
+
     function requestHeaders() {
       const headers = {"Content-Type": "application/json"};
       const key = $("apiKey").value.trim();
@@ -1069,9 +1083,9 @@ def roxy_live_page():
       return Boolean(finalState);
     }
 
-    async function sendViaStream(text, headers, body) {
+    async function sendViaStream(text, headers, body, signal) {
       if (typeof TextDecoder === "undefined") return false;
-      const res = await fetch(assistStreamEndpoint, {method: "POST", headers, body});
+      const res = await fetch(assistStreamEndpoint, {method: "POST", headers, body, signal});
       if (!res.ok) {
         showAssistError(res.status);
         return true;
@@ -1081,8 +1095,8 @@ def roxy_live_page():
       return handled;
     }
 
-    async function sendViaState(text, headers, body) {
-      const res = await fetch("/v1/assist/state", {method: "POST", headers, body});
+    async function sendViaState(text, headers, body, signal) {
+      const res = await fetch("/v1/assist/state", {method: "POST", headers, body, signal});
       if (!res.ok) {
         showAssistError(res.status);
         return;
@@ -1101,12 +1115,28 @@ def roxy_live_page():
       appendMessage("user", text, new Date().toLocaleTimeString());
       const headers = requestHeaders();
       const body = requestBody(text);
+      cancelActiveAssist();
+      const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+      activeAssistController = controller;
       try {
-        if (await sendViaStream(text, headers, body)) return;
-      } catch (err) {
-        appendMessage("system", "Streaming no disponible, usando respuesta normal.", "stream");
+        try {
+          if (await sendViaStream(text, headers, body, controller ? controller.signal : undefined)) return;
+        } catch (err) {
+          if (isAbortError(err)) {
+            if (activeAssistController === controller) settleAfterTurn(lastState || {});
+            return;
+          }
+          appendMessage("system", "Streaming no disponible, usando respuesta normal.", "stream");
+        }
+        try {
+          await sendViaState(text, headers, body, controller ? controller.signal : undefined);
+        } catch (err) {
+          if (!isAbortError(err)) throw err;
+          if (activeAssistController === controller) settleAfterTurn(lastState || {});
+        }
+      } finally {
+        if (activeAssistController === controller) activeAssistController = null;
       }
-      await sendViaState(text, headers, body);
     }
 
     async function loadMemory() {

@@ -43,6 +43,8 @@ Every structured `POST /v1/assist/state` response includes `turn_id`, `server_la
 
 For lower-latency clients, `POST /v1/assist/stream` returns Server-Sent Events in order: `transcript_received`, `thinking`, `reply_ready`, optional `speak`, and `done`. This lets the visual avatar react immediately while the brain prepares the final answer. Roxy Live attempts this stream first and falls back to `POST /v1/assist/state` if browser streaming is unavailable.
 
+The `Parar` control in Roxy Live cancels microphone listening, speech synthesis, and the active assist HTTP request through `AbortController`. Starting a new prompt also aborts any previous unfinished assist turn so late responses cannot overwrite the current conversation state.
+
 For market regime questions, Roxy uses the `market_summary` intent. It reads local brief fields such as `alert_gate_summary`, `daily_opportunity_plan`, opportunities, and crypto scan candidates to classify the current local read as bullish watch, bearish watch, sideways/wait, or unclear/wait. This is decision support only; it does not execute trades.
 
 For data freshness prompts such as "frescura de datos" or "source status", Roxy uses the `data_freshness` intent. It reads `daily_opportunity_plan.generated_at`, top-level brief timestamps, or the brief file modified time, then labels the local read as fresh, usable but aging, or stale. Stale data sets `needs_live_source=true` and should force a scan refresh before ranking, sizing, alerts, or trade decisions.

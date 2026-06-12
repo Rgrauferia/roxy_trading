@@ -34,6 +34,11 @@ def test_roxy_live_page():
     assert "Streaming no disponible" in r.text
     assert "settleAfterTurn" in r.text
     assert "if (!started) settleAfterTurn" in r.text
+    assert "activeAssistController" in r.text
+    assert "cancelActiveAssist" in r.text
+    assert "AbortController" in r.text
+    assert "isAbortError" in r.text
+    assert "controller.signal" in r.text
     assert "suggestedActionPrompts" in r.text
     assert "renderSuggestedActions" in r.text
     assert "renderActiveContext" in r.text
