@@ -1550,7 +1550,7 @@ def render_command_center_analysis(
         source_freshness=app_brief.get("source_freshness"),
         market_session=app_brief.get("market_session"),
     )
-    render_professional_chart_block(chart_df, setup, confluence, trade_brief, price_height=520, volume_height=115)
+    render_professional_chart_block(chart_df, setup, confluence, trade_brief, price_height=460, volume_height=115)
     render_command_center_panel(trade_brief, platform_ticket=ticket)
     with st.expander("Lectura técnica, niveles y contexto", expanded=False):
         render_chart_strategy_summary(setup, confluence, trade_brief, chart_df)
