@@ -826,6 +826,14 @@ def roxy_live_page():
       if (reason) appendMessage("system", reason, "voice-control");
     }
 
+    function prepareListeningTurn() {
+      clearTimeout(pendingListenTimer);
+      cancelActiveAssist();
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      isSpeaking = false;
+      manualStop = false;
+    }
+
     function extractWakeCommand(text) {
       const wake = normalizeSpeech($("wakeWord").value || "Roxy");
       const normalized = normalizeSpeech(text);
@@ -1319,9 +1327,8 @@ def roxy_live_page():
         $("reply").textContent = "Tu navegador no soporta SpeechRecognition. Usa Chrome o Edge.";
         return;
       }
-      clearTimeout(pendingListenTimer);
       if (isListening) return;
-      manualStop = false;
+      prepareListeningTurn();
       recognition = new SR();
       recognition.lang = speechLang($("language").value);
       recognition.interimResults = true;

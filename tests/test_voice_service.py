@@ -38,6 +38,7 @@ def test_roxy_live_page():
     assert "cancelActiveAssist" in r.text
     assert "AbortController" in r.text
     assert "isAbortError" in r.text
+    assert "prepareListeningTurn" in r.text
     assert "controller.signal" in r.text
     assert "suggestedActionPrompts" in r.text
     assert "renderSuggestedActions" in r.text
