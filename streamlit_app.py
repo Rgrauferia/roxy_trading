@@ -9995,6 +9995,42 @@ def reset_trading_desk_filters() -> None:
     st.session_state["trading_desk_score_filter"] = 0
     st.session_state["trading_desk_query_filter"] = ""
 
+
+def render_trading_desk_filter_scope(
+    visible_rows: int,
+    total_rows: int,
+    *,
+    preset: str,
+    status: str,
+    blocker: str,
+    min_score: int,
+    query: str,
+) -> None:
+    active_filters: list[str] = []
+    if text_display(preset) != "Todos":
+        active_filters.append(f"Preset {text_display(preset)}")
+    if text_display(status) != "Todos":
+        active_filters.append(f"Estado {text_display(status)}")
+    if text_display(blocker) != "Todos":
+        active_filters.append(f"Falta {text_display(blocker)}")
+    if int(min_score or 0) > 0:
+        active_filters.append(f"Score ≥ {int(min_score)}")
+    query_text = text_display(query)
+    if query_text != "-":
+        active_filters.append(f"Busca {query_text}")
+    if not active_filters:
+        return
+    st.markdown(
+        f"""
+        <section class="trading-desk-filter-scope">
+          <span>Vista filtrada</span>
+          <strong>{int(visible_rows)} de {int(total_rows)}</strong>
+          <p>{html.escape(" · ".join(active_filters[:5]))}</p>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
 def render_trading_desk_empty_filter_state(
     total_rows: int,
     *,
@@ -10085,6 +10121,15 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
             query=query,
         )
         return
+    render_trading_desk_filter_scope(
+        len(display_rows),
+        len(rows),
+        preset=preset_filter,
+        status=status_filter,
+        blocker=blocker_filter,
+        min_score=min_score,
+        query=query,
+    )
     render_trading_desk_summary(display_rows)
     with st.expander("Tabla completa del Trading Desk", expanded=False):
         st.dataframe(
@@ -13942,6 +13987,7 @@ def main() -> None:
         .market-movers-tape{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 12px;overflow:hidden}.market-movers-tape>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.15)}.market-movers-tape>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.market-movers-tape>header span{color:#94a3b8;font-size:11px;text-align:right}.market-mover-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .market-mover-table{background:#0b1220;overflow:hidden;border-top:2px solid rgba(148,163,184,.25)}.market-mover-table header{padding:6px 8px;color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;background:#0f172a;border-bottom:1px solid rgba(148,163,184,.12)}.market-mover-table table{width:100%;border-collapse:collapse}.market-mover-table th,.market-mover-table td{padding:5px 6px;border-bottom:1px solid rgba(148,163,184,.10);font-size:10px;line-height:1.15;text-align:left;color:#cbd5e1}.market-mover-table th{color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase}.market-mover-table td:first-child{color:#f8fafc;font-weight:950}.market-mover-table td:nth-child(2),.market-mover-table td:nth-child(3),.market-mover-table td:nth-child(4){text-align:right}.market-mover-table td:last-child{max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.market-mover-buy{border-top-color:#22c55e}.market-mover-watch{border-top-color:#f59e0b}.market-mover-avoid{border-top-color:#ef4444}
         .trading-desk-empty{display:flex;justify-content:space-between;gap:14px;align-items:center;border:1px dashed rgba(251,191,36,.44);border-left:4px solid #f59e0b;border-radius:8px;background:linear-gradient(135deg,rgba(120,74,15,.22),rgba(15,23,42,.92));padding:10px 12px;margin:6px 0 8px}.trading-desk-empty span{display:block;color:#fbbf24;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.trading-desk-empty strong{display:block;color:#f8fafc;font-size:18px;line-height:1.1;margin-top:4px}.trading-desk-empty p{margin:5px 0 0;color:#cbd5e1;font-size:12px;line-height:1.25}.trading-desk-empty ul{margin:0;padding-left:18px;color:#e2e8f0;font-size:11px;line-height:1.35}
+        .trading-desk-filter-scope{display:flex;align-items:center;gap:10px;border:1px solid rgba(56,189,248,.26);border-radius:8px;background:rgba(8,47,73,.24);padding:7px 9px;margin:3px 0 7px}.trading-desk-filter-scope span{color:#7dd3fc;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.trading-desk-filter-scope strong{color:#f8fafc;font-size:14px;line-height:1}.trading-desk-filter-scope p{margin:0;color:#cbd5e1;font-size:11px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .trading-desk-strip{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;border:1px solid rgba(148,163,184,.22);border-radius:8px;background:rgba(148,163,184,.16);overflow:hidden;margin:4px 0 8px}.desk-chip{background:#0b1220;padding:8px 9px;min-width:0;border-top:2px solid rgba(148,163,184,.28)}.desk-chip span{display:block;color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.desk-chip strong{display:block;color:#f8fafc;font-size:20px;line-height:1;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.desk-chip small{display:block;color:#cbd5e1;font-size:10px;line-height:1.12;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.desk-buy{border-top-color:#22c55e;background:rgba(21,93,62,.22)}.desk-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.20)}.desk-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}
         .trading-desk-focus{display:grid;grid-template-columns:minmax(180px,.34fr) minmax(0,1fr);gap:12px;align-items:center;border:1px solid rgba(148,163,184,.24);border-left:4px solid #f59e0b;border-radius:10px;background:linear-gradient(135deg,rgba(15,23,42,.98),rgba(30,41,59,.76));padding:10px 12px;margin:2px 0 8px;box-shadow:0 14px 36px rgba(0,0,0,.16)}.trading-desk-focus span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.trading-desk-focus strong{display:block;color:#f8fafc;font-size:28px;line-height:1;margin-top:3px;font-weight:950}.trading-desk-focus em{display:block;color:#cbd5e1;font-size:11px;font-style:normal;margin-top:5px;font-weight:800}.trading-desk-focus p{margin:0;color:#f8fafc;font-size:15px;line-height:1.2;font-weight:950}.trading-desk-focus small{grid-column:2;color:#94a3b8;font-size:11px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.desk-focus-buy{border-left-color:#22c55e;background:linear-gradient(135deg,rgba(21,93,62,.32),rgba(15,23,42,.92))}.desk-focus-watch{border-left-color:#f59e0b}.desk-focus-avoid{border-left-color:#ef4444;background:linear-gradient(135deg,rgba(127,29,29,.30),rgba(15,23,42,.92))}
         .trading-desk-queue{border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0b1220;margin:0 0 8px;overflow:hidden}.trading-desk-queue>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.trading-desk-queue>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.trading-desk-queue>header span{color:#94a3b8;font-size:11px;line-height:1.2;text-align:right}.trading-desk-queue>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.desk-queue-card{background:#0b1220;border-top:2px solid rgba(148,163,184,.30);padding:8px 10px;min-width:0}.desk-queue-card header{display:flex;align-items:center;gap:8px}.desk-queue-card header span{color:#94a3b8;font-size:10px;font-weight:950}.desk-queue-card header strong{color:#f8fafc;font-size:16px;font-weight:950;line-height:1}.desk-queue-card header em{margin-left:auto;color:#f8fafc;font-size:12px;font-style:normal;font-weight:950}.desk-queue-card p{margin:6px 0 4px;color:#f8fafc;font-size:11px;line-height:1.15;font-weight:850}.desk-queue-card small,.desk-queue-card i{display:block;color:#cbd5e1;font-size:10px;line-height:1.16;font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.desk-queue-card i{color:#94a3b8;margin-top:4px}.desk-queue-buy{border-top-color:#22c55e;background:rgba(21,93,62,.24)}.desk-queue-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.22)}.desk-queue-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}
