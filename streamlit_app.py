@@ -1508,6 +1508,28 @@ def render_professional_chart_block(
                 latest_candle = pd.Timestamp(ts_values.max()).strftime("%m/%d %H:%M")
         except Exception:
             latest_candle = "-"
+    latest_row = clean_window.iloc[-1]
+    latest_open = safe_float(latest_row.get("open"))
+    latest_high = safe_float(latest_row.get("high"))
+    latest_low = safe_float(latest_row.get("low"))
+    latest_close = safe_float(latest_row.get("close"))
+    latest_volume = safe_float(latest_row.get("volume"))
+    previous_close = safe_float(clean_window.iloc[-2].get("close")) if len(clean_window) > 1 else None
+    candle_change = None
+    if latest_close is not None and previous_close not in (None, 0):
+        candle_change = (latest_close - previous_close) / previous_close
+    candle_range = None
+    if latest_high is not None and latest_low is not None and latest_close not in (None, 0):
+        candle_range = (latest_high - latest_low) / latest_close
+    candle_tone = "buy" if (latest_close or 0) >= (latest_open or latest_close or 0) else "avoid"
+    candle_label = "Vela verde" if candle_tone == "buy" else "Vela roja"
+    candle_ohlc = (
+        f"O {num_display(latest_open, 2)} · H {num_display(latest_high, 2)} · "
+        f"L {num_display(latest_low, 2)} · C {num_display(latest_close, 2)}"
+    )
+    candle_change_text = pct_display(candle_change) if candle_change is not None else "-"
+    candle_range_text = pct_display(candle_range) if candle_range is not None else "-"
+    candle_volume_text = num_display(latest_volume, 0) if latest_volume is not None else "-"
     entry_value = safe_float((trade_brief or {}).get("entry") or (confluence or {}).get("entry"))
     stop_value = safe_float((trade_brief or {}).get("stop") or (confluence or {}).get("stop"))
     target_value = safe_float((trade_brief or {}).get("target") or (trade_brief or {}).get("target_price"))
@@ -1570,6 +1592,9 @@ def render_professional_chart_block(
             <b class="chart-level-check chart-level-check-{checks_tone}">{html.escape(checks_summary)} · {html.escape(blockers_summary)}</b>
             <b class="chart-level-data">Velas {visible_candles}</b>
             <b class="chart-level-data">Última {html.escape(latest_candle)}</b>
+            <b class="chart-level-candle chart-level-candle-{candle_tone}">{html.escape(candle_label)} · {html.escape(candle_change_text)}</b>
+            <b class="chart-level-data">{html.escape(candle_ohlc)}</b>
+            <b class="chart-level-data">Rango {html.escape(candle_range_text)} · Vol {html.escape(candle_volume_text)}</b>
             <b class="chart-level-interact">Arrastra · Zoom · OHLC</b>
           </aside>
         </section>
@@ -13864,7 +13889,7 @@ def main() -> None:
         .chart-level-check-buy{border-color:rgba(34,197,94,.55)!important;color:#bbf7d0!important;background:rgba(20,83,45,.20)!important}
         .chart-level-check-watch{border-color:rgba(245,158,11,.58)!important;color:#fde68a!important;background:rgba(120,53,15,.18)!important}
         .chart-level-check-avoid{border-color:rgba(248,113,113,.60)!important;color:#fecaca!important;background:rgba(127,29,29,.20)!important}
-        .chart-level-data{border-color:rgba(14,165,233,.46)!important;color:#bfdbfe!important;background:rgba(30,64,175,.15)!important}
+        .chart-level-data{border-color:rgba(14,165,233,.46)!important;color:#bfdbfe!important;background:rgba(30,64,175,.15)!important}.chart-level-candle-buy{border-color:rgba(34,197,94,.56)!important;color:#bbf7d0!important;background:rgba(21,128,61,.18)!important}.chart-level-candle-avoid{border-color:rgba(239,68,68,.56)!important;color:#fecaca!important;background:rgba(127,29,29,.18)!important}
         .chart-level-interact{border-color:rgba(168,85,247,.50)!important;color:#ddd6fe!important;background:rgba(76,29,149,.18)!important}
         .chart-check-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;border:1px solid rgba(148,163,184,.18);border-radius:8px;background:rgba(148,163,184,.14);overflow:hidden;margin:-2px 0 6px}
         .chart-check-pill{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#0b1220;padding:6px 8px;min-width:0;border-top:2px solid rgba(148,163,184,.28)}
