@@ -1495,6 +1495,13 @@ def render_professional_chart_block(
         next_hint = f"{text_display(blocking_check.get('label'))}: {text_display(blocking_check.get('detail'))}"
     else:
         next_hint = "Listo si respeta entrada, stop, volumen y gestion de riesgo."
+    visible_checks = checklist_rows[:5]
+    checks_total = len(visible_checks)
+    checks_ok = sum(1 for item in visible_checks if item.get("tone") == "buy")
+    checks_pending = max(0, checks_total - checks_ok)
+    checks_tone = "buy" if checks_pending == 0 and checks_total else "watch" if checks_pending <= 2 else "avoid"
+    checks_summary = f"Checks {checks_ok}/{checks_total}" if checks_total else "Checks -"
+    blockers_summary = "Sin bloqueos" if checks_pending == 0 and checks_total else f"Faltan {checks_pending}"
     confirmation_html = "".join(
         '<span class="chart-check-pill chart-check-{tone}" title="{detail}">'
         "<span><em>{label}</em><small>{detail}</small></span><strong>{status}</strong></span>".format(
@@ -1503,7 +1510,7 @@ def render_professional_chart_block(
             status=html.escape(text_display(item.get("status"))),
             detail=html.escape(text_display(item.get("detail"))),
         )
-        for item in checklist_rows[:5]
+        for item in visible_checks
     )
     st.markdown(
         f"""
@@ -1518,6 +1525,7 @@ def render_professional_chart_block(
             <b class="chart-level-stop">Stop {html.escape(stop)}</b>
             <b class="chart-level-target">Target {html.escape(target)}</b>
             <b class="chart-level-rr">R:R {html.escape(rr_display)}</b>
+            <b class="chart-level-check chart-level-check-{checks_tone}">{html.escape(checks_summary)} · {html.escape(blockers_summary)}</b>
             <b class="chart-level-data">Velas {visible_candles}</b>
             <b class="chart-level-data">Última {html.escape(latest_candle)}</b>
             <b class="chart-level-interact">Arrastra · Zoom · OHLC</b>
@@ -13434,6 +13442,9 @@ def main() -> None:
         .chart-level-stop{border-color:rgba(248,113,113,.60)!important;color:#fecaca!important;background:rgba(127,29,29,.20)!important}
         .chart-level-target{border-color:rgba(34,197,94,.55)!important;color:#bbf7d0!important;background:rgba(20,83,45,.20)!important}
         .chart-level-rr{border-color:rgba(245,158,11,.58)!important;color:#fde68a!important;background:rgba(120,53,15,.18)!important}
+        .chart-level-check-buy{border-color:rgba(34,197,94,.55)!important;color:#bbf7d0!important;background:rgba(20,83,45,.20)!important}
+        .chart-level-check-watch{border-color:rgba(245,158,11,.58)!important;color:#fde68a!important;background:rgba(120,53,15,.18)!important}
+        .chart-level-check-avoid{border-color:rgba(248,113,113,.60)!important;color:#fecaca!important;background:rgba(127,29,29,.20)!important}
         .chart-level-data{border-color:rgba(14,165,233,.46)!important;color:#bfdbfe!important;background:rgba(30,64,175,.15)!important}
         .chart-level-interact{border-color:rgba(168,85,247,.50)!important;color:#ddd6fe!important;background:rgba(76,29,149,.18)!important}
         .chart-check-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;border:1px solid rgba(148,163,184,.18);border-radius:8px;background:rgba(148,163,184,.14);overflow:hidden;margin:-2px 0 6px}
