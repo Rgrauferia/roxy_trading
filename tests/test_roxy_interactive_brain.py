@@ -1396,6 +1396,98 @@ def test_roxy_brain_answers_english_why_followup_from_session_context(tmp_path):
     assert "Do not trade yet" in second.reply
 
 
+def test_roxy_brain_recaps_empty_session_memory(tmp_path):
+    memory = RoxyConversationMemory(path=tmp_path / "conversation.json")
+    brain = RoxyInteractiveBrain(
+        brief_path=tmp_path / "brief.json",
+        memory_path=tmp_path / "memory.json",
+        conversation_memory=memory,
+    )
+
+    response = brain.generate_reply("resumen de sesion", session_id="demo")
+
+    assert response.intent == "session_recap"
+    assert response.safety_level == "guarded"
+    assert "Todavia no tengo turnos guardados" in response.reply
+    assert "keep_session_id" in response.suggested_actions
+
+
+def test_roxy_brain_recaps_spanish_session_memory(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "symbol": "SPY",
+                        "ai_action": "WATCH",
+                        "strategy_family": "Trend",
+                        "trade_decision": "WAIT",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    memory = RoxyConversationMemory(path=tmp_path / "conversation.json")
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        conversation_memory=memory,
+    )
+
+    brain.generate_reply("hola", session_id="demo")
+    brain.generate_reply("resumen de oportunidad", session_id="demo")
+    response = brain.generate_reply("resume la conversacion", session_id="demo")
+
+    assert response.intent == "session_recap"
+    assert response.language == "es"
+    assert "Resumen de sesion: 2 turno(s) guardados" in response.reply
+    assert "greeting" in response.reply
+    assert "opportunity" in response.reply
+    assert "Siguiente paso util" in response.reply
+
+
+def test_roxy_brain_recaps_english_session_memory(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "symbol": "NVDA",
+                        "ai_action": "WATCH",
+                        "strategy_family": "Pullback",
+                        "trade_decision": "WAIT",
+                        "entry": 142.25,
+                        "stop": 139.5,
+                        "risk_pct": 0.0193,
+                        "explanation": "No operar todavia.",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    memory = RoxyConversationMemory(path=tmp_path / "conversation.json")
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        conversation_memory=memory,
+    )
+
+    brain.generate_reply("recommend NVDA", session_id="demo")
+    brain.generate_reply("why?", session_id="demo")
+    response = brain.generate_reply("session recap", session_id="demo")
+
+    assert response.intent == "session_recap"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert "Session recap: 2 saved turn(s)" in response.reply
+    assert "opportunity_reason" in response.reply
+    assert "Next useful step" in response.reply
+
+
 def test_roxy_conversation_memory_prunes_old_sessions(tmp_path):
     memory_path = tmp_path / "conversation.json"
     memory = RoxyConversationMemory(path=memory_path, max_turns=2, max_sessions=2)

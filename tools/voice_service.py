@@ -543,6 +543,7 @@ def roxy_live_page():
           <button data-prompt="hola roxy">Saludo</button>
           <button data-prompt="estado de roxy">Estado</button>
           <button data-prompt="que puedes hacer">Capacidades</button>
+          <button data-prompt="resumen de sesion">Sesión</button>
           <button data-prompt="briefing diario">Briefing</button>
           <button data-prompt="resumen del mercado">Mercado</button>
           <button data-prompt="frescura de datos">Datos</button>

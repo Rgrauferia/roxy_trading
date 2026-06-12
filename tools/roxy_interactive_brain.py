@@ -591,6 +591,10 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "go",
         "no",
         "readiness",
+        "session",
+        "recap",
+        "summarize",
+        "discuss",
     }
     spanish_terms = {
         "hola",
@@ -647,6 +651,10 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "seguro",
         "decision",
         "decisión",
+        "sesion",
+        "sesión",
+        "resumir",
+        "hablamos",
     }
     tokens = set(re.findall(r"[a-záéíóúñ]+", normalized))
     english_score = len(tokens.intersection(english_terms))
@@ -1116,6 +1124,17 @@ def _extract_symbol(query: str) -> str | None:
         "AHORA",
         "OPERAR",
         "OPERA",
+        "SESSION",
+        "RECAP",
+        "SUMMARIZE",
+        "RESUME",
+        "SESION",
+        "SESIÓN",
+        "CONVERSACION",
+        "CONVERSACIÓN",
+        "DISCUSSED",
+        "DISCUSS",
+        "HABLAMOS",
     }
     for raw_word in query.split():
         word = raw_word.strip(".,:;!?()[]{}\"'").upper().replace("-", "/")
@@ -1291,6 +1310,23 @@ class RoxyInteractiveBrain:
             "is it safe to trade",
             "trade decision",
         )
+        session_recap_terms = (
+            "resumen de sesion",
+            "resumen de sesión",
+            "resumen de la sesion",
+            "resumen de la sesión",
+            "resume la conversacion",
+            "resume la conversación",
+            "resume esta conversacion",
+            "resume esta conversación",
+            "que hemos hablado",
+            "qué hemos hablado",
+            "session recap",
+            "conversation recap",
+            "summarize session",
+            "summarize conversation",
+            "what did we discuss",
+        )
         if _contains_any(lq, ("hola", "hello", "hi", "hey", "buenos dias", "buenas")):
             response = self._greeting_reply(user, profile)
             return finish(response)
@@ -1325,6 +1361,10 @@ class RoxyInteractiveBrain:
 
         if _contains_any(lq, news_impact_terms):
             response = self._news_impact_reply(q, language)
+            return finish(response)
+
+        if _contains_any(lq, session_recap_terms):
+            response = self._session_recap_reply(recent_turns, language)
             return finish(response)
 
         if _contains_any(lq, ("quien eres", "who are you", "tu rostro", "cara", "avatar", "identidad", "identity", "roxy")):
@@ -1976,6 +2016,56 @@ class RoxyInteractiveBrain:
         preferred = _safe_text(profile.get("preferred_name"))
         raw = preferred or _safe_text(user)
         return f" {raw}" if raw else ""
+
+    def _session_recap_reply(self, recent_turns: list[dict[str, Any]], language: str = "es") -> RoxyBrainReply:
+        if not recent_turns:
+            reply = (
+                "I do not have saved turns for this session yet. Keep the same session_id while you talk with me and I can recap the thread."
+                if language == "en"
+                else "Todavia no tengo turnos guardados para esta sesion. Mantén el mismo session_id mientras hablas conmigo y puedo resumir el hilo."
+            )
+            return RoxyBrainReply(
+                intent="session_recap",
+                reply=reply,
+                emotion="cautious",
+                safety_level="guarded",
+                suggested_actions=("keep_session_id", "ask_latest_opportunity"),
+            )
+
+        compact_turns = []
+        for turn in recent_turns[-5:]:
+            intent = _safe_text(turn.get("intent")) or "unknown"
+            query = _redact_sensitive_text(_safe_text(turn.get("query")))[:90]
+            compact_turns.append((intent, query))
+        intent_counts: dict[str, int] = {}
+        for intent, _query in compact_turns:
+            intent_counts[intent] = intent_counts.get(intent, 0) + 1
+        top_intents = ", ".join(f"{intent} x{count}" for intent, count in sorted(intent_counts.items(), key=lambda item: (-item[1], item[0]))[:3])
+        last_intent, last_query = compact_turns[-1]
+        topic_lines = []
+        for idx, (intent, query) in enumerate(compact_turns, start=1):
+            topic_lines.append(f"{idx}. {intent}: {query or '-'}")
+
+        if language == "en":
+            reply = (
+                f"Session recap: {len(recent_turns)} saved turn(s). Main intents: {top_intents or '-'}. "
+                f"Recent thread: {' | '.join(topic_lines)}. Last topic: {last_intent}. "
+                "Next useful step: ask for go/no-go, monitoring plan, or position size for the active opportunity."
+            )
+        else:
+            reply = (
+                f"Resumen de sesion: {len(recent_turns)} turno(s) guardados. Intenciones principales: {top_intents or '-'}. "
+                f"Hilo reciente: {' | '.join(topic_lines)}. Ultimo tema: {last_intent}. "
+                "Siguiente paso util: pedir go/no-go, plan de monitoreo o sizing para la oportunidad activa."
+            )
+        return RoxyBrainReply(
+            intent="session_recap",
+            reply=reply,
+            avatar_state="speaking",
+            emotion="informative",
+            safety_level="guarded",
+            suggested_actions=("trade_readiness", "monitoring_plan", "position_size"),
+        )
 
     def _action_guardrail_reply(self, query: str) -> RoxyBrainReply:
         symbol = _extract_symbol(query)

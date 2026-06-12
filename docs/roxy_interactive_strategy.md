@@ -71,6 +71,8 @@ Session memory is stored locally in `alerts/roxy_conversation_memory.json` when 
 
 When session memory is available, Roxy can resolve short follow-ups such as "por que?", "dame el plan", "continue", or "why?" against the last meaningful topic. For opportunity conversations this can produce `opportunity_reason` or `opportunity_risk` without forcing the user to repeat the symbol, which makes voice conversation feel closer to a natural assistant.
 
+For session recap prompts such as "resumen de sesion" or "conversation recap", Roxy uses the `session_recap` intent. It summarizes the recent saved turns for the active `session_id`, main intents, last topic, and a safe next step. It does not expose long raw history and relies on the existing local redaction used by conversation memory.
+
 User preferences are stored locally in `alerts/roxy_user_profile.json`. Only safe preference fields are allowed: preferred name, language, tone, trading mode, default symbol, watchlist, and browser voice settings. Language is normalized to `es` or `en`. Secrets and unknown keys are ignored.
 
 For profile-based monitoring, Roxy uses the `watchlist_summary` intent. It reads the saved watchlist and local opportunity rows, summarizes action, decision, readiness, entry, stop, risk, and missing confirmations for each matching symbol, and clearly labels symbols with no local row instead of inventing data.
