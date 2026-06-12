@@ -13364,8 +13364,16 @@ def render_dashboard_action_queue(table: pd.DataFrame) -> None:
         risk = pct_display(row.get("risk_pct"))
         next_step = text_display(row.get("waiting_for") or row.get("next") or row.get("gate") or "Confirmar estructura.")
         next_prefix = "Acción" if tone == "buy" else "Evitar" if tone == "avoid" else "Falta"
-        entry = num_display(row.get("entry") or row.get("current_price") or row.get("price"), 2)
-        stop = num_display(row.get("stop"), 2)
+        entry_value = safe_float(row.get("entry") or row.get("current_price") or row.get("price"))
+        stop_value = safe_float(row.get("stop"))
+        target_value = safe_float(row.get("target") or row.get("take_profit") or row.get("target_price"))
+        entry = num_display(entry_value, 2)
+        stop = num_display(stop_value, 2)
+        target = num_display(target_value, 2)
+        rr_value = None
+        if entry_value is not None and stop_value is not None and target_value is not None and abs(entry_value - stop_value) > 0:
+            rr_value = abs(target_value - entry_value) / abs(entry_value - stop_value)
+        rr_text = f"1:{rr_value:.2f}" if rr_value is not None else "-"
         cards.append(
             f'<article class="dashboard-action-card dashboard-action-{html.escape(tone)}">'
             f'<span>{html.escape(action)}</span>'
@@ -13373,7 +13381,7 @@ def render_dashboard_action_queue(table: pd.DataFrame) -> None:
             f'<small>{html.escape(strategy)}</small>'
             f'<p>{html.escape(next_prefix)}: {html.escape(next_step[:100])}</p>'
             f'<em>Score {html.escape(score)} · Ready {html.escape(readiness)} · Riesgo {html.escape(risk)}</em>'
-            f'<b>Entrada {html.escape(entry)} · Stop {html.escape(stop)}</b>'
+            f'<b>Entrada {html.escape(entry)} · Stop {html.escape(stop)} · Target {html.escape(target)} · R:R {html.escape(rr_text)}</b>'
             "</article>"
         )
     st.markdown(
