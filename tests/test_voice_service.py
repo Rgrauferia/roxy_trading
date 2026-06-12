@@ -20,6 +20,7 @@ def test_roxy_live_page():
     assert r.status_code == 200
     assert "Roxy Live" in r.text
     assert "/v1/assist/state" in r.text
+    assert "/v1/assist/stream" in r.text
     assert "loadMemory" in r.text
     assert "nextActions" in r.text
     assert "activeContext" in r.text
@@ -271,6 +272,46 @@ def test_assist_events_returns_ordered_events(monkeypatch):
     assert r.status_code == 200
     payload = r.json()
     assert [event["type"] for event in payload["events"]] == ["transcript_received", "speak"]
+
+
+def test_assist_stream_returns_sse_turn_events(monkeypatch):
+    os.environ["VOICE_API_KEY"] = "testkey"
+    from tools import voice_service
+
+    monkeypatch.setattr(voice_service, "VOICE_API_KEY", "testkey")
+    monkeypatch.setattr(voice_service, "llm", None)
+    monkeypatch.setattr(
+        voice_service.va_backend,
+        "generate_reply_state",
+        lambda q, user=None, session_id=None: {
+            "reply": "Hola. Estoy escuchando.",
+            "intent": "greeting",
+            "language": "es",
+            "voice_style": "female_es_latam",
+            "avatar_state": "speaking",
+            "emotion": "warm",
+            "should_speak": True,
+            "needs_live_source": False,
+            "safety_level": "normal",
+            "priority": "normal",
+            "suggested_actions": ["ask_capabilities"],
+        },
+    )
+    voice_service._RATE_STATE.clear()
+
+    client = TestClient(voice_service.app)
+    headers = {"Authorization": "Bearer testkey", "Content-Type": "application/json"}
+    r = client.post("/v1/assist/stream", json={"query": "hola", "session_id": "demo"}, headers=headers)
+
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/event-stream")
+    assert "event: transcript_received" in r.text
+    assert "event: thinking" in r.text
+    assert "event: reply_ready" in r.text
+    assert "event: speak" in r.text
+    assert "event: done" in r.text
+    assert '"server_latency_ms"' in r.text
+    assert '"response_source": "local_brain"' in r.text
 
 
 def test_profile_endpoints(monkeypatch):

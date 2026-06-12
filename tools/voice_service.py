@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import json
 import os
 import time
 import logging
@@ -10,7 +11,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Request, Depends
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -147,6 +148,11 @@ def add_turn_metadata(state: dict[str, object], started_at: float, response_sour
     payload["server_latency_ms"] = max(0.0, round((time.perf_counter() - started_at) * 1000, 1))
     payload["response_source"] = response_source
     return payload
+
+
+def sse_event(event_name: str, payload: dict[str, object]) -> str:
+    body = json.dumps(payload, ensure_ascii=False, default=str)
+    return f"event: {event_name}\ndata: {body}\n\n"
 
 
 def require_api_key(request: Request):
@@ -651,6 +657,7 @@ def roxy_live_page():
     let isSpeaking = false;
     let manualStop = false;
     let pendingListenTimer = null;
+    const assistStreamEndpoint = "/v1/assist/stream";
 
     function restoreSettings() {
       $("user").value = localStorage.getItem("roxyLiveUser") || "local";
@@ -1284,17 +1291,7 @@ def assist(req: AssistRequest, token: Optional[str] = Depends(require_api_key)):
     return {"reply": reply}
 
 
-@app.post("/v1/assist/state")
-def assist_state(req: AssistRequest, token: Optional[str] = Depends(require_api_key)):
-    """Return Roxy's structured voice state for visual and operational clients."""
-    started_at = time.perf_counter()
-    try:
-        rate_limited(token)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("Rate limiter error: %s", e)
-
+def build_assist_state(req: AssistRequest, started_at: float) -> dict[str, object]:
     q = (req.query or "").strip()
     user = req.user
     session_id = req.session_id
@@ -1356,6 +1353,20 @@ def assist_state(req: AssistRequest, token: Optional[str] = Depends(require_api_
     )
 
 
+@app.post("/v1/assist/state")
+def assist_state(req: AssistRequest, token: Optional[str] = Depends(require_api_key)):
+    """Return Roxy's structured voice state for visual and operational clients."""
+    started_at = time.perf_counter()
+    try:
+        rate_limited(token)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Rate limiter error: %s", e)
+
+    return build_assist_state(req, started_at)
+
+
 @app.post("/v1/assist/events")
 def assist_events(req: AssistRequest, token: Optional[str] = Depends(require_api_key)):
     """Return only the ordered voice/UI events for a request."""
@@ -1365,6 +1376,88 @@ def assist_events(req: AssistRequest, token: Optional[str] = Depends(require_api
         "events": events if isinstance(events, list) else [],
         "state": state,
     }
+
+
+@app.post("/v1/assist/stream")
+def assist_stream(req: AssistRequest, token: Optional[str] = Depends(require_api_key)):
+    """Stream ordered Roxy turn events with Server-Sent Events."""
+    started_at = time.perf_counter()
+    try:
+        rate_limited(token)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Rate limiter error: %s", e)
+
+    query = (req.query or "").strip()
+
+    def event_stream():
+        if query:
+            yield sse_event(
+                "transcript_received",
+                {
+                    "type": "transcript_received",
+                    "text": query,
+                    "avatar_state": "listening",
+                    "emotion": "attentive",
+                    "priority": "normal",
+                },
+            )
+        yield sse_event(
+            "thinking",
+            {
+                "type": "thinking",
+                "avatar_state": "thinking",
+                "emotion": "focused",
+                "priority": "normal",
+            },
+        )
+        try:
+            state = build_assist_state(req, started_at)
+        except Exception as exc:
+            logger.exception("assist stream backend error")
+            yield sse_event(
+                "error",
+                {
+                    "type": "error",
+                    "detail": f"{type(exc).__name__}: assistant backend error",
+                    "avatar_state": "blocked",
+                    "emotion": "serious",
+                    "priority": "high",
+                },
+            )
+            return
+
+        yield sse_event("reply_ready", {"type": "reply_ready", **state})
+        if state.get("should_speak") is not False:
+            yield sse_event(
+                "speak",
+                {
+                    "type": "speak",
+                    "text": state.get("reply", ""),
+                    "language": state.get("language", "es"),
+                    "voice_style": state.get("voice_style", "female_es_latam"),
+                    "avatar_state": "speaking",
+                    "emotion": state.get("emotion", "focused"),
+                    "priority": state.get("priority", "normal"),
+                    "turn_id": state.get("turn_id", ""),
+                },
+            )
+        yield sse_event(
+            "done",
+            {
+                "type": "done",
+                "turn_id": state.get("turn_id", ""),
+                "server_latency_ms": state.get("server_latency_ms", 0),
+                "response_source": state.get("response_source", ""),
+            },
+        )
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/v1/assist/session/{session_id}")
