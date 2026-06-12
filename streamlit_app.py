@@ -9986,6 +9986,36 @@ def render_trading_desk_summary(rows: pd.DataFrame) -> None:
 
 
 
+
+def render_trading_desk_empty_filter_state(
+    total_rows: int,
+    *,
+    preset: str,
+    status: str,
+    blocker: str,
+    min_score: int,
+    query: str,
+) -> None:
+    query_label = text_display(query) if text_display(query) != "-" else "sin búsqueda"
+    st.markdown(
+        f"""
+        <section class="trading-desk-empty">
+          <div>
+            <span>Trading Desk sin resultados</span>
+            <strong>0 visibles de {int(total_rows)}</strong>
+            <p>El filtro actual es demasiado estrecho para las oportunidades cargadas.</p>
+          </div>
+          <ul>
+            <li>Preset: {html.escape(text_display(preset))}</li>
+            <li>Estado: {html.escape(text_display(status))} · Falta: {html.escape(text_display(blocker))}</li>
+            <li>Score ≥ {int(min_score)} · Buscar: {html.escape(query_label)}</li>
+          </ul>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.caption("Para recuperar la vista rápida: Preset Todos, Estado Todos, Falta Todos, Score min 0 y búsqueda vacía.")
+
 def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, scan_df: pd.DataFrame) -> None:
     rows = trading_desk_rows(table, confluence_df, scan_df, limit=18)
     if rows.empty:
@@ -10022,7 +10052,14 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
         rows, status=status_filter, query=query, min_score=min_score, preset=preset_filter, blocker=blocker_filter
     )
     if display_rows.empty:
-        st.info("El filtro actual no deja oportunidades visibles.")
+        render_trading_desk_empty_filter_state(
+            len(rows),
+            preset=preset_filter,
+            status=status_filter,
+            blocker=blocker_filter,
+            min_score=min_score,
+            query=query,
+        )
         return
     render_trading_desk_summary(display_rows)
     with st.expander("Tabla completa del Trading Desk", expanded=False):
@@ -13880,6 +13917,7 @@ def main() -> None:
         .top-opp-card{border:1px solid rgba(148,163,184,.22);border-radius:8px 8px 0 0;background:#0b1220;padding:9px 10px;min-height:110px;border-bottom:0}.top-opp-card div{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.top-opp-card span{color:#94a3b8;font-size:10px;text-transform:uppercase;font-weight:950}.top-opp-card strong{color:#f8fafc;font-size:20px;line-height:1;font-weight:950}.top-opp-route{display:inline-flex;margin-top:7px;border:1px solid rgba(148,163,184,.24);border-radius:999px;background:rgba(15,23,42,.56);padding:3px 7px;color:#cbd5e1;font-size:9px;font-style:normal;font-weight:950;text-transform:uppercase;letter-spacing:.03em}.top-opp-card .top-opp-meter{display:block;position:relative;height:15px;border:1px solid rgba(148,163,184,.18);border-radius:999px;background:rgba(15,23,42,.70);overflow:hidden;margin:7px 0 0}.top-opp-meter span{display:block;height:100%;background:linear-gradient(90deg,#38bdf8,#22c55e);opacity:.92}.top-opp-meter em{position:absolute;inset:0;display:grid;place-items:center;color:#f8fafc;font-size:9px;font-style:normal;font-weight:950;text-shadow:0 1px 6px rgba(0,0,0,.55)}.top-opp-card p{margin:8px 0 6px;color:#e2e8f0;font-size:12px;line-height:1.2;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top-opp-card small{display:block;color:#94a3b8;font-size:10px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top-opp-card .top-opp-next{color:#f8fafc;margin-top:4px;font-weight:850}.top-opp-buy{border-color:rgba(34,197,94,.42);background:rgba(21,93,62,.24)}.top-opp-watch{border-color:rgba(245,158,11,.42);background:rgba(120,74,15,.22)}.top-opp-avoid{border-color:rgba(239,68,68,.42);background:rgba(127,29,29,.22)}
         .market-movers-tape{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 12px;overflow:hidden}.market-movers-tape>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.15)}.market-movers-tape>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.market-movers-tape>header span{color:#94a3b8;font-size:11px;text-align:right}.market-mover-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .market-mover-table{background:#0b1220;overflow:hidden;border-top:2px solid rgba(148,163,184,.25)}.market-mover-table header{padding:6px 8px;color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;background:#0f172a;border-bottom:1px solid rgba(148,163,184,.12)}.market-mover-table table{width:100%;border-collapse:collapse}.market-mover-table th,.market-mover-table td{padding:5px 6px;border-bottom:1px solid rgba(148,163,184,.10);font-size:10px;line-height:1.15;text-align:left;color:#cbd5e1}.market-mover-table th{color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase}.market-mover-table td:first-child{color:#f8fafc;font-weight:950}.market-mover-table td:nth-child(2),.market-mover-table td:nth-child(3),.market-mover-table td:nth-child(4){text-align:right}.market-mover-table td:last-child{max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.market-mover-buy{border-top-color:#22c55e}.market-mover-watch{border-top-color:#f59e0b}.market-mover-avoid{border-top-color:#ef4444}
+        .trading-desk-empty{display:flex;justify-content:space-between;gap:14px;align-items:center;border:1px dashed rgba(251,191,36,.44);border-left:4px solid #f59e0b;border-radius:8px;background:linear-gradient(135deg,rgba(120,74,15,.22),rgba(15,23,42,.92));padding:10px 12px;margin:6px 0 8px}.trading-desk-empty span{display:block;color:#fbbf24;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.trading-desk-empty strong{display:block;color:#f8fafc;font-size:18px;line-height:1.1;margin-top:4px}.trading-desk-empty p{margin:5px 0 0;color:#cbd5e1;font-size:12px;line-height:1.25}.trading-desk-empty ul{margin:0;padding-left:18px;color:#e2e8f0;font-size:11px;line-height:1.35}
         .trading-desk-strip{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;border:1px solid rgba(148,163,184,.22);border-radius:8px;background:rgba(148,163,184,.16);overflow:hidden;margin:4px 0 8px}.desk-chip{background:#0b1220;padding:8px 9px;min-width:0;border-top:2px solid rgba(148,163,184,.28)}.desk-chip span{display:block;color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.desk-chip strong{display:block;color:#f8fafc;font-size:20px;line-height:1;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.desk-chip small{display:block;color:#cbd5e1;font-size:10px;line-height:1.12;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.desk-buy{border-top-color:#22c55e;background:rgba(21,93,62,.22)}.desk-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.20)}.desk-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}
         .trading-desk-focus{display:grid;grid-template-columns:minmax(180px,.34fr) minmax(0,1fr);gap:12px;align-items:center;border:1px solid rgba(148,163,184,.24);border-left:4px solid #f59e0b;border-radius:10px;background:linear-gradient(135deg,rgba(15,23,42,.98),rgba(30,41,59,.76));padding:10px 12px;margin:2px 0 8px;box-shadow:0 14px 36px rgba(0,0,0,.16)}.trading-desk-focus span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.trading-desk-focus strong{display:block;color:#f8fafc;font-size:28px;line-height:1;margin-top:3px;font-weight:950}.trading-desk-focus em{display:block;color:#cbd5e1;font-size:11px;font-style:normal;margin-top:5px;font-weight:800}.trading-desk-focus p{margin:0;color:#f8fafc;font-size:15px;line-height:1.2;font-weight:950}.trading-desk-focus small{grid-column:2;color:#94a3b8;font-size:11px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.desk-focus-buy{border-left-color:#22c55e;background:linear-gradient(135deg,rgba(21,93,62,.32),rgba(15,23,42,.92))}.desk-focus-watch{border-left-color:#f59e0b}.desk-focus-avoid{border-left-color:#ef4444;background:linear-gradient(135deg,rgba(127,29,29,.30),rgba(15,23,42,.92))}
         .trading-desk-queue{border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0b1220;margin:0 0 8px;overflow:hidden}.trading-desk-queue>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.trading-desk-queue>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.trading-desk-queue>header span{color:#94a3b8;font-size:11px;line-height:1.2;text-align:right}.trading-desk-queue>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.desk-queue-card{background:#0b1220;border-top:2px solid rgba(148,163,184,.30);padding:8px 10px;min-width:0}.desk-queue-card header{display:flex;align-items:center;gap:8px}.desk-queue-card header span{color:#94a3b8;font-size:10px;font-weight:950}.desk-queue-card header strong{color:#f8fafc;font-size:16px;font-weight:950;line-height:1}.desk-queue-card header em{margin-left:auto;color:#f8fafc;font-size:12px;font-style:normal;font-weight:950}.desk-queue-card p{margin:6px 0 4px;color:#f8fafc;font-size:11px;line-height:1.15;font-weight:850}.desk-queue-card small,.desk-queue-card i{display:block;color:#cbd5e1;font-size:10px;line-height:1.16;font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.desk-queue-card i{color:#94a3b8;margin-top:4px}.desk-queue-buy{border-top-color:#22c55e;background:rgba(21,93,62,.24)}.desk-queue-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.22)}.desk-queue-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}
