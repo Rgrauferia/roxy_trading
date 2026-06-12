@@ -1465,6 +1465,15 @@ def render_professional_chart_block(
         st.info("Grafica limitada: hay pocas velas limpias para este simbolo/timeframe. Roxy muestra niveles, pero exige confirmacion extra.")
     chart_symbol = text_display((trade_brief or {}).get("symbol") or setup.get("symbol"))
     timeframe = text_display((trade_brief or {}).get("timeframe") or setup.get("timeframe") or setup.get("tf"))
+    visible_candles = len(clean_window)
+    latest_candle = "-"
+    if "ts" in clean_window.columns:
+        try:
+            ts_values = pd.to_datetime(clean_window["ts"], errors="coerce").dropna()
+            if not ts_values.empty:
+                latest_candle = pd.Timestamp(ts_values.max()).strftime("%m/%d %H:%M")
+        except Exception:
+            latest_candle = "-"
     entry_value = safe_float((trade_brief or {}).get("entry") or (confluence or {}).get("entry"))
     stop_value = safe_float((trade_brief or {}).get("stop") or (confluence or {}).get("stop"))
     target_value = safe_float((trade_brief or {}).get("target") or (trade_brief or {}).get("target_price"))
@@ -1509,6 +1518,8 @@ def render_professional_chart_block(
             <b class="chart-level-stop">Stop {html.escape(stop)}</b>
             <b class="chart-level-target">Target {html.escape(target)}</b>
             <b class="chart-level-rr">R:R {html.escape(rr_display)}</b>
+            <b class="chart-level-data">Velas {visible_candles}</b>
+            <b class="chart-level-data">Última {html.escape(latest_candle)}</b>
             <b class="chart-level-interact">Arrastra · Zoom · OHLC</b>
           </aside>
         </section>
@@ -13423,6 +13434,7 @@ def main() -> None:
         .chart-level-stop{border-color:rgba(248,113,113,.60)!important;color:#fecaca!important;background:rgba(127,29,29,.20)!important}
         .chart-level-target{border-color:rgba(34,197,94,.55)!important;color:#bbf7d0!important;background:rgba(20,83,45,.20)!important}
         .chart-level-rr{border-color:rgba(245,158,11,.58)!important;color:#fde68a!important;background:rgba(120,53,15,.18)!important}
+        .chart-level-data{border-color:rgba(14,165,233,.46)!important;color:#bfdbfe!important;background:rgba(30,64,175,.15)!important}
         .chart-level-interact{border-color:rgba(168,85,247,.50)!important;color:#ddd6fe!important;background:rgba(76,29,149,.18)!important}
         .chart-check-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;border:1px solid rgba(148,163,184,.18);border-radius:8px;background:rgba(148,163,184,.14);overflow:hidden;margin:-2px 0 6px}
         .chart-check-pill{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#0b1220;padding:6px 8px;min-width:0;border-top:2px solid rgba(148,163,184,.28)}
