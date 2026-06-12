@@ -121,7 +121,7 @@ def test_roxy_brain_summarizes_market_regime_in_english(tmp_path):
                     "total_opportunities": 1,
                     "watch_count": 1,
                     "ready_ratio": 0.25,
-                    "top_gate_label": "Wait for trigger",
+                    "top_gate_label": "Esperar entrada 15m",
                     "top_readiness": 80,
                 },
                 "daily_opportunity_plan": {
@@ -143,6 +143,7 @@ def test_roxy_brain_summarizes_market_regime_in_english(tmp_path):
     assert response.language == "en"
     assert response.voice_style == "female_en_us"
     assert "Local market regime: bullish" in response.reply
+    assert "top gate Wait for 15m entry" in response.reply
     assert "Risk note" in response.reply
 
 

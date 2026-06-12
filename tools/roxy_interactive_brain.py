@@ -520,6 +520,20 @@ def _voice_style_for_language(language: str) -> str:
     return "female_en_us" if language == "en" else "female_es_latam"
 
 
+def _localize_market_phrase(value: Any, language: str) -> str:
+    text = _safe_text(value)
+    if language != "en":
+        return text
+    translations = {
+        "Esperar entrada 15m": "Wait for 15m entry",
+        "WAIT_15M_ENTRY": "Wait for 15m entry",
+        "Esperar": "Wait",
+        "Operar": "Actionable",
+        "No tocar": "Do not touch",
+    }
+    return translations.get(text, text)
+
+
 def _tokenize(text: str) -> set[str]:
     stopwords = {
         "como",
@@ -1279,7 +1293,7 @@ class RoxyInteractiveBrain:
             or sum(1 for row in rows if isinstance(row, dict) and _safe_text(row.get("signal")).upper() == "WATCH")
         )
         ready_ratio = _safe_float(gate.get("ready_ratio"))
-        top_gate = _safe_text(gate.get("top_gate_label") or gate.get("top_gate") or "-")
+        top_gate = _localize_market_phrase(gate.get("top_gate_label") or gate.get("top_gate") or "-", language)
         top_readiness = _safe_float(gate.get("top_readiness"))
         market_counts = plan.get("market_counts") if isinstance(plan.get("market_counts"), dict) else {}
         markets = ", ".join(f"{key}:{value}" for key, value in sorted(market_counts.items())) if market_counts else "-"
