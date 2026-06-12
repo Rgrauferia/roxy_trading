@@ -13342,6 +13342,14 @@ def _summarize_voice_context(row: dict) -> str:
 def render_dashboard_action_queue(table: pd.DataFrame) -> None:
     if table.empty:
         return
+    pulse = market_pulse_summary(table)
+    readiness = num_display(pulse.get("avg_readiness"), 0)
+    header_status = (
+        f"Operar {int(pulse.get('ready') or 0)} · "
+        f"Vigilar {int(pulse.get('watch') or 0)} · "
+        f"Evitar {int(pulse.get('avoid') or 0)} · "
+        f"Readiness {readiness}"
+    )
     cards = []
     for _, item in table.head(3).iterrows():
         row = item.to_dict()
@@ -13369,7 +13377,7 @@ def render_dashboard_action_queue(table: pd.DataFrame) -> None:
         )
     st.markdown(
         '<section class="dashboard-action-queue">'
-        "<header><strong>Próximas decisiones</strong><span>Top 3 limpio para operar, vigilar o evitar sin bajar por la página</span></header>"
+        f"<header><strong>Próximas decisiones</strong><span>{html.escape(header_status)}</span></header>"
         f'<div>{"".join(cards)}</div>'
         "</section>",
         unsafe_allow_html=True,
