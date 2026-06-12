@@ -913,11 +913,16 @@ def _extract_symbol(query: str) -> str | None:
     ignored = {
         "ROXY",
         "DIME",
+        "DAME",
         "QUE",
         "COMO",
+        "DE",
         "POR",
         "PARA",
         "CON",
+        "ES",
+        "SI",
+        "SIN",
         "UNA",
         "LAS",
         "LOS",
@@ -945,6 +950,15 @@ def _extract_symbol(query: str) -> str | None:
         "WHAT",
         "WHY",
         "HOW",
+        "IS",
+        "IT",
+        "TO",
+        "OF",
+        "FOR",
+        "WITH",
+        "ACCOUNT",
+        "GIVE",
+        "ME",
         "PLAN",
         "SIZE",
         "SIZING",
@@ -2741,12 +2755,55 @@ class RoxyInteractiveBrain:
     def _latest_opportunity(self, symbol: str | None) -> dict[str, Any]:
         rows = self._opportunity_rows()
         if symbol:
-            for row in rows:
-                if _symbol_matches(row.get("symbol"), symbol):
-                    return row
-        for row in rows:
-            return row
-        return {}
+            matches = [row for row in rows if _symbol_matches(row.get("symbol"), symbol)]
+            return self._ranked_opportunities(matches)[0] if matches else {}
+        ranked = self._ranked_opportunities(rows)
+        return ranked[0] if ranked else {}
+
+    def _ranked_opportunities(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        indexed = [(self._opportunity_rank_score(row), idx, row) for idx, row in enumerate(rows)]
+        indexed.sort(key=lambda item: (item[0], -item[1]), reverse=True)
+        return [row for _score, _idx, row in indexed]
+
+    def _opportunity_rank_score(self, row: dict[str, Any]) -> float:
+        action = _safe_text(row.get("signal") or row.get("ai_action")).upper()
+        decision = _safe_text(row.get("decision") or row.get("trade_decision")).lower()
+        text = " ".join(
+            _safe_text(row.get(key))
+            for key in (
+                "why",
+                "explanation",
+                "memory_note",
+                "alert_quality_reason",
+                "what_is_missing",
+                "missing",
+                "blockers",
+                "entry_trigger",
+                "trigger",
+            )
+        ).lower()
+        score = {
+            "BUY": 110,
+            "SELL": 110,
+            "ALERT": 100,
+            "READY": 95,
+            "WATCH": 45,
+        }.get(action, 20)
+        readiness = _safe_float(row.get("readiness") or row.get("ai_score") or row.get("confluence_score"))
+        if readiness is not None:
+            score += max(0, min(readiness, 100))
+        probability = _safe_float(row.get("probability"))
+        if probability is not None:
+            score += max(0, min(probability, 100)) * 0.15
+        if "trade" in decision or "operar" in decision or "ready" in decision:
+            score += 25
+        if "wait" in decision or "esperar" in decision or "no operar" in text:
+            score -= 15
+        if row.get("entry") is not None and row.get("stop") is not None and row.get("risk_pct") is not None:
+            score += 15
+        if _safe_text(row.get("what_is_missing") or row.get("missing") or row.get("blockers")):
+            score -= 20
+        return score
 
 
 def generate_interactive_reply(query: str, user: str | None = None) -> str:

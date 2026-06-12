@@ -127,6 +127,48 @@ def test_roxy_brain_reads_latest_opportunity_from_brief(tmp_path):
     assert "Falta confirmacion" in response.reply
 
 
+def test_roxy_brain_ranks_best_opportunity_when_symbol_is_not_requested(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "symbol": "SPY",
+                        "signal": "WATCH",
+                        "decision": "Esperar",
+                        "entry": 505.5,
+                        "stop": 501.0,
+                        "risk_pct": 0.0089,
+                        "readiness": 62,
+                        "what_is_missing": "Volumen acompana: falta volumen",
+                    },
+                    {
+                        "symbol": "NVDA",
+                        "signal": "ALERT",
+                        "decision": "TRADE_FOR_2PCT",
+                        "entry": 142.25,
+                        "stop": 139.5,
+                        "risk_pct": 0.0193,
+                        "readiness": 84,
+                        "explanation": "Checklist completo.",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    ranked = brain.generate_reply("resumen de oportunidad")
+    explicit = brain.generate_reply("recomienda SPY")
+
+    assert ranked.intent == "opportunity"
+    assert ranked.reply.startswith("NVDA:")
+    assert explicit.intent == "opportunity"
+    assert explicit.reply.startswith("SPY:")
+
+
 def test_roxy_brain_summarizes_market_regime_in_spanish(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(
@@ -307,6 +349,54 @@ def test_roxy_brain_generates_daily_briefing_in_english(tmp_path):
     assert "Solo alertar" not in response.reply
     assert ".." not in response.reply
     assert "do not execute without explicit confirmation" in response.reply
+
+
+def test_roxy_daily_briefing_uses_ranked_top_opportunity(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "alert_gate_summary": {
+                    "alert_count": 1,
+                    "total_opportunities": 2,
+                    "watch_count": 1,
+                    "ready_ratio": 0.5,
+                },
+                "daily_opportunity_plan": {
+                    "opportunities": [
+                        {
+                            "symbol": "SPY",
+                            "signal": "WATCH",
+                            "decision": "Esperar",
+                            "entry": 505.5,
+                            "stop": 501.0,
+                            "risk_pct": 0.0089,
+                            "readiness": 60,
+                            "what_is_missing": "Volumen acompana: falta volumen",
+                        },
+                        {
+                            "symbol": "NVDA",
+                            "signal": "ALERT",
+                            "decision": "TRADE_FOR_2PCT",
+                            "entry": 142.25,
+                            "stop": 139.5,
+                            "risk_pct": 0.0193,
+                            "readiness": 88,
+                        },
+                    ]
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("daily briefing")
+
+    assert response.intent == "daily_briefing"
+    assert response.language == "en"
+    assert "Top watch: NVDA" in response.reply
+    assert "risk 1.93%" in response.reply
 
 
 def test_roxy_brain_explains_opportunity_risk_plan_in_spanish(tmp_path):

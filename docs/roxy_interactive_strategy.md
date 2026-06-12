@@ -41,6 +41,8 @@ For real-time UI flows, use `POST /v1/assist/events`. It returns ordered events 
 
 For market regime questions, Roxy uses the `market_summary` intent. It reads local brief fields such as `alert_gate_summary`, `daily_opportunity_plan`, opportunities, and crypto scan candidates to classify the current local read as bullish watch, bearish watch, sideways/wait, or unclear/wait. This is decision support only; it does not execute trades.
 
+When the user asks for an opportunity without naming a symbol, Roxy ranks local rows instead of taking the first file row. Ranking favors actionable signals such as ALERT/BUY/SELL, higher readiness/probability, complete entry/stop/risk data, and penalizes missing confirmations. If the user names a symbol, that symbol still takes priority.
+
 For entry, stop, target, and risk questions, Roxy uses the `opportunity_risk` intent. It reads the selected local opportunity from `daily_opportunity_plan`, `opportunities`, or `crypto_scan_candidates` and explains entry, stop, risk percentage, targets, trigger, invalidation, missing checklist items, readiness, probability, and quality. It must end with a no-execution guardrail.
 
 For entry validation questions, Roxy uses the `entry_checklist` intent. It classifies a local opportunity as `READY TO PREPARE`, `WAIT`, or `BLOCKED` based on entry, stop, risk, trigger, readiness, and missing confirmations. Even a ready result remains preparation only; execution requires explicit confirmation in the operational flow.
