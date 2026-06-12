@@ -545,6 +545,7 @@ def roxy_live_page():
           <button data-prompt="que puedes hacer">Capacidades</button>
           <button data-prompt="briefing diario">Briefing</button>
           <button data-prompt="resumen del mercado">Mercado</button>
+          <button data-prompt="vigila mi watchlist">Watchlist</button>
           <button data-prompt="analiza impacto de noticia: pega aqui el titular">Impacto news</button>
           <button data-prompt="resumen de oportunidad">Oportunidad</button>
           <button data-prompt="explica riesgo entrada stop target">Riesgo</button>

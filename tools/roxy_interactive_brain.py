@@ -881,6 +881,13 @@ def _extract_symbol(query: str) -> str | None:
         "WHY",
         "HOW",
         "PLAN",
+        "WATCHLIST",
+        "LISTA",
+        "VIGILA",
+        "MONITOREA",
+        "MONITOR",
+        "MI",
+        "MY",
         "ACTION",
         "DECISION",
         "BUY",
@@ -899,6 +906,15 @@ def _extract_symbol(query: str) -> str | None:
         if 1 <= len(word) <= 6 and word.isalpha() and word not in ignored:
             return word
     return None
+
+
+def _symbols_from_query(query: str) -> list[str]:
+    symbols = []
+    for raw_word in str(query or "").split():
+        symbol = _extract_symbol(raw_word)
+        if symbol and symbol not in symbols:
+            symbols.append(symbol)
+    return symbols[:12]
 
 
 class RoxyInteractiveBrain:
@@ -957,8 +973,24 @@ class RoxyInteractiveBrain:
             "sentimiento de noticia",
             "sentimiento del titular",
         )
+        watchlist_terms = (
+            "watchlist",
+            "lista de seguimiento",
+            "mi lista",
+            "mis simbolos",
+            "mis símbolos",
+            "my symbols",
+            "vigila mi lista",
+            "vigila mi watchlist",
+            "monitorea mi lista",
+            "monitor my list",
+        )
         if _contains_any(lq, ("hola", "hello", "hi", "hey", "buenos dias", "buenas")):
             response = self._greeting_reply(user, profile)
+            return finish(response)
+
+        if _contains_any(lq, watchlist_terms):
+            response = self._watchlist_reply(profile, q, language)
             return finish(response)
 
         if _contains_any(
@@ -1590,6 +1622,107 @@ class RoxyInteractiveBrain:
             safety_level="critical",
             priority="high",
             suggested_actions=("show_trade_ticket", "show_risk_check", "require_explicit_confirmation"),
+        )
+
+    def _watchlist_symbols(self, profile: dict[str, Any], query: str) -> list[str]:
+        symbols: list[str] = []
+        watchlist = profile.get("watchlist") if isinstance(profile.get("watchlist"), list) else []
+        for item in watchlist:
+            symbol = _safe_text(item).upper().replace("-", "/")
+            if symbol and symbol not in symbols:
+                symbols.append(symbol)
+        default_symbol = _safe_text(profile.get("default_symbol")).upper().replace("-", "/")
+        if default_symbol and default_symbol not in symbols:
+            symbols.append(default_symbol)
+        for symbol in _symbols_from_query(query):
+            if symbol not in symbols:
+                symbols.append(symbol)
+        return symbols[:10]
+
+    def _opportunity_rows(self) -> list[dict[str, Any]]:
+        brief = _load_json(self.brief_path)
+        plan = brief.get("daily_opportunity_plan") if isinstance(brief.get("daily_opportunity_plan"), dict) else {}
+        rows = plan.get("opportunities") if isinstance(plan.get("opportunities"), list) else []
+        if not rows:
+            rows = brief.get("opportunities") if isinstance(brief.get("opportunities"), list) else []
+        if not rows:
+            rows = brief.get("crypto_scan_candidates") if isinstance(brief.get("crypto_scan_candidates"), list) else []
+        return [row for row in rows if isinstance(row, dict)]
+
+    def _watchlist_reply(self, profile: dict[str, Any], query: str, language: str = "es") -> RoxyBrainReply:
+        symbols = self._watchlist_symbols(profile, query)
+        if not symbols:
+            if language == "en":
+                reply = (
+                    "I do not have a saved watchlist yet. Save symbols in the Roxy Live profile, or ask with symbols "
+                    "like 'watchlist SPY QQQ NVDA', and I will monitor the local brief for each one."
+                )
+            else:
+                reply = (
+                    "Todavia no tengo una watchlist guardada. Guarda simbolos en el perfil de Roxy Live, o pregunta "
+                    "con simbolos como 'watchlist SPY QQQ NVDA', y reviso el brief local para cada uno."
+                )
+            return RoxyBrainReply(
+                intent="watchlist_summary",
+                reply=reply,
+                emotion="cautious",
+                safety_level="guarded",
+                suggested_actions=("save_profile_watchlist", "run_scan", "ask_market_summary"),
+            )
+
+        rows = self._opportunity_rows()
+        matched: list[str] = []
+        missing: list[str] = []
+        for symbol in symbols:
+            row = next((item for item in rows if _symbol_matches(item.get("symbol"), symbol)), None)
+            if not row:
+                missing.append(symbol)
+                continue
+            row_symbol = _safe_text(row.get("symbol") or symbol).upper()
+            action = _safe_text(row.get("signal") or row.get("ai_action") or "WATCH")
+            decision = _safe_text(row.get("decision") or row.get("trade_decision") or "-")
+            if language == "en":
+                decision = _localize_market_phrase(decision, language)
+            readiness = _safe_float(row.get("readiness") or row.get("ai_score") or row.get("confluence_score"))
+            readiness_text = "-" if readiness is None else f"{readiness:.1f}"
+            risk = _pct(row.get("risk_pct"))
+            entry = _price(row.get("entry"))
+            stop = _price(row.get("stop"))
+            missing_text = _safe_text(row.get("what_is_missing") or row.get("missing") or row.get("blockers"))
+            if language == "en":
+                missing_text = _sentence_fragment(_localize_market_phrase(missing_text, language))
+                matched.append(
+                    f"{row_symbol}: {action}, decision {decision}, readiness {readiness_text}, "
+                    f"entry {entry}, stop {stop}, risk {risk}, missing {missing_text or '-'}"
+                )
+            else:
+                missing_text = _sentence_fragment(missing_text)
+                matched.append(
+                    f"{row_symbol}: {action}, decision {decision}, readiness {readiness_text}, "
+                    f"entrada {entry}, stop {stop}, riesgo {risk}, falta {missing_text or '-'}"
+                )
+
+        if language == "en":
+            lines = "; ".join(matched) if matched else "no saved symbol has a local opportunity row right now"
+            missing_line = f" Missing local rows: {', '.join(missing)}." if missing else ""
+            reply = (
+                f"Watchlist read for {', '.join(symbols)}: {lines}.{missing_line} "
+                "Guardrail: this is local monitoring only; refresh the scan before acting, and require explicit confirmation."
+            )
+        else:
+            lines = "; ".join(matched) if matched else "ningun simbolo guardado tiene fila local de oportunidad ahora"
+            missing_line = f" Sin fila local: {', '.join(missing)}." if missing else ""
+            reply = (
+                f"Lectura de watchlist para {', '.join(symbols)}: {lines}.{missing_line} "
+                "Guardrail: esto es monitoreo local; refresca el scan antes de actuar y exige confirmacion explicita."
+            )
+        return RoxyBrainReply(
+            intent="watchlist_summary",
+            reply=reply,
+            emotion="analytical" if matched else "cautious",
+            needs_live_source=not bool(rows),
+            safety_level="guarded",
+            suggested_actions=("ask_risk", "run_scan", "save_profile_watchlist"),
         )
 
     def _news_reply(self, language: str = "es") -> RoxyBrainReply:
@@ -2258,22 +2391,13 @@ class RoxyInteractiveBrain:
         )
 
     def _latest_opportunity(self, symbol: str | None) -> dict[str, Any]:
-        brief = _load_json(self.brief_path)
-        plan = brief.get("daily_opportunity_plan") if isinstance(brief.get("daily_opportunity_plan"), dict) else {}
-        rows = plan.get("opportunities") if isinstance(plan.get("opportunities"), list) else []
-        if not rows:
-            rows = brief.get("opportunities") or []
-        if not rows:
-            rows = brief.get("crypto_scan_candidates") or []
-        if not isinstance(rows, list):
-            return {}
+        rows = self._opportunity_rows()
         if symbol:
             for row in rows:
-                if isinstance(row, dict) and _symbol_matches(row.get("symbol"), symbol):
+                if _symbol_matches(row.get("symbol"), symbol):
                     return row
         for row in rows:
-            if isinstance(row, dict):
-                return row
+            return row
         return {}
 
 

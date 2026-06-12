@@ -722,6 +722,114 @@ def test_roxy_brain_uses_profile_language_preference(tmp_path):
     assert response.reply.startswith("Hi Roberto")
 
 
+def test_roxy_brain_summarizes_profile_watchlist_in_spanish(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "opportunities": [
+                        {
+                            "symbol": "SPY",
+                            "signal": "WATCH",
+                            "decision": "Esperar",
+                            "entry": 505.5,
+                            "stop": 501.0,
+                            "risk_pct": 0.0089,
+                            "readiness": 71.2,
+                            "what_is_missing": "Volumen acompana: falta volumen",
+                        },
+                        {
+                            "symbol": "QQQ",
+                            "signal": "ALERT",
+                            "decision": "Esperar entrada 15m",
+                            "entry": 442.0,
+                            "stop": 436.0,
+                            "risk_pct": 0.0135,
+                            "readiness": 82.0,
+                        },
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    profile = RoxyUserProfile(path=tmp_path / "profile.json")
+    profile.update("local", {"watchlist": ["SPY", "QQQ", "NVDA"]})
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        user_profile=profile,
+    )
+
+    response = brain.generate_reply("vigila mi watchlist", user="local")
+
+    assert response.intent == "watchlist_summary"
+    assert response.language == "es"
+    assert response.safety_level == "guarded"
+    assert "Lectura de watchlist para SPY, QQQ, NVDA" in response.reply
+    assert "SPY: WATCH" in response.reply
+    assert "QQQ: ALERT" in response.reply
+    assert "Sin fila local: NVDA" in response.reply
+    assert "MI:" not in response.reply
+
+
+def test_roxy_brain_summarizes_watchlist_in_english(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "symbol": "NVDA",
+                        "ai_action": "WATCH",
+                        "trade_decision": "WAIT",
+                        "entry": 142.25,
+                        "stop": 139.5,
+                        "risk_pct": 0.0193,
+                        "ai_score": 72,
+                        "what_is_missing": "15m da entrada: WAIT | Volumen acompana: falta volumen",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    profile = RoxyUserProfile(path=tmp_path / "profile.json")
+    profile.update("local", {"language": "en", "watchlist": ["NVDA", "AAPL"]})
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        user_profile=profile,
+    )
+
+    response = brain.generate_reply("watchlist status", user="local")
+
+    assert response.intent == "watchlist_summary"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert "Watchlist read for NVDA, AAPL" in response.reply
+    assert "NVDA: WATCH" in response.reply
+    assert "15m entry: WAIT | Volume confirms: missing volume" in response.reply
+    assert "Missing local rows: AAPL" in response.reply
+
+
+def test_roxy_brain_asks_for_watchlist_when_profile_is_empty(tmp_path):
+    profile = RoxyUserProfile(path=tmp_path / "profile.json")
+    brain = RoxyInteractiveBrain(
+        brief_path=tmp_path / "brief.json",
+        memory_path=tmp_path / "memory.json",
+        user_profile=profile,
+    )
+
+    response = brain.generate_reply("vigila mi watchlist", user="local")
+
+    assert response.intent == "watchlist_summary"
+    assert response.safety_level == "guarded"
+    assert "no tengo una watchlist guardada" in response.reply
+    assert "save_profile_watchlist" in response.suggested_actions
+
+
 def test_roxy_brain_reports_autonomy_status_without_symbol_confusion(tmp_path):
     profile = RoxyUserProfile(path=tmp_path / "profile.json")
     profile.update("local", {"preferred_name": "Roberto"})

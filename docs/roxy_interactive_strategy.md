@@ -57,6 +57,8 @@ When session memory is available, Roxy can resolve short follow-ups such as "por
 
 User preferences are stored locally in `alerts/roxy_user_profile.json`. Only safe preference fields are allowed: preferred name, language, tone, trading mode, default symbol, watchlist, and browser voice settings. Language is normalized to `es` or `en`. Secrets and unknown keys are ignored.
 
+For profile-based monitoring, Roxy uses the `watchlist_summary` intent. It reads the saved watchlist and local opportunity rows, summarizes action, decision, readiness, entry, stop, risk, and missing confirmations for each matching symbol, and clearly labels symbols with no local row instead of inventing data.
+
 Feedback learning is stored locally in `alerts/roxy_feedback.json`. Roxy Live can send "Sirvio" or "No sirvio" for the latest answer through `POST /v1/feedback`, including an optional correction note such as "mas corto" or "mas claro". Clients can inspect the aggregate with `GET /v1/feedback/summary`. Roxy can summarize this memory when asked what she learned from feedback. When an intent receives negative feedback, the strategy brain marks the next response for that same intent as feedback-adjusted and makes the answer more direct, separating reading, risk, and next step.
 
 The full local learning state is available through `GET /v1/learning/status`. It combines safe user profile fields, session memory, feedback counts, approved knowledge sources, and recommendations. Roxy Live exposes it with the `Aprendizaje` button so the assistant can explain what she is improving without needing a broker connection or external LLM.
