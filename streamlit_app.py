@@ -2804,6 +2804,107 @@ def render_live_provider_center(env: dict[str, str] | None = None) -> None:
 
 
 
+
+def broker_simulation_rows() -> list[dict[str, str]]:
+    return [
+        {
+            "name": "Robinhood",
+            "mode": "Futuro broker",
+            "assets": "Stocks · ETFs · Options · Crypto",
+            "status": "Simulación solamente",
+            "next": "Preparar OAuth/admin gate; sin órdenes reales.",
+            "tone": "watch",
+        },
+        {
+            "name": "Alpaca Paper",
+            "mode": "Paper trading",
+            "assets": "Stocks · ETFs",
+            "status": "Analysis + forward-test",
+            "next": "Usar para medir estrategias antes de live.",
+            "tone": "buy",
+        },
+        {
+            "name": "Alpaca Live",
+            "mode": "Futuro live",
+            "assets": "Stocks · ETFs",
+            "status": "Bloqueado por admin",
+            "next": "Solo habilitable luego desde settings admin.",
+            "tone": "avoid",
+        },
+        {
+            "name": "Interactive Brokers",
+            "mode": "Futuro broker",
+            "assets": "Global stocks · Options",
+            "status": "Arquitectura preparada",
+            "next": "Adapter preview-only antes de ejecución.",
+            "tone": "watch",
+        },
+        {
+            "name": "Binance/Coinbase",
+            "mode": "Futuro crypto",
+            "assets": "Crypto spot",
+            "status": "Simulación solamente",
+            "next": "Alertas y paper ledger antes de llaves live.",
+            "tone": "watch",
+        },
+        {
+            "name": "TradingView",
+            "mode": "Chart bridge",
+            "assets": "Charts · Webhooks",
+            "status": "Futuro análisis",
+            "next": "Recibir señales; no ejecutar desde webhook.",
+            "tone": "watch",
+        },
+    ]
+
+
+def render_broker_simulation_hub(table: pd.DataFrame, *, account_equity: float, risk_pct: float) -> None:
+    equity = max(0.0, safe_float(account_equity) or 0.0)
+    risk_fraction = max(0.0, safe_float(risk_pct) or 0.0)
+    risk_budget = equity * risk_fraction
+    rows = table.head(6).to_dict("records") if not table.empty else []
+    ready_count = sum(1 for row in rows if opportunity_is_trade_ready(row))
+    watch_count = max(0, len(rows) - ready_count)
+    broker_cards = []
+    for broker in broker_simulation_rows():
+        tone = broker["tone"] if broker["tone"] in {"buy", "watch", "avoid"} else "watch"
+        broker_cards.append(
+            f'<article class="broker-sim-card broker-sim-{html.escape(tone)}">'
+            f'<header><strong>{html.escape(broker["name"])}</strong><span>{html.escape(broker["mode"])}</span></header>'
+            f'<p>{html.escape(broker["assets"])}</p>'
+            f'<b>{html.escape(broker["status"])}</b>'
+            f'<small>{html.escape(broker["next"])}</small>'
+            "</article>"
+        )
+    feature_cards = [
+        ("Portfolio Dashboard", f"Capital ${equity:,.0f}", "Equity simulado, riesgo abierto y P&L paper."),
+        ("Asset Search Engine", "AAPL · TSLA · BTC", "Busca acción, ETF o crypto y abre la vista de activo."),
+        ("Real-Time Charts", "1m–1M", "Velas interactivas con zoom, hover y fallback visible."),
+        ("Technical Indicators", "RSI · MACD · EMA · BB", "Indicadores usados para tendencia y confirmación."),
+        ("Signal Overlay", "Buy · Sell · Wait", "Entrada, stop, target y zonas pintadas en gráfica."),
+        ("Risk Calculator", f"1R ${risk_budget:,.2f}", "Tamaño de posición según capital y stop."),
+        ("Opportunity Scanner", f"{len(table)} setups", "Filtra por riesgo, readiness, volumen y setup."),
+        ("Watchlist + Alerts", f"{watch_count} vigilancia", "Lista priorizada y centro de alertas educativas."),
+        ("Voice Commands", "Global", "Comandos: resumen mercado, analiza activo, lee señal."),
+        ("Trade Simulator", "Paper only", "Ensaya entradas/salidas; live trading OFF."),
+        ("Portfolio Analytics", f"{ready_count} listas", "Win rate, estrategia, drawdown y retorno paper."),
+        ("Admin Live Gate", "Disabled", "Trading real solo futuro desde settings admin."),
+    ]
+    feature_html = "".join(
+        f'<div><span>{html.escape(label)}</span><strong>{html.escape(value)}</strong><p>{html.escape(detail)}</p></div>'
+        for label, value, detail in feature_cards
+    )
+    st.markdown(
+        '<section class="broker-sim-hub">'
+        '<header><div><strong>Roxy Trader Simulation Hub</strong>'
+        '<span>Robinhood · Alpaca Paper · future brokers · live trading disabled</span></div>'
+        '<em>Analysis + simulation mode only</em></header>'
+        f'<div class="broker-sim-grid">{"".join(broker_cards)}</div>'
+        f'<div class="broker-feature-grid">{feature_html}</div>'
+        '</section>',
+        unsafe_allow_html=True,
+    )
+
 def render_platform_logo_strip() -> None:
     badges = platform_badge_rows()
     if not badges:
@@ -12244,6 +12345,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
         account_equity=float(account_equity),
         risk_pct=float(risk_pct_ui) / 100.0,
     )
+    render_broker_simulation_hub(best, account_equity=float(account_equity), risk_pct=float(risk_pct_ui) / 100.0)
     if clean_mode:
         render_top_opportunity_cards(best, confluence_df)
         render_trading_desk_table(best, confluence_df, scan_df)
@@ -13586,6 +13688,28 @@ def main() -> None:
         .dashboard-action-buy{border-top-color:#22c55e;background:rgba(21,93,62,.18)}
         .dashboard-action-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.16)}
         .dashboard-action-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.18)}
+
+        .broker-sim-hub{border:1px solid rgba(148,163,184,.18);border-radius:8px;background:#0b1220;margin:8px 0 10px;overflow:hidden}
+        .broker-sim-hub>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 12px;border-bottom:1px solid rgba(148,163,184,.14)}
+        .broker-sim-hub>header strong{display:block;color:#f8fafc;font-size:15px;line-height:1}
+        .broker-sim-hub>header span{display:block;color:#94a3b8;font-size:11px;margin-top:4px}
+        .broker-sim-hub>header em{font-style:normal;color:#fecaca;background:rgba(127,29,29,.28);border:1px solid rgba(248,113,113,.40);border-radius:999px;padding:5px 8px;font-size:10px;font-weight:950;text-transform:uppercase;white-space:nowrap}
+        .broker-sim-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
+        .broker-sim-card{background:#0f172a;padding:9px 10px;border-top:3px solid rgba(148,163,184,.36);min-width:0}
+        .broker-sim-card header{display:block;padding:0;border:0}
+        .broker-sim-card strong{display:block;color:#f8fafc;font-size:13px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .broker-sim-card span{display:block;color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.05em;margin-top:3px}
+        .broker-sim-card p{margin:6px 0 0;color:#cbd5e1;font-size:10px;line-height:1.2;min-height:24px}
+        .broker-sim-card b{display:block;color:#e2e8f0;font-size:10px;line-height:1.15;margin-top:5px}
+        .broker-sim-card small{display:block;color:#94a3b8;font-size:9px;line-height:1.15;margin-top:4px}
+        .broker-sim-buy{border-top-color:#22c55e;background:rgba(21,93,62,.17)}
+        .broker-sim-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.14)}
+        .broker-sim-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.18)}
+        .broker-feature-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border-top:1px solid rgba(148,163,184,.14)}
+        .broker-feature-grid>div{background:#0b1220;padding:8px 9px;min-width:0}
+        .broker-feature-grid span{display:block;color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .broker-feature-grid strong{display:block;color:#f8fafc;font-size:14px;line-height:1;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .broker-feature-grid p{margin:5px 0 0;color:#cbd5e1;font-size:10px;line-height:1.18}
         .roxy-hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,520px);gap:18px;align-items:stretch;border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0d1426;padding:16px 18px;margin:0 0 10px;box-shadow:0 16px 42px rgba(0,0,0,.24)}
         .roxy-brand-row{display:flex;align-items:center;gap:14px}
         .roxy-logo-svg{width:58px;height:58px;flex:0 0 auto;filter:drop-shadow(0 10px 18px rgba(34,197,94,.15))}
