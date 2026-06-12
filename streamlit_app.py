@@ -13377,6 +13377,9 @@ def render_dashboard_action_queue(table: pd.DataFrame) -> None:
             tone = "watch"
         symbol = text_display(row.get("symbol")).upper()
         strategy = dashboard_strategy_label(row)
+        market = text_display(row.get("market")).upper()
+        timeframe = text_display(row.get("timeframe") or row.get("tf"))
+        context_line = " · ".join(part for part in [strategy, market, timeframe] if part and part != "-")
         score = num_display(row.get("ai_score") or row.get("score"), 0)
         readiness = num_display(row.get("readiness"), 0)
         risk = pct_display(row.get("risk_pct"))
@@ -13396,7 +13399,7 @@ def render_dashboard_action_queue(table: pd.DataFrame) -> None:
             f'<article class="dashboard-action-card dashboard-action-{html.escape(tone)}">'
             f'<span>{html.escape(action)}</span>'
             f'<strong>{html.escape(symbol)}</strong>'
-            f'<small>{html.escape(strategy)}</small>'
+            f'<small>{html.escape(context_line)}</small>'
             f'<p>{html.escape(next_prefix)}: {html.escape(next_step[:100])}</p>'
             f'<em>Score {html.escape(score)} · Ready {html.escape(readiness)} · Riesgo {html.escape(risk)}</em>'
             f'<b>Entrada {html.escape(entry)} · Stop {html.escape(stop)} · Target {html.escape(target)} · R:R {html.escape(rr_text)}</b>'
