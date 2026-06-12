@@ -13391,10 +13391,11 @@ def render_dashboard_action_queue(table: pd.DataFrame) -> None:
         entry = price_display(entry_value)
         stop = price_display(stop_value)
         target = price_display(target_value)
+        target = target if target != "-" else "pendiente"
         rr_value = None
         if entry_value is not None and stop_value is not None and target_value is not None and abs(entry_value - stop_value) > 0:
             rr_value = abs(target_value - entry_value) / abs(entry_value - stop_value)
-        rr_text = f"1:{rr_value:.2f}" if rr_value is not None else "-"
+        rr_text = f"1:{rr_value:.2f}" if rr_value is not None else "pendiente"
         cards.append(
             f'<article class="dashboard-action-card dashboard-action-{html.escape(tone)}">'
             f'<span>{html.escape(action)}</span>'
