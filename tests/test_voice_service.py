@@ -30,6 +30,7 @@ def test_roxy_live_page():
     assert 'data-prompt="explica riesgo entrada stop target"' in r.text
     assert 'data-prompt="top oportunidades"' in r.text
     assert 'data-prompt="plan de monitoreo"' in r.text
+    assert 'data-prompt="prepara alerta"' in r.text
     assert 'data-prompt="checklist de entrada"' in r.text
     assert 'data-prompt="tamaño de posicion con capital 10000 riesgo 0.5%"' in r.text
     assert "chat" in r.text

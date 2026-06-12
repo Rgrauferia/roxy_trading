@@ -47,6 +47,8 @@ For top-opportunity comparison questions such as "top oportunidades" or "compare
 
 For monitoring-plan prompts such as "plan de monitoreo" or "monitoring plan for SPY", Roxy uses the `monitoring_plan` intent. It picks the named symbol or the current top-ranked local opportunity, then explains what to watch, what invalidates the idea, which confirmations are still missing, and the entry/stop/risk frame. This is a monitoring plan only; checklist and sizing remain separate guarded steps.
 
+For alert-draft prompts such as "prepara alerta" or "set alert for SPY", Roxy uses the `alert_plan` intent. It drafts the alert condition, downgrade/cancel condition, and message from the selected local opportunity. It does not send a notification or create an order; the operational flow must confirm and activate the alert.
+
 For entry, stop, target, and risk questions, Roxy uses the `opportunity_risk` intent. It reads the selected local opportunity from `daily_opportunity_plan`, `opportunities`, or `crypto_scan_candidates` and explains entry, stop, risk percentage, targets, trigger, invalidation, missing checklist items, readiness, probability, and quality. It must end with a no-execution guardrail.
 
 For entry validation questions, Roxy uses the `entry_checklist` intent. It classifies a local opportunity as `READY TO PREPARE`, `WAIT`, or `BLOCKED` based on entry, stop, risk, trigger, readiness, and missing confirmations. Even a ready result remains preparation only; execution requires explicit confirmation in the operational flow.

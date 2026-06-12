@@ -562,6 +562,10 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "monitoring",
         "watch",
         "track",
+        "alert",
+        "notify",
+        "notification",
+        "when",
     }
     spanish_terms = {
         "hola",
@@ -603,6 +607,11 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "monitoreo",
         "vigilar",
         "seguimiento",
+        "alerta",
+        "avisame",
+        "avísame",
+        "cuando",
+        "prepara",
     }
     tokens = set(re.findall(r"[a-záéíóúñ]+", normalized))
     english_score = len(tokens.intersection(english_terms))
@@ -1032,6 +1041,21 @@ def _extract_symbol(query: str) -> str | None:
         "TRACK",
         "OBSERVAR",
         "OBSERVE",
+        "ALERTA",
+        "ALERT",
+        "PREPARA",
+        "PREPARAR",
+        "NOTIFY",
+        "NOTIFICATION",
+        "AVISAME",
+        "AVÍSAME",
+        "CUANDO",
+        "WHEN",
+        "SET",
+        "CREATE",
+        "CREA",
+        "CREAR",
+        "DRAFT",
     }
     for raw_word in query.split():
         word = raw_word.strip(".,:;!?()[]{}\"'").upper().replace("-", "/")
@@ -1155,6 +1179,23 @@ class RoxyInteractiveBrain:
             "what should i monitor on",
             "what should i watch on",
         )
+        alert_plan_terms = (
+            "prepara alerta",
+            "preparar alerta",
+            "alerta preparada",
+            "crear alerta",
+            "crea alerta",
+            "avisame cuando",
+            "avísame cuando",
+            "notificame cuando",
+            "notifícame cuando",
+            "set alert",
+            "alert plan",
+            "alert draft",
+            "notify me when",
+            "prepare alert",
+            "create alert",
+        )
         if _contains_any(lq, ("hola", "hello", "hi", "hey", "buenos dias", "buenas")):
             response = self._greeting_reply(user, profile)
             return finish(response)
@@ -1214,6 +1255,10 @@ class RoxyInteractiveBrain:
 
         if _contains_any(lq, monitoring_plan_terms):
             response = self._monitoring_plan_reply(q, language)
+            return finish(response)
+
+        if _contains_any(lq, alert_plan_terms):
+            response = self._alert_plan_reply(q, language)
             return finish(response)
 
         if _contains_any(
@@ -2576,6 +2621,76 @@ class RoxyInteractiveBrain:
             safety_level="guarded",
             priority="high" if action in {"ALERT", "BUY", "SELL", "READY"} else "normal",
             suggested_actions=("entry_checklist", "position_size", "ask_market_summary", "set_alert"),
+        )
+
+    def _alert_plan_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
+        symbol = _extract_symbol(query)
+        row = self._latest_opportunity(symbol)
+        if not row:
+            target = f" for {symbol}" if symbol and language == "en" else f" para {symbol}" if symbol else ""
+            reply = (
+                f"I cannot draft a useful alert{target} without a local opportunity. Run a scan first so the alert has a trigger, invalidation, and risk frame."
+                if language == "en"
+                else f"No puedo preparar una alerta util{target} sin una oportunidad local. Ejecuta un scan primero para que la alerta tenga gatillo, invalidacion y marco de riesgo."
+            )
+            return RoxyBrainReply(
+                intent="alert_plan",
+                reply=reply,
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                suggested_actions=("run_scan", "ask_market_summary"),
+            )
+
+        symbol_text = _safe_text(row.get("symbol") or symbol or "-").upper()
+        action = _safe_text(row.get("signal") or row.get("ai_action") or "WATCH").upper()
+        decision = _safe_text(row.get("decision") or row.get("trade_decision") or "-")
+        trigger = _safe_text(row.get("entry_trigger") or row.get("trigger") or row.get("entry_tf"))
+        invalidation = _safe_text(row.get("invalidation") or row.get("exit_condition"))
+        missing = _safe_text(row.get("what_is_missing") or row.get("missing") or row.get("blockers"))
+        entry = _price(row.get("entry"))
+        stop = _price(row.get("stop"))
+        risk = _pct(row.get("risk_pct"))
+
+        if not trigger and entry != "-":
+            trigger = f"price confirms near entry {entry}" if language == "en" else f"precio confirma cerca de entrada {entry}"
+        if not invalidation and stop != "-":
+            invalidation = f"stop {stop}"
+
+        if language == "en":
+            decision = _localize_market_phrase(decision, language)
+            trigger = _sentence_fragment(_localize_market_phrase(trigger, language))
+            invalidation = _sentence_fragment(_localize_market_phrase(invalidation, language))
+            missing = _sentence_fragment(_localize_market_phrase(missing, language))
+            message = (
+                f"{symbol_text} {action}: trigger confirmed. Decision {decision}. Entry {entry}, stop {stop}, risk {risk}. "
+                f"Check missing items: {missing or 'none'}."
+            )
+            reply = (
+                f"Alert draft {symbol_text}: condition '{trigger or 'fresh trigger confirmation'}'. "
+                f"Cancel or downgrade if: {invalidation or '-'}. Message: {message} "
+                "No notification was sent and this is not an order; the operational flow must confirm and activate the alert."
+            )
+        else:
+            trigger = _sentence_fragment(trigger)
+            invalidation = _sentence_fragment(invalidation)
+            missing = _sentence_fragment(missing)
+            message = (
+                f"{symbol_text} {action}: gatillo confirmado. Decision {decision}. Entrada {entry}, stop {stop}, riesgo {risk}. "
+                f"Revisar faltantes: {missing or 'ninguno'}."
+            )
+            reply = (
+                f"Alerta preparada {symbol_text}: condicion '{trigger or 'confirmacion fresca del gatillo'}'. "
+                f"Cancelar o bajar prioridad si: {invalidation or '-'}. Mensaje: {message} "
+                "No se envio ninguna notificacion y esto no es orden; el flujo operacional debe confirmar y activar la alerta."
+            )
+        return RoxyBrainReply(
+            intent="alert_plan",
+            reply=reply,
+            emotion="analytical",
+            safety_level="guarded",
+            priority="high" if action in {"ALERT", "BUY", "SELL", "READY"} else "normal",
+            suggested_actions=("confirm_alert", "entry_checklist", "position_size", "confirm_before_execution"),
         )
 
     def _opportunity_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
