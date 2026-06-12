@@ -43,6 +43,8 @@ For market regime questions, Roxy uses the `market_summary` intent. It reads loc
 
 For entry, stop, target, and risk questions, Roxy uses the `opportunity_risk` intent. It reads the selected local opportunity from `daily_opportunity_plan`, `opportunities`, or `crypto_scan_candidates` and explains entry, stop, risk percentage, targets, trigger, invalidation, missing checklist items, readiness, probability, and quality. It must end with a no-execution guardrail.
 
+For entry validation questions, Roxy uses the `entry_checklist` intent. It classifies a local opportunity as `READY TO PREPARE`, `WAIT`, or `BLOCKED` based on entry, stop, risk, trigger, readiness, and missing confirmations. Even a ready result remains preparation only; execution requires explicit confirmation in the operational flow.
+
 For position sizing questions, Roxy uses the `position_size` intent. It combines local entry/stop data with account equity supplied in the prompt or local brief account fields, uses an explicit risk percent when provided, otherwise defaults to 0.5% account risk, and returns quantity, notional, and risk used. This is sizing math only and never an execution order.
 
 For executive voice updates, Roxy uses the `daily_briefing` intent. It combines the local market regime, top watch opportunity, entry/stop/risk, missing checklist items, alert count, policy, and generated timestamp into one short speakable briefing in Spanish or English. It is a briefing only, not a trading approval.

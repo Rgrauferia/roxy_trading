@@ -549,6 +549,9 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "shares",
         "equity",
         "capital",
+        "checklist",
+        "valid",
+        "ready",
     }
     spanish_terms = {
         "hola",
@@ -579,6 +582,9 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "cantidad",
         "acciones",
         "capital",
+        "checklist",
+        "valida",
+        "listo",
     }
     tokens = set(re.findall(r"[a-záéíóúñ]+", normalized))
     english_score = len(tokens.intersection(english_terms))
@@ -956,6 +962,13 @@ def _extract_symbol(query: str) -> str | None:
         "SHARES",
         "QTY",
         "CANTIDAD",
+        "CHECKLIST",
+        "VALIDA",
+        "VALIDAR",
+        "LISTO",
+        "READY",
+        "CONFIRMACION",
+        "CONFIRMATION",
         "WATCHLIST",
         "LISTA",
         "VIGILA",
@@ -1184,6 +1197,27 @@ class RoxyInteractiveBrain:
 
         if _contains_any(lq, ("noticia", "news", "titular", "mercado hoy", "actualidad")):
             response = self._news_reply(language)
+            return finish(response)
+
+        if _contains_any(
+            lq,
+            (
+                "checklist",
+                "trade checklist",
+                "entry checklist",
+                "validar entrada",
+                "valida entrada",
+                "entrada valida",
+                "entrada válida",
+                "esta listo",
+                "está listo",
+                "listo para operar",
+                "ready to trade",
+                "is it ready",
+                "valid entry",
+            ),
+        ):
+            response = self._entry_checklist_reply(q, language=language)
             return finish(response)
 
         if _contains_any(
@@ -2524,6 +2558,109 @@ class RoxyInteractiveBrain:
             emotion="analytical",
             safety_level="guarded",
             suggested_actions=("show_trade_ticket", "ask_market_summary", "confirm_before_execution"),
+        )
+
+    def _entry_checklist_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
+        symbol = _extract_symbol(query)
+        row = self._latest_opportunity(symbol)
+        if not row:
+            target = f" for {symbol}" if symbol and language == "en" else f" para {symbol}" if symbol else ""
+            reply = (
+                f"I do not have a local opportunity{target} to validate. Refresh the scan first."
+                if language == "en"
+                else f"No tengo una oportunidad local{target} para validar. Refresca el scan primero."
+            )
+            return RoxyBrainReply(
+                intent="entry_checklist",
+                reply=reply,
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                suggested_actions=("run_scan", "ask_market_summary"),
+            )
+
+        symbol_text = _safe_text(row.get("symbol") or symbol or "-").upper()
+        action = _safe_text(row.get("signal") or row.get("ai_action") or "WATCH").upper()
+        decision = _safe_text(row.get("decision") or row.get("trade_decision") or "-")
+        entry = _safe_float(row.get("entry"))
+        stop = _safe_float(row.get("stop"))
+        risk_pct = _safe_float(row.get("risk_pct"))
+        readiness = _safe_float(row.get("readiness") or row.get("ai_score") or row.get("confluence_score"))
+        missing = _safe_text(row.get("what_is_missing") or row.get("missing") or row.get("blockers"))
+        trigger = _safe_text(row.get("entry_trigger") or row.get("trigger") or row.get("entry_tf"))
+        invalidation = _safe_text(row.get("invalidation") or row.get("exit_condition"))
+        why = _safe_text(row.get("why") or row.get("explanation") or row.get("memory_note") or row.get("alert_quality_reason"))
+
+        checks: list[tuple[str, bool]] = [
+            ("entry", entry is not None and entry > 0),
+            ("stop", stop is not None and stop > 0),
+            ("risk", risk_pct is not None and risk_pct > 0),
+            ("trigger", bool(trigger)),
+            ("readiness", readiness is not None and readiness >= 70),
+            ("no_missing", not bool(missing)),
+        ]
+        missing_labels = [label for label, passed in checks if not passed]
+        lower_text = " ".join([action, decision, missing, why]).lower()
+        explicit_wait = any(term in lower_text for term in ("wait", "esperar", "no operar", "missing", "falta"))
+        explicit_ready = action in {"ALERT", "BUY", "SELL", "READY"} or "trade" in lower_text or "operar" in lower_text
+
+        if missing_labels or explicit_wait:
+            status = "wait"
+        elif explicit_ready and readiness is not None and readiness >= 70:
+            status = "ready"
+        else:
+            status = "wait"
+        if entry is None or stop is None or risk_pct is None:
+            status = "blocked"
+
+        if language == "en":
+            decision = _localize_market_phrase(decision, language)
+            missing = _sentence_fragment(_localize_market_phrase(missing, language))
+            trigger = _sentence_fragment(_localize_market_phrase(trigger, language))
+            invalidation = _sentence_fragment(_localize_market_phrase(invalidation, language))
+            status_label = {"ready": "READY TO PREPARE", "wait": "WAIT", "blocked": "BLOCKED"}[status]
+            readiness_text = "-" if readiness is None else f"{readiness:.1f}"
+            reply = (
+                f"{symbol_text} entry checklist: {status_label}. Action {action}, decision {decision}, "
+                f"readiness {readiness_text}, entry {_money(entry)}, stop {_money(stop)}, risk {_pct(risk_pct)}. "
+                f"Trigger: {trigger or '-'}. Invalidation: {invalidation or '-'}. "
+                f"Missing checks: {', '.join(missing_labels) if missing_labels else 'none'}. "
+                f"Missing note: {missing or '-'}. Guardrail: even if ready, this is preparation only; execution needs explicit confirmation."
+            )
+        else:
+            missing = _sentence_fragment(missing)
+            trigger = _sentence_fragment(trigger)
+            invalidation = _sentence_fragment(invalidation)
+            status_label = {"ready": "LISTO PARA PREPARAR", "wait": "ESPERAR", "blocked": "BLOQUEADO"}[status]
+            readiness_text = "-" if readiness is None else f"{readiness:.1f}"
+            label_translations = {
+                "entry": "entrada",
+                "stop": "stop",
+                "risk": "riesgo",
+                "trigger": "gatillo",
+                "readiness": "readiness",
+                "no_missing": "confirmaciones pendientes",
+            }
+            missing_text = ", ".join(label_translations.get(label, label) for label in missing_labels) if missing_labels else "ninguno"
+            reply = (
+                f"{symbol_text} checklist de entrada: {status_label}. Accion {action}, decision {decision}, "
+                f"readiness {readiness_text}, entrada {_money(entry)}, stop {_money(stop)}, riesgo {_pct(risk_pct)}. "
+                f"Gatillo: {trigger or '-'}. Invalidacion: {invalidation or '-'}. "
+                f"Checks faltantes: {missing_text}. Nota faltante: {missing or '-'}. "
+                f"Guardrail: aunque este listo, esto solo prepara la operacion; ejecutar requiere confirmacion explicita."
+            )
+
+        priority = "high" if status == "ready" else "normal"
+        avatar_state = "ready" if status == "ready" else "blocked" if status == "blocked" else "speaking"
+        emotion = "serious" if status == "blocked" else "analytical"
+        return RoxyBrainReply(
+            intent="entry_checklist",
+            reply=reply,
+            avatar_state=avatar_state,
+            emotion=emotion,
+            safety_level="guarded",
+            priority=priority,
+            suggested_actions=("ask_risk", "position_size", "confirm_before_execution"),
         )
 
     def _opportunity_risk_reply(self, query: str, language: str = "es") -> RoxyBrainReply:

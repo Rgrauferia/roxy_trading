@@ -551,6 +551,104 @@ def test_roxy_brain_keeps_small_crypto_precision_for_position_size(tmp_path):
     assert "0.00. Cantidad" not in response.reply
 
 
+def test_roxy_brain_marks_entry_checklist_wait_in_spanish(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "opportunities": [
+                        {
+                            "symbol": "BTC/USD",
+                            "signal": "WATCH",
+                            "decision": "Esperar",
+                            "entry": 63510.94,
+                            "stop": 62564.50,
+                            "risk_pct": 0.0149,
+                            "entry_trigger": "Esperar gatillo BUY en 15m mientras 1h sigue valido.",
+                            "invalidation": "Invalidar si pierde 62564.50.",
+                            "what_is_missing": "15m da entrada: WAIT | Volumen acompana: falta volumen",
+                            "readiness": 68.4,
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("checklist de entrada BTC")
+
+    assert response.intent == "entry_checklist"
+    assert response.language == "es"
+    assert response.safety_level == "guarded"
+    assert "BTC/USD checklist de entrada: ESPERAR" in response.reply
+    assert "confirmaciones pendientes" in response.reply
+    assert "confirmacion explicita" in response.reply
+
+
+def test_roxy_brain_marks_entry_checklist_ready_in_english(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "symbol": "NVDA",
+                        "signal": "ALERT",
+                        "decision": "TRADE_FOR_2PCT",
+                        "entry": 142.25,
+                        "stop": 139.5,
+                        "risk_pct": 0.0193,
+                        "entry_trigger": "Breakout confirmed on 15m.",
+                        "invalidation": "Lose 139.50.",
+                        "readiness": 82,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("is it ready to trade NVDA")
+
+    assert response.intent == "entry_checklist"
+    assert response.language == "en"
+    assert response.priority == "high"
+    assert response.avatar_state == "ready"
+    assert "NVDA entry checklist: READY TO PREPARE" in response.reply
+    assert "Missing checks: none" in response.reply
+    assert "execution needs explicit confirmation" in response.reply
+
+
+def test_roxy_brain_marks_entry_checklist_blocked_without_risk_data(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "symbol": "SPY",
+                        "signal": "WATCH",
+                        "entry": 505.5,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("validar entrada SPY")
+
+    assert response.intent == "entry_checklist"
+    assert response.avatar_state == "blocked"
+    assert "BLOQUEADO" in response.reply
+    assert "stop" in response.reply
+
+
 def test_roxy_brain_remembers_session_context(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(
