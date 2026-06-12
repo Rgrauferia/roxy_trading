@@ -203,17 +203,17 @@ def test_roxy_brain_explains_opportunity_risk_plan_in_english(tmp_path):
                         {
                             "symbol": "NVDA",
                             "signal": "WATCH",
-                            "decision": "Wait",
+                            "decision": "Esperar",
                             "entry": 142.25,
                             "stop": 139.5,
                             "risk_pct": 0.0193,
                             "target_2": 145.09,
                             "target_5": 149.36,
                             "target_10": 156.48,
-                            "entry_trigger": "Wait for 15m BUY trigger.",
-                            "invalidation": "Invalidate below 139.50.",
-                            "what_is_missing": "15m entry: WAIT",
-                            "why": "Volume confirmation is missing.",
+                            "entry_trigger": "Esperar gatillo BUY en 15m mientras 1h sigue valido.",
+                            "invalidation": "Invalidar si pierde 139.50.",
+                            "what_is_missing": "15m da entrada: WAIT | Volumen acompana: falta volumen",
+                            "why": "No operar todavia: faltan condiciones importantes del checklist.",
                             "readiness": 72,
                             "probability": 65,
                             "quality": "B",
@@ -234,7 +234,9 @@ def test_roxy_brain_explains_opportunity_risk_plan_in_english(tmp_path):
     assert "NVDA risk plan" in response.reply
     assert "entry 142.25" in response.reply
     assert "risk 1.93%" in response.reply
-    assert "Missing: 15m entry: WAIT" in response.reply
+    assert "decision Wait" in response.reply
+    assert "Trigger: Wait for a 15m BUY trigger while 1h remains valid." in response.reply
+    assert "Missing: 15m entry: WAIT | Volume confirms: missing volume" in response.reply
     assert "not an execution order" in response.reply
 
 

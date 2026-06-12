@@ -530,8 +530,21 @@ def _localize_market_phrase(value: Any, language: str) -> str:
         "Esperar": "Wait",
         "Operar": "Actionable",
         "No tocar": "Do not touch",
+        "Esperar gatillo BUY en 15m mientras 1h sigue valido.": "Wait for a 15m BUY trigger while 1h remains valid.",
+        "Invalidar si pierde": "Invalidate if it loses",
+        "No operar todavia: faltan condiciones importantes del checklist.": "Do not trade yet: important checklist conditions are still missing.",
+        "15m da entrada": "15m entry",
+        "2h/4h validan": "2h/4h validation",
+        "2h/4h contradicen el gatillo": "2h/4h contradict the trigger",
+        "Volumen acompana": "Volume confirms",
+        "falta volumen": "missing volume",
     }
-    return translations.get(text, text)
+    if text in translations:
+        return translations[text]
+    localized = text
+    for source, target in translations.items():
+        localized = localized.replace(source, target)
+    return localized
 
 
 def _tokenize(text: str) -> set[str]:
@@ -1640,6 +1653,8 @@ class RoxyInteractiveBrain:
         symbol_text = _safe_text(row.get("symbol") or symbol or "-").upper()
         action = _safe_text(row.get("signal") or row.get("ai_action") or "WATCH")
         decision = _safe_text(row.get("decision") or row.get("trade_decision") or "-")
+        if language == "en":
+            decision = _localize_market_phrase(decision, language)
         entry = _price(row.get("entry"))
         stop = _price(row.get("stop"))
         risk = _pct(row.get("risk_pct"))
@@ -1651,6 +1666,11 @@ class RoxyInteractiveBrain:
         invalidation = _safe_text(row.get("invalidation") or row.get("exit_condition"))
         missing = _safe_text(row.get("what_is_missing") or row.get("missing") or row.get("blockers"))
         why = _safe_text(row.get("why") or row.get("explanation") or row.get("memory_note") or row.get("alert_quality_reason"))
+        if language == "en":
+            trigger = _localize_market_phrase(trigger, language)
+            invalidation = _localize_market_phrase(invalidation, language)
+            missing = _localize_market_phrase(missing, language)
+            why = _localize_market_phrase(why, language)
         readiness = _safe_float(row.get("readiness") or row.get("ai_score") or row.get("confluence_score"))
         probability = _safe_float(row.get("probability"))
         quality = _safe_text(row.get("quality"))
