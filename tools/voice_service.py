@@ -669,6 +669,9 @@ def roxy_live_page():
     let manualStop = false;
     let pendingListenTimer = null;
     let activeAssistController = null;
+    let lastHandledVoiceText = "";
+    let lastHandledVoiceAt = 0;
+    const duplicateVoiceWindowMs = 2500;
     const assistStreamEndpoint = "/v1/assist/stream";
 
     function restoreSettings() {
@@ -836,6 +839,8 @@ def roxy_live_page():
       manualStop = true;
       clearTimeout(pendingListenTimer);
       cancelActiveAssist();
+      lastHandledVoiceText = "";
+      lastHandledVoiceAt = 0;
       if (recognition) recognition.stop();
       if ("speechSynthesis" in window) window.speechSynthesis.cancel();
       isSpeaking = false;
@@ -852,6 +857,17 @@ def roxy_live_page():
       manualStop = false;
     }
 
+    function isDuplicateFinalTranscript(text) {
+      const normalized = normalizeSpeech(text);
+      const now = Date.now();
+      const isDuplicate = normalized && normalized === lastHandledVoiceText && (now - lastHandledVoiceAt) < duplicateVoiceWindowMs;
+      if (normalized && !isDuplicate) {
+        lastHandledVoiceText = normalized;
+        lastHandledVoiceAt = now;
+      }
+      return Boolean(isDuplicate);
+    }
+
     function extractWakeCommand(text) {
       const wake = normalizeSpeech($("wakeWord").value || "Roxy");
       const normalized = normalizeSpeech(text);
@@ -864,6 +880,10 @@ def roxy_live_page():
     function handleFinalTranscript(text) {
       const finalText = (text || "").trim();
       if (!finalText) return;
+      if (isDuplicateFinalTranscript(finalText)) {
+        $("events").textContent = "voice: duplicate ignored";
+        return;
+      }
       if ($("wakeMode").checked) {
         const command = extractWakeCommand(finalText);
         if (command === null) {

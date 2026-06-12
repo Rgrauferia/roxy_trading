@@ -75,6 +75,8 @@ For a direct browser experience, run the voice service and open `/roxy-live`. Th
 
 Siri-style operation is available in Roxy Live with `Wake Roxy`. When active, the browser can keep listening and only sends a prompt after the wake word, for example: "Roxy, resume la oportunidad" or "Roxy, silencio". The browser still controls microphone permission and may pause recognition depending on Chrome/Edge policies.
 
+Roxy Live suppresses duplicate final speech transcripts that arrive within a short window. This prevents Chrome or Edge from sending the same voice turn twice during continuous conversation or wake-word listening.
+
 Session memory is stored locally in `alerts/roxy_conversation_memory.json` when a `session_id` is supplied. The memory is intentionally small, capped by turns per session and by total recent sessions, and redacts long tokens or key/secret-looking text before writing. Clients can read it through `GET /v1/assist/session/{session_id}`.
 
 The session response includes `active_context`, a compact handoff for UI and operations clients. It exposes the active intent, active symbol, latest topic, confirmation requirement, and safe `next_best_actions` without requiring a client to parse full transcript history. Roxy Live displays this as the `Context` chip and reuses `next_best_actions` for suggested action buttons. Lightweight clients can call `GET /v1/assist/context/{session_id}` when they need only this compact context and not the recent transcript.
