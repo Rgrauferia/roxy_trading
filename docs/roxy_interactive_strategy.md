@@ -75,7 +75,7 @@ For headline analysis, Roxy uses the `news_impact` intent. It can read a pasted 
 
 For a direct browser experience, run the voice service and open `/roxy-live`. That page provides microphone capture, text fallback, Roxy avatar, browser voice selection, voice rate/pitch controls, Roxy state chips, event trace, quick prompts, chat history, session-memory reload, browser text-to-speech, and conversation mode that resumes listening after Roxy finishes speaking. It also renders `suggested_actions` from each brain response as safe next-step buttons, such as checklist, sizing, monitoring, alert draft, go/no-go, market summary, or session recap.
 
-When a structured response returns `language: "en"` or `language: "es"`, Roxy Live updates its language selector before the next listening turn. This keeps browser speech recognition, browser TTS diagnostics, and the inline profile aligned with the language Roxy just used.
+When a structured response returns `language: "en"` or `language: "es"`, Roxy Live updates its language selector and selects a compatible browser voice before the next listening turn. This keeps browser speech recognition, browser TTS diagnostics, and the inline profile aligned with the language Roxy just used.
 
 Siri-style operation is available in Roxy Live with `Wake Roxy`. When active, the browser can keep listening and only sends a prompt after the wake word, for example: "Roxy, resume la oportunidad" or "Roxy, silencio". The browser still controls microphone permission and may pause recognition depending on Chrome/Edge policies.
 

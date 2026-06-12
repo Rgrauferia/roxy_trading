@@ -925,23 +925,38 @@ def roxy_live_page():
       return (languageValue || "es") === "en" ? "en-US" : "es-US";
     }
 
+    function voiceMatchesLanguage(voice, languageValue) {
+      const voiceLang = (voice && voice.lang ? voice.lang : "").toLowerCase();
+      const lang = languageValue || "es";
+      return lang === "en" ? voiceLang.startsWith("en") : voiceLang.startsWith("es");
+    }
+
     function chooseVoice(languageOverride) {
       const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+      const lang = languageOverride || $("language").value || "es";
       const selected = $("voiceSelect").value;
       if (selected) {
         const exact = voices.find(v => v.name === selected);
-        if (exact) return exact;
+        if (exact && voiceMatchesLanguage(exact, lang)) return exact;
       }
-      const lang = languageOverride || $("language").value || "es";
       if (lang === "en") {
         return voices.find(v => (v.lang || "").toLowerCase().startsWith("en") && /female|samantha|victoria|zira|google/i.test(v.name || ""))
           || voices.find(v => (v.lang || "").toLowerCase().startsWith("en"))
           || voices[0];
       }
       const preferredNames = ["paulina", "monica", "sabina", "google español", "spanish", "español"];
-      return voices.find(v => preferredNames.some(name => (v.name || "").toLowerCase().includes(name)))
-        || voices.find(v => (v.lang || "").toLowerCase().startsWith("es"))
+      return voices.find(v => voiceMatchesLanguage(v, lang) && preferredNames.some(name => (v.name || "").toLowerCase().includes(name)))
+        || voices.find(v => voiceMatchesLanguage(v, lang))
         || voices[0];
+    }
+
+    function alignVoiceSelection(languageValue) {
+      const voice = chooseVoice(languageValue);
+      const select = $("voiceSelect");
+      if (voice && Array.from(select.options).some(o => o.value === voice.name)) {
+        select.value = voice.name;
+      }
+      return voice;
     }
 
     function updateVoiceDiagnostics(languageOverride) {
@@ -960,11 +975,15 @@ def roxy_live_page():
 
     function syncLanguageFromState(state) {
       const language = state && (state.language === "en" || state.language === "es") ? state.language : "";
-      if (language && $("language").value !== language) {
-        $("language").value = language;
-        saveSettings();
+      if (language) {
+        const changed = $("language").value !== language;
+        const previousVoice = $("voiceSelect").value;
+        if (changed) $("language").value = language;
+        alignVoiceSelection(language);
+        if (changed || previousVoice !== $("voiceSelect").value) saveSettings();
+        return language;
       }
-      return language || $("language").value || "es";
+      return $("language").value || "es";
     }
 
     function populateVoices() {

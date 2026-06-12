@@ -99,6 +99,8 @@ def test_roxy_live_page():
     assert "voicePitch" in r.text
     assert "voiceStatus" in r.text
     assert "updateVoiceDiagnostics" in r.text
+    assert "voiceMatchesLanguage" in r.text
+    assert "alignVoiceSelection" in r.text
     assert "syncLanguageFromState" in r.text
     assert "const activeLanguage = syncLanguageFromState(state)" in r.text
     assert "function speechLang" in r.text
