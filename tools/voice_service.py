@@ -963,11 +963,59 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, mercado; Roxy, oportunidades; Roxy, riesgo; Roxy, habla español; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, market; Roxy, opportunities; Roxy, risk; Roxy, speak English; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, mercado; Roxy, oportunidades; Roxy, riesgo de SPY; Roxy, habla español; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, market; Roxy, opportunities; Roxy, risk SPY; Roxy, speak English; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
+    }
+
+    function voiceSymbolBlocklist() {
+      return new Set([
+        "ROXY", "MERCADO", "RESUMEN", "DEL", "DE", "EL", "LA", "LOS", "LAS", "MARKET", "SUMMARY",
+        "BRIEFING", "DAILY", "BRIEF", "TOP", "OPORTUNIDADES", "MEJORES", "OPPORTUNITIES", "BEST",
+        "WATCHLIST", "VIGILA", "MI", "WATCH", "MY", "RIESGO", "EXPLICA", "ENTRADA", "TARGET",
+        "RISK", "EXPLAIN", "ENTRY", "STOP", "CHECKLIST", "DATOS", "FRESCURA", "DATA",
+        "FRESHNESS", "SOURCE", "STATUS", "PUEDO", "OPERAR", "AHORA", "CAN", "I", "TRADE",
+        "NOW", "PARA", "FOR", "OF", "ABOUT", "ON", "EN", "CON", "WITH", "PLAN", "MONITOREO",
+        "ALERTA", "ALERT", "THE", "A", "AN", "TO", "AND", "OR",
+      ]);
+    }
+
+    function preferredVoiceSymbols() {
+      const symbols = new Set(["SPY", "QQQ", "AAPL", "NVDA", "TSLA", "MSFT", "META", "AMZN", "GOOGL", "GOOG", "BTC/USD", "ETH/USD", "SOL/USD"]);
+      for (const symbol of parseWatchlist($("watchlist").value)) symbols.add(symbol);
+      const defaultSymbol = ($("defaultSymbol").value || "").trim().toUpperCase();
+      if (defaultSymbol) symbols.add(defaultSymbol);
+      return symbols;
+    }
+
+    function normalizeVoiceSymbol(token, nextToken, preferredSymbols) {
+      const upper = (token || "").toUpperCase();
+      const next = (nextToken || "").toUpperCase();
+      if (!upper || voiceSymbolBlocklist().has(upper)) return "";
+      if (next === "USD" && ["BTC", "ETH", "SOL", "DOGE", "ADA", "XRP"].includes(upper)) return upper + "/USD";
+      if (preferredSymbols.has(upper + "/USD")) return upper + "/USD";
+      if (preferredSymbols.has(upper)) return upper;
+      if (/^[A-Z][A-Z0-9.]{0,6}$/.test(upper) && !voiceSymbolBlocklist().has(upper)) return upper;
+      return "";
+    }
+
+    function voiceCommandSymbol(command) {
+      const normalized = normalizeSpeech(command);
+      const tokens = normalized.split(" ").filter(Boolean);
+      const preferredSymbols = preferredVoiceSymbols();
+      for (let index = 0; index < tokens.length; index++) {
+        const symbol = normalizeVoiceSymbol(tokens[index], tokens[index + 1], preferredSymbols);
+        if (symbol) return symbol;
+      }
+      return "";
+    }
+
+    function withVoiceSymbol(prompt, command) {
+      const symbol = voiceCommandSymbol(command);
+      if (!symbol) return prompt;
+      return prompt + " " + symbol;
     }
 
     function marketVoicePrompt(command) {
@@ -1016,7 +1064,7 @@ def roxy_live_page():
       ];
       const shortcut = shortcuts.find(item => commandMatches(command, item.phrases));
       if (!shortcut) return "";
-      return language === "en" ? shortcut.en : shortcut.es;
+      return withVoiceSymbol(language === "en" ? shortcut.en : shortcut.es, command);
     }
 
     function sendVoiceMarketPrompt(command) {

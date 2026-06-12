@@ -90,6 +90,9 @@ def test_roxy_live_page():
     assert "applyVoiceLanguageCommand" in r.text
     assert "repeatLastReplyByVoice" in r.text
     assert "explainVoiceCommands" in r.text
+    assert "voiceCommandSymbol" in r.text
+    assert "normalizeVoiceSymbol" in r.text
+    assert "withVoiceSymbol" in r.text
     assert "marketVoicePrompt" in r.text
     assert "sendVoiceMarketPrompt" in r.text
     assert "handleVoiceControlCommand" in r.text
@@ -101,6 +104,9 @@ def test_roxy_live_page():
     assert "Modo español." in r.text
     assert "Roxy, mercado" in r.text
     assert "Roxy, market" in r.text
+    assert "Roxy, riesgo de SPY" in r.text
+    assert "Roxy, risk SPY" in r.text
+    assert "BTC/USD" in r.text
     assert "top opportunities" in r.text
     assert "can I trade now" in r.text
     assert "Roxy, repite" in r.text
