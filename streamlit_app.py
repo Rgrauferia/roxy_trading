@@ -4721,6 +4721,11 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
         volume_values = pd.to_numeric(hover_df["volume"], errors="coerce")
         volume_avg_values = pd.to_numeric(hover_df["volume_sma20"], errors="coerce").replace(0, pd.NA)
         hover_df["relative_volume"] = volume_values / volume_avg_values
+    close_for_ma_distance = pd.to_numeric(hover_df.get("close"), errors="coerce").replace(0, pd.NA)
+    for column in ["ema9", "sma20", "sma200"]:
+        if column in hover_df.columns:
+            moving_average_values = pd.to_numeric(hover_df[column], errors="coerce")
+            hover_df[f"{column}_distance_pct"] = (pd.to_numeric(hover_df["close"], errors="coerce") - moving_average_values) / close_for_ma_distance
     hover = alt.selection_point(
         name="candle_hover",
         fields=["ts"],
@@ -4756,6 +4761,9 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
     for column, label in (("ema9", "EMA9"), ("sma20", "SMA20"), ("sma40", "SMA40"), ("sma100", "SMA100"), ("sma200", "SMA200")):
         if column in hover_df.columns:
             tooltips.append(alt.Tooltip(f"{column}:Q", title=label, format=".2f"))
+        distance_column = f"{column}_distance_pct"
+        if distance_column in hover_df.columns:
+            tooltips.append(alt.Tooltip(f"{distance_column}:Q", title=f"Dist {label}", format="+.2%"))
 
     hover_base = alt.Chart(hover_df).encode(x=alt.X("ts:T", title="Tiempo"))
     selector = hover_base.mark_point(opacity=0, size=90).encode(y=y_encoding, tooltip=tooltips).add_params(hover)
@@ -4876,6 +4884,10 @@ def build_professional_price_chart(
         volume_values = pd.to_numeric(chart_window.get("volume"), errors="coerce")
         volume_avg_values = pd.to_numeric(chart_window["volume_sma20"], errors="coerce").replace(0, pd.NA)
         chart_window["relative_volume"] = volume_values / volume_avg_values
+    for column in ["ema9", "sma20", "sma200"]:
+        if column in chart_window.columns:
+            moving_average_values = pd.to_numeric(chart_window[column], errors="coerce")
+            chart_window[f"{column}_distance_pct"] = (close_values - moving_average_values) / close_denominator
     chart_window["candle_label"] = chart_window["direction"].map({"up": "Vela alcista", "down": "Vela bajista"})
     chart_window["candle_reading"] = [
         candle_reading_label(
@@ -5103,6 +5115,10 @@ def build_professional_price_chart(
     ]
     if "relative_volume" in chart_window.columns:
         candle_tooltips.append(alt.Tooltip("relative_volume:Q", title="RVol", format=".2f"))
+    for column, label in (("ema9", "EMA9"), ("sma20", "SMA20"), ("sma200", "SMA200")):
+        distance_column = f"{column}_distance_pct"
+        if distance_column in chart_window.columns:
+            candle_tooltips.append(alt.Tooltip(f"{distance_column}:Q", title=f"Dist {label}", format="+.2%"))
     candle_color = alt.condition("datum.close >= datum.open", alt.value("#22c55e"), alt.value("#ef4444"))
     layers.append(
         base.mark_rule(size=candle_wick_size)
