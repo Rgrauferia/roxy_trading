@@ -126,6 +126,13 @@ def test_roxy_live_page():
     assert "sendVoiceLearningPrompt" in r.text
     assert "voiceFeedbackCommand" in r.text
     assert "applyVoiceFeedbackCommand" in r.text
+    assert "conciseLastReplyText" in r.text
+    assert "speakConciseLastReply" in r.text
+    assert "sendVoiceFollowupPrompt" in r.text
+    assert "voice: concise answer" in r.text
+    assert "voice: follow-up shortcut" in r.text
+    assert "Respuesta corta: " in r.text
+    assert "Short version: " in r.text
     assert "sessionVoiceBrief" in r.text
     assert "activeSessionContext" in r.text
     assert "voice: session brief" in r.text
@@ -226,6 +233,9 @@ def test_roxy_live_page():
     assert "Roxy, test voice" in r.text
     assert "Roxy, opciones" in r.text
     assert "Roxy, options" in r.text
+    assert "Roxy, más corto" in r.text
+    assert "Roxy, give more detail" in r.text
+    assert "Roxy, steps" in r.text
     assert "Roxy, sin voz" in r.text
     assert "Roxy, voice off" in r.text
     assert "Roxy, voz más lenta" in r.text
@@ -261,6 +271,9 @@ def test_roxy_live_page():
     assert "Roxy, no sirvió, más corto" in r.text
     assert "Roxy, bad answer, be shorter" in r.text
     assert "Feedback saved: Roxy should improve that answer." in r.text
+    assert r.text.index("if (sendVoiceFollowupPrompt(command)) return true;") < r.text.index(
+        "if (applyVoiceFeedbackCommand(command)) return true;"
+    )
     assert "Roxy, símbolo NVDA" in r.text
     assert "Roxy, symbol NVDA" in r.text
     assert "Roxy, watchlist SPY QQQ NVDA" in r.text
