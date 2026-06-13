@@ -1632,9 +1632,19 @@ def render_professional_chart_block(
     entry_value = safe_float((trade_brief or {}).get("entry") or (confluence or {}).get("entry"))
     stop_value = safe_float((trade_brief or {}).get("stop") or (confluence or {}).get("stop"))
     target_value = safe_float((trade_brief or {}).get("target") or (trade_brief or {}).get("target_price"))
-    entry = num_display(entry_value, 2)
-    stop = num_display(stop_value, 2)
-    target = num_display(target_value, 2)
+
+    def level_with_distance(value: float | None) -> str:
+        if value is None:
+            return "-"
+        base = num_display(value, 2)
+        if latest_close in (None, 0):
+            return base
+        distance = (value - latest_close) / latest_close
+        return f"{base} · {pct_display(distance)}"
+
+    entry_level = level_with_distance(entry_value)
+    stop_level = level_with_distance(stop_value)
+    target_level = level_with_distance(target_value)
     rr_value = None
     if (
         entry_value is not None
@@ -1800,9 +1810,9 @@ def render_professional_chart_block(
           </div>
           <aside>
             <b class="chart-level-decision chart-level-decision-{decision_tone}">Roxy {html.escape(decision_label)}</b>
-            <b class="chart-level-entry">Entrada {html.escape(entry)}</b>
-            <b class="chart-level-stop">Stop {html.escape(stop)}</b>
-            <b class="chart-level-target">Target {html.escape(target)}</b>
+            <b class="chart-level-entry">Entrada {html.escape(entry_level)}</b>
+            <b class="chart-level-stop">Stop {html.escape(stop_level)}</b>
+            <b class="chart-level-target">Target {html.escape(target_level)}</b>
             <b class="chart-level-rr">R:R {html.escape(rr_display)}</b>
             <b class="chart-level-check chart-level-check-{checks_tone}">{html.escape(checks_summary)} · {html.escape(blockers_summary)}</b>
             <b class="chart-level-data">Velas {visible_candles}</b>
