@@ -4837,21 +4837,26 @@ def build_professional_price_chart(
         fallback_timeframe = text_display(brief.get("timeframe") or setup.get("tf") or setup.get("timeframe"))
         fallback_label = "activo seleccionado" if fallback_symbol == "-" else fallback_symbol
         fallback_tf = "" if fallback_timeframe == "-" else f" · {fallback_timeframe}"
+        fallback_checked_at = pd.Timestamp.utcnow()
         fallback = pd.DataFrame(
             {
-                "ts": [pd.Timestamp.utcnow()],
+                "ts": [fallback_checked_at],
                 "price": [0.0],
                 "message": [f"Sin velas para {fallback_label}{fallback_tf}"],
                 "action": ["Cambia simbolo/timeframe o espera el proveedor live."],
+                "status": [f"Solicitud validada {fallback_checked_at.strftime('%H:%M UTC')}"],
+                "guardrail": ["No se muestran velas viejas de otro activo."],
             }
         )
         base = alt.Chart(fallback).encode(x=alt.X("ts:T", axis=None), y=alt.Y("price:Q", axis=None))
         return (
             alt.layer(
-                base.mark_text(color="#f8fafc", fontSize=16, fontWeight="bold", dy=-10).encode(text="message:N"),
-                base.mark_text(color="#94a3b8", fontSize=11, dy=14).encode(text="action:N"),
+                base.mark_text(color="#f8fafc", fontSize=16, fontWeight="bold", dy=-22).encode(text="message:N"),
+                base.mark_text(color="#94a3b8", fontSize=11, dy=2).encode(text="action:N"),
+                base.mark_text(color="#38bdf8", fontSize=10, fontWeight="bold", dy=27).encode(text="status:N"),
+                base.mark_text(color="#fbbf24", fontSize=10, dy=49).encode(text="guardrail:N"),
             )
-            .properties(height=220)
+            .properties(height=250)
         )
     chart_window["direction"] = ["up" if close >= open_ else "down" for close, open_ in zip(chart_window["close"], chart_window["open"])]
     open_values_raw = pd.to_numeric(chart_window["open"], errors="coerce")
