@@ -2341,6 +2341,52 @@ def assist_session(session_id: str, token: Optional[str] = Depends(require_api_k
     }
 
 
+@app.get("/v1/assist/session/{session_id}/brief")
+def assist_session_brief(
+    session_id: str,
+    token: Optional[str] = Depends(require_api_key),
+    language: str = "es",
+    limit: int = 8,
+):
+    """Return a compact, speakable context brief for voice and mobile clients."""
+    try:
+        rate_limited(token)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Rate limiter error: %s", e)
+
+    bounded_limit = max(1, min(int(limit), 20))
+    if va_backend is not None and hasattr(va_backend, "get_session_brief"):
+        try:
+            return va_backend.get_session_brief(session_id, language=language, limit=bounded_limit)
+        except Exception:
+            logger.exception("voice backend session brief error")
+            raise HTTPException(status_code=500, detail="assistant backend error")
+
+    state = {
+        "session_id": session_id,
+        "turn_count": 0,
+        "last_intent": "",
+        "last_safety_level": "",
+        "active_context": empty_active_context(),
+    }
+    clean_language = "en" if str(language or "").lower().startswith("en") else "es"
+    summary = (
+        "There is no saved context for this session yet."
+        if clean_language == "en"
+        else "Todavia no hay contexto guardado para esta sesion."
+    )
+    return {
+        "session_id": session_id,
+        "turn_count": 0,
+        "language": clean_language,
+        "speakable_summary": summary,
+        "active_context": state["active_context"],
+        "suggested_actions": state["active_context"]["next_best_actions"],
+    }
+
+
 @app.get("/v1/assist/context/{session_id}")
 def assist_context(session_id: str, token: Optional[str] = Depends(require_api_key), limit: int = 8):
     """Return only active session context for lightweight UI clients."""

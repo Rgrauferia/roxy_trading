@@ -281,6 +281,52 @@ def get_session_state(session_id: Optional[str], limit: int = 8) -> dict[str, An
     return RoxyConversationMemory().session_state(session_id, limit=limit)
 
 
+def session_brief_from_state(state: dict[str, Any], language: str = "es") -> dict[str, Any]:
+    language = "en" if str(language or "").lower().startswith("en") else "es"
+    state = state if isinstance(state, dict) else {}
+    context = state.get("active_context") if isinstance(state.get("active_context"), dict) else {}
+    actions = context.get("next_best_actions") if isinstance(context.get("next_best_actions"), list) else []
+    actions = [str(action) for action in actions if action][:3]
+    turn_count = int(state.get("turn_count", 0) or 0)
+    session_id = str(state.get("session_id") or "local")
+    intent = str(context.get("active_intent") or state.get("last_intent") or "-")
+    symbol = str(context.get("active_symbol") or "-")
+    safety = str(context.get("last_safety_level") or state.get("last_safety_level") or "-")
+    needs_confirmation = bool(context.get("needs_confirmation"))
+    next_actions = actions or ["ask_market_summary", "ask_latest_opportunity"]
+    if turn_count <= 0:
+        summary = (
+            "There is no saved context for this session yet. Ask one market or opportunity question to start memory."
+            if language == "en"
+            else "Todavia no hay contexto guardado para esta sesion. Haz una pregunta de mercado u oportunidad para iniciar memoria."
+        )
+    elif language == "en":
+        confirmation = " Confirmation is required before any sensitive action." if needs_confirmation else ""
+        summary = (
+            f"Session context: {turn_count} saved turn(s). Active symbol: {symbol}. "
+            f"Topic: {intent}. Safety: {safety}. Next: {', '.join(next_actions[:2])}.{confirmation}"
+        )
+    else:
+        confirmation = " Requiere confirmacion antes de cualquier accion sensible." if needs_confirmation else ""
+        summary = (
+            f"Contexto de sesion: {turn_count} turno(s) guardado(s). Simbolo activo: {symbol}. "
+            f"Tema: {intent}. Seguridad: {safety}. Siguiente: {', '.join(next_actions[:2])}.{confirmation}"
+        )
+    return {
+        "session_id": session_id,
+        "turn_count": turn_count,
+        "language": language,
+        "speakable_summary": summary,
+        "active_context": context,
+        "suggested_actions": next_actions,
+    }
+
+
+def get_session_brief(session_id: Optional[str], language: str = "es", limit: int = 8) -> dict[str, Any]:
+    state = get_session_state(session_id, limit=limit)
+    return session_brief_from_state(state, language=language)
+
+
 def get_user_profile(user: Optional[str]) -> dict[str, Any]:
     return RoxyUserProfile().read(user)
 

@@ -411,6 +411,68 @@ def test_assist_context_returns_compact_session_context(monkeypatch):
     assert payload["active_context"]["needs_confirmation"] is True
 
 
+def test_voice_assistant_session_brief_is_speakable():
+    from tools import voice_assistant
+
+    payload = voice_assistant.session_brief_from_state(
+        {
+            "session_id": "demo",
+            "turn_count": 2,
+            "last_intent": "trade_readiness",
+            "last_safety_level": "critical",
+            "active_context": {
+                "active_intent": "trade_readiness",
+                "active_symbol": "SPY",
+                "last_safety_level": "critical",
+                "needs_confirmation": True,
+                "next_best_actions": ["show_risk_check", "show_trade_ticket"],
+            },
+            "recent_turns": [{"query": "secret should not echo"}],
+        },
+        language="en",
+    )
+
+    assert payload["language"] == "en"
+    assert payload["session_id"] == "demo"
+    assert payload["active_context"]["active_symbol"] == "SPY"
+    assert payload["suggested_actions"] == ["show_risk_check", "show_trade_ticket"]
+    assert "Confirmation is required" in payload["speakable_summary"]
+    assert "recent_turns" not in payload
+
+
+def test_assist_session_brief_endpoint_returns_compact_voice_payload(monkeypatch):
+    os.environ["VOICE_API_KEY"] = "testkey"
+    from tools import voice_service
+
+    monkeypatch.setattr(voice_service, "VOICE_API_KEY", "testkey")
+    monkeypatch.setattr(
+        voice_service.va_backend,
+        "get_session_brief",
+        lambda session_id, language="es", limit=8: {
+            "session_id": session_id,
+            "turn_count": 1,
+            "language": language,
+            "speakable_summary": "Contexto listo.",
+            "active_context": {"active_symbol": "SPY"},
+            "suggested_actions": ["trade_readiness"],
+        },
+    )
+    voice_service._RATE_STATE.clear()
+
+    client = TestClient(voice_service.app)
+    r = client.get(
+        "/v1/assist/session/demo-session/brief?language=es",
+        headers={"Authorization": "Bearer testkey"},
+    )
+
+    assert r.status_code == 200
+    payload = r.json()
+    assert payload["session_id"] == "demo-session"
+    assert payload["speakable_summary"] == "Contexto listo."
+    assert payload["active_context"]["active_symbol"] == "SPY"
+    assert "recent_turns" not in payload
+
+
 def test_assist_events_returns_ordered_events(monkeypatch):
     os.environ["VOICE_API_KEY"] = "testkey"
     from tools import voice_service
