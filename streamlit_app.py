@@ -5321,10 +5321,35 @@ def build_professional_oscillator_chart(chart_df: pd.DataFrame) -> alt.LayerChar
     if oscillator_window.empty:
         return None
 
+    time_scale = chart_time_scale(oscillator_window)
     layers: list[alt.Chart] = []
     if "rsi14" in oscillator_window.columns and oscillator_window["rsi14"].notna().any():
         rsi_df = oscillator_window.dropna(subset=["rsi14"]).copy()
-        rsi_base = alt.Chart(rsi_df).encode(x=alt.X("ts:T", title="Tiempo"))
+        rsi_start = rsi_df["ts"].min()
+        rsi_end = rsi_df["ts"].max()
+        rsi_zone_df = pd.DataFrame(
+            [
+                {"ts": rsi_start, "ts2": rsi_end, "low": 70, "high": 100, "zone": "Sobrecompra"},
+                {"ts": rsi_start, "ts2": rsi_end, "low": 0, "high": 30, "zone": "Sobreventa"},
+            ]
+        )
+        layers.append(
+            alt.Chart(rsi_zone_df)
+            .mark_rect(opacity=0.11)
+            .encode(
+                x=alt.X("ts:T", title="Tiempo", scale=time_scale),
+                x2="ts2:T",
+                y=alt.Y("low:Q", title="RSI 14", scale=alt.Scale(domain=[0, 100])),
+                y2="high:Q",
+                color=alt.Color(
+                    "zone:N",
+                    legend=None,
+                    scale=alt.Scale(domain=["Sobrecompra", "Sobreventa"], range=["#f59e0b", "#22c55e"]),
+                ),
+                tooltip=[alt.Tooltip("zone:N", title="Zona RSI")],
+            )
+        )
+        rsi_base = alt.Chart(rsi_df).encode(x=alt.X("ts:T", title="Tiempo", scale=time_scale))
         layers.append(
             rsi_base.mark_line(color="#38bdf8", size=1.8).encode(
                 y=alt.Y("rsi14:Q", title="RSI 14", scale=alt.Scale(domain=[0, 100])),
@@ -5343,13 +5368,38 @@ def build_professional_oscillator_chart(chart_df: pd.DataFrame) -> alt.LayerChar
 
     if "macd_hist" in oscillator_window.columns and oscillator_window["macd_hist"].notna().any():
         macd_df = oscillator_window.dropna(subset=["macd_hist"]).copy()
+        macd_df["macd_hist"] = pd.to_numeric(macd_df["macd_hist"], errors="coerce")
+        macd_df = macd_df.dropna(subset=["macd_hist"])
+    else:
+        macd_df = pd.DataFrame()
+    if not macd_df.empty:
+        macd_min = safe_float(macd_df["macd_hist"].min()) or 0.0
+        macd_max = safe_float(macd_df["macd_hist"].max()) or 0.0
+        macd_bound = max(abs(macd_min), abs(macd_max), 0.01)
         macd_color = alt.condition("datum.macd_hist >= 0", alt.value("#22c55e"), alt.value("#ef4444"))
+        layers.append(
+            alt.Chart(pd.DataFrame({"level": [0.0], "label": ["MACD 0"]}))
+            .mark_rule(color="#94a3b8", strokeDash=[2, 2], opacity=0.75)
+            .encode(
+                y=alt.Y(
+                    "level:Q",
+                    title="MACD hist",
+                    scale=alt.Scale(domain=[-macd_bound * 1.1, macd_bound * 1.1]),
+                ),
+                tooltip=["label:N"],
+            )
+        )
         layers.append(
             alt.Chart(macd_df)
             .mark_bar(opacity=0.38)
             .encode(
-                x=alt.X("ts:T", title="Tiempo"),
-                y=alt.Y("macd_hist:Q", title="MACD hist"),
+                x=alt.X("ts:T", title="Tiempo", scale=time_scale),
+                y=alt.Y(
+                    "macd_hist:Q",
+                    title="MACD hist",
+                    stack=None,
+                    scale=alt.Scale(domain=[-macd_bound * 1.1, macd_bound * 1.1]),
+                ),
                 color=macd_color,
                 tooltip=[
                     alt.Tooltip("ts:T", title="Tiempo"),
