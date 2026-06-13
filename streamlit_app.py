@@ -1737,6 +1737,59 @@ def render_professional_chart_block(
                 + "".join(tape_items)
                 + "</section>"
             )
+    technical_strip_html = ""
+    technical_items: list[str] = []
+
+    def add_technical_item(label: str, value: str, detail: str, tone: str) -> None:
+        technical_items.append(
+            '<span class="chart-tech-pill chart-tech-{tone}"><em>{label}</em><strong>{value}</strong>'
+            "<small>{detail}</small></span>".format(
+                tone=html.escape(tone),
+                label=html.escape(label),
+                value=html.escape(value),
+                detail=html.escape(detail),
+            )
+        )
+
+    rsi_value = safe_float(latest_row.get("rsi14"))
+    if rsi_value is not None:
+        if rsi_value >= 70:
+            add_technical_item("RSI", num_display(rsi_value, 0), "Sobrecompra", "avoid")
+        elif rsi_value <= 30:
+            add_technical_item("RSI", num_display(rsi_value, 0), "Sobreventa", "watch")
+        elif rsi_value >= 50:
+            add_technical_item("RSI", num_display(rsi_value, 0), "Impulso sano", "buy")
+        else:
+            add_technical_item("RSI", num_display(rsi_value, 0), "Neutral débil", "watch")
+    macd_hist = safe_float(latest_row.get("macd_hist"))
+    if macd_hist is not None:
+        add_technical_item("MACD", num_display(macd_hist, 4), "Impulso +" if macd_hist >= 0 else "Impulso -", "buy" if macd_hist >= 0 else "avoid")
+    sma20_value = safe_float(latest_row.get("sma20") or setup.get("sma20"))
+    sma200_value = safe_float(latest_row.get("sma200") or setup.get("sma200"))
+    if latest_close is not None and sma20_value is not None and sma200_value is not None:
+        if latest_close > sma20_value > sma200_value:
+            add_technical_item("Medias", "Alcista", "Precio > 20 > 200", "buy")
+        elif latest_close < sma20_value < sma200_value:
+            add_technical_item("Medias", "Bajista", "Precio < 20 < 200", "avoid")
+        else:
+            add_technical_item("Medias", "Mixto", "Esperar confirmación", "watch")
+    bb_upper = safe_float(latest_row.get("bb_upper"))
+    bb_lower = safe_float(latest_row.get("bb_lower"))
+    if latest_close is not None and bb_upper is not None and bb_lower is not None and bb_upper != bb_lower:
+        bb_position = (latest_close - bb_lower) / (bb_upper - bb_lower)
+        if bb_position >= 0.85:
+            add_technical_item("Bollinger", "Alta", "Cerca de banda sup.", "watch")
+        elif bb_position <= 0.15:
+            add_technical_item("Bollinger", "Baja", "Cerca de banda inf.", "watch")
+        else:
+            add_technical_item("Bollinger", "Media", "Dentro del canal", "buy")
+    volume_sma = safe_float(latest_row.get("volume_sma20"))
+    if latest_volume is not None and volume_sma not in (None, 0):
+        relative_volume = latest_volume / volume_sma
+        volume_tone = "buy" if relative_volume >= 1.2 else "watch" if relative_volume >= 0.8 else "avoid"
+        add_technical_item("RVol", f"{relative_volume:.2f}x", "Volumen confirma" if relative_volume >= 1.2 else "Volumen bajo", volume_tone)
+    if technical_items:
+        technical_strip_html = '<section class="chart-tech-strip"><b>Indicadores</b>' + "".join(technical_items[:5]) + "</section>"
     st.markdown(
         f"""
         <section class="chart-command-head">
@@ -1770,6 +1823,7 @@ def render_professional_chart_block(
           <span><i class="chart-legend-dot chart-legend-support"></i>Soporte / resistencia</span>
         </section>
         {candle_tape_html}
+        {technical_strip_html}
         """,
         unsafe_allow_html=True,
     )
@@ -14294,8 +14348,18 @@ def main() -> None:
         .chart-tape-candle small{display:block;color:#cbd5e1;font-size:9px;line-height:1.05;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .chart-tape-buy{border-top-color:#22c55e;background:rgba(21,93,62,.18)}
         .chart-tape-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.20)}
+        .chart-tech-strip{display:grid;grid-template-columns:90px repeat(5,minmax(0,1fr));gap:1px;border:1px solid rgba(148,163,184,.16);border-radius:8px;background:rgba(148,163,184,.14);overflow:hidden;margin:-2px 0 8px}
+        .chart-tech-strip>b{display:flex;align-items:center;color:#ddd6fe;background:rgba(30,27,75,.78);padding:7px 8px;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.055em}
+        .chart-tech-pill{display:block;min-width:0;background:#0b1220;border-top:3px solid rgba(148,163,184,.32);padding:5px 7px}
+        .chart-tech-pill em{display:block;color:#94a3b8;font-size:9px;font-style:normal;font-weight:950;line-height:1;text-transform:uppercase}
+        .chart-tech-pill strong{display:block;color:#f8fafc;font-size:13px;line-height:1.05;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .chart-tech-pill small{display:block;color:#cbd5e1;font-size:9px;line-height:1.05;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .chart-tech-buy{border-top-color:#22c55e;background:rgba(21,93,62,.18)}
+        .chart-tech-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.18)}
+        .chart-tech-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.20)}
         @media (max-width:900px){.chart-candle-tape{grid-template-columns:repeat(3,minmax(0,1fr))}.chart-candle-tape>b{grid-column:1/-1}}
-        @media (max-width:600px){.chart-candle-tape{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media (max-width:900px){.chart-tech-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.chart-tech-strip>b{grid-column:1/-1}}
+        @media (max-width:600px){.chart-candle-tape,.chart-tech-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
         .chart-legend-dot{display:inline-block;width:9px;height:9px;border-radius:999px;box-shadow:0 0 0 2px rgba(15,23,42,.86)}
         .chart-legend-current{background:#f8fafc}.chart-legend-entry{background:#22c55e}.chart-legend-stop{background:#ef4444}.chart-legend-target{background:#a78bfa}.chart-legend-support{background:#22d3ee}
         .chart-check-pill{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#0b1220;padding:6px 8px;min-width:0;border-top:2px solid rgba(148,163,184,.28)}
