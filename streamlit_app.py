@@ -5167,6 +5167,15 @@ def build_professional_price_chart(
         latest_range_position = None
         latest_room_to_high = None
         latest_room_above_low = None
+        latest_resistance = safe_float(latest_badge_row.get("range_high_60"))
+        latest_support = safe_float(latest_badge_row.get("range_low_60"))
+        latest_to_resistance = None
+        latest_above_support = None
+        if latest_badge_price > 0:
+            if latest_resistance is not None:
+                latest_to_resistance = (latest_resistance - latest_badge_price) / latest_badge_price
+            if latest_support is not None:
+                latest_above_support = (latest_badge_price - latest_support) / latest_badge_price
         if visible_high is not None and visible_low is not None and visible_high > visible_low:
             latest_range_position = (latest_badge_price - visible_low) / (visible_high - visible_low)
             if latest_badge_price > 0:
@@ -5185,6 +5194,8 @@ def build_professional_price_chart(
                     "body_pct": latest_candle_body,
                     "relative_volume": latest_relative_volume,
                     "range_position": latest_range_position,
+                    "to_resistance": latest_to_resistance,
+                    "above_support": latest_above_support,
                     "room_to_high": latest_room_to_high,
                     "room_above_low": latest_room_above_low,
                     "tone": "buy" if latest_badge_change is not None and latest_badge_change >= 0 else "avoid",
@@ -5211,6 +5222,8 @@ def build_professional_price_chart(
                     alt.Tooltip("body_pct:Q", title="Cuerpo", format=".2%"),
                     alt.Tooltip("relative_volume:Q", title="RVol", format=".2f"),
                     alt.Tooltip("range_position:Q", title="Posición rango", format=".0%"),
+                    alt.Tooltip("to_resistance:Q", title="Hasta resistencia", format=".2%"),
+                    alt.Tooltip("above_support:Q", title="Sobre soporte", format=".2%"),
                     alt.Tooltip("room_to_high:Q", title="Hasta máx", format=".2%"),
                     alt.Tooltip("room_above_low:Q", title="Sobre mín", format=".2%"),
                     alt.Tooltip("price:Q", title="Precio", format=".2f"),
