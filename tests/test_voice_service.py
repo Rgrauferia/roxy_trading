@@ -192,11 +192,21 @@ def test_roxy_live_page():
     assert "Probar micro" in r.text
     assert "runMicrophoneCheck" in r.text
     assert "stopMediaStream" in r.text
+    assert "measureMicrophoneSignal" in r.text
+    assert "AudioContext || window.webkitAudioContext" in r.text
+    assert "getByteTimeDomainData" in r.text
     assert "navigator.mediaDevices.getUserMedia" in r.text
     assert "voice: microphone check" in r.text
     assert "voice: microphone ready" in r.text
+    assert "voice: microphone quiet" in r.text
+    assert "mic quiet · nivel " in r.text
     assert "Microfono listo." in r.text
     assert "Microphone ready." in r.text
+    assert "señal detectada" in r.text
+    assert "signal was detected" in r.text
+    assert "la señal se ve baja" in r.text
+    assert "the signal looks low" in r.text
+    assert "nivel no medido" in r.text
     assert "Roxy, probar microfono" in r.text
     assert "Roxy, microphone check" in r.text
     assert "test microphone" in r.text

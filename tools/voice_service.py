@@ -1068,6 +1068,40 @@ def roxy_live_page():
       } catch (_err) {}
     }
 
+    async function measureMicrophoneSignal(stream, durationMs) {
+      const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextCtor || !stream) return null;
+      let audioContext = null;
+      let source = null;
+      try {
+        audioContext = new AudioContextCtor();
+        if (audioContext.state === "suspended" && audioContext.resume) await audioContext.resume();
+        source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 1024;
+        source.connect(analyser);
+        const data = new Uint8Array(analyser.fftSize);
+        const started = Date.now();
+        let peak = 0;
+        let samples = 0;
+        while (Date.now() - started < (durationMs || 900)) {
+          analyser.getByteTimeDomainData(data);
+          for (let index = 0; index < data.length; index++) {
+            const level = Math.abs(data[index] - 128) / 128;
+            if (level > peak) peak = level;
+          }
+          samples += data.length;
+          await new Promise(resolve => setTimeout(resolve, 60));
+        }
+        return {peak, samples};
+      } catch (_err) {
+        return null;
+      } finally {
+        try { if (source) source.disconnect(); } catch (_err) {}
+        try { if (audioContext && audioContext.close) await audioContext.close(); } catch (_err) {}
+      }
+    }
+
     async function runMicrophoneCheck(options) {
       const opts = options || {};
       const language = $("language").value || "es";
@@ -1079,18 +1113,37 @@ def roxy_live_page():
       }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+        const signal = await measureMicrophoneSignal(stream, opts.durationMs || 900);
         stopMediaStream(stream);
         manualStop = false;
-        const message = localizedText(
-          "Microfono listo. Permiso activo y entrada de audio disponible. Ya puedes pulsar Hablar o decir Roxy, iniciar voz.",
-          "Microphone ready. Permission is active and audio input is available. You can press Talk or say Roxy, start voice session.",
-          language
-        );
-        $("voiceStatus").textContent = "mic OK · permiso OK";
+        const peakPercent = signal && Number.isFinite(signal.peak) ? Math.round(Math.min(1, signal.peak) * 100) : null;
+        const quiet = peakPercent !== null && peakPercent < 3;
+        const message = peakPercent === null
+          ? localizedText(
+              "Microfono listo. Permiso activo; este navegador no permitio medir nivel de entrada. Ya puedes pulsar Hablar.",
+              "Microphone ready. Permission is active; this browser did not allow input-level measurement. You can press Talk.",
+              language
+            )
+          : quiet
+            ? localizedText(
+                "Microfono permitido, pero la señal se ve baja: " + peakPercent + "%. Acercate al microfono o revisa el dispositivo antes de hablar con Roxy.",
+                "Microphone permission is active, but the signal looks low: " + peakPercent + "%. Move closer to the microphone or check the device before speaking with Roxy.",
+                language
+              )
+            : localizedText(
+                "Microfono listo. Permiso activo y señal detectada: " + peakPercent + "%. Ya puedes pulsar Hablar o decir Roxy, iniciar voz.",
+                "Microphone ready. Permission is active and signal was detected: " + peakPercent + "%. You can press Talk or say Roxy, start voice session.",
+                language
+              );
+        $("voiceStatus").textContent = peakPercent === null
+          ? "mic OK · permiso OK · nivel no medido"
+          : quiet
+            ? "mic quiet · nivel " + peakPercent + "%"
+            : "mic OK · nivel " + peakPercent + "%";
         $("reply").textContent = message;
-        $("events").textContent = "voice: microphone ready";
+        $("events").textContent = quiet ? "voice: microphone quiet" : "voice: microphone ready";
         appendMessage("system", message, "voice-mic");
-        setAvatar("ready", $("emotion").textContent);
+        setAvatar(quiet ? "waiting" : "ready", quiet ? "attentive" : $("emotion").textContent);
         if (opts.speakNow && $("autoSpeak").checked) speak(message, language);
         else {
           scheduleListen();
