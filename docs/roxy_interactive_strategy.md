@@ -111,6 +111,8 @@ Wake Roxy can also answer "Roxy, contexto actual" / "Roxy, current context" loca
 
 Wake Roxy can answer "Roxy, que sigue" / "Roxy, next step" locally from the active context. It speaks the first safe suggested action, prepares that prompt in the input for review, and refuses to skip explicit confirmation when the last turn was guarded or critical. If a dictation draft is pending, the safe next step is to read, send, or clear the draft first.
 
+Wake Roxy can answer "Roxy, opciones" / "Roxy, options" locally from the active context. It speaks up to three available suggested actions and example wake-word prompts, or draft actions when a dictation draft is pending. This is a local orientation helper only; it does not call the assistant backend or execute anything.
+
 Wake Roxy can read local learning and source status without sending a market prompt. "Roxy, aprendizaje" / "Roxy, learning status" calls the local learning endpoint, updates the learning/context view, and speaks a short feedback-memory summary. "Roxy, fuentes" / "Roxy, sources" calls the knowledge-source endpoint and speaks how many approved local documents are available.
 
 Wake Roxy, or a manual `Hablar` turn that includes the wake word, can update safe local profile context without calling the assistant backend. "Roxy, símbolo NVDA" / "Roxy, symbol NVDA" updates the default symbol, and "Roxy, watchlist SPY QQQ NVDA" updates the watchlist saved in the browser. Later assistant turns include those values in the normal profile payload; they do not execute trades or change broker state.

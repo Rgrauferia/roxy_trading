@@ -638,6 +638,7 @@ def roxy_live_page():
           <button id="voiceGuide">Iniciar voz</button>
           <button id="voiceTest">Probar voz</button>
           <button id="repeat">Repetir voz</button>
+          <button id="voiceOptions">Opciones voz</button>
           <button id="feedbackUp">Sirvio</button>
           <button id="feedbackDown">No sirvio</button>
           <button id="loadMemory">Cargar memoria</button>
@@ -1512,6 +1513,42 @@ def roxy_live_page():
       return true;
     }
 
+    function speakVoiceOptionsBrief() {
+      const language = lastState.language || $("language").value || "es";
+      const pendingDraft = (voiceDraftText || "").trim();
+      if (pendingDraft) {
+        const message = localizedText(
+          "Opciones de voz: hay un borrador pendiente. Puedes decir: Roxy, leer borrador; Roxy, enviar; o Roxy, borrar.",
+          "Voice options: there is a pending draft. You can say: Roxy, read draft; Roxy, send it; or Roxy, clear draft.",
+          language
+        );
+        speakLocalControlMessage(message, language, "voice: options", "voice-options");
+        return true;
+      }
+      const ctx = activeSessionContext();
+      renderActiveContext(ctx);
+      const unique = [];
+      for (const action of Array.isArray(ctx.next_best_actions) ? ctx.next_best_actions : []) {
+        if (action && !unique.includes(action)) unique.push(action);
+      }
+      const rows = (unique.length ? unique : ["ask_market_summary", "ask_latest_opportunity"])
+        .slice(0, 3)
+        .map(action => {
+          const config = suggestedActionPrompts[action] || fallbackActionPrompt(action);
+          const prompt = nextActionPromptWithContext(action, config[1] || "resumen del mercado", ctx);
+          return {label: config[0] || actionDisplayName(action), prompt};
+        });
+      const labels = rows.map(row => row.label).join(", ");
+      const prompts = rows.map(row => "Roxy, " + row.prompt).join("; ");
+      const message = localizedText(
+        "Opciones de voz: " + labels + ". Puedes decir: " + prompts + ".",
+        "Voice options: " + labels + ". You can say: " + prompts + ".",
+        language
+      );
+      speakLocalControlMessage(message, language, "voice: options", "voice-options");
+      return true;
+    }
+
     function nextActionPromptWithContext(action, prompt, ctx) {
       const symbol = (ctx.active_symbol || "").trim().toUpperCase();
       if (!symbol || !prompt) return prompt;
@@ -1562,8 +1599,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, iniciar voz; Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, estado de voz; Roxy, prueba tu voz; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, start voice session; Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, voice status; Roxy, test voice; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, iniciar voz; Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, estado de voz; Roxy, prueba tu voz; Roxy, opciones; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, start voice session; Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, voice status; Roxy, test voice; Roxy, options; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -1917,6 +1954,13 @@ def roxy_live_page():
         "what are we discussing", "where are we"
       ])) {
         return sessionVoiceBrief();
+      }
+      if (commandMatches(command, [
+        "opciones", "opciones de voz", "que opciones tengo", "que puedo preguntar ahora",
+        "acciones disponibles", "options", "voice options", "what can i ask next",
+        "available actions", "what are my options"
+      ])) {
+        return speakVoiceOptionsBrief();
       }
       if (commandMatches(command, [
         "que sigue", "que sigue ahora", "siguiente paso", "proximo paso", "proxima accion",
@@ -2667,6 +2711,7 @@ def roxy_live_page():
     $("voiceGuide").onclick = startGuidedVoiceSession;
     $("voiceTest").onclick = speakVoiceSample;
     $("repeat").onclick = () => speak(lastReply, lastState.language || $("language").value);
+    $("voiceOptions").onclick = speakVoiceOptionsBrief;
     $("feedbackUp").onclick = () => submitFeedback("up");
     $("feedbackDown").onclick = () => submitFeedback("down");
     $("loadMemory").onclick = loadMemory;

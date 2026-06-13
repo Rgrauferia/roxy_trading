@@ -129,6 +129,11 @@ def test_roxy_live_page():
     assert "sessionVoiceBrief" in r.text
     assert "activeSessionContext" in r.text
     assert "voice: session brief" in r.text
+    assert "voiceOptions" in r.text
+    assert "speakVoiceOptionsBrief" in r.text
+    assert "voice: options" in r.text
+    assert "Opciones de voz: " in r.text
+    assert "Voice options: " in r.text
     assert "voiceTest" in r.text
     assert "speakVoiceSample" in r.text
     assert "voice: test" in r.text
@@ -219,6 +224,8 @@ def test_roxy_live_page():
     assert "Roxy, voice status" in r.text
     assert "Roxy, prueba tu voz" in r.text
     assert "Roxy, test voice" in r.text
+    assert "Roxy, opciones" in r.text
+    assert "Roxy, options" in r.text
     assert "Roxy, sin voz" in r.text
     assert "Roxy, voice off" in r.text
     assert "Roxy, voz más lenta" in r.text
