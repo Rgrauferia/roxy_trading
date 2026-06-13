@@ -5130,6 +5130,14 @@ def build_professional_price_chart(
         latest_badge_text = f"Ultimo {latest_badge_price:.2f}"
         if latest_badge_change is not None:
             latest_badge_text = f"{latest_badge_text} · {latest_badge_change:+.2%}"
+        latest_range_position = None
+        latest_room_to_high = None
+        latest_room_above_low = None
+        if visible_high is not None and visible_low is not None and visible_high > visible_low:
+            latest_range_position = (latest_badge_price - visible_low) / (visible_high - visible_low)
+            if latest_badge_price > 0:
+                latest_room_to_high = (visible_high - latest_badge_price) / latest_badge_price
+                latest_room_above_low = (latest_badge_price - visible_low) / latest_badge_price
         latest_badge_df = pd.DataFrame(
             [
                 {
@@ -5138,6 +5146,9 @@ def build_professional_price_chart(
                     "label": latest_badge_text,
                     "reading": latest_badge_reading,
                     "change_pct": latest_badge_change,
+                    "range_position": latest_range_position,
+                    "room_to_high": latest_room_to_high,
+                    "room_above_low": latest_room_above_low,
                     "tone": "buy" if latest_badge_change is not None and latest_badge_change >= 0 else "avoid",
                 }
             ]
@@ -5157,6 +5168,9 @@ def build_professional_price_chart(
                     alt.Tooltip("label:N", title="Ultima vela"),
                     alt.Tooltip("reading:N", title="Lectura"),
                     alt.Tooltip("change_pct:Q", title="Cambio vela", format="+.2%"),
+                    alt.Tooltip("range_position:Q", title="Posición rango", format=".0%"),
+                    alt.Tooltip("room_to_high:Q", title="Hasta máx", format=".2%"),
+                    alt.Tooltip("room_above_low:Q", title="Sobre mín", format=".2%"),
                     alt.Tooltip("price:Q", title="Precio", format=".2f"),
                     alt.Tooltip("ts:T", title="Tiempo"),
                 ],
