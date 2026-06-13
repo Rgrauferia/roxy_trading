@@ -632,7 +632,7 @@ def roxy_live_page():
           <input id="feedbackNote" placeholder="Nota feedback: mas corto, mas claro..." />
         </div>
         <div class="controls">
-          <button id="start" class="primary">Hablar</button>
+          <button id="start" class="primary" title="Hablar / interrumpir respuesta">Hablar</button>
           <button id="stop" class="warn">Parar</button>
           <button id="send">Enviar</button>
           <button id="voiceGuide">Iniciar voz</button>
@@ -3094,7 +3094,21 @@ def roxy_live_page():
       recognition.start();
     }
 
-    $("start").onclick = startListening;
+    function startListeningFromControl() {
+      if (isListening) return;
+      if (isSpeaking || activeAssistController) {
+        const language = $("language").value || "es";
+        $("events").textContent = "voice: barge-in";
+        appendMessage(
+          "system",
+          localizedText("Interrumpiendo para escucharte.", "Interrupting so I can listen.", language),
+          "voice-control"
+        );
+      }
+      startListening();
+    }
+
+    $("start").onclick = startListeningFromControl;
     $("stop").onclick = () => stopAll("Escucha detenida.");
     $("send").onclick = send;
     $("voiceGuide").onclick = startGuidedVoiceSession;

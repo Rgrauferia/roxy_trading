@@ -45,7 +45,7 @@ For lower-latency clients, `POST /v1/assist/stream` returns Server-Sent Events i
 
 The `Parar` control in Roxy Live cancels microphone listening, speech synthesis, and the active assist HTTP request through `AbortController`. Starting a new prompt also aborts any previous unfinished assist turn so late responses cannot overwrite the current conversation state.
 
-The `Hablar` control also acts as a barge-in control. If Roxy is speaking or still waiting on an assist response, starting a new listening turn cancels browser speech synthesis and the active assist HTTP request before opening the microphone.
+The `Hablar` control also acts as a barge-in control. If Roxy is speaking or still waiting on an assist response, starting a new listening turn records `voice: barge-in`, cancels browser speech synthesis and the active assist HTTP request, then opens the microphone.
 
 Roxy Live applies a client-side timeout to active assist requests. If the service stalls, the browser aborts the request, shows a timeout event, and returns Roxy to a ready state so the user can retry without refreshing the page.
 

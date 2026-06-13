@@ -42,6 +42,12 @@ def test_roxy_live_page():
     assert "AbortController" in r.text
     assert "isAbortError" in r.text
     assert "prepareListeningTurn" in r.text
+    assert "startListeningFromControl" in r.text
+    assert "voice: barge-in" in r.text
+    assert "Interrumpiendo para escucharte." in r.text
+    assert "Interrupting so I can listen." in r.text
+    assert '$("start").onclick = startListeningFromControl' in r.text
+    assert 'title="Hablar / interrumpir respuesta"' in r.text
     assert "isDuplicateFinalTranscript" in r.text
     assert "voice: duplicate ignored" in r.text
     assert "voiceDraftText" in r.text
