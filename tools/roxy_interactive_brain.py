@@ -1668,6 +1668,10 @@ class RoxyInteractiveBrain:
             "what did i miss",
             "resume where we left off",
         )
+        if _contains_any(lq, news_impact_terms):
+            response = self._news_impact_reply(q, language)
+            return finish(response)
+
         if _contains_any(lq, ("hola", "hello", "hi", "hey", "buenos dias", "buenas")):
             response = self._greeting_reply(user, profile)
             return finish(response)
@@ -1718,10 +1722,6 @@ class RoxyInteractiveBrain:
             ),
         ) or lq in {"estado", "status"}:
             response = self._autonomy_status_reply(user, session_id, recent_turns, profile)
-            return finish(response)
-
-        if _contains_any(lq, news_impact_terms):
-            response = self._news_impact_reply(q, language)
             return finish(response)
 
         if _contains_any(lq, session_recap_terms):
@@ -2928,6 +2928,7 @@ class RoxyInteractiveBrain:
         symbol = _extract_symbol(headline) or _extract_symbol(query)
         source_text = f" Source: {source}." if source and language == "en" else f" Fuente: {source}." if source else ""
         cue_text = ", ".join(cues) if cues else ("no strong keyword cue" if language == "en" else "sin palabra clave fuerte")
+        opportunity_context = self._news_opportunity_context(symbol, sentiment, language)
 
         if language == "en":
             sentiment_label = {"bullish": "bullish", "bearish": "bearish", "neutral": "neutral"}[sentiment]
@@ -2940,7 +2941,7 @@ class RoxyInteractiveBrain:
             asset = f" for {symbol}" if symbol else ""
             reply = (
                 f"News impact{asset}: '{headline}'.{source_text} Tone: {sentiment_label}; cues: {cue_text}. "
-                f"Likely impact: {impact}. Verify source, timestamp, whether the headline is confirmed, and the first "
+                f"Likely impact: {impact}.{opportunity_context} Verify source, timestamp, whether the headline is confirmed, and the first "
                 "price-volume reaction. This is not a trade signal by itself; I would pair it with the market summary, "
                 "entry trigger, stop, and position risk before recommending action."
             )
@@ -2959,17 +2960,67 @@ class RoxyInteractiveBrain:
             asset = f" para {symbol}" if symbol else ""
             reply = (
                 f"Impacto de noticia{asset}: '{headline}'.{source_text} Tono: {sentiment_label}; pistas: {cue_text}. "
-                f"Impacto probable: {impact}. Verifica fuente, hora, si el titular esta confirmado y la primera reaccion "
+                f"Impacto probable: {impact}.{opportunity_context} Verifica fuente, hora, si el titular esta confirmado y la primera reaccion "
                 "precio-volumen. Esto no es una senal de trade por si solo; lo cruzaria con resumen de mercado, gatillo "
                 "de entrada, stop y riesgo de posicion antes de recomendar accion."
             )
 
+        actions = ("entry_checklist", "ask_market_summary", "ask_latest_opportunity", "paste_source") if opportunity_context else (
+            "ask_market_summary",
+            "ask_latest_opportunity",
+            "paste_source",
+        )
         return RoxyBrainReply(
             intent="news_impact",
             reply=reply,
             emotion="analytical",
             safety_level="guarded",
-            suggested_actions=("ask_market_summary", "ask_latest_opportunity", "paste_source"),
+            suggested_actions=actions,
+        )
+
+    def _news_opportunity_context(self, symbol: str | None, sentiment: str, language: str = "es") -> str:
+        if not symbol:
+            return ""
+        row = self._latest_opportunity(symbol)
+        if not row:
+            return ""
+
+        symbol_text = _safe_text(row.get("symbol") or symbol).upper()
+        action = _safe_text(row.get("signal") or row.get("ai_action") or "WATCH").upper()
+        decision = _safe_text(row.get("decision") or row.get("trade_decision") or "-")
+        entry = _price(row.get("entry"))
+        stop = _price(row.get("stop"))
+        risk = _pct(row.get("risk_pct"))
+        missing = _safe_text(row.get("what_is_missing") or row.get("missing") or row.get("blockers"))
+
+        bullish_alignment = sentiment == "bullish" and action in {"BUY", "ALERT", "READY", "WATCH"}
+        bearish_alignment = sentiment == "bearish" and action in {"SELL", "SHORT", "AVOID", "WAIT"}
+        aligned = bullish_alignment or bearish_alignment
+        has_trade_frame = entry != "-" and stop != "-" and risk != "-"
+
+        if language == "en":
+            missing_text = f" Missing: {missing}." if missing else " Missing: none listed."
+            frame_text = f" entry {entry}, stop {stop}, risk {risk}" if has_trade_frame else " incomplete entry/stop/risk"
+            read = (
+                "headline can support the local watch bias, but it remains blocked until price-volume and trigger confirm"
+                if aligned
+                else "headline does not confirm the local setup by itself; treat it as context until the chart agrees"
+            )
+            return (
+                f" Local setup context for {symbol_text}: Roxy has {action} / {decision},{frame_text}."
+                f"{missing_text} Read: {read}."
+            )
+
+        missing_text = f" Falta: {missing}." if missing else " Falta: nada listado."
+        frame_text = f" entrada {entry}, stop {stop}, riesgo {risk}" if has_trade_frame else " entrada/stop/riesgo incompletos"
+        read = (
+            "el titular puede apoyar el sesgo de vigilancia local, pero sigue bloqueado hasta que precio-volumen y gatillo confirmen"
+            if aligned
+            else "el titular no confirma el setup local por si solo; tratalo como contexto hasta que la grafica confirme"
+        )
+        return (
+            f" Contexto local {symbol_text}: Roxy tiene {action} / {decision},{frame_text}."
+            f"{missing_text} Lectura: {read}."
         )
 
     def _market_summary_reply(self, language: str = "es", scope: str = "all") -> RoxyBrainReply:

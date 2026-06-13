@@ -72,6 +72,42 @@ def test_roxy_brain_analyzes_english_news_impact_from_headline(tmp_path):
     assert "not a trade signal" in response.reply
 
 
+def test_roxy_brain_cross_checks_news_impact_with_local_opportunity(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "opportunities": [
+                        {
+                            "symbol": "NVDA",
+                            "signal": "WATCH",
+                            "decision": "WAIT_15M_ENTRY",
+                            "entry": 142.25,
+                            "stop": 139.5,
+                            "risk_pct": 0.0193,
+                            "what_is_missing": "15m trigger and volume",
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("Roxy, news impact: NVDA shares rise after analyst upgrade and record revenue")
+
+    assert response.intent == "news_impact"
+    assert response.language == "en"
+    assert "Local setup context for NVDA" in response.reply
+    assert "Roxy has WATCH / WAIT_15M_ENTRY" in response.reply
+    assert "entry 142.25, stop 139.50, risk 1.93%" in response.reply
+    assert "Missing: 15m trigger and volume" in response.reply
+    assert "price-volume and trigger confirm" in response.reply
+    assert "entry_checklist" in response.suggested_actions
+
+
 def test_roxy_brain_analyzes_spanish_news_impact_from_headline(tmp_path):
     brain = RoxyInteractiveBrain(brief_path=tmp_path / "brief.json", memory_path=tmp_path / "memory.json")
 
@@ -81,6 +117,42 @@ def test_roxy_brain_analyzes_spanish_news_impact_from_headline(tmp_path):
     assert response.language == "es"
     assert "Tono: bajista" in response.reply
     assert "Verifica fuente" in response.reply
+
+
+def test_roxy_brain_cross_checks_spanish_news_impact_with_local_opportunity(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "opportunities": [
+                        {
+                            "symbol": "TSLA",
+                            "signal": "WAIT",
+                            "decision": "WAIT_CONFIRMATION",
+                            "entry": 212.5,
+                            "stop": 205.0,
+                            "risk_pct": 0.0353,
+                            "what_is_missing": "confirmacion de volumen",
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("analiza impacto de noticia: Tesla enfrenta investigacion por recall de vehiculos")
+
+    assert response.intent == "news_impact"
+    assert response.language == "es"
+    assert "Contexto local TSLA" in response.reply
+    assert "Roxy tiene WAIT / WAIT_CONFIRMATION" in response.reply
+    assert "entrada 212.50, stop 205.00, riesgo 3.53%" in response.reply
+    assert "Falta: confirmacion de volumen" in response.reply
+    assert "precio-volumen y gatillo confirmen" in response.reply
+    assert "entry_checklist" in response.suggested_actions
 
 
 def test_roxy_brain_analyzes_news_impact_from_local_brief(tmp_path):
