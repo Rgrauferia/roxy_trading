@@ -227,7 +227,13 @@ def test_roxy_live_page():
     assert "Voz clara activada." in r.text
     assert "Clear receptionist voice is active." in r.text
     assert "voiceGuide" in r.text
-    assert "startGuidedVoiceSession" in r.text
+    assert "async function startGuidedVoiceSession" in r.text
+    assert "const mic = await runMicrophoneCheck({speakNow: false, durationMs: 650})" in r.text
+    assert 'if (mic && mic.status === "blocked") return true' in r.text
+    assert 'mic.status === "quiet"' in r.text
+    assert "Microphone signal is low; move closer before speaking." in r.text
+    assert 'return {status: quiet ? "quiet" : "ready", peakPercent}' in r.text
+    assert 'return {status: "blocked", reason}' in r.text
     assert "voice: guided session" in r.text
     assert "No ejecutare operaciones sin confirmacion explicita" in r.text
     assert "speakNextStepBrief" in r.text

@@ -1109,7 +1109,7 @@ def roxy_live_page():
       $("events").textContent = "voice: microphone check";
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         handleFatalMicError("unsupported");
-        return true;
+        return {status: "blocked", reason: "unsupported"};
       }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({audio: true});
@@ -1149,10 +1149,12 @@ def roxy_live_page():
           scheduleListen();
           releaseVoicePresenceIfIdle();
         }
+        return {status: quiet ? "quiet" : "ready", peakPercent};
       } catch (err) {
-        handleFatalMicError(speechStartErrorKey(err));
+        const reason = speechStartErrorKey(err);
+        handleFatalMicError(reason);
+        return {status: "blocked", reason};
       }
-      return true;
     }
 
     function handleFatalMicError(error) {
@@ -1874,8 +1876,10 @@ def roxy_live_page():
       return true;
     }
 
-    function startGuidedVoiceSession() {
+    async function startGuidedVoiceSession() {
       const language = $("language").value || "es";
+      const mic = await runMicrophoneCheck({speakNow: false, durationMs: 650});
+      if (mic && mic.status === "blocked") return true;
       $("autoSpeak").checked = true;
       $("autoSendVoice").checked = true;
       $("conversationMode").checked = true;
@@ -1883,9 +1887,12 @@ def roxy_live_page():
       activateReceptionistVoiceProfile(language, {enableSpeech: true});
       manualStop = false;
       setVoicePresenceActive(true);
+      const micNote = mic && mic.status === "quiet"
+        ? localizedText(" Señal de micro baja; acercate antes de hablar.", " Microphone signal is low; move closer before speaking.", language)
+        : "";
       const message = localizedText(
-        "Modo voz listo. Pulsa Hablar y di Roxy antes de cada instruccion. Prueba: Roxy, briefing diario; Roxy, mercado; Roxy, puedo operar ahora; o Roxy, ayuda. No ejecutare operaciones sin confirmacion explicita.",
-        "Voice mode is ready. Press Talk and say Roxy before each instruction. Try: Roxy, daily briefing; Roxy, market; Roxy, can I trade now; or Roxy, help. I will not execute trades without explicit confirmation.",
+        "Modo voz listo." + micNote + " Pulsa Hablar y di Roxy antes de cada instruccion. Prueba: Roxy, briefing diario; Roxy, mercado; Roxy, puedo operar ahora; o Roxy, ayuda. No ejecutare operaciones sin confirmacion explicita.",
+        "Voice mode is ready." + micNote + " Press Talk and say Roxy before each instruction. Try: Roxy, daily briefing; Roxy, market; Roxy, can I trade now; or Roxy, help. I will not execute trades without explicit confirmation.",
         language
       );
       speakLocalControlMessage(message, language, "voice: guided session", "voice-guide");

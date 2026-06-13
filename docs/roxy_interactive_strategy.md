@@ -113,7 +113,7 @@ When Wake Roxy or continuous conversation mode is saved in browser settings, Rox
 
 Wake Roxy, or a manual `Hablar` turn that includes the wake word, can change listening modes locally without calling the assistant backend. "Roxy, modo Siri" / "Roxy, Siri mode" enables wake-word mode, "Roxy, modo conversación" / "Roxy, conversation mode" enables continuous conversation, and "Roxy, modo manual" disables continuous listening. These mode changes are saved in browser settings and remain decision-support only.
 
-Roxy Live also exposes `Iniciar voz` and the voice command "Roxy, iniciar voz" / "Roxy, start voice session" as a guided local startup. It enables browser speech output, auto-send, conversation mode, and Wake Roxy together, selects the compatible feminine browser voice, and speaks a short safe-start script. This only prepares the local voice loop; it never executes trades or bypasses explicit confirmation.
+Roxy Live also exposes `Iniciar voz` and the voice command "Roxy, iniciar voz" / "Roxy, start voice session" as a guided local startup. It first runs the local microphone preflight, then enables browser speech output, auto-send, conversation mode, and Wake Roxy together only when the microphone is not blocked. It selects the compatible feminine browser voice and speaks a short safe-start script, including a low-signal warning when needed. This only prepares the local voice loop; it never executes trades or bypasses explicit confirmation.
 
 Wake Roxy also supports local language control commands such as "Roxy, speak English" or "Roxy, habla español". These switch the browser recognition language and compatible voice without calling the assistant backend.
 
