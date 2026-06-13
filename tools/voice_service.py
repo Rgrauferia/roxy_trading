@@ -1495,8 +1495,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, estado de voz; Roxy, prueba tu voz; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, horario de mercado; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, voice status; Roxy, test voice; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, market hours; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, estado de voz; Roxy, prueba tu voz; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, voice status; Roxy, test voice; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -1552,7 +1552,8 @@ def roxy_live_page():
         "RISK", "EXPLAIN", "ENTRY", "STOP", "CHECKLIST", "DATOS", "FRESCURA", "DATA",
         "FRESHNESS", "SOURCE", "STATUS", "PUEDO", "OPERAR", "AHORA", "CAN", "I", "TRADE",
         "NOW", "PARA", "FOR", "OF", "ABOUT", "ON", "EN", "CON", "WITH", "PLAN", "MONITOREO",
-        "ALERTA", "ALERT", "THE", "A", "AN", "TO", "AND", "OR", "USD", "USDT",
+        "MONITORING", "MONITOR", "ALERTA", "ALERT", "DRAFT", "PREPARA", "PREPARAR", "PREPARE",
+        "CREAR", "CREATE", "SET", "BORRADOR", "THE", "A", "AN", "TO", "AND", "OR", "USD", "USDT",
         "BASE", "SYMBOL", "TICKER", "ACTIVO", "LIST", "LISTA", "TRACKING", "SEGUIMIENTO",
         "ANALIZA", "ANALIZAR", "ANALYZE", "IMPACTO", "NOTICIA", "TITULAR", "HEADLINE",
         "SENTIMENT", "SENTIMIENTO",
@@ -1561,7 +1562,8 @@ def roxy_live_page():
         "SUPPORT", "RESISTANCE",
         "INDICADOR", "INDICADORES", "INDICATOR", "INDICATORS", "TECHNICAL", "TECNICO", "TÉCNICO",
         "EMA", "RSI", "MACD", "VWAP", "BOLLINGER", "VOLUME", "VOLUMEN", "MOVING", "AVERAGES",
-        "MEDIAS", "MOVILES", "MÓVILES",
+        "MEDIAS", "MOVILES", "MÓVILES", "TAMANO", "TAMAÑO", "POSICION", "POSICIÓN", "POSITION",
+        "SIZE", "SIZING", "CAPITAL", "CUENTA", "ACCOUNT", "EQUITY", "BALANCE",
       ]);
     }
 
@@ -1611,6 +1613,20 @@ def roxy_live_page():
       const symbol = voiceCommandSymbol(command);
       if (!symbol) return prompt;
       return prompt + " " + symbol;
+    }
+
+    function positionSizeVoicePrompt(command) {
+      const language = $("language").value || "es";
+      const prefixes = [
+        "tamano de posicion", "tamano posicion", "tamaño de posicion", "tamaño posicion",
+        "calcula tamano", "calcula tamaño", "calcula sizing", "sizing",
+        "position size", "size position", "calculate size", "calculate sizing"
+      ];
+      const remainder = commandRemainder(command, prefixes);
+      if (!remainder && !commandMatches(command, prefixes)) return "";
+      const base = language === "en" ? "position size" : "tamaño de posicion";
+      if (remainder) return base + " " + remainder;
+      return withVoiceSymbol(base, command);
     }
 
     function commandRemainder(command, prefixes) {
@@ -1699,6 +1715,8 @@ def roxy_live_page():
 
     function marketVoicePrompt(command) {
       const language = $("language").value || "es";
+      const sizingPrompt = positionSizeVoicePrompt(command);
+      if (sizingPrompt) return sizingPrompt;
       const shortcuts = [
         {
           phrases: [
@@ -1754,6 +1772,22 @@ def roxy_live_page():
           phrases: ["checklist", "checklist entrada", "checklist de entrada", "entry checklist"],
           es: "checklist de entrada",
           en: "entry checklist",
+        },
+        {
+          phrases: [
+            "monitoreo", "plan monitoreo", "plan de monitoreo", "monitorea", "monitorear",
+            "monitoring", "monitoring plan", "monitor plan", "watch plan"
+          ],
+          es: "plan de monitoreo",
+          en: "monitoring plan",
+        },
+        {
+          phrases: [
+            "alerta", "prepara alerta", "preparar alerta", "crear alerta", "borrador alerta",
+            "set alert", "prepare alert", "alert draft", "create alert"
+          ],
+          es: "prepara alerta",
+          en: "set alert",
         },
         {
           phrases: ["datos", "frescura datos", "frescura de datos", "data freshness", "source status"],

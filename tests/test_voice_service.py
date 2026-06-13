@@ -142,6 +142,7 @@ def test_roxy_live_page():
     assert "voiceCommandSymbols" in r.text
     assert "normalizeVoiceSymbol" in r.text
     assert "withVoiceSymbol" in r.text
+    assert "positionSizeVoicePrompt" in r.text
     assert "commandRemainder" in r.text
     assert "applyVoiceDefaultSymbol" in r.text
     assert "applyVoiceWatchlist" in r.text
@@ -252,7 +253,21 @@ def test_roxy_live_page():
     assert "analiza impacto de noticia: " in r.text
     assert "news impact: " in r.text
     assert "Roxy, mercado" in r.text
+    assert "Roxy, briefing diario" in r.text
+    assert "Roxy, top oportunidades" in r.text
+    assert "Roxy, frescura de datos" in r.text
+    assert "Roxy, puedo operar ahora" in r.text
+    assert "Roxy, plan de monitoreo SPY" in r.text
+    assert "Roxy, prepara alerta SPY" in r.text
+    assert "Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%" in r.text
     assert "Roxy, market" in r.text
+    assert "Roxy, daily briefing" in r.text
+    assert "Roxy, top opportunities" in r.text
+    assert "Roxy, data freshness" in r.text
+    assert "Roxy, can I trade now" in r.text
+    assert "Roxy, monitoring plan SPY" in r.text
+    assert "Roxy, set alert SPY" in r.text
+    assert "Roxy, position size SPY account 10000 risk 0.5%" in r.text
     assert "Roxy, horario de mercado" in r.text
     assert "Roxy, market hours" in r.text
     assert "Roxy, niveles de SPY" in r.text
@@ -268,6 +283,12 @@ def test_roxy_live_page():
     assert '"market hours"' in r.text
     assert '"regular hours"' in r.text
     assert '"sesion de mercado"' in r.text
+    assert '"plan de monitoreo"' in r.text
+    assert '"monitoring plan"' in r.text
+    assert '"prepara alerta"' in r.text
+    assert '"set alert"' in r.text
+    assert '"position size"' in r.text
+    assert '"calculate sizing"' in r.text
     assert r.text.index('"horario", "horario mercado"') < r.text.index(
         'phrases: ["mercado", "resumen mercado"'
     )
