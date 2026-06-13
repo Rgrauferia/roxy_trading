@@ -1620,6 +1620,15 @@ def render_professional_chart_block(
     candle_change_text = pct_display(candle_change) if candle_change is not None else "-"
     candle_range_text = pct_display(candle_range) if candle_range is not None else "-"
     candle_volume_text = num_display(latest_volume, 0) if latest_volume is not None else "-"
+    freshness = (trade_brief or {}).get("source_freshness") if isinstance(trade_brief, dict) else {}
+    freshness = freshness if isinstance(freshness, dict) else {}
+    source_status = text_display(freshness.get("status"))
+    source_label = text_display(freshness.get("label") or "Scanner/local")
+    source_detail = text_display(freshness.get("detail"))
+    source_is_fallback = source_status in {"NO_DATA", "STALE"} or freshness.get("alerts_allowed") is False
+    source_is_review = source_status == "REVIEW"
+    source_tone = "watch" if source_is_fallback or source_is_review else "buy"
+    source_badge = "Fallback" if source_is_fallback else "Revisar" if source_is_review else "Live"
     entry_value = safe_float((trade_brief or {}).get("entry") or (confluence or {}).get("entry"))
     stop_value = safe_float((trade_brief or {}).get("stop") or (confluence or {}).get("stop"))
     target_value = safe_float((trade_brief or {}).get("target") or (trade_brief or {}).get("target_price"))
@@ -1685,6 +1694,7 @@ def render_professional_chart_block(
             <b class="chart-level-candle chart-level-candle-{candle_tone}">{html.escape(candle_label)} · {html.escape(candle_change_text)}</b>
             <b class="chart-level-data">{html.escape(candle_ohlc)}</b>
             <b class="chart-level-data">Rango {html.escape(candle_range_text)} · Vol {html.escape(candle_volume_text)}</b>
+            <b class="chart-level-source chart-level-source-{source_tone}">{html.escape(source_badge)} · {html.escape(source_label)}</b>
             <b class="chart-level-interact">Arrastra · Zoom · OHLC</b>
           </aside>
         </section>
@@ -1692,6 +1702,16 @@ def render_professional_chart_block(
         """,
         unsafe_allow_html=True,
     )
+    if source_is_fallback:
+        st.markdown(
+            f"""
+            <section class="chart-provider-warning">
+              <strong>Proveedor live en fallback</strong>
+              <span>{html.escape(source_label)} · {html.escape(source_detail if source_detail != "-" else source_status)}</span>
+            </section>
+            """,
+            unsafe_allow_html=True,
+        )
     price_chart = build_professional_price_chart(
         clean_window,
         setup,
@@ -4400,6 +4420,15 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
     hover_cols = ["ts", "open", "high", "low", "close", "volume", "ema9", "sma20", "sma40", "sma100", "sma200"]
     hover_cols = [column for column in hover_cols if column in chart_window.columns]
     hover_df = chart_window[hover_cols].copy()
+    if {"open", "close"}.issubset(hover_df.columns):
+        open_values = pd.to_numeric(hover_df["open"], errors="coerce").replace(0, pd.NA)
+        close_values = pd.to_numeric(hover_df["close"], errors="coerce")
+        hover_df["candle_change_pct"] = (close_values - open_values) / open_values
+    if {"high", "low", "close"}.issubset(hover_df.columns):
+        close_values = pd.to_numeric(hover_df["close"], errors="coerce").replace(0, pd.NA)
+        high_values = pd.to_numeric(hover_df["high"], errors="coerce")
+        low_values = pd.to_numeric(hover_df["low"], errors="coerce")
+        hover_df["candle_range_pct"] = (high_values - low_values) / close_values
     hover = alt.selection_point(
         name="candle_hover",
         fields=["ts"],
@@ -4411,11 +4440,15 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
     y_encoding = alt.Y("close:Q", title="Precio", scale=price_scale or alt.Scale(zero=False))
     tooltips = [
         alt.Tooltip("ts:T", title="Tiempo"),
-        alt.Tooltip("open:Q", title="Open", format=".2f"),
-        alt.Tooltip("high:Q", title="High", format=".2f"),
-        alt.Tooltip("low:Q", title="Low", format=".2f"),
-        alt.Tooltip("close:Q", title="Close", format=".2f"),
+        alt.Tooltip("open:Q", title="Apertura", format=".2f"),
+        alt.Tooltip("high:Q", title="Máximo", format=".2f"),
+        alt.Tooltip("low:Q", title="Mínimo", format=".2f"),
+        alt.Tooltip("close:Q", title="Cierre", format=".2f"),
     ]
+    if "candle_change_pct" in hover_df.columns:
+        tooltips.append(alt.Tooltip("candle_change_pct:Q", title="Cambio vela", format=".2%"))
+    if "candle_range_pct" in hover_df.columns:
+        tooltips.append(alt.Tooltip("candle_range_pct:Q", title="Rango vela", format=".2%"))
     if "volume" in hover_df.columns:
         tooltips.append(alt.Tooltip("volume:Q", title="Volumen", format=",.0f"))
     for column, label in (("ema9", "EMA9"), ("sma20", "SMA20"), ("sma40", "SMA40"), ("sma100", "SMA100"), ("sma200", "SMA200")):
@@ -4424,13 +4457,14 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
 
     hover_base = alt.Chart(hover_df).encode(x=alt.X("ts:T", title="Tiempo"))
     selector = hover_base.mark_point(opacity=0, size=90).encode(y=y_encoding, tooltip=tooltips).add_params(hover)
-    crosshair = hover_base.mark_rule(color="#e5e7eb", opacity=0.55, strokeDash=[3, 3]).transform_filter(hover)
+    crosshair = hover_base.mark_rule(color="#e5e7eb", opacity=0.55, strokeDash=[3, 3], size=1.0).transform_filter(hover)
+    price_crosshair = hover_base.mark_rule(color="#e5e7eb", opacity=0.38, strokeDash=[2, 2], size=0.9).encode(y=y_encoding).transform_filter(hover)
     marker = (
         hover_base.mark_point(filled=True, size=78, color="#f8fafc", stroke="#0f172a", strokeWidth=1.2)
         .encode(y=y_encoding, tooltip=tooltips)
         .transform_filter(hover)
     )
-    return [selector, crosshair, marker]
+    return [selector, crosshair, price_crosshair, marker]
 
 
 def build_alpaca_paper_marker_layers(
@@ -4500,6 +4534,16 @@ def build_professional_price_chart(
         fallback = pd.DataFrame({"ts": [pd.Timestamp.utcnow()], "price": [0.0], "message": ["Sin historial suficiente"]})
         return alt.Chart(fallback).mark_text(color="#cbd5e1", fontSize=16).encode(x="ts:T", y="price:Q", text="message:N")
     chart_window["direction"] = ["up" if close >= open_ else "down" for close, open_ in zip(chart_window["close"], chart_window["open"])]
+    open_values = pd.to_numeric(chart_window["open"], errors="coerce").replace(0, pd.NA)
+    close_values = pd.to_numeric(chart_window["close"], errors="coerce")
+    high_values = pd.to_numeric(chart_window["high"], errors="coerce")
+    low_values = pd.to_numeric(chart_window["low"], errors="coerce")
+    chart_window["candle_change_pct"] = (close_values - open_values) / open_values
+    chart_window["candle_range_pct"] = (high_values - low_values) / close_values.replace(0, pd.NA)
+    chart_window["candle_label"] = chart_window["direction"].map({"up": "Vela alcista", "down": "Vela bajista"})
+    candle_count = len(chart_window)
+    candle_body_size = 8 if candle_count <= 60 else 6 if candle_count <= 110 else 4
+    candle_wick_size = 1.35 if candle_count <= 110 else 1.0
     base = alt.Chart(chart_window).encode(x=alt.X("ts:T", title="Tiempo"))
 
     layers: list[alt.Chart] = []
@@ -4632,15 +4676,18 @@ def build_professional_price_chart(
 
     candle_tooltips = [
         alt.Tooltip("ts:T", title="Tiempo"),
-        alt.Tooltip("open:Q", title="Open", format=".2f"),
-        alt.Tooltip("high:Q", title="High", format=".2f"),
-        alt.Tooltip("low:Q", title="Low", format=".2f"),
-        alt.Tooltip("close:Q", title="Close", format=".2f"),
+        alt.Tooltip("candle_label:N", title="Tipo"),
+        alt.Tooltip("open:Q", title="Apertura", format=".2f"),
+        alt.Tooltip("high:Q", title="Máximo", format=".2f"),
+        alt.Tooltip("low:Q", title="Mínimo", format=".2f"),
+        alt.Tooltip("close:Q", title="Cierre", format=".2f"),
+        alt.Tooltip("candle_change_pct:Q", title="Cambio vela", format=".2%"),
+        alt.Tooltip("candle_range_pct:Q", title="Rango vela", format=".2%"),
         alt.Tooltip("volume:Q", title="Volumen", format=",.0f"),
     ]
     candle_color = alt.condition("datum.close >= datum.open", alt.value("#22c55e"), alt.value("#ef4444"))
     layers.append(
-        base.mark_rule(size=1.2)
+        base.mark_rule(size=candle_wick_size)
         .encode(
             y=alt.Y("low:Q", title="Precio", scale=price_scale),
             y2="high:Q",
@@ -4649,7 +4696,7 @@ def build_professional_price_chart(
         )
     )
     layers.append(
-        base.mark_bar(size=5)
+        base.mark_bar(size=candle_body_size, cornerRadius=1.5, stroke="#020617", strokeWidth=0.35, opacity=0.94)
         .encode(
             y=alt.Y("open:Q", title="Precio", scale=price_scale),
             y2="close:Q",
@@ -10302,6 +10349,25 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
         query=query,
     )
     render_trading_desk_summary(display_rows)
+    compact_columns = [
+        "Prioridad",
+        "Ticker",
+        "Estado",
+        "Paper",
+        "Score",
+        "Riesgo",
+        "Target",
+        "RVol",
+        "Falta",
+        "Siguiente",
+    ]
+    compact_columns = [column for column in compact_columns if column in display_rows.columns]
+    st.dataframe(
+        display_rows[compact_columns].head(8),
+        use_container_width=True,
+        hide_index=True,
+        height=min(330, 58 + min(len(display_rows), 8) * 30),
+    )
     with st.expander("Tabla completa del Trading Desk", expanded=False):
         st.dataframe(
             display_rows,
@@ -14061,7 +14127,12 @@ def main() -> None:
         .chart-level-check-watch{border-color:rgba(245,158,11,.58)!important;color:#fde68a!important;background:rgba(120,53,15,.18)!important}
         .chart-level-check-avoid{border-color:rgba(248,113,113,.60)!important;color:#fecaca!important;background:rgba(127,29,29,.20)!important}
         .chart-level-data{border-color:rgba(14,165,233,.46)!important;color:#bfdbfe!important;background:rgba(30,64,175,.15)!important}.chart-level-candle-buy{border-color:rgba(34,197,94,.56)!important;color:#bbf7d0!important;background:rgba(21,128,61,.18)!important}.chart-level-candle-avoid{border-color:rgba(239,68,68,.56)!important;color:#fecaca!important;background:rgba(127,29,29,.18)!important}
+        .chart-level-source-buy{border-color:rgba(34,197,94,.52)!important;color:#bbf7d0!important;background:rgba(20,83,45,.20)!important}
+        .chart-level-source-watch{border-color:rgba(245,158,11,.62)!important;color:#fde68a!important;background:rgba(120,53,15,.22)!important}
         .chart-level-interact{border-color:rgba(168,85,247,.50)!important;color:#ddd6fe!important;background:rgba(76,29,149,.18)!important}
+        .chart-provider-warning{display:flex;justify-content:space-between;gap:12px;align-items:center;border:1px solid rgba(245,158,11,.38);border-left:4px solid #f59e0b;border-radius:8px;background:linear-gradient(135deg,rgba(120,53,15,.22),rgba(15,23,42,.86));padding:8px 10px;margin:4px 0 8px}
+        .chart-provider-warning strong{color:#fef3c7;font-size:12px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}
+        .chart-provider-warning span{color:#fde68a;font-size:11px;text-align:right}
         .chart-check-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;border:1px solid rgba(148,163,184,.18);border-radius:8px;background:rgba(148,163,184,.14);overflow:hidden;margin:-2px 0 6px}
         .chart-check-pill{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#0b1220;padding:6px 8px;min-width:0;border-top:2px solid rgba(148,163,184,.28)}
         .chart-check-pill span{min-width:0}
