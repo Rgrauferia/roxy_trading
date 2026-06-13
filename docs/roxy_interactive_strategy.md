@@ -103,7 +103,7 @@ Wake Roxy can adjust browser voice pace locally with "Roxy, voz mas lenta", "Rox
 
 Wake Roxy can also switch output behavior locally. "Roxy, sin voz" / "Roxy, voice off" disables browser speech for later answers, while "Roxy, con voz" / "Roxy, voice on" enables it again. "Roxy, modo dictado" disables auto-send so the transcript can be reviewed before sending, and "Roxy, enviar al terminar" restores auto-send. These are browser settings only and do not create backend assistant turns.
 
-In dictation mode, Wake Roxy keeps the latest voice transcript as a draft instead of sending it immediately. The user can say "Roxy, enviar" / "Roxy, send it" to send the draft, "Roxy, borrar" / "Roxy, clear draft" to discard it, or "Roxy, leer borrador" / "Roxy, read draft" to hear the pending text. This makes the voice loop safer for trading prompts because the user can review intent before Roxy answers.
+In dictation mode, Wake Roxy keeps the latest voice transcript as a draft instead of sending it immediately. The user can say "Roxy, enviar" / "Roxy, send it" to send the draft, "Roxy, borrar" / "Roxy, clear draft" to discard it, "Roxy, leer borrador" / "Roxy, read draft" to hear the pending text, or "Roxy, corrige borrador ..." / "Roxy, replace draft with ..." to replace a misheard draft locally before it reaches the assistant backend. This makes the voice loop safer for trading prompts because the user can review and correct intent before Roxy answers.
 
 Wake Roxy can read local voice configuration with "Roxy, estado de voz" / "Roxy, voice status". The brief includes listening mode, speech output, auto-send/dictation mode, selected browser voice, default symbol, and watchlist. This is a local diagnostic and does not create a backend assistant turn.
 

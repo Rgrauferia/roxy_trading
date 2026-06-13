@@ -119,6 +119,8 @@ def test_roxy_live_page():
     assert "applyVoiceSpeechOutputCommand" in r.text
     assert "applyVoiceSendModeCommand" in r.text
     assert "voiceDraftAction" in r.text
+    assert "voiceDraftCorrectionText" in r.text
+    assert "applyVoiceDraftCorrectionCommand" in r.text
     assert "isVoiceDraftAction" in r.text
     assert "setVoiceDraft" in r.text
     assert "applyVoiceDraftActionCommand" in r.text
@@ -218,6 +220,8 @@ def test_roxy_live_page():
     assert "voice: draft cleared" in r.text
     assert "voice: draft read" in r.text
     assert "voice: draft empty" in r.text
+    assert "voice: draft corrected" in r.text
+    assert "voice: draft correction empty" in r.text
     assert "voice: local status" in r.text
     assert "voice: learning status" in r.text
     assert "voice: knowledge sources" in r.text
@@ -243,6 +247,8 @@ def test_roxy_live_page():
     assert "Roxy, dictation mode" in r.text
     assert "Roxy, enviar" in r.text
     assert "Roxy, send it" in r.text
+    assert "Roxy, corrige borrador comprar SPY" in r.text
+    assert "Roxy, replace draft with buy SPY" in r.text
     assert "Roxy, estado de voz" in r.text
     assert "Roxy, voice status" in r.text
     assert "Roxy, voz clara" in r.text
@@ -278,6 +284,8 @@ def test_roxy_live_page():
     assert "Auto-send when done is on." in r.text
     assert "Borrador listo." in r.text
     assert "Draft ready." in r.text
+    assert "Borrador corregido." in r.text
+    assert "Draft corrected." in r.text
     assert "Enviando borrador." in r.text
     assert "Sending draft." in r.text
     assert "Estado de voz: modo " in r.text
