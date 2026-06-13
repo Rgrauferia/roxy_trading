@@ -103,6 +103,8 @@ In dictation mode, Wake Roxy keeps the latest voice transcript as a draft instea
 
 Wake Roxy can read local voice configuration with "Roxy, estado de voz" / "Roxy, voice status". The brief includes listening mode, speech output, auto-send/dictation mode, selected browser voice, default symbol, and watchlist. This is a local diagnostic and does not create a backend assistant turn.
 
+Wake Roxy can also run a local voice sample with "Roxy, prueba tu voz" / "Roxy, test voice", and Roxy Live exposes the same flow through the `Probar voz` button. This uses the currently selected browser voice and speech settings so users can verify clarity before a live conversation.
+
 Wake Roxy can also answer "Roxy, contexto actual" / "Roxy, current context" locally from the active browser turn. It speaks the current symbol, intent/topic, safety level, and next safe actions without calling the assistant backend, giving the user a low-latency orientation check during a live voice session. Full saved-history recaps still use the normal `session_recap` backend intent.
 
 Wake Roxy can answer "Roxy, que sigue" / "Roxy, next step" locally from the active context. It speaks the first safe suggested action, prepares that prompt in the input for review, and refuses to skip explicit confirmation when the last turn was guarded or critical. If a dictation draft is pending, the safe next step is to read, send, or clear the draft first.

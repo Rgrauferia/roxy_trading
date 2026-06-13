@@ -123,6 +123,10 @@ def test_roxy_live_page():
     assert "sessionVoiceBrief" in r.text
     assert "activeSessionContext" in r.text
     assert "voice: session brief" in r.text
+    assert "voiceTest" in r.text
+    assert "speakVoiceSample" in r.text
+    assert "voice: test" in r.text
+    assert "Esta es mi voz clara y femenina" in r.text
     assert "speakNextStepBrief" in r.text
     assert "nextActionPromptWithContext" in r.text
     assert "voice: next step" in r.text
@@ -200,6 +204,8 @@ def test_roxy_live_page():
     assert "Roxy, send it" in r.text
     assert "Roxy, estado de voz" in r.text
     assert "Roxy, voice status" in r.text
+    assert "Roxy, prueba tu voz" in r.text
+    assert "Roxy, test voice" in r.text
     assert "Roxy, sin voz" in r.text
     assert "Roxy, voice off" in r.text
     assert "Roxy, voz más lenta" in r.text
