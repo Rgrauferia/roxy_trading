@@ -49,7 +49,7 @@ The `Hablar` control also acts as a barge-in control. If Roxy is speaking or sti
 
 Roxy Live applies a client-side timeout to active assist requests. If the service stalls, the browser aborts the request, shows a timeout event, and returns Roxy to a ready state so the user can retry without refreshing the page.
 
-For continuity prompts such as "ponme al dia", "en que vamos", or "catch me up", Roxy uses the `catch_up` intent. It combines saved session memory, active symbol/context, local data freshness, market-session timing, and the top local opportunity into one voice-ready handoff. It never guesses missing market data, never executes, and routes stale/missing context to scan refresh and session-memory actions.
+For continuity prompts such as "ponme al dia", "en que vamos", or "catch me up", Roxy uses the `catch_up` intent. It combines saved session memory, active symbol/context, local data freshness, market-session timing, the top local opportunity, and local account snapshot fields when present into one voice-ready handoff. It never guesses missing market or account data, never calls the broker, never executes, and routes stale/missing context to scan refresh and session-memory actions.
 
 When voice auto-send is off, Roxy Live holds final transcripts as a pending dictation draft. The `Draft` chip shows a truncated preview while Roxy waits for commands such as "Roxy, enviar", "Roxy, borrar", or "Roxy, leer borrador".
 

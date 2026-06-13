@@ -2235,6 +2235,12 @@ def test_roxy_brain_catches_up_spanish_session_with_market_context(tmp_path):
     brief_path.write_text(
         json.dumps(
             {
+                "account_summary": {
+                    "equity": 20000.0,
+                    "buying_power": 40000.0,
+                    "exposure": 1500.0,
+                    "open_positions": 2,
+                },
                 "daily_opportunity_plan": {
                     "generated_at": now.isoformat(),
                     "market_session": {
@@ -2276,9 +2282,13 @@ def test_roxy_brain_catches_up_spanish_session_with_market_context(tmp_path):
     assert "Puesta al dia: 1 turno(s) guardados" in response.reply
     assert "Ultimo intent util opportunity" in response.reply
     assert "setup principal SPY" in response.reply
+    assert "Cuenta: equity 20000.00" in response.reply
+    assert "buying power 40000.00" in response.reply
+    assert "exposicion 1500.00 (7.50% del equity)" in response.reply
     assert "Datos frescos" in response.reply
     assert "Esto es contexto de continuidad, no permiso de ejecucion" in response.reply
     assert "trade_readiness" in response.suggested_actions
+    assert "account_status" in response.suggested_actions
     assert "session_recap" in response.suggested_actions
 
 

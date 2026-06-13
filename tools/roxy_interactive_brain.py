@@ -2463,11 +2463,39 @@ class RoxyInteractiveBrain:
         freshness_age = _safe_text(freshness.get("age_text") or "-")
         session = self._market_session_snapshot()
         top = self._latest_opportunity(active_symbol or None)
+        account = self._account_snapshot_from_brief()
         needs_confirmation = bool(context.get("needs_confirmation"))
 
         needs_live_source = bool(freshness.get("needs_live_source")) or not bool(top)
         if freshness.get("timestamp") is None:
             needs_live_source = True
+
+        def catch_up_actions(base_actions: tuple[str, ...]) -> tuple[str, ...]:
+            if not account or "account_status" in base_actions:
+                return base_actions
+            return (*base_actions[:-1], "account_status", base_actions[-1]) if base_actions else ("account_status",)
+
+        def account_text(language_code: str) -> str:
+            if not account:
+                return ""
+            equity = account.get("equity")
+            buying_power = account.get("buying_power")
+            exposure = account.get("exposure")
+            open_positions = int(account.get("open_positions") or 0)
+            exposure_pct = None
+            if _safe_float(equity) and _safe_float(exposure) is not None:
+                exposure_pct = (_safe_float(exposure) or 0.0) / (_safe_float(equity) or 1.0)
+            if language_code == "en":
+                pct = f" ({_pct(exposure_pct)} of equity)" if exposure_pct is not None else ""
+                return (
+                    f" Account: equity {_money(equity)}, buying power {_money(buying_power)}, "
+                    f"exposure {_money(exposure)}{pct}, open positions {open_positions}."
+                )
+            pct = f" ({_pct(exposure_pct)} del equity)" if exposure_pct is not None else ""
+            return (
+                f" Cuenta: equity {_money(equity)}, buying power {_money(buying_power)}, "
+                f"exposicion {_money(exposure)}{pct}, posiciones abiertas {open_positions}."
+            )
 
         if language == "en":
             freshness_label = {
@@ -2482,9 +2510,10 @@ class RoxyInteractiveBrain:
                 reply = (
                     "Catch-up: I do not have saved session turns or a local opportunity snapshot yet. "
                     f"Data is {freshness_label} / {freshness_age}; session stocks {stock_session}, crypto {crypto_session}. "
+                    f"{account_text('en')} "
                     "Keep the same session_id and refresh the scan so I can continue with real context instead of guessing."
                 )
-                actions = ("keep_session_id", "run_scan", "ask_market_summary")
+                actions = catch_up_actions(("keep_session_id", "run_scan", "ask_market_summary"))
             else:
                 top_text = "no local top opportunity"
                 if top:
@@ -2518,15 +2547,16 @@ class RoxyInteractiveBrain:
                 reply = (
                     f"Catch-up: {len(recent_turns)} saved turn(s). Last useful intent {active_intent}; "
                     f"last topic '{active_topic}'. Data {freshness_label} / {freshness_age}; "
-                    f"session stocks {stock_session}, crypto {crypto_session}. Current read: {top_text}.{guard} "
+                    f"session stocks {stock_session}, crypto {crypto_session}.{account_text('en')} "
+                    f"Current read: {top_text}.{guard} "
                     "Next: ask for go/no-go, monitoring plan, or position size."
                 )
                 actions = (
                     ("show_trade_ticket", "trade_readiness", "require_explicit_confirmation")
                     if needs_confirmation
-                    else ("run_scan", "ask_market_summary", "session_recap")
+                    else catch_up_actions(("run_scan", "ask_market_summary", "session_recap"))
                     if needs_live_source
-                    else ("trade_readiness", "monitoring_plan", "position_size", "session_recap")
+                    else catch_up_actions(("trade_readiness", "monitoring_plan", "position_size", "session_recap"))
                 )
         else:
             freshness_label = {
@@ -2541,9 +2571,10 @@ class RoxyInteractiveBrain:
                 reply = (
                     "Puesta al dia: no tengo turnos guardados ni snapshot local de oportunidad todavia. "
                     f"Datos {freshness_label} / {freshness_age}; sesion acciones {stock_session}, cripto {crypto_session}. "
+                    f"{account_text('es')} "
                     "Mantén el mismo session_id y refresca el scan para continuar con contexto real, no con suposiciones."
                 )
-                actions = ("keep_session_id", "run_scan", "ask_market_summary")
+                actions = catch_up_actions(("keep_session_id", "run_scan", "ask_market_summary"))
             else:
                 top_text = "sin top oportunidad local"
                 if top:
@@ -2567,15 +2598,16 @@ class RoxyInteractiveBrain:
                 reply = (
                     f"Puesta al dia: {len(recent_turns)} turno(s) guardados. Ultimo intent util {active_intent}; "
                     f"ultimo tema '{active_topic}'. Datos {freshness_label} / {freshness_age}; "
-                    f"sesion acciones {stock_session}, cripto {crypto_session}. Lectura actual: {top_text}.{guard} "
+                    f"sesion acciones {stock_session}, cripto {crypto_session}.{account_text('es')} "
+                    f"Lectura actual: {top_text}.{guard} "
                     "Siguiente: pide go/no-go, plan de monitoreo o tamano de posicion."
                 )
                 actions = (
                     ("show_trade_ticket", "trade_readiness", "require_explicit_confirmation")
                     if needs_confirmation
-                    else ("run_scan", "ask_market_summary", "session_recap")
+                    else catch_up_actions(("run_scan", "ask_market_summary", "session_recap"))
                     if needs_live_source
-                    else ("trade_readiness", "monitoring_plan", "position_size", "session_recap")
+                    else catch_up_actions(("trade_readiness", "monitoring_plan", "position_size", "session_recap"))
                 )
 
         return RoxyBrainReply(
