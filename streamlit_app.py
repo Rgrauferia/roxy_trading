@@ -4579,18 +4579,43 @@ def render_lab_daily_summary(lab_rows: list[dict[str, Any]]) -> None:
 def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale | None = None) -> list[alt.Chart]:
     if chart_window.empty or not {"ts", "close"}.issubset(chart_window.columns):
         return []
-    hover_cols = ["ts", "open", "high", "low", "close", "volume", "ema9", "sma20", "sma40", "sma100", "sma200"]
+    hover_cols = [
+        "ts",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "volume_sma20",
+        "ema9",
+        "sma20",
+        "sma40",
+        "sma100",
+        "sma200",
+    ]
     hover_cols = [column for column in hover_cols if column in chart_window.columns]
     hover_df = chart_window[hover_cols].copy()
     if {"open", "close"}.issubset(hover_df.columns):
-        open_values = pd.to_numeric(hover_df["open"], errors="coerce").replace(0, pd.NA)
+        open_values_raw = pd.to_numeric(hover_df["open"], errors="coerce")
+        open_values = open_values_raw.replace(0, pd.NA)
         close_values = pd.to_numeric(hover_df["close"], errors="coerce")
+        close_denominator = close_values.replace(0, pd.NA)
         hover_df["candle_change_pct"] = (close_values - open_values) / open_values
-    if {"high", "low", "close"}.issubset(hover_df.columns):
+        hover_df["candle_body_pct"] = (close_values - open_values_raw).abs() / close_denominator
+    if {"high", "low", "open", "close"}.issubset(hover_df.columns):
         close_values = pd.to_numeric(hover_df["close"], errors="coerce").replace(0, pd.NA)
+        open_values_raw = pd.to_numeric(hover_df["open"], errors="coerce")
         high_values = pd.to_numeric(hover_df["high"], errors="coerce")
         low_values = pd.to_numeric(hover_df["low"], errors="coerce")
+        body_top = pd.concat([open_values_raw, pd.to_numeric(hover_df["close"], errors="coerce")], axis=1).max(axis=1)
+        body_bottom = pd.concat([open_values_raw, pd.to_numeric(hover_df["close"], errors="coerce")], axis=1).min(axis=1)
         hover_df["candle_range_pct"] = (high_values - low_values) / close_values
+        hover_df["upper_wick_pct"] = (high_values - body_top).clip(lower=0) / close_values
+        hover_df["lower_wick_pct"] = (body_bottom - low_values).clip(lower=0) / close_values
+    if {"volume", "volume_sma20"}.issubset(hover_df.columns):
+        volume_values = pd.to_numeric(hover_df["volume"], errors="coerce")
+        volume_avg_values = pd.to_numeric(hover_df["volume_sma20"], errors="coerce").replace(0, pd.NA)
+        hover_df["relative_volume"] = volume_values / volume_avg_values
     hover = alt.selection_point(
         name="candle_hover",
         fields=["ts"],
@@ -4611,8 +4636,16 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
         tooltips.append(alt.Tooltip("candle_change_pct:Q", title="Cambio vela", format=".2%"))
     if "candle_range_pct" in hover_df.columns:
         tooltips.append(alt.Tooltip("candle_range_pct:Q", title="Rango vela", format=".2%"))
+    if "candle_body_pct" in hover_df.columns:
+        tooltips.append(alt.Tooltip("candle_body_pct:Q", title="Cuerpo", format=".2%"))
+    if "upper_wick_pct" in hover_df.columns:
+        tooltips.append(alt.Tooltip("upper_wick_pct:Q", title="Mecha sup.", format=".2%"))
+    if "lower_wick_pct" in hover_df.columns:
+        tooltips.append(alt.Tooltip("lower_wick_pct:Q", title="Mecha inf.", format=".2%"))
     if "volume" in hover_df.columns:
         tooltips.append(alt.Tooltip("volume:Q", title="Volumen", format=",.0f"))
+    if "relative_volume" in hover_df.columns:
+        tooltips.append(alt.Tooltip("relative_volume:Q", title="RVol", format=".2f"))
     for column, label in (("ema9", "EMA9"), ("sma20", "SMA20"), ("sma40", "SMA40"), ("sma100", "SMA100"), ("sma200", "SMA200")):
         if column in hover_df.columns:
             tooltips.append(alt.Tooltip(f"{column}:Q", title=label, format=".2f"))
@@ -4696,12 +4729,23 @@ def build_professional_price_chart(
         fallback = pd.DataFrame({"ts": [pd.Timestamp.utcnow()], "price": [0.0], "message": ["Sin historial suficiente"]})
         return alt.Chart(fallback).mark_text(color="#cbd5e1", fontSize=16).encode(x="ts:T", y="price:Q", text="message:N")
     chart_window["direction"] = ["up" if close >= open_ else "down" for close, open_ in zip(chart_window["close"], chart_window["open"])]
-    open_values = pd.to_numeric(chart_window["open"], errors="coerce").replace(0, pd.NA)
+    open_values_raw = pd.to_numeric(chart_window["open"], errors="coerce")
+    open_values = open_values_raw.replace(0, pd.NA)
     close_values = pd.to_numeric(chart_window["close"], errors="coerce")
     high_values = pd.to_numeric(chart_window["high"], errors="coerce")
     low_values = pd.to_numeric(chart_window["low"], errors="coerce")
+    close_denominator = close_values.replace(0, pd.NA)
     chart_window["candle_change_pct"] = (close_values - open_values) / open_values
-    chart_window["candle_range_pct"] = (high_values - low_values) / close_values.replace(0, pd.NA)
+    chart_window["candle_range_pct"] = (high_values - low_values) / close_denominator
+    chart_window["candle_body_pct"] = (close_values - open_values_raw).abs() / close_denominator
+    body_top = pd.concat([open_values_raw, close_values], axis=1).max(axis=1)
+    body_bottom = pd.concat([open_values_raw, close_values], axis=1).min(axis=1)
+    chart_window["upper_wick_pct"] = (high_values - body_top).clip(lower=0) / close_denominator
+    chart_window["lower_wick_pct"] = (body_bottom - low_values).clip(lower=0) / close_denominator
+    if {"volume", "volume_sma20"}.issubset(chart_window.columns):
+        volume_values = pd.to_numeric(chart_window.get("volume"), errors="coerce")
+        volume_avg_values = pd.to_numeric(chart_window["volume_sma20"], errors="coerce").replace(0, pd.NA)
+        chart_window["relative_volume"] = volume_values / volume_avg_values
     chart_window["candle_label"] = chart_window["direction"].map({"up": "Vela alcista", "down": "Vela bajista"})
     candle_count = len(chart_window)
     candle_body_size = 8 if candle_count <= 60 else 6 if candle_count <= 110 else 4
@@ -4845,8 +4889,13 @@ def build_professional_price_chart(
         alt.Tooltip("close:Q", title="Cierre", format=".2f"),
         alt.Tooltip("candle_change_pct:Q", title="Cambio vela", format=".2%"),
         alt.Tooltip("candle_range_pct:Q", title="Rango vela", format=".2%"),
+        alt.Tooltip("candle_body_pct:Q", title="Cuerpo", format=".2%"),
+        alt.Tooltip("upper_wick_pct:Q", title="Mecha sup.", format=".2%"),
+        alt.Tooltip("lower_wick_pct:Q", title="Mecha inf.", format=".2%"),
         alt.Tooltip("volume:Q", title="Volumen", format=",.0f"),
     ]
+    if "relative_volume" in chart_window.columns:
+        candle_tooltips.append(alt.Tooltip("relative_volume:Q", title="RVol", format=".2f"))
     candle_color = alt.condition("datum.close >= datum.open", alt.value("#22c55e"), alt.value("#ef4444"))
     layers.append(
         base.mark_rule(size=candle_wick_size)
