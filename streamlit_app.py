@@ -10402,11 +10402,27 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
         "Siguiente",
     ]
     compact_columns = [column for column in compact_columns if column in display_rows.columns]
+    compact_view = display_rows[compact_columns].head(8).copy()
+    compact_column_config: dict[str, Any] = {}
+    if "Score" in compact_view.columns:
+        compact_view["Score"] = pd.to_numeric(compact_view["Score"], errors="coerce").fillna(0).clip(0, 100)
+        compact_column_config["Score"] = st.column_config.ProgressColumn("Score", min_value=0, max_value=100)
+    if "Riesgo" in compact_view.columns:
+        compact_view["Riesgo"] = pd.to_numeric(
+            compact_view["Riesgo"].astype(str).str.replace("%", "", regex=False), errors="coerce"
+        ).fillna(0).clip(0, 6)
+        compact_column_config["Riesgo"] = st.column_config.ProgressColumn("Riesgo %", min_value=0, max_value=6)
+    if "RVol" in compact_view.columns:
+        compact_view["RVol"] = pd.to_numeric(
+            compact_view["RVol"].astype(str).str.replace("x", "", regex=False), errors="coerce"
+        ).fillna(0).clip(0, 3)
+        compact_column_config["RVol"] = st.column_config.ProgressColumn("RVol", min_value=0, max_value=3)
     st.dataframe(
-        display_rows[compact_columns].head(8),
+        compact_view,
         use_container_width=True,
         hide_index=True,
         height=min(330, 58 + min(len(display_rows), 8) * 30),
+        column_config=compact_column_config,
     )
     with st.expander("Tabla completa del Trading Desk", expanded=False):
         st.dataframe(
