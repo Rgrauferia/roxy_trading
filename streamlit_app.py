@@ -1699,6 +1699,13 @@ def render_professional_chart_block(
           </aside>
         </section>
         <section class="chart-check-strip">{confirmation_html}</section>
+        <section class="chart-legend-strip">
+          <span><i class="chart-legend-dot chart-legend-current"></i>Actual</span>
+          <span><i class="chart-legend-dot chart-legend-entry"></i>Entrada / compra</span>
+          <span><i class="chart-legend-dot chart-legend-stop"></i>Stop / peligro</span>
+          <span><i class="chart-legend-dot chart-legend-target"></i>Target</span>
+          <span><i class="chart-legend-dot chart-legend-support"></i>Soporte / resistencia</span>
+        </section>
         """,
         unsafe_allow_html=True,
     )
@@ -14167,6 +14174,10 @@ def main() -> None:
         .chart-provider-warning strong{color:#fef3c7;font-size:12px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}
         .chart-provider-warning span{color:#fde68a;font-size:11px;text-align:right}
         .chart-check-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;border:1px solid rgba(148,163,184,.18);border-radius:8px;background:rgba(148,163,184,.14);overflow:hidden;margin:-2px 0 6px}
+        .chart-legend-strip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid rgba(148,163,184,.16);border-radius:8px;background:rgba(2,6,23,.46);padding:6px 8px;margin:-2px 0 7px}
+        .chart-legend-strip span{display:inline-flex;align-items:center;gap:5px;color:#cbd5e1;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.035em;white-space:nowrap}
+        .chart-legend-dot{display:inline-block;width:9px;height:9px;border-radius:999px;box-shadow:0 0 0 2px rgba(15,23,42,.86)}
+        .chart-legend-current{background:#f8fafc}.chart-legend-entry{background:#22c55e}.chart-legend-stop{background:#ef4444}.chart-legend-target{background:#a78bfa}.chart-legend-support{background:#22d3ee}
         .chart-check-pill{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#0b1220;padding:6px 8px;min-width:0;border-top:2px solid rgba(148,163,184,.28)}
         .chart-check-pill span{min-width:0}
         .chart-check-pill em{font-style:normal;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
