@@ -4809,8 +4809,26 @@ def build_professional_price_chart(
     confluence = confluence or {}
     brief = brief or {}
     if chart_window.empty:
-        fallback = pd.DataFrame({"ts": [pd.Timestamp.utcnow()], "price": [0.0], "message": ["Sin historial suficiente"]})
-        return alt.Chart(fallback).mark_text(color="#cbd5e1", fontSize=16).encode(x="ts:T", y="price:Q", text="message:N")
+        fallback_symbol = text_display(symbol or brief.get("symbol") or confluence.get("symbol") or setup.get("symbol"))
+        fallback_timeframe = text_display(brief.get("timeframe") or setup.get("tf") or setup.get("timeframe"))
+        fallback_label = "activo seleccionado" if fallback_symbol == "-" else fallback_symbol
+        fallback_tf = "" if fallback_timeframe == "-" else f" · {fallback_timeframe}"
+        fallback = pd.DataFrame(
+            {
+                "ts": [pd.Timestamp.utcnow()],
+                "price": [0.0],
+                "message": [f"Sin velas para {fallback_label}{fallback_tf}"],
+                "action": ["Cambia simbolo/timeframe o espera el proveedor live."],
+            }
+        )
+        base = alt.Chart(fallback).encode(x=alt.X("ts:T", axis=None), y=alt.Y("price:Q", axis=None))
+        return (
+            alt.layer(
+                base.mark_text(color="#f8fafc", fontSize=16, fontWeight="bold", dy=-10).encode(text="message:N"),
+                base.mark_text(color="#94a3b8", fontSize=11, dy=14).encode(text="action:N"),
+            )
+            .properties(height=220)
+        )
     chart_window["direction"] = ["up" if close >= open_ else "down" for close, open_ in zip(chart_window["close"], chart_window["open"])]
     open_values_raw = pd.to_numeric(chart_window["open"], errors="coerce")
     open_values = open_values_raw.replace(0, pd.NA)
