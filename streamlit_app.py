@@ -5067,6 +5067,7 @@ def build_professional_price_chart(
     latest_badge_price = safe_float(latest_badge_row.get("close"))
     if latest_badge_price is not None:
         latest_badge_change = safe_float(latest_badge_row.get("candle_change_pct"))
+        latest_badge_reading = text_display(latest_badge_row.get("candle_reading"))
         latest_badge_text = f"Ultimo {latest_badge_price:.2f}"
         if latest_badge_change is not None:
             latest_badge_text = f"{latest_badge_text} · {latest_badge_change:+.2%}"
@@ -5076,6 +5077,8 @@ def build_professional_price_chart(
                     "ts": latest_badge_row.get("ts"),
                     "price": latest_badge_price,
                     "label": latest_badge_text,
+                    "reading": latest_badge_reading,
+                    "change_pct": latest_badge_change,
                     "tone": "buy" if latest_badge_change is not None and latest_badge_change >= 0 else "avoid",
                 }
             ]
@@ -5093,6 +5096,8 @@ def build_professional_price_chart(
                 ),
                 tooltip=[
                     alt.Tooltip("label:N", title="Ultima vela"),
+                    alt.Tooltip("reading:N", title="Lectura"),
+                    alt.Tooltip("change_pct:Q", title="Cambio vela", format="+.2%"),
                     alt.Tooltip("price:Q", title="Precio", format=".2f"),
                     alt.Tooltip("ts:T", title="Tiempo"),
                 ],
