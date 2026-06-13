@@ -4848,6 +4848,28 @@ def build_professional_price_chart(
         volume_avg_values = pd.to_numeric(chart_window["volume_sma20"], errors="coerce").replace(0, pd.NA)
         chart_window["relative_volume"] = volume_values / volume_avg_values
     chart_window["candle_label"] = chart_window["direction"].map({"up": "Vela alcista", "down": "Vela bajista"})
+    chart_window["candle_reading"] = [
+        candle_reading_label(
+            open_value,
+            high_value,
+            low_value,
+            close_value,
+            body_pct,
+            range_pct,
+            upper_wick_pct,
+            lower_wick_pct,
+        )
+        for open_value, high_value, low_value, close_value, body_pct, range_pct, upper_wick_pct, lower_wick_pct in zip(
+            chart_window["open"],
+            chart_window["high"],
+            chart_window["low"],
+            chart_window["close"],
+            chart_window["candle_body_pct"],
+            chart_window["candle_range_pct"],
+            chart_window["upper_wick_pct"],
+            chart_window["lower_wick_pct"],
+        )
+    ]
     candle_count = len(chart_window)
     candle_body_size = 8 if candle_count <= 60 else 6 if candle_count <= 110 else 4
     candle_wick_size = 1.35 if candle_count <= 110 else 1.0
@@ -4984,6 +5006,7 @@ def build_professional_price_chart(
     candle_tooltips = [
         alt.Tooltip("ts:T", title="Tiempo"),
         alt.Tooltip("candle_label:N", title="Tipo"),
+        alt.Tooltip("candle_reading:N", title="Lectura"),
         alt.Tooltip("open:Q", title="Apertura", format=".2f"),
         alt.Tooltip("high:Q", title="Máximo", format=".2f"),
         alt.Tooltip("low:Q", title="Mínimo", format=".2f"),
