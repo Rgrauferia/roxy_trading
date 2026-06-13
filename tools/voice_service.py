@@ -1423,11 +1423,58 @@ def roxy_live_page():
       return true;
     }
 
+    function nextActionPromptWithContext(action, prompt, ctx) {
+      const symbol = (ctx.active_symbol || "").trim().toUpperCase();
+      if (!symbol || !prompt) return prompt;
+      const symbolActions = new Set([
+        "ask_risk", "show_risk_check", "entry_checklist", "monitoring_plan",
+        "set_alert", "alert_draft", "confirm_alert", "show_trade_ticket",
+        "position_size", "trade_readiness", "confirm_before_execution",
+        "require_explicit_confirmation", "ask_why"
+      ]);
+      if (!symbolActions.has(action)) return prompt;
+      return prompt.toUpperCase().includes(symbol) ? prompt : prompt + " " + symbol;
+    }
+
+    function speakNextStepBrief() {
+      const language = lastState.language || $("language").value || "es";
+      const pendingDraft = (voiceDraftText || "").trim();
+      if (pendingDraft) {
+        const message = localizedText(
+          "Hay un borrador pendiente. Siguiente paso seguro: di Roxy, leer borrador; Roxy, enviar; o Roxy, borrar.",
+          "There is a pending draft. Safe next step: say Roxy, read draft; Roxy, send it; or Roxy, clear draft.",
+          language
+        );
+        speakLocalControlMessage(message, language, "voice: next step", "voice-context");
+        return true;
+      }
+
+      const ctx = activeSessionContext();
+      renderActiveContext(ctx);
+      const actions = Array.isArray(ctx.next_best_actions) && ctx.next_best_actions.length
+        ? ctx.next_best_actions
+        : ["ask_market_summary"];
+      const action = actions[0] || "ask_market_summary";
+      const config = suggestedActionPrompts[action] || fallbackActionPrompt(action);
+      const label = config[0] || actionDisplayName(action);
+      const prompt = nextActionPromptWithContext(action, config[1] || "resumen del mercado", ctx);
+      const safety = (ctx.last_safety_level || lastState.safety_level || "").toLowerCase();
+      const guarded = safety === "critical" || actions.includes("confirm_before_execution") || actions.includes("require_explicit_confirmation");
+      $("query").value = prompt;
+      const message = localizedText(
+        "Siguiente paso seguro: " + label + ". Dejé preparado: " + prompt + "." + (guarded ? " No ejecutes nada sin confirmación explícita." : ""),
+        "Safe next step: " + label + ". I prepared: " + prompt + "." + (guarded ? " Do not execute anything without explicit confirmation." : ""),
+        language
+      );
+      speakLocalControlMessage(message, language, "voice: next step", "voice-context");
+      return true;
+    }
+
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, estado de voz; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, horario de mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, voice status; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, market hours; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, estado de voz; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, horario de mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, voice status; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, market hours; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -1716,6 +1763,12 @@ def roxy_live_page():
         "what are we discussing", "where are we"
       ])) {
         return sessionVoiceBrief();
+      }
+      if (commandMatches(command, [
+        "que sigue", "que sigue ahora", "siguiente paso", "proximo paso", "proxima accion",
+        "next step", "what next", "what should i do next", "next action"
+      ])) {
+        return speakNextStepBrief();
       }
       if (commandMatches(command, ["repite", "repetir", "repite eso", "otra vez", "dilo otra vez", "repeat", "repeat that", "say again", "say that again"])) {
         repeatLastReplyByVoice();

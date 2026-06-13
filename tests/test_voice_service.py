@@ -121,6 +121,9 @@ def test_roxy_live_page():
     assert "sessionVoiceBrief" in r.text
     assert "activeSessionContext" in r.text
     assert "voice: session brief" in r.text
+    assert "speakNextStepBrief" in r.text
+    assert "nextActionPromptWithContext" in r.text
+    assert "voice: next step" in r.text
     assert r.text.index("const negativeNote = commandRemainder(command") < r.text.index(
         "const positiveNote = commandRemainder(command"
     )
@@ -199,6 +202,8 @@ def test_roxy_live_page():
     assert "Roxy, slower voice" in r.text
     assert "Roxy, contexto actual" in r.text
     assert "Roxy, current context" in r.text
+    assert "Roxy, qué sigue" in r.text
+    assert "Roxy, next step" in r.text
     assert "Roxy, aprendizaje" in r.text
     assert "Roxy, learning status" in r.text
     assert "Roxy, fuentes" in r.text
@@ -218,6 +223,8 @@ def test_roxy_live_page():
     assert "Sending draft." in r.text
     assert "Estado de voz: modo " in r.text
     assert "Voice status: " in r.text
+    assert "Siguiente paso seguro: " in r.text
+    assert "Safe next step: " in r.text
     assert "Local learning: " in r.text
     assert "Sources loaded: " in r.text
     assert "Roxy, no sirvió, más corto" in r.text
