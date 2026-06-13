@@ -654,6 +654,7 @@ def roxy_live_page():
         <div class="chip"><span>Priority</span><b id="priority">-</b></div>
         <div class="chip"><span>Live source</span><b id="liveSource">-</b></div>
         <div class="chip"><span>Voice</span><b id="voiceStatus">-</b></div>
+        <div class="chip"><span>Draft</span><b id="voiceDraftStatus">-</b></div>
         <div class="chip"><span>Context</span><b id="activeContext">-</b></div>
         <div class="chip"><span>Latency</span><b id="latency">-</b></div>
       </div>
@@ -828,6 +829,14 @@ def roxy_live_page():
       avatar.className = "avatar " + (state || "ready");
       $("avatarText").textContent = [state || "ready", emotion || ""].filter(Boolean).join(" / ");
       updateVoicePresenceVisibility();
+    }
+
+    function updateVoiceDraftStatus() {
+      const draft = (voiceDraftText || "").trim();
+      const status = $("voiceDraftStatus");
+      if (!status) return;
+      status.textContent = draft ? "ready · " + (draft.length > 28 ? draft.slice(0, 28) + "..." : draft) : "-";
+      status.title = draft;
     }
 
     function voiceModeActive() {
@@ -1112,6 +1121,7 @@ def roxy_live_page():
       if (!draft) return false;
       const language = $("language").value || "es";
       voiceDraftText = draft;
+      updateVoiceDraftStatus();
       $("query").value = draft;
       const message = localizedText(
         "Borrador listo. Di: Roxy, enviar para mandarlo.",
@@ -1153,6 +1163,7 @@ def roxy_live_page():
         }
         $("query").value = draft;
         voiceDraftText = "";
+        updateVoiceDraftStatus();
         $("events").textContent = "voice: draft send";
         appendMessage("system", localizedText("Enviando borrador.", "Sending draft.", language), "voice-draft");
         send();
@@ -1160,6 +1171,7 @@ def roxy_live_page():
       }
       if (action === "clear") {
         voiceDraftText = "";
+        updateVoiceDraftStatus();
         $("query").value = "";
         speakLocalControlMessage(
           localizedText("Borrador borrado.", "Draft cleared.", language),
@@ -2105,6 +2117,8 @@ def roxy_live_page():
     async function send() {
       const text = $("query").value.trim();
       if (!text) return;
+      voiceDraftText = "";
+      updateVoiceDraftStatus();
       saveSettings();
       setAvatar("thinking", "focused");
       $("reply").textContent = "Roxy esta pensando...";
@@ -2351,7 +2365,10 @@ def roxy_live_page():
         const isFinal = event.results[event.results.length - 1].isFinal;
         if (isFinal && isVoiceDraftAction(voiceCommandCandidate(transcript))) {
           const currentDraft = (voiceDraftText || $("query").value || "").trim();
-          if (currentDraft && normalizeSpeech(currentDraft) !== normalizeSpeech(transcript)) voiceDraftText = currentDraft;
+          if (currentDraft && normalizeSpeech(currentDraft) !== normalizeSpeech(transcript)) {
+            voiceDraftText = currentDraft;
+            updateVoiceDraftStatus();
+          }
         }
         $("query").value = transcript;
         if (isFinal) {
@@ -2437,6 +2454,7 @@ def roxy_live_page():
     restoreSettings();
     populateVoices();
     updateVoiceDiagnostics();
+    updateVoiceDraftStatus();
     if ("speechSynthesis" in window) {
       window.speechSynthesis.onvoiceschanged = () => {
         populateVoices();

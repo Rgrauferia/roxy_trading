@@ -45,6 +45,9 @@ def test_roxy_live_page():
     assert "isDuplicateFinalTranscript" in r.text
     assert "voice: duplicate ignored" in r.text
     assert "voiceDraftText" in r.text
+    assert "voiceDraftStatus" in r.text
+    assert "updateVoiceDraftStatus" in r.text
+    assert "ready · " in r.text
     assert "isRecoverableMicError" in r.text
     assert "recoverFromMicError" in r.text
     assert "voice: retry after " in r.text
@@ -271,6 +274,7 @@ def test_roxy_live_page():
     assert "voiceRate" in r.text
     assert "voicePitch" in r.text
     assert "voiceStatus" in r.text
+    assert "voiceDraftStatus" in r.text
     assert "updateVoiceDiagnostics" in r.text
     assert "voiceMatchesLanguage" in r.text
     assert "alignVoiceSelection" in r.text
