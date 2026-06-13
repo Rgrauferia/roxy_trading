@@ -171,9 +171,34 @@ def _is_position_sizing_query(query: str) -> bool:
     )
 
 
+def _is_structured_account_query(query: str) -> bool:
+    lq = query.lower()
+    return any(
+        term in lq
+        for term in (
+            "estado de cuenta",
+            "estado cuenta",
+            "estado de portafolio",
+            "estado portfolio",
+            "riesgo de portfolio",
+            "riesgo de portafolio",
+            "posiciones abiertas",
+            "mis posiciones",
+            "account status",
+            "portfolio status",
+            "portfolio risk",
+            "open positions",
+            "my positions",
+            "position exposure",
+        )
+    )
+
+
 def _account_reply(query: str, user: Optional[str]) -> str | None:
     lq = query.lower()
     if _is_position_sizing_query(query):
+        return None
+    if _is_structured_account_query(query):
         return None
     if any(term in lq for term in ("balance", "equity", "cuenta", "capital")):
         if user:

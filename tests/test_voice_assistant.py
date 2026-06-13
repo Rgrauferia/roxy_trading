@@ -105,3 +105,26 @@ def test_voice_assistant_routes_position_sizing_to_roxy_brain(tmp_path, monkeypa
     assert state["intent"] == "position_size"
     assert "AAPL tamaño de posicion" in state["reply"]
     assert "Cantidad 13" in state["reply"]
+
+
+def test_voice_assistant_routes_account_status_to_roxy_brain(tmp_path, monkeypatch):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "account_summary": {
+                    "equity": 10000.0,
+                    "buying_power": 5000.0,
+                    "exposure": 7200.0,
+                    "open_positions": 4,
+                }
+            }
+        )
+    )
+    monkeypatch.setattr(voice_assistant, "BRIEF_PATH", brief_path)
+
+    state = voice_assistant.generate_reply_state("estado de cuenta", user="local")
+
+    assert state["intent"] == "account_status"
+    assert "riesgo de exposicion agresivo" in state["reply"]
+    assert "risk_review" in state["suggested_actions"]
