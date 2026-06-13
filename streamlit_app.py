@@ -279,7 +279,7 @@ def sync_dashboard_query_params(
 
 
 def persist_command_query_params() -> None:
-    symbol = str(st.session_state.get("command_symbol", "AAPL") or "AAPL").strip().upper()
+    symbol = str(st.session_state.get("command_symbol", "AAPL") or "AAPL").strip() or "AAPL"
     market = normalize_command_market(st.session_state.get("command_market"), symbol)
     timeframe = normalize_command_timeframe(st.session_state.get("command_timeframe", "1h"))
     st.session_state["command_symbol"] = symbol
@@ -300,7 +300,7 @@ def persist_command_symbol_query_params() -> None:
     if "/" in symbol:
         st.session_state["command_market"] = "crypto"
     else:
-        st.session_state["command_market"] = normalize_command_market(st.session_state.get("command_market"), symbol)
+        st.session_state["command_market"] = "stock"
     persist_command_query_params()
 
 

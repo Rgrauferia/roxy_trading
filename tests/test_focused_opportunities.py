@@ -83,6 +83,75 @@ from streamlit_app import (
 import streamlit_app
 
 
+def test_persist_command_query_params_syncs_current_widget_state(monkeypatch):
+    captured = {}
+
+    class Params(dict):
+        pass
+
+    monkeypatch.setattr(streamlit_app.st, "query_params", Params({"view": "Centro"}), raising=False)
+    monkeypatch.setattr(
+        streamlit_app.st,
+        "session_state",
+        {
+            "command_symbol": "tsla",
+            "command_market": "stock",
+            "command_timeframe": "15m",
+            "roxy_focused_page": "Centro",
+        },
+        raising=False,
+    )
+
+    def fake_sync(params, *, symbol, market, timeframe, page):
+        captured.update(
+            {
+                "params": params,
+                "symbol": symbol,
+                "market": market,
+                "timeframe": timeframe,
+                "page": page,
+            }
+        )
+
+    monkeypatch.setattr(streamlit_app, "sync_dashboard_query_params", fake_sync)
+
+    streamlit_app.persist_command_query_params()
+
+    assert captured == {
+        "params": {"view": "Centro"},
+        "symbol": "tsla",
+        "market": "stock",
+        "timeframe": "15m",
+        "page": "Centro",
+    }
+
+
+def test_persist_command_symbol_query_params_infers_stock_for_plain_ticker(monkeypatch):
+    captured = {}
+    session = {
+        "command_symbol": "AAPL",
+        "command_market": "crypto",
+        "command_timeframe": "1h",
+        "roxy_focused_page": "Centro",
+    }
+
+    class Params(dict):
+        pass
+
+    monkeypatch.setattr(streamlit_app.st, "query_params", Params({"view": "Centro"}), raising=False)
+    monkeypatch.setattr(streamlit_app.st, "session_state", session, raising=False)
+
+    def fake_sync(params, *, symbol, market, timeframe, page):
+        captured.update({"symbol": symbol, "market": market, "timeframe": timeframe, "page": page})
+
+    monkeypatch.setattr(streamlit_app, "sync_dashboard_query_params", fake_sync)
+
+    streamlit_app.persist_command_symbol_query_params()
+
+    assert session["command_market"] == "stock"
+    assert captured == {"symbol": "AAPL", "market": "stock", "timeframe": "1h", "page": "Centro"}
+
+
 def test_focused_opportunity_table_prioritizes_trade_ready_alerts():
     brief = {
         "opportunities": [
