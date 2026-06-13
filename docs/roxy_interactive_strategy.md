@@ -87,6 +87,8 @@ Wake Roxy also supports local conversation controls such as "Roxy, repite" / "Ro
 
 Wake Roxy can adjust browser voice pace locally with "Roxy, voz mas lenta", "Roxy, voz mas rapida", or "Roxy, voz normal" plus English equivalents such as "Roxy, slower voice". These commands update the browser voice-rate control and saved local settings only.
 
+Wake Roxy can also switch output behavior locally. "Roxy, sin voz" / "Roxy, voice off" disables browser speech for later answers, while "Roxy, con voz" / "Roxy, voice on" enables it again. "Roxy, modo dictado" disables auto-send so the transcript can be reviewed before sending, and "Roxy, enviar al terminar" restores auto-send. These are browser settings only and do not create backend assistant turns.
+
 Wake Roxy can also answer "Roxy, contexto actual" / "Roxy, current context" locally from the active browser turn. It speaks the current symbol, intent/topic, safety level, and next safe actions without calling the assistant backend, giving the user a low-latency orientation check during a live voice session. Full saved-history recaps still use the normal `session_recap` backend intent.
 
 Wake Roxy can read local learning and source status without sending a market prompt. "Roxy, aprendizaje" / "Roxy, learning status" calls the local learning endpoint, updates the learning/context view, and speaks a short feedback-memory summary. "Roxy, fuentes" / "Roxy, sources" calls the knowledge-source endpoint and speaks how many approved local documents are available.

@@ -90,6 +90,8 @@ def test_roxy_live_page():
     assert "applyVoiceStopCommand" in r.text
     assert "applyVoicePaceCommand" in r.text
     assert "setVoiceRateFromCommand" in r.text
+    assert "applyVoiceSpeechOutputCommand" in r.text
+    assert "applyVoiceSendModeCommand" in r.text
     assert "applyVoiceLanguageCommand" in r.text
     assert "setVoiceModeState" in r.text
     assert "applyVoiceListeningModeCommand" in r.text
@@ -135,6 +137,10 @@ def test_roxy_live_page():
     assert "voice: pace slower" in r.text
     assert "voice: pace faster" in r.text
     assert "voice: pace normal" in r.text
+    assert "voice: speech off" in r.text
+    assert "voice: speech on" in r.text
+    assert "voice: autosend off" in r.text
+    assert "voice: autosend on" in r.text
     assert "voice: learning status" in r.text
     assert "voice: knowledge sources" in r.text
     assert "submitFeedback(feedback.rating, {speakNow: true})" in r.text
@@ -153,6 +159,10 @@ def test_roxy_live_page():
     assert "Roxy, conversation mode" in r.text
     assert "Roxy, modo semi auto" in r.text
     assert "Roxy, semi auto mode" in r.text
+    assert "Roxy, modo dictado" in r.text
+    assert "Roxy, dictation mode" in r.text
+    assert "Roxy, sin voz" in r.text
+    assert "Roxy, voice off" in r.text
     assert "Roxy, voz más lenta" in r.text
     assert "Roxy, slower voice" in r.text
     assert "Roxy, contexto actual" in r.text
@@ -166,6 +176,10 @@ def test_roxy_live_page():
     assert "Listening stopped." in r.text
     assert "Voz mas lenta." in r.text
     assert "Faster voice." in r.text
+    assert "Voz automatica apagada." in r.text
+    assert "Automatic voice is on." in r.text
+    assert "Modo dictado activo." in r.text
+    assert "Auto-send when done is on." in r.text
     assert "Local learning: " in r.text
     assert "Sources loaded: " in r.text
     assert "Roxy, no sirvió, más corto" in r.text

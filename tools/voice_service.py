@@ -983,6 +983,68 @@ def roxy_live_page():
       return false;
     }
 
+    function applyVoiceSpeechOutputCommand(command) {
+      const normalized = normalizeSpeech(command);
+      const offPhrases = ["sin voz", "no hables", "voz off", "apaga voz", "mute voice", "voice off", "speech off"];
+      const onPhrases = ["con voz", "habla de nuevo", "voz on", "activa voz", "unmute voice", "voice on", "speech on"];
+      if (offPhrases.includes(normalized)) {
+        const language = $("language").value || "es";
+        const message = localizedText("Voz automatica apagada.", "Automatic voice is off.", language);
+        $("autoSpeak").checked = false;
+        if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+        saveSettings();
+        $("reply").textContent = message;
+        $("events").textContent = "voice: speech off";
+        appendMessage("system", message, "voice-profile");
+        scheduleListen();
+        return true;
+      }
+      if (onPhrases.includes(normalized)) {
+        const language = $("language").value || "es";
+        $("autoSpeak").checked = true;
+        saveSettings();
+        speakLocalControlMessage(
+          localizedText("Voz automatica activada.", "Automatic voice is on.", language),
+          language,
+          "voice: speech on",
+          "voice-profile"
+        );
+        return true;
+      }
+      return false;
+    }
+
+    function applyVoiceSendModeCommand(command) {
+      const normalized = normalizeSpeech(command);
+      const manualPhrases = ["modo dictado", "no enviar solo", "no enviar automatico", "dictation mode", "manual send"];
+      const autoPhrases = ["enviar al terminar", "envia al terminar", "auto enviar", "auto send", "send when done"];
+      if (manualPhrases.includes(normalized)) {
+        const language = $("language").value || "es";
+        $("autoSendVoice").checked = false;
+        saveSettings();
+        speakLocalControlMessage(
+          localizedText("Modo dictado activo. Revisare el texto antes de enviar.", "Dictation mode active. Review the text before sending.", language),
+          language,
+          "voice: autosend off",
+          "voice-profile"
+        );
+        return true;
+      }
+      if (autoPhrases.includes(normalized)) {
+        const language = $("language").value || "es";
+        $("autoSendVoice").checked = true;
+        saveSettings();
+        speakLocalControlMessage(
+          localizedText("Envio automatico al terminar activado.", "Auto-send when done is on.", language),
+          language,
+          "voice: autosend on",
+          "voice-profile"
+        );
+        return true;
+      }
+      return false;
+    }
+
     function applyVoiceLanguageCommand(languageValue) {
       const language = languageValue === "en" ? "en" : "es";
       const message = language === "en" ? "English mode." : "Modo español.";
@@ -1189,8 +1251,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, voz más lenta; Roxy, contexto actual; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, slower voice; Roxy, current context; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -1450,6 +1512,8 @@ def roxy_live_page():
       }
       if (applyVoiceListeningModeCommand(command)) return true;
       if (applyVoicePaceCommand(command)) return true;
+      if (applyVoiceSpeechOutputCommand(command)) return true;
+      if (applyVoiceSendModeCommand(command)) return true;
       if (sendVoiceLearningPrompt(command)) return true;
       if (applyVoiceFeedbackCommand(command)) return true;
       if (commandMatches(command, [
