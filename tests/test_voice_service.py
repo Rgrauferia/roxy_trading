@@ -19,6 +19,9 @@ def test_roxy_live_page():
     r = client.get("/roxy-live")
     assert r.status_code == 200
     assert "Roxy Live" in r.text
+    assert 'id="roxyLiveMain" class="voice-idle"' in r.text
+    assert 'id="avatar" class="avatar" aria-hidden="true"' in r.text
+    assert "main.voice-idle .avatar" in r.text
     assert "/v1/assist/state" in r.text
     assert "/v1/assist/stream" in r.text
     assert "loadMemory" in r.text
@@ -56,6 +59,12 @@ def test_roxy_live_page():
     assert "extractContextSymbol" in r.text
     assert "currentTurnContext" in r.text
     assert "renderActiveContext(currentTurnContext(state, text))" in r.text
+    assert "voicePresenceActive" in r.text
+    assert "voiceModeActive" in r.text
+    assert "voicePresenceVisible" in r.text
+    assert "updateVoicePresenceVisibility" in r.text
+    assert "setVoicePresenceActive" in r.text
+    assert "releaseVoicePresenceIfIdle" in r.text
     assert "state.suggested_actions" in r.text
     assert "confirm_before_execution" in r.text
     assert "alert_draft" in r.text

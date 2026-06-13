@@ -269,6 +269,12 @@ def roxy_live_page():
       gap: 18px;
       align-items: stretch;
     }
+    main.voice-idle .top {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    main.voice-idle .avatar {
+      display: none;
+    }
     .avatar, .panel {
       border: 1px solid var(--line);
       background: rgba(13, 27, 45, 0.88);
@@ -542,9 +548,9 @@ def roxy_live_page():
   </style>
 </head>
 <body>
-  <main>
+  <main id="roxyLiveMain" class="voice-idle">
     <section class="top">
-      <div id="avatar" class="avatar">
+      <div id="avatar" class="avatar" aria-hidden="true">
         <div>
           <div class="face">
             <img id="roxyAvatar" src="/assets/roxy_avatar.jpg" alt="Roxy avatar" />
@@ -673,6 +679,7 @@ def roxy_live_page():
     let lastHandledVoiceText = "";
     let lastHandledVoiceAt = 0;
     let voiceDraftText = "";
+    let voicePresenceActive = false;
     const duplicateVoiceWindowMs = 2500;
     const defaultAssistTimeoutMs = 45000;
     const assistStreamEndpoint = "/v1/assist/stream";
@@ -817,6 +824,31 @@ def roxy_live_page():
       const avatar = $("avatar");
       avatar.className = "avatar " + (state || "ready");
       $("avatarText").textContent = [state || "ready", emotion || ""].filter(Boolean).join(" / ");
+      updateVoicePresenceVisibility();
+    }
+
+    function voiceModeActive() {
+      return !manualStop && ($("conversationMode").checked || $("wakeMode").checked);
+    }
+
+    function voicePresenceVisible() {
+      return Boolean(voicePresenceActive || voiceModeActive() || isListening || isSpeaking);
+    }
+
+    function updateVoicePresenceVisibility() {
+      const visible = voicePresenceVisible();
+      $("roxyLiveMain").classList.toggle("voice-idle", !visible);
+      $("avatar").setAttribute("aria-hidden", visible ? "false" : "true");
+    }
+
+    function setVoicePresenceActive(active) {
+      voicePresenceActive = Boolean(active);
+      updateVoicePresenceVisibility();
+    }
+
+    function releaseVoicePresenceIfIdle() {
+      if (!voiceModeActive() && !isListening && !isSpeaking) voicePresenceActive = false;
+      updateVoicePresenceVisibility();
     }
 
     function scheduleListen() {
@@ -849,10 +881,12 @@ def roxy_live_page():
       isSpeaking = false;
       isListening = false;
       setAvatar("ready", $("emotion").textContent);
+      releaseVoicePresenceIfIdle();
       if (reason) appendMessage("system", reason, "voice-control");
     }
 
     function prepareListeningTurn() {
+      setVoicePresenceActive(true);
       clearTimeout(pendingListenTimer);
       cancelActiveAssist();
       if ("speechSynthesis" in window) window.speechSynthesis.cancel();
@@ -924,7 +958,10 @@ def roxy_live_page():
       $("reply").textContent = message;
       $("events").textContent = eventName;
       appendMessage("system", message, messageType || "voice-control");
-      if (!speak(message, language)) scheduleListen();
+      if (!speak(message, language)) {
+        scheduleListen();
+        releaseVoicePresenceIfIdle();
+      }
     }
 
     function applyVoiceStopCommand(command) {
@@ -998,6 +1035,7 @@ def roxy_live_page():
         $("events").textContent = "voice: speech off";
         appendMessage("system", message, "voice-profile");
         scheduleListen();
+        releaseVoicePresenceIfIdle();
         return true;
       }
       if (onPhrases.includes(normalized)) {
@@ -1081,6 +1119,7 @@ def roxy_live_page():
       $("events").textContent = "voice: draft ready";
       appendMessage("system", message, "voice-draft");
       scheduleListen();
+      releaseVoicePresenceIfIdle();
       return true;
     }
 
@@ -1159,6 +1198,8 @@ def roxy_live_page():
       manualStop = !($("conversationMode").checked || $("wakeMode").checked);
       saveSettings();
       updateVoiceDiagnostics();
+      if (voiceModeActive()) setVoicePresenceActive(true);
+      else releaseVoicePresenceIfIdle();
       const language = $("language").value || "es";
       const message = localizedText(esMessage, enMessage, language);
       speakLocalControlMessage(message, language, eventName, "voice-mode");
@@ -1639,8 +1680,10 @@ def roxy_live_page():
     function handleFinalTranscript(text) {
       const finalText = (text || "").trim();
       if (!finalText) return;
+      setVoicePresenceActive(true);
       if (isDuplicateFinalTranscript(finalText)) {
         $("events").textContent = "voice: duplicate ignored";
+        releaseVoicePresenceIfIdle();
         return;
       }
       if ($("wakeMode").checked) {
@@ -1782,6 +1825,7 @@ def roxy_live_page():
 
     function speak(text, languageOverride) {
       if (!text || !("speechSynthesis" in window)) return false;
+      setVoicePresenceActive(true);
       const run = () => {
         const lang = languageOverride || $("language").value || "es";
         const utterance = new SpeechSynthesisUtterance(text);
@@ -1799,11 +1843,13 @@ def roxy_live_page():
           isSpeaking = false;
           setAvatar("ready", $("emotion").textContent);
           scheduleListen();
+          releaseVoicePresenceIfIdle();
         };
         utterance.onerror = () => {
           isSpeaking = false;
           setAvatar("ready", $("emotion").textContent);
           scheduleListen();
+          releaseVoicePresenceIfIdle();
         };
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(utterance);
@@ -1892,6 +1938,7 @@ def roxy_live_page():
       isSpeaking = false;
       setAvatar(blocked ? "blocked" : "ready", blocked ? "serious" : emotion);
       scheduleListen();
+      releaseVoicePresenceIfIdle();
     }
 
     function applyAssistState(state, text, options) {
@@ -2292,6 +2339,7 @@ def roxy_live_page():
         updateVoiceDiagnostics();
         setAvatar("ready", $("emotion").textContent);
         if (($("conversationMode").checked || $("wakeMode").checked) && !manualStop) scheduleListen();
+        releaseVoicePresenceIfIdle();
         lastFinalTranscript = "";
       };
       recognition.start();
@@ -2320,12 +2368,16 @@ def roxy_live_page():
       saveSettings();
       manualStop = false;
       appendMessage("system", $("conversationMode").checked ? "Modo conversacion activo." : "Modo conversacion apagado.", "mode");
+      if ($("conversationMode").checked) setVoicePresenceActive(true);
+      else releaseVoicePresenceIfIdle();
       scheduleListen();
     });
     $("wakeMode").addEventListener("change", () => {
       saveSettings();
       manualStop = false;
       appendMessage("system", $("wakeMode").checked ? "Wake Roxy activo. Di: Roxy, seguido de tu pregunta." : "Wake Roxy apagado.", "wake");
+      if ($("wakeMode").checked) setVoicePresenceActive(true);
+      else releaseVoicePresenceIfIdle();
       scheduleListen();
     });
     [
