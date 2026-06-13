@@ -2229,6 +2229,80 @@ def test_roxy_brain_recaps_english_session_memory(tmp_path):
     assert "Next useful step" in response.reply
 
 
+def test_roxy_brain_catches_up_spanish_session_with_market_context(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "generated_at": now.isoformat(),
+                    "market_session": {
+                        "stock_session": "Mercado abierto",
+                        "crypto_session": "24h",
+                    },
+                    "opportunities": [
+                        {
+                            "symbol": "SPY",
+                            "signal": "WATCH",
+                            "decision": "Esperar",
+                            "entry": 505.5,
+                            "stop": 501.0,
+                            "risk_pct": 0.0089,
+                            "readiness": 72.5,
+                            "entry_trigger": "Esperar cierre sobre VWAP.",
+                            "what_is_missing": "Volumen acompana: falta volumen",
+                        }
+                    ],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    memory = RoxyConversationMemory(path=tmp_path / "conversation.json")
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        conversation_memory=memory,
+    )
+
+    brain.generate_reply("resumen de oportunidad SPY", session_id="demo")
+    response = brain.generate_reply("ponme al dia", session_id="demo")
+
+    assert response.intent == "catch_up"
+    assert response.language == "es"
+    assert response.avatar_state == "ready"
+    assert response.safety_level == "guarded"
+    assert "Puesta al dia: 1 turno(s) guardados" in response.reply
+    assert "Ultimo intent util opportunity" in response.reply
+    assert "setup principal SPY" in response.reply
+    assert "Datos frescos" in response.reply
+    assert "Esto es contexto de continuidad, no permiso de ejecucion" in response.reply
+    assert "trade_readiness" in response.suggested_actions
+    assert "session_recap" in response.suggested_actions
+
+
+def test_roxy_brain_catch_up_requires_memory_or_snapshot_in_english(tmp_path):
+    memory = RoxyConversationMemory(path=tmp_path / "conversation.json")
+    brain = RoxyInteractiveBrain(
+        brief_path=tmp_path / "missing.json",
+        memory_path=tmp_path / "memory.json",
+        conversation_memory=memory,
+    )
+
+    response = brain.generate_reply("catch me up", session_id="demo")
+
+    assert response.intent == "catch_up"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert response.needs_live_source is True
+    assert "Catch-up: I do not have saved session turns or a local opportunity snapshot yet" in response.reply
+    assert "Data is missing" in response.reply
+    assert "instead of guessing" in response.reply
+    assert "keep_session_id" in response.suggested_actions
+    assert "run_scan" in response.suggested_actions
+
+
 def test_roxy_conversation_memory_prunes_old_sessions(tmp_path):
     memory_path = tmp_path / "conversation.json"
     memory = RoxyConversationMemory(path=memory_path, max_turns=2, max_sessions=2)

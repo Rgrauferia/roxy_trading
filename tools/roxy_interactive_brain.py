@@ -658,6 +658,11 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "recap",
         "summarize",
         "discuss",
+        "catch",
+        "speed",
+        "miss",
+        "left",
+        "off",
     }
     spanish_terms = {
         "hola",
@@ -1018,6 +1023,11 @@ def _active_conversation_context(recent_turns: list[dict[str, Any]]) -> dict[str
 def _next_best_actions_for_context(intent: str, safety_level: str, has_symbol: bool) -> list[str]:
     if safety_level == "critical" or intent == "action_confirmation_required":
         return ["show_risk_check", "show_trade_ticket", "require_explicit_confirmation"]
+    if intent == "catch_up":
+        actions = ["trade_readiness", "monitoring_plan", "session_recap"]
+        if has_symbol:
+            actions.append("position_size")
+        return actions
     if intent in {
         "opportunity",
         "opportunity_reason",
@@ -1637,6 +1647,27 @@ class RoxyInteractiveBrain:
             "summarize conversation",
             "what did we discuss",
         )
+        catch_up_terms = (
+            "ponme al dia",
+            "ponme al día",
+            "ponme al corriente",
+            "actualizame",
+            "actualízame",
+            "en que vamos",
+            "en qué vamos",
+            "donde estamos",
+            "dónde estamos",
+            "que me perdi",
+            "qué me perdi",
+            "qué me perdí",
+            "retomemos",
+            "catch me up",
+            "bring me up to speed",
+            "where are we",
+            "where did we leave off",
+            "what did i miss",
+            "resume where we left off",
+        )
         if _contains_any(lq, ("hola", "hello", "hi", "hey", "buenos dias", "buenas")):
             response = self._greeting_reply(user, profile)
             return finish(response)
@@ -1695,6 +1726,10 @@ class RoxyInteractiveBrain:
 
         if _contains_any(lq, session_recap_terms):
             response = self._session_recap_reply(recent_turns, language)
+            return finish(response)
+
+        if _contains_any(lq, catch_up_terms):
+            response = self._catch_up_reply(recent_turns, language)
             return finish(response)
 
         if _contains_any(lq, ("quien eres", "who are you", "tu rostro", "cara", "avatar", "identidad", "identity", "roxy")):
@@ -2416,6 +2451,142 @@ class RoxyInteractiveBrain:
             emotion="informative",
             safety_level="guarded",
             suggested_actions=("trade_readiness", "monitoring_plan", "position_size"),
+        )
+
+    def _catch_up_reply(self, recent_turns: list[dict[str, Any]], language: str = "es") -> RoxyBrainReply:
+        context = _active_conversation_context(recent_turns)
+        active_symbol = _safe_text(context.get("active_symbol")).upper()
+        active_intent = _safe_text(context.get("active_intent")) or "-"
+        active_topic = _safe_text(context.get("active_topic")) or "-"
+        freshness = self._data_freshness_snapshot()
+        freshness_state = _safe_text(freshness.get("state") or "missing")
+        freshness_age = _safe_text(freshness.get("age_text") or "-")
+        session = self._market_session_snapshot()
+        top = self._latest_opportunity(active_symbol or None)
+        needs_confirmation = bool(context.get("needs_confirmation"))
+
+        needs_live_source = bool(freshness.get("needs_live_source")) or not bool(top)
+        if freshness.get("timestamp") is None:
+            needs_live_source = True
+
+        if language == "en":
+            freshness_label = {
+                "fresh": "fresh",
+                "usable": "usable but aging",
+                "stale": "stale",
+                "missing": "missing",
+            }.get(freshness_state, freshness_state or "unknown")
+            stock_session = _localize_market_phrase(session.get("stock_session") or "-", language) if session else "-"
+            crypto_session = _localize_market_phrase(session.get("crypto_session") or "-", language) if session else "-"
+            if not recent_turns and not top:
+                reply = (
+                    "Catch-up: I do not have saved session turns or a local opportunity snapshot yet. "
+                    f"Data is {freshness_label} / {freshness_age}; session stocks {stock_session}, crypto {crypto_session}. "
+                    "Keep the same session_id and refresh the scan so I can continue with real context instead of guessing."
+                )
+                actions = ("keep_session_id", "run_scan", "ask_market_summary")
+            else:
+                top_text = "no local top opportunity"
+                if top:
+                    symbol = _safe_text(top.get("symbol") or active_symbol or "-").upper()
+                    action = _safe_text(top.get("signal") or top.get("ai_action") or "WATCH").upper()
+                    decision = _localize_market_phrase(_safe_text(top.get("decision") or top.get("trade_decision") or "-"), language)
+                    readiness = _safe_float(top.get("readiness") or top.get("ai_score") or top.get("confluence_score"))
+                    readiness_text = "-" if readiness is None else f"{readiness:.1f}"
+                    missing = _sentence_fragment(
+                        _localize_market_phrase(
+                            _safe_text(top.get("what_is_missing") or top.get("missing") or top.get("blockers")),
+                            language,
+                        )
+                    )
+                    trigger = _sentence_fragment(
+                        _localize_market_phrase(
+                            _safe_text(top.get("entry_trigger") or top.get("trigger") or top.get("entry_tf")),
+                            language,
+                        )
+                    )
+                    top_text = (
+                        f"top setup {symbol}: {action}, decision {decision}, readiness {readiness_text}, "
+                        f"entry {_price(top.get('entry'))}, stop {_price(top.get('stop'))}, risk {_pct(top.get('risk_pct'))}, "
+                        f"trigger {trigger or '-'}, missing {missing or '-'}"
+                    )
+                guard = (
+                    " The last context needs explicit confirmation, so do not advance to execution."
+                    if needs_confirmation
+                    else " This is continuity context only, not execution permission."
+                )
+                reply = (
+                    f"Catch-up: {len(recent_turns)} saved turn(s). Last useful intent {active_intent}; "
+                    f"last topic '{active_topic}'. Data {freshness_label} / {freshness_age}; "
+                    f"session stocks {stock_session}, crypto {crypto_session}. Current read: {top_text}.{guard} "
+                    "Next: ask for go/no-go, monitoring plan, or position size."
+                )
+                actions = (
+                    ("show_trade_ticket", "trade_readiness", "require_explicit_confirmation")
+                    if needs_confirmation
+                    else ("run_scan", "ask_market_summary", "session_recap")
+                    if needs_live_source
+                    else ("trade_readiness", "monitoring_plan", "position_size", "session_recap")
+                )
+        else:
+            freshness_label = {
+                "fresh": "frescos",
+                "usable": "usables pero envejeciendo",
+                "stale": "viejos",
+                "missing": "faltantes",
+            }.get(freshness_state, freshness_state or "desconocidos")
+            stock_session = _safe_text(session.get("stock_session") or "-") if session else "-"
+            crypto_session = _safe_text(session.get("crypto_session") or "-") if session else "-"
+            if not recent_turns and not top:
+                reply = (
+                    "Puesta al dia: no tengo turnos guardados ni snapshot local de oportunidad todavia. "
+                    f"Datos {freshness_label} / {freshness_age}; sesion acciones {stock_session}, cripto {crypto_session}. "
+                    "Mantén el mismo session_id y refresca el scan para continuar con contexto real, no con suposiciones."
+                )
+                actions = ("keep_session_id", "run_scan", "ask_market_summary")
+            else:
+                top_text = "sin top oportunidad local"
+                if top:
+                    symbol = _safe_text(top.get("symbol") or active_symbol or "-").upper()
+                    action = _safe_text(top.get("signal") or top.get("ai_action") or "WATCH").upper()
+                    decision = _safe_text(top.get("decision") or top.get("trade_decision") or "-")
+                    readiness = _safe_float(top.get("readiness") or top.get("ai_score") or top.get("confluence_score"))
+                    readiness_text = "-" if readiness is None else f"{readiness:.1f}"
+                    missing = _sentence_fragment(_safe_text(top.get("what_is_missing") or top.get("missing") or top.get("blockers")))
+                    trigger = _sentence_fragment(_safe_text(top.get("entry_trigger") or top.get("trigger") or top.get("entry_tf")))
+                    top_text = (
+                        f"setup principal {symbol}: {action}, decision {decision}, readiness {readiness_text}, "
+                        f"entrada {_price(top.get('entry'))}, stop {_price(top.get('stop'))}, riesgo {_pct(top.get('risk_pct'))}, "
+                        f"gatillo {trigger or '-'}, falta {missing or '-'}"
+                    )
+                guard = (
+                    " El ultimo contexto requiere confirmacion explicita, asi que no avances a ejecucion."
+                    if needs_confirmation
+                    else " Esto es contexto de continuidad, no permiso de ejecucion."
+                )
+                reply = (
+                    f"Puesta al dia: {len(recent_turns)} turno(s) guardados. Ultimo intent util {active_intent}; "
+                    f"ultimo tema '{active_topic}'. Datos {freshness_label} / {freshness_age}; "
+                    f"sesion acciones {stock_session}, cripto {crypto_session}. Lectura actual: {top_text}.{guard} "
+                    "Siguiente: pide go/no-go, plan de monitoreo o tamano de posicion."
+                )
+                actions = (
+                    ("show_trade_ticket", "trade_readiness", "require_explicit_confirmation")
+                    if needs_confirmation
+                    else ("run_scan", "ask_market_summary", "session_recap")
+                    if needs_live_source
+                    else ("trade_readiness", "monitoring_plan", "position_size", "session_recap")
+                )
+
+        return RoxyBrainReply(
+            intent="catch_up",
+            reply=reply,
+            avatar_state="blocked" if needs_confirmation else "ready",
+            emotion="attentive" if top else "cautious",
+            needs_live_source=needs_live_source,
+            safety_level="guarded",
+            priority="high" if needs_confirmation or freshness_state == "stale" else "normal",
+            suggested_actions=actions,
         )
 
     def _action_guardrail_reply(self, query: str) -> RoxyBrainReply:

@@ -49,6 +49,8 @@ The `Hablar` control also acts as a barge-in control. If Roxy is speaking or sti
 
 Roxy Live applies a client-side timeout to active assist requests. If the service stalls, the browser aborts the request, shows a timeout event, and returns Roxy to a ready state so the user can retry without refreshing the page.
 
+For continuity prompts such as "ponme al dia", "en que vamos", or "catch me up", Roxy uses the `catch_up` intent. It combines saved session memory, active symbol/context, local data freshness, market-session timing, and the top local opportunity into one voice-ready handoff. It never guesses missing market data, never executes, and routes stale/missing context to scan refresh and session-memory actions.
+
 When voice auto-send is off, Roxy Live holds final transcripts as a pending dictation draft. The `Draft` chip shows a truncated preview while Roxy waits for commands such as "Roxy, enviar", "Roxy, borrar", or "Roxy, leer borrador".
 
 Roxy Live also shows a `Heard` chip during microphone capture. Interim transcripts display as `oyendo`, final transcripts display as `final`, and browser confidence is shown when available. This gives the user immediate confirmation of what Roxy heard before the prompt is sent or stored as a draft.
