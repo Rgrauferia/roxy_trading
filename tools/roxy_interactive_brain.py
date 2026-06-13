@@ -605,6 +605,12 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "shares",
         "equity",
         "capital",
+        "account",
+        "cash",
+        "portfolio",
+        "positions",
+        "buying",
+        "power",
         "checklist",
         "valid",
         "ready",
@@ -689,6 +695,12 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "cantidad",
         "acciones",
         "capital",
+        "cuenta",
+        "efectivo",
+        "portafolio",
+        "portfolio",
+        "posiciones",
+        "comprador",
         "checklist",
         "valida",
         "listo",
@@ -1310,6 +1322,17 @@ def _extract_symbol(query: str) -> str | None:
         "CRYPTOCURRENCY",
         "CRYPTOCURRENCIES",
         "CRIPTOMONEDAS",
+        "PORTFOLIO",
+        "PORTAFOLIO",
+        "CASH",
+        "EFECTIVO",
+        "BUYING",
+        "POWER",
+        "POSITIONS",
+        "POSICIONES",
+        "EXPOSURE",
+        "EXPOSICION",
+        "EXPOSICIÓN",
     }
     for raw_word in query.split():
         word = raw_word.strip(".,:;!?()[]{}\"'").upper().replace("-", "/")
@@ -1487,6 +1510,28 @@ class RoxyInteractiveBrain:
             "regular hours",
             "extended hours",
         )
+        account_status_terms = (
+            "estado de cuenta",
+            "estado cuenta",
+            "balance de cuenta",
+            "equity de cuenta",
+            "capital disponible",
+            "poder de compra",
+            "posiciones abiertas",
+            "mis posiciones",
+            "estado de portafolio",
+            "estado portfolio",
+            "riesgo de portfolio",
+            "account status",
+            "account balance",
+            "portfolio status",
+            "portfolio risk",
+            "buying power",
+            "cash balance",
+            "open positions",
+            "my positions",
+            "position exposure",
+        )
         trade_readiness_terms = (
             "puedo operar",
             "debo operar",
@@ -1571,6 +1616,10 @@ class RoxyInteractiveBrain:
 
         if _contains_any(lq, market_session_terms):
             response = self._market_session_reply(language)
+            return finish(response)
+
+        if _contains_any(lq, account_status_terms):
+            response = self._account_status_reply(language)
             return finish(response)
 
         if _contains_any(lq, technical_indicator_terms):
@@ -3599,6 +3648,165 @@ class RoxyInteractiveBrain:
                 if value is not None and value > 0:
                     return value
         return None
+
+    def _account_snapshot_from_brief(self) -> dict[str, Any]:
+        brief = _load_json(self.brief_path)
+        containers: list[dict[str, Any]] = [brief]
+        for key in (
+            "account",
+            "account_summary",
+            "portfolio",
+            "paper_account",
+            "alpaca_account",
+            "broker_account",
+        ):
+            value = brief.get(key)
+            if isinstance(value, dict):
+                containers.append(value)
+
+        journal = {}
+        for key in (
+            "alpaca_paper_journal",
+            "alpaca_paper_journal_snapshot",
+            "paper_journal",
+            "paper_journal_snapshot",
+            "broker_journal",
+        ):
+            value = brief.get(key)
+            if isinstance(value, dict):
+                journal = value
+                containers.append(value)
+                break
+
+        summary = journal.get("summary") if isinstance(journal.get("summary"), dict) else {}
+        if summary:
+            containers.append(summary)
+
+        def first_number(keys: tuple[str, ...]) -> float | None:
+            for container in containers:
+                for key in keys:
+                    value = _safe_float(container.get(key))
+                    if value is not None:
+                        return value
+            return None
+
+        positions: list[dict[str, Any]] = []
+        orders: list[dict[str, Any]] = []
+        for container in containers:
+            raw_positions = container.get("positions")
+            if isinstance(raw_positions, list) and raw_positions:
+                positions = [row for row in raw_positions if isinstance(row, dict)]
+                break
+        for container in containers:
+            raw_orders = container.get("orders")
+            if isinstance(raw_orders, list) and raw_orders:
+                orders = [row for row in raw_orders if isinstance(row, dict)]
+                break
+
+        equity = first_number(("equity", "account_equity", "net_liquidation", "portfolio_value"))
+        portfolio_value = first_number(("portfolio_value", "account_value", "net_liquidation", "equity"))
+        cash = first_number(("cash", "cash_balance", "available_cash"))
+        buying_power = first_number(("buying_power", "day_trade_buying_power", "available_buying_power"))
+        exposure = first_number(("exposure", "market_value", "gross_exposure", "position_value"))
+        if exposure is None and positions:
+            exposure_values = [_safe_float(row.get("market_value") or row.get("notional")) or 0.0 for row in positions]
+            exposure = sum(exposure_values)
+        unrealized_pl = first_number(("unrealized_pl", "unrealized_pnl", "open_pnl", "pnl"))
+        if unrealized_pl is None and positions:
+            unrealized_pl = sum((_safe_float(row.get("unrealized_pl") or row.get("unrealized_pnl")) or 0.0) for row in positions)
+        open_positions = first_number(("open_positions", "position_count"))
+        if open_positions is None and positions:
+            open_positions = float(len(positions))
+        recent_orders = first_number(("recent_orders", "order_count"))
+        if recent_orders is None and orders:
+            recent_orders = float(len(orders))
+        open_winners = first_number(("open_winners", "winning_positions"))
+        if open_winners is None and positions:
+            open_winners = float(
+                sum(1 for row in positions if (_safe_float(row.get("unrealized_pl") or row.get("unrealized_pnl")) or 0.0) >= 0)
+            )
+        as_of = ""
+        for container in containers:
+            as_of = _safe_text(container.get("as_of") or container.get("updated_at") or container.get("generated_at") or container.get("timestamp"))
+            if as_of:
+                break
+
+        has_snapshot = any(
+            value is not None
+            for value in (equity, portfolio_value, cash, buying_power, exposure, unrealized_pl, open_positions, recent_orders)
+        )
+        if not has_snapshot:
+            return {}
+        return {
+            "equity": equity,
+            "portfolio_value": portfolio_value,
+            "cash": cash,
+            "buying_power": buying_power,
+            "exposure": exposure,
+            "unrealized_pl": unrealized_pl,
+            "open_positions": open_positions,
+            "recent_orders": recent_orders,
+            "open_winners": open_winners,
+            "as_of": as_of,
+        }
+
+    def _account_status_reply(self, language: str = "es") -> RoxyBrainReply:
+        snapshot = self._account_snapshot_from_brief()
+        if not snapshot:
+            if language == "en":
+                reply = (
+                    "I do not have a local account or portfolio snapshot yet. Connect the paper broker snapshot "
+                    "or provide account equity before sizing or trade decisions. I will not infer buying power, cash, or positions."
+                )
+            else:
+                reply = (
+                    "Todavia no tengo un snapshot local de cuenta o portafolio. Conecta el snapshot del broker paper "
+                    "o dame el equity de cuenta antes de sizing o decisiones de trade. No voy a inferir buying power, efectivo ni posiciones."
+                )
+            return RoxyBrainReply(
+                intent="account_status",
+                reply=reply,
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                suggested_actions=("connect_broker_snapshot", "provide_account_equity", "run_scan"),
+            )
+
+        equity = snapshot.get("equity")
+        exposure = snapshot.get("exposure")
+        exposure_pct = None
+        if _safe_float(equity) and _safe_float(exposure) is not None:
+            exposure_pct = (_safe_float(exposure) or 0.0) / (_safe_float(equity) or 1.0)
+        as_of = _safe_text(snapshot.get("as_of"))
+        as_of_text = f" Snapshot: {as_of}." if as_of and language == "en" else f" Snapshot: {as_of}." if as_of else ""
+
+        if language == "en":
+            reply = (
+                "Account snapshot: "
+                f"equity {_money(snapshot.get('equity'))}, portfolio value {_money(snapshot.get('portfolio_value'))}, "
+                f"cash {_money(snapshot.get('cash'))}, buying power {_money(snapshot.get('buying_power'))}. "
+                f"Open positions {int(snapshot.get('open_positions') or 0)}, exposure {_money(exposure)}"
+                f"{' (' + _pct(exposure_pct) + ' of equity)' if exposure_pct is not None else ''}, "
+                f"open P/L {_money(snapshot.get('unrealized_pl'))}, recent orders {int(snapshot.get('recent_orders') or 0)}."
+                f"{as_of_text} Guardrail: this is a local account read only, not a broker command; confirm broker state before acting."
+            )
+        else:
+            reply = (
+                "Snapshot de cuenta: "
+                f"equity {_money(snapshot.get('equity'))}, valor portafolio {_money(snapshot.get('portfolio_value'))}, "
+                f"efectivo {_money(snapshot.get('cash'))}, buying power {_money(snapshot.get('buying_power'))}. "
+                f"Posiciones abiertas {int(snapshot.get('open_positions') or 0)}, exposicion {_money(exposure)}"
+                f"{' (' + _pct(exposure_pct) + ' del equity)' if exposure_pct is not None else ''}, "
+                f"P/L abierto {_money(snapshot.get('unrealized_pl'))}, ordenes recientes {int(snapshot.get('recent_orders') or 0)}."
+                f"{as_of_text} Guardrail: esto es solo lectura local de cuenta, no comando de broker; confirma el estado del broker antes de actuar."
+            )
+        return RoxyBrainReply(
+            intent="account_status",
+            reply=reply,
+            emotion="analytical",
+            safety_level="guarded",
+            suggested_actions=("position_size", "trade_readiness", "confirm_before_execution"),
+        )
 
     def _position_size_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
         symbol = _extract_symbol(query)

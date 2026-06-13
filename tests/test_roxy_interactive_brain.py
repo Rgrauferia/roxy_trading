@@ -887,6 +887,101 @@ def test_roxy_brain_crypto_market_requires_local_snapshot(tmp_path):
     assert "run_scan" in response.suggested_actions
 
 
+def test_roxy_brain_reads_account_status_in_spanish(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "account_summary": {
+                    "equity": 15125.75,
+                    "cash": 10000.0,
+                    "buying_power": 12500.5,
+                    "portfolio_value": 15125.75,
+                    "updated_at": "2026-06-13T04:45:00+00:00",
+                },
+                "alpaca_paper_journal": {
+                    "summary": {
+                        "open_positions": 2,
+                        "recent_orders": 3,
+                        "unrealized_pl": 15.5,
+                        "exposure": 620.0,
+                    },
+                    "positions": [
+                        {"symbol": "AAPL", "market_value": 220.0, "unrealized_pl": 12.0},
+                        {"symbol": "MSFT", "market_value": 400.0, "unrealized_pl": 3.5},
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("estado de cuenta")
+
+    assert response.intent == "account_status"
+    assert response.language == "es"
+    assert response.safety_level == "guarded"
+    assert "Snapshot de cuenta" in response.reply
+    assert "equity 15125.75" in response.reply
+    assert "buying power 12500.50" in response.reply
+    assert "Posiciones abiertas 2" in response.reply
+    assert "exposicion 620.00 (4.10% del equity)" in response.reply
+    assert "P/L abierto 15.50" in response.reply
+    assert "no comando de broker" in response.reply
+    assert "position_size" in response.suggested_actions
+
+
+def test_roxy_brain_reads_account_status_in_english(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "portfolio": {
+                    "equity": 25000.0,
+                    "cash": 12000.0,
+                    "buying_power": 30000.0,
+                    "portfolio_value": 25250.0,
+                },
+                "paper_journal": {
+                    "positions": [
+                        {"symbol": "NVDA", "market_value": 1250.0, "unrealized_pl": -25.0},
+                        {"symbol": "SPY", "market_value": 750.0, "unrealized_pl": 55.0},
+                    ],
+                    "orders": [{"symbol": "NVDA"}, {"symbol": "SPY"}],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("account status")
+
+    assert response.intent == "account_status"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert "Account snapshot" in response.reply
+    assert "equity 25000.00" in response.reply
+    assert "portfolio value 25250.00" in response.reply
+    assert "Open positions 2" in response.reply
+    assert "exposure 2000.00 (8.00% of equity)" in response.reply
+    assert "open P/L 30.00" in response.reply
+    assert "not a broker command" in response.reply
+
+
+def test_roxy_brain_account_status_requires_snapshot(tmp_path):
+    brain = RoxyInteractiveBrain(brief_path=tmp_path / "brief.json", memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("estado de cuenta")
+
+    assert response.intent == "account_status"
+    assert response.needs_live_source is True
+    assert response.safety_level == "guarded"
+    assert "snapshot local de cuenta" in response.reply
+    assert "connect_broker_snapshot" in response.suggested_actions
+
+
 def test_roxy_brain_reads_market_session_in_spanish(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(
@@ -1201,6 +1296,9 @@ def test_roxy_symbol_extraction_ignores_support_resistance_words():
     assert roxy_brain_module._extract_symbol("crypto market") is None
     assert roxy_brain_module._extract_symbol("mercado cripto") is None
     assert roxy_brain_module._extract_symbol("resumen de criptomonedas") is None
+    assert roxy_brain_module._extract_symbol("account status") is None
+    assert roxy_brain_module._extract_symbol("portfolio status") is None
+    assert roxy_brain_module._extract_symbol("posiciones abiertas") is None
     assert roxy_brain_module._extract_symbol("bitcoin") == "BTC/USD"
 
 

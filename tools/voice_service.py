@@ -602,6 +602,7 @@ def roxy_live_page():
           <button data-prompt="briefing diario">Briefing</button>
           <button data-prompt="resumen del mercado">Mercado</button>
           <button data-prompt="resumen cripto">Cripto</button>
+          <button data-prompt="estado de cuenta">Cuenta</button>
           <button data-prompt="sesion de mercado">Horario</button>
           <button data-prompt="frescura de datos">Datos</button>
           <button data-prompt="soporte y resistencia">Niveles</button>
@@ -748,6 +749,8 @@ def roxy_live_page():
       ask_latest_opportunity: ["Oportunidad", "resumen de oportunidad"],
       ask_capabilities: ["Capacidades", "que puedes hacer"],
       ask_market_summary: ["Mercado", "resumen del mercado"],
+      account_status: ["Cuenta", "estado de cuenta"],
+      provide_account_equity: ["Cuenta", "estado de cuenta"],
       ask_market_session: ["Horario", "sesion de mercado"],
       market_session: ["Horario", "sesion de mercado"],
       connect_realtime_voice: ["Voz", "estado de roxy"],
@@ -1864,8 +1867,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, iniciar voz; Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, que escuchaste; Roxy, corrige borrador comprar SPY; Roxy, estado de voz; Roxy, voz clara; Roxy, prueba tu voz; Roxy, opciones; Roxy, más corto; Roxy, más detalle; Roxy, pasos; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, cripto; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, start voice session; Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, what did you hear; Roxy, replace draft with buy SPY; Roxy, voice status; Roxy, receptionist voice; Roxy, test voice; Roxy, options; Roxy, shorter; Roxy, give more detail; Roxy, steps; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, crypto market; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, iniciar voz; Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, que escuchaste; Roxy, corrige borrador comprar SPY; Roxy, estado de voz; Roxy, voz clara; Roxy, prueba tu voz; Roxy, opciones; Roxy, más corto; Roxy, más detalle; Roxy, pasos; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, cripto; Roxy, estado de cuenta; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, start voice session; Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, what did you hear; Roxy, replace draft with buy SPY; Roxy, voice status; Roxy, receptionist voice; Roxy, test voice; Roxy, options; Roxy, shorter; Roxy, give more detail; Roxy, steps; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, crypto market; Roxy, account status; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -1923,6 +1926,8 @@ def roxy_live_page():
         "NOW", "PARA", "FOR", "OF", "ABOUT", "ON", "EN", "CON", "WITH", "PLAN", "MONITOREO",
         "MONITORING", "MONITOR", "ALERTA", "ALERT", "DRAFT", "PREPARA", "PREPARAR", "PREPARE",
         "CREAR", "CREATE", "SET", "BORRADOR", "THE", "A", "AN", "TO", "AND", "OR", "USD", "USDT",
+        "PORTFOLIO", "PORTAFOLIO", "CASH", "EFECTIVO", "BUYING", "POWER", "POSITIONS", "POSICIONES",
+        "EXPOSURE", "EXPOSICION", "EXPOSICIÓN",
         "BASE", "SYMBOL", "TICKER", "ACTIVO", "LIST", "LISTA", "TRACKING", "SEGUIMIENTO",
         "ANALIZA", "ANALIZAR", "ANALYZE", "IMPACTO", "NOTICIA", "TITULAR", "HEADLINE",
         "SENTIMENT", "SENTIMIENTO",
@@ -2103,6 +2108,16 @@ def roxy_live_page():
           ],
           es: "resumen cripto",
           en: "crypto market",
+        },
+        {
+          phrases: [
+            "estado cuenta", "estado de cuenta", "balance cuenta", "balance de cuenta",
+            "poder de compra", "posiciones abiertas", "mis posiciones", "estado portafolio",
+            "account status", "account balance", "portfolio status", "buying power",
+            "cash balance", "open positions", "my positions", "position exposure"
+          ],
+          es: "estado de cuenta",
+          en: "account status",
         },
         {
           phrases: ["mercado", "resumen mercado", "resumen del mercado", "market", "market summary"],
