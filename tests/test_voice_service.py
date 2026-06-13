@@ -305,6 +305,14 @@ def test_roxy_live_page():
     assert "voiceDraftStatus" in r.text
     assert "updateVoiceDiagnostics" in r.text
     assert "voiceMatchesLanguage" in r.text
+    assert "receptionistVoiceScore" in r.text
+    assert "voiceIsHeavyOrMasculine" in r.text
+    assert "masculineOrHeavyVoiceNames" in r.text
+    assert "selectedWasHeavy" in r.text
+    assert "paulina" in r.text
+    assert "samantha" in r.text
+    assert 'value="0.9"' in r.text
+    assert 'value="1.1"' in r.text
     assert "alignVoiceSelection" in r.text
     assert "syncLanguageFromState" in r.text
     assert "const activeLanguage = syncLanguageFromState(state)" in r.text

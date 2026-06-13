@@ -626,8 +626,8 @@ def roxy_live_page():
         </div>
         <div class="voice-row">
           <select id="voiceSelect" aria-label="Voz de Roxy"></select>
-          <label class="slider">Velocidad <input id="voiceRate" type="range" min="0.75" max="1.15" step="0.05" value="0.95" /></label>
-          <label class="slider">Tono <input id="voicePitch" type="range" min="0.85" max="1.2" step="0.05" value="1.05" /></label>
+          <label class="slider">Velocidad <input id="voiceRate" type="range" min="0.75" max="1.15" step="0.05" value="0.9" /></label>
+          <label class="slider">Tono <input id="voicePitch" type="range" min="0.85" max="1.2" step="0.05" value="1.1" /></label>
           <input id="wakeWord" placeholder="Wake: Roxy" value="Roxy" />
           <input id="feedbackNote" placeholder="Nota feedback: mas corto, mas claro..." />
         </div>
@@ -697,8 +697,8 @@ def roxy_live_page():
       $("conversationMode").checked = localStorage.getItem("roxyLiveConversationMode") === "true";
       $("wakeMode").checked = localStorage.getItem("roxyLiveWakeMode") === "true";
       $("wakeWord").value = localStorage.getItem("roxyLiveWakeWord") || "Roxy";
-      $("voiceRate").value = localStorage.getItem("roxyLiveVoiceRate") || "0.95";
-      $("voicePitch").value = localStorage.getItem("roxyLiveVoicePitch") || "1.05";
+      $("voiceRate").value = localStorage.getItem("roxyLiveVoiceRate") || "0.9";
+      $("voicePitch").value = localStorage.getItem("roxyLiveVoicePitch") || "1.1";
       $("preferredName").value = localStorage.getItem("roxyLivePreferredName") || "";
       $("language").value = localStorage.getItem("roxyLiveLanguage") || "es";
       $("tradingMode").value = localStorage.getItem("roxyLiveTradingMode") || "paper";
@@ -716,8 +716,8 @@ def roxy_live_page():
       localStorage.setItem("roxyLiveWakeMode", $("wakeMode").checked ? "true" : "false");
       localStorage.setItem("roxyLiveWakeWord", $("wakeWord").value || "Roxy");
       localStorage.setItem("roxyLiveVoiceName", $("voiceSelect").value || "");
-      localStorage.setItem("roxyLiveVoiceRate", $("voiceRate").value || "0.95");
-      localStorage.setItem("roxyLiveVoicePitch", $("voicePitch").value || "1.05");
+      localStorage.setItem("roxyLiveVoiceRate", $("voiceRate").value || "0.9");
+      localStorage.setItem("roxyLiveVoicePitch", $("voicePitch").value || "1.1");
       localStorage.setItem("roxyLivePreferredName", $("preferredName").value || "");
       localStorage.setItem("roxyLiveLanguage", $("language").value || "es");
       localStorage.setItem("roxyLiveTradingMode", $("tradingMode").value || "paper");
@@ -996,7 +996,7 @@ def roxy_live_page():
     }
 
     function setVoiceRateFromCommand(rate, esMessage, enMessage, eventName) {
-      const bounded = Math.min(1.15, Math.max(0.75, Number(rate || 0.95)));
+      const bounded = Math.min(1.15, Math.max(0.75, Number(rate || 0.9)));
       const language = $("language").value || "es";
       $("voiceRate").value = bounded.toFixed(2);
       saveSettings();
@@ -1011,7 +1011,7 @@ def roxy_live_page():
         "slower voice", "speak slower", "read slower", "slower"
       ])) {
         return setVoiceRateFromCommand(
-          Number($("voiceRate").value || 0.95) - 0.1,
+          Number($("voiceRate").value || 0.9) - 0.1,
           "Voz mas lenta.",
           "Slower voice.",
           "voice: pace slower"
@@ -1022,7 +1022,7 @@ def roxy_live_page():
         "faster voice", "speak faster", "read faster", "faster"
       ])) {
         return setVoiceRateFromCommand(
-          Number($("voiceRate").value || 0.95) + 0.1,
+          Number($("voiceRate").value || 0.9) + 0.1,
           "Voz mas rapida.",
           "Faster voice.",
           "voice: pace faster"
@@ -1032,7 +1032,7 @@ def roxy_live_page():
         "voz normal", "velocidad normal", "ritmo normal", "normal voice",
         "normal speed", "default voice speed"
       ])) {
-        return setVoiceRateFromCommand(0.95, "Voz a velocidad normal.", "Voice speed reset.", "voice: pace normal");
+        return setVoiceRateFromCommand(0.9, "Voz a velocidad normal.", "Voice speed reset.", "voice: pace normal");
       }
       return false;
     }
@@ -1869,6 +1869,51 @@ def roxy_live_page():
       return (languageValue || "es") === "en" ? "en-US" : "es-US";
     }
 
+    function normalizedVoiceName(voice) {
+      return (voice && voice.name ? voice.name : "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+    }
+
+    function feminineVoiceNames(languageValue) {
+      return (languageValue || "es") === "en"
+        ? ["samantha", "ava", "victoria", "zira", "jenny", "aria", "sandy", "shelley", "flo", "karen", "female"]
+        : ["paulina", "monica", "flo", "shelley", "sandy", "google espanol", "google us spanish", "sabina", "helena", "female"];
+    }
+
+    function masculineOrHeavyVoiceNames() {
+      return [
+        "eddy", "reed", "rocko", "grandpa", "grandma", "albert", "alex", "daniel",
+        "fred", "ralph", "thomas", "jorge", "diego", "carlos"
+      ];
+    }
+
+    function voiceIsFemininePreferred(voice, languageValue) {
+      const name = normalizedVoiceName(voice);
+      return feminineVoiceNames(languageValue).some(token => name.includes(token));
+    }
+
+    function voiceIsHeavyOrMasculine(voice) {
+      const name = normalizedVoiceName(voice);
+      return masculineOrHeavyVoiceNames().some(token => name.includes(token));
+    }
+
+    function receptionistVoiceScore(voice, languageValue) {
+      if (!voiceMatchesLanguage(voice, languageValue)) return -1000;
+      const name = normalizedVoiceName(voice);
+      let score = 10;
+      const preferred = feminineVoiceNames(languageValue);
+      preferred.forEach((token, index) => {
+        if (name.includes(token)) score += 100 - index * 4;
+      });
+      if (voiceIsFemininePreferred(voice, languageValue)) score += 15;
+      if (voiceIsHeavyOrMasculine(voice)) score -= 250;
+      if (name.includes("enhanced") || name.includes("premium") || name.includes("google")) score += 8;
+      if ((voice.lang || "").toLowerCase() === speechLang(languageValue).toLowerCase()) score += 5;
+      return score;
+    }
+
     function voiceMatchesLanguage(voice, languageValue) {
       const voiceLang = (voice && voice.lang ? voice.lang : "").toLowerCase();
       const lang = languageValue || "es";
@@ -1881,16 +1926,15 @@ def roxy_live_page():
       const selected = $("voiceSelect").value;
       if (selected) {
         const exact = voices.find(v => v.name === selected);
-        if (exact && voiceMatchesLanguage(exact, lang)) return exact;
+        if (exact && voiceMatchesLanguage(exact, lang) && !voiceIsHeavyOrMasculine(exact)) return exact;
       }
-      if (lang === "en") {
-        return voices.find(v => (v.lang || "").toLowerCase().startsWith("en") && /female|samantha|victoria|zira|google/i.test(v.name || ""))
-          || voices.find(v => (v.lang || "").toLowerCase().startsWith("en"))
-          || voices[0];
-      }
-      const preferredNames = ["paulina", "monica", "sabina", "google español", "spanish", "español"];
-      return voices.find(v => voiceMatchesLanguage(v, lang) && preferredNames.some(name => (v.name || "").toLowerCase().includes(name)))
-        || voices.find(v => voiceMatchesLanguage(v, lang))
+      const matching = voices.filter(v => voiceMatchesLanguage(v, lang));
+      const preferred = matching
+        .slice()
+        .sort((a, b) => receptionistVoiceScore(b, lang) - receptionistVoiceScore(a, lang))[0];
+      return preferred
+        || matching.find(v => !voiceIsHeavyOrMasculine(v))
+        || matching[0]
         || voices[0];
     }
 
@@ -1947,12 +1991,19 @@ def roxy_live_page():
         option.textContent = voice.name + " · " + voice.lang;
         select.appendChild(option);
       }
+      const selectedVoice = voices.find(v => v.name === selected);
+      const selectedWasHeavy = selectedVoice && voiceIsHeavyOrMasculine(selectedVoice);
       if (selected && Array.from(select.options).some(o => o.value === selected)) {
         select.value = selected;
-      } else {
-        const preferred = chooseVoice();
-        if (preferred) select.value = preferred.name;
       }
+      const preferred = chooseVoice();
+      const previous = select.value;
+      if (preferred && Array.from(select.options).some(o => o.value === preferred.name)) select.value = preferred.name;
+      if (selectedWasHeavy && previous !== select.value) {
+        $("voiceRate").value = "0.9";
+        $("voicePitch").value = "1.1";
+      }
+      if (previous !== select.value) saveSettings();
       updateVoiceDiagnostics();
     }
 
@@ -1963,8 +2014,8 @@ def roxy_live_page():
         const lang = languageOverride || $("language").value || "es";
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = speechLang(lang);
-        utterance.rate = Number($("voiceRate").value || 0.95);
-        utterance.pitch = Number($("voicePitch").value || 1.05);
+        utterance.rate = Number($("voiceRate").value || 0.9);
+        utterance.pitch = Number($("voicePitch").value || 1.1);
         const voice = chooseVoice(lang);
         if (voice) utterance.voice = voice;
         utterance.onstart = () => {
@@ -2044,8 +2095,8 @@ def roxy_live_page():
         default_symbol: $("defaultSymbol").value,
         watchlist: parseWatchlist($("watchlist").value),
         voice_name: $("voiceSelect").value,
-        voice_rate: Number($("voiceRate").value || 0.95),
-        voice_pitch: Number($("voicePitch").value || 1.05),
+        voice_rate: Number($("voiceRate").value || 0.9),
+        voice_pitch: Number($("voicePitch").value || 1.1),
       };
     }
 
@@ -2294,8 +2345,11 @@ def roxy_live_page():
       $("defaultSymbol").value = profile.default_symbol || "SPY";
       $("watchlist").value = Array.isArray(profile.watchlist) ? profile.watchlist.join(", ") : "";
       if (profile.voice_rate) $("voiceRate").value = profile.voice_rate;
+      else $("voiceRate").value = "0.9";
       if (profile.voice_pitch) $("voicePitch").value = profile.voice_pitch;
+      else $("voicePitch").value = "1.1";
       if (profile.voice_name) $("voiceSelect").value = profile.voice_name;
+      alignVoiceSelection(profile.language || $("language").value || "es");
       saveSettings();
       appendMessage("system", "Perfil cargado.", "profile");
     }
