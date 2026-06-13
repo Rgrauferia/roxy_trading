@@ -10608,6 +10608,7 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
         height=min(330, 58 + min(len(display_rows), 8) * 30),
         column_config=compact_column_config,
     )
+    full_view = display_rows.copy()
     full_column_config: dict[str, Any] = {}
     for column, label, help_text, width in (
         ("#", "#", "Orden visible después de filtros.", "small"),
@@ -10622,13 +10623,55 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
     ):
         if column in display_rows.columns:
             full_column_config[column] = st.column_config.TextColumn(label, help=help_text, width=width)
+    if "Score" in full_view.columns:
+        full_view["Score"] = pd.to_numeric(full_view["Score"], errors="coerce").fillna(0).clip(0, 100)
+        full_column_config["Score"] = st.column_config.ProgressColumn(
+            "Score",
+            help="Prioridad relativa 0-100.",
+            min_value=0,
+            max_value=100,
+            format="%d",
+        )
+    if "Riesgo" in full_view.columns:
+        full_view["Riesgo"] = pd.to_numeric(
+            full_view["Riesgo"].astype(str).str.replace("%", "", regex=False), errors="coerce"
+        ).fillna(0).clip(0, 6)
+        full_column_config["Riesgo"] = st.column_config.ProgressColumn(
+            "Riesgo %",
+            help="Riesgo estimado hasta stop; ideal bajo y controlado.",
+            min_value=0,
+            max_value=6,
+            format="%.2f%%",
+        )
+    if "Target" in full_view.columns:
+        full_view["Target"] = pd.to_numeric(
+            full_view["Target"].astype(str).str.replace("%", "", regex=False), errors="coerce"
+        ).fillna(0).clip(0, 10)
+        full_column_config["Target"] = st.column_config.ProgressColumn(
+            "Target %",
+            help="Potencial estimado hasta objetivo principal.",
+            min_value=0,
+            max_value=10,
+            format="%.2f%%",
+        )
+    if "RVol" in full_view.columns:
+        full_view["RVol"] = pd.to_numeric(
+            full_view["RVol"].astype(str).str.replace("x", "", regex=False), errors="coerce"
+        ).fillna(0).clip(0, 3)
+        full_column_config["RVol"] = st.column_config.ProgressColumn(
+            "RVol",
+            help="Volumen relativo; >=1.2x confirma participación.",
+            min_value=0,
+            max_value=3,
+            format="%.2fx",
+        )
     with st.expander("Tabla completa del Trading Desk", expanded=False):
         st.caption("Vista de auditoría: revisa primero Ticker, Estado, Qué falta y Siguiente paso.")
         st.dataframe(
-            display_rows,
+            full_view,
             use_container_width=True,
             hide_index=True,
-            height=min(560, 58 + len(display_rows) * 28),
+            height=min(560, 58 + len(full_view) * 28),
             column_config=full_column_config,
         )
 
