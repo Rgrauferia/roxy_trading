@@ -1110,6 +1110,13 @@ def test_roxy_brain_matches_crypto_base_symbol_for_risk_plan(tmp_path):
     assert "entry 1666.28" in eth.reply
 
 
+def test_roxy_symbol_extraction_ignores_support_resistance_words():
+    assert roxy_brain_module._extract_symbol("support and resistance NVDA") == "NVDA"
+    assert roxy_brain_module._extract_symbol("key levels SPY") == "SPY"
+    assert roxy_brain_module._extract_symbol("price levels SPY") == "SPY"
+    assert roxy_brain_module._extract_symbol("soporte y resistencia de NVDA") == "NVDA"
+
+
 def test_roxy_brain_explains_opportunity_risk_plan_in_english(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(
@@ -1156,6 +1163,86 @@ def test_roxy_brain_explains_opportunity_risk_plan_in_english(tmp_path):
     assert "Missing: 15m entry: WAIT | Volume confirms: missing volume" in response.reply
     assert ".." not in response.reply
     assert "not an execution order" in response.reply
+
+
+def test_roxy_brain_reads_support_resistance_levels_in_spanish(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "opportunities": [
+                        {
+                            "symbol": "NVDA",
+                            "signal": "WATCH",
+                            "close": 145.0,
+                            "range_low_60": 138.0,
+                            "range_high_60": 146.0,
+                            "entry": 142.25,
+                            "stop": 139.5,
+                            "target_2": 145.09,
+                            "entry_trigger": "Esperar gatillo BUY en 15m mientras 1h sigue valido.",
+                            "what_is_missing": "Volumen acompana: falta volumen",
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("soporte y resistencia de NVDA")
+
+    assert response.intent == "support_resistance"
+    assert response.language == "es"
+    assert response.safety_level == "guarded"
+    assert "NVDA niveles clave" in response.reply
+    assert "soporte 138.00" in response.reply
+    assert "resistencia 146.00" in response.reply
+    assert "cerca de resistencia" in response.reply
+    assert "apoyo de decision" in response.reply
+    assert "entry_checklist" in response.suggested_actions
+
+
+def test_roxy_brain_reads_support_resistance_levels_in_english(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "opportunities": [
+                        {
+                            "symbol": "NVDA",
+                            "signal": "WATCH",
+                            "close": 145.0,
+                            "range_low_60": 138.0,
+                            "range_high_60": 146.0,
+                            "entry": 142.25,
+                            "stop": 139.5,
+                            "target_2": 145.09,
+                            "entry_trigger": "Esperar gatillo BUY en 15m mientras 1h sigue valido.",
+                            "what_is_missing": "Volumen acompana: falta volumen",
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("support and resistance NVDA")
+
+    assert response.intent == "support_resistance"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert "NVDA key levels" in response.reply
+    assert "support 138.00" in response.reply
+    assert "resistance 146.00" in response.reply
+    assert "near resistance" in response.reply
+    assert "decision support only" in response.reply
+    assert "entry_checklist" in response.suggested_actions
 
 
 def test_roxy_brain_calculates_position_size_in_spanish(tmp_path):

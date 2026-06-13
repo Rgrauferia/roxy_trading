@@ -543,6 +543,10 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "daily",
         "brief",
         "briefing",
+        "level",
+        "levels",
+        "support",
+        "resistance",
         "trade",
         "trading",
         "opportunity",
@@ -613,6 +617,10 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "noticia",
         "diario",
         "briefing",
+        "nivel",
+        "niveles",
+        "soporte",
+        "resistencia",
         "operacion",
         "oportunidad",
         "riesgo",
@@ -936,7 +944,7 @@ def _active_conversation_context(recent_turns: list[dict[str, Any]]) -> dict[str
 def _next_best_actions_for_context(intent: str, safety_level: str, has_symbol: bool) -> list[str]:
     if safety_level == "critical" or intent == "action_confirmation_required":
         return ["show_risk_check", "show_trade_ticket", "require_explicit_confirmation"]
-    if intent in {"opportunity", "opportunity_reason", "opportunity_risk", "trade_readiness"}:
+    if intent in {"opportunity", "opportunity_reason", "opportunity_risk", "support_resistance", "trade_readiness"}:
         actions = ["trade_readiness", "monitoring_plan", "position_size"]
         if has_symbol:
             actions.append("alert_draft")
@@ -1089,6 +1097,7 @@ def _extract_symbol(query: str) -> str | None:
         "HOW",
         "IS",
         "IT",
+        "AND",
         "TO",
         "OF",
         "FOR",
@@ -1149,6 +1158,17 @@ def _extract_symbol(query: str) -> str | None:
         "RANK",
         "WATCH",
         "MONITORING",
+        "LEVEL",
+        "LEVELS",
+        "KEY",
+        "KEYS",
+        "PRICE",
+        "NIVEL",
+        "NIVELES",
+        "SUPPORT",
+        "RESISTANCE",
+        "SOPORTE",
+        "RESISTENCIA",
         "MONITOREO",
         "SEGUIMIENTO",
         "VIGILAR",
@@ -1400,6 +1420,22 @@ class RoxyInteractiveBrain:
             "is it safe to trade",
             "trade decision",
         )
+        support_resistance_terms = (
+            "soporte resistencia",
+            "soporte y resistencia",
+            "soporte",
+            "resistencia",
+            "niveles clave",
+            "niveles de precio",
+            "nivel clave",
+            "support resistance",
+            "support and resistance",
+            "support",
+            "resistance",
+            "key levels",
+            "price levels",
+            "levels",
+        )
         session_recap_terms = (
             "resumen de sesion",
             "resumen de sesión",
@@ -1431,6 +1467,10 @@ class RoxyInteractiveBrain:
 
         if _contains_any(lq, market_session_terms):
             response = self._market_session_reply(language)
+            return finish(response)
+
+        if _contains_any(lq, support_resistance_terms):
+            response = self._support_resistance_reply(q, language=language)
             return finish(response)
 
         if _contains_any(
@@ -1963,7 +2003,7 @@ class RoxyInteractiveBrain:
         last_intent = _last_turn_intent(recent_turns)
         symbol = _last_symbol_from_turns(recent_turns)
         symbol_query = f"{query} {symbol}" if symbol else query
-        opportunity_intents = {"opportunity", "opportunity_risk", "opportunity_reason", "daily_briefing"}
+        opportunity_intents = {"opportunity", "opportunity_risk", "opportunity_reason", "support_resistance", "daily_briefing"}
 
         asks_reason = _contains_any(lq, ("por que", "por qué", "porque", "why", "motivo", "razon", "razón", "reason"))
         asks_missing = _contains_any(lq, ("falta", "missing", "bloquea", "blocker", "confirmacion", "confirmation"))
@@ -3600,6 +3640,108 @@ class RoxyInteractiveBrain:
             safety_level="guarded",
             priority=priority,
             suggested_actions=("ask_risk", "position_size", "confirm_before_execution"),
+        )
+
+    def _first_float_from_row(self, row: dict[str, Any], keys: tuple[str, ...]) -> float | None:
+        for key in keys:
+            value = _safe_float(row.get(key))
+            if value is not None and value > 0:
+                return value
+        return None
+
+    def _support_resistance_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
+        symbol = _extract_symbol(query)
+        row = self._latest_opportunity(symbol)
+        if not row:
+            target = f" for {symbol}" if symbol and language == "en" else f" para {symbol}" if symbol else ""
+            reply = (
+                f"I do not have local support/resistance levels{target}. Refresh the scan first so I can read real levels instead of guessing."
+                if language == "en"
+                else f"No tengo niveles locales de soporte/resistencia{target}. Refresca el scan primero para leer niveles reales sin adivinar."
+            )
+            return RoxyBrainReply(
+                intent="support_resistance",
+                reply=reply,
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                suggested_actions=("run_scan", "ask_market_summary"),
+            )
+
+        symbol_text = _safe_text(row.get("symbol") or symbol or "-").upper()
+        close = self._first_float_from_row(row, ("close", "last_price", "current_price", "price", "mark"))
+        support = self._first_float_from_row(
+            row,
+            ("support", "support_level", "range_low_60", "recent_low", "pivot_low", "bb_lower", "lower_band", "stop"),
+        )
+        resistance = self._first_float_from_row(
+            row,
+            (
+                "resistance",
+                "resistance_level",
+                "range_high_60",
+                "recent_high",
+                "pivot_high",
+                "bb_upper",
+                "upper_band",
+                "target_2",
+                "target_2pct",
+                "target",
+                "recommended_target_price",
+            ),
+        )
+        entry = _safe_float(row.get("entry"))
+        stop = _safe_float(row.get("stop"))
+        target = self._first_float_from_row(
+            row,
+            ("recommended_target_price", "target", "target_2", "target_2pct", "target_5", "target_5pct"),
+        )
+        trigger = _sentence_fragment(_safe_text(row.get("entry_trigger") or row.get("trigger") or row.get("entry_tf")))
+        missing = _sentence_fragment(_safe_text(row.get("what_is_missing") or row.get("missing") or row.get("blockers")))
+
+        if close is not None and support is not None and resistance is not None:
+            if close < support:
+                zone_es = "precio bajo soporte; setup defensivo o invalido hasta recuperar"
+                zone_en = "price below support; defensive or invalid until it reclaims"
+            elif close > resistance:
+                zone_es = "ruptura sobre resistencia; necesita sostener y confirmar volumen"
+                zone_en = "breakout above resistance; it must hold and confirm volume"
+            elif abs(close - support) / close <= 0.012:
+                zone_es = "cerca de soporte; buscar defensa/rebote antes de preparar"
+                zone_en = "near support; look for defense/rebound before preparing"
+            elif abs(close - resistance) / close <= 0.012:
+                zone_es = "cerca de resistencia; ruptura valida solo con volumen"
+                zone_en = "near resistance; breakout is valid only with volume"
+            else:
+                zone_es = "entre soporte y resistencia; esperar pullback o ruptura"
+                zone_en = "between support and resistance; wait for pullback or breakout"
+        else:
+            zone_es = "niveles incompletos; tratarlos como mapa preliminar"
+            zone_en = "levels incomplete; treat this as a preliminary map"
+
+        if language == "en":
+            reply = (
+                f"{symbol_text} key levels: support {_money(support)}, resistance {_money(resistance)}, "
+                f"current {_money(close)}, entry {_money(entry)}, stop {_money(stop)}, nearby target {_money(target)}. "
+                f"Read: {zone_en}. Trigger: {_localize_market_phrase(trigger, language) or '-'}. "
+                f"Missing confirmation: {_localize_market_phrase(missing, language) or '-'}. "
+                "Use these as decision support only; confirm fresh data, volume, spreads, and risk before any order."
+            )
+        else:
+            reply = (
+                f"{symbol_text} niveles clave: soporte {_money(support)}, resistencia {_money(resistance)}, "
+                f"precio actual {_money(close)}, entrada {_money(entry)}, stop {_money(stop)}, objetivo cercano {_money(target)}. "
+                f"Lectura: {zone_es}. Gatillo: {trigger or '-'}. Confirmacion faltante: {missing or '-'}. "
+                "Usa esto solo como apoyo de decision; confirma datos frescos, volumen, spreads y riesgo antes de cualquier orden."
+            )
+
+        return RoxyBrainReply(
+            intent="support_resistance",
+            reply=reply,
+            emotion="analytical",
+            safety_level="guarded",
+            priority="high" if _safe_text(row.get("signal") or row.get("ai_action")).upper() in {"ALERT", "BUY", "SELL"} else "normal",
+            suggested_actions=("entry_checklist", "ask_risk", "set_alert", "confirm_before_execution"),
         )
 
     def _opportunity_risk_reply(self, query: str, language: str = "es") -> RoxyBrainReply:

@@ -603,6 +603,7 @@ def roxy_live_page():
           <button data-prompt="resumen del mercado">Mercado</button>
           <button data-prompt="sesion de mercado">Horario</button>
           <button data-prompt="frescura de datos">Datos</button>
+          <button data-prompt="soporte y resistencia">Niveles</button>
           <button data-prompt="vigila mi watchlist">Watchlist</button>
           <button data-prompt="analiza impacto de noticia: pega aqui el titular">Impacto news</button>
           <button data-prompt="puedo operar ahora">Decisión</button>
@@ -744,6 +745,7 @@ def roxy_live_page():
       connect_news_source: ["Noticias", "analiza impacto de noticia: pega aqui el titular"],
       confirm_trade_guardrails: ["Guardrails", "puedo operar ahora"],
       run_scan: ["Datos", "frescura de datos"],
+      support_resistance: ["Niveles", "soporte y resistencia"],
       entry_checklist: ["Checklist", "checklist de entrada"],
       position_size: ["Sizing", "tamaño de posicion con capital 10000 riesgo 0.5%"],
       monitoring_plan: ["Monitoreo", "plan de monitoreo"],
@@ -1473,8 +1475,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, estado de voz; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, horario de mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, voice status; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, market hours; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, estado de voz; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, horario de mercado; Roxy, niveles de SPY; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, voice status; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, market hours; Roxy, support and resistance SPY; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -1535,6 +1537,8 @@ def roxy_live_page():
         "ANALIZA", "ANALIZAR", "ANALYZE", "IMPACTO", "NOTICIA", "TITULAR", "HEADLINE",
         "SENTIMENT", "SENTIMIENTO",
         "HORARIO", "HOURS", "SESSION", "REGULAR", "EXTENDED", "ABIERTO", "CERRADO", "ACCIONES",
+        "NIVELES", "NIVEL", "LEVEL", "LEVELS", "KEY", "KEYS", "PRICE", "SOPORTE", "RESISTENCIA",
+        "SUPPORT", "RESISTANCE",
       ]);
     }
 
@@ -1705,6 +1709,14 @@ def roxy_live_page():
           phrases: ["riesgo", "explica riesgo", "entrada stop target", "risk", "explain risk", "entry stop target"],
           es: "explica riesgo entrada stop target",
           en: "explain entry stop target risk",
+        },
+        {
+          phrases: [
+            "niveles", "niveles clave", "soporte", "resistencia", "soporte resistencia",
+            "soporte y resistencia", "support resistance", "support and resistance", "key levels", "price levels"
+          ],
+          es: "soporte y resistencia",
+          en: "support and resistance",
         },
         {
           phrases: ["checklist", "checklist entrada", "checklist de entrada", "entry checklist"],
