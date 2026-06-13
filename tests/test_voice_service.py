@@ -93,6 +93,11 @@ def test_roxy_live_page():
     assert "updateVoicePresenceVisibility" in r.text
     assert "setVoicePresenceActive" in r.text
     assert "releaseVoicePresenceIfIdle" in r.text
+    assert "resumeSavedVoiceLoop" in r.text
+    assert "voice: restored listening" in r.text
+    assert "Voice mode restored: " in r.text
+    assert "allow microphone access" in r.text
+    assert r.text.index('setAvatar("ready", "calm")') < r.text.index("resumeSavedVoiceLoop();")
     assert "state.suggested_actions" in r.text
     assert "confirm_before_execution" in r.text
     assert "alert_draft" in r.text

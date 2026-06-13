@@ -930,6 +930,24 @@ def roxy_live_page():
       updateVoicePresenceVisibility();
     }
 
+    function resumeSavedVoiceLoop() {
+      if (!voiceModeActive()) return;
+      manualStop = false;
+      setVoicePresenceActive(true);
+      const language = $("language").value || "es";
+      const mode = $("wakeMode").checked
+        ? localizedText("Wake Roxy", "Wake Roxy", language)
+        : localizedText("conversacion continua", "continuous conversation", language);
+      const message = localizedText(
+        "Modo de voz restaurado: " + mode + ". Si el navegador pide permiso, permite el microfono.",
+        "Voice mode restored: " + mode + ". If the browser asks, allow microphone access.",
+        language
+      );
+      $("events").textContent = "voice: restored listening";
+      appendMessage("system", message, "voice-mode");
+      scheduleListen();
+    }
+
     function scheduleListen() {
       clearTimeout(pendingListenTimer);
       if ((!$("conversationMode").checked && !$("wakeMode").checked) || manualStop || isListening || isSpeaking) return;
@@ -3400,6 +3418,7 @@ def roxy_live_page():
     };
     appendMessage("system", "Roxy Live lista. Pulsa Hablar o usa un prompt rapido.", "ready");
     setAvatar("ready", "calm");
+    resumeSavedVoiceLoop();
   </script>
 </body>
 </html>
