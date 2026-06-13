@@ -119,6 +119,7 @@ def test_roxy_live_page():
     assert 'data-prompt="plan de monitoreo"' in r.text
     assert 'data-prompt="prepara alerta"' in r.text
     assert 'data-prompt="checklist de entrada"' in r.text
+    assert 'data-prompt="ticket de trade"' in r.text
     assert 'data-prompt="tamaño de posicion con capital 10000 riesgo 0.5%"' in r.text
     assert "chat" in r.text
     assert "conversationMode" in r.text
@@ -346,6 +347,7 @@ def test_roxy_live_page():
     assert "Roxy, cripto" in r.text
     assert "Roxy, estado de cuenta" in r.text
     assert "Roxy, preflight" in r.text
+    assert "Roxy, ticket SPY" in r.text
     assert "Roxy, briefing diario" in r.text
     assert "Roxy, top oportunidades" in r.text
     assert "Roxy, frescura de datos" in r.text
@@ -357,6 +359,7 @@ def test_roxy_live_page():
     assert "Roxy, crypto market" in r.text
     assert "Roxy, account status" in r.text
     assert "operational preflight" in r.text
+    assert "Roxy, trade ticket SPY" in r.text
     assert "Roxy, daily briefing" in r.text
     assert "Roxy, top opportunities" in r.text
     assert "Roxy, data freshness" in r.text
@@ -379,6 +382,10 @@ def test_roxy_live_page():
     assert '"account status"' in r.text
     assert '"estado de cuenta"' in r.text
     assert 'pre_trade_preflight: ["Preflight", "preflight operativo"]' in r.text
+    assert 'trade_ticket: ["Ticket", "ticket de trade"]' in r.text
+    assert 'show_trade_ticket: ["Ticket", "ticket de trade"]' in r.text
+    assert '"trade ticket"' in r.text
+    assert '"ticket de trade"' in r.text
     assert '"pre trade check"' in r.text
     assert '"estado operativo"' in r.text
     assert '"volume read"' in r.text

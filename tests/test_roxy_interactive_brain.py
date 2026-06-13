@@ -1410,6 +1410,7 @@ def test_roxy_symbol_extraction_ignores_support_resistance_words():
     assert roxy_brain_module._extract_symbol("account status") is None
     assert roxy_brain_module._extract_symbol("portfolio status") is None
     assert roxy_brain_module._extract_symbol("posiciones abiertas") is None
+    assert roxy_brain_module._extract_symbol("trade ticket") is None
     assert roxy_brain_module._extract_symbol("bitcoin") == "BTC/USD"
 
 
@@ -1783,6 +1784,82 @@ def test_roxy_brain_keeps_small_crypto_precision_for_position_size(tmp_path):
     assert "stop 0.085581" in response.reply
     assert "riesgo por unidad 0.001919" in response.reply
     assert "0.00. Cantidad" not in response.reply
+
+
+def test_roxy_brain_builds_trade_ticket_with_account_sizing_in_spanish(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "account_summary": {"equity": 10000.0, "buying_power": 20000.0},
+                "opportunities": [
+                    {
+                        "symbol": "SPY",
+                        "signal": "ALERT",
+                        "decision": "TRADE_FOR_2PCT",
+                        "entry": 505.5,
+                        "stop": 501.0,
+                        "risk_pct": 0.0089,
+                        "readiness": 82,
+                        "entry_trigger": "BUY confirmado en 15m.",
+                        "invalidation": "Pierde VWAP.",
+                        "why": "Checklist completo.",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("ticket de trade SPY")
+
+    assert response.intent == "trade_ticket"
+    assert response.language == "es"
+    assert response.priority == "high"
+    assert "Ticket de trade SPY: BORRADOR SOLO" in response.reply
+    assert "Pendiente: ninguno" in response.reply
+    assert "Sizing: equity 10000.00" in response.reply
+    assert "cantidad 11" in response.reply
+    assert "No se creo ninguna orden" in response.reply
+    assert "confirm_before_execution" in response.suggested_actions
+
+
+def test_roxy_brain_trade_ticket_requires_equity_for_sizing_in_english(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "opportunities": [
+                        {
+                            "symbol": "NVDA",
+                            "signal": "ALERT",
+                            "decision": "TRADE_FOR_2PCT",
+                            "entry": 142.25,
+                            "stop": 139.5,
+                            "risk_pct": 0.0193,
+                            "readiness": 84,
+                            "entry_trigger": "15m breakout confirmation.",
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("trade ticket NVDA")
+
+    assert response.intent == "trade_ticket"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert "Trade ticket NVDA: BLOCKED" in response.reply
+    assert "Pending: account equity" in response.reply
+    assert "account equity missing" in response.reply
+    assert "No order was created" in response.reply
+    assert "provide_account_equity" in response.suggested_actions
 
 
 def test_roxy_brain_marks_entry_checklist_wait_in_spanish(tmp_path):

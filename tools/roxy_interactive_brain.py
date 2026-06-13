@@ -558,6 +558,8 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         return "es"
 
     normalized = str(query or "").lower()
+    if any(phrase in normalized for phrase in ("ticket de trade", "ticket operativo", "preflight operativo")):
+        return "es"
     english_terms = {
         "hello",
         "hi",
@@ -587,6 +589,8 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "preflight",
         "operational",
         "before",
+        "ticket",
+        "handoff",
         "opportunity",
         "risk",
         "buy",
@@ -683,6 +687,7 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "operativa",
         "revision",
         "revisión",
+        "ticket",
         "oportunidad",
         "riesgo",
         "compra",
@@ -1021,6 +1026,7 @@ def _next_best_actions_for_context(intent: str, safety_level: str, has_symbol: b
         "support_resistance",
         "trade_readiness",
         "pre_trade_preflight",
+        "trade_ticket",
     }:
         actions = ["trade_readiness", "monitoring_plan", "position_size"]
         if has_symbol:
@@ -1200,6 +1206,7 @@ def _extract_symbol(query: str) -> str | None:
         "QTY",
         "CANTIDAD",
         "CHECKLIST",
+        "TICKET",
         "VALIDA",
         "VALIDAR",
         "LISTO",
@@ -1823,6 +1830,23 @@ class RoxyInteractiveBrain:
             ),
         ):
             response = self._entry_checklist_reply(q, language=language)
+            return finish(response)
+
+        if _contains_any(
+            lq,
+            (
+                "ticket de trade",
+                "ticket de operacion",
+                "ticket de operación",
+                "ticket operativo",
+                "trade ticket",
+                "order ticket",
+                "show ticket",
+                "execution ticket",
+                "handoff ticket",
+            ),
+        ):
+            response = self._trade_ticket_reply(q, language=language)
             return finish(response)
 
         if _contains_any(
@@ -4024,6 +4048,160 @@ class RoxyInteractiveBrain:
             emotion="analytical",
             safety_level="guarded",
             suggested_actions=("position_size", "trade_readiness", "confirm_before_execution"),
+        )
+
+    def _trade_ticket_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
+        symbol = _extract_symbol(query)
+        row = self._latest_opportunity(symbol)
+        if not row:
+            target = f" for {symbol}" if symbol and language == "en" else f" para {symbol}" if symbol else ""
+            reply = (
+                f"Trade ticket{target}: BLOCKED. I do not have a local opportunity with entry, stop, and risk. Refresh the scan first."
+                if language == "en"
+                else f"Ticket de trade{target}: BLOQUEADO. No tengo una oportunidad local con entrada, stop y riesgo. Refresca el scan primero."
+            )
+            return RoxyBrainReply(
+                intent="trade_ticket",
+                reply=reply,
+                avatar_state="blocked",
+                emotion="serious",
+                needs_live_source=True,
+                safety_level="guarded",
+                priority="high",
+                suggested_actions=("run_scan", "ask_latest_opportunity", "data_freshness"),
+            )
+
+        account = self._account_snapshot_from_brief()
+        equity = _extract_query_equity(query) or _safe_float(account.get("equity") if account else None)
+        risk_fraction, explicit_risk = _extract_query_risk_fraction(query)
+        if risk_fraction is None:
+            risk_fraction = 0.005
+        risk_fraction = max(0.0001, min(risk_fraction, 0.05))
+
+        symbol_text = _safe_text(row.get("symbol") or symbol or "-").upper()
+        action = _safe_text(row.get("signal") or row.get("ai_action") or "WATCH").upper()
+        decision = _safe_text(row.get("decision") or row.get("trade_decision") or "-")
+        entry = _safe_float(row.get("entry"))
+        stop = _safe_float(row.get("stop"))
+        risk_pct = _safe_float(row.get("risk_pct"))
+        readiness = _safe_float(row.get("readiness") or row.get("ai_score") or row.get("confluence_score"))
+        missing = _safe_text(row.get("what_is_missing") or row.get("missing") or row.get("blockers"))
+        trigger = _safe_text(row.get("entry_trigger") or row.get("trigger") or row.get("entry_tf"))
+        invalidation = _safe_text(row.get("invalidation") or row.get("exit_condition"))
+        why = _safe_text(row.get("why") or row.get("explanation") or row.get("memory_note") or row.get("alert_quality_reason"))
+
+        blockers: list[str] = []
+        if entry is None or entry <= 0:
+            blockers.append("entry")
+        if stop is None or stop <= 0:
+            blockers.append("stop")
+        if risk_pct is None or risk_pct <= 0:
+            blockers.append("risk")
+        if not trigger:
+            blockers.append("trigger")
+        if missing:
+            blockers.append("confirmations")
+
+        sizing_text = ""
+        if equity is not None and equity > 0 and entry and stop and entry > 0 and stop > 0 and entry != stop:
+            per_unit_risk = abs(entry - stop)
+            risk_budget = equity * risk_fraction
+            raw_qty = risk_budget / per_unit_risk if per_unit_risk > 0 else 0
+            is_fractional = "/" in symbol_text
+            qty = raw_qty if is_fractional else int(raw_qty)
+            notional = qty * entry
+            used_risk = qty * per_unit_risk
+            qty_text = f"{qty:.6f}".rstrip("0").rstrip(".") if is_fractional else str(int(qty))
+            risk_source = "explicit" if explicit_risk and language == "en" else "explicito" if explicit_risk else "default 0.5%"
+            if language == "en":
+                sizing_text = (
+                    f"Sizing: equity {_money(equity)}, account risk {_pct(risk_fraction)} ({risk_source}), "
+                    f"qty {qty_text}, notional {_money(notional)}, risk used {_money(used_risk)}."
+                )
+            else:
+                sizing_text = (
+                    f"Sizing: equity {_money(equity)}, riesgo cuenta {_pct(risk_fraction)} ({risk_source}), "
+                    f"cantidad {qty_text}, nocional {_money(notional)}, riesgo usado {_money(used_risk)}."
+                )
+        else:
+            if equity is None or equity <= 0:
+                blockers.append("account_equity")
+            sizing_text = (
+                "Sizing: account equity missing or entry/stop invalid."
+                if language == "en"
+                else "Sizing: falta equity de cuenta o entrada/stop valido."
+            )
+
+        status = "blocked" if any(item in blockers for item in ("entry", "stop", "risk", "account_equity")) else (
+            "wait" if blockers else "draft"
+        )
+        readiness_text = "-" if readiness is None else f"{readiness:.1f}"
+
+        def blocker_text() -> str:
+            unique = []
+            for item in blockers:
+                if item not in unique:
+                    unique.append(item)
+            if language == "en":
+                mapping = {
+                    "entry": "entry",
+                    "stop": "stop",
+                    "risk": "risk",
+                    "trigger": "trigger",
+                    "confirmations": "confirmations",
+                    "account_equity": "account equity",
+                }
+                return ", ".join(mapping.get(item, item) for item in unique) if unique else "none"
+            mapping = {
+                "entry": "entrada",
+                "stop": "stop",
+                "risk": "riesgo",
+                "trigger": "gatillo",
+                "confirmations": "confirmaciones",
+                "account_equity": "equity de cuenta",
+            }
+            return ", ".join(mapping.get(item, item) for item in unique) if unique else "ninguno"
+
+        if language == "en":
+            decision = _localize_market_phrase(decision, language)
+            missing = _sentence_fragment(_localize_market_phrase(missing, language))
+            trigger = _sentence_fragment(_localize_market_phrase(trigger, language))
+            invalidation = _sentence_fragment(_localize_market_phrase(invalidation, language))
+            why = _sentence_fragment(_localize_market_phrase(why, language))
+            status_label = {"blocked": "BLOCKED", "wait": "WAIT", "draft": "DRAFT ONLY"}[status]
+            reply = (
+                f"Trade ticket {symbol_text}: {status_label}. Action {action}, decision {decision}, "
+                f"readiness {readiness_text}, entry {_money(entry)}, stop {_money(stop)}, risk {_pct(risk_pct)}. "
+                f"Trigger: {trigger or '-'}. Invalidation: {invalidation or '-'}. Reason: {why or '-'}. "
+                f"Pending: {blocker_text()}. {sizing_text} "
+                "No order was created; execution requires explicit confirmation in the operational flow."
+            )
+        else:
+            missing = _sentence_fragment(missing)
+            trigger = _sentence_fragment(trigger)
+            invalidation = _sentence_fragment(invalidation)
+            why = _sentence_fragment(why)
+            status_label = {"blocked": "BLOQUEADO", "wait": "ESPERAR", "draft": "BORRADOR SOLO"}[status]
+            reply = (
+                f"Ticket de trade {symbol_text}: {status_label}. Accion {action}, decision {decision}, "
+                f"readiness {readiness_text}, entrada {_money(entry)}, stop {_money(stop)}, riesgo {_pct(risk_pct)}. "
+                f"Gatillo: {trigger or '-'}. Invalidacion: {invalidation or '-'}. Razon: {why or '-'}. "
+                f"Pendiente: {blocker_text()}. {sizing_text} "
+                "No se creo ninguna orden; ejecutar requiere confirmacion explicita en el flujo operacional."
+            )
+
+        return RoxyBrainReply(
+            intent="trade_ticket",
+            reply=reply,
+            avatar_state="blocked" if status == "blocked" else "speaking",
+            emotion="serious" if status == "blocked" else "analytical",
+            safety_level="guarded",
+            priority="high" if status in {"blocked", "draft"} else "normal",
+            suggested_actions=(
+                ("provide_account_equity", "position_size", "entry_checklist", "confirm_before_execution")
+                if "account_equity" in blockers
+                else ("entry_checklist", "position_size", "confirm_before_execution")
+            ),
         )
 
     def _position_size_reply(self, query: str, language: str = "es") -> RoxyBrainReply:

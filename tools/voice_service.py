@@ -617,6 +617,7 @@ def roxy_live_page():
           <button data-prompt="prepara alerta">Alerta</button>
           <button data-prompt="explica riesgo entrada stop target">Riesgo</button>
           <button data-prompt="checklist de entrada">Checklist</button>
+          <button data-prompt="ticket de trade">Ticket</button>
           <button data-prompt="tamaño de posicion con capital 10000 riesgo 0.5%">Sizing</button>
           <button data-prompt="lee el manual de Roxy Trading">Manual</button>
         </div>
@@ -762,6 +763,7 @@ def roxy_live_page():
       support_resistance: ["Niveles", "soporte y resistencia"],
       technical_indicators: ["Indicadores", "indicadores tecnicos"],
       entry_checklist: ["Checklist", "checklist de entrada"],
+      trade_ticket: ["Ticket", "ticket de trade"],
       position_size: ["Sizing", "tamaño de posicion con capital 10000 riesgo 0.5%"],
       monitoring_plan: ["Monitoreo", "plan de monitoreo"],
       compare_opportunities: ["Ranking", "top oportunidades"],
@@ -772,7 +774,7 @@ def roxy_live_page():
       trade_readiness: ["Decisión", "puedo operar ahora"],
       confirm_before_execution: ["Go/no-go", "puedo operar ahora"],
       show_risk_check: ["Riesgo", "explica riesgo entrada stop target"],
-      show_trade_ticket: ["Ticket", "checklist de entrada"],
+      show_trade_ticket: ["Ticket", "ticket de trade"],
       require_explicit_confirmation: ["Confirmar", "puedo operar ahora"],
       ask_risk: ["Riesgo", "explica riesgo entrada stop target"],
       ask_why: ["Por qué", "por que?"],
@@ -1870,8 +1872,8 @@ def roxy_live_page():
       const language = $("language").value || "es";
       const message = localizedText(
         "Puedes decir: Roxy, iniciar voz; Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, que escuchaste; Roxy, corrige borrador comprar SPY; Roxy, estado de voz; Roxy, voz clara; Roxy, prueba tu voz; Roxy, opciones; Roxy, más corto; Roxy, más detalle; Roxy, pasos; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, cripto; Roxy, estado de cuenta; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "Puedes decir: Roxy, iniciar voz; Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, que escuchaste; Roxy, corrige borrador comprar SPY; Roxy, estado de voz; Roxy, voz clara; Roxy, prueba tu voz; Roxy, opciones; Roxy, más corto; Roxy, más detalle; Roxy, pasos; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, cripto; Roxy, estado de cuenta; Roxy, preflight; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, start voice session; Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, what did you hear; Roxy, replace draft with buy SPY; Roxy, voice status; Roxy, receptionist voice; Roxy, test voice; Roxy, options; Roxy, shorter; Roxy, give more detail; Roxy, steps; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, crypto market; Roxy, account status; Roxy, preflight; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, iniciar voz; Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, que escuchaste; Roxy, corrige borrador comprar SPY; Roxy, estado de voz; Roxy, voz clara; Roxy, prueba tu voz; Roxy, opciones; Roxy, más corto; Roxy, más detalle; Roxy, pasos; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, cripto; Roxy, estado de cuenta; Roxy, preflight; Roxy, ticket SPY; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, start voice session; Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, what did you hear; Roxy, replace draft with buy SPY; Roxy, voice status; Roxy, receptionist voice; Roxy, test voice; Roxy, options; Roxy, shorter; Roxy, give more detail; Roxy, steps; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, crypto market; Roxy, account status; Roxy, preflight; Roxy, trade ticket SPY; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -2168,6 +2170,14 @@ def roxy_live_page():
           phrases: ["checklist", "checklist entrada", "checklist de entrada", "entry checklist"],
           es: "checklist de entrada",
           en: "entry checklist",
+        },
+        {
+          phrases: [
+            "ticket", "ticket trade", "ticket de trade", "ticket de operacion", "ticket operativo",
+            "trade ticket", "order ticket", "show ticket", "handoff ticket"
+          ],
+          es: "ticket de trade",
+          en: "trade ticket",
         },
         {
           phrases: [

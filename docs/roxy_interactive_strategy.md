@@ -91,6 +91,8 @@ For technical-indicator questions such as "indicadores tecnicos de SPY" or "tech
 
 For entry validation questions, Roxy uses the `entry_checklist` intent. It classifies a local opportunity as `READY TO PREPARE`, `WAIT`, or `BLOCKED` based on entry, stop, risk, trigger, readiness, and missing confirmations. Even a ready result remains preparation only; execution requires explicit confirmation in the operational flow.
 
+For trade-ticket prompts such as "ticket de trade", "ticket operativo", or "trade ticket", Roxy uses the `trade_ticket` intent. It creates a voice-ready draft ticket with symbol, action, decision, readiness, entry, stop, risk, trigger, invalidation, reason, pending gates, and sizing when account equity is available. The ticket is a handoff artifact for review only: Roxy must state that no order was created and that execution still requires explicit confirmation in the operational flow.
+
 For position sizing questions, Roxy uses the `position_size` intent. It combines local entry/stop data with account equity supplied in the prompt or local brief account fields, uses an explicit risk percent when provided, otherwise defaults to 0.5% account risk, and returns quantity, notional, and risk used. This is sizing math only and never an execution order.
 
 For executive voice updates, Roxy uses the `daily_briefing` intent. It combines the local market regime, top watch opportunity, entry/stop/risk, missing checklist items, alert count, policy, and generated timestamp into one short speakable briefing in Spanish or English. It is a briefing only, not a trading approval.
