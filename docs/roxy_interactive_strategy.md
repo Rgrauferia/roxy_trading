@@ -186,7 +186,7 @@ Roxy also understands operational status prompts such as "estado", "estado de Ro
 - Visual tab: use `voice_style`, `intent`, `avatar_state`, `emotion`, and `suggested_actions` to animate avatar state, listening state, expression, and recommended buttons.
 - Operational tab: consume guarded replies and require confirmation for broker actions.
 - Knowledge/strategy tab: feed `alerts/roxy_ai_brief.json`, `alerts/roxy_ai_memory.json`, and future news objects into the brain.
-- Local knowledge: Roxy can answer from approved project docs such as `MASTER_CONTEXT.md`, `README.md`, `README_UI.md`, `docs/ai_spec.md`, and this strategy contract.
+- Local knowledge: Roxy can answer in Spanish or English from approved project docs such as `MASTER_CONTEXT.md`, `README.md`, `README_UI.md`, `docs/ai_spec.md`, and this strategy contract.
 - Source transparency: clients can call `GET /v1/knowledge/sources`, use the `Fuentes` button in Roxy Live, or ask Roxy `fuentes de conocimiento` / `what sources do you know`. The brain returns the `knowledge_sources` intent with available and missing approved local docs, without inventing unconnected knowledge.
 - Visual identity: use `assets/roxy_avatar.jpg` as the source face. Reusable variants are `roxy_avatar_mini.jpg`, `roxy_avatar_icon.jpg`, `roxy_avatar_splash.jpg`, and `roxy_avatar_card.jpg`.
 

@@ -484,6 +484,23 @@ def _contains_any(text: str, terms: Iterable[str]) -> bool:
     return any(term in text for term in terms)
 
 
+def _is_knowledge_query(text: str) -> bool:
+    normalized = str(text or "").lower()
+    phrase_terms = (
+        "explica el sistema",
+        "explain the system",
+        "explicame el sistema",
+        "universo roxy",
+        "roxy trading",
+        "como funciona",
+        "how does it work",
+    )
+    if any(term in normalized for term in phrase_terms):
+        return True
+    tokens = set(re.findall(r"[a-záéíóúñ]+", normalized))
+    return bool(tokens & {"lee", "read", "documento", "document", "manual"})
+
+
 def _is_crypto_market_query(text: str) -> bool:
     normalized = str(text or "").lower().strip()
     if normalized in {"crypto", "cripto", "criptomonedas", "cryptocurrency", "cryptocurrencies"}:
@@ -552,11 +569,6 @@ def _extract_query_risk_fraction(query: str) -> tuple[float | None, bool]:
 
 def _detect_language(query: str, profile: dict[str, Any]) -> str:
     preferred = _safe_text(profile.get("language")).lower()
-    if preferred.startswith("en"):
-        return "en"
-    if preferred.startswith("es"):
-        return "es"
-
     normalized = str(query or "").lower()
     if any(phrase in normalized for phrase in ("ticket de trade", "ticket operativo", "preflight operativo")):
         return "es"
@@ -600,6 +612,10 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "help",
         "explain",
         "read",
+        "document",
+        "manual",
+        "voice",
+        "safety",
         "learning",
         "memory",
         "autonomous",
@@ -700,6 +716,10 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "ayuda",
         "explica",
         "lee",
+        "documento",
+        "manual",
+        "voz",
+        "seguridad",
         "aprendizaje",
         "memoria",
         "autonomo",
@@ -754,6 +774,14 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
     tokens = set(re.findall(r"[a-záéíóúñ]+", normalized))
     english_score = len(tokens.intersection(english_terms))
     spanish_score = len(tokens.intersection(spanish_terms))
+    if preferred.startswith("en"):
+        if spanish_score >= 2 and spanish_score > english_score:
+            return "es"
+        return "en"
+    if preferred.startswith("es"):
+        if english_score >= 2 and english_score > spanish_score:
+            return "en"
+        return "es"
     if english_score > spanish_score:
         return "en"
     return "es"
@@ -1811,6 +1839,10 @@ class RoxyInteractiveBrain:
             response = self._identity_reply()
             return finish(response)
 
+        if _is_knowledge_query(lq):
+            response = self._knowledge_reply(q, language=language)
+            return finish(response)
+
         if _contains_any(
             lq,
             (
@@ -1959,24 +1991,8 @@ class RoxyInteractiveBrain:
             response = self._trade_ticket_reply(q, language=language)
             return finish(response)
 
-        if _contains_any(
-            lq,
-            (
-                "explica el sistema",
-                "explain the system",
-                "explicame el sistema",
-                "lee",
-                "read",
-                "documento",
-                "document",
-                "manual",
-                "universo roxy",
-                "roxy trading",
-                "como funciona",
-                "how does it work",
-            ),
-        ):
-            response = self._knowledge_reply(q)
+        if _is_knowledge_query(lq):
+            response = self._knowledge_reply(q, language=language)
             return finish(response)
 
         if _contains_any(lq, ("aprendizaje", "aprendiendo", "aprendiste", "aprendi", "learning", "memoria", "memory")):
@@ -3743,23 +3759,30 @@ class RoxyInteractiveBrain:
             suggested_actions=("ask_learning",),
         )
 
-    def _knowledge_reply(self, query: str) -> RoxyBrainReply:
+    def _knowledge_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
         match = self._best_knowledge_match(query)
         if not match:
-            return RoxyBrainReply(
-                intent="knowledge",
-                reply=(
+            reply = (
+                "I did not find a clear local source for that question inside the Roxy universe. "
+                "I can answer better when it is connected to a specific document, note, or brief."
+                if language == "en"
+                else (
                     "No encontre una fuente local clara para esa pregunta dentro del universo Roxy. "
                     "Puedo responder mejor si la conectamos a un documento, nota o brief especifico."
-                ),
+                )
+            )
+            return RoxyBrainReply(
+                intent="knowledge",
+                reply=reply,
                 emotion="cautious",
                 suggested_actions=("attach_document", "ask_latest_opportunity"),
             )
 
         path, excerpt = match
+        reply = f"According to {path}: {excerpt}" if language == "en" else f"Segun {path}: {excerpt}"
         return RoxyBrainReply(
             intent="knowledge",
-            reply=f"Segun {path}: {excerpt}",
+            reply=reply,
             emotion="informative",
             suggested_actions=("ask_followup", "open_source_document"),
         )

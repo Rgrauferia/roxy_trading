@@ -2740,6 +2740,71 @@ def test_roxy_brain_reads_local_knowledge_source(tmp_path):
     assert "memoria" in response.reply
 
 
+def test_roxy_brain_reads_local_knowledge_source_in_english(tmp_path):
+    knowledge_path = tmp_path / "manual.md"
+    knowledge_path.write_text(
+        "# Roxy Manual\n\nRoxy Trading uses memory, local briefs, a clear voice, and safety rules to explain signals.",
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(
+        brief_path=tmp_path / "brief.json",
+        memory_path=tmp_path / "memory.json",
+        knowledge_paths=(knowledge_path,),
+    )
+
+    response = brain.generate_reply("read the manual about voice and safety")
+
+    assert response.intent == "knowledge"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert response.emotion == "informative"
+    assert "According to" in response.reply
+    assert "manual.md" in response.reply
+    assert "voice" in response.reply
+    assert "memory" in response.reply
+    assert "Segun" not in response.reply
+
+
+def test_roxy_brain_english_knowledge_prompt_overrides_spanish_profile(tmp_path):
+    profile = RoxyUserProfile(path=tmp_path / "profile.json")
+    profile.update("local", {"language": "es"})
+    knowledge_path = tmp_path / "manual.md"
+    knowledge_path.write_text(
+        "# Roxy Manual\n\nRoxy Trading uses a clear voice and safety rules.",
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(
+        brief_path=tmp_path / "brief.json",
+        memory_path=tmp_path / "memory.json",
+        user_profile=profile,
+        knowledge_paths=(knowledge_path,),
+    )
+
+    response = brain.generate_reply("read the manual about voice and safety", user="local")
+
+    assert response.intent == "knowledge"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert response.reply.startswith("According to")
+
+
+def test_roxy_brain_knowledge_fallback_is_english(tmp_path):
+    knowledge_path = tmp_path / "manual.md"
+    knowledge_path.write_text("Only account setup notes.", encoding="utf-8")
+    brain = RoxyInteractiveBrain(
+        brief_path=tmp_path / "brief.json",
+        memory_path=tmp_path / "memory.json",
+        knowledge_paths=(knowledge_path,),
+    )
+
+    response = brain.generate_reply("read the document about neural routing")
+
+    assert response.intent == "knowledge"
+    assert response.language == "en"
+    assert "I did not find a clear local source" in response.reply
+    assert "No encontre" not in response.reply
+
+
 def test_roxy_brain_lists_knowledge_sources_in_spanish(tmp_path):
     knowledge_path = tmp_path / "manual.md"
     missing_path = tmp_path / "missing.md"
