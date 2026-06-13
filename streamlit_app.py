@@ -1555,6 +1555,45 @@ def render_company_profile_card(symbol: str, market: str) -> None:
         st.link_button("Web compañía", summary["website"], use_container_width=True)
 
 
+def candle_reading_label(
+    open_value: Any,
+    high_value: Any,
+    low_value: Any,
+    close_value: Any,
+    body_pct: Any,
+    range_pct: Any,
+    upper_wick_pct: Any,
+    lower_wick_pct: Any,
+) -> str:
+    try:
+        open_number = float(open_value)
+        high_number = float(high_value)
+        low_number = float(low_value)
+        close_number = float(close_value)
+    except (TypeError, ValueError):
+        return "Sin lectura"
+    if any(pd.isna(value) for value in [open_number, high_number, low_number, close_number]):
+        return "Sin lectura"
+    if high_number < low_number:
+        return "Datos revisar"
+    body = safe_float(body_pct) or 0.0
+    candle_range = safe_float(range_pct) or 0.0
+    upper_wick = safe_float(upper_wick_pct) or 0.0
+    lower_wick = safe_float(lower_wick_pct) or 0.0
+    is_green = close_number >= open_number
+    if candle_range > 0 and body <= candle_range * 0.22:
+        return "Indecisión"
+    if lower_wick >= max(body * 1.4, 0.0025) and is_green:
+        return "Rebote soporte"
+    if upper_wick >= max(body * 1.4, 0.0025) and not is_green:
+        return "Rechazo arriba"
+    if is_green and body >= 0.004:
+        return "Impulso alcista"
+    if not is_green and body >= 0.004:
+        return "Impulso bajista"
+    return "Alcista leve" if is_green else "Bajista leve"
+
+
 def render_professional_chart_block(
     chart_df: pd.DataFrame,
     setup: dict,
@@ -1917,9 +1956,37 @@ def render_professional_chart_block(
         candle_table["direction"] = "Roja"
         candle_table.loc[close_values >= open_values, "direction"] = "Verde"
         candle_table["change_pct"] = close_values.pct_change()
-        candle_table["range_pct"] = (high_values - low_values) / close_values.replace(0, pd.NA)
-        candle_table["body_pct"] = (close_values - open_values).abs() / close_values.replace(0, pd.NA)
+        close_denominator = close_values.replace(0, pd.NA)
+        body_top = pd.concat([open_values, close_values], axis=1).max(axis=1)
+        body_bottom = pd.concat([open_values, close_values], axis=1).min(axis=1)
+        candle_table["range_pct"] = (high_values - low_values) / close_denominator
+        candle_table["body_pct"] = (close_values - open_values).abs() / close_denominator
+        candle_table["upper_wick_pct"] = (high_values - body_top).clip(lower=0) / close_denominator
+        candle_table["lower_wick_pct"] = (body_bottom - low_values).clip(lower=0) / close_denominator
+        candle_table["reading"] = [
+            candle_reading_label(
+                open_value,
+                high_value,
+                low_value,
+                close_value,
+                body_pct,
+                range_pct,
+                upper_wick_pct,
+                lower_wick_pct,
+            )
+            for open_value, high_value, low_value, close_value, body_pct, range_pct, upper_wick_pct, lower_wick_pct in zip(
+                open_values,
+                high_values,
+                low_values,
+                close_values,
+                candle_table["body_pct"],
+                candle_table["range_pct"],
+                candle_table["upper_wick_pct"],
+                candle_table["lower_wick_pct"],
+            )
+        ]
         candle_table = candle_table.tail(8).copy()
+        candle_table = candle_table.drop(columns=["upper_wick_pct", "lower_wick_pct"], errors="ignore")
         if "ts" in candle_table.columns:
             candle_table["ts"] = pd.to_datetime(candle_table["ts"], errors="coerce").dt.strftime("%m/%d %H:%M")
         for column in ["open", "high", "low", "close"]:
@@ -1939,14 +2006,30 @@ def render_professional_chart_block(
                 "low": "Low",
                 "close": "Close",
                 "volume": "Volumen",
+                "reading": "Lectura",
                 "change_pct": "Cambio",
                 "range_pct": "Rango",
                 "body_pct": "Cuerpo",
             }
         )
+        candle_order = [
+            "Hora",
+            "Dirección",
+            "Lectura",
+            "Open",
+            "High",
+            "Low",
+            "Close",
+            "Cambio",
+            "Rango",
+            "Cuerpo",
+            "Volumen",
+        ]
+        candle_table = candle_table[[column for column in candle_order if column in candle_table.columns]]
         candle_column_config = {
             "Hora": st.column_config.TextColumn("Hora", help="Hora local de la vela.", width="small"),
             "Dirección": st.column_config.TextColumn("Dirección", help="Verde si cierre >= apertura; roja si cierre < apertura.", width="small"),
+            "Lectura": st.column_config.TextColumn("Lectura", help="Interpretación rápida de cuerpo y mechas.", width="medium"),
             "Open": st.column_config.TextColumn("Open", help="Precio de apertura.", width="small"),
             "High": st.column_config.TextColumn("High", help="Máximo de la vela.", width="small"),
             "Low": st.column_config.TextColumn("Low", help="Mínimo de la vela.", width="small"),
