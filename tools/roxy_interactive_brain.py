@@ -543,6 +543,15 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "daily",
         "brief",
         "briefing",
+        "indicator",
+        "indicators",
+        "technical",
+        "ema",
+        "rsi",
+        "macd",
+        "vwap",
+        "bollinger",
+        "volume",
         "level",
         "levels",
         "support",
@@ -617,6 +626,16 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "noticia",
         "diario",
         "briefing",
+        "indicador",
+        "indicadores",
+        "tecnico",
+        "técnico",
+        "ema",
+        "rsi",
+        "macd",
+        "vwap",
+        "bollinger",
+        "volumen",
         "nivel",
         "niveles",
         "soporte",
@@ -944,7 +963,14 @@ def _active_conversation_context(recent_turns: list[dict[str, Any]]) -> dict[str
 def _next_best_actions_for_context(intent: str, safety_level: str, has_symbol: bool) -> list[str]:
     if safety_level == "critical" or intent == "action_confirmation_required":
         return ["show_risk_check", "show_trade_ticket", "require_explicit_confirmation"]
-    if intent in {"opportunity", "opportunity_reason", "opportunity_risk", "support_resistance", "trade_readiness"}:
+    if intent in {
+        "opportunity",
+        "opportunity_reason",
+        "opportunity_risk",
+        "technical_indicators",
+        "support_resistance",
+        "trade_readiness",
+    }:
         actions = ["trade_readiness", "monitoring_plan", "position_size"]
         if has_symbol:
             actions.append("alert_draft")
@@ -1158,6 +1184,25 @@ def _extract_symbol(query: str) -> str | None:
         "RANK",
         "WATCH",
         "MONITORING",
+        "INDICATOR",
+        "INDICATORS",
+        "INDICADOR",
+        "INDICADORES",
+        "TECHNICAL",
+        "TECNICO",
+        "TÉCNICO",
+        "EMA",
+        "RSI",
+        "MACD",
+        "VWAP",
+        "BOLLINGER",
+        "VOLUME",
+        "VOLUMEN",
+        "MOVING",
+        "AVERAGES",
+        "MEDIAS",
+        "MOVILES",
+        "MÓVILES",
         "LEVEL",
         "LEVELS",
         "KEY",
@@ -1420,6 +1465,27 @@ class RoxyInteractiveBrain:
             "is it safe to trade",
             "trade decision",
         )
+        technical_indicator_terms = (
+            "indicadores tecnicos",
+            "indicadores técnicos",
+            "indicadores",
+            "indicador",
+            "lectura tecnica",
+            "lectura técnica",
+            "medias moviles",
+            "medias móviles",
+            "rsi",
+            "macd",
+            "vwap",
+            "bollinger",
+            "ema",
+            "technical indicators",
+            "indicators",
+            "indicator",
+            "technical read",
+            "moving averages",
+            "volume read",
+        )
         support_resistance_terms = (
             "soporte resistencia",
             "soporte y resistencia",
@@ -1467,6 +1533,10 @@ class RoxyInteractiveBrain:
 
         if _contains_any(lq, market_session_terms):
             response = self._market_session_reply(language)
+            return finish(response)
+
+        if _contains_any(lq, technical_indicator_terms):
+            response = self._technical_indicators_reply(q, language=language)
             return finish(response)
 
         if _contains_any(lq, support_resistance_terms):
@@ -3648,6 +3718,158 @@ class RoxyInteractiveBrain:
             if value is not None and value > 0:
                 return value
         return None
+
+    def _first_number_from_row(self, row: dict[str, Any], keys: tuple[str, ...]) -> float | None:
+        for key in keys:
+            value = _safe_float(row.get(key))
+            if value is not None:
+                return value
+        return None
+
+    def _technical_indicators_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
+        symbol = _extract_symbol(query)
+        row = self._latest_opportunity(symbol)
+        if not row:
+            target = f" for {symbol}" if symbol and language == "en" else f" para {symbol}" if symbol else ""
+            reply = (
+                f"I do not have a local technical-indicator snapshot{target}. Refresh the scan or chart first."
+                if language == "en"
+                else f"No tengo una lectura local de indicadores tecnicos{target}. Refresca el scan o la grafica primero."
+            )
+            return RoxyBrainReply(
+                intent="technical_indicators",
+                reply=reply,
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                suggested_actions=("run_scan", "data_freshness", "ask_market_summary"),
+            )
+
+        indicator_keys = (
+            "ema9",
+            "ema21",
+            "sma20",
+            "sma40",
+            "sma100",
+            "sma200",
+            "rsi",
+            "rsi14",
+            "macd",
+            "macd_signal",
+            "macd_hist",
+            "vwap",
+            "bb_upper",
+            "bb_lower",
+            "rel_volume",
+            "relative_volume",
+            "volume",
+        )
+        has_indicator_data = any(row.get(key) is not None for key in indicator_keys)
+        symbol_text = _safe_text(row.get("symbol") or symbol or "-").upper()
+        if not has_indicator_data:
+            reply = (
+                f"{symbol_text} has a local opportunity row, but no EMA/RSI/VWAP/MACD/volume snapshot. Refresh the chart scan before reading indicators."
+                if language == "en"
+                else f"{symbol_text} tiene oportunidad local, pero no trae snapshot de EMA/RSI/VWAP/MACD/volumen. Refresca el scan de grafica antes de leer indicadores."
+            )
+            return RoxyBrainReply(
+                intent="technical_indicators",
+                reply=reply,
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                suggested_actions=("run_scan", "data_freshness", "support_resistance"),
+            )
+
+        close = self._first_number_from_row(row, ("close", "last_price", "current_price", "price", "mark"))
+        ema_fast = self._first_number_from_row(row, ("ema9", "ema_9", "ema_fast"))
+        ema_slow = self._first_number_from_row(row, ("ema21", "ema_21", "ema_slow", "sma20"))
+        sma_major = self._first_number_from_row(row, ("sma40", "sma50", "sma100", "sma200"))
+        rsi = self._first_number_from_row(row, ("rsi14", "rsi"))
+        vwap = self._first_number_from_row(row, ("vwap",))
+        macd = self._first_number_from_row(row, ("macd",))
+        macd_signal = self._first_number_from_row(row, ("macd_signal", "macd_sig"))
+        macd_hist = self._first_number_from_row(row, ("macd_hist", "macd_histogram"))
+        bb_lower = self._first_number_from_row(row, ("bb_lower", "bollinger_lower"))
+        bb_upper = self._first_number_from_row(row, ("bb_upper", "bollinger_upper"))
+        volume = self._first_number_from_row(row, ("volume",))
+        rel_volume = self._first_number_from_row(row, ("rel_volume", "relative_volume"))
+
+        bias_parts_es: list[str] = []
+        bias_parts_en: list[str] = []
+        if ema_fast is not None and ema_slow is not None:
+            if ema_fast > ema_slow:
+                bias_parts_es.append("EMA corta sobre media lenta")
+                bias_parts_en.append("fast EMA above slower average")
+            elif ema_fast < ema_slow:
+                bias_parts_es.append("EMA corta bajo media lenta")
+                bias_parts_en.append("fast EMA below slower average")
+        if close is not None and vwap is not None:
+            if close >= vwap:
+                bias_parts_es.append("precio sobre VWAP")
+                bias_parts_en.append("price above VWAP")
+            else:
+                bias_parts_es.append("precio bajo VWAP")
+                bias_parts_en.append("price below VWAP")
+        if rsi is not None:
+            if rsi >= 70:
+                bias_parts_es.append("RSI extendido")
+                bias_parts_en.append("RSI extended")
+            elif rsi >= 55:
+                bias_parts_es.append("RSI constructivo")
+                bias_parts_en.append("RSI constructive")
+            elif rsi <= 35:
+                bias_parts_es.append("RSI debil/sobrevendido")
+                bias_parts_en.append("RSI weak/oversold")
+            else:
+                bias_parts_es.append("RSI neutral")
+                bias_parts_en.append("RSI neutral")
+        if macd is not None and macd_signal is not None:
+            if macd >= macd_signal:
+                bias_parts_es.append("MACD sobre senal")
+                bias_parts_en.append("MACD above signal")
+            else:
+                bias_parts_es.append("MACD bajo senal")
+                bias_parts_en.append("MACD below signal")
+        if rel_volume is not None:
+            if rel_volume >= 1.2:
+                bias_parts_es.append("volumen relativo confirma")
+                bias_parts_en.append("relative volume confirms")
+            elif rel_volume < 0.8:
+                bias_parts_es.append("volumen relativo bajo")
+                bias_parts_en.append("relative volume low")
+
+        rsi_text = "-" if rsi is None else f"{rsi:.1f}"
+        macd_text = "/".join(
+            "-" if value is None else f"{value:.3f}".rstrip("0").rstrip(".")
+            for value in (macd, macd_signal, macd_hist)
+        )
+        volume_text = "-" if volume is None else f"{volume:,.0f}"
+        rel_volume_text = "-" if rel_volume is None else f"{rel_volume:.2f}x"
+        if language == "en":
+            read = "; ".join(bias_parts_en) or "insufficient indicator agreement"
+            reply = (
+                f"{symbol_text} indicators: price {_money(close)}, EMA9 {_money(ema_fast)}, EMA21/SMA20 {_money(ema_slow)}, "
+                f"major SMA {_money(sma_major)}, VWAP {_money(vwap)}, RSI {rsi_text}, MACD/signal/hist {macd_text}, "
+                f"Bollinger {_money(bb_lower)}-{_money(bb_upper)}, volume {volume_text} ({rel_volume_text}). "
+                f"Read: {read}. This is technical decision support only; confirm fresh candles, levels, liquidity, and risk before acting."
+            )
+        else:
+            read = "; ".join(bias_parts_es) or "acuerdo tecnico insuficiente"
+            reply = (
+                f"{symbol_text} indicadores: precio {_money(close)}, EMA9 {_money(ema_fast)}, EMA21/SMA20 {_money(ema_slow)}, "
+                f"SMA mayor {_money(sma_major)}, VWAP {_money(vwap)}, RSI {rsi_text}, MACD/senal/hist {macd_text}, "
+                f"Bollinger {_money(bb_lower)}-{_money(bb_upper)}, volumen {volume_text} ({rel_volume_text}). "
+                f"Lectura: {read}. Esto es solo apoyo tecnico de decision; confirma velas frescas, niveles, liquidez y riesgo antes de actuar."
+            )
+        return RoxyBrainReply(
+            intent="technical_indicators",
+            reply=reply,
+            emotion="analytical",
+            safety_level="guarded",
+            priority="high" if _safe_text(row.get("signal") or row.get("ai_action")).upper() in {"ALERT", "BUY", "SELL"} else "normal",
+            suggested_actions=("support_resistance", "entry_checklist", "ask_risk", "confirm_before_execution"),
+        )
 
     def _support_resistance_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
         symbol = _extract_symbol(query)

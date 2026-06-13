@@ -82,6 +82,7 @@ def test_roxy_live_page():
     assert 'data-prompt="sesion de mercado"' in r.text
     assert 'data-prompt="frescura de datos"' in r.text
     assert 'data-prompt="soporte y resistencia"' in r.text
+    assert 'data-prompt="indicadores tecnicos"' in r.text
     assert 'data-prompt="vigila mi watchlist"' in r.text
     assert 'data-prompt="analiza impacto de noticia: pega aqui el titular"' in r.text
     assert 'data-prompt="puedo operar ahora"' in r.text
@@ -148,6 +149,7 @@ def test_roxy_live_page():
     assert 'ask_market_session: ["Horario", "sesion de mercado"]' in r.text
     assert 'market_session: ["Horario", "sesion de mercado"]' in r.text
     assert 'support_resistance: ["Niveles", "soporte y resistencia"]' in r.text
+    assert 'technical_indicators: ["Indicadores", "indicadores tecnicos"]' in r.text
     assert "handleVoiceControlCommand" in r.text
     assert "manualWakeCommand" in r.text
     assert "if (handleVoiceControlCommand(manualWakeCommand)) return;" in r.text
@@ -249,8 +251,13 @@ def test_roxy_live_page():
     assert "Roxy, market hours" in r.text
     assert "Roxy, niveles de SPY" in r.text
     assert "Roxy, support and resistance SPY" in r.text
+    assert "Roxy, indicadores de SPY" in r.text
+    assert "Roxy, technical indicators SPY" in r.text
     assert "soporte y resistencia" in r.text
     assert "support and resistance" in r.text
+    assert '"indicadores tecnicos"' in r.text
+    assert '"technical indicators"' in r.text
+    assert '"volume read"' in r.text
     assert '"key levels"' in r.text
     assert '"market hours"' in r.text
     assert '"regular hours"' in r.text
@@ -268,6 +275,10 @@ def test_roxy_live_page():
     assert "HOURS" in r.text
     assert "EXTENDED" in r.text
     assert "NIVELES" in r.text
+    assert "INDICADORES" in r.text
+    assert "INDICATOR" in r.text
+    assert "VWAP" in r.text
+    assert "BOLLINGER" in r.text
     assert "SUPPORT" in r.text
     assert "RESISTANCE" in r.text
     assert "top opportunities" in r.text

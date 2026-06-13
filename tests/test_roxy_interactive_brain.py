@@ -1115,6 +1115,9 @@ def test_roxy_symbol_extraction_ignores_support_resistance_words():
     assert roxy_brain_module._extract_symbol("key levels SPY") == "SPY"
     assert roxy_brain_module._extract_symbol("price levels SPY") == "SPY"
     assert roxy_brain_module._extract_symbol("soporte y resistencia de NVDA") == "NVDA"
+    assert roxy_brain_module._extract_symbol("technical indicators SPY") == "SPY"
+    assert roxy_brain_module._extract_symbol("RSI MACD VWAP NVDA") == "NVDA"
+    assert roxy_brain_module._extract_symbol("indicadores tecnicos de NVDA") == "NVDA"
 
 
 def test_roxy_brain_explains_opportunity_risk_plan_in_english(tmp_path):
@@ -1243,6 +1246,129 @@ def test_roxy_brain_reads_support_resistance_levels_in_english(tmp_path):
     assert "near resistance" in response.reply
     assert "decision support only" in response.reply
     assert "entry_checklist" in response.suggested_actions
+
+
+def test_roxy_brain_reads_technical_indicators_in_spanish(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "opportunities": [
+                        {
+                            "symbol": "NVDA",
+                            "signal": "WATCH",
+                            "close": 145.0,
+                            "ema9": 144.2,
+                            "ema21": 143.5,
+                            "sma200": 130.0,
+                            "vwap": 144.0,
+                            "rsi14": 58.4,
+                            "macd": 1.25,
+                            "macd_signal": 1.0,
+                            "macd_hist": 0.25,
+                            "bb_lower": 138.0,
+                            "bb_upper": 148.0,
+                            "volume": 1234567,
+                            "rel_volume": 1.35,
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("indicadores tecnicos de NVDA")
+
+    assert response.intent == "technical_indicators"
+    assert response.language == "es"
+    assert response.safety_level == "guarded"
+    assert "NVDA indicadores" in response.reply
+    assert "EMA9 144.20" in response.reply
+    assert "RSI 58.4" in response.reply
+    assert "MACD/senal/hist 1.25/1/0.25" in response.reply
+    assert "volumen 1,234,567 (1.35x)" in response.reply
+    assert "precio sobre VWAP" in response.reply
+    assert "volumen relativo confirma" in response.reply
+    assert "apoyo tecnico de decision" in response.reply
+    assert "support_resistance" in response.suggested_actions
+
+
+def test_roxy_brain_reads_technical_indicators_in_english(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "opportunities": [
+                        {
+                            "symbol": "NVDA",
+                            "signal": "ALERT",
+                            "close": 145.0,
+                            "ema9": 144.2,
+                            "ema21": 143.5,
+                            "sma200": 130.0,
+                            "vwap": 144.0,
+                            "rsi14": 58.4,
+                            "macd": 1.25,
+                            "macd_signal": 1.0,
+                            "macd_hist": 0.25,
+                            "bb_lower": 138.0,
+                            "bb_upper": 148.0,
+                            "volume": 1234567,
+                            "rel_volume": 1.35,
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("technical indicators NVDA")
+
+    assert response.intent == "technical_indicators"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert response.priority == "high"
+    assert "NVDA indicators" in response.reply
+    assert "price above VWAP" in response.reply
+    assert "relative volume confirms" in response.reply
+    assert "technical decision support only" in response.reply
+    assert "support_resistance" in response.suggested_actions
+
+
+def test_roxy_brain_indicator_read_requires_snapshot_fields(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "opportunities": [
+                        {
+                            "symbol": "SPY",
+                            "signal": "WATCH",
+                            "entry": 505.5,
+                            "stop": 501.0,
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("technical indicators SPY")
+
+    assert response.intent == "technical_indicators"
+    assert response.needs_live_source is True
+    assert response.safety_level == "guarded"
+    assert "no EMA/RSI/VWAP/MACD/volume snapshot" in response.reply
+    assert "run_scan" in response.suggested_actions
 
 
 def test_roxy_brain_calculates_position_size_in_spanish(tmp_path):
