@@ -10596,12 +10596,28 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
         height=min(330, 58 + min(len(display_rows), 8) * 30),
         column_config=compact_column_config,
     )
+    full_column_config: dict[str, Any] = {}
+    for column, label, help_text, width in (
+        ("#", "#", "Orden visible después de filtros.", "small"),
+        ("Prioridad", "Prioridad", "Orden operativo calculado por Roxy.", "small"),
+        ("Ticker", "Ticker", "Activo; permanece como referencia principal.", "small"),
+        ("Estado", "Estado", "Operar, vigilar o evitar.", "small"),
+        ("Score", "Score", "Prioridad relativa 0-100.", "small"),
+        ("Falta", "Qué falta", "Bloqueo principal antes de actuar.", "large"),
+        ("Siguiente", "Siguiente paso", "Acción concreta antes de considerar entrada.", "large"),
+        ("Setup", "Setup", "Estrategia o patrón detectado.", "medium"),
+        ("Razón", "Razón", "Resumen de por qué Roxy clasifica esta oportunidad.", "large"),
+    ):
+        if column in display_rows.columns:
+            full_column_config[column] = st.column_config.TextColumn(label, help=help_text, width=width)
     with st.expander("Tabla completa del Trading Desk", expanded=False):
+        st.caption("Vista de auditoría: revisa primero Ticker, Estado, Qué falta y Siguiente paso.")
         st.dataframe(
             display_rows,
             use_container_width=True,
             hide_index=True,
             height=min(560, 58 + len(display_rows) * 28),
+            column_config=full_column_config,
         )
 
 
