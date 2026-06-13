@@ -691,6 +691,7 @@ def roxy_live_page():
     let voiceDraftText = "";
     let voicePresenceActive = false;
     const duplicateVoiceWindowMs = 2500;
+    const lowVoiceConfidenceThreshold = 0.55;
     const defaultAssistTimeoutMs = 45000;
     const assistStreamEndpoint = "/v1/assist/stream";
 
@@ -864,6 +865,10 @@ def roxy_live_page():
         : "";
       status.textContent = (isFinal ? "final" : "oyendo") + " · " + preview + confidenceText;
       status.title = clean;
+    }
+
+    function voiceConfidenceIsLow(confidence) {
+      return Number.isFinite(confidence) && confidence > 0 && confidence < lowVoiceConfidenceThreshold;
     }
 
     function voiceModeActive() {
@@ -1268,6 +1273,39 @@ def roxy_live_page():
         "voice-draft"
       );
       return true;
+    }
+
+    function holdLowConfidenceVoiceDraft(text, confidence) {
+      const language = $("language").value || "es";
+      const percent = Math.round(confidence * 100);
+      voiceDraftText = text;
+      updateVoiceDraftStatus();
+      updateVoiceHeardStatus(text, true, confidence);
+      $("query").value = text;
+      const message = localizedText(
+        "No lo envio todavia: confianza de voz " + percent + "%. Revisa el borrador y di: Roxy, enviar.",
+        "I am not sending it yet: voice confidence " + percent + "%. Review the draft and say: Roxy, send it.",
+        language
+      );
+      $("reply").textContent = message;
+      $("events").textContent = "voice: low confidence draft";
+      appendMessage("system", message, "voice-draft");
+      if (!speak(message, language)) {
+        scheduleListen();
+        releaseVoicePresenceIfIdle();
+      }
+    }
+
+    function submitOrDraftVoicePrompt(text, confidence) {
+      const prompt = (text || "").trim();
+      if (!prompt) return;
+      $("query").value = prompt;
+      if ($("autoSendVoice").checked && voiceConfidenceIsLow(confidence)) {
+        holdLowConfidenceVoiceDraft(prompt, confidence);
+        return;
+      }
+      if ($("autoSendVoice").checked) send();
+      else setVoiceDraft(prompt);
     }
 
     function applyVoiceDraftActionCommand(command) {
@@ -2162,11 +2200,11 @@ def roxy_live_page():
       return false;
     }
 
-    function handleFinalTranscript(text) {
+    function handleFinalTranscript(text, confidence) {
       const finalText = (text || "").trim();
       if (!finalText) return;
       setVoicePresenceActive(true);
-      updateVoiceHeardStatus(finalText, true);
+      updateVoiceHeardStatus(finalText, true, confidence);
       $("events").textContent = "voice: heard";
       if (isDuplicateFinalTranscript(finalText)) {
         $("events").textContent = "voice: duplicate ignored";
@@ -2190,9 +2228,7 @@ def roxy_live_page():
           return;
         }
         if (handleVoiceControlCommand(command)) return;
-        $("query").value = command;
-        if ($("autoSendVoice").checked) send();
-        else setVoiceDraft(command);
+        submitOrDraftVoicePrompt(command, confidence);
         return;
       }
       const manualWakeCommand = extractWakeCommand(finalText);
@@ -2208,15 +2244,11 @@ def roxy_live_page():
           return;
         }
         if (handleVoiceControlCommand(manualWakeCommand)) return;
-        $("query").value = manualWakeCommand;
-        if ($("autoSendVoice").checked) send();
-        else setVoiceDraft(manualWakeCommand);
+        submitOrDraftVoicePrompt(manualWakeCommand, confidence);
         return;
       }
       if (handleVoiceControlCommand(finalText)) return;
-      $("query").value = finalText;
-      if ($("autoSendVoice").checked) send();
-      else setVoiceDraft(finalText);
+      submitOrDraftVoicePrompt(finalText, confidence);
     }
 
     function speechLang(languageValue) {
@@ -2968,7 +3000,7 @@ def roxy_live_page():
         $("query").value = transcript;
         if (isFinal) {
           lastFinalTranscript = transcript;
-          handleFinalTranscript(lastFinalTranscript);
+          handleFinalTranscript(lastFinalTranscript, confidence);
         }
       };
       recognition.onerror = (event) => {
