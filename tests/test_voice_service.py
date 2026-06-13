@@ -197,6 +197,13 @@ def test_roxy_live_page():
     assert "Probar micro" in r.text
     assert "runMicrophoneCheck" in r.text
     assert "stopMediaStream" in r.text
+    assert "lastMicrophoneCheck" in r.text
+    assert "recordMicrophoneCheck" in r.text
+    assert "microphoneCheckSummary" in r.text
+    assert "no recent check" in r.text
+    assert "permission OK, level unmeasured" in r.text
+    assert "low signal " in r.text
+    assert "blocked: " in r.text
     assert "measureMicrophoneSignal" in r.text
     assert "AudioContext || window.webkitAudioContext" in r.text
     assert "getByteTimeDomainData" in r.text
@@ -232,7 +239,7 @@ def test_roxy_live_page():
     assert 'if (mic && mic.status === "blocked") return true' in r.text
     assert 'mic.status === "quiet"' in r.text
     assert "Microphone signal is low; move closer before speaking." in r.text
-    assert 'return {status: quiet ? "quiet" : "ready", peakPercent}' in r.text
+    assert "return {status, peakPercent}" in r.text
     assert 'return {status: "blocked", reason}' in r.text
     assert "voice: guided session" in r.text
     assert "No ejecutare operaciones sin confirmacion explicita" in r.text
@@ -382,6 +389,8 @@ def test_roxy_live_page():
     assert "Sending draft." in r.text
     assert "Estado de voz: modo " in r.text
     assert "Voice status: " in r.text
+    assert "Microfono: " in r.text
+    assert "Microphone: " in r.text
     assert "Siguiente paso seguro: " in r.text
     assert "Safe next step: " in r.text
     assert "Local learning: " in r.text

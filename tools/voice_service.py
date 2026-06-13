@@ -695,6 +695,7 @@ def roxy_live_page():
     let lastHandledVoiceAt = 0;
     let voiceDraftText = "";
     let voicePresenceActive = false;
+    let lastMicrophoneCheck = null;
     const duplicateVoiceWindowMs = 2500;
     const lowVoiceConfidenceThreshold = 0.55;
     const defaultAssistTimeoutMs = 45000;
@@ -1068,6 +1069,36 @@ def roxy_live_page():
       } catch (_err) {}
     }
 
+    function recordMicrophoneCheck(status, details) {
+      const data = details || {};
+      lastMicrophoneCheck = {
+        status,
+        peakPercent: Number.isFinite(data.peakPercent) ? data.peakPercent : null,
+        reason: data.reason || "",
+        checkedAt: new Date().toLocaleTimeString(),
+      };
+      return lastMicrophoneCheck;
+    }
+
+    function microphoneCheckSummary(language) {
+      const check = lastMicrophoneCheck;
+      if (!check) return localizedText("sin prueba reciente", "no recent check", language);
+      const suffix = check.checkedAt ? " · " + check.checkedAt : "";
+      if (check.status === "ready") {
+        return localizedText("listo, señal " + check.peakPercent + "%", "ready, signal " + check.peakPercent + "%", language) + suffix;
+      }
+      if (check.status === "quiet") {
+        return localizedText("señal baja " + check.peakPercent + "%", "low signal " + check.peakPercent + "%", language) + suffix;
+      }
+      if (check.status === "unmeasured") {
+        return localizedText("permiso OK, nivel no medido", "permission OK, level unmeasured", language) + suffix;
+      }
+      if (check.status === "blocked") {
+        return localizedText("bloqueado: " + (check.reason || "microfono"), "blocked: " + (check.reason || "microphone"), language) + suffix;
+      }
+      return localizedText("estado desconocido", "unknown status", language) + suffix;
+    }
+
     async function measureMicrophoneSignal(stream, durationMs) {
       const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextCtor || !stream) return null;
@@ -1108,6 +1139,7 @@ def roxy_live_page():
       setVoicePresenceActive(true);
       $("events").textContent = "voice: microphone check";
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        recordMicrophoneCheck("blocked", {reason: "unsupported"});
         handleFatalMicError("unsupported");
         return {status: "blocked", reason: "unsupported"};
       }
@@ -1118,6 +1150,7 @@ def roxy_live_page():
         manualStop = false;
         const peakPercent = signal && Number.isFinite(signal.peak) ? Math.round(Math.min(1, signal.peak) * 100) : null;
         const quiet = peakPercent !== null && peakPercent < 3;
+        const status = peakPercent === null ? "unmeasured" : quiet ? "quiet" : "ready";
         const message = peakPercent === null
           ? localizedText(
               "Microfono listo. Permiso activo; este navegador no permitio medir nivel de entrada. Ya puedes pulsar Hablar.",
@@ -1142,6 +1175,7 @@ def roxy_live_page():
             : "mic OK · nivel " + peakPercent + "%";
         $("reply").textContent = message;
         $("events").textContent = quiet ? "voice: microphone quiet" : "voice: microphone ready";
+        recordMicrophoneCheck(status, {peakPercent});
         appendMessage("system", message, "voice-mic");
         setAvatar(quiet ? "waiting" : "ready", quiet ? "attentive" : $("emotion").textContent);
         if (opts.speakNow && $("autoSpeak").checked) speak(message, language);
@@ -1149,9 +1183,10 @@ def roxy_live_page():
           scheduleListen();
           releaseVoicePresenceIfIdle();
         }
-        return {status: quiet ? "quiet" : "ready", peakPercent};
+        return {status, peakPercent};
       } catch (err) {
         const reason = speechStartErrorKey(err);
+        recordMicrophoneCheck("blocked", {reason});
         handleFatalMicError(reason);
         return {status: "blocked", reason};
       }
@@ -1597,9 +1632,10 @@ def roxy_live_page():
       const voiceName = $("voiceSelect").value || localizedText("voz del navegador", "browser voice", language);
       const symbol = ($("defaultSymbol").value || "SPY").trim().toUpperCase();
       const watchlist = parseWatchlist($("watchlist").value).slice(0, 4).join(", ") || symbol;
+      const micSummary = microphoneCheckSummary(language);
       const message = localizedText(
-        "Estado de voz: modo " + mode + ", " + speech + ", " + sending + ". Voz: " + voiceName + ". Símbolo base: " + symbol + ". Watchlist: " + watchlist + ".",
-        "Voice status: " + mode + ", " + speech + ", " + sending + ". Voice: " + voiceName + ". Default symbol: " + symbol + ". Watchlist: " + watchlist + ".",
+        "Estado de voz: modo " + mode + ", " + speech + ", " + sending + ". Voz: " + voiceName + ". Microfono: " + micSummary + ". Símbolo base: " + symbol + ". Watchlist: " + watchlist + ".",
+        "Voice status: " + mode + ", " + speech + ", " + sending + ". Voice: " + voiceName + ". Microphone: " + micSummary + ". Default symbol: " + symbol + ". Watchlist: " + watchlist + ".",
         language
       );
       speakLocalControlMessage(message, language, "voice: local status", "voice-status");
