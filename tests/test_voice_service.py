@@ -88,6 +88,8 @@ def test_roxy_live_page():
     assert "localizedText" in r.text
     assert "speakLocalControlMessage" in r.text
     assert "applyVoiceLanguageCommand" in r.text
+    assert "setVoiceModeState" in r.text
+    assert "applyVoiceListeningModeCommand" in r.text
     assert "repeatLastReplyByVoice" in r.text
     assert "explainVoiceCommands" in r.text
     assert "voiceNewsHeadline" in r.text
@@ -110,6 +112,11 @@ def test_roxy_live_page():
         "if (handleVoiceControlCommand(finalText)) return;"
     )
     assert "voice: language " in r.text
+    assert "voice: wake on" in r.text
+    assert "voice: wake off" in r.text
+    assert "voice: conversation on" in r.text
+    assert "voice: conversation off" in r.text
+    assert "voice: manual mode" in r.text
     assert "voice: repeat" in r.text
     assert "voice: help" in r.text
     assert "voice: news shortcut" in r.text
@@ -118,6 +125,12 @@ def test_roxy_live_page():
     assert "voice: profile watchlist" in r.text
     assert "English mode." in r.text
     assert "Modo español." in r.text
+    assert "Roxy, modo Siri" in r.text
+    assert "Roxy, Siri mode" in r.text
+    assert "Roxy, modo conversación" in r.text
+    assert "Roxy, conversation mode" in r.text
+    assert "Modo Siri activo" in r.text
+    assert "Conversation mode active" in r.text
     assert "Roxy, símbolo NVDA" in r.text
     assert "Roxy, symbol NVDA" in r.text
     assert "Roxy, watchlist SPY QQQ NVDA" in r.text

@@ -939,6 +939,81 @@ def roxy_live_page():
       if (!speak(message, language)) scheduleListen();
     }
 
+    function setVoiceModeState({conversationMode, wakeMode, eventName, esMessage, enMessage}) {
+      if (typeof conversationMode === "boolean") $("conversationMode").checked = conversationMode;
+      if (typeof wakeMode === "boolean") $("wakeMode").checked = wakeMode;
+      manualStop = !($("conversationMode").checked || $("wakeMode").checked);
+      saveSettings();
+      updateVoiceDiagnostics();
+      const language = $("language").value || "es";
+      const message = localizedText(esMessage, enMessage, language);
+      speakLocalControlMessage(message, language, eventName, "voice-mode");
+    }
+
+    function applyVoiceListeningModeCommand(command) {
+      if (commandMatches(command, [
+        "modo siri", "activar modo siri", "activar wake", "wake on", "wake roxy on",
+        "escucha siempre", "manos libres", "siri mode", "hands free", "always listen"
+      ])) {
+        setVoiceModeState({
+          conversationMode: false,
+          wakeMode: true,
+          eventName: "voice: wake on",
+          esMessage: "Modo Siri activo. Di Roxy antes de cada instrucción.",
+          enMessage: "Siri-style mode active. Say Roxy before each instruction.",
+        });
+        return true;
+      }
+      if (commandMatches(command, [
+        "modo conversacion", "activar conversacion", "conversacion continua", "sigue escuchando",
+        "conversation mode", "continuous conversation", "keep listening", "keep listening mode"
+      ])) {
+        setVoiceModeState({
+          conversationMode: true,
+          wakeMode: false,
+          eventName: "voice: conversation on",
+          esMessage: "Modo conversación activo. Roxy seguirá escuchando después de responder.",
+          enMessage: "Conversation mode active. Roxy will keep listening after each answer.",
+        });
+        return true;
+      }
+      if (commandMatches(command, [
+        "apagar wake", "desactivar wake", "wake off", "wake roxy off",
+        "apagar modo siri", "desactivar modo siri", "siri off"
+      ])) {
+        setVoiceModeState({
+          wakeMode: false,
+          eventName: "voice: wake off",
+          esMessage: "Wake Roxy apagado.",
+          enMessage: "Wake Roxy is off.",
+        });
+        return true;
+      }
+      if (commandMatches(command, [
+        "apagar conversacion", "desactivar conversacion", "conversation off", "stop conversation mode",
+        "continuous conversation off"
+      ])) {
+        setVoiceModeState({
+          conversationMode: false,
+          eventName: "voice: conversation off",
+          esMessage: "Modo conversación apagado.",
+          enMessage: "Conversation mode is off.",
+        });
+        return true;
+      }
+      if (commandMatches(command, ["modo manual", "manual mode", "escucha manual", "manual listening"])) {
+        setVoiceModeState({
+          conversationMode: false,
+          wakeMode: false,
+          eventName: "voice: manual mode",
+          esMessage: "Modo manual activo. Pulsa Hablar cuando quieras hablar conmigo.",
+          enMessage: "Manual mode active. Press Talk when you want to speak with me.",
+        });
+        return true;
+      }
+      return false;
+    }
+
     function repeatLastReplyByVoice() {
       const language = lastState.language || $("language").value || "es";
       if (!lastReply) {
@@ -963,8 +1038,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -1189,6 +1264,7 @@ def roxy_live_page():
         applyVoiceLanguageCommand(language);
         return true;
       }
+      if (applyVoiceListeningModeCommand(command)) return true;
       if (commandMatches(command, ["repite", "repetir", "repite eso", "otra vez", "dilo otra vez", "repeat", "repeat that", "say again", "say that again"])) {
         repeatLastReplyByVoice();
         return true;
