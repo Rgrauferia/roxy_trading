@@ -484,6 +484,32 @@ def _contains_any(text: str, terms: Iterable[str]) -> bool:
     return any(term in text for term in terms)
 
 
+def _is_crypto_market_query(text: str) -> bool:
+    normalized = str(text or "").lower().strip()
+    if normalized in {"crypto", "cripto", "criptomonedas", "cryptocurrency", "cryptocurrencies"}:
+        return True
+    return _contains_any(
+        normalized,
+        (
+            "mercado cripto",
+            "mercado de criptomonedas",
+            "resumen cripto",
+            "resumen de cripto",
+            "crypto market",
+            "crypto summary",
+            "cryptocurrency market",
+        ),
+    )
+
+
+def _row_is_crypto(row: dict[str, Any]) -> bool:
+    symbol = _safe_text(row.get("symbol") or row.get("ticker")).upper().replace("-", "/")
+    market = _safe_text(row.get("market") or row.get("asset_class") or row.get("asset_type") or row.get("type")).lower()
+    if "crypto" in market or "cripto" in market:
+        return True
+    return "/" in symbol and symbol.split("/", 1)[1] in {"USD", "USDT", "USDC"}
+
+
 def _parse_compact_number(raw: str, suffix: str = "") -> float | None:
     try:
         number = float(str(raw or "").replace(",", ""))
@@ -613,6 +639,9 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "regular",
         "extended",
         "premarket",
+        "crypto",
+        "cryptocurrency",
+        "cryptocurrencies",
         "recap",
         "summarize",
         "discuss",
@@ -688,6 +717,8 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "decisión",
         "sesion",
         "sesión",
+        "cripto",
+        "criptomonedas",
         "resumir",
         "hablamos",
     }
@@ -1272,6 +1303,13 @@ def _extract_symbol(query: str) -> str | None:
         "DISCUSSED",
         "DISCUSS",
         "HABLAMOS",
+        "MARKET",
+        "MERCADO",
+        "CRYPTO",
+        "CRIPTO",
+        "CRYPTOCURRENCY",
+        "CRYPTOCURRENCIES",
+        "CRIPTOMONEDAS",
     }
     for raw_word in query.split():
         word = raw_word.strip(".,:;!?()[]{}\"'").upper().replace("-", "/")
@@ -1625,6 +1663,10 @@ class RoxyInteractiveBrain:
             ),
         ):
             response = self._daily_briefing_reply(language)
+            return finish(response)
+
+        if _is_crypto_market_query(lq):
+            response = self._market_summary_reply(language, scope="crypto")
             return finish(response)
 
         if _contains_any(
@@ -2622,21 +2664,35 @@ class RoxyInteractiveBrain:
             suggested_actions=("ask_market_summary", "ask_latest_opportunity", "paste_source"),
         )
 
-    def _market_summary_reply(self, language: str = "es") -> RoxyBrainReply:
+    def _market_summary_reply(self, language: str = "es", scope: str = "all") -> RoxyBrainReply:
         brief = _load_json(self.brief_path)
         gate = brief.get("alert_gate_summary") if isinstance(brief.get("alert_gate_summary"), dict) else {}
         plan = brief.get("daily_opportunity_plan") if isinstance(brief.get("daily_opportunity_plan"), dict) else {}
-        rows = plan.get("opportunities") if isinstance(plan.get("opportunities"), list) else []
-        if not rows:
-            rows = brief.get("opportunities") if isinstance(brief.get("opportunities"), list) else []
-        if not rows:
-            rows = brief.get("crypto_scan_candidates") if isinstance(brief.get("crypto_scan_candidates"), list) else []
+        scope = scope if scope in {"all", "crypto"} else "all"
+        plan_rows = plan.get("opportunities") if isinstance(plan.get("opportunities"), list) else []
+        brief_rows = brief.get("opportunities") if isinstance(brief.get("opportunities"), list) else []
+        crypto_rows = brief.get("crypto_scan_candidates") if isinstance(brief.get("crypto_scan_candidates"), list) else []
+        if scope == "crypto":
+            rows = [row for row in [*plan_rows, *brief_rows, *crypto_rows] if isinstance(row, dict) and _row_is_crypto(row)]
+            gate = {}
+        else:
+            rows = plan_rows or brief_rows or crypto_rows
 
         if not rows and not gate:
-            if language == "en":
+            if language == "en" and scope == "crypto":
+                reply = (
+                    "I do not have a local crypto market snapshot yet. Refresh the crypto scan before relying on a "
+                    "crypto trend read."
+                )
+            elif language == "en":
                 reply = (
                     "I do not have enough local market data to classify the regime yet. Connect or refresh the scan "
                     "before relying on a trend read."
+                )
+            elif scope == "crypto":
+                reply = (
+                    "Todavia no tengo un snapshot local de mercado cripto. Refresca el escaneo cripto antes de usar "
+                    "una lectura de tendencia cripto."
                 )
             else:
                 reply = (
@@ -2658,11 +2714,29 @@ class RoxyInteractiveBrain:
             gate.get("watch_count")
             or sum(1 for row in rows if isinstance(row, dict) and _safe_text(row.get("signal")).upper() == "WATCH")
         )
+        readiness_values = [
+            value
+            for value in (
+                _safe_float(row.get("readiness") or row.get("ai_score") or row.get("confluence_score"))
+                for row in rows
+                if isinstance(row, dict)
+            )
+            if value is not None
+        ]
         ready_ratio = _safe_float(gate.get("ready_ratio"))
+        if ready_ratio is None and scope == "crypto" and readiness_values:
+            ready_ratio = sum(1 for value in readiness_values if value >= 70) / len(readiness_values)
         top_gate = _localize_market_phrase(gate.get("top_gate_label") or gate.get("top_gate") or "-", language)
         top_readiness = _safe_float(gate.get("top_readiness"))
+        if top_readiness is None and scope == "crypto" and readiness_values:
+            top_readiness = max(readiness_values)
+        if scope == "crypto" and top_gate == "-":
+            top_gate = "crypto scan"
         market_counts = plan.get("market_counts") if isinstance(plan.get("market_counts"), dict) else {}
-        markets = ", ".join(f"{key}:{value}" for key, value in sorted(market_counts.items())) if market_counts else "-"
+        if scope == "crypto":
+            markets = f"crypto:{len(rows)}"
+        else:
+            markets = ", ".join(f"{key}:{value}" for key, value in sorted(market_counts.items())) if market_counts else "-"
         session = plan.get("market_session") if isinstance(plan.get("market_session"), dict) else {}
         stock_session = _safe_text(session.get("stock_session") or "-")
         crypto_session = _safe_text(session.get("crypto_session") or "-")
@@ -2676,10 +2750,16 @@ class RoxyInteractiveBrain:
             }[condition]
             ready_text = "-" if ready_ratio is None else f"{ready_ratio * 100:.1f}%"
             top_readiness_text = "-" if top_readiness is None else f"{top_readiness:.1f}"
+            prefix = "Local crypto regime" if scope == "crypto" else "Local market regime"
+            session_text = (
+                f"Crypto session: {crypto_session}. "
+                if scope == "crypto"
+                else f"Stock session: {stock_session}; crypto session: {crypto_session}. "
+            )
             reply = (
-                f"Local market regime: {condition_text}. I see {total} opportunity row(s), {watch_count} in watch mode, "
+                f"{prefix}: {condition_text}. I see {total} opportunity row(s), {watch_count} in watch mode, "
                 f"ready ratio {ready_text}, top gate {top_gate}, top readiness {top_readiness_text}. "
-                f"Markets: {markets}. Stock session: {stock_session}; crypto session: {crypto_session}. "
+                f"Markets: {markets}. {session_text}"
                 "Risk note: this is a decision-support read, not a guarantee or an execution command."
             )
         else:
@@ -2691,10 +2771,16 @@ class RoxyInteractiveBrain:
             }[condition]
             ready_text = "-" if ready_ratio is None else f"{ready_ratio * 100:.1f}%"
             top_readiness_text = "-" if top_readiness is None else f"{top_readiness:.1f}"
+            prefix = "Regimen local cripto" if scope == "crypto" else "Regimen local del mercado"
+            session_text = (
+                f"Sesion cripto: {crypto_session}. "
+                if scope == "crypto"
+                else f"Sesion acciones: {stock_session}; cripto: {crypto_session}. "
+            )
             reply = (
-                f"Regimen local del mercado: {condition_text}. Veo {total} oportunidad(es), {watch_count} en modo watch, "
+                f"{prefix}: {condition_text}. Veo {total} oportunidad(es), {watch_count} en modo watch, "
                 f"ready ratio {ready_text}, filtro principal {top_gate}, readiness maxima {top_readiness_text}. "
-                f"Mercados: {markets}. Sesion acciones: {stock_session}; cripto: {crypto_session}. "
+                f"Mercados: {markets}. {session_text}"
                 "Nota de riesgo: esto es apoyo de decision, no garantia ni orden de ejecucion."
             )
 

@@ -807,6 +807,86 @@ def test_roxy_brain_summarizes_market_regime_in_english(tmp_path):
     assert "market_session" in response.suggested_actions
 
 
+def test_roxy_brain_summarizes_crypto_market_in_spanish(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "market_counts": {"stock": 1, "crypto": 2},
+                    "market_session": {"stock_session": "Regular", "crypto_session": "24h"},
+                    "opportunities": [
+                        {"symbol": "SPY", "signal": "WATCH", "trend_setup": "TREND_CONTINUATION", "readiness": 91},
+                        {
+                            "symbol": "BTC/USD",
+                            "signal": "WATCH",
+                            "mtf_explanation": "Lectura actual ALCISTA/canal alcista corto plazo",
+                            "readiness": 73.7,
+                        },
+                    ],
+                },
+                "crypto_scan_candidates": [
+                    {"symbol": "ETH/USD", "signal": "WATCH", "trend_setup": "PULLBACK", "readiness": 68.0}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("cripto")
+
+    assert response.intent == "market_summary"
+    assert response.language == "es"
+    assert response.safety_level == "guarded"
+    assert "Regimen local cripto: alcista" in response.reply
+    assert "Mercados: crypto:2" in response.reply
+    assert "Sesion cripto: 24h" in response.reply
+    assert "SPY" not in response.reply
+
+
+def test_roxy_brain_summarizes_crypto_market_in_english(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "market_counts": {"stock": 1, "crypto": 1},
+                    "market_session": {"stock_session": "Regular", "crypto_session": "24h"},
+                    "opportunities": [
+                        {"symbol": "AAPL", "signal": "WATCH", "trend_setup": "TREND_CONTINUATION", "readiness": 90},
+                        {"symbol": "BTC/USD", "signal": "WATCH", "trend_setup": "TREND_CONTINUATION", "readiness": 78},
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("crypto market")
+
+    assert response.intent == "market_summary"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert "Local crypto regime: bullish" in response.reply
+    assert "Markets: crypto:1" in response.reply
+    assert "Crypto session: 24h" in response.reply
+    assert "Risk note" in response.reply
+
+
+def test_roxy_brain_crypto_market_requires_local_snapshot(tmp_path):
+    brain = RoxyInteractiveBrain(brief_path=tmp_path / "brief.json", memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("crypto market")
+
+    assert response.intent == "market_summary"
+    assert response.language == "en"
+    assert response.needs_live_source is True
+    assert "local crypto market snapshot" in response.reply
+    assert "run_scan" in response.suggested_actions
+
+
 def test_roxy_brain_reads_market_session_in_spanish(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(
@@ -1118,6 +1198,10 @@ def test_roxy_symbol_extraction_ignores_support_resistance_words():
     assert roxy_brain_module._extract_symbol("technical indicators SPY") == "SPY"
     assert roxy_brain_module._extract_symbol("RSI MACD VWAP NVDA") == "NVDA"
     assert roxy_brain_module._extract_symbol("indicadores tecnicos de NVDA") == "NVDA"
+    assert roxy_brain_module._extract_symbol("crypto market") is None
+    assert roxy_brain_module._extract_symbol("mercado cripto") is None
+    assert roxy_brain_module._extract_symbol("resumen de criptomonedas") is None
+    assert roxy_brain_module._extract_symbol("bitcoin") == "BTC/USD"
 
 
 def test_roxy_brain_explains_opportunity_risk_plan_in_english(tmp_path):

@@ -104,6 +104,7 @@ def test_roxy_live_page():
     assert 'data-prompt="resumen de sesion"' in r.text
     assert 'data-prompt="briefing diario"' in r.text
     assert 'data-prompt="resumen del mercado"' in r.text
+    assert 'data-prompt="resumen cripto"' in r.text
     assert 'data-prompt="sesion de mercado"' in r.text
     assert 'data-prompt="frescura de datos"' in r.text
     assert 'data-prompt="soporte y resistencia"' in r.text
@@ -338,6 +339,7 @@ def test_roxy_live_page():
     assert "analiza impacto de noticia: " in r.text
     assert "news impact: " in r.text
     assert "Roxy, mercado" in r.text
+    assert "Roxy, cripto" in r.text
     assert "Roxy, briefing diario" in r.text
     assert "Roxy, top oportunidades" in r.text
     assert "Roxy, frescura de datos" in r.text
@@ -346,6 +348,7 @@ def test_roxy_live_page():
     assert "Roxy, prepara alerta SPY" in r.text
     assert "Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%" in r.text
     assert "Roxy, market" in r.text
+    assert "Roxy, crypto market" in r.text
     assert "Roxy, daily briefing" in r.text
     assert "Roxy, top opportunities" in r.text
     assert "Roxy, data freshness" in r.text
@@ -363,6 +366,8 @@ def test_roxy_live_page():
     assert "support and resistance" in r.text
     assert '"indicadores tecnicos"' in r.text
     assert '"technical indicators"' in r.text
+    assert '"crypto market"' in r.text
+    assert '"resumen cripto"' in r.text
     assert '"volume read"' in r.text
     assert '"key levels"' in r.text
     assert '"market hours"' in r.text

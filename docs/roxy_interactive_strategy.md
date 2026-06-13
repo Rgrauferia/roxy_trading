@@ -61,6 +61,8 @@ When a spoken prompt looks like a direct execution instruction, such as "buy SPY
 
 For market regime questions, Roxy uses the `market_summary` intent. It reads local brief fields such as `alert_gate_summary`, `daily_opportunity_plan`, opportunities, and crypto scan candidates to classify the current local read as bullish watch, bearish watch, sideways/wait, or unclear/wait. This is decision support only; it does not execute trades.
 
+For crypto-category prompts such as "cripto", "mercado cripto", or "crypto market", Roxy still uses `market_summary` but scopes the read to local crypto rows and `crypto_scan_candidates`. `CRYPTO` and `CRIPTO` are treated as market categories, not ticker symbols; if the local crypto snapshot is missing, Roxy asks for a refreshed crypto scan instead of inventing a trend.
+
 For market-session questions such as "sesion de mercado", "horario de mercado", or "market hours", Roxy uses the `market_session` intent. It reads the local `market_session` snapshot from the daily opportunity plan or root brief, explains stock regular/extended/closed status, crypto 24h status, whether stock/options alerts should pause, and ends with a timing-context guardrail. If the snapshot is missing, it asks for a refreshed scan instead of guessing the live market state.
 
 Roxy Live exposes `market_session` through the `Horario` quick prompt, the suggested-action strip, and voice shortcuts such as "Roxy, horario de mercado" / "Roxy, market hours" so users can check timing before interpreting opportunities.
