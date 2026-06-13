@@ -431,10 +431,16 @@ def test_roxy_live_page():
     assert "voiceDraftStatus" in r.text
     assert "updateVoiceDiagnostics" in r.text
     assert "voiceMatchesLanguage" in r.text
+    assert "bestReceptionistVoice" in r.text
+    assert "hasFeminineAlternative" in r.text
+    assert "selectedVoiceNeedsReceptionistReset" in r.text
+    assert "voiceQualityLabel" in r.text
+    assert "voz femenina clara" in r.text
+    assert "clear female voice" in r.text
     assert "receptionistVoiceScore" in r.text
     assert "voiceIsHeavyOrMasculine" in r.text
     assert "masculineOrHeavyVoiceNames" in r.text
-    assert "selectedWasHeavy" in r.text
+    assert "selectedNeedsReset" in r.text
     assert "fix your voice" in r.text
     assert "female voice" in r.text
     assert "paulina" in r.text

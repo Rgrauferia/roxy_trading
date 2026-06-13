@@ -2392,6 +2392,44 @@ def roxy_live_page():
       return score;
     }
 
+    function bestReceptionistVoice(languageValue) {
+      const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+      const lang = languageValue || $("language").value || "es";
+      const matching = voices.filter(v => voiceMatchesLanguage(v, lang));
+      const ranked = matching
+        .slice()
+        .sort((a, b) => receptionistVoiceScore(b, lang) - receptionistVoiceScore(a, lang));
+      return ranked.find(v => voiceIsFemininePreferred(v, lang) && !voiceIsHeavyOrMasculine(v))
+        || ranked.find(v => !voiceIsHeavyOrMasculine(v))
+        || ranked[0];
+    }
+
+    function hasFeminineAlternative(languageValue, currentVoice) {
+      const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+      const lang = languageValue || $("language").value || "es";
+      return voices.some(voice =>
+        voiceMatchesLanguage(voice, lang)
+        && voiceIsFemininePreferred(voice, lang)
+        && !voiceIsHeavyOrMasculine(voice)
+        && (!currentVoice || voice.name !== currentVoice.name)
+      );
+    }
+
+    function selectedVoiceNeedsReceptionistReset(voice, languageValue) {
+      const lang = languageValue || $("language").value || "es";
+      if (!voice || !voiceMatchesLanguage(voice, lang) || voiceIsHeavyOrMasculine(voice)) return true;
+      return !voiceIsFemininePreferred(voice, lang) && hasFeminineAlternative(lang, voice);
+    }
+
+    function voiceQualityLabel(voice, languageValue) {
+      const lang = languageValue || $("language").value || "es";
+      if (!voice) return localizedText("sin voz elegida", "no voice selected", lang);
+      if (voiceIsHeavyOrMasculine(voice)) return localizedText("revisar voz", "review voice", lang);
+      if (voiceIsFemininePreferred(voice, lang)) return localizedText("voz femenina clara", "clear female voice", lang);
+      if (hasFeminineAlternative(lang, voice)) return localizedText("voz no prioritaria", "non-preferred voice", lang);
+      return localizedText("voz compatible", "compatible voice", lang);
+    }
+
     function voiceMatchesLanguage(voice, languageValue) {
       const voiceLang = (voice && voice.lang ? voice.lang : "").toLowerCase();
       const lang = languageValue || "es";
@@ -2403,17 +2441,12 @@ def roxy_live_page():
       const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
       const lang = languageOverride || $("language").value || "es";
       const selected = $("voiceSelect").value;
+      const preferred = bestReceptionistVoice(lang);
       if (selected && !opts.ignoreSelected) {
         const exact = voices.find(v => v.name === selected);
-        if (exact && voiceMatchesLanguage(exact, lang) && !voiceIsHeavyOrMasculine(exact)) return exact;
+        if (exact && !selectedVoiceNeedsReceptionistReset(exact, lang)) return exact;
       }
-      const matching = voices.filter(v => voiceMatchesLanguage(v, lang));
-      const preferred = matching
-        .slice()
-        .sort((a, b) => receptionistVoiceScore(b, lang) - receptionistVoiceScore(a, lang))[0];
       return preferred
-        || matching.find(v => !voiceIsHeavyOrMasculine(v))
-        || matching[0]
         || voices[0];
     }
 
@@ -2437,6 +2470,7 @@ def roxy_live_page():
         speechLang(lang),
       ];
       if (voice) parts.push(voice.name + " / " + voice.lang);
+      parts.push(voiceQualityLabel(voice, lang));
       $("voiceStatus").textContent = parts.join(" · ");
     }
 
@@ -2471,14 +2505,14 @@ def roxy_live_page():
         select.appendChild(option);
       }
       const selectedVoice = voices.find(v => v.name === selected);
-      const selectedWasHeavy = selectedVoice && voiceIsHeavyOrMasculine(selectedVoice);
+      const selectedNeedsReset = selectedVoice && selectedVoiceNeedsReceptionistReset(selectedVoice, $("language").value || "es");
       if (selected && Array.from(select.options).some(o => o.value === selected)) {
         select.value = selected;
       }
       const preferred = chooseVoice();
       const previous = select.value;
       if (preferred && Array.from(select.options).some(o => o.value === preferred.name)) select.value = preferred.name;
-      if (selectedWasHeavy && previous !== select.value) {
+      if (selectedNeedsReset && previous !== select.value) {
         $("voiceRate").value = "0.9";
         $("voicePitch").value = "1.1";
       }
