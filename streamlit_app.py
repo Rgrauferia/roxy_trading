@@ -4761,6 +4761,7 @@ def build_professional_price_chart(
         )
 
     levels = []
+    reference_price = None
     for level, label, color in (
         (entry, "Entrada", "#22c55e"),
         (stop, "Stop", "#ef4444"),
@@ -4776,6 +4777,7 @@ def build_professional_price_chart(
     if not chart_window.empty:
         last = chart_window.iloc[-1]
         last_close = safe_float(last.get("close"))
+        reference_price = last_close
         if last_close is not None:
             levels.append({"price": last_close, "label": "Actual", "color": "#f8fafc"})
         for level, label, color in (
@@ -4788,12 +4790,20 @@ def build_professional_price_chart(
     if levels:
         deduped: list[dict[str, Any]] = []
         seen_levels: set[tuple[str, float]] = set()
-        label_idx = max(0, len(chart_window) - 14)
+        label_idx = max(0, len(chart_window) - 4)
         label_ts = chart_window["ts"].iloc[label_idx] if not chart_window.empty else None
         for item in levels:
             price = safe_float(item.get("price"))
             if price is None:
                 continue
+            label = str(item.get("label"))
+            distance_pct = None
+            if reference_price not in (None, 0):
+                distance_pct = (price - reference_price) / reference_price
+            if label == "Actual" or distance_pct is None:
+                label_text = f"{label} {price:.2f}"
+            else:
+                label_text = f"{label} {price:.2f} ({distance_pct:+.1%})"
             key = (str(item.get("label")), round(price, 4))
             if key in seen_levels:
                 continue
@@ -4802,34 +4812,57 @@ def build_professional_price_chart(
                 {
                     **item,
                     "price": price,
-                    "label_text": f"{item.get('label')} {price:.2f}",
+                    "distance_pct": distance_pct,
+                    "label_text": label_text,
                     "ts": label_ts,
                 }
             )
-        level_df = pd.DataFrame(deduped)
-        labels = level_df["label"].tolist()
-        colors = level_df["color"].tolist()
-        layers.append(
-            alt.Chart(level_df)
-            .mark_rule(strokeDash=[6, 4], size=1.4)
-            .encode(
-                y=alt.Y("price:Q", title="Precio", scale=price_scale),
-                color=alt.Color("label:N", legend=None, scale=alt.Scale(domain=labels, range=colors)),
-                tooltip=[alt.Tooltip("label:N", title="Nivel"), alt.Tooltip("price:Q", title="Precio", format=".2f")],
-            )
-        )
-        label_df = level_df[level_df["label"].isin(["Actual", "Entrada", "Stop", "Objetivo 2%"])]
-        if not label_df.empty:
-            layers.append(
-                alt.Chart(label_df)
-            .mark_text(align="left", dx=8, dy=-6, fontSize=12, fontWeight="bold")
-            .encode(
-                x=alt.X("ts:T", title="Tiempo"),
-                y=alt.Y("price:Q", title="Precio", scale=price_scale),
-                text="label_text:N",
-                color=alt.Color("label:N", legend=None, scale=alt.Scale(domain=labels, range=colors)),
-            )
-            )
+        if deduped:
+            level_df = pd.DataFrame(deduped)
+            labels = level_df["label"].tolist()
+            colors = level_df["color"].tolist()
+            actual_df = level_df[level_df["label"] == "Actual"]
+            planned_df = level_df[level_df["label"] != "Actual"]
+            if not planned_df.empty:
+                layers.append(
+                    alt.Chart(planned_df)
+                    .mark_rule(strokeDash=[6, 4], size=1.35)
+                    .encode(
+                        y=alt.Y("price:Q", title="Precio", scale=price_scale),
+                        color=alt.Color("label:N", legend=None, scale=alt.Scale(domain=labels, range=colors)),
+                        tooltip=[
+                            alt.Tooltip("label:N", title="Nivel"),
+                            alt.Tooltip("price:Q", title="Precio", format=".2f"),
+                            alt.Tooltip("distance_pct:Q", title="Distancia actual", format="+.1%"),
+                        ],
+                    )
+                )
+            if not actual_df.empty:
+                layers.append(
+                    alt.Chart(actual_df)
+                    .mark_rule(color="#f8fafc", size=1.8)
+                    .encode(
+                        y=alt.Y("price:Q", title="Precio", scale=price_scale),
+                        tooltip=[
+                            alt.Tooltip("label:N", title="Nivel"),
+                            alt.Tooltip("price:Q", title="Precio", format=".2f"),
+                        ],
+                    )
+                )
+            label_df = level_df[
+                level_df["label"].isin(["Actual", "Entrada", "Stop", "Objetivo", "Objetivo 2%", "Soporte", "Resistencia"])
+            ]
+            if not label_df.empty:
+                layers.append(
+                    alt.Chart(label_df)
+                    .mark_text(align="left", dx=10, dy=-6, fontSize=12, fontWeight="bold")
+                    .encode(
+                        x=alt.X("ts:T", title="Tiempo"),
+                        y=alt.Y("price:Q", title="Precio", scale=price_scale),
+                        text="label_text:N",
+                        color=alt.Color("label:N", legend=None, scale=alt.Scale(domain=labels, range=colors)),
+                    )
+                )
 
     if not chart_window.empty:
         latest = chart_window.iloc[-1].to_dict()
