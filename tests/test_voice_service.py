@@ -72,11 +72,16 @@ def test_roxy_live_page():
     assert "voice: retry after " in r.text
     assert "mic waiting · " in r.text
     assert "micErrorMessage" in r.text
+    assert "speechStartErrorKey" in r.text
     assert "handleFatalMicError" in r.text
     assert "voice: mic blocked" in r.text
     assert "voice: mic unsupported" in r.text
     assert "Permite el microfono para 127.0.0.1" in r.text
     assert "Microphone is blocked." in r.text
+    assert "No pude iniciar el microfono." in r.text
+    assert "I could not start the microphone." in r.text
+    assert "handleFatalMicError(speechStartErrorKey(err))" in r.text
+    assert "try {\n        recognition.start();\n      } catch (err) {" in r.text
     assert "assistTimeoutMs" in r.text
     assert "showAssistTimeout" in r.text
     assert "events: timeout" in r.text

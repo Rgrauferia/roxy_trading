@@ -155,6 +155,8 @@ In conversation or wake mode, browser microphone errors such as `no-speech` or `
 
 Fatal microphone states such as unsupported speech recognition, denied permission, or missing audio capture are handled as blocked voice states. Roxy Live speaks or displays a specific local recovery message, records `voice: mic blocked`, `voice: mic unsupported`, or `voice: mic error`, and keeps the assistant from looping until the user fixes permissions/device and presses `Hablar` again.
 
+If the browser throws while starting speech recognition, Roxy Live maps the error to a clear microphone state such as permission blocked, audio capture missing, unsupported, or start failed. The UI then shows the same blocked recovery path instead of leaving the page in a broken listening state.
+
 Roxy Live suppresses duplicate final speech transcripts that arrive within a short window. This prevents Chrome or Edge from sending the same voice turn twice during continuous conversation or wake-word listening.
 
 Session memory is stored locally in `alerts/roxy_conversation_memory.json` when a `session_id` is supplied. The memory is intentionally small, capped by turns per session and by total recent sessions, and redacts long tokens or key/secret-looking text before writing. Clients can read it through `GET /v1/assist/session/{session_id}`.

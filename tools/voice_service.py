@@ -1039,11 +1039,26 @@ def roxy_live_page():
           language
         );
       }
+      if (key === "start-failed") {
+        return localizedText(
+          "No pude iniciar el microfono. Pulsa Parar, revisa permisos o dispositivo, y vuelve a pulsar Hablar.",
+          "I could not start the microphone. Press Stop, check permissions or device, then press Talk again.",
+          language
+        );
+      }
       return localizedText(
         "Microfono: " + key + ". Pulsa Parar, revisa permisos o dispositivo, y vuelve a intentar.",
         "Microphone: " + key + ". Press Stop, check permissions or device, and try again.",
         language
       );
+    }
+
+    function speechStartErrorKey(err) {
+      const name = String((err && (err.name || err.message)) || "unknown").toLowerCase();
+      if (name.includes("notallowed") || name.includes("permission") || name.includes("security")) return "not-allowed";
+      if (name.includes("notfound") || name.includes("audio") || name.includes("capture")) return "audio-capture";
+      if (name.includes("notsupported") || name.includes("support")) return "unsupported";
+      return "start-failed";
     }
 
     function handleFatalMicError(error) {
@@ -3331,7 +3346,12 @@ def roxy_live_page():
         releaseVoicePresenceIfIdle();
         lastFinalTranscript = "";
       };
-      recognition.start();
+      try {
+        recognition.start();
+      } catch (err) {
+        isListening = false;
+        handleFatalMicError(speechStartErrorKey(err));
+      }
     }
 
     function startListeningFromControl() {
