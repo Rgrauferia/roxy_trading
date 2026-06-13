@@ -1172,12 +1172,33 @@ def roxy_live_page():
     }
 
     function extractWakeCommand(text) {
-      const wake = normalizeSpeech($("wakeWord").value || "Roxy");
+      const wakePhrases = wakeWordPhrases();
       const normalized = normalizeSpeech(text);
       const words = normalized.split(" ").filter(Boolean);
-      const wakeIndex = words.findIndex(word => word === wake || word.includes(wake));
-      if (wakeIndex < 0) return null;
-      return words.slice(wakeIndex + 1).join(" ").trim();
+      for (let index = 0; index < words.length; index++) {
+        const phraseLength = wakePhraseLengthAt(words, index, wakePhrases);
+        if (phraseLength) return words.slice(index + phraseLength).join(" ").trim();
+      }
+      return null;
+    }
+
+    function wakeWordPhrases() {
+      const configured = normalizeSpeech($("wakeWord").value || "Roxy");
+      const aliases = new Set([configured]);
+      if (configured === "roxy" || configured === "roxie") {
+        ["roxy", "roxie", "roxy ai", "roxie ai", "roxy ia", "roxie ia"].forEach(alias => aliases.add(alias));
+      }
+      return Array.from(aliases)
+        .map(alias => alias.split(" ").filter(Boolean))
+        .filter(tokens => tokens.length)
+        .sort((a, b) => b.length - a.length);
+    }
+
+    function wakePhraseLengthAt(words, index, phrases) {
+      for (const phrase of phrases) {
+        if (phrase.every((token, offset) => words[index + offset] === token)) return phrase.length;
+      }
+      return 0;
     }
 
     function languageCommandTarget(command) {

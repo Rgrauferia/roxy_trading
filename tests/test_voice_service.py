@@ -138,6 +138,11 @@ def test_roxy_live_page():
     assert "wakeMode" in r.text
     assert "wakeWord" in r.text
     assert "extractWakeCommand" in r.text
+    assert "wakeWordPhrases" in r.text
+    assert "wakePhraseLengthAt" in r.text
+    assert '"roxy", "roxie", "roxy ai", "roxie ai", "roxy ia", "roxie ia"' in r.text
+    assert ".sort((a, b) => b.length - a.length)" in r.text
+    assert "return words.slice(index + phraseLength).join" in r.text
     assert "languageCommandTarget" in r.text
     assert "commandMatches" in r.text
     assert "localizedText" in r.text

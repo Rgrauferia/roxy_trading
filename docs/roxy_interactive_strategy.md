@@ -107,6 +107,8 @@ When a structured response returns `language: "en"` or `language: "es"`, Roxy Li
 
 Siri-style operation is available in Roxy Live with `Wake Roxy`. When active, the browser can keep listening and only sends a prompt after the wake word, for example: "Roxy, resume la oportunidad" or "Roxy, silencio". The browser still controls microphone permission and may pause recognition depending on Chrome/Edge policies.
 
+Wake Roxy accepts the configured wake word plus common recognition variants for the default name, including `Roxy`, `Roxie`, `Roxy AI`, and `Roxy IA`. Multi-word variants are matched before one-word variants so the assistant removes the full wake phrase before interpreting the command.
+
 When Wake Roxy or continuous conversation mode is saved in browser settings, Roxy Live restores the voice presence after page load and schedules the listening loop again once the UI is ready. If the browser asks for microphone access, the user still must allow it; the restore does not bypass browser permission or trading confirmations.
 
 Wake Roxy, or a manual `Hablar` turn that includes the wake word, can change listening modes locally without calling the assistant backend. "Roxy, modo Siri" / "Roxy, Siri mode" enables wake-word mode, "Roxy, modo conversación" / "Roxy, conversation mode" enables continuous conversation, and "Roxy, modo manual" disables continuous listening. These mode changes are saved in browser settings and remain decision-support only.
