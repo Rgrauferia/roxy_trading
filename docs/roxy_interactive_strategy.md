@@ -55,6 +55,8 @@ Roxy Live also shows a `Heard` chip during microphone capture. Interim transcrip
 
 When browser speech confidence is available and low, Roxy Live treats the final transcript as a reviewable draft even if voice auto-send is enabled. It speaks a short local warning with the confidence percent and waits for "Roxy, enviar" / "Roxy, send it" before the text reaches the assistant backend. Unknown or unavailable confidence does not block normal voice flow.
 
+When a spoken prompt looks like a direct execution instruction, such as "buy SPY", "sell SPY", "compra SPY", "vende SPY", or "send order", Roxy Live also keeps it as a local draft even when auto-send is enabled. This prevents a raw execution-like phrase from reaching the assistant backend without visible review, and no broker order is sent.
+
 For market regime questions, Roxy uses the `market_summary` intent. It reads local brief fields such as `alert_gate_summary`, `daily_opportunity_plan`, opportunities, and crypto scan candidates to classify the current local read as bullish watch, bearish watch, sideways/wait, or unclear/wait. This is decision support only; it does not execute trades.
 
 For market-session questions such as "sesion de mercado", "horario de mercado", or "market hours", Roxy uses the `market_session` intent. It reads the local `market_session` snapshot from the daily opportunity plan or root brief, explains stock regular/extended/closed status, crypto 24h status, whether stock/options alerts should pause, and ends with a timing-context guardrail. If the snapshot is missing, it asks for a refreshed scan instead of guessing the live market state.

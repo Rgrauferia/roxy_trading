@@ -55,6 +55,8 @@ def test_roxy_live_page():
     assert "voiceConfidenceIsLow" in r.text
     assert "submitOrDraftVoicePrompt" in r.text
     assert "holdLowConfidenceVoiceDraft" in r.text
+    assert "voiceExecutionIntent" in r.text
+    assert "holdExecutionVoiceDraft" in r.text
     assert "ready · " in r.text
     assert "isRecoverableMicError" in r.text
     assert "recoverFromMicError" in r.text
@@ -227,6 +229,7 @@ def test_roxy_live_page():
     assert "voice: draft corrected" in r.text
     assert "voice: draft correction empty" in r.text
     assert "voice: low confidence draft" in r.text
+    assert "voice: execution draft" in r.text
     assert "voice: local status" in r.text
     assert "voice: learning status" in r.text
     assert "voice: knowledge sources" in r.text
@@ -293,6 +296,8 @@ def test_roxy_live_page():
     assert "Draft corrected." in r.text
     assert "No lo envio todavia: confianza de voz " in r.text
     assert "I am not sending it yet: voice confidence " in r.text
+    assert "Esto parece una instruccion de ejecucion." in r.text
+    assert "This sounds like an execution instruction." in r.text
     assert "Enviando borrador." in r.text
     assert "Sending draft." in r.text
     assert "Estado de voz: modo " in r.text
@@ -415,6 +420,7 @@ def test_roxy_live_page():
     assert "const activeLanguage = syncLanguageFromState(state)" in r.text
     assert "function speechLang" in r.text
     assert "handleFinalTranscript(lastFinalTranscript, confidence)" in r.text
+    assert "voiceExecutionIntent(prompt)" in r.text
     assert "function chooseVoice(languageOverride, options)" in r.text
     assert 'speak(lastReply, state.language || $("language").value)' in r.text
     assert "preferredName" in r.text

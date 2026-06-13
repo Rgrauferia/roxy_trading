@@ -1296,10 +1296,51 @@ def roxy_live_page():
       }
     }
 
+    function voiceExecutionIntent(text) {
+      const normalized = normalizeSpeech(text);
+      if (!normalized) return false;
+      const directPrefixes = [
+        "buy", "sell", "short", "cover",
+        "compra", "comprar", "vende", "vender",
+        "ejecuta", "ejecutar", "abre posicion", "abrir posicion",
+        "cierra posicion", "cerrar posicion"
+      ];
+      if (directPrefixes.some(prefix => normalized === prefix || normalized.startsWith(prefix + " "))) return true;
+      const orderPhrases = [
+        "send order", "place order", "execute order", "market order",
+        "manda orden", "envia orden", "pon orden", "ejecuta orden", "orden de mercado"
+      ];
+      return orderPhrases.some(phrase => normalized === phrase || normalized.includes(phrase));
+    }
+
+    function holdExecutionVoiceDraft(text) {
+      const language = $("language").value || "es";
+      voiceDraftText = text;
+      updateVoiceDraftStatus();
+      updateVoiceHeardStatus(text, true);
+      $("query").value = text;
+      const message = localizedText(
+        "Esto parece una instruccion de ejecucion. Lo deje como borrador para revisar; ninguna orden fue enviada.",
+        "This sounds like an execution instruction. I kept it as a draft for review; no order was sent.",
+        language
+      );
+      $("reply").textContent = message;
+      $("events").textContent = "voice: execution draft";
+      appendMessage("system", message, "voice-safety");
+      if (!speak(message, language)) {
+        scheduleListen();
+        releaseVoicePresenceIfIdle();
+      }
+    }
+
     function submitOrDraftVoicePrompt(text, confidence) {
       const prompt = (text || "").trim();
       if (!prompt) return;
       $("query").value = prompt;
+      if ($("autoSendVoice").checked && voiceExecutionIntent(prompt)) {
+        holdExecutionVoiceDraft(prompt);
+        return;
+      }
       if ($("autoSendVoice").checked && voiceConfidenceIsLow(confidence)) {
         holdLowConfidenceVoiceDraft(prompt, confidence);
         return;
