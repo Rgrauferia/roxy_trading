@@ -777,6 +777,7 @@ def roxy_live_page():
       show_trade_ticket: ["Ticket", "ticket de trade"],
       require_explicit_confirmation: ["Confirmar", "puedo operar ahora"],
       ask_risk: ["Riesgo", "explica riesgo entrada stop target"],
+      risk_review: ["Riesgo cuenta", "riesgo de portfolio"],
       ask_why: ["Por qué", "por que?"],
       ask_followup: ["Sesión", "resumen de sesion"],
       review_learning_status: ["Aprendizaje", "aprendizaje"],

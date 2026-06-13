@@ -4224,33 +4224,76 @@ class RoxyInteractiveBrain:
             exposure_pct = (_safe_float(exposure) or 0.0) / (_safe_float(equity) or 1.0)
         as_of = _safe_text(snapshot.get("as_of"))
         as_of_text = f" Snapshot: {as_of}." if as_of and language == "en" else f" Snapshot: {as_of}." if as_of else ""
+        if exposure_pct is None:
+            exposure_band = "unknown"
+        elif exposure_pct < 0.10:
+            exposure_band = "low"
+        elif exposure_pct < 0.30:
+            exposure_band = "moderate"
+        elif exposure_pct < 0.60:
+            exposure_band = "high"
+        else:
+            exposure_band = "aggressive"
+        priority = "high" if exposure_band in {"high", "aggressive"} else "normal"
 
         if language == "en":
+            exposure_label = {
+                "low": "low",
+                "moderate": "moderate",
+                "high": "high",
+                "aggressive": "aggressive",
+                "unknown": "unknown",
+            }[exposure_band]
+            risk_next = (
+                "Risk next: pause new sizing until exposure, stops, and concentration are reviewed."
+                if exposure_band in {"high", "aggressive"}
+                else "Risk next: sizing can be reviewed only after fresh opportunity and stop data are confirmed."
+            )
             reply = (
                 "Account snapshot: "
                 f"equity {_money(snapshot.get('equity'))}, portfolio value {_money(snapshot.get('portfolio_value'))}, "
                 f"cash {_money(snapshot.get('cash'))}, buying power {_money(snapshot.get('buying_power'))}. "
                 f"Open positions {int(snapshot.get('open_positions') or 0)}, exposure {_money(exposure)}"
                 f"{' (' + _pct(exposure_pct) + ' of equity)' if exposure_pct is not None else ''}, "
-                f"open P/L {_money(snapshot.get('unrealized_pl'))}, recent orders {int(snapshot.get('recent_orders') or 0)}."
+                f"exposure risk {exposure_label}, open P/L {_money(snapshot.get('unrealized_pl'))}, "
+                f"recent orders {int(snapshot.get('recent_orders') or 0)}. {risk_next}"
                 f"{as_of_text} Guardrail: this is a local account read only, not a broker command; confirm broker state before acting."
             )
         else:
+            exposure_label = {
+                "low": "bajo",
+                "moderate": "moderado",
+                "high": "alto",
+                "aggressive": "agresivo",
+                "unknown": "desconocido",
+            }[exposure_band]
+            risk_next = (
+                "Siguiente riesgo: pausa nuevo sizing hasta revisar exposicion, stops y concentracion."
+                if exposure_band in {"high", "aggressive"}
+                else "Siguiente riesgo: revisar sizing solo despues de confirmar oportunidad fresca y stop."
+            )
             reply = (
                 "Snapshot de cuenta: "
                 f"equity {_money(snapshot.get('equity'))}, valor portafolio {_money(snapshot.get('portfolio_value'))}, "
                 f"efectivo {_money(snapshot.get('cash'))}, buying power {_money(snapshot.get('buying_power'))}. "
                 f"Posiciones abiertas {int(snapshot.get('open_positions') or 0)}, exposicion {_money(exposure)}"
                 f"{' (' + _pct(exposure_pct) + ' del equity)' if exposure_pct is not None else ''}, "
-                f"P/L abierto {_money(snapshot.get('unrealized_pl'))}, ordenes recientes {int(snapshot.get('recent_orders') or 0)}."
+                f"riesgo de exposicion {exposure_label}, P/L abierto {_money(snapshot.get('unrealized_pl'))}, "
+                f"ordenes recientes {int(snapshot.get('recent_orders') or 0)}. {risk_next}"
                 f"{as_of_text} Guardrail: esto es solo lectura local de cuenta, no comando de broker; confirma el estado del broker antes de actuar."
             )
+        actions = (
+            ("risk_review", "trade_readiness", "confirm_before_execution")
+            if exposure_band in {"high", "aggressive"}
+            else ("position_size", "trade_readiness", "confirm_before_execution")
+        )
         return RoxyBrainReply(
             intent="account_status",
             reply=reply,
             emotion="analytical",
             safety_level="guarded",
-            suggested_actions=("position_size", "trade_readiness", "confirm_before_execution"),
+            priority=priority,
+            suggested_actions=actions,
         )
 
     def _trade_ticket_reply(self, query: str, language: str = "es") -> RoxyBrainReply:

@@ -1038,6 +1038,7 @@ def test_roxy_brain_reads_account_status_in_spanish(tmp_path):
     assert "buying power 12500.50" in response.reply
     assert "Posiciones abiertas 2" in response.reply
     assert "exposicion 620.00 (4.10% del equity)" in response.reply
+    assert "riesgo de exposicion bajo" in response.reply
     assert "P/L abierto 15.50" in response.reply
     assert "no comando de broker" in response.reply
     assert "position_size" in response.suggested_actions
@@ -1077,8 +1078,39 @@ def test_roxy_brain_reads_account_status_in_english(tmp_path):
     assert "portfolio value 25250.00" in response.reply
     assert "Open positions 2" in response.reply
     assert "exposure 2000.00 (8.00% of equity)" in response.reply
+    assert "exposure risk low" in response.reply
     assert "open P/L 30.00" in response.reply
     assert "not a broker command" in response.reply
+
+
+def test_roxy_brain_flags_aggressive_account_exposure(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "account_summary": {
+                    "equity": 10000.0,
+                    "cash": 1200.0,
+                    "buying_power": 5000.0,
+                    "exposure": 7200.0,
+                    "open_positions": 4,
+                    "unrealized_pl": -180.0,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("riesgo de portfolio")
+
+    assert response.intent == "account_status"
+    assert response.priority == "high"
+    assert "exposicion 7200.00 (72.00% del equity)" in response.reply
+    assert "riesgo de exposicion agresivo" in response.reply
+    assert "pausa nuevo sizing" in response.reply
+    assert "risk_review" in response.suggested_actions
+    assert "position_size" not in response.suggested_actions
 
 
 def test_roxy_brain_account_status_requires_snapshot(tmp_path):
