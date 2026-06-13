@@ -223,6 +223,8 @@ def test_roxy_live_page():
     assert 'support_resistance: ["Niveles", "soporte y resistencia"]' in r.text
     assert 'technical_indicators: ["Indicadores", "indicadores tecnicos"]' in r.text
     assert 'risk_review: ["Riesgo cuenta", "riesgo de portfolio"]' in r.text
+    assert 'knowledge_sources: ["Fuentes", "fuentes de conocimiento"]' in r.text
+    assert 'read_knowledge_source: ["Manual", "lee el manual de Roxy Trading"]' in r.text
     assert 'es: "ponme al dia"' in r.text
     assert 'en: "catch me up"' in r.text
     assert '"PONME", "AL", "DIA", "DÍA", "CORRIENTE"' in r.text

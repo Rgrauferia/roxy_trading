@@ -786,6 +786,8 @@ def roxy_live_page():
       ask_followup: ["Sesión", "resumen de sesion"],
       review_learning_status: ["Aprendizaje", "aprendizaje"],
       review_feedback: ["Feedback", "aprendizaje"],
+      knowledge_sources: ["Fuentes", "fuentes de conocimiento"],
+      read_knowledge_source: ["Manual", "lee el manual de Roxy Trading"],
       keep_session_id: ["Sesión", "resumen de sesion"],
       enable_wake_roxy: ["Estado", "estado de roxy"],
       ask_news_impact: ["Impacto news", "analiza impacto de noticia: pega aqui el titular"],

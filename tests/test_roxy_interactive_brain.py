@@ -2740,6 +2740,48 @@ def test_roxy_brain_reads_local_knowledge_source(tmp_path):
     assert "memoria" in response.reply
 
 
+def test_roxy_brain_lists_knowledge_sources_in_spanish(tmp_path):
+    knowledge_path = tmp_path / "manual.md"
+    missing_path = tmp_path / "missing.md"
+    knowledge_path.write_text("Manual Roxy", encoding="utf-8")
+    brain = RoxyInteractiveBrain(
+        brief_path=tmp_path / "brief.json",
+        memory_path=tmp_path / "memory.json",
+        knowledge_paths=(knowledge_path, missing_path),
+    )
+
+    response = brain.generate_reply("fuentes de conocimiento")
+
+    assert response.intent == "knowledge_sources"
+    assert response.language == "es"
+    assert response.safety_level == "guarded"
+    assert "Fuentes de conocimiento: 1 de 2" in response.reply
+    assert "manual.md" in response.reply
+    assert "missing.md" in response.reply
+    assert "read_knowledge_source" in response.suggested_actions
+
+
+def test_roxy_brain_lists_knowledge_sources_in_english(tmp_path):
+    knowledge_path = tmp_path / "manual.md"
+    missing_path = tmp_path / "missing.md"
+    knowledge_path.write_text("Roxy manual", encoding="utf-8")
+    brain = RoxyInteractiveBrain(
+        brief_path=tmp_path / "brief.json",
+        memory_path=tmp_path / "memory.json",
+        knowledge_paths=(knowledge_path, missing_path),
+    )
+
+    response = brain.generate_reply("what sources do you know")
+
+    assert response.intent == "knowledge_sources"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert "Knowledge sources: 1/2" in response.reply
+    assert "Available: manual.md" in response.reply
+    assert "Missing: missing.md" in response.reply
+    assert "avoid inventing content" in response.reply
+
+
 def test_list_knowledge_sources_reports_existing_files(tmp_path):
     source = tmp_path / "source.md"
     source.write_text("Roxy source", encoding="utf-8")

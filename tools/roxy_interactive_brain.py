@@ -1096,6 +1096,8 @@ def _next_best_actions_for_context(intent: str, safety_level: str, has_symbol: b
         return ["ask_latest_opportunity", "compare_opportunities", "data_freshness", "market_session"]
     if intent in {"watchlist", "monitoring_plan"}:
         return ["monitoring_plan", "market_summary", "alert_draft"]
+    if intent in {"knowledge", "knowledge_sources"}:
+        return ["read_knowledge_source", "ask_capabilities", "session_recap"]
     if intent == "session_recap":
         return ["trade_readiness", "monitoring_plan", "session_recap"]
     return ["ask_latest_opportunity", "ask_market_summary", "session_recap"]
@@ -1567,6 +1569,25 @@ class RoxyInteractiveBrain:
             "when was data updated",
             "when did you update",
         )
+        knowledge_source_terms = (
+            "fuentes de conocimiento",
+            "fuentes locales",
+            "fuentes roxy",
+            "documentos roxy",
+            "documentos conectados",
+            "documentos locales",
+            "que fuentes tienes",
+            "qué fuentes tienes",
+            "que documentos tienes",
+            "qué documentos tienes",
+            "knowledge sources",
+            "approved sources",
+            "source list",
+            "connected documents",
+            "local documents",
+            "what sources do you know",
+            "what documents do you know",
+        )
         market_session_terms = (
             "sesion de mercado",
             "sesión de mercado",
@@ -1732,6 +1753,10 @@ class RoxyInteractiveBrain:
 
         if _contains_any(lq, pre_trade_preflight_terms):
             response = self._pre_trade_preflight_reply(q, language)
+            return finish(response)
+
+        if _contains_any(lq, knowledge_source_terms):
+            response = self._knowledge_sources_reply(language)
             return finish(response)
 
         if _contains_any(lq, data_freshness_terms):
@@ -3737,6 +3762,40 @@ class RoxyInteractiveBrain:
             reply=f"Segun {path}: {excerpt}",
             emotion="informative",
             suggested_actions=("ask_followup", "open_source_document"),
+        )
+
+    def _knowledge_sources_reply(self, language: str = "es") -> RoxyBrainReply:
+        sources = list_knowledge_sources(self.knowledge_paths)
+        available = [source for source in sources if source.get("exists")]
+        missing = [source for source in sources if not source.get("exists")]
+        available_names = ", ".join(Path(_safe_text(source.get("path"))).name for source in available[:6])
+        missing_names = ", ".join(Path(_safe_text(source.get("path"))).name for source in missing[:6])
+        available_text = available_names or ("none" if language == "en" else "ninguna")
+        missing_text = missing_names or ("none" if language == "en" else "ninguna")
+
+        if language == "en":
+            reply = (
+                f"Knowledge sources: {len(available)}/{len(sources)} approved local document(s) available. "
+                f"Available: {available_text}. Missing: {missing_text}. "
+                "I use these local docs for Roxy-universe reads and avoid inventing content that is not connected."
+            )
+        else:
+            reply = (
+                f"Fuentes de conocimiento: {len(available)} de {len(sources)} documento(s) local(es) aprobado(s) disponibles. "
+                f"Disponibles: {available_text}. Faltantes: {missing_text}. "
+                "Uso estos documentos locales para lecturas del universo Roxy y evito inventar contenido que no este conectado."
+            )
+
+        return RoxyBrainReply(
+            intent="knowledge_sources",
+            reply=reply,
+            avatar_state="ready",
+            emotion="informative" if available else "cautious",
+            safety_level="guarded",
+            priority="high" if not available else "normal",
+            suggested_actions=("read_knowledge_source", "ask_capabilities", "review_learning_status")
+            if available
+            else ("attach_document", "ask_capabilities", "review_learning_status"),
         )
 
     def _best_knowledge_match(self, query: str) -> tuple[str, str] | None:
