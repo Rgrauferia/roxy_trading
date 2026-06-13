@@ -231,6 +231,96 @@ PLATFORM_BADGE_BRANDS = {
 TIMEFRAME_OPTIONS = ["15m", "1h", "2h", "4h", "1d"]
 REALTIME_REFRESH_SECONDS = [30, 60, 120, 300]
 DEFAULT_REALTIME_REFRESH_SECONDS = 60
+
+
+def normalize_command_timeframe(value: Any, *, default: str = "1h") -> str:
+    text = str(value or "").strip().lower()
+    return text if text in TIMEFRAME_OPTIONS else default
+
+
+def normalize_command_market(value: Any, symbol: Any = "") -> str:
+    text = str(value or "").strip().lower()
+    if text in {"stock", "crypto"}:
+        return text
+    return "crypto" if "/" in str(symbol or "") else "stock"
+
+
+def first_query_param_value(params: Any, key: str) -> str:
+    try:
+        value = params.get(key)
+    except Exception:
+        return ""
+    if isinstance(value, (list, tuple)):
+        value = value[0] if value else ""
+    return str(value or "").strip()
+
+
+def sync_dashboard_query_params(
+    params: Any,
+    *,
+    symbol: Any,
+    market: Any,
+    timeframe: Any,
+    page: Any = "Dashboard",
+) -> None:
+    symbol_value = str(symbol or "AAPL").strip().upper() or "AAPL"
+    desired = {
+        "symbol": symbol_value,
+        "market": normalize_command_market(market, symbol_value),
+        "tf": normalize_command_timeframe(timeframe),
+        "view": str(page or "Dashboard").strip() or "Dashboard",
+    }
+    for key, value in desired.items():
+        try:
+            if first_query_param_value(params, key) != value:
+                params[key] = value
+        except Exception:
+            continue
+
+
+def persist_command_query_params() -> None:
+    symbol = str(st.session_state.get("command_symbol", "AAPL") or "AAPL").strip().upper()
+    market = normalize_command_market(st.session_state.get("command_market"), symbol)
+    timeframe = normalize_command_timeframe(st.session_state.get("command_timeframe", "1h"))
+    st.session_state["command_symbol"] = symbol
+    st.session_state["command_market"] = market
+    st.session_state["command_timeframe"] = timeframe
+    sync_dashboard_query_params(
+        st.query_params,
+        symbol=symbol,
+        market=market,
+        timeframe=timeframe,
+        page=st.session_state.get("roxy_focused_page", first_query_param_value(st.query_params, "view") or "Dashboard"),
+    )
+
+
+def persist_command_symbol_query_params() -> None:
+    symbol = str(st.session_state.get("command_symbol", "AAPL") or "AAPL").strip().upper()
+    st.session_state["command_symbol"] = symbol
+    if "/" in symbol:
+        st.session_state["command_market"] = "crypto"
+    else:
+        st.session_state["command_market"] = normalize_command_market(st.session_state.get("command_market"), symbol)
+    persist_command_query_params()
+
+
+def apply_pending_command_state() -> bool:
+    changed = False
+    pending_symbol = st.session_state.pop("command_symbol_pending", None)
+    if pending_symbol:
+        st.session_state["command_symbol"] = str(pending_symbol).strip().upper()
+        changed = True
+    pending_market = st.session_state.pop("command_market_pending", None)
+    if pending_market:
+        st.session_state["command_market"] = normalize_command_market(pending_market, st.session_state.get("command_symbol"))
+        changed = True
+    pending_timeframe = st.session_state.pop("command_timeframe_pending", None)
+    if pending_timeframe:
+        st.session_state["command_timeframe"] = normalize_command_timeframe(pending_timeframe)
+        changed = True
+    if changed:
+        persist_command_query_params()
+    return changed
 AUTOHEAL_REPORT_KEYS = (
     "launchd_autoheal",
     "runtime_backup_autoheal",
@@ -11299,23 +11389,62 @@ def default_trade_plan_symbol(confluence_df: pd.DataFrame, brief: dict) -> str:
 def show_trade_plan_screen(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, options_df: pd.DataFrame, brief: dict) -> None:
     st.subheader("Plan de trade")
     default_symbol = default_trade_plan_symbol(confluence_df, brief)
-    available_symbols = [default_symbol]
-    if not confluence_df.empty and "symbol" in confluence_df.columns:
-        available_symbols.extend(confluence_df["symbol"].dropna().astype(str).str.upper().unique().tolist())
-    available_symbols.extend(["AAPL", "NVDA", "AMD", "MSFT", "PLTR"])
-    symbols = sorted(dict.fromkeys(symbol for symbol in available_symbols if symbol))
+    query_symbol = first_query_param_value(st.query_params, "symbol") or default_symbol
+    query_symbol = str(query_symbol or default_symbol or "AAPL").strip().upper()
+    query_market = normalize_command_market(first_query_param_value(st.query_params, "market"), query_symbol)
+    query_timeframe = normalize_command_timeframe(first_query_param_value(st.query_params, "tf"))
+    query_signature = (query_symbol, query_market, query_timeframe)
+    if st.session_state.get("trade_plan_query_signature") != query_signature:
+        st.session_state["command_symbol"] = query_symbol
+        st.session_state["command_market"] = query_market
+        st.session_state["command_timeframe"] = query_timeframe
+        st.session_state["trade_plan_query_signature"] = query_signature
+    else:
+        st.session_state.setdefault("command_symbol", query_symbol)
+        st.session_state.setdefault("command_market", query_market)
+        st.session_state.setdefault("command_timeframe", query_timeframe)
+    apply_pending_command_state()
+    current_symbol = str(st.session_state.get("command_symbol", query_symbol) or query_symbol).strip().upper()
+    current_market = normalize_command_market(st.session_state.get("command_market"), current_symbol)
+    current_timeframe = normalize_command_timeframe(st.session_state.get("command_timeframe", "1h"))
 
-    controls = st.columns([1.1, 0.8, 0.8, 0.8, 0.8])
+    controls = st.columns([1.2, 0.75, 0.75, 0.8, 0.8])
     with controls[0]:
-        symbol_choice = st.selectbox("Simbolo", symbols, index=symbols.index(default_symbol) if default_symbol in symbols else 0)
+        symbol_choice = st.text_input(
+            "Buscar activo",
+            value=current_symbol,
+            key="command_symbol",
+            on_change=persist_command_symbol_query_params,
+            help="Escribe acciones, ETFs o crypto. Ej: AAPL, TSLA, GOLD, BTC/USD, ETH/USD.",
+        )
     with controls[1]:
-        market = st.selectbox("Mercado", ["stock", "crypto"], key="trade_plan_market")
+        market = st.selectbox(
+            "Mercado",
+            ["stock", "crypto"],
+            index=1 if current_market == "crypto" else 0,
+            key="command_market",
+            on_change=persist_command_query_params,
+        )
     with controls[2]:
-        timeframe = st.selectbox("Marco", TIMEFRAME_OPTIONS, index=1, key="trade_plan_tf")
+        timeframe = st.selectbox(
+            "Marco",
+            TIMEFRAME_OPTIONS,
+            index=TIMEFRAME_OPTIONS.index(current_timeframe) if current_timeframe in TIMEFRAME_OPTIONS else 1,
+            key="command_timeframe",
+            on_change=persist_command_query_params,
+        )
     with controls[3]:
         account_equity = st.number_input("Cuenta", min_value=100.0, value=float(DEFAULT_ACCOUNT_EQUITY), step=50.0, key="trade_plan_equity")
     with controls[4]:
         risk_per_trade_pct = st.number_input("Riesgo %", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key="trade_plan_risk")
+
+    symbol_choice = str(symbol_choice or current_symbol or default_symbol).strip().upper()
+    if "/" in symbol_choice and market != "crypto":
+        market = "crypto"
+        st.session_state["command_market"] = market
+    sync_dashboard_query_params(st.query_params, symbol=symbol_choice, market=market, timeframe=timeframe, page="Activo")
+    render_selected_asset_banner(symbol_choice, market, timeframe)
+    st.caption("La gráfica, niveles e indicadores se recalculan con este símbolo; no usa el foco global del scanner.")
 
     symbol = resolve_symbol_query(symbol_choice, market)
     with st.spinner(f"Construyendo plan para {symbol}..."):
@@ -12502,12 +12631,7 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
     default_symbol = default_trade_plan_symbol(confluence_df, brief)
     if "command_symbol" not in st.session_state:
         st.session_state["command_symbol"] = default_symbol
-    pending_symbol = st.session_state.pop("command_symbol_pending", None)
-    if pending_symbol:
-        st.session_state["command_symbol"] = str(pending_symbol)
-    pending_market = st.session_state.pop("command_market_pending", None)
-    if pending_market:
-        st.session_state["command_market"] = str(pending_market)
+    apply_pending_command_state()
 
     st.subheader("Command Center")
     current_symbol = st.session_state.get("command_symbol", default_symbol)
@@ -12530,7 +12654,12 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
     with st.expander("Cambiar activo, mercado y capital", expanded=False):
         control_cols = st.columns([1.0, 0.7, 0.65, 0.65, 0.65, 0.65])
         with control_cols[0]:
-            symbol_input = st.text_input("Simbolo o crypto", value=current_symbol, key="command_symbol")
+            symbol_input = st.text_input(
+                "Simbolo o crypto",
+                value=current_symbol,
+                key="command_symbol",
+                on_change=persist_command_symbol_query_params,
+            )
         with control_cols[1]:
             inferred_market = "crypto" if "/" in str(symbol_input) else "stock"
             market = st.selectbox(
@@ -12538,9 +12667,10 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
                 ["stock", "crypto"],
                 index=1 if inferred_market == "crypto" else 0,
                 key="command_market",
+                on_change=persist_command_query_params,
             )
         with control_cols[2]:
-            timeframe = st.selectbox("Marco", TIMEFRAME_OPTIONS, index=1, key="command_timeframe")
+            timeframe = st.selectbox("Marco", TIMEFRAME_OPTIONS, index=1, key="command_timeframe", on_change=persist_command_query_params)
         with control_cols[3]:
             account_equity = st.number_input(
                 "Capital disponible",
@@ -12563,6 +12693,13 @@ def show_focused_home(scan_df: pd.DataFrame, confluence_df: pd.DataFrame, option
     with st.expander("Estado técnico del scan", expanded=False):
         render_alert_noise_contract(brief)
 
+    sync_dashboard_query_params(
+        st.query_params,
+        symbol=symbol_input,
+        market=market,
+        timeframe=timeframe,
+        page=st.session_state.get("roxy_focused_page", "Dashboard"),
+    )
     top_symbol = selected_dashboard_symbol(best)
     render_selected_asset_banner(symbol_input, market, timeframe, top_symbol=top_symbol)
     render_dashboard_asset_panel(
