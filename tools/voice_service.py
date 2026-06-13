@@ -1014,6 +1014,27 @@ def roxy_live_page():
       return false;
     }
 
+    function sendVoiceLearningPrompt(command) {
+      if (commandMatches(command, [
+        "aprendizaje", "estado aprendizaje", "que aprendiste", "que estas aprendiendo",
+        "aprendiste algo", "learning", "learning status", "what did you learn",
+        "what have you learned", "what are you learning"
+      ])) {
+        $("events").textContent = "voice: learning status";
+        loadLearning({speakNow: true});
+        return true;
+      }
+      if (commandMatches(command, [
+        "fuentes", "fuentes conocimiento", "fuentes de conocimiento", "documentos",
+        "sources", "knowledge sources", "source list", "documents"
+      ])) {
+        $("events").textContent = "voice: knowledge sources";
+        loadSources({speakNow: true});
+        return true;
+      }
+      return false;
+    }
+
     function repeatLastReplyByVoice() {
       const language = lastState.language || $("language").value || "es";
       if (!lastReply) {
@@ -1038,8 +1059,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -1265,6 +1286,7 @@ def roxy_live_page():
         return true;
       }
       if (applyVoiceListeningModeCommand(command)) return true;
+      if (sendVoiceLearningPrompt(command)) return true;
       if (commandMatches(command, ["repite", "repetir", "repite eso", "otra vez", "dilo otra vez", "repeat", "repeat that", "say again", "say that again"])) {
         repeatLastReplyByVoice();
         return true;
@@ -1757,13 +1779,18 @@ def roxy_live_page():
       appendMessage("system", "Perfil cargado.", "profile");
     }
 
-    async function loadSources() {
-      const headers = {};
-      const key = $("apiKey").value.trim();
-      if (key) headers.Authorization = "Bearer " + key;
+    async function loadSources(options) {
+      const opts = options || {};
+      const headers = requestHeaders();
       const res = await fetch("/v1/knowledge/sources", {headers});
       if (!res.ok) {
-        appendMessage("system", "No pude cargar fuentes: " + res.status, "sources");
+        const message = localizedText(
+          "No pude cargar fuentes: " + res.status,
+          "I could not load sources: " + res.status,
+          $("language").value || "es"
+        );
+        appendMessage("system", message, "sources");
+        if (opts.speakNow) speak(message, $("language").value || "es");
         return;
       }
       const payload = await res.json();
@@ -1779,17 +1806,30 @@ def roxy_live_page():
         node.querySelector("span").textContent = " · " + state + " · " + size;
         $("sources").appendChild(node);
       }
-      appendMessage("system", "Fuentes cargadas: " + sources.filter(s => s.exists).length + " disponible(s).", "sources");
+      const available = sources.filter(s => s.exists).length;
+      const language = $("language").value || "es";
+      const message = localizedText(
+        "Fuentes cargadas: " + available + " disponible(s) de " + sources.length + ".",
+        "Sources loaded: " + available + " available out of " + sources.length + ".",
+        language
+      );
+      appendMessage("system", message, "sources");
+      if (opts.speakNow) speak(message, language);
     }
 
-    async function loadLearning() {
-      const headers = {};
-      const key = $("apiKey").value.trim();
-      if (key) headers.Authorization = "Bearer " + key;
+    async function loadLearning(options) {
+      const opts = options || {};
+      const headers = requestHeaders();
       const params = new URLSearchParams({user: $("user").value || "local", session_id: session.value || ""});
       const res = await fetch("/v1/learning/status?" + params.toString(), {headers});
       if (!res.ok) {
-        appendMessage("system", "No pude cargar aprendizaje: " + res.status, "learning");
+        const message = localizedText(
+          "No pude cargar aprendizaje: " + res.status,
+          "I could not load learning status: " + res.status,
+          $("language").value || "es"
+        );
+        appendMessage("system", message, "learning");
+        if (opts.speakNow) speak(message, $("language").value || "es");
         return;
       }
       const payload = await res.json();
@@ -1797,11 +1837,19 @@ def roxy_live_page():
       const memory = payload.memory || {};
       const recommendations = Array.isArray(payload.recommendations) ? payload.recommendations : [];
       renderActiveContext(memory.active_context || {});
-      const text = "Aprendizaje local: feedback " + (feedback.total || 0) +
-        " total, " + (feedback.down || 0) + " a mejorar. Memoria: " +
-        (memory.turn_count || memory.total_turns || 0) + " turno(s). " +
-        recommendations.join(" ");
+      const language = $("language").value || "es";
+      const turnCount = memory.turn_count || memory.total_turns || 0;
+      const text = localizedText(
+        "Aprendizaje local: feedback " + (feedback.total || 0) +
+          " total, " + (feedback.down || 0) + " a mejorar. Memoria: " +
+          turnCount + " turno(s). " + recommendations.join(" "),
+        "Local learning: " + (feedback.total || 0) +
+          " feedback item(s), " + (feedback.down || 0) + " need improvement. Memory: " +
+          turnCount + " turn(s). " + recommendations.join(" "),
+        language
+      );
       appendMessage("system", text.trim(), "learning");
+      if (opts.speakNow) speak(text.trim(), language);
     }
 
     async function submitFeedback(rating) {
