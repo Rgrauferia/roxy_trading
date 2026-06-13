@@ -141,6 +141,12 @@ def test_roxy_live_page():
     assert "voice: options" in r.text
     assert "Opciones de voz: " in r.text
     assert "Voice options: " in r.text
+    assert "systemCheck" in r.text
+    assert "runVoiceSystemCheck" in r.text
+    assert "voice: system check" in r.text
+    assert "Diagnostico Roxy: backend " in r.text
+    assert "Roxy diagnostics: backend " in r.text
+    assert "/v1/assist/context/" in r.text
     assert "voiceTest" in r.text
     assert "speakVoiceSample" in r.text
     assert "voice: test" in r.text
@@ -354,6 +360,8 @@ def test_roxy_live_page():
     assert "note: $(\"feedbackNote\").value" in r.text
     assert "loadLearning" in r.text
     assert "/v1/learning/status" in r.text
+    assert "Diagnostico" in r.text
+    assert "roxy diagnostics" in r.text
     assert "/assets/roxy_avatar.jpg" in r.text
     assert "/assets/roxy_avatar_icon.jpg" in r.text
     assert "/assets/roxy_avatar_card.jpg" in r.text

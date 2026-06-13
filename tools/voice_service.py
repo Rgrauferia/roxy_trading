@@ -639,6 +639,7 @@ def roxy_live_page():
           <button id="voiceTest">Probar voz</button>
           <button id="repeat">Repetir voz</button>
           <button id="voiceOptions">Opciones voz</button>
+          <button id="systemCheck">Diagnostico</button>
           <button id="feedbackUp">Sirvio</button>
           <button id="feedbackDown">No sirvio</button>
           <button id="loadMemory">Cargar memoria</button>
@@ -2019,6 +2020,14 @@ def roxy_live_page():
         "estado local", "estado de roxy local", "voice status", "voice diagnostics",
         "local status", "local voice status"
       ])) return speakVoiceStatusBrief();
+      if (commandMatches(command, [
+        "diagnostico", "diagnostico de roxy", "chequeo de roxy", "chequeo sistema",
+        "estado del sistema", "revisa sistema", "system check", "diagnostics",
+        "roxy diagnostics", "check system", "run diagnostics"
+      ])) {
+        runVoiceSystemCheck({speakNow: true});
+        return true;
+      }
       if (sendVoiceLearningPrompt(command)) return true;
       if (sendVoiceFollowupPrompt(command)) return true;
       if (applyVoiceFeedbackCommand(command)) return true;
@@ -2673,6 +2682,110 @@ def roxy_live_page():
       if (opts.speakNow) speak(text.trim(), language);
     }
 
+    async function runVoiceSystemCheck(options) {
+      const opts = options || {};
+      const language = $("language").value || "es";
+      const headers = requestHeaders();
+      const sessionId = session.value || "local";
+      const report = {
+        backend: "unknown",
+        sourcesAvailable: null,
+        sourcesTotal: null,
+        feedbackTotal: null,
+        feedbackDown: null,
+        turnCount: null,
+        context: "",
+      };
+      setVoicePresenceActive(true);
+      setAvatar("thinking", "diagnostic");
+      $("events").textContent = "voice: system check";
+      updateVoiceDiagnostics(language);
+
+      try {
+        const healthRes = await fetch("/health");
+        if (healthRes.ok) {
+          const health = await healthRes.json();
+          report.backend = health.status || "ok";
+        } else {
+          report.backend = "error " + healthRes.status;
+        }
+      } catch (err) {
+        report.backend = "offline";
+      }
+
+      try {
+        const sourcesRes = await fetch("/v1/knowledge/sources", {headers});
+        if (sourcesRes.ok) {
+          const payload = await sourcesRes.json();
+          const sources = Array.isArray(payload.sources) ? payload.sources : [];
+          report.sourcesAvailable = sources.filter(source => source.exists).length;
+          report.sourcesTotal = sources.length;
+        }
+      } catch (err) {
+        report.sourcesAvailable = null;
+      }
+
+      try {
+        const params = new URLSearchParams({user: $("user").value || "local", session_id: sessionId});
+        const learningRes = await fetch("/v1/learning/status?" + params.toString(), {headers});
+        if (learningRes.ok) {
+          const payload = await learningRes.json();
+          const feedback = payload.feedback || {};
+          const memory = payload.memory || {};
+          report.feedbackTotal = feedback.total || 0;
+          report.feedbackDown = feedback.down || 0;
+          report.turnCount = memory.turn_count || memory.total_turns || 0;
+          if (memory.active_context) renderActiveContext(memory.active_context);
+        }
+      } catch (err) {
+        report.feedbackTotal = null;
+      }
+
+      try {
+        const contextRes = await fetch("/v1/assist/context/" + encodeURIComponent(sessionId) + "?limit=8", {headers});
+        if (contextRes.ok) {
+          const payload = await contextRes.json();
+          const context = payload.active_context || {};
+          renderActiveContext(context);
+          report.turnCount = payload.turn_count || report.turnCount || 0;
+          report.context = [
+            context.active_symbol || "",
+            context.active_intent || payload.last_intent || "",
+          ].filter(Boolean).join(" / ");
+        }
+      } catch (err) {
+        report.context = report.context || "";
+      }
+
+      const voice = $("voiceStatus").textContent || "-";
+      const sourcesText = report.sourcesTotal === null
+        ? localizedText("fuentes sin verificar", "sources unchecked", language)
+        : report.sourcesAvailable + "/" + report.sourcesTotal + " " + localizedText("fuentes", "sources", language);
+      const learningText = report.feedbackTotal === null
+        ? localizedText("aprendizaje sin verificar", "learning unchecked", language)
+        : report.feedbackTotal + " feedback, " + report.feedbackDown + " " + localizedText("a mejorar", "need improvement", language);
+      const turnsText = report.turnCount === null
+        ? localizedText("memoria sin verificar", "memory unchecked", language)
+        : report.turnCount + " " + localizedText("turno(s)", "turn(s)", language);
+      const contextText = report.context || localizedText("sin contexto activo", "no active context", language);
+      const message = localizedText(
+        "Diagnostico Roxy: backend " + report.backend + ", voz " + voice + ", " +
+          sourcesText + ", aprendizaje " + learningText + ", memoria " + turnsText +
+          ", contexto " + contextText + ".",
+        "Roxy diagnostics: backend " + report.backend + ", voice " + voice + ", " +
+          sourcesText + ", learning " + learningText + ", memory " + turnsText +
+          ", context " + contextText + ".",
+        language
+      );
+      $("reply").textContent = message;
+      appendMessage("system", message, "diagnostic");
+      if (!opts.speakNow || !speak(message, language)) {
+        setAvatar("ready", $("emotion").textContent);
+        scheduleListen();
+        releaseVoicePresenceIfIdle();
+      }
+    }
+
     async function submitFeedback(rating, options) {
       const opts = options || {};
       const language = $("language").value || "es";
@@ -2786,6 +2899,7 @@ def roxy_live_page():
     $("voiceTest").onclick = speakVoiceSample;
     $("repeat").onclick = () => speak(lastReply, lastState.language || $("language").value);
     $("voiceOptions").onclick = speakVoiceOptionsBrief;
+    $("systemCheck").onclick = () => runVoiceSystemCheck({speakNow: true});
     $("feedbackUp").onclick = () => submitFeedback("up");
     $("feedbackDown").onclick = () => submitFeedback("down");
     $("loadMemory").onclick = loadMemory;
