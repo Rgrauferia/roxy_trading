@@ -48,6 +48,33 @@ def test_roxy_brain_does_not_invent_news_without_source(tmp_path):
     assert "no voy a inventarlos" in response.reply
 
 
+def test_roxy_brain_lists_local_news_with_source_and_timestamp(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "news": [
+                    {
+                        "title": "NVDA receives analyst upgrade before the open",
+                        "source": "LocalDesk",
+                        "published_at": "2026-06-13T08:10:00-04:00",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("news")
+
+    assert response.intent == "news"
+    assert response.language == "en"
+    assert "Relevant news" in response.reply
+    assert "NVDA receives analyst upgrade before the open" in response.reply
+    assert "(LocalDesk, 2026-06-13T08:10:00-04:00)" in response.reply
+
+
 def test_roxy_brain_requires_headline_for_news_impact(tmp_path):
     brain = RoxyInteractiveBrain(brief_path=tmp_path / "brief.json", memory_path=tmp_path / "memory.json")
 
@@ -164,6 +191,7 @@ def test_roxy_brain_analyzes_news_impact_from_local_brief(tmp_path):
                     {
                         "headline": "TSLA faces investigation after vehicle recall",
                         "source": "LocalTest",
+                        "published_at": "2026-06-13T09:30:00-04:00",
                     }
                 ]
             }
@@ -178,6 +206,7 @@ def test_roxy_brain_analyzes_news_impact_from_local_brief(tmp_path):
     assert response.language == "en"
     assert "Tone: bearish" in response.reply
     assert "Source: LocalTest" in response.reply
+    assert "Time: 2026-06-13T09:30:00-04:00" in response.reply
 
 
 def test_roxy_brain_reads_latest_opportunity_from_brief(tmp_path):

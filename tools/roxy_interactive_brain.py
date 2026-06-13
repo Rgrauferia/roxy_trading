@@ -870,20 +870,33 @@ def _extract_headline_from_query(query: str) -> str:
     return ""
 
 
-def _first_news_item_from_brief(brief: dict[str, Any]) -> tuple[str, str]:
+def _news_item_fields(item: Any) -> tuple[str, str, str]:
+    if isinstance(item, dict):
+        headline = _safe_text(item.get("title") or item.get("headline") or item.get("summary"))
+        source = _safe_text(item.get("source") or item.get("publisher"))
+        timestamp = _safe_text(
+            item.get("published_at")
+            or item.get("timestamp")
+            or item.get("time")
+            or item.get("updated_at")
+            or item.get("created_at")
+        )
+    else:
+        headline = _safe_text(item)
+        source = ""
+        timestamp = ""
+    return headline[:500], source[:80], timestamp[:80]
+
+
+def _first_news_item_from_brief(brief: dict[str, Any]) -> tuple[str, str, str]:
     news_items = brief.get("news") or brief.get("market_news") or []
     if not isinstance(news_items, list):
-        return "", ""
+        return "", "", ""
     for item in news_items:
-        if isinstance(item, dict):
-            headline = _safe_text(item.get("title") or item.get("headline") or item.get("summary"))
-            source = _safe_text(item.get("source") or item.get("publisher"))
-        else:
-            headline = _safe_text(item)
-            source = ""
+        headline, source, timestamp = _news_item_fields(item)
         if headline:
-            return headline[:500], source[:80]
-    return "", ""
+            return headline, source, timestamp
+    return "", "", ""
 
 
 def _keyword_hits(text: str, terms: Iterable[str]) -> list[str]:
@@ -2847,13 +2860,10 @@ class RoxyInteractiveBrain:
         if isinstance(news_items, list) and news_items:
             headlines = []
             for item in news_items[:3]:
-                if isinstance(item, dict):
-                    title = _safe_text(item.get("title") or item.get("headline"))
-                    source = _safe_text(item.get("source"))
-                    if title:
-                        headlines.append(f"{title}" + (f" ({source})" if source else ""))
-                elif item:
-                    headlines.append(_safe_text(item))
+                title, source, timestamp = _news_item_fields(item)
+                if title:
+                    details = ", ".join(part for part in (source, timestamp) if part)
+                    headlines.append(f"{title}" + (f" ({details})" if details else ""))
             if headlines:
                 prefix = "Relevant news: " if language == "en" else "Noticias relevantes: "
                 return RoxyBrainReply(
@@ -2894,8 +2904,9 @@ class RoxyInteractiveBrain:
         brief = _load_json(self.brief_path)
         headline = _extract_headline_from_query(query)
         source = ""
+        timestamp = ""
         if not headline:
-            headline, source = _first_news_item_from_brief(brief)
+            headline, source, timestamp = _first_news_item_from_brief(brief)
 
         if not headline:
             if language == "en":
@@ -2927,6 +2938,7 @@ class RoxyInteractiveBrain:
         sentiment, cues = _news_sentiment(headline)
         symbol = _extract_symbol(headline) or _extract_symbol(query)
         source_text = f" Source: {source}." if source and language == "en" else f" Fuente: {source}." if source else ""
+        time_text = f" Time: {timestamp}." if timestamp and language == "en" else f" Hora: {timestamp}." if timestamp else ""
         cue_text = ", ".join(cues) if cues else ("no strong keyword cue" if language == "en" else "sin palabra clave fuerte")
         opportunity_context = self._news_opportunity_context(symbol, sentiment, language)
 
@@ -2940,7 +2952,7 @@ class RoxyInteractiveBrain:
                 impact = "unclear by itself; the market reaction, volume, and related sector move matter more than the words"
             asset = f" for {symbol}" if symbol else ""
             reply = (
-                f"News impact{asset}: '{headline}'.{source_text} Tone: {sentiment_label}; cues: {cue_text}. "
+                f"News impact{asset}: '{headline}'.{source_text}{time_text} Tone: {sentiment_label}; cues: {cue_text}. "
                 f"Likely impact: {impact}.{opportunity_context} Verify source, timestamp, whether the headline is confirmed, and the first "
                 "price-volume reaction. This is not a trade signal by itself; I would pair it with the market summary, "
                 "entry trigger, stop, and position risk before recommending action."
@@ -2959,7 +2971,7 @@ class RoxyInteractiveBrain:
                 )
             asset = f" para {symbol}" if symbol else ""
             reply = (
-                f"Impacto de noticia{asset}: '{headline}'.{source_text} Tono: {sentiment_label}; pistas: {cue_text}. "
+                f"Impacto de noticia{asset}: '{headline}'.{source_text}{time_text} Tono: {sentiment_label}; pistas: {cue_text}. "
                 f"Impacto probable: {impact}.{opportunity_context} Verifica fuente, hora, si el titular esta confirmado y la primera reaccion "
                 "precio-volumen. Esto no es una senal de trade por si solo; lo cruzaria con resumen de mercado, gatillo "
                 "de entrada, stop y riesgo de posicion antes de recomendar accion."
