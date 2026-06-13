@@ -1460,7 +1460,7 @@ def roxy_live_page():
       const language = languageValue === "en" ? "en" : "es";
       const message = language === "en" ? "English mode." : "Modo español.";
       $("language").value = language;
-      alignVoiceSelection(language);
+      ensureReceptionistVoiceReady(language, {save: true});
       saveSettings();
       updateVoiceDiagnostics(language);
       if (recognition) recognition.lang = speechLang(language);
@@ -2456,13 +2456,13 @@ def roxy_live_page():
     function activateReceptionistVoiceProfile(languageValue, options) {
       const opts = options || {};
       const language = languageValue || $("language").value || "es";
-      const voice = alignVoiceSelection(language, {ignoreSelected: true, forceReceptionist: true});
-      applyReceptionistVoiceTuning(language);
-      if (opts.enableSpeech !== false) $("autoSpeak").checked = true;
-      localStorage.setItem("roxyLiveVoicePreset", "receptionist");
-      saveSettings();
-      updateVoiceDiagnostics(language);
-      return voice;
+      return ensureReceptionistVoiceReady(language, {
+        ignoreSelected: true,
+        forceReceptionist: true,
+        resetTuning: true,
+        enableSpeech: opts.enableSpeech !== false,
+        save: true,
+      });
     }
 
     function normalizedVoiceName(voice) {
@@ -2492,6 +2492,39 @@ def roxy_live_page():
     function voiceIsHeavyOrMasculine(voice, languageValue) {
       const name = normalizedVoiceName(voice);
       return masculineOrHeavyVoiceNames(languageValue || $("language").value || "es").some(token => name.includes(token));
+    }
+
+    function selectedBrowserVoice() {
+      const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+      const selected = $("voiceSelect").value;
+      return voices.find(v => v.name === selected) || null;
+    }
+
+    function ensureReceptionistVoiceReady(languageValue, options) {
+      const opts = options || {};
+      const language = languageValue || $("language").value || "es";
+      const preset = localStorage.getItem("roxyLiveVoicePreset") || "receptionist";
+      const requireReceptionist = opts.forceReceptionist || preset !== "manual";
+      if (!requireReceptionist) {
+        const voice = alignVoiceSelection(language);
+        updateVoiceDiagnostics(language);
+        return voice;
+      }
+
+      const selected = selectedBrowserVoice();
+      const needsReset = Boolean(
+        opts.ignoreSelected
+        || opts.forceReceptionist
+        || !selected
+        || selectedVoiceNeedsReceptionistReset(selected, language)
+      );
+      localStorage.setItem("roxyLiveVoicePreset", "receptionist");
+      const voice = alignVoiceSelection(language, {ignoreSelected: needsReset, forceReceptionist: true});
+      if (needsReset || opts.resetTuning) applyReceptionistVoiceTuning(language);
+      if (opts.enableSpeech) $("autoSpeak").checked = true;
+      if (needsReset || opts.enableSpeech || opts.save || opts.resetTuning) saveSettings();
+      updateVoiceDiagnostics(language);
+      return voice;
     }
 
     function receptionistVoiceScore(voice, languageValue) {
@@ -2609,7 +2642,7 @@ def roxy_live_page():
         const changed = $("language").value !== language;
         const previousVoice = $("voiceSelect").value;
         if (changed) $("language").value = language;
-        alignVoiceSelection(language);
+        ensureReceptionistVoiceReady(language, {save: changed});
         if (changed || previousVoice !== $("voiceSelect").value) saveSettings();
         return language;
       }
@@ -2654,11 +2687,11 @@ def roxy_live_page():
       setVoicePresenceActive(true);
       const run = () => {
         const lang = languageOverride || $("language").value || "es";
+        const voice = ensureReceptionistVoiceReady(lang, {forceReceptionist: localStorage.getItem("roxyLiveVoicePreset") === "receptionist"});
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = speechLang(lang);
         utterance.rate = Number($("voiceRate").value || 0.9);
         utterance.pitch = Number($("voicePitch").value || 1.1);
-        const voice = alignVoiceSelection(lang, {forceReceptionist: localStorage.getItem("roxyLiveVoicePreset") === "receptionist"});
         if (voice) utterance.voice = voice;
         utterance.onstart = () => {
           isSpeaking = true;
@@ -2991,7 +3024,7 @@ def roxy_live_page():
       if (profile.voice_pitch) $("voicePitch").value = profile.voice_pitch;
       else $("voicePitch").value = "1.1";
       if (profile.voice_name) $("voiceSelect").value = profile.voice_name;
-      alignVoiceSelection(profile.language || $("language").value || "es");
+      ensureReceptionistVoiceReady(profile.language || $("language").value || "es", {save: true});
       saveSettings();
       appendMessage("system", "Perfil cargado.", "profile");
     }
@@ -3228,6 +3261,7 @@ def roxy_live_page():
       }
       if (isListening) return;
       prepareListeningTurn();
+      ensureReceptionistVoiceReady($("language").value || "es");
       recognition = new SR();
       recognition.lang = speechLang($("language").value);
       recognition.interimResults = true;
@@ -3350,11 +3384,13 @@ def roxy_live_page():
     });
     restoreSettings();
     populateVoices();
+    ensureReceptionistVoiceReady($("language").value || "es", {save: true});
     updateVoiceDiagnostics();
     updateVoiceDraftStatus();
     if ("speechSynthesis" in window) {
       window.speechSynthesis.onvoiceschanged = () => {
         populateVoices();
+        ensureReceptionistVoiceReady($("language").value || "es", {save: true});
         updateVoiceDiagnostics();
       };
     }

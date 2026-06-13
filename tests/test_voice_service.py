@@ -472,8 +472,12 @@ def test_roxy_live_page():
     assert "receptionistVoiceProfile" in r.text
     assert "applyReceptionistVoiceTuning" in r.text
     assert "activateReceptionistVoiceProfile" in r.text
+    assert "ensureReceptionistVoiceReady" in r.text
+    assert "selectedBrowserVoice" in r.text
     assert "roxyLiveVoicePreset" in r.text
     assert "forceReceptionist" in r.text
+    assert 'const requireReceptionist = opts.forceReceptionist || preset !== "manual"' in r.text
+    assert 'localStorage.setItem("roxyLiveVoicePreset", "receptionist")' in r.text
     assert "ritmo natural de recepcionista joven" in r.text
     assert "natural front-desk pace" in r.text
     assert "receptionistVoiceScore" in r.text
@@ -489,9 +493,16 @@ def test_roxy_live_page():
     assert "samantha" in r.text
     assert "allison" in r.text
     assert "option.textContent = voice.name + \" · \" + voice.lang + \" · \" + voiceQualityLabel" in r.text
-    assert "alignVoiceSelection(language, {ignoreSelected: true, forceReceptionist: true})" in r.text
+    assert "alignVoiceSelection(language, {ignoreSelected: needsReset, forceReceptionist: true})" in r.text
+    assert "ignoreSelected: true" in r.text
+    assert "resetTuning: true" in r.text
     assert "activateReceptionistVoiceProfile(language, {enableSpeech: true})" in r.text
-    assert 'alignVoiceSelection(lang, {forceReceptionist: localStorage.getItem("roxyLiveVoicePreset") === "receptionist"})' in r.text
+    assert 'ensureReceptionistVoiceReady(lang, {forceReceptionist: localStorage.getItem("roxyLiveVoicePreset") === "receptionist"})' in r.text
+    assert 'ensureReceptionistVoiceReady(language, {save: true})' in r.text
+    assert 'ensureReceptionistVoiceReady(profile.language || $("language").value || "es", {save: true})' in r.text
+    assert 'ensureReceptionistVoiceReady($("language").value || "es")' in r.text
+    assert 'ensureReceptionistVoiceReady($("language").value || "es", {save: true})' in r.text
+    assert r.text.index("const voice = ensureReceptionistVoiceReady(lang") < r.text.index("const utterance = new SpeechSynthesisUtterance(text)")
     assert 'value="0.9"' in r.text
     assert 'value="1.1"' in r.text
     assert "alignVoiceSelection" in r.text
