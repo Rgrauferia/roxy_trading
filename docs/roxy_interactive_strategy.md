@@ -83,7 +83,9 @@ Wake Roxy, or a manual `Hablar` turn that includes the wake word, can change lis
 
 Wake Roxy also supports local language control commands such as "Roxy, speak English" or "Roxy, habla español". These switch the browser recognition language and compatible voice without calling the assistant backend.
 
-Wake Roxy also supports local conversation controls such as "Roxy, repite" / "Roxy, repeat" for replaying the last answer and "Roxy, ayuda" / "Roxy, help" for a short command reminder. These controls run in the browser and return to listening without creating a new assistant turn.
+Wake Roxy also supports local conversation controls such as "Roxy, repite" / "Roxy, repeat" for replaying the last answer, "Roxy, silencio" / "Roxy, stop" for stopping microphone/speech, and "Roxy, ayuda" / "Roxy, help" for a short command reminder. These controls run in the browser and return to listening without creating a new assistant turn.
+
+Wake Roxy can adjust browser voice pace locally with "Roxy, voz mas lenta", "Roxy, voz mas rapida", or "Roxy, voz normal" plus English equivalents such as "Roxy, slower voice". These commands update the browser voice-rate control and saved local settings only.
 
 Wake Roxy can also answer "Roxy, contexto actual" / "Roxy, current context" locally from the active browser turn. It speaks the current symbol, intent/topic, safety level, and next safe actions without calling the assistant backend, giving the user a low-latency orientation check during a live voice session. Full saved-history recaps still use the normal `session_recap` backend intent.
 

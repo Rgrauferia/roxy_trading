@@ -926,6 +926,63 @@ def roxy_live_page():
       if (!speak(message, language)) scheduleListen();
     }
 
+    function applyVoiceStopCommand(command) {
+      const normalized = normalizeSpeech(command);
+      const stopPhrases = [
+        "silencio", "para", "parar", "calla", "callate", "detente",
+        "stop", "stop listening", "be quiet", "silence", "quiet"
+      ];
+      if (!stopPhrases.includes(normalized)) return false;
+      const language = $("language").value || "es";
+      const message = localizedText("Escucha detenida.", "Listening stopped.", language);
+      stopAll(message);
+      $("reply").textContent = message;
+      $("events").textContent = "voice: stop";
+      return true;
+    }
+
+    function setVoiceRateFromCommand(rate, esMessage, enMessage, eventName) {
+      const bounded = Math.min(1.15, Math.max(0.75, Number(rate || 0.95)));
+      const language = $("language").value || "es";
+      $("voiceRate").value = bounded.toFixed(2);
+      saveSettings();
+      updateVoiceDiagnostics(language);
+      speakLocalControlMessage(localizedText(esMessage, enMessage, language), language, eventName, "voice-profile");
+      return true;
+    }
+
+    function applyVoicePaceCommand(command) {
+      if (commandMatches(command, [
+        "voz mas lenta", "habla mas lento", "mas lento", "lee mas lento",
+        "slower voice", "speak slower", "read slower", "slower"
+      ])) {
+        return setVoiceRateFromCommand(
+          Number($("voiceRate").value || 0.95) - 0.1,
+          "Voz mas lenta.",
+          "Slower voice.",
+          "voice: pace slower"
+        );
+      }
+      if (commandMatches(command, [
+        "voz mas rapida", "habla mas rapido", "mas rapido", "lee mas rapido",
+        "faster voice", "speak faster", "read faster", "faster"
+      ])) {
+        return setVoiceRateFromCommand(
+          Number($("voiceRate").value || 0.95) + 0.1,
+          "Voz mas rapida.",
+          "Faster voice.",
+          "voice: pace faster"
+        );
+      }
+      if (commandMatches(command, [
+        "voz normal", "velocidad normal", "ritmo normal", "normal voice",
+        "normal speed", "default voice speed"
+      ])) {
+        return setVoiceRateFromCommand(0.95, "Voz a velocidad normal.", "Voice speed reset.", "voice: pace normal");
+      }
+      return false;
+    }
+
     function applyVoiceLanguageCommand(languageValue) {
       const language = languageValue === "en" ? "en" : "es";
       const message = language === "en" ? "English mode." : "Modo español.";
@@ -1132,8 +1189,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, contexto actual; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, current context; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, voz más lenta; Roxy, contexto actual; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, slower voice; Roxy, current context; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -1385,12 +1442,14 @@ def roxy_live_page():
     }
 
     function handleVoiceControlCommand(command) {
+      if (applyVoiceStopCommand(command)) return true;
       const language = languageCommandTarget(command);
       if (language) {
         applyVoiceLanguageCommand(language);
         return true;
       }
       if (applyVoiceListeningModeCommand(command)) return true;
+      if (applyVoicePaceCommand(command)) return true;
       if (sendVoiceLearningPrompt(command)) return true;
       if (applyVoiceFeedbackCommand(command)) return true;
       if (commandMatches(command, [
