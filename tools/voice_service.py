@@ -601,6 +601,7 @@ def roxy_live_page():
           <button data-prompt="resumen de sesion">Sesión</button>
           <button data-prompt="briefing diario">Briefing</button>
           <button data-prompt="resumen del mercado">Mercado</button>
+          <button data-prompt="sesion de mercado">Horario</button>
           <button data-prompt="frescura de datos">Datos</button>
           <button data-prompt="vigila mi watchlist">Watchlist</button>
           <button data-prompt="analiza impacto de noticia: pega aqui el titular">Impacto news</button>
@@ -736,6 +737,8 @@ def roxy_live_page():
       ask_latest_opportunity: ["Oportunidad", "resumen de oportunidad"],
       ask_capabilities: ["Capacidades", "que puedes hacer"],
       ask_market_summary: ["Mercado", "resumen del mercado"],
+      ask_market_session: ["Horario", "sesion de mercado"],
+      market_session: ["Horario", "sesion de mercado"],
       connect_realtime_voice: ["Voz", "estado de roxy"],
       connect_news_source: ["Noticias", "analiza impacto de noticia: pega aqui el titular"],
       confirm_trade_guardrails: ["Guardrails", "puedo operar ahora"],
@@ -1472,6 +1475,7 @@ def roxy_live_page():
         "BASE", "SYMBOL", "TICKER", "ACTIVO", "LIST", "LISTA", "TRACKING", "SEGUIMIENTO",
         "ANALIZA", "ANALIZAR", "ANALYZE", "IMPACTO", "NOTICIA", "TITULAR", "HEADLINE",
         "SENTIMENT", "SENTIMIENTO",
+        "HORARIO", "HOURS", "SESSION", "REGULAR", "EXTENDED", "ABIERTO", "CERRADO", "ACCIONES",
       ]);
     }
 
@@ -1610,6 +1614,14 @@ def roxy_live_page():
     function marketVoicePrompt(command) {
       const language = $("language").value || "es";
       const shortcuts = [
+        {
+          phrases: [
+            "horario", "horario mercado", "horario de mercado", "sesion de mercado", "sesion mercado",
+            "mercado abierto", "mercado cerrado", "market hours", "market session", "regular hours", "extended hours"
+          ],
+          es: "sesion de mercado",
+          en: "market hours",
+        },
         {
           phrases: ["mercado", "resumen mercado", "resumen del mercado", "market", "market summary"],
           es: "resumen del mercado",

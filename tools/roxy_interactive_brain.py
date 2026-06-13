@@ -942,7 +942,7 @@ def _next_best_actions_for_context(intent: str, safety_level: str, has_symbol: b
             actions.append("alert_draft")
         return actions
     if intent in {"market_summary", "data_freshness", "market_session"}:
-        return ["ask_latest_opportunity", "compare_opportunities", "data_freshness"]
+        return ["ask_latest_opportunity", "compare_opportunities", "data_freshness", "market_session"]
     if intent in {"watchlist", "monitoring_plan"}:
         return ["monitoring_plan", "market_summary", "alert_draft"]
     if intent == "session_recap":
@@ -2243,7 +2243,7 @@ class RoxyInteractiveBrain:
                 needs_live_source=True,
                 safety_level="guarded",
                 priority="high",
-                suggested_actions=("run_scan", "ask_market_summary"),
+                suggested_actions=("run_scan", "ask_market_summary", "market_session"),
             )
 
         state = _safe_text(freshness["state"])
@@ -2273,7 +2273,11 @@ class RoxyInteractiveBrain:
             needs_live_source=needs_live_source,
             safety_level="guarded",
             priority="high" if state == "stale" else "normal",
-            suggested_actions=("run_scan", "ask_market_summary") if state == "stale" else ("ask_market_summary", "ask_latest_opportunity"),
+            suggested_actions=(
+                ("run_scan", "ask_market_summary", "market_session")
+                if state == "stale"
+                else ("ask_market_summary", "ask_latest_opportunity", "market_session")
+            ),
         )
 
     def _watchlist_symbols(self, profile: dict[str, Any], query: str) -> list[str]:
@@ -2589,7 +2593,7 @@ class RoxyInteractiveBrain:
             reply=reply,
             emotion="analytical",
             safety_level="guarded",
-            suggested_actions=("ask_latest_opportunity", "ask_risk", "run_scan"),
+            suggested_actions=("ask_latest_opportunity", "ask_risk", "run_scan", "market_session"),
         )
 
     def _market_session_reply(self, language: str = "es") -> RoxyBrainReply:

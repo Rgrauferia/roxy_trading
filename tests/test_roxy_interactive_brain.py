@@ -557,6 +557,7 @@ def test_roxy_brain_reports_fresh_local_data_in_spanish(tmp_path):
     assert response.needs_live_source is False
     assert "Frescura de datos: frescos" in response.reply
     assert "daily_opportunity_plan.generated_at" in response.reply
+    assert "market_session" in response.suggested_actions
 
 
 def test_roxy_brain_flags_stale_local_data_in_english(tmp_path):
@@ -577,6 +578,7 @@ def test_roxy_brain_flags_stale_local_data_in_english(tmp_path):
     assert response.priority == "high"
     assert "Data freshness: stale" in response.reply
     assert "refresh the scan" in response.reply
+    assert "market_session" in response.suggested_actions
 
 
 def test_roxy_brain_requires_scan_when_data_freshness_has_no_brief(tmp_path):
@@ -593,6 +595,7 @@ def test_roxy_brain_requires_scan_when_data_freshness_has_no_brief(tmp_path):
     assert response.safety_level == "guarded"
     assert "timestamp local" in response.reply
     assert "run_scan" in response.suggested_actions
+    assert "market_session" in response.suggested_actions
 
 
 def test_roxy_brain_trade_readiness_prepares_only_when_gates_are_clean_spanish(tmp_path):
@@ -765,6 +768,7 @@ def test_roxy_brain_summarizes_market_regime_in_spanish(tmp_path):
     assert response.safety_level == "guarded"
     assert "Regimen local del mercado: alcista" in response.reply
     assert "Nota de riesgo" in response.reply
+    assert "market_session" in response.suggested_actions
 
 
 def test_roxy_brain_summarizes_market_regime_in_english(tmp_path):
@@ -800,6 +804,7 @@ def test_roxy_brain_summarizes_market_regime_in_english(tmp_path):
     assert "Local market regime: bullish" in response.reply
     assert "top gate Wait for 15m entry" in response.reply
     assert "Risk note" in response.reply
+    assert "market_session" in response.suggested_actions
 
 
 def test_roxy_brain_reads_market_session_in_spanish(tmp_path):

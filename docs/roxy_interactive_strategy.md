@@ -53,6 +53,8 @@ For market regime questions, Roxy uses the `market_summary` intent. It reads loc
 
 For market-session questions such as "sesion de mercado", "horario de mercado", or "market hours", Roxy uses the `market_session` intent. It reads the local `market_session` snapshot from the daily opportunity plan or root brief, explains stock regular/extended/closed status, crypto 24h status, whether stock/options alerts should pause, and ends with a timing-context guardrail. If the snapshot is missing, it asks for a refreshed scan instead of guessing the live market state.
 
+Roxy Live exposes `market_session` through the `Horario` quick prompt, the suggested-action strip, and voice shortcuts such as "Roxy, horario de mercado" / "Roxy, market hours" so users can check timing before interpreting opportunities.
+
 For data freshness prompts such as "frescura de datos" or "source status", Roxy uses the `data_freshness` intent. It reads `daily_opportunity_plan.generated_at`, top-level brief timestamps, or the brief file modified time, then labels the local read as fresh, usable but aging, or stale. Stale data sets `needs_live_source=true` and should force a scan refresh before ranking, sizing, alerts, or trade decisions.
 
 For go/no-go prompts such as "puedo operar ahora" or "should I trade", Roxy uses the `trade_readiness` intent. It combines data freshness, the selected/top-ranked opportunity, entry/stop/risk completeness, readiness, missing confirmations, and action state into `BLOCKED`, `WAIT`, or `PREPARE ONLY`. This is a decision-support gate only and never permission to execute.

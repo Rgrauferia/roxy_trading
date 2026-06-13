@@ -76,6 +76,7 @@ def test_roxy_live_page():
     assert 'data-prompt="resumen de sesion"' in r.text
     assert 'data-prompt="briefing diario"' in r.text
     assert 'data-prompt="resumen del mercado"' in r.text
+    assert 'data-prompt="sesion de mercado"' in r.text
     assert 'data-prompt="frescura de datos"' in r.text
     assert 'data-prompt="vigila mi watchlist"' in r.text
     assert 'data-prompt="analiza impacto de noticia: pega aqui el titular"' in r.text
@@ -137,6 +138,8 @@ def test_roxy_live_page():
     assert "handleVoiceProfileCommand" in r.text
     assert "marketVoicePrompt" in r.text
     assert "sendVoiceMarketPrompt" in r.text
+    assert 'ask_market_session: ["Horario", "sesion de mercado"]' in r.text
+    assert 'market_session: ["Horario", "sesion de mercado"]' in r.text
     assert "handleVoiceControlCommand" in r.text
     assert "manualWakeCommand" in r.text
     assert "if (handleVoiceControlCommand(manualWakeCommand)) return;" in r.text
@@ -232,12 +235,21 @@ def test_roxy_live_page():
     assert "Roxy, market" in r.text
     assert "Roxy, horario de mercado" in r.text
     assert "Roxy, market hours" in r.text
+    assert '"market hours"' in r.text
+    assert '"regular hours"' in r.text
+    assert '"sesion de mercado"' in r.text
+    assert r.text.index('"horario", "horario mercado"') < r.text.index(
+        'phrases: ["mercado", "resumen mercado"'
+    )
     assert "Roxy, riesgo de SPY" in r.text
     assert "Roxy, risk SPY" in r.text
     assert "BTC/USD" in r.text
     assert "ANALIZA" in r.text
     assert "ANALYZE" in r.text
     assert "HEADLINE" in r.text
+    assert "HORARIO" in r.text
+    assert "HOURS" in r.text
+    assert "EXTENDED" in r.text
     assert "top opportunities" in r.text
     assert "can I trade now" in r.text
     assert "Roxy, repite" in r.text
