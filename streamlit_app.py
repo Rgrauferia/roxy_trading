@@ -1749,8 +1749,10 @@ def render_professional_chart_block(
             )
     technical_strip_html = ""
     technical_items: list[str] = []
+    technical_tones: list[str] = []
 
     def add_technical_item(label: str, value: str, detail: str, tone: str) -> None:
+        technical_tones.append(tone)
         technical_items.append(
             '<span class="chart-tech-pill chart-tech-{tone}"><em>{label}</em><strong>{value}</strong>'
             "<small>{detail}</small></span>".format(
@@ -1799,7 +1801,13 @@ def render_professional_chart_block(
         volume_tone = "buy" if relative_volume >= 1.2 else "watch" if relative_volume >= 0.8 else "avoid"
         add_technical_item("RVol", f"{relative_volume:.2f}x", "Volumen confirma" if relative_volume >= 1.2 else "Volumen bajo", volume_tone)
     if technical_items:
-        technical_strip_html = '<section class="chart-tech-strip"><b>Indicadores</b>' + "".join(technical_items[:5]) + "</section>"
+        technical_summary = f"{technical_tones.count('buy')}/{len(technical_tones)} OK · {technical_tones.count('avoid')} riesgo"
+        technical_strip_html = (
+            '<section class="chart-tech-strip"><b><span>Indicadores</span>'
+            f"<small>{html.escape(technical_summary)}</small></b>"
+            + "".join(technical_items[:5])
+            + "</section>"
+        )
     st.markdown(
         f"""
         <section class="chart-command-head">
@@ -14366,7 +14374,8 @@ def main() -> None:
         .chart-tape-buy{border-top-color:#22c55e;background:rgba(21,93,62,.18)}
         .chart-tape-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.20)}
         .chart-tech-strip{display:grid;grid-template-columns:90px repeat(5,minmax(0,1fr));gap:1px;border:1px solid rgba(148,163,184,.16);border-radius:8px;background:rgba(148,163,184,.14);overflow:hidden;margin:-2px 0 8px}
-        .chart-tech-strip>b{display:flex;align-items:center;color:#ddd6fe;background:rgba(30,27,75,.78);padding:7px 8px;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.055em}
+        .chart-tech-strip>b{display:flex;flex-direction:column;justify-content:center;color:#ddd6fe;background:rgba(30,27,75,.78);padding:7px 8px;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.055em}
+        .chart-tech-strip>b small{display:block;color:#a5b4fc;font-size:9px;font-weight:900;letter-spacing:0;text-transform:none;line-height:1.1;margin-top:3px}
         .chart-tech-pill{display:block;min-width:0;background:#0b1220;border-top:3px solid rgba(148,163,184,.32);padding:5px 7px}
         .chart-tech-pill em{display:block;color:#94a3b8;font-size:9px;font-style:normal;font-weight:950;line-height:1;text-transform:uppercase}
         .chart-tech-pill strong{display:block;color:#f8fafc;font-size:13px;line-height:1.05;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
