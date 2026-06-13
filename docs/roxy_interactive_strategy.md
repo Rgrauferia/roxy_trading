@@ -131,6 +131,8 @@ Wake Roxy can run a broader local system check with "Roxy, diagnostico" / "Roxy,
 
 Wake Roxy can also run a local voice sample with "Roxy, prueba tu voz" / "Roxy, test voice", and Roxy Live exposes the same flow through the `Probar voz` button. This uses the currently selected browser voice and speech settings so users can verify clarity before a live conversation.
 
+Roxy Live also exposes `Probar micro` and the voice command "Roxy, probar microfono" / "Roxy, microphone check". This runs a local `getUserMedia` microphone preflight, immediately stops the temporary audio stream, confirms permission/input availability, or routes failures into the existing blocked microphone recovery path. It does not send audio or text to the assistant backend and does not touch broker or trading flows.
+
 Wake Roxy can also answer "Roxy, contexto actual" / "Roxy, current context" locally from the active browser turn. It speaks the current symbol, intent/topic, safety level, and next safe actions without calling the assistant backend, giving the user a low-latency orientation check during a live voice session. Full saved-history recaps still use the normal `session_recap` backend intent.
 
 Wake Roxy can answer "Roxy, que sigue" / "Roxy, next step" locally from the active context. It speaks the first safe suggested action, prepares that prompt in the input for review, and refuses to skip explicit confirmation when the last turn was guarded or critical. If a dictation draft is pending, the safe next step is to read, send, or clear the draft first.

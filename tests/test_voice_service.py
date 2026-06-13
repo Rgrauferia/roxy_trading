@@ -188,6 +188,19 @@ def test_roxy_live_page():
     assert "Diagnostico Roxy: backend " in r.text
     assert "Roxy diagnostics: backend " in r.text
     assert "/v1/assist/context/" in r.text
+    assert "micCheck" in r.text
+    assert "Probar micro" in r.text
+    assert "runMicrophoneCheck" in r.text
+    assert "stopMediaStream" in r.text
+    assert "navigator.mediaDevices.getUserMedia" in r.text
+    assert "voice: microphone check" in r.text
+    assert "voice: microphone ready" in r.text
+    assert "Microfono listo." in r.text
+    assert "Microphone ready." in r.text
+    assert "Roxy, probar microfono" in r.text
+    assert "Roxy, microphone check" in r.text
+    assert "test microphone" in r.text
+    assert '$("micCheck").onclick = () => runMicrophoneCheck({speakNow: true})' in r.text
     assert "voiceTest" in r.text
     assert "speakVoiceSample" in r.text
     assert "voice: test" in r.text

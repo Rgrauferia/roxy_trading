@@ -641,6 +641,7 @@ def roxy_live_page():
           <button id="send">Enviar</button>
           <button id="voiceGuide">Iniciar voz</button>
           <button id="voiceTest">Probar voz</button>
+          <button id="micCheck">Probar micro</button>
           <button id="repeat">Repetir voz</button>
           <button id="voiceOptions">Opciones voz</button>
           <button id="voicePreset">Voz clara</button>
@@ -1056,9 +1057,49 @@ def roxy_live_page():
     function speechStartErrorKey(err) {
       const name = String((err && (err.name || err.message)) || "unknown").toLowerCase();
       if (name.includes("notallowed") || name.includes("permission") || name.includes("security")) return "not-allowed";
-      if (name.includes("notfound") || name.includes("audio") || name.includes("capture")) return "audio-capture";
+      if (name.includes("notfound") || name.includes("notreadable") || name.includes("audio") || name.includes("capture") || name.includes("device")) return "audio-capture";
       if (name.includes("notsupported") || name.includes("support")) return "unsupported";
       return "start-failed";
+    }
+
+    function stopMediaStream(stream) {
+      try {
+        if (stream && stream.getTracks) stream.getTracks().forEach(track => track.stop());
+      } catch (_err) {}
+    }
+
+    async function runMicrophoneCheck(options) {
+      const opts = options || {};
+      const language = $("language").value || "es";
+      setVoicePresenceActive(true);
+      $("events").textContent = "voice: microphone check";
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        handleFatalMicError("unsupported");
+        return true;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+        stopMediaStream(stream);
+        manualStop = false;
+        const message = localizedText(
+          "Microfono listo. Permiso activo y entrada de audio disponible. Ya puedes pulsar Hablar o decir Roxy, iniciar voz.",
+          "Microphone ready. Permission is active and audio input is available. You can press Talk or say Roxy, start voice session.",
+          language
+        );
+        $("voiceStatus").textContent = "mic OK · permiso OK";
+        $("reply").textContent = message;
+        $("events").textContent = "voice: microphone ready";
+        appendMessage("system", message, "voice-mic");
+        setAvatar("ready", $("emotion").textContent);
+        if (opts.speakNow && $("autoSpeak").checked) speak(message, language);
+        else {
+          scheduleListen();
+          releaseVoicePresenceIfIdle();
+        }
+      } catch (err) {
+        handleFatalMicError(speechStartErrorKey(err));
+      }
+      return true;
     }
 
     function handleFatalMicError(error) {
@@ -1944,8 +1985,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, iniciar voz; Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, que escuchaste; Roxy, corrige borrador comprar SPY; Roxy, estado de voz; Roxy, voz clara; Roxy, prueba tu voz; Roxy, opciones; Roxy, ponme al día; Roxy, handoff operativo; Roxy, más corto; Roxy, más detalle; Roxy, pasos; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, cripto; Roxy, estado de cuenta; Roxy, preflight; Roxy, ticket SPY; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, start voice session; Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, what did you hear; Roxy, replace draft with buy SPY; Roxy, voice status; Roxy, receptionist voice; Roxy, test voice; Roxy, options; Roxy, catch me up; Roxy, operational handoff; Roxy, shorter; Roxy, give more detail; Roxy, steps; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, crypto market; Roxy, account status; Roxy, preflight; Roxy, trade ticket SPY; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, iniciar voz; Roxy, probar microfono; Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, que escuchaste; Roxy, corrige borrador comprar SPY; Roxy, estado de voz; Roxy, voz clara; Roxy, prueba tu voz; Roxy, opciones; Roxy, ponme al día; Roxy, handoff operativo; Roxy, más corto; Roxy, más detalle; Roxy, pasos; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, cripto; Roxy, estado de cuenta; Roxy, preflight; Roxy, ticket SPY; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, start voice session; Roxy, microphone check; Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, what did you hear; Roxy, replace draft with buy SPY; Roxy, voice status; Roxy, receptionist voice; Roxy, test voice; Roxy, options; Roxy, catch me up; Roxy, operational handoff; Roxy, shorter; Roxy, give more detail; Roxy, steps; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, crypto market; Roxy, account status; Roxy, preflight; Roxy, trade ticket SPY; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -2334,6 +2375,13 @@ def roxy_live_page():
       if (applyVoiceSendModeCommand(command)) return true;
       if (applyVoiceDraftCorrectionCommand(command)) return true;
       if (applyVoiceDraftActionCommand(command)) return true;
+      if (commandMatches(command, [
+        "probar microfono", "probar micro", "revisar microfono", "chequear microfono",
+        "test microphone", "microphone check", "check microphone", "mic check", "test mic"
+      ])) {
+        runMicrophoneCheck({speakNow: true});
+        return true;
+      }
       if (commandMatches(command, [
         "probar voz", "prueba voz", "prueba tu voz", "escuchar voz", "muestra voz",
         "test voice", "voice test", "try voice", "try your voice", "sample voice"
@@ -3373,6 +3421,7 @@ def roxy_live_page():
     $("send").onclick = send;
     $("voiceGuide").onclick = startGuidedVoiceSession;
     $("voiceTest").onclick = speakVoiceSample;
+    $("micCheck").onclick = () => runMicrophoneCheck({speakNow: true});
     $("repeat").onclick = () => speak(lastReply, lastState.language || $("language").value);
     $("voiceOptions").onclick = speakVoiceOptionsBrief;
     $("voicePreset").onclick = applyReceptionistVoicePreset;
