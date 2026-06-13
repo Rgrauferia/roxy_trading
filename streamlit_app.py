@@ -5149,6 +5149,9 @@ def build_professional_price_chart(
         latest_ema9 = safe_float(latest_badge_row.get("ema9"))
         latest_sma20 = safe_float(latest_badge_row.get("sma20"))
         latest_sma200 = safe_float(latest_badge_row.get("sma200"))
+        latest_ema9_distance = safe_float(latest_badge_row.get("ema9_distance_pct"))
+        latest_sma20_distance = safe_float(latest_badge_row.get("sma20_distance_pct"))
+        latest_sma200_distance = safe_float(latest_badge_row.get("sma200_distance_pct"))
         latest_ma_stack = "Medias incompletas"
         if all(value is not None for value in [latest_ema9, latest_sma20, latest_sma200]):
             if latest_badge_price >= latest_ema9 >= latest_sma20 >= latest_sma200:
@@ -5189,6 +5192,9 @@ def build_professional_price_chart(
                     "label": latest_badge_text,
                     "reading": latest_badge_reading,
                     "ma_stack": latest_ma_stack,
+                    "ema9_distance_pct": latest_ema9_distance,
+                    "sma20_distance_pct": latest_sma20_distance,
+                    "sma200_distance_pct": latest_sma200_distance,
                     "change_pct": latest_badge_change,
                     "range_pct": latest_candle_range,
                     "body_pct": latest_candle_body,
@@ -5217,6 +5223,9 @@ def build_professional_price_chart(
                     alt.Tooltip("label:N", title="Ultima vela"),
                     alt.Tooltip("reading:N", title="Lectura"),
                     alt.Tooltip("ma_stack:N", title="Estructura medias"),
+                    alt.Tooltip("ema9_distance_pct:Q", title="Dist EMA9", format="+.2%"),
+                    alt.Tooltip("sma20_distance_pct:Q", title="Dist SMA20", format="+.2%"),
+                    alt.Tooltip("sma200_distance_pct:Q", title="Dist SMA200", format="+.2%"),
                     alt.Tooltip("change_pct:Q", title="Cambio vela", format="+.2%"),
                     alt.Tooltip("range_pct:Q", title="Rango vela", format=".2%"),
                     alt.Tooltip("body_pct:Q", title="Cuerpo", format=".2%"),
