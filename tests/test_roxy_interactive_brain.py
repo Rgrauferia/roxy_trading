@@ -1126,6 +1126,37 @@ def test_roxy_brain_summarizes_market_regime_in_english(tmp_path):
     assert "market_session" in response.suggested_actions
 
 
+def test_roxy_brain_market_summary_flags_stale_local_scan(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    stale = datetime.now(timezone.utc) - timedelta(hours=2)
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "generated_at": stale.isoformat(),
+                    "market_counts": {"stock": 1},
+                    "market_session": {"stock_session": "Regular", "crypto_session": "24h"},
+                    "opportunities": [
+                        {"symbol": "SPY", "signal": "WATCH", "trend_setup": "TREND_CONTINUATION", "readiness": 82}
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("resumen del mercado")
+
+    assert response.intent == "market_summary"
+    assert response.needs_live_source is True
+    assert response.priority == "high"
+    assert response.avatar_state == "waiting"
+    assert "Guardrail de datos: scan local viejo" in response.reply
+    assert "refresca antes de tratar este regimen como actual" in response.reply
+    assert response.suggested_actions[:2] == ("run_scan", "data_freshness")
+
+
 def test_roxy_brain_summarizes_crypto_market_in_spanish(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(

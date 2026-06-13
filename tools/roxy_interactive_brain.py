@@ -3165,6 +3165,10 @@ class RoxyInteractiveBrain:
         session = plan.get("market_session") if isinstance(plan.get("market_session"), dict) else {}
         stock_session = _safe_text(session.get("stock_session") or "-")
         crypto_session = _safe_text(session.get("crypto_session") or "-")
+        freshness = self._data_freshness_snapshot()
+        freshness_state = _safe_text(freshness.get("state") or "")
+        freshness_age = _safe_text(freshness.get("age_text") or "-")
+        stale_market_read = bool(freshness.get("needs_live_source"))
 
         if language == "en":
             condition_text = {
@@ -3181,10 +3185,16 @@ class RoxyInteractiveBrain:
                 if scope == "crypto"
                 else f"Stock session: {stock_session}; crypto session: {crypto_session}. "
             )
+            freshness_guard = (
+                f"Data guardrail: local scan is {freshness_state} / {freshness_age}; refresh before treating this regime as current. "
+                if stale_market_read
+                else ""
+            )
             reply = (
                 f"{prefix}: {condition_text}. I see {total} opportunity row(s), {watch_count} in watch mode, "
                 f"ready ratio {ready_text}, top gate {top_gate}, top readiness {top_readiness_text}. "
                 f"Markets: {markets}. {session_text}"
+                f"{freshness_guard}"
                 "Risk note: this is a decision-support read, not a guarantee or an execution command."
             )
         else:
@@ -3202,19 +3212,39 @@ class RoxyInteractiveBrain:
                 if scope == "crypto"
                 else f"Sesion acciones: {stock_session}; cripto: {crypto_session}. "
             )
+            freshness_label = {
+                "fresh": "fresco",
+                "usable": "usable pero envejeciendo",
+                "stale": "viejo",
+                "missing": "sin timestamp",
+            }.get(freshness_state, freshness_state or "desconocido")
+            freshness_guard = (
+                f"Guardrail de datos: scan local {freshness_label} / {freshness_age}; refresca antes de tratar este regimen como actual. "
+                if stale_market_read
+                else ""
+            )
             reply = (
                 f"{prefix}: {condition_text}. Veo {total} oportunidad(es), {watch_count} en modo watch, "
                 f"ready ratio {ready_text}, filtro principal {top_gate}, readiness maxima {top_readiness_text}. "
                 f"Mercados: {markets}. {session_text}"
+                f"{freshness_guard}"
                 "Nota de riesgo: esto es apoyo de decision, no garantia ni orden de ejecucion."
             )
+        actions = (
+            ("run_scan", "data_freshness", "ask_latest_opportunity", "market_session")
+            if stale_market_read
+            else ("ask_latest_opportunity", "ask_risk", "run_scan", "market_session")
+        )
 
         return RoxyBrainReply(
             intent="market_summary",
             reply=reply,
-            emotion="analytical",
+            avatar_state="waiting" if stale_market_read else "speaking",
+            emotion="cautious" if stale_market_read else "analytical",
+            needs_live_source=stale_market_read,
             safety_level="guarded",
-            suggested_actions=("ask_latest_opportunity", "ask_risk", "run_scan", "market_session"),
+            priority="high" if stale_market_read else "normal",
+            suggested_actions=actions,
         )
 
     def _market_session_snapshot(self) -> dict[str, Any]:

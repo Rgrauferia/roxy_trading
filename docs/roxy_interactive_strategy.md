@@ -61,7 +61,7 @@ When browser speech confidence is available and low, Roxy Live treats the final 
 
 When a spoken prompt looks like a direct execution instruction, such as "buy SPY", "sell SPY", "compra SPY", "vende SPY", or "send order", Roxy Live also keeps it as a local draft even when auto-send is enabled. This prevents a raw execution-like phrase from reaching the assistant backend without visible review, and no broker order is sent.
 
-For market regime questions, Roxy uses the `market_summary` intent. It reads local brief fields such as `alert_gate_summary`, `daily_opportunity_plan`, opportunities, and crypto scan candidates to classify the current local read as bullish watch, bearish watch, sideways/wait, or unclear/wait. This is decision support only; it does not execute trades.
+For market regime questions, Roxy uses the `market_summary` intent. It reads local brief fields such as `alert_gate_summary`, `daily_opportunity_plan`, opportunities, and crypto scan candidates to classify the current local read as bullish watch, bearish watch, sideways/wait, or unclear/wait. The market summary also checks local data freshness; stale scan data raises priority, sets `needs_live_source=true`, and routes first to scan refresh before treating the regime as current. This is decision support only; it does not execute trades.
 
 For crypto-category prompts such as "cripto", "mercado cripto", or "crypto market", Roxy still uses `market_summary` but scopes the read to local crypto rows and `crypto_scan_candidates`. `CRYPTO` and `CRIPTO` are treated as market categories, not ticker symbols; if the local crypto snapshot is missing, Roxy asks for a refreshed crypto scan instead of inventing a trend.
 
