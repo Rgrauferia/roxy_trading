@@ -5032,6 +5032,56 @@ def build_professional_price_chart(
                 )
             )
 
+    visible_high = safe_float(high_values.max())
+    visible_low = safe_float(low_values.min())
+    if visible_high is not None and visible_low is not None and visible_high > visible_low:
+        visible_range_df = pd.DataFrame(
+            [
+                {
+                    "price": visible_high,
+                    "label": f"Max visible {visible_high:.2f}",
+                    "role": "Resistencia visible",
+                    "tone": "watch",
+                },
+                {
+                    "price": visible_low,
+                    "label": f"Min visible {visible_low:.2f}",
+                    "role": "Soporte visible",
+                    "tone": "buy",
+                },
+            ]
+        )
+        layers.append(
+            alt.Chart(visible_range_df)
+            .mark_rule(strokeDash=[4, 4], opacity=0.46, size=1)
+            .encode(
+                y=alt.Y("price:Q", title="Precio", scale=price_scale),
+                color=alt.Color(
+                    "tone:N",
+                    legend=None,
+                    scale=alt.Scale(domain=["buy", "watch"], range=["#22c55e", "#f59e0b"]),
+                ),
+                tooltip=[
+                    alt.Tooltip("role:N", title="Referencia"),
+                    alt.Tooltip("price:Q", title="Precio", format=".2f"),
+                ],
+            )
+        )
+        layers.append(
+            alt.Chart(visible_range_df)
+            .mark_text(align="left", dx=8, dy=-4, fontSize=10, fontWeight="bold")
+            .encode(
+                x=alt.value(8),
+                y=alt.Y("price:Q", title="Precio", scale=price_scale),
+                text="label:N",
+                color=alt.Color(
+                    "tone:N",
+                    legend=None,
+                    scale=alt.Scale(domain=["buy", "watch"], range=["#bbf7d0", "#fde68a"]),
+                ),
+            )
+        )
+
     candle_tooltips = [
         alt.Tooltip("ts:T", title="Tiempo"),
         alt.Tooltip("candle_label:N", title="Tipo"),
