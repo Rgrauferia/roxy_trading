@@ -111,6 +111,8 @@ def test_roxy_live_page():
     assert "commandRemainder" in r.text
     assert "applyVoiceDefaultSymbol" in r.text
     assert "applyVoiceWatchlist" in r.text
+    assert "voiceTradingModeTarget" in r.text
+    assert "applyVoiceTradingMode" in r.text
     assert "handleVoiceProfileCommand" in r.text
     assert "marketVoicePrompt" in r.text
     assert "sendVoiceMarketPrompt" in r.text
@@ -135,12 +137,15 @@ def test_roxy_live_page():
     assert "voice: market shortcut" in r.text
     assert "voice: profile symbol" in r.text
     assert "voice: profile watchlist" in r.text
+    assert "voice: profile trading mode" in r.text
     assert "English mode." in r.text
     assert "Modo español." in r.text
     assert "Roxy, modo Siri" in r.text
     assert "Roxy, Siri mode" in r.text
     assert "Roxy, modo conversación" in r.text
     assert "Roxy, conversation mode" in r.text
+    assert "Roxy, modo semi auto" in r.text
+    assert "Roxy, semi auto mode" in r.text
     assert "Roxy, contexto actual" in r.text
     assert "Roxy, current context" in r.text
     assert "Roxy, aprendizaje" in r.text
@@ -157,6 +162,8 @@ def test_roxy_live_page():
     assert "Roxy, símbolo NVDA" in r.text
     assert "Roxy, symbol NVDA" in r.text
     assert "Roxy, watchlist SPY QQQ NVDA" in r.text
+    assert "Trading mode updated to " in r.text
+    assert "no ejecuta ordenes" in r.text
     assert "Default symbol updated to " in r.text
     assert "Watchlist updated: " in r.text
     assert "Roxy, noticia Tesla sube" in r.text

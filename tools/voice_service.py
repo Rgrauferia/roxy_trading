@@ -1132,8 +1132,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, contexto actual; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, current context; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, contexto actual; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, current context; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -1289,8 +1289,40 @@ def roxy_live_page():
       return true;
     }
 
+    function voiceTradingModeTarget(command) {
+      const normalized = normalizeSpeech(command);
+      if (commandMatches(normalized, [
+        "modo paper", "trading paper", "paper mode", "paper trading", "solo paper", "paper only"
+      ])) return "paper";
+      if (commandMatches(normalized, [
+        "modo semi auto", "modo semiauto", "semi auto", "semiautomatico", "semi automatico",
+        "semi auto mode", "semi automatic", "semi automatic mode"
+      ])) return "semi-auto";
+      if (commandMatches(normalized, [
+        "modo full auto", "full auto", "full auto guarded", "full automatic guarded",
+        "automatico protegido", "autonomo protegido", "modo autonomo protegido"
+      ])) return "full-auto guarded";
+      return "";
+    }
+
+    function applyVoiceTradingMode(command) {
+      const mode = voiceTradingModeTarget(command);
+      if (!mode) return false;
+      const language = $("language").value || "es";
+      $("tradingMode").value = mode;
+      saveSettings();
+      const label = mode === "paper" ? "paper" : mode === "semi-auto" ? "semi-auto" : "full-auto guarded";
+      const message = localizedText(
+        "Modo trading actualizado a " + label + ". Esto solo cambia el perfil local; no ejecuta ordenes.",
+        "Trading mode updated to " + label + ". This only changes the local profile; it does not place orders.",
+        language
+      );
+      speakLocalControlMessage(message, language, "voice: profile trading mode", "voice-profile");
+      return true;
+    }
+
     function handleVoiceProfileCommand(command) {
-      return applyVoiceDefaultSymbol(command) || applyVoiceWatchlist(command);
+      return applyVoiceDefaultSymbol(command) || applyVoiceWatchlist(command) || applyVoiceTradingMode(command);
     }
 
     function marketVoicePrompt(command) {
