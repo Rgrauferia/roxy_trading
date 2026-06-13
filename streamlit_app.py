@@ -1944,9 +1944,21 @@ def render_professional_chart_block(
                 "body_pct": "Cuerpo",
             }
         )
+        candle_column_config = {
+            "Hora": st.column_config.TextColumn("Hora", help="Hora local de la vela.", width="small"),
+            "Dirección": st.column_config.TextColumn("Dirección", help="Verde si cierre >= apertura; roja si cierre < apertura.", width="small"),
+            "Open": st.column_config.TextColumn("Open", help="Precio de apertura.", width="small"),
+            "High": st.column_config.TextColumn("High", help="Máximo de la vela.", width="small"),
+            "Low": st.column_config.TextColumn("Low", help="Mínimo de la vela.", width="small"),
+            "Close": st.column_config.TextColumn("Close", help="Precio de cierre.", width="small"),
+            "Volumen": st.column_config.TextColumn("Volumen", help="Volumen negociado en la vela.", width="small"),
+            "Cambio": st.column_config.TextColumn("Cambio", help="Cambio porcentual contra la vela previa.", width="small"),
+            "Rango": st.column_config.TextColumn("Rango", help="High-Low como porcentaje del cierre.", width="small"),
+            "Cuerpo": st.column_config.TextColumn("Cuerpo", help="Tamaño del cuerpo de la vela como porcentaje del cierre.", width="small"),
+        }
         with st.expander("Últimas 8 velas OHLC", expanded=False):
             st.caption("Lectura rápida para comparar la vela actual contra las previas sin salir de la gráfica.")
-            st.dataframe(candle_table, width="stretch", hide_index=True, height=260)
+            st.dataframe(candle_table, width="stretch", hide_index=True, height=260, column_config=candle_column_config)
 
 
 def render_command_center_analysis(
