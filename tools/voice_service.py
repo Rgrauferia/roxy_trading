@@ -936,6 +936,52 @@ def roxy_live_page():
       scheduleListen();
     }
 
+    function micErrorMessage(error, language) {
+      const key = error || "unknown";
+      if (key === "unsupported") {
+        return localizedText(
+          "Este navegador no soporta reconocimiento de voz. Abre Roxy en Chrome o Edge y vuelve a pulsar Hablar.",
+          "This browser does not support speech recognition. Open Roxy in Chrome or Edge and press Talk again.",
+          language
+        );
+      }
+      if (["not-allowed", "service-not-allowed", "permission-denied"].includes(key)) {
+        return localizedText(
+          "Microfono bloqueado. Permite el microfono para 127.0.0.1 en el navegador y vuelve a pulsar Hablar.",
+          "Microphone is blocked. Allow microphone access for 127.0.0.1 in the browser, then press Talk again.",
+          language
+        );
+      }
+      if (key === "audio-capture") {
+        return localizedText(
+          "No encuentro un microfono disponible. Revisa el dispositivo de entrada y vuelve a pulsar Hablar.",
+          "I cannot find an available microphone. Check the input device, then press Talk again.",
+          language
+        );
+      }
+      return localizedText(
+        "Microfono: " + key + ". Pulsa Parar, revisa permisos o dispositivo, y vuelve a intentar.",
+        "Microphone: " + key + ". Press Stop, check permissions or device, and try again.",
+        language
+      );
+    }
+
+    function handleFatalMicError(error) {
+      const key = error || "unknown";
+      const language = $("language").value || "es";
+      const permissionBlocked = ["not-allowed", "service-not-allowed", "permission-denied"].includes(key);
+      const unsupported = key === "unsupported";
+      const message = micErrorMessage(key, language);
+      $("reply").textContent = message;
+      $("voiceStatus").textContent = unsupported ? "mic no soportado" : permissionBlocked ? "mic blocked · " + key : "mic error · " + key;
+      $("events").textContent = unsupported ? "voice: mic unsupported" : permissionBlocked ? "voice: mic blocked" : "voice: mic error";
+      appendMessage("system", message, "voice-error");
+      isListening = false;
+      manualStop = true;
+      setAvatar("blocked", "serious");
+      releaseVoicePresenceIfIdle();
+    }
+
     function extractWakeCommand(text) {
       const wake = normalizeSpeech($("wakeWord").value || "Roxy");
       const normalized = normalizeSpeech(text);
@@ -2559,7 +2605,7 @@ def roxy_live_page():
     function startListening() {
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SR) {
-        $("reply").textContent = "Tu navegador no soporta SpeechRecognition. Usa Chrome o Edge.";
+        handleFatalMicError("unsupported");
         return;
       }
       if (isListening) return;
@@ -2602,11 +2648,7 @@ def roxy_live_page():
           recoverFromMicError(error);
           return;
         }
-        $("reply").textContent = "Microfono: " + error;
-        $("voiceStatus").textContent = "mic error · " + error;
-        isListening = false;
-        manualStop = true;
-        setAvatar("blocked", "serious");
+        handleFatalMicError(error);
       };
       recognition.onend = () => {
         isListening = false;

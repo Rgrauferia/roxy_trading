@@ -123,6 +123,8 @@ Wake Roxy supports news voice shortcuts as well. "Roxy, noticias" / "Roxy, news"
 
 In conversation or wake mode, browser microphone errors such as `no-speech` or `aborted` are treated as recoverable. Roxy Live returns the avatar to ready, records a retry event, and schedules listening again instead of blocking the assistant.
 
+Fatal microphone states such as unsupported speech recognition, denied permission, or missing audio capture are handled as blocked voice states. Roxy Live speaks or displays a specific local recovery message, records `voice: mic blocked`, `voice: mic unsupported`, or `voice: mic error`, and keeps the assistant from looping until the user fixes permissions/device and presses `Hablar` again.
+
 Roxy Live suppresses duplicate final speech transcripts that arrive within a short window. This prevents Chrome or Edge from sending the same voice turn twice during continuous conversation or wake-word listening.
 
 Session memory is stored locally in `alerts/roxy_conversation_memory.json` when a `session_id` is supplied. The memory is intentionally small, capped by turns per session and by total recent sessions, and redacts long tokens or key/secret-looking text before writing. Clients can read it through `GET /v1/assist/session/{session_id}`.
