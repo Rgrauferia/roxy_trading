@@ -594,6 +594,12 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "no",
         "readiness",
         "session",
+        "hours",
+        "open",
+        "closed",
+        "regular",
+        "extended",
+        "premarket",
         "recap",
         "summarize",
         "discuss",
@@ -680,6 +686,16 @@ def _localize_market_phrase(value: Any, language: str) -> str:
         "Esperar": "Wait",
         "Operar": "Actionable",
         "No tocar": "Do not touch",
+        "Cerrado": "Closed",
+        "Mercado abierto": "Regular market open",
+        "After-hours": "After-hours",
+        "Premarket": "Premarket",
+        "Fin de semana; acciones/opciones solo para estudio.": "Weekend; stocks/options are study-only.",
+        "Confirmar volumen y spreads antes de entrar.": "Confirm volume and spreads before entering.",
+        "Acciones/opciones con liquidez regular.": "Stocks/options have regular-session liquidity.",
+        "Solo setups muy claros; spreads pueden abrirse.": "Only very clear setups; spreads can widen.",
+        "Fuera de horario extendido; esperar siguiente sesion.": "Outside extended hours; wait for the next session.",
+        "Crypto sigue disponible 24h; vigilar liquidez y volatilidad.": "Crypto remains available 24h; watch liquidity and volatility.",
         "Esperar gatillo BUY en 15m mientras 1h sigue valido.": "Wait for a 15m BUY trigger while 1h remains valid.",
         "Invalidar si pierde": "Invalidate if it loses",
         "No operar todavia: faltan condiciones importantes del checklist.": "Do not trade yet: important checklist conditions are still missing.",
@@ -925,7 +941,7 @@ def _next_best_actions_for_context(intent: str, safety_level: str, has_symbol: b
         if has_symbol:
             actions.append("alert_draft")
         return actions
-    if intent in {"market_summary", "data_freshness"}:
+    if intent in {"market_summary", "data_freshness", "market_session"}:
         return ["ask_latest_opportunity", "compare_opportunities", "data_freshness"]
     if intent in {"watchlist", "monitoring_plan"}:
         return ["monitoring_plan", "market_summary", "alert_draft"]
@@ -1350,6 +1366,24 @@ class RoxyInteractiveBrain:
             "when was data updated",
             "when did you update",
         )
+        market_session_terms = (
+            "sesion de mercado",
+            "sesión de mercado",
+            "horario de mercado",
+            "mercado abierto",
+            "mercado cerrado",
+            "acciones abiertas",
+            "pre market",
+            "premarket",
+            "after hours",
+            "fuera de horario",
+            "market session",
+            "market hours",
+            "is the market open",
+            "is stock market open",
+            "regular hours",
+            "extended hours",
+        )
         trade_readiness_terms = (
             "puedo operar",
             "debo operar",
@@ -1393,6 +1427,10 @@ class RoxyInteractiveBrain:
 
         if _contains_any(lq, data_freshness_terms):
             response = self._data_freshness_reply(language)
+            return finish(response)
+
+        if _contains_any(lq, market_session_terms):
+            response = self._market_session_reply(language)
             return finish(response)
 
         if _contains_any(
@@ -2552,6 +2590,72 @@ class RoxyInteractiveBrain:
             emotion="analytical",
             safety_level="guarded",
             suggested_actions=("ask_latest_opportunity", "ask_risk", "run_scan"),
+        )
+
+    def _market_session_reply(self, language: str = "es") -> RoxyBrainReply:
+        brief = _load_json(self.brief_path)
+        plan = brief.get("daily_opportunity_plan") if isinstance(brief.get("daily_opportunity_plan"), dict) else {}
+        session = plan.get("market_session") if isinstance(plan.get("market_session"), dict) else {}
+        if not session:
+            session = brief.get("market_session") if isinstance(brief.get("market_session"), dict) else {}
+        if not session:
+            if language == "en":
+                reply = (
+                    "I do not have a local market-session snapshot yet. Refresh the scan so Roxy can read stock hours, "
+                    "extended-hours status, and crypto 24h status before making timing decisions."
+                )
+            else:
+                reply = (
+                    "Todavia no tengo una lectura local de sesion de mercado. Refresca el escaneo para que Roxy lea "
+                    "horario de acciones, horario extendido y estado 24h de cripto antes de decidir tiempos."
+                )
+            return RoxyBrainReply(
+                intent="market_session",
+                reply=reply,
+                avatar_state="ready",
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                suggested_actions=("run_scan", "data_freshness", "ask_market_summary"),
+            )
+
+        local_time = _safe_text(session.get("local_time") or "-")
+        timezone_name = _safe_text(session.get("timezone") or "America/New_York")
+        stock_session = _localize_market_phrase(session.get("stock_session") or "-", language)
+        stock_detail = _sentence_fragment(_localize_market_phrase(session.get("stock_detail") or "-", language))
+        crypto_session = _localize_market_phrase(session.get("crypto_session") or "24h", language)
+        crypto_detail = _sentence_fragment(_localize_market_phrase(session.get("crypto_detail") or "", language))
+        stock_alerts_allowed = bool(session.get("stock_alerts_allowed", True))
+
+        if language == "en":
+            alert_text = (
+                "Stock/options alerts may stay active only with liquidity and spread checks."
+                if stock_alerts_allowed
+                else "Stock/options alerts are paused; keep crypto on 24h watch only."
+            )
+            reply = (
+                f"Market session: stocks {stock_session}; crypto {crypto_session}. Local time {local_time} "
+                f"{timezone_name}. Stock note: {stock_detail}. Crypto note: {crypto_detail or 'watch liquidity and volatility'}. "
+                f"{alert_text} Guardrail: session status is timing context, not permission to execute."
+            )
+        else:
+            alert_text = (
+                "Alertas de acciones/opciones pueden seguir activas solo con chequeo de liquidez y spreads."
+                if stock_alerts_allowed
+                else "Alertas de acciones/opciones pausadas; mantener solo vigilancia cripto 24h."
+            )
+            reply = (
+                f"Sesion de mercado: acciones {stock_session}; cripto {crypto_session}. Hora local {local_time} "
+                f"{timezone_name}. Nota acciones: {stock_detail}. Nota cripto: {crypto_detail or 'vigilar liquidez y volatilidad'}. "
+                f"{alert_text} Guardrail: el estado de sesion es contexto de tiempo, no permiso para ejecutar."
+            )
+
+        return RoxyBrainReply(
+            intent="market_session",
+            reply=reply,
+            emotion="analytical",
+            safety_level="guarded",
+            suggested_actions=("data_freshness", "ask_market_summary", "ask_latest_opportunity"),
         )
 
     def _daily_briefing_reply(self, language: str = "es") -> RoxyBrainReply:

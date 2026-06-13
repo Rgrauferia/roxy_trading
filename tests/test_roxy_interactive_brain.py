@@ -802,6 +802,86 @@ def test_roxy_brain_summarizes_market_regime_in_english(tmp_path):
     assert "Risk note" in response.reply
 
 
+def test_roxy_brain_reads_market_session_in_spanish(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "market_session": {
+                        "timezone": "America/New_York",
+                        "local_time": "2026-06-12 16:40",
+                        "stock_session": "After-hours",
+                        "stock_detail": "Solo setups muy claros; spreads pueden abrirse.",
+                        "stock_alerts_allowed": False,
+                        "crypto_session": "24h",
+                        "crypto_detail": "Crypto sigue disponible 24h; vigilar liquidez y volatilidad.",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("sesion de mercado")
+
+    assert response.intent == "market_session"
+    assert response.language == "es"
+    assert response.safety_level == "guarded"
+    assert "Sesion de mercado: acciones After-hours; cripto 24h" in response.reply
+    assert "Alertas de acciones/opciones pausadas" in response.reply
+    assert "no permiso para ejecutar" in response.reply
+    assert "data_freshness" in response.suggested_actions
+
+
+def test_roxy_brain_reads_market_session_in_english(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "market_session": {
+                        "timezone": "America/New_York",
+                        "local_time": "2026-06-12 10:05",
+                        "stock_session": "Mercado abierto",
+                        "stock_detail": "Acciones/opciones con liquidez regular.",
+                        "stock_alerts_allowed": True,
+                        "crypto_session": "24h",
+                        "crypto_detail": "Crypto sigue disponible 24h; vigilar liquidez y volatilidad.",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("regular hours")
+
+    assert response.intent == "market_session"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert "stocks Regular market open; crypto 24h" in response.reply
+    assert "Stocks/options have regular-session liquidity" in response.reply
+    assert "timing context, not permission to execute" in response.reply
+    assert "Acciones" not in response.reply
+
+
+def test_roxy_brain_market_session_requires_local_snapshot(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(json.dumps({}), encoding="utf-8")
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("market hours")
+
+    assert response.intent == "market_session"
+    assert response.needs_live_source is True
+    assert response.avatar_state == "ready"
+    assert "local market-session snapshot" in response.reply
+    assert "run_scan" in response.suggested_actions
+
+
 def test_roxy_brain_generates_daily_briefing_in_spanish(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(

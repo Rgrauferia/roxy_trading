@@ -230,6 +230,8 @@ def test_roxy_live_page():
     assert "news impact: " in r.text
     assert "Roxy, mercado" in r.text
     assert "Roxy, market" in r.text
+    assert "Roxy, horario de mercado" in r.text
+    assert "Roxy, market hours" in r.text
     assert "Roxy, riesgo de SPY" in r.text
     assert "Roxy, risk SPY" in r.text
     assert "BTC/USD" in r.text
