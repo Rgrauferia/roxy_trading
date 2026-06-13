@@ -715,6 +715,10 @@ def roxy_live_page():
       $("tradingMode").value = localStorage.getItem("roxyLiveTradingMode") || "paper";
       $("defaultSymbol").value = localStorage.getItem("roxyLiveDefaultSymbol") || "SPY";
       $("watchlist").value = localStorage.getItem("roxyLiveWatchlist") || "SPY, QQQ";
+      if (!localStorage.getItem("roxyLiveVoicePreset")) {
+        localStorage.setItem("roxyLiveVoicePreset", "receptionist");
+        applyReceptionistVoiceTuning($("language").value || "es");
+      }
     }
 
     function saveSettings() {
@@ -1691,10 +1695,7 @@ def roxy_live_page():
 
     function speakVoiceSample() {
       const language = $("language").value || "es";
-      alignVoiceSelection(language, {forceReceptionist: true});
-      applyReceptionistVoiceTuning(language);
-      saveSettings();
-      updateVoiceDiagnostics(language);
+      activateReceptionistVoiceProfile(language, {enableSpeech: true});
       const message = localizedText(
         "Hola, soy Roxy. Esta es mi voz clara y femenina. Te escucho y puedo ayudarte con mercado, noticias, riesgo y estrategia.",
         "Hello, I am Roxy. This is my clear feminine voice. I can listen and help with markets, news, risk, and strategy.",
@@ -1709,12 +1710,7 @@ def roxy_live_page():
 
     function applyReceptionistVoicePreset() {
       const language = $("language").value || "es";
-      const voice = alignVoiceSelection(language, {ignoreSelected: true, forceReceptionist: true});
-      applyReceptionistVoiceTuning(language);
-      $("autoSpeak").checked = true;
-      localStorage.setItem("roxyLiveVoicePreset", "receptionist");
-      saveSettings();
-      updateVoiceDiagnostics(language);
+      const voice = activateReceptionistVoiceProfile(language, {enableSpeech: true});
       const voiceName = voice ? voice.name : localizedText("voz del navegador", "browser voice", language);
       const message = localizedText(
         "Voz clara activada. Usare " + voiceName + " con ritmo natural de recepcionista joven.",
@@ -1734,9 +1730,7 @@ def roxy_live_page():
       $("autoSendVoice").checked = true;
       $("conversationMode").checked = true;
       $("wakeMode").checked = true;
-      alignVoiceSelection(language);
-      saveSettings();
-      updateVoiceDiagnostics(language);
+      activateReceptionistVoiceProfile(language, {enableSpeech: true});
       manualStop = false;
       setVoicePresenceActive(true);
       const message = localizedText(
@@ -2455,6 +2449,18 @@ def roxy_live_page():
       const profile = receptionistVoiceProfile(languageValue);
       $("voiceRate").value = profile.rate;
       $("voicePitch").value = profile.pitch;
+    }
+
+    function activateReceptionistVoiceProfile(languageValue, options) {
+      const opts = options || {};
+      const language = languageValue || $("language").value || "es";
+      const voice = alignVoiceSelection(language, {ignoreSelected: true, forceReceptionist: true});
+      applyReceptionistVoiceTuning(language);
+      if (opts.enableSpeech !== false) $("autoSpeak").checked = true;
+      localStorage.setItem("roxyLiveVoicePreset", "receptionist");
+      saveSettings();
+      updateVoiceDiagnostics(language);
+      return voice;
     }
 
     function normalizedVoiceName(voice) {
