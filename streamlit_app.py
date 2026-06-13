@@ -1902,11 +1902,15 @@ def render_professional_chart_block(
     candle_table_cols = [col for col in ["ts", "open", "high", "low", "close", "volume"] if col in clean_window.columns]
     if {"open", "high", "low", "close"}.issubset(clean_window.columns):
         candle_table = clean_window[candle_table_cols].copy()
+        open_values = pd.to_numeric(candle_table["open"], errors="coerce")
         close_values = pd.to_numeric(candle_table["close"], errors="coerce")
         high_values = pd.to_numeric(candle_table["high"], errors="coerce")
         low_values = pd.to_numeric(candle_table["low"], errors="coerce")
+        candle_table["direction"] = "Roja"
+        candle_table.loc[close_values >= open_values, "direction"] = "Verde"
         candle_table["change_pct"] = close_values.pct_change()
         candle_table["range_pct"] = (high_values - low_values) / close_values.replace(0, pd.NA)
+        candle_table["body_pct"] = (close_values - open_values).abs() / close_values.replace(0, pd.NA)
         candle_table = candle_table.tail(8).copy()
         if "ts" in candle_table.columns:
             candle_table["ts"] = pd.to_datetime(candle_table["ts"], errors="coerce").dt.strftime("%m/%d %H:%M")
@@ -1917,9 +1921,11 @@ def render_professional_chart_block(
             candle_table["volume"] = candle_table["volume"].map(lambda value: num_display(value, 0))
         candle_table["change_pct"] = candle_table["change_pct"].map(lambda value: pct_display(value))
         candle_table["range_pct"] = candle_table["range_pct"].map(lambda value: pct_display(value))
+        candle_table["body_pct"] = candle_table["body_pct"].map(lambda value: pct_display(value))
         candle_table = candle_table.rename(
             columns={
                 "ts": "Hora",
+                "direction": "Dirección",
                 "open": "Open",
                 "high": "High",
                 "low": "Low",
@@ -1927,6 +1933,7 @@ def render_professional_chart_block(
                 "volume": "Volumen",
                 "change_pct": "Cambio",
                 "range_pct": "Rango",
+                "body_pct": "Cuerpo",
             }
         )
         with st.expander("Últimas 8 velas OHLC", expanded=False):
