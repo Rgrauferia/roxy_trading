@@ -464,14 +464,28 @@ def test_roxy_live_page():
     assert "voiceQualityLabel" in r.text
     assert "voz femenina clara" in r.text
     assert "clear female voice" in r.text
+    assert "receptionistVoiceProfile" in r.text
+    assert "applyReceptionistVoiceTuning" in r.text
+    assert "roxyLiveVoicePreset" in r.text
+    assert "forceReceptionist" in r.text
+    assert "ritmo natural de recepcionista joven" in r.text
+    assert "natural front-desk pace" in r.text
     assert "receptionistVoiceScore" in r.text
     assert "voiceIsHeavyOrMasculine" in r.text
     assert "masculineOrHeavyVoiceNames" in r.text
+    assert "clearVoiceMarkers" in r.text
+    assert '"hombre", "masculino", "jorge", "diego", "carlos", "juan"' in r.text
     assert "selectedNeedsReset" in r.text
     assert "fix your voice" in r.text
     assert "female voice" in r.text
     assert "paulina" in r.text
+    assert "marisol" in r.text
     assert "samantha" in r.text
+    assert "allison" in r.text
+    assert "option.textContent = voice.name + \" · \" + voice.lang + \" · \" + voiceQualityLabel" in r.text
+    assert "alignVoiceSelection(language, {forceReceptionist: true})" in r.text
+    assert "alignVoiceSelection(language, {ignoreSelected: true, forceReceptionist: true})" in r.text
+    assert 'alignVoiceSelection(lang, {forceReceptionist: localStorage.getItem("roxyLiveVoicePreset") === "receptionist"})' in r.text
     assert 'value="0.9"' in r.text
     assert 'value="1.1"' in r.text
     assert "alignVoiceSelection" in r.text

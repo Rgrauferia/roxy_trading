@@ -1691,7 +1691,8 @@ def roxy_live_page():
 
     function speakVoiceSample() {
       const language = $("language").value || "es";
-      alignVoiceSelection(language);
+      alignVoiceSelection(language, {forceReceptionist: true});
+      applyReceptionistVoiceTuning(language);
       saveSettings();
       updateVoiceDiagnostics(language);
       const message = localizedText(
@@ -1708,10 +1709,10 @@ def roxy_live_page():
 
     function applyReceptionistVoicePreset() {
       const language = $("language").value || "es";
-      const voice = alignVoiceSelection(language, {ignoreSelected: true});
-      $("voiceRate").value = "0.9";
-      $("voicePitch").value = language === "en" ? "1.05" : "1.1";
+      const voice = alignVoiceSelection(language, {ignoreSelected: true, forceReceptionist: true});
+      applyReceptionistVoiceTuning(language);
       $("autoSpeak").checked = true;
+      localStorage.setItem("roxyLiveVoicePreset", "receptionist");
       saveSettings();
       updateVoiceDiagnostics(language);
       const voiceName = voice ? voice.name : localizedText("voz del navegador", "browser voice", language);
@@ -2431,6 +2432,31 @@ def roxy_live_page():
       return (languageValue || "es") === "en" ? "en-US" : "es-US";
     }
 
+    function receptionistVoiceProfile(languageValue) {
+      if ((languageValue || "es") === "en") {
+        return {
+          rate: "0.92",
+          pitch: "1.08",
+          preferred: ["samantha", "ava", "victoria", "jenny", "aria", "allison", "susan", "nicky", "serena", "moira", "tessa", "veena", "fiona", "sandy", "shelley", "flo", "karen", "zira", "female"],
+          clear: ["enhanced", "premium", "neural", "natural", "google", "microsoft"],
+          reject: ["male", "man", "masculine", "aaron", "arthur", "bruce", "eddy", "reed", "rocko", "grandpa", "grandma", "albert", "alex", "daniel", "fred", "ralph", "thomas", "tom", "xander"],
+        };
+      }
+      return {
+        rate: "0.9",
+        pitch: "1.13",
+        preferred: ["paulina", "monica", "marisol", "dalia", "paloma", "laura", "lupe", "maria", "samantha", "ava", "victoria", "flo", "shelley", "sandy", "sabina", "helena", "female"],
+        clear: ["enhanced", "premium", "neural", "natural", "google us spanish", "google espanol de estados unidos", "microsoft"],
+        reject: ["male", "man", "hombre", "masculino", "jorge", "diego", "carlos", "juan", "miguel", "pablo", "raul", "ricardo", "alberto", "xander", "aaron", "arthur", "bruce", "daniel", "grandpa", "grandma"],
+      };
+    }
+
+    function applyReceptionistVoiceTuning(languageValue) {
+      const profile = receptionistVoiceProfile(languageValue);
+      $("voiceRate").value = profile.rate;
+      $("voicePitch").value = profile.pitch;
+    }
+
     function normalizedVoiceName(voice) {
       return (voice && voice.name ? voice.name : "")
         .toLowerCase()
@@ -2439,16 +2465,15 @@ def roxy_live_page():
     }
 
     function feminineVoiceNames(languageValue) {
-      return (languageValue || "es") === "en"
-        ? ["samantha", "ava", "victoria", "zira", "jenny", "aria", "sandy", "shelley", "flo", "karen", "female"]
-        : ["paulina", "monica", "flo", "shelley", "sandy", "google espanol", "google us spanish", "sabina", "helena", "female"];
+      return receptionistVoiceProfile(languageValue).preferred;
     }
 
-    function masculineOrHeavyVoiceNames() {
-      return [
-        "eddy", "reed", "rocko", "grandpa", "grandma", "albert", "alex", "daniel",
-        "fred", "ralph", "thomas", "jorge", "diego", "carlos"
-      ];
+    function clearVoiceMarkers(languageValue) {
+      return receptionistVoiceProfile(languageValue).clear;
+    }
+
+    function masculineOrHeavyVoiceNames(languageValue) {
+      return receptionistVoiceProfile(languageValue).reject;
     }
 
     function voiceIsFemininePreferred(voice, languageValue) {
@@ -2456,9 +2481,9 @@ def roxy_live_page():
       return feminineVoiceNames(languageValue).some(token => name.includes(token));
     }
 
-    function voiceIsHeavyOrMasculine(voice) {
+    function voiceIsHeavyOrMasculine(voice, languageValue) {
       const name = normalizedVoiceName(voice);
-      return masculineOrHeavyVoiceNames().some(token => name.includes(token));
+      return masculineOrHeavyVoiceNames(languageValue || $("language").value || "es").some(token => name.includes(token));
     }
 
     function receptionistVoiceScore(voice, languageValue) {
@@ -2470,21 +2495,27 @@ def roxy_live_page():
         if (name.includes(token)) score += 100 - index * 4;
       });
       if (voiceIsFemininePreferred(voice, languageValue)) score += 15;
-      if (voiceIsHeavyOrMasculine(voice)) score -= 250;
-      if (name.includes("enhanced") || name.includes("premium") || name.includes("google")) score += 8;
+      if (voiceIsHeavyOrMasculine(voice, languageValue)) score -= 250;
+      clearVoiceMarkers(languageValue).forEach((token, index) => {
+        if (name.includes(token)) score += 14 - index;
+      });
+      if (name.includes("compact") || name.includes("default")) score -= 24;
+      if (voice && voice.localService === false) score += 6;
       if ((voice.lang || "").toLowerCase() === speechLang(languageValue).toLowerCase()) score += 5;
       return score;
     }
 
-    function bestReceptionistVoice(languageValue) {
+    function bestReceptionistVoice(languageValue, options) {
+      const opts = options || {};
       const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
       const lang = languageValue || $("language").value || "es";
       const matching = voices.filter(v => voiceMatchesLanguage(v, lang));
       const ranked = matching
         .slice()
         .sort((a, b) => receptionistVoiceScore(b, lang) - receptionistVoiceScore(a, lang));
-      return ranked.find(v => voiceIsFemininePreferred(v, lang) && !voiceIsHeavyOrMasculine(v))
-        || ranked.find(v => !voiceIsHeavyOrMasculine(v))
+      const bestFeminine = ranked.find(v => voiceIsFemininePreferred(v, lang) && !voiceIsHeavyOrMasculine(v, lang));
+      if (bestFeminine) return bestFeminine;
+      return ranked.find(v => !opts.forceReceptionist && !voiceIsHeavyOrMasculine(v, lang))
         || ranked[0];
     }
 
@@ -2494,21 +2525,22 @@ def roxy_live_page():
       return voices.some(voice =>
         voiceMatchesLanguage(voice, lang)
         && voiceIsFemininePreferred(voice, lang)
-        && !voiceIsHeavyOrMasculine(voice)
+        && !voiceIsHeavyOrMasculine(voice, lang)
         && (!currentVoice || voice.name !== currentVoice.name)
       );
     }
 
     function selectedVoiceNeedsReceptionistReset(voice, languageValue) {
       const lang = languageValue || $("language").value || "es";
-      if (!voice || !voiceMatchesLanguage(voice, lang) || voiceIsHeavyOrMasculine(voice)) return true;
+      if (!voice || !voiceMatchesLanguage(voice, lang) || voiceIsHeavyOrMasculine(voice, lang)) return true;
+      if (localStorage.getItem("roxyLiveVoicePreset") === "receptionist" && !voiceIsFemininePreferred(voice, lang)) return true;
       return !voiceIsFemininePreferred(voice, lang) && hasFeminineAlternative(lang, voice);
     }
 
     function voiceQualityLabel(voice, languageValue) {
       const lang = languageValue || $("language").value || "es";
       if (!voice) return localizedText("sin voz elegida", "no voice selected", lang);
-      if (voiceIsHeavyOrMasculine(voice)) return localizedText("revisar voz", "review voice", lang);
+      if (voiceIsHeavyOrMasculine(voice, lang)) return localizedText("revisar voz", "review voice", lang);
       if (voiceIsFemininePreferred(voice, lang)) return localizedText("voz femenina clara", "clear female voice", lang);
       if (hasFeminineAlternative(lang, voice)) return localizedText("voz no prioritaria", "non-preferred voice", lang);
       return localizedText("voz compatible", "compatible voice", lang);
@@ -2525,10 +2557,15 @@ def roxy_live_page():
       const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
       const lang = languageOverride || $("language").value || "es";
       const selected = $("voiceSelect").value;
-      const preferred = bestReceptionistVoice(lang);
-      if (selected && !opts.ignoreSelected) {
+      const preferred = bestReceptionistVoice(lang, opts);
+      const strictReceptionist = opts.forceReceptionist || localStorage.getItem("roxyLiveVoicePreset") === "receptionist";
+      if (selected && !opts.ignoreSelected && !strictReceptionist) {
         const exact = voices.find(v => v.name === selected);
         if (exact && !selectedVoiceNeedsReceptionistReset(exact, lang)) return exact;
+      }
+      if (selected && !opts.ignoreSelected && strictReceptionist) {
+        const exact = voices.find(v => v.name === selected);
+        if (exact && voiceIsFemininePreferred(exact, lang) && !voiceIsHeavyOrMasculine(exact, lang)) return exact;
       }
       return preferred
         || voices[0];
@@ -2585,7 +2622,7 @@ def roxy_live_page():
       for (const voice of sorted) {
         const option = document.createElement("option");
         option.value = voice.name;
-        option.textContent = voice.name + " · " + voice.lang;
+        option.textContent = voice.name + " · " + voice.lang + " · " + voiceQualityLabel(voice, $("language").value || "es");
         select.appendChild(option);
       }
       const selectedVoice = voices.find(v => v.name === selected);
@@ -2613,7 +2650,7 @@ def roxy_live_page():
         utterance.lang = speechLang(lang);
         utterance.rate = Number($("voiceRate").value || 0.9);
         utterance.pitch = Number($("voicePitch").value || 1.1);
-        const voice = chooseVoice(lang);
+        const voice = alignVoiceSelection(lang, {forceReceptionist: localStorage.getItem("roxyLiveVoicePreset") === "receptionist"});
         if (voice) utterance.voice = voice;
         utterance.onstart = () => {
           isSpeaking = true;

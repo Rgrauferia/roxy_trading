@@ -123,7 +123,7 @@ In dictation mode, Wake Roxy keeps the latest voice transcript as a draft instea
 
 Wake Roxy can read local voice configuration with "Roxy, estado de voz" / "Roxy, voice status". The brief includes listening mode, speech output, auto-send/dictation mode, selected browser voice, default symbol, and watchlist. This is a local diagnostic and does not create a backend assistant turn.
 
-Wake Roxy can apply a clear receptionist-style voice preset with "Roxy, voz clara" / "Roxy, receptionist voice", or through the `Voz clara` button. The preset reselects the best compatible feminine browser voice, restores Roxy's natural speech rate/pitch, turns browser speech back on, saves those local settings, and reads a short confirmation sample. Roxy Live also resets a saved browser voice when it is masculine/heavy, in the wrong language, or not a feminine-preferred voice while a clearer feminine option is available. The voice status chip labels the selected voice quality, such as `voz femenina clara`, so this behavior is visible before a live conversation. It is only a browser voice profile change.
+Wake Roxy can apply a clear receptionist-style voice preset with "Roxy, voz clara" / "Roxy, receptionist voice", or through the `Voz clara` button. The preset reselects the best compatible feminine browser voice, restores Roxy's natural speech rate/pitch, turns browser speech back on, saves those local settings, and reads a short confirmation sample. Roxy Live persists this receptionist preset and re-aligns the selected voice before speech output, so a previously saved masculine/heavy or wrong-language browser voice is not reused during live conversation. The selector also labels voice quality, such as `voz femenina clara`, `voz no prioritaria`, or `revisar voz`, so the behavior is visible before a live conversation. It is only a browser voice profile change.
 
 Wake Roxy can run a broader local system check with "Roxy, diagnostico" / "Roxy, system check", or through the `Diagnostico` button in Roxy Live. This checks `/health`, approved knowledge sources, local learning/feedback status, active session context, and browser voice diagnostics, then reads one concise bilingual-ready summary. It is an operational readiness check only; it does not create a market-assistant turn, send broker instructions, or bypass trade confirmations.
 
@@ -196,4 +196,4 @@ Roxy also understands operational status prompts such as "estado", "estado de Ro
 2. Add conversation memory per session without storing secrets.
 3. Add live news provider with source timestamps.
 4. Add strict action confirmations for trading operations.
-5. Add voice persona settings for Spanish female voice selection.
+5. Add a provider-grade TTS fallback when the browser has no suitable feminine receptionist-style voice.
