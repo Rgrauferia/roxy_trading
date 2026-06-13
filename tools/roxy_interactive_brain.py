@@ -905,9 +905,27 @@ def _news_detail_parts(source: str, timestamp: str, language: str = "es") -> lis
         parts.append(source)
     if timestamp:
         parts.append(timestamp)
+        freshness = _news_timestamp_freshness(timestamp, language)
+        if freshness:
+            parts.append(freshness)
     else:
         parts.append("timestamp missing" if language == "en" else "hora no disponible")
     return parts
+
+
+def _news_timestamp_freshness(timestamp: str, language: str = "es") -> str:
+    parsed = _parse_iso_datetime(timestamp)
+    if parsed is None:
+        return "time not verified" if language == "en" else "hora no verificable"
+    age_minutes = max(0.0, (datetime.now(timezone.utc) - parsed).total_seconds() / 60)
+    age_text = f"{age_minutes:.0f} min" if age_minutes < 120 else f"{age_minutes / 60:.1f} h"
+    if age_minutes <= 15:
+        label = "fresh" if language == "en" else "fresca"
+    elif age_minutes <= 60:
+        label = "aging" if language == "en" else "envejeciendo"
+    else:
+        label = "stale" if language == "en" else "vieja"
+    return f"{label} {age_text}"
 
 
 def _keyword_hits(text: str, terms: Iterable[str]) -> list[str]:
@@ -2952,7 +2970,11 @@ class RoxyInteractiveBrain:
         symbol = _extract_symbol(headline) or _extract_symbol(query)
         source_text = f" Source: {source}." if source and language == "en" else f" Fuente: {source}." if source else ""
         if timestamp:
-            time_text = f" Time: {timestamp}." if language == "en" else f" Hora: {timestamp}."
+            freshness_text = _news_timestamp_freshness(timestamp, language)
+            if language == "en":
+                time_text = f" Time: {timestamp}" + (f" ({freshness_text})." if freshness_text else ".")
+            else:
+                time_text = f" Hora: {timestamp}" + (f" ({freshness_text})." if freshness_text else ".")
         elif from_local_brief:
             time_text = " Time: missing from local brief." if language == "en" else " Hora: no disponible en el brief local."
         else:

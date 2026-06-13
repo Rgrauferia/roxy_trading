@@ -50,6 +50,7 @@ def test_roxy_brain_does_not_invent_news_without_source(tmp_path):
 
 def test_roxy_brain_lists_local_news_with_source_and_timestamp(tmp_path):
     brief_path = tmp_path / "brief.json"
+    published_at = (datetime.now(timezone.utc) - timedelta(minutes=8)).isoformat()
     brief_path.write_text(
         json.dumps(
             {
@@ -57,7 +58,7 @@ def test_roxy_brain_lists_local_news_with_source_and_timestamp(tmp_path):
                     {
                         "title": "NVDA receives analyst upgrade before the open",
                         "source": "LocalDesk",
-                        "published_at": "2026-06-13T08:10:00-04:00",
+                        "published_at": published_at,
                     }
                 ]
             }
@@ -72,7 +73,33 @@ def test_roxy_brain_lists_local_news_with_source_and_timestamp(tmp_path):
     assert response.language == "en"
     assert "Relevant news" in response.reply
     assert "NVDA receives analyst upgrade before the open" in response.reply
-    assert "(LocalDesk, 2026-06-13T08:10:00-04:00)" in response.reply
+    assert f"(LocalDesk, {published_at}, fresh" in response.reply
+
+
+def test_roxy_brain_labels_stale_local_news(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    published_at = (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat()
+    brief_path.write_text(
+        json.dumps(
+            {
+                "news": [
+                    {
+                        "title": "QQQ futures react to old inflation headline",
+                        "source": "LocalDesk",
+                        "published_at": published_at,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("news")
+
+    assert response.intent == "news"
+    assert "QQQ futures react to old inflation headline" in response.reply
+    assert f"(LocalDesk, {published_at}, stale" in response.reply
 
 
 def test_roxy_brain_flags_local_news_without_timestamp(tmp_path):
@@ -209,6 +236,7 @@ def test_roxy_brain_cross_checks_spanish_news_impact_with_local_opportunity(tmp_
 
 def test_roxy_brain_analyzes_news_impact_from_local_brief(tmp_path):
     brief_path = tmp_path / "brief.json"
+    published_at = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
     brief_path.write_text(
         json.dumps(
             {
@@ -216,7 +244,7 @@ def test_roxy_brain_analyzes_news_impact_from_local_brief(tmp_path):
                     {
                         "headline": "TSLA faces investigation after vehicle recall",
                         "source": "LocalTest",
-                        "published_at": "2026-06-13T09:30:00-04:00",
+                        "published_at": published_at,
                     }
                 ]
             }
@@ -231,7 +259,7 @@ def test_roxy_brain_analyzes_news_impact_from_local_brief(tmp_path):
     assert response.language == "en"
     assert "Tone: bearish" in response.reply
     assert "Source: LocalTest" in response.reply
-    assert "Time: 2026-06-13T09:30:00-04:00" in response.reply
+    assert f"Time: {published_at} (fresh" in response.reply
 
 
 def test_roxy_brain_flags_news_impact_from_local_brief_without_timestamp(tmp_path):
