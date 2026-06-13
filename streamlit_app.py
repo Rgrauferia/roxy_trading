@@ -5234,38 +5234,80 @@ def build_professional_volume_chart(chart_df: pd.DataFrame) -> alt.LayerChart | 
     if "volume" not in chart_df.columns:
         return None
     volume_window = prepare_chart_window(chart_df).dropna(subset=["volume"]).copy()
+    volume_window["volume"] = pd.to_numeric(volume_window["volume"], errors="coerce")
+    volume_window = volume_window.dropna(subset=["volume"])
+    volume_window = volume_window[volume_window["volume"] > 0]
     if volume_window.empty:
         return None
+    if "volume_sma20" in volume_window.columns:
+        volume_window["volume_sma20"] = pd.to_numeric(volume_window["volume_sma20"], errors="coerce")
+        volume_window["volume_confirm"] = volume_window["volume_sma20"] * 1.2
+        if "relative_volume" not in volume_window.columns:
+            volume_window["relative_volume"] = volume_window["volume"] / volume_window["volume_sma20"].replace(0, pd.NA)
+    if "relative_volume" in volume_window.columns:
+        volume_window["relative_volume"] = pd.to_numeric(volume_window["relative_volume"], errors="coerce")
+    else:
+        volume_window["relative_volume"] = pd.NA
+    volume_window["volume_state"] = [
+        "Confirma" if (value is not None and value >= 1.2) else "Normal" if (value is not None and value >= 0.8) else "Bajo"
+        for value in [safe_float(item) for item in volume_window["relative_volume"]]
+    ]
+    time_scale = chart_time_scale(volume_window)
+    volume_max = max(
+        safe_float(volume_window["volume"].max()) or 1.0,
+        safe_float(volume_window.get("volume_confirm", pd.Series(dtype=float)).max()) or 0.0,
+    )
+    volume_scale = alt.Scale(domain=[0, max(1.0, volume_max * 1.15)])
     volume_color = alt.condition("datum.close >= datum.open", alt.value("#22c55e"), alt.value("#ef4444"))
     layers: list[alt.Chart] = [
         alt.Chart(volume_window)
         .mark_bar(opacity=0.56)
         .encode(
-            x=alt.X("ts:T", title="Tiempo"),
-            y=alt.Y("volume:Q", title="Volumen"),
+            x=alt.X("ts:T", title="Tiempo", scale=time_scale),
+            y=alt.Y("volume:Q", title="Volumen", stack=None, scale=volume_scale),
             color=volume_color,
             tooltip=[
                 alt.Tooltip("ts:T", title="Tiempo"),
                 alt.Tooltip("volume:Q", title="Volumen", format=",.0f"),
-                alt.Tooltip("relative_volume:Q", title="Volumen relativo", format=".2f")
-                if "relative_volume" in volume_window.columns
-                else alt.Tooltip("volume:Q", title="Volumen", format=",.0f"),
+                alt.Tooltip("volume_state:N", title="Estado"),
+                alt.Tooltip("relative_volume:Q", title="RVol", format=".2f"),
             ],
         )
     ]
     if "volume_sma20" in volume_window.columns and volume_window["volume_sma20"].notna().any():
+        volume_sma = volume_window.dropna(subset=["volume_sma20"]).copy()
+        volume_sma["volume_sma20"] = pd.to_numeric(volume_sma["volume_sma20"], errors="coerce")
+        volume_sma = volume_sma.dropna(subset=["volume_sma20"])
+    else:
+        volume_sma = pd.DataFrame()
+    if not volume_sma.empty:
         layers.append(
-            alt.Chart(volume_window.dropna(subset=["volume_sma20"]))
+            alt.Chart(volume_sma)
             .mark_line(color="#f59e0b", size=1.6)
             .encode(
-                x=alt.X("ts:T", title="Tiempo"),
-                y=alt.Y("volume_sma20:Q", title="Volumen"),
+                x=alt.X("ts:T", title="Tiempo", scale=time_scale),
+                y=alt.Y("volume_sma20:Q", title="Volumen", scale=volume_scale),
                 tooltip=[
                     alt.Tooltip("ts:T", title="Tiempo"),
                     alt.Tooltip("volume_sma20:Q", title="Volumen SMA20", format=",.0f"),
                 ],
             )
         )
+        if "volume_confirm" in volume_sma.columns:
+            volume_confirm = volume_sma.dropna(subset=["volume_confirm"]).copy()
+            if not volume_confirm.empty:
+                layers.append(
+                    alt.Chart(volume_confirm)
+                    .mark_line(color="#38bdf8", size=1.2, strokeDash=[4, 3])
+                    .encode(
+                        x=alt.X("ts:T", title="Tiempo", scale=time_scale),
+                        y=alt.Y("volume_confirm:Q", title="Volumen", scale=volume_scale),
+                        tooltip=[
+                            alt.Tooltip("ts:T", title="Tiempo"),
+                            alt.Tooltip("volume_confirm:Q", title="Confirmación 1.2x", format=",.0f"),
+                        ],
+                    )
+                )
     return alt.layer(*layers).resolve_scale(color="independent")
 
 
