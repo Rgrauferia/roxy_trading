@@ -151,6 +151,12 @@ def test_roxy_live_page():
     assert "speakVoiceSample" in r.text
     assert "voice: test" in r.text
     assert "Esta es mi voz clara y femenina" in r.text
+    assert "voicePreset" in r.text
+    assert "applyReceptionistVoicePreset" in r.text
+    assert "ignoreSelected" in r.text
+    assert "voice: receptionist preset" in r.text
+    assert "Voz clara activada." in r.text
+    assert "Clear receptionist voice is active." in r.text
     assert "voiceGuide" in r.text
     assert "startGuidedVoiceSession" in r.text
     assert "voice: guided session" in r.text
@@ -235,6 +241,8 @@ def test_roxy_live_page():
     assert "Roxy, send it" in r.text
     assert "Roxy, estado de voz" in r.text
     assert "Roxy, voice status" in r.text
+    assert "Roxy, voz clara" in r.text
+    assert "Roxy, receptionist voice" in r.text
     assert "Roxy, prueba tu voz" in r.text
     assert "Roxy, test voice" in r.text
     assert "Roxy, opciones" in r.text
@@ -377,6 +385,8 @@ def test_roxy_live_page():
     assert "voiceIsHeavyOrMasculine" in r.text
     assert "masculineOrHeavyVoiceNames" in r.text
     assert "selectedWasHeavy" in r.text
+    assert "fix your voice" in r.text
+    assert "female voice" in r.text
     assert "paulina" in r.text
     assert "samantha" in r.text
     assert 'value="0.9"' in r.text
@@ -385,7 +395,7 @@ def test_roxy_live_page():
     assert "syncLanguageFromState" in r.text
     assert "const activeLanguage = syncLanguageFromState(state)" in r.text
     assert "function speechLang" in r.text
-    assert "function chooseVoice(languageOverride)" in r.text
+    assert "function chooseVoice(languageOverride, options)" in r.text
     assert 'speak(lastReply, state.language || $("language").value)' in r.text
     assert "preferredName" in r.text
     assert 'id="language"' in r.text
