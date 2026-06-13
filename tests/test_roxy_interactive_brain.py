@@ -725,6 +725,117 @@ def test_roxy_brain_trade_readiness_blocks_stale_data(tmp_path):
     assert "run_scan" in response.suggested_actions
 
 
+def test_roxy_brain_preflight_prepares_only_when_operational_gates_are_clean_spanish(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    brief_path.write_text(
+        json.dumps(
+            {
+                "account_summary": {
+                    "equity": 20000.0,
+                    "cash": 12000.0,
+                    "buying_power": 40000.0,
+                },
+                "daily_opportunity_plan": {
+                    "generated_at": now.isoformat(),
+                    "market_session": {
+                        "timezone": "America/New_York",
+                        "local_time": "2026-06-12 10:05",
+                        "stock_session": "Mercado abierto",
+                        "stock_alerts_allowed": True,
+                        "crypto_session": "24h",
+                    },
+                    "opportunities": [
+                        {
+                            "symbol": "NVDA",
+                            "signal": "ALERT",
+                            "decision": "TRADE_FOR_2PCT",
+                            "entry": 142.25,
+                            "stop": 139.5,
+                            "risk_pct": 0.0193,
+                            "readiness": 86,
+                            "entry_trigger": "Ruptura confirmada en 15m.",
+                            "why": "Checklist completo.",
+                        }
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        feedback_memory=RoxyFeedbackMemory(path=tmp_path / "feedback.json"),
+    )
+
+    response = brain.generate_reply("revision operativa NVDA")
+
+    assert response.intent == "pre_trade_preflight"
+    assert response.language == "es"
+    assert response.priority == "high"
+    assert response.needs_live_source is False
+    assert "Preflight operativo NVDA: PREPARAR SOLO" in response.reply
+    assert "Datos frescos" in response.reply
+    assert "cuenta equity 20000.00" in response.reply
+    assert "Bloqueos: ninguno" in response.reply
+    assert "Pendiente: ninguno" in response.reply
+    assert "no es permiso de ejecucion" in response.reply
+    assert "position_size" in response.suggested_actions
+
+
+def test_roxy_brain_preflight_blocks_missing_account_and_stale_data_in_english(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    stale = datetime.now(timezone.utc) - timedelta(hours=2)
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "generated_at": stale.isoformat(),
+                    "market_session": {
+                        "timezone": "America/New_York",
+                        "local_time": "2026-06-12 10:05",
+                        "stock_session": "Regular hours",
+                        "stock_alerts_allowed": True,
+                        "crypto_session": "24h",
+                    },
+                    "opportunities": [
+                        {
+                            "symbol": "SPY",
+                            "signal": "ALERT",
+                            "decision": "TRADE_FOR_2PCT",
+                            "entry": 505.5,
+                            "stop": 501.0,
+                            "risk_pct": 0.0089,
+                            "readiness": 84,
+                        }
+                    ],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        feedback_memory=RoxyFeedbackMemory(path=tmp_path / "feedback.json"),
+    )
+
+    response = brain.generate_reply("operational preflight SPY")
+
+    assert response.intent == "pre_trade_preflight"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert response.needs_live_source is True
+    assert response.avatar_state == "blocked"
+    assert "Operational preflight SPY: BLOCKED" in response.reply
+    assert "Data stale" in response.reply
+    assert "Blockers: fresh data, account snapshot" in response.reply
+    assert "voice preflight is not execution permission" in response.reply
+    assert "run_scan" in response.suggested_actions
+    assert "account_status" in response.suggested_actions
+
+
 def test_roxy_brain_summarizes_market_regime_in_spanish(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(

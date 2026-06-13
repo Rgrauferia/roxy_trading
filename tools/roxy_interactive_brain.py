@@ -584,6 +584,9 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "resistance",
         "trade",
         "trading",
+        "preflight",
+        "operational",
+        "before",
         "opportunity",
         "risk",
         "buy",
@@ -676,6 +679,10 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "soporte",
         "resistencia",
         "operacion",
+        "operativo",
+        "operativa",
+        "revision",
+        "revisión",
         "oportunidad",
         "riesgo",
         "compra",
@@ -1013,6 +1020,7 @@ def _next_best_actions_for_context(intent: str, safety_level: str, has_symbol: b
         "technical_indicators",
         "support_resistance",
         "trade_readiness",
+        "pre_trade_preflight",
     }:
         actions = ["trade_readiness", "monitoring_plan", "position_size"]
         if has_symbol:
@@ -1532,6 +1540,26 @@ class RoxyInteractiveBrain:
             "my positions",
             "position exposure",
         )
+        pre_trade_preflight_terms = (
+            "preflight",
+            "pre flight",
+            "pre trade",
+            "pre-trade",
+            "pre trade check",
+            "trading preflight",
+            "operational preflight",
+            "chequeo pre trade",
+            "chequeo pretrade",
+            "chequeo antes de operar",
+            "revision antes de operar",
+            "revisión antes de operar",
+            "revisa antes de operar",
+            "estado operativo",
+            "revision operativa",
+            "revisión operativa",
+            "before i trade",
+            "before trading",
+        )
         trade_readiness_terms = (
             "puedo operar",
             "debo operar",
@@ -1608,6 +1636,10 @@ class RoxyInteractiveBrain:
 
         if _contains_any(lq, watchlist_terms):
             response = self._watchlist_reply(profile, q, language)
+            return finish(response)
+
+        if _contains_any(lq, pre_trade_preflight_terms):
+            response = self._pre_trade_preflight_reply(q, language)
             return finish(response)
 
         if _contains_any(lq, data_freshness_terms):
@@ -2841,12 +2873,16 @@ class RoxyInteractiveBrain:
             suggested_actions=("ask_latest_opportunity", "ask_risk", "run_scan", "market_session"),
         )
 
-    def _market_session_reply(self, language: str = "es") -> RoxyBrainReply:
+    def _market_session_snapshot(self) -> dict[str, Any]:
         brief = _load_json(self.brief_path)
         plan = brief.get("daily_opportunity_plan") if isinstance(brief.get("daily_opportunity_plan"), dict) else {}
         session = plan.get("market_session") if isinstance(plan.get("market_session"), dict) else {}
         if not session:
             session = brief.get("market_session") if isinstance(brief.get("market_session"), dict) else {}
+        return session if isinstance(session, dict) else {}
+
+    def _market_session_reply(self, language: str = "es") -> RoxyBrainReply:
+        session = self._market_session_snapshot()
         if not session:
             if language == "en":
                 reply = (
@@ -2905,6 +2941,188 @@ class RoxyInteractiveBrain:
             emotion="analytical",
             safety_level="guarded",
             suggested_actions=("data_freshness", "ask_market_summary", "ask_latest_opportunity"),
+        )
+
+    def _pre_trade_preflight_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
+        symbol = _extract_symbol(query)
+        freshness = self._data_freshness_snapshot()
+        session = self._market_session_snapshot()
+        account = self._account_snapshot_from_brief()
+        row = self._latest_opportunity(symbol)
+        row_is_crypto = bool(row and _row_is_crypto(row))
+
+        blockers: list[str] = []
+        waits: list[str] = []
+        freshness_state = _safe_text(freshness.get("state") or "missing")
+        freshness_age = _safe_text(freshness.get("age_text") or "-")
+        if freshness.get("timestamp") is None or freshness_state == "missing":
+            blockers.append("data_snapshot")
+        elif freshness_state == "stale":
+            blockers.append("fresh_data")
+        elif freshness_state == "usable":
+            waits.append("aging_data")
+
+        if not session:
+            blockers.append("market_session")
+        else:
+            stock_alerts_allowed = bool(session.get("stock_alerts_allowed", True))
+            if not stock_alerts_allowed and not row_is_crypto:
+                waits.append("stock_session")
+
+        if not account:
+            blockers.append("account_snapshot")
+
+        setup_status = "blocked"
+        action = "-"
+        decision = "-"
+        entry = stop = risk_pct = readiness = None
+        missing = trigger = reason = ""
+        if not row:
+            blockers.append("opportunity")
+            symbol_text = _safe_text(symbol or "top setup").upper()
+        else:
+            symbol_text = _safe_text(row.get("symbol") or symbol or "top setup").upper()
+            action = _safe_text(row.get("signal") or row.get("ai_action") or "WATCH").upper()
+            decision = _safe_text(row.get("decision") or row.get("trade_decision") or "-")
+            entry = _safe_float(row.get("entry"))
+            stop = _safe_float(row.get("stop"))
+            risk_pct = _safe_float(row.get("risk_pct"))
+            readiness = _safe_float(row.get("readiness") or row.get("ai_score") or row.get("confluence_score"))
+            missing = _safe_text(row.get("what_is_missing") or row.get("missing") or row.get("blockers"))
+            trigger = _safe_text(row.get("entry_trigger") or row.get("trigger") or row.get("entry_tf"))
+            reason = _safe_text(row.get("why") or row.get("explanation") or row.get("memory_note") or row.get("alert_quality_reason"))
+            combined_text = " ".join([action, decision, missing, trigger, reason]).lower()
+            if entry is None or entry <= 0:
+                blockers.append("entry")
+            if stop is None or stop <= 0:
+                blockers.append("stop")
+            if risk_pct is None or risk_pct <= 0:
+                blockers.append("risk")
+            if missing:
+                waits.append("confirmations")
+            explicit_wait = any(term in combined_text for term in ("wait", "esperar", "no operar", "missing", "falta"))
+            explicit_ready = action in {"ALERT", "BUY", "SELL", "READY"} or "trade" in combined_text or "operar" in combined_text
+            readiness_ok = readiness is None or readiness >= 70
+            if explicit_wait or not readiness_ok or not explicit_ready:
+                waits.append("setup_not_ready")
+
+        if blockers:
+            setup_status = "blocked"
+        elif waits:
+            setup_status = "wait"
+        else:
+            setup_status = "prepare"
+
+        def labels(values: list[str]) -> str:
+            unique = []
+            for value in values:
+                if value not in unique:
+                    unique.append(value)
+            if language == "en":
+                mapping = {
+                    "data_snapshot": "data snapshot",
+                    "fresh_data": "fresh data",
+                    "aging_data": "aging data",
+                    "market_session": "market session",
+                    "stock_session": "stock timing",
+                    "account_snapshot": "account snapshot",
+                    "opportunity": "local opportunity",
+                    "entry": "entry",
+                    "stop": "stop",
+                    "risk": "risk",
+                    "confirmations": "confirmations",
+                    "setup_not_ready": "setup not ready",
+                }
+                return ", ".join(mapping.get(item, item) for item in unique) if unique else "none"
+            mapping = {
+                "data_snapshot": "snapshot de datos",
+                "fresh_data": "datos frescos",
+                "aging_data": "datos envejeciendo",
+                "market_session": "sesion de mercado",
+                "stock_session": "timing acciones",
+                "account_snapshot": "snapshot de cuenta",
+                "opportunity": "oportunidad local",
+                "entry": "entrada",
+                "stop": "stop",
+                "risk": "riesgo",
+                "confirmations": "confirmaciones",
+                "setup_not_ready": "setup no listo",
+            }
+            return ", ".join(mapping.get(item, item) for item in unique) if unique else "ninguno"
+
+        stock_session = _safe_text(session.get("stock_session") or "-") if session else "-"
+        crypto_session = _safe_text(session.get("crypto_session") or "-") if session else "-"
+        if language == "en":
+            freshness_label = {
+                "fresh": "fresh",
+                "usable": "usable but aging",
+                "stale": "stale",
+                "missing": "missing",
+            }.get(freshness_state, freshness_state or "unknown")
+            stock_session = _localize_market_phrase(stock_session, language)
+            crypto_session = _localize_market_phrase(crypto_session, language)
+            decision = _localize_market_phrase(decision, language)
+            missing = _sentence_fragment(_localize_market_phrase(missing, language))
+            trigger = _sentence_fragment(_localize_market_phrase(trigger, language))
+            reason = _sentence_fragment(_localize_market_phrase(reason, language))
+            status_label = {"blocked": "BLOCKED", "wait": "WAIT", "prepare": "PREPARE ONLY"}[setup_status]
+            account_text = (
+                f"account equity {_money(account.get('equity'))}, buying power {_money(account.get('buying_power'))}"
+                if account
+                else "account snapshot missing"
+            )
+            reply = (
+                f"Operational preflight {symbol_text}: {status_label}. Data {freshness_label} / {freshness_age}; "
+                f"session stocks {stock_session}, crypto {crypto_session}; {account_text}. "
+                f"Setup {action}, decision {decision}, entry {_money(entry)}, stop {_money(stop)}, risk {_pct(risk_pct)}, "
+                f"readiness {'-' if readiness is None else f'{readiness:.1f}'}. "
+                f"Blockers: {labels(blockers)}. Pending: {labels(waits)}. "
+                f"Trigger: {trigger or '-'}. Context: {reason or missing or '-'}. "
+                "Next: refresh blocked data, then run checklist and sizing; voice preflight is not execution permission."
+            )
+        else:
+            freshness_label = {
+                "fresh": "frescos",
+                "usable": "usables pero envejeciendo",
+                "stale": "viejos",
+                "missing": "faltantes",
+            }.get(freshness_state, freshness_state or "desconocidos")
+            missing = _sentence_fragment(missing)
+            trigger = _sentence_fragment(trigger)
+            reason = _sentence_fragment(reason)
+            status_label = {"blocked": "BLOQUEADO", "wait": "ESPERAR", "prepare": "PREPARAR SOLO"}[setup_status]
+            account_text = (
+                f"cuenta equity {_money(account.get('equity'))}, buying power {_money(account.get('buying_power'))}"
+                if account
+                else "snapshot de cuenta faltante"
+            )
+            reply = (
+                f"Preflight operativo {symbol_text}: {status_label}. Datos {freshness_label} / {freshness_age}; "
+                f"sesion acciones {stock_session}, cripto {crypto_session}; {account_text}. "
+                f"Setup {action}, decision {decision}, entrada {_money(entry)}, stop {_money(stop)}, riesgo {_pct(risk_pct)}, "
+                f"readiness {'-' if readiness is None else f'{readiness:.1f}'}. "
+                f"Bloqueos: {labels(blockers)}. Pendiente: {labels(waits)}. "
+                f"Gatillo: {trigger or '-'}. Contexto: {reason or missing or '-'}. "
+                "Siguiente: refrescar datos bloqueados, luego checklist y sizing; el preflight por voz no es permiso de ejecucion."
+            )
+
+        needs_live_source = bool(blockers)
+        actions = (
+            ("run_scan", "data_freshness", "market_session", "account_status")
+            if blockers
+            else ("entry_checklist", "position_size", "confirm_before_execution")
+            if setup_status == "prepare"
+            else ("monitoring_plan", "ask_market_summary", "set_alert")
+        )
+        return RoxyBrainReply(
+            intent="pre_trade_preflight",
+            reply=reply,
+            avatar_state="blocked" if blockers else "speaking",
+            emotion="serious" if blockers else "analytical",
+            needs_live_source=needs_live_source,
+            safety_level="guarded",
+            priority="high" if setup_status in {"blocked", "prepare"} else "normal",
+            suggested_actions=actions,
         )
 
     def _daily_briefing_reply(self, language: str = "es") -> RoxyBrainReply:
