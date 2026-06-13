@@ -51,6 +51,8 @@ Roxy Live applies a client-side timeout to active assist requests. If the servic
 
 When voice auto-send is off, Roxy Live holds final transcripts as a pending dictation draft. The `Draft` chip shows a truncated preview while Roxy waits for commands such as "Roxy, enviar", "Roxy, borrar", or "Roxy, leer borrador".
 
+Roxy Live also shows a `Heard` chip during microphone capture. Interim transcripts display as `oyendo`, final transcripts display as `final`, and browser confidence is shown when available. This gives the user immediate confirmation of what Roxy heard before the prompt is sent or stored as a draft.
+
 For market regime questions, Roxy uses the `market_summary` intent. It reads local brief fields such as `alert_gate_summary`, `daily_opportunity_plan`, opportunities, and crypto scan candidates to classify the current local read as bullish watch, bearish watch, sideways/wait, or unclear/wait. This is decision support only; it does not execute trades.
 
 For market-session questions such as "sesion de mercado", "horario de mercado", or "market hours", Roxy uses the `market_session` intent. It reads the local `market_session` snapshot from the daily opportunity plan or root brief, explains stock regular/extended/closed status, crypto 24h status, whether stock/options alerts should pause, and ends with a timing-context guardrail. If the snapshot is missing, it asks for a refreshed scan instead of guessing the live market state.

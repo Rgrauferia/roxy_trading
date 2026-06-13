@@ -47,6 +47,10 @@ def test_roxy_live_page():
     assert "voiceDraftText" in r.text
     assert "voiceDraftStatus" in r.text
     assert "updateVoiceDraftStatus" in r.text
+    assert "voiceHeardStatus" in r.text
+    assert "updateVoiceHeardStatus" in r.text
+    assert "voice: heard" in r.text
+    assert "confidence" in r.text
     assert "ready · " in r.text
     assert "isRecoverableMicError" in r.text
     assert "recoverFromMicError" in r.text

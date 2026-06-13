@@ -661,6 +661,7 @@ def roxy_live_page():
         <div class="chip"><span>Priority</span><b id="priority">-</b></div>
         <div class="chip"><span>Live source</span><b id="liveSource">-</b></div>
         <div class="chip"><span>Voice</span><b id="voiceStatus">-</b></div>
+        <div class="chip"><span>Heard</span><b id="voiceHeardStatus">-</b></div>
         <div class="chip"><span>Draft</span><b id="voiceDraftStatus">-</b></div>
         <div class="chip"><span>Context</span><b id="activeContext">-</b></div>
         <div class="chip"><span>Latency</span><b id="latency">-</b></div>
@@ -848,6 +849,23 @@ def roxy_live_page():
       status.title = draft;
     }
 
+    function updateVoiceHeardStatus(transcript, isFinal, confidence) {
+      const status = $("voiceHeardStatus");
+      if (!status) return;
+      const clean = (transcript || "").replace(/\s+/g, " ").trim();
+      if (!clean) {
+        status.textContent = "-";
+        status.title = "";
+        return;
+      }
+      const preview = clean.length > 42 ? clean.slice(0, 42) + "..." : clean;
+      const confidenceText = Number.isFinite(confidence) && confidence > 0
+        ? " · " + Math.round(confidence * 100) + "%"
+        : "";
+      status.textContent = (isFinal ? "final" : "oyendo") + " · " + preview + confidenceText;
+      status.title = clean;
+    }
+
     function voiceModeActive() {
       return !manualStop && ($("conversationMode").checked || $("wakeMode").checked);
     }
@@ -913,6 +931,7 @@ def roxy_live_page():
       if ("speechSynthesis" in window) window.speechSynthesis.cancel();
       isSpeaking = false;
       manualStop = false;
+      updateVoiceHeardStatus("", false);
     }
 
     function isDuplicateFinalTranscript(text) {
@@ -2096,6 +2115,8 @@ def roxy_live_page():
       const finalText = (text || "").trim();
       if (!finalText) return;
       setVoicePresenceActive(true);
+      updateVoiceHeardStatus(finalText, true);
+      $("events").textContent = "voice: heard";
       if (isDuplicateFinalTranscript(finalText)) {
         $("events").textContent = "voice: duplicate ignored";
         releaseVoicePresenceIfIdle();
@@ -2883,6 +2904,9 @@ def roxy_live_page():
         for (let i = event.resultIndex; i < event.results.length; i++) text += event.results[i][0].transcript;
         const transcript = text.trim();
         const isFinal = event.results[event.results.length - 1].isFinal;
+        const latest = event.results[event.results.length - 1][0];
+        const confidence = latest && typeof latest.confidence === "number" ? latest.confidence : null;
+        updateVoiceHeardStatus(transcript, isFinal, confidence);
         if (isFinal && isVoiceDraftAction(voiceCommandCandidate(transcript))) {
           const currentDraft = (voiceDraftText || $("query").value || "").trim();
           if (currentDraft && normalizeSpeech(currentDraft) !== normalizeSpeech(transcript)) {
