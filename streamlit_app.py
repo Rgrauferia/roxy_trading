@@ -5035,18 +5035,21 @@ def build_professional_price_chart(
     visible_high = safe_float(high_values.max())
     visible_low = safe_float(low_values.min())
     if visible_high is not None and visible_low is not None and visible_high > visible_low:
+        visible_range_pct = ((visible_high - visible_low) / visible_low) if visible_low > 0 else None
         visible_range_df = pd.DataFrame(
             [
                 {
                     "price": visible_high,
-                    "label": f"Max visible {visible_high:.2f}",
+                    "label": f"Máx visible {visible_high:.2f}",
                     "role": "Resistencia visible",
+                    "range_pct": visible_range_pct,
                     "tone": "watch",
                 },
                 {
                     "price": visible_low,
-                    "label": f"Min visible {visible_low:.2f}",
+                    "label": f"Mín visible {visible_low:.2f}",
                     "role": "Soporte visible",
+                    "range_pct": visible_range_pct,
                     "tone": "buy",
                 },
             ]
@@ -5064,6 +5067,7 @@ def build_professional_price_chart(
                 tooltip=[
                     alt.Tooltip("role:N", title="Referencia"),
                     alt.Tooltip("price:Q", title="Precio", format=".2f"),
+                    alt.Tooltip("range_pct:Q", title="Rango visible", format=".2%"),
                 ],
             )
         )
