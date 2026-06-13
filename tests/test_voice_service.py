@@ -127,6 +127,10 @@ def test_roxy_live_page():
     assert "speakVoiceSample" in r.text
     assert "voice: test" in r.text
     assert "Esta es mi voz clara y femenina" in r.text
+    assert "voiceGuide" in r.text
+    assert "startGuidedVoiceSession" in r.text
+    assert "voice: guided session" in r.text
+    assert "No ejecutare operaciones sin confirmacion explicita" in r.text
     assert "speakNextStepBrief" in r.text
     assert "nextActionPromptWithContext" in r.text
     assert "voice: next step" in r.text
@@ -195,6 +199,8 @@ def test_roxy_live_page():
     assert "Modo español." in r.text
     assert "Roxy, modo Siri" in r.text
     assert "Roxy, Siri mode" in r.text
+    assert "Roxy, iniciar voz" in r.text
+    assert "Roxy, start voice session" in r.text
     assert "Roxy, modo conversación" in r.text
     assert "Roxy, conversation mode" in r.text
     assert "Roxy, modo semi auto" in r.text
@@ -221,6 +227,7 @@ def test_roxy_live_page():
     assert "Roxy, sources" in r.text
     assert "Modo Siri activo" in r.text
     assert "Conversation mode active" in r.text
+    assert "Voice mode is ready." in r.text
     assert "Listening stopped." in r.text
     assert "Voz mas lenta." in r.text
     assert "Faster voice." in r.text

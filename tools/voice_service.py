@@ -635,6 +635,7 @@ def roxy_live_page():
           <button id="start" class="primary">Hablar</button>
           <button id="stop" class="warn">Parar</button>
           <button id="send">Enviar</button>
+          <button id="voiceGuide">Iniciar voz</button>
           <button id="voiceTest">Probar voz</button>
           <button id="repeat">Repetir voz</button>
           <button id="feedbackUp">Sirvio</button>
@@ -1406,6 +1407,26 @@ def roxy_live_page():
       return true;
     }
 
+    function startGuidedVoiceSession() {
+      const language = $("language").value || "es";
+      $("autoSpeak").checked = true;
+      $("autoSendVoice").checked = true;
+      $("conversationMode").checked = true;
+      $("wakeMode").checked = true;
+      alignVoiceSelection(language);
+      saveSettings();
+      updateVoiceDiagnostics(language);
+      manualStop = false;
+      setVoicePresenceActive(true);
+      const message = localizedText(
+        "Modo voz listo. Pulsa Hablar y di Roxy antes de cada instruccion. Prueba: Roxy, briefing diario; Roxy, mercado; Roxy, puedo operar ahora; o Roxy, ayuda. No ejecutare operaciones sin confirmacion explicita.",
+        "Voice mode is ready. Press Talk and say Roxy before each instruction. Try: Roxy, daily briefing; Roxy, market; Roxy, can I trade now; or Roxy, help. I will not execute trades without explicit confirmation.",
+        language
+      );
+      speakLocalControlMessage(message, language, "voice: guided session", "voice-guide");
+      return true;
+    }
+
     function actionDisplayName(action) {
       const config = suggestedActionPrompts[action] || fallbackActionPrompt(action);
       return config[0] || (action || "").replace(/_/g, " ");
@@ -1495,8 +1516,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, estado de voz; Roxy, prueba tu voz; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, voice status; Roxy, test voice; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, iniciar voz; Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, estado de voz; Roxy, prueba tu voz; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, start voice session; Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, voice status; Roxy, test voice; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -1823,6 +1844,11 @@ def roxy_live_page():
         applyVoiceLanguageCommand(language);
         return true;
       }
+      if (commandMatches(command, [
+        "iniciar voz", "activar voz guiada", "activar roxy", "empezar roxy",
+        "iniciar conversacion", "empezar conversacion", "start voice", "start voice session",
+        "start roxy", "voice setup", "guided voice"
+      ])) return startGuidedVoiceSession();
       if (applyVoiceListeningModeCommand(command)) return true;
       if (applyVoicePaceCommand(command)) return true;
       if (applyVoiceSpeechOutputCommand(command)) return true;
@@ -2596,6 +2622,7 @@ def roxy_live_page():
     $("start").onclick = startListening;
     $("stop").onclick = () => stopAll("Escucha detenida.");
     $("send").onclick = send;
+    $("voiceGuide").onclick = startGuidedVoiceSession;
     $("voiceTest").onclick = speakVoiceSample;
     $("repeat").onclick = () => speak(lastReply, lastState.language || $("language").value);
     $("feedbackUp").onclick = () => submitFeedback("up");
