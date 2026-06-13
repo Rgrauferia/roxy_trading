@@ -107,6 +107,7 @@ def test_roxy_live_page():
     assert "setVoiceDraft" in r.text
     assert "applyVoiceDraftActionCommand" in r.text
     assert "else setVoiceDraft(prompt)" in r.text
+    assert "speakVoiceStatusBrief" in r.text
     assert "applyVoiceLanguageCommand" in r.text
     assert "setVoiceModeState" in r.text
     assert "applyVoiceListeningModeCommand" in r.text
@@ -161,6 +162,7 @@ def test_roxy_live_page():
     assert "voice: draft cleared" in r.text
     assert "voice: draft read" in r.text
     assert "voice: draft empty" in r.text
+    assert "voice: local status" in r.text
     assert "voice: learning status" in r.text
     assert "voice: knowledge sources" in r.text
     assert "submitFeedback(feedback.rating, {speakNow: true})" in r.text
@@ -183,6 +185,8 @@ def test_roxy_live_page():
     assert "Roxy, dictation mode" in r.text
     assert "Roxy, enviar" in r.text
     assert "Roxy, send it" in r.text
+    assert "Roxy, estado de voz" in r.text
+    assert "Roxy, voice status" in r.text
     assert "Roxy, sin voz" in r.text
     assert "Roxy, voice off" in r.text
     assert "Roxy, voz más lenta" in r.text
@@ -206,6 +210,8 @@ def test_roxy_live_page():
     assert "Draft ready." in r.text
     assert "Enviando borrador." in r.text
     assert "Sending draft." in r.text
+    assert "Estado de voz: modo " in r.text
+    assert "Voice status: " in r.text
     assert "Local learning: " in r.text
     assert "Sources loaded: " in r.text
     assert "Roxy, no sirvió, más corto" in r.text

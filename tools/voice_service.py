@@ -1178,6 +1178,31 @@ def roxy_live_page():
       return true;
     }
 
+    function speakVoiceStatusBrief() {
+      const language = $("language").value || "es";
+      const mode = $("wakeMode").checked
+        ? localizedText("Wake Roxy", "Wake Roxy", language)
+        : $("conversationMode").checked
+          ? localizedText("conversación continua", "continuous conversation", language)
+          : localizedText("manual", "manual", language);
+      const speech = $("autoSpeak").checked
+        ? localizedText("voz activa", "speech on", language)
+        : localizedText("voz apagada", "speech off", language);
+      const sending = $("autoSendVoice").checked
+        ? localizedText("envío automático", "auto-send", language)
+        : localizedText("modo dictado", "dictation mode", language);
+      const voiceName = $("voiceSelect").value || localizedText("voz del navegador", "browser voice", language);
+      const symbol = ($("defaultSymbol").value || "SPY").trim().toUpperCase();
+      const watchlist = parseWatchlist($("watchlist").value).slice(0, 4).join(", ") || symbol;
+      const message = localizedText(
+        "Estado de voz: modo " + mode + ", " + speech + ", " + sending + ". Voz: " + voiceName + ". Símbolo base: " + symbol + ". Watchlist: " + watchlist + ".",
+        "Voice status: " + mode + ", " + speech + ", " + sending + ". Voice: " + voiceName + ". Default symbol: " + symbol + ". Watchlist: " + watchlist + ".",
+        language
+      );
+      speakLocalControlMessage(message, language, "voice: local status", "voice-status");
+      return true;
+    }
+
     function applyVoiceLanguageCommand(languageValue) {
       const language = languageValue === "en" ? "en" : "es";
       const message = language === "en" ? "English mode." : "Modo español.";
@@ -1386,8 +1411,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, estado de voz; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, voice status; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -1654,6 +1679,11 @@ def roxy_live_page():
       if (applyVoiceSpeechOutputCommand(command)) return true;
       if (applyVoiceSendModeCommand(command)) return true;
       if (applyVoiceDraftActionCommand(command)) return true;
+      if (commandMatches(command, [
+        "estado de voz", "estado voz", "diagnostico voz", "diagnostico de voz",
+        "estado local", "estado de roxy local", "voice status", "voice diagnostics",
+        "local status", "local voice status"
+      ])) return speakVoiceStatusBrief();
       if (sendVoiceLearningPrompt(command)) return true;
       if (applyVoiceFeedbackCommand(command)) return true;
       if (commandMatches(command, [
