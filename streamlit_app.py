@@ -5127,6 +5127,9 @@ def build_professional_price_chart(
     if latest_badge_price is not None:
         latest_badge_change = safe_float(latest_badge_row.get("candle_change_pct"))
         latest_badge_reading = text_display(latest_badge_row.get("candle_reading"))
+        latest_candle_range = safe_float(latest_badge_row.get("candle_range_pct"))
+        latest_candle_body = safe_float(latest_badge_row.get("candle_body_pct"))
+        latest_relative_volume = safe_float(latest_badge_row.get("relative_volume"))
         latest_badge_text = f"Ultimo {latest_badge_price:.2f}"
         if latest_badge_change is not None:
             latest_badge_text = f"{latest_badge_text} · {latest_badge_change:+.2%}"
@@ -5146,6 +5149,9 @@ def build_professional_price_chart(
                     "label": latest_badge_text,
                     "reading": latest_badge_reading,
                     "change_pct": latest_badge_change,
+                    "range_pct": latest_candle_range,
+                    "body_pct": latest_candle_body,
+                    "relative_volume": latest_relative_volume,
                     "range_position": latest_range_position,
                     "room_to_high": latest_room_to_high,
                     "room_above_low": latest_room_above_low,
@@ -5168,6 +5174,9 @@ def build_professional_price_chart(
                     alt.Tooltip("label:N", title="Ultima vela"),
                     alt.Tooltip("reading:N", title="Lectura"),
                     alt.Tooltip("change_pct:Q", title="Cambio vela", format="+.2%"),
+                    alt.Tooltip("range_pct:Q", title="Rango vela", format=".2%"),
+                    alt.Tooltip("body_pct:Q", title="Cuerpo", format=".2%"),
+                    alt.Tooltip("relative_volume:Q", title="RVol", format=".2f"),
                     alt.Tooltip("range_position:Q", title="Posición rango", format=".0%"),
                     alt.Tooltip("room_to_high:Q", title="Hasta máx", format=".2%"),
                     alt.Tooltip("room_above_low:Q", title="Sobre mín", format=".2%"),
