@@ -1677,6 +1677,10 @@ def render_professional_chart_block(
     candle_tape_html = ""
     if {"open", "high", "low", "close"}.issubset(clean_window.columns):
         tape_items: list[str] = []
+        tape_ranges: list[float] = []
+        tape_green_count = 0
+        tape_first_open: float | None = None
+        tape_last_close: float | None = None
         recent_candles = clean_window.tail(6).reset_index(drop=True)
         previous_closes = pd.to_numeric(clean_window["close"], errors="coerce").shift(1).tail(6).reset_index(drop=True)
         for row_idx, candle in recent_candles.iterrows():
@@ -1684,14 +1688,21 @@ def render_professional_chart_block(
             candle_high = safe_float(candle.get("high"))
             candle_low = safe_float(candle.get("low"))
             candle_close = safe_float(candle.get("close"))
+            if tape_first_open is None and candle_open is not None:
+                tape_first_open = candle_open
+            if candle_close is not None:
+                tape_last_close = candle_close
             previous_candle_close = safe_float(previous_closes.iloc[row_idx]) if row_idx < len(previous_closes) else None
             tape_tone = "buy" if (candle_close or 0) >= (candle_open or candle_close or 0) else "avoid"
+            if tape_tone == "buy":
+                tape_green_count += 1
             tape_change = None
             if candle_close is not None and previous_candle_close not in (None, 0):
                 tape_change = (candle_close - previous_candle_close) / previous_candle_close
             tape_range = None
             if candle_high is not None and candle_low is not None and candle_close not in (None, 0):
                 tape_range = (candle_high - candle_low) / candle_close
+                tape_ranges.append(tape_range)
             tape_time = "-"
             if "ts" in candle:
                 try:
@@ -1711,8 +1722,18 @@ def render_professional_chart_block(
                 )
             )
         if tape_items:
+            tape_momentum = None
+            if tape_first_open not in (None, 0) and tape_last_close is not None:
+                tape_momentum = (tape_last_close - tape_first_open) / tape_first_open
+            tape_avg_range = sum(tape_ranges) / len(tape_ranges) if tape_ranges else None
+            tape_summary = (
+                f"{tape_green_count}/{len(tape_items)} verdes · "
+                f"{pct_display(tape_momentum) if tape_momentum is not None else '-'} · "
+                f"rango {pct_display(tape_avg_range) if tape_avg_range is not None else '-'}"
+            )
             candle_tape_html = (
-                '<section class="chart-candle-tape"><b>Últimas velas</b>'
+                '<section class="chart-candle-tape"><b><span>Últimas velas</span>'
+                f"<small>{html.escape(tape_summary)}</small></b>"
                 + "".join(tape_items)
                 + "</section>"
             )
@@ -14265,7 +14286,8 @@ def main() -> None:
         .chart-legend-strip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid rgba(148,163,184,.16);border-radius:8px;background:rgba(2,6,23,.46);padding:6px 8px;margin:-2px 0 7px}
         .chart-legend-strip span{display:inline-flex;align-items:center;gap:5px;color:#cbd5e1;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.035em;white-space:nowrap}
         .chart-candle-tape{display:grid;grid-template-columns:92px repeat(6,minmax(0,1fr));gap:1px;border:1px solid rgba(148,163,184,.16);border-radius:8px;background:rgba(148,163,184,.14);overflow:hidden;margin:-1px 0 8px}
-        .chart-candle-tape>b{display:flex;align-items:center;color:#bfdbfe;background:rgba(15,23,42,.92);padding:7px 8px;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.055em}
+        .chart-candle-tape>b{display:flex;flex-direction:column;justify-content:center;color:#bfdbfe;background:rgba(15,23,42,.92);padding:7px 8px;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.055em}
+        .chart-candle-tape>b small{display:block;color:#94a3b8;font-size:9px;font-weight:900;letter-spacing:0;text-transform:none;line-height:1.1;margin-top:3px}
         .chart-tape-candle{display:block;min-width:0;background:#0b1220;border-top:3px solid rgba(148,163,184,.32);padding:5px 7px}
         .chart-tape-candle em{display:block;color:#94a3b8;font-size:9px;font-style:normal;font-weight:950;line-height:1;text-transform:uppercase}
         .chart-tape-candle strong{display:block;color:#f8fafc;font-size:13px;line-height:1.05;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
