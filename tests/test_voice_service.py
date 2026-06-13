@@ -222,6 +222,9 @@ def test_roxy_live_page():
     assert 'market_session: ["Horario", "sesion de mercado"]' in r.text
     assert 'support_resistance: ["Niveles", "soporte y resistencia"]' in r.text
     assert 'technical_indicators: ["Indicadores", "indicadores tecnicos"]' in r.text
+    assert 'es: "ponme al dia"' in r.text
+    assert 'en: "catch me up"' in r.text
+    assert '"PONME", "AL", "DIA", "DÍA", "CORRIENTE"' in r.text
     assert "handleVoiceControlCommand" in r.text
     assert "manualWakeCommand" in r.text
     assert "if (handleVoiceControlCommand(manualWakeCommand)) return;" in r.text
@@ -288,6 +291,8 @@ def test_roxy_live_page():
     assert "Roxy, test voice" in r.text
     assert "Roxy, opciones" in r.text
     assert "Roxy, options" in r.text
+    assert "Roxy, ponme al día" in r.text
+    assert "Roxy, catch me up" in r.text
     assert "Roxy, handoff operativo" in r.text
     assert "Roxy, operational handoff" in r.text
     assert "Roxy, más corto" in r.text
