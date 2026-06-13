@@ -4170,6 +4170,20 @@ class RoxyInteractiveBrain:
             open_winners = float(
                 sum(1 for row in positions if (_safe_float(row.get("unrealized_pl") or row.get("unrealized_pnl")) or 0.0) >= 0)
             )
+        top_position_symbol = ""
+        top_position_value = None
+        top_position_pct = None
+        if positions:
+            top_position = max(
+                positions,
+                key=lambda row: abs(_safe_float(row.get("market_value") or row.get("notional") or row.get("position_value")) or 0.0),
+            )
+            top_position_symbol = _safe_text(top_position.get("symbol") or top_position.get("ticker")).upper()
+            top_position_value = _safe_float(
+                top_position.get("market_value") or top_position.get("notional") or top_position.get("position_value")
+            )
+            if _safe_float(equity) and top_position_value is not None:
+                top_position_pct = abs(top_position_value) / (_safe_float(equity) or 1.0)
         as_of = ""
         for container in containers:
             as_of = _safe_text(container.get("as_of") or container.get("updated_at") or container.get("generated_at") or container.get("timestamp"))
@@ -4192,6 +4206,9 @@ class RoxyInteractiveBrain:
             "open_positions": open_positions,
             "recent_orders": recent_orders,
             "open_winners": open_winners,
+            "top_position_symbol": top_position_symbol,
+            "top_position_value": top_position_value,
+            "top_position_pct": top_position_pct,
             "as_of": as_of,
         }
 
@@ -4234,7 +4251,18 @@ class RoxyInteractiveBrain:
             exposure_band = "high"
         else:
             exposure_band = "aggressive"
-        priority = "high" if exposure_band in {"high", "aggressive"} else "normal"
+        top_position_symbol = _safe_text(snapshot.get("top_position_symbol"))
+        top_position_value = snapshot.get("top_position_value")
+        top_position_pct = _safe_float(snapshot.get("top_position_pct"))
+        if top_position_pct is None:
+            concentration_band = "unknown"
+        elif top_position_pct < 0.15:
+            concentration_band = "low"
+        elif top_position_pct < 0.25:
+            concentration_band = "moderate"
+        else:
+            concentration_band = "high"
+        priority = "high" if exposure_band in {"high", "aggressive"} or concentration_band == "high" else "normal"
 
         if language == "en":
             exposure_label = {
@@ -4244,9 +4272,22 @@ class RoxyInteractiveBrain:
                 "aggressive": "aggressive",
                 "unknown": "unknown",
             }[exposure_band]
+            concentration_label = {
+                "low": "low",
+                "moderate": "moderate",
+                "high": "high",
+                "unknown": "unknown",
+            }[concentration_band]
+            concentration_text = (
+                f"Largest position {top_position_symbol or '-'} {_money(top_position_value)}"
+                f"{' (' + _pct(top_position_pct) + ' of equity)' if top_position_pct is not None else ''}, "
+                f"concentration {concentration_label}."
+                if top_position_symbol or top_position_value is not None
+                else "Largest position unavailable; concentration unknown."
+            )
             risk_next = (
                 "Risk next: pause new sizing until exposure, stops, and concentration are reviewed."
-                if exposure_band in {"high", "aggressive"}
+                if exposure_band in {"high", "aggressive"} or concentration_band == "high"
                 else "Risk next: sizing can be reviewed only after fresh opportunity and stop data are confirmed."
             )
             reply = (
@@ -4256,7 +4297,7 @@ class RoxyInteractiveBrain:
                 f"Open positions {int(snapshot.get('open_positions') or 0)}, exposure {_money(exposure)}"
                 f"{' (' + _pct(exposure_pct) + ' of equity)' if exposure_pct is not None else ''}, "
                 f"exposure risk {exposure_label}, open P/L {_money(snapshot.get('unrealized_pl'))}, "
-                f"recent orders {int(snapshot.get('recent_orders') or 0)}. {risk_next}"
+                f"recent orders {int(snapshot.get('recent_orders') or 0)}. {concentration_text} {risk_next}"
                 f"{as_of_text} Guardrail: this is a local account read only, not a broker command; confirm broker state before acting."
             )
         else:
@@ -4267,9 +4308,22 @@ class RoxyInteractiveBrain:
                 "aggressive": "agresivo",
                 "unknown": "desconocido",
             }[exposure_band]
+            concentration_label = {
+                "low": "baja",
+                "moderate": "moderada",
+                "high": "alta",
+                "unknown": "desconocida",
+            }[concentration_band]
+            concentration_text = (
+                f"Mayor posicion {top_position_symbol or '-'} {_money(top_position_value)}"
+                f"{' (' + _pct(top_position_pct) + ' del equity)' if top_position_pct is not None else ''}, "
+                f"concentracion {concentration_label}."
+                if top_position_symbol or top_position_value is not None
+                else "Mayor posicion no disponible; concentracion desconocida."
+            )
             risk_next = (
                 "Siguiente riesgo: pausa nuevo sizing hasta revisar exposicion, stops y concentracion."
-                if exposure_band in {"high", "aggressive"}
+                if exposure_band in {"high", "aggressive"} or concentration_band == "high"
                 else "Siguiente riesgo: revisar sizing solo despues de confirmar oportunidad fresca y stop."
             )
             reply = (
@@ -4279,12 +4333,12 @@ class RoxyInteractiveBrain:
                 f"Posiciones abiertas {int(snapshot.get('open_positions') or 0)}, exposicion {_money(exposure)}"
                 f"{' (' + _pct(exposure_pct) + ' del equity)' if exposure_pct is not None else ''}, "
                 f"riesgo de exposicion {exposure_label}, P/L abierto {_money(snapshot.get('unrealized_pl'))}, "
-                f"ordenes recientes {int(snapshot.get('recent_orders') or 0)}. {risk_next}"
+                f"ordenes recientes {int(snapshot.get('recent_orders') or 0)}. {concentration_text} {risk_next}"
                 f"{as_of_text} Guardrail: esto es solo lectura local de cuenta, no comando de broker; confirma el estado del broker antes de actuar."
             )
         actions = (
             ("risk_review", "trade_readiness", "confirm_before_execution")
-            if exposure_band in {"high", "aggressive"}
+            if exposure_band in {"high", "aggressive"} or concentration_band == "high"
             else ("position_size", "trade_readiness", "confirm_before_execution")
         )
         return RoxyBrainReply(

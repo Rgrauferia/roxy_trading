@@ -1039,6 +1039,8 @@ def test_roxy_brain_reads_account_status_in_spanish(tmp_path):
     assert "Posiciones abiertas 2" in response.reply
     assert "exposicion 620.00 (4.10% del equity)" in response.reply
     assert "riesgo de exposicion bajo" in response.reply
+    assert "Mayor posicion MSFT 400.00 (2.64% del equity)" in response.reply
+    assert "concentracion baja" in response.reply
     assert "P/L abierto 15.50" in response.reply
     assert "no comando de broker" in response.reply
     assert "position_size" in response.suggested_actions
@@ -1079,6 +1081,8 @@ def test_roxy_brain_reads_account_status_in_english(tmp_path):
     assert "Open positions 2" in response.reply
     assert "exposure 2000.00 (8.00% of equity)" in response.reply
     assert "exposure risk low" in response.reply
+    assert "Largest position NVDA 1250.00 (5.00% of equity)" in response.reply
+    assert "concentration low" in response.reply
     assert "open P/L 30.00" in response.reply
     assert "not a broker command" in response.reply
 
@@ -1095,6 +1099,10 @@ def test_roxy_brain_flags_aggressive_account_exposure(tmp_path):
                     "exposure": 7200.0,
                     "open_positions": 4,
                     "unrealized_pl": -180.0,
+                    "positions": [
+                        {"symbol": "NVDA", "market_value": 4000.0, "unrealized_pl": -120.0},
+                        {"symbol": "SPY", "market_value": 3200.0, "unrealized_pl": -60.0},
+                    ],
                 }
             }
         ),
@@ -1108,7 +1116,44 @@ def test_roxy_brain_flags_aggressive_account_exposure(tmp_path):
     assert response.priority == "high"
     assert "exposicion 7200.00 (72.00% del equity)" in response.reply
     assert "riesgo de exposicion agresivo" in response.reply
+    assert "Mayor posicion NVDA 4000.00 (40.00% del equity)" in response.reply
+    assert "concentracion alta" in response.reply
     assert "pausa nuevo sizing" in response.reply
+    assert "risk_review" in response.suggested_actions
+    assert "position_size" not in response.suggested_actions
+
+
+def test_roxy_brain_flags_high_position_concentration_with_moderate_exposure(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "account_summary": {
+                    "equity": 10000.0,
+                    "cash": 7400.0,
+                    "buying_power": 7400.0,
+                    "exposure": 2600.0,
+                    "open_positions": 1,
+                    "unrealized_pl": 80.0,
+                    "positions": [
+                        {"symbol": "TSLA", "market_value": 2600.0, "unrealized_pl": 80.0},
+                    ],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("account status")
+
+    assert response.intent == "account_status"
+    assert response.priority == "high"
+    assert "exposure 2600.00 (26.00% of equity)" in response.reply
+    assert "exposure risk moderate" in response.reply
+    assert "Largest position TSLA 2600.00 (26.00% of equity)" in response.reply
+    assert "concentration high" in response.reply
+    assert "pause new sizing" in response.reply
     assert "risk_review" in response.suggested_actions
     assert "position_size" not in response.suggested_actions
 
