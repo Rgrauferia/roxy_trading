@@ -1035,6 +1035,39 @@ def roxy_live_page():
       return false;
     }
 
+    function voiceFeedbackCommand(command) {
+      const negativeNote = commandRemainder(command, [
+        "eso no sirvio", "no sirvio", "no me sirvio", "no fue util", "respuesta mala",
+        "bad answer", "that did not help", "not helpful", "not useful"
+      ]);
+      if (negativeNote || commandMatches(command, [
+        "eso no sirvio", "no sirvio", "no me sirvio", "no fue util", "respuesta mala",
+        "bad answer", "that did not help", "not helpful", "not useful",
+        "mas corto", "mas claro", "demasiado largo", "too long", "be shorter", "be clearer"
+      ])) {
+        return {rating: "down", note: negativeNote || normalizeSpeech(command)};
+      }
+      const positiveNote = commandRemainder(command, [
+        "eso sirvio", "si sirvio", "me sirvio", "sirvio", "respuesta util", "fue util",
+        "good answer", "that helped", "helpful", "useful"
+      ]);
+      if (positiveNote || commandMatches(command, [
+        "eso sirvio", "si sirvio", "me sirvio", "sirvio", "respuesta util", "fue util",
+        "good answer", "that helped", "helpful", "useful"
+      ])) {
+        return {rating: "up", note: positiveNote};
+      }
+      return null;
+    }
+
+    function applyVoiceFeedbackCommand(command) {
+      const feedback = voiceFeedbackCommand(command);
+      if (!feedback) return false;
+      if (feedback.note) $("feedbackNote").value = feedback.note;
+      submitFeedback(feedback.rating, {speakNow: true});
+      return true;
+    }
+
     function repeatLastReplyByVoice() {
       const language = lastState.language || $("language").value || "es";
       if (!lastReply) {
@@ -1059,8 +1092,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -1287,6 +1320,7 @@ def roxy_live_page():
       }
       if (applyVoiceListeningModeCommand(command)) return true;
       if (sendVoiceLearningPrompt(command)) return true;
+      if (applyVoiceFeedbackCommand(command)) return true;
       if (commandMatches(command, ["repite", "repetir", "repite eso", "otra vez", "dilo otra vez", "repeat", "repeat that", "say again", "say that again"])) {
         repeatLastReplyByVoice();
         return true;
@@ -1852,9 +1886,17 @@ def roxy_live_page():
       if (opts.speakNow) speak(text.trim(), language);
     }
 
-    async function submitFeedback(rating) {
+    async function submitFeedback(rating, options) {
+      const opts = options || {};
+      const language = $("language").value || "es";
       if (!lastReply) {
-        appendMessage("system", "No hay respuesta de Roxy para calificar todavia.", "feedback");
+        const message = localizedText(
+          "No hay respuesta de Roxy para calificar todavía.",
+          "There is no Roxy answer to rate yet.",
+          language
+        );
+        appendMessage("system", message, "feedback");
+        if (opts.speakNow) speak(message, language);
         return;
       }
       const headers = {"Content-Type": "application/json"};
@@ -1874,10 +1916,20 @@ def roxy_live_page():
         })
       });
       if (!res.ok) {
-        appendMessage("system", "No pude guardar feedback: " + res.status, "feedback");
+        const message = localizedText(
+          "No pude guardar feedback: " + res.status,
+          "I could not save feedback: " + res.status,
+          language
+        );
+        appendMessage("system", message, "feedback");
+        if (opts.speakNow) speak(message, language);
         return;
       }
-      appendMessage("system", rating === "up" ? "Feedback guardado: sirvio." : "Feedback guardado: Roxy debe mejorar esa respuesta.", "feedback");
+      const message = rating === "up"
+        ? localizedText("Feedback guardado: sirvió.", "Feedback saved: that helped.", language)
+        : localizedText("Feedback guardado: Roxy debe mejorar esa respuesta.", "Feedback saved: Roxy should improve that answer.", language);
+      appendMessage("system", message, "feedback");
+      if (opts.speakNow) speak(message, language);
       if (rating === "down") $("feedbackNote").value = "";
     }
 

@@ -91,6 +91,11 @@ def test_roxy_live_page():
     assert "setVoiceModeState" in r.text
     assert "applyVoiceListeningModeCommand" in r.text
     assert "sendVoiceLearningPrompt" in r.text
+    assert "voiceFeedbackCommand" in r.text
+    assert "applyVoiceFeedbackCommand" in r.text
+    assert r.text.index("const negativeNote = commandRemainder(command") < r.text.index(
+        "const positiveNote = commandRemainder(command"
+    )
     assert "repeatLastReplyByVoice" in r.text
     assert "explainVoiceCommands" in r.text
     assert "voiceNewsHeadline" in r.text
@@ -120,6 +125,7 @@ def test_roxy_live_page():
     assert "voice: manual mode" in r.text
     assert "voice: learning status" in r.text
     assert "voice: knowledge sources" in r.text
+    assert "submitFeedback(feedback.rating, {speakNow: true})" in r.text
     assert "voice: repeat" in r.text
     assert "voice: help" in r.text
     assert "voice: news shortcut" in r.text
@@ -140,6 +146,9 @@ def test_roxy_live_page():
     assert "Conversation mode active" in r.text
     assert "Local learning: " in r.text
     assert "Sources loaded: " in r.text
+    assert "Roxy, no sirvió, más corto" in r.text
+    assert "Roxy, bad answer, be shorter" in r.text
+    assert "Feedback saved: Roxy should improve that answer." in r.text
     assert "Roxy, símbolo NVDA" in r.text
     assert "Roxy, symbol NVDA" in r.text
     assert "Roxy, watchlist SPY QQQ NVDA" in r.text

@@ -115,6 +115,8 @@ For profile-based monitoring, Roxy uses the `watchlist_summary` intent. It reads
 
 Feedback learning is stored locally in `alerts/roxy_feedback.json`. Roxy Live can send "Sirvio" or "No sirvio" for the latest answer through `POST /v1/feedback`, including an optional correction note such as "mas corto" or "mas claro". Clients can inspect the aggregate with `GET /v1/feedback/summary`. Roxy can summarize this memory when asked what she learned from feedback. When an intent receives negative feedback, the strategy brain marks the next response for that same intent as feedback-adjusted and makes the answer more direct, separating reading, risk, and next step.
 
+Wake Roxy can also capture feedback by voice. "Roxy, sirvió" records positive feedback for the latest answer. "Roxy, no sirvió, más corto" / "Roxy, bad answer, be shorter" records negative feedback with the spoken correction note, confirms by voice, and does not create a new assistant market turn.
+
 The full local learning state is available through `GET /v1/learning/status`. It combines safe user profile fields, session memory, feedback counts, approved knowledge sources, and recommendations. Roxy Live exposes it with the `Aprendizaje` button so the assistant can explain what she is improving without needing a broker connection or external LLM.
 
 Roxy also understands operational status prompts such as "estado", "estado de Roxy", or "modo autonomo". These return the `autonomy_status` intent with voice readiness, session memory, feedback count, and next recommended action. The word "estado" is explicitly excluded from ticker detection so a status check cannot become a fake symbol lookup.
