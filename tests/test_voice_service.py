@@ -41,6 +41,7 @@ def test_roxy_live_page():
     assert "prepareListeningTurn" in r.text
     assert "isDuplicateFinalTranscript" in r.text
     assert "voice: duplicate ignored" in r.text
+    assert "voiceDraftText" in r.text
     assert "isRecoverableMicError" in r.text
     assert "recoverFromMicError" in r.text
     assert "voice: retry after " in r.text
@@ -92,6 +93,11 @@ def test_roxy_live_page():
     assert "setVoiceRateFromCommand" in r.text
     assert "applyVoiceSpeechOutputCommand" in r.text
     assert "applyVoiceSendModeCommand" in r.text
+    assert "voiceDraftAction" in r.text
+    assert "isVoiceDraftAction" in r.text
+    assert "setVoiceDraft" in r.text
+    assert "applyVoiceDraftActionCommand" in r.text
+    assert "else setVoiceDraft(prompt)" in r.text
     assert "applyVoiceLanguageCommand" in r.text
     assert "setVoiceModeState" in r.text
     assert "applyVoiceListeningModeCommand" in r.text
@@ -141,6 +147,11 @@ def test_roxy_live_page():
     assert "voice: speech on" in r.text
     assert "voice: autosend off" in r.text
     assert "voice: autosend on" in r.text
+    assert "voice: draft ready" in r.text
+    assert "voice: draft send" in r.text
+    assert "voice: draft cleared" in r.text
+    assert "voice: draft read" in r.text
+    assert "voice: draft empty" in r.text
     assert "voice: learning status" in r.text
     assert "voice: knowledge sources" in r.text
     assert "submitFeedback(feedback.rating, {speakNow: true})" in r.text
@@ -161,6 +172,8 @@ def test_roxy_live_page():
     assert "Roxy, semi auto mode" in r.text
     assert "Roxy, modo dictado" in r.text
     assert "Roxy, dictation mode" in r.text
+    assert "Roxy, enviar" in r.text
+    assert "Roxy, send it" in r.text
     assert "Roxy, sin voz" in r.text
     assert "Roxy, voice off" in r.text
     assert "Roxy, voz más lenta" in r.text
@@ -180,6 +193,10 @@ def test_roxy_live_page():
     assert "Automatic voice is on." in r.text
     assert "Modo dictado activo." in r.text
     assert "Auto-send when done is on." in r.text
+    assert "Borrador listo." in r.text
+    assert "Draft ready." in r.text
+    assert "Enviando borrador." in r.text
+    assert "Sending draft." in r.text
     assert "Local learning: " in r.text
     assert "Sources loaded: " in r.text
     assert "Roxy, no sirvió, más corto" in r.text
@@ -201,6 +218,9 @@ def test_roxy_live_page():
     assert "Roxy, riesgo de SPY" in r.text
     assert "Roxy, risk SPY" in r.text
     assert "BTC/USD" in r.text
+    assert "ANALIZA" in r.text
+    assert "ANALYZE" in r.text
+    assert "HEADLINE" in r.text
     assert "top opportunities" in r.text
     assert "can I trade now" in r.text
     assert "Roxy, repite" in r.text

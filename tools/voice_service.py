@@ -672,6 +672,7 @@ def roxy_live_page():
     let activeAssistController = null;
     let lastHandledVoiceText = "";
     let lastHandledVoiceAt = 0;
+    let voiceDraftText = "";
     const duplicateVoiceWindowMs = 2500;
     const defaultAssistTimeoutMs = 45000;
     const assistStreamEndpoint = "/v1/assist/stream";
@@ -1045,6 +1046,99 @@ def roxy_live_page():
       return false;
     }
 
+    function voiceDraftAction(command) {
+      const normalized = normalizeSpeech(command);
+      const sendPhrases = ["enviar", "envia", "mandar", "manda eso", "envia eso", "enviar ahora", "send", "send it", "send now"];
+      const clearPhrases = ["borrar", "borra", "limpiar", "limpia", "descartar", "clear", "clear draft", "discard", "discard draft"];
+      const readPhrases = ["leer borrador", "revisar borrador", "repite borrador", "que escribi", "read draft", "review draft", "repeat draft"];
+      if (sendPhrases.includes(normalized)) return "send";
+      if (clearPhrases.includes(normalized)) return "clear";
+      if (readPhrases.includes(normalized)) return "read";
+      return "";
+    }
+
+    function voiceCommandCandidate(text) {
+      const wakeCommand = extractWakeCommand(text);
+      return wakeCommand !== null ? wakeCommand : text;
+    }
+
+    function isVoiceDraftAction(command) {
+      return Boolean(voiceDraftAction(command));
+    }
+
+    function setVoiceDraft(text) {
+      const draft = (text || "").trim();
+      if (!draft) return false;
+      const language = $("language").value || "es";
+      voiceDraftText = draft;
+      $("query").value = draft;
+      const message = localizedText(
+        "Borrador listo. Di: Roxy, enviar para mandarlo.",
+        "Draft ready. Say: Roxy, send it to send.",
+        language
+      );
+      $("reply").textContent = message;
+      $("events").textContent = "voice: draft ready";
+      appendMessage("system", message, "voice-draft");
+      scheduleListen();
+      return true;
+    }
+
+    function voiceDraftForAction(command) {
+      const draft = (voiceDraftText || $("query").value || "").trim();
+      if (!draft) return "";
+      const normalizedDraft = normalizeSpeech(draft);
+      const normalizedCommand = normalizeSpeech(command);
+      const normalizedWakeCommand = [normalizeSpeech($("wakeWord").value || "Roxy"), normalizedCommand].filter(Boolean).join(" ");
+      if (normalizedDraft === normalizedCommand || normalizedDraft === normalizedWakeCommand) return "";
+      return draft;
+    }
+
+    function applyVoiceDraftActionCommand(command) {
+      const action = voiceDraftAction(command);
+      if (!action) return false;
+      const language = $("language").value || "es";
+      if (action === "send") {
+        const draft = voiceDraftForAction(command);
+        if (!draft) {
+          speakLocalControlMessage(
+            localizedText("No hay borrador listo para enviar.", "There is no draft ready to send.", language),
+            language,
+            "voice: draft empty",
+            "voice-draft"
+          );
+          return true;
+        }
+        $("query").value = draft;
+        voiceDraftText = "";
+        $("events").textContent = "voice: draft send";
+        appendMessage("system", localizedText("Enviando borrador.", "Sending draft.", language), "voice-draft");
+        send();
+        return true;
+      }
+      if (action === "clear") {
+        voiceDraftText = "";
+        $("query").value = "";
+        speakLocalControlMessage(
+          localizedText("Borrador borrado.", "Draft cleared.", language),
+          language,
+          "voice: draft cleared",
+          "voice-draft"
+        );
+        return true;
+      }
+      const draft = voiceDraftForAction(command);
+      speakLocalControlMessage(
+        draft
+          ? localizedText("Borrador: " + draft, "Draft: " + draft, language)
+          : localizedText("No hay borrador listo.", "There is no draft ready.", language),
+        language,
+        "voice: draft read",
+        "voice-draft"
+      );
+      return true;
+    }
+
     function applyVoiceLanguageCommand(languageValue) {
       const language = languageValue === "en" ? "en" : "es";
       const message = language === "en" ? "English mode." : "Modo español.";
@@ -1251,8 +1345,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -1295,7 +1389,8 @@ def roxy_live_page():
       $("query").value = prompt;
       $("events").textContent = "voice: news shortcut";
       appendMessage("system", "Voice shortcut: " + prompt, "voice-news");
-      send();
+      if ($("autoSendVoice").checked) send();
+      else setVoiceDraft(prompt);
       return true;
     }
 
@@ -1309,6 +1404,8 @@ def roxy_live_page():
         "NOW", "PARA", "FOR", "OF", "ABOUT", "ON", "EN", "CON", "WITH", "PLAN", "MONITOREO",
         "ALERTA", "ALERT", "THE", "A", "AN", "TO", "AND", "OR", "USD", "USDT",
         "BASE", "SYMBOL", "TICKER", "ACTIVO", "LIST", "LISTA", "TRACKING", "SEGUIMIENTO",
+        "ANALIZA", "ANALIZAR", "ANALYZE", "IMPACTO", "NOTICIA", "TITULAR", "HEADLINE",
+        "SENTIMENT", "SENTIMIENTO",
       ]);
     }
 
@@ -1499,7 +1596,8 @@ def roxy_live_page():
       $("query").value = prompt;
       $("events").textContent = "voice: market shortcut";
       appendMessage("system", "Voice shortcut: " + prompt, "voice-market");
-      send();
+      if ($("autoSendVoice").checked) send();
+      else setVoiceDraft(prompt);
       return true;
     }
 
@@ -1514,6 +1612,7 @@ def roxy_live_page():
       if (applyVoicePaceCommand(command)) return true;
       if (applyVoiceSpeechOutputCommand(command)) return true;
       if (applyVoiceSendModeCommand(command)) return true;
+      if (applyVoiceDraftActionCommand(command)) return true;
       if (sendVoiceLearningPrompt(command)) return true;
       if (applyVoiceFeedbackCommand(command)) return true;
       if (commandMatches(command, [
@@ -1562,7 +1661,8 @@ def roxy_live_page():
         }
         if (handleVoiceControlCommand(command)) return;
         $("query").value = command;
-        send();
+        if ($("autoSendVoice").checked) send();
+        else setVoiceDraft(command);
         return;
       }
       const manualWakeCommand = extractWakeCommand(finalText);
@@ -1580,10 +1680,13 @@ def roxy_live_page():
         if (handleVoiceControlCommand(manualWakeCommand)) return;
         $("query").value = manualWakeCommand;
         if ($("autoSendVoice").checked) send();
+        else setVoiceDraft(manualWakeCommand);
         return;
       }
       if (handleVoiceControlCommand(finalText)) return;
+      $("query").value = finalText;
       if ($("autoSendVoice").checked) send();
+      else setVoiceDraft(finalText);
     }
 
     function speechLang(languageValue) {
@@ -2155,9 +2258,15 @@ def roxy_live_page():
       recognition.onresult = (event) => {
         let text = "";
         for (let i = event.resultIndex; i < event.results.length; i++) text += event.results[i][0].transcript;
-        $("query").value = text.trim();
-        if (event.results[event.results.length - 1].isFinal) {
-          lastFinalTranscript = $("query").value;
+        const transcript = text.trim();
+        const isFinal = event.results[event.results.length - 1].isFinal;
+        if (isFinal && isVoiceDraftAction(voiceCommandCandidate(transcript))) {
+          const currentDraft = (voiceDraftText || $("query").value || "").trim();
+          if (currentDraft && normalizeSpeech(currentDraft) !== normalizeSpeech(transcript)) voiceDraftText = currentDraft;
+        }
+        $("query").value = transcript;
+        if (isFinal) {
+          lastFinalTranscript = transcript;
           handleFinalTranscript(lastFinalTranscript);
         }
       };
