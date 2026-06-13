@@ -1785,6 +1785,48 @@ def roxy_live_page():
       return true;
     }
 
+    function operationalHandoffPrompt(ctx, language) {
+      const symbol = (ctx.active_symbol || $("defaultSymbol").value || "").trim().toUpperCase();
+      const actions = Array.isArray(ctx.next_best_actions) ? ctx.next_best_actions : [];
+      const useTicket = actions.includes("show_trade_ticket")
+        || actions.includes("trade_ticket")
+        || actions.includes("confirm_before_execution")
+        || actions.includes("require_explicit_confirmation");
+      const base = useTicket
+        ? localizedText("ticket de trade", "trade ticket", language)
+        : localizedText("preflight operativo", "operational preflight", language);
+      return symbol ? base + " " + symbol : base;
+    }
+
+    function speakOperationalHandoffBrief() {
+      const language = lastState.language || $("language").value || "es";
+      const pendingDraft = (voiceDraftText || "").trim();
+      if (pendingDraft) {
+        const message = localizedText(
+          "Hay un borrador pendiente. Para handoff seguro, primero di Roxy, leer borrador; Roxy, enviar; o Roxy, borrar.",
+          "There is a pending draft. For a safe handoff, first say Roxy, read draft; Roxy, send it; or Roxy, clear draft.",
+          language
+        );
+        speakLocalControlMessage(message, language, "voice: operational handoff blocked", "voice-handoff");
+        return true;
+      }
+      const ctx = activeSessionContext();
+      renderActiveContext(ctx);
+      const prompt = operationalHandoffPrompt(ctx, language);
+      $("query").value = prompt;
+      const symbol = ctx.active_symbol || $("defaultSymbol").value || "-";
+      const intent = ctx.active_intent || lastState.intent || "-";
+      const actions = (ctx.next_best_actions || []).slice(0, 2).map(actionDisplayName).join(", ");
+      const guarded = ctx.needs_confirmation || (ctx.next_best_actions || []).includes("confirm_before_execution");
+      const message = localizedText(
+        "Handoff operativo listo. Contexto: " + symbol + ", " + intent + ". Preparé: " + prompt + ". Siguiente: " + (actions || "revisión de mercado") + "." + (guarded ? " No ejecutes nada sin confirmación explícita." : " Revisa antes de actuar."),
+        "Operational handoff ready. Context: " + symbol + ", " + intent + ". I prepared: " + prompt + ". Next: " + (actions || "market review") + "." + (guarded ? " Do not execute anything without explicit confirmation." : " Review before acting."),
+        language
+      );
+      speakLocalControlMessage(message, language, "voice: operational handoff", "voice-handoff");
+      return true;
+    }
+
     function speakVoiceOptionsBrief() {
       const language = lastState.language || $("language").value || "es";
       const pendingDraft = (voiceDraftText || "").trim();
@@ -1871,9 +1913,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, iniciar voz; Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, que escuchaste; Roxy, corrige borrador comprar SPY; Roxy, estado de voz; Roxy, voz clara; Roxy, prueba tu voz; Roxy, opciones; Roxy, más corto; Roxy, más detalle; Roxy, pasos; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, cripto; Roxy, estado de cuenta; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "Puedes decir: Roxy, iniciar voz; Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, que escuchaste; Roxy, corrige borrador comprar SPY; Roxy, estado de voz; Roxy, voz clara; Roxy, prueba tu voz; Roxy, opciones; Roxy, más corto; Roxy, más detalle; Roxy, pasos; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, cripto; Roxy, estado de cuenta; Roxy, preflight; Roxy, ticket SPY; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, start voice session; Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, what did you hear; Roxy, replace draft with buy SPY; Roxy, voice status; Roxy, receptionist voice; Roxy, test voice; Roxy, options; Roxy, shorter; Roxy, give more detail; Roxy, steps; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, crypto market; Roxy, account status; Roxy, preflight; Roxy, trade ticket SPY; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, iniciar voz; Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, que escuchaste; Roxy, corrige borrador comprar SPY; Roxy, estado de voz; Roxy, voz clara; Roxy, prueba tu voz; Roxy, opciones; Roxy, handoff operativo; Roxy, más corto; Roxy, más detalle; Roxy, pasos; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, cripto; Roxy, estado de cuenta; Roxy, preflight; Roxy, ticket SPY; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, start voice session; Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, what did you hear; Roxy, replace draft with buy SPY; Roxy, voice status; Roxy, receptionist voice; Roxy, test voice; Roxy, options; Roxy, operational handoff; Roxy, shorter; Roxy, give more detail; Roxy, steps; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, crypto market; Roxy, account status; Roxy, preflight; Roxy, trade ticket SPY; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -2274,6 +2315,13 @@ def roxy_live_page():
       if (sendVoiceLearningPrompt(command)) return true;
       if (sendVoiceFollowupPrompt(command)) return true;
       if (applyVoiceFeedbackCommand(command)) return true;
+      if (commandMatches(command, [
+        "handoff operativo", "handoff operacional", "pase operativo", "pase a operaciones",
+        "prepara handoff", "prepara pase operativo", "operational handoff",
+        "handoff to operations", "prepare handoff", "handoff"
+      ])) {
+        return speakOperationalHandoffBrief();
+      }
       if (commandMatches(command, [
         "contexto actual", "brief local", "resumen local", "que recuerdas", "que recuerdas ahora",
         "donde vamos", "en que estamos", "current context", "session brief", "what do you remember",

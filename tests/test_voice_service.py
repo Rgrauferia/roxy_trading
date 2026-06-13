@@ -161,6 +161,12 @@ def test_roxy_live_page():
     assert "sessionVoiceBrief" in r.text
     assert "activeSessionContext" in r.text
     assert "voice: session brief" in r.text
+    assert "operationalHandoffPrompt" in r.text
+    assert "speakOperationalHandoffBrief" in r.text
+    assert "voice: operational handoff" in r.text
+    assert "voice: operational handoff blocked" in r.text
+    assert "Handoff operativo listo." in r.text
+    assert "Operational handoff ready." in r.text
     assert "voiceOptions" in r.text
     assert "speakVoiceOptionsBrief" in r.text
     assert "voice: options" in r.text
@@ -282,6 +288,8 @@ def test_roxy_live_page():
     assert "Roxy, test voice" in r.text
     assert "Roxy, opciones" in r.text
     assert "Roxy, options" in r.text
+    assert "Roxy, handoff operativo" in r.text
+    assert "Roxy, operational handoff" in r.text
     assert "Roxy, más corto" in r.text
     assert "Roxy, give more detail" in r.text
     assert "Roxy, steps" in r.text
