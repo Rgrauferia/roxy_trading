@@ -10404,19 +10404,48 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
     compact_columns = [column for column in compact_columns if column in display_rows.columns]
     compact_view = display_rows[compact_columns].head(8).copy()
     compact_column_config: dict[str, Any] = {}
+    for column, label, help_text, width in (
+        ("Prioridad", "Prioridad", "Orden operativo calculado por Roxy.", "small"),
+        ("Ticker", "Ticker", "Activo en vigilancia.", "small"),
+        ("Estado", "Estado", "Operar, vigilar o evitar.", "small"),
+        ("Paper", "Paper", "Estado de práctica/paper trading.", "small"),
+        ("Target", "Target", "Objetivo principal estimado.", "small"),
+        ("Falta", "Qué falta", "Bloqueo o confirmación pendiente.", "medium"),
+        ("Siguiente", "Siguiente paso", "Acción concreta antes de considerar entrada.", "large"),
+    ):
+        if column in compact_view.columns:
+            compact_column_config[column] = st.column_config.TextColumn(label, help=help_text, width=width)
     if "Score" in compact_view.columns:
         compact_view["Score"] = pd.to_numeric(compact_view["Score"], errors="coerce").fillna(0).clip(0, 100)
-        compact_column_config["Score"] = st.column_config.ProgressColumn("Score", min_value=0, max_value=100)
+        compact_column_config["Score"] = st.column_config.ProgressColumn(
+            "Score",
+            help="0-100: mayor score significa mejor prioridad relativa.",
+            min_value=0,
+            max_value=100,
+            format="%d",
+        )
     if "Riesgo" in compact_view.columns:
         compact_view["Riesgo"] = pd.to_numeric(
             compact_view["Riesgo"].astype(str).str.replace("%", "", regex=False), errors="coerce"
         ).fillna(0).clip(0, 6)
-        compact_column_config["Riesgo"] = st.column_config.ProgressColumn("Riesgo %", min_value=0, max_value=6)
+        compact_column_config["Riesgo"] = st.column_config.ProgressColumn(
+            "Riesgo %",
+            help="Riesgo estimado hasta stop; ideal bajo y controlado.",
+            min_value=0,
+            max_value=6,
+            format="%.2f%%",
+        )
     if "RVol" in compact_view.columns:
         compact_view["RVol"] = pd.to_numeric(
             compact_view["RVol"].astype(str).str.replace("x", "", regex=False), errors="coerce"
         ).fillna(0).clip(0, 3)
-        compact_column_config["RVol"] = st.column_config.ProgressColumn("RVol", min_value=0, max_value=3)
+        compact_column_config["RVol"] = st.column_config.ProgressColumn(
+            "RVol",
+            help="Volumen relativo; >=1.2x confirma participación.",
+            min_value=0,
+            max_value=3,
+            format="%.2fx",
+        )
     st.dataframe(
         compact_view,
         use_container_width=True,
