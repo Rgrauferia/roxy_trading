@@ -85,6 +85,8 @@ Wake Roxy also supports local language control commands such as "Roxy, speak Eng
 
 Wake Roxy also supports local conversation controls such as "Roxy, repite" / "Roxy, repeat" for replaying the last answer and "Roxy, ayuda" / "Roxy, help" for a short command reminder. These controls run in the browser and return to listening without creating a new assistant turn.
 
+Wake Roxy can also answer "Roxy, contexto actual" / "Roxy, current context" locally from the active browser turn. It speaks the current symbol, intent/topic, safety level, and next safe actions without calling the assistant backend, giving the user a low-latency orientation check during a live voice session. Full saved-history recaps still use the normal `session_recap` backend intent.
+
 Wake Roxy can read local learning and source status without sending a market prompt. "Roxy, aprendizaje" / "Roxy, learning status" calls the local learning endpoint, updates the learning/context view, and speaks a short feedback-memory summary. "Roxy, fuentes" / "Roxy, sources" calls the knowledge-source endpoint and speaks how many approved local documents are available.
 
 Wake Roxy, or a manual `Hablar` turn that includes the wake word, can update safe local profile context without calling the assistant backend. "Roxy, símbolo NVDA" / "Roxy, symbol NVDA" updates the default symbol, and "Roxy, watchlist SPY QQQ NVDA" updates the watchlist saved in the browser. Later assistant turns include those values in the normal profile payload; they do not execute trades or change broker state.

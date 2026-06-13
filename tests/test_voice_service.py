@@ -93,6 +93,9 @@ def test_roxy_live_page():
     assert "sendVoiceLearningPrompt" in r.text
     assert "voiceFeedbackCommand" in r.text
     assert "applyVoiceFeedbackCommand" in r.text
+    assert "sessionVoiceBrief" in r.text
+    assert "activeSessionContext" in r.text
+    assert "voice: session brief" in r.text
     assert r.text.index("const negativeNote = commandRemainder(command") < r.text.index(
         "const positiveNote = commandRemainder(command"
     )
@@ -138,6 +141,8 @@ def test_roxy_live_page():
     assert "Roxy, Siri mode" in r.text
     assert "Roxy, modo conversación" in r.text
     assert "Roxy, conversation mode" in r.text
+    assert "Roxy, contexto actual" in r.text
+    assert "Roxy, current context" in r.text
     assert "Roxy, aprendizaje" in r.text
     assert "Roxy, learning status" in r.text
     assert "Roxy, fuentes" in r.text
@@ -168,6 +173,8 @@ def test_roxy_live_page():
     assert "Roxy, repite" in r.text
     assert "Roxy, repeat" in r.text
     assert "Wake Roxy activo" in r.text
+    assert "sessionBrief" in r.text
+    assert "Brief local" in r.text
     assert "feedbackUp" in r.text
     assert "/v1/feedback" in r.text
     assert "feedbackNote" in r.text

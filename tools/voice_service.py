@@ -630,6 +630,7 @@ def roxy_live_page():
           <button id="feedbackUp">Sirvio</button>
           <button id="feedbackDown">No sirvio</button>
           <button id="loadMemory">Cargar memoria</button>
+          <button id="sessionBrief">Brief local</button>
           <button id="loadLearning">Aprendizaje</button>
           <button id="loadSources">Fuentes</button>
           <button id="clearChat" class="danger">Limpiar chat</button>
@@ -1089,11 +1090,50 @@ def roxy_live_page():
       if (!speak(lastReply, language)) scheduleListen();
     }
 
+    function actionDisplayName(action) {
+      const config = suggestedActionPrompts[action] || fallbackActionPrompt(action);
+      return config[0] || (action || "").replace(/_/g, " ");
+    }
+
+    function activeSessionContext() {
+      const ctx = currentTurnContext(lastState || {}, lastQuery || $("query").value || "");
+      if (!Array.isArray(ctx.next_best_actions) || !ctx.next_best_actions.length) {
+        ctx.next_best_actions = ["ask_market_summary", "ask_latest_opportunity"];
+      }
+      return ctx;
+    }
+
+    function sessionVoiceBrief() {
+      const language = lastState.language || $("language").value || "es";
+      const ctx = activeSessionContext();
+      renderActiveContext(ctx);
+      let message = "";
+      if (!lastReply && !lastQuery) {
+        message = localizedText(
+          "Todavía no hay una conversación activa. Puedo empezar con mercado, oportunidades o estado de Roxy.",
+          "There is no active conversation yet. I can start with market, opportunities, or Roxy status.",
+          language
+        );
+      } else {
+        const symbol = ctx.active_symbol || $("defaultSymbol").value || "-";
+        const intent = ctx.active_intent || "-";
+        const safety = ctx.last_safety_level || lastState.safety_level || "-";
+        const actions = (ctx.next_best_actions || []).slice(0, 2).map(actionDisplayName).join(", ");
+        message = localizedText(
+          "Contexto actual: " + symbol + ". Tema: " + intent + ". Seguridad: " + safety + ". Siguiente: " + (actions || "resumen del mercado") + ".",
+          "Current context: " + symbol + ". Topic: " + intent + ". Safety: " + safety + ". Next: " + (actions || "market summary") + ".",
+          language
+        );
+      }
+      speakLocalControlMessage(message, language, "voice: session brief", "voice-context");
+      return true;
+    }
+
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, modo Siri; Roxy, modo conversación; Roxy, contexto actual; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, Siri mode; Roxy, conversation mode; Roxy, current context; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -1321,6 +1361,13 @@ def roxy_live_page():
       if (applyVoiceListeningModeCommand(command)) return true;
       if (sendVoiceLearningPrompt(command)) return true;
       if (applyVoiceFeedbackCommand(command)) return true;
+      if (commandMatches(command, [
+        "contexto actual", "brief local", "resumen local", "que recuerdas", "que recuerdas ahora",
+        "donde vamos", "en que estamos", "current context", "session brief", "what do you remember",
+        "what are we discussing", "where are we"
+      ])) {
+        return sessionVoiceBrief();
+      }
       if (commandMatches(command, ["repite", "repetir", "repite eso", "otra vez", "dilo otra vez", "repeat", "repeat that", "say again", "say that again"])) {
         repeatLastReplyByVoice();
         return true;
@@ -1993,6 +2040,7 @@ def roxy_live_page():
     $("feedbackUp").onclick = () => submitFeedback("up");
     $("feedbackDown").onclick = () => submitFeedback("down");
     $("loadMemory").onclick = loadMemory;
+    $("sessionBrief").onclick = sessionVoiceBrief;
     $("loadLearning").onclick = loadLearning;
     $("loadSources").onclick = loadSources;
     $("saveProfile").onclick = saveProfile;
