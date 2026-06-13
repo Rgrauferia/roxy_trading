@@ -5432,6 +5432,58 @@ def build_professional_volume_chart(chart_df: pd.DataFrame) -> alt.LayerChart | 
                         ],
                     )
                 )
+    latest_volume_row = volume_window.iloc[-1]
+    latest_volume_value = safe_float(latest_volume_row.get("volume"))
+    if latest_volume_value is not None:
+        latest_relative_volume = safe_float(latest_volume_row.get("relative_volume"))
+        latest_volume_state = text_display(latest_volume_row.get("volume_state"))
+        latest_volume_label = latest_volume_state
+        if latest_relative_volume is not None:
+            latest_volume_label = f"{latest_volume_label} · {latest_relative_volume:.2f}x"
+        latest_volume_df = pd.DataFrame(
+            [
+                {
+                    "ts": latest_volume_row.get("ts"),
+                    "volume": latest_volume_value,
+                    "label": latest_volume_label,
+                    "state": latest_volume_state,
+                    "relative_volume": latest_relative_volume,
+                }
+            ]
+        )
+        layers.append(
+            alt.Chart(latest_volume_df)
+            .mark_point(filled=True, size=58, stroke="#020617", strokeWidth=1.1)
+            .encode(
+                x=alt.X("ts:T", title="Tiempo", scale=time_scale),
+                y=alt.Y("volume:Q", title="Volumen", scale=volume_scale),
+                color=alt.Color(
+                    "state:N",
+                    legend=None,
+                    scale=alt.Scale(domain=["Confirma", "Normal", "Bajo"], range=["#22c55e", "#f59e0b", "#ef4444"]),
+                ),
+                tooltip=[
+                    alt.Tooltip("label:N", title="Volumen actual"),
+                    alt.Tooltip("volume:Q", title="Volumen", format=",.0f"),
+                    alt.Tooltip("relative_volume:Q", title="RVol", format=".2f"),
+                    alt.Tooltip("ts:T", title="Tiempo"),
+                ],
+            )
+        )
+        layers.append(
+            alt.Chart(latest_volume_df)
+            .mark_text(align="left", dx=8, dy=-8, fontSize=11, fontWeight="bold")
+            .encode(
+                x=alt.X("ts:T", title="Tiempo", scale=time_scale),
+                y=alt.Y("volume:Q", title="Volumen", scale=volume_scale),
+                text="label:N",
+                color=alt.Color(
+                    "state:N",
+                    legend=None,
+                    scale=alt.Scale(domain=["Confirma", "Normal", "Bajo"], range=["#bbf7d0", "#fde68a", "#fecaca"]),
+                ),
+            )
+        )
     return alt.layer(*layers).resolve_scale(color="independent")
 
 
