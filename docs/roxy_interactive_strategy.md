@@ -53,6 +53,8 @@ When voice auto-send is off, Roxy Live holds final transcripts as a pending dict
 
 Roxy Live also shows a `Heard` chip during microphone capture. Interim transcripts display as `oyendo`, final transcripts display as `final`, and browser confidence is shown when available. This gives the user immediate confirmation of what Roxy heard before the prompt is sent or stored as a draft.
 
+Wake Roxy can read back that local transcript with "Roxy, que escuchaste" / "Roxy, what did you hear". It reads the `Heard` chip title or current text box only, does not create an assistant turn, and helps the user confirm or correct recognition before sending.
+
 When browser speech confidence is available and low, Roxy Live treats the final transcript as a reviewable draft even if voice auto-send is enabled. It speaks a short local warning with the confidence percent and waits for "Roxy, enviar" / "Roxy, send it" before the text reaches the assistant backend. Unknown or unavailable confidence does not block normal voice flow.
 
 When a spoken prompt looks like a direct execution instruction, such as "buy SPY", "sell SPY", "compra SPY", "vende SPY", or "send order", Roxy Live also keeps it as a local draft even when auto-send is enabled. This prevents a raw execution-like phrase from reaching the assistant backend without visible review, and no broker order is sent.

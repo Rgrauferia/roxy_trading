@@ -49,7 +49,10 @@ def test_roxy_live_page():
     assert "updateVoiceDraftStatus" in r.text
     assert "voiceHeardStatus" in r.text
     assert "updateVoiceHeardStatus" in r.text
+    assert "latestHeardTranscript" in r.text
+    assert "speakLatestHeardTranscript" in r.text
     assert "voice: heard" in r.text
+    assert "voice: heard readback" in r.text
     assert "confidence" in r.text
     assert "lowVoiceConfidenceThreshold" in r.text
     assert "voiceConfidenceIsLow" in r.text
@@ -255,6 +258,8 @@ def test_roxy_live_page():
     assert "Roxy, dictation mode" in r.text
     assert "Roxy, enviar" in r.text
     assert "Roxy, send it" in r.text
+    assert "Roxy, que escuchaste" in r.text
+    assert "Roxy, what did you hear" in r.text
     assert "Roxy, corrige borrador comprar SPY" in r.text
     assert "Roxy, replace draft with buy SPY" in r.text
     assert "Roxy, estado de voz" in r.text
@@ -296,6 +301,9 @@ def test_roxy_live_page():
     assert "Draft corrected." in r.text
     assert "No lo envio todavia: confianza de voz " in r.text
     assert "I am not sending it yet: voice confidence " in r.text
+    assert "Escuche: " in r.text
+    assert "I heard: " in r.text
+    assert "Todavia no tengo una frase escuchada" in r.text
     assert "Esto parece una instruccion de ejecucion." in r.text
     assert "This sounds like an execution instruction." in r.text
     assert "Enviando borrador." in r.text
