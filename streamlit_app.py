@@ -5146,6 +5146,21 @@ def build_professional_price_chart(
         latest_candle_range = safe_float(latest_badge_row.get("candle_range_pct"))
         latest_candle_body = safe_float(latest_badge_row.get("candle_body_pct"))
         latest_relative_volume = safe_float(latest_badge_row.get("relative_volume"))
+        latest_ema9 = safe_float(latest_badge_row.get("ema9"))
+        latest_sma20 = safe_float(latest_badge_row.get("sma20"))
+        latest_sma200 = safe_float(latest_badge_row.get("sma200"))
+        latest_ma_stack = "Medias incompletas"
+        if all(value is not None for value in [latest_ema9, latest_sma20, latest_sma200]):
+            if latest_badge_price >= latest_ema9 >= latest_sma20 >= latest_sma200:
+                latest_ma_stack = "Stack alcista completo"
+            elif latest_badge_price <= latest_ema9 <= latest_sma20 <= latest_sma200:
+                latest_ma_stack = "Stack bajista completo"
+            elif latest_badge_price >= latest_sma20 >= latest_sma200:
+                latest_ma_stack = "Precio sobre tendencia"
+            elif latest_badge_price <= latest_sma20 <= latest_sma200:
+                latest_ma_stack = "Precio bajo tendencia"
+            else:
+                latest_ma_stack = "Medias mixtas"
         latest_badge_text = f"Ultimo {latest_badge_price:.2f}"
         if latest_badge_change is not None:
             latest_badge_text = f"{latest_badge_text} · {latest_badge_change:+.2%}"
@@ -5164,6 +5179,7 @@ def build_professional_price_chart(
                     "price": latest_badge_price,
                     "label": latest_badge_text,
                     "reading": latest_badge_reading,
+                    "ma_stack": latest_ma_stack,
                     "change_pct": latest_badge_change,
                     "range_pct": latest_candle_range,
                     "body_pct": latest_candle_body,
@@ -5189,6 +5205,7 @@ def build_professional_price_chart(
                 tooltip=[
                     alt.Tooltip("label:N", title="Ultima vela"),
                     alt.Tooltip("reading:N", title="Lectura"),
+                    alt.Tooltip("ma_stack:N", title="Estructura medias"),
                     alt.Tooltip("change_pct:Q", title="Cambio vela", format="+.2%"),
                     alt.Tooltip("range_pct:Q", title="Rango vela", format=".2%"),
                     alt.Tooltip("body_pct:Q", title="Cuerpo", format=".2%"),
