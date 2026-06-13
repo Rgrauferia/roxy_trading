@@ -4695,6 +4695,28 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
         hover_df["candle_range_pct"] = (high_values - low_values) / close_values
         hover_df["upper_wick_pct"] = (high_values - body_top).clip(lower=0) / close_values
         hover_df["lower_wick_pct"] = (body_bottom - low_values).clip(lower=0) / close_values
+        hover_df["candle_reading"] = [
+            candle_reading_label(
+                open_value,
+                high_value,
+                low_value,
+                close_value,
+                body_pct,
+                range_pct,
+                upper_wick_pct,
+                lower_wick_pct,
+            )
+            for open_value, high_value, low_value, close_value, body_pct, range_pct, upper_wick_pct, lower_wick_pct in zip(
+                hover_df["open"],
+                hover_df["high"],
+                hover_df["low"],
+                hover_df["close"],
+                hover_df["candle_body_pct"],
+                hover_df["candle_range_pct"],
+                hover_df["upper_wick_pct"],
+                hover_df["lower_wick_pct"],
+            )
+        ]
     if {"volume", "volume_sma20"}.issubset(hover_df.columns):
         volume_values = pd.to_numeric(hover_df["volume"], errors="coerce")
         volume_avg_values = pd.to_numeric(hover_df["volume_sma20"], errors="coerce").replace(0, pd.NA)
@@ -4715,6 +4737,8 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
         alt.Tooltip("low:Q", title="Mínimo", format=".2f"),
         alt.Tooltip("close:Q", title="Cierre", format=".2f"),
     ]
+    if "candle_reading" in hover_df.columns:
+        tooltips.append(alt.Tooltip("candle_reading:N", title="Lectura"))
     if "candle_change_pct" in hover_df.columns:
         tooltips.append(alt.Tooltip("candle_change_pct:Q", title="Cambio vela", format=".2%"))
     if "candle_range_pct" in hover_df.columns:
