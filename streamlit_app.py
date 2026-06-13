@@ -1674,6 +1674,48 @@ def render_professional_chart_block(
         )
         for item in visible_checks
     )
+    candle_tape_html = ""
+    if {"open", "high", "low", "close"}.issubset(clean_window.columns):
+        tape_items: list[str] = []
+        recent_candles = clean_window.tail(6).reset_index(drop=True)
+        previous_closes = pd.to_numeric(clean_window["close"], errors="coerce").shift(1).tail(6).reset_index(drop=True)
+        for row_idx, candle in recent_candles.iterrows():
+            candle_open = safe_float(candle.get("open"))
+            candle_high = safe_float(candle.get("high"))
+            candle_low = safe_float(candle.get("low"))
+            candle_close = safe_float(candle.get("close"))
+            previous_candle_close = safe_float(previous_closes.iloc[row_idx]) if row_idx < len(previous_closes) else None
+            tape_tone = "buy" if (candle_close or 0) >= (candle_open or candle_close or 0) else "avoid"
+            tape_change = None
+            if candle_close is not None and previous_candle_close not in (None, 0):
+                tape_change = (candle_close - previous_candle_close) / previous_candle_close
+            tape_range = None
+            if candle_high is not None and candle_low is not None and candle_close not in (None, 0):
+                tape_range = (candle_high - candle_low) / candle_close
+            tape_time = "-"
+            if "ts" in candle:
+                try:
+                    parsed_ts = pd.to_datetime(candle.get("ts"), errors="coerce")
+                    if pd.notna(parsed_ts):
+                        tape_time = pd.Timestamp(parsed_ts).strftime("%H:%M")
+                except Exception:
+                    tape_time = "-"
+            tape_items.append(
+                '<span class="chart-tape-candle chart-tape-{tone}"><em>{time}</em><strong>{close}</strong>'
+                "<small>{change} · R {range_pct}</small></span>".format(
+                    tone=html.escape(tape_tone),
+                    time=html.escape(tape_time),
+                    close=html.escape(num_display(candle_close, 2)),
+                    change=html.escape(pct_display(tape_change) if tape_change is not None else "-"),
+                    range_pct=html.escape(pct_display(tape_range) if tape_range is not None else "-"),
+                )
+            )
+        if tape_items:
+            candle_tape_html = (
+                '<section class="chart-candle-tape"><b>Últimas velas</b>'
+                + "".join(tape_items)
+                + "</section>"
+            )
     st.markdown(
         f"""
         <section class="chart-command-head">
@@ -1706,6 +1748,7 @@ def render_professional_chart_block(
           <span><i class="chart-legend-dot chart-legend-target"></i>Target</span>
           <span><i class="chart-legend-dot chart-legend-support"></i>Soporte / resistencia</span>
         </section>
+        {candle_tape_html}
         """,
         unsafe_allow_html=True,
     )
@@ -14221,6 +14264,16 @@ def main() -> None:
         .chart-check-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;border:1px solid rgba(148,163,184,.18);border-radius:8px;background:rgba(148,163,184,.14);overflow:hidden;margin:-2px 0 6px}
         .chart-legend-strip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid rgba(148,163,184,.16);border-radius:8px;background:rgba(2,6,23,.46);padding:6px 8px;margin:-2px 0 7px}
         .chart-legend-strip span{display:inline-flex;align-items:center;gap:5px;color:#cbd5e1;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.035em;white-space:nowrap}
+        .chart-candle-tape{display:grid;grid-template-columns:92px repeat(6,minmax(0,1fr));gap:1px;border:1px solid rgba(148,163,184,.16);border-radius:8px;background:rgba(148,163,184,.14);overflow:hidden;margin:-1px 0 8px}
+        .chart-candle-tape>b{display:flex;align-items:center;color:#bfdbfe;background:rgba(15,23,42,.92);padding:7px 8px;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.055em}
+        .chart-tape-candle{display:block;min-width:0;background:#0b1220;border-top:3px solid rgba(148,163,184,.32);padding:5px 7px}
+        .chart-tape-candle em{display:block;color:#94a3b8;font-size:9px;font-style:normal;font-weight:950;line-height:1;text-transform:uppercase}
+        .chart-tape-candle strong{display:block;color:#f8fafc;font-size:13px;line-height:1.05;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .chart-tape-candle small{display:block;color:#cbd5e1;font-size:9px;line-height:1.05;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .chart-tape-buy{border-top-color:#22c55e;background:rgba(21,93,62,.18)}
+        .chart-tape-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.20)}
+        @media (max-width:900px){.chart-candle-tape{grid-template-columns:repeat(3,minmax(0,1fr))}.chart-candle-tape>b{grid-column:1/-1}}
+        @media (max-width:600px){.chart-candle-tape{grid-template-columns:repeat(2,minmax(0,1fr))}}
         .chart-legend-dot{display:inline-block;width:9px;height:9px;border-radius:999px;box-shadow:0 0 0 2px rgba(15,23,42,.86)}
         .chart-legend-current{background:#f8fafc}.chart-legend-entry{background:#22c55e}.chart-legend-stop{background:#ef4444}.chart-legend-target{background:#a78bfa}.chart-legend-support{background:#22d3ee}
         .chart-check-pill{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#0b1220;padding:6px 8px;min-width:0;border-top:2px solid rgba(148,163,184,.28)}
