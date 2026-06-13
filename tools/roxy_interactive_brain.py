@@ -899,6 +899,17 @@ def _first_news_item_from_brief(brief: dict[str, Any]) -> tuple[str, str, str]:
     return "", "", ""
 
 
+def _news_detail_parts(source: str, timestamp: str, language: str = "es") -> list[str]:
+    parts = []
+    if source:
+        parts.append(source)
+    if timestamp:
+        parts.append(timestamp)
+    else:
+        parts.append("timestamp missing" if language == "en" else "hora no disponible")
+    return parts
+
+
 def _keyword_hits(text: str, terms: Iterable[str]) -> list[str]:
     normalized = f" {str(text or '').lower()} "
     hits = []
@@ -2862,7 +2873,7 @@ class RoxyInteractiveBrain:
             for item in news_items[:3]:
                 title, source, timestamp = _news_item_fields(item)
                 if title:
-                    details = ", ".join(part for part in (source, timestamp) if part)
+                    details = ", ".join(_news_detail_parts(source, timestamp, language))
                     headlines.append(f"{title}" + (f" ({details})" if details else ""))
             if headlines:
                 prefix = "Relevant news: " if language == "en" else "Noticias relevantes: "
@@ -2905,8 +2916,10 @@ class RoxyInteractiveBrain:
         headline = _extract_headline_from_query(query)
         source = ""
         timestamp = ""
+        from_local_brief = False
         if not headline:
             headline, source, timestamp = _first_news_item_from_brief(brief)
+            from_local_brief = bool(headline)
 
         if not headline:
             if language == "en":
@@ -2938,7 +2951,12 @@ class RoxyInteractiveBrain:
         sentiment, cues = _news_sentiment(headline)
         symbol = _extract_symbol(headline) or _extract_symbol(query)
         source_text = f" Source: {source}." if source and language == "en" else f" Fuente: {source}." if source else ""
-        time_text = f" Time: {timestamp}." if timestamp and language == "en" else f" Hora: {timestamp}." if timestamp else ""
+        if timestamp:
+            time_text = f" Time: {timestamp}." if language == "en" else f" Hora: {timestamp}."
+        elif from_local_brief:
+            time_text = " Time: missing from local brief." if language == "en" else " Hora: no disponible en el brief local."
+        else:
+            time_text = ""
         cue_text = ", ".join(cues) if cues else ("no strong keyword cue" if language == "en" else "sin palabra clave fuerte")
         opportunity_context = self._news_opportunity_context(symbol, sentiment, language)
 
@@ -2982,6 +3000,8 @@ class RoxyInteractiveBrain:
             "ask_latest_opportunity",
             "paste_source",
         )
+        if from_local_brief and not timestamp:
+            actions = ("verify_news_timestamp", *actions)
         return RoxyBrainReply(
             intent="news_impact",
             reply=reply,

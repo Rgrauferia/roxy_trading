@@ -75,6 +75,31 @@ def test_roxy_brain_lists_local_news_with_source_and_timestamp(tmp_path):
     assert "(LocalDesk, 2026-06-13T08:10:00-04:00)" in response.reply
 
 
+def test_roxy_brain_flags_local_news_without_timestamp(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "news": [
+                    {
+                        "title": "AAPL supplier warns about soft demand",
+                        "source": "LocalDesk",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("noticias")
+
+    assert response.intent == "news"
+    assert response.language == "es"
+    assert "AAPL supplier warns about soft demand" in response.reply
+    assert "(LocalDesk, hora no disponible)" in response.reply
+
+
 def test_roxy_brain_requires_headline_for_news_impact(tmp_path):
     brain = RoxyInteractiveBrain(brief_path=tmp_path / "brief.json", memory_path=tmp_path / "memory.json")
 
@@ -207,6 +232,32 @@ def test_roxy_brain_analyzes_news_impact_from_local_brief(tmp_path):
     assert "Tone: bearish" in response.reply
     assert "Source: LocalTest" in response.reply
     assert "Time: 2026-06-13T09:30:00-04:00" in response.reply
+
+
+def test_roxy_brain_flags_news_impact_from_local_brief_without_timestamp(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "market_news": [
+                    {
+                        "headline": "MSFT warns cloud demand is slowing",
+                        "source": "LocalTest",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("news impact")
+
+    assert response.intent == "news_impact"
+    assert response.language == "en"
+    assert "Source: LocalTest" in response.reply
+    assert "Time: missing from local brief" in response.reply
+    assert "verify_news_timestamp" in response.suggested_actions
 
 
 def test_roxy_brain_reads_latest_opportunity_from_brief(tmp_path):
