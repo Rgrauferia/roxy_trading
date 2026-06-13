@@ -288,6 +288,34 @@ def test_roxy_brain_flags_news_impact_from_local_brief_without_timestamp(tmp_pat
     assert "verify_news_timestamp" in response.suggested_actions
 
 
+def test_roxy_brain_prioritizes_refresh_for_stale_news_impact(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    published_at = (datetime.now(timezone.utc) - timedelta(hours=4)).isoformat()
+    brief_path.write_text(
+        json.dumps(
+            {
+                "market_news": [
+                    {
+                        "headline": "NVDA rises after analyst upgrade",
+                        "source": "LocalTest",
+                        "published_at": published_at,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("news impact")
+
+    assert response.intent == "news_impact"
+    assert response.priority == "high"
+    assert f"Time: {published_at} (stale" in response.reply
+    assert "refresh_news_source" in response.suggested_actions
+    assert "verify_news_timestamp" in response.suggested_actions
+
+
 def test_roxy_brain_reads_latest_opportunity_from_brief(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(

@@ -928,6 +928,14 @@ def _news_timestamp_freshness(timestamp: str, language: str = "es") -> str:
     return f"{label} {age_text}"
 
 
+def _news_timestamp_needs_refresh(timestamp: str) -> bool:
+    parsed = _parse_iso_datetime(timestamp)
+    if parsed is None:
+        return True
+    age_minutes = max(0.0, (datetime.now(timezone.utc) - parsed).total_seconds() / 60)
+    return age_minutes > 60
+
+
 def _keyword_hits(text: str, terms: Iterable[str]) -> list[str]:
     normalized = f" {str(text or '').lower()} "
     hits = []
@@ -2981,6 +2989,7 @@ class RoxyInteractiveBrain:
             time_text = ""
         cue_text = ", ".join(cues) if cues else ("no strong keyword cue" if language == "en" else "sin palabra clave fuerte")
         opportunity_context = self._news_opportunity_context(symbol, sentiment, language)
+        stale_local_news = bool(from_local_brief and timestamp and _news_timestamp_needs_refresh(timestamp))
 
         if language == "en":
             sentiment_label = {"bullish": "bullish", "bearish": "bearish", "neutral": "neutral"}[sentiment]
@@ -3024,11 +3033,14 @@ class RoxyInteractiveBrain:
         )
         if from_local_brief and not timestamp:
             actions = ("verify_news_timestamp", *actions)
+        elif stale_local_news:
+            actions = ("refresh_news_source", "verify_news_timestamp", *actions)
         return RoxyBrainReply(
             intent="news_impact",
             reply=reply,
             emotion="analytical",
             safety_level="guarded",
+            priority="high" if stale_local_news else "normal",
             suggested_actions=actions,
         )
 
