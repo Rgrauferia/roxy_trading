@@ -5016,6 +5016,55 @@ def build_professional_price_chart(
             tooltip=candle_tooltips,
         )
     )
+    latest_badge_row = chart_window.iloc[-1]
+    latest_badge_price = safe_float(latest_badge_row.get("close"))
+    if latest_badge_price is not None:
+        latest_badge_change = safe_float(latest_badge_row.get("candle_change_pct"))
+        latest_badge_text = f"Ultimo {latest_badge_price:.2f}"
+        if latest_badge_change is not None:
+            latest_badge_text = f"{latest_badge_text} · {latest_badge_change:+.2%}"
+        latest_badge_df = pd.DataFrame(
+            [
+                {
+                    "ts": latest_badge_row.get("ts"),
+                    "price": latest_badge_price,
+                    "label": latest_badge_text,
+                    "tone": "buy" if latest_badge_change is not None and latest_badge_change >= 0 else "avoid",
+                }
+            ]
+        )
+        layers.append(
+            alt.Chart(latest_badge_df)
+            .mark_point(filled=True, size=72, stroke="#020617", strokeWidth=1.2)
+            .encode(
+                x=alt.X("ts:T", title="Tiempo"),
+                y=alt.Y("price:Q", title="Precio", scale=price_scale),
+                color=alt.Color(
+                    "tone:N",
+                    legend=None,
+                    scale=alt.Scale(domain=["buy", "avoid"], range=["#22c55e", "#ef4444"]),
+                ),
+                tooltip=[
+                    alt.Tooltip("label:N", title="Ultima vela"),
+                    alt.Tooltip("price:Q", title="Precio", format=".2f"),
+                    alt.Tooltip("ts:T", title="Tiempo"),
+                ],
+            )
+        )
+        layers.append(
+            alt.Chart(latest_badge_df)
+            .mark_text(align="left", dx=10, dy=-10, fontSize=12, fontWeight="bold")
+            .encode(
+                x=alt.X("ts:T", title="Tiempo"),
+                y=alt.Y("price:Q", title="Precio", scale=price_scale),
+                text="label:N",
+                color=alt.Color(
+                    "tone:N",
+                    legend=None,
+                    scale=alt.Scale(domain=["buy", "avoid"], range=["#bbf7d0", "#fecaca"]),
+                ),
+            )
+        )
     layers.extend(build_price_hover_layers(chart_window, price_scale))
     chart_symbol = text_display(symbol or brief.get("symbol") or confluence.get("symbol") or setup.get("symbol"))
     layers.extend(build_alpaca_paper_marker_layers(chart_window, paper_snapshot, chart_symbol, price_scale))
