@@ -227,6 +227,11 @@ class RoxyConversationMemory:
                 "needs_live_source": response.needs_live_source,
                 "suggested_actions": list(response.suggested_actions),
                 "active_symbol": response.active_symbol or _extract_symbol(f"{query} {response.reply}") or "",
+                "active_market": response.active_market,
+                "active_timeframe": response.active_timeframe,
+                "action_url": response.action_url,
+                "action_label": response.action_label,
+                "action_kind": response.action_kind,
             }
         )
         sessions[session_key] = turns[-self.max_turns :]
@@ -1154,6 +1159,19 @@ def _active_conversation_context(recent_turns: list[dict[str, Any]]) -> dict[str
             break
     if not active_symbol:
         active_symbol = _last_symbol_from_turns(recent_turns) or ""
+    active_market = ""
+    active_timeframe = ""
+    action_url = ""
+    action_label = ""
+    action_kind = ""
+    for turn in reversed(recent_turns):
+        active_market = _safe_text(turn.get("active_market"))
+        active_timeframe = _safe_text(turn.get("active_timeframe"))
+        action_url = _safe_text(turn.get("action_url"))
+        action_label = _safe_text(turn.get("action_label"))
+        action_kind = _safe_text(turn.get("action_kind"))
+        if active_market or active_timeframe or action_url or action_label or action_kind:
+            break
     active_topic = ""
     for turn in reversed(recent_turns):
         query = _redact_sensitive_text(_safe_text(turn.get("query")))[:120]
@@ -1165,6 +1183,11 @@ def _active_conversation_context(recent_turns: list[dict[str, Any]]) -> dict[str
     return {
         "active_intent": active_intent,
         "active_symbol": active_symbol,
+        "active_market": active_market,
+        "active_timeframe": active_timeframe,
+        "action_url": action_url,
+        "action_label": action_label,
+        "action_kind": action_kind,
         "active_topic": active_topic,
         "last_safety_level": last_safety_level,
         "needs_confirmation": needs_confirmation,
@@ -1186,6 +1209,7 @@ def _next_best_actions_for_context(intent: str, safety_level: str, has_symbol: b
         "opportunity_risk",
         "technical_indicators",
         "support_resistance",
+        "trading_dashboard_handoff",
         "trade_readiness",
         "pre_trade_preflight",
         "trade_ticket",

@@ -2577,6 +2577,43 @@ def test_roxy_memory_persists_language_actions_and_active_symbol(tmp_path):
     assert state["active_context"]["next_best_actions"][:3] == ["trade_readiness", "monitoring_plan", "position_size"]
 
 
+def test_roxy_memory_persists_trading_dashboard_handoff_context(tmp_path):
+    memory = RoxyConversationMemory(path=tmp_path / "conversation.json")
+    memory.append(
+        "demo",
+        "abre roxy trade para ETH 4h",
+        RoxyBrainReply(
+            reply="Trading page ready: ETH/USD, crypto, 4h.",
+            intent="trading_dashboard_handoff",
+            language="en",
+            safety_level="guarded",
+            suggested_actions=("trade_readiness", "entry_checklist", "position_size"),
+            active_symbol="ETH/USD",
+            active_market="crypto",
+            active_timeframe="4h",
+            action_url="http://127.0.0.1:8501/?view=Activo&symbol=ETH%2FUSD&market=crypto&tf=4h",
+            action_label="Open Roxy Trade",
+            action_kind="local_trading_dashboard",
+        ),
+    )
+
+    state = memory.session_state("demo")
+    turn = state["recent_turns"][-1]
+    active_context = state["active_context"]
+
+    assert turn["active_symbol"] == "ETH/USD"
+    assert turn["active_market"] == "crypto"
+    assert turn["active_timeframe"] == "4h"
+    assert turn["action_url"].endswith("symbol=ETH%2FUSD&market=crypto&tf=4h")
+    assert active_context["active_intent"] == "trading_dashboard_handoff"
+    assert active_context["active_symbol"] == "ETH/USD"
+    assert active_context["active_market"] == "crypto"
+    assert active_context["active_timeframe"] == "4h"
+    assert active_context["action_label"] == "Open Roxy Trade"
+    assert active_context["action_kind"] == "local_trading_dashboard"
+    assert active_context["next_best_actions"][:3] == ["trade_readiness", "monitoring_plan", "position_size"]
+
+
 def test_roxy_memory_marks_critical_context_as_confirmation_required(tmp_path):
     memory = RoxyConversationMemory(path=tmp_path / "conversation.json")
     memory.append(
