@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Optional
 
@@ -72,6 +73,29 @@ def speakable_timeframe(value: str, language: str = "es") -> str:
             unit = es_singular if amount == "1" else es_plural
         return f"{amount} {unit}"
     return raw
+
+
+def speakable_trading_text(text: str, language: str = "es") -> str:
+    def expand(match: Any) -> str:
+        return speakable_timeframe(f"{match.group(1)}{match.group(2)}", language)
+
+    spoken = str(text or "")
+    spoken = re.sub(
+        r"\b(\d+)\s*([mhdMHD])\s*[/,+-]?\s*(\d+)\s*([mhdMHD])\b",
+        lambda match: (
+            f"{speakable_timeframe(match.group(1) + match.group(2), language)} / "
+            f"{speakable_timeframe(match.group(3) + match.group(4), language)}"
+        ),
+        spoken,
+    )
+    spoken = re.sub(r"\b(\d+)\s*([mhdMHD])\b", expand, spoken)
+    spoken = re.sub(
+        r"\b(\d+)\s*min\b",
+        lambda match: speakable_timeframe(match.group(1) + "m", language),
+        spoken,
+        flags=re.I,
+    )
+    return spoken
 
 
 def _latest_opportunity(symbol: str | None = None) -> dict[str, Any]:

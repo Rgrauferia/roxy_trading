@@ -3370,12 +3370,18 @@ def roxy_live_page():
       const units = language === "en"
         ? {m: ["minute", "minutes"], h: ["hour", "hours"], d: ["day", "days"]}
         : {m: ["minuto", "minutos"], h: ["hora", "horas"], d: ["dia", "dias"]};
+      const expandTimeframe = (amount, unitKey, fallback) => {
+        const key = String(unitKey || "").toLowerCase();
+        const labels = units[key];
+        if (!labels) return fallback;
+        return amount + " " + (String(amount) === "1" ? labels[0] : labels[1]);
+      };
       return String(text || "")
+        .replace(/\b(\d+)\s*([mhd])\s*[/,+-]?\s*(\d+)\s*([mhd])\b/gi, (match, firstAmount, firstUnit, secondAmount, secondUnit) => {
+          return expandTimeframe(firstAmount, firstUnit, match) + " / " + expandTimeframe(secondAmount, secondUnit, match);
+        })
         .replace(/\b(\d+)\s*([mhd])\b/gi, (_match, amount, unitKey) => {
-          const key = String(unitKey || "").toLowerCase();
-          const labels = units[key];
-          if (!labels) return _match;
-          return amount + " " + (String(amount) === "1" ? labels[0] : labels[1]);
+          return expandTimeframe(amount, unitKey, _match);
         })
         .replace(/\b(\d+)\s*min\b/gi, (_match, amount) => {
           const label = language === "en"

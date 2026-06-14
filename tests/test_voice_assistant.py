@@ -198,3 +198,15 @@ def test_voice_assistant_speakable_timeframe_expands_trading_shorthand():
     assert voice_assistant.speakable_timeframe("2h", "es") == "2 horas"
     assert voice_assistant.speakable_timeframe("15m", "en") == "15 minutes"
     assert voice_assistant.speakable_timeframe("1h", "en") == "1 hour"
+
+
+def test_voice_assistant_speakable_trading_text_expands_compact_timeframes():
+    text = "Falta 15m a la entrada, wait 2H4h valida, datos 30min."
+
+    spoken = voice_assistant.speakable_trading_text(text, "es")
+
+    assert "15 minutos a la entrada" in spoken
+    assert "2 horas / 4 horas valida" in spoken
+    assert "30 minutos" in spoken
+    assert "15m" not in spoken
+    assert "2H4h" not in spoken

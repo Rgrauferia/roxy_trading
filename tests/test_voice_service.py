@@ -680,6 +680,9 @@ def test_roxy_live_page():
     assert 'ensureReceptionistVoiceReady($("language").value || "es")' in r.text
     assert 'ensureReceptionistVoiceReady($("language").value || "es", {save: true})' in r.text
     assert "speechFriendlyText" in r.text
+    assert "expandTimeframe" in r.text
+    assert "firstAmount, firstUnit, secondAmount, secondUnit" in r.text
+    assert ' + " / " + expandTimeframe(secondAmount, secondUnit, match)' in r.text
     assert "15 minutos" not in r.text
     assert "new SpeechSynthesisUtterance(speechFriendlyText(text, lang))" in r.text
     assert r.text.index("const voice = ensureReceptionistVoiceReady(lang") < r.text.index(
