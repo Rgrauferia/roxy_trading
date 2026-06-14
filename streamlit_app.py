@@ -1877,10 +1877,12 @@ def render_professional_chart_block(
 
     def add_technical_item(label: str, value: str, detail: str, tone: str) -> None:
         technical_tones.append(tone)
+        title = f"{label}: {value} · {detail}"
         technical_items.append(
-            '<span class="chart-tech-pill chart-tech-{tone}"><em>{label}</em><strong>{value}</strong>'
+            '<span class="chart-tech-pill chart-tech-{tone}" title="{title}"><em>{label}</em><strong>{value}</strong>'
             "<small>{detail}</small></span>".format(
                 tone=html.escape(tone),
+                title=html.escape(title),
                 label=html.escape(label),
                 value=html.escape(value),
                 detail=html.escape(detail),
