@@ -5300,7 +5300,11 @@ def build_professional_price_chart(
                 latest_room_to_high = (visible_high - latest_badge_price) / latest_badge_price
                 latest_room_above_low = (latest_badge_price - visible_low) / latest_badge_price
         latest_badge_tone = "buy" if latest_badge_change is not None and latest_badge_change >= 0 else "avoid"
-        if latest_close_position_state == "Cierre fuerte":
+        if latest_wick_pressure == "Demanda abajo":
+            latest_badge_tone = "buy"
+        elif latest_wick_pressure == "Oferta arriba":
+            latest_badge_tone = "avoid"
+        elif latest_close_position_state == "Cierre fuerte":
             latest_badge_tone = "buy"
         elif latest_close_position_state == "Cierre debil":
             latest_badge_tone = "avoid"
