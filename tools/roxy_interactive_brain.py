@@ -563,6 +563,25 @@ def _is_knowledge_query(text: str) -> bool:
     return bool(tokens & {"lee", "read", "documento", "document", "manual"})
 
 
+def _is_sports_result_query(text: str) -> bool:
+    normalized = str(text or "").lower()
+    sports_terms = {
+        "partido",
+        "resultado",
+        "marcador",
+        "futbol",
+        "fútbol",
+        "soccer",
+        "football",
+        "game",
+        "score",
+        "match",
+    }
+    team_terms = {"brazil", "brasil", "morocco", "maruecos"}
+    tokens = set(re.findall(r"[a-záéíóúñ]+", normalized))
+    return bool(tokens & sports_terms) and (bool(tokens & team_terms) or " vs " in normalized or " con " in normalized)
+
+
 def _is_crypto_market_query(text: str) -> bool:
     normalized = str(text or "").lower().strip()
     if normalized in {"crypto", "cripto", "criptomonedas", "cryptocurrency", "cryptocurrencies"}:
@@ -1645,8 +1664,7 @@ def _symbols_from_query(query: str) -> list[str]:
 def _extract_weather_location(query: str, profile: dict[str, Any]) -> str:
     text = _safe_text(query)
     patterns = (
-        r"(?i)\b(?:clima|tiempo|temperatura|pronostico|pronóstico)\s+(?:en|de|para)\s+([A-Za-z0-9, .'-]{2,80})",
-        r"(?i)\b(?:weather|forecast|temperature)\s+(?:in|for)\s+([A-Za-z0-9, .'-]{2,80})",
+        r"(?i)\b(?:clima|tiempo|temperatura|pronostico|pronóstico|weather|forecast|temperature)\s+(?:en|de|para|in|for)\s+([A-Za-z0-9, .'-]{2,80})",
     )
     for pattern in patterns:
         match = re.search(pattern, text)
@@ -2010,6 +2028,10 @@ class RoxyInteractiveBrain:
         )
         if _contains_any(lq, weather_terms):
             response = self._weather_reply(q, profile, language)
+            return finish(response)
+
+        if _is_sports_result_query(lq):
+            response = self._sports_result_reply(q, language)
             return finish(response)
 
         if _contains_any(lq, news_summary_terms):
@@ -3257,6 +3279,27 @@ class RoxyInteractiveBrain:
             emotion="informative",
             safety_level="guarded",
             suggested_actions=("ask_market_summary", "ask_latest_opportunity"),
+        )
+
+    def _sports_result_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
+        if language == "en":
+            reply = (
+                "I understand this as a live sports-result question, but no approved live sports source is connected yet. "
+                "I will not invent a score. Connect a sports/news source or give me the source and timestamp, and I can read it back."
+            )
+        else:
+            reply = (
+                "Entiendo esto como una pregunta de resultado deportivo en vivo, pero todavia no tengo una fuente deportiva live aprobada. "
+                "No voy a inventar el marcador. Conecta una fuente de deportes/noticias o dame fuente y hora, y lo puedo leer."
+            )
+        return RoxyBrainReply(
+            intent="sports_result",
+            reply=reply,
+            avatar_state="waiting",
+            emotion="cautious",
+            needs_live_source=True,
+            safety_level="normal",
+            suggested_actions=("connect_sports_source", "ask_news_summary"),
         )
 
     def _brief_news_lines(self, language: str = "es", limit: int = 3) -> tuple[list[str], bool]:

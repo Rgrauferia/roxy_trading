@@ -158,6 +158,39 @@ def test_roxy_brain_weather_reports_missing_key(monkeypatch, tmp_path):
     assert "OPENWEATHER_API_KEY" in response.reply
 
 
+def test_roxy_brain_weather_accepts_mixed_language_location(monkeypatch, tmp_path):
+    captured = {}
+
+    def fake_weather(location):
+        captured["location"] = location
+        return roxy_brain_module.weather_service.WeatherSnapshot(
+            status="missing_key",
+            location=location,
+            message="Set OPENWEATHER_API_KEY",
+        )
+
+    monkeypatch.setattr(roxy_brain_module.weather_service, "fetch_current_weather", fake_weather)
+    brain = RoxyInteractiveBrain(brief_path=tmp_path / "brief.json", memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("weather de Orlando Florida")
+
+    assert response.intent == "weather"
+    assert captured["location"] == "Orlando Florida"
+    assert "Orlando Florida" in response.reply
+
+
+def test_roxy_brain_sports_result_requires_live_source(tmp_path):
+    brain = RoxyInteractiveBrain(brief_path=tmp_path / "brief.json", memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("resultado del partido futbol Brazil con Morocco")
+
+    assert response.intent == "sports_result"
+    assert response.needs_live_source is True
+    assert response.safety_level == "normal"
+    assert "fuente deportiva live" in response.reply
+    assert "connect_sports_source" in response.suggested_actions
+
+
 def test_roxy_market_summary_includes_live_signal_state(tmp_path):
     brief_path = tmp_path / "brief.json"
     brief_path.write_text(
