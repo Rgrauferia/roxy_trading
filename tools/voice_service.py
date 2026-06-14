@@ -2044,12 +2044,86 @@ def roxy_live_page():
         + "&tf=" + encodeURIComponent(timeframe);
     }
 
-    function openActiveTradeDashboard() {
+    function tradeCommandTimeframe(command) {
+      const normalized = normalizeSpeech(command);
+      if (/\b15m\b|\b15\s*min\b|\b15\s*minutos\b/.test(normalized)) return "15m";
+      if (/\b2h\b|\b2\s*horas\b/.test(normalized)) return "2h";
+      if (/\b4h\b|\b4\s*horas\b/.test(normalized)) return "4h";
+      if (/\b1d\b|\bdiario\b|\bdaily\b/.test(normalized)) return "1d";
+      if (/\b1h\b|\b1\s*hora\b/.test(normalized)) return "1h";
+      return "";
+    }
+
+    function tradeCommandSymbol(command) {
+      const normalized = normalizeSpeech(command);
+      const aliases = {
+        spy: "SPY",
+        qqq: "QQQ",
+        nvda: "NVDA",
+        nvidia: "NVDA",
+        aapl: "AAPL",
+        apple: "AAPL",
+        tsla: "TSLA",
+        tesla: "TSLA",
+        msft: "MSFT",
+        microsoft: "MSFT",
+        meta: "META",
+        btc: "BTC/USD",
+        bitcoin: "BTC/USD",
+        eth: "ETH/USD",
+        ethereum: "ETH/USD",
+        sol: "SOL/USD",
+        solana: "SOL/USD",
+        doge: "DOGE/USD"
+      };
+      const ignored = new Set([
+        "abrir", "abre", "open", "roxy", "trade", "trading", "dashboard", "pagina", "pantalla",
+        "para", "por", "de", "el", "la", "en", "for", "the", "page", "operar", "activo",
+        "stock", "crypto", "cripto", "acciones", "mercado", "market", "timeframe"
+      ]);
+      for (const word of normalized.split(" ").filter(Boolean)) {
+        if (aliases[word]) return aliases[word];
+        if (/^[a-z]{1,6}$/.test(word) && !ignored.has(word)) return word.toUpperCase();
+      }
+      return "";
+    }
+
+    function tradeCommandContext(command, baseCtx) {
+      const ctx = Object.assign({}, baseCtx || {});
+      const symbol = tradeCommandSymbol(command);
+      const timeframe = tradeCommandTimeframe(command);
+      const normalized = normalizeSpeech(command);
+      const market = normalized.includes("crypto") || normalized.includes("cripto")
+        ? "crypto"
+        : normalized.includes("stock") || normalized.includes("acciones")
+          ? "stock"
+          : "";
+      if (symbol) ctx.active_symbol = symbol;
+      if (timeframe) ctx.active_timeframe = timeframe;
+      if (market) ctx.active_market = market;
+      if (symbol && symbol.includes("/")) ctx.active_market = "crypto";
+      if ((symbol || timeframe || market) && ctx.action_url) ctx.action_url = "";
+      return ctx;
+    }
+
+    function openActiveTradeDashboard(command) {
       const language = lastState.language || $("language").value || "es";
-      const ctx = activeSessionContext();
+      const ctx = tradeCommandContext(command || "", activeSessionContext());
       renderActiveContext(ctx);
       const url = localTradeDashboardUrl(ctx);
       const label = ctx.action_label || localizedText("Abrir Roxy Trade", "Open Roxy Trade", language);
+      ctx.action_url = url;
+      ctx.action_label = label;
+      ctx.action_kind = "local_trading_dashboard";
+      lastState = Object.assign({}, lastState || {}, {
+        active_symbol: ctx.active_symbol || "",
+        active_market: ctx.active_market || "",
+        active_timeframe: ctx.active_timeframe || "",
+        action_url: url,
+        action_label: label,
+        action_kind: ctx.action_kind,
+      });
+      renderActiveContext(ctx);
       const opened = window.open(url, "_blank", "noopener");
       const symbol = ctx.active_symbol || $("defaultSymbol").value || "SPY";
       const marketText = [ctx.active_market, ctx.active_timeframe].filter(Boolean).join(" · ");
@@ -2626,7 +2700,7 @@ def roxy_live_page():
         "open trade", "open roxy trade", "open trading dashboard", "open trade dashboard",
         "open trading page", "open trade page"
       ])) {
-        return openActiveTradeDashboard();
+        return openActiveTradeDashboard(command);
       }
       if (commandMatches(command, [
         "handoff operativo", "handoff operacional", "pase operativo", "pase a operaciones",

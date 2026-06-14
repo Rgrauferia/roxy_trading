@@ -187,11 +187,20 @@ def test_roxy_live_page():
     assert "activeSessionContext" in r.text
     assert "voice: session brief" in r.text
     assert "localTradeDashboardUrl" in r.text
+    assert "tradeCommandTimeframe" in r.text
+    assert "tradeCommandSymbol" in r.text
+    assert "tradeCommandContext" in r.text
     assert "openActiveTradeDashboard" in r.text
     assert "window.open(url, \"_blank\", \"noopener\")" in r.text
     assert "voice: open trade dashboard" in r.text
     assert '"abrir roxy trade", "abre roxy trade"' in r.text
     assert '"open trade", "open roxy trade", "open trading dashboard"' in r.text
+    assert 'nvidia: "NVDA"' in r.text
+    assert 'ethereum: "ETH/USD"' in r.text
+    assert 'if (symbol) ctx.active_symbol = symbol' in r.text
+    assert 'if (timeframe) ctx.active_timeframe = timeframe' in r.text
+    assert 'lastState = Object.assign({}, lastState || {}, {' in r.text
+    assert "return openActiveTradeDashboard(command)" in r.text
     assert "encodeURIComponent(symbol)" in r.text
     assert "operationalHandoffPrompt" in r.text
     assert "speakOperationalHandoffBrief" in r.text
