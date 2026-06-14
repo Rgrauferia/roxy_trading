@@ -5841,6 +5841,26 @@ def build_professional_oscillator_chart(chart_df: pd.DataFrame) -> alt.LayerChar
                 tooltip=[alt.Tooltip("zone:N", title="Zona RSI")],
             )
         )
+        rsi_zone_label_df = pd.DataFrame(
+            [
+                {"ts": rsi_end, "level": 85, "zone": "Sobrecompra"},
+                {"ts": rsi_end, "level": 15, "zone": "Sobreventa"},
+            ]
+        )
+        layers.append(
+            alt.Chart(rsi_zone_label_df)
+            .mark_text(align="right", dx=-8, fontSize=10, fontWeight="bold")
+            .encode(
+                x=alt.X("ts:T", title="Tiempo", scale=time_scale),
+                y=alt.Y("level:Q", title="RSI 14", scale=alt.Scale(domain=[0, 100])),
+                text="zone:N",
+                color=alt.Color(
+                    "zone:N",
+                    legend=None,
+                    scale=alt.Scale(domain=["Sobrecompra", "Sobreventa"], range=["#f59e0b", "#22c55e"]),
+                ),
+            )
+        )
         rsi_base = alt.Chart(rsi_df).encode(x=alt.X("ts:T", title="Tiempo", scale=time_scale))
         layers.append(
             rsi_base.mark_line(color="#38bdf8", size=1.8).encode(
