@@ -325,10 +325,27 @@ def session_overview_from_memory(overview: dict[str, Any], language: str = "es")
             session_id = str(row.get("session_id") or "local")
             turns = int(row.get("turn_count", 0) or 0)
             intent = str(row.get("last_intent") or "-")
+            symbol = str(row.get("active_symbol") or "").strip()
+            market = str(row.get("active_market") or "").strip()
+            timeframe = str(row.get("active_timeframe") or "").strip()
+            context = " ".join(part for part in (symbol, market, timeframe) if part)
+            handoff_ready = bool(str(row.get("action_url") or "").strip())
             if language == "en":
-                parts.append(f"{session_id}: {turns} turn(s), last topic {intent}")
+                details = [f"{turns} turn(s)"]
+                if context:
+                    details.append(context)
+                details.append(f"last topic {intent}")
+                if handoff_ready:
+                    details.append("trade handoff ready")
+                parts.append(f"{session_id}: {', '.join(details)}")
             else:
-                parts.append(f"{session_id}: {turns} turno(s), ultimo tema {intent}")
+                details = [f"{turns} turno(s)"]
+                if context:
+                    details.append(context)
+                details.append(f"ultimo tema {intent}")
+                if handoff_ready:
+                    details.append("handoff trade listo")
+                parts.append(f"{session_id}: {', '.join(details)}")
         prompt = (
             "Say: Roxy, switch session to "
             if language == "en"

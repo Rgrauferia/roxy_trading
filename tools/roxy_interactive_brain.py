@@ -188,12 +188,20 @@ class RoxyConversationMemory:
                 continue
             total_turns += len(turns)
             last_turn = turns[-1] if turns and isinstance(turns[-1], dict) else {}
+            active_context = _active_conversation_context([turn for turn in turns if isinstance(turn, dict)])
             rows.append(
                 {
                     "session_id": _safe_session_id(session_id),
                     "turn_count": len(turns),
                     "last_intent": _safe_text(last_turn.get("intent")),
                     "last_at": _safe_text(last_turn.get("at")),
+                    "last_safety_level": _safe_text(last_turn.get("safety_level")),
+                    "active_symbol": _safe_text(active_context.get("active_symbol")).upper(),
+                    "active_market": _safe_text(active_context.get("active_market")),
+                    "active_timeframe": _safe_text(active_context.get("active_timeframe")),
+                    "action_url": _safe_text(active_context.get("action_url")),
+                    "action_label": _safe_text(active_context.get("action_label")),
+                    "action_kind": _safe_text(active_context.get("action_kind")),
                 }
             )
         rows.sort(key=lambda row: row.get("last_at") or "", reverse=True)

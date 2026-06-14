@@ -2918,6 +2918,32 @@ def test_roxy_conversation_memory_prunes_old_sessions(tmp_path):
     assert "session-a" not in sessions
 
 
+def test_roxy_conversation_memory_overview_includes_operational_context(tmp_path):
+    memory = RoxyConversationMemory(path=tmp_path / "conversation.json")
+    response = RoxyBrainReply(
+        reply="Pagina operativa lista: NVDA, stock, 15m.",
+        intent="trading_dashboard_handoff",
+        safety_level="guarded",
+        active_symbol="NVDA",
+        active_market="stock",
+        active_timeframe="15m",
+        action_url="http://127.0.0.1:8501/?view=Activo&symbol=NVDA&market=stock&tf=15m",
+        action_label="Abrir Roxy Trade",
+        action_kind="local_trading_dashboard",
+    )
+
+    memory.append("scalping", "abre roxy trade para NVDA 15m", response)
+    overview = memory.overview(limit=3)
+
+    row = overview["recent_sessions"][0]
+    assert row["session_id"] == "scalping"
+    assert row["active_symbol"] == "NVDA"
+    assert row["active_market"] == "stock"
+    assert row["active_timeframe"] == "15m"
+    assert row["action_url"].endswith("symbol=NVDA&market=stock&tf=15m")
+    assert row["action_kind"] == "local_trading_dashboard"
+
+
 def test_roxy_brain_redacts_secrets_in_memory(tmp_path):
     memory_path = tmp_path / "conversation.json"
     memory = RoxyConversationMemory(path=memory_path)

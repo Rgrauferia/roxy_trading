@@ -166,7 +166,15 @@ def test_voice_assistant_session_overview_is_speakable():
             "session_count": 2,
             "total_turns": 5,
             "recent_sessions": [
-                {"session_id": "scalping", "turn_count": 3, "last_intent": "trade_readiness"},
+                {
+                    "session_id": "scalping",
+                    "turn_count": 3,
+                    "last_intent": "trade_readiness",
+                    "active_symbol": "NVDA",
+                    "active_market": "stock",
+                    "active_timeframe": "15m",
+                    "action_url": "http://127.0.0.1:8501/?view=Activo&symbol=NVDA&market=stock&tf=15m",
+                },
                 {"session_id": "earnings", "turn_count": 2, "last_intent": "market_summary"},
             ],
         },
@@ -176,6 +184,9 @@ def test_voice_assistant_session_overview_is_speakable():
     assert payload["language"] == "en"
     assert payload["session_count"] == 2
     assert payload["recent_sessions"][0]["session_id"] == "scalping"
-    assert "Recent sessions: scalping: 3 turn(s), last topic trade_readiness" in payload["speakable_summary"]
+    assert "Recent sessions: scalping: 3 turn(s), NVDA stock 15m, last topic trade_readiness" in payload[
+        "speakable_summary"
+    ]
+    assert "trade handoff ready" in payload["speakable_summary"]
     assert "Roxy, switch session to scalping" in payload["speakable_summary"]
     assert payload["suggested_actions"] == ["switch_session", "session_brief"]
