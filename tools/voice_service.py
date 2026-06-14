@@ -3435,23 +3435,25 @@ def roxy_live_page():
     function hydrateStateFromSessionMemory(memory) {
       const payload = memory && typeof memory === "object" ? memory : {};
       const context = payload.active_context && typeof payload.active_context === "object" ? payload.active_context : {};
+      const contextHas = (key) => Object.prototype.hasOwnProperty.call(context, key);
+      const contextValue = (key, fallback) => contextHas(key) ? (context[key] || "") : (fallback || "");
       const turns = Array.isArray(payload.recent_turns) ? payload.recent_turns : [];
       const latest = turns.length && typeof turns[turns.length - 1] === "object" ? turns[turns.length - 1] : {};
-      const actions = Array.isArray(context.next_best_actions)
-        ? context.next_best_actions
+      const actions = contextHas("next_best_actions")
+        ? (Array.isArray(context.next_best_actions) ? context.next_best_actions : [])
         : (Array.isArray(lastState.suggested_actions) ? lastState.suggested_actions : []);
-      lastQuery = latest.query || context.active_topic || lastQuery || "";
-      lastReply = latest.reply || lastReply || "";
+      lastQuery = latest.query || contextValue("active_topic", lastQuery);
+      lastReply = latest.reply || (contextHas("active_topic") ? "" : lastReply || "");
       lastState = Object.assign({}, lastState || {}, {
         reply: lastReply,
-        intent: context.active_intent || payload.last_intent || lastState.intent || "",
-        active_symbol: context.active_symbol || lastState.active_symbol || "",
-        active_market: context.active_market || lastState.active_market || "",
-        active_timeframe: context.active_timeframe || lastState.active_timeframe || "",
-        action_url: context.action_url || lastState.action_url || "",
-        action_label: context.action_label || lastState.action_label || "",
-        action_kind: context.action_kind || lastState.action_kind || "",
-        safety_level: context.last_safety_level || payload.last_safety_level || lastState.safety_level || "",
+        intent: contextValue("active_intent", payload.last_intent || lastState.intent || ""),
+        active_symbol: contextValue("active_symbol", lastState.active_symbol || ""),
+        active_market: contextValue("active_market", lastState.active_market || ""),
+        active_timeframe: contextValue("active_timeframe", lastState.active_timeframe || ""),
+        action_url: contextValue("action_url", lastState.action_url || ""),
+        action_label: contextValue("action_label", lastState.action_label || ""),
+        action_kind: contextValue("action_kind", lastState.action_kind || ""),
+        safety_level: contextValue("last_safety_level", payload.last_safety_level || lastState.safety_level || ""),
         suggested_actions: actions,
       });
       const hydratedContext = currentTurnContext(lastState, lastQuery);
@@ -3460,7 +3462,8 @@ def roxy_live_page():
       return hydratedContext;
     }
 
-    async function autoHydrateSessionContext() {
+    async function autoHydrateSessionContext(options) {
+      const opts = options || {};
       const sessionId = (session.value || "").trim();
       if (!sessionId) return;
       try {
@@ -3474,6 +3477,8 @@ def roxy_live_page():
           $("events").textContent = ctx.action_url
             ? "events: memory restored -> trade handoff ready"
             : "events: memory restored";
+        } else if (opts.reportEmpty) {
+          $("events").textContent = "events: memory empty";
         }
       } catch (_err) {
         // Silent startup hydration should never block Roxy Live.
@@ -3903,6 +3908,7 @@ def roxy_live_page():
     ].forEach((id) => {
       $(id).addEventListener("change", saveSettings);
     });
+    $("session").addEventListener("change", () => autoHydrateSessionContext({reportEmpty: true}));
     ["language", "voiceSelect", "voiceRate", "voicePitch"].forEach((id) => {
       $(id).addEventListener("change", () => updateVoiceDiagnostics());
     });
