@@ -5885,6 +5885,9 @@ def build_professional_oscillator_chart(chart_df: pd.DataFrame) -> alt.LayerChar
         macd_max = safe_float(macd_df["macd_hist"].max()) or 0.0
         macd_bound = max(abs(macd_min), abs(macd_max), 0.01)
         macd_color = alt.condition("datum.macd_hist >= 0", alt.value("#22c55e"), alt.value("#ef4444"))
+        latest_macd_df = macd_df.sort_values("ts").tail(1).copy()
+        latest_macd_df["macd_label"] = latest_macd_df["macd_hist"].map(lambda value: f"MACD {value:+.4f}")
+        latest_macd_color = alt.condition("datum.macd_hist >= 0", alt.value("#22c55e"), alt.value("#ef4444"))
         layers.append(
             alt.Chart(pd.DataFrame({"level": [0.0], "label": ["MACD 0"]}))
             .mark_rule(color="#94a3b8", strokeDash=[2, 2], opacity=0.75)
@@ -5928,6 +5931,38 @@ def build_professional_oscillator_chart(chart_df: pd.DataFrame) -> alt.LayerChar
                     alt.Tooltip("macd_hist:Q", title="MACD hist", format=".4f"),
                     alt.Tooltip("macd_state:N", title="Lectura MACD"),
                 ],
+            )
+        )
+        layers.append(
+            alt.Chart(latest_macd_df)
+            .mark_point(filled=True, size=54, stroke="#0f172a", strokeWidth=1.4)
+            .encode(
+                x=alt.X("ts:T", title="Tiempo", scale=time_scale),
+                y=alt.Y(
+                    "macd_hist:Q",
+                    title="MACD hist",
+                    scale=alt.Scale(domain=[-macd_bound * 1.1, macd_bound * 1.1]),
+                ),
+                color=latest_macd_color,
+                tooltip=[
+                    alt.Tooltip("ts:T", title="Última vela"),
+                    alt.Tooltip("macd_hist:Q", title="MACD actual", format=".4f"),
+                    alt.Tooltip("macd_state:N", title="Lectura"),
+                ],
+            )
+        )
+        layers.append(
+            alt.Chart(latest_macd_df)
+            .mark_text(align="left", dx=8, dy=-8, fontSize=10, fontWeight="bold")
+            .encode(
+                x=alt.X("ts:T", title="Tiempo", scale=time_scale),
+                y=alt.Y(
+                    "macd_hist:Q",
+                    title="MACD hist",
+                    scale=alt.Scale(domain=[-macd_bound * 1.1, macd_bound * 1.1]),
+                ),
+                text="macd_label:N",
+                color=latest_macd_color,
             )
         )
 
