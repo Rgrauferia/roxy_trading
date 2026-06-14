@@ -4685,6 +4685,19 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
         close_denominator = close_values.replace(0, pd.NA)
         hover_df["candle_change_pct"] = (close_values - open_values) / open_values
         hover_df["candle_body_pct"] = (close_values - open_values_raw).abs() / close_denominator
+    if "close" in hover_df.columns:
+        close_series = pd.to_numeric(hover_df["close"], errors="coerce")
+        previous_close_values = close_series.shift(1).replace(0, pd.NA)
+        hover_df["prev_close_change_pct"] = (close_series - previous_close_values) / previous_close_values
+        previous_close_changes = [safe_float(item) for item in hover_df["prev_close_change_pct"]]
+        hover_df["prev_close_state"] = [
+            "Continuacion alcista"
+            if value is not None and value > 0.002
+            else "Continuacion bajista"
+            if value is not None and value < -0.002
+            else "Sin cambio claro"
+            for value in previous_close_changes
+        ]
     if {"high", "low", "open", "close"}.issubset(hover_df.columns):
         close_values = pd.to_numeric(hover_df["close"], errors="coerce").replace(0, pd.NA)
         open_values_raw = pd.to_numeric(hover_df["open"], errors="coerce")
@@ -4755,6 +4768,10 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
         tooltips.append(alt.Tooltip("candle_reading:N", title="Lectura"))
     if "candle_change_pct" in hover_df.columns:
         tooltips.append(alt.Tooltip("candle_change_pct:Q", title="Cambio vela", format=".2%"))
+    if "prev_close_change_pct" in hover_df.columns:
+        tooltips.append(alt.Tooltip("prev_close_change_pct:Q", title="Cambio vs cierre previo", format="+.2%"))
+    if "prev_close_state" in hover_df.columns:
+        tooltips.append(alt.Tooltip("prev_close_state:N", title="Momentum"))
     if "candle_range_pct" in hover_df.columns:
         tooltips.append(alt.Tooltip("candle_range_pct:Q", title="Rango vela", format=".2%"))
     if "candle_body_pct" in hover_df.columns:
