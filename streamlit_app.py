@@ -1705,6 +1705,13 @@ def render_professional_chart_block(
     window_position_text = "-"
     if latest_close is not None and window_low is not None and window_high is not None and window_high != window_low:
         window_position_text = f"{((latest_close - window_low) / (window_high - window_low)):.0%}"
+    window_upside_text = "-"
+    window_downside_text = "-"
+    if latest_close not in (None, 0):
+        if window_high is not None:
+            window_upside_text = pct_display((window_high - latest_close) / latest_close)
+        if window_low is not None:
+            window_downside_text = pct_display((window_low - latest_close) / latest_close)
     freshness = (trade_brief or {}).get("source_freshness") if isinstance(trade_brief, dict) else {}
     freshness = freshness if isinstance(freshness, dict) else {}
     source_status = text_display(freshness.get("status"))
@@ -1950,6 +1957,7 @@ def render_professional_chart_block(
             <b class="chart-level-check chart-level-check-{checks_tone}">{html.escape(checks_summary)} · {html.escape(blockers_summary)}</b>
             <b class="chart-level-data">Velas {visible_candles}</b>
             <b class="chart-level-data">Ventana {html.escape(window_range_text)} · Pos {html.escape(window_position_text)}</b>
+            <b class="chart-level-data">Techo {html.escape(window_upside_text)} · Piso {html.escape(window_downside_text)}</b>
             <b class="chart-level-data">Última {html.escape(latest_candle)}</b>
             <b class="chart-level-candle chart-level-candle-{candle_tone}">{html.escape(candle_label)} · {html.escape(candle_change_text)}</b>
             <b class="chart-level-data">{html.escape(candle_ohlc)}</b>
