@@ -5199,6 +5199,8 @@ def build_professional_price_chart(
     if latest_badge_price is not None:
         latest_badge_change = safe_float(latest_badge_row.get("candle_change_pct"))
         latest_badge_reading = text_display(latest_badge_row.get("candle_reading"))
+        latest_close_position_state = text_display(latest_badge_row.get("close_position_state"))
+        latest_close_position_pct = safe_float(latest_badge_row.get("close_position_pct"))
         latest_candle_range = safe_float(latest_badge_row.get("candle_range_pct"))
         latest_candle_body = safe_float(latest_badge_row.get("candle_body_pct"))
         latest_relative_volume = safe_float(latest_badge_row.get("relative_volume"))
@@ -5223,6 +5225,8 @@ def build_professional_price_chart(
         latest_badge_text = f"Ultimo {latest_badge_price:.2f}"
         if latest_badge_change is not None:
             latest_badge_text = f"{latest_badge_text} · {latest_badge_change:+.2%}"
+        if latest_close_position_state != "-":
+            latest_badge_text = f"{latest_badge_text} · {latest_close_position_state}"
         latest_range_position = None
         latest_room_to_high = None
         latest_room_above_low = None
@@ -5266,6 +5270,8 @@ def build_professional_price_chart(
                     "price": latest_badge_price,
                     "label": latest_badge_text,
                     "reading": latest_badge_reading,
+                    "close_position_state": latest_close_position_state,
+                    "close_position_pct": latest_close_position_pct,
                     "ma_stack": latest_ma_stack,
                     "ema9_distance_pct": latest_ema9_distance,
                     "sma20_distance_pct": latest_sma20_distance,
@@ -5301,6 +5307,8 @@ def build_professional_price_chart(
                 tooltip=[
                     alt.Tooltip("label:N", title="Ultima vela"),
                     alt.Tooltip("reading:N", title="Lectura"),
+                    alt.Tooltip("close_position_state:N", title="Fuerza cierre"),
+                    alt.Tooltip("close_position_pct:Q", title="Cierre en rango", format=".0%"),
                     alt.Tooltip("ma_stack:N", title="Estructura medias"),
                     alt.Tooltip("ema9_distance_pct:Q", title="Dist EMA9", format="+.2%"),
                     alt.Tooltip("sma20_distance_pct:Q", title="Dist SMA20", format="+.2%"),
