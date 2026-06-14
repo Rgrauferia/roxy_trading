@@ -186,6 +186,11 @@ def test_roxy_live_page():
     assert "sessionVoiceBrief" in r.text
     assert "activeSessionContext" in r.text
     assert "voice: session brief" in r.text
+    assert "hydrateStateFromSessionMemory" in r.text
+    assert "context.active_topic" in r.text
+    assert "payload.last_intent" in r.text
+    assert "context.action_url" in r.text
+    assert "turn.action_url || \"\"" in r.text
     assert "localTradeDashboardUrl" in r.text
     assert "tradeCommandTimeframe" in r.text
     assert "tradeCommandSymbol" in r.text

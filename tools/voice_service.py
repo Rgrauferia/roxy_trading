@@ -3432,6 +3432,34 @@ def roxy_live_page():
       }
     }
 
+    function hydrateStateFromSessionMemory(memory) {
+      const payload = memory && typeof memory === "object" ? memory : {};
+      const context = payload.active_context && typeof payload.active_context === "object" ? payload.active_context : {};
+      const turns = Array.isArray(payload.recent_turns) ? payload.recent_turns : [];
+      const latest = turns.length && typeof turns[turns.length - 1] === "object" ? turns[turns.length - 1] : {};
+      const actions = Array.isArray(context.next_best_actions)
+        ? context.next_best_actions
+        : (Array.isArray(lastState.suggested_actions) ? lastState.suggested_actions : []);
+      lastQuery = latest.query || context.active_topic || lastQuery || "";
+      lastReply = latest.reply || lastReply || "";
+      lastState = Object.assign({}, lastState || {}, {
+        reply: lastReply,
+        intent: context.active_intent || payload.last_intent || lastState.intent || "",
+        active_symbol: context.active_symbol || lastState.active_symbol || "",
+        active_market: context.active_market || lastState.active_market || "",
+        active_timeframe: context.active_timeframe || lastState.active_timeframe || "",
+        action_url: context.action_url || lastState.action_url || "",
+        action_label: context.action_label || lastState.action_label || "",
+        action_kind: context.action_kind || lastState.action_kind || "",
+        safety_level: context.last_safety_level || payload.last_safety_level || lastState.safety_level || "",
+        suggested_actions: actions,
+      });
+      const hydratedContext = currentTurnContext(lastState, lastQuery);
+      renderActiveContext(hydratedContext);
+      renderSuggestedActions(actions);
+      return hydratedContext;
+    }
+
     async function loadMemory() {
       saveSettings();
       const headers = {};
@@ -3444,11 +3472,17 @@ def roxy_live_page():
       }
       const memory = await res.json();
       const turns = Array.isArray(memory.recent_turns) ? memory.recent_turns : [];
-      renderActiveContext(memory.active_context || {});
-      appendMessage("system", "Memoria cargada: " + turns.length + " turno(s). Ultima intencion: " + (memory.last_intent || "-"), "memory");
+      const ctx = hydrateStateFromSessionMemory(memory);
+      appendMessage(
+        "system",
+        "Memoria cargada: " + turns.length + " turno(s). Ultima intencion: " + (memory.last_intent || "-"),
+        "memory",
+        ctx.action_url || "",
+        ctx.action_label || ""
+      );
       for (const turn of turns.slice(-6)) {
         if (turn.query) appendMessage("user", turn.query, "memoria");
-        if (turn.reply) appendMessage("roxy", turn.reply, turn.intent || "memoria");
+        if (turn.reply) appendMessage("roxy", turn.reply, turn.intent || "memoria", turn.action_url || "", turn.action_label || "");
       }
     }
 
