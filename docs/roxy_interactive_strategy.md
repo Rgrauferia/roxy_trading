@@ -169,6 +169,8 @@ The session response includes `active_context`, a compact handoff for UI and ope
 
 Voice and mobile clients can call `GET /v1/assist/session/{session_id}/brief?language=es|en` for a compact speakable session brief. It returns `speakable_summary`, `active_context`, and `suggested_actions` without returning full `recent_turns`, so clients can orient the user quickly without exposing long conversation history.
 
+Voice and mobile clients can call `GET /v1/assist/sessions?language=es|en` to get a compact overview of recent saved sessions. Roxy Live exposes this through local voice commands such as "Roxy, sesiones" / "Roxy, sessions", "Roxy, cambia a sesion scalping" / "Roxy, switch session to scalping", and "Roxy, ultima sesion" / "Roxy, resume last session". These commands update the browser `session_id`, hydrate the compact active context, and may surface a ready Roxy Trade handoff link, but they do not call the broker, create orders, or bypass explicit trading confirmation.
+
 Roxy Live also refreshes the `Context` chip after every state or streamed reply using the current turn intent, detected symbol, safety level, and suggested actions. This keeps voice users oriented during a live conversation without requiring a manual memory reload.
 
 When session memory is available, Roxy can resolve short follow-ups such as "por que?", "dame el plan", "continue", or "why?" against the last meaningful topic. For opportunity conversations this can produce `opportunity_reason` or `opportunity_risk` without forcing the user to repeat the symbol, which makes voice conversation feel closer to a natural assistant.
