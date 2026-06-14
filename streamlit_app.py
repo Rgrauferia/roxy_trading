@@ -1819,17 +1819,18 @@ def render_professional_chart_block(
                     tape_time = "-"
             tape_title = (
                 f"{tape_time} · O {num_display(candle_open, 2)} · H {num_display(candle_high, 2)} · "
-                f"L {num_display(candle_low, 2)} · C {num_display(candle_close, 2)} · {tape_reading}"
+                f"L {num_display(candle_low, 2)} · C {num_display(candle_close, 2)} · "
+                f"Rango {pct_display(tape_range) if tape_range is not None else '-'} · {tape_reading}"
             )
             tape_items.append(
                 '<span class="chart-tape-candle chart-tape-{tone}" title="{title}"><em>{time}</em><strong>{close}</strong>'
-                "<small>{change} · R {range_pct}</small></span>".format(
+                "<small>{change} · {reading}</small></span>".format(
                     tone=html.escape(tape_tone),
                     title=html.escape(tape_title),
                     time=html.escape(tape_time),
                     close=html.escape(num_display(candle_close, 2)),
                     change=html.escape(pct_display(tape_change) if tape_change is not None else "-"),
-                    range_pct=html.escape(pct_display(tape_range) if tape_range is not None else "-"),
+                    reading=html.escape(tape_reading),
                 )
             )
         if tape_items:
