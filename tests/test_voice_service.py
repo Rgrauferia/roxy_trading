@@ -190,6 +190,10 @@ def test_roxy_live_page():
     assert "speakOperationalHandoffBrief" in r.text
     assert "extractLocalDashboardUrl" in r.text
     assert "appendDashboardHandoffLink" in r.text
+    assert "state.action_url" in r.text
+    assert "state.action_label" in r.text
+    assert "active_market: state.active_market" in r.text
+    assert "active_timeframe: state.active_timeframe" in r.text
     assert "127\\.0\\.0\\.1:8501" in r.text
     assert "Abrir Roxy Trade" in r.text
     assert "Open Roxy Trade" in r.text

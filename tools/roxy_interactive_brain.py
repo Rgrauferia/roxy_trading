@@ -43,6 +43,12 @@ class RoxyBrainReply:
     safety_level: str = "normal"
     priority: str = "normal"
     suggested_actions: tuple[str, ...] = field(default_factory=tuple)
+    active_symbol: str = ""
+    active_market: str = ""
+    active_timeframe: str = ""
+    action_url: str = ""
+    action_label: str = ""
+    action_kind: str = ""
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -57,6 +63,12 @@ class RoxyBrainReply:
             "safety_level": self.safety_level,
             "priority": self.priority,
             "suggested_actions": list(self.suggested_actions),
+            "active_symbol": self.active_symbol,
+            "active_market": self.active_market,
+            "active_timeframe": self.active_timeframe,
+            "action_url": self.action_url,
+            "action_label": self.action_label,
+            "action_kind": self.action_kind,
         }
 
 
@@ -91,6 +103,10 @@ def build_voice_events(query: str, response: RoxyBrainReply) -> list[dict[str, A
             "emotion": response.emotion,
             "priority": response.priority,
             "safety_level": response.safety_level,
+            "active_symbol": response.active_symbol,
+            "action_url": response.action_url,
+            "action_label": response.action_label,
+            "action_kind": response.action_kind,
         }
     )
     if response.should_speak:
@@ -210,7 +226,7 @@ class RoxyConversationMemory:
                 "priority": response.priority,
                 "needs_live_source": response.needs_live_source,
                 "suggested_actions": list(response.suggested_actions),
-                "active_symbol": _extract_symbol(f"{query} {response.reply}") or "",
+                "active_symbol": response.active_symbol or _extract_symbol(f"{query} {response.reply}") or "",
             }
         )
         sessions[session_key] = turns[-self.max_turns :]
@@ -2271,6 +2287,12 @@ class RoxyInteractiveBrain:
             safety_level=response.safety_level,
             priority=response.priority,
             suggested_actions=response.suggested_actions,
+            active_symbol=response.active_symbol,
+            active_market=response.active_market,
+            active_timeframe=response.active_timeframe,
+            action_url=response.action_url,
+            action_label=response.action_label,
+            action_kind=response.action_kind,
         )
 
     def _english_reply_text(
@@ -2401,6 +2423,12 @@ class RoxyInteractiveBrain:
             safety_level=response.safety_level,
             priority=response.priority,
             suggested_actions=response.suggested_actions + ("feedback_adjusted",),
+            active_symbol=response.active_symbol,
+            active_market=response.active_market,
+            active_timeframe=response.active_timeframe,
+            action_url=response.action_url,
+            action_label=response.action_label,
+            action_kind=response.action_kind,
         )
 
     def learning_snapshot(self, user: str | None = None, session_id: str | None = None) -> dict[str, Any]:
@@ -4447,6 +4475,12 @@ class RoxyInteractiveBrain:
             safety_level="guarded",
             priority="high",
             suggested_actions=actions,
+            active_symbol=symbol_text,
+            active_market=market,
+            active_timeframe=timeframe,
+            action_url=url,
+            action_label="Open Roxy Trade" if language == "en" else "Abrir Roxy Trade",
+            action_kind="local_trading_dashboard",
         )
 
     def _trade_readiness_reply(self, query: str, language: str = "es") -> RoxyBrainReply:

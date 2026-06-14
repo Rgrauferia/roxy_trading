@@ -765,26 +765,26 @@ def roxy_live_page():
       return match ? match[0].replace(/[.,]+$/, "") : "";
     }
 
-    function appendDashboardHandoffLink(node, text) {
-      const url = extractLocalDashboardUrl(text);
+    function appendDashboardHandoffLink(node, text, explicitUrl, explicitLabel) {
+      const url = explicitUrl || extractLocalDashboardUrl(text);
       if (!url) return;
       const link = document.createElement("a");
       link.className = "handoff-link";
       link.href = url;
       link.target = "_blank";
       link.rel = "noopener";
-      link.textContent = /Trading page ready|Open:/.test(text || "") ? "Open Roxy Trade" : "Abrir Roxy Trade";
+      link.textContent = explicitLabel || (/Trading page ready|Open:/.test(text || "") ? "Open Roxy Trade" : "Abrir Roxy Trade");
       node.appendChild(link);
     }
 
-    function appendMessage(role, text, meta) {
+    function appendMessage(role, text, meta, actionUrl, actionLabel) {
       const node = document.createElement("div");
       node.className = "msg " + role;
       const label = role === "roxy" ? "Roxy" : role === "user" ? "Tu" : "Sistema";
       node.innerHTML = "<b></b><span></span>";
       node.querySelector("b").textContent = meta ? label + " · " + meta : label;
       node.querySelector("span").textContent = text || "";
-      if (role === "roxy") appendDashboardHandoffLink(node, text || "");
+      if (role === "roxy") appendDashboardHandoffLink(node, text || "", actionUrl || "", actionLabel || "");
       $("chat").appendChild(node);
       $("chat").scrollTop = $("chat").scrollHeight;
     }
@@ -866,6 +866,8 @@ def roxy_live_page():
       const ctx = context && typeof context === "object" ? context : {};
       const parts = [];
       if (ctx.active_symbol) parts.push(ctx.active_symbol);
+      if (ctx.active_market) parts.push(ctx.active_market);
+      if (ctx.active_timeframe) parts.push(ctx.active_timeframe);
       if (ctx.active_intent) parts.push(ctx.active_intent);
       if (ctx.needs_confirmation) parts.push("confirmar");
       const actions = Array.isArray(ctx.next_best_actions) ? ctx.next_best_actions : [];
@@ -886,6 +888,8 @@ def roxy_live_page():
         active_intent: state.intent || "",
         active_symbol: state.active_symbol || extractContextSymbol([text, state.reply].join(" ")),
         active_topic: text || "",
+        active_market: state.active_market || "",
+        active_timeframe: state.active_timeframe || "",
         last_safety_level: state.safety_level || "",
         needs_confirmation: state.safety_level === "critical" || actions.includes("require_explicit_confirmation"),
         next_best_actions: actions,
@@ -3085,7 +3089,13 @@ def roxy_live_page():
       }
       if (opts.eventsText !== undefined) $("events").textContent = opts.eventsText;
       if (opts.appendRoxy !== false) {
-        appendMessage("roxy", lastReply || "(sin respuesta)", [state.intent, state.safety_level].filter(Boolean).join(" / "));
+        appendMessage(
+          "roxy",
+          lastReply || "(sin respuesta)",
+          [state.intent, state.safety_level].filter(Boolean).join(" / "),
+          state.action_url || "",
+          state.action_label || ""
+        );
       }
       setAvatar(state.avatar_state || "speaking", state.emotion || "focused");
       if (opts.speakNow !== false && state.should_speak !== false && $("autoSpeak").checked) {
