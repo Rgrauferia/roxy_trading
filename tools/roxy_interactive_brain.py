@@ -546,6 +546,27 @@ def _contains_any(text: str, terms: Iterable[str]) -> bool:
     return any(term in text for term in terms)
 
 
+def _strip_voice_preamble(query: str) -> str:
+    text = str(query or "").strip()
+    if not text:
+        return ""
+    cleaned = text
+    preamble_patterns = (
+        r"(?i)^\s*(?:hola|hello|hi|hey|buenos dias|buenas tardes|buenas noches|buenas)\s*,?\s+roxy\b[\s,.:;-]*",
+        r"(?i)^\s*roxy\b[\s,.:;-]*",
+        r"(?i)^\s*(?:hola|hello|hi|hey|buenos dias|buenas tardes|buenas noches|buenas)\b[\s,.:;-]*",
+    )
+    changed = True
+    while changed:
+        changed = False
+        for pattern in preamble_patterns:
+            updated = re.sub(pattern, "", cleaned, count=1).strip()
+            if updated != cleaned:
+                cleaned = updated
+                changed = True
+    return cleaned or text
+
+
 def _is_knowledge_query(text: str) -> bool:
     normalized = str(text or "").lower()
     phrase_terms = (
@@ -1365,6 +1386,10 @@ def _extract_symbol(query: str) -> str | None:
         "APOL": "AAPL",
         "NVIDIA": "NVDA",
         "TESLA": "TSLA",
+        "GOOGLE": "GOOGL",
+        "ALPHABET": "GOOGL",
+        "GOOG": "GOOGL",
+        "GOOGL": "GOOGL",
         "MICROSOFT": "MSFT",
         "META": "META",
         "BITCOIN": "BTC/USD",
@@ -1373,6 +1398,7 @@ def _extract_symbol(query: str) -> str | None:
         "ETH": "ETH/USD",
         "SOLANA": "SOL/USD",
         "SOL": "SOL/USD",
+        "DOGECOIN": "DOGE/USD",
         "DOGE": "DOGE/USD",
         "SPY": "SPY",
         "QQQ": "QQQ",
@@ -1719,7 +1745,8 @@ class RoxyInteractiveBrain:
             response = self._idle_reply(user, recent_turns, profile)
             return finish(response)
 
-        lq = q.lower()
+        q_intent = _strip_voice_preamble(q)
+        lq = q_intent.lower()
         news_impact_terms = (
             "news impact",
             "headline impact",
@@ -2027,11 +2054,11 @@ class RoxyInteractiveBrain:
             "quick news",
         )
         if _contains_any(lq, weather_terms):
-            response = self._weather_reply(q, profile, language)
+            response = self._weather_reply(q_intent, profile, language)
             return finish(response)
 
         if _is_sports_result_query(lq):
-            response = self._sports_result_reply(q, language)
+            response = self._sports_result_reply(q_intent, language)
             return finish(response)
 
         if _contains_any(lq, news_summary_terms):
@@ -2039,7 +2066,7 @@ class RoxyInteractiveBrain:
             return finish(response)
 
         if _contains_any(lq, news_impact_terms):
-            response = self._news_impact_reply(q, language)
+            response = self._news_impact_reply(q_intent, language)
             return finish(response)
 
         if _contains_any(lq, ("hola", "hello", "hi", "hey", "buenos dias", "buenas")):
@@ -2047,15 +2074,15 @@ class RoxyInteractiveBrain:
             return finish(response)
 
         if _contains_any(lq, watchlist_terms):
-            response = self._watchlist_reply(profile, q, language)
+            response = self._watchlist_reply(profile, q_intent, language)
             return finish(response)
 
         if _contains_any(lq, trading_dashboard_terms):
-            response = self._trading_dashboard_handoff_reply(q, language)
+            response = self._trading_dashboard_handoff_reply(q_intent, language)
             return finish(response)
 
         if _contains_any(lq, pre_trade_preflight_terms):
-            response = self._pre_trade_preflight_reply(q, language)
+            response = self._pre_trade_preflight_reply(q_intent, language)
             return finish(response)
 
         if _contains_any(lq, knowledge_source_terms):
@@ -2075,11 +2102,11 @@ class RoxyInteractiveBrain:
             return finish(response)
 
         if _contains_any(lq, technical_indicator_terms):
-            response = self._technical_indicators_reply(q, language=language)
+            response = self._technical_indicators_reply(q_intent, language=language)
             return finish(response)
 
         if _contains_any(lq, support_resistance_terms):
-            response = self._support_resistance_reply(q, language=language)
+            response = self._support_resistance_reply(q_intent, language=language)
             return finish(response)
 
         if _contains_any(
@@ -2110,12 +2137,12 @@ class RoxyInteractiveBrain:
             response = self._catch_up_reply(recent_turns, language)
             return finish(response)
 
-        if _contains_any(lq, ("quien eres", "who are you", "tu rostro", "cara", "avatar", "identidad", "identity", "roxy")):
+        if _contains_any(lq, ("quien eres", "who are you", "tu rostro", "cara", "avatar", "identidad", "identity")):
             response = self._identity_reply()
             return finish(response)
 
         if _is_knowledge_query(lq):
-            response = self._knowledge_reply(q, language=language)
+            response = self._knowledge_reply(q_intent, language=language)
             return finish(response)
 
         if _contains_any(
@@ -2140,15 +2167,15 @@ class RoxyInteractiveBrain:
             return finish(response)
 
         if _contains_any(lq, monitoring_plan_terms):
-            response = self._monitoring_plan_reply(q, language)
+            response = self._monitoring_plan_reply(q_intent, language)
             return finish(response)
 
         if _contains_any(lq, alert_plan_terms):
-            response = self._alert_plan_reply(q, language)
+            response = self._alert_plan_reply(q_intent, language)
             return finish(response)
 
         if _contains_any(lq, trade_readiness_terms):
-            response = self._trade_readiness_reply(q, language)
+            response = self._trade_readiness_reply(q_intent, language)
             return finish(response)
 
         if _contains_any(
@@ -2186,8 +2213,12 @@ class RoxyInteractiveBrain:
                 "sideways",
                 "tendencia del mercado",
                 "condicion del mercado",
+                "actualizacion del mercado",
+                "actualización del mercado",
+                "update del mercado",
                 "resumen del mercado",
                 "regimen del mercado",
+                "market update",
                 "alcista",
                 "bajista",
                 "lateral",
@@ -2221,7 +2252,7 @@ class RoxyInteractiveBrain:
                 "live trade",
             ),
         ):
-            response = self._action_guardrail_reply(q)
+            response = self._action_guardrail_reply(q_intent)
             return finish(response)
 
         if _contains_any(lq, ("noticia", "news", "titular", "mercado hoy", "actualidad")):
@@ -2246,7 +2277,7 @@ class RoxyInteractiveBrain:
                 "valid entry",
             ),
         ):
-            response = self._entry_checklist_reply(q, language=language)
+            response = self._entry_checklist_reply(q_intent, language=language)
             return finish(response)
 
         if _contains_any(
@@ -2263,11 +2294,11 @@ class RoxyInteractiveBrain:
                 "handoff ticket",
             ),
         ):
-            response = self._trade_ticket_reply(q, language=language)
+            response = self._trade_ticket_reply(q_intent, language=language)
             return finish(response)
 
         if _is_knowledge_query(lq):
-            response = self._knowledge_reply(q, language=language)
+            response = self._knowledge_reply(q_intent, language=language)
             return finish(response)
 
         if _contains_any(lq, ("aprendizaje", "aprendiendo", "aprendiste", "aprendi", "learning", "memoria", "memory")):
@@ -2301,7 +2332,7 @@ class RoxyInteractiveBrain:
                 "risk budget",
             ),
         ):
-            response = self._position_size_reply(q, language=language)
+            response = self._position_size_reply(q_intent, language=language)
             return finish(response)
 
         if _contains_any(
@@ -2324,7 +2355,7 @@ class RoxyInteractiveBrain:
                 "missing",
             ),
         ):
-            response = self._opportunity_risk_reply(q, language=language)
+            response = self._opportunity_risk_reply(q_intent, language=language)
             return finish(response)
 
         if _contains_any(
@@ -2343,22 +2374,26 @@ class RoxyInteractiveBrain:
                 "sell",
                 "trade",
                 "entry",
+                "hablame de",
+                "háblame de",
+                "tell me about",
+                "talk to me about",
                 "recomienda",
                 "recommend",
                 "recomendacion",
                 "recommendation",
             ),
         ):
-            response = self._opportunity_reply(q, language=language)
+            response = self._opportunity_reply(q_intent, language=language)
             return finish(response)
 
-        contextual = self._contextual_followup_reply(q, recent_turns, language)
+        contextual = self._contextual_followup_reply(q_intent, recent_turns, language)
         if contextual:
             return finish(contextual)
 
-        symbol = _extract_symbol(q)
+        symbol = _extract_symbol(q_intent)
         if symbol:
-            response = self._opportunity_reply(q, language=language)
+            response = self._opportunity_reply(q_intent, language=language)
             return finish(response)
 
         response = self._contextual_fallback(recent_turns)
@@ -4755,6 +4790,7 @@ class RoxyInteractiveBrain:
             return RoxyBrainReply(
                 intent="opportunity",
                 reply=reply,
+                active_symbol=symbol or "",
                 emotion="cautious",
                 safety_level="guarded",
                 suggested_actions=("run_scan", "ask_market_summary"),
@@ -4783,6 +4819,7 @@ class RoxyInteractiveBrain:
         return RoxyBrainReply(
             intent="opportunity",
             reply=reply,
+            active_symbol=symbol_text,
             emotion="analytical",
             safety_level="guarded",
             priority="high" if action.upper() in {"ALERT", "BUY", "SELL"} else "normal",

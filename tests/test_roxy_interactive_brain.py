@@ -179,6 +179,27 @@ def test_roxy_brain_weather_accepts_mixed_language_location(monkeypatch, tmp_pat
     assert "Orlando Florida" in response.reply
 
 
+def test_roxy_brain_weather_strips_spoken_preamble(monkeypatch, tmp_path):
+    captured = {}
+
+    def fake_weather(location):
+        captured["location"] = location
+        return roxy_brain_module.weather_service.WeatherSnapshot(
+            status="missing_key",
+            location=location,
+            message="Set OPENWEATHER_API_KEY",
+        )
+
+    monkeypatch.setattr(roxy_brain_module.weather_service, "fetch_current_weather", fake_weather)
+    brain = RoxyInteractiveBrain(brief_path=tmp_path / "brief.json", memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("Hola, Roxy. ¿Cuál es el weather en Orlando, Florida?")
+
+    assert response.intent == "weather"
+    assert captured["location"] == "Orlando, Florida"
+    assert "Orlando, Florida" in response.reply
+
+
 def test_roxy_brain_sports_result_requires_live_source(tmp_path):
     brain = RoxyInteractiveBrain(brief_path=tmp_path / "brief.json", memory_path=tmp_path / "memory.json")
 
@@ -189,6 +210,23 @@ def test_roxy_brain_sports_result_requires_live_source(tmp_path):
     assert response.safety_level == "normal"
     assert "fuente deportiva live" in response.reply
     assert "connect_sports_source" in response.suggested_actions
+
+
+def test_roxy_brain_asset_questions_strip_spoken_preamble(tmp_path):
+    brain = RoxyInteractiveBrain(brief_path=tmp_path / "brief.json", memory_path=tmp_path / "memory.json")
+
+    cases = (
+        ("Hola, Roxy. Háblame de Dogecoin.", "DOGE/USD"),
+        ("Roxy, háblame de Google.", "GOOGL"),
+        ("Roxy, háblame de Tesla.", "TSLA"),
+    )
+    for query, symbol in cases:
+        response = brain.generate_reply(query)
+
+        assert response.intent == "opportunity"
+        assert response.active_symbol == symbol
+        assert symbol in response.reply
+        assert "voz femenina" not in response.reply
 
 
 def test_roxy_market_summary_includes_live_signal_state(tmp_path):
@@ -1331,6 +1369,38 @@ def test_roxy_brain_summarizes_market_regime_in_spanish(tmp_path):
     assert "Regimen local del mercado: alcista" in response.reply
     assert "Nota de riesgo" in response.reply
     assert "market_session" in response.suggested_actions
+
+
+def test_roxy_brain_market_update_strips_spoken_preamble(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "alert_gate_summary": {
+                    "total_opportunities": 1,
+                    "watch_count": 1,
+                    "ready_ratio": 0.25,
+                    "top_gate_label": "Esperar entrada 15m",
+                    "top_readiness": 80,
+                },
+                "daily_opportunity_plan": {
+                    "market_counts": {"stock": 1},
+                    "market_session": {"stock_session": "Regular", "crypto_session": "24h"},
+                    "opportunities": [
+                        {"symbol": "SPY", "signal": "WATCH", "trend_setup": "TREND_CONTINUATION", "readiness": 82}
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("Hola, Roxy. Dame la actualización del mercado.")
+
+    assert response.intent == "market_summary"
+    assert "Regimen local del mercado" in response.reply
+    assert "filtro principal Esperar entrada 15m" in response.reply
 
 
 def test_roxy_brain_summarizes_market_regime_in_english(tmp_path):
