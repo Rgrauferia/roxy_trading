@@ -5883,6 +5883,21 @@ def build_professional_oscillator_chart(chart_df: pd.DataFrame) -> alt.LayerChar
                 color=latest_rsi_color,
             )
         )
+        rsi_midline_label_df = pd.DataFrame({"ts": [rsi_end], "level": [50], "label": ["RSI 50"]})
+        layers.append(
+            alt.Chart(pd.DataFrame({"level": [50], "label": ["RSI 50"]}))
+            .mark_rule(strokeDash=[2, 3], color="#94a3b8", opacity=0.45)
+            .encode(y=alt.Y("level:Q", title="RSI 14", scale=alt.Scale(domain=[0, 100])), tooltip=["label:N"])
+        )
+        layers.append(
+            alt.Chart(rsi_midline_label_df)
+            .mark_text(align="right", dx=-6, dy=-6, fontSize=10, fontWeight="bold", color="#94a3b8")
+            .encode(
+                x=alt.X("ts:T", title="Tiempo", scale=time_scale),
+                y=alt.Y("level:Q", title="RSI 14", scale=alt.Scale(domain=[0, 100])),
+                text="label:N",
+            )
+        )
         for value, label, color in ((70, "RSI 70", "#f59e0b"), (30, "RSI 30", "#22c55e")):
             rsi_rule_label_df = pd.DataFrame({"ts": [rsi_end], "level": [value], "label": [label]})
             layers.append(
