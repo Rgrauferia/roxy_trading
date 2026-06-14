@@ -920,6 +920,84 @@ def test_roxy_brain_requires_scan_when_data_freshness_has_no_brief(tmp_path):
     assert "market_session" in response.suggested_actions
 
 
+def test_roxy_brain_builds_spanish_trading_dashboard_handoff(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "generated_at": now.isoformat(),
+                    "opportunities": [
+                        {
+                            "symbol": "NVDA",
+                            "signal": "ALERT",
+                            "decision": "TRADE_FOR_2PCT",
+                            "readiness": 86,
+                        }
+                    ],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        feedback_memory=RoxyFeedbackMemory(path=tmp_path / "feedback.json"),
+    )
+
+    response = brain.generate_reply("abre roxy trade para NVDA en 15m")
+
+    assert response.intent == "trading_dashboard_handoff"
+    assert response.language == "es"
+    assert response.safety_level == "guarded"
+    assert response.priority == "high"
+    assert "Pagina operativa lista: NVDA, stock, 15m" in response.reply
+    assert "http://127.0.0.1:8501/?view=Activo&symbol=NVDA&market=stock&tf=15m" in response.reply
+    assert "no crea ni envia una orden" in response.reply
+    assert response.suggested_actions[:3] == ("trade_readiness", "entry_checklist", "position_size")
+
+
+def test_roxy_brain_builds_english_crypto_trading_dashboard_handoff(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "generated_at": now.isoformat(),
+                    "opportunities": [
+                        {
+                            "symbol": "ETH/USD",
+                            "market": "crypto",
+                            "signal": "WATCH",
+                            "decision": "WAIT",
+                            "readiness": 64,
+                        }
+                    ],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(
+        brief_path=brief_path,
+        memory_path=tmp_path / "memory.json",
+        feedback_memory=RoxyFeedbackMemory(path=tmp_path / "feedback.json"),
+    )
+
+    response = brain.generate_reply("open the trading dashboard for ETH 4h")
+
+    assert response.intent == "trading_dashboard_handoff"
+    assert response.language == "en"
+    assert response.voice_style == "female_en_us"
+    assert "Trading page ready: ETH/USD, crypto, 4h" in response.reply
+    assert "http://127.0.0.1:8501/?view=Activo&symbol=ETH%2FUSD&market=crypto&tf=4h" in response.reply
+    assert "does not create or send an order" in response.reply
+    assert response.suggested_actions[:3] == ("trade_readiness", "entry_checklist", "position_size")
+
+
 def test_roxy_brain_trade_readiness_prepares_only_when_gates_are_clean_spanish(tmp_path):
     brief_path = tmp_path / "brief.json"
     now = datetime.now(timezone.utc).replace(microsecond=0)

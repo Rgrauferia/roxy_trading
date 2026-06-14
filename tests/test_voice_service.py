@@ -133,6 +133,7 @@ def test_roxy_live_page():
     assert 'data-prompt="resumen de noticias"' in r.text
     assert 'data-prompt="analiza impacto de noticia: pega aqui el titular"' in r.text
     assert 'data-prompt="puedo operar ahora"' in r.text
+    assert 'data-prompt="abre roxy trade para SPY"' in r.text
     assert 'data-prompt="explica riesgo entrada stop target"' in r.text
     assert 'data-prompt="top oportunidades"' in r.text
     assert 'data-prompt="plan de monitoreo"' in r.text
@@ -187,6 +188,11 @@ def test_roxy_live_page():
     assert "voice: session brief" in r.text
     assert "operationalHandoffPrompt" in r.text
     assert "speakOperationalHandoffBrief" in r.text
+    assert "extractLocalDashboardUrl" in r.text
+    assert "appendDashboardHandoffLink" in r.text
+    assert "127\\.0\\.0\\.1:8501" in r.text
+    assert "Abrir Roxy Trade" in r.text
+    assert "Open Roxy Trade" in r.text
     assert "voice: operational handoff" in r.text
     assert "voice: operational handoff blocked" in r.text
     assert "Handoff operativo listo." in r.text

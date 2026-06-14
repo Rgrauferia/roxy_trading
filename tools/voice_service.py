@@ -488,6 +488,18 @@ def roxy_live_page():
       margin-bottom: 4px;
       color: var(--text);
     }
+    .msg .handoff-link {
+      display: inline-flex;
+      width: auto;
+      margin-top: 8px;
+      padding: 7px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(66,211,146,.45);
+      background: rgba(15,81,50,.5);
+      color: #e8fff4;
+      text-decoration: none;
+      font-weight: 700;
+    }
     .sources {
       margin-top: 12px;
       display: grid;
@@ -613,6 +625,7 @@ def roxy_live_page():
           <button data-prompt="resumen de noticias">Noticias breves</button>
           <button data-prompt="analiza impacto de noticia: pega aqui el titular">Impacto news</button>
           <button data-prompt="puedo operar ahora">Decisión</button>
+          <button data-prompt="abre roxy trade para SPY">Abrir Trade</button>
           <button data-prompt="resumen de oportunidad">Oportunidad</button>
           <button data-prompt="top oportunidades">Ranking</button>
           <button data-prompt="plan de monitoreo">Monitoreo</button>
@@ -747,6 +760,23 @@ def roxy_live_page():
       localStorage.setItem("roxyLiveWatchlist", $("watchlist").value || "");
     }
 
+    function extractLocalDashboardUrl(text) {
+      const match = (text || "").match(/http:\/\/127\.0\.0\.1:8501\/\?view=Activo[^\s)]+/);
+      return match ? match[0].replace(/[.,]+$/, "") : "";
+    }
+
+    function appendDashboardHandoffLink(node, text) {
+      const url = extractLocalDashboardUrl(text);
+      if (!url) return;
+      const link = document.createElement("a");
+      link.className = "handoff-link";
+      link.href = url;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = /Trading page ready|Open:/.test(text || "") ? "Open Roxy Trade" : "Abrir Roxy Trade";
+      node.appendChild(link);
+    }
+
     function appendMessage(role, text, meta) {
       const node = document.createElement("div");
       node.className = "msg " + role;
@@ -754,6 +784,7 @@ def roxy_live_page():
       node.innerHTML = "<b></b><span></span>";
       node.querySelector("b").textContent = meta ? label + " · " + meta : label;
       node.querySelector("span").textContent = text || "";
+      if (role === "roxy") appendDashboardHandoffLink(node, text || "");
       $("chat").appendChild(node);
       $("chat").scrollTop = $("chat").scrollHeight;
     }

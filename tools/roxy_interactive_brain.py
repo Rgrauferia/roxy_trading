@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
+from urllib.parse import quote
 
 from tools import weather_service
 
@@ -579,6 +580,31 @@ def _extract_query_risk_fraction(query: str) -> tuple[float | None, bool]:
     return None, False
 
 
+def _extract_query_timeframe(query: str) -> str:
+    text = str(query or "").lower()
+    if re.search(r"\b15\s*m(?:in|inutos?)?\b|\b15m\b", text):
+        return "15m"
+    if re.search(r"\b2\s*h(?:oras?)?\b|\b2h\b", text):
+        return "2h"
+    if re.search(r"\b4\s*h(?:oras?)?\b|\b4h\b", text):
+        return "4h"
+    if re.search(r"\b1\s*d(?:ia|ía|ay)?\b|\b1d\b|\bdiario\b|\bdaily\b", text):
+        return "1d"
+    return "1h"
+
+
+def _trading_dashboard_url(symbol: str, market: str, timeframe: str) -> str:
+    clean_symbol = _safe_text(symbol).upper() or "SPY"
+    clean_market = "crypto" if _safe_text(market).lower() == "crypto" or "/" in clean_symbol else "stock"
+    clean_timeframe = _extract_query_timeframe(timeframe)
+    return (
+        "http://127.0.0.1:8501/?view=Activo"
+        f"&symbol={quote(clean_symbol, safe='')}"
+        f"&market={quote(clean_market, safe='')}"
+        f"&tf={quote(clean_timeframe, safe='')}"
+    )
+
+
 def _detect_language(query: str, profile: dict[str, Any]) -> str:
     preferred = _safe_text(profile.get("language")).lower()
     normalized = str(query or "").lower()
@@ -790,6 +816,12 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "temperatura",
         "pronostico",
         "pronóstico",
+        "abre",
+        "abrir",
+        "pagina",
+        "página",
+        "pantalla",
+        "terminal",
     }
     tokens = set(re.findall(r"[a-záéíóúñ]+", normalized))
     english_score = len(tokens.intersection(english_terms))
@@ -1294,6 +1326,21 @@ def _extract_symbol(query: str) -> str | None:
         "WHAT",
         "WHY",
         "HOW",
+        "THE",
+        "ABRE",
+        "ABRIR",
+        "OPEN",
+        "PAGE",
+        "PAGINA",
+        "PÁGINA",
+        "PANTALLA",
+        "TERMINAL",
+        "DASHBOARD",
+        "DESK",
+        "TRADING",
+        "LOCAL",
+        "LINK",
+        "URL",
         "IS",
         "IT",
         "AND",
@@ -1632,6 +1679,30 @@ class RoxyInteractiveBrain:
             "prepare alert",
             "create alert",
         )
+        trading_dashboard_terms = (
+            "abre roxy trade",
+            "abrir roxy trade",
+            "open roxy trade",
+            "abre la pagina para operar",
+            "abre pagina para operar",
+            "abrir la pagina para operar",
+            "abrir pagina para operar",
+            "pagina para operar",
+            "página para operar",
+            "pantalla para operar",
+            "terminal para operar",
+            "terminal de trading",
+            "dashboard para operar",
+            "dashboard operativo",
+            "trading dashboard",
+            "trading desk",
+            "open trading page",
+            "open trade page",
+            "open trading dashboard",
+            "open the trading dashboard",
+            "open the trade page",
+            "open the trading desk",
+        )
         data_freshness_terms = (
             "frescura de datos",
             "datos frescos",
@@ -1859,6 +1930,10 @@ class RoxyInteractiveBrain:
 
         if _contains_any(lq, watchlist_terms):
             response = self._watchlist_reply(profile, q, language)
+            return finish(response)
+
+        if _contains_any(lq, trading_dashboard_terms):
+            response = self._trading_dashboard_handoff_reply(q, language)
             return finish(response)
 
         if _contains_any(lq, pre_trade_preflight_terms):
@@ -4312,6 +4387,66 @@ class RoxyInteractiveBrain:
             safety_level="guarded",
             priority="high" if action in {"ALERT", "BUY", "SELL", "READY"} else "normal",
             suggested_actions=("confirm_alert", "entry_checklist", "position_size", "confirm_before_execution"),
+        )
+
+    def _trading_dashboard_handoff_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
+        requested_symbol = _extract_symbol(query)
+        row = self._latest_opportunity(requested_symbol)
+        symbol_text = _safe_text((row or {}).get("symbol") or requested_symbol or "SPY").upper()
+        timeframe = _extract_query_timeframe(query)
+        market = "crypto" if (row and _row_is_crypto(row)) or "/" in symbol_text else "stock"
+        url = _trading_dashboard_url(symbol_text, market, timeframe)
+        freshness = self._data_freshness_snapshot()
+        freshness_state = _safe_text(freshness.get("state") or "missing")
+        freshness_age = _safe_text(freshness.get("age_text") or "-")
+        action = _safe_text((row or {}).get("signal") or (row or {}).get("ai_action") or "-").upper()
+        decision = _safe_text((row or {}).get("decision") or (row or {}).get("trade_decision") or "-")
+        readiness = _safe_float((row or {}).get("readiness") or (row or {}).get("ai_score") or (row or {}).get("confluence_score"))
+        readiness_text = "-" if readiness is None else f"{readiness:.1f}"
+
+        if language == "en":
+            decision = _localize_market_phrase(decision, language)
+            if row:
+                context = f"Local setup: action {action}, decision {decision}, readiness {readiness_text}."
+                next_step = "Ask me for go/no-go, checklist, or position size before any approval."
+                actions = ("trade_readiness", "entry_checklist", "position_size", "confirm_before_execution")
+                needs_live_source = freshness_state in {"missing", "stale"}
+            else:
+                context = "I do not have a matching local setup yet."
+                next_step = "Refresh the scan first, then ask for go/no-go or a trade ticket."
+                actions = ("run_scan", "data_freshness", "market_session")
+                needs_live_source = True
+            reply = (
+                f"Trading page ready: {symbol_text}, {market}, {timeframe}. Open: {url}. "
+                f"Data {freshness_state} / {freshness_age}. {context} "
+                f"{next_step} This opens the dashboard only; it does not create or send an order."
+            )
+        else:
+            if row:
+                context = f"Setup local: accion {action}, decision {decision}, readiness {readiness_text}."
+                next_step = "Pideme go/no-go, checklist o tamaño de posicion antes de cualquier aprobacion."
+                actions = ("trade_readiness", "entry_checklist", "position_size", "confirm_before_execution")
+                needs_live_source = freshness_state in {"missing", "stale"}
+            else:
+                context = "Todavia no tengo un setup local que coincida."
+                next_step = "Refresca el scan primero y luego pideme go/no-go o ticket de trade."
+                actions = ("run_scan", "data_freshness", "market_session")
+                needs_live_source = True
+            reply = (
+                f"Pagina operativa lista: {symbol_text}, {market}, {timeframe}. Abre: {url}. "
+                f"Datos {freshness_state} / {freshness_age}. {context} "
+                f"{next_step} Esto solo abre el dashboard; no crea ni envia una orden."
+            )
+
+        return RoxyBrainReply(
+            intent="trading_dashboard_handoff",
+            reply=reply,
+            avatar_state="ready" if row else "blocked",
+            emotion="focused" if row else "cautious",
+            needs_live_source=needs_live_source,
+            safety_level="guarded",
+            priority="high",
+            suggested_actions=actions,
         )
 
     def _trade_readiness_reply(self, query: str, language: str = "es") -> RoxyBrainReply:
