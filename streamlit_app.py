@@ -1765,6 +1765,7 @@ def render_professional_chart_block(
     if {"open", "high", "low", "close"}.issubset(clean_window.columns):
         tape_items: list[str] = []
         tape_ranges: list[float] = []
+        tape_reading_counts: dict[str, int] = {}
         tape_green_count = 0
         tape_first_open: float | None = None
         tape_last_close: float | None = None
@@ -1809,6 +1810,8 @@ def render_professional_chart_block(
                 tape_upper_wick_pct,
                 tape_lower_wick_pct,
             )
+            if tape_reading not in {"", "-", "Sin lectura"}:
+                tape_reading_counts[tape_reading] = tape_reading_counts.get(tape_reading, 0) + 1
             tape_time = "-"
             if "ts" in candle:
                 try:
@@ -1838,9 +1841,13 @@ def render_professional_chart_block(
             if tape_first_open not in (None, 0) and tape_last_close is not None:
                 tape_momentum = (tape_last_close - tape_first_open) / tape_first_open
             tape_avg_range = sum(tape_ranges) / len(tape_ranges) if tape_ranges else None
+            tape_dominant_reading = "-"
+            if tape_reading_counts:
+                tape_dominant_reading = max(tape_reading_counts.items(), key=lambda item: (item[1], item[0]))[0]
             tape_summary = (
                 f"{tape_green_count}/{len(tape_items)} verdes · "
                 f"{pct_display(tape_momentum) if tape_momentum is not None else '-'} · "
+                f"lectura {tape_dominant_reading} · "
                 f"rango {pct_display(tape_avg_range) if tape_avg_range is not None else '-'}"
             )
             candle_tape_html = (
