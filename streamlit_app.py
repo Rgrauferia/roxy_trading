@@ -5380,7 +5380,7 @@ def build_professional_price_chart(
         )
         layers.append(
             alt.Chart(latest_badge_df)
-            .mark_text(align="left", dx=10, dy=-10, fontSize=12, fontWeight="bold")
+            .mark_text(align="right", dx=-10, dy=-10, fontSize=12, fontWeight="bold")
             .encode(
                 x=alt.X("ts:T", title="Tiempo"),
                 y=alt.Y("price:Q", title="Precio", scale=price_scale),
