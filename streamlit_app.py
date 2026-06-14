@@ -5261,6 +5261,8 @@ def build_professional_price_chart(
             latest_badge_text = f"{latest_badge_text} · {latest_badge_change:+.2%}"
         if latest_close_position_state != "-":
             latest_badge_text = f"{latest_badge_text} · {latest_close_position_state}"
+        if latest_wick_pressure in {"Oferta arriba", "Demanda abajo"}:
+            latest_badge_text = f"{latest_badge_text} · {latest_wick_pressure}"
         latest_range_position = None
         latest_room_to_high = None
         latest_room_above_low = None
