@@ -784,7 +784,7 @@ def roxy_live_page():
       node.innerHTML = "<b></b><span></span>";
       node.querySelector("b").textContent = meta ? label + " · " + meta : label;
       node.querySelector("span").textContent = text || "";
-      if (role === "roxy") appendDashboardHandoffLink(node, text || "", actionUrl || "", actionLabel || "");
+      if (role === "roxy" || actionUrl) appendDashboardHandoffLink(node, text || "", actionUrl || "", actionLabel || "");
       $("chat").appendChild(node);
       $("chat").scrollTop = $("chat").scrollHeight;
     }
@@ -890,6 +890,9 @@ def roxy_live_page():
         active_topic: text || "",
         active_market: state.active_market || "",
         active_timeframe: state.active_timeframe || "",
+        action_url: state.action_url || "",
+        action_label: state.action_label || "",
+        action_kind: state.action_kind || "",
         last_safety_level: state.safety_level || "",
         needs_confirmation: state.safety_level === "critical" || actions.includes("require_explicit_confirmation"),
         next_best_actions: actions,
@@ -1309,10 +1312,10 @@ def roxy_live_page():
       return language === "en" ? enText : esText;
     }
 
-    function speakLocalControlMessage(message, language, eventName, messageType) {
+    function speakLocalControlMessage(message, language, eventName, messageType, actionUrl, actionLabel) {
       $("reply").textContent = message;
       $("events").textContent = eventName;
-      appendMessage("system", message, messageType || "voice-control");
+      appendMessage("system", message, messageType || "voice-control", actionUrl || "", actionLabel || "");
       if (!speak(message, language)) {
         scheduleListen();
         releaseVoicePresenceIfIdle();
@@ -2008,13 +2011,24 @@ def roxy_live_page():
         const intent = ctx.active_intent || "-";
         const safety = ctx.last_safety_level || lastState.safety_level || "-";
         const actions = (ctx.next_best_actions || []).slice(0, 2).map(actionDisplayName).join(", ");
+        const marketText = [ctx.active_market, ctx.active_timeframe].filter(Boolean).join(" · ");
+        const marketPhrase = marketText
+          ? localizedText(" Mercado: " + marketText + ".", " Market: " + marketText + ".", language)
+          : "";
+        const handoffPhrase = ctx.action_url
+          ? localizedText(
+              " Handoff operativo listo: " + (ctx.action_label || "Abrir Roxy Trade") + ".",
+              " Operational handoff ready: " + (ctx.action_label || "Open Roxy Trade") + ".",
+              language
+            )
+          : "";
         message = localizedText(
-          "Contexto actual: " + symbol + ". Tema: " + intent + ". Seguridad: " + safety + ". Siguiente: " + (actions || "resumen del mercado") + ".",
-          "Current context: " + symbol + ". Topic: " + intent + ". Safety: " + safety + ". Next: " + (actions || "market summary") + ".",
+          "Contexto actual: " + symbol + ". Tema: " + intent + ". Seguridad: " + safety + "." + marketPhrase + handoffPhrase + " Siguiente: " + (actions || "resumen del mercado") + ".",
+          "Current context: " + symbol + ". Topic: " + intent + ". Safety: " + safety + "." + marketPhrase + handoffPhrase + " Next: " + (actions || "market summary") + ".",
           language
         );
       }
-      speakLocalControlMessage(message, language, "voice: session brief", "voice-context");
+      speakLocalControlMessage(message, language, "voice: session brief", "voice-context", ctx.action_url || "", ctx.action_label || "");
       return true;
     }
 

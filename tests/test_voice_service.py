@@ -194,6 +194,13 @@ def test_roxy_live_page():
     assert "state.action_label" in r.text
     assert "active_market: state.active_market" in r.text
     assert "active_timeframe: state.active_timeframe" in r.text
+    assert "action_url: state.action_url" in r.text
+    assert "action_label: state.action_label" in r.text
+    assert 'role === "roxy" || actionUrl' in r.text
+    assert "function speakLocalControlMessage(message, language, eventName, messageType, actionUrl, actionLabel)" in r.text
+    assert 'speakLocalControlMessage(message, language, "voice: session brief", "voice-context", ctx.action_url || "", ctx.action_label || "")' in r.text
+    assert "Handoff operativo listo: " in r.text
+    assert "Operational handoff ready: " in r.text
     assert "127\\.0\\.0\\.1:8501" in r.text
     assert "Abrir Roxy Trade" in r.text
     assert "Open Roxy Trade" in r.text
