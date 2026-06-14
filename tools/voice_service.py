@@ -3460,6 +3460,26 @@ def roxy_live_page():
       return hydratedContext;
     }
 
+    async function autoHydrateSessionContext() {
+      const sessionId = (session.value || "").trim();
+      if (!sessionId) return;
+      try {
+        const res = await fetch("/v1/assist/context/" + encodeURIComponent(sessionId) + "?limit=8", {
+          headers: requestHeaders(),
+        });
+        if (!res.ok) return;
+        const memory = await res.json();
+        const ctx = hydrateStateFromSessionMemory(memory);
+        if (Number(memory.turn_count || 0) > 0) {
+          $("events").textContent = ctx.action_url
+            ? "events: memory restored -> trade handoff ready"
+            : "events: memory restored";
+        }
+      } catch (_err) {
+        // Silent startup hydration should never block Roxy Live.
+      }
+    }
+
     async function loadMemory() {
       saveSettings();
       const headers = {};
@@ -3907,6 +3927,7 @@ def roxy_live_page():
     };
     appendMessage("system", "Roxy Live lista. Pulsa Hablar o usa un prompt rapido.", "ready");
     setAvatar("ready", "calm");
+    autoHydrateSessionContext();
     resumeSavedVoiceLoop();
   </script>
 </body>

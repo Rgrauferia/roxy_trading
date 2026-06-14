@@ -187,10 +187,14 @@ def test_roxy_live_page():
     assert "activeSessionContext" in r.text
     assert "voice: session brief" in r.text
     assert "hydrateStateFromSessionMemory" in r.text
+    assert "autoHydrateSessionContext" in r.text
     assert "context.active_topic" in r.text
     assert "payload.last_intent" in r.text
     assert "context.action_url" in r.text
     assert "turn.action_url || \"\"" in r.text
+    assert "events: memory restored -> trade handoff ready" in r.text
+    assert "Silent startup hydration should never block Roxy Live." in r.text
+    assert r.text.index("autoHydrateSessionContext();") < r.text.index("resumeSavedVoiceLoop();")
     assert "localTradeDashboardUrl" in r.text
     assert "tradeCommandTimeframe" in r.text
     assert "tradeCommandSymbol" in r.text
