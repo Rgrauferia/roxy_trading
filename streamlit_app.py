@@ -4706,6 +4706,17 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
         body_top = pd.concat([open_values_raw, pd.to_numeric(hover_df["close"], errors="coerce")], axis=1).max(axis=1)
         body_bottom = pd.concat([open_values_raw, pd.to_numeric(hover_df["close"], errors="coerce")], axis=1).min(axis=1)
         hover_df["candle_range_pct"] = (high_values - low_values) / close_values
+        range_values = (high_values - low_values).replace(0, pd.NA)
+        hover_df["close_position_pct"] = ((pd.to_numeric(hover_df["close"], errors="coerce") - low_values) / range_values).clip(0, 1)
+        close_position_values = [safe_float(item) for item in hover_df["close_position_pct"]]
+        hover_df["close_position_state"] = [
+            "Cierre fuerte"
+            if value is not None and value >= 0.75
+            else "Cierre debil"
+            if value is not None and value <= 0.25
+            else "Cierre medio"
+            for value in close_position_values
+        ]
         hover_df["upper_wick_pct"] = (high_values - body_top).clip(lower=0) / close_values
         hover_df["lower_wick_pct"] = (body_bottom - low_values).clip(lower=0) / close_values
         hover_df["candle_reading"] = [
@@ -4774,6 +4785,10 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
         tooltips.append(alt.Tooltip("prev_close_state:N", title="Momentum"))
     if "candle_range_pct" in hover_df.columns:
         tooltips.append(alt.Tooltip("candle_range_pct:Q", title="Rango vela", format=".2%"))
+    if "close_position_pct" in hover_df.columns:
+        tooltips.append(alt.Tooltip("close_position_pct:Q", title="Cierre en rango", format=".0%"))
+    if "close_position_state" in hover_df.columns:
+        tooltips.append(alt.Tooltip("close_position_state:N", title="Fuerza cierre"))
     if "candle_body_pct" in hover_df.columns:
         tooltips.append(alt.Tooltip("candle_body_pct:Q", title="Cuerpo", format=".2%"))
     if "upper_wick_pct" in hover_df.columns:
@@ -4903,6 +4918,17 @@ def build_professional_price_chart(
     close_denominator = close_values.replace(0, pd.NA)
     chart_window["candle_change_pct"] = (close_values - open_values) / open_values
     chart_window["candle_range_pct"] = (high_values - low_values) / close_denominator
+    range_values = (high_values - low_values).replace(0, pd.NA)
+    chart_window["close_position_pct"] = ((close_values - low_values) / range_values).clip(0, 1)
+    close_position_values = [safe_float(item) for item in chart_window["close_position_pct"]]
+    chart_window["close_position_state"] = [
+        "Cierre fuerte"
+        if value is not None and value >= 0.75
+        else "Cierre debil"
+        if value is not None and value <= 0.25
+        else "Cierre medio"
+        for value in close_position_values
+    ]
     chart_window["candle_body_pct"] = (close_values - open_values_raw).abs() / close_denominator
     body_top = pd.concat([open_values_raw, close_values], axis=1).max(axis=1)
     body_bottom = pd.concat([open_values_raw, close_values], axis=1).min(axis=1)
@@ -5136,6 +5162,8 @@ def build_professional_price_chart(
         alt.Tooltip("close:Q", title="Cierre", format=".2f"),
         alt.Tooltip("candle_change_pct:Q", title="Cambio vela", format=".2%"),
         alt.Tooltip("candle_range_pct:Q", title="Rango vela", format=".2%"),
+        alt.Tooltip("close_position_pct:Q", title="Cierre en rango", format=".0%"),
+        alt.Tooltip("close_position_state:N", title="Fuerza cierre"),
         alt.Tooltip("candle_body_pct:Q", title="Cuerpo", format=".2%"),
         alt.Tooltip("upper_wick_pct:Q", title="Mecha sup.", format=".2%"),
         alt.Tooltip("lower_wick_pct:Q", title="Mecha inf.", format=".2%"),
