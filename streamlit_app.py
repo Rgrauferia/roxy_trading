@@ -5358,7 +5358,10 @@ def build_professional_price_chart(
                 tooltip=[
                     alt.Tooltip("label:N", title="Ultima vela"),
                     alt.Tooltip("price:Q", title="Precio actual", format=".2f"),
+                    alt.Tooltip("reading:N", title="Lectura"),
+                    alt.Tooltip("close_position_state:N", title="Fuerza cierre"),
                     alt.Tooltip("wick_pressure:N", title="Presion mechas"),
+                    alt.Tooltip("relative_volume:Q", title="RVol", format=".2f"),
                 ],
             )
         )
