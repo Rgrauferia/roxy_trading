@@ -5263,6 +5263,11 @@ def build_professional_price_chart(
             if latest_badge_price > 0:
                 latest_room_to_high = (visible_high - latest_badge_price) / latest_badge_price
                 latest_room_above_low = (latest_badge_price - visible_low) / latest_badge_price
+        latest_badge_tone = "buy" if latest_badge_change is not None and latest_badge_change >= 0 else "avoid"
+        if latest_close_position_state == "Cierre fuerte":
+            latest_badge_tone = "buy"
+        elif latest_close_position_state == "Cierre debil":
+            latest_badge_tone = "avoid"
         latest_badge_df = pd.DataFrame(
             [
                 {
@@ -5289,7 +5294,7 @@ def build_professional_price_chart(
                     "above_support": latest_above_support,
                     "room_to_high": latest_room_to_high,
                     "room_above_low": latest_room_above_low,
-                    "tone": "buy" if latest_badge_change is not None and latest_badge_change >= 0 else "avoid",
+                    "tone": latest_badge_tone,
                 }
             ]
         )
