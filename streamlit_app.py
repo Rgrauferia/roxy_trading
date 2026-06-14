@@ -5263,6 +5263,11 @@ def build_professional_price_chart(
             latest_badge_text = f"{latest_badge_text} · {latest_close_position_state}"
         if latest_wick_pressure in {"Oferta arriba", "Demanda abajo"}:
             latest_badge_text = f"{latest_badge_text} · {latest_wick_pressure}"
+        latest_badge_label = f"{latest_badge_price:.2f}"
+        if latest_wick_pressure in {"Oferta arriba", "Demanda abajo"}:
+            latest_badge_label = f"{latest_badge_label} · {latest_wick_pressure}"
+        elif latest_close_position_state != "-":
+            latest_badge_label = f"{latest_badge_label} · {latest_close_position_state}"
         latest_range_position = None
         latest_room_to_high = None
         latest_room_above_low = None
@@ -5314,6 +5319,7 @@ def build_professional_price_chart(
                     "ts": latest_badge_row.get("ts"),
                     "price": latest_badge_price,
                     "label": latest_badge_text,
+                    "badge_label": latest_badge_label,
                     "reading": latest_badge_reading,
                     "close_position_state": latest_close_position_state,
                     "close_position_pct": latest_close_position_pct,
@@ -5384,7 +5390,7 @@ def build_professional_price_chart(
             .encode(
                 x=alt.X("ts:T", title="Tiempo"),
                 y=alt.Y("price:Q", title="Precio", scale=price_scale),
-                text="label:N",
+                text="badge_label:N",
                 color=alt.Color(
                     "tone:N",
                     legend=None,
