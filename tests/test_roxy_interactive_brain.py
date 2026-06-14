@@ -2974,6 +2974,36 @@ def test_roxy_conversation_memory_infers_symbols_only_for_market_intents(tmp_pat
     assert state["active_context"]["active_symbol"] == "NVDA"
 
 
+def test_roxy_conversation_memory_ignores_legacy_status_symbols(tmp_path):
+    memory_path = tmp_path / "conversation.json"
+    memory_path.write_text(
+        json.dumps(
+            {
+                "sessions": {
+                    "demo": [
+                        {
+                            "at": "2026-06-14T17:45:00+00:00",
+                            "query": "estado de roxy",
+                            "reply": "Roxy Live is active.",
+                            "intent": "autonomy_status",
+                            "safety_level": "guarded",
+                            "active_symbol": "LIVE",
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    memory = RoxyConversationMemory(path=memory_path)
+
+    state = memory.session_state("demo")
+    overview = memory.overview(limit=3)
+
+    assert state["active_context"]["active_symbol"] == ""
+    assert overview["recent_sessions"][0]["active_symbol"] == ""
+
+
 def test_roxy_brain_redacts_secrets_in_memory(tmp_path):
     memory_path = tmp_path / "conversation.json"
     memory = RoxyConversationMemory(path=memory_path)

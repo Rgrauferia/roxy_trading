@@ -1184,6 +1184,8 @@ def _active_conversation_context(recent_turns: list[dict[str, Any]]) -> dict[str
     active_intent = _last_turn_intent(recent_turns) or _safe_text(last_turn.get("intent"))
     active_symbol = ""
     for turn in reversed(recent_turns):
+        if _safe_text(turn.get("intent")) not in SYMBOL_INFERENCE_INTENTS:
+            continue
         active_symbol = _safe_text(turn.get("active_symbol")).upper()
         if active_symbol:
             break
