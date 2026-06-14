@@ -5664,6 +5664,11 @@ def build_professional_oscillator_chart(chart_df: pd.DataFrame) -> alt.LayerChar
     layers: list[alt.Chart] = []
     if "rsi14" in oscillator_window.columns and oscillator_window["rsi14"].notna().any():
         rsi_df = oscillator_window.dropna(subset=["rsi14"]).copy()
+        rsi_values = [safe_float(item) for item in rsi_df["rsi14"]]
+        rsi_df["rsi_state"] = [
+            "Sobrecompra" if value is not None and value >= 70 else "Sobreventa" if value is not None and value <= 30 else "Neutral"
+            for value in rsi_values
+        ]
         rsi_start = rsi_df["ts"].min()
         rsi_end = rsi_df["ts"].max()
         rsi_zone_df = pd.DataFrame(
@@ -5695,6 +5700,7 @@ def build_professional_oscillator_chart(chart_df: pd.DataFrame) -> alt.LayerChar
                 tooltip=[
                     alt.Tooltip("ts:T", title="Tiempo"),
                     alt.Tooltip("rsi14:Q", title="RSI 14", format=".1f"),
+                    alt.Tooltip("rsi_state:N", title="Estado RSI"),
                 ],
             )
         )
@@ -5709,6 +5715,11 @@ def build_professional_oscillator_chart(chart_df: pd.DataFrame) -> alt.LayerChar
         macd_df = oscillator_window.dropna(subset=["macd_hist"]).copy()
         macd_df["macd_hist"] = pd.to_numeric(macd_df["macd_hist"], errors="coerce")
         macd_df = macd_df.dropna(subset=["macd_hist"])
+        macd_values = [safe_float(item) for item in macd_df["macd_hist"]]
+        macd_df["macd_state"] = [
+            "Impulso alcista" if value is not None and value >= 0 else "Impulso bajista"
+            for value in macd_values
+        ]
     else:
         macd_df = pd.DataFrame()
     if not macd_df.empty:
@@ -5743,6 +5754,7 @@ def build_professional_oscillator_chart(chart_df: pd.DataFrame) -> alt.LayerChar
                 tooltip=[
                     alt.Tooltip("ts:T", title="Tiempo"),
                     alt.Tooltip("macd_hist:Q", title="MACD hist", format=".4f"),
+                    alt.Tooltip("macd_state:N", title="Lectura MACD"),
                 ],
             )
         )
