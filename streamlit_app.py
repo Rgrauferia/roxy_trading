@@ -4721,6 +4721,15 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
         volume_values = pd.to_numeric(hover_df["volume"], errors="coerce")
         volume_avg_values = pd.to_numeric(hover_df["volume_sma20"], errors="coerce").replace(0, pd.NA)
         hover_df["relative_volume"] = volume_values / volume_avg_values
+        relative_volume_values = [safe_float(item) for item in hover_df["relative_volume"]]
+        hover_df["volume_state"] = [
+            "Volumen fuerte"
+            if value is not None and value >= 1.5
+            else "Volumen normal"
+            if value is not None and value >= 0.8
+            else "Volumen bajo"
+            for value in relative_volume_values
+        ]
     close_for_ma_distance = pd.to_numeric(hover_df.get("close"), errors="coerce").replace(0, pd.NA)
     for column in ["ema9", "sma20", "sma200"]:
         if column in hover_df.columns:
@@ -4758,6 +4767,8 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
         tooltips.append(alt.Tooltip("volume:Q", title="Volumen", format=",.0f"))
     if "relative_volume" in hover_df.columns:
         tooltips.append(alt.Tooltip("relative_volume:Q", title="RVol", format=".2f"))
+    if "volume_state" in hover_df.columns:
+        tooltips.append(alt.Tooltip("volume_state:N", title="Lectura volumen"))
     for column, label in (("ema9", "EMA9"), ("sma20", "SMA20"), ("sma40", "SMA40"), ("sma100", "SMA100"), ("sma200", "SMA200")):
         if column in hover_df.columns:
             tooltips.append(alt.Tooltip(f"{column}:Q", title=label, format=".2f"))
