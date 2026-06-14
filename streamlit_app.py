@@ -5728,6 +5728,17 @@ def build_professional_volume_chart(chart_df: pd.DataFrame) -> alt.LayerChart | 
                         ],
                     )
                 )
+                confirm_label = volume_confirm.tail(1).copy()
+                confirm_label["label"] = "1.2x confirma"
+                layers.append(
+                    alt.Chart(confirm_label)
+                    .mark_text(align="right", dx=-6, dy=-6, fontSize=10, fontWeight="bold", color="#bae6fd")
+                    .encode(
+                        x=alt.X("ts:T", title="Tiempo", scale=time_scale),
+                        y=alt.Y("volume_confirm:Q", title="Volumen", scale=volume_scale),
+                        text="label:N",
+                    )
+                )
     latest_volume_row = volume_window.iloc[-1]
     latest_volume_value = safe_float(latest_volume_row.get("volume"))
     if latest_volume_value is not None:
