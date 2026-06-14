@@ -1790,6 +1790,25 @@ def render_professional_chart_block(
             if candle_high is not None and candle_low is not None and candle_close not in (None, 0):
                 tape_range = (candle_high - candle_low) / candle_close
                 tape_ranges.append(tape_range)
+            tape_body_pct = None
+            tape_upper_wick_pct = None
+            tape_lower_wick_pct = None
+            if candle_open is not None and candle_high is not None and candle_low is not None and candle_close not in (None, 0):
+                tape_body_top = max(candle_open, candle_close)
+                tape_body_bottom = min(candle_open, candle_close)
+                tape_body_pct = abs(candle_close - candle_open) / candle_close
+                tape_upper_wick_pct = max(0.0, candle_high - tape_body_top) / candle_close
+                tape_lower_wick_pct = max(0.0, tape_body_bottom - candle_low) / candle_close
+            tape_reading = candle_reading_label(
+                candle_open,
+                candle_high,
+                candle_low,
+                candle_close,
+                tape_body_pct,
+                tape_range,
+                tape_upper_wick_pct,
+                tape_lower_wick_pct,
+            )
             tape_time = "-"
             if "ts" in candle:
                 try:
@@ -1798,10 +1817,15 @@ def render_professional_chart_block(
                         tape_time = pd.Timestamp(parsed_ts).strftime("%H:%M")
                 except Exception:
                     tape_time = "-"
+            tape_title = (
+                f"{tape_time} · O {num_display(candle_open, 2)} · H {num_display(candle_high, 2)} · "
+                f"L {num_display(candle_low, 2)} · C {num_display(candle_close, 2)} · {tape_reading}"
+            )
             tape_items.append(
-                '<span class="chart-tape-candle chart-tape-{tone}"><em>{time}</em><strong>{close}</strong>'
+                '<span class="chart-tape-candle chart-tape-{tone}" title="{title}"><em>{time}</em><strong>{close}</strong>'
                 "<small>{change} · R {range_pct}</small></span>".format(
                     tone=html.escape(tape_tone),
+                    title=html.escape(tape_title),
                     time=html.escape(tape_time),
                     close=html.escape(num_display(candle_close, 2)),
                     change=html.escape(pct_display(tape_change) if tape_change is not None else "-"),
