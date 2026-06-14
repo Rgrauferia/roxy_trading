@@ -5347,6 +5347,23 @@ def build_professional_price_chart(
         )
         layers.append(
             alt.Chart(latest_badge_df)
+            .mark_rule(strokeDash=[3, 4], opacity=0.58, size=1)
+            .encode(
+                y=alt.Y("price:Q", title="Precio", scale=price_scale),
+                color=alt.Color(
+                    "tone:N",
+                    legend=None,
+                    scale=alt.Scale(domain=["buy", "avoid"], range=["#22c55e", "#ef4444"]),
+                ),
+                tooltip=[
+                    alt.Tooltip("label:N", title="Ultima vela"),
+                    alt.Tooltip("price:Q", title="Precio actual", format=".2f"),
+                    alt.Tooltip("wick_pressure:N", title="Presion mechas"),
+                ],
+            )
+        )
+        layers.append(
+            alt.Chart(latest_badge_df)
             .mark_point(filled=True, size=72, stroke="#020617", strokeWidth=1.2)
             .encode(
                 x=alt.X("ts:T", title="Tiempo"),
