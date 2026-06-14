@@ -5174,7 +5174,21 @@ def build_professional_price_chart(
         latest_support = safe_float(latest_badge_row.get("range_low_60"))
         latest_to_resistance = None
         latest_above_support = None
+        latest_target = None
+        for target_item in targets:
+            latest_target = safe_float(target_item.get("price"))
+            if latest_target is not None:
+                break
+        latest_to_entry = None
+        latest_to_stop = None
+        latest_to_target = None
         if latest_badge_price > 0:
+            if entry is not None:
+                latest_to_entry = (entry - latest_badge_price) / latest_badge_price
+            if stop is not None:
+                latest_to_stop = (stop - latest_badge_price) / latest_badge_price
+            if latest_target is not None:
+                latest_to_target = (latest_target - latest_badge_price) / latest_badge_price
             if latest_resistance is not None:
                 latest_to_resistance = (latest_resistance - latest_badge_price) / latest_badge_price
             if latest_support is not None:
@@ -5200,6 +5214,9 @@ def build_professional_price_chart(
                     "body_pct": latest_candle_body,
                     "relative_volume": latest_relative_volume,
                     "range_position": latest_range_position,
+                    "to_entry": latest_to_entry,
+                    "to_stop": latest_to_stop,
+                    "to_target": latest_to_target,
                     "to_resistance": latest_to_resistance,
                     "above_support": latest_above_support,
                     "room_to_high": latest_room_to_high,
@@ -5231,6 +5248,9 @@ def build_professional_price_chart(
                     alt.Tooltip("body_pct:Q", title="Cuerpo", format=".2%"),
                     alt.Tooltip("relative_volume:Q", title="RVol", format=".2f"),
                     alt.Tooltip("range_position:Q", title="Posición rango", format=".0%"),
+                    alt.Tooltip("to_entry:Q", title="Hasta entrada", format="+.2%"),
+                    alt.Tooltip("to_stop:Q", title="Hasta stop", format="+.2%"),
+                    alt.Tooltip("to_target:Q", title="Hasta objetivo", format="+.2%"),
                     alt.Tooltip("to_resistance:Q", title="Hasta resistencia", format=".2%"),
                     alt.Tooltip("above_support:Q", title="Sobre soporte", format=".2%"),
                     alt.Tooltip("room_to_high:Q", title="Hasta máx", format=".2%"),
