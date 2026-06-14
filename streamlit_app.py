@@ -5590,8 +5590,10 @@ def build_professional_volume_chart(chart_df: pd.DataFrame) -> alt.LayerChart | 
         latest_relative_volume = safe_float(latest_volume_row.get("relative_volume"))
         latest_volume_state = text_display(latest_volume_row.get("volume_state"))
         latest_volume_label = latest_volume_state
+        latest_confirm_gap = None
         if latest_relative_volume is not None:
             latest_volume_label = f"{latest_volume_label} · {latest_relative_volume:.2f}x"
+            latest_confirm_gap = latest_relative_volume - 1.2
         latest_volume_df = pd.DataFrame(
             [
                 {
@@ -5600,6 +5602,7 @@ def build_professional_volume_chart(chart_df: pd.DataFrame) -> alt.LayerChart | 
                     "label": latest_volume_label,
                     "state": latest_volume_state,
                     "relative_volume": latest_relative_volume,
+                    "confirm_gap": latest_confirm_gap,
                 }
             ]
         )
@@ -5618,6 +5621,7 @@ def build_professional_volume_chart(chart_df: pd.DataFrame) -> alt.LayerChart | 
                     alt.Tooltip("label:N", title="Volumen actual"),
                     alt.Tooltip("volume:Q", title="Volumen", format=",.0f"),
                     alt.Tooltip("relative_volume:Q", title="RVol", format=".2f"),
+                    alt.Tooltip("confirm_gap:Q", title="Sobre/falta 1.2x", format="+.2f"),
                     alt.Tooltip("ts:T", title="Tiempo"),
                 ],
             )
