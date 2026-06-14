@@ -1657,6 +1657,8 @@ def render_professional_chart_block(
     latest_low = safe_float(latest_row.get("low"))
     latest_close = safe_float(latest_row.get("close"))
     latest_volume = safe_float(latest_row.get("volume"))
+    window_high = safe_float(pd.to_numeric(clean_window.get("high"), errors="coerce").max()) if "high" in clean_window.columns else None
+    window_low = safe_float(pd.to_numeric(clean_window.get("low"), errors="coerce").min()) if "low" in clean_window.columns else None
     previous_close = safe_float(clean_window.iloc[-2].get("close")) if len(clean_window) > 1 else None
     candle_change = None
     if latest_close is not None and previous_close not in (None, 0):
@@ -1697,6 +1699,12 @@ def render_professional_chart_block(
     candle_change_text = pct_display(candle_change) if candle_change is not None else "-"
     candle_range_text = pct_display(candle_range) if candle_range is not None else "-"
     candle_volume_text = num_display(latest_volume, 0) if latest_volume is not None else "-"
+    window_range_text = "-"
+    if window_low is not None and window_high is not None:
+        window_range_text = f"{num_display(window_low, 2)}-{num_display(window_high, 2)}"
+    window_position_text = "-"
+    if latest_close is not None and window_low is not None and window_high is not None and window_high != window_low:
+        window_position_text = f"{((latest_close - window_low) / (window_high - window_low)):.0%}"
     freshness = (trade_brief or {}).get("source_freshness") if isinstance(trade_brief, dict) else {}
     freshness = freshness if isinstance(freshness, dict) else {}
     source_status = text_display(freshness.get("status"))
@@ -1941,6 +1949,7 @@ def render_professional_chart_block(
             <b class="chart-level-rr">R:R {html.escape(rr_display)}</b>
             <b class="chart-level-check chart-level-check-{checks_tone}">{html.escape(checks_summary)} · {html.escape(blockers_summary)}</b>
             <b class="chart-level-data">Velas {visible_candles}</b>
+            <b class="chart-level-data">Ventana {html.escape(window_range_text)} · Pos {html.escape(window_position_text)}</b>
             <b class="chart-level-data">Última {html.escape(latest_candle)}</b>
             <b class="chart-level-candle chart-level-candle-{candle_tone}">{html.escape(candle_label)} · {html.escape(candle_change_text)}</b>
             <b class="chart-level-data">{html.escape(candle_ohlc)}</b>
