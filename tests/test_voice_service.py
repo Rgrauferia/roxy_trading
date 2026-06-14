@@ -679,7 +679,12 @@ def test_roxy_live_page():
     assert 'ensureReceptionistVoiceReady(profile.language || $("language").value || "es", {save: true})' in r.text
     assert 'ensureReceptionistVoiceReady($("language").value || "es")' in r.text
     assert 'ensureReceptionistVoiceReady($("language").value || "es", {save: true})' in r.text
-    assert r.text.index("const voice = ensureReceptionistVoiceReady(lang") < r.text.index("const utterance = new SpeechSynthesisUtterance(text)")
+    assert "speechFriendlyText" in r.text
+    assert "15 minutos" not in r.text
+    assert "new SpeechSynthesisUtterance(speechFriendlyText(text, lang))" in r.text
+    assert r.text.index("const voice = ensureReceptionistVoiceReady(lang") < r.text.index(
+        "const utterance = new SpeechSynthesisUtterance(speechFriendlyText(text, lang))"
+    )
     assert 'value="0.9"' in r.text
     assert 'value="1.1"' in r.text
     assert "alignVoiceSelection" in r.text
@@ -996,7 +1001,7 @@ def test_voice_assistant_session_brief_includes_trading_handoff_context():
     assert payload["action_label"] == "Open Roxy Trade"
     assert payload["action_kind"] == "local_trading_dashboard"
     assert "Active symbol: ETH/USD" in payload["speakable_summary"]
-    assert "Market: crypto, timeframe: 4h" in payload["speakable_summary"]
+    assert "Market: crypto, timeframe: 4 hours" in payload["speakable_summary"]
     assert "Operational handoff is ready: Open Roxy Trade" in payload["speakable_summary"]
 
 

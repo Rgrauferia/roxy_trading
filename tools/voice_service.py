@@ -3365,13 +3365,33 @@ def roxy_live_page():
       updateVoiceDiagnostics();
     }
 
+    function speechFriendlyText(text, languageValue) {
+      const language = languageValue || $("language").value || "es";
+      const units = language === "en"
+        ? {m: ["minute", "minutes"], h: ["hour", "hours"], d: ["day", "days"]}
+        : {m: ["minuto", "minutos"], h: ["hora", "horas"], d: ["dia", "dias"]};
+      return String(text || "")
+        .replace(/\b(\d+)\s*([mhd])\b/gi, (_match, amount, unitKey) => {
+          const key = String(unitKey || "").toLowerCase();
+          const labels = units[key];
+          if (!labels) return _match;
+          return amount + " " + (String(amount) === "1" ? labels[0] : labels[1]);
+        })
+        .replace(/\b(\d+)\s*min\b/gi, (_match, amount) => {
+          const label = language === "en"
+            ? (String(amount) === "1" ? "minute" : "minutes")
+            : (String(amount) === "1" ? "minuto" : "minutos");
+          return amount + " " + label;
+        });
+    }
+
     function speak(text, languageOverride) {
       if (!text || !("speechSynthesis" in window)) return false;
       setVoicePresenceActive(true);
       const run = () => {
         const lang = languageOverride || $("language").value || "es";
         const voice = ensureReceptionistVoiceReady(lang, {forceReceptionist: localStorage.getItem("roxyLiveVoicePreset") === "receptionist"});
-        const utterance = new SpeechSynthesisUtterance(text);
+        const utterance = new SpeechSynthesisUtterance(speechFriendlyText(text, lang));
         utterance.lang = speechLang(lang);
         utterance.rate = Number($("voiceRate").value || 0.9);
         utterance.pitch = Number($("voicePitch").value || 1.1);

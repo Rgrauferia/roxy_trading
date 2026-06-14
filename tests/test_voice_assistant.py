@@ -156,7 +156,7 @@ def test_voice_assistant_spanish_session_brief_mentions_trading_handoff():
     assert payload["language"] == "es"
     assert payload["action_url"].endswith("symbol=NVDA&market=stock&tf=15m")
     assert "Simbolo activo: NVDA" in payload["speakable_summary"]
-    assert "Mercado: stock, marco: 15m" in payload["speakable_summary"]
+    assert "Mercado: stock, marco: 15 minutos" in payload["speakable_summary"]
     assert "Handoff operativo listo: Abrir Roxy Trade" in payload["speakable_summary"]
 
 
@@ -184,9 +184,17 @@ def test_voice_assistant_session_overview_is_speakable():
     assert payload["language"] == "en"
     assert payload["session_count"] == 2
     assert payload["recent_sessions"][0]["session_id"] == "scalping"
-    assert "Recent sessions: scalping: 3 turn(s), NVDA stock 15m, last topic trade_readiness" in payload[
+    assert "Recent sessions: scalping: 3 turn(s), NVDA stock 15 minutes, last topic trade_readiness" in payload[
         "speakable_summary"
     ]
     assert "trade handoff ready" in payload["speakable_summary"]
     assert "Roxy, switch session to scalping" in payload["speakable_summary"]
     assert payload["suggested_actions"] == ["switch_session", "session_brief"]
+
+
+def test_voice_assistant_speakable_timeframe_expands_trading_shorthand():
+    assert voice_assistant.speakable_timeframe("15m", "es") == "15 minutos"
+    assert voice_assistant.speakable_timeframe("1m", "es") == "1 minuto"
+    assert voice_assistant.speakable_timeframe("2h", "es") == "2 horas"
+    assert voice_assistant.speakable_timeframe("15m", "en") == "15 minutes"
+    assert voice_assistant.speakable_timeframe("1h", "en") == "1 hour"

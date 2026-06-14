@@ -52,6 +52,28 @@ def _price(value: Any) -> str:
     return f"{number:.2f}"
 
 
+def speakable_timeframe(value: str, language: str = "es") -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    compact = raw.lower().replace(" ", "")
+    units = {
+        "m": ("minute", "minutes", "minuto", "minutos"),
+        "h": ("hour", "hours", "hora", "horas"),
+        "d": ("day", "days", "dia", "dias"),
+    }
+    suffix = compact[-1:]
+    amount = compact[:-1]
+    if suffix in units and amount.isdigit():
+        en_singular, en_plural, es_singular, es_plural = units[suffix]
+        if language == "en":
+            unit = en_singular if amount == "1" else en_plural
+        else:
+            unit = es_singular if amount == "1" else es_plural
+        return f"{amount} {unit}"
+    return raw
+
+
 def _latest_opportunity(symbol: str | None = None) -> dict[str, Any]:
     brief = _load_json(BRIEF_PATH)
     rows = brief.get("opportunities") or []
@@ -327,7 +349,7 @@ def session_overview_from_memory(overview: dict[str, Any], language: str = "es")
             intent = str(row.get("last_intent") or "-")
             symbol = str(row.get("active_symbol") or "").strip()
             market = str(row.get("active_market") or "").strip()
-            timeframe = str(row.get("active_timeframe") or "").strip()
+            timeframe = speakable_timeframe(str(row.get("active_timeframe") or "").strip(), language)
             context = " ".join(part for part in (symbol, market, timeframe) if part)
             handoff_ready = bool(str(row.get("action_url") or "").strip())
             if language == "en":
@@ -383,7 +405,7 @@ def session_brief_from_state(state: dict[str, Any], language: str = "es") -> dic
     intent = str(context.get("active_intent") or state.get("last_intent") or "-")
     symbol = str(context.get("active_symbol") or "-")
     market = str(context.get("active_market") or "").strip()
-    timeframe = str(context.get("active_timeframe") or "").strip()
+    timeframe = speakable_timeframe(str(context.get("active_timeframe") or "").strip(), language)
     action_url = str(context.get("action_url") or "").strip()
     action_label = str(context.get("action_label") or "").strip()
     action_kind = str(context.get("action_kind") or "").strip()
