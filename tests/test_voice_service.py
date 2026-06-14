@@ -190,6 +190,13 @@ def test_roxy_live_page():
     assert "tradeCommandTimeframe" in r.text
     assert "tradeCommandSymbol" in r.text
     assert "tradeCommandContext" in r.text
+    assert "localTradeHandoffPrompt" in r.text
+    assert "persistTradeDashboardHandoff" in r.text
+    assert 'fetch("/v1/assist/state"' in r.text
+    assert "requestBody(text)" in r.text
+    assert "mergeLocalTradeHandoffState(state, text, ctx, url, label)" in r.text
+    assert "voice: open trade dashboard -> memory saved" in r.text
+    assert "voice: open trade dashboard -> memory pending" in r.text
     assert "openActiveTradeDashboard" in r.text
     assert "window.open(url, \"_blank\", \"noopener\")" in r.text
     assert "voice: open trade dashboard" in r.text
@@ -200,6 +207,9 @@ def test_roxy_live_page():
     assert 'if (symbol) ctx.active_symbol = symbol' in r.text
     assert 'if (timeframe) ctx.active_timeframe = timeframe' in r.text
     assert 'lastState = Object.assign({}, lastState || {}, {' in r.text
+    assert 'intent: "trading_dashboard_handoff"' in r.text
+    assert 'action_kind: "local_trading_dashboard"' in r.text
+    assert 'persistTradeDashboardHandoff(command || "", ctx, url, label)' in r.text
     assert "return openActiveTradeDashboard(command)" in r.text
     assert "encodeURIComponent(symbol)" in r.text
     assert "operationalHandoffPrompt" in r.text

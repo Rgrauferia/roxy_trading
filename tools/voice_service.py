@@ -2106,9 +2106,63 @@ def roxy_live_page():
       return ctx;
     }
 
+    function localTradeHandoffPrompt(command, ctx) {
+      const explicit = (command || "").trim();
+      if (explicit) return explicit;
+      const language = lastState.language || $("language").value || "es";
+      const symbol = ctx.active_symbol || $("defaultSymbol").value || "SPY";
+      const timeframe = ctx.active_timeframe || "1h";
+      return localizedText(
+        "abre roxy trade para " + symbol + " en " + timeframe,
+        "open Roxy Trade for " + symbol + " on " + timeframe,
+        language
+      );
+    }
+
+    function mergeLocalTradeHandoffState(state, text, ctx, url, label) {
+      const actions = Array.isArray(state && state.suggested_actions) && state.suggested_actions.length
+        ? state.suggested_actions
+        : (Array.isArray(ctx.next_best_actions) ? ctx.next_best_actions : ["trade_readiness", "entry_checklist", "position_size"]);
+      lastQuery = text;
+      lastReply = (state && state.reply) || lastReply || "";
+      lastState = Object.assign({}, state || lastState || {}, {
+        intent: (state && state.intent) || "trading_dashboard_handoff",
+        active_symbol: ctx.active_symbol || (state && state.active_symbol) || "",
+        active_market: ctx.active_market || (state && state.active_market) || "",
+        active_timeframe: ctx.active_timeframe || (state && state.active_timeframe) || "",
+        action_url: url || (state && state.action_url) || "",
+        action_label: label || (state && state.action_label) || "",
+        action_kind: "local_trading_dashboard",
+        suggested_actions: actions,
+        safety_level: (state && state.safety_level) || lastState.safety_level || "guarded",
+      });
+      renderActiveContext(currentTurnContext(lastState, text));
+    }
+
+    async function persistTradeDashboardHandoff(command, ctx, url, label) {
+      const text = localTradeHandoffPrompt(command, ctx);
+      try {
+        const res = await fetch("/v1/assist/state", {
+          method: "POST",
+          headers: requestHeaders(),
+          body: requestBody(text),
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const state = await res.json();
+        mergeLocalTradeHandoffState(state, text, ctx, url, label);
+        $("events").textContent = "voice: open trade dashboard -> memory saved";
+      } catch (_err) {
+        mergeLocalTradeHandoffState(null, text, ctx, url, label);
+        $("events").textContent = "voice: open trade dashboard -> memory pending";
+      }
+    }
+
     function openActiveTradeDashboard(command) {
       const language = lastState.language || $("language").value || "es";
       const ctx = tradeCommandContext(command || "", activeSessionContext());
+      ctx.active_intent = "trading_dashboard_handoff";
+      ctx.last_safety_level = ctx.last_safety_level || "guarded";
+      ctx.next_best_actions = ["trade_readiness", "entry_checklist", "position_size"];
       renderActiveContext(ctx);
       const url = localTradeDashboardUrl(ctx);
       const label = ctx.action_label || localizedText("Abrir Roxy Trade", "Open Roxy Trade", language);
@@ -2116,12 +2170,15 @@ def roxy_live_page():
       ctx.action_label = label;
       ctx.action_kind = "local_trading_dashboard";
       lastState = Object.assign({}, lastState || {}, {
+        intent: "trading_dashboard_handoff",
         active_symbol: ctx.active_symbol || "",
         active_market: ctx.active_market || "",
         active_timeframe: ctx.active_timeframe || "",
         action_url: url,
         action_label: label,
         action_kind: ctx.action_kind,
+        suggested_actions: ctx.next_best_actions,
+        safety_level: lastState.safety_level || "guarded",
       });
       renderActiveContext(ctx);
       const opened = window.open(url, "_blank", "noopener");
@@ -2140,6 +2197,7 @@ def roxy_live_page():
             language
           );
       speakLocalControlMessage(message, language, "voice: open trade dashboard", "voice-handoff", url, label);
+      persistTradeDashboardHandoff(command || "", ctx, url, label);
       return true;
     }
 
