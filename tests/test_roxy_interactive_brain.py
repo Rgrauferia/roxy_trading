@@ -2947,7 +2947,7 @@ def test_roxy_conversation_memory_overview_includes_operational_context(tmp_path
 def test_roxy_conversation_memory_does_not_store_status_words_as_symbols(tmp_path):
     memory = RoxyConversationMemory(path=tmp_path / "conversation.json")
     response = RoxyBrainReply(
-        reply="Roxy active. Local voice is ready and session memory is working.",
+        reply="Roxy active in local voice. Session memory is working.",
         intent="autonomy_status",
         safety_level="guarded",
     )
