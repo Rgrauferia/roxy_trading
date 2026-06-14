@@ -1594,6 +1594,20 @@ def candle_reading_label(
     return "Alcista leve" if is_green else "Bajista leve"
 
 
+def candle_wick_pressure_label(upper_wick_pct: Any, lower_wick_pct: Any, body_pct: Any) -> str:
+    upper_wick = safe_float(upper_wick_pct) or 0.0
+    lower_wick = safe_float(lower_wick_pct) or 0.0
+    body = safe_float(body_pct) or 0.0
+    threshold = max(body * 1.15, 0.002)
+    if upper_wick >= max(lower_wick * 1.35, threshold):
+        return "Oferta arriba"
+    if lower_wick >= max(upper_wick * 1.35, threshold):
+        return "Demanda abajo"
+    if upper_wick >= 0.002 and lower_wick >= 0.002:
+        return "Mechas mixtas"
+    return "Sin presion clara"
+
+
 def render_professional_chart_block(
     chart_df: pd.DataFrame,
     setup: dict,
@@ -4719,6 +4733,14 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
         ]
         hover_df["upper_wick_pct"] = (high_values - body_top).clip(lower=0) / close_values
         hover_df["lower_wick_pct"] = (body_bottom - low_values).clip(lower=0) / close_values
+        hover_df["wick_pressure"] = [
+            candle_wick_pressure_label(upper_wick_pct, lower_wick_pct, body_pct)
+            for upper_wick_pct, lower_wick_pct, body_pct in zip(
+                hover_df["upper_wick_pct"],
+                hover_df["lower_wick_pct"],
+                hover_df["candle_body_pct"],
+            )
+        ]
         hover_df["candle_reading"] = [
             candle_reading_label(
                 open_value,
@@ -4795,6 +4817,8 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
         tooltips.append(alt.Tooltip("upper_wick_pct:Q", title="Mecha sup.", format=".2%"))
     if "lower_wick_pct" in hover_df.columns:
         tooltips.append(alt.Tooltip("lower_wick_pct:Q", title="Mecha inf.", format=".2%"))
+    if "wick_pressure" in hover_df.columns:
+        tooltips.append(alt.Tooltip("wick_pressure:N", title="Presion mechas"))
     if "volume" in hover_df.columns:
         tooltips.append(alt.Tooltip("volume:Q", title="Volumen", format=",.0f"))
     if "relative_volume" in hover_df.columns:
@@ -4934,6 +4958,14 @@ def build_professional_price_chart(
     body_bottom = pd.concat([open_values_raw, close_values], axis=1).min(axis=1)
     chart_window["upper_wick_pct"] = (high_values - body_top).clip(lower=0) / close_denominator
     chart_window["lower_wick_pct"] = (body_bottom - low_values).clip(lower=0) / close_denominator
+    chart_window["wick_pressure"] = [
+        candle_wick_pressure_label(upper_wick_pct, lower_wick_pct, body_pct)
+        for upper_wick_pct, lower_wick_pct, body_pct in zip(
+            chart_window["upper_wick_pct"],
+            chart_window["lower_wick_pct"],
+            chart_window["candle_body_pct"],
+        )
+    ]
     if {"volume", "volume_sma20"}.issubset(chart_window.columns):
         volume_values = pd.to_numeric(chart_window.get("volume"), errors="coerce")
         volume_avg_values = pd.to_numeric(chart_window["volume_sma20"], errors="coerce").replace(0, pd.NA)
@@ -5167,6 +5199,7 @@ def build_professional_price_chart(
         alt.Tooltip("candle_body_pct:Q", title="Cuerpo", format=".2%"),
         alt.Tooltip("upper_wick_pct:Q", title="Mecha sup.", format=".2%"),
         alt.Tooltip("lower_wick_pct:Q", title="Mecha inf.", format=".2%"),
+        alt.Tooltip("wick_pressure:N", title="Presion mechas"),
         alt.Tooltip("volume:Q", title="Volumen", format=",.0f"),
     ]
     if "relative_volume" in chart_window.columns:
@@ -5203,6 +5236,7 @@ def build_professional_price_chart(
         latest_close_position_pct = safe_float(latest_badge_row.get("close_position_pct"))
         latest_candle_range = safe_float(latest_badge_row.get("candle_range_pct"))
         latest_candle_body = safe_float(latest_badge_row.get("candle_body_pct"))
+        latest_wick_pressure = text_display(latest_badge_row.get("wick_pressure"))
         latest_relative_volume = safe_float(latest_badge_row.get("relative_volume"))
         latest_ema9 = safe_float(latest_badge_row.get("ema9"))
         latest_sma20 = safe_float(latest_badge_row.get("sma20"))
@@ -5284,6 +5318,7 @@ def build_professional_price_chart(
                     "change_pct": latest_badge_change,
                     "range_pct": latest_candle_range,
                     "body_pct": latest_candle_body,
+                    "wick_pressure": latest_wick_pressure,
                     "relative_volume": latest_relative_volume,
                     "range_position": latest_range_position,
                     "to_entry": latest_to_entry,
@@ -5321,6 +5356,7 @@ def build_professional_price_chart(
                     alt.Tooltip("change_pct:Q", title="Cambio vela", format="+.2%"),
                     alt.Tooltip("range_pct:Q", title="Rango vela", format=".2%"),
                     alt.Tooltip("body_pct:Q", title="Cuerpo", format=".2%"),
+                    alt.Tooltip("wick_pressure:N", title="Presion mechas"),
                     alt.Tooltip("relative_volume:Q", title="RVol", format=".2f"),
                     alt.Tooltip("range_position:Q", title="Posición rango", format=".0%"),
                     alt.Tooltip("to_entry:Q", title="Hasta entrada", format="+.2%"),
