@@ -186,6 +186,13 @@ def test_roxy_live_page():
     assert "sessionVoiceBrief" in r.text
     assert "activeSessionContext" in r.text
     assert "voice: session brief" in r.text
+    assert "localTradeDashboardUrl" in r.text
+    assert "openActiveTradeDashboard" in r.text
+    assert "window.open(url, \"_blank\", \"noopener\")" in r.text
+    assert "voice: open trade dashboard" in r.text
+    assert '"abrir roxy trade", "abre roxy trade"' in r.text
+    assert '"open trade", "open roxy trade", "open trading dashboard"' in r.text
+    assert "encodeURIComponent(symbol)" in r.text
     assert "operationalHandoffPrompt" in r.text
     assert "speakOperationalHandoffBrief" in r.text
     assert "extractLocalDashboardUrl" in r.text
@@ -208,6 +215,8 @@ def test_roxy_live_page():
     assert "voice: operational handoff blocked" in r.text
     assert "Handoff operativo listo." in r.text
     assert "Operational handoff ready." in r.text
+    assert "Roxy, abrir trade" in r.text
+    assert "Roxy, open trade" in r.text
     assert "voiceOptions" in r.text
     assert "speakVoiceOptionsBrief" in r.text
     assert "voice: options" in r.text

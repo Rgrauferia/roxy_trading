@@ -1974,8 +1974,8 @@ def roxy_live_page():
         ? localizedText(" Señal de micro baja; acercate antes de hablar.", " Microphone signal is low; move closer before speaking.", language)
         : "";
       const message = localizedText(
-        "Modo voz listo." + micNote + " Pulsa Hablar y di Roxy antes de cada instruccion. Prueba: Roxy, briefing diario; Roxy, mercado; Roxy, puedo operar ahora; o Roxy, ayuda. No ejecutare operaciones sin confirmacion explicita.",
-        "Voice mode is ready." + micNote + " Press Talk and say Roxy before each instruction. Try: Roxy, daily briefing; Roxy, market; Roxy, can I trade now; or Roxy, help. I will not execute trades without explicit confirmation.",
+        "Modo voz listo." + micNote + " Pulsa Hablar y di Roxy antes de cada instruccion. Prueba: Roxy, briefing diario; Roxy, mercado; Roxy, abrir trade; o Roxy, ayuda. No ejecutare operaciones sin confirmacion explicita.",
+        "Voice mode is ready." + micNote + " Press Talk and say Roxy before each instruction. Try: Roxy, daily briefing; Roxy, market; Roxy, open trade; or Roxy, help. I will not execute trades without explicit confirmation.",
         language
       );
       speakLocalControlMessage(message, language, "voice: guided session", "voice-guide");
@@ -2029,6 +2029,43 @@ def roxy_live_page():
         );
       }
       speakLocalControlMessage(message, language, "voice: session brief", "voice-context", ctx.action_url || "", ctx.action_label || "");
+      return true;
+    }
+
+    function localTradeDashboardUrl(ctx) {
+      const explicit = ((ctx && ctx.action_url) || "").trim();
+      if (explicit && explicit.startsWith("http://127.0.0.1:8501/?view=Activo")) return explicit;
+      const symbol = (((ctx && ctx.active_symbol) || $("defaultSymbol").value || "SPY").trim().toUpperCase()) || "SPY";
+      const market = (((ctx && ctx.active_market) || (symbol.includes("/") ? "crypto" : "stock")).trim().toLowerCase()) || "stock";
+      const timeframe = (((ctx && ctx.active_timeframe) || "1h").trim()) || "1h";
+      return "http://127.0.0.1:8501/?view=Activo&symbol="
+        + encodeURIComponent(symbol)
+        + "&market=" + encodeURIComponent(market)
+        + "&tf=" + encodeURIComponent(timeframe);
+    }
+
+    function openActiveTradeDashboard() {
+      const language = lastState.language || $("language").value || "es";
+      const ctx = activeSessionContext();
+      renderActiveContext(ctx);
+      const url = localTradeDashboardUrl(ctx);
+      const label = ctx.action_label || localizedText("Abrir Roxy Trade", "Open Roxy Trade", language);
+      const opened = window.open(url, "_blank", "noopener");
+      const symbol = ctx.active_symbol || $("defaultSymbol").value || "SPY";
+      const marketText = [ctx.active_market, ctx.active_timeframe].filter(Boolean).join(" · ");
+      const detail = marketText ? " · " + marketText : "";
+      const message = opened
+        ? localizedText(
+            "Abri Roxy Trade para " + symbol + detail + ". Revisa go/no-go, stop y sizing antes de actuar.",
+            "I opened Roxy Trade for " + symbol + detail + ". Review go/no-go, stop, and sizing before acting.",
+            language
+          )
+        : localizedText(
+            "El navegador bloqueo la apertura automatica. Te deje el boton Abrir Roxy Trade para " + symbol + detail + ".",
+            "The browser blocked automatic opening. I left the Open Roxy Trade button for " + symbol + detail + ".",
+            language
+          );
+      speakLocalControlMessage(message, language, "voice: open trade dashboard", "voice-handoff", url, label);
       return true;
     }
 
@@ -2160,8 +2197,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, iniciar voz; Roxy, probar microfono; Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, que escuchaste; Roxy, corrige borrador comprar SPY; Roxy, estado de voz; Roxy, voz clara; Roxy, prueba tu voz; Roxy, opciones; Roxy, ponme al día; Roxy, handoff operativo; Roxy, más corto; Roxy, más detalle; Roxy, pasos; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, cripto; Roxy, estado de cuenta; Roxy, preflight; Roxy, ticket SPY; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, start voice session; Roxy, microphone check; Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, what did you hear; Roxy, replace draft with buy SPY; Roxy, voice status; Roxy, receptionist voice; Roxy, test voice; Roxy, options; Roxy, catch me up; Roxy, operational handoff; Roxy, shorter; Roxy, give more detail; Roxy, steps; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, crypto market; Roxy, account status; Roxy, preflight; Roxy, trade ticket SPY; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, iniciar voz; Roxy, probar microfono; Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, que escuchaste; Roxy, corrige borrador comprar SPY; Roxy, estado de voz; Roxy, voz clara; Roxy, prueba tu voz; Roxy, opciones; Roxy, ponme al día; Roxy, handoff operativo; Roxy, abrir trade; Roxy, más corto; Roxy, más detalle; Roxy, pasos; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, cripto; Roxy, estado de cuenta; Roxy, preflight; Roxy, ticket SPY; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, start voice session; Roxy, microphone check; Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, what did you hear; Roxy, replace draft with buy SPY; Roxy, voice status; Roxy, receptionist voice; Roxy, test voice; Roxy, options; Roxy, catch me up; Roxy, operational handoff; Roxy, open trade; Roxy, shorter; Roxy, give more detail; Roxy, steps; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, crypto market; Roxy, account status; Roxy, preflight; Roxy, trade ticket SPY; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -2582,6 +2619,15 @@ def roxy_live_page():
       if (sendVoiceLearningPrompt(command)) return true;
       if (sendVoiceFollowupPrompt(command)) return true;
       if (applyVoiceFeedbackCommand(command)) return true;
+      if (commandMatches(command, [
+        "abrir trade", "abre trade", "abrir roxy trade", "abre roxy trade",
+        "abrir dashboard trade", "abrir dashboard de trading", "abre dashboard de trading",
+        "abrir pagina para operar", "abre pagina para operar", "abrir pantalla operativa",
+        "open trade", "open roxy trade", "open trading dashboard", "open trade dashboard",
+        "open trading page", "open trade page"
+      ])) {
+        return openActiveTradeDashboard();
+      }
       if (commandMatches(command, [
         "handoff operativo", "handoff operacional", "pase operativo", "pase a operaciones",
         "prepara handoff", "prepara pase operativo", "operational handoff",
