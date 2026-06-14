@@ -1764,14 +1764,18 @@ def roxy_live_page():
       return true;
     }
 
+    async function fetchSessionOverview(language) {
+      const res = await fetch("/v1/assist/sessions?limit=8&language=" + encodeURIComponent(language), {
+        headers: requestHeaders(),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return await res.json();
+    }
+
     async function speakSessionOverview() {
       const language = $("language").value || "es";
       try {
-        const res = await fetch("/v1/assist/sessions?limit=8&language=" + encodeURIComponent(language), {
-          headers: requestHeaders(),
-        });
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        const payload = await res.json();
+        const payload = await fetchSessionOverview(language);
         const message = payload.speakable_summary || localizedText(
           "No pude resumir las sesiones guardadas.",
           "I could not summarize saved sessions.",
@@ -1786,6 +1790,71 @@ def roxy_live_page():
         );
         speakLocalControlMessage(message, language, "voice: session list failed", "voice-sessions");
       }
+    }
+
+    async function resumeLatestSessionByVoice() {
+      const language = $("language").value || "es";
+      try {
+        const payload = await fetchSessionOverview(language);
+        const rows = Array.isArray(payload.recent_sessions) ? payload.recent_sessions : [];
+        const latest = rows.find(row => row && row.session_id);
+        if (!latest) {
+          speakLocalControlMessage(
+            localizedText(
+              "No hay sesiones guardadas todavía.",
+              "There are no saved sessions yet.",
+              language
+            ),
+            language,
+            "voice: resume last session empty",
+            "voice-sessions"
+          );
+          return;
+        }
+        const target = String(latest.session_id || "").trim();
+        $("session").value = target;
+        saveSettings();
+        setAvatar("thinking", "focused");
+        const ctx = await autoHydrateSessionContext({reportEmpty: true});
+        const symbol = ctx && ctx.active_symbol ? ctx.active_symbol : "";
+        const intent = ctx && ctx.active_intent ? ctx.active_intent : "";
+        const detail = [symbol, intent].filter(Boolean).join(" · ");
+        const message = detail
+          ? localizedText(
+              "Retome la ultima sesion: " + target + ". Contexto: " + detail + ".",
+              "Resumed the latest session: " + target + ". Context: " + detail + ".",
+              language
+            )
+          : localizedText(
+              "Retome la ultima sesion: " + target + ".",
+              "Resumed the latest session: " + target + ".",
+              language
+            );
+        speakLocalControlMessage(message, language, "voice: resume last session", "voice-sessions", ctx && ctx.action_url ? ctx.action_url : "", ctx && ctx.action_label ? ctx.action_label : "");
+      } catch (_err) {
+        speakLocalControlMessage(
+          localizedText(
+            "No pude retomar la ultima sesion ahora.",
+            "I could not resume the latest session right now.",
+            language
+          ),
+          language,
+          "voice: resume last session failed",
+          "voice-sessions"
+        );
+      }
+    }
+
+    function applyVoiceResumeSessionCommand(command) {
+      if (!commandMatches(command, [
+        "ultima sesion", "última sesión", "volver ultima sesion", "volver a la ultima sesion",
+        "retoma ultima sesion", "retomar ultima sesion", "reanuda sesion", "reanudar sesion",
+        "resume last session", "resume latest session", "last session", "latest session",
+        "go back to last session", "return to last session"
+      ])) return false;
+      $("events").textContent = "voice: resume last session";
+      resumeLatestSessionByVoice();
+      return true;
     }
 
     function applyVoiceSessionListCommand(command) {
@@ -2426,8 +2495,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, iniciar voz; Roxy, probar microfono; Roxy, modo Siri; Roxy, modo conversación; Roxy, sesiones; Roxy, cambia a sesión scalping; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, que escuchaste; Roxy, corrige borrador comprar SPY; Roxy, estado de voz; Roxy, voz clara; Roxy, prueba tu voz; Roxy, opciones; Roxy, ponme al día; Roxy, handoff operativo; Roxy, abrir trade; Roxy, más corto; Roxy, más detalle; Roxy, pasos; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, cripto; Roxy, estado de cuenta; Roxy, preflight; Roxy, ticket SPY; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, start voice session; Roxy, microphone check; Roxy, Siri mode; Roxy, conversation mode; Roxy, sessions; Roxy, switch session to scalping; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, what did you hear; Roxy, replace draft with buy SPY; Roxy, voice status; Roxy, receptionist voice; Roxy, test voice; Roxy, options; Roxy, catch me up; Roxy, operational handoff; Roxy, open trade; Roxy, shorter; Roxy, give more detail; Roxy, steps; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, crypto market; Roxy, account status; Roxy, preflight; Roxy, trade ticket SPY; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, iniciar voz; Roxy, probar microfono; Roxy, modo Siri; Roxy, modo conversación; Roxy, sesiones; Roxy, ultima sesión; Roxy, cambia a sesión scalping; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, que escuchaste; Roxy, corrige borrador comprar SPY; Roxy, estado de voz; Roxy, voz clara; Roxy, prueba tu voz; Roxy, opciones; Roxy, ponme al día; Roxy, handoff operativo; Roxy, abrir trade; Roxy, más corto; Roxy, más detalle; Roxy, pasos; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, cripto; Roxy, estado de cuenta; Roxy, preflight; Roxy, ticket SPY; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, start voice session; Roxy, microphone check; Roxy, Siri mode; Roxy, conversation mode; Roxy, sessions; Roxy, resume last session; Roxy, switch session to scalping; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, what did you hear; Roxy, replace draft with buy SPY; Roxy, voice status; Roxy, receptionist voice; Roxy, test voice; Roxy, options; Roxy, catch me up; Roxy, operational handoff; Roxy, open trade; Roxy, shorter; Roxy, give more detail; Roxy, steps; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, crypto market; Roxy, account status; Roxy, preflight; Roxy, trade ticket SPY; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -2845,6 +2914,7 @@ def roxy_live_page():
         runVoiceSystemCheck({speakNow: true});
         return true;
       }
+      if (applyVoiceResumeSessionCommand(command)) return true;
       if (applyVoiceSessionListCommand(command)) return true;
       if (applyVoiceSessionCommand(command)) return true;
       if (sendVoiceLearningPrompt(command)) return true;

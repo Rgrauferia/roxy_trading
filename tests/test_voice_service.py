@@ -204,18 +204,29 @@ def test_roxy_live_page():
     assert "finishVoiceSessionSwitch" in r.text
     assert "applyVoiceSessionCommand" in r.text
     assert "speakSessionOverview" in r.text
+    assert "fetchSessionOverview" in r.text
+    assert "resumeLatestSessionByVoice" in r.text
+    assert "applyVoiceResumeSessionCommand" in r.text
     assert "applyVoiceSessionListCommand" in r.text
     assert 'fetch("/v1/assist/sessions?limit=8&language="' in r.text
+    assert '"resume last session", "resume latest session", "last session", "latest session"' in r.text
     assert '"sesiones", "mis sesiones", "lista sesiones", "lista de sesiones"' in r.text
     assert '"switch session to", "change session to", "set session to"' in r.text
     assert '$("session").value = target' in r.text
+    assert "voice: resume last session" in r.text
+    assert "voice: resume last session empty" in r.text
+    assert "voice: resume last session failed" in r.text
     assert "voice: session list" in r.text
     assert "voice: session list failed" in r.text
     assert "voice: session switch" in r.text
     assert "Active session: " in r.text
     assert "Sesión activa: " in r.text
+    assert "if (applyVoiceResumeSessionCommand(command)) return true;" in r.text
     assert "if (applyVoiceSessionListCommand(command)) return true;" in r.text
     assert "if (applyVoiceSessionCommand(command)) return true;" in r.text
+    assert r.text.index("if (applyVoiceResumeSessionCommand(command)) return true;") < r.text.index(
+        "if (applyVoiceSessionCommand(command)) return true;"
+    )
     assert "localTradeDashboardUrl" in r.text
     assert "tradeCommandTimeframe" in r.text
     assert "tradeCommandSymbol" in r.text
@@ -413,6 +424,8 @@ def test_roxy_live_page():
     assert "Roxy, conversation mode" in r.text
     assert "Roxy, sesiones" in r.text
     assert "Roxy, sessions" in r.text
+    assert "Roxy, ultima sesión" in r.text
+    assert "Roxy, resume last session" in r.text
     assert "Roxy, cambia a sesión scalping" in r.text
     assert "Roxy, switch session to scalping" in r.text
     assert "Roxy, modo semi auto" in r.text
