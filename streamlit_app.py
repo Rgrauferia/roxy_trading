@@ -1949,21 +1949,21 @@ def render_professional_chart_block(
             <small class="chart-next-action">Ahora: {html.escape(next_hint)}</small>
           </div>
           <aside>
-            <b class="chart-level-decision chart-level-decision-{decision_tone}">Roxy {html.escape(decision_label)}</b>
-            <b class="chart-level-entry">Entrada {html.escape(entry_level)}</b>
-            <b class="chart-level-stop">Stop {html.escape(stop_level)}</b>
-            <b class="chart-level-target">Target {html.escape(target_level)}</b>
-            <b class="chart-level-rr">R:R {html.escape(rr_display)}</b>
-            <b class="chart-level-check chart-level-check-{checks_tone}">{html.escape(checks_summary)} · {html.escape(blockers_summary)}</b>
-            <b class="chart-level-data">Velas {visible_candles}</b>
-            <b class="chart-level-data">Ventana {html.escape(window_range_text)} · Pos {html.escape(window_position_text)}</b>
-            <b class="chart-level-data">Techo {html.escape(window_upside_text)} · Piso {html.escape(window_downside_text)}</b>
-            <b class="chart-level-data">Última {html.escape(latest_candle)}</b>
-            <b class="chart-level-candle chart-level-candle-{candle_tone}">{html.escape(candle_label)} · {html.escape(candle_change_text)}</b>
-            <b class="chart-level-data">{html.escape(candle_ohlc)}</b>
-            <b class="chart-level-data">Rango {html.escape(candle_range_text)} · Vol {html.escape(candle_volume_text)}</b>
-            <b class="chart-level-source chart-level-source-{source_tone}">{html.escape(source_badge)} · {html.escape(source_label)}</b>
-            <b class="chart-level-interact">Arrastra · Zoom · OHLC</b>
+            <b class="chart-level-decision chart-level-decision-{decision_tone}" title="{html.escape(next_hint)}">Roxy {html.escape(decision_label)}</b>
+            <b class="chart-level-entry" title="Entrada sugerida y distancia contra el precio actual">Entrada {html.escape(entry_level)}</b>
+            <b class="chart-level-stop" title="Nivel de invalidación para controlar riesgo">Stop {html.escape(stop_level)}</b>
+            <b class="chart-level-target" title="Objetivo principal y distancia contra el precio actual">Target {html.escape(target_level)}</b>
+            <b class="chart-level-rr" title="Relación riesgo/recompensa calculada desde entrada, stop y target">R:R {html.escape(rr_display)}</b>
+            <b class="chart-level-check chart-level-check-{checks_tone}" title="Confirmaciones visibles antes de operar">{html.escape(checks_summary)} · {html.escape(blockers_summary)}</b>
+            <b class="chart-level-data" title="Cantidad de velas limpias usadas por Roxy">Velas {visible_candles}</b>
+            <b class="chart-level-data" title="Mínimo, máximo y ubicación del precio dentro de la ventana visible">Ventana {html.escape(window_range_text)} · Pos {html.escape(window_position_text)}</b>
+            <b class="chart-level-data" title="Distancia porcentual al techo y piso recientes">Techo {html.escape(window_upside_text)} · Piso {html.escape(window_downside_text)}</b>
+            <b class="chart-level-data" title="Última vela limpia recibida">Última {html.escape(latest_candle)}</b>
+            <b class="chart-level-candle chart-level-candle-{candle_tone}" title="{html.escape(candle_reading)}">{html.escape(candle_label)} · {html.escape(candle_change_text)}</b>
+            <b class="chart-level-data" title="Open, high, low y close de la última vela">{html.escape(candle_ohlc)}</b>
+            <b class="chart-level-data" title="Rango de la última vela y volumen actual">Rango {html.escape(candle_range_text)} · Vol {html.escape(candle_volume_text)}</b>
+            <b class="chart-level-source chart-level-source-{source_tone}" title="{html.escape(source_detail if source_detail != '-' else source_status)}">{html.escape(source_badge)} · {html.escape(source_label)}</b>
+            <b class="chart-level-interact" title="Puedes arrastrar, hacer zoom y usar hover para leer OHLC">Arrastra · Zoom · OHLC</b>
           </aside>
         </section>
         <section class="chart-check-strip">{confirmation_html}</section>
