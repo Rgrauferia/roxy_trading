@@ -316,9 +316,30 @@ def session_brief_from_state(state: dict[str, Any], language: str = "es") -> dic
     session_id = str(state.get("session_id") or "local")
     intent = str(context.get("active_intent") or state.get("last_intent") or "-")
     symbol = str(context.get("active_symbol") or "-")
+    market = str(context.get("active_market") or "").strip()
+    timeframe = str(context.get("active_timeframe") or "").strip()
+    action_url = str(context.get("action_url") or "").strip()
+    action_label = str(context.get("action_label") or "").strip()
+    action_kind = str(context.get("action_kind") or "").strip()
     safety = str(context.get("last_safety_level") or state.get("last_safety_level") or "-")
     needs_confirmation = bool(context.get("needs_confirmation"))
     next_actions = actions or ["ask_market_summary", "ask_latest_opportunity"]
+    market_context = ""
+    if market or timeframe:
+        if language == "en":
+            market_context = f" Market: {market or '-'}, timeframe: {timeframe or '-'}."
+        else:
+            market_context = f" Mercado: {market or '-'}, marco: {timeframe or '-'}."
+    handoff_context = ""
+    if action_url:
+        if language == "en":
+            label = action_label or "Open Roxy Trade"
+            kind = f" ({action_kind})" if action_kind else ""
+            handoff_context = f" Operational handoff is ready: {label}{kind}."
+        else:
+            label = action_label or "Abrir Roxy Trade"
+            kind = f" ({action_kind})" if action_kind else ""
+            handoff_context = f" Handoff operativo listo: {label}{kind}."
     if turn_count <= 0:
         summary = (
             "There is no saved context for this session yet. Ask one market or opportunity question to start memory."
@@ -329,13 +350,15 @@ def session_brief_from_state(state: dict[str, Any], language: str = "es") -> dic
         confirmation = " Confirmation is required before any sensitive action." if needs_confirmation else ""
         summary = (
             f"Session context: {turn_count} saved turn(s). Active symbol: {symbol}. "
-            f"Topic: {intent}. Safety: {safety}. Next: {', '.join(next_actions[:2])}.{confirmation}"
+            f"Topic: {intent}. Safety: {safety}.{market_context}{handoff_context} "
+            f"Next: {', '.join(next_actions[:2])}.{confirmation}"
         )
     else:
         confirmation = " Requiere confirmacion antes de cualquier accion sensible." if needs_confirmation else ""
         summary = (
             f"Contexto de sesion: {turn_count} turno(s) guardado(s). Simbolo activo: {symbol}. "
-            f"Tema: {intent}. Seguridad: {safety}. Siguiente: {', '.join(next_actions[:2])}.{confirmation}"
+            f"Tema: {intent}. Seguridad: {safety}.{market_context}{handoff_context} "
+            f"Siguiente: {', '.join(next_actions[:2])}.{confirmation}"
         )
     return {
         "session_id": session_id,
@@ -344,6 +367,9 @@ def session_brief_from_state(state: dict[str, Any], language: str = "es") -> dic
         "speakable_summary": summary,
         "active_context": context,
         "suggested_actions": next_actions,
+        "action_url": action_url,
+        "action_label": action_label,
+        "action_kind": action_kind,
     }
 
 

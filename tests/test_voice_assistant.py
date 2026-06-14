@@ -128,3 +128,33 @@ def test_voice_assistant_routes_account_status_to_roxy_brain(tmp_path, monkeypat
     assert state["intent"] == "account_status"
     assert "riesgo de exposicion agresivo" in state["reply"]
     assert "risk_review" in state["suggested_actions"]
+
+
+def test_voice_assistant_spanish_session_brief_mentions_trading_handoff():
+    payload = voice_assistant.session_brief_from_state(
+        {
+            "session_id": "trade-demo",
+            "turn_count": 2,
+            "last_intent": "trading_dashboard_handoff",
+            "last_safety_level": "guarded",
+            "active_context": {
+                "active_intent": "trading_dashboard_handoff",
+                "active_symbol": "NVDA",
+                "active_market": "stock",
+                "active_timeframe": "15m",
+                "last_safety_level": "guarded",
+                "needs_confirmation": False,
+                "next_best_actions": ["trade_readiness", "monitoring_plan"],
+                "action_url": "http://127.0.0.1:8501/?view=Activo&symbol=NVDA&market=stock&tf=15m",
+                "action_label": "Abrir Roxy Trade",
+                "action_kind": "local_trading_dashboard",
+            },
+        },
+        language="es",
+    )
+
+    assert payload["language"] == "es"
+    assert payload["action_url"].endswith("symbol=NVDA&market=stock&tf=15m")
+    assert "Simbolo activo: NVDA" in payload["speakable_summary"]
+    assert "Mercado: stock, marco: 15m" in payload["speakable_summary"]
+    assert "Handoff operativo listo: Abrir Roxy Trade" in payload["speakable_summary"]

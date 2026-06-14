@@ -828,6 +828,40 @@ def test_voice_assistant_session_brief_is_speakable():
     assert "recent_turns" not in payload
 
 
+def test_voice_assistant_session_brief_includes_trading_handoff_context():
+    from tools import voice_assistant
+
+    payload = voice_assistant.session_brief_from_state(
+        {
+            "session_id": "trade-demo",
+            "turn_count": 3,
+            "last_intent": "trading_dashboard_handoff",
+            "last_safety_level": "guarded",
+            "active_context": {
+                "active_intent": "trading_dashboard_handoff",
+                "active_symbol": "ETH/USD",
+                "active_market": "crypto",
+                "active_timeframe": "4h",
+                "last_safety_level": "guarded",
+                "needs_confirmation": False,
+                "next_best_actions": ["trade_readiness", "monitoring_plan", "position_size"],
+                "action_url": "http://127.0.0.1:8501/?view=Activo&symbol=ETH%2FUSD&market=crypto&tf=4h",
+                "action_label": "Open Roxy Trade",
+                "action_kind": "local_trading_dashboard",
+            },
+        },
+        language="en",
+    )
+
+    assert payload["language"] == "en"
+    assert payload["action_url"].endswith("symbol=ETH%2FUSD&market=crypto&tf=4h")
+    assert payload["action_label"] == "Open Roxy Trade"
+    assert payload["action_kind"] == "local_trading_dashboard"
+    assert "Active symbol: ETH/USD" in payload["speakable_summary"]
+    assert "Market: crypto, timeframe: 4h" in payload["speakable_summary"]
+    assert "Operational handoff is ready: Open Roxy Trade" in payload["speakable_summary"]
+
+
 def test_assist_session_brief_endpoint_returns_compact_voice_payload(monkeypatch):
     os.environ["VOICE_API_KEY"] = "testkey"
     from tools import voice_service
