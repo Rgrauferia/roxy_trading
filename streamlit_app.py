@@ -5897,6 +5897,20 @@ def build_professional_oscillator_chart(chart_df: pd.DataFrame) -> alt.LayerChar
                 tooltip=["label:N"],
             )
         )
+        macd_zero_label_df = pd.DataFrame({"ts": [macd_df["ts"].max()], "level": [0.0], "label": ["MACD 0"]})
+        layers.append(
+            alt.Chart(macd_zero_label_df)
+            .mark_text(align="right", dx=-6, dy=-8, fontSize=10, fontWeight="bold", color="#cbd5e1")
+            .encode(
+                x=alt.X("ts:T", title="Tiempo", scale=time_scale),
+                y=alt.Y(
+                    "level:Q",
+                    title="MACD hist",
+                    scale=alt.Scale(domain=[-macd_bound * 1.1, macd_bound * 1.1]),
+                ),
+                text="label:N",
+            )
+        )
         layers.append(
             alt.Chart(macd_df)
             .mark_bar(opacity=0.38)
