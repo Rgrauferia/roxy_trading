@@ -158,3 +158,24 @@ def test_voice_assistant_spanish_session_brief_mentions_trading_handoff():
     assert "Simbolo activo: NVDA" in payload["speakable_summary"]
     assert "Mercado: stock, marco: 15m" in payload["speakable_summary"]
     assert "Handoff operativo listo: Abrir Roxy Trade" in payload["speakable_summary"]
+
+
+def test_voice_assistant_session_overview_is_speakable():
+    payload = voice_assistant.session_overview_from_memory(
+        {
+            "session_count": 2,
+            "total_turns": 5,
+            "recent_sessions": [
+                {"session_id": "scalping", "turn_count": 3, "last_intent": "trade_readiness"},
+                {"session_id": "earnings", "turn_count": 2, "last_intent": "market_summary"},
+            ],
+        },
+        language="en",
+    )
+
+    assert payload["language"] == "en"
+    assert payload["session_count"] == 2
+    assert payload["recent_sessions"][0]["session_id"] == "scalping"
+    assert "Recent sessions: scalping: 3 turn(s), last topic trade_readiness" in payload["speakable_summary"]
+    assert "Roxy, switch session to scalping" in payload["speakable_summary"]
+    assert payload["suggested_actions"] == ["switch_session", "session_brief"]

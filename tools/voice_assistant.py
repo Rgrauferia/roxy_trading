@@ -306,6 +306,55 @@ def get_session_state(session_id: Optional[str], limit: int = 8) -> dict[str, An
     return RoxyConversationMemory().session_state(session_id, limit=limit)
 
 
+def session_overview_from_memory(overview: dict[str, Any], language: str = "es") -> dict[str, Any]:
+    language = "en" if str(language or "").lower().startswith("en") else "es"
+    overview = overview if isinstance(overview, dict) else {}
+    rows = overview.get("recent_sessions") if isinstance(overview.get("recent_sessions"), list) else []
+    clean_rows = [row for row in rows if isinstance(row, dict)]
+    session_count = int(overview.get("session_count", len(clean_rows)) or 0)
+    total_turns = int(overview.get("total_turns", 0) or 0)
+    if not clean_rows:
+        summary = (
+            "There are no saved Roxy sessions yet. Start a conversation and I will remember the context."
+            if language == "en"
+            else "Todavia no hay sesiones guardadas de Roxy. Inicia una conversacion y recordare el contexto."
+        )
+    else:
+        parts = []
+        for row in clean_rows[:5]:
+            session_id = str(row.get("session_id") or "local")
+            turns = int(row.get("turn_count", 0) or 0)
+            intent = str(row.get("last_intent") or "-")
+            if language == "en":
+                parts.append(f"{session_id}: {turns} turn(s), last topic {intent}")
+            else:
+                parts.append(f"{session_id}: {turns} turno(s), ultimo tema {intent}")
+        prompt = (
+            "Say: Roxy, switch session to "
+            if language == "en"
+            else "Di: Roxy, cambia a sesion "
+        )
+        first_session = str(clean_rows[0].get("session_id") or "local")
+        summary = (
+            f"Recent sessions: {'; '.join(parts)}. {prompt}{first_session}."
+            if language == "en"
+            else f"Sesiones recientes: {'; '.join(parts)}. {prompt}{first_session}."
+        )
+    return {
+        "language": language,
+        "session_count": session_count,
+        "total_turns": total_turns,
+        "recent_sessions": clean_rows[: max(1, min(len(clean_rows), 20))],
+        "speakable_summary": summary,
+        "suggested_actions": ["switch_session", "session_brief"],
+    }
+
+
+def get_session_overview(limit: int = 8, language: str = "es") -> dict[str, Any]:
+    overview = RoxyConversationMemory().overview(limit=limit)
+    return session_overview_from_memory(overview, language=language)
+
+
 def session_brief_from_state(state: dict[str, Any], language: str = "es") -> dict[str, Any]:
     language = "en" if str(language or "").lower().startswith("en") else "es"
     state = state if isinstance(state, dict) else {}

@@ -203,11 +203,18 @@ def test_roxy_live_page():
     assert "voiceSessionTarget" in r.text
     assert "finishVoiceSessionSwitch" in r.text
     assert "applyVoiceSessionCommand" in r.text
+    assert "speakSessionOverview" in r.text
+    assert "applyVoiceSessionListCommand" in r.text
+    assert 'fetch("/v1/assist/sessions?limit=8&language="' in r.text
+    assert '"sesiones", "mis sesiones", "lista sesiones", "lista de sesiones"' in r.text
     assert '"switch session to", "change session to", "set session to"' in r.text
     assert '$("session").value = target' in r.text
+    assert "voice: session list" in r.text
+    assert "voice: session list failed" in r.text
     assert "voice: session switch" in r.text
     assert "Active session: " in r.text
     assert "Sesión activa: " in r.text
+    assert "if (applyVoiceSessionListCommand(command)) return true;" in r.text
     assert "if (applyVoiceSessionCommand(command)) return true;" in r.text
     assert "localTradeDashboardUrl" in r.text
     assert "tradeCommandTimeframe" in r.text
@@ -404,6 +411,8 @@ def test_roxy_live_page():
     assert "Roxy, start voice session" in r.text
     assert "Roxy, modo conversación" in r.text
     assert "Roxy, conversation mode" in r.text
+    assert "Roxy, sesiones" in r.text
+    assert "Roxy, sessions" in r.text
     assert "Roxy, cambia a sesión scalping" in r.text
     assert "Roxy, switch session to scalping" in r.text
     assert "Roxy, modo semi auto" in r.text
@@ -857,6 +866,39 @@ def test_assist_context_returns_compact_session_context(monkeypatch):
     assert "recent_turns" not in payload
     assert payload["active_context"]["active_symbol"] == "SPY"
     assert payload["active_context"]["needs_confirmation"] is True
+
+
+def test_assist_sessions_returns_speakable_overview(monkeypatch):
+    os.environ["VOICE_API_KEY"] = "testkey"
+    from tools import voice_service
+
+    monkeypatch.setattr(voice_service, "VOICE_API_KEY", "testkey")
+    monkeypatch.setattr(
+        voice_service.va_backend,
+        "get_session_overview",
+        lambda limit=8, language="es": {
+            "language": language,
+            "session_count": 2,
+            "total_turns": 5,
+            "recent_sessions": [
+                {"session_id": "scalping", "turn_count": 3, "last_intent": "trade_readiness"},
+                {"session_id": "earnings", "turn_count": 2, "last_intent": "market_summary"},
+            ],
+            "speakable_summary": "Sesiones recientes: scalping.",
+            "suggested_actions": ["switch_session", "session_brief"],
+        },
+    )
+    voice_service._RATE_STATE.clear()
+
+    client = TestClient(voice_service.app)
+    r = client.get("/v1/assist/sessions?language=es&limit=5", headers={"Authorization": "Bearer testkey"})
+
+    assert r.status_code == 200
+    payload = r.json()
+    assert payload["session_count"] == 2
+    assert payload["recent_sessions"][0]["session_id"] == "scalping"
+    assert payload["speakable_summary"] == "Sesiones recientes: scalping."
+    assert payload["suggested_actions"] == ["switch_session", "session_brief"]
 
 
 def test_voice_assistant_session_brief_is_speakable():

@@ -1764,6 +1764,42 @@ def roxy_live_page():
       return true;
     }
 
+    async function speakSessionOverview() {
+      const language = $("language").value || "es";
+      try {
+        const res = await fetch("/v1/assist/sessions?limit=8&language=" + encodeURIComponent(language), {
+          headers: requestHeaders(),
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const payload = await res.json();
+        const message = payload.speakable_summary || localizedText(
+          "No pude resumir las sesiones guardadas.",
+          "I could not summarize saved sessions.",
+          language
+        );
+        speakLocalControlMessage(message, language, "voice: session list", "voice-sessions");
+      } catch (_err) {
+        const message = localizedText(
+          "No pude cargar la lista de sesiones ahora.",
+          "I could not load the session list right now.",
+          language
+        );
+        speakLocalControlMessage(message, language, "voice: session list failed", "voice-sessions");
+      }
+    }
+
+    function applyVoiceSessionListCommand(command) {
+      if (!commandMatches(command, [
+        "sesiones", "mis sesiones", "lista sesiones", "lista de sesiones",
+        "que sesiones tengo", "qué sesiones tengo", "sesiones guardadas",
+        "session list", "list sessions", "my sessions", "saved sessions",
+        "what sessions do i have", "show sessions"
+      ])) return false;
+      $("events").textContent = "voice: session list";
+      speakSessionOverview();
+      return true;
+    }
+
     function setVoiceModeState({conversationMode, wakeMode, eventName, esMessage, enMessage}) {
       if (typeof conversationMode === "boolean") $("conversationMode").checked = conversationMode;
       if (typeof wakeMode === "boolean") $("wakeMode").checked = wakeMode;
@@ -2390,8 +2426,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, iniciar voz; Roxy, probar microfono; Roxy, modo Siri; Roxy, modo conversación; Roxy, cambia a sesión scalping; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, que escuchaste; Roxy, corrige borrador comprar SPY; Roxy, estado de voz; Roxy, voz clara; Roxy, prueba tu voz; Roxy, opciones; Roxy, ponme al día; Roxy, handoff operativo; Roxy, abrir trade; Roxy, más corto; Roxy, más detalle; Roxy, pasos; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, cripto; Roxy, estado de cuenta; Roxy, preflight; Roxy, ticket SPY; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, start voice session; Roxy, microphone check; Roxy, Siri mode; Roxy, conversation mode; Roxy, switch session to scalping; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, what did you hear; Roxy, replace draft with buy SPY; Roxy, voice status; Roxy, receptionist voice; Roxy, test voice; Roxy, options; Roxy, catch me up; Roxy, operational handoff; Roxy, open trade; Roxy, shorter; Roxy, give more detail; Roxy, steps; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, crypto market; Roxy, account status; Roxy, preflight; Roxy, trade ticket SPY; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, iniciar voz; Roxy, probar microfono; Roxy, modo Siri; Roxy, modo conversación; Roxy, sesiones; Roxy, cambia a sesión scalping; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, que escuchaste; Roxy, corrige borrador comprar SPY; Roxy, estado de voz; Roxy, voz clara; Roxy, prueba tu voz; Roxy, opciones; Roxy, ponme al día; Roxy, handoff operativo; Roxy, abrir trade; Roxy, más corto; Roxy, más detalle; Roxy, pasos; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, cripto; Roxy, estado de cuenta; Roxy, preflight; Roxy, ticket SPY; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, start voice session; Roxy, microphone check; Roxy, Siri mode; Roxy, conversation mode; Roxy, sessions; Roxy, switch session to scalping; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, what did you hear; Roxy, replace draft with buy SPY; Roxy, voice status; Roxy, receptionist voice; Roxy, test voice; Roxy, options; Roxy, catch me up; Roxy, operational handoff; Roxy, open trade; Roxy, shorter; Roxy, give more detail; Roxy, steps; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, crypto market; Roxy, account status; Roxy, preflight; Roxy, trade ticket SPY; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -2809,6 +2845,7 @@ def roxy_live_page():
         runVoiceSystemCheck({speakNow: true});
         return true;
       }
+      if (applyVoiceSessionListCommand(command)) return true;
       if (applyVoiceSessionCommand(command)) return true;
       if (sendVoiceLearningPrompt(command)) return true;
       if (sendVoiceFollowupPrompt(command)) return true;
@@ -4307,6 +4344,40 @@ def assist_context(session_id: str, token: Optional[str] = Depends(require_api_k
         "last_intent": state.get("last_intent", "") if isinstance(state, dict) else "",
         "last_safety_level": state.get("last_safety_level", "") if isinstance(state, dict) else "",
         "active_context": context if isinstance(context, dict) else empty_active_context(),
+    }
+
+
+@app.get("/v1/assist/sessions")
+def assist_sessions(token: Optional[str] = Depends(require_api_key), language: str = "es", limit: int = 8):
+    """Return recent Roxy sessions for voice session switching."""
+    try:
+        rate_limited(token)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Rate limiter error: %s", e)
+
+    bounded_limit = max(1, min(int(limit), 20))
+    clean_language = "en" if str(language or "").lower().startswith("en") else "es"
+    if va_backend is not None and hasattr(va_backend, "get_session_overview"):
+        try:
+            return va_backend.get_session_overview(limit=bounded_limit, language=clean_language)
+        except Exception:
+            logger.exception("voice backend sessions overview error")
+            raise HTTPException(status_code=500, detail="assistant backend error")
+
+    summary = (
+        "There are no saved Roxy sessions yet."
+        if clean_language == "en"
+        else "Todavia no hay sesiones guardadas de Roxy."
+    )
+    return {
+        "language": clean_language,
+        "session_count": 0,
+        "total_turns": 0,
+        "recent_sessions": [],
+        "speakable_summary": summary,
+        "suggested_actions": ["switch_session", "session_brief"],
     }
 
 
