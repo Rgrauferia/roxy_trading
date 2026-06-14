@@ -5772,7 +5772,7 @@ def build_professional_volume_chart(chart_df: pd.DataFrame) -> alt.LayerChart | 
         )
         layers.append(
             alt.Chart(latest_volume_df)
-            .mark_text(align="left", dx=8, dy=-8, fontSize=11, fontWeight="bold")
+            .mark_text(align="right", dx=-8, dy=-8, fontSize=11, fontWeight="bold")
             .encode(
                 x=alt.X("ts:T", title="Tiempo", scale=time_scale),
                 y=alt.Y("volume:Q", title="Volumen", scale=volume_scale),
