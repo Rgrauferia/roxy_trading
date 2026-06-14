@@ -1703,6 +1703,67 @@ def roxy_live_page():
       if (!speak(message, language)) scheduleListen();
     }
 
+    function voiceSessionTarget(command) {
+      const normalized = normalizeSpeech(command);
+      const prefixes = [
+        "cambia a la sesion", "cambia a sesion", "cambiar a la sesion", "cambiar a sesion",
+        "usa la sesion", "usa sesion", "usar la sesion", "usar sesion",
+        "abre la sesion", "abre sesion", "abrir la sesion", "abrir sesion",
+        "pon la sesion", "pon sesion", "sesion",
+        "switch session to", "change session to", "set session to", "use session", "open session", "session"
+      ];
+      let rest = "";
+      for (const prefix of prefixes) {
+        if (normalized === prefix) return "";
+        if (normalized.startsWith(prefix + " ")) {
+          rest = normalized.slice(prefix.length).trim();
+          break;
+        }
+      }
+      if (!rest) return "";
+      rest = rest.replace(/^(id|nombre|llamada|llamado|named|called|the|la|el)\\s+/, "").trim();
+      const blocked = new Set(["brief", "resumen", "actual", "current", "mercado", "market", "de", "del", "the"]);
+      const tokens = rest
+        .split(" ")
+        .map(token => token.trim())
+        .filter(token => /^[a-z0-9]{1,24}$/.test(token) && !blocked.has(token))
+        .slice(0, 5);
+      return tokens.join("-");
+    }
+
+    async function finishVoiceSessionSwitch(target, language) {
+      const ctx = await autoHydrateSessionContext({reportEmpty: true});
+      const symbol = ctx && ctx.active_symbol ? ctx.active_symbol : "";
+      const intent = ctx && ctx.active_intent ? ctx.active_intent : "";
+      const detail = [symbol, intent].filter(Boolean).join(" · ");
+      const message = detail
+        ? localizedText(
+            "Sesión activa: " + target + ". Contexto cargado: " + detail + ".",
+            "Active session: " + target + ". Loaded context: " + detail + ".",
+            language
+          )
+        : localizedText(
+            "Sesión activa: " + target + ". No hay memoria guardada todavía.",
+            "Active session: " + target + ". There is no saved memory yet.",
+            language
+          );
+      const actionUrl = ctx && ctx.action_url ? ctx.action_url : "";
+      const actionLabel = ctx && ctx.action_label ? ctx.action_label : "";
+      speakLocalControlMessage(message, language, "voice: session switch", "voice-session", actionUrl, actionLabel);
+    }
+
+    function applyVoiceSessionCommand(command) {
+      const target = voiceSessionTarget(command);
+      if (!target) return false;
+      const language = $("language").value || "es";
+      $("session").value = target;
+      saveSettings();
+      setAvatar("thinking", "focused");
+      $("events").textContent = "voice: session switch";
+      finishVoiceSessionSwitch(target, language);
+      return true;
+    }
+
     function setVoiceModeState({conversationMode, wakeMode, eventName, esMessage, enMessage}) {
       if (typeof conversationMode === "boolean") $("conversationMode").checked = conversationMode;
       if (typeof wakeMode === "boolean") $("wakeMode").checked = wakeMode;
@@ -2329,8 +2390,8 @@ def roxy_live_page():
     function explainVoiceCommands() {
       const language = $("language").value || "es";
       const message = localizedText(
-        "Puedes decir: Roxy, iniciar voz; Roxy, probar microfono; Roxy, modo Siri; Roxy, modo conversación; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, que escuchaste; Roxy, corrige borrador comprar SPY; Roxy, estado de voz; Roxy, voz clara; Roxy, prueba tu voz; Roxy, opciones; Roxy, ponme al día; Roxy, handoff operativo; Roxy, abrir trade; Roxy, más corto; Roxy, más detalle; Roxy, pasos; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, cripto; Roxy, estado de cuenta; Roxy, preflight; Roxy, ticket SPY; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
-        "You can say: Roxy, start voice session; Roxy, microphone check; Roxy, Siri mode; Roxy, conversation mode; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, what did you hear; Roxy, replace draft with buy SPY; Roxy, voice status; Roxy, receptionist voice; Roxy, test voice; Roxy, options; Roxy, catch me up; Roxy, operational handoff; Roxy, open trade; Roxy, shorter; Roxy, give more detail; Roxy, steps; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, crypto market; Roxy, account status; Roxy, preflight; Roxy, trade ticket SPY; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
+        "Puedes decir: Roxy, iniciar voz; Roxy, probar microfono; Roxy, modo Siri; Roxy, modo conversación; Roxy, cambia a sesión scalping; Roxy, modo semi auto; Roxy, modo dictado; Roxy, enviar; Roxy, que escuchaste; Roxy, corrige borrador comprar SPY; Roxy, estado de voz; Roxy, voz clara; Roxy, prueba tu voz; Roxy, opciones; Roxy, ponme al día; Roxy, handoff operativo; Roxy, abrir trade; Roxy, más corto; Roxy, más detalle; Roxy, pasos; Roxy, sin voz; Roxy, voz más lenta; Roxy, contexto actual; Roxy, qué sigue; Roxy, aprendizaje; Roxy, fuentes; Roxy, símbolo NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, mercado; Roxy, cripto; Roxy, estado de cuenta; Roxy, preflight; Roxy, ticket SPY; Roxy, briefing diario; Roxy, top oportunidades; Roxy, horario de mercado; Roxy, frescura de datos; Roxy, puedo operar ahora; Roxy, niveles de SPY; Roxy, indicadores de SPY; Roxy, plan de monitoreo SPY; Roxy, prepara alerta SPY; Roxy, tamaño de posición SPY capital 10000 riesgo 0.5%; Roxy, noticia Tesla sube; Roxy, riesgo de SPY; Roxy, no sirvió, más corto; Roxy, repite; o Roxy, silencio.",
+        "You can say: Roxy, start voice session; Roxy, microphone check; Roxy, Siri mode; Roxy, conversation mode; Roxy, switch session to scalping; Roxy, semi auto mode; Roxy, dictation mode; Roxy, send it; Roxy, what did you hear; Roxy, replace draft with buy SPY; Roxy, voice status; Roxy, receptionist voice; Roxy, test voice; Roxy, options; Roxy, catch me up; Roxy, operational handoff; Roxy, open trade; Roxy, shorter; Roxy, give more detail; Roxy, steps; Roxy, voice off; Roxy, slower voice; Roxy, current context; Roxy, next step; Roxy, learning status; Roxy, sources; Roxy, symbol NVDA; Roxy, watchlist SPY QQQ NVDA; Roxy, market; Roxy, crypto market; Roxy, account status; Roxy, preflight; Roxy, trade ticket SPY; Roxy, daily briefing; Roxy, top opportunities; Roxy, market hours; Roxy, data freshness; Roxy, can I trade now; Roxy, support and resistance SPY; Roxy, technical indicators SPY; Roxy, monitoring plan SPY; Roxy, set alert SPY; Roxy, position size SPY account 10000 risk 0.5%; Roxy, news impact Nvidia reports revenue; Roxy, risk SPY; Roxy, bad answer, be shorter; Roxy, repeat; or Roxy, stop.",
         language
       );
       speakLocalControlMessage(message, language, "voice: help", "voice-help");
@@ -2748,6 +2809,7 @@ def roxy_live_page():
         runVoiceSystemCheck({speakNow: true});
         return true;
       }
+      if (applyVoiceSessionCommand(command)) return true;
       if (sendVoiceLearningPrompt(command)) return true;
       if (sendVoiceFollowupPrompt(command)) return true;
       if (applyVoiceFeedbackCommand(command)) return true;
@@ -3434,12 +3496,13 @@ def roxy_live_page():
 
     function hydrateStateFromSessionMemory(memory) {
       const payload = memory && typeof memory === "object" ? memory : {};
-      const context = payload.active_context && typeof payload.active_context === "object" ? payload.active_context : {};
+      const hasActiveContext = payload.active_context && typeof payload.active_context === "object";
+      const context = hasActiveContext ? payload.active_context : {};
       const contextHas = (key) => Object.prototype.hasOwnProperty.call(context, key);
-      const contextValue = (key, fallback) => contextHas(key) ? (context[key] || "") : (fallback || "");
+      const contextValue = (key, fallback) => hasActiveContext ? (context[key] || "") : (fallback || "");
       const turns = Array.isArray(payload.recent_turns) ? payload.recent_turns : [];
       const latest = turns.length && typeof turns[turns.length - 1] === "object" ? turns[turns.length - 1] : {};
-      const actions = contextHas("next_best_actions")
+      const actions = hasActiveContext
         ? (Array.isArray(context.next_best_actions) ? context.next_best_actions : [])
         : (Array.isArray(lastState.suggested_actions) ? lastState.suggested_actions : []);
       lastQuery = latest.query || contextValue("active_topic", lastQuery);
@@ -3465,12 +3528,12 @@ def roxy_live_page():
     async function autoHydrateSessionContext(options) {
       const opts = options || {};
       const sessionId = (session.value || "").trim();
-      if (!sessionId) return;
+      if (!sessionId) return null;
       try {
         const res = await fetch("/v1/assist/context/" + encodeURIComponent(sessionId) + "?limit=8", {
           headers: requestHeaders(),
         });
-        if (!res.ok) return;
+        if (!res.ok) return null;
         const memory = await res.json();
         const ctx = hydrateStateFromSessionMemory(memory);
         if (Number(memory.turn_count || 0) > 0) {
@@ -3480,8 +3543,10 @@ def roxy_live_page():
         } else if (opts.reportEmpty) {
           $("events").textContent = "events: memory empty";
         }
+        return ctx;
       } catch (_err) {
         // Silent startup hydration should never block Roxy Live.
+        return null;
       }
     }
 

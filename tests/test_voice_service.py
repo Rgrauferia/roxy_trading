@@ -188,6 +188,7 @@ def test_roxy_live_page():
     assert "voice: session brief" in r.text
     assert "hydrateStateFromSessionMemory" in r.text
     assert "autoHydrateSessionContext" in r.text
+    assert "hasActiveContext" in r.text
     assert "contextHas" in r.text
     assert "contextValue" in r.text
     assert 'contextValue("active_topic", lastQuery)' in r.text
@@ -199,6 +200,15 @@ def test_roxy_live_page():
     assert "Silent startup hydration should never block Roxy Live." in r.text
     assert '$("session").addEventListener("change", () => autoHydrateSessionContext({reportEmpty: true}))' in r.text
     assert r.text.index("autoHydrateSessionContext();") < r.text.index("resumeSavedVoiceLoop();")
+    assert "voiceSessionTarget" in r.text
+    assert "finishVoiceSessionSwitch" in r.text
+    assert "applyVoiceSessionCommand" in r.text
+    assert '"switch session to", "change session to", "set session to"' in r.text
+    assert '$("session").value = target' in r.text
+    assert "voice: session switch" in r.text
+    assert "Active session: " in r.text
+    assert "Sesión activa: " in r.text
+    assert "if (applyVoiceSessionCommand(command)) return true;" in r.text
     assert "localTradeDashboardUrl" in r.text
     assert "tradeCommandTimeframe" in r.text
     assert "tradeCommandSymbol" in r.text
@@ -394,6 +404,8 @@ def test_roxy_live_page():
     assert "Roxy, start voice session" in r.text
     assert "Roxy, modo conversación" in r.text
     assert "Roxy, conversation mode" in r.text
+    assert "Roxy, cambia a sesión scalping" in r.text
+    assert "Roxy, switch session to scalping" in r.text
     assert "Roxy, modo semi auto" in r.text
     assert "Roxy, semi auto mode" in r.text
     assert "Roxy, modo dictado" in r.text
