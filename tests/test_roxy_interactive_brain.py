@@ -76,6 +76,120 @@ def test_roxy_brain_lists_local_news_with_source_and_timestamp(tmp_path):
     assert f"(LocalDesk, {published_at}, fresh" in response.reply
 
 
+def test_roxy_brain_gives_brief_news_summary_with_signal_context(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    published_at = (datetime.now(timezone.utc) - timedelta(minutes=4)).isoformat()
+    brief_path.write_text(
+        json.dumps(
+            {
+                "news": [
+                    {
+                        "title": "SPY rallies as inflation cools",
+                        "source": "LocalDesk",
+                        "published_at": published_at,
+                    }
+                ],
+                "opportunities": [
+                    {
+                        "symbol": "SPY",
+                        "signal": "WATCH",
+                        "decision": "WAIT",
+                        "entry": 505.5,
+                        "stop": 501.0,
+                        "risk_pct": 0.0089,
+                        "readiness": 71.2,
+                    }
+                ],
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("resumen de noticias")
+
+    assert response.intent == "news_summary"
+    assert "Resumen breve de noticias" in response.reply
+    assert "SPY rallies as inflation cools" in response.reply
+    assert "Senales live" in response.reply
+    assert "SPY WATCH" in response.reply
+
+
+def test_roxy_brain_weather_uses_openweather_provider(monkeypatch, tmp_path):
+    snapshot = roxy_brain_module.weather_service.WeatherSnapshot(
+        status="ok",
+        location="Miami, US",
+        description="clear sky",
+        temperature_c=29.4,
+        feels_like_c=31.0,
+        humidity=62,
+        wind_mps=3.2,
+        observed_at=1_700_000_000,
+    )
+    monkeypatch.setattr(roxy_brain_module.weather_service, "fetch_current_weather", lambda location: snapshot)
+    brain = RoxyInteractiveBrain(brief_path=tmp_path / "brief.json", memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("clima en Miami")
+
+    assert response.intent == "weather"
+    assert response.safety_level == "guarded"
+    assert "Clima en Miami, US" in response.reply
+    assert "29.4 C" in response.reply
+    assert "OpenWeather" in response.reply
+
+
+def test_roxy_brain_weather_reports_missing_key(monkeypatch, tmp_path):
+    def fake_weather(location):
+        return roxy_brain_module.weather_service.WeatherSnapshot(
+            status="missing_key",
+            location=location,
+            message="Set OPENWEATHER_API_KEY",
+        )
+
+    monkeypatch.setattr(roxy_brain_module.weather_service, "fetch_current_weather", fake_weather)
+    brain = RoxyInteractiveBrain(brief_path=tmp_path / "brief.json", memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("weather in Boston")
+
+    assert response.intent == "weather"
+    assert response.language == "en"
+    assert response.needs_live_source is True
+    assert "OPENWEATHER_API_KEY" in response.reply
+
+
+def test_roxy_market_summary_includes_live_signal_state(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "opportunities": [
+                    {
+                        "symbol": "QQQ",
+                        "signal": "BUY",
+                        "decision": "TRADE_FOR_2PCT",
+                        "entry": 442.0,
+                        "stop": 436.0,
+                        "risk_pct": 0.0135,
+                        "readiness": 82.0,
+                        "what_is_missing": "",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("resumen del mercado")
+
+    assert response.intent == "market_summary"
+    assert "Senales live" in response.reply
+    assert "QQQ BUY/TRADE_FOR_2PCT" in response.reply
+    assert "readiness 82.0" in response.reply
+
+
 def test_roxy_brain_labels_stale_local_news(tmp_path):
     brief_path = tmp_path / "brief.json"
     published_at = (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat()
@@ -2342,6 +2456,29 @@ def test_roxy_memory_exposes_active_conversation_context(tmp_path):
     assert active_context["active_topic"] == "y el riesgo?"
     assert active_context["needs_confirmation"] is False
     assert active_context["next_best_actions"][:3] == ["trade_readiness", "monitoring_plan", "position_size"]
+
+
+def test_roxy_memory_persists_language_actions_and_active_symbol(tmp_path):
+    memory = RoxyConversationMemory(path=tmp_path / "conversation.json")
+    memory.append(
+        "demo",
+        "resumen de oportunidad SPY",
+        RoxyBrainReply(
+            reply="SPY: estado WATCH. Senales live: top SPY WATCH/WAIT.",
+            intent="opportunity",
+            language="es",
+            safety_level="guarded",
+            suggested_actions=("ask_why", "ask_risk"),
+        ),
+    )
+
+    state = memory.session_state("demo")
+    turn = state["recent_turns"][-1]
+
+    assert turn["language"] == "es"
+    assert turn["suggested_actions"] == ["ask_why", "ask_risk"]
+    assert state["active_context"]["active_symbol"] == "SPY"
+    assert state["active_context"]["next_best_actions"][:3] == ["trade_readiness", "monitoring_plan", "position_size"]
 
 
 def test_roxy_memory_marks_critical_context_as_confirmation_required(tmp_path):

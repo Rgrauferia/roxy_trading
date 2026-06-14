@@ -603,12 +603,14 @@ def roxy_live_page():
           <button data-prompt="resumen del mercado">Mercado</button>
           <button data-prompt="resumen cripto">Cripto</button>
           <button data-prompt="estado de cuenta">Cuenta</button>
+          <button data-prompt="clima en New York">Clima</button>
           <button data-prompt="preflight operativo">Preflight</button>
           <button data-prompt="sesion de mercado">Horario</button>
           <button data-prompt="frescura de datos">Datos</button>
           <button data-prompt="soporte y resistencia">Niveles</button>
           <button data-prompt="indicadores tecnicos">Indicadores</button>
           <button data-prompt="vigila mi watchlist">Watchlist</button>
+          <button data-prompt="resumen de noticias">Noticias breves</button>
           <button data-prompt="analiza impacto de noticia: pega aqui el titular">Impacto news</button>
           <button data-prompt="puedo operar ahora">Decisión</button>
           <button data-prompt="resumen de oportunidad">Oportunidad</button>
@@ -699,6 +701,9 @@ def roxy_live_page():
     const duplicateVoiceWindowMs = 2500;
     const lowVoiceConfidenceThreshold = 0.55;
     const defaultAssistTimeoutMs = 45000;
+    const fastAssistTimeoutMs = 16000;
+    const analysisAssistTimeoutMs = 60000;
+    const guardedAssistTimeoutMs = 30000;
     const assistStreamEndpoint = "/v1/assist/stream";
 
     function restoreSettings() {
@@ -757,6 +762,10 @@ def roxy_live_page():
       ask_latest_opportunity: ["Oportunidad", "resumen de oportunidad"],
       ask_capabilities: ["Capacidades", "que puedes hacer"],
       ask_market_summary: ["Mercado", "resumen del mercado"],
+      configure_openweather_key: ["Clima", "clima en New York"],
+      retry_weather: ["Clima", "clima en New York"],
+      ask_weather: ["Clima", "clima en New York"],
+      ask_news_summary: ["Noticias", "resumen de noticias"],
       account_status: ["Cuenta", "estado de cuenta"],
       pre_trade_preflight: ["Preflight", "preflight operativo"],
       provide_account_equity: ["Cuenta", "estado de cuenta"],
@@ -2932,13 +2941,38 @@ def roxy_live_page():
       return err && (err.name === "AbortError" || String(err.message || "").toLowerCase().includes("abort"));
     }
 
-    function assistTimeoutMs() {
-      const configured = Number(window.__roxyAssistTimeoutMs || defaultAssistTimeoutMs);
-      return Number.isFinite(configured) && configured > 0 ? configured : defaultAssistTimeoutMs;
+    function dynamicAssistTimeoutMs(text) {
+      const normalized = normalizeSpeech(text || $("query").value || "");
+      const fastTerms = [
+        "clima", "weather", "temperatura", "temperature", "noticias breves",
+        "news summary", "estado", "status", "sesion de mercado", "market session",
+        "frescura de datos", "data freshness"
+      ];
+      const analysisTerms = [
+        "ticket", "preflight", "puedo operar", "should i trade", "can i trade",
+        "resumen del mercado", "market summary", "top oportunidades", "top opportunities",
+        "tamaño de posicion", "tamano de posicion", "position size", "plan de riesgo",
+        "risk plan", "indicadores", "technical indicators"
+      ];
+      const guardedTerms = [
+        "confirmar", "confirmation", "ejecuta", "execute", "compra ahora",
+        "buy now", "vende ahora", "sell now", "orden", "order"
+      ];
+      if (guardedTerms.some(term => normalized.includes(term))) return guardedAssistTimeoutMs;
+      if (analysisTerms.some(term => normalized.includes(term))) return analysisAssistTimeoutMs;
+      if (fastTerms.some(term => normalized.includes(term))) return fastAssistTimeoutMs;
+      return defaultAssistTimeoutMs;
     }
 
-    function showAssistTimeout() {
-      const message = "Roxy tardo demasiado en responder. Intenta de nuevo o revisa el servicio.";
+    function assistTimeoutMs(text) {
+      const configured = Number(window.__roxyAssistTimeoutMs || defaultAssistTimeoutMs);
+      if (Number.isFinite(configured) && configured > 0 && window.__roxyAssistTimeoutMs) return configured;
+      return dynamicAssistTimeoutMs(text);
+    }
+
+    function showAssistTimeout(timeoutMs) {
+      const seconds = Math.round((timeoutMs || defaultAssistTimeoutMs) / 1000);
+      const message = "Roxy tardo mas de " + seconds + "s en responder. Intenta de nuevo o revisa el servicio.";
       $("reply").textContent = message;
       $("events").textContent = "events: timeout";
       appendMessage("system", message, "timeout");
@@ -3133,18 +3167,20 @@ def roxy_live_page():
       const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
       activeAssistController = controller;
       let timedOut = false;
+      const timeoutMs = assistTimeoutMs(text);
+      $("latency").textContent = "espera max " + Math.round(timeoutMs / 1000) + "s";
       const timeoutId = controller ? setTimeout(() => {
         if (activeAssistController === controller) {
           timedOut = true;
           controller.abort();
         }
-      }, assistTimeoutMs()) : null;
+      }, timeoutMs) : null;
       try {
         try {
           if (await sendViaStream(text, headers, body, controller ? controller.signal : undefined)) return;
         } catch (err) {
           if (isAbortError(err)) {
-            if (timedOut) showAssistTimeout();
+            if (timedOut) showAssistTimeout(timeoutMs);
             else if (activeAssistController === controller) settleAfterTurn(lastState || {});
             return;
           }
@@ -3154,7 +3190,7 @@ def roxy_live_page():
           await sendViaState(text, headers, body, controller ? controller.signal : undefined);
         } catch (err) {
           if (!isAbortError(err)) throw err;
-          if (timedOut) showAssistTimeout();
+          if (timedOut) showAssistTimeout(timeoutMs);
           else if (activeAssistController === controller) settleAfterTurn(lastState || {});
         }
       } finally {

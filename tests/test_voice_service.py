@@ -83,6 +83,11 @@ def test_roxy_live_page():
     assert "handleFatalMicError(speechStartErrorKey(err))" in r.text
     assert "try {\n        recognition.start();\n      } catch (err) {" in r.text
     assert "assistTimeoutMs" in r.text
+    assert "dynamicAssistTimeoutMs" in r.text
+    assert "fastAssistTimeoutMs" in r.text
+    assert "analysisAssistTimeoutMs" in r.text
+    assert "guardedAssistTimeoutMs" in r.text
+    assert "espera max " in r.text
     assert "showAssistTimeout" in r.text
     assert "events: timeout" in r.text
     assert "controller.signal" in r.text
@@ -109,6 +114,8 @@ def test_roxy_live_page():
     assert "show_trade_ticket" in r.text
     assert "ask_capabilities" in r.text
     assert "connect_realtime_voice" in r.text
+    assert "configure_openweather_key" in r.text
+    assert "retry_weather" in r.text
     assert "data-prompt" in r.text
     assert 'data-prompt="estado de roxy"' in r.text
     assert 'data-prompt="resumen de sesion"' in r.text
@@ -116,12 +123,14 @@ def test_roxy_live_page():
     assert 'data-prompt="resumen del mercado"' in r.text
     assert 'data-prompt="resumen cripto"' in r.text
     assert 'data-prompt="estado de cuenta"' in r.text
+    assert 'data-prompt="clima en New York"' in r.text
     assert 'data-prompt="preflight operativo"' in r.text
     assert 'data-prompt="sesion de mercado"' in r.text
     assert 'data-prompt="frescura de datos"' in r.text
     assert 'data-prompt="soporte y resistencia"' in r.text
     assert 'data-prompt="indicadores tecnicos"' in r.text
     assert 'data-prompt="vigila mi watchlist"' in r.text
+    assert 'data-prompt="resumen de noticias"' in r.text
     assert 'data-prompt="analiza impacto de noticia: pega aqui el titular"' in r.text
     assert 'data-prompt="puedo operar ahora"' in r.text
     assert 'data-prompt="explica riesgo entrada stop target"' in r.text

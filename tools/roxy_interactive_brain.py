@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from tools import weather_service
+
 
 BRIEF_PATH = Path("alerts/roxy_ai_brief.json")
 MEMORY_PATH = Path("alerts/roxy_ai_memory.json")
@@ -203,6 +205,11 @@ class RoxyConversationMemory:
                 "reply": _redact_sensitive_text(response.reply),
                 "intent": response.intent,
                 "safety_level": response.safety_level,
+                "language": response.language,
+                "priority": response.priority,
+                "needs_live_source": response.needs_live_source,
+                "suggested_actions": list(response.suggested_actions),
+                "active_symbol": _extract_symbol(f"{query} {response.reply}") or "",
             }
         )
         sessions[session_key] = turns[-self.max_turns :]
@@ -240,6 +247,7 @@ class RoxyUserProfile:
         "voice_name",
         "voice_rate",
         "voice_pitch",
+        "location",
     }
 
     def __init__(self, path: Path = USER_PROFILE_PATH):
@@ -297,6 +305,10 @@ class RoxyUserProfile:
             elif key == "language":
                 language = _safe_text(value).lower()
                 clean[key] = "en" if language.startswith("en") or "english" in language else "es"
+            elif key == "location":
+                location = re.sub(r"[^A-Za-z0-9, .'-]+", "", str(value or "")).strip()
+                if location:
+                    clean[key] = location[:120]
             else:
                 clean[key] = _redact_sensitive_text(str(value or ""))[:160]
         return clean
@@ -673,6 +685,9 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "cryptocurrencies",
         "recap",
         "summarize",
+        "weather",
+        "forecast",
+        "temperature",
         "discuss",
         "catch",
         "speed",
@@ -770,6 +785,11 @@ def _detect_language(query: str, profile: dict[str, Any]) -> str:
         "criptomonedas",
         "resumir",
         "hablamos",
+        "clima",
+        "tiempo",
+        "temperatura",
+        "pronostico",
+        "pronóstico",
     }
     tokens = set(re.findall(r"[a-záéíóúñ]+", normalized))
     english_score = len(tokens.intersection(english_terms))
@@ -1079,7 +1099,13 @@ def _active_conversation_context(recent_turns: list[dict[str, Any]]) -> dict[str
 
     last_turn = recent_turns[-1] if isinstance(recent_turns[-1], dict) else {}
     active_intent = _last_turn_intent(recent_turns) or _safe_text(last_turn.get("intent"))
-    active_symbol = _last_symbol_from_turns(recent_turns) or ""
+    active_symbol = ""
+    for turn in reversed(recent_turns):
+        active_symbol = _safe_text(turn.get("active_symbol")).upper()
+        if active_symbol:
+            break
+    if not active_symbol:
+        active_symbol = _last_symbol_from_turns(recent_turns) or ""
     active_topic = ""
     for turn in reversed(recent_turns):
         query = _redact_sensitive_text(_safe_text(turn.get("query")))[:120]
@@ -1438,6 +1464,17 @@ def _extract_symbol(query: str) -> str | None:
         "EXPOSURE",
         "EXPOSICION",
         "EXPOSICIÓN",
+        "CLIMA",
+        "TIEMPO",
+        "TEMPERATURA",
+        "PRONOSTICO",
+        "PRONÓSTICO",
+        "WEATHER",
+        "FORECAST",
+        "NEWS",
+        "NOTICIAS",
+        "RESUMEN",
+        "SUMMARY",
     }
     for raw_word in query.split():
         word = raw_word.strip(".,:;!?()[]{}\"'").upper().replace("-", "/")
@@ -1460,6 +1497,23 @@ def _symbols_from_query(query: str) -> list[str]:
         if symbol and symbol not in symbols:
             symbols.append(symbol)
     return symbols[:12]
+
+
+def _extract_weather_location(query: str, profile: dict[str, Any]) -> str:
+    text = _safe_text(query)
+    patterns = (
+        r"(?i)\b(?:clima|tiempo|temperatura|pronostico|pronóstico)\s+(?:en|de|para)\s+([A-Za-z0-9, .'-]{2,80})",
+        r"(?i)\b(?:weather|forecast|temperature)\s+(?:in|for)\s+([A-Za-z0-9, .'-]{2,80})",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            location = re.split(r"\b(?:ahora|today|hoy|please|por favor)\b", match.group(1), maxsplit=1, flags=re.I)[0]
+            location = re.sub(r"[^A-Za-z0-9, .'-]+", "", location).strip(" ,.")
+            if location:
+                return location[:80]
+    profile_location = _safe_text(profile.get("location"))
+    return profile_location or weather_service.default_weather_location()
 
 
 class RoxyInteractiveBrain:
@@ -1767,6 +1821,34 @@ class RoxyInteractiveBrain:
             "what did i miss",
             "resume where we left off",
         )
+        weather_terms = (
+            "clima",
+            "el tiempo",
+            "temperatura",
+            "pronostico",
+            "pronóstico",
+            "weather",
+            "forecast",
+            "temperature",
+        )
+        news_summary_terms = (
+            "resumen de noticias",
+            "noticias breves",
+            "resumen noticias",
+            "brief de noticias",
+            "news summary",
+            "brief news",
+            "short news",
+            "quick news",
+        )
+        if _contains_any(lq, weather_terms):
+            response = self._weather_reply(q, profile, language)
+            return finish(response)
+
+        if _contains_any(lq, news_summary_terms):
+            response = self._news_summary_reply(language)
+            return finish(response)
+
         if _contains_any(lq, news_impact_terms):
             response = self._news_impact_reply(q, language)
             return finish(response)
@@ -2932,14 +3014,132 @@ class RoxyInteractiveBrain:
             suggested_actions=("ask_risk", "run_scan", "save_profile_watchlist"),
         )
 
+    def _weather_reply(self, query: str, profile: dict[str, Any], language: str = "es") -> RoxyBrainReply:
+        location = _extract_weather_location(query, profile)
+        snapshot = weather_service.fetch_current_weather(location)
+        if snapshot.status == "missing_key":
+            reply = (
+                f"Weather is wired to OpenWeather, but OPENWEATHER_API_KEY is not set yet. Default location is {location}. "
+                "Set the key in the local environment and ask again for live weather."
+                if language == "en"
+                else f"El clima ya esta conectado a OpenWeather, pero falta OPENWEATHER_API_KEY. Ubicacion base: {location}. "
+                "Guarda la clave en el entorno local y vuelve a pedirme clima en vivo."
+            )
+            return RoxyBrainReply(
+                intent="weather",
+                reply=reply,
+                avatar_state="waiting",
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                suggested_actions=("configure_openweather_key", "ask_market_summary"),
+            )
+        if snapshot.status != "ok":
+            reply = (
+                f"Weather source error for {location}: {snapshot.message or snapshot.status}. I will not invent current conditions."
+                if language == "en"
+                else f"Error de fuente de clima para {location}: {snapshot.message or snapshot.status}. No voy a inventar condiciones actuales."
+            )
+            return RoxyBrainReply(
+                intent="weather",
+                reply=reply,
+                avatar_state="waiting",
+                emotion="cautious",
+                needs_live_source=True,
+                safety_level="guarded",
+                suggested_actions=("retry_weather", "ask_market_summary"),
+            )
+
+        temp = "-" if snapshot.temperature_c is None else f"{snapshot.temperature_c:.1f} C"
+        feels = "-" if snapshot.feels_like_c is None else f"{snapshot.feels_like_c:.1f} C"
+        humidity = "-" if snapshot.humidity is None else f"{snapshot.humidity}%"
+        wind = "-" if snapshot.wind_mps is None else f"{snapshot.wind_mps:.1f} m/s"
+        observed = datetime.fromtimestamp(snapshot.observed_at, timezone.utc).isoformat() if snapshot.observed_at else "-"
+        if language == "en":
+            reply = (
+                f"Weather for {snapshot.location}: {snapshot.description or 'conditions unavailable'}, {temp}, feels like {feels}, "
+                f"humidity {humidity}, wind {wind}. Source OpenWeather, observed UTC {observed}. "
+                "For trading, I use weather only as operational context, not as a market signal."
+            )
+        else:
+            reply = (
+                f"Clima en {snapshot.location}: {snapshot.description or 'condicion no disponible'}, {temp}, sensacion {feels}, "
+                f"humedad {humidity}, viento {wind}. Fuente OpenWeather, observado UTC {observed}. "
+                "Para trading uso el clima solo como contexto operativo, no como senal de mercado."
+            )
+        return RoxyBrainReply(
+            intent="weather",
+            reply=reply,
+            avatar_state="speaking",
+            emotion="informative",
+            safety_level="guarded",
+            suggested_actions=("ask_market_summary", "ask_latest_opportunity"),
+        )
+
+    def _brief_news_lines(self, language: str = "es", limit: int = 3) -> tuple[list[str], bool]:
+        brief = _load_json(self.brief_path)
+        news_items = brief.get("news") or brief.get("market_news") or []
+        if not isinstance(news_items, list):
+            return [], True
+        lines: list[str] = []
+        needs_refresh = False
+        for item in news_items[: max(1, limit)]:
+            title, source, timestamp = _news_item_fields(item)
+            if not title:
+                continue
+            sentiment, cues = _news_sentiment(title)
+            if timestamp and _news_timestamp_needs_refresh(timestamp):
+                needs_refresh = True
+            elif not timestamp:
+                needs_refresh = True
+            tone = {
+                "bullish": "bullish" if language == "en" else "alcista",
+                "bearish": "bearish" if language == "en" else "bajista",
+                "neutral": "neutral",
+            }[sentiment]
+            details = ", ".join(_news_detail_parts(source, timestamp, language))
+            cue_text = f"; cues {', '.join(cues[:2])}" if cues and language == "en" else f"; pistas {', '.join(cues[:2])}" if cues else ""
+            lines.append(f"{title} ({tone}{cue_text}; {details})" if details else f"{title} ({tone}{cue_text})")
+        return lines, needs_refresh
+
+    def _news_summary_reply(self, language: str = "es") -> RoxyBrainReply:
+        lines, needs_refresh = self._brief_news_lines(language=language, limit=3)
+        if not lines:
+            return self._news_reply(language)
+        signal_text = self._signal_state_text(language=language)
+        if language == "en":
+            reply = (
+                "Brief news summary: "
+                + " ".join(f"{idx + 1}. {line}." for idx, line in enumerate(lines))
+                + f" {signal_text} Guardrail: headlines are context; verify source/time and price-volume reaction before any trade."
+            )
+        else:
+            reply = (
+                "Resumen breve de noticias: "
+                + " ".join(f"{idx + 1}. {line}." for idx, line in enumerate(lines))
+                + f" {signal_text} Guardrail: los titulares son contexto; verifica fuente/hora y reaccion precio-volumen antes de operar."
+            )
+        return RoxyBrainReply(
+            intent="news_summary",
+            reply=reply,
+            emotion="informative",
+            needs_live_source=needs_refresh,
+            safety_level="guarded",
+            priority="high" if needs_refresh else "normal",
+            suggested_actions=("ask_news_impact", "ask_market_summary", "ask_latest_opportunity"),
+        )
+
     def _news_reply(self, language: str = "es") -> RoxyBrainReply:
         brief = _load_json(self.brief_path)
         news_items = brief.get("news") or brief.get("market_news") or []
         if isinstance(news_items, list) and news_items:
             headlines = []
+            needs_refresh = False
             for item in news_items[:3]:
                 title, source, timestamp = _news_item_fields(item)
                 if title:
+                    if not timestamp or _news_timestamp_needs_refresh(timestamp):
+                        needs_refresh = True
                     details = ", ".join(_news_detail_parts(source, timestamp, language))
                     headlines.append(f"{title}" + (f" ({details})" if details else ""))
             if headlines:
@@ -2948,9 +3148,10 @@ class RoxyInteractiveBrain:
                     intent="news",
                     reply=prefix + " ".join(f"{idx + 1}. {headline}." for idx, headline in enumerate(headlines)),
                     emotion="informative",
-                    suggested_actions=("ask_news_impact", "ask_latest_opportunity"),
+                    needs_live_source=needs_refresh,
+                    safety_level="guarded",
+                    suggested_actions=("ask_news_impact", "ask_latest_opportunity", "ask_market_summary"),
                 )
-
         if language == "en":
             return RoxyBrainReply(
                 intent="news_unavailable",
@@ -3130,6 +3331,49 @@ class RoxyInteractiveBrain:
             f"{missing_text} Lectura: {read}."
         )
 
+    def _signal_state_text(
+        self, language: str = "es", symbol: str | None = None, rows_override: list[dict[str, Any]] | None = None
+    ) -> str:
+        rows = self._ranked_opportunities(rows_override if rows_override is not None else self._opportunity_rows())
+        if symbol:
+            rows = [row for row in rows if _symbol_matches(row.get("symbol"), symbol)]
+        freshness = self._data_freshness_snapshot()
+        freshness_state = _safe_text(freshness.get("state") or "missing")
+        freshness_age = _safe_text(freshness.get("age_text") or "-")
+        if not rows:
+            return (
+                f"Live signals: no local rows; data {freshness_state}/{freshness_age}."
+                if language == "en"
+                else f"Senales live: sin filas locales; datos {freshness_state}/{freshness_age}."
+            )
+        top = rows[0]
+        symbol_text = _safe_text(top.get("symbol") or symbol or "-").upper()
+        action = _safe_text(top.get("signal") or top.get("ai_action") or "WATCH").upper()
+        decision = _safe_text(top.get("decision") or top.get("trade_decision") or "-")
+        readiness = _safe_float(top.get("readiness") or top.get("ai_score") or top.get("confluence_score"))
+        readiness_text = "-" if readiness is None else f"{readiness:.1f}"
+        missing = _sentence_fragment(_safe_text(top.get("what_is_missing") or top.get("missing") or top.get("blockers")))
+        actionable = sum(
+            1
+            for row in rows
+            if _safe_text(row.get("signal") or row.get("ai_action")).upper() in {"ALERT", "BUY", "SELL", "READY"}
+        )
+        if language == "en":
+            decision = _localize_market_phrase(decision, language)
+            missing = _sentence_fragment(_localize_market_phrase(missing, language))
+            stale = " Refresh before acting." if freshness.get("needs_live_source") else ""
+            return (
+                f"Live signals: {len(rows)} row(s), {actionable} actionable; top {symbol_text} {action}/{decision}, "
+                f"readiness {readiness_text}, entry {_price(top.get('entry'))}, stop {_price(top.get('stop'))}, "
+                f"risk {_pct(top.get('risk_pct'))}, missing {missing or 'none'}, data {freshness_state}/{freshness_age}.{stale}"
+            )
+        stale = " Refresca antes de actuar." if freshness.get("needs_live_source") else ""
+        return (
+            f"Senales live: {len(rows)} fila(s), {actionable} accionable(s); top {symbol_text} {action}/{decision}, "
+            f"readiness {readiness_text}, entrada {_price(top.get('entry'))}, stop {_price(top.get('stop'))}, "
+            f"riesgo {_pct(top.get('risk_pct'))}, falta {missing or 'ninguna'}, datos {freshness_state}/{freshness_age}.{stale}"
+        )
+
     def _market_summary_reply(self, language: str = "es", scope: str = "all") -> RoxyBrainReply:
         brief = _load_json(self.brief_path)
         gate = brief.get("alert_gate_summary") if isinstance(brief.get("alert_gate_summary"), dict) else {}
@@ -3210,6 +3454,7 @@ class RoxyInteractiveBrain:
         freshness_state = _safe_text(freshness.get("state") or "")
         freshness_age = _safe_text(freshness.get("age_text") or "-")
         stale_market_read = bool(freshness.get("needs_live_source"))
+        signal_state = self._signal_state_text(language=language, rows_override=[row for row in rows if isinstance(row, dict)])
 
         if language == "en":
             condition_text = {
@@ -3236,6 +3481,7 @@ class RoxyInteractiveBrain:
                 f"ready ratio {ready_text}, top gate {top_gate}, top readiness {top_readiness_text}. "
                 f"Markets: {markets}. {session_text}"
                 f"{freshness_guard}"
+                f"{signal_state} "
                 "Risk note: this is a decision-support read, not a guarantee or an execution command."
             )
         else:
@@ -3269,6 +3515,7 @@ class RoxyInteractiveBrain:
                 f"ready ratio {ready_text}, filtro principal {top_gate}, readiness maxima {top_readiness_text}. "
                 f"Mercados: {markets}. {session_text}"
                 f"{freshness_guard}"
+                f"{signal_state} "
                 "Nota de riesgo: esto es apoyo de decision, no garantia ni orden de ejecucion."
             )
         actions = (
@@ -4131,6 +4378,7 @@ class RoxyInteractiveBrain:
         data_text = f"{freshness_state or 'unknown'} / {freshness_age or '-'}"
         priority = "high" if status in {"blocked", "prepare"} else "normal"
         needs_live_source = freshness_state in {"missing", "stale"}
+        signal_state = self._signal_state_text(language=language, symbol=symbol_text)
 
         if language == "en":
             decision = _localize_market_phrase(decision, language)
@@ -4150,7 +4398,7 @@ class RoxyInteractiveBrain:
                 f"Go/no-go {symbol_text}: {status_label}. Data {data_text}. Action {action}, decision {decision}, "
                 f"readiness {readiness_text}, entry {_money(entry)}, stop {_money(stop)}, risk {_pct(risk_pct)}. "
                 f"Missing gates: {missing_text}. Trigger: {trigger or '-'}. Context: {reason or missing or '-'}. "
-                f"Next step: {next_step} This is not execution permission."
+                f"{signal_state} Next step: {next_step} This is not execution permission."
             )
         else:
             missing = _sentence_fragment(missing)
@@ -4176,7 +4424,7 @@ class RoxyInteractiveBrain:
                 f"Go/no-go {symbol_text}: {status_label}. Datos {data_text}. Accion {action}, decision {decision}, "
                 f"readiness {readiness_text}, entrada {_money(entry)}, stop {_money(stop)}, riesgo {_pct(risk_pct)}. "
                 f"Puertas faltantes: {missing_text}. Gatillo: {trigger or '-'}. Contexto: {reason or missing or '-'}. "
-                f"Siguiente paso: {next_step} Esto no es permiso de ejecucion."
+                f"{signal_state} Siguiente paso: {next_step} Esto no es permiso de ejecucion."
             )
 
         return RoxyBrainReply(
@@ -4225,19 +4473,20 @@ class RoxyInteractiveBrain:
         family = _safe_text(row.get("strategy_family") or "-")
         decision = _safe_text(row.get("trade_decision") or row.get("decision") or "-")
         explanation = _safe_text(row.get("explanation") or row.get("memory_note") or row.get("alert_quality_reason"))
+        signal_state = self._signal_state_text(language=language, symbol=symbol_text)
         if language == "en":
             reply = (
                 f"{symbol_text}: status {action}, strategy {family}, decision {decision}. "
                 f"Entry {_price(row.get('entry'))}, stop {_price(row.get('stop'))}, "
                 f"risk {_pct(row.get('risk_pct'))}, target {_pct(row.get('recommended_target_pct') or row.get('target_pct'))}. "
-                f"{explanation}"
+                f"{explanation} {signal_state}"
             ).strip()
         else:
             reply = (
                 f"{symbol_text}: estado {action}, estrategia {family}, decision {decision}. "
                 f"Entrada {_price(row.get('entry'))}, stop {_price(row.get('stop'))}, "
                 f"riesgo {_pct(row.get('risk_pct'))}, objetivo {_pct(row.get('recommended_target_pct') or row.get('target_pct'))}. "
-                f"{explanation}"
+                f"{explanation} {signal_state}"
             ).strip()
         return RoxyBrainReply(
             intent="opportunity",
