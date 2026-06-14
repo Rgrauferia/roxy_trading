@@ -5853,10 +5853,20 @@ def build_professional_oscillator_chart(chart_df: pd.DataFrame) -> alt.LayerChar
             )
         )
         for value, label, color in ((70, "RSI 70", "#f59e0b"), (30, "RSI 30", "#22c55e")):
+            rsi_rule_label_df = pd.DataFrame({"ts": [rsi_end], "level": [value], "label": [label]})
             layers.append(
                 alt.Chart(pd.DataFrame({"level": [value], "label": [label]}))
                 .mark_rule(strokeDash=[4, 4], color=color, opacity=0.65)
                 .encode(y=alt.Y("level:Q", title="RSI 14", scale=alt.Scale(domain=[0, 100])), tooltip=["label:N"])
+            )
+            layers.append(
+                alt.Chart(rsi_rule_label_df)
+                .mark_text(align="right", dx=-6, dy=-6 if value == 70 else 12, fontSize=10, fontWeight="bold", color=color)
+                .encode(
+                    x=alt.X("ts:T", title="Tiempo", scale=time_scale),
+                    y=alt.Y("level:Q", title="RSI 14", scale=alt.Scale(domain=[0, 100])),
+                    text="label:N",
+                )
             )
 
     if "macd_hist" in oscillator_window.columns and oscillator_window["macd_hist"].notna().any():
