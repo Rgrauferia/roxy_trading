@@ -183,12 +183,21 @@ def test_roxy_live_page():
     assert "voiceFeedbackCommand" in r.text
     assert "applyVoiceFeedbackCommand" in r.text
     assert "conciseLastReplyText" in r.text
+    assert "translationTargetLanguage" in r.text
+    assert "clippedTranslationSource" in r.text
+    assert "sendVoiceTranslationPrompt" in r.text
     assert "speakConciseLastReply" in r.text
     assert "sendVoiceFollowupPrompt" in r.text
     assert "voice: concise answer" in r.text
+    assert "voice: translation shortcut" in r.text
+    assert "voice: translation unavailable" in r.text
     assert "voice: follow-up shortcut" in r.text
     assert "Respuesta corta: " in r.text
     assert "Short version: " in r.text
+    assert "translate your last answer to English" in r.text
+    assert "traduce tu ultima respuesta al espanol" in r.text
+    assert "Keep the same trading safety limits" in r.text
+    assert "Mantén los mismos límites de seguridad de trading" in r.text
     assert "sessionVoiceBrief" in r.text
     assert "activeSessionContext" in r.text
     assert "voice: session brief" in r.text
@@ -463,6 +472,8 @@ def test_roxy_live_page():
     assert "Roxy, handoff operativo" in r.text
     assert "Roxy, operational handoff" in r.text
     assert "Roxy, más corto" in r.text
+    assert "Roxy, tradúcelo al inglés" in r.text
+    assert "Roxy, say that in Spanish" in r.text
     assert "Roxy, give more detail" in r.text
     assert "Roxy, steps" in r.text
     assert "Roxy, sin voz" in r.text
