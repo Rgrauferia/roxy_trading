@@ -5852,6 +5852,37 @@ def build_professional_oscillator_chart(chart_df: pd.DataFrame) -> alt.LayerChar
                 ],
             )
         )
+        latest_rsi_df = rsi_df.sort_values("ts").tail(1).copy()
+        latest_rsi_df["rsi_label"] = latest_rsi_df["rsi14"].map(lambda value: f"RSI {value:.1f}")
+        latest_rsi_color = alt.condition(
+            "datum.rsi14 >= 70",
+            alt.value("#f59e0b"),
+            alt.condition("datum.rsi14 <= 30", alt.value("#22c55e"), alt.value("#38bdf8")),
+        )
+        layers.append(
+            alt.Chart(latest_rsi_df)
+            .mark_point(filled=True, size=58, stroke="#0f172a", strokeWidth=1.4)
+            .encode(
+                x=alt.X("ts:T", title="Tiempo", scale=time_scale),
+                y=alt.Y("rsi14:Q", title="RSI 14", scale=alt.Scale(domain=[0, 100])),
+                color=latest_rsi_color,
+                tooltip=[
+                    alt.Tooltip("ts:T", title="Última vela"),
+                    alt.Tooltip("rsi14:Q", title="RSI actual", format=".1f"),
+                    alt.Tooltip("rsi_state:N", title="Estado"),
+                ],
+            )
+        )
+        layers.append(
+            alt.Chart(latest_rsi_df)
+            .mark_text(align="left", dx=8, dy=-8, fontSize=10, fontWeight="bold")
+            .encode(
+                x=alt.X("ts:T", title="Tiempo", scale=time_scale),
+                y=alt.Y("rsi14:Q", title="RSI 14", scale=alt.Scale(domain=[0, 100])),
+                text="rsi_label:N",
+                color=latest_rsi_color,
+            )
+        )
         for value, label, color in ((70, "RSI 70", "#f59e0b"), (30, "RSI 30", "#22c55e")):
             rsi_rule_label_df = pd.DataFrame({"ts": [rsi_end], "level": [value], "label": [label]})
             layers.append(
