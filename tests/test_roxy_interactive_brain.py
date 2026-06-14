@@ -2944,6 +2944,22 @@ def test_roxy_conversation_memory_overview_includes_operational_context(tmp_path
     assert row["action_kind"] == "local_trading_dashboard"
 
 
+def test_roxy_conversation_memory_does_not_store_status_words_as_symbols(tmp_path):
+    memory = RoxyConversationMemory(path=tmp_path / "conversation.json")
+    response = RoxyBrainReply(
+        reply="Roxy active. Local voice is ready and session memory is working.",
+        intent="autonomy_status",
+        safety_level="guarded",
+    )
+
+    memory.append("demo", "estado de roxy", response)
+    state = memory.session_state("demo")
+    overview = memory.overview(limit=3)
+
+    assert state["active_context"]["active_symbol"] == ""
+    assert overview["recent_sessions"][0]["active_symbol"] == ""
+
+
 def test_roxy_brain_redacts_secrets_in_memory(tmp_path):
     memory_path = tmp_path / "conversation.json"
     memory = RoxyConversationMemory(path=memory_path)
