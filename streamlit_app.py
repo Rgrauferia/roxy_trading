@@ -1968,11 +1968,11 @@ def render_professional_chart_block(
         </section>
         <section class="chart-check-strip">{confirmation_html}</section>
         <section class="chart-legend-strip">
-          <span><i class="chart-legend-dot chart-legend-current"></i>Actual</span>
-          <span><i class="chart-legend-dot chart-legend-entry"></i>Entrada / compra</span>
-          <span><i class="chart-legend-dot chart-legend-stop"></i>Stop / peligro</span>
-          <span><i class="chart-legend-dot chart-legend-target"></i>Target</span>
-          <span><i class="chart-legend-dot chart-legend-support"></i>Soporte / resistencia</span>
+          <span title="Precio actual o última vela limpia"><i class="chart-legend-dot chart-legend-current"></i>Actual</span>
+          <span title="Zona donde Roxy esperaría confirmación de entrada"><i class="chart-legend-dot chart-legend-entry"></i>Entrada / compra</span>
+          <span title="Nivel donde la idea queda invalidada o peligrosa"><i class="chart-legend-dot chart-legend-stop"></i>Stop / peligro</span>
+          <span title="Objetivo principal de salida o toma de ganancia"><i class="chart-legend-dot chart-legend-target"></i>Target</span>
+          <span title="Niveles de estructura que pueden frenar o sostener el precio"><i class="chart-legend-dot chart-legend-support"></i>Soporte / resistencia</span>
         </section>
         {candle_tape_html}
         {technical_strip_html}
