@@ -15366,8 +15366,8 @@ def main() -> None:
         .chart-next-action{display:block;color:#cbd5e1;font-size:10.5px;line-height:1.22;margin-top:4px;max-width:720px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .chart-command-head aside{display:flex;gap:5px;row-gap:5px;flex-wrap:wrap;justify-content:flex-end}
         .chart-command-head b{display:inline-flex;border:1px solid rgba(148,163,184,.24);border-radius:999px;background:#0b1220;color:#e2e8f0;padding:5px 7px;font-size:10px;line-height:1.05;font-weight:950}
-        .chart-command-head b,.chart-legend-strip span,.chart-tape-candle,.chart-tech-pill{transition:transform .14s ease,border-color .14s ease,background .14s ease,box-shadow .14s ease}
-        .chart-command-head b:hover,.chart-legend-strip span:hover,.chart-tape-candle:hover,.chart-tech-pill:hover{transform:translateY(-1px);border-color:rgba(125,211,252,.72)!important;background:rgba(14,116,144,.18)!important;box-shadow:0 8px 18px rgba(2,6,23,.28);cursor:help}
+        .chart-command-head b,.chart-legend-strip span,.chart-check-pill,.chart-tape-candle,.chart-tech-pill{transition:transform .14s ease,border-color .14s ease,background .14s ease,box-shadow .14s ease}
+        .chart-command-head b:hover,.chart-legend-strip span:hover,.chart-check-pill:hover,.chart-tape-candle:hover,.chart-tech-pill:hover{transform:translateY(-1px);border-color:rgba(125,211,252,.72)!important;background:rgba(14,116,144,.18)!important;box-shadow:0 8px 18px rgba(2,6,23,.28);cursor:help}
         .chart-level-decision-buy{border-color:rgba(34,197,94,.70)!important;color:#dcfce7!important;background:rgba(22,101,52,.30)!important}
         .chart-level-decision-watch{border-color:rgba(245,158,11,.70)!important;color:#fef3c7!important;background:rgba(146,64,14,.28)!important}
         .chart-level-decision-avoid{border-color:rgba(248,113,113,.70)!important;color:#fee2e2!important;background:rgba(153,27,27,.30)!important}
@@ -15416,7 +15416,9 @@ def main() -> None:
         .chart-check-pill span{min-width:0}
         .chart-check-pill em{font-style:normal;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .chart-check-pill small{display:block;color:#cbd5e1;font-size:9px;line-height:1.1;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .chart-check-pill strong{color:#f8fafc;font-size:11px;line-height:1;font-weight:950;white-space:nowrap}
+        .chart-check-pill strong{display:inline-flex;align-items:center;gap:5px;color:#f8fafc;font-size:11px;line-height:1;font-weight:950;white-space:nowrap}
+        .chart-check-pill strong:before{content:"";display:inline-block;width:7px;height:7px;border-radius:999px;background:#94a3b8;box-shadow:0 0 0 2px rgba(15,23,42,.84)}
+        .chart-check-buy strong:before{background:#22c55e}.chart-check-watch strong:before{background:#f59e0b}.chart-check-avoid strong:before{background:#ef4444}
         .chart-check-buy{border-top-color:#22c55e;background:rgba(21,93,62,.20)}
         .chart-check-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.18)}
         .chart-check-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.20)}
