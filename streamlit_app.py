@@ -15360,12 +15360,12 @@ def main() -> None:
         .chart-fallback-state span{display:block;color:#7dd3fc;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.07em}
         .chart-fallback-state strong{display:block;color:#f8fafc;font-size:16px;line-height:1.1;margin-top:4px}
         .chart-fallback-state p{margin:5px 0 0;color:#cbd5e1;font-size:11px;line-height:1.3}
-        .chart-command-head{display:flex;justify-content:space-between;gap:14px;align-items:center;border:1px solid rgba(96,165,250,.30);border-left:4px solid #38bdf8;border-radius:8px;background:linear-gradient(135deg,rgba(15,23,42,.95),rgba(8,47,73,.45));padding:10px 12px;margin:10px 0 6px}
+        .chart-command-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;border:1px solid rgba(96,165,250,.30);border-left:4px solid #38bdf8;border-radius:8px;background:linear-gradient(135deg,rgba(15,23,42,.95),rgba(8,47,73,.45));padding:8px 10px;margin:8px 0 5px}
         .chart-command-head span{display:block;color:#93c5fd;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}
-        .chart-command-head strong{display:block;color:#f8fafc;font-size:22px;line-height:1.05;margin-top:3px}
-        .chart-next-action{display:block;color:#cbd5e1;font-size:11px;line-height:1.25;margin-top:5px;max-width:760px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .chart-command-head aside{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
-        .chart-command-head b{display:inline-flex;border:1px solid rgba(148,163,184,.24);border-radius:999px;background:#0b1220;color:#e2e8f0;padding:6px 9px;font-size:11px;line-height:1;font-weight:950}
+        .chart-command-head strong{display:block;color:#f8fafc;font-size:20px;line-height:1.05;margin-top:3px}
+        .chart-next-action{display:block;color:#cbd5e1;font-size:10.5px;line-height:1.22;margin-top:4px;max-width:720px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .chart-command-head aside{display:flex;gap:5px;row-gap:5px;flex-wrap:wrap;justify-content:flex-end}
+        .chart-command-head b{display:inline-flex;border:1px solid rgba(148,163,184,.24);border-radius:999px;background:#0b1220;color:#e2e8f0;padding:5px 7px;font-size:10px;line-height:1.05;font-weight:950}
         .chart-level-decision-buy{border-color:rgba(34,197,94,.70)!important;color:#dcfce7!important;background:rgba(22,101,52,.30)!important}
         .chart-level-decision-watch{border-color:rgba(245,158,11,.70)!important;color:#fef3c7!important;background:rgba(146,64,14,.28)!important}
         .chart-level-decision-avoid{border-color:rgba(248,113,113,.70)!important;color:#fee2e2!important;background:rgba(153,27,27,.30)!important}
