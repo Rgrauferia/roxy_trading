@@ -2947,7 +2947,7 @@ def test_roxy_conversation_memory_overview_includes_operational_context(tmp_path
 def test_roxy_conversation_memory_does_not_store_status_words_as_symbols(tmp_path):
     memory = RoxyConversationMemory(path=tmp_path / "conversation.json")
     response = RoxyBrainReply(
-        reply="Roxy active in local voice. Session memory is working.",
+        reply="Roxy Live is active in local voice. Session memory is working.",
         intent="autonomy_status",
         safety_level="guarded",
     )
@@ -2958,6 +2958,20 @@ def test_roxy_conversation_memory_does_not_store_status_words_as_symbols(tmp_pat
 
     assert state["active_context"]["active_symbol"] == ""
     assert overview["recent_sessions"][0]["active_symbol"] == ""
+
+
+def test_roxy_conversation_memory_infers_symbols_only_for_market_intents(tmp_path):
+    memory = RoxyConversationMemory(path=tmp_path / "conversation.json")
+    response = RoxyBrainReply(
+        reply="NVDA tiene contexto operativo para revisar.",
+        intent="opportunity",
+        safety_level="guarded",
+    )
+
+    memory.append("market", "explica NVDA", response)
+    state = memory.session_state("market")
+
+    assert state["active_context"]["active_symbol"] == "NVDA"
 
 
 def test_roxy_brain_redacts_secrets_in_memory(tmp_path):

@@ -28,6 +28,23 @@ KNOWLEDGE_PATHS = (
     Path("docs/roxy_interactive_strategy.md"),
 )
 MAX_KNOWLEDGE_CHARS = 8000
+SYMBOL_INFERENCE_INTENTS = {
+    "opportunity",
+    "opportunity_reason",
+    "opportunity_risk",
+    "technical_indicators",
+    "support_resistance",
+    "trading_dashboard_handoff",
+    "trade_readiness",
+    "pre_trade_preflight",
+    "trade_ticket",
+    "position_size",
+    "monitoring_plan",
+    "alert_draft",
+    "news_impact",
+    "watchlist",
+    "action_confirmation_required",
+}
 
 
 @dataclass(frozen=True)
@@ -223,6 +240,9 @@ class RoxyConversationMemory:
         turns = sessions.get(session_key)
         if not isinstance(turns, list):
             turns = []
+        active_symbol = response.active_symbol
+        if not active_symbol and response.intent in SYMBOL_INFERENCE_INTENTS:
+            active_symbol = _extract_symbol(f"{query} {response.reply}") or ""
         turns.append(
             {
                 "at": datetime.now(timezone.utc).isoformat(),
@@ -234,7 +254,7 @@ class RoxyConversationMemory:
                 "priority": response.priority,
                 "needs_live_source": response.needs_live_source,
                 "suggested_actions": list(response.suggested_actions),
-                "active_symbol": response.active_symbol or _extract_symbol(f"{query} {response.reply}") or "",
+                "active_symbol": active_symbol,
                 "active_market": response.active_market,
                 "active_timeframe": response.active_timeframe,
                 "action_url": response.action_url,
@@ -1140,6 +1160,8 @@ def _last_turn_intent(recent_turns: list[dict[str, Any]]) -> str:
 
 def _last_symbol_from_turns(recent_turns: list[dict[str, Any]]) -> str | None:
     for turn in reversed(recent_turns):
+        if _safe_text(turn.get("intent")) not in SYMBOL_INFERENCE_INTENTS:
+            continue
         for key in ("query", "reply"):
             symbol = _extract_symbol(_safe_text(turn.get(key)))
             if symbol:
