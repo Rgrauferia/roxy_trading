@@ -170,6 +170,12 @@ def test_roxy_live_page():
     assert "applyVoiceDraftActionCommand" in r.text
     assert "else setVoiceDraft(prompt)" in r.text
     assert "speakVoiceStatusBrief" in r.text
+    assert "voiceQualityRisk" in r.text
+    assert "voiceQualityActionHint" in r.text
+    assert "voz masculina/no recomendada" in r.text
+    assert "male/heavy voice risk" in r.text
+    assert "di: Roxy, voz clara" in r.text
+    assert "say: Roxy, receptionist voice" in r.text
     assert "applyVoiceLanguageCommand" in r.text
     assert "setVoiceModeState" in r.text
     assert "applyVoiceListeningModeCommand" in r.text
@@ -325,6 +331,12 @@ def test_roxy_live_page():
     assert "voicePreset" in r.text
     assert "applyReceptionistVoicePreset" in r.text
     assert "ignoreSelected" in r.text
+    assert "suena hombre" in r.text
+    assert "tu voz suena hombre" in r.text
+    assert "voz de hombre" in r.text
+    assert "no te entiendo" in r.text
+    assert "young receptionist voice" in r.text
+    assert "you sound male" in r.text
     assert "voice: receptionist preset" in r.text
     assert "Voz clara activada." in r.text
     assert "Clear receptionist voice is active." in r.text

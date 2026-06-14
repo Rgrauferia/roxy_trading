@@ -1676,13 +1676,15 @@ def roxy_live_page():
       const sending = $("autoSendVoice").checked
         ? localizedText("envío automático", "auto-send", language)
         : localizedText("modo dictado", "dictation mode", language);
-      const voiceName = $("voiceSelect").value || localizedText("voz del navegador", "browser voice", language);
+      const selected = selectedBrowserVoice() || chooseVoice(language);
+      const voiceName = selected ? selected.name : ($("voiceSelect").value || localizedText("voz del navegador", "browser voice", language));
+      const voiceQuality = voiceQualityLabel(selected, language);
       const symbol = ($("defaultSymbol").value || "SPY").trim().toUpperCase();
       const watchlist = parseWatchlist($("watchlist").value).slice(0, 4).join(", ") || symbol;
       const micSummary = microphoneCheckSummary(language);
       const message = localizedText(
-        "Estado de voz: modo " + mode + ", " + speech + ", " + sending + ". Voz: " + voiceName + ". Microfono: " + micSummary + ". Símbolo base: " + symbol + ". Watchlist: " + watchlist + ".",
-        "Voice status: " + mode + ", " + speech + ", " + sending + ". Voice: " + voiceName + ". Microphone: " + micSummary + ". Default symbol: " + symbol + ". Watchlist: " + watchlist + ".",
+        "Estado de voz: modo " + mode + ", " + speech + ", " + sending + ". Voz: " + voiceName + ". Calidad: " + voiceQuality + ". Microfono: " + micSummary + ". Símbolo base: " + symbol + ". Watchlist: " + watchlist + ".",
+        "Voice status: " + mode + ", " + speech + ", " + sending + ". Voice: " + voiceName + ". Quality: " + voiceQuality + ". Microphone: " + micSummary + ". Default symbol: " + symbol + ". Watchlist: " + watchlist + ".",
         language
       );
       speakLocalControlMessage(message, language, "voice: local status", "voice-status");
@@ -2898,8 +2900,12 @@ def roxy_live_page():
       ])) return speakVoiceSample();
       if (commandMatches(command, [
         "voz clara", "voz femenina", "voz recepcionista", "arregla tu voz",
-        "corrige tu voz", "voz natural", "clear voice", "female voice",
-        "receptionist voice", "fix your voice", "natural voice"
+        "corrige tu voz", "voz natural", "voz de mujer", "habla como mujer",
+        "suena hombre", "tu voz suena hombre", "voz de hombre", "no te entiendo",
+        "se entiende mal", "habla claro", "clear voice", "female voice",
+        "receptionist voice", "young receptionist voice", "fix your voice",
+        "natural voice", "you sound male", "male voice", "i cannot understand you",
+        "i cant understand you", "speak clearly"
       ])) return applyReceptionistVoicePreset();
       if (commandMatches(command, [
         "estado de voz", "estado voz", "diagnostico voz", "diagnostico de voz",
@@ -3181,13 +3187,34 @@ def roxy_live_page():
       return !voiceIsFemininePreferred(voice, lang) && hasFeminineAlternative(lang, voice);
     }
 
+    function voiceQualityRisk(voice, languageValue) {
+      const lang = languageValue || $("language").value || "es";
+      if (!voice) return "missing";
+      if (!voiceMatchesLanguage(voice, lang)) return "wrong_language";
+      if (voiceIsHeavyOrMasculine(voice, lang)) return "male_or_heavy";
+      if (voiceIsFemininePreferred(voice, lang)) return "clear_receptionist";
+      if (hasFeminineAlternative(lang, voice)) return "non_preferred";
+      return "compatible";
+    }
+
     function voiceQualityLabel(voice, languageValue) {
       const lang = languageValue || $("language").value || "es";
-      if (!voice) return localizedText("sin voz elegida", "no voice selected", lang);
-      if (voiceIsHeavyOrMasculine(voice, lang)) return localizedText("revisar voz", "review voice", lang);
-      if (voiceIsFemininePreferred(voice, lang)) return localizedText("voz femenina clara", "clear female voice", lang);
-      if (hasFeminineAlternative(lang, voice)) return localizedText("voz no prioritaria", "non-preferred voice", lang);
+      const risk = voiceQualityRisk(voice, lang);
+      if (risk === "missing") return localizedText("sin voz elegida", "no voice selected", lang);
+      if (risk === "wrong_language") return localizedText("voz en otro idioma", "wrong-language voice", lang);
+      if (risk === "male_or_heavy") return localizedText("voz masculina/no recomendada", "male/heavy voice risk", lang);
+      if (risk === "clear_receptionist") return localizedText("voz femenina clara", "clear female voice", lang);
+      if (risk === "non_preferred") return localizedText("voz no prioritaria", "non-preferred voice", lang);
       return localizedText("voz compatible", "compatible voice", lang);
+    }
+
+    function voiceQualityActionHint(voice, languageValue) {
+      const lang = languageValue || $("language").value || "es";
+      const risk = voiceQualityRisk(voice, lang);
+      if (["male_or_heavy", "wrong_language", "non_preferred", "missing"].includes(risk)) {
+        return localizedText("di: Roxy, voz clara", "say: Roxy, receptionist voice", lang);
+      }
+      return localizedText("perfil receptionist listo", "receptionist profile ready", lang);
     }
 
     function voiceMatchesLanguage(voice, languageValue) {
@@ -3236,6 +3263,7 @@ def roxy_live_page():
       ];
       if (voice) parts.push(voice.name + " / " + voice.lang);
       parts.push(voiceQualityLabel(voice, lang));
+      parts.push(voiceQualityActionHint(voice, lang));
       $("voiceStatus").textContent = parts.join(" · ");
     }
 
