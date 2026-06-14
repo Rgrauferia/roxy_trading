@@ -1664,6 +1664,30 @@ def render_professional_chart_block(
     candle_range = None
     if latest_high is not None and latest_low is not None and latest_close not in (None, 0):
         candle_range = (latest_high - latest_low) / latest_close
+    candle_body_pct = None
+    candle_upper_wick_pct = None
+    candle_lower_wick_pct = None
+    if (
+        latest_open is not None
+        and latest_high is not None
+        and latest_low is not None
+        and latest_close not in (None, 0)
+    ):
+        body_top = max(latest_open, latest_close)
+        body_bottom = min(latest_open, latest_close)
+        candle_body_pct = abs(latest_close - latest_open) / latest_close
+        candle_upper_wick_pct = max(0.0, latest_high - body_top) / latest_close
+        candle_lower_wick_pct = max(0.0, body_bottom - latest_low) / latest_close
+    candle_reading = candle_reading_label(
+        latest_open,
+        latest_high,
+        latest_low,
+        latest_close,
+        candle_body_pct,
+        candle_range,
+        candle_upper_wick_pct,
+        candle_lower_wick_pct,
+    )
     candle_tone = "buy" if (latest_close or 0) >= (latest_open or latest_close or 0) else "avoid"
     candle_label = "Vela verde" if candle_tone == "buy" else "Vela roja"
     candle_ohlc = (
@@ -1853,6 +1877,14 @@ def render_professional_chart_block(
         relative_volume = latest_volume / volume_sma
         volume_tone = "buy" if relative_volume >= 1.2 else "watch" if relative_volume >= 0.8 else "avoid"
         add_technical_item("RVol", f"{relative_volume:.2f}x", "Volumen confirma" if relative_volume >= 1.2 else "Volumen bajo", volume_tone)
+    if candle_reading not in {"", "-", "Sin lectura"}:
+        candle_reading_tone = "watch"
+        candle_reading_lower = candle_reading.lower()
+        if any(token in candle_reading_lower for token in ["alcista", "rebote"]):
+            candle_reading_tone = "buy"
+        elif any(token in candle_reading_lower for token in ["bajista", "rechazo"]):
+            candle_reading_tone = "avoid"
+        add_technical_item("Vela", candle_reading, f"Cuerpo {pct_display(candle_body_pct)}", candle_reading_tone)
     if technical_items:
         technical_summary = f"{technical_tones.count('buy')}/{len(technical_tones)} OK · {technical_tones.count('avoid')} riesgo"
         technical_strip_html = (
