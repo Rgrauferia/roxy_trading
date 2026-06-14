@@ -5919,6 +5919,30 @@ def build_professional_oscillator_chart(chart_df: pd.DataFrame) -> alt.LayerChar
         latest_macd_df = macd_df.sort_values("ts").tail(1).copy()
         latest_macd_df["macd_label"] = latest_macd_df["macd_hist"].map(lambda value: f"MACD {value:+.4f}")
         latest_macd_color = alt.condition("datum.macd_hist >= 0", alt.value("#22c55e"), alt.value("#ef4444"))
+        macd_zone_df = pd.DataFrame(
+            [
+                {"low": 0.0, "high": macd_bound * 1.1, "zone": "Impulso alcista"},
+                {"low": -macd_bound * 1.1, "high": 0.0, "zone": "Impulso bajista"},
+            ]
+        )
+        layers.append(
+            alt.Chart(macd_zone_df)
+            .mark_rect(opacity=0.06)
+            .encode(
+                y=alt.Y(
+                    "low:Q",
+                    title="MACD hist",
+                    scale=alt.Scale(domain=[-macd_bound * 1.1, macd_bound * 1.1]),
+                ),
+                y2="high:Q",
+                color=alt.Color(
+                    "zone:N",
+                    legend=None,
+                    scale=alt.Scale(domain=["Impulso alcista", "Impulso bajista"], range=["#22c55e", "#ef4444"]),
+                ),
+                tooltip=[alt.Tooltip("zone:N", title="Zona MACD")],
+            )
+        )
         layers.append(
             alt.Chart(pd.DataFrame({"level": [0.0], "label": ["MACD 0"]}))
             .mark_rule(color="#94a3b8", strokeDash=[2, 2], opacity=0.75)
