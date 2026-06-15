@@ -2256,6 +2256,15 @@ def render_professional_chart_block(
                 candle_table["lower_wick_pct"],
             )
         ]
+        candle_table["wick_pressure"] = [
+            candle_wick_pressure_label(upper_wick_pct, lower_wick_pct, body_pct)
+            for upper_wick_pct, lower_wick_pct, body_pct in zip(
+                candle_table["upper_wick_pct"],
+                candle_table["lower_wick_pct"],
+                candle_table["body_pct"],
+            )
+        ]
+
         def candle_micro_signal_label(
             direction: Any, reading: Any, change_pct: Any, range_pct: Any, body_pct: Any
         ) -> str:
@@ -2330,6 +2339,7 @@ def render_professional_chart_block(
                 "close": "Close",
                 "volume": "Volumen",
                 "micro_signal": "Micro señal",
+                "wick_pressure": "Presión",
                 "reading": "Lectura",
                 "change_pct": "Cambio",
                 "range_pct": "Rango",
@@ -2339,6 +2349,7 @@ def render_professional_chart_block(
         candle_order = [
             "Hora",
             "Micro señal",
+            "Presión",
             "Dirección",
             "Lectura",
             "Open",
@@ -2356,6 +2367,11 @@ def render_professional_chart_block(
             "Micro señal": st.column_config.TextColumn(
                 "Micro señal",
                 help="Lectura inmediata de la vela: impulso, riesgo, doji, volatilidad o esperar.",
+                width="small",
+            ),
+            "Presión": st.column_config.TextColumn(
+                "Presión",
+                help="Lectura de mechas: oferta arriba, demanda abajo o presión mixta.",
                 width="small",
             ),
             "Dirección": st.column_config.TextColumn("Dirección", help="Verde si cierre >= apertura; roja si cierre < apertura.", width="small"),
@@ -5947,9 +5963,12 @@ def build_professional_price_chart(
     return alt.layer(*layers).resolve_scale(color="independent")
 
 
-def style_trading_chart(chart):
+def style_trading_chart(chart, *, interactive: bool = True):
+    styled_chart = chart
+    if interactive and not isinstance(styled_chart, alt.LayerChart):
+        styled_chart = styled_chart.add_params(alt.selection_interval(bind="scales", encodings=["x"]))
     return (
-        chart.interactive()
+        styled_chart
         .configure(background="#0b1220")
         .configure_axis(
             grid=True,
@@ -10702,7 +10721,7 @@ def build_mini_opportunity_chart(chart_df: pd.DataFrame, tone: str = "watch") ->
             tooltip=[alt.Tooltip("close:Q", title="Ultimo", format=".2f")],
         )
     )
-    return (area + line + selectors + hover_rule + hover_point + last_point).interactive(bind_y=False).properties(height=92)
+    return (area + line + selectors + hover_rule + hover_point + last_point).properties(height=92)
 
 
 def top_opportunity_card_details(row: dict[str, Any]) -> dict[str, str]:
