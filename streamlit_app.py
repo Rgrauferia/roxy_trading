@@ -5652,10 +5652,12 @@ def build_professional_price_chart(
         latest_to_stop = None
         latest_to_target = None
         latest_plan_rr = None
+        latest_plan_badge = ""
         if entry is not None and stop is not None and latest_target is not None:
             planned_risk = abs(entry - stop)
             if planned_risk > 0:
                 latest_plan_rr = abs(latest_target - entry) / planned_risk
+                latest_plan_badge = f"R/R {latest_plan_rr:.2f}"
         if latest_badge_price > 0:
             if entry is not None:
                 latest_to_entry = (entry - latest_badge_price) / latest_badge_price
@@ -5682,6 +5684,8 @@ def build_professional_price_chart(
                 latest_room_above_low = (latest_badge_price - visible_low) / latest_badge_price
         if latest_range_badge:
             latest_badge_label = f"{latest_badge_label} · {latest_range_badge}"
+        if latest_plan_badge:
+            latest_badge_label = f"{latest_badge_label} · {latest_plan_badge}"
         latest_badge_tone = "buy" if latest_badge_change is not None and latest_badge_change >= 0 else "avoid"
         if latest_wick_pressure == "Demanda abajo":
             latest_badge_tone = "buy"
@@ -5718,6 +5722,7 @@ def build_professional_price_chart(
                     "to_stop": latest_to_stop,
                     "to_target": latest_to_target,
                     "plan_rr": latest_plan_rr,
+                    "plan_badge": latest_plan_badge,
                     "to_resistance": latest_to_resistance,
                     "above_support": latest_above_support,
                     "room_to_high": latest_room_to_high,
@@ -5746,6 +5751,7 @@ def build_professional_price_chart(
                     alt.Tooltip("relative_volume:Q", title="RVol", format=".2f"),
                     alt.Tooltip("range_signal:N", title="Ubicación rango"),
                     alt.Tooltip("range_badge:N", title="Badge rango"),
+                    alt.Tooltip("plan_badge:N", title="R/R visible"),
                 ],
             )
         )
