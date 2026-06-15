@@ -11256,6 +11256,7 @@ def trading_desk_rows(
         "Score",
         "Riesgo",
         "Target",
+        "R/R",
         "RVol",
         "HTF",
         "Mover",
@@ -11326,6 +11327,8 @@ def trading_desk_rows(
         blocker_summary = trading_desk_blocker_summary(
             desk_status, paper_state, next_step, reason_text
         )
+        target_value = safe_float(item.get("target")) or safe_float(confluence.get("recommended_target_pct"))
+        rr_value = target_value / risk_value if target_value is not None and risk_value and risk_value > 0 else None
         rows.append(
             {
                 "Ticker": symbol,
@@ -11335,7 +11338,8 @@ def trading_desk_rows(
                 "Edge": safe_float(edge_row.get("edge")),
                 "Score": score_value,
                 "Riesgo": risk_value,
-                "Target": safe_float(item.get("target")) or safe_float(confluence.get("recommended_target_pct")),
+                "Target": target_value,
+                "R/R": rr_value,
                 "RVol": rel_volume_value,
                 "HTF": text_display(validation.get("htf")),
                 "Mover": text_display(mover.get("lane")),
@@ -11374,6 +11378,9 @@ def trading_desk_rows(
     )
     display["Target"] = pd.to_numeric(display["Target"], errors="coerce").map(
         lambda value: pct_display(value) if pd.notna(value) else "-"
+    )
+    display["R/R"] = pd.to_numeric(display["R/R"], errors="coerce").map(
+        lambda value: f"{value:.1f}R" if pd.notna(value) else "-"
     )
     display["RVol"] = pd.to_numeric(display["RVol"], errors="coerce").map(
         lambda value: f"{value:.1f}x" if pd.notna(value) else "-"
@@ -11863,6 +11870,7 @@ def render_trading_desk_card_grid(rows: pd.DataFrame, *, limit: int = 6) -> None
             f'<b>{html.escape(text_display(row.get("Score")))}</b><em>Score</em>'
             f'<b>{html.escape(text_display(row.get("Riesgo")))}</b><em>Riesgo</em>'
             f'<b>{html.escape(text_display(row.get("RVol")))}</b><em>RVol</em>'
+            f'<b>{html.escape(text_display(row.get("R/R")))}</b><em>R/R</em>'
             f'</div>'
             f'<p>Ahora: {html.escape(text_display(action.get("headline")))}</p>'
             f'<div class="desk-missing-row">{blocker_chips}</div>'
@@ -12061,6 +12069,7 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
         "Score",
         "Riesgo",
         "Target",
+        "R/R",
         "RVol",
         "Falta",
         "Siguiente",
@@ -12074,6 +12083,7 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
         ("Estado", "Estado", "Operar, vigilar o evitar.", "small"),
         ("Paper", "Paper", "Estado de práctica/paper trading.", "small"),
         ("Target", "Target", "Objetivo principal estimado.", "small"),
+        ("R/R", "R/R", "Ratio target/riesgo; ideal >= 1.5R.", "small"),
         ("Falta", "Qué falta", "Bloqueo o confirmación pendiente.", "medium"),
         ("Siguiente", "Siguiente paso", "Acción concreta antes de considerar entrada.", "large"),
     ):
@@ -12098,6 +12108,17 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
             min_value=0,
             max_value=6,
             format="%.2f%%",
+        )
+    if "R/R" in compact_view.columns:
+        compact_view["R/R"] = pd.to_numeric(
+            compact_view["R/R"].astype(str).str.replace("R", "", regex=False), errors="coerce"
+        ).fillna(0).clip(0, 5)
+        compact_column_config["R/R"] = st.column_config.ProgressColumn(
+            "R/R",
+            help="Relación recompensa/riesgo calculada con target dividido por stop.",
+            min_value=0,
+            max_value=5,
+            format="%.1fR",
         )
     if "RVol" in compact_view.columns:
         compact_view["RVol"] = pd.to_numeric(
@@ -12125,6 +12146,7 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
         ("Ticker", "Ticker", "Activo; permanece como referencia principal.", "small"),
         ("Estado", "Estado", "Operar, vigilar o evitar.", "small"),
         ("Score", "Score", "Prioridad relativa 0-100.", "small"),
+        ("R/R", "R/R", "Ratio target/riesgo; ideal >= 1.5R.", "small"),
         ("Falta", "Qué falta", "Bloqueo principal antes de actuar.", "large"),
         ("Siguiente", "Siguiente paso", "Acción concreta antes de considerar entrada.", "large"),
         ("Setup", "Setup", "Estrategia o patrón detectado.", "medium"),
@@ -12162,6 +12184,17 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
             min_value=0,
             max_value=10,
             format="%.2f%%",
+        )
+    if "R/R" in full_view.columns:
+        full_view["R/R"] = pd.to_numeric(
+            full_view["R/R"].astype(str).str.replace("R", "", regex=False), errors="coerce"
+        ).fillna(0).clip(0, 5)
+        full_column_config["R/R"] = st.column_config.ProgressColumn(
+            "R/R",
+            help="Relación recompensa/riesgo calculada con target dividido por stop.",
+            min_value=0,
+            max_value=5,
+            format="%.1fR",
         )
     if "RVol" in full_view.columns:
         full_view["RVol"] = pd.to_numeric(

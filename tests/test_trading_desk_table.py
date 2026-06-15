@@ -111,7 +111,7 @@ def test_trading_desk_rows_merge_edge_validation_and_movers():
     rows = trading_desk_rows(table, confluence, scan, limit=10)
     by_symbol = {row["Ticker"]: row for row in rows.to_dict("records")}
 
-    assert rows.columns.tolist() == ["#", "Prioridad", "Ticker", "Estado", "Paper", "Falta", "Edge", "Score", "Riesgo", "Target", "RVol", "HTF", "Mover", "Setup", "Siguiente", "Razón"]
+    assert rows.columns.tolist() == ["#", "Prioridad", "Ticker", "Estado", "Paper", "Falta", "Edge", "Score", "Riesgo", "Target", "R/R", "RVol", "HTF", "Mover", "Setup", "Siguiente", "Razón"]
     assert rows.loc[0, "Ticker"] == "AAPL"
     assert by_symbol["AAPL"]["Estado"] == "Operar"
     assert by_symbol["AAPL"]["Prioridad"] == "🔥 Paper listo"
@@ -119,6 +119,7 @@ def test_trading_desk_rows_merge_edge_validation_and_movers():
     assert by_symbol["AAPL"]["Falta"] == "Completo"
     assert by_symbol["AAPL"]["Riesgo"] == "1.80%"
     assert by_symbol["AAPL"]["Target"] == "5.00%"
+    assert by_symbol["AAPL"]["R/R"] == "2.8R"
     assert by_symbol["AAPL"]["RVol"] == "1.7x"
     assert by_symbol["AAPL"]["HTF"] == "2/2"
     assert by_symbol["AAPL"]["Mover"] == "Ruptura"
@@ -133,7 +134,7 @@ def test_trading_desk_rows_merge_edge_validation_and_movers():
 def test_trading_desk_rows_returns_expected_columns_when_empty():
     rows = trading_desk_rows(pd.DataFrame(), pd.DataFrame(), pd.DataFrame())
 
-    assert rows.columns.tolist() == ["#", "Prioridad", "Ticker", "Estado", "Paper", "Falta", "Edge", "Score", "Riesgo", "Target", "RVol", "HTF", "Mover", "Setup", "Siguiente", "Razón"]
+    assert rows.columns.tolist() == ["#", "Prioridad", "Ticker", "Estado", "Paper", "Falta", "Edge", "Score", "Riesgo", "Target", "R/R", "RVol", "HTF", "Mover", "Setup", "Siguiente", "Razón"]
     assert rows.empty
 
 def test_filter_trading_desk_display_filters_status_score_and_query():
