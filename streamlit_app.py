@@ -5737,6 +5737,12 @@ def build_professional_price_chart(
             latest_badge_tone = "buy"
         elif latest_close_position_state == "Cierre debil":
             latest_badge_tone = "avoid"
+        if latest_action_hint.startswith("No operar"):
+            latest_badge_tone = "avoid"
+        elif latest_action_hint.startswith(("Esperar", "Falta", "Zona de rebote", "No perseguir", "Gestionar salida")):
+            latest_badge_tone = "watch"
+        elif latest_action_hint.startswith("Plan activo"):
+            latest_badge_tone = "buy"
         latest_badge_df = pd.DataFrame(
             [
                 {
@@ -5785,7 +5791,7 @@ def build_professional_price_chart(
                 color=alt.Color(
                     "tone:N",
                     legend=None,
-                    scale=alt.Scale(domain=["buy", "avoid"], range=["#22c55e", "#ef4444"]),
+                    scale=alt.Scale(domain=["buy", "watch", "avoid"], range=["#22c55e", "#f59e0b", "#ef4444"]),
                 ),
                 tooltip=[
                     alt.Tooltip("label:N", title="Ultima vela"),
@@ -5814,7 +5820,7 @@ def build_professional_price_chart(
                 color=alt.Color(
                     "tone:N",
                     legend=None,
-                    scale=alt.Scale(domain=["buy", "avoid"], range=["#22c55e", "#ef4444"]),
+                    scale=alt.Scale(domain=["buy", "watch", "avoid"], range=["#22c55e", "#f59e0b", "#ef4444"]),
                 ),
                 tooltip=[
                     alt.Tooltip("label:N", title="Ultima vela"),

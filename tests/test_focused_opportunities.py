@@ -2269,6 +2269,15 @@ def test_build_professional_price_chart_includes_hover_cursor():
     assert "Zona alta" in str(spec)
     assert "No perseguir: cerca de resistencia" in str(spec)
     assert "Siguiente paso" in str(spec)
+    assert "watch" in str(spec)
+    assert "#f59e0b" in str(spec)
+    latest_tones = []
+    for layer in spec.get("layer", []):
+        encoding = layer.get("encoding", {})
+        if encoding.get("color", {}).get("field") == "tone":
+            data_name = layer.get("data", {}).get("name")
+            latest_tones.extend(row.get("tone") for row in spec.get("datasets", {}).get(data_name, []))
+    assert "watch" in latest_tones
     assert "En entrada" in str(spec)
     assert "Stop -3.9%" in str(spec)
     assert "Target +2.0%" in str(spec)
