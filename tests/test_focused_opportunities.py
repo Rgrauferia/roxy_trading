@@ -2267,6 +2267,8 @@ def test_build_professional_price_chart_includes_hover_cursor():
     assert "Volumen confirma" in str(spec)
     assert "Cerca de resistencia visible" in str(spec)
     assert "Zona alta" in str(spec)
+    assert "No perseguir: cerca de resistencia" in str(spec)
+    assert "Siguiente paso" in str(spec)
     assert "En entrada" in str(spec)
     assert "Stop -3.9%" in str(spec)
     assert "Target +2.0%" in str(spec)

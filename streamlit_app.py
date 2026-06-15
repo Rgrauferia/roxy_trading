@@ -5656,6 +5656,7 @@ def build_professional_price_chart(
         latest_target_badge = ""
         latest_plan_rr = None
         latest_plan_badge = ""
+        latest_action_hint = "Esperar confirmacion limpia"
         if entry is not None and stop is not None and latest_target is not None:
             planned_risk = abs(entry - stop)
             if planned_risk > 0:
@@ -5703,6 +5704,20 @@ def build_professional_price_chart(
             if latest_badge_price > 0:
                 latest_room_to_high = (visible_high - latest_badge_price) / latest_badge_price
                 latest_room_above_low = (latest_badge_price - visible_low) / latest_badge_price
+        if latest_to_stop is not None and latest_to_stop >= 0:
+            latest_action_hint = "No operar: precio en zona de stop"
+        elif latest_to_target is not None and latest_to_target <= 0:
+            latest_action_hint = "Gestionar salida: objetivo alcanzado"
+        elif latest_to_entry is not None and latest_to_entry > 0.003:
+            latest_action_hint = f"Esperar entrada: falta {latest_to_entry:.1%}"
+        elif latest_range_position is not None and latest_range_position >= 0.75:
+            latest_action_hint = "No perseguir: cerca de resistencia"
+        elif latest_range_position is not None and latest_range_position <= 0.25:
+            latest_action_hint = "Zona de rebote: confirmar vela y volumen"
+        elif latest_relative_volume is not None and latest_relative_volume < 0.8:
+            latest_action_hint = "Falta volumen para validar entrada"
+        elif latest_entry_badge:
+            latest_action_hint = "Plan activo: vigilar stop y target"
         if latest_range_badge:
             latest_badge_label = f"{latest_badge_label} · {latest_range_badge}"
         if latest_entry_badge:
@@ -5745,6 +5760,7 @@ def build_professional_price_chart(
                     "range_position": latest_range_position,
                     "range_signal": latest_range_signal,
                     "range_badge": latest_range_badge,
+                    "action_hint": latest_action_hint,
                     "entry_badge": latest_entry_badge,
                     "stop_badge": latest_stop_badge,
                     "target_badge": latest_target_badge,
@@ -5781,6 +5797,7 @@ def build_professional_price_chart(
                     alt.Tooltip("relative_volume:Q", title="RVol", format=".2f"),
                     alt.Tooltip("range_signal:N", title="Ubicación rango"),
                     alt.Tooltip("range_badge:N", title="Badge rango"),
+                    alt.Tooltip("action_hint:N", title="Siguiente paso"),
                     alt.Tooltip("entry_badge:N", title="Entrada visible"),
                     alt.Tooltip("stop_badge:N", title="Stop visible"),
                     alt.Tooltip("target_badge:N", title="Target visible"),
@@ -5816,6 +5833,7 @@ def build_professional_price_chart(
                     alt.Tooltip("relative_volume:Q", title="RVol", format=".2f"),
                     alt.Tooltip("range_position:Q", title="Posición rango", format=".0%"),
                     alt.Tooltip("range_signal:N", title="Ubicación rango"),
+                    alt.Tooltip("action_hint:N", title="Siguiente paso"),
                     alt.Tooltip("to_entry:Q", title="Hasta entrada", format="+.2%"),
                     alt.Tooltip("to_stop:Q", title="Hasta stop", format="+.2%"),
                     alt.Tooltip("to_target:Q", title="Hasta objetivo", format="+.2%"),
