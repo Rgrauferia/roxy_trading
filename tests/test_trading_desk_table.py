@@ -12,6 +12,7 @@ from streamlit_app import (
     trading_desk_priority_label,
     trading_desk_rows,
     trading_desk_summary,
+    trading_desk_urgency_label,
 )
 
 
@@ -351,10 +352,22 @@ def test_trading_desk_action_queue_prioritizes_paper_ready_then_watch():
 
     assert queue["ticker"].tolist() == ["AAPL", "NVDA", "TSLA"]
     assert queue.loc[0, "tone"] == "buy"
+    assert queue.loc[0, "urgency"] == "Ahora"
     assert queue.loc[0, "action"] == "Preparar paper: confirmar stop, target y tamaño."
     assert queue.loc[1, "tone"] == "watch"
+    assert queue.loc[1, "urgency"] == "Vigilar cerca"
     assert queue.loc[1, "action"] == "Esperar gatillo"
     assert queue.loc[2, "tone"] == "avoid"
+    assert queue.loc[2, "urgency"] == "No tocar"
+
+
+def test_trading_desk_urgency_label_marks_operational_timing():
+    assert trading_desk_urgency_label("Operar", "Paper listo", 90, 1.8, 1.4) == "Ahora"
+    assert trading_desk_urgency_label("Operar", "Paper listo", 76, 3.0, 0.9) == "Lista"
+    assert trading_desk_urgency_label("Operar", "Bloq riesgo", 88, 4.0, 1.6) == "Bloqueada"
+    assert trading_desk_urgency_label("Vigilar", "Setup", 88, 2.2, 0.9) == "Vigilar cerca"
+    assert trading_desk_urgency_label("Vigilar", "Setup", 70, 2.2, 0.9) == "Esperar"
+    assert trading_desk_urgency_label("Evitar", "No tocar", 99, 7.0, 2.0) == "No tocar"
 
 
 def test_trading_desk_paper_state_flags_blockers():
