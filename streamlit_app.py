@@ -1840,10 +1840,12 @@ def render_professional_chart_block(
                 f"L {num_display(candle_low, 2)} · C {num_display(candle_close, 2)} · "
                 f"Rango {pct_display(tape_range) if tape_range is not None else '-'} · {tape_reading}"
             )
+            latest_class = " chart-tape-latest" if row_idx == len(recent_candles) - 1 else ""
             tape_items.append(
-                '<span class="chart-tape-candle chart-tape-{tone}" title="{title}"><em>{time}</em><strong>{close}</strong>'
+                '<span class="chart-tape-candle chart-tape-{tone}{latest_class}" title="{title}"><em>{time}</em><strong>{close}</strong>'
                 "<small>{change} · {reading}</small></span>".format(
                     tone=html.escape(tape_tone),
+                    latest_class=latest_class,
                     title=html.escape(tape_title),
                     time=html.escape(tape_time),
                     close=html.escape(num_display(candle_close, 2)),
@@ -15416,6 +15418,8 @@ def main() -> None:
         .chart-tape-buy{border-top-color:#22c55e;background:rgba(21,93,62,.18)}
         .chart-tape-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.20)}
         .chart-tape-buy:before,.chart-tape-buy:after{background:#22c55e}.chart-tape-avoid:before,.chart-tape-avoid:after{background:#ef4444}
+        .chart-tape-latest{box-shadow:inset 0 0 0 1px rgba(248,250,252,.42),0 8px 18px rgba(2,6,23,.20)}
+        .chart-tape-latest em:after{content:" · actual";color:#e0f2fe}
         .chart-tech-strip{display:grid;grid-template-columns:90px repeat(auto-fit,minmax(112px,1fr));align-items:stretch;gap:1px;border:1px solid rgba(148,163,184,.16);border-radius:8px;background:rgba(148,163,184,.14);overflow:hidden;margin:-2px 0 8px}
         .chart-tech-strip>b{display:flex;flex-direction:column;justify-content:center;color:#ddd6fe;background:rgba(30,27,75,.78);padding:7px 8px;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.055em}
         .chart-tech-strip>b small{display:block;color:#a5b4fc;font-size:9px;font-weight:900;letter-spacing:0;text-transform:none;line-height:1.1;margin-top:3px}
