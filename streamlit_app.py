@@ -5652,6 +5652,7 @@ def build_professional_price_chart(
         latest_to_stop = None
         latest_to_target = None
         latest_entry_badge = ""
+        latest_stop_badge = ""
         latest_target_badge = ""
         latest_plan_rr = None
         latest_plan_badge = ""
@@ -5671,6 +5672,12 @@ def build_professional_price_chart(
                     latest_entry_badge = f"Sobre entrada {abs(latest_to_entry):.1%}"
             if stop is not None:
                 latest_to_stop = (stop - latest_badge_price) / latest_badge_price
+                if abs(latest_to_stop) <= 0.003:
+                    latest_stop_badge = "En stop"
+                elif latest_to_stop < 0:
+                    latest_stop_badge = f"Stop -{abs(latest_to_stop):.1%}"
+                else:
+                    latest_stop_badge = f"Stop +{latest_to_stop:.1%}"
             if latest_target is not None:
                 latest_to_target = (latest_target - latest_badge_price) / latest_badge_price
                 if abs(latest_to_target) <= 0.003:
@@ -5700,6 +5707,8 @@ def build_professional_price_chart(
             latest_badge_label = f"{latest_badge_label} · {latest_range_badge}"
         if latest_entry_badge:
             latest_badge_label = f"{latest_badge_label} · {latest_entry_badge}"
+        if latest_stop_badge:
+            latest_badge_label = f"{latest_badge_label} · {latest_stop_badge}"
         if latest_target_badge:
             latest_badge_label = f"{latest_badge_label} · {latest_target_badge}"
         if latest_plan_badge:
@@ -5737,6 +5746,7 @@ def build_professional_price_chart(
                     "range_signal": latest_range_signal,
                     "range_badge": latest_range_badge,
                     "entry_badge": latest_entry_badge,
+                    "stop_badge": latest_stop_badge,
                     "target_badge": latest_target_badge,
                     "to_entry": latest_to_entry,
                     "to_stop": latest_to_stop,
@@ -5772,6 +5782,7 @@ def build_professional_price_chart(
                     alt.Tooltip("range_signal:N", title="Ubicación rango"),
                     alt.Tooltip("range_badge:N", title="Badge rango"),
                     alt.Tooltip("entry_badge:N", title="Entrada visible"),
+                    alt.Tooltip("stop_badge:N", title="Stop visible"),
                     alt.Tooltip("target_badge:N", title="Target visible"),
                     alt.Tooltip("plan_badge:N", title="R/R visible"),
                 ],
