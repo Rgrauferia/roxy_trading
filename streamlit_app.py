@@ -11294,8 +11294,22 @@ def trading_desk_rows(
         validation = validation_lookup.get(symbol, {})
         mover = mover_lookup.get(symbol, {})
         confluence = confluence_lookup.get(symbol, {})
+        wall_status = text_display(item.get("status"))
+        validation_decision = text_display(validation.get("decision"))
+        confluence_signal = text_display(confluence.get("signal")).upper()
+        confluence_decision = text_display(confluence.get("trade_decision")).upper()
+        if (
+            confluence_signal == "BUY"
+            and confluence_decision.startswith("TRADE_FOR")
+            and validation_decision == "Validado"
+        ):
+            desk_status = "Operar"
+        elif confluence_signal == "AVOID" or confluence_decision.startswith("NO_TRADE") or validation_decision == "Bloqueado":
+            desk_status = "Evitar"
+        else:
+            desk_status = wall_status
         paper_state = trading_desk_paper_state(
-            status=text_display(item.get("status")),
+            status=desk_status,
             risk=safe_float(item.get("risk")) or safe_float(confluence.get("risk_pct")),
             target=safe_float(item.get("target")) or safe_float(confluence.get("recommended_target_pct")),
             rel_volume=safe_float(item.get("rel_volume"))
@@ -11310,12 +11324,12 @@ def trading_desk_rows(
         next_step = text_display(item.get("next"))
         reason_text = text_display(validation.get("reason") or item.get("next"))
         blocker_summary = trading_desk_blocker_summary(
-            text_display(item.get("status")), paper_state, next_step, reason_text
+            desk_status, paper_state, next_step, reason_text
         )
         rows.append(
             {
                 "Ticker": symbol,
-                "Estado": text_display(item.get("status")),
+                "Estado": desk_status,
                 "Paper": paper_state,
                 "Falta": blocker_summary,
                 "Edge": safe_float(edge_row.get("edge")),
@@ -11327,7 +11341,7 @@ def trading_desk_rows(
                 "Mover": text_display(mover.get("lane")),
                 "Setup": text_display(item.get("strategy")),
                 "Siguiente": trading_desk_next_step_summary(
-                    text_display(item.get("status")),
+                    desk_status,
                     paper_state,
                     blocker_summary,
                     next_step,
@@ -11335,7 +11349,7 @@ def trading_desk_rows(
                 ),
                 "Razón": reason_text,
                 "Prioridad": trading_desk_priority_label(
-                    text_display(item.get("status")), paper_state, score_value, risk_value, rel_volume_value
+                    desk_status, paper_state, score_value, risk_value, rel_volume_value
                 ),
             }
         )
