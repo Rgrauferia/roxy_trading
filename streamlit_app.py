@@ -1608,6 +1608,29 @@ def candle_wick_pressure_label(upper_wick_pct: Any, lower_wick_pct: Any, body_pc
     return "Sin presion clara"
 
 
+def chart_window_pressure_label(position: Any, upside_pct: Any, downside_pct: Any) -> tuple[str, str, str]:
+    position_value = safe_float(position)
+    upside_value = safe_float(upside_pct)
+    downside_value = safe_float(downside_pct)
+    if position_value is None:
+        return "neutral", "Rango sin lectura", "Faltan velas suficientes para ubicar el precio."
+    if position_value >= 0.82:
+        return "avoid", "Presion en techo", "Precio cerca del maximo visible; evita perseguir sin ruptura limpia."
+    if position_value <= 0.18:
+        return "buy", "Presion en piso", "Precio cerca del soporte visible; buscar rebote confirmado."
+    if position_value >= 0.58:
+        detail = "Mitad alta del rango; compradores sostienen mientras no pierda medias."
+        if upside_value is not None and upside_value <= 0.01:
+            detail = "Muy cerca del techo; exigir ruptura y volumen antes de entrar."
+        return "buy", "Mitad alta", detail
+    if position_value <= 0.42:
+        detail = "Mitad baja del rango; esperar recuperacion antes de tomar riesgo."
+        if downside_value is not None and abs(downside_value) <= 0.01:
+            detail = "Cerca del piso; confirmar defensa de soporte antes de operar."
+        return "watch", "Mitad baja", detail
+    return "watch", "Rango medio", "Sin ventaja clara; esperar ruptura, rebote o confirmacion de volumen."
+
+
 def render_professional_chart_block(
     chart_df: pd.DataFrame,
     setup: dict,
@@ -1703,15 +1726,21 @@ def render_professional_chart_block(
     if window_low is not None and window_high is not None:
         window_range_text = f"{num_display(window_low, 2)}-{num_display(window_high, 2)}"
     window_position_text = "-"
+    window_position_value = None
     if latest_close is not None and window_low is not None and window_high is not None and window_high != window_low:
-        window_position_text = f"{((latest_close - window_low) / (window_high - window_low)):.0%}"
+        window_position_value = (latest_close - window_low) / (window_high - window_low)
+        window_position_text = f"{window_position_value:.0%}"
     window_upside_text = "-"
     window_downside_text = "-"
+    window_upside_value = None
+    window_downside_value = None
     if latest_close not in (None, 0):
         if window_high is not None:
-            window_upside_text = pct_display((window_high - latest_close) / latest_close)
+            window_upside_value = (window_high - latest_close) / latest_close
+            window_upside_text = pct_display(window_upside_value)
         if window_low is not None:
-            window_downside_text = pct_display((window_low - latest_close) / latest_close)
+            window_downside_value = (window_low - latest_close) / latest_close
+            window_downside_text = pct_display(window_downside_value)
     freshness = (trade_brief or {}).get("source_freshness") if isinstance(trade_brief, dict) else {}
     freshness = freshness if isinstance(freshness, dict) else {}
     source_status = text_display(freshness.get("status"))
@@ -1780,6 +1809,35 @@ def render_professional_chart_block(
                 f'<div class="chart-risk-track">{"".join(risk_items)}</div>'
                 "</section>"
             )
+    range_pressure_html = ""
+    if window_position_value is not None and latest_close is not None and window_low is not None and window_high is not None:
+        range_tone, range_label, range_detail = chart_window_pressure_label(
+            window_position_value, window_upside_value, window_downside_value
+        )
+        range_left = max(0.0, min(100.0, window_position_value * 100.0))
+        range_pressure_html = (
+            '<section class="chart-range-pressure chart-range-pressure-{tone}">'
+            '<header><strong>Rango visible</strong><span>{label} · Pos {position} · Techo {upside} · Piso {downside}</span></header>'
+            '<div class="chart-range-track" title="{title}">'
+            '<i class="chart-range-floor">Piso {floor}</i>'
+            '<b style="left:{left:.1f}%"><em>Actual</em><strong>{current}</strong></b>'
+            '<i class="chart-range-ceil">Techo {ceil}</i>'
+            "</div>"
+            "<small>{detail}</small>"
+            "</section>"
+        ).format(
+            tone=html.escape(range_tone),
+            label=html.escape(range_label),
+            position=html.escape(window_position_text),
+            upside=html.escape(window_upside_text),
+            downside=html.escape(window_downside_text),
+            title=html.escape(f"{range_label}: {range_detail}"),
+            floor=html.escape(num_display(window_low, 2)),
+            left=range_left,
+            current=html.escape(num_display(latest_close, 2)),
+            ceil=html.escape(num_display(window_high, 2)),
+            detail=html.escape(range_detail),
+        )
     decision_label = human_trade_action(trade_brief or {}) if trade_brief else action_label((confluence or {}).get("signal"))
     if decision_label in {"Operar", "Comprar"}:
         decision_tone = "buy"
@@ -2083,6 +2141,7 @@ def render_professional_chart_block(
           </aside>
         </section>
         {risk_lane_html}
+        {range_pressure_html}
         <section class="chart-check-strip">{confirmation_html}</section>
         <section class="chart-legend-strip">
           <span title="Precio actual o última vela limpia"><i class="chart-legend-dot chart-legend-current"></i>Actual</span>
@@ -15614,6 +15673,17 @@ def main() -> None:
         .chart-risk-point i{width:9px;height:9px;border-radius:999px;background:#94a3b8;box-shadow:0 0 0 3px rgba(15,23,42,.78)}
         .chart-risk-point b{font-size:9px;line-height:1;text-transform:uppercase}.chart-risk-point em{font-size:9px;line-height:1;color:#cbd5e1;font-style:normal}
         .chart-risk-stop i{background:#ef4444}.chart-risk-entry i{background:#22c55e}.chart-risk-current i{background:#f8fafc}.chart-risk-target i{background:#a78bfa}
+        .chart-range-pressure{border:1px solid rgba(148,163,184,.16);border-radius:8px;background:rgba(2,6,23,.48);padding:7px 10px;margin:-2px 0 7px}
+        .chart-range-pressure header{display:flex;justify-content:space-between;gap:8px;align-items:center;color:#cbd5e1;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}
+        .chart-range-pressure header strong{color:#e2e8f0}.chart-range-pressure header span{color:#94a3b8;text-align:right}
+        .chart-range-pressure small{display:block;color:#cbd5e1;font-size:10px;line-height:1.22;margin-top:4px}
+        .chart-range-track{position:relative;height:34px;margin-top:6px;border-radius:999px;background:linear-gradient(90deg,rgba(34,197,94,.30),rgba(59,130,246,.22),rgba(245,158,11,.28),rgba(239,68,68,.30));box-shadow:inset 0 0 0 1px rgba(148,163,184,.20)}
+        .chart-range-track i{position:absolute;top:50%;transform:translateY(-50%);font-size:9px;font-style:normal;font-weight:950;color:#cbd5e1;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+        .chart-range-floor{left:10px}.chart-range-ceil{right:10px}
+        .chart-range-track b{position:absolute;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:1px;min-width:58px;border-radius:999px;background:#f8fafc;color:#0f172a;padding:3px 7px;font-size:9px;font-weight:950;box-shadow:0 8px 18px rgba(2,6,23,.35)}
+        .chart-range-track b:before{content:"";position:absolute;top:-8px;left:50%;transform:translateX(-50%);width:2px;height:8px;background:#f8fafc;border-radius:999px}.chart-range-track b:after{content:"";position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);width:2px;height:8px;background:#f8fafc;border-radius:999px}
+        .chart-range-track b em{font-size:8px;line-height:1;font-style:normal;text-transform:uppercase}.chart-range-track b strong{font-size:10px;line-height:1}
+        .chart-range-pressure-buy{border-color:rgba(34,197,94,.35);box-shadow:inset 3px 0 0 #22c55e}.chart-range-pressure-watch{border-color:rgba(245,158,11,.35);box-shadow:inset 3px 0 0 #f59e0b}.chart-range-pressure-avoid{border-color:rgba(239,68,68,.35);box-shadow:inset 3px 0 0 #ef4444}
         .chart-level-decision-buy{border-color:rgba(34,197,94,.70)!important;color:#dcfce7!important;background:rgba(22,101,52,.30)!important}
         .chart-level-decision-watch{border-color:rgba(245,158,11,.70)!important;color:#fef3c7!important;background:rgba(146,64,14,.28)!important}
         .chart-level-decision-avoid{border-color:rgba(248,113,113,.70)!important;color:#fee2e2!important;background:rgba(153,27,27,.30)!important}
@@ -15670,7 +15740,7 @@ def main() -> None:
         .chart-tech-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.20)}
         @media (max-width:900px){.chart-candle-tape{grid-template-columns:repeat(3,minmax(0,1fr))}.chart-candle-tape>b{grid-column:1/-1}}
         @media (max-width:900px){.chart-tech-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.chart-tech-strip>b{grid-column:1/-1}}
-        @media (max-width:600px){.chart-candle-tape,.chart-tech-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-tape-candle small,.chart-tech-pill small{white-space:normal}.chart-legend-strip{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.chart-legend-strip span{justify-content:flex-start}.chart-provider-warning,.chart-empty-state{display:block}.chart-provider-warning span{display:block;text-align:left;white-space:normal;margin-top:4px}.chart-empty-state ul{margin-top:8px;min-width:0}.chart-fallback-state strong{font-size:15px}.chart-risk-lane header{display:block}.chart-risk-lane header span{display:block;text-align:left;margin-top:3px}.chart-risk-point em{display:none}.chart-risk-point{min-width:44px}}
+        @media (max-width:600px){.chart-candle-tape,.chart-tech-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-tape-candle small,.chart-tech-pill small{white-space:normal}.chart-legend-strip{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.chart-legend-strip span{justify-content:flex-start}.chart-provider-warning,.chart-empty-state{display:block}.chart-provider-warning span{display:block;text-align:left;white-space:normal;margin-top:4px}.chart-empty-state ul{margin-top:8px;min-width:0}.chart-fallback-state strong{font-size:15px}.chart-risk-lane header,.chart-range-pressure header{display:block}.chart-risk-lane header span,.chart-range-pressure header span{display:block;text-align:left;margin-top:3px}.chart-risk-point em{display:none}.chart-risk-point{min-width:44px}}
         .chart-legend-dot{display:inline-block;width:9px;height:9px;border-radius:999px;box-shadow:0 0 0 2px rgba(15,23,42,.86)}
         .chart-legend-current{background:#f8fafc}.chart-legend-entry{background:#22c55e}.chart-legend-stop{background:#ef4444}.chart-legend-target{background:#a78bfa}.chart-legend-support{background:#22d3ee}
         .chart-check-pill{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#0b1220;padding:6px 8px;min-width:0;border-top:2px solid rgba(148,163,184,.28)}

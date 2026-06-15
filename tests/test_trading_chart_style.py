@@ -1,7 +1,7 @@
 import altair as alt
 import pandas as pd
 
-from streamlit_app import style_trading_chart
+from streamlit_app import chart_window_pressure_label, style_trading_chart
 
 
 def test_style_trading_chart_uses_compact_terminal_axis_config():
@@ -18,3 +18,9 @@ def test_style_trading_chart_uses_compact_terminal_axis_config():
     assert spec["config"]["background"] == "#0b1220"
     assert spec["params"][0]["bind"] == "scales"
     assert spec["params"][0]["select"]["encodings"] == ["x"]
+
+
+def test_chart_window_pressure_label_explains_range_position():
+    assert chart_window_pressure_label(0.9, 0.004, -0.08)[0:2] == ("avoid", "Presion en techo")
+    assert chart_window_pressure_label(0.1, 0.08, -0.004)[0:2] == ("buy", "Presion en piso")
+    assert chart_window_pressure_label(0.5, 0.03, -0.03)[0:2] == ("watch", "Rango medio")
