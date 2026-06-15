@@ -330,23 +330,26 @@ def test_trading_desk_summary_counts_visible_operational_state():
     rows = pd.DataFrame(
         [
             {"Ticker": "AAPL", "Estado": "Operar", "Score": "92", "Riesgo": "1.80%", "R/R": "2.8R", "RVol": "1.4x"},
-            {"Ticker": "NVDA", "Estado": "Vigilar", "Score": "88", "Riesgo": "2.20%", "R/R": "2.0R", "RVol": "1.8x"},
-            {"Ticker": "TSLA", "Estado": "Evitar", "Score": "65", "Riesgo": "7.00%", "R/R": "0.3R", "RVol": "0.7x"},
+            {"Ticker": "NVDA", "Estado": "Vigilar", "Score": "88", "Riesgo": "2.20%", "R/R": "2.0R", "RVol": "1.8x", "Falta": "Falta 15m"},
+            {"Ticker": "MSFT", "Estado": "Vigilar", "Score": "84", "Riesgo": "2.40%", "R/R": "1.4R", "RVol": "1.1x", "Falta": "Falta 15m"},
+            {"Ticker": "TSLA", "Estado": "Evitar", "Score": "65", "Riesgo": "7.00%", "R/R": "0.3R", "RVol": "0.7x", "Falta": "No tocar"},
         ]
     )
 
     summary = trading_desk_summary(rows)
 
-    assert summary["visible"] == 3
+    assert summary["visible"] == 4
     assert summary["operar"] == 1
-    assert summary["vigilar"] == 1
+    assert summary["vigilar"] == 2
     assert summary["evitar"] == 1
     assert summary["best_symbol"] == "AAPL"
     assert summary["best_score"] == 92
-    assert summary["avg_risk"] == 3.67
+    assert summary["avg_risk"] == 3.35
     assert summary["best_rr"] == 2.8
     assert summary["rr_ready"] == 2
     assert summary["volume_live"] == 2
+    assert summary["top_blocker"] == "Falta 15m"
+    assert summary["top_blocker_count"] == 2
 
 
 def test_trading_desk_action_queue_prioritizes_paper_ready_then_watch():

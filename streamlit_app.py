@@ -11677,6 +11677,8 @@ def trading_desk_summary(rows: pd.DataFrame) -> dict[str, Any]:
             "best_rr": None,
             "rr_ready": 0,
             "volume_live": 0,
+            "top_blocker": "-",
+            "top_blocker_count": 0,
         }
     data = rows.copy()
     status = data.get("Estado", pd.Series("", index=data.index)).astype(str)
@@ -11687,11 +11689,15 @@ def trading_desk_summary(rows: pd.DataFrame) -> dict[str, Any]:
         errors="coerce",
     )
     volume = pd.to_numeric(data.get("RVol", pd.Series("", index=data.index)).astype(str).str.replace("x", "", regex=False), errors="coerce").fillna(0)
+    blockers = data.get("Falta", pd.Series("", index=data.index)).fillna("-").astype(str).str.strip()
+    blockers = blockers[(blockers != "") & (blockers != "-") & (blockers != "Completo")]
+    top_blocker_counts = blockers.value_counts()
     data["_status_order"] = status.map({"Operar": 0, "Vigilar": 1, "Evitar": 2}).fillna(3)
     data["_score"] = score
     best = data.sort_values(["_status_order", "_score"], ascending=[True, False]).head(1)
     best_symbol = text_display(best.iloc[0].get("Ticker")) if not best.empty else "-"
     best_score = float(best.iloc[0].get("_score")) if not best.empty else 0
+    top_blocker = text_display(top_blocker_counts.index[0]) if not top_blocker_counts.empty else "-"
     return {
         "visible": len(data),
         "operar": int(status.eq("Operar").sum()),
@@ -11703,6 +11709,8 @@ def trading_desk_summary(rows: pd.DataFrame) -> dict[str, Any]:
         "best_rr": round(float(reward_risk.dropna().max()), 1) if not reward_risk.dropna().empty else None,
         "rr_ready": int(reward_risk.ge(1.5).sum()),
         "volume_live": int(volume.ge(1.2).sum()),
+        "top_blocker": top_blocker,
+        "top_blocker_count": int(top_blocker_counts.iloc[0]) if not top_blocker_counts.empty else 0,
     }
 
 def trading_desk_blocker_counts(rows: pd.DataFrame, *, limit: int = 4) -> pd.DataFrame:
@@ -11931,6 +11939,7 @@ def render_trading_desk_summary(rows: pd.DataFrame) -> None:
         f'<div class="desk-chip"><span>Riesgo prom</span><strong>{html.escape(num_display(summary.get("avg_risk"), 2))}%</strong><small>{int(summary.get("visible") or 0)} visibles</small></div>'
         f'<div class="desk-chip"><span>Mejor R/R</span><strong>{html.escape(num_display(summary.get("best_rr"), 1))}R</strong><small>{int(summary.get("rr_ready") or 0)} con ≥1.5R</small></div>'
         f'<div class="desk-chip"><span>Volumen vivo</span><strong>{int(summary.get("volume_live") or 0)}</strong><small>RVol ≥ 1.2x</small></div>'
+        f'<div class="desk-chip desk-watch"><span>Falta principal</span><strong>{html.escape(text_display(summary.get("top_blocker")))}</strong><small>{int(summary.get("top_blocker_count") or 0)} oportunidades</small></div>'
         "</section>",
         unsafe_allow_html=True,
     )
