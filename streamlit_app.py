@@ -1861,7 +1861,17 @@ def render_professional_chart_block(
             tape_dominant_reading = "-"
             if tape_reading_counts:
                 tape_dominant_reading = max(tape_reading_counts.items(), key=lambda item: (item[1], item[0]))[0]
+            tape_bias = "Sesgo mixto"
+            if tape_momentum is not None:
+                green_ratio = tape_green_count / max(1, len(tape_items))
+                if tape_momentum >= 0.002 and green_ratio >= 0.5:
+                    tape_bias = "Sesgo alcista"
+                elif tape_momentum <= -0.002 and green_ratio <= 0.5:
+                    tape_bias = "Sesgo bajista"
+                elif tape_avg_range is not None and tape_avg_range >= 0.018:
+                    tape_bias = "Volatilidad alta"
             tape_summary = (
+                f"{tape_bias} · "
                 f"{tape_green_count}/{len(tape_items)} verdes · "
                 f"{pct_display(tape_momentum) if tape_momentum is not None else '-'} · "
                 f"lectura {tape_dominant_reading} · "
