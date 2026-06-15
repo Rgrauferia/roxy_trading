@@ -2163,6 +2163,16 @@ def render_professional_chart_block(
             )
         ]
         candle_table = candle_table.tail(8).copy()
+        candle_green_count = int((candle_table["direction"] == "Verde").sum())
+        candle_red_count = int((candle_table["direction"] == "Roja").sum())
+        candle_avg_range = safe_float(pd.to_numeric(candle_table["range_pct"], errors="coerce").mean())
+        candle_latest_reading = (
+            text_display(candle_table["reading"].iloc[-1]) if not candle_table.empty and "reading" in candle_table else "-"
+        )
+        candle_expander_label = (
+            f"Últimas 8 velas OHLC · {candle_green_count} verdes/{candle_red_count} rojas · "
+            f"rango avg {pct_display(candle_avg_range)}"
+        )
         candle_table = candle_table.drop(columns=["upper_wick_pct", "lower_wick_pct"], errors="ignore")
         if "ts" in candle_table.columns:
             candle_table["ts"] = pd.to_datetime(candle_table["ts"], errors="coerce").dt.strftime("%m/%d %H:%M")
@@ -2216,8 +2226,10 @@ def render_professional_chart_block(
             "Rango": st.column_config.TextColumn("Rango", help="High-Low como porcentaje del cierre.", width="small"),
             "Cuerpo": st.column_config.TextColumn("Cuerpo", help="Tamaño del cuerpo de la vela como porcentaje del cierre.", width="small"),
         }
-        with st.expander("Últimas 8 velas OHLC", expanded=False):
-            st.caption("Lectura rápida para comparar la vela actual contra las previas sin salir de la gráfica.")
+        with st.expander(candle_expander_label, expanded=False):
+            st.caption(
+                f"Última lectura: {candle_latest_reading}. Comparación rápida contra velas previas sin salir de la gráfica."
+            )
             st.dataframe(candle_table, width="stretch", hide_index=True, height=260, column_config=candle_column_config)
 
 
