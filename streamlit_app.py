@@ -5918,7 +5918,19 @@ def build_professional_price_chart(
                     )
                 )
             label_df = level_df[
-                level_df["label"].isin(["Actual", "Entrada", "Stop", "Objetivo", "Objetivo 2%", "Soporte", "Resistencia"])
+                level_df["label"].isin(
+                    [
+                        "Actual",
+                        "Entrada",
+                        "Stop",
+                        "Objetivo",
+                        "Objetivo 2%",
+                        "Objetivo 5%",
+                        "Objetivo 10%",
+                        "Soporte",
+                        "Resistencia",
+                    ]
+                )
             ]
             if not label_df.empty:
                 layers.append(

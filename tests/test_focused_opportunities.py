@@ -2254,6 +2254,15 @@ def test_build_professional_price_chart_includes_hover_cursor():
     assert "params" in spec
     assert any(param.get("name") == "candle_hover" for param in spec["params"])
     assert "candle_hover" in str(spec)
+    level_labels = []
+    for layer in spec.get("layer", []):
+        mark = layer.get("mark", {})
+        encoding = layer.get("encoding", {})
+        if isinstance(mark, dict) and mark.get("type") == "text" and encoding.get("text", {}).get("field") == "label_text":
+            data_name = layer.get("data", {}).get("name")
+            level_labels.extend(row.get("label_text", "") for row in spec.get("datasets", {}).get(data_name, []))
+    assert any("Objetivo 5%" in label for label in level_labels)
+    assert any("Objetivo 10%" in label for label in level_labels)
 
 
 def test_build_professional_oscillator_chart_uses_rsi_and_macd():
