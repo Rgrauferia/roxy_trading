@@ -1996,10 +1996,29 @@ def render_professional_chart_block(
             candle_reading_tone = "avoid"
         add_technical_item("Vela", candle_reading, f"Cuerpo {pct_display(candle_body_pct)}", candle_reading_tone)
     if technical_items:
-        technical_summary = f"{technical_tones.count('buy')}/{len(technical_tones)} OK · {technical_tones.count('avoid')} riesgo"
+        technical_buy_count = technical_tones.count("buy")
+        technical_watch_count = technical_tones.count("watch")
+        technical_avoid_count = technical_tones.count("avoid")
+        technical_strip_tone = "watch"
+        if technical_avoid_count >= 2 or technical_avoid_count > technical_buy_count:
+            technical_strip_tone = "avoid"
+        elif technical_buy_count >= max(1, len(technical_tones) - technical_avoid_count) and technical_avoid_count == 0:
+            technical_strip_tone = "buy"
+        technical_summary = (
+            f"{technical_buy_count}/{len(technical_tones)} OK · "
+            f"{technical_watch_count} espera · {technical_avoid_count} riesgo"
+        )
+        technical_summary_html = "".join(
+            f"<i>{html.escape(text_display(item))}</i>"
+            for item in [
+                f"{technical_buy_count}/{len(technical_tones)} OK",
+                f"{technical_watch_count} espera",
+                f"{technical_avoid_count} riesgo",
+            ]
+        )
         technical_strip_html = (
-            '<section class="chart-tech-strip"><b><span>Indicadores</span>'
-            f"<small>{html.escape(technical_summary)}</small></b>"
+            f'<section class="chart-tech-strip chart-tech-strip-{html.escape(technical_strip_tone)}"><b><span>Indicadores</span>'
+            f'<small title="{html.escape(technical_summary)}">{technical_summary_html}</small></b>'
             + "".join(technical_items[:6])
             + "</section>"
         )
@@ -15487,7 +15506,11 @@ def main() -> None:
         .chart-tape-latest em:after{content:" · actual";color:#e0f2fe}
         .chart-tech-strip{display:grid;grid-template-columns:90px repeat(auto-fit,minmax(112px,1fr));align-items:stretch;gap:1px;border:1px solid rgba(148,163,184,.16);border-radius:8px;background:rgba(148,163,184,.14);overflow:hidden;margin:-2px 0 8px}
         .chart-tech-strip>b{display:flex;flex-direction:column;justify-content:center;color:#ddd6fe;background:rgba(30,27,75,.78);padding:7px 8px;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.055em}
-        .chart-tech-strip>b small{display:block;color:#a5b4fc;font-size:9px;font-weight:900;letter-spacing:0;text-transform:none;line-height:1.1;margin-top:3px}
+        .chart-tech-strip-buy>b{color:#bbf7d0;box-shadow:inset 3px 0 0 #22c55e}
+        .chart-tech-strip-watch>b{color:#fde68a;box-shadow:inset 3px 0 0 #f59e0b}
+        .chart-tech-strip-avoid>b{color:#fecaca;box-shadow:inset 3px 0 0 #ef4444}
+        .chart-tech-strip>b small{display:flex;flex-wrap:wrap;gap:3px;color:#a5b4fc;font-size:9px;font-weight:900;letter-spacing:0;text-transform:none;line-height:1.1;margin-top:4px}
+        .chart-tech-strip>b small i{display:inline-flex;align-items:center;border:1px solid rgba(165,180,252,.22);border-radius:999px;background:rgba(30,27,75,.58);color:#ddd6fe;font-style:normal;padding:1px 4px;max-width:100%;white-space:nowrap}
         .chart-tech-pill{display:block;min-width:0;background:#0b1220;border-top:3px solid rgba(148,163,184,.32);padding:5px 7px}
         .chart-tech-pill em{display:block;color:#94a3b8;font-size:9px;font-style:normal;font-weight:950;line-height:1;text-transform:uppercase}
         .chart-tech-pill strong{display:block;color:#f8fafc;font-size:13px;line-height:1.05;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
