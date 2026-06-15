@@ -11604,6 +11604,11 @@ def filter_trading_desk_display(
             / 100.0
         )
         filtered = filtered[risk.le(0.025)]
+    elif preset == "Mejor R/R" and "R/R" in filtered.columns:
+        reward_risk = pd.to_numeric(
+            filtered["R/R"].astype(str).str.replace("R", "", regex=False), errors="coerce"
+        ).fillna(0)
+        filtered = filtered[reward_risk.ge(1.5)]
     elif preset == "Volumen vivo" and "RVol" in filtered.columns:
         volume = pd.to_numeric(filtered["RVol"].astype(str).str.replace("x", "", regex=False), errors="coerce").fillna(
             0
@@ -11622,7 +11627,7 @@ def filter_trading_desk_display(
     if search:
         searchable_columns = [
             col
-            for col in ["Ticker", "Prioridad", "Paper", "Falta", "Setup", "Siguiente", "Razón", "Mover"]
+            for col in ["Ticker", "Prioridad", "Paper", "Falta", "R/R", "Setup", "Siguiente", "Razón", "Mover"]
             if col in filtered.columns
         ]
         if searchable_columns:
@@ -11636,7 +11641,16 @@ def filter_trading_desk_display(
     return filtered
 
 
-TRADING_DESK_PRESETS = ["Todos", "Operar ahora", "Paper listo", "Alto score", "Bajo riesgo", "Volumen vivo", "No tocar"]
+TRADING_DESK_PRESETS = [
+    "Todos",
+    "Operar ahora",
+    "Paper listo",
+    "Alto score",
+    "Bajo riesgo",
+    "Mejor R/R",
+    "Volumen vivo",
+    "No tocar",
+]
 
 
 def trading_desk_preset_counts(rows: pd.DataFrame) -> dict[str, int]:
