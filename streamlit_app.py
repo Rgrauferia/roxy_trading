@@ -1782,6 +1782,8 @@ def render_professional_chart_block(
         tape_ranges: list[float] = []
         tape_reading_counts: dict[str, int] = {}
         tape_green_count = 0
+        tape_strong_count = 0
+        tape_indecision_count = 0
         tape_first_open: float | None = None
         tape_last_close: float | None = None
         recent_candles = clean_window.tail(6).reset_index(drop=True)
@@ -1835,6 +1837,10 @@ def render_professional_chart_block(
                 elif tape_body_share <= 0.18 and tape_range >= 0.003:
                     tape_strength = "indecision"
                     tape_strength_label = "doji / indecisión"
+            if tape_strength == "strong":
+                tape_strong_count += 1
+            elif tape_strength == "indecision":
+                tape_indecision_count += 1
             if tape_reading not in {"", "-", "Sin lectura"}:
                 tape_reading_counts[tape_reading] = tape_reading_counts.get(tape_reading, 0) + 1
             tape_time = "-"
@@ -1890,6 +1896,8 @@ def render_professional_chart_block(
             tape_summary = (
                 f"{tape_bias} · "
                 f"{tape_green_count}/{len(tape_items)} verdes · "
+                f"{tape_strong_count} fuertes · "
+                f"{tape_indecision_count} doji · "
                 f"{pct_display(tape_momentum) if tape_momentum is not None else '-'} · "
                 f"lectura {tape_dominant_reading} · "
                 f"rango {pct_display(tape_avg_range) if tape_avg_range is not None else '-'}"
