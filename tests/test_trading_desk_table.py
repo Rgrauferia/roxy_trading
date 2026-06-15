@@ -6,6 +6,7 @@ from streamlit_app import (
     trading_desk_action_queue,
     trading_desk_blocker_counts,
     trading_desk_blocker_summary,
+    trading_desk_card_action,
     trading_desk_next_step_summary,
     trading_desk_paper_state,
     trading_desk_preset_counts,
@@ -262,6 +263,25 @@ def test_trading_desk_next_step_summary_turns_blockers_into_actions():
     )
     assert trading_desk_next_step_summary("Operar", "Bloq volumen", "Falta Volumen", "-", "RVol bajo") == "Esperar volumen"
     assert trading_desk_next_step_summary("Evitar", "No tocar", "No tocar", "No tocar", "Riesgo alto") == "No tocar"
+
+
+def test_trading_desk_card_action_prioritizes_immediate_instruction():
+    assert trading_desk_card_action("Operar", "Paper listo", "Completo", "Confirmar ticket", "1h confirma") == {
+        "headline": "Confirmar ticket",
+        "detail": "Paper listo: valida stop, target y tamaño.",
+    }
+    assert trading_desk_card_action("Vigilar", "Setup", "Falta 15m", "Esperar", "Falta 15m") == {
+        "headline": "Esperar gatillo 15m",
+        "detail": "Falta 15m",
+    }
+    assert trading_desk_card_action("Operar", "Bloq riesgo/target", "Falta Riesgo + Target 2%", "-", "-") == {
+        "headline": "Ajustar riesgo/target",
+        "detail": "Falta Riesgo + Target 2%",
+    }
+    assert trading_desk_card_action("Evitar", "No tocar", "No tocar", "No tocar", "Riesgo alto") == {
+        "headline": "No tocar",
+        "detail": "Riesgo alto",
+    }
 
 
 def test_trading_desk_priority_label_marks_operational_state():

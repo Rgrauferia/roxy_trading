@@ -11445,6 +11445,23 @@ def trading_desk_readiness_pct(
     return 40
 
 
+def trading_desk_card_action(status: str, paper: str, blocker: str, next_step: str, reason: str) -> dict[str, str]:
+    status_value = text_display(status)
+    paper_value = text_display(paper)
+    blocker_value = text_display(blocker)
+    next_value = trading_desk_next_step_summary(status_value, paper_value, blocker_value, next_step, reason)
+    reason_value = text_display(reason)
+    if status_value == "Evitar" or paper_value == "No tocar" or blocker_value == "No tocar":
+        return {"headline": "No tocar", "detail": reason_value if reason_value != "-" else "Esperar nueva estructura."}
+    if paper_value == "Paper listo" or blocker_value == "Completo":
+        headline = next_value if next_value != "-" else "Preparar paper"
+        return {"headline": headline, "detail": "Paper listo: valida stop, target y tamaño."}
+    if paper_value.startswith("Bloq"):
+        return {"headline": next_value, "detail": blocker_value}
+    detail = blocker_value if blocker_value != "-" else reason_value
+    return {"headline": next_value if next_value != "-" else "Revisar setup", "detail": detail}
+
+
 def filter_trading_desk_display(
     rows: pd.DataFrame,
     *,
@@ -11721,6 +11738,10 @@ def render_trading_desk_card_grid(rows: pd.DataFrame, *, limit: int = 6) -> None
         blocker = text_display(row.get("Falta"))
         tone = "avoid" if status == "Evitar" or paper == "No tocar" else "buy" if paper == "Paper listo" else "watch"
         chip_tone = "buy" if blocker == "Completo" else "avoid" if blocker == "No tocar" else "watch"
+        score_value = safe_float(row.get("Score"))
+        rvol_value = safe_float(str(row.get("RVol")).replace("x", ""))
+        readiness = trading_desk_readiness_pct(status, paper, blocker, score_value, rvol_value)
+        action = trading_desk_card_action(status, paper, blocker, row.get("Siguiente"), row.get("Razón"))
         blocker_chips = "".join(
             f'<span class="desk-missing-chip desk-missing-{html.escape(chip_tone)}">{html.escape(part.strip())}</span>'
             for part in blocker.replace("Falta", "").replace("+", ",").split(",")
@@ -11734,9 +11755,10 @@ def render_trading_desk_card_grid(rows: pd.DataFrame, *, limit: int = 6) -> None
             f'<b>{html.escape(text_display(row.get("Riesgo")))}</b><em>Riesgo</em>'
             f'<b>{html.escape(text_display(row.get("RVol")))}</b><em>RVol</em>'
             f'</div>'
-            f'<p>{html.escape(text_display(row.get("Falta")))}</p>'
+            f'<p>Ahora: {html.escape(text_display(action.get("headline")))}</p>'
             f'<div class="desk-missing-row">{blocker_chips}</div>'
-            f'<small>{html.escape(text_display(row.get("Siguiente")))} · {html.escape(text_display(row.get("Setup")))}</small>'
+            f'<div class="desk-readiness"><span style="width:{readiness}%"></span><em>{readiness}% listo</em></div>'
+            f'<small>{html.escape(text_display(action.get("detail")))} · {html.escape(text_display(row.get("Setup")))}</small>'
             "</article>"
         )
     st.markdown(
