@@ -6,6 +6,7 @@ from streamlit_app import (
     trading_desk_action_queue,
     trading_desk_blocker_counts,
     trading_desk_blocker_summary,
+    trading_desk_next_step_summary,
     trading_desk_paper_state,
     trading_desk_preset_counts,
     trading_desk_priority_label,
@@ -122,6 +123,7 @@ def test_trading_desk_rows_merge_edge_validation_and_movers():
     assert by_symbol["MSFT"]["Prioridad"] == "👀 Vigilar"
     assert by_symbol["MSFT"]["Paper"] == "Setup"
     assert by_symbol["MSFT"]["Falta"] == "Falta 15m"
+    assert by_symbol["MSFT"]["Siguiente"] == "Esperar gatillo 15m"
 
 
 def test_trading_desk_rows_returns_expected_columns_when_empty():
@@ -245,6 +247,19 @@ def test_trading_desk_blocker_summary_explains_missing_requirement():
     assert trading_desk_blocker_summary("Operar", "Bloq riesgo/target", "Esperar", "Riesgo alto") == "Falta Riesgo + Target 2%"
     assert trading_desk_blocker_summary("Vigilar", "Setup", "Esperar", "Falta 15m") == "Falta 15m"
     assert trading_desk_blocker_summary("Evitar", "No tocar", "No tocar", "Riesgo alto") == "No tocar"
+
+
+def test_trading_desk_next_step_summary_turns_blockers_into_actions():
+    assert trading_desk_next_step_summary("Vigilar", "Setup", "Falta 15m", "Esperar", "Falta 15m") == "Esperar gatillo 15m"
+    assert (
+        trading_desk_next_step_summary(
+            "Operar", "Bloq riesgo/target", "Falta Riesgo + Target 2%", "Esperar", "Riesgo alto"
+        )
+        == "Ajustar riesgo/target"
+    )
+    assert trading_desk_next_step_summary("Operar", "Bloq volumen", "Falta Volumen", "-", "RVol bajo") == "Esperar volumen"
+    assert trading_desk_next_step_summary("Evitar", "No tocar", "No tocar", "No tocar", "Riesgo alto") == "No tocar"
+
 
 def test_trading_desk_priority_label_marks_operational_state():
     assert trading_desk_priority_label("Operar", "Paper listo", 90, 0.018, 1.4) == "🔥 Paper listo"

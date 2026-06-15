@@ -11195,12 +11195,15 @@ def trading_desk_rows(
         )
         next_step = text_display(item.get("next"))
         reason_text = text_display(validation.get("reason") or item.get("next"))
+        blocker_summary = trading_desk_blocker_summary(
+            text_display(item.get("status")), paper_state, next_step, reason_text
+        )
         rows.append(
             {
                 "Ticker": symbol,
                 "Estado": text_display(item.get("status")),
                 "Paper": paper_state,
-                "Falta": trading_desk_blocker_summary(text_display(item.get("status")), paper_state, next_step, reason_text),
+                "Falta": blocker_summary,
                 "Edge": safe_float(edge_row.get("edge")),
                 "Score": score_value,
                 "Riesgo": risk_value,
@@ -11209,7 +11212,13 @@ def trading_desk_rows(
                 "HTF": text_display(validation.get("htf")),
                 "Mover": text_display(mover.get("lane")),
                 "Setup": text_display(item.get("strategy")),
-                "Siguiente": next_step,
+                "Siguiente": trading_desk_next_step_summary(
+                    text_display(item.get("status")),
+                    paper_state,
+                    blocker_summary,
+                    next_step,
+                    reason_text,
+                ),
                 "Razón": reason_text,
                 "Prioridad": trading_desk_priority_label(
                     text_display(item.get("status")), paper_state, score_value, risk_value, rel_volume_value
@@ -11300,6 +11309,40 @@ def trading_desk_blocker_summary(status: str, paper: str, next_step: str, reason
         if token in combined:
             return label
     return next_value if next_value != "-" else "Revisar setup"
+
+
+def trading_desk_next_step_summary(status: str, paper: str, blocker: str, next_step: str, reason: str) -> str:
+    status_value = text_display(status)
+    paper_value = text_display(paper)
+    blocker_value = text_display(blocker)
+    next_value = text_display(next_step)
+    reason_value = text_display(reason)
+    combined = f"{blocker_value} {next_value} {reason_value}".lower()
+    if status_value == "Evitar" or paper_value == "No tocar" or blocker_value == "No tocar":
+        return "No tocar"
+    if blocker_value == "Completo" or paper_value == "Paper listo":
+        if next_value != "-" and next_value.lower() not in {"esperar", "wait"}:
+            return next_value
+        return "Preparar paper"
+    if "riesgo" in combined and "target" in combined:
+        return "Ajustar riesgo/target"
+    if "riesgo" in combined:
+        return "Ajustar stop/riesgo"
+    if "target" in combined or "objetivo" in combined:
+        return "Validar target 2%"
+    for token, label in (
+        ("15m", "Esperar gatillo 15m"),
+        ("1h", "Esperar confirmación 1h"),
+        ("2h", "Esperar confirmación 2h"),
+        ("4h", "Esperar confirmación 4h"),
+    ):
+        if token in combined:
+            return label
+    if "volumen" in combined or "rvol" in combined:
+        return "Esperar volumen"
+    if next_value != "-":
+        return next_value
+    return "Revisar setup"
 
 
 def trading_desk_priority_label(
