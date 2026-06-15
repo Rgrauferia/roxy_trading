@@ -5592,6 +5592,14 @@ def build_professional_price_chart(
         latest_candle_body = safe_float(latest_badge_row.get("candle_body_pct"))
         latest_wick_pressure = text_display(latest_badge_row.get("wick_pressure"))
         latest_relative_volume = safe_float(latest_badge_row.get("relative_volume"))
+        latest_volume_signal = "Volumen sin dato"
+        if latest_relative_volume is not None:
+            if latest_relative_volume >= 1.2:
+                latest_volume_signal = "Volumen confirma"
+            elif latest_relative_volume <= 0.8:
+                latest_volume_signal = "Volumen bajo"
+            else:
+                latest_volume_signal = "Volumen normal"
         latest_ema9 = safe_float(latest_badge_row.get("ema9"))
         latest_sma20 = safe_float(latest_badge_row.get("sma20"))
         latest_sma200 = safe_float(latest_badge_row.get("sma200"))
@@ -5690,6 +5698,7 @@ def build_professional_price_chart(
                     "body_pct": latest_candle_body,
                     "wick_pressure": latest_wick_pressure,
                     "relative_volume": latest_relative_volume,
+                    "volume_signal": latest_volume_signal,
                     "range_position": latest_range_position,
                     "to_entry": latest_to_entry,
                     "to_stop": latest_to_stop,
@@ -5719,6 +5728,7 @@ def build_professional_price_chart(
                     alt.Tooltip("reading:N", title="Lectura"),
                     alt.Tooltip("close_position_state:N", title="Fuerza cierre"),
                     alt.Tooltip("wick_pressure:N", title="Presion mechas"),
+                    alt.Tooltip("volume_signal:N", title="Lectura volumen"),
                     alt.Tooltip("relative_volume:Q", title="RVol", format=".2f"),
                 ],
             )
@@ -5747,6 +5757,7 @@ def build_professional_price_chart(
                     alt.Tooltip("range_pct:Q", title="Rango vela", format=".2%"),
                     alt.Tooltip("body_pct:Q", title="Cuerpo", format=".2%"),
                     alt.Tooltip("wick_pressure:N", title="Presion mechas"),
+                    alt.Tooltip("volume_signal:N", title="Lectura volumen"),
                     alt.Tooltip("relative_volume:Q", title="RVol", format=".2f"),
                     alt.Tooltip("range_position:Q", title="Posición rango", format=".0%"),
                     alt.Tooltip("to_entry:Q", title="Hasta entrada", format="+.2%"),

@@ -2264,6 +2264,7 @@ def test_build_professional_price_chart_includes_hover_cursor():
     assert any(param.get("name") == "candle_hover" for param in spec["params"])
     assert "candle_hover" in str(spec)
     assert "RVol 2.00x" in str(spec)
+    assert "Volumen confirma" in str(spec)
     level_labels = []
     for layer in spec.get("layer", []):
         mark = layer.get("mark", {})
