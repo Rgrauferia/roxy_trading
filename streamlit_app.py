@@ -1914,9 +1914,21 @@ def render_professional_chart_block(
                 f"lectura {tape_dominant_reading} · "
                 f"rango {pct_display(tape_avg_range) if tape_avg_range is not None else '-'}"
             )
+            tape_summary_badges = [
+                tape_bias,
+                f"{tape_green_count}/{len(tape_items)} verdes",
+                f"{tape_strong_count} fuertes",
+                f"{tape_indecision_count} doji",
+                f"racha {tape_latest_streak} {tape_latest_tone_label}",
+                pct_display(tape_momentum) if tape_momentum is not None else "-",
+                f"rango {pct_display(tape_avg_range) if tape_avg_range is not None else '-'}",
+            ]
+            tape_summary_html = "".join(
+                f"<i>{html.escape(text_display(item))}</i>" for item in tape_summary_badges
+            )
             candle_tape_html = (
                 f'<section class="chart-candle-tape chart-candle-tape-{html.escape(tape_bias_tone)}"><b><span>Últimas velas</span>'
-                f"<small>{html.escape(tape_summary)}</small></b>"
+                f'<small title="{html.escape(tape_summary)}">{tape_summary_html}</small></b>'
                 + "".join(tape_items)
                 + "</section>"
             )
@@ -15458,7 +15470,8 @@ def main() -> None:
         .chart-candle-tape-buy>b{color:#bbf7d0;box-shadow:inset 3px 0 0 #22c55e}
         .chart-candle-tape-watch>b{color:#fde68a;box-shadow:inset 3px 0 0 #f59e0b}
         .chart-candle-tape-avoid>b{color:#fecaca;box-shadow:inset 3px 0 0 #ef4444}
-        .chart-candle-tape>b small{display:block;color:#94a3b8;font-size:9px;font-weight:900;letter-spacing:0;text-transform:none;line-height:1.1;margin-top:3px}
+        .chart-candle-tape>b small{display:flex;flex-wrap:wrap;gap:3px;color:#94a3b8;font-size:9px;font-weight:900;letter-spacing:0;text-transform:none;line-height:1.1;margin-top:4px}
+        .chart-candle-tape>b small i{display:inline-flex;align-items:center;border:1px solid rgba(148,163,184,.22);border-radius:999px;background:rgba(15,23,42,.82);color:#cbd5e1;font-style:normal;padding:1px 4px;max-width:100%;white-space:nowrap}
         .chart-tape-candle{display:block;position:relative;min-width:0;background:#0b1220;border-top:3px solid rgba(148,163,184,.32);padding:5px 7px 5px 19px}
         .chart-tape-candle:before{content:"";position:absolute;left:8px;top:8px;bottom:7px;width:2px;border-radius:999px;background:rgba(148,163,184,.65)}
         .chart-tape-candle:after{content:"";position:absolute;left:5px;top:18px;width:8px;height:15px;border-radius:2px;background:rgba(148,163,184,.86);box-shadow:0 0 0 1px rgba(15,23,42,.92)}
