@@ -353,12 +353,18 @@ def test_trading_desk_action_queue_prioritizes_paper_ready_then_watch():
     assert queue["ticker"].tolist() == ["AAPL", "NVDA", "TSLA"]
     assert queue.loc[0, "tone"] == "buy"
     assert queue.loc[0, "urgency"] == "Ahora"
+    assert queue.loc[0, "blocker"] == "Completo"
+    assert queue.loc[0, "next_step"] == "Confirmar ticket"
     assert queue.loc[0, "action"] == "Preparar paper: confirmar stop, target y tamaño."
     assert queue.loc[1, "tone"] == "watch"
     assert queue.loc[1, "urgency"] == "Vigilar cerca"
+    assert queue.loc[1, "blocker"] == "Falta 15m"
+    assert queue.loc[1, "next_step"] == "Esperar gatillo 15m"
     assert queue.loc[1, "action"] == "Esperar gatillo"
     assert queue.loc[2, "tone"] == "avoid"
     assert queue.loc[2, "urgency"] == "No tocar"
+    assert queue.loc[2, "blocker"] == "No tocar"
+    assert queue.loc[2, "next_step"] == "No tocar"
 
 
 def test_trading_desk_urgency_label_marks_operational_timing():
