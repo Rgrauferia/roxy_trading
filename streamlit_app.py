@@ -11307,6 +11307,8 @@ def trading_desk_rows(
             desk_status = "Operar"
         elif confluence_signal == "AVOID" or confluence_decision.startswith("NO_TRADE") or validation_decision == "Bloqueado":
             desk_status = "Evitar"
+        elif validation_decision == "Esperar" or confluence_signal == "WATCH" or confluence_decision == "WAIT":
+            desk_status = "Vigilar"
         else:
             desk_status = wall_status
         paper_state = trading_desk_paper_state(
@@ -11672,12 +11674,18 @@ def trading_desk_summary(rows: pd.DataFrame) -> dict[str, Any]:
             "best_symbol": "-",
             "best_score": 0,
             "avg_risk": None,
+            "best_rr": None,
+            "rr_ready": 0,
             "volume_live": 0,
         }
     data = rows.copy()
     status = data.get("Estado", pd.Series("", index=data.index)).astype(str)
     score = pd.to_numeric(data.get("Score", pd.Series(0, index=data.index)), errors="coerce").fillna(0)
     risk = pd.to_numeric(data.get("Riesgo", pd.Series("", index=data.index)).astype(str).str.replace("%", "", regex=False), errors="coerce")
+    reward_risk = pd.to_numeric(
+        data.get("R/R", pd.Series("", index=data.index)).astype(str).str.replace("R", "", regex=False),
+        errors="coerce",
+    )
     volume = pd.to_numeric(data.get("RVol", pd.Series("", index=data.index)).astype(str).str.replace("x", "", regex=False), errors="coerce").fillna(0)
     data["_status_order"] = status.map({"Operar": 0, "Vigilar": 1, "Evitar": 2}).fillna(3)
     data["_score"] = score
@@ -11692,6 +11700,8 @@ def trading_desk_summary(rows: pd.DataFrame) -> dict[str, Any]:
         "best_symbol": best_symbol,
         "best_score": round(best_score, 0),
         "avg_risk": round(float(risk.dropna().mean()), 2) if not risk.dropna().empty else None,
+        "best_rr": round(float(reward_risk.dropna().max()), 1) if not reward_risk.dropna().empty else None,
+        "rr_ready": int(reward_risk.ge(1.5).sum()),
         "volume_live": int(volume.ge(1.2).sum()),
     }
 
@@ -11919,6 +11929,7 @@ def render_trading_desk_summary(rows: pd.DataFrame) -> None:
         f'<div class="desk-chip desk-avoid"><span>Evitar</span><strong>{int(summary.get("evitar") or 0)}</strong><small>bloqueadas</small></div>'
         f'<div class="desk-chip"><span>Top</span><strong>{html.escape(text_display(summary.get("best_symbol")))}</strong><small>score {html.escape(num_display(summary.get("best_score"), 0))}</small></div>'
         f'<div class="desk-chip"><span>Riesgo prom</span><strong>{html.escape(num_display(summary.get("avg_risk"), 2))}%</strong><small>{int(summary.get("visible") or 0)} visibles</small></div>'
+        f'<div class="desk-chip"><span>Mejor R/R</span><strong>{html.escape(num_display(summary.get("best_rr"), 1))}R</strong><small>{int(summary.get("rr_ready") or 0)} con ≥1.5R</small></div>'
         f'<div class="desk-chip"><span>Volumen vivo</span><strong>{int(summary.get("volume_live") or 0)}</strong><small>RVol ≥ 1.2x</small></div>'
         "</section>",
         unsafe_allow_html=True,

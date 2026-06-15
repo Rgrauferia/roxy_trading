@@ -329,9 +329,9 @@ def test_trading_desk_blocker_counts_groups_visible_requirements():
 def test_trading_desk_summary_counts_visible_operational_state():
     rows = pd.DataFrame(
         [
-            {"Ticker": "AAPL", "Estado": "Operar", "Score": "92", "Riesgo": "1.80%", "RVol": "1.4x"},
-            {"Ticker": "NVDA", "Estado": "Vigilar", "Score": "88", "Riesgo": "2.20%", "RVol": "1.8x"},
-            {"Ticker": "TSLA", "Estado": "Evitar", "Score": "65", "Riesgo": "7.00%", "RVol": "0.7x"},
+            {"Ticker": "AAPL", "Estado": "Operar", "Score": "92", "Riesgo": "1.80%", "R/R": "2.8R", "RVol": "1.4x"},
+            {"Ticker": "NVDA", "Estado": "Vigilar", "Score": "88", "Riesgo": "2.20%", "R/R": "2.0R", "RVol": "1.8x"},
+            {"Ticker": "TSLA", "Estado": "Evitar", "Score": "65", "Riesgo": "7.00%", "R/R": "0.3R", "RVol": "0.7x"},
         ]
     )
 
@@ -344,6 +344,8 @@ def test_trading_desk_summary_counts_visible_operational_state():
     assert summary["best_symbol"] == "AAPL"
     assert summary["best_score"] == 92
     assert summary["avg_risk"] == 3.67
+    assert summary["best_rr"] == 2.8
+    assert summary["rr_ready"] == 2
     assert summary["volume_live"] == 2
 
 
