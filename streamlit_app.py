@@ -2197,6 +2197,43 @@ def render_professional_chart_block(
                 candle_table["lower_wick_pct"],
             )
         ]
+        def candle_micro_signal_label(
+            direction: Any, reading: Any, change_pct: Any, range_pct: Any, body_pct: Any
+        ) -> str:
+            direction_text = text_display(direction)
+            reading_text = text_display(reading).lower()
+            change_value = safe_float(change_pct)
+            range_value = safe_float(range_pct)
+            body_value = safe_float(body_pct)
+            body_share = None
+            if body_value is not None and range_value not in (None, 0):
+                body_share = body_value / range_value
+            if (
+                direction_text == "Verde"
+                and (change_value is None or change_value >= 0)
+                and ("alcista" in reading_text or "rebote" in reading_text or (body_share or 0) >= 0.55)
+            ):
+                return "🟢 Impulso"
+            if "rechazo" in reading_text or (
+                direction_text == "Roja" and change_value is not None and change_value <= -0.001
+            ):
+                return "🔴 Riesgo"
+            if body_share is not None and body_share <= 0.20:
+                return "🟡 Doji"
+            if range_value is not None and range_value >= 0.015:
+                return "🟡 Volátil"
+            return "🟡 Esperar"
+
+        candle_table["micro_signal"] = [
+            candle_micro_signal_label(direction, reading, change_pct, range_pct, body_pct)
+            for direction, reading, change_pct, range_pct, body_pct in zip(
+                candle_table["direction"],
+                candle_table["reading"],
+                candle_table["change_pct"],
+                candle_table["range_pct"],
+                candle_table["body_pct"],
+            )
+        ]
         candle_table = candle_table.tail(8).copy()
         candle_green_count = int((candle_table["direction"] == "Verde").sum())
         candle_red_count = int((candle_table["direction"] == "Roja").sum())
@@ -2204,9 +2241,14 @@ def render_professional_chart_block(
         candle_latest_reading = (
             text_display(candle_table["reading"].iloc[-1]) if not candle_table.empty and "reading" in candle_table else "-"
         )
+        candle_latest_signal = (
+            text_display(candle_table["micro_signal"].iloc[-1])
+            if not candle_table.empty and "micro_signal" in candle_table
+            else "-"
+        )
         candle_expander_label = (
             f"Últimas 8 velas OHLC · {candle_green_count} verdes/{candle_red_count} rojas · "
-            f"rango avg {pct_display(candle_avg_range)}"
+            f"rango avg {pct_display(candle_avg_range)} · {candle_latest_signal}"
         )
         candle_table = candle_table.drop(columns=["upper_wick_pct", "lower_wick_pct"], errors="ignore")
         if "ts" in candle_table.columns:
@@ -2228,6 +2270,7 @@ def render_professional_chart_block(
                 "low": "Low",
                 "close": "Close",
                 "volume": "Volumen",
+                "micro_signal": "Micro señal",
                 "reading": "Lectura",
                 "change_pct": "Cambio",
                 "range_pct": "Rango",
@@ -2236,6 +2279,7 @@ def render_professional_chart_block(
         )
         candle_order = [
             "Hora",
+            "Micro señal",
             "Dirección",
             "Lectura",
             "Open",
@@ -2250,6 +2294,11 @@ def render_professional_chart_block(
         candle_table = candle_table[[column for column in candle_order if column in candle_table.columns]]
         candle_column_config = {
             "Hora": st.column_config.TextColumn("Hora", help="Hora local de la vela.", width="small"),
+            "Micro señal": st.column_config.TextColumn(
+                "Micro señal",
+                help="Lectura inmediata de la vela: impulso, riesgo, doji, volatilidad o esperar.",
+                width="small",
+            ),
             "Dirección": st.column_config.TextColumn("Dirección", help="Verde si cierre >= apertura; roja si cierre < apertura.", width="small"),
             "Lectura": st.column_config.TextColumn("Lectura", help="Interpretación rápida de cuerpo y mechas.", width="medium"),
             "Open": st.column_config.TextColumn("Open", help="Precio de apertura.", width="small"),
