@@ -1825,6 +1825,16 @@ def render_professional_chart_block(
                 tape_upper_wick_pct,
                 tape_lower_wick_pct,
             )
+            tape_strength = "normal"
+            tape_strength_label = "cuerpo medio"
+            if tape_body_pct is not None and tape_range not in (None, 0):
+                tape_body_share = tape_body_pct / tape_range
+                if tape_body_share >= 0.55 and tape_range >= 0.003:
+                    tape_strength = "strong"
+                    tape_strength_label = "cuerpo fuerte"
+                elif tape_body_share <= 0.18 and tape_range >= 0.003:
+                    tape_strength = "indecision"
+                    tape_strength_label = "doji / indecisión"
             if tape_reading not in {"", "-", "Sin lectura"}:
                 tape_reading_counts[tape_reading] = tape_reading_counts.get(tape_reading, 0) + 1
             tape_time = "-"
@@ -1838,13 +1848,15 @@ def render_professional_chart_block(
             tape_title = (
                 f"{tape_time} · O {num_display(candle_open, 2)} · H {num_display(candle_high, 2)} · "
                 f"L {num_display(candle_low, 2)} · C {num_display(candle_close, 2)} · "
-                f"Rango {pct_display(tape_range) if tape_range is not None else '-'} · {tape_reading}"
+                f"Rango {pct_display(tape_range) if tape_range is not None else '-'} · "
+                f"Fuerza {tape_strength_label} · {tape_reading}"
             )
             latest_class = " chart-tape-latest" if row_idx == len(recent_candles) - 1 else ""
             tape_items.append(
-                '<span class="chart-tape-candle chart-tape-{tone}{latest_class}" title="{title}"><em>{time}</em><strong>{close}</strong>'
+                '<span class="chart-tape-candle chart-tape-{tone} chart-tape-strength-{strength}{latest_class}" title="{title}"><em>{time}</em><strong>{close}</strong>'
                 "<small>{change} · {reading}</small></span>".format(
                     tone=html.escape(tape_tone),
+                    strength=html.escape(tape_strength),
                     latest_class=latest_class,
                     title=html.escape(tape_title),
                     time=html.escape(tape_time),
@@ -15430,6 +15442,8 @@ def main() -> None:
         .chart-tape-candle{display:block;position:relative;min-width:0;background:#0b1220;border-top:3px solid rgba(148,163,184,.32);padding:5px 7px 5px 19px}
         .chart-tape-candle:before{content:"";position:absolute;left:8px;top:8px;bottom:7px;width:2px;border-radius:999px;background:rgba(148,163,184,.65)}
         .chart-tape-candle:after{content:"";position:absolute;left:5px;top:18px;width:8px;height:15px;border-radius:2px;background:rgba(148,163,184,.86);box-shadow:0 0 0 1px rgba(15,23,42,.92)}
+        .chart-tape-strength-strong:after{top:13px;height:24px;width:9px;left:4.5px}
+        .chart-tape-strength-indecision:after{top:24px;height:6px;width:10px;left:4px;opacity:.8}
         .chart-tape-candle em{display:block;color:#94a3b8;font-size:9px;font-style:normal;font-weight:950;line-height:1;text-transform:uppercase}
         .chart-tape-candle strong{display:block;color:#f8fafc;font-size:13px;line-height:1.05;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .chart-tape-candle small{display:block;color:#cbd5e1;font-size:9px;line-height:1.05;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
