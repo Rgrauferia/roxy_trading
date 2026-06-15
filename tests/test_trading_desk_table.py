@@ -10,6 +10,7 @@ from streamlit_app import (
     trading_desk_paper_state,
     trading_desk_preset_counts,
     trading_desk_priority_label,
+    trading_desk_readiness_pct,
     trading_desk_rows,
     trading_desk_summary,
     trading_desk_urgency_label,
@@ -357,18 +358,29 @@ def test_trading_desk_action_queue_prioritizes_paper_ready_then_watch():
     assert queue.loc[0, "urgency_tone"] == "now"
     assert queue.loc[0, "blocker"] == "Completo"
     assert queue.loc[0, "next_step"] == "Confirmar ticket"
+    assert queue.loc[0, "readiness_pct"] == 100
     assert queue.loc[0, "action"] == "Preparar paper: confirmar stop, target y tamaño."
     assert queue.loc[1, "tone"] == "watch"
     assert queue.loc[1, "urgency"] == "Vigilar cerca"
     assert queue.loc[1, "urgency_tone"] == "watch"
     assert queue.loc[1, "blocker"] == "Falta 15m"
     assert queue.loc[1, "next_step"] == "Esperar gatillo 15m"
+    assert queue.loc[1, "readiness_pct"] == 70
     assert queue.loc[1, "action"] == "Esperar gatillo"
     assert queue.loc[2, "tone"] == "avoid"
     assert queue.loc[2, "urgency"] == "No tocar"
     assert queue.loc[2, "urgency_tone"] == "avoid"
     assert queue.loc[2, "blocker"] == "No tocar"
     assert queue.loc[2, "next_step"] == "No tocar"
+    assert queue.loc[2, "readiness_pct"] == 0
+
+
+def test_trading_desk_readiness_pct_scores_operational_distance():
+    assert trading_desk_readiness_pct("Operar", "Paper listo", "Completo", 90, 1.4) == 100
+    assert trading_desk_readiness_pct("Operar", "Bloq riesgo/target", "Falta Riesgo + Target", 88, 1.5) == 50
+    assert trading_desk_readiness_pct("Vigilar", "Setup", "Falta 15m", 94, 1.8) == 70
+    assert trading_desk_readiness_pct("Vigilar", "Setup", "Falta 1h", 70, 0.8) == 55
+    assert trading_desk_readiness_pct("Evitar", "No tocar", "No tocar", 99, 2.0) == 0
 
 
 def test_trading_desk_urgency_label_marks_operational_timing():
