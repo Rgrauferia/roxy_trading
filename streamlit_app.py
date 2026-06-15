@@ -5051,8 +5051,11 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
         open_values_raw = pd.to_numeric(hover_df["open"], errors="coerce")
         high_values = pd.to_numeric(hover_df["high"], errors="coerce")
         low_values = pd.to_numeric(hover_df["low"], errors="coerce")
+        close_values_raw = pd.to_numeric(hover_df["close"], errors="coerce")
         body_top = pd.concat([open_values_raw, pd.to_numeric(hover_df["close"], errors="coerce")], axis=1).max(axis=1)
         body_bottom = pd.concat([open_values_raw, pd.to_numeric(hover_df["close"], errors="coerce")], axis=1).min(axis=1)
+        hover_df["candle_range_value"] = high_values - low_values
+        hover_df["candle_body_value"] = (close_values_raw - open_values_raw).abs()
         hover_df["candle_range_pct"] = (high_values - low_values) / close_values
         range_values = (high_values - low_values).replace(0, pd.NA)
         hover_df["close_position_pct"] = ((pd.to_numeric(hover_df["close"], errors="coerce") - low_values) / range_values).clip(0, 1)
@@ -5154,12 +5157,16 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
         tooltips.append(alt.Tooltip("prev_close_state:N", title="Momentum"))
     if "candle_range_pct" in hover_df.columns:
         tooltips.append(alt.Tooltip("candle_range_pct:Q", title="Rango vela", format=".2%"))
+    if "candle_range_value" in hover_df.columns:
+        tooltips.append(alt.Tooltip("candle_range_value:Q", title="Rango precio", format=".2f"))
     if "close_position_pct" in hover_df.columns:
         tooltips.append(alt.Tooltip("close_position_pct:Q", title="Cierre en rango", format=".0%"))
     if "close_position_state" in hover_df.columns:
         tooltips.append(alt.Tooltip("close_position_state:N", title="Fuerza cierre"))
     if "candle_body_pct" in hover_df.columns:
         tooltips.append(alt.Tooltip("candle_body_pct:Q", title="Cuerpo", format=".2%"))
+    if "candle_body_value" in hover_df.columns:
+        tooltips.append(alt.Tooltip("candle_body_value:Q", title="Cuerpo precio", format=".2f"))
     if "upper_wick_pct" in hover_df.columns:
         tooltips.append(alt.Tooltip("upper_wick_pct:Q", title="Mecha sup.", format=".2%"))
     if "lower_wick_pct" in hover_df.columns:

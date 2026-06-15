@@ -2230,9 +2230,12 @@ def test_build_price_hover_layers_adds_crosshair_and_media_tooltips():
     specs = [layer.to_dict() for layer in layers]
     joined = str(specs)
 
-    assert len(layers) == 3
+    assert len(layers) == 4
     assert "candle_hover" in joined
-    assert any(spec.get("mark", {}).get("type") == "rule" for spec in specs)
+    assert sum(1 for spec in specs if spec.get("mark", {}).get("type") == "rule") == 2
+    assert "transform" not in joined
+    assert "Rango precio" in joined
+    assert "Cuerpo precio" in joined
     assert "EMA9" in joined
     assert "SMA200" in joined
 
