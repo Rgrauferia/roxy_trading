@@ -1781,6 +1781,7 @@ def render_professional_chart_block(
         tape_items: list[str] = []
         tape_ranges: list[float] = []
         tape_reading_counts: dict[str, int] = {}
+        tape_tones: list[str] = []
         tape_green_count = 0
         tape_strong_count = 0
         tape_indecision_count = 0
@@ -1799,6 +1800,7 @@ def render_professional_chart_block(
                 tape_last_close = candle_close
             previous_candle_close = safe_float(previous_closes.iloc[row_idx]) if row_idx < len(previous_closes) else None
             tape_tone = "buy" if (candle_close or 0) >= (candle_open or candle_close or 0) else "avoid"
+            tape_tones.append(tape_tone)
             if tape_tone == "buy":
                 tape_green_count += 1
             tape_change = None
@@ -1879,6 +1881,15 @@ def render_professional_chart_block(
             tape_dominant_reading = "-"
             if tape_reading_counts:
                 tape_dominant_reading = max(tape_reading_counts.items(), key=lambda item: (item[1], item[0]))[0]
+            tape_latest_streak = 0
+            tape_latest_tone_label = "-"
+            if tape_tones:
+                tape_latest_tone = tape_tones[-1]
+                tape_latest_tone_label = "verdes" if tape_latest_tone == "buy" else "rojas"
+                for tape_tone_item in reversed(tape_tones):
+                    if tape_tone_item != tape_latest_tone:
+                        break
+                    tape_latest_streak += 1
             tape_bias = "Sesgo mixto"
             if tape_momentum is not None:
                 green_ratio = tape_green_count / max(1, len(tape_items))
@@ -1898,6 +1909,7 @@ def render_professional_chart_block(
                 f"{tape_green_count}/{len(tape_items)} verdes · "
                 f"{tape_strong_count} fuertes · "
                 f"{tape_indecision_count} doji · "
+                f"racha {tape_latest_streak} {tape_latest_tone_label} · "
                 f"{pct_display(tape_momentum) if tape_momentum is not None else '-'} · "
                 f"lectura {tape_dominant_reading} · "
                 f"rango {pct_display(tape_avg_range) if tape_avg_range is not None else '-'}"
