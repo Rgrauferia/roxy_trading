@@ -4859,6 +4859,17 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
             else "Volumen bajo"
             for value in relative_volume_values
         ]
+    summary_columns = [column for column in ("candle_reading", "prev_close_state", "volume_state") if column in hover_df.columns]
+    if summary_columns:
+        hover_df["hover_summary"] = [
+            " · ".join(
+                part
+                for part in (text_display(row.get(column)) for column in summary_columns)
+                if part != "-"
+            )
+            or "Sin lectura completa"
+            for _, row in hover_df.iterrows()
+        ]
     close_for_ma_distance = pd.to_numeric(hover_df.get("close"), errors="coerce").replace(0, pd.NA)
     for column in ["ema9", "sma20", "sma200"]:
         if column in hover_df.columns:
@@ -4880,10 +4891,12 @@ def build_price_hover_layers(chart_window: pd.DataFrame, price_scale: alt.Scale 
         alt.Tooltip("low:Q", title="Mínimo", format=".2f"),
         alt.Tooltip("close:Q", title="Cierre", format=".2f"),
     ]
+    if "hover_summary" in hover_df.columns:
+        tooltips.insert(1, alt.Tooltip("hover_summary:N", title="Resumen Roxy"))
     if "candle_reading" in hover_df.columns:
         tooltips.append(alt.Tooltip("candle_reading:N", title="Lectura"))
     if "candle_change_pct" in hover_df.columns:
-        tooltips.append(alt.Tooltip("candle_change_pct:Q", title="Cambio vela", format=".2%"))
+        tooltips.append(alt.Tooltip("candle_change_pct:Q", title="Cambio vela", format="+.2%"))
     if "prev_close_change_pct" in hover_df.columns:
         tooltips.append(alt.Tooltip("prev_close_change_pct:Q", title="Cambio vs cierre previo", format="+.2%"))
     if "prev_close_state" in hover_df.columns:
