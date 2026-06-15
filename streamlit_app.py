@@ -1746,6 +1746,40 @@ def render_professional_chart_block(
     ):
         rr_value = abs(target_value - entry_value) / abs(entry_value - stop_value)
     rr_display = f"1:{rr_value:.2f}" if rr_value is not None else "-"
+    risk_lane_html = ""
+    risk_points = [
+        ("Stop", stop_value, "stop"),
+        ("Entrada", entry_value, "entry"),
+        ("Actual", latest_close, "current"),
+        ("Target", target_value, "target"),
+    ]
+    valid_risk_points = [(label, value, tone) for label, value, tone in risk_points if value is not None]
+    if len(valid_risk_points) >= 3:
+        risk_values = [value for _, value, _ in valid_risk_points]
+        risk_min = min(risk_values)
+        risk_max = max(risk_values)
+        risk_span = risk_max - risk_min
+        if risk_span > 0:
+            risk_items = []
+            for risk_label, risk_value, risk_tone in valid_risk_points:
+                risk_left = max(0.0, min(100.0, ((risk_value - risk_min) / risk_span) * 100.0))
+                risk_items.append(
+                    '<span class="chart-risk-point chart-risk-{tone}" style="left:{left:.1f}%" title="{title}">'
+                    "<i></i><b>{label}</b><em>{value}</em></span>".format(
+                        tone=html.escape(risk_tone),
+                        left=risk_left,
+                        title=html.escape(f"{risk_label}: {num_display(risk_value, 2)}"),
+                        label=html.escape(risk_label),
+                        value=html.escape(num_display(risk_value, 2)),
+                    )
+                )
+            risk_lane_html = (
+                '<section class="chart-risk-lane">'
+                f'<header><strong>Mapa de trade</strong><span>R:R {html.escape(rr_display)} · '
+                f'{html.escape(num_display(risk_min, 2))} → {html.escape(num_display(risk_max, 2))}</span></header>'
+                f'<div class="chart-risk-track">{"".join(risk_items)}</div>'
+                "</section>"
+            )
     decision_label = human_trade_action(trade_brief or {}) if trade_brief else action_label((confluence or {}).get("signal"))
     if decision_label in {"Operar", "Comprar"}:
         decision_tone = "buy"
@@ -2048,6 +2082,7 @@ def render_professional_chart_block(
             <b class="chart-level-interact" title="Puedes arrastrar, hacer zoom y usar hover para leer OHLC">Arrastra · Zoom · OHLC</b>
           </aside>
         </section>
+        {risk_lane_html}
         <section class="chart-check-strip">{confirmation_html}</section>
         <section class="chart-legend-strip">
           <span title="Precio actual o última vela limpia"><i class="chart-legend-dot chart-legend-current"></i>Actual</span>
@@ -15476,6 +15511,14 @@ def main() -> None:
         .chart-command-head b{display:inline-flex;align-items:center;min-width:0;max-width:220px;border:1px solid rgba(148,163,184,.24);border-radius:999px;background:#0b1220;color:#e2e8f0;padding:5px 7px;font-size:10px;line-height:1.05;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .chart-command-head b,.chart-legend-strip span,.chart-check-pill,.chart-tape-candle,.chart-tech-pill{transition:transform .14s ease,border-color .14s ease,background .14s ease,box-shadow .14s ease}
         .chart-command-head b:hover,.chart-legend-strip span:hover,.chart-check-pill:hover,.chart-tape-candle:hover,.chart-tech-pill:hover{transform:translateY(-1px);border-color:rgba(125,211,252,.72)!important;background:rgba(14,116,144,.18)!important;box-shadow:0 8px 18px rgba(2,6,23,.28);cursor:help}
+        .chart-risk-lane{border:1px solid rgba(148,163,184,.16);border-radius:8px;background:rgba(2,6,23,.46);padding:7px 10px;margin:-2px 0 7px}
+        .chart-risk-lane header{display:flex;justify-content:space-between;gap:8px;align-items:center;color:#cbd5e1;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}
+        .chart-risk-lane header strong{color:#e2e8f0}.chart-risk-lane header span{color:#94a3b8;text-align:right}
+        .chart-risk-track{position:relative;height:36px;margin-top:6px;border-radius:999px;background:linear-gradient(90deg,rgba(239,68,68,.24),rgba(56,189,248,.18),rgba(34,197,94,.24));box-shadow:inset 0 0 0 1px rgba(148,163,184,.18)}
+        .chart-risk-point{position:absolute;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;min-width:58px;gap:1px;color:#e2e8f0;font-size:9px;font-weight:950;text-align:center;white-space:nowrap}
+        .chart-risk-point i{width:9px;height:9px;border-radius:999px;background:#94a3b8;box-shadow:0 0 0 3px rgba(15,23,42,.78)}
+        .chart-risk-point b{font-size:9px;line-height:1;text-transform:uppercase}.chart-risk-point em{font-size:9px;line-height:1;color:#cbd5e1;font-style:normal}
+        .chart-risk-stop i{background:#ef4444}.chart-risk-entry i{background:#22c55e}.chart-risk-current i{background:#f8fafc}.chart-risk-target i{background:#a78bfa}
         .chart-level-decision-buy{border-color:rgba(34,197,94,.70)!important;color:#dcfce7!important;background:rgba(22,101,52,.30)!important}
         .chart-level-decision-watch{border-color:rgba(245,158,11,.70)!important;color:#fef3c7!important;background:rgba(146,64,14,.28)!important}
         .chart-level-decision-avoid{border-color:rgba(248,113,113,.70)!important;color:#fee2e2!important;background:rgba(153,27,27,.30)!important}
@@ -15532,7 +15575,7 @@ def main() -> None:
         .chart-tech-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.20)}
         @media (max-width:900px){.chart-candle-tape{grid-template-columns:repeat(3,minmax(0,1fr))}.chart-candle-tape>b{grid-column:1/-1}}
         @media (max-width:900px){.chart-tech-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.chart-tech-strip>b{grid-column:1/-1}}
-        @media (max-width:600px){.chart-candle-tape,.chart-tech-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-tape-candle small,.chart-tech-pill small{white-space:normal}.chart-legend-strip{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.chart-legend-strip span{justify-content:flex-start}.chart-provider-warning,.chart-empty-state{display:block}.chart-provider-warning span{display:block;text-align:left;white-space:normal;margin-top:4px}.chart-empty-state ul{margin-top:8px;min-width:0}.chart-fallback-state strong{font-size:15px}}
+        @media (max-width:600px){.chart-candle-tape,.chart-tech-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-tape-candle small,.chart-tech-pill small{white-space:normal}.chart-legend-strip{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.chart-legend-strip span{justify-content:flex-start}.chart-provider-warning,.chart-empty-state{display:block}.chart-provider-warning span{display:block;text-align:left;white-space:normal;margin-top:4px}.chart-empty-state ul{margin-top:8px;min-width:0}.chart-fallback-state strong{font-size:15px}.chart-risk-lane header{display:block}.chart-risk-lane header span{display:block;text-align:left;margin-top:3px}.chart-risk-point em{display:none}.chart-risk-point{min-width:44px}}
         .chart-legend-dot{display:inline-block;width:9px;height:9px;border-radius:999px;box-shadow:0 0 0 2px rgba(15,23,42,.86)}
         .chart-legend-current{background:#f8fafc}.chart-legend-entry{background:#22c55e}.chart-legend-stop{background:#ef4444}.chart-legend-target{background:#a78bfa}.chart-legend-support{background:#22d3ee}
         .chart-check-pill{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#0b1220;padding:6px 8px;min-width:0;border-top:2px solid rgba(148,163,184,.28)}
