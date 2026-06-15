@@ -1,6 +1,6 @@
 import pandas as pd
 
-from streamlit_app import focused_opportunity_table, scanner_blotter_rows
+from streamlit_app import focused_opportunity_table, radar_plan_label, scanner_blotter_rows
 
 
 def test_scanner_blotter_rows_formats_dense_screener_columns():
@@ -49,3 +49,9 @@ def test_scanner_blotter_rows_formats_dense_screener_columns():
     assert rows.loc[0, "Score"] == 91
     assert rows.loc[0, "Riesgo"] == "1.80%"
     assert rows.loc[1, "RVol"] == "1.6x"
+
+
+def test_radar_plan_label_prioritizes_next_action():
+    assert radar_plan_label("Operar", "🔥 OPERAR", "1.80%", "4.00%", "1.6x", "OK") == "Validar ticket"
+    assert radar_plan_label("Vigilar", "👀 ESPERAR", "2.70%", "5.00%", "0.6x", "volumen") == "Esperar volumen"
+    assert radar_plan_label("Evitar", "⛔ NO TOCAR", "2.00%", "4.00%", "1.4x", "bloqueado") == "No tocar"

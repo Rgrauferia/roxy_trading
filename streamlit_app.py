@@ -12157,6 +12157,34 @@ def scanner_blotter_rows(table: pd.DataFrame, confluence_df: pd.DataFrame, *, li
     return display[columns]
 
 
+def radar_plan_label(status: Any, action: Any, risk: Any, target: Any, rvol: Any, missing: Any) -> str:
+    status_text = text_display(status)
+    action_text = text_display(action).upper()
+    missing_text = text_display(missing).lower()
+    risk_value = safe_float(str(risk).replace("%", ""))
+    target_value = safe_float(str(target).replace("%", ""))
+    rvol_value = safe_float(str(rvol).replace("x", ""))
+    if risk_value is not None and risk_value > 1:
+        risk_value /= 100.0
+    if target_value is not None and target_value > 1:
+        target_value /= 100.0
+    if status_text == "Operar" or "OPERAR" in action_text:
+        if risk_value is not None and risk_value > 0.035:
+            return "Revisar stop"
+        if target_value is not None and target_value < 0.02:
+            return "Esperar target"
+        return "Validar ticket"
+    if status_text == "Evitar" or "NO TOCAR" in action_text:
+        return "No tocar"
+    if rvol_value is not None and rvol_value < 1.0:
+        return "Esperar volumen"
+    if target_value is not None and target_value < 0.02:
+        return "Esperar target"
+    if any(token in missing_text for token in ("15m", "1h", "gatillo", "confirm")):
+        return "Esperar 15m/1h"
+    return "Mantener watch"
+
+
 def render_scanner_blotter(table: pd.DataFrame, confluence_df: pd.DataFrame) -> None:
     blotter = scanner_blotter_rows(table, confluence_df, limit=28)
     if blotter.empty:
@@ -12227,6 +12255,18 @@ def render_scanner_blotter(table: pd.DataFrame, confluence_df: pd.DataFrame) -> 
     if depth_filter != "Todos":
         visible_limit = int(depth_filter.split()[1])
         visible_blotter = visible_blotter.head(visible_limit).reset_index(drop=True)
+    visible_blotter = visible_blotter.copy()
+    visible_blotter["Plan"] = [
+        radar_plan_label(
+            row.get("Estado"),
+            row.get("Acción"),
+            row.get("Riesgo"),
+            row.get("Target"),
+            row.get("RVol"),
+            row.get("Qué falta"),
+        )
+        for row in visible_blotter.to_dict("records")
+    ]
     st.caption(
         f"Mostrando {len(visible_blotter)} de {total_after_filters} oportunidades filtradas. Cambia a Todos para investigacion."
     )
@@ -12246,6 +12286,7 @@ def render_scanner_blotter(table: pd.DataFrame, confluence_df: pd.DataFrame) -> 
         "Semáforo",
         "Ticker",
         "Acción",
+        "Plan",
         "Calidad",
         "Edge",
         "Score",
@@ -12267,6 +12308,11 @@ def render_scanner_blotter(table: pd.DataFrame, confluence_df: pd.DataFrame) -> 
             "Score": st.column_config.ProgressColumn("Score", min_value=0, max_value=100, format="%d"),
             "Edge": st.column_config.NumberColumn("Edge", format="%.0f"),
             "Acción": st.column_config.TextColumn("Acción", width="small"),
+            "Plan": st.column_config.TextColumn(
+                "Plan",
+                width="medium",
+                help="Acción inmediata recomendada para trabajar o descartar el setup.",
+            ),
             "Calidad": st.column_config.TextColumn("Calidad", width="small"),
             "Qué falta": st.column_config.TextColumn("Qué falta", width="large"),
         },
