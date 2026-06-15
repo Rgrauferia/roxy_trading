@@ -5641,6 +5641,7 @@ def build_professional_price_chart(
         latest_support = safe_float(latest_badge_row.get("range_low_60"))
         latest_to_resistance = None
         latest_above_support = None
+        latest_range_signal = "Rango visible sin dato"
         latest_target = None
         for target_item in targets:
             latest_target = safe_float(target_item.get("price"))
@@ -5667,6 +5668,12 @@ def build_professional_price_chart(
                 latest_above_support = (latest_badge_price - latest_support) / latest_badge_price
         if visible_high is not None and visible_low is not None and visible_high > visible_low:
             latest_range_position = (latest_badge_price - visible_low) / (visible_high - visible_low)
+            if latest_range_position >= 0.75:
+                latest_range_signal = "Cerca de resistencia visible"
+            elif latest_range_position <= 0.25:
+                latest_range_signal = "Cerca de soporte visible"
+            else:
+                latest_range_signal = "Mitad del rango visible"
             if latest_badge_price > 0:
                 latest_room_to_high = (visible_high - latest_badge_price) / latest_badge_price
                 latest_room_above_low = (latest_badge_price - visible_low) / latest_badge_price
@@ -5700,6 +5707,7 @@ def build_professional_price_chart(
                     "relative_volume": latest_relative_volume,
                     "volume_signal": latest_volume_signal,
                     "range_position": latest_range_position,
+                    "range_signal": latest_range_signal,
                     "to_entry": latest_to_entry,
                     "to_stop": latest_to_stop,
                     "to_target": latest_to_target,
@@ -5730,6 +5738,7 @@ def build_professional_price_chart(
                     alt.Tooltip("wick_pressure:N", title="Presion mechas"),
                     alt.Tooltip("volume_signal:N", title="Lectura volumen"),
                     alt.Tooltip("relative_volume:Q", title="RVol", format=".2f"),
+                    alt.Tooltip("range_signal:N", title="Ubicación rango"),
                 ],
             )
         )
@@ -5760,6 +5769,7 @@ def build_professional_price_chart(
                     alt.Tooltip("volume_signal:N", title="Lectura volumen"),
                     alt.Tooltip("relative_volume:Q", title="RVol", format=".2f"),
                     alt.Tooltip("range_position:Q", title="Posición rango", format=".0%"),
+                    alt.Tooltip("range_signal:N", title="Ubicación rango"),
                     alt.Tooltip("to_entry:Q", title="Hasta entrada", format="+.2%"),
                     alt.Tooltip("to_stop:Q", title="Hasta stop", format="+.2%"),
                     alt.Tooltip("to_target:Q", title="Hasta objetivo", format="+.2%"),
