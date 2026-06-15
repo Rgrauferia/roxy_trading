@@ -15387,7 +15387,7 @@ def main() -> None:
         .chart-provider-warning{display:flex;justify-content:space-between;gap:12px;align-items:center;border:1px solid rgba(245,158,11,.38);border-left:4px solid #f59e0b;border-radius:8px;background:linear-gradient(135deg,rgba(120,53,15,.22),rgba(15,23,42,.86));padding:8px 10px;margin:4px 0 8px}
         .chart-provider-warning strong{color:#fef3c7;font-size:12px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}
         .chart-provider-warning span{color:#fde68a;font-size:11px;text-align:right}
-        .chart-check-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;border:1px solid rgba(148,163,184,.18);border-radius:8px;background:rgba(148,163,184,.14);overflow:hidden;margin:-2px 0 6px}
+        .chart-check-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));align-items:stretch;gap:1px;border:1px solid rgba(148,163,184,.18);border-radius:8px;background:rgba(148,163,184,.14);overflow:hidden;margin:-2px 0 6px}
         .chart-legend-strip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid rgba(148,163,184,.16);border-radius:8px;background:rgba(2,6,23,.46);padding:6px 8px;margin:-2px 0 7px}
         .chart-legend-strip span{display:inline-flex;align-items:center;gap:5px;border:1px solid transparent;border-radius:999px;color:#cbd5e1;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.035em;white-space:nowrap;padding:2px 5px}
         .chart-candle-tape{display:grid;grid-template-columns:92px repeat(6,minmax(0,1fr));gap:1px;border:1px solid rgba(148,163,184,.16);border-radius:8px;background:rgba(148,163,184,.14);overflow:hidden;margin:-1px 0 8px}
