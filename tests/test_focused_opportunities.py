@@ -2266,6 +2266,7 @@ def test_build_professional_price_chart_includes_hover_cursor():
     assert "RVol 2.00x" in str(spec)
     assert "Volumen confirma" in str(spec)
     assert "Cerca de resistencia visible" in str(spec)
+    assert "Zona alta" in str(spec)
     level_labels = []
     for layer in spec.get("layer", []):
         mark = layer.get("mark", {})
