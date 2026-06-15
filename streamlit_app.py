@@ -5622,6 +5622,10 @@ def build_professional_price_chart(
             latest_badge_label = f"{latest_badge_label} · {latest_wick_pressure}"
         elif latest_close_position_state != "-":
             latest_badge_label = f"{latest_badge_label} · {latest_close_position_state}"
+        if latest_relative_volume is not None and latest_relative_volume >= 1.2:
+            latest_badge_label = f"{latest_badge_label} · RVol {latest_relative_volume:.2f}x"
+        elif latest_relative_volume is not None and latest_relative_volume <= 0.8:
+            latest_badge_label = f"{latest_badge_label} · Vol bajo {latest_relative_volume:.2f}x"
         latest_range_position = None
         latest_room_to_high = None
         latest_room_above_low = None

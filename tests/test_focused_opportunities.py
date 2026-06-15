@@ -2244,7 +2244,16 @@ def test_build_professional_price_chart_includes_hover_cursor():
     chart_df = pd.DataFrame(
         [
             {"ts": "2026-01-01", "open": 100, "high": 102, "low": 98, "close": 101, "volume": 1000, "sma20": 99},
-            {"ts": "2026-01-02", "open": 101, "high": 104, "low": 100, "close": 103, "volume": 1200, "sma20": 100},
+            {
+                "ts": "2026-01-02",
+                "open": 101,
+                "high": 104,
+                "low": 100,
+                "close": 103,
+                "volume": 1200,
+                "volume_sma20": 600,
+                "sma20": 100,
+            },
         ]
     )
 
@@ -2254,6 +2263,7 @@ def test_build_professional_price_chart_includes_hover_cursor():
     assert "params" in spec
     assert any(param.get("name") == "candle_hover" for param in spec["params"])
     assert "candle_hover" in str(spec)
+    assert "RVol 2.00x" in str(spec)
     level_labels = []
     for layer in spec.get("layer", []):
         mark = layer.get("mark", {})
