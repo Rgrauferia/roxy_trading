@@ -11563,6 +11563,13 @@ def trading_desk_context_label(*values: Any) -> str:
     return " · ".join(useful_parts)
 
 
+def trading_desk_score_label(value: Any) -> str:
+    score_value = safe_float(value)
+    if score_value is None:
+        return "IA -"
+    return f"IA {score_value:.0f}"
+
+
 def trading_desk_readiness_pct(
     status: str, paper: str, blocker: str, score: float | None, rel_volume: float | None
 ) -> int:
@@ -11856,7 +11863,7 @@ def render_trading_desk_action_queue(rows: pd.DataFrame) -> None:
         readiness = max(0, min(100, int(safe_float(row.get("readiness_pct")) or 0)))
         cards.append(
             f'<article class="desk-queue-card desk-queue-{html.escape(tone)}">'
-            f'<header><span>#{int(row.get("rank") or 0)}</span><strong>{html.escape(text_display(row.get("ticker")))}</strong><b class="desk-urgency-chip desk-urgency-{urgency_tone}">{html.escape(text_display(row.get("urgency")))}</b><em>{html.escape(num_display(row.get("score"), 0))}</em></header>'
+            f'<header><span>#{int(row.get("rank") or 0)}</span><strong>{html.escape(text_display(row.get("ticker")))}</strong><b class="desk-urgency-chip desk-urgency-{urgency_tone}">{html.escape(text_display(row.get("urgency")))}</b><em>{html.escape(trading_desk_score_label(row.get("score")))}</em></header>'
             f'<p>{html.escape(text_display(row.get("action")))}</p>'
             f'<div class="desk-queue-micro"><span>Falta: {html.escape(text_display(row.get("blocker")))}</span><span>Próximo: {html.escape(text_display(row.get("next_step")))}</span><span>R/R: {html.escape(trading_desk_reward_risk_label(row.get("rr")))}</span></div>'
             f'<div class="desk-readiness"><span style="width:{readiness}%"></span><em>{readiness}% listo</em></div>'

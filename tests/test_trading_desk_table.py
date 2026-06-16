@@ -16,6 +16,7 @@ from streamlit_app import (
     trading_desk_readiness_pct,
     trading_desk_reward_risk_label,
     trading_desk_rows,
+    trading_desk_score_label,
     trading_desk_summary,
     trading_desk_urgency_label,
     trading_desk_urgency_tone,
@@ -470,6 +471,12 @@ def test_trading_desk_context_label_omits_empty_parts():
     assert trading_desk_context_label("Pullback", "Volumen acompaña") == "Pullback · Volumen acompaña"
     assert trading_desk_context_label("Pullback", "-") == "Pullback"
     assert trading_desk_context_label("-", None, "") == "Sin contexto"
+
+
+def test_trading_desk_score_label_adds_ai_prefix():
+    assert trading_desk_score_label(92.4) == "IA 92"
+    assert trading_desk_score_label("88.6") == "IA 89"
+    assert trading_desk_score_label(None) == "IA -"
 
 
 def test_trading_desk_paper_state_flags_blockers():
