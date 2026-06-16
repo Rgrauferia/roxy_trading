@@ -11579,6 +11579,33 @@ def trading_desk_missing_label(value: Any) -> str:
     return missing_value
 
 
+def trading_desk_queue_reason_label(
+    status: str, paper: str, blocker: str, score: Any, reward_risk: Any, rel_volume: Any
+) -> str:
+    status_value = text_display(status)
+    paper_value = text_display(paper)
+    blocker_value = trading_desk_missing_label(blocker)
+    score_value = trading_desk_score_label(score)
+    reward_risk_value = trading_desk_reward_risk_label(reward_risk)
+    rel_volume_value = trading_desk_metric_unit_label(rel_volume, "x", 1)
+    if status_value == "Evitar" or paper_value == "No tocar" or blocker_value == "No tocar":
+        lead = "No tocar"
+    elif paper_value == "Paper listo" or blocker_value == "Nada":
+        lead = "Paper listo"
+    elif blocker_value not in {"-", "Revisar"}:
+        lead = blocker_value
+    else:
+        lead = status_value if status_value != "-" else "Revisar"
+    parts = [lead]
+    if reward_risk_value != "-":
+        parts.append(f"R/R {reward_risk_value}")
+    if rel_volume_value != "-":
+        parts.append(f"RVOL {rel_volume_value}")
+    if score_value != "IA -":
+        parts.append(score_value)
+    return " · ".join(parts)
+
+
 def trading_desk_readiness_pct(
     status: str, paper: str, blocker: str, score: float | None, rel_volume: float | None
 ) -> int:
@@ -11790,6 +11817,7 @@ def trading_desk_action_queue(rows: pd.DataFrame, *, limit: int = 3) -> pd.DataF
         "readiness_pct",
         "action",
         "reason",
+        "why_now",
     ]
     if rows.empty:
         return pd.DataFrame(columns=columns)
@@ -11856,6 +11884,9 @@ def trading_desk_action_queue(rows: pd.DataFrame, *, limit: int = 3) -> pd.DataF
                 ),
                 "action": action,
                 "reason": text_display(row.get("Razón")),
+                "why_now": trading_desk_queue_reason_label(
+                    row_status, row_paper, blocker, row.get("_score"), row.get("_rr"), row.get("_rvol")
+                ),
             }
         )
     return pd.DataFrame(queue, columns=columns)
@@ -11877,7 +11908,7 @@ def render_trading_desk_action_queue(rows: pd.DataFrame) -> None:
             f'<div class="desk-queue-micro"><span>Falta: {html.escape(trading_desk_missing_label(row.get("blocker")))}</span><span>Próximo: {html.escape(text_display(row.get("next_step")))}</span><span>R/R: {html.escape(trading_desk_reward_risk_label(row.get("rr")))}</span></div>'
             f'<div class="desk-readiness"><span style="width:{readiness}%"></span><em>{readiness}% listo</em></div>'
             f'<small>{html.escape(text_display(row.get("status")))} · {html.escape(text_display(row.get("paper")))} · Riesgo {html.escape(trading_desk_metric_unit_label(row.get("risk"), "%", 2))} · RVOL {html.escape(trading_desk_metric_unit_label(row.get("rvol"), "x", 1))}</small>'
-            f'<i>{html.escape(trading_desk_context_label(row.get("setup"), row.get("reason")))}</i>'
+            f'<i>Prioridad: {html.escape(text_display(row.get("why_now")))} · {html.escape(trading_desk_context_label(row.get("setup"), row.get("reason")))}</i>'
             "</article>"
         )
     st.markdown(

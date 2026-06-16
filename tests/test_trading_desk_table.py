@@ -14,6 +14,7 @@ from streamlit_app import (
     trading_desk_paper_state,
     trading_desk_preset_counts,
     trading_desk_priority_label,
+    trading_desk_queue_reason_label,
     trading_desk_readiness_pct,
     trading_desk_reward_risk_label,
     trading_desk_rows,
@@ -410,6 +411,7 @@ def test_trading_desk_action_queue_prioritizes_paper_ready_then_watch():
     assert queue.loc[0, "rr"] == 2.8
     assert queue.loc[0, "readiness_pct"] == 100
     assert queue.loc[0, "action"] == "Preparar paper: confirmar stop, target y tamaño."
+    assert queue.loc[0, "why_now"] == "Paper listo · R/R 2.8R · RVOL 1.4x · IA 90"
     assert queue.loc[1, "tone"] == "watch"
     assert queue.loc[1, "urgency"] == "Vigilar cerca"
     assert queue.loc[1, "urgency_tone"] == "watch"
@@ -418,6 +420,7 @@ def test_trading_desk_action_queue_prioritizes_paper_ready_then_watch():
     assert queue.loc[1, "rr"] == 2.0
     assert queue.loc[1, "readiness_pct"] == 70
     assert queue.loc[1, "action"] == "Esperar gatillo"
+    assert queue.loc[1, "why_now"] == "Falta 15m · R/R 2.0R · RVOL 1.8x · IA 94"
     assert queue.loc[2, "tone"] == "avoid"
     assert queue.loc[2, "urgency"] == "No tocar"
     assert queue.loc[2, "urgency_tone"] == "avoid"
@@ -425,6 +428,17 @@ def test_trading_desk_action_queue_prioritizes_paper_ready_then_watch():
     assert queue.loc[2, "next_step"] == "No tocar"
     assert queue.loc[2, "rr"] == 0.3
     assert queue.loc[2, "readiness_pct"] == 0
+    assert queue.loc[2, "why_now"] == "No tocar · R/R 0.3R · RVOL 2.0x · IA 99"
+
+
+def test_trading_desk_queue_reason_label_compacts_priority_context():
+    assert trading_desk_queue_reason_label("Operar", "Paper listo", "Completo", 91, 2.4, 1.5) == (
+        "Paper listo · R/R 2.4R · RVOL 1.5x · IA 91"
+    )
+    assert trading_desk_queue_reason_label("Vigilar", "Setup", "Falta 15m", 88, 1.7, 0.9) == (
+        "Falta 15m · R/R 1.7R · RVOL 0.9x · IA 88"
+    )
+    assert trading_desk_queue_reason_label("Evitar", "No tocar", "No tocar", None, None, None) == "No tocar"
 
 
 def test_trading_desk_readiness_pct_scores_operational_distance():
