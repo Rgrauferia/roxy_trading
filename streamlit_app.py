@@ -11570,6 +11570,15 @@ def trading_desk_score_label(value: Any) -> str:
     return f"IA {score_value:.0f}"
 
 
+def trading_desk_missing_label(value: Any) -> str:
+    missing_value = text_display(value)
+    if missing_value == "Completo":
+        return "Nada"
+    if missing_value == "-":
+        return "Revisar"
+    return missing_value
+
+
 def trading_desk_readiness_pct(
     status: str, paper: str, blocker: str, score: float | None, rel_volume: float | None
 ) -> int:
@@ -11865,7 +11874,7 @@ def render_trading_desk_action_queue(rows: pd.DataFrame) -> None:
             f'<article class="desk-queue-card desk-queue-{html.escape(tone)}">'
             f'<header><span>#{int(row.get("rank") or 0)}</span><strong>{html.escape(text_display(row.get("ticker")))}</strong><b class="desk-urgency-chip desk-urgency-{urgency_tone}">{html.escape(text_display(row.get("urgency")))}</b><em>{html.escape(trading_desk_score_label(row.get("score")))}</em></header>'
             f'<p>{html.escape(text_display(row.get("action")))}</p>'
-            f'<div class="desk-queue-micro"><span>Falta: {html.escape(text_display(row.get("blocker")))}</span><span>Próximo: {html.escape(text_display(row.get("next_step")))}</span><span>R/R: {html.escape(trading_desk_reward_risk_label(row.get("rr")))}</span></div>'
+            f'<div class="desk-queue-micro"><span>Falta: {html.escape(trading_desk_missing_label(row.get("blocker")))}</span><span>Próximo: {html.escape(text_display(row.get("next_step")))}</span><span>R/R: {html.escape(trading_desk_reward_risk_label(row.get("rr")))}</span></div>'
             f'<div class="desk-readiness"><span style="width:{readiness}%"></span><em>{readiness}% listo</em></div>'
             f'<small>{html.escape(text_display(row.get("status")))} · {html.escape(text_display(row.get("paper")))} · Riesgo {html.escape(trading_desk_metric_unit_label(row.get("risk"), "%", 2))} · RVOL {html.escape(trading_desk_metric_unit_label(row.get("rvol"), "x", 1))}</small>'
             f'<i>{html.escape(trading_desk_context_label(row.get("setup"), row.get("reason")))}</i>'

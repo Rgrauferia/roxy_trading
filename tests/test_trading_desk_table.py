@@ -9,6 +9,7 @@ from streamlit_app import (
     trading_desk_card_action,
     trading_desk_context_label,
     trading_desk_metric_unit_label,
+    trading_desk_missing_label,
     trading_desk_next_step_summary,
     trading_desk_paper_state,
     trading_desk_preset_counts,
@@ -477,6 +478,12 @@ def test_trading_desk_score_label_adds_ai_prefix():
     assert trading_desk_score_label(92.4) == "IA 92"
     assert trading_desk_score_label("88.6") == "IA 89"
     assert trading_desk_score_label(None) == "IA -"
+
+
+def test_trading_desk_missing_label_humanizes_completed_blockers():
+    assert trading_desk_missing_label("Completo") == "Nada"
+    assert trading_desk_missing_label("-") == "Revisar"
+    assert trading_desk_missing_label("Falta volumen") == "Falta volumen"
 
 
 def test_trading_desk_paper_state_flags_blockers():
