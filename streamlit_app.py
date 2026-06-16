@@ -11744,6 +11744,7 @@ def trading_desk_action_queue(rows: pd.DataFrame, *, limit: int = 3) -> pd.DataF
         "paper",
         "score",
         "risk",
+        "rr",
         "rvol",
         "setup",
         "blocker",
@@ -11765,12 +11766,16 @@ def trading_desk_action_queue(rows: pd.DataFrame, *, limit: int = 3) -> pd.DataF
     rvol = pd.to_numeric(
         data.get("RVol", pd.Series("", index=data.index)).astype(str).str.replace("x", "", regex=False), errors="coerce"
     )
+    reward_risk = pd.to_numeric(
+        data.get("R/R", pd.Series("", index=data.index)).astype(str).str.replace("R", "", regex=False), errors="coerce"
+    )
     data["_status_order"] = status.map({"Operar": 0, "Vigilar": 1, "Evitar": 2}).fillna(3)
     data["_paper_order"] = paper.map({"Paper listo": 0, "Setup": 1, "No tocar": 3}).fillna(2)
     data["_score"] = score
     data["_risk"] = risk
     data["_rvol"] = rvol
-    ranked = data.sort_values(["_status_order", "_paper_order", "_score"], ascending=[True, True, False]).head(limit)
+    data["_rr"] = reward_risk
+    ranked = data.sort_values(["_status_order", "_paper_order", "_score", "_rr"], ascending=[True, True, False, False]).head(limit)
     queue: list[dict[str, Any]] = []
     for idx, row in enumerate(ranked.to_dict("records"), start=1):
         row_status = text_display(row.get("Estado"))
@@ -11803,6 +11808,7 @@ def trading_desk_action_queue(rows: pd.DataFrame, *, limit: int = 3) -> pd.DataF
                 "paper": row_paper,
                 "score": safe_float(row.get("_score")),
                 "risk": safe_float(row.get("_risk")),
+                "rr": safe_float(row.get("_rr")),
                 "rvol": safe_float(row.get("_rvol")),
                 "setup": text_display(row.get("Setup")),
                 "blocker": blocker,
@@ -11830,14 +11836,14 @@ def render_trading_desk_action_queue(rows: pd.DataFrame) -> None:
             f'<article class="desk-queue-card desk-queue-{html.escape(tone)}">'
             f'<header><span>#{int(row.get("rank") or 0)}</span><strong>{html.escape(text_display(row.get("ticker")))}</strong><b class="desk-urgency-chip desk-urgency-{urgency_tone}">{html.escape(text_display(row.get("urgency")))}</b><em>{html.escape(num_display(row.get("score"), 0))}</em></header>'
             f'<p>{html.escape(text_display(row.get("action")))}</p>'
-            f'<div class="desk-queue-micro"><span>Falta: {html.escape(text_display(row.get("blocker")))}</span><span>Próximo: {html.escape(text_display(row.get("next_step")))}</span></div>'
+            f'<div class="desk-queue-micro"><span>Falta: {html.escape(text_display(row.get("blocker")))}</span><span>Próximo: {html.escape(text_display(row.get("next_step")))}</span><span>R/R: {html.escape(num_display(row.get("rr"), 1))}R</span></div>'
             f'<div class="desk-readiness"><span style="width:{readiness}%"></span><em>{readiness}% listo</em></div>'
-            f'<small>{html.escape(text_display(row.get("status")))} · {html.escape(text_display(row.get("paper")))} · R {html.escape(num_display(row.get("risk"), 2))}% · RVOL {html.escape(num_display(row.get("rvol"), 1))}x</small>'
+            f'<small>{html.escape(text_display(row.get("status")))} · {html.escape(text_display(row.get("paper")))} · Riesgo {html.escape(num_display(row.get("risk"), 2))}% · RVOL {html.escape(num_display(row.get("rvol"), 1))}x</small>'
             f'<i>{html.escape(text_display(row.get("setup")))} · {html.escape(text_display(row.get("reason")))}</i>'
             "</article>"
         )
     st.markdown(
-        '<section class="trading-desk-queue"><header><strong>Fila de ejecución</strong><span>Top 3 ordenados por estado, paper-readiness y score.</span></header><div>'
+        '<section class="trading-desk-queue"><header><strong>Fila de ejecución</strong><span>Top 3 por estado, paper-readiness, score y R/R.</span></header><div>'
         + "".join(cards)
         + "</div></section>",
         unsafe_allow_html=True,
