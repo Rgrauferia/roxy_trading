@@ -7,6 +7,7 @@ from streamlit_app import (
     trading_desk_blocker_counts,
     trading_desk_blocker_summary,
     trading_desk_card_action,
+    trading_desk_context_label,
     trading_desk_metric_unit_label,
     trading_desk_next_step_summary,
     trading_desk_paper_state,
@@ -463,6 +464,12 @@ def test_trading_desk_metric_unit_label_formats_missing_values_cleanly():
     assert trading_desk_metric_unit_label("1.55", "x", 1) == "1.6x"
     assert trading_desk_metric_unit_label(None, "%", 2) == "-"
     assert trading_desk_metric_unit_label("-", "x", 1) == "-"
+
+
+def test_trading_desk_context_label_omits_empty_parts():
+    assert trading_desk_context_label("Pullback", "Volumen acompaña") == "Pullback · Volumen acompaña"
+    assert trading_desk_context_label("Pullback", "-") == "Pullback"
+    assert trading_desk_context_label("-", None, "") == "Sin contexto"
 
 
 def test_trading_desk_paper_state_flags_blockers():
