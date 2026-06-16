@@ -11541,6 +11541,13 @@ def trading_desk_urgency_tone(urgency: str) -> str:
     return "radar"
 
 
+def trading_desk_reward_risk_label(value: Any) -> str:
+    reward_risk = safe_float(value)
+    if reward_risk is None:
+        return "-"
+    return f"{reward_risk:.1f}R"
+
+
 def trading_desk_readiness_pct(
     status: str, paper: str, blocker: str, score: float | None, rel_volume: float | None
 ) -> int:
@@ -11836,7 +11843,7 @@ def render_trading_desk_action_queue(rows: pd.DataFrame) -> None:
             f'<article class="desk-queue-card desk-queue-{html.escape(tone)}">'
             f'<header><span>#{int(row.get("rank") or 0)}</span><strong>{html.escape(text_display(row.get("ticker")))}</strong><b class="desk-urgency-chip desk-urgency-{urgency_tone}">{html.escape(text_display(row.get("urgency")))}</b><em>{html.escape(num_display(row.get("score"), 0))}</em></header>'
             f'<p>{html.escape(text_display(row.get("action")))}</p>'
-            f'<div class="desk-queue-micro"><span>Falta: {html.escape(text_display(row.get("blocker")))}</span><span>Próximo: {html.escape(text_display(row.get("next_step")))}</span><span>R/R: {html.escape(num_display(row.get("rr"), 1))}R</span></div>'
+            f'<div class="desk-queue-micro"><span>Falta: {html.escape(text_display(row.get("blocker")))}</span><span>Próximo: {html.escape(text_display(row.get("next_step")))}</span><span>R/R: {html.escape(trading_desk_reward_risk_label(row.get("rr")))}</span></div>'
             f'<div class="desk-readiness"><span style="width:{readiness}%"></span><em>{readiness}% listo</em></div>'
             f'<small>{html.escape(text_display(row.get("status")))} · {html.escape(text_display(row.get("paper")))} · Riesgo {html.escape(num_display(row.get("risk"), 2))}% · RVOL {html.escape(num_display(row.get("rvol"), 1))}x</small>'
             f'<i>{html.escape(text_display(row.get("setup")))} · {html.escape(text_display(row.get("reason")))}</i>'

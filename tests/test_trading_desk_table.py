@@ -12,6 +12,7 @@ from streamlit_app import (
     trading_desk_preset_counts,
     trading_desk_priority_label,
     trading_desk_readiness_pct,
+    trading_desk_reward_risk_label,
     trading_desk_rows,
     trading_desk_summary,
     trading_desk_urgency_label,
@@ -447,6 +448,13 @@ def test_trading_desk_urgency_tone_maps_visual_classes():
     assert trading_desk_urgency_tone("Esperar") == "wait"
     assert trading_desk_urgency_tone("No tocar") == "avoid"
     assert trading_desk_urgency_tone("-") == "radar"
+
+
+def test_trading_desk_reward_risk_label_formats_missing_values_cleanly():
+    assert trading_desk_reward_risk_label(2.84) == "2.8R"
+    assert trading_desk_reward_risk_label("1.55") == "1.6R"
+    assert trading_desk_reward_risk_label(None) == "-"
+    assert trading_desk_reward_risk_label("-") == "-"
 
 
 def test_trading_desk_paper_state_flags_blockers():
