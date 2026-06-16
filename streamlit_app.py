@@ -11548,6 +11548,13 @@ def trading_desk_reward_risk_label(value: Any) -> str:
     return f"{reward_risk:.1f}R"
 
 
+def trading_desk_metric_unit_label(value: Any, suffix: str, decimals: int = 1) -> str:
+    metric_value = safe_float(value)
+    if metric_value is None:
+        return "-"
+    return f"{metric_value:.{decimals}f}{suffix}"
+
+
 def trading_desk_readiness_pct(
     status: str, paper: str, blocker: str, score: float | None, rel_volume: float | None
 ) -> int:
@@ -11845,7 +11852,7 @@ def render_trading_desk_action_queue(rows: pd.DataFrame) -> None:
             f'<p>{html.escape(text_display(row.get("action")))}</p>'
             f'<div class="desk-queue-micro"><span>Falta: {html.escape(text_display(row.get("blocker")))}</span><span>Próximo: {html.escape(text_display(row.get("next_step")))}</span><span>R/R: {html.escape(trading_desk_reward_risk_label(row.get("rr")))}</span></div>'
             f'<div class="desk-readiness"><span style="width:{readiness}%"></span><em>{readiness}% listo</em></div>'
-            f'<small>{html.escape(text_display(row.get("status")))} · {html.escape(text_display(row.get("paper")))} · Riesgo {html.escape(num_display(row.get("risk"), 2))}% · RVOL {html.escape(num_display(row.get("rvol"), 1))}x</small>'
+            f'<small>{html.escape(text_display(row.get("status")))} · {html.escape(text_display(row.get("paper")))} · Riesgo {html.escape(trading_desk_metric_unit_label(row.get("risk"), "%", 2))} · RVOL {html.escape(trading_desk_metric_unit_label(row.get("rvol"), "x", 1))}</small>'
             f'<i>{html.escape(text_display(row.get("setup")))} · {html.escape(text_display(row.get("reason")))}</i>'
             "</article>"
         )

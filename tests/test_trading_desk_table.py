@@ -7,6 +7,7 @@ from streamlit_app import (
     trading_desk_blocker_counts,
     trading_desk_blocker_summary,
     trading_desk_card_action,
+    trading_desk_metric_unit_label,
     trading_desk_next_step_summary,
     trading_desk_paper_state,
     trading_desk_preset_counts,
@@ -455,6 +456,13 @@ def test_trading_desk_reward_risk_label_formats_missing_values_cleanly():
     assert trading_desk_reward_risk_label("1.55") == "1.6R"
     assert trading_desk_reward_risk_label(None) == "-"
     assert trading_desk_reward_risk_label("-") == "-"
+
+
+def test_trading_desk_metric_unit_label_formats_missing_values_cleanly():
+    assert trading_desk_metric_unit_label(2.345, "%", 2) == "2.35%"
+    assert trading_desk_metric_unit_label("1.55", "x", 1) == "1.6x"
+    assert trading_desk_metric_unit_label(None, "%", 2) == "-"
+    assert trading_desk_metric_unit_label("-", "x", 1) == "-"
 
 
 def test_trading_desk_paper_state_flags_blockers():
