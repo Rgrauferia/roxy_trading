@@ -11579,6 +11579,25 @@ def trading_desk_missing_label(value: Any) -> str:
     return missing_value
 
 
+def trading_desk_compact_plan_label(blocker: Any, next_step: Any, reason: Any = None) -> str:
+    blocker_value = trading_desk_missing_label(blocker)
+    next_value = text_display(next_step)
+    reason_value = text_display(reason)
+    if blocker_value == "Nada":
+        lead = "Listo"
+    elif blocker_value == "No tocar":
+        lead = "No tocar"
+    elif blocker_value == "Revisar":
+        lead = "Revisar"
+    else:
+        lead = blocker_value
+    if next_value != "-" and next_value != lead:
+        return f"{lead} → {next_value}"
+    if reason_value != "-" and reason_value not in lead:
+        return f"{lead} · {reason_value}"
+    return lead
+
+
 def trading_desk_queue_reason_label(
     status: str, paper: str, blocker: str, score: Any, reward_risk: Any, rel_volume: Any
 ) -> str:
@@ -12180,11 +12199,14 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
         "Target",
         "R/R",
         "RVol",
-        "Falta",
-        "Siguiente",
     ]
     compact_columns = [column for column in compact_columns if column in display_rows.columns]
     compact_view = display_rows[compact_columns].head(8).copy()
+    if {"Falta", "Siguiente"}.issubset(display_rows.columns):
+        compact_view["Plan"] = display_rows.head(8).apply(
+            lambda row: trading_desk_compact_plan_label(row.get("Falta"), row.get("Siguiente"), row.get("Razón")),
+            axis=1,
+        )
     compact_column_config: dict[str, Any] = {}
     for column, label, help_text, width in (
         ("Prioridad", "Prioridad", "Orden operativo calculado por Roxy.", "small"),
@@ -12193,8 +12215,7 @@ def render_trading_desk_table(table: pd.DataFrame, confluence_df: pd.DataFrame, 
         ("Paper", "Paper", "Estado de práctica/paper trading.", "small"),
         ("Target", "Target", "Objetivo principal estimado.", "small"),
         ("R/R", "R/R", "Ratio target/riesgo; ideal >= 1.5R.", "small"),
-        ("Falta", "Qué falta", "Bloqueo o confirmación pendiente.", "medium"),
-        ("Siguiente", "Siguiente paso", "Acción concreta antes de considerar entrada.", "large"),
+        ("Plan", "Plan", "Qué falta y cuál es el siguiente paso en una sola línea.", "large"),
     ):
         if column in compact_view.columns:
             compact_column_config[column] = st.column_config.TextColumn(label, help=help_text, width=width)

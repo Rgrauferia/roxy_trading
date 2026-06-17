@@ -7,6 +7,7 @@ from streamlit_app import (
     trading_desk_blocker_counts,
     trading_desk_blocker_summary,
     trading_desk_card_action,
+    trading_desk_compact_plan_label,
     trading_desk_context_label,
     trading_desk_metric_unit_label,
     trading_desk_missing_label,
@@ -498,6 +499,17 @@ def test_trading_desk_missing_label_humanizes_completed_blockers():
     assert trading_desk_missing_label("Completo") == "Nada"
     assert trading_desk_missing_label("-") == "Revisar"
     assert trading_desk_missing_label("Falta volumen") == "Falta volumen"
+
+
+def test_trading_desk_compact_plan_label_combines_blocker_and_next_step():
+    assert trading_desk_compact_plan_label("Completo", "Confirmar ticket", "1h confirma") == (
+        "Listo → Confirmar ticket"
+    )
+    assert trading_desk_compact_plan_label("Falta 15m", "Esperar gatillo 15m", "Pullback") == (
+        "Falta 15m → Esperar gatillo 15m"
+    )
+    assert trading_desk_compact_plan_label("-", "-", "RVol bajo") == "Revisar · RVol bajo"
+    assert trading_desk_compact_plan_label("No tocar", "No tocar", "Riesgo alto") == "No tocar · Riesgo alto"
 
 
 def test_trading_desk_paper_state_flags_blockers():
