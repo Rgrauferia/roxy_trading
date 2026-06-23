@@ -628,7 +628,6 @@ def main() -> None:
             st.sidebar.write(st.session_state.get("_gh_redirect_url"))
             if st.sidebar.button("Check for callback result"):
                 try:
-                    from pathlib import Path
                     import json
 
                     p = Path("run/oauth_callback.json")
