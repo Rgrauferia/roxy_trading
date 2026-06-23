@@ -8,6 +8,8 @@ from __future__ import annotations
 from typing import Dict, Optional
 import storage
 import random
+from tools.risk import RiskManager
+from tools import audit
 
 
 class SimplePaperTrader:
@@ -33,9 +35,26 @@ class SimplePaperTrader:
         if random_seed is not None:
             random.seed(random_seed)
         storage.create_account_if_missing(user, starting_equity, path=storage.DB_PATH)
+        # instantiate default risk manager
+        self.risk = RiskManager()
 
-    def buy(self, symbol: str, qty: float, price: float) -> int:
+    def buy(self, symbol: str, qty: float, price: float, confidence: Optional[float] = None, force: bool = False) -> int:
         # simulate execution with slippage and partial fill
+        # perform pre-execution risk checks
+        if not force:
+            ok, reason = self.risk.check_order(self.user, symbol, qty, price, side="BUY", confidence=confidence)
+            # log pre-check
+            try:
+                audit.log_execution(actor=self.user, strategy=None, action="pre_check", symbol=symbol, qty=qty, price=price, side="BUY", confidence=confidence, risk_allowed=ok, risk_reason=reason)
+            except Exception:
+                pass
+            if not ok:
+                # log rejection
+                try:
+                    audit.log_execution(actor=self.user, strategy=None, action="rejected", symbol=symbol, qty=qty, price=price, side="BUY", confidence=confidence, risk_allowed=ok, risk_reason=reason, note="risk_reject")
+                except Exception:
+                    pass
+                raise RuntimeError(f"Risk check failed: {reason}")
         qty = float(qty)
         executed_qty = qty * float(self.fill_rate)
         # slippage positive for buys (worse price)
@@ -44,6 +63,10 @@ class SimplePaperTrader:
         # record a simulated buy: open position and save trade audit
         pid = storage.open_sim_position(self.user, symbol, executed_qty, exec_price, note="paper_buy", path=storage.DB_PATH)
         storage.save_simulated_trade(self.user, symbol, "BUY", executed_qty, exec_price, note=f"paper_buy:pos={pid}", path=storage.DB_PATH)
+        try:
+            audit.log_execution(actor=self.user, strategy=None, action="executed", symbol=symbol, qty=executed_qty, price=exec_price, side="BUY", confidence=confidence, risk_allowed=True, note=f"pos={pid}")
+        except Exception:
+            pass
         # snapshot account after opening
         try:
             storage.snapshot_account_point(self.user)
@@ -51,7 +74,22 @@ class SimplePaperTrader:
             pass
         return pid
 
-    def sell(self, symbol: str, qty: float, price: float) -> float:
+    def sell(self, symbol: str, qty: float, price: float, confidence: Optional[float] = None, force: bool = False) -> float:
+        # perform pre-execution risk checks
+        if not force:
+            ok, reason = self.risk.check_order(self.user, symbol, qty, price, side="SELL", confidence=confidence)
+            # log pre-check
+            try:
+                audit.log_execution(actor=self.user, strategy=None, action="pre_check", symbol=symbol, qty=qty, price=price, side="SELL", confidence=confidence, risk_allowed=ok, risk_reason=reason)
+            except Exception:
+                pass
+            if not ok:
+                try:
+                    audit.log_execution(actor=self.user, strategy=None, action="rejected", symbol=symbol, qty=qty, price=price, side="SELL", confidence=confidence, risk_allowed=ok, risk_reason=reason, note="risk_reject")
+                except Exception:
+                    pass
+                raise RuntimeError(f"Risk check failed: {reason}")
+
         # attempt to close `qty` using LIFO logic; simulate slippage worsening fills for sells
         qty = float(qty)
         executed_qty = qty * float(self.fill_rate)

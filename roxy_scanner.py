@@ -141,8 +141,21 @@ def fetch_crypto_ohlcv(symbol: str, timeframe: str, limit: int = 500) -> pd.Data
     return df
 
 
-def fetch_stock_ohlcv(symbol: str, interval: str = "1h", period: str = "6mo") -> pd.DataFrame:
-    data = yf.download(symbol, interval=interval, period=period, auto_adjust=True, progress=False, group_by="column")
+def fetch_stock_ohlcv(
+    symbol: str,
+    interval: str = "1h",
+    period: str = "6mo",
+    prepost: bool = False,
+) -> pd.DataFrame:
+    data = yf.download(
+        symbol,
+        interval=interval,
+        period=period,
+        auto_adjust=True,
+        progress=False,
+        group_by="column",
+        prepost=prepost,
+    )
     if data is None or data.empty:
         return pd.DataFrame()
 

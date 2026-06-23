@@ -1,2 +1,0 @@
-market,symbol,tf,score,reasons,entry,stop,tp1,tp2,rr_tp1,rr_tp2,signal,rank_score
-crypto,BTC/USD,1h,30,"['Precio > EMA200', 'EMA50 > EMA200']",91468.13,90547.87555,91966.35612117563,92464.58224235124,0.5414003933103748,1.0828007866207336,WATCH,21.433120314648292

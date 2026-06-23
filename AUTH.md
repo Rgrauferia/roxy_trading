@@ -39,3 +39,29 @@ Then fetch the CSV:
 ```bash
 curl -H "X-Admin-Token: $ADMIN_TOKEN" http://127.0.0.1:8001/audit.csv -o role_audit.csv
 ```
+
+TradingView webhook endpoint:
+
+`tools/admin_api.py` also exposes `POST /tradingview/webhook` for webhook bridges. It is protected by `TRADINGVIEW_WEBHOOK_SECRET`, not by `ADMIN_TOKEN`, so TradingView alerts can be scoped to signal ingestion only.
+
+```bash
+export TRADINGVIEW_WEBHOOK_SECRET='use-a-long-random-secret'
+make tradingview-bridge
+curl -X POST http://127.0.0.1:8001/tradingview/webhook \
+  -H "Content-Type: application/json" \
+  -H "X-TradingView-Secret: $TRADINGVIEW_WEBHOOK_SECRET" \
+  -d '{"symbol":"NASDAQ:AAPL","timeframe":"15","signal":"BUY","price":185.25}'
+```
+
+TradingView can also send the same secret as `"passphrase"` in the JSON payload. Roxy redacts secret-like fields before writing `alerts/tradingview_webhooks.jsonl`. The endpoint records analysis confirmations only and does not enable broker execution.
+
+Public TradingView webhook URL:
+
+TradingView must call a public HTTPS URL, but Roxy's dashboard remains fixed at `http://localhost:3000` and the webhook bridge remains local at `http://127.0.0.1:8001`. Use a tunnel such as `cloudflared tunnel --url http://127.0.0.1:8001` or `ngrok http 8001`, then set:
+
+```bash
+export TRADINGVIEW_PUBLIC_WEBHOOK_URL='https://your-public-url.example/tradingview/webhook'
+make tradingview-tunnel-check
+```
+
+The public URL is used only for TradingView signal ingestion. It does not enable live orders.

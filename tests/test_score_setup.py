@@ -6,7 +6,7 @@ from roxy_scanner import add_indicators, score_setup
 
 def make_ohlcv(n=300):
     # synthetic increasing price series with volume spikes
-    ts = pd.date_range(end=pd.Timestamp.now(), periods=n, freq="H")
+    ts = pd.date_range(end=pd.Timestamp.now(), periods=n, freq="h")
     base = np.linspace(1.0, 100.0, n)
     high = base * (1 + np.random.rand(n) * 0.01)
     low = base * (1 - np.random.rand(n) * 0.01)

@@ -2,6 +2,7 @@ pandas
 numpy
 ccxt
 yfinance
+alpaca-py
 ta
 pytest
 flake8
@@ -12,10 +13,26 @@ black
 isort
 streamlit
 matplotlib
+playwright
 APScheduler
 feedparser
 vaderSentiment
 aiohttp>=3.13.3
 urllib3>=2.6.3
-# Note: `filelock` has a fixed release requiring Python >=3.10. To remediate
-# the GHSA advisory for older Python runtimes, upgrade your Python to 3.10+.
+# Pin filelock to fixed release to remediate GHSA advisory.
+# Note: this release may require Python >=3.10; CI will validate.
+filelock==3.20.1
+
+# Server API for voice assistant
+fastapi
+uvicorn[standard]
+openai>=0.27.0
+faster-whisper
+pypdf
+redis>=4.0.0
+
+# LLM providers
+anthropic
+keyring
+cryptography>=40.0
+APScheduler

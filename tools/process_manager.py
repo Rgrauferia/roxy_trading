@@ -6,9 +6,10 @@ This is intentionally simple — on production use a proper process manager.
 from __future__ import annotations
 
 import os
-import shlex
 import signal
 import subprocess
+import sys
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -18,7 +19,10 @@ PID_FILE = RUN_DIR / "snapshot.pid"
 
 
 def _python_executable() -> str:
-    return shlex.quote(os.environ.get("PYTHON", "python"))
+    configured = os.environ.get("PYTHON")
+    if configured and shutil.which(configured):
+        return configured
+    return sys.executable
 
 
 def start_snapshot_service(interval: int = 5, run_once: bool = False) -> int:
@@ -28,7 +32,7 @@ def start_snapshot_service(interval: int = 5, run_once: bool = False) -> int:
     """
     if PID_FILE.exists():
         raise RuntimeError(f"PID file exists: {PID_FILE}")
-    cmd = [os.environ.get("PYTHON", "python"), "tools/account_snapshot_service.py"]
+    cmd = [_python_executable(), "tools/account_snapshot_service.py"]
     if run_once:
         cmd.append("--once")
     else:

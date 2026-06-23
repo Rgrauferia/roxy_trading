@@ -1,3 +1,13 @@
+import pytest
+
+
+def test_paper_trader_imports():
+    # very small smoke test: ensure adapter imports and basic API exist
+    from adapters.paper_trader import SimplePaperTrader
+
+    pt = SimplePaperTrader("test-user", slippage_pct=0.0, fill_rate=1.0)
+    assert hasattr(pt, "buy") and hasattr(pt, "sell")
+
 import os
 import tempfile
 import shutil

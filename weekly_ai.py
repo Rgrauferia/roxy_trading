@@ -18,7 +18,7 @@ except Exception:
     fetch_stocks = None
     opportunity_engine = None
 
-# Telegram notifier (ya lo creaste)
+# Shared notification layer.
 try:
     from notifier import notify_if_changed
 except Exception:
@@ -289,9 +289,9 @@ def main():
     jpath.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     tpath.write_text(to_text(payload), encoding="utf-8")
 
-    # alerta resumida a telegram
+    # Summarized alert through the configured notifier channels.
     if notify_if_changed:
-        # manda solo el TOP 5 del “top_all”
+        # Send only the TOP 5 from top_all.
         top = payload.get("top_all", [])[:5]
         alerts = [
             f"WEEKLY {r['symbol']} {r['signal']} | Score {r['score']} | Rank {r['rank']:.2f} | {r['horizon']}"

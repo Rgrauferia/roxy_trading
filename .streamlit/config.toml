@@ -5,3 +5,13 @@ backgroundColor="#0B1220"
 secondaryBackgroundColor="#0F1A2E"
 textColor="#E8EEFF"
 font="sans serif"
+
+[server]
+address="0.0.0.0"
+port=3000
+headless=true
+runOnSave=true
+fileWatcherType="auto"
+
+[browser]
+gatherUsageStats=false
