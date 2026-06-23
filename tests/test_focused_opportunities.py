@@ -69,6 +69,7 @@ from streamlit_app import (
     filter_focused_opportunities,
     focused_display_table_es,
     focused_display_table,
+    focused_opportunity_source_rows,
     focused_opportunity_table,
     greek_quality_label,
     health_history_dashboard_status,
@@ -128,6 +129,7 @@ from streamlit_app import (
     budget_strategy_watch_label,
     budget_strategy_watch_reason,
     budget_wide_search_rows,
+    default_crypto_budget_watch_rows,
     budget_top_trade_rows,
     budget_execution_stage,
     budget_trade_plan_rows,
@@ -268,6 +270,35 @@ def test_focused_opportunity_table_falls_back_to_scan_candidates_when_primary_is
     assert table.iloc[0]["market"] == "crypto"
     assert table.iloc[0]["entry"] == 71.87
     assert table.iloc[0]["ai_score"] == 85
+
+
+def test_focused_opportunity_source_rows_keeps_crypto_candidates_with_primary_rows():
+    rows = focused_opportunity_source_rows(
+        {
+            "opportunities": [
+                {
+                    "symbol": "AAPL",
+                    "market": "stock",
+                    "ai_score": 80,
+                    "signal": "BUY",
+                }
+            ],
+            "crypto_scan_candidates": [
+                {
+                    "symbol": "BTC/USD",
+                    "market": "crypto",
+                    "ai_action": "WATCH",
+                    "signal": "BUY",
+                    "entry": 66000,
+                    "stop": 65400,
+                }
+            ],
+        }
+    )
+
+    markets_by_symbol = {row["symbol"]: row["market"] for row in rows}
+    assert markets_by_symbol["AAPL"] == "stock"
+    assert markets_by_symbol["BTC/USD"] == "crypto"
 
 
 def test_alert_live_panel_rows_classifies_ready_blocked_and_watch_states():
@@ -2866,6 +2897,16 @@ def test_budget_wide_search_rows_uses_fallback_candidates_for_budget_watchlist()
     assert rows.iloc[0]["symbol"] == "SOL/USD"
     assert rows.iloc[0]["capital_used"] <= 600
     assert bool(rows.iloc[0]["budget_allowed"]) is True
+
+
+def test_default_crypto_budget_watch_rows_provides_chartable_crypto_fallbacks():
+    rows = default_crypto_budget_watch_rows(account_equity=100, risk_pct=0.01, limit=3)
+
+    assert rows["symbol"].tolist() == ["BTC/USD", "ETH/USD", "SOL/USD"]
+    assert rows["market"].eq("crypto").all()
+    assert rows["watch_seed"].eq(True).all()
+    assert rows.iloc[0]["risk_dollars"] == 1.0
+    assert "market=crypto" in rows.iloc[0]["href"]
 
 
 def test_opportunity_budget_fit_caps_crypto_position_to_account_equity():

@@ -21186,11 +21186,11 @@ def opportunity_confidence_label(row: dict) -> str:
 def focused_opportunity_source_rows(brief: dict) -> list[dict[str, Any]]:
     """Return candidate rows for the trade desk, even when the primary list is empty."""
     brief = brief if isinstance(brief, dict) else {}
-    primary = brief.get("opportunities")
-    if isinstance(primary, list) and primary:
-        return [item for item in primary if isinstance(item, dict)]
-
     candidates: list[dict[str, Any]] = []
+    primary = brief.get("opportunities")
+    if isinstance(primary, list):
+        candidates.extend(item for item in primary if isinstance(item, dict))
+
     plan = brief.get("daily_opportunity_plan") if isinstance(brief.get("daily_opportunity_plan"), dict) else {}
     for key in ("opportunities", "rows"):
         values = plan.get(key)
@@ -22916,6 +22916,83 @@ def budget_wide_search_rows(
     )
 
 
+def default_crypto_budget_watch_rows(
+    *,
+    account_equity: float = 100.0,
+    risk_pct: float = 0.01,
+    limit: int = 6,
+) -> pd.DataFrame:
+    columns = [
+        "symbol",
+        "market",
+        "strategy",
+        "lane",
+        "tone",
+        "stage",
+        "stage_label",
+        "stage_tone",
+        "stage_reason",
+        "budget_allowed",
+        "product",
+        "action",
+        "capital_used",
+        "risk_dollars",
+        "reward_2_dollars",
+        "win_probability",
+        "expected_r",
+        "expected_value",
+        "capital_efficiency",
+        "budget_score",
+        "quality_label",
+        "quality_reasons",
+        "next_step",
+        "href",
+        "watch_seed",
+    ]
+    risk_budget = max(1.0, safe_float(account_equity) or 100.0) * max(0.001, safe_float(risk_pct) or 0.01)
+    symbols = list(dict.fromkeys([*DEFAULT_CRYPTO_SYMBOLS, "XRP/USD", "ADA/USD", "AVAX/USD"]))
+    setups = [
+        "Canal alcista crypto",
+        "Pullback crypto",
+        "Cruce de medias crypto",
+        "Breakout crypto",
+        "Canal lateral crypto",
+    ]
+    rows: list[dict[str, Any]] = []
+    for idx, symbol in enumerate(symbols[: max(1, int(limit or 6))]):
+        setup = setups[idx % len(setups)]
+        rows.append(
+            {
+                "symbol": symbol.upper(),
+                "market": "crypto",
+                "strategy": setup,
+                "lane": "Solo vigilar",
+                "tone": "watch",
+                "stage": "SOLO_VIGILAR",
+                "stage_label": "Vigilar crypto",
+                "stage_tone": "watch",
+                "stage_reason": "Crypto 24/7 en vigilancia; falta entrada, stop y target medible antes de arriesgar capital.",
+                "budget_allowed": True,
+                "product": "Crypto fraccionada",
+                "action": "Escanear 24/7",
+                "capital_used": None,
+                "risk_dollars": risk_budget,
+                "reward_2_dollars": risk_budget * 2.0,
+                "win_probability": None,
+                "expected_r": None,
+                "expected_value": None,
+                "capital_efficiency": None,
+                "budget_score": 0.0,
+                "quality_label": "En vigilancia",
+                "quality_reasons": "Esperando setup confirmado",
+                "next_step": "Toca para cargar grafica crypto; Roxy espera entrada, stop y target medible.",
+                "href": f"?view=Activo&symbol={quote(symbol.upper(), safe='')}&market=crypto&tf=1h",
+                "watch_seed": True,
+            }
+        )
+    return pd.DataFrame(rows, columns=columns)
+
+
 def budget_trade_plan_rows(
     table: pd.DataFrame,
     *,
@@ -23288,21 +23365,41 @@ def render_budget_market_cards(
             if tone not in {"buy", "watch", "avoid"}:
                 tone = "watch"
             href = text_display(row.get("href"))
-            strategy_label = budget_strategy_watch_label(row)
-            strategy_reason = budget_strategy_watch_reason(row)
+            is_watch_seed = bool(row.get("watch_seed"))
+            strategy_label = "24/7" if is_watch_seed else budget_strategy_watch_label(row)
+            strategy_reason = (
+                f'{text_display(row.get("action"))} · {text_display(row.get("strategy"))}'
+                if is_watch_seed
+                else budget_strategy_watch_reason(row)
+            )
+            if is_watch_seed:
+                metrics_html = (
+                    '<div class="budget-market-metrics">'
+                    '<b><small>Mercado</small>Crypto</b>'
+                    '<b><small>Estado</small>Vigilancia</b>'
+                    f'<b><small>1R</small>${html.escape(num_display(row.get("risk_dollars"), 2))}</b>'
+                    '<b><small>Setup</small>Esperando</b>'
+                    '<b><small>Fuente</small>Watchlist</b>'
+                    '<b><small>Fit</small>Listo</b>'
+                    "</div>"
+                )
+            else:
+                metrics_html = (
+                    '<div class="budget-market-metrics">'
+                    f'<b><small>Score</small>{html.escape(num_display(row.get("budget_score"), 1))}</b>'
+                    f'<b><small>EV</small>{html.escape(num_display(row.get("expected_value"), 2))}</b>'
+                    f'<b><small>1R</small>${html.escape(num_display(row.get("risk_dollars"), 2))}</b>'
+                    f'<b><small>2%</small>${html.escape(num_display(row.get("reward_2_dollars"), 2))}</b>'
+                    f'<b><small>Prob.</small>{html.escape(pct_display(row.get("win_probability")))}</b>'
+                    f'<b><small>Fit</small>{html.escape("Cabe" if bool(row.get("budget_allowed")) else "Vigilar")}</b>'
+                    "</div>"
+                )
             cards.append(
                 f'<article class="budget-market-card budget-market-{html.escape(tone)}">'
                 f'<header><a href="{html.escape(href)}">{html.escape(text_display(row.get("symbol")).upper())}</a>'
                 f'<span>{html.escape(strategy_label)}</span></header>'
                 f'<p>{html.escape(strategy_reason)}</p>'
-                '<div class="budget-market-metrics">'
-                f'<b><small>Score</small>{html.escape(num_display(row.get("budget_score"), 1))}</b>'
-                f'<b><small>EV</small>{html.escape(num_display(row.get("expected_value"), 2))}</b>'
-                f'<b><small>1R</small>${html.escape(num_display(row.get("risk_dollars"), 2))}</b>'
-                f'<b><small>2%</small>${html.escape(num_display(row.get("reward_2_dollars"), 2))}</b>'
-                f'<b><small>Prob.</small>{html.escape(pct_display(row.get("win_probability")))}</b>'
-                f'<b><small>Fit</small>{html.escape("Cabe" if bool(row.get("budget_allowed")) else "Vigilar")}</b>'
-                "</div>"
+                f'{metrics_html}'
                 f'<em>{html.escape(text_display(row.get("next_step"))[:130])}</em>'
                 f'<a class="budget-chart-link" href="{html.escape(href)}">Cargar en graficas</a>'
                 "</article>"
@@ -23371,6 +23468,12 @@ def render_budget_split_opportunities_panel(
             limit=visible_limit,
         )
     )
+    if crypto_rows.empty and crypto_fallback.empty:
+        crypto_fallback = default_crypto_budget_watch_rows(
+            account_equity=account_equity,
+            risk_pct=risk_pct,
+            limit=visible_limit,
+        )
     st.markdown("### Acciones y criptomonedas disponibles")
     st.caption("Separadas por mercado. Toca un ticker o 'Cargar en graficas' para abrir ese activo arriba.")
     render_budget_market_cards(
