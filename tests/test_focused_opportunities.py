@@ -3708,6 +3708,8 @@ def test_trade_desk_prioritizes_chart_visibility_over_secondary_controls():
     top_budget_source = function_source_from_file("streamlit_app.py", "render_budget_top_trades_panel")
     budget_fit_source = function_source_from_file("streamlit_app.py", "render_budget_recommendation_strip")
     budget_plan_source = function_source_from_file("streamlit_app.py", "render_budget_trade_plan_panel")
+    budget_split_source = function_source_from_file("streamlit_app.py", "render_budget_split_opportunities_panel")
+    budget_market_cards_source = function_source_from_file("streamlit_app.py", "render_budget_market_cards")
     app_source = function_source_from_file("streamlit_app.py", "show_focused_roxy_app")
 
     assert chart_source.find("render_browser_live_candle_chart(") < chart_source.find("render_operational_trade_snapshot(")
@@ -3737,6 +3739,15 @@ def test_trade_desk_prioritizes_chart_visibility_over_secondary_controls():
     assert "if rows.empty:\n        return" in budget_fit_source
     assert "if rows.empty:\n        return" in budget_plan_source
     assert "has_budget_candidates = isinstance(budget_live_best, pd.DataFrame) and not budget_live_best.empty" in app_source
+    assert "Acciones disponibles para trabajar" in budget_split_source
+    assert "Criptomonedas disponibles para trabajar" in budget_split_source
+    assert "Cargar en graficas" in budget_market_cards_source
+    assert "render_budget_split_opportunities_panel(" in live_home_source
+    assert "render_budget_split_opportunities_panel(" in app_source
+    assert "render_budget_top_trades_panel(" not in live_home_source
+    assert "render_budget_trade_plan_panel(" not in live_home_source
+    assert "render_budget_top_trades_panel(" not in app_source
+    assert "render_budget_trade_plan_panel(" not in app_source
     assert "render_budget_wide_search_panel(" in app_source
 
 
