@@ -1,0 +1,57 @@
+services:
+  - type: web
+    name: roxy-trading
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /_stcore/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: ROXY_OUTPUT_DIR
+        value: /var/data/output
+      - key: ROXY_ALERTS_DIR
+        value: /var/data/alerts
+      - key: ROXY_DATA_DIR
+        value: /var/data/data
+      - key: ROXY_DB_DIR
+        value: /var/data/db
+      - key: ALPACA_PAPER
+        value: "true"
+      - key: ALPACA_BASE_URL
+        value: https://paper-api.alpaca.markets
+      - key: ALPACA_DATA_FEED
+        value: iex
+      - key: ROXY_ENABLE_LIVE_BROKER_EXECUTION
+        value: "0"
+      - key: ROXY_ALPACA_PAPER_AUTOTRADE
+        value: "false"
+      - key: ROXY_AUTOPILOT_CODE_WRITE
+        value: "0"
+      - key: ALPACA_API_KEY
+        sync: false
+      - key: ALPACA_API_SECRET
+        sync: false
+      - key: POLYGON_API_KEY
+        sync: false
+      - key: TRADINGVIEW_WEBHOOK_SECRET
+        sync: false
+      - key: WEBHOOK_URL
+        sync: false
+      - key: PUSHOVER_APP_TOKEN
+        sync: false
+      - key: PUSHOVER_USER_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+    disk:
+      name: roxy-runtime
+      mountPath: /var/data
+      sizeGB: 1
