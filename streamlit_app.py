@@ -170,6 +170,7 @@ from living_market import (
     build_alpaca_market_data_diagnostic,
     build_live_price_snapshot,
     build_living_market_snapshot,
+    fetch_crypto_history_fast,
 )
 
 
@@ -22916,6 +22917,172 @@ def budget_wide_search_rows(
     )
 
 
+def _crypto_budget_operational_plan(
+    symbol: str,
+    setup: str,
+    *,
+    account_equity: float,
+    risk_pct: float,
+) -> dict[str, Any]:
+    risk_budget = max(1.0, safe_float(account_equity) or 100.0) * max(0.001, safe_float(risk_pct) or 0.01)
+    source_label = "crypto_ohlcv_1h"
+    try:
+        history = fetch_crypto_history_fast(symbol, timeframe="1h", limit=120)
+    except Exception as exc:
+        return {
+            "stage": "SOLO_VIGILAR",
+            "stage_label": "Sin precio crypto",
+            "stage_tone": "watch",
+            "stage_reason": f"No hay velas crypto suficientes para calcular entrada/stop ahora: {type(exc).__name__}.",
+            "tone": "watch",
+            "action": "Conectar fuente crypto",
+            "capital_used": None,
+            "risk_dollars": risk_budget,
+            "reward_1_dollars": None,
+            "reward_2_dollars": None,
+            "quality_label": "Sin precio",
+            "quality_reasons": "Falta OHLCV crypto",
+            "next_step": "Cargar grafica y esperar precio/velas crypto antes de calcular una operacion.",
+            "verdict": "Sin operacion calculable",
+            "price_source": "sin_fuente_crypto",
+        }
+    if not isinstance(history, pd.DataFrame) or history.empty or "close" not in history.columns:
+        return {
+            "stage": "SOLO_VIGILAR",
+            "stage_label": "Sin velas crypto",
+            "stage_tone": "watch",
+            "stage_reason": "La fuente crypto no entrego velas 1h suficientes para calcular entrada, stop y target.",
+            "tone": "watch",
+            "action": "Esperar velas crypto",
+            "capital_used": None,
+            "risk_dollars": risk_budget,
+            "reward_1_dollars": None,
+            "reward_2_dollars": None,
+            "quality_label": "Sin velas",
+            "quality_reasons": "Falta historial OHLCV",
+            "next_step": "Esperar velas frescas antes de operar crypto.",
+            "verdict": "Sin operacion calculable",
+            "price_source": source_label,
+        }
+
+    frame = history.copy().tail(120)
+    for column in ("open", "high", "low", "close", "volume"):
+        if column in frame.columns:
+            frame[column] = pd.to_numeric(frame[column], errors="coerce")
+    frame = frame.dropna(subset=["close"])
+    if frame.empty:
+        return {
+            "stage": "SOLO_VIGILAR",
+            "stage_label": "Precio invalido",
+            "stage_tone": "watch",
+            "stage_reason": "Las velas crypto llegaron sin cierre valido.",
+            "tone": "watch",
+            "action": "Esperar precio crypto",
+            "capital_used": None,
+            "risk_dollars": risk_budget,
+            "reward_1_dollars": None,
+            "reward_2_dollars": None,
+            "quality_label": "Precio invalido",
+            "quality_reasons": "Close vacio",
+            "next_step": "Esperar precio valido antes de operar crypto.",
+            "verdict": "Sin operacion calculable",
+            "price_source": source_label,
+        }
+
+    price = safe_float(frame["close"].iloc[-1])
+    if price is None or price <= 0:
+        return {
+            "stage": "SOLO_VIGILAR",
+            "stage_label": "Precio invalido",
+            "stage_tone": "watch",
+            "stage_reason": "La fuente crypto no entrego precio positivo.",
+            "tone": "watch",
+            "action": "Esperar precio crypto",
+            "capital_used": None,
+            "risk_dollars": risk_budget,
+            "reward_1_dollars": None,
+            "reward_2_dollars": None,
+            "quality_label": "Precio invalido",
+            "quality_reasons": "Close <= 0",
+            "next_step": "Esperar precio valido antes de operar crypto.",
+            "verdict": "Sin operacion calculable",
+            "price_source": source_label,
+        }
+
+    if {"high", "low"}.issubset(frame.columns):
+        ranges = ((frame["high"] - frame["low"]) / frame["close"]).replace([float("inf"), float("-inf")], pd.NA).dropna()
+        median_range = safe_float(ranges.tail(36).median()) if not ranges.empty else None
+    else:
+        median_range = None
+    stop_pct = min(0.055, max(0.012, (median_range or 0.022) * 1.25))
+    recent_high = safe_float(frame["high"].tail(24).max()) if "high" in frame.columns else price
+    recent_low = safe_float(frame["low"].tail(24).min()) if "low" in frame.columns else price * (1 - stop_pct)
+    setup_lower = setup.lower()
+    if "breakout" in setup_lower and recent_high is not None and recent_high > 0:
+        entry = max(price, recent_high * 1.001)
+        stop = min(price * (1 - stop_pct), entry * (1 - stop_pct * 0.8))
+    elif "pullback" in setup_lower and recent_low is not None and recent_low > 0:
+        entry = price
+        stop = min(recent_low * 0.998, price * (1 - stop_pct))
+    elif "lateral" in setup_lower and recent_low is not None and recent_high is not None:
+        entry = price
+        stop = min(recent_low * 0.998, price * (1 - stop_pct))
+    else:
+        entry = price
+        stop = price * (1 - stop_pct)
+    if stop >= entry:
+        stop = entry * (1 - stop_pct)
+    risk_per_unit = max(0.00000001, entry - stop)
+    target_1 = entry + (risk_per_unit * 2.0)
+    target_2 = entry + (risk_per_unit * 3.0)
+    sizing = small_account_product_plan(
+        account_equity=account_equity,
+        risk_per_trade_pct=risk_pct,
+        market="crypto",
+        entry=entry,
+        stop=stop,
+    )
+    qty = safe_float(sizing.get("units")) or 0.0
+    capital_used = qty * entry if qty > 0 else None
+    risk_used = min(risk_budget, risk_per_unit * qty) if qty > 0 else risk_budget
+    reward_1 = max(0.0, (target_1 - entry) * qty) if qty > 0 else None
+    reward_2 = max(0.0, (target_2 - entry) * qty) if qty > 0 else None
+    rr = (reward_1 / risk_used) if reward_1 is not None and risk_used else None
+    stage_tone = "buy" if rr is not None and rr >= 1.8 and qty > 0 else "watch"
+    stage = "PROXIMA_ENTRADA" if stage_tone == "buy" else "SOLO_VIGILAR"
+    verdict = (
+        f"Plan paper/manual: entrada {price_display(entry)}, stop {price_display(stop)}, T1 {price_display(target_1)}."
+        if qty > 0
+        else "Sin tamano calculable con este presupuesto."
+    )
+    return {
+        "stage": stage,
+        "stage_label": "Plan crypto" if stage_tone == "buy" else "Vigilar crypto",
+        "stage_tone": stage_tone,
+        "stage_reason": f"Crypto 24/7 con operacion fraccionada calculada desde velas 1h ({source_label}).",
+        "tone": stage_tone,
+        "action": "Plan paper/manual",
+        "capital_used": capital_used,
+        "qty": qty,
+        "entry": entry,
+        "stop": stop,
+        "target_1": target_1,
+        "target_2": target_2,
+        "risk_dollars": risk_used,
+        "reward_1_dollars": reward_1,
+        "reward_2_dollars": reward_2,
+        "expected_r": rr,
+        "expected_value": reward_1,
+        "capital_efficiency": (reward_1 / capital_used) if reward_1 is not None and capital_used else None,
+        "budget_score": 55.0 + min(25.0, (rr or 0.0) * 8.0),
+        "quality_label": "Plan operativo",
+        "quality_reasons": f"Entrada/stop/targets desde {len(frame)} velas 1h",
+        "next_step": text_display(sizing.get("next_step")) or "Confirmar 15m/1h antes de entrar.",
+        "verdict": verdict,
+        "price_source": source_label,
+    }
+
+
 def default_crypto_budget_watch_rows(
     *,
     account_equity: float = 100.0,
@@ -22935,8 +23102,14 @@ def default_crypto_budget_watch_rows(
         "budget_allowed",
         "product",
         "action",
+        "qty",
+        "entry",
+        "stop",
+        "target_1",
+        "target_2",
         "capital_used",
         "risk_dollars",
+        "reward_1_dollars",
         "reward_2_dollars",
         "win_probability",
         "expected_r",
@@ -22947,6 +23120,8 @@ def default_crypto_budget_watch_rows(
         "quality_reasons",
         "next_step",
         "href",
+        "verdict",
+        "price_source",
         "watch_seed",
     ]
     risk_budget = max(1.0, safe_float(account_equity) or 100.0) * max(0.001, safe_float(risk_pct) or 0.01)
@@ -22961,33 +23136,24 @@ def default_crypto_budget_watch_rows(
     rows: list[dict[str, Any]] = []
     for idx, symbol in enumerate(symbols[: max(1, int(limit or 6))]):
         setup = setups[idx % len(setups)]
+        plan = _crypto_budget_operational_plan(
+            symbol,
+            setup,
+            account_equity=account_equity,
+            risk_pct=risk_pct,
+        )
         rows.append(
             {
                 "symbol": symbol.upper(),
                 "market": "crypto",
                 "strategy": setup,
                 "lane": "Solo vigilar",
-                "tone": "watch",
-                "stage": "SOLO_VIGILAR",
-                "stage_label": "Vigilar crypto",
-                "stage_tone": "watch",
-                "stage_reason": "Crypto 24/7 en vigilancia; falta entrada, stop y target medible antes de arriesgar capital.",
                 "budget_allowed": True,
                 "product": "Crypto fraccionada",
-                "action": "Escanear 24/7",
-                "capital_used": None,
-                "risk_dollars": risk_budget,
-                "reward_2_dollars": risk_budget * 2.0,
                 "win_probability": None,
-                "expected_r": None,
-                "expected_value": None,
-                "capital_efficiency": None,
-                "budget_score": 0.0,
-                "quality_label": "En vigilancia",
-                "quality_reasons": "Esperando setup confirmado",
-                "next_step": "Toca para cargar grafica crypto; Roxy espera entrada, stop y target medible.",
                 "href": f"?view=Activo&symbol={quote(symbol.upper(), safe='')}&market=crypto&tf=1h",
                 "watch_seed": True,
+                **plan,
             }
         )
     return pd.DataFrame(rows, columns=columns)
@@ -23372,15 +23538,32 @@ def render_budget_market_cards(
                 if is_watch_seed
                 else budget_strategy_watch_reason(row)
             )
-            if is_watch_seed:
+            entry = safe_float(row.get("entry"))
+            stop = safe_float(row.get("stop"))
+            target_1 = safe_float(row.get("target_1"))
+            has_operational_plan = is_watch_seed and entry is not None and stop is not None and target_1 is not None
+            if has_operational_plan:
+                qty = safe_float(row.get("qty"))
+                qty_text = f"{qty:.6f}" if qty is not None and qty < 1 else num_display(qty, 2)
+                metrics_html = (
+                    '<div class="budget-market-metrics">'
+                    f'<b><small>Entrada</small>{html.escape(price_display(entry))}</b>'
+                    f'<b><small>Stop</small>{html.escape(price_display(stop))}</b>'
+                    f'<b><small>Target 1</small>{html.escape(price_display(target_1))}</b>'
+                    f'<b><small>Riesgo</small>${html.escape(num_display(row.get("risk_dollars"), 2))}</b>'
+                    f'<b><small>Ganancia</small>${html.escape(num_display(row.get("reward_1_dollars"), 2))}</b>'
+                    f'<b><small>Tamano</small>{html.escape(qty_text)}</b>'
+                    "</div>"
+                )
+            elif is_watch_seed:
                 metrics_html = (
                     '<div class="budget-market-metrics">'
                     '<b><small>Mercado</small>Crypto</b>'
-                    '<b><small>Estado</small>Vigilancia</b>'
+                    f'<b><small>Estado</small>{html.escape(text_display(row.get("quality_label")))}</b>'
                     f'<b><small>1R</small>${html.escape(num_display(row.get("risk_dollars"), 2))}</b>'
-                    '<b><small>Setup</small>Esperando</b>'
-                    '<b><small>Fuente</small>Watchlist</b>'
-                    '<b><small>Fit</small>Listo</b>'
+                    f'<b><small>Setup</small>{html.escape(text_display(row.get("strategy")))}</b>'
+                    f'<b><small>Fuente</small>{html.escape(text_display(row.get("price_source")))}</b>'
+                    '<b><small>Fit</small>Esperar</b>'
                     "</div>"
                 )
             else:
@@ -23400,7 +23583,7 @@ def render_budget_market_cards(
                 f'<span>{html.escape(strategy_label)}</span></header>'
                 f'<p>{html.escape(strategy_reason)}</p>'
                 f'{metrics_html}'
-                f'<em>{html.escape(text_display(row.get("next_step"))[:130])}</em>'
+                f'<em>{html.escape((text_display(row.get("verdict")) if has_operational_plan else text_display(row.get("next_step")))[:150])}</em>'
                 f'<a class="budget-chart-link" href="{html.escape(href)}">Cargar en graficas</a>'
                 "</article>"
             )

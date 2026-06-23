@@ -2899,13 +2899,33 @@ def test_budget_wide_search_rows_uses_fallback_candidates_for_budget_watchlist()
     assert bool(rows.iloc[0]["budget_allowed"]) is True
 
 
-def test_default_crypto_budget_watch_rows_provides_chartable_crypto_fallbacks():
+def test_default_crypto_budget_watch_rows_provides_chartable_crypto_fallbacks(monkeypatch):
+    def fake_crypto_history(symbol, *, timeframe="1h", limit=120):
+        base = 100.0 if symbol == "BTC/USD" else 50.0
+        return pd.DataFrame(
+            {
+                "ts": pd.date_range("2026-06-01", periods=60, freq="h", tz="UTC"),
+                "open": [base + idx * 0.1 for idx in range(60)],
+                "high": [base + idx * 0.1 + 1.4 for idx in range(60)],
+                "low": [base + idx * 0.1 - 1.2 for idx in range(60)],
+                "close": [base + idx * 0.1 for idx in range(60)],
+                "volume": [1000 + idx for idx in range(60)],
+            }
+        )
+
+    monkeypatch.setattr(streamlit_app, "fetch_crypto_history_fast", fake_crypto_history)
+
     rows = default_crypto_budget_watch_rows(account_equity=100, risk_pct=0.01, limit=3)
 
     assert rows["symbol"].tolist() == ["BTC/USD", "ETH/USD", "SOL/USD"]
     assert rows["market"].eq("crypto").all()
     assert rows["watch_seed"].eq(True).all()
-    assert rows.iloc[0]["risk_dollars"] == 1.0
+    assert rows.iloc[0]["entry"] > rows.iloc[0]["stop"]
+    assert rows.iloc[0]["target_1"] > rows.iloc[0]["entry"]
+    assert rows.iloc[0]["qty"] > 0
+    assert rows.iloc[0]["risk_dollars"] <= 1.0
+    assert rows.iloc[0]["reward_1_dollars"] > 0
+    assert rows.iloc[0]["quality_label"] == "Plan operativo"
     assert "market=crypto" in rows.iloc[0]["href"]
 
 
