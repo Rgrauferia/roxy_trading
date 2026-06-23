@@ -23122,19 +23122,20 @@ def render_budget_split_opportunities_panel(
     if not isinstance(table, pd.DataFrame) or table.empty:
         st.info("Roxy todavia no recibio suficientes oportunidades para separar stocks y crypto por presupuesto.")
         return
+    visible_limit = max(8, int(max_trades or 3) * 4)
     stock_rows = budget_trade_plan_rows(
         table,
         account_equity=account_equity,
         risk_pct=risk_pct,
         market_scope="stock",
-        max_trades=max_trades,
+        max_trades=visible_limit,
     )
     crypto_rows = budget_trade_plan_rows(
         table,
         account_equity=account_equity,
         risk_pct=risk_pct,
         market_scope="crypto",
-        max_trades=max_trades,
+        max_trades=visible_limit,
     )
     stock_fallback = (
         pd.DataFrame()
@@ -23144,7 +23145,7 @@ def render_budget_split_opportunities_panel(
             account_equity=account_equity,
             risk_pct=risk_pct,
             market_scope="stock",
-            limit=max_trades,
+            limit=visible_limit,
         )
     )
     crypto_fallback = (
@@ -23155,34 +23156,27 @@ def render_budget_split_opportunities_panel(
             account_equity=account_equity,
             risk_pct=risk_pct,
             market_scope="crypto",
-            limit=max_trades,
+            limit=visible_limit,
         )
     )
-    stock_count = len(stock_rows) if not stock_rows.empty else len(stock_fallback)
-    crypto_count = len(crypto_rows) if not crypto_rows.empty else len(crypto_fallback)
-    st.markdown("### Oportunidades por presupuesto")
-    st.caption(
-        "Separado por mercado. Toca un ticker o 'Ver en grafica' para cargar ese activo arriba en las dos graficas."
+    st.markdown("### Oportunidades disponibles para trabajar")
+    st.caption("Separadas por mercado. Toca un ticker o 'Ver en grafica' para cargar ese activo arriba.")
+    render_budget_market_cards(
+        stock_rows,
+        fallback_rows=stock_fallback,
+        account_equity=account_equity,
+        risk_pct=risk_pct,
+        market_label="Acciones disponibles para trabajar",
+        market_scope="Acciones",
     )
-    stock_tab, crypto_tab = st.tabs([f"Stocks ({stock_count})", f"Crypto ({crypto_count})"])
-    with stock_tab:
-        render_budget_market_cards(
-            stock_rows,
-            fallback_rows=stock_fallback,
-            account_equity=account_equity,
-            risk_pct=risk_pct,
-            market_label="Stocks que caben en tu presupuesto",
-            market_scope="Stocks",
-        )
-    with crypto_tab:
-        render_budget_market_cards(
-            crypto_rows,
-            fallback_rows=crypto_fallback,
-            account_equity=account_equity,
-            risk_pct=risk_pct,
-            market_label="Crypto que cabe en tu presupuesto",
-            market_scope="Crypto",
-        )
+    render_budget_market_cards(
+        crypto_rows,
+        fallback_rows=crypto_fallback,
+        account_equity=account_equity,
+        risk_pct=risk_pct,
+        market_label="Criptomonedas disponibles para trabajar",
+        market_scope="Crypto",
+    )
 
 
 def small_account_learning_rows(
@@ -30093,22 +30087,27 @@ def render_focused_home_live(
                 market_scope=budget_market_scope,
                 max_trades=max_daily_trades,
             )
-            render_budget_top_trades_panel(
-                display_best,
+            render_budget_split_opportunities_panel(
+                best,
                 account_equity=account_equity,
                 risk_pct=risk_pct,
-                market_scope=budget_market_scope,
                 max_trades=max_daily_trades,
             )
-            render_budget_recommendation_strip(display_best, account_equity=account_equity, risk_pct=risk_pct)
-            render_budget_trade_plan_panel(
-                display_best,
-                account_equity=account_equity,
-                risk_pct=risk_pct,
-                market_scope=budget_market_scope,
-                max_trades=max_daily_trades,
-            )
-            with st.expander("Ranking, score y memoria de estrategias", expanded=False):
+            with st.expander("Detalles avanzados de oportunidades", expanded=False):
+                render_budget_top_trades_panel(
+                    display_best,
+                    account_equity=account_equity,
+                    risk_pct=risk_pct,
+                    market_scope=budget_market_scope,
+                    max_trades=max_daily_trades,
+                )
+                render_budget_trade_plan_panel(
+                    display_best,
+                    account_equity=account_equity,
+                    risk_pct=risk_pct,
+                    market_scope=budget_market_scope,
+                    max_trades=max_daily_trades,
+                )
                 render_budget_strategy_allocation_panel(display_best, account_equity=account_equity, risk_pct=risk_pct)
                 render_opportunity_ranking_panel(display_best, account_equity=account_equity, risk_pct=risk_pct)
         with st.expander("Plan detallado: confirmaciones, vigilancia y salidas", expanded=False):
@@ -30161,22 +30160,27 @@ def render_focused_home_live(
                 market_scope=budget_market_scope,
                 max_trades=max_daily_trades,
             )
-            render_budget_top_trades_panel(
-                display_best,
+            render_budget_split_opportunities_panel(
+                best,
                 account_equity=account_equity,
                 risk_pct=risk_pct,
-                market_scope=budget_market_scope,
                 max_trades=max_daily_trades,
             )
-            render_budget_recommendation_strip(display_best, account_equity=account_equity, risk_pct=risk_pct)
-            render_budget_trade_plan_panel(
-                display_best,
-                account_equity=account_equity,
-                risk_pct=risk_pct,
-                market_scope=budget_market_scope,
-                max_trades=max_daily_trades,
-            )
-            with st.expander("Ranking, score y memoria de estrategias", expanded=False):
+            with st.expander("Detalles avanzados de oportunidades", expanded=False):
+                render_budget_top_trades_panel(
+                    display_best,
+                    account_equity=account_equity,
+                    risk_pct=risk_pct,
+                    market_scope=budget_market_scope,
+                    max_trades=max_daily_trades,
+                )
+                render_budget_trade_plan_panel(
+                    display_best,
+                    account_equity=account_equity,
+                    risk_pct=risk_pct,
+                    market_scope=budget_market_scope,
+                    max_trades=max_daily_trades,
+                )
                 render_budget_strategy_allocation_panel(display_best, account_equity=account_equity, risk_pct=risk_pct)
                 render_opportunity_ranking_panel(display_best, account_equity=account_equity, risk_pct=risk_pct)
         render_paper_readiness_gap_panel(best)
