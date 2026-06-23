@@ -125,6 +125,8 @@ from streamlit_app import (
     budget_expectancy_status,
     budget_filtered_opportunity_table,
     budget_strategy_allocation_rows,
+    budget_strategy_watch_label,
+    budget_strategy_watch_reason,
     budget_wide_search_rows,
     budget_top_trade_rows,
     budget_execution_stage,
@@ -2638,6 +2640,42 @@ def test_budget_strategy_allocation_rows_prioritizes_capital_efficiency():
     assert rows.iloc[0]["lane"] == "Mejor uso"
     assert rows.iloc[0]["expected_value"] > 0
     assert rows[rows["symbol"] == "NOSTOP"].iloc[0]["lane"] == "Solo vigilar"
+
+
+def test_budget_strategy_watch_label_shows_setup_instead_of_watch_status():
+    assert (
+        budget_strategy_watch_label(
+            {
+                "stage_label": "Solo vigilar",
+                "strategy": "Canal alcista en vigilancia",
+                "action": "Confirmar externo",
+                "product": "Accion fraccionada",
+            }
+        )
+        == "Canal alcista"
+    )
+    assert (
+        budget_strategy_watch_label(
+            {
+                "stage_label": "Solo vigilar",
+                "strategy": "Esperar recuperacion de medias",
+                "action": "Confirmar externo",
+                "product": "Accion fraccionada",
+            }
+        )
+        == "Cruce de medias"
+    )
+    assert (
+        budget_strategy_watch_reason(
+            {
+                "stage_label": "Solo vigilar",
+                "strategy": "Canal alcista en vigilancia",
+                "action": "Confirmar externo",
+                "product": "Accion fraccionada",
+            }
+        )
+        == "Confirmar externo · Canal alcista · Accion fraccionada"
+    )
 
 
 def test_budget_filtered_opportunity_table_limits_by_scope_and_max_trades():

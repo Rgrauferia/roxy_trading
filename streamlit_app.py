@@ -1586,6 +1586,71 @@ def dashboard_strategy_label(row: dict[str, Any]) -> str:
     return strategy_family_for_row(row)
 
 
+def compact_strategy_display_label(value: Any, row: dict[str, Any] | None = None) -> str:
+    label = text_display(value)
+    context_parts = [label]
+    if row:
+        context_parts.extend(
+            text_display(row.get(key))
+            for key in (
+                "strategy",
+                "strategy_family",
+                "salto_family",
+                "setup",
+                "trigger_setup",
+                "raw_signal",
+                "trend_setup",
+                "trend",
+                "stage_reason",
+                "next_step",
+                "action",
+            )
+        )
+    context = " ".join(part for part in context_parts if part != "-").lower()
+    if "cambio de canal" in context or "channel change" in context or "cambio canal" in context:
+        return "Cambio de canal"
+    if "cruce" in context or "media" in context or "sma" in context or "ema" in context or "avg" in context:
+        return "Cruce de medias"
+    if "pullback" in context or "retroceso" in context:
+        return "Pullback"
+    if "breakout" in context or "ruptura" in context or "rompimiento" in context:
+        return "Breakout"
+    if "rebote" in context:
+        return "Rebote en media"
+    if "canal alcista" in context or ("canal" in context and "alcista" in context):
+        return "Canal alcista"
+    if "canal bajista" in context or ("canal" in context and "bajista" in context):
+        return "Canal bajista"
+    if "tendencia bajista" in context or "baja" in context:
+        return "Canal bajista"
+    if "lateral" in context or "rango" in context:
+        return "Canal lateral"
+    if label != "-":
+        cleaned = label.replace(" en vigilancia", "").replace(" con confirmacion", "").strip(" ·-")
+        return cleaned[:34] if cleaned else "Setup en vigilancia"
+    return "Setup en vigilancia"
+
+
+def budget_strategy_watch_label(row: dict[str, Any]) -> str:
+    strategy = first_present(row.get("strategy"), row.get("strategy_family"), row.get("salto_family"))
+    if text_display(strategy) == "-":
+        strategy = dashboard_strategy_label(row)
+    return compact_strategy_display_label(strategy, row)
+
+
+def budget_strategy_watch_reason(row: dict[str, Any]) -> str:
+    strategy = budget_strategy_watch_label(row)
+    action = text_display(row.get("action"))
+    product = text_display(row.get("product"))
+    pieces = []
+    if action not in {"-", "Solo vigilar", "Vigilar"}:
+        pieces.append(action)
+    pieces.append(strategy)
+    if product not in {"-", strategy}:
+        pieces.append(product)
+    return " · ".join(piece for piece in pieces if piece)[:88]
+
+
 def safe_key(value: Any) -> str:
     text = str(value or "item").strip().lower()
     cleaned = [ch if ch.isalnum() else "_" for ch in text]
@@ -23198,11 +23263,13 @@ def render_budget_market_cards(
             qty = safe_float(row.get("qty"))
             qty_text = f"{qty:.4f}" if qty is not None and qty < 1 else num_display(qty, 0)
             href = text_display(row.get("href"))
+            strategy_label = budget_strategy_watch_label(row)
+            strategy_reason = budget_strategy_watch_reason(row)
             cards.append(
                 f'<article class="budget-market-card budget-market-{html.escape(tone)}">'
                 f'<header><a href="{html.escape(href)}">{html.escape(text_display(row.get("symbol")).upper())}</a>'
-                f'<span>{html.escape(text_display(row.get("stage_label")))}</span></header>'
-                f'<p>{html.escape(text_display(row.get("action")))} · {html.escape(text_display(row.get("product")))}</p>'
+                f'<span>{html.escape(strategy_label)}</span></header>'
+                f'<p>{html.escape(strategy_reason)}</p>'
                 '<div class="budget-market-metrics">'
                 f'<b><small>Entrada</small>{html.escape(price_display(row.get("entry")))}</b>'
                 f'<b><small>Stop</small>{html.escape(price_display(row.get("stop")))}</b>'
@@ -23221,11 +23288,13 @@ def render_budget_market_cards(
             if tone not in {"buy", "watch", "avoid"}:
                 tone = "watch"
             href = text_display(row.get("href"))
+            strategy_label = budget_strategy_watch_label(row)
+            strategy_reason = budget_strategy_watch_reason(row)
             cards.append(
                 f'<article class="budget-market-card budget-market-{html.escape(tone)}">'
                 f'<header><a href="{html.escape(href)}">{html.escape(text_display(row.get("symbol")).upper())}</a>'
-                '<span>Vigilar</span></header>'
-                f'<p>{html.escape(text_display(row.get("stage_label")))} · {html.escape(text_display(row.get("strategy")))}</p>'
+                f'<span>{html.escape(strategy_label)}</span></header>'
+                f'<p>{html.escape(strategy_reason)}</p>'
                 '<div class="budget-market-metrics">'
                 f'<b><small>Score</small>{html.escape(num_display(row.get("budget_score"), 1))}</b>'
                 f'<b><small>EV</small>{html.escape(num_display(row.get("expected_value"), 2))}</b>'
