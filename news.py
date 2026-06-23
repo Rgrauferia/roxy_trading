@@ -178,4 +178,3 @@ def save_highlights(items: List[dict], path: str = "alerts/news_highlights.json"
             latest_path.write_text(text)
     except Exception:
         pass
-*** End Patch
