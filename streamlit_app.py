@@ -21207,6 +21207,141 @@ def focused_opportunity_source_rows(brief: dict) -> list[dict[str, Any]]:
     return normalized
 
 
+def default_deploy_watch_symbols(selected_symbol: str = "", market_scope: str = "Todos", limit: int = 14) -> list[tuple[str, str]]:
+    scope = text_display(market_scope).lower()
+    symbols: list[tuple[str, str]] = []
+    selected = text_display(selected_symbol).upper()
+    if selected and selected != "-":
+        symbols.append((selected, normalize_command_market("stock", selected)))
+    if scope in {"-", "todos", "todo", "all", "acciones", "accion", "stocks", "stock"}:
+        symbols.extend((str(symbol).upper(), "stock") for symbol in DEFAULT_STOCK_SYMBOLS)
+    seen: set[tuple[str, str]] = set()
+    unique: list[tuple[str, str]] = []
+    for symbol, market in symbols:
+        key = (symbol, market)
+        if symbol and symbol != "-" and key not in seen:
+            seen.add(key)
+            unique.append(key)
+    return unique[: max(1, int(limit or 14))]
+
+
+@st.cache_data(ttl=45, show_spinner=False)
+def deploy_watchlist_opportunity_seed(
+    selected_symbol: str = "",
+    market_scope: str = "Todos",
+    limit: int = 14,
+) -> pd.DataFrame:
+    """Build a real-data watch queue when Render has no local scan artifacts yet."""
+    rows: list[dict[str, Any]] = []
+    for symbol, market in default_deploy_watch_symbols(selected_symbol, market_scope, limit=limit):
+        if market != "stock":
+            continue
+        history = fetch_direct_yfinance_ohlcv(symbol, "1h")
+        if history.empty:
+            continue
+        data = history.tail(240).copy()
+        closes = pd.to_numeric(data["close"], errors="coerce")
+        highs = pd.to_numeric(data["high"], errors="coerce")
+        lows = pd.to_numeric(data["low"], errors="coerce")
+        volumes = pd.to_numeric(data["volume"], errors="coerce").fillna(0)
+        current = safe_float(closes.iloc[-1])
+        previous = safe_float(closes.iloc[-2]) if len(closes) > 1 else current
+        if current is None or current <= 0:
+            continue
+        sma20 = safe_float(closes.rolling(20, min_periods=5).mean().iloc[-1])
+        sma40 = safe_float(closes.rolling(40, min_periods=10).mean().iloc[-1])
+        sma100 = safe_float(closes.rolling(100, min_periods=20).mean().iloc[-1])
+        sma200 = safe_float(closes.rolling(200, min_periods=30).mean().iloc[-1])
+        recent_low = safe_float(lows.tail(20).min()) or current * 0.98
+        recent_high = safe_float(highs.tail(20).max()) or current * 1.02
+        avg_volume = safe_float(volumes.tail(40).mean()) or 0.0
+        last_volume = safe_float(volumes.iloc[-1]) or 0.0
+        rel_volume = last_volume / avg_volume if avg_volume > 0 else None
+        change_pct = ((current - previous) / previous) if previous else 0.0
+
+        above_fast = sma20 is not None and current >= sma20
+        trend_up = bool(above_fast and sma40 is not None and sma20 >= sma40)
+        long_trend_ok = sma100 is None or current >= sma100 * 0.985
+        structure_ok = trend_up and long_trend_ok
+        stop_buffer = 0.018 if structure_ok else 0.025
+        stop = min(recent_low * 0.997, current * (1 - stop_buffer))
+        if stop <= 0 or stop >= current:
+            stop = current * (1 - stop_buffer)
+        entry = current if structure_ok else min(current * 1.004, max(current, (sma20 or current) * 1.002))
+        risk_pct = max(0.006, min(0.034, (entry - stop) / entry))
+        stop = entry * (1 - risk_pct)
+        target_2 = entry * 1.02
+        target_5 = entry * 1.05
+        target_10 = entry * 1.10
+        readiness = 45.0
+        readiness += 18.0 if structure_ok else 0.0
+        readiness += 8.0 if change_pct >= 0 else 0.0
+        readiness += 7.0 if rel_volume is not None and rel_volume >= 1 else 0.0
+        readiness += 7.0 if recent_high and current >= recent_high * 0.985 else 0.0
+        readiness = max(35.0, min(82.0, readiness))
+        signal = "WATCH"
+        decision = "WAIT"
+        trend_label = "Canal alcista en vigilancia" if structure_ok else "Esperar recuperacion de medias"
+        reason = (
+            f"{symbol} tiene precio y niveles medibles; "
+            f"{'SMA20/SMA40 alineadas' if structure_ok else 'todavia falta confirmacion de tendencia'}; "
+            f"volumen relativo {rel_volume:.2f}x." if rel_volume is not None else
+            f"{symbol} tiene precio y niveles medibles; falta confirmar volumen relativo."
+        )
+        rows.append(
+            {
+                "symbol": symbol,
+                "market": "stock",
+                "timeframe": "1h",
+                "signal": signal,
+                "decision": decision,
+                "trade_decision": decision,
+                "action": "WATCH",
+                "ai_action": "WATCH",
+                "ai_score": round(readiness, 2),
+                "readiness": round(readiness, 2),
+                "alert_readiness_score": round(readiness, 2),
+                "current_price": current,
+                "latest_price": current,
+                "entry": round(entry, 4),
+                "stop": round(stop, 4),
+                "stop_loss": round(stop, 4),
+                "target_2pct_price": round(target_2, 4),
+                "target_5pct_price": round(target_5, 4),
+                "target_10pct_price": round(target_10, 4),
+                "recommended_target_price": round(target_2, 4),
+                "recommended_target_pct": 0.02,
+                "target_pct": 0.02,
+                "risk_pct": round(risk_pct, 5),
+                "relative_volume_15m": rel_volume,
+                "rel_volume": rel_volume,
+                "strategy_family": trend_label,
+                "trigger": "WATCHLIST_SEED",
+                "trend": "UPTREND_WATCH" if structure_ok else "WAIT_TREND_CONFIRMATION",
+                "reason": reason,
+                "por_que": reason,
+                "raw_reason": reason,
+                "waiting_for": "Confirmar 15m BUY, broker/TradingView y que el precio respete la zona antes de entrar.",
+                "cambia_si": "Pasa a prioridad si el precio entra en zona con volumen y stop sigue medible.",
+                "data_bucket": "Fallback",
+                "data_state": "Seed live Render",
+                "data_source": "yfinance direct deploy seed",
+                "data_gate": "fallback_requires_confirmation",
+                "source_memory_bias": "Sin memoria fuente",
+                "strategy_source_memory_bias": "Sin memoria setup+fuente",
+                "crypto_context_memory_bias": "No aplica",
+                "backtest_memory_bias": "Sin backtest",
+                "tradingview_confirmation": "Sin webhook",
+                "market_event_state": "Sin evento FED/macro",
+            }
+        )
+    if not rows:
+        return pd.DataFrame()
+    frame = pd.DataFrame(rows)
+    frame["_sort"] = pd.to_numeric(frame["readiness"], errors="coerce").fillna(0)
+    return frame.sort_values("_sort", ascending=False).drop(columns=["_sort"]).reset_index(drop=True)
+
+
 def focused_opportunity_table(brief: dict) -> pd.DataFrame:
     rows = []
     memory_summary = (
@@ -22418,12 +22553,31 @@ def budget_execution_stage(expectancy: dict[str, Any]) -> dict[str, Any]:
     allowed = bool(budget.get("allowed"))
     blocked_data = data_bucket in {"Bloqueadas", "Sin contrato"} or "bloquead" in data_bucket.lower()
     weak_expectancy = expected_r is not None and expected_r < -0.05
+    quality_score = safe_float(expectancy.get("quality_score")) or 0.0
+    spread_pct = safe_float(expectancy.get("spread_pct"))
+    stop_distance_pct = safe_float(expectancy.get("stop_distance_pct"))
+    bad_structure = (
+        quality_score <= -45
+        or (spread_pct is not None and spread_pct > 0.12)
+        or (stop_distance_pct is not None and stop_distance_pct > 0.08)
+    )
 
     if action == "No operar" and blocked_data and readiness >= 50 and lane != "Baja expectativa":
         code = "SOLO_VIGILAR"
         label = "Solo vigilar"
         tone = "watch"
         reason = "La senal existe, pero falta fuente operable/live antes de arriesgar capital."
+    elif (
+        lane == "Baja expectativa"
+        and allowed
+        and action in {"Esperar confirmacion", "Esperar pullback", "Confirmar externo"}
+        and readiness >= 45
+        and not bad_structure
+    ):
+        code = "SOLO_VIGILAR"
+        label = "Solo vigilar"
+        tone = "watch"
+        reason = "Cabe en presupuesto y tiene niveles medibles, pero aun necesita confirmacion live/externa."
     elif action == "No operar" or lane == "Baja expectativa" or weak_expectancy:
         code = "NO_OPERAR"
         label = "No operar"
@@ -33053,6 +33207,13 @@ def show_focused_roxy_app() -> None:
             live_risk_pct = float(live_controls.get("risk_pct") or 0.01)
             live_scope = text_display(live_controls.get("budget_market_scope") or "Todos")
             live_max_trades = int(safe_float(live_controls.get("max_daily_trades")) or 3)
+            selected_symbol = text_display(live_controls.get("symbol_input") or live_controls.get("default_symbol") or "")
+            if not isinstance(live_best, pd.DataFrame) or live_best.empty:
+                live_best = deploy_watchlist_opportunity_seed(
+                    selected_symbol=selected_symbol,
+                    market_scope=live_scope,
+                    limit=max(10, live_max_trades * 5),
+                )
             budget_live_best = budget_filtered_opportunity_table(
                 live_best,
                 account_equity=live_equity,
@@ -33060,6 +33221,25 @@ def show_focused_roxy_app() -> None:
                 market_scope=live_scope,
                 max_trades=live_max_trades,
             )
+            if (not isinstance(budget_live_best, pd.DataFrame) or budget_live_best.empty) and selected_symbol:
+                seed_best = deploy_watchlist_opportunity_seed(
+                    selected_symbol=selected_symbol,
+                    market_scope=live_scope,
+                    limit=max(10, live_max_trades * 5),
+                )
+                if isinstance(seed_best, pd.DataFrame) and not seed_best.empty:
+                    live_best = (
+                        pd.concat([live_best, seed_best], ignore_index=True)
+                        .drop_duplicates(subset=["symbol", "market", "timeframe"], keep="first")
+                        .reset_index(drop=True)
+                    )
+                    budget_live_best = budget_filtered_opportunity_table(
+                        live_best,
+                        account_equity=live_equity,
+                        risk_pct=live_risk_pct,
+                        market_scope=live_scope,
+                        max_trades=live_max_trades,
+                    )
             has_budget_candidates = isinstance(budget_live_best, pd.DataFrame) and not budget_live_best.empty
             record_budget_filtered_paper_candidates(
                 budget_live_best if has_budget_candidates else pd.DataFrame(),
@@ -33451,19 +33631,20 @@ def main() -> None:
         .trade-desk-order-note span{color:#cbd5e1;font-size:11px;font-weight:750;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .launch-operator-shell{display:grid;grid-template-columns:minmax(220px,.85fr) minmax(280px,1.25fr) minmax(420px,1.45fr);gap:1px;border:1px solid rgba(148,163,184,.24);border-radius:8px;background:rgba(148,163,184,.16);overflow:hidden;margin:8px 0 10px;box-shadow:0 18px 46px rgba(2,6,23,.34)}
         .launch-operator-brand,.launch-operator-main,.launch-operator-metrics,.launch-operator-bottom{background:#070c16;min-width:0}
-        .launch-operator-brand{display:flex;align-items:center;gap:12px;padding:11px 12px;border-left:4px solid #f59e0b}
-        .launch-operator-brand .brand-logo-img{width:96px;max-width:96px;border-radius:7px}
+        .launch-operator-brand{display:flex;align-items:center;gap:14px;padding:13px 14px;border-left:4px solid #f59e0b;min-height:104px}
+        .launch-operator-brand .brand-logo-img{width:124px;max-width:124px;min-width:124px;border-radius:7px;object-fit:contain}
         .launch-operator-brand span,.launch-operator-main span,.launch-operator-metrics span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .launch-operator-brand strong{display:block;color:#f8fafc;font-size:18px;line-height:1.05;margin-top:4px;font-weight:950}
-        .launch-operator-brand small{display:block;color:#cbd5e1;font-size:10px;line-height:1.16;margin-top:5px}
+        .launch-operator-brand strong{display:block;color:#f8fafc;font-size:20px;line-height:1.05;margin-top:4px;font-weight:950}
+        .launch-operator-brand small{display:block;color:#cbd5e1;font-size:11px;line-height:1.16;margin-top:5px}
         .launch-operator-main{padding:11px 13px}.launch-operator-main strong{display:block;color:#f8fafc;font-size:28px;line-height:1.02;margin-top:4px;font-weight:950}.launch-operator-main p{margin:6px 0 0;color:#cbd5e1;font-size:12px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
         .launch-operator-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.launch-operator-metrics>div{background:#0b1220;padding:10px 11px;min-width:0}.launch-operator-metrics strong{display:block;color:#f8fafc;font-size:18px;line-height:1.05;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.launch-operator-metrics small{display:block;color:#94a3b8;font-size:10px;line-height:1.15;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .launch-operator-bottom{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:1px;background:rgba(148,163,184,.14)}.launch-operator-bottom span{background:#0b1220;color:#cbd5e1;padding:7px 10px;font-size:11px;line-height:1.18;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .launch-operator-buy .launch-operator-brand{border-left-color:#22c55e}.launch-operator-buy .launch-operator-main{background:rgba(21,93,62,.22)}
         .launch-operator-watch .launch-operator-brand{border-left-color:#f59e0b}.launch-operator-watch .launch-operator-main{background:rgba(120,74,15,.20)}
         .launch-operator-avoid .launch-operator-brand{border-left-color:#ef4444}.launch-operator-avoid .launch-operator-main{background:rgba(127,29,29,.22)}
-        @media (max-width:1100px){.launch-operator-shell{grid-template-columns:1fr}.launch-operator-bottom{grid-template-columns:1fr}.launch-operator-brand .brand-logo-img{width:86px;max-width:86px}}
-        @media (max-width:720px){.launch-operator-metrics{grid-template-columns:1fr 1fr}.launch-operator-main strong{font-size:23px}.launch-operator-bottom span{white-space:normal}.command-quick-strip>b,.command-quick-strip>span{white-space:normal}}
+        @media (max-width:1100px){.launch-operator-shell{grid-template-columns:1fr}.launch-operator-bottom{grid-template-columns:1fr}.launch-operator-brand .brand-logo-img{width:118px;max-width:118px;min-width:118px}}
+        @media (max-width:720px){.launch-operator-brand{display:grid;grid-template-columns:122px minmax(0,1fr);gap:13px;padding:14px;min-height:112px}.launch-operator-brand .brand-logo-img{width:122px;max-width:122px;min-width:122px}.launch-operator-brand strong{font-size:22px}.launch-operator-metrics{grid-template-columns:1fr 1fr}.launch-operator-main strong{font-size:23px}.launch-operator-bottom span{white-space:normal}.command-quick-strip>b,.command-quick-strip>span{white-space:normal}}
+        @media (max-width:430px){.launch-operator-brand{grid-template-columns:108px minmax(0,1fr)}.launch-operator-brand .brand-logo-img{width:108px;max-width:108px;min-width:108px}.launch-operator-brand strong{font-size:20px}.launch-operator-brand small{font-size:10px}}
         .roxy-now{display:grid;grid-template-columns:1.35fr .55fr .85fr .9fr;gap:1px;border:1px solid rgba(148,163,184,.24);border-radius:8px;background:rgba(148,163,184,.16);overflow:hidden;margin:8px 0 10px;box-shadow:0 14px 34px rgba(0,0,0,.20)}
         .roxy-now>div{background:#0b1220;padding:10px 12px;min-height:78px}
         .roxy-now span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.05em}
