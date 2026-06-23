@@ -21992,7 +21992,7 @@ def budget_recommendation_rows(
                 "reward_to_r": safe_float(budget.get("reward_to_r")),
                 "score": opportunity_ranking_score(item, account_equity=account_equity, risk_pct=risk_pct),
                 "next_step": text_display(budget.get("next_step") or status.get("next_step")),
-                "href": f"?view=Activo&symbol={quote(symbol, safe='')}&market={quote(market, safe='')}&tf={quote(tf, safe='')}",
+                "href": budget_dashboard_href(symbol, market, tf),
             }
         )
     output = pd.DataFrame(rows, columns=columns)
@@ -22001,6 +22001,16 @@ def budget_recommendation_rows(
     output["bucket_sort"] = output["bucket"].map({"Operable": 0, "Presupuesto pequeño": 1, "Solo vigilar": 2}).fillna(3)
     output = output.sort_values(["bucket_sort", "score_sort", "reward_sort"], ascending=[True, False, False]).head(limit)
     return output.drop(columns=["score_sort", "reward_sort", "bucket_sort"]).reset_index(drop=True)
+
+
+def budget_dashboard_href(symbol: Any, market: Any, timeframe: Any = "1h") -> str:
+    clean_symbol = text_display(symbol).upper()
+    clean_market = normalize_command_market(market, clean_symbol)
+    clean_tf = text_display(timeframe or "1h")
+    return (
+        f"?view=Dashboard&symbol={quote(clean_symbol, safe='')}"
+        f"&market={quote(clean_market, safe='')}&tf={quote(clean_tf, safe='')}"
+    )
 
 
 def _nested_value(row: dict[str, Any], *paths: str) -> Any:
@@ -22537,7 +22547,7 @@ def budget_strategy_allocation_rows(
                 "quality_label": text_display(expectation.get("quality_label")),
                 "quality_reasons": " · ".join(text_display(item) for item in expectation.get("quality_reasons") or []),
                 "next_step": text_display(budget.get("next_step") or status.get("next_step")),
-                "href": f"?view=Activo&symbol={quote(symbol, safe='')}&market={quote(market, safe='')}&tf={quote(tf, safe='')}",
+                "href": budget_dashboard_href(symbol, market, tf),
             }
         )
     output = pd.DataFrame(rows, columns=columns)
@@ -22788,7 +22798,7 @@ def budget_trade_plan_rows(
                 "quality_reasons": " · ".join(text_display(reason) for reason in expectancy.get("quality_reasons") or []),
                 "verdict": verdict,
                 "next_step": text_display(budget.get("next_step") or status.get("next_step")),
-                "href": f"?view=Activo&symbol={quote(symbol, safe='')}&market={quote(market, safe='')}&tf={quote(tf, safe='')}",
+                "href": budget_dashboard_href(symbol, market, tf),
             }
         )
     return pd.DataFrame(rows, columns=columns)
@@ -23021,6 +23031,158 @@ def render_budget_trade_plan_panel(
         f'<div>{"".join(cards)}</div></section>',
         unsafe_allow_html=True,
     )
+
+
+def render_budget_market_cards(
+    rows: pd.DataFrame,
+    *,
+    fallback_rows: pd.DataFrame,
+    account_equity: float,
+    risk_pct: float,
+    market_label: str,
+    market_scope: str,
+) -> None:
+    risk_budget = max(1.0, safe_float(account_equity) or 100.0) * max(0.001, safe_float(risk_pct) or 0.01)
+    cards: list[str] = []
+    if isinstance(rows, pd.DataFrame) and not rows.empty:
+        for row in rows.to_dict("records"):
+            tone = text_display(row.get("stage_tone"))
+            if tone not in {"buy", "watch", "avoid"}:
+                tone = "watch"
+            if "No vale" in text_display(row.get("verdict")):
+                tone = "avoid"
+            qty = safe_float(row.get("qty"))
+            qty_text = f"{qty:.4f}" if qty is not None and qty < 1 else num_display(qty, 0)
+            href = text_display(row.get("href"))
+            stage_label = text_display(row.get("stage_label"))
+            cards.append(
+                f'<article class="budget-market-card budget-market-{html.escape(tone)}">'
+                f'<header><a href="{html.escape(href)}">{html.escape(text_display(row.get("symbol")).upper())}</a>'
+                f'<span>{html.escape(stage_label)}</span></header>'
+                f'<p>{html.escape(text_display(row.get("action")))} · {html.escape(text_display(row.get("product")))}</p>'
+                '<div class="budget-market-metrics">'
+                f'<b><small>Entrada</small>{html.escape(price_display(row.get("entry")))}</b>'
+                f'<b><small>Stop</small>{html.escape(price_display(row.get("stop")))}</b>'
+                f'<b><small>Target 1</small>{html.escape(price_display(row.get("target_1")))}</b>'
+                f'<b><small>Riesgo</small>${html.escape(num_display(row.get("risk_dollars"), 2))}</b>'
+                f'<b><small>Ganancia</small>${html.escape(num_display(row.get("reward_1_dollars"), 2))}</b>'
+                f'<b><small>Tamano</small>{html.escape(qty_text)}</b>'
+                "</div>"
+                f'<em>{html.escape(text_display(row.get("verdict")))}</em>'
+                f'<a class="budget-chart-link" href="{html.escape(href)}">Ver en grafica</a>'
+                "</article>"
+            )
+    elif isinstance(fallback_rows, pd.DataFrame) and not fallback_rows.empty:
+        for row in fallback_rows.head(3).to_dict("records"):
+            tone = text_display(row.get("stage_tone") or row.get("tone"))
+            if tone not in {"buy", "watch", "avoid"}:
+                tone = "watch"
+            href = text_display(row.get("href"))
+            cards.append(
+                f'<article class="budget-market-card budget-market-{html.escape(tone)}">'
+                f'<header><a href="{html.escape(href)}">{html.escape(text_display(row.get("symbol")).upper())}</a>'
+                '<span>Vigilar</span></header>'
+                f'<p>{html.escape(text_display(row.get("stage_label")))} · {html.escape(text_display(row.get("strategy")))}</p>'
+                '<div class="budget-market-metrics">'
+                f'<b><small>Score</small>{html.escape(num_display(row.get("budget_score"), 1))}</b>'
+                f'<b><small>EV</small>{html.escape(num_display(row.get("expected_value"), 2))}</b>'
+                f'<b><small>1R</small>${html.escape(num_display(row.get("risk_dollars"), 2))}</b>'
+                f'<b><small>2%</small>${html.escape(num_display(row.get("reward_2_dollars"), 2))}</b>'
+                f'<b><small>Prob.</small>{html.escape(pct_display(row.get("win_probability")))}</b>'
+                f'<b><small>Fit</small>{html.escape("Cabe" if bool(row.get("budget_allowed")) else "Vigilar")}</b>'
+                "</div>"
+                f'<em>{html.escape(text_display(row.get("next_step"))[:130])}</em>'
+                f'<a class="budget-chart-link" href="{html.escape(href)}">Ver en grafica</a>'
+                "</article>"
+            )
+    if not cards:
+        st.markdown(
+            '<section class="budget-market-panel budget-market-empty">'
+            f'<header><strong>{html.escape(market_label)}</strong><span>${account_equity:,.0f} capital · 1R ${risk_budget:,.2f}</span></header>'
+            '<p>Sin candidatos para este mercado en el scan actual. Roxy sigue buscando setups con entrada, stop, liquidez y target medible.</p>'
+            "</section>",
+            unsafe_allow_html=True,
+        )
+        return
+    st.markdown(
+        '<section class="budget-market-panel">'
+        f'<header><strong>{html.escape(market_label)}</strong><span>${account_equity:,.0f} capital · 1R ${risk_budget:,.2f} · {html.escape(market_scope)} · tocar ticker para cargar grafica</span></header>'
+        f'<div class="budget-market-grid">{"".join(cards)}</div></section>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_budget_split_opportunities_panel(
+    table: pd.DataFrame,
+    *,
+    account_equity: float,
+    risk_pct: float,
+    max_trades: int,
+) -> None:
+    if not isinstance(table, pd.DataFrame) or table.empty:
+        st.info("Roxy todavia no recibio suficientes oportunidades para separar stocks y crypto por presupuesto.")
+        return
+    stock_rows = budget_trade_plan_rows(
+        table,
+        account_equity=account_equity,
+        risk_pct=risk_pct,
+        market_scope="stock",
+        max_trades=max_trades,
+    )
+    crypto_rows = budget_trade_plan_rows(
+        table,
+        account_equity=account_equity,
+        risk_pct=risk_pct,
+        market_scope="crypto",
+        max_trades=max_trades,
+    )
+    stock_fallback = (
+        pd.DataFrame()
+        if not stock_rows.empty
+        else budget_wide_search_rows(
+            table,
+            account_equity=account_equity,
+            risk_pct=risk_pct,
+            market_scope="stock",
+            limit=max_trades,
+        )
+    )
+    crypto_fallback = (
+        pd.DataFrame()
+        if not crypto_rows.empty
+        else budget_wide_search_rows(
+            table,
+            account_equity=account_equity,
+            risk_pct=risk_pct,
+            market_scope="crypto",
+            limit=max_trades,
+        )
+    )
+    stock_count = len(stock_rows) if not stock_rows.empty else len(stock_fallback)
+    crypto_count = len(crypto_rows) if not crypto_rows.empty else len(crypto_fallback)
+    st.markdown("### Oportunidades por presupuesto")
+    st.caption(
+        "Separado por mercado. Toca un ticker o 'Ver en grafica' para cargar ese activo arriba en las dos graficas."
+    )
+    stock_tab, crypto_tab = st.tabs([f"Stocks ({stock_count})", f"Crypto ({crypto_count})"])
+    with stock_tab:
+        render_budget_market_cards(
+            stock_rows,
+            fallback_rows=stock_fallback,
+            account_equity=account_equity,
+            risk_pct=risk_pct,
+            market_label="Stocks que caben en tu presupuesto",
+            market_scope="Stocks",
+        )
+    with crypto_tab:
+        render_budget_market_cards(
+            crypto_rows,
+            fallback_rows=crypto_fallback,
+            account_equity=account_equity,
+            risk_pct=risk_pct,
+            market_label="Crypto que cabe en tu presupuesto",
+            market_scope="Crypto",
+        )
 
 
 def small_account_learning_rows(
@@ -33043,11 +33205,6 @@ def show_focused_roxy_app() -> None:
 
         def _render_trade_lanes(live_context: dict[str, Any]) -> None:
             live_controls, _live_confluence_df, _live_options_df, _live_brief = _trade_desk_live_controls(live_context)
-            st.markdown("### Oportunidades que siguen la estrategia")
-            st.caption(
-                "Roxy muestra primero las candidatas que caben en tu capital, tienen entrada/stop/target medible "
-                "y respetan el modo paper/manual. No coloca ordenes reales."
-            )
             live_best = live_controls.get("best") if isinstance(live_controls, dict) else pd.DataFrame()
             live_equity = float(live_controls.get("account_equity") or 100.0)
             live_risk_pct = float(live_controls.get("risk_pct") or 0.01)
@@ -33068,55 +33225,31 @@ def show_focused_roxy_app() -> None:
                 market_scope=live_scope,
                 max_trades=live_max_trades,
             )
-            render_budget_top_trades_panel(
-                budget_live_best if has_budget_candidates else pd.DataFrame(),
+            render_budget_split_opportunities_panel(
+                live_best,
                 account_equity=live_equity,
                 risk_pct=live_risk_pct,
-                market_scope=live_scope,
                 max_trades=live_max_trades,
             )
-            if not has_budget_candidates:
-                render_budget_wide_search_panel(
-                    live_best,
-                    account_equity=live_equity,
-                    risk_pct=live_risk_pct,
-                    market_scope=live_scope,
-                    max_trades=live_max_trades,
-                )
-                return
-            display_live_best = budget_live_best
-            render_budget_recommendation_strip(
-                display_live_best,
-                account_equity=live_equity,
-                risk_pct=live_risk_pct,
-            )
-            render_budget_trade_plan_panel(
-                display_live_best,
-                account_equity=live_equity,
-                risk_pct=live_risk_pct,
-                market_scope=live_scope,
-                max_trades=live_max_trades,
-            )
-            render_opportunity_ranking_panel(
-                display_live_best,
-                account_equity=live_equity,
-                risk_pct=live_risk_pct,
-            )
-            with st.expander("Operar ahora / vigilar", expanded=False):
+            display_live_best = budget_live_best if has_budget_candidates else live_best
+            with st.expander("Detalles avanzados de oportunidades", expanded=False):
                 render_priority_trade_lanes(display_live_best)
-            with st.expander("Score presupuestado y memoria de estrategias", expanded=False):
-                render_budget_strategy_allocation_panel(
+                render_opportunity_ranking_panel(
                     display_live_best,
                     account_equity=live_equity,
                     risk_pct=live_risk_pct,
                 )
-            with st.expander("Campo amplio: acciones y crypto en vigilancia", expanded=False):
                 render_budget_wide_search_panel(
                     live_best,
                     account_equity=live_equity,
                     risk_pct=live_risk_pct,
                     market_scope=live_scope,
                     max_trades=live_max_trades,
+                )
+                render_budget_strategy_allocation_panel(
+                    display_live_best,
+                    account_equity=live_equity,
+                    risk_pct=live_risk_pct,
                 )
             with st.expander("Aprendizaje por resultado", expanded=False):
                 render_small_account_learning_panel()
@@ -33395,6 +33528,25 @@ def main() -> None:
         .budget-plan-card p,.budget-plan-card em,.budget-plan-card small{grid-column:1/-1;margin:0;background:#0b1220;color:#cbd5e1;font-size:10px;line-height:1.22;padding:6px 8px;font-style:normal}
         .budget-plan-card em{color:#f8fafc;font-weight:900}.budget-plan-card small{color:#94a3b8}
         .budget-plan-buy{border-top-color:#22c55e;background:rgba(20,83,45,.24)}.budget-plan-watch{border-top-color:#f59e0b;background:rgba(120,53,15,.20)}.budget-plan-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.18)}
+        .budget-market-panel{border:1px solid rgba(96,165,250,.24);border-radius:8px;background:#070b14;margin:8px 0 10px;overflow:hidden}
+        .budget-market-panel>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 10px;background:#0d1424;border-bottom:1px solid rgba(148,163,184,.14)}
+        .budget-market-panel>header strong{color:#f8fafc;font-size:15px;font-weight:950;line-height:1.1}
+        .budget-market-panel>header span{color:#93c5fd;font-size:11px;text-align:right}
+        .budget-market-panel>p{margin:0;padding:11px;color:#cbd5e1;font-size:12px;line-height:1.35}
+        .budget-market-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
+        .budget-market-card{display:flex;flex-direction:column;gap:7px;min-width:0;background:#0b1220;padding:10px;border-top:3px solid rgba(148,163,184,.34)}
+        .budget-market-card header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+        .budget-market-card header a{color:#f8fafc!important;font-size:23px;font-weight:950;line-height:1;text-decoration:none!important}
+        .budget-market-card header a:hover{text-decoration:underline!important;text-underline-offset:3px}
+        .budget-market-card header span{color:#cbd5e1;font-size:10px;font-weight:950;text-align:right;text-transform:uppercase;line-height:1.15}
+        .budget-market-card p{margin:0;color:#cbd5e1;font-size:11px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .budget-market-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border:1px solid rgba(148,163,184,.14);border-radius:6px;overflow:hidden}
+        .budget-market-metrics b{display:block;min-width:0;background:#0f172a;color:#f8fafc;font-size:12px;line-height:1.1;padding:7px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .budget-market-metrics small{display:block;color:#94a3b8;font-size:8px;line-height:1;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+        .budget-market-card em{display:block;margin:0;color:#94a3b8;font-size:10px;line-height:1.25;font-style:normal;min-height:24px}
+        .budget-chart-link{display:inline-flex;align-self:flex-start;align-items:center;justify-content:center;border:1px solid rgba(96,165,250,.45);border-radius:6px;background:rgba(37,99,235,.22);color:#bfdbfe!important;font-size:10px;font-weight:950;letter-spacing:.04em;text-transform:uppercase;text-decoration:none!important;padding:6px 9px}
+        .budget-chart-link:hover{background:rgba(37,99,235,.34);color:#eff6ff!important}
+        .budget-market-buy{border-top-color:#22c55e;background:rgba(20,83,45,.24)}.budget-market-watch{border-top-color:#f59e0b;background:rgba(120,53,15,.20)}.budget-market-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.18)}
         .small-learning-panel>div{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
         .small-learning-card{display:block;min-width:0;background:#0b1220;border-top:3px solid rgba(148,163,184,.34);padding:8px 9px}
         .small-learning-card span{display:block;color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.05em}
@@ -33714,7 +33866,7 @@ def main() -> None:
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
         @media (max-width:1100px){.ticker-intel,.alpaca-gate,.alpaca-paper-panel{grid-template-columns:1fr}.ticker-intel-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.paper-journal-summary,.paper-exec-summary,.paper-practice-summary,.trading-desk-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.trading-desk-queue>div{grid-template-columns:repeat(2,minmax(0,1fr))}.desk-opportunity-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.paper-position-grid,.paper-strategy-grid,.paper-practice-grid,.paper-journal-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exit-grid,.provider-grid,.preset-grid,.research-grid,.paper-exec-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.confirm-radar-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.executive-cockpit{grid-template-columns:1fr}.scanner-tape,.scanner-compass{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-compass em{text-align:left}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-grid-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}.discovery-grid{grid-template-columns:1fr}.crypto-discovery-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.brand-logo-img{width:150px;max-width:42vw}.roxy-hero-right{grid-template-columns:1fr 1fr}.dashboard-compact-head{grid-template-columns:1fr 1fr}.dashboard-compact-head p,.dashboard-compact-head small{grid-column:1/-1;text-align:left}.dashboard-action-queue header,.priority-trade-lanes>header,.budget-top-panel>header,.budget-fit-strip>header,.budget-allocation-panel>header,.budget-plan-panel>header,.small-learning-panel>header{display:block}.dashboard-action-queue header span,.priority-trade-lanes>header span,.budget-top-panel>header span,.budget-fit-strip>header span,.budget-allocation-panel>header span,.budget-plan-panel>header span,.small-learning-panel>header span{display:block;text-align:left;margin-top:4px}.dashboard-action-queue>div,.priority-lane-grid,.budget-top-panel>div,.budget-fit-strip>div,.budget-allocation-panel>div,.budget-plan-panel>div,.small-learning-panel>div{grid-template-columns:1fr}.budget-empty-card{display:block}.budget-empty-card p,.budget-empty-card small{display:block;text-align:left;white-space:normal;margin-top:4px}.dashboard-compact-brand .brand-logo-img{width:82px;max-width:82px}.chart-command-head{display:block}.chart-command-head aside{justify-content:flex-start;margin-top:8px}.chart-next-action{white-space:normal;max-width:none;overflow:visible;text-overflow:clip}.chart-check-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}.command-quick-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.market-route{display:block}.market-route p{margin-top:8px}.market-route-chips{justify-content:flex-start;margin-top:8px}.selected-asset-banner{display:block;padding:8px 9px}.selected-asset-banner strong{font-size:14px}.selected-asset-banner small{font-size:10px}.selected-asset-scope{text-align:left;min-width:0;margin-top:7px}.priority-trade-card p,.priority-trade-card b,.budget-top-card b,.budget-top-card i,.budget-fit-card b,.budget-fit-card i,.budget-allocation-card b,.budget-allocation-card i,.budget-plan-card strong,.budget-plan-card small,.small-learning-card strong{white-space:normal}}
+        @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.brand-logo-img{width:150px;max-width:42vw}.roxy-hero-right{grid-template-columns:1fr 1fr}.dashboard-compact-head{grid-template-columns:1fr 1fr}.dashboard-compact-head p,.dashboard-compact-head small{grid-column:1/-1;text-align:left}.dashboard-action-queue header,.priority-trade-lanes>header,.budget-top-panel>header,.budget-fit-strip>header,.budget-allocation-panel>header,.budget-plan-panel>header,.budget-market-panel>header,.small-learning-panel>header{display:block}.dashboard-action-queue header span,.priority-trade-lanes>header span,.budget-top-panel>header span,.budget-fit-strip>header span,.budget-allocation-panel>header span,.budget-plan-panel>header span,.budget-market-panel>header span,.small-learning-panel>header span{display:block;text-align:left;margin-top:4px}.dashboard-action-queue>div,.priority-lane-grid,.budget-top-panel>div,.budget-fit-strip>div,.budget-allocation-panel>div,.budget-plan-panel>div,.budget-market-grid,.small-learning-panel>div{grid-template-columns:1fr}.budget-empty-card{display:block}.budget-empty-card p,.budget-empty-card small{display:block;text-align:left;white-space:normal;margin-top:4px}.dashboard-compact-brand .brand-logo-img{width:82px;max-width:82px}.chart-command-head{display:block}.chart-command-head aside{justify-content:flex-start;margin-top:8px}.chart-next-action{white-space:normal;max-width:none;overflow:visible;text-overflow:clip}.chart-check-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}.command-quick-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.market-route{display:block}.market-route p{margin-top:8px}.market-route-chips{justify-content:flex-start;margin-top:8px}.selected-asset-banner{display:block;padding:8px 9px}.selected-asset-banner strong{font-size:14px}.selected-asset-banner small{font-size:10px}.selected-asset-scope{text-align:left;min-width:0;margin-top:7px}.priority-trade-card p,.priority-trade-card b,.budget-top-card b,.budget-top-card i,.budget-fit-card b,.budget-fit-card i,.budget-allocation-card b,.budget-allocation-card i,.budget-plan-card strong,.budget-plan-card small,.budget-market-card p,.budget-market-card em,.budget-market-metrics b,.small-learning-card strong{white-space:normal}}
         @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.chart-command-head strong{font-size:19px}.chart-check-strip{grid-template-columns:1fr}.chart-check-pill{display:block;padding:7px 8px}.chart-check-pill strong{margin-top:6px}.chart-check-pill small{white-space:normal}.command-checklist,.command-quick-strip{grid-template-columns:1fr}.command-main h2{font-size:25px}.ticker-intel-kpis{grid-template-columns:1fr 1fr}.ticker-intel-main h3{font-size:23px}.company-research>header,.confirmation-radar>header,.exit-board>header,.paper-position-panel>header,.paper-strategy-panel>header,.paper-practice-panel>header,.paper-journal-panel>header,.paper-exec-panel>header,.provider-center>header,.screener-presets>header,.trading-desk-queue>header,.live-pulse header,.live-ops-strip header{display:block}.company-research>header span,.confirmation-radar>header span,.exit-board>header span,.paper-position-panel>header span,.paper-strategy-panel>header span,.paper-practice-panel>header span,.paper-journal-panel>header span,.paper-exec-panel>header span,.provider-center>header span,.screener-presets>header span,.trading-desk-queue>header span,.live-pulse header span,.live-ops-strip header span{display:block;text-align:left;margin-top:4px}.chart-data-contract{display:block}.chart-data-contract aside{grid-template-columns:1fr 1fr}.chart-data-contract p{border-top:1px solid rgba(148,163,184,.14)}.live-pulse-grid,.live-ops-grid{grid-template-columns:1fr}.provider-quality,.provider-confirmation{display:block}.provider-quality p,.provider-confirmation p{margin-top:8px}.provider-quality small{margin-top:6px}.provider-confirmation aside{grid-template-columns:1fr;margin-top:8px}.paper-journal-summary,.paper-exec-summary,.paper-practice-summary,.trading-desk-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.trading-desk-focus{display:block}.trading-desk-focus p{margin-top:8px}.trading-desk-focus small{display:block;margin-top:5px;white-space:normal}.trading-desk-queue>div{grid-template-columns:1fr}.desk-opportunity-grid{grid-template-columns:1fr}.paper-position-grid,.paper-strategy-grid,.paper-practice-grid,.paper-journal-grid{grid-template-columns:1fr}.exit-grid,.provider-grid,.preset-grid,.research-grid,.confirm-radar-grid,.paper-exec-grid{grid-template-columns:1fr}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.roxy-radar-guide,.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.compare-board>header{display:block}.compare-board>header span{display:block;text-align:left;margin-top:4px}.compare-grid-cards{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{display:block;text-align:left;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.buy-gap-strip{grid-template-columns:1fr}.buy-gap-strip em{white-space:normal}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}.market-discovery-deck>header{grid-template-columns:1fr}.mover-section-grid,.sector-map-grid,.crypto-discovery-grid,.asset-stat-grid{grid-template-columns:1fr 1fr}.stock-monitor-row{grid-template-columns:1fr}.stock-monitor-row small{white-space:normal}}
         </style>
         """,
