@@ -1,0 +1,10 @@
+# AI/development crypto pairs validated against Binance.US markets.
+# Use with: .venv/bin/python tools/ma_scan.py --market crypto --crypto-watchlist data/watchlist_crypto_ai_development.txt --crypto-timeframes 15m,1h
+FET/USD
+GLM/USD
+GRT/USD
+NEAR/USD
+OCEAN/USD
+RLC/USD
+RNDR/USD
+TRAC/USD

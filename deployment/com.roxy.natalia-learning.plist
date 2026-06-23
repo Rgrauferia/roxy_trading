@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.roxy.natalia-learning</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/robertograu/roxy_trading/.venv/bin/python</string>
+    <string>/Users/robertograu/roxy_trading/tools/video_learning_ingest.py</string>
+    <string>--source</string>
+    <string>/Volumes/RoxyData/natalia_trading_copy_20260614_175259</string>
+    <string>--limit</string>
+    <string>3</string>
+    <string>--max-depth</string>
+    <string>12</string>
+    <string>--every-seconds</string>
+    <string>600</string>
+    <string>--idle-review</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/robertograu/roxy_trading</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StartInterval</key>
+  <integer>1800</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/robertograu/roxy_trading/logs/natalia_learning_launchd.out</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/robertograu/roxy_trading/logs/natalia_learning_launchd.err</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
+  </dict>
+</dict>
+</plist>

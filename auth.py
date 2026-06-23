@@ -32,7 +32,7 @@ def get_provider_config(provider: str) -> Dict[str, str]:
     raise NotImplementedError("Only GitHub scaffold provided")
 
 
-def start_oauth_flow(provider: str, redirect_uri: str) -> str:
+def start_oauth_flow(provider: str, redirect_uri: str, state: str | None = None) -> str:
     """Return an authorization URL to redirect the user to.
 
     In Streamlit, you would open this URL in the browser.
