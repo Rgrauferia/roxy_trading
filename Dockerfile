@@ -1,16 +1,27 @@
-FROM python:3.9-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    STREAMLIT_SERVER_HEADLESS=true \
+    STREAMLIT_BROWSER_GATHER_USAGE_STATS=false \
+    ROXY_OUTPUT_DIR=/var/data/output \
+    ROXY_ALERTS_DIR=/var/data/alerts \
+    ROXY_DATA_DIR=/var/data/data \
+    ROXY_DB_DIR=/var/data/db \
+    ROXY_ENABLE_LIVE_BROKER_EXECUTION=0
 
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --upgrade pip \
+    && pip install -r requirements.txt
 
 COPY . /app
 
-EXPOSE 8501
+RUN mkdir -p /var/data/output /var/data/alerts /var/data/data /var/data/db
 
-# Default is to run the Streamlit dashboard; override in docker-compose for scanner
-CMD ["streamlit", "run", "streamlit_app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
+EXPOSE 3000
+
+# Production default. Local development keeps hot reload in docker-compose/Makefile.
+CMD ["sh", "-c", "streamlit run streamlit_app.py --server.port ${PORT:-3000} --server.address 0.0.0.0 --server.headless true --browser.gatherUsageStats false --server.fileWatcherType none"]
