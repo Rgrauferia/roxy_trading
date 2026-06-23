@@ -29983,50 +29983,81 @@ def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> 
     current_timeframe = normalize_command_timeframe(st.session_state.get("command_timeframe"))
     current_equity = float(st.session_state.get("command_equity", 100.0) or 100.0)
     current_risk = float(st.session_state.get("command_risk", 1.0) or 1.0)
+    current_1r = current_equity * (current_risk / 100.0)
     st.markdown(
         f"""
-        <section class="trade-desk-order-note">
-          <strong>Cambia activo</strong>
-          <span>{html.escape(text_display(current_symbol).upper())} · {html.escape(current_market.upper())} · {html.escape(current_timeframe)} · Capital ${current_equity:,.0f} · Riesgo {current_risk:.1f}%</span>
+        <section class="trade-desk-control-panel">
+          <div class="trade-desk-control-brand">
+            {brand_logo_html()}
+            <div>
+              <span>Roxy Trade Desk</span>
+              <strong>{html.escape(text_display(current_symbol).upper())}</strong>
+              <small>{html.escape(current_market.upper())} · {html.escape(current_timeframe)} · Capital ${current_equity:,.0f} · 1R ${current_1r:,.2f}</small>
+            </div>
+          </div>
+          <div class="trade-desk-control-status">
+            <strong>Paper/manual</strong>
+            <span>Ordenes reales OFF</span>
+          </div>
         </section>
         """,
         unsafe_allow_html=True,
     )
-    control_cols = st.columns([1.08, 0.62, 0.56, 0.72, 0.50], gap="small")
-    with control_cols[0]:
+    quick_cols = st.columns([1.0, 0.42], gap="small")
+    with quick_cols[0]:
         symbol_input = st.text_input(
-            "Simbolo o crypto",
+            "Cambiar activo",
             value=current_symbol,
             key="command_symbol",
             on_change=persist_command_symbol_query_params,
+            label_visibility="collapsed",
+            placeholder="Ticker o crypto: AAPL, TSLA, BTC/USD",
         )
-    with control_cols[1]:
-        inferred_market = "crypto" if "/" in str(symbol_input) else "stock"
-        market = st.selectbox(
-            "Mercado",
-            ["stock", "crypto"],
-            index=1 if inferred_market == "crypto" else 0,
-            key="command_market",
-            on_change=persist_command_query_params,
+    with quick_cols[1]:
+        st.markdown(
+            f"""
+            <div class="trade-desk-quick-metrics">
+              <span>Riesgo</span>
+              <strong>{current_risk:.1f}%</strong>
+              <small>1R ${current_1r:,.2f}</small>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-    with control_cols[2]:
-        timeframe = st.selectbox(
-            "Marco", TIMEFRAME_OPTIONS, index=DEFAULT_TIMEFRAME_INDEX, key="command_timeframe", on_change=persist_command_query_params
-        )
-    with control_cols[3]:
-        account_equity = st.number_input(
-            "Capital disponible",
-            min_value=50.0,
-            value=100.0,
-            step=50.0,
-            key="command_equity",
-            help="Roxy calcula tamaño, riesgo y potencial según este capital; no usa un riesgo fijo.",
-        )
-    with control_cols[4]:
-        risk_pct_ui = st.number_input(
-            "Riesgo %", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key="command_risk"
-        )
-    with st.expander("Mas filtros de presupuesto y vista", expanded=False):
+
+    with st.expander("Cambiar mercado, timeframe, capital y riesgo", expanded=False):
+        control_cols = st.columns([0.62, 0.56, 0.72, 0.50], gap="small")
+        inferred_market = normalize_command_market(current_market, symbol_input)
+        with control_cols[0]:
+            market_index = 1 if inferred_market == "crypto" else 0
+            market = st.selectbox(
+                "Mercado",
+                ["stock", "crypto"],
+                index=market_index,
+                key="command_market",
+                on_change=persist_command_query_params,
+            )
+        with control_cols[1]:
+            timeframe = st.selectbox(
+                "Marco",
+                TIMEFRAME_OPTIONS,
+                index=TIMEFRAME_OPTIONS.index(current_timeframe) if current_timeframe in TIMEFRAME_OPTIONS else DEFAULT_TIMEFRAME_INDEX,
+                key="command_timeframe",
+                on_change=persist_command_query_params,
+            )
+        with control_cols[2]:
+            account_equity = st.number_input(
+                "Capital disponible",
+                min_value=50.0,
+                value=current_equity,
+                step=50.0,
+                key="command_equity",
+                help="Roxy calcula tamaño, riesgo y potencial según este capital; no usa un riesgo fijo.",
+            )
+        with control_cols[3]:
+            risk_pct_ui = st.number_input(
+                "Riesgo %", min_value=0.1, max_value=5.0, value=current_risk, step=0.1, key="command_risk"
+            )
         extra_cols = st.columns([0.75, 0.55, 0.48], gap="small")
         with extra_cols[0]:
             budget_market_scope = st.selectbox(
@@ -30052,9 +30083,17 @@ def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> 
                 key="command_clean_mode",
                 help="Muestra primero oportunidades accionables y oculta paneles secundarios del Dashboard.",
             )
-
-    with st.expander("Estado técnico del scan", expanded=False):
-        render_alert_noise_contract(brief)
+    market = normalize_command_market(st.session_state.get("command_market", current_market), symbol_input)
+    timeframe = normalize_command_timeframe(st.session_state.get("command_timeframe", current_timeframe))
+    account_equity = float(st.session_state.get("command_equity", current_equity) or current_equity)
+    risk_pct_ui = float(st.session_state.get("command_risk", current_risk) or current_risk)
+    budget_market_scope = st.session_state.get("command_budget_market_scope", "Todos")
+    max_daily_trades = int(st.session_state.get("command_max_daily_trades", 3) or 3)
+    clean_mode = bool(st.session_state.get("command_clean_mode", True))
+    if "/" in str(symbol_input) and market != "crypto":
+        market = "crypto"
+        st.session_state["command_market"] = market
+        persist_command_query_params()
     realtime_report = read_summary_json("alerts/roxy_realtime_check.json")
     sync_dashboard_query_params(
         st.query_params,
@@ -33764,6 +33803,17 @@ def main() -> None:
         .trade-desk-order-note{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid rgba(56,189,248,.24);border-left:3px solid #38bdf8;border-radius:6px;background:rgba(11,18,32,.72);padding:5px 8px;margin:0 0 4px}
         .trade-desk-order-note strong{color:#f8fafc;font-size:12px;font-weight:950;line-height:1;text-transform:uppercase;letter-spacing:.04em}
         .trade-desk-order-note span{color:#cbd5e1;font-size:11px;font-weight:750;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .trade-desk-control-panel{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid rgba(34,197,94,.24);border-left:4px solid #f59e0b;border-radius:8px;background:linear-gradient(135deg,rgba(7,12,22,.96),rgba(12,20,36,.90));padding:8px 10px;margin:0 0 6px;box-shadow:0 14px 34px rgba(2,6,23,.26)}
+        .trade-desk-control-brand{display:flex;align-items:center;gap:10px;min-width:0}
+        .trade-desk-control-brand .brand-logo-img{width:72px;max-width:72px;min-width:72px;border-radius:6px;object-fit:contain}
+        .trade-desk-control-brand span,.trade-desk-control-status span,.trade-desk-quick-metrics span{display:block;color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .trade-desk-control-brand strong{display:block;color:#f8fafc;font-size:20px;line-height:1;margin-top:3px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .trade-desk-control-brand small{display:block;color:#cbd5e1;font-size:11px;line-height:1.12;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .trade-desk-control-status,.trade-desk-quick-metrics{border:1px solid rgba(148,163,184,.20);border-radius:7px;background:rgba(11,18,32,.78);padding:8px 10px;text-align:right;min-width:112px}
+        .trade-desk-control-status strong,.trade-desk-quick-metrics strong{display:block;color:#f8fafc;font-size:13px;line-height:1.05;font-weight:950;white-space:nowrap}
+        .trade-desk-quick-metrics{margin-top:0}
+        .trade-desk-quick-metrics small{display:block;color:#cbd5e1;font-size:10px;line-height:1.1;margin-top:3px;white-space:nowrap}
+        @media (max-width:720px){.trade-desk-control-panel{grid-template-columns:1fr;padding:8px;margin-bottom:4px}.trade-desk-control-brand .brand-logo-img{width:64px;max-width:64px;min-width:64px}.trade-desk-control-brand strong{font-size:18px}.trade-desk-control-status{display:none}.trade-desk-quick-metrics{min-width:0;padding:8px 7px}.trade-desk-control-brand small{font-size:10px}}
         .launch-operator-shell{display:grid;grid-template-columns:minmax(220px,.85fr) minmax(280px,1.25fr) minmax(420px,1.45fr);gap:1px;border:1px solid rgba(148,163,184,.24);border-radius:8px;background:rgba(148,163,184,.16);overflow:hidden;margin:8px 0 10px;box-shadow:0 18px 46px rgba(2,6,23,.34)}
         .launch-operator-brand,.launch-operator-main,.launch-operator-metrics,.launch-operator-bottom{background:#070c16;min-width:0}
         .launch-operator-brand{display:flex;align-items:center;gap:14px;padding:13px 14px;border-left:4px solid #f59e0b;min-height:104px}

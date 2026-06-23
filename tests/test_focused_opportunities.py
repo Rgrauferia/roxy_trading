@@ -3713,12 +3713,15 @@ def test_trade_desk_prioritizes_chart_visibility_over_secondary_controls():
     app_source = function_source_from_file("streamlit_app.py", "show_focused_roxy_app")
 
     assert chart_source.find("render_browser_live_candle_chart(") < chart_source.find("render_operational_trade_snapshot(")
-    assert 'class="trade-desk-order-note"' in controls_source
-    assert 'control_cols = st.columns([1.08, 0.62, 0.56, 0.72, 0.50], gap="small")' in controls_source
-    assert 'with st.expander("Mas filtros de presupuesto y vista", expanded=False):' in controls_source
-    assert controls_source.find('control_cols = st.columns([1.08, 0.62, 0.56, 0.72, 0.50], gap="small")') < controls_source.find(
-        'with st.expander("Mas filtros de presupuesto y vista", expanded=False):'
+    assert 'class="trade-desk-control-panel"' in controls_source
+    assert "quick_cols = st.columns([1.0, 0.42], gap=\"small\")" in controls_source
+    assert 'label_visibility="collapsed"' in controls_source
+    assert 'with st.expander("Cambiar mercado, timeframe, capital y riesgo", expanded=False):' in controls_source
+    assert controls_source.find("quick_cols = st.columns([1.0, 0.42], gap=\"small\")") < controls_source.find(
+        'with st.expander("Cambiar mercado, timeframe, capital y riesgo", expanded=False):'
     )
+    assert 'control_cols = st.columns([1.08, 0.62, 0.56, 0.72, 0.50], gap="small")' not in controls_source
+    assert 'with st.expander("Estado técnico del scan", expanded=False):' not in controls_source
     assert 'with st.expander("Cambiar activo, mercado, timeframe y riesgo", expanded=False)' not in controls_source
     assert 'with st.expander("Plan detallado: confirmaciones, vigilancia y salidas", expanded=False)' in live_home_source
     assert 'with st.expander("Paper labs y medicion", expanded=False)' in live_home_source
