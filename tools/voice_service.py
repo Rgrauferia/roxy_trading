@@ -46,8 +46,23 @@ try:
 except Exception:
     auto_api_router = None
 
+try:
+    from tradingview_webhooks import (
+        DEFAULT_WEBHOOK_PATH as DEFAULT_TRADINGVIEW_WEBHOOK_PATH,
+        append_authenticated_tradingview_webhook,
+        configured_tradingview_webhook_secret,
+        load_tradingview_webhooks,
+    )
+except Exception:
+    DEFAULT_TRADINGVIEW_WEBHOOK_PATH = Path("alerts/tradingview_webhooks.jsonl")
+    append_authenticated_tradingview_webhook = None
+    configured_tradingview_webhook_secret = None
+    load_tradingview_webhooks = None
+
 
 VOICE_API_KEY = os.getenv("VOICE_API_KEY")
+TRADINGVIEW_WEBHOOK_SECRET = os.getenv("TRADINGVIEW_WEBHOOK_SECRET")
+TRADINGVIEW_WEBHOOK_PATH = Path(os.getenv("TRADINGVIEW_WEBHOOK_PATH", str(DEFAULT_TRADINGVIEW_WEBHOOK_PATH)))
 RATE_LIMIT_WINDOW = int(os.getenv("VOICE_RATE_WINDOW_SECONDS", "60"))
 RATE_LIMIT_MAX = int(os.getenv("VOICE_RATE_MAX", "30"))
 _DEV_AUTH_WARNING_LOGGED = False
@@ -219,9 +234,94 @@ def rate_limited(token: Optional[str]):
     st["count"] += 1
 
 
+def tradingview_webhook_env() -> dict[str, str]:
+    return {"TRADINGVIEW_WEBHOOK_SECRET": TRADINGVIEW_WEBHOOK_SECRET or os.getenv("TRADINGVIEW_WEBHOOK_SECRET", "")}
+
+
+def tradingview_webhook_auth_configured() -> bool:
+    if configured_tradingview_webhook_secret is None:
+        return False
+    return bool(configured_tradingview_webhook_secret(tradingview_webhook_env()))
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/v1/webhooks/tradingview/status")
+def tradingview_webhook_status():
+    if load_tradingview_webhooks is None:
+        raise HTTPException(status_code=503, detail="TradingView webhook module unavailable")
+    rows = load_tradingview_webhooks(TRADINGVIEW_WEBHOOK_PATH, limit=100)
+    if rows.empty:
+        return {
+            "status": "waiting",
+            "path": str(TRADINGVIEW_WEBHOOK_PATH),
+            "count": 0,
+            "latest": None,
+            "auth_mode": "secret" if tradingview_webhook_auth_configured() else "missing",
+            "orders": "OFF",
+        }
+    latest = rows.iloc[-1].to_dict()
+    return {
+        "status": "ok",
+        "path": str(TRADINGVIEW_WEBHOOK_PATH),
+        "count": int(len(rows)),
+        "latest": {
+            "received_at": latest.get("received_at"),
+            "symbol": latest.get("symbol"),
+            "timeframe": latest.get("timeframe"),
+            "signal": latest.get("signal"),
+            "source": latest.get("source"),
+        },
+        "auth_mode": "secret" if tradingview_webhook_auth_configured() else "missing",
+        "orders": "OFF",
+    }
+
+
+@app.post("/v1/webhooks/tradingview")
+async def tradingview_webhook(request: Request):
+    if append_authenticated_tradingview_webhook is None:
+        raise HTTPException(status_code=503, detail="TradingView webhook module unavailable")
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="TradingView payload must be a JSON object")
+    try:
+        result = append_authenticated_tradingview_webhook(
+            payload,
+            headers=request.headers,
+            env=tradingview_webhook_env(),
+            path=TRADINGVIEW_WEBHOOK_PATH,
+        )
+    except Exception:
+        logger.exception("TradingView webhook ingest error")
+        raise HTTPException(status_code=400, detail="Could not ingest TradingView payload")
+    if not result.get("ok"):
+        detail = result.get("detail") or "TradingView webhook authentication failed."
+        status = result.get("status")
+        status_code = 503 if status == "MISSING_SECRET_CONFIG" else 403
+        raise HTTPException(status_code=status_code, detail=detail)
+    logger.info(
+        "tradingview webhook symbol=%s timeframe=%s signal=%s duplicate=%s",
+        result.get("symbol"),
+        result.get("timeframe"),
+        result.get("signal"),
+        result.get("duplicate"),
+    )
+    return {
+        "status": "duplicate" if result.get("duplicate") else "accepted",
+        "webhook_id": result.get("webhook_id"),
+        "symbol": result.get("symbol"),
+        "timeframe": result.get("timeframe"),
+        "signal": result.get("signal"),
+        "received_at": result.get("received_at"),
+        "auth_mode": "secret",
+        "orders": "OFF",
+    }
 
 
 @app.get("/roxy-live", response_class=HTMLResponse)
@@ -761,7 +861,7 @@ def roxy_live_page():
     }
 
     function extractLocalDashboardUrl(text) {
-      const match = (text || "").match(/http:\/\/127\.0\.0\.1:8501\/\?view=Activo[^\s)]+/);
+      const match = (text || "").match(/http:\/\/127\.0\.0\.1:3000\/\?view=Activo[^\s)]+/);
       return match ? match[0].replace(/[.,]+$/, "") : "";
     }
 
@@ -2254,11 +2354,11 @@ def roxy_live_page():
 
     function localTradeDashboardUrl(ctx) {
       const explicit = ((ctx && ctx.action_url) || "").trim();
-      if (explicit && explicit.startsWith("http://127.0.0.1:8501/?view=Activo")) return explicit;
+      if (explicit && explicit.startsWith("http://127.0.0.1:3000/?view=Activo")) return explicit;
       const symbol = (((ctx && ctx.active_symbol) || $("defaultSymbol").value || "SPY").trim().toUpperCase()) || "SPY";
       const market = (((ctx && ctx.active_market) || (symbol.includes("/") ? "crypto" : "stock")).trim().toLowerCase()) || "stock";
       const timeframe = (((ctx && ctx.active_timeframe) || "1h").trim()) || "1h";
-      return "http://127.0.0.1:8501/?view=Activo&symbol="
+      return "http://127.0.0.1:3000/?view=Activo&symbol="
         + encodeURIComponent(symbol)
         + "&market=" + encodeURIComponent(market)
         + "&tf=" + encodeURIComponent(timeframe);

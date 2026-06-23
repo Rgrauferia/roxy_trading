@@ -20,11 +20,18 @@ ALERTS_DIR.mkdir(exist_ok=True)
 LAST_SENT_FILE = ALERTS_DIR / "last_sent.txt"
 NOTIFICATION_HISTORY_FILE = ALERTS_DIR / "notification_history.jsonl"
 NOTIFICATION_COOLDOWN_FILE = ALERTS_DIR / "notification_cooldowns.json"
+NOTIFICATION_HISTORY_MAX_LINES = 500
+NOTIFICATION_HISTORY_MAX_BYTES = 1_000_000
+NOTIFICATION_HISTORY_MIN_LINES = 120
 
 # Channels via env vars
 SLACK_WEBHOOK = os.getenv("SLACK_WEBHOOK_URL", "")
 GENERIC_WEBHOOK = os.getenv("WEBHOOK_URL", "")
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK_URL", "")
+PUSHOVER_APP_TOKEN = os.getenv("PUSHOVER_APP_TOKEN", "")
+PUSHOVER_USER_KEY = os.getenv("PUSHOVER_USER_KEY", "")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 SMTP_HOST = os.getenv("SMTP_HOST", "")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587") or "587")
 SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
@@ -61,10 +68,107 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _append_history(payload: dict) -> None:
+def _history_repeat_count(row: dict) -> int:
+    try:
+        return max(1, int(row.get("repeat_count") or 1))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _history_compaction_key(row: dict) -> tuple | None:
+    if notification_effectively_sent(row):
+        return None
+    if row.get("channels") or []:
+        return None
+    return (
+        str(row.get("reason") or ""),
+        str(row.get("incident_key") or ""),
+        str(row.get("message") or ""),
+        bool(row.get("sent")),
+        bool(row.get("effective_sent")),
+    )
+
+
+def _merge_history_repeat(previous: dict, current: dict) -> dict:
+    merged = dict(previous)
+    previous_count = _history_repeat_count(previous)
+    current_count = _history_repeat_count(current)
+    merged["repeat_count"] = previous_count + current_count
+    merged["last_ts"] = str(
+        current.get("last_ts")
+        or current.get("ts")
+        or previous.get("last_ts")
+        or previous.get("ts")
+        or ""
+    )
+    if current.get("last_message") or current.get("message"):
+        merged["last_message"] = str(current.get("last_message") or current.get("message") or "")
+    try:
+        merged["cooldown_skipped"] = int(previous.get("cooldown_skipped") or 0) + int(current.get("cooldown_skipped") or 0)
+    except (TypeError, ValueError):
+        pass
+    return merged
+
+
+def _compact_history_items(items: list[dict | str]) -> list[dict | str]:
+    compacted: list[dict | str] = []
+    for item in items:
+        if not isinstance(item, dict):
+            compacted.append(item)
+            continue
+        if compacted and isinstance(compacted[-1], dict):
+            previous = compacted[-1]
+            previous_key = _history_compaction_key(previous)
+            current_key = _history_compaction_key(item)
+            if previous_key is not None and previous_key == current_key:
+                compacted[-1] = _merge_history_repeat(previous, item)
+                continue
+        compacted.append(item)
+    return compacted
+
+
+def _serialize_history_item(item: dict | str) -> str:
+    if isinstance(item, dict):
+        return json.dumps(item, sort_keys=True)
+    return item
+
+
+def _append_history(
+    payload: dict,
+    *,
+    max_lines: int = NOTIFICATION_HISTORY_MAX_LINES,
+    max_bytes: int | None = NOTIFICATION_HISTORY_MAX_BYTES,
+    min_lines: int = NOTIFICATION_HISTORY_MIN_LINES,
+) -> None:
     NOTIFICATION_HISTORY_FILE.parent.mkdir(exist_ok=True)
-    with NOTIFICATION_HISTORY_FILE.open("a") as fh:
-        fh.write(json.dumps(payload, sort_keys=True) + "\n")
+    max_lines = max(1, int(max_lines))
+    max_bytes = max(0, int(max_bytes)) if max_bytes is not None else 0
+    min_lines = max(1, min(int(min_lines), max_lines))
+    existing = NOTIFICATION_HISTORY_FILE.read_text(errors="replace").splitlines() if NOTIFICATION_HISTORY_FILE.exists() else []
+    items: list[dict | str] = []
+    for line in existing:
+        if not line.strip():
+            continue
+        try:
+            parsed = json.loads(line)
+        except json.JSONDecodeError:
+            items.append(line)
+            continue
+        items.append(parsed if isinstance(parsed, dict) else line)
+    items.append(dict(payload))
+    lines = [_serialize_history_item(item) for item in _compact_history_items(items)]
+    lines = lines[-max_lines:]
+    if max_bytes:
+        kept: list[str] = []
+        total_bytes = 1
+        for item in reversed(lines):
+            item_bytes = len(item.encode()) + 1
+            if kept and len(kept) >= min_lines and total_bytes + item_bytes > max_bytes:
+                break
+            kept.append(item)
+            total_bytes += item_bytes
+        lines = list(reversed(kept))
+    NOTIFICATION_HISTORY_FILE.write_text("\n".join(lines) + "\n")
 
 
 def _append_notification_result(result: dict) -> None:
@@ -184,22 +288,43 @@ def parse_notification_timestamp(value: str) -> datetime | None:
 
 def notification_history_summary(limit: int = 50, *, now: datetime | None = None) -> dict:
     rows, malformed_recent_lines = _read_notification_history_rows(limit=limit)
+    history_size_bytes = NOTIFICATION_HISTORY_FILE.stat().st_size if NOTIFICATION_HISTORY_FILE.exists() else 0
+    history_line_count = (
+        len([line for line in NOTIFICATION_HISTORY_FILE.read_text(errors="replace").splitlines() if line.strip()])
+        if NOTIFICATION_HISTORY_FILE.exists()
+        else 0
+    )
     reason_counts: dict[str, int] = {}
     sent_count = 0
     cooldown_skipped = 0
     local_recorded_count = 0
+    health_event_count = 0
+    health_incident_key_missing_count = 0
+    sample_event_count = 0
+    last_health_event: dict | None = None
     for row in rows:
+        repeat_count = _history_repeat_count(row)
+        sample_event_count += repeat_count
         reason = str(row.get("reason") or "unknown")
-        reason_counts[reason] = reason_counts.get(reason, 0) + 1
+        reason_counts[reason] = reason_counts.get(reason, 0) + repeat_count
         if notification_effectively_sent(row):
-            sent_count += 1
+            sent_count += repeat_count
         if reason == "recorded_local" or (not notification_effectively_sent(row) and not (row.get("channels") or [])):
-            local_recorded_count += 1
+            local_recorded_count += repeat_count
         try:
             cooldown_skipped += int(row.get("cooldown_skipped") or 0)
         except (TypeError, ValueError):
             pass
+        message = str(row.get("message") or "")
+        is_health_event = reason == "health_watchdog" or message.startswith("ROXY HEALTH ")
+        if is_health_event:
+            health_event_count += repeat_count
+            last_health_event = row
+            if not str(row.get("incident_key") or ""):
+                health_incident_key_missing_count += repeat_count
     last = rows[-1] if rows else {}
+    last_health_incident_key = str((last_health_event or {}).get("incident_key") or "")
+    latest_health_incident_key_missing = bool(last_health_event and not last_health_incident_key)
     last_ts = str(last.get("ts") or "") if last else ""
     last_dt = parse_notification_timestamp(last_ts)
     current = now or datetime.now(timezone.utc)
@@ -209,9 +334,15 @@ def notification_history_summary(limit: int = 50, *, now: datetime | None = None
     channels = configured_channels()
     return {
         "sample_size": len(rows),
+        "sample_event_count": sample_event_count,
+        "line_count": history_line_count,
+        "size_bytes": history_size_bytes,
+        "max_bytes": NOTIFICATION_HISTORY_MAX_BYTES,
+        "max_lines": NOTIFICATION_HISTORY_MAX_LINES,
+        "min_lines": NOTIFICATION_HISTORY_MIN_LINES,
         "malformed_recent_lines": malformed_recent_lines,
         "sent_count": sent_count,
-        "suppressed_count": len(rows) - sent_count,
+        "suppressed_count": sample_event_count - sent_count,
         "local_recorded_count": local_recorded_count,
         "cooldown_skipped": cooldown_skipped,
         "reason_counts": dict(sorted(reason_counts.items(), key=lambda item: (-item[1], item[0]))),
@@ -221,6 +352,11 @@ def notification_history_summary(limit: int = 50, *, now: datetime | None = None
         "last_ts": last_ts,
         "last_age_minutes": last_age_minutes,
         "last_channels": list(last.get("channels") or []) if last else [],
+        "last_incident_key": str(last.get("incident_key") or "") if last else "",
+        "health_event_count": health_event_count,
+        "health_incident_key_missing_count": health_incident_key_missing_count,
+        "latest_health_incident_key_missing": latest_health_incident_key_missing,
+        "last_health_incident_key": last_health_incident_key,
         "configured_channels": channels,
         "channel_count": len(channels),
         "delivery_mode": "external" if channels else "local_file",
@@ -250,12 +386,37 @@ def send_discord(msg: str) -> None:
     _safe_post(DISCORD_WEBHOOK, payload)
 
 
-def send_webhook(msg: str) -> None:
+def send_webhook(msg: str, *, metadata: dict | None = None) -> None:
     if not GENERIC_WEBHOOK:
         logger.debug("Generic webhook not configured; skipping")
         return
-    payload = {"message": msg}
+    payload = {"message": msg, "source": "roxy_trading", "metadata": dict(metadata or {})}
     _safe_post(GENERIC_WEBHOOK, payload)
+
+
+def send_pushover(msg: str) -> None:
+    if not (PUSHOVER_APP_TOKEN and PUSHOVER_USER_KEY):
+        logger.debug("Pushover not configured; skipping")
+        return
+    payload = {
+        "token": PUSHOVER_APP_TOKEN,
+        "user": PUSHOVER_USER_KEY,
+        "title": "Roxy Trading Alert",
+        "message": msg[:1024],
+    }
+    _safe_post("https://api.pushover.net/1/messages.json", payload)
+
+
+def send_telegram(msg: str) -> None:
+    if not (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID):
+        logger.debug("Telegram not configured; skipping")
+        return
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": msg[:3900],
+        "disable_web_page_preview": True,
+    }
+    _safe_post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage", payload)
 
 
 def send_email(msg: str) -> None:
@@ -311,6 +472,10 @@ def configured_channels() -> list[str]:
         channels.append("slack")
     if DISCORD_WEBHOOK:
         channels.append("discord")
+    if PUSHOVER_APP_TOKEN and PUSHOVER_USER_KEY:
+        channels.append("pushover")
+    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
+        channels.append("telegram")
     if GENERIC_WEBHOOK:
         channels.append("webhook")
     if SMTP_HOST and ALERT_EMAIL_FROM and ALERT_EMAIL_TO:
@@ -339,6 +504,18 @@ def notification_channel_status() -> list[dict[str, str | bool]]:
             "configured": bool(DISCORD_WEBHOOK),
             "requirements": "DISCORD_WEBHOOK_URL",
             "notes": "Good phone alerts from a mobile app.",
+        },
+        {
+            "channel": "pushover",
+            "configured": bool(PUSHOVER_APP_TOKEN and PUSHOVER_USER_KEY),
+            "requirements": "PUSHOVER_APP_TOKEN, PUSHOVER_USER_KEY",
+            "notes": "Direct push alerts to phone through Pushover.",
+        },
+        {
+            "channel": "telegram",
+            "configured": bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID),
+            "requirements": "TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID",
+            "notes": "Direct phone alerts through Telegram bot messages.",
         },
         {
             "channel": "slack",
@@ -409,6 +586,8 @@ def notify_if_changed(alerts: Iterable[str]) -> dict:
     # send to channels (best-effort)
     send_slack(text)
     send_discord(text)
+    send_pushover(text)
+    send_telegram(text)
     send_webhook(text)
     send_email(text)
     send_macos_notification(text)
@@ -431,10 +610,12 @@ def send_notification_message(
     reason: str = "message",
     header: str = "ROXY TRADING ALERT",
     force_macos: bool = False,
+    metadata: dict | None = None,
 ) -> dict:
     message = str(message or "").strip()
+    extra = dict(metadata or {})
     if not message:
-        result = {"sent": False, "reason": "empty", "channels": configured_channels(), "message": ""}
+        result = {"sent": False, "reason": "empty", "channels": configured_channels(), "message": "", **extra}
         _append_notification_result(result)
         return result
 
@@ -444,15 +625,17 @@ def send_notification_message(
     if force_macos and "macos" not in delivered_channels:
         delivered_channels.append("macos")
     if not delivered_channels:
-        result = {"sent": False, "reason": "recorded_local", "channels": [], "message": message}
+        result = {"sent": False, "reason": "recorded_local", "channels": [], "message": message, **extra}
         _append_notification_result(result)
         return result
     send_slack(text)
     send_discord(text)
-    send_webhook(text)
+    send_pushover(text)
+    send_telegram(text)
+    send_webhook(text, metadata={"reason": reason, "header": header, **extra})
     send_email(text)
     send_macos_notification(text, force=force_macos)
-    result = {"sent": True, "reason": reason, "channels": delivered_channels, "message": message}
+    result = {"sent": True, "reason": reason, "channels": delivered_channels, "message": message, **extra}
     _append_notification_result(result)
     return result
 

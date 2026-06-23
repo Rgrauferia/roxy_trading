@@ -223,6 +223,7 @@ def test_alpaca_paper_open_position_plan_maps_stop_target_and_status():
     assert by_symbol["MSFT"]["status"] == "Stop tocado"
     assert by_symbol["MSFT"]["tone"] == "avoid"
 
+
 def test_alpaca_paper_gap_checklist_explains_missing_items():
     table = pd.DataFrame(
         [

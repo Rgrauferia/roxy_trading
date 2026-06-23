@@ -1025,14 +1025,14 @@ def test_roxy_brain_builds_spanish_trading_dashboard_handoff(tmp_path):
     assert response.safety_level == "guarded"
     assert response.priority == "high"
     assert "Pagina operativa lista: NVDA, stock, 15m" in response.reply
-    assert "http://127.0.0.1:8501/?view=Activo&symbol=NVDA&market=stock&tf=15m" in response.reply
+    assert "http://127.0.0.1:3000/?view=Activo&symbol=NVDA&market=stock&tf=15m" in response.reply
     assert "no crea ni envia una orden" in response.reply
     assert response.suggested_actions[:3] == ("trade_readiness", "entry_checklist", "position_size")
     payload = response.as_dict()
     assert payload["active_symbol"] == "NVDA"
     assert payload["active_market"] == "stock"
     assert payload["active_timeframe"] == "15m"
-    assert payload["action_url"] == "http://127.0.0.1:8501/?view=Activo&symbol=NVDA&market=stock&tf=15m"
+    assert payload["action_url"] == "http://127.0.0.1:3000/?view=Activo&symbol=NVDA&market=stock&tf=15m"
     assert payload["action_label"] == "Abrir Roxy Trade"
     assert payload["action_kind"] == "local_trading_dashboard"
     events = build_voice_events("abre roxy trade para NVDA en 15m", response)
@@ -1075,14 +1075,14 @@ def test_roxy_brain_builds_english_crypto_trading_dashboard_handoff(tmp_path):
     assert response.language == "en"
     assert response.voice_style == "female_en_us"
     assert "Trading page ready: ETH/USD, crypto, 4h" in response.reply
-    assert "http://127.0.0.1:8501/?view=Activo&symbol=ETH%2FUSD&market=crypto&tf=4h" in response.reply
+    assert "http://127.0.0.1:3000/?view=Activo&symbol=ETH%2FUSD&market=crypto&tf=4h" in response.reply
     assert "does not create or send an order" in response.reply
     assert response.suggested_actions[:3] == ("trade_readiness", "entry_checklist", "position_size")
     payload = response.as_dict()
     assert payload["active_symbol"] == "ETH/USD"
     assert payload["active_market"] == "crypto"
     assert payload["active_timeframe"] == "4h"
-    assert payload["action_url"] == "http://127.0.0.1:8501/?view=Activo&symbol=ETH%2FUSD&market=crypto&tf=4h"
+    assert payload["action_url"] == "http://127.0.0.1:3000/?view=Activo&symbol=ETH%2FUSD&market=crypto&tf=4h"
     assert payload["action_label"] == "Open Roxy Trade"
     assert payload["action_kind"] == "local_trading_dashboard"
 
@@ -2694,7 +2694,7 @@ def test_roxy_memory_persists_trading_dashboard_handoff_context(tmp_path):
             active_symbol="ETH/USD",
             active_market="crypto",
             active_timeframe="4h",
-            action_url="http://127.0.0.1:8501/?view=Activo&symbol=ETH%2FUSD&market=crypto&tf=4h",
+            action_url="http://127.0.0.1:3000/?view=Activo&symbol=ETH%2FUSD&market=crypto&tf=4h",
             action_label="Open Roxy Trade",
             action_kind="local_trading_dashboard",
         ),
@@ -3030,7 +3030,7 @@ def test_roxy_conversation_memory_overview_includes_operational_context(tmp_path
         active_symbol="NVDA",
         active_market="stock",
         active_timeframe="15m",
-        action_url="http://127.0.0.1:8501/?view=Activo&symbol=NVDA&market=stock&tf=15m",
+        action_url="http://127.0.0.1:3000/?view=Activo&symbol=NVDA&market=stock&tf=15m",
         action_label="Abrir Roxy Trade",
         action_kind="local_trading_dashboard",
     )

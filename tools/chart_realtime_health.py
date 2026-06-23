@@ -14,7 +14,13 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-from chart_health import chart_health_row, summarize_chart_health, write_chart_health_report
+from chart_health import (
+    active_chart_symbols_from_alerts,
+    chart_health_row,
+    normalize_chart_symbol,
+    summarize_chart_health,
+    write_chart_health_report,
+)
 from roxy_paths import alerts_dir
 
 
@@ -32,6 +38,35 @@ def parse_csv_list(value: str | None, defaults: tuple[str, ...]) -> list[str]:
     if not value:
         return list(defaults)
     return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def merge_symbols(*groups: list[str]) -> list[str]:
+    selected: list[str] = []
+    seen: set[str] = set()
+    for group in groups:
+        for value in group:
+            symbol = normalize_chart_symbol(value)
+            if symbol and symbol not in seen:
+                seen.add(symbol)
+                selected.append(symbol)
+    return selected
+
+
+def selected_chart_symbols(
+    *,
+    symbols_arg: str | None = None,
+    include_active_alert_symbols: bool = True,
+    active_symbol_limit: int = 8,
+    alerts_path: str | Path | None = None,
+) -> list[str]:
+    base_symbols = parse_csv_list(symbols_arg, DEFAULT_STOCK_SYMBOLS + DEFAULT_CRYPTO_SYMBOLS)
+    active_symbols: list[str] = []
+    if include_active_alert_symbols:
+        active_symbols = active_chart_symbols_from_alerts(
+            Path(alerts_path) if alerts_path is not None else alerts_dir(),
+            limit=max(1, int(active_symbol_limit)),
+        )
+    return merge_symbols(base_symbols, active_symbols)
 
 
 def collect_chart_health(
@@ -75,6 +110,20 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Check realtime freshness and indicators for key Roxy chart panels.")
     parser.add_argument("--symbols", help="Comma-separated symbols. Defaults to core stock + crypto symbols.")
     parser.add_argument("--timeframes", default=",".join(DEFAULT_TIMEFRAMES))
+    parser.add_argument(
+        "--include-active-alert-symbols",
+        dest="include_active_alert_symbols",
+        action="store_true",
+        default=True,
+        help="Also check symbols from current Roxy alerts, status, and daily plan. Enabled by default.",
+    )
+    parser.add_argument(
+        "--no-active-alert-symbols",
+        dest="include_active_alert_symbols",
+        action="store_false",
+        help="Only check the configured/default symbol list.",
+    )
+    parser.add_argument("--active-symbol-limit", type=int, default=8)
     parser.add_argument("--report-path", default=str(DEFAULT_REPORT_PATH))
     parser.add_argument("--no-fail", action="store_true", help="Always exit 0 after writing the report.")
     return parser.parse_args()
@@ -82,7 +131,13 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    symbols = parse_csv_list(args.symbols, DEFAULT_STOCK_SYMBOLS + DEFAULT_CRYPTO_SYMBOLS)
+    report_path_arg = Path(args.report_path).expanduser()
+    symbols = selected_chart_symbols(
+        symbols_arg=args.symbols,
+        include_active_alert_symbols=args.include_active_alert_symbols,
+        active_symbol_limit=args.active_symbol_limit,
+        alerts_path=report_path_arg.parent,
+    )
     timeframes = parse_csv_list(args.timeframes, DEFAULT_TIMEFRAMES)
     rows = collect_chart_health(symbols=symbols, timeframes=timeframes)
     report_path = write_chart_health_report(rows, args.report_path)

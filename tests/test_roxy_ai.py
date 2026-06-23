@@ -1,4 +1,7 @@
+import json
+
 import pandas as pd
+import pytest
 from datetime import datetime, timedelta, timezone
 
 from roxy_ai import (
@@ -14,6 +17,8 @@ from roxy_ai import (
     build_notification_lines,
     build_status_snapshot,
     build_strategy_lab,
+    chart_health_contract_index,
+    crypto_scan_candidate_rows,
     current_prices_by_symbol,
     explain_opportunity,
     experiment_status_label,
@@ -23,6 +28,7 @@ from roxy_ai import (
     gate_research_queue,
     learning_research_queue,
     learning_action_label,
+    macro_calendar_status,
     market_session_status,
     human_alert_reason,
     human_trade_action,
@@ -41,6 +47,16 @@ from roxy_ai import (
     write_brief,
     write_status_snapshot,
 )
+import roxy_ai
+
+
+@pytest.fixture(autouse=True)
+def _isolate_strategy_overrides(monkeypatch):
+    monkeypatch.setattr(
+        roxy_ai,
+        "load_strategy_overrides",
+        lambda: {"version": 1, "strategy_overrides": {}},
+    )
 
 
 def test_extract_opportunities_alerts_only_confirmed_low_risk_buy():
@@ -80,6 +96,103 @@ def test_extract_opportunities_alerts_only_confirmed_low_risk_buy():
     assert rows[0]["symbol"] == "AAPL"
     assert rows[0]["ai_action"] == "ALERT"
     assert all(row["symbol"] != "MSFT" or row["ai_action"] != "ALERT" for row in rows)
+
+
+def test_extract_opportunities_uses_scanner_score_when_confluence_score_missing():
+    confluence = pd.DataFrame(
+        [
+            {
+                "market": "stock",
+                "symbol": "RBLX",
+                "signal": "WATCH",
+                "score": 82,
+                "setup": "PULLBACK",
+                "entry": 51.56,
+                "stop": 50.5,
+                "relative_volume": 1.25,
+                "backtest_eligible": True,
+            }
+        ]
+    )
+
+    rows = extract_opportunities(confluence)
+
+    assert len(rows) == 1
+    assert rows[0]["symbol"] == "RBLX"
+    assert rows[0]["ai_action"] == "WATCH"
+    assert rows[0]["ai_score"] >= 70
+    assert rows[0]["risk_pct"] == 0.020559
+    assert rows[0]["recommended_target_pct"] == 0.02
+
+
+def test_extract_opportunities_dedupes_scanner_rows_by_market_symbol():
+    confluence = pd.DataFrame(
+        [
+            {
+                "market": "stock",
+                "symbol": "RBLX",
+                "tf": "15m",
+                "signal": "WATCH",
+                "score": 88,
+                "setup": "TREND_CONTINUATION",
+                "entry": 51.56,
+                "stop": 50.5,
+                "relative_volume": 1.2,
+                "backtest_eligible": True,
+            },
+            {
+                "market": "stock",
+                "symbol": "RBLX",
+                "tf": "1h",
+                "signal": "WATCH",
+                "score": 82,
+                "setup": "TREND_CONTINUATION",
+                "entry": 51.5,
+                "stop": 50.0,
+                "relative_volume": 1.0,
+                "backtest_eligible": True,
+            },
+        ]
+    )
+
+    rows = extract_opportunities(confluence)
+
+    assert [row["symbol"] for row in rows] == ["RBLX"]
+    assert rows[0]["tf"] == "15m"
+
+
+def test_crypto_scan_candidate_rows_extracts_unique_high_score_crypto_watchlist():
+    scan = pd.DataFrame(
+        [
+            {"market": "stock", "symbol": "AAPL", "tf": "15m", "score": 100, "raw_signal": "BUY"},
+            {
+                "market": "crypto",
+                "symbol": "BTC/USD",
+                "tf": "15m",
+                "score": 100,
+                "raw_signal": "BUY",
+                "signal": "WATCH",
+                "setup": "TREND_CONTINUATION",
+                "entry": 100,
+                "stop": 97,
+                "relative_volume": 1.4,
+                "backtest_eligible": False,
+            },
+            {"market": "crypto", "symbol": "MATIC/USD", "tf": "15m", "score": 100, "raw_signal": "BUY"},
+            {"market": "crypto", "symbol": "BTC/USD", "tf": "1h", "score": 90, "raw_signal": "BUY"},
+            {"market": "crypto", "symbol": "ETH/USD", "tf": "15m", "score": 54, "signal": "WATCH"},
+        ]
+    )
+
+    rows = crypto_scan_candidate_rows(scan)
+
+    assert len(rows) == 1
+    assert rows[0]["symbol"] == "BTC/USD"
+    assert rows[0]["market"] == "crypto"
+    assert rows[0]["ai_action"] == "WATCH"
+    assert rows[0]["crypto_rescue_candidate"] is True
+    assert rows[0]["risk_pct"] == 0.03
+    assert all(row["symbol"] != "MATIC/USD" for row in rows)
 
 
 def test_build_brief_updates_memory_and_formats_notification():
@@ -135,6 +248,37 @@ def test_build_brief_updates_memory_and_formats_notification():
     assert brief["alert_gate_summary"]["gate_counts"]["ALERT_READY"] == 1
 
 
+def test_build_brief_includes_weekly_newsletter_context(monkeypatch):
+    monkeypatch.setattr(
+        roxy_ai,
+        "newsletter_context",
+        lambda: {
+            "configured": True,
+            "label": "Newsletter semanal",
+            "detail": "IA / desarrollo",
+            "risk_level": "MEDIUM",
+            "watchlist_symbols": ["NVDA", "AMD"],
+            "market_news": [
+                {
+                    "title": "Resumen de la Semana",
+                    "source": "Finhabits",
+                    "timestamp": "2026-06-13T11:04:00-04:00",
+                    "summary": "IA / desarrollo",
+                }
+            ],
+        },
+    )
+
+    brief = build_brief(
+        confluence_df=pd.DataFrame(),
+        options_df=pd.DataFrame(),
+        memory={"symbols": {}, "lessons": [], "alert_history": []},
+    )
+
+    assert brief["newsletter_context"]["label"] == "Newsletter semanal"
+    assert brief["market_news"][0]["source"] == "Finhabits"
+
+
 def test_build_brief_does_not_alert_when_higher_timeframe_blocks():
     confluence = pd.DataFrame(
         [
@@ -172,6 +316,231 @@ def test_build_brief_does_not_alert_when_higher_timeframe_blocks():
     assert brief["opportunities"][0]["ai_action"] == "WATCH"
     assert brief["opportunities"][0]["alert_gate"] == "WAIT_HTF_CONFIRM"
     assert "2h/4h" in brief["opportunities"][0]["alert_primary_blocker"]
+
+
+def test_macro_calendar_status_detects_active_fed_event(tmp_path):
+    path = tmp_path / "macro_events.csv"
+    path.write_text(
+        "date,time,event,severity,currency,notes\n"
+        "2026-06-11,14:00,FOMC Rate Decision,HIGH,USD,decision FED\n"
+    )
+    now = datetime(2026, 6, 11, 17, 30, tzinfo=timezone.utc)
+
+    status = macro_calendar_status(path, now=now)
+
+    assert status["configured"] is True
+    assert status["active"] is True
+    assert status["label"] == "Macro activo"
+    assert status["top_event"]["title"] == "FOMC Rate Decision"
+
+
+def test_apply_global_alert_context_demotes_alert_during_macro_event():
+    brief = {
+        "opportunities": [
+            {
+                "market": "stock",
+                "symbol": "AAPL",
+                "ai_action": "ALERT",
+                "signal": "BUY",
+                "trade_decision": "TRADE_FOR_5PCT",
+                "confluence_score": 82,
+                "ai_score": 82,
+                "risk_pct": 0.02,
+                "recommended_target_pct": 0.05,
+                "entry": 100,
+                "stop": 98,
+                "backtest_eligible": True,
+                "relative_volume_15m": 1.2,
+                "trend_score": 80,
+                "trigger_score": 74,
+                "trigger_setup": "PULLBACK",
+                "trend_setup": "TREND_CONTINUATION",
+                "higher_tf_bias": "CONFIRMED",
+            }
+        ],
+        "source_freshness": {"alerts_allowed": True, "label": "Frescos"},
+        "realtime_health": {"alerts_allowed": True, "label": "OK"},
+        "market_session": {"stock_alerts_allowed": True},
+        "macro_calendar": {
+            "active": True,
+            "label": "Macro activo",
+            "detail": "FOMC activo.",
+            "top_event": {"title": "FOMC Rate Decision", "severity": "HIGH"},
+        },
+    }
+
+    updated = apply_global_alert_context(brief, memory={})
+
+    row = updated["opportunities"][0]
+    assert row["ai_action"] == "WATCH"
+    assert row["macro_event"] is True
+    assert row["alert_gate"] == "WAIT_MACRO_CONFIRMATION"
+    assert updated["alert_count"] == 0
+
+
+def test_apply_global_alert_context_attaches_live_chart_contract(tmp_path, monkeypatch):
+    chart_path = tmp_path / "chart_realtime_health.json"
+    monkeypatch.setattr(roxy_ai, "CHART_REALTIME_HEALTH_PATH", chart_path)
+    chart_path.write_text(
+        json.dumps(
+            {
+                "charts": [
+                    {
+                        "symbol": "ETH/USD",
+                        "timeframe": "1h",
+                        "status": "OK",
+                        "label": "Viva",
+                        "tone": "buy",
+                        "latest": "2026-06-11 13:00",
+                        "age_minutes": 2.0,
+                        "candle_phase": "NEW_CANDLE",
+                        "candle_phase_label": "Vela nueva",
+                        "candle_progress_pct": 3.3,
+                    }
+                ]
+            }
+        )
+    )
+    brief = {
+        "opportunities": [
+            {
+                "market": "crypto",
+                "symbol": "ETH/USD",
+                "timeframe": "1h",
+                "ai_action": "ALERT",
+                "signal": "BUY",
+                "trade_decision": "TRADE_FOR_5PCT",
+                "confluence_score": 88,
+                "ai_score": 88,
+                "risk_pct": 0.02,
+                "recommended_target_pct": 0.05,
+                "backtest_eligible": True,
+                "relative_volume_15m": 1.2,
+                "trend_score": 82,
+                "trigger_score": 76,
+                "trigger_setup": "PULLBACK",
+                "trend_setup": "TREND_CONTINUATION",
+            }
+        ],
+        "source_freshness": {"alerts_allowed": True, "label": "Frescos"},
+        "realtime_health": {"alerts_allowed": True, "crypto_alerts_allowed": True, "label": "OK"},
+    }
+
+    updated = apply_global_alert_context(brief, memory={})
+    row = updated["opportunities"][0]
+
+    assert row["chart_data_gate"] == "LIVE_DATA_OK"
+    assert row["chart_operable"] is True
+    assert row["chart_candle_phase_label"] == "Vela nueva"
+    assert row["alert_gate"] == "ALERT_READY"
+    assert any(item["rule"] == "Grafica operable" and item["passed"] for item in row["smart_alert"]["checks"])
+
+
+def test_apply_global_alert_context_resolves_missing_crypto_chart_contract(monkeypatch):
+    monkeypatch.setattr(roxy_ai, "chart_health_contract_index", lambda: {})
+    calls = []
+
+    def fake_resolve(symbol, market, timeframe):
+        calls.append((symbol, market, timeframe))
+        return {
+            "gate": "LIVE_DATA_OK",
+            "operable": True,
+            "source_label": "live-fetch",
+            "timeframe": timeframe,
+            "candle_phase_label": "Vela nueva",
+            "age_minutes": 1.0,
+        }
+
+    monkeypatch.setattr(roxy_ai, "resolve_live_chart_contract", fake_resolve)
+    brief = {
+        "opportunities": [
+            {
+                "market": "crypto",
+                "symbol": "SOL/USD",
+                "timeframe": "1h",
+                "ai_action": "WATCH",
+                "signal": "WATCH",
+                "trade_decision": "WAIT",
+                "confluence_score": 70,
+                "ai_score": 70,
+                "risk_pct": 0.02,
+                "recommended_target_pct": 0.05,
+                "backtest_eligible": True,
+                "relative_volume_15m": 1.2,
+                "trend_score": 82,
+                "trigger_score": 55,
+                "trigger_setup": "PULLBACK",
+                "trend_setup": "TREND_CONTINUATION",
+            }
+        ],
+        "source_freshness": {"alerts_allowed": True, "label": "Frescos"},
+        "realtime_health": {"alerts_allowed": True, "crypto_alerts_allowed": True, "label": "OK"},
+    }
+
+    updated = apply_global_alert_context(brief, memory={})
+    row = updated["opportunities"][0]
+
+    assert calls == [("SOL/USD", "crypto", "1h")]
+    assert row["chart_data_gate"] == "LIVE_DATA_OK"
+    assert row["chart_operable"] is True
+    assert "CHART_CONTRACT_MISSING" not in " ".join(row["alert_blockers"])
+
+
+def test_apply_global_alert_context_blocks_alert_when_chart_health_is_stale(tmp_path, monkeypatch):
+    chart_path = tmp_path / "chart_realtime_health.json"
+    monkeypatch.setattr(roxy_ai, "CHART_REALTIME_HEALTH_PATH", chart_path)
+    chart_path.write_text(
+        json.dumps(
+            {
+                "charts": [
+                    {
+                        "symbol": "ETH/USD",
+                        "timeframe": "1h",
+                        "status": "FAIL",
+                        "label": "Estancada",
+                        "tone": "avoid",
+                        "latest": "2026-06-11 09:00",
+                        "age_minutes": 260.0,
+                        "candle_phase": "STALE",
+                        "candle_phase_label": "Sin pulso",
+                    }
+                ]
+            }
+        )
+    )
+    brief = {
+        "opportunities": [
+            {
+                "market": "crypto",
+                "symbol": "ETH/USD",
+                "timeframe": "1h",
+                "ai_action": "ALERT",
+                "signal": "BUY",
+                "trade_decision": "TRADE_FOR_5PCT",
+                "confluence_score": 88,
+                "ai_score": 88,
+                "risk_pct": 0.02,
+                "recommended_target_pct": 0.05,
+                "backtest_eligible": True,
+                "relative_volume_15m": 1.2,
+                "trend_score": 82,
+                "trigger_score": 76,
+                "trigger_setup": "PULLBACK",
+                "trend_setup": "TREND_CONTINUATION",
+            }
+        ],
+        "source_freshness": {"alerts_allowed": True, "label": "Frescos"},
+        "realtime_health": {"alerts_allowed": True, "crypto_alerts_allowed": True, "label": "OK"},
+    }
+
+    updated = apply_global_alert_context(brief, memory={})
+    row = updated["opportunities"][0]
+
+    assert row["ai_action"] == "WATCH"
+    assert row["chart_data_gate"] == "NO_TRADE_STALE_DATA"
+    assert row["chart_operable"] is False
+    assert row["alert_gate"] == "BLOCKED_REALTIME_DATA"
+    assert row["alert_primary_blocker"].startswith("Grafica operable")
 
 
 def test_alert_gate_and_decision_helpers_are_human_readable():
@@ -313,6 +682,168 @@ def test_apply_global_alert_context_rechecks_opportunities_when_data_is_stale():
     assert row["source_freshness"]["alerts_allowed"] is False
 
 
+def test_apply_global_alert_context_blocks_stock_when_premium_provider_auth_fails():
+    brief = {
+        "source_freshness": {"status": "FRESH", "label": "Frescos", "alerts_allowed": True},
+        "realtime_health": {
+            "status": "WARN",
+            "label": "Premium bloqueado",
+            "detail": "chart_provider_effective: 4 provider source(s), issue WMT 1h alpaca_auth",
+            "alerts_allowed": True,
+            "stock_alerts_allowed": False,
+            "crypto_alerts_allowed": True,
+        },
+        "alert_count": 1,
+        "watch_count": 0,
+        "opportunities": [
+            {
+                "market": "stock",
+                "symbol": "WMT",
+                "ai_action": "ALERT",
+                "signal": "BUY",
+                "trade_decision": "TRADE_FOR_5PCT",
+                "confluence_score": 82,
+                "trend_score": 78,
+                "trigger_score": 72,
+                "risk_pct": 0.02,
+                "recommended_target_pct": 0.05,
+                "relative_volume_15m": 1.2,
+                "backtest_eligible": True,
+                "trigger_setup": "PULLBACK",
+                "trend_setup": "TREND_CONTINUATION",
+            }
+        ],
+    }
+
+    updated = apply_global_alert_context(brief)
+
+    row = updated["opportunities"][0]
+    assert updated["alert_count"] == 0
+    assert row["ai_action"] == "WATCH"
+    assert row["alert_gate"] == "BLOCKED_REALTIME_DATA"
+    assert row["realtime_health"]["stock_alerts_allowed"] is False
+
+
+def test_apply_global_alert_context_rescues_crypto_scan_candidates_when_stock_premium_is_blocked():
+    brief = {
+        "source_freshness": {"status": "FRESH", "label": "Frescos", "alerts_allowed": True},
+        "realtime_health": {
+            "status": "WARN",
+            "label": "Premium bloqueado",
+            "alerts_allowed": True,
+            "stock_alerts_allowed": False,
+            "crypto_alerts_allowed": True,
+            "market_realtime": {
+                "blocked_markets": ["stock", "options"],
+                "markets": {
+                    "stock": {"alerts_allowed": False},
+                    "crypto": {"alerts_allowed": True},
+                },
+            },
+        },
+        "alert_count": 1,
+        "watch_count": 0,
+        "opportunities": [
+            {
+                "market": "stock",
+                "symbol": "WMT",
+                "ai_action": "ALERT",
+                "signal": "BUY",
+                "trade_decision": "TRADE_FOR_5PCT",
+                "confluence_score": 82,
+                "trend_score": 78,
+                "trigger_score": 72,
+                "risk_pct": 0.02,
+                "recommended_target_pct": 0.05,
+                "relative_volume_15m": 1.2,
+                "backtest_eligible": True,
+                "trigger_setup": "PULLBACK",
+                "trend_setup": "TREND_CONTINUATION",
+            }
+        ],
+        "crypto_scan_candidates": [
+            {
+                "market": "crypto",
+                "symbol": "BTC/USD",
+                "ai_action": "WATCH",
+                "signal": "BUY",
+                "trade_decision": "WAIT_FOR_TRIGGER",
+                "ai_score": 100,
+                "confluence_score": 100,
+                "trigger_score": 100,
+                "trend_score": 100,
+                "trigger_setup": "TREND_CONTINUATION",
+                "trend_setup": "TREND_CONTINUATION",
+                "entry": 100,
+                "stop": 97,
+                "risk_pct": 0.03,
+                "recommended_target_pct": 0.02,
+                "relative_volume_15m": 1.4,
+                "backtest_eligible": False,
+                "crypto_rescue_candidate": True,
+            }
+        ],
+    }
+
+    updated = apply_global_alert_context(brief)
+    crypto_rows = [row for row in updated["opportunities"] if row.get("market") == "crypto"]
+    stock_rows = [row for row in updated["opportunities"] if row.get("market") == "stock"]
+
+    assert len(crypto_rows) == 1
+    assert crypto_rows[0]["symbol"] == "BTC/USD"
+    assert crypto_rows[0]["ai_action"] == "WATCH"
+    assert crypto_rows[0]["crypto_rescue_active"] is True
+    assert crypto_rows[0]["alert_gate"] != "BLOCKED_REALTIME_DATA"
+    assert stock_rows[0]["alert_gate"] == "BLOCKED_REALTIME_DATA"
+    assert updated["opportunities"][0]["symbol"] == "BTC/USD"
+    assert updated["alert_gate_summary"]["top_gate"] == crypto_rows[0]["alert_gate"]
+    assert updated["crypto_rescue"]["rescued_count"] == 1
+    assert updated["alert_gate_summary"]["total_opportunities"] == 2
+
+
+def test_realtime_health_status_degrades_recoverable_brief_failure_to_crypto_route(tmp_path):
+    report = tmp_path / "roxy_realtime_check.json"
+    report.write_text(
+        json.dumps(
+            {
+                "status": "FAIL",
+                "generated_at": "2026-06-11T12:00:00+00:00",
+                "market_realtime": {
+                    "allowed_markets": ["crypto"],
+                    "blocked_markets": ["stock", "options"],
+                    "active_route_label": "Operar solo CRYPTO",
+                    "active_route_detail": "Operable CRYPTO; bloqueado STOCK, OPTIONS.",
+                },
+                "checks": [
+                    {
+                        "name": "ai_brief",
+                        "status": "FAIL",
+                        "detail": "live/confluencia llevan 34 min sin refrescar.",
+                    },
+                    {
+                        "name": "operational_summary_contract",
+                        "status": "FAIL",
+                        "detail": "route label mismatch",
+                    },
+                ],
+            }
+        )
+    )
+
+    status = realtime_health_status(
+        report,
+        now=datetime(2026, 6, 11, 12, 1, tzinfo=timezone.utc),
+    )
+
+    assert status["status"] == "WARN"
+    assert status["label"] == "Health recuperando"
+    assert status["alerts_allowed"] is True
+    assert status["stock_alerts_allowed"] is False
+    assert status["crypto_alerts_allowed"] is True
+    assert status["active_route_label"] == "Operar solo CRYPTO"
+    assert status["allowed_markets"] == ["crypto"]
+
+
 def test_build_notification_lines_pauses_when_realtime_health_failed():
     brief = {
         "source_freshness": {"status": "FRESH", "alerts_allowed": True},
@@ -358,6 +889,50 @@ def test_build_notification_lines_allows_realtime_health_warning():
     assert build_notification_lines(brief)
 
 
+def test_build_notification_lines_filters_stock_when_premium_provider_blocked_but_keeps_crypto():
+    brief = {
+        "source_freshness": {"status": "FRESH", "alerts_allowed": True},
+        "realtime_health": {
+            "status": "WARN",
+            "label": "Premium bloqueado",
+            "alerts_allowed": True,
+            "stock_alerts_allowed": False,
+            "crypto_alerts_allowed": True,
+        },
+        "market_session": {"stock_alerts_allowed": True},
+        "opportunities": [
+            {
+                "ai_action": "ALERT",
+                "market": "stock",
+                "symbol": "AAPL",
+                "trade_decision": "TRADE_FOR_5PCT",
+                "ai_score": 90,
+                "entry": 100,
+                "stop": 98,
+                "risk_pct": 0.02,
+                "recommended_target_pct": 0.05,
+            },
+            {
+                "ai_action": "ALERT",
+                "market": "crypto",
+                "symbol": "BTC/USD",
+                "trade_decision": "TRADE_FOR_5PCT",
+                "ai_score": 90,
+                "entry": 100,
+                "stop": 98,
+                "risk_pct": 0.02,
+                "recommended_target_pct": 0.05,
+            },
+        ],
+    }
+
+    lines = build_notification_lines(brief)
+
+    assert len(lines) == 1
+    assert "BTC/USD" in lines[0]
+    assert "AAPL" not in lines[0]
+
+
 def test_realtime_health_status_blocks_stale_report(tmp_path):
     import os
 
@@ -371,6 +946,184 @@ def test_realtime_health_status_blocks_stale_report(tmp_path):
 
     assert status["status"] == "STALE"
     assert status["alerts_allowed"] is False
+
+
+def test_realtime_health_status_blocks_stock_on_provider_auth_warn(tmp_path):
+    now = datetime(2026, 6, 8, 12, 0, tzinfo=timezone.utc)
+    path = tmp_path / "roxy_realtime_check.json"
+    path.write_text(
+        json.dumps(
+            {
+                "status": "WARN",
+                "checks": [
+                    {
+                        "name": "chart_provider_effective",
+                        "status": "WARN",
+                        "detail": "4 provider source(s), issue WMT 1h alpaca_auth, alternate polygon_not_configured",
+                        "auth_fallback_count": 1,
+                        "fallback_reason_counts": {"alpaca_auth": 1},
+                        "premium_recovery_action": "Configurar POLYGON_API_KEY/POLYGON_API_TOKEN.",
+                    }
+                ],
+                "provider_recovery": {
+                    "label": "Premium bloqueado",
+                    "premium_blocked": True,
+                    "stock_alerts_allowed": False,
+                    "polygon_missing_count": 1,
+                },
+                "market_realtime": {
+                    "active_route": "PARTIAL_MARKET_ROUTE",
+                    "active_route_label": "Operar solo CRYPTO",
+                    "active_route_detail": "Operable CRYPTO; bloqueado STOCK, OPTIONS.",
+                    "allowed_markets": ["crypto"],
+                    "blocked_markets": ["stock", "options"],
+                    "markets": {
+                        "stock": {"alerts_allowed": False},
+                        "crypto": {"alerts_allowed": True},
+                    },
+                },
+            }
+        )
+    )
+
+    status = realtime_health_status(path, now=now, max_age_minutes=15)
+
+    assert status["label"] == "Premium bloqueado"
+    assert status["alerts_allowed"] is True
+    assert status["stock_alerts_allowed"] is False
+    assert status["crypto_alerts_allowed"] is True
+    assert status["active_route"] == "PARTIAL_MARKET_ROUTE"
+    assert status["active_route_label"] == "Operar solo CRYPTO"
+    assert status["active_route_detail"] == "Operable CRYPTO; bloqueado STOCK, OPTIONS."
+    assert status["allowed_markets"] == ["crypto"]
+    assert status["detail"].startswith("Operar solo CRYPTO")
+    assert "alpaca_auth" in status["detail"]
+    assert "Operar solo CRYPTO" in status["detail"]
+    assert "POLYGON_API_KEY" in status["detail"]
+    assert status["premium_recovery_action"] == "Configurar POLYGON_API_KEY/POLYGON_API_TOKEN."
+    assert status["provider_recovery"]["premium_blocked"] is True
+    assert status["provider_recovery"]["polygon_missing_count"] == 1
+    assert status["market_realtime"]["blocked_markets"] == ["stock", "options"]
+
+
+def test_realtime_health_status_uses_provider_recovery_when_market_route_is_stale(tmp_path):
+    now = datetime(2026, 6, 8, 12, 0, tzinfo=timezone.utc)
+    path = tmp_path / "roxy_realtime_check.json"
+    path.write_text(
+        json.dumps(
+            {
+                "status": "WARN",
+                "checks": [
+                    {
+                        "name": "alpaca_account_probe",
+                        "status": "WARN",
+                        "detail": "Alpaca account auth failed in paper mode.",
+                    }
+                ],
+                "provider_recovery": {
+                    "label": "Premium bloqueado",
+                    "detail": "1/2 acciones caen a fallback por auth/permisos.",
+                    "action": "Configurar POLYGON_API_KEY/POLYGON_API_TOKEN.",
+                    "premium_blocked": True,
+                    "stock_alerts_allowed": False,
+                    "impacted_markets": ["stock", "options"],
+                },
+                "market_realtime": {
+                    "active_route": "ALL_MARKETS_ROUTE",
+                    "active_route_label": "Operar mercados realtime",
+                    "active_route_detail": "Operable STOCK, CRYPTO, OPTIONS.",
+                    "allowed_markets": ["stock", "crypto", "options"],
+                    "blocked_markets": [],
+                },
+            }
+        )
+    )
+
+    status = realtime_health_status(path, now=now, max_age_minutes=15)
+
+    assert status["label"] == "Premium bloqueado"
+    assert status["stock_alerts_allowed"] is False
+    assert status["crypto_alerts_allowed"] is True
+    assert status["allowed_markets"] == ["crypto"]
+    assert status["blocked_markets"] == ["stock", "options"]
+    assert status["active_route"] == "PARTIAL_MARKET_ROUTE"
+    assert status["active_route_label"] == "Operar solo CRYPTO"
+    assert status["active_route_detail"] == "Operable CRYPTO; bloqueado STOCK, OPTIONS."
+    assert status["detail"].startswith("Operar solo CRYPTO")
+
+
+def test_realtime_health_status_treats_stability_slo_fail_as_historical_warning(tmp_path):
+    now = datetime(2026, 6, 8, 12, 0, tzinfo=timezone.utc)
+    path = tmp_path / "roxy_realtime_check.json"
+    path.write_text(
+        json.dumps(
+            {
+                "status": "FAIL",
+                "checks": [
+                    {
+                        "name": "health_stability_slo",
+                        "status": "FAIL",
+                        "detail": "OK rate 72.0% below 75.0%.",
+                    }
+                ],
+            }
+        )
+    )
+
+    status = realtime_health_status(path, now=now, max_age_minutes=15)
+
+    assert status["status"] == "WARN"
+    assert status["label"] == "Health historico"
+    assert status["alerts_allowed"] is True
+    assert status["stock_alerts_allowed"] is True
+    assert status["crypto_alerts_allowed"] is True
+    assert "health_stability_slo" in status["detail"]
+
+
+def test_realtime_health_status_keeps_provider_recovery_on_slo_fail_with_premium_blocked(tmp_path):
+    now = datetime(2026, 6, 8, 12, 0, tzinfo=timezone.utc)
+    path = tmp_path / "roxy_realtime_check.json"
+    path.write_text(
+        json.dumps(
+            {
+                "status": "FAIL",
+                "checks": [
+                    {
+                        "name": "health_stability_slo",
+                        "status": "FAIL",
+                        "detail": "OK rate 72.0% below 75.0%.",
+                    }
+                ],
+                "provider_recovery": {
+                    "label": "Premium bloqueado",
+                    "detail": "1/4 acciones caen a fallback por auth/permisos.",
+                    "action": "Configurar POLYGON_API_KEY/POLYGON_API_TOKEN.",
+                    "premium_blocked": True,
+                    "stock_alerts_allowed": False,
+                    "polygon_missing_count": 1,
+                },
+                "market_realtime": {
+                    "blocked_markets": ["stock", "options"],
+                    "markets": {
+                        "stock": {"alerts_allowed": False},
+                        "crypto": {"alerts_allowed": True},
+                    },
+                },
+            }
+        )
+    )
+
+    status = realtime_health_status(path, now=now, max_age_minutes=15)
+
+    assert status["status"] == "WARN"
+    assert status["label"] == "Premium bloqueado"
+    assert status["alerts_allowed"] is True
+    assert status["stock_alerts_allowed"] is False
+    assert status["crypto_alerts_allowed"] is True
+    assert "POLYGON_API_KEY" in status["detail"]
+    assert status["premium_recovery_action"] == "Configurar POLYGON_API_KEY/POLYGON_API_TOKEN."
+    assert status["provider_recovery"]["premium_blocked"] is True
+    assert status["market_realtime"]["markets"]["crypto"]["alerts_allowed"] is True
 
 
 def test_market_session_status_marks_weekend_closed():
@@ -474,6 +1227,63 @@ def test_write_brief_reports_stale_source_freshness(tmp_path, monkeypatch):
     assert (tmp_path / "journal.csv").exists()
     assert (tmp_path / "alert_quality.json").exists()
     assert (tmp_path / "alert_quality_history.jsonl").exists()
+
+
+def test_write_brief_status_snapshot_uses_fresh_alert_quality_report(tmp_path, monkeypatch):
+    import roxy_ai
+
+    monkeypatch.setattr(roxy_ai, "BRIEF_TEXT_PATH", tmp_path / "brief.txt")
+    monkeypatch.setattr(roxy_ai, "BRIEF_JSON_PATH", tmp_path / "brief.json")
+    monkeypatch.setattr(roxy_ai, "STATUS_TEXT_PATH", tmp_path / "status.txt")
+    monkeypatch.setattr(roxy_ai, "STATUS_JSON_PATH", tmp_path / "status.json")
+    monkeypatch.setattr(roxy_ai, "MEMORY_PATH", tmp_path / "memory.json")
+    monkeypatch.setattr(roxy_ai, "LEARNING_JOURNAL_PATH", tmp_path / "journal.csv")
+    monkeypatch.setattr(roxy_ai, "ALERT_QUALITY_JSON_PATH", tmp_path / "missing_alert_quality.json")
+    brief = {
+        "generated_at": "2026-06-10T12:00:00+00:00",
+        "alert_count": 0,
+        "watch_count": 1,
+        "memory_symbols": 1,
+        "realtime_health": {
+            "label": "Premium bloqueado",
+            "detail": "stocks/options bloqueados por proveedor premium",
+            "alerts_allowed": True,
+            "stock_alerts_allowed": False,
+            "crypto_alerts_allowed": True,
+            "market_realtime": {"blocked_markets": ["stock", "options"]},
+        },
+        "market_session": {
+            "stock_session": "Abierto",
+            "crypto_session": "24h",
+            "stock_alerts_allowed": True,
+        },
+        "opportunities": [
+            {
+                "symbol": "WMT",
+                "market": "stock",
+                "ai_action": "WATCH",
+                "alert_gate": "BLOCKED_REALTIME_DATA",
+                "alert_quality": "C",
+                "alert_readiness_score": 61.1,
+                "alert_primary_blocker": "Datos realtime: Premium bloqueado",
+                "alert_next_action": "Configurar proveedor premium.",
+                "alert_blockers": ["Datos realtime: Premium bloqueado"],
+            }
+        ],
+        "memory": {"symbols": {}, "strategy_stats": {}, "lessons": [], "alert_history": [], "signal_journal": []},
+    }
+
+    write_brief(brief)
+
+    status = json.loads((tmp_path / "status.json").read_text())
+    status_text = (tmp_path / "status.txt").read_text()
+    assert (tmp_path / "alert_quality.json").exists()
+    assert status["alert_quality_state"] == "BLOCKED_REALTIME"
+    assert status["alert_quality_diagnostic_label"] == "Bloqueo parcial"
+    assert status["alert_quality_blocker_category"] == "MARKET_PARTIAL_BLOCK"
+    assert status["alert_quality_false_negative_risk"] == "MEDIUM"
+    assert status["alert_quality_blocked_markets"] == ["stock", "options"]
+    assert "Alert quality: Bloqueo parcial | MARKET_PARTIAL_BLOCK | risk MEDIUM" in status_text
 
 
 def test_update_memory_keeps_lesson_for_no_alerts():
@@ -690,11 +1500,65 @@ def test_learning_journal_dedupes_same_cycle_and_caps_rows(tmp_path):
     assert journal.iloc[-1]["learning_lesson"] == "Pullback necesita mas evidencia antes de alertar."
 
 
+def test_learning_journal_compacts_repeated_fingerprints_on_duplicate_append(tmp_path):
+    brief = {
+        "generated_at": "2026-06-14T00:15:00+00:00",
+        "alert_count": 0,
+        "watch_count": 2,
+        "memory_symbols": 13,
+        "opportunities": [
+            {
+                "symbol": "BNB/USD",
+                "market": "crypto",
+                "ai_action": "WATCH",
+                "signal": "WATCH",
+                "strategy_family": "Pullback",
+                "alert_gate": "WAIT_15M_ENTRY",
+                "alert_quality": "C",
+                "alert_readiness_score": 68.4,
+                "alert_next_action": "Esperar gatillo BUY en 15m.",
+                "alert_blockers": ["15m da entrada: WAIT", "falta volumen"],
+                "learning_bias": "learning",
+            }
+        ],
+        "learning_profiles": [
+            {
+                "bias": "learning",
+                "lesson": "Pullback: todavia no hay suficientes alertas cerradas para subir o bajar peso.",
+                "recommendation": "Seguir observando y exigir confirmacion 1h + entrada 15m.",
+            }
+        ],
+        "learning_plan": [{"strategy_family": "Pullback", "proposed_rule": "Exigir una vela BUY fresca."}],
+        "experiment_registry": [{"status": "Shadow test"}],
+    }
+    path = tmp_path / "journal.csv"
+    base_row = build_learning_journal_row(brief)
+    base_row["fingerprint"] = roxy_ai._learning_journal_fingerprint(base_row)
+    existing = []
+    for minute in (0, 5, 10):
+        row = dict(base_row)
+        row["generated_at"] = f"2026-06-14T00:{minute:02d}:00+00:00"
+        existing.append(row)
+    pd.DataFrame(existing).to_csv(path, index=False)
+
+    returned = append_learning_journal(brief, path=path, max_rows=10)
+
+    journal = pd.read_csv(path)
+    assert returned["fingerprint"] == base_row["fingerprint"]
+    assert len(journal) == 2
+    assert list(journal["generated_at"]) == [
+        "2026-06-14T00:00:00+00:00",
+        "2026-06-14T00:10:00+00:00",
+    ]
+    assert journal["fingerprint"].nunique() == 1
+
+
 def test_status_snapshot_summarizes_top_setup(tmp_path, monkeypatch):
     import roxy_ai
 
     monkeypatch.setattr(roxy_ai, "STATUS_TEXT_PATH", tmp_path / "status.txt")
     monkeypatch.setattr(roxy_ai, "STATUS_JSON_PATH", tmp_path / "status.json")
+    monkeypatch.setattr(roxy_ai, "ALERT_QUALITY_JSON_PATH", tmp_path / "missing_alert_quality.json")
     brief = {
         "generated_at": "2026-06-07T00:00:00+00:00",
         "mode": "AI_WATCH_24H",
@@ -726,8 +1590,1141 @@ def test_status_snapshot_summarizes_top_setup(tmp_path, monkeypatch):
     assert status["top_symbol"] == "AAPL"
     assert status["top_gate"] == "WAIT_VOLUME"
     assert status["top_readiness"] == 77.8
+    assert status["system_status"] == "WARN"
+    assert status["market_state"] == "WAITING"
+    assert status["status"] == "WARN"
+    assert status["state"] == "WAITING"
+    assert status["safe_mode"] == "WAIT_FOR_CONFIRMATION"
+    assert status["recommended_action"] == "Esperar volumen relativo >= 0.8x."
+    assert status["blocked_markets"] == []
     assert written["learning_plan_count"] == 1
     assert "Esperar volumen" in (tmp_path / "status.txt").read_text()
+
+
+def test_status_snapshot_includes_matching_alert_quality_action(tmp_path, monkeypatch):
+    import roxy_ai
+
+    quality_path = tmp_path / "alert_quality.json"
+    monkeypatch.setattr(roxy_ai, "ALERT_QUALITY_JSON_PATH", quality_path)
+    quality_path.write_text(
+        json.dumps(
+            {
+                "brief_generated_at": "2026-06-10T12:00:00+00:00",
+                "summary": {
+                    "state": "WAITING",
+                    "diagnostic_label": "Esperando gatillo x50",
+                    "diagnostic_severity": "WATCH",
+                    "blocker_category": "MARKET_TRIGGER_WAIT",
+                    "false_negative_risk": "MEDIUM",
+                    "avg_readiness": 57.6,
+                    "latest_readiness": 61.5,
+                    "readiness_delta": 4.2,
+                    "readiness_trend": 4.2,
+                    "silence_mode": "MISSED_TRIGGER_WATCH",
+                    "silence_reason": "Esperando gatillo 15m",
+                    "missed_opportunity_watch": True,
+                    "missed_opportunity_risk": "MEDIUM",
+                    "missed_opportunity_reason": "Setup listo, pero gatillo 15m lleva 50 ciclos pendiente",
+                    "missed_opportunity_action": "Revisar manualmente candidatos rotados en 15m/1h",
+                    "missed_trigger_plan": {
+                        "active": True,
+                        "primary_symbol": "WMT",
+                        "primary_readiness": 61.5,
+                        "risk": "MEDIUM",
+                        "review_due": True,
+                        "review_status": "OVERDUE",
+                        "review_overdue_cycles": 2,
+                        "review_cycles_remaining": 0,
+                        "review_progress": 1.042,
+                        "review_cycle_minutes": 1.4,
+                        "review_eta_minutes": 0.0,
+                        "review_overdue_minutes": 2.8,
+                        "review_pressure": "OVERDUE",
+                        "stale_candidate": False,
+                        "auto_review_decision": "REVALIDATE_NOW",
+                        "decision_reason": "Review overdue while the setup remains close to trigger.",
+                        "decision_action": "Revalidar ahora 15m/1h.",
+                        "readiness_delta": 0.0,
+                        "rotation_guard_active": False,
+                        "rotation_alternates": [],
+                        "rotation_cooldown_cycles": 0,
+                        "rotation_resume_condition": "",
+                        "severity": "ATTENTION",
+                        "max_watch_cycles": 48,
+                        "review_action": "Revalidar manualmente el setup en 15m/1h.",
+                        "exit_condition": "No alertar hasta que 15m confirme entrada.",
+                    },
+                    "recommended_action": "Rotar foco: WMT 61.5% C, PEP 53.8% C; no alertar hasta que 15m confirme entrada",
+                    "rotation_candidates": ["WMT 61.5% C", "PEP 53.8% C"],
+                    "waiting_streak": 50,
+                    "dominant_blocker": {"name": "15m da entrada: WAIT", "count": 50},
+                    "persistent_blocker": "15m da entrada: WAIT",
+                    "persistent_blocker_minutes": 69.9,
+                },
+            }
+        )
+    )
+    brief = {
+        "generated_at": "2026-06-10T12:00:00+00:00",
+        "opportunities": [
+            {
+                "symbol": "WMT",
+                "market": "stock",
+                "ai_action": "WATCH",
+                "alert_gate": "WAIT_15M_ENTRY",
+                "alert_quality": "C",
+                "alert_readiness_score": 61.5,
+                "alert_next_action": "Esperar gatillo BUY en 15m.",
+                "alert_blockers": ["15m da entrada: WAIT"],
+            }
+        ],
+    }
+
+    status = build_status_snapshot(brief)
+
+    assert status["alert_quality_state"] == "WAITING"
+    assert status["alert_quality_diagnostic_label"] == "Esperando gatillo x50"
+    assert status["alert_quality_diagnostic_severity"] == "WATCH"
+    assert status["alert_quality_blocker_category"] == "MARKET_TRIGGER_WAIT"
+    assert status["alert_quality_false_negative_risk"] == "MEDIUM"
+    assert status["alert_quality_avg_readiness"] == 57.6
+    assert status["alert_quality_latest_readiness"] == 61.5
+    assert status["alert_quality_readiness_delta"] == 4.2
+    assert status["alert_quality_readiness_trend"] == 4.2
+    assert status["alert_quality_silence_mode"] == "MISSED_TRIGGER_WATCH"
+    assert status["alert_quality_silence_reason"] == "Esperando gatillo 15m"
+    assert status["alert_quality_missed_opportunity_watch"] is True
+    assert status["alert_quality_missed_opportunity_risk"] == "MEDIUM"
+    assert "50 ciclos" in status["alert_quality_missed_opportunity_reason"]
+    assert "Revisar manualmente" in status["alert_quality_missed_opportunity_action"]
+    assert status["alert_quality_missed_trigger_plan_active"] is True
+    assert status["alert_quality_missed_trigger_plan_symbol"] == "WMT"
+    assert status["alert_quality_missed_trigger_plan_readiness"] == 61.5
+    assert status["alert_quality_missed_trigger_plan_risk"] == "MEDIUM"
+    assert status["alert_quality_missed_trigger_plan_review_due"] is True
+    assert status["alert_quality_missed_trigger_plan_review_status"] == "OVERDUE"
+    assert status["alert_quality_missed_trigger_plan_review_overdue_cycles"] == 2
+    assert status["alert_quality_missed_trigger_plan_review_cycles_remaining"] == 0
+    assert status["alert_quality_missed_trigger_plan_review_progress"] == 1.042
+    assert status["alert_quality_missed_trigger_plan_review_cycle_minutes"] == 1.4
+    assert status["alert_quality_missed_trigger_plan_review_eta_minutes"] == 0.0
+    assert status["alert_quality_missed_trigger_plan_review_overdue_minutes"] == 2.8
+    assert status["alert_quality_missed_trigger_plan_review_pressure"] == "OVERDUE"
+    assert status["alert_quality_missed_trigger_plan_stale_candidate"] is False
+    assert status["alert_quality_missed_trigger_plan_auto_review_decision"] == "REVALIDATE_NOW"
+    assert status["alert_quality_missed_trigger_plan_decision_reason"] == (
+        "Review overdue while the setup remains close to trigger."
+    )
+    assert status["alert_quality_missed_trigger_plan_decision_action"] == "Revalidar ahora 15m/1h."
+    assert status["alert_quality_missed_trigger_plan_readiness_delta"] == 0.0
+    assert status["alert_quality_missed_trigger_plan_rotation_guard_active"] is False
+    assert status["alert_quality_missed_trigger_plan_rotation_alternates"] == []
+    assert status["alert_quality_missed_trigger_plan_rotation_cooldown_cycles"] == 0
+    assert status["alert_quality_missed_trigger_plan_severity"] == "ATTENTION"
+    assert status["alert_quality_missed_trigger_plan_max_watch_cycles"] == 48
+    assert status["alert_quality_missed_trigger_plan_review_action"] == "Revalidar manualmente el setup en 15m/1h."
+    assert "15m confirme" in status["alert_quality_missed_trigger_plan_exit"]
+    assert status["alert_quality_waiting_streak"] == 50
+    assert status["alert_quality_recurrent_blocker"] == "15m da entrada: WAIT"
+    assert status["alert_quality_recurrent_blocker_count"] == 50
+    assert status["alert_quality_persistent_blocker"] == "15m da entrada: WAIT"
+    assert status["alert_quality_persistent_blocker_minutes"] == 69.9
+    assert status["alert_quality_rotation_candidates"] == ["WMT 61.5% C", "PEP 53.8% C"]
+    assert status["alert_quality_recommended_action"].startswith("Rotar foco: WMT")
+    assert status["system_status"] == "WARN"
+    assert status["market_state"] == "WAITING"
+    assert status["safe_mode"] == "WAIT_FOR_CONFIRMATION"
+    assert status["contract_version"] == 2
+    assert status["label"] == "Esperando gatillo x50"
+    assert status["tone"] == "watch"
+    assert status["recommended_action"].startswith("Rotar foco: WMT")
+
+
+def test_status_snapshot_uses_recurrent_blocker_when_persistent_name_missing(tmp_path, monkeypatch):
+    import roxy_ai
+
+    quality_path = tmp_path / "alert_quality.json"
+    monkeypatch.setattr(roxy_ai, "ALERT_QUALITY_JSON_PATH", quality_path)
+    quality_path.write_text(
+        json.dumps(
+            {
+                "brief_generated_at": "2026-06-10T12:00:00+00:00",
+                "summary": {
+                    "state": "WAITING",
+                    "diagnostic_label": "Esperando gatillo x47",
+                    "dominant_blocker": {"name": "15m da entrada: WAIT", "count": 47},
+                    "persistent_blocker_minutes": 0.3,
+                },
+            }
+        )
+    )
+
+    status = build_status_snapshot(
+        {
+            "generated_at": "2026-06-10T12:00:00+00:00",
+            "opportunities": [{"symbol": "BTC/USD", "alert_gate": "WAIT_15M_ENTRY"}],
+        }
+    )
+
+    assert status["alert_quality_recurrent_blocker"] == "15m da entrada: WAIT"
+    assert status["alert_quality_recurrent_blocker_count"] == 47
+    assert status["alert_quality_persistent_blocker"] == "15m da entrada: WAIT"
+    assert status["alert_quality_persistent_blocker_minutes"] == 0.3
+
+
+def test_status_snapshot_promotes_stale_single_discard_guard():
+    brief = {
+        "generated_at": "2026-06-10T12:00:00+00:00",
+        "opportunities": [
+            {
+                "symbol": "PEPE/USD",
+                "market": "crypto",
+                "ai_action": "WATCH",
+                "alert_gate": "WAIT_15M_ENTRY",
+                "alert_quality": "C",
+                "alert_readiness_score": 73.7,
+                "alert_next_action": "Esperar gatillo BUY en 15m.",
+                "alert_blockers": ["15m da entrada: WAIT"],
+            }
+        ],
+    }
+    alert_quality_report = {
+        "brief_generated_at": "2026-06-10T12:00:00+00:00",
+        "state": "WAITING",
+        "diagnostic_label": "Esperando gatillo x50",
+        "diagnostic_severity": "WATCH",
+        "blocker_category": "MARKET_TRIGGER_WAIT",
+        "false_negative_risk": "MEDIUM",
+        "recommended_action": "Pausar foco: PEPE/USD 73.7% C; esperar nuevo candidato o confirmacion 15m",
+        "missed_trigger_plan_active": True,
+        "missed_trigger_plan_symbol": "PEPE/USD",
+        "missed_trigger_plan_readiness": 73.7,
+        "missed_trigger_plan_risk": "MEDIUM",
+        "missed_trigger_plan_review_due": True,
+        "missed_trigger_plan_review_status": "OVERDUE",
+        "missed_trigger_plan_review_pressure": "STALE_SINGLE",
+        "missed_trigger_plan_stale_candidate": True,
+        "missed_trigger_plan_auto_review_decision": "DISCARD_STALE_SINGLE",
+        "missed_trigger_plan_decision_reason": (
+            "Review overdue on the only visible candidate; no alternate rotation candidate is available."
+        ),
+        "missed_trigger_plan_decision_action": (
+            "Pausar o descartar el candidato unico; esperar nuevo candidato o confirmacion 15m antes de reactivarlo."
+        ),
+        "missed_trigger_plan_readiness_delta": 7.9,
+        "missed_trigger_plan_rotation_guard_active": False,
+        "missed_trigger_plan_rotation_alternates": [],
+        "missed_trigger_plan_rotation_cooldown_cycles": 0,
+        "missed_trigger_plan_rotation_cooldown_eta_minutes": None,
+        "missed_trigger_plan_discard_guard_active": True,
+        "missed_trigger_plan_discard_symbol": "PEPE/USD",
+        "missed_trigger_plan_discard_reason": (
+            "Review overdue on the only visible candidate; no alternate rotation candidate is available."
+        ),
+        "missed_trigger_plan_discard_cooldown_cycles": 12,
+        "missed_trigger_plan_discard_cooldown_eta_minutes": 15.6,
+        "missed_trigger_plan_discard_resume_condition": (
+            "Rehabilitar el candidato unico solo si 15m confirma entrada o aparece un alterno operable."
+        ),
+        "summary": {
+            "state": "WAITING",
+            "diagnostic_label": "Esperando gatillo x50",
+            "recommended_action": "accion vieja",
+        },
+    }
+
+    status = build_status_snapshot(brief, alert_quality_report=alert_quality_report)
+
+    assert status["recommended_action"] == (
+        "Pausar foco: PEPE/USD 73.7% C; esperar nuevo candidato o confirmacion 15m"
+    )
+    assert status["alert_quality_missed_trigger_plan_auto_review_decision"] == "DISCARD_STALE_SINGLE"
+    assert status["alert_quality_missed_trigger_plan_review_pressure"] == "STALE_SINGLE"
+    assert status["alert_quality_missed_trigger_plan_stale_candidate"] is True
+    assert status["alert_quality_missed_trigger_plan_decision_action"].startswith("Pausar o descartar")
+    assert status["alert_quality_missed_trigger_plan_rotation_guard_active"] is False
+    assert status["alert_quality_missed_trigger_plan_rotation_alternates"] == []
+    assert status["alert_quality_missed_trigger_plan_rotation_cooldown_cycles"] == 0
+    assert status["alert_quality_missed_trigger_plan_rotation_cooldown_eta_minutes"] is None
+    assert status["alert_quality_missed_trigger_plan_discard_guard_active"] is True
+    assert status["alert_quality_missed_trigger_plan_discard_symbol"] == "PEPE/USD"
+    assert status["alert_quality_missed_trigger_plan_discard_cooldown_cycles"] == 12
+    assert status["alert_quality_missed_trigger_plan_discard_cooldown_eta_minutes"] == 15.6
+    assert "alterno operable" in status["alert_quality_missed_trigger_plan_discard_resume_condition"]
+    assert status["operational_focus_symbol"] == "PEPE/USD"
+    assert status["operational_focus_source"] == "ALERT_QUALITY_DISCARD"
+    assert status["operational_focus_reason"].startswith("Pausar o descartar")
+    assert status["alert_quality_discard_handoff_status"] == "CONFIRMED"
+    assert status["alert_quality_discard_handoff_expected_symbol"] == "PEPE/USD"
+    assert status["alert_quality_discard_handoff_focus_symbol"] == "PEPE/USD"
+    assert status["alert_quality_discard_handoff_source"] == "ALERT_QUALITY_DISCARD"
+    assert status["alert_quality_rotation_handoff_status"] == "NOT_REQUESTED"
+    assert status["alert_quality_rotation_handoff_expected_symbol"] == ""
+    assert status["alert_quality_rotation_handoff_focus_symbol"] == ""
+    assert status["alert_quality_rotation_handoff_source"] == ""
+    assert status["alert_quality_confirmation_rotation_handoff_status"] == "NOT_REQUESTED"
+    assert status["alert_quality_confirmation_rotation_handoff_expected_symbol"] == ""
+    assert status["alert_quality_confirmation_rotation_handoff_focus_symbol"] == ""
+    assert status["alert_quality_confirmation_rotation_handoff_source"] == ""
+
+
+def test_status_snapshot_promotes_rotation_next_symbol():
+    brief = {
+        "generated_at": "2026-06-10T12:00:00+00:00",
+        "opportunities": [
+            {
+                "symbol": "ETH/USD",
+                "market": "crypto",
+                "ai_action": "WATCH",
+                "alert_gate": "WAIT_15M_ENTRY",
+                "alert_quality": "B",
+                "alert_readiness_score": 89.5,
+                "alert_next_action": "Esperar gatillo BUY en 15m.",
+                "alert_blockers": ["15m da entrada: WAIT"],
+            }
+        ],
+    }
+    alert_quality_report = {
+        "brief_generated_at": "2026-06-10T12:00:00+00:00",
+        "state": "WAITING",
+        "diagnostic_label": "Esperando gatillo x72",
+        "diagnostic_severity": "ATTENTION",
+        "blocker_category": "MARKET_TRIGGER_WAIT",
+        "false_negative_risk": "HIGH",
+        "recommended_action": (
+            "Escalar rotacion: revalidar 15m/1h ahora; si no confirma en la proxima revision, "
+            "rotar foco a BTC/USD."
+        ),
+        "missed_trigger_plan_active": True,
+        "missed_trigger_plan_symbol": "ETH/USD",
+        "missed_trigger_plan_readiness": 89.5,
+        "missed_trigger_plan_risk": "HIGH",
+        "missed_trigger_plan_review_due": True,
+        "missed_trigger_plan_review_status": "OVERDUE",
+        "missed_trigger_plan_review_pressure": "OVERDUE_ESCALATED",
+        "missed_trigger_plan_auto_review_decision": "ESCALATE_ROTATION",
+        "missed_trigger_plan_decision_action": (
+            "Escalar rotacion: revalidar 15m/1h ahora; si no confirma en la proxima revision, "
+            "rotar foco a BTC/USD."
+        ),
+        "missed_trigger_plan_rotation_guard_active": True,
+        "missed_trigger_plan_rotation_blocked_symbol": "ETH/USD",
+        "missed_trigger_plan_rotation_alternates": ["BTC/USD 78.9% B", "SOL/USD 78.9% B"],
+        "missed_trigger_plan_rotation_next_symbol": "BTC/USD",
+        "missed_trigger_plan_rotation_cooldown_cycles": 12,
+    }
+
+    status = build_status_snapshot(brief, alert_quality_report=alert_quality_report)
+
+    assert status["alert_quality_missed_trigger_plan_auto_review_decision"] == "ESCALATE_ROTATION"
+    assert status["alert_quality_missed_trigger_plan_rotation_guard_active"] is True
+    assert status["alert_quality_missed_trigger_plan_rotation_blocked_symbol"] == "ETH/USD"
+    assert status["alert_quality_missed_trigger_plan_rotation_alternates"] == [
+        "BTC/USD 78.9% B",
+        "SOL/USD 78.9% B",
+    ]
+    assert status["alert_quality_missed_trigger_plan_rotation_next_symbol"] == "BTC/USD"
+    assert "BTC/USD" in status["recommended_action"]
+    assert status["top_symbol"] == "ETH/USD"
+    assert status["operational_focus_symbol"] == "BTC/USD"
+    assert status["operational_focus_source"] == "ALERT_QUALITY_ROTATION"
+    assert status["operational_focus_overrides_top"] is True
+    assert "ETH/USD vencido" in status["operational_focus_reason"]
+    assert status["alert_quality_rotation_handoff_status"] == "CONFIRMED"
+    assert status["alert_quality_rotation_handoff_expected_symbol"] == "BTC/USD"
+    assert status["alert_quality_rotation_handoff_focus_symbol"] == "BTC/USD"
+    assert status["alert_quality_rotation_handoff_source"] == "ALERT_QUALITY_ROTATION"
+    assert status["alert_quality_discard_handoff_status"] == "NOT_REQUESTED"
+    assert status["alert_quality_discard_handoff_expected_symbol"] == ""
+    assert status["alert_quality_discard_handoff_focus_symbol"] == ""
+    assert status["alert_quality_discard_handoff_source"] == ""
+    assert status["alert_quality_confirmation_rotation_handoff_status"] == "NOT_REQUESTED"
+    assert status["alert_quality_confirmation_rotation_handoff_expected_symbol"] == ""
+    assert status["alert_quality_confirmation_rotation_handoff_focus_symbol"] == ""
+    assert status["alert_quality_confirmation_rotation_handoff_source"] == ""
+
+
+def test_status_snapshot_prefers_confirmed_rotation_handoff_action():
+    brief = {
+        "generated_at": "2026-06-10T12:00:00+00:00",
+        "opportunities": [
+            {
+                "symbol": "ETH/USD",
+                "market": "crypto",
+                "ai_action": "WATCH",
+                "alert_gate": "WAIT_15M_ENTRY",
+                "alert_quality": "B",
+                "alert_readiness_score": 89.5,
+                "alert_next_action": "Esperar gatillo BUY en 15m.",
+                "alert_blockers": ["15m da entrada: WAIT"],
+            }
+        ],
+    }
+    confirmed_action = (
+        "Rotacion confirmada: mantener foco operativo en BTC/USD; mantener ETH/USD bloqueado "
+        "hasta que 15m confirme entrada o cambie la readiness."
+    )
+    alert_quality_report = {
+        "brief_generated_at": "2026-06-10T12:00:00+00:00",
+        "state": "WAITING",
+        "diagnostic_label": "Esperando gatillo x72",
+        "diagnostic_severity": "ATTENTION",
+        "blocker_category": "MARKET_TRIGGER_WAIT",
+        "recommended_action": confirmed_action,
+        "missed_trigger_plan_active": True,
+        "missed_trigger_plan_symbol": "ETH/USD",
+        "missed_trigger_plan_rotation_guard_active": True,
+        "missed_trigger_plan_rotation_blocked_symbol": "ETH/USD",
+        "missed_trigger_plan_rotation_next_symbol": "BTC/USD",
+        "missed_trigger_plan_rotation_handoff_confirmed": True,
+        "missed_trigger_plan_handoff_confirmed_action": confirmed_action,
+    }
+
+    status = build_status_snapshot(brief, alert_quality_report=alert_quality_report)
+
+    assert status["operational_focus_symbol"] == "BTC/USD"
+    assert status["operational_focus_source"] == "ALERT_QUALITY_ROTATION"
+    assert status["operational_focus_reason"] == confirmed_action
+    assert status["recommended_action"] == confirmed_action
+    assert status["alert_quality_missed_trigger_plan_handoff_confirmed_action"] == confirmed_action
+    assert status["alert_quality_rotation_handoff_status"] == "CONFIRMED"
+
+
+def test_status_snapshot_marks_daily_plan_focus_alignment():
+    brief = {
+        "generated_at": "2026-06-10T12:00:00+00:00",
+        "opportunities": [
+            {
+                "symbol": "ETH/USD",
+                "market": "crypto",
+                "ai_action": "WATCH",
+                "alert_gate": "WAIT_15M_ENTRY",
+                "alert_quality": "C",
+                "alert_readiness_score": 73.7,
+                "alert_next_action": "Esperar gatillo BUY en 15m.",
+            }
+        ],
+        "daily_opportunity_plan": {
+            "mode": "DAILY_OPPORTUNITY_PLAN_24H",
+            "operar_ahora": 0,
+            "proxima_entrada": 1,
+            "vigilar": 0,
+            "top_symbol": "LINK/USD",
+            "top_stage": "PROXIMA_ENTRADA",
+            "top_probability": 74,
+        },
+    }
+    alert_quality_report = {
+        "brief_generated_at": "2026-06-10T12:00:00+00:00",
+        "state": "WAITING",
+        "diagnostic_label": "Esperando gatillo x72",
+        "diagnostic_severity": "ATTENTION",
+        "blocker_category": "MARKET_TRIGGER_WAIT",
+        "false_negative_risk": "MEDIUM",
+        "recommended_action": "Escalar rotacion a LINK/USD.",
+        "missed_trigger_plan_active": True,
+        "missed_trigger_plan_symbol": "ETH/USD",
+        "missed_trigger_plan_review_due": True,
+        "missed_trigger_plan_review_status": "OVERDUE",
+        "missed_trigger_plan_review_pressure": "STALE_OVERDUE_ESCALATED",
+        "missed_trigger_plan_auto_review_decision": "ESCALATE_ROTATION",
+        "missed_trigger_plan_rotation_guard_active": True,
+        "missed_trigger_plan_rotation_blocked_symbol": "ETH/USD",
+        "missed_trigger_plan_rotation_next_symbol": "LINK/USD",
+    }
+
+    status = build_status_snapshot(brief, alert_quality_report=alert_quality_report)
+
+    assert status["top_symbol"] == "ETH/USD"
+    assert status["operational_focus_symbol"] == "LINK/USD"
+    assert status["daily_plan_top_symbol"] == "LINK/USD"
+    assert status["daily_plan_matches_top"] is False
+    assert status["daily_plan_matches_focus"] is True
+    assert status["daily_plan_alignment"] == "FOCUS_ALIGNED"
+
+
+def test_status_snapshot_marks_daily_plan_focus_supported_when_rotation_is_listed():
+    brief = {
+        "generated_at": "2026-06-10T12:00:00+00:00",
+        "opportunities": [
+            {
+                "symbol": "ETH/USD",
+                "market": "crypto",
+                "ai_action": "WATCH",
+                "alert_gate": "WAIT_HTF_CONFIRM",
+                "alert_quality": "B",
+                "alert_readiness_score": 89.5,
+                "alert_next_action": "Esperar confirmacion 2h/4h.",
+            },
+            {
+                "symbol": "SOL/USD",
+                "market": "crypto",
+                "ai_action": "WATCH",
+                "alert_gate": "WAIT_HTF_CONFIRM",
+                "alert_quality": "C",
+                "alert_readiness_score": 73.7,
+                "alert_next_action": "Alterno de rotacion.",
+            },
+        ],
+        "daily_opportunity_plan": {
+            "mode": "DAILY_OPPORTUNITY_PLAN_24H",
+            "operar_ahora": 0,
+            "proxima_entrada": 2,
+            "vigilar": 0,
+            "top_symbol": "ETH/USD",
+            "top_stage": "PROXIMA_ENTRADA",
+            "top_probability": 81,
+            "rows": [
+                {"symbol": "ETH/USD", "stage": "PROXIMA_ENTRADA", "probability": 81},
+                {"symbol": "SOL/USD", "stage": "PROXIMA_ENTRADA", "probability": 73},
+            ],
+        },
+    }
+    alert_quality_report = {
+        "brief_generated_at": "2026-06-10T12:00:00+00:00",
+        "state": "WAITING",
+        "diagnostic_label": "Esperando confirmacion",
+        "diagnostic_severity": "ATTENTION",
+        "blocker_category": "MARKET_CONFIRMATION_WAIT",
+        "recommended_action": "Escalar rotacion a SOL/USD.",
+        "confirmation_wait_plan_active": True,
+        "confirmation_wait_plan_symbol": "ETH/USD",
+        "confirmation_wait_plan_review_due": True,
+        "confirmation_wait_plan_review_status": "OVERDUE",
+        "confirmation_wait_plan_review_pressure": "OVERDUE_ESCALATED",
+        "confirmation_wait_plan_rotation_guard_active": True,
+        "confirmation_wait_plan_rotation_blocked_symbol": "ETH/USD",
+        "confirmation_wait_plan_rotation_next_symbol": "SOL/USD",
+    }
+
+    status = build_status_snapshot(brief, alert_quality_report=alert_quality_report)
+
+    assert status["top_symbol"] == "ETH/USD"
+    assert status["operational_focus_symbol"] == "SOL/USD"
+    assert status["daily_plan_top_symbol"] == "ETH/USD"
+    assert status["daily_plan_focus_symbol"] == "SOL/USD"
+    assert status["daily_plan_focus_stage"] == "PROXIMA_ENTRADA"
+    assert status["daily_plan_supports_focus"] is True
+    assert status["daily_plan_matches_top"] is True
+    assert status["daily_plan_matches_focus"] is True
+    assert status["daily_plan_alignment"] == "FOCUS_SUPPORTED"
+
+
+def test_status_snapshot_includes_confirmation_wait_plan(tmp_path, monkeypatch):
+    import roxy_ai
+
+    quality_path = tmp_path / "alert_quality.json"
+    monkeypatch.setattr(roxy_ai, "ALERT_QUALITY_JSON_PATH", quality_path)
+    quality_path.write_text(
+        json.dumps(
+            {
+                "brief_generated_at": "2026-06-10T12:00:00+00:00",
+                "summary": {
+                    "status": "WARN",
+                    "status_reason": "Alert quality requires manual review or attention.",
+                    "state": "WAITING",
+                    "diagnostic_label": "Esperando confirmacion x50",
+                    "diagnostic_severity": "ATTENTION",
+                    "blocker_category": "MARKET_CONFIRMATION_WAIT",
+                    "false_negative_risk": "LOW",
+                    "silence_mode": "HEALTHY_WAIT",
+                    "silence_reason": "2h/4h aun no validan el gatillo",
+                    "confirmation_wait_plan": {
+                        "active": True,
+                        "primary_symbol": "ETH/USD",
+                        "primary_readiness": 89.5,
+                        "risk": "LOW",
+                        "review_due": True,
+                        "review_status": "OVERDUE",
+                        "review_overdue_cycles": 2,
+                        "review_cycles_remaining": 0,
+                        "review_progress": 1.042,
+                        "review_cycle_minutes": 1.0,
+                        "review_eta_minutes": 0.0,
+                        "review_overdue_minutes": 2.0,
+                        "severity": "ATTENTION",
+                        "max_watch_cycles": 48,
+                        "review_action": "Revalidar manualmente 2h/4h antes de alertar.",
+                        "exit_condition": "No alertar hasta que 2h/4h confirme.",
+                    },
+                    "recommended_action": "Esperar confirmacion de volumen/target antes de alertar",
+                    "waiting_streak": 50,
+                    "persistent_blocker_minutes": 2.7,
+                },
+            }
+        )
+    )
+    brief = {
+        "generated_at": "2026-06-10T12:00:00+00:00",
+        "opportunities": [
+            {
+                "symbol": "ETH/USD",
+                "market": "crypto",
+                "ai_action": "WATCH",
+                "alert_gate": "WAIT_HTF_CONFIRM",
+                "alert_quality": "B",
+                "alert_readiness_score": 89.5,
+                "alert_next_action": "Esperar que 2h/4h confirmen o dejen de bloquear el gatillo.",
+                "alert_blockers": ["2h/4h validan: 2h/4h contradicen el gatillo"],
+            }
+        ],
+    }
+
+    status = build_status_snapshot(brief)
+
+    assert status["alert_quality_blocker_category"] == "MARKET_CONFIRMATION_WAIT"
+    assert status["alert_quality_report_status"] == "WARN"
+    assert status["alert_quality_status_reason"] == "Alert quality requires manual review or attention."
+    assert status["alert_quality_confirmation_wait_plan_active"] is True
+    assert status["alert_quality_confirmation_wait_plan_symbol"] == "ETH/USD"
+    assert status["alert_quality_confirmation_wait_plan_readiness"] == 89.5
+    assert status["alert_quality_confirmation_wait_plan_risk"] == "LOW"
+    assert status["alert_quality_confirmation_wait_plan_review_due"] is True
+    assert status["alert_quality_confirmation_wait_plan_review_status"] == "OVERDUE"
+    assert status["alert_quality_confirmation_wait_plan_review_pressure"] == "OVERDUE"
+    assert status["alert_quality_confirmation_wait_plan_review_overdue_cycles"] == 2
+    assert status["alert_quality_confirmation_wait_plan_review_cycles_remaining"] == 0
+    assert status["alert_quality_confirmation_wait_plan_review_progress"] == 1.042
+    assert status["alert_quality_confirmation_wait_plan_review_cycle_minutes"] == 1.0
+    assert status["alert_quality_confirmation_wait_plan_review_eta_minutes"] == 0.0
+    assert status["alert_quality_confirmation_wait_plan_review_overdue_minutes"] == 2.0
+    assert status["alert_quality_confirmation_wait_plan_severity"] == "ATTENTION"
+    assert status["alert_quality_confirmation_wait_plan_max_watch_cycles"] == 48
+    assert status["alert_quality_confirmation_wait_plan_review_action"] == (
+        "Revalidar manualmente 2h/4h antes de alertar."
+    )
+    assert "2h/4h confirme" in status["alert_quality_confirmation_wait_plan_exit"]
+    assert status["system_status"] == "WARN"
+    assert status["market_state"] == "WAITING"
+    assert status["safe_mode"] == "WAIT_FOR_CONFIRMATION"
+
+
+def test_status_snapshot_promotes_confirmation_wait_rotation(tmp_path, monkeypatch):
+    import roxy_ai
+
+    quality_path = tmp_path / "alert_quality.json"
+    monkeypatch.setattr(roxy_ai, "ALERT_QUALITY_JSON_PATH", quality_path)
+    quality_path.write_text(
+        json.dumps(
+            {
+                "brief_generated_at": "2026-06-10T12:00:00+00:00",
+                "summary": {
+                    "state": "WAITING",
+                    "diagnostic_label": "Esperando confirmacion x72",
+                    "diagnostic_severity": "ATTENTION",
+                    "blocker_category": "MARKET_CONFIRMATION_WAIT",
+                    "false_negative_risk": "LOW",
+                    "silence_mode": "HEALTHY_WAIT",
+                    "confirmation_wait_plan": {
+                        "active": True,
+                        "primary_symbol": "ETH/USD",
+                        "primary_readiness": 83.0,
+                        "risk": "LOW",
+                        "review_due": True,
+                        "review_status": "OVERDUE",
+                        "review_pressure": "OVERDUE_ESCALATED",
+                        "review_overdue_cycles": 24,
+                        "review_cycles_remaining": 0,
+                        "rotation_guard_active": True,
+                        "rotation_blocked_symbol": "ETH/USD",
+                        "rotation_alternates": ["BTC/USD 77.5% B"],
+                        "rotation_next_symbol": "BTC/USD",
+                        "rotation_cooldown_cycles": 12,
+                        "rotation_resume_condition": (
+                            "Rehabilitar el simbolo solo si 2h/4h, volumen/target y grafica realtime confirman."
+                        ),
+                        "decision_action": (
+                            "Escalar rotacion de confirmacion: revalidar 2h/4h, volumen y target ahora; "
+                            "si no mejora, rotar foco a BTC/USD."
+                        ),
+                        "severity": "ATTENTION",
+                        "max_watch_cycles": 48,
+                    },
+                    "recommended_action": "Escalar rotacion de confirmacion: rotar foco a BTC/USD.",
+                },
+            }
+        )
+    )
+    brief = {
+        "generated_at": "2026-06-10T12:00:00+00:00",
+        "opportunities": [
+            {
+                "symbol": "ETH/USD",
+                "market": "crypto",
+                "ai_action": "WATCH",
+                "alert_gate": "WAIT_HTF_CONFIRM",
+                "alert_quality": "B",
+                "alert_readiness_score": 83.0,
+                "alert_next_action": "Esperar que 2h/4h confirmen.",
+                "alert_blockers": ["2h/4h validan: contradicen"],
+            }
+        ],
+    }
+
+    status = build_status_snapshot(brief)
+
+    assert status["alert_quality_confirmation_wait_plan_review_pressure"] == "OVERDUE_ESCALATED"
+    assert status["alert_quality_confirmation_wait_plan_rotation_guard_active"] is True
+    assert status["alert_quality_confirmation_wait_plan_rotation_blocked_symbol"] == "ETH/USD"
+    assert status["alert_quality_confirmation_wait_plan_rotation_alternates"] == ["BTC/USD 77.5% B"]
+    assert status["alert_quality_confirmation_wait_plan_rotation_next_symbol"] == "BTC/USD"
+    assert status["alert_quality_confirmation_wait_plan_rotation_cooldown_cycles"] == 12
+    assert status["operational_focus_symbol"] == "BTC/USD"
+    assert status["operational_focus_source"] == "ALERT_QUALITY_CONFIRMATION_ROTATION"
+    assert status["operational_focus_overrides_top"] is True
+    assert "rotar foco a BTC/USD" in status["operational_focus_reason"]
+    assert status["alert_quality_confirmation_rotation_handoff_status"] == "CONFIRMED"
+    assert status["alert_quality_confirmation_rotation_handoff_expected_symbol"] == "BTC/USD"
+    assert status["alert_quality_confirmation_rotation_handoff_focus_symbol"] == "BTC/USD"
+    assert status["alert_quality_confirmation_rotation_handoff_source"] == (
+        "ALERT_QUALITY_CONFIRMATION_ROTATION"
+    )
+    assert status["alert_quality_rotation_handoff_status"] == "NOT_REQUESTED"
+    assert status["alert_quality_rotation_handoff_expected_symbol"] == ""
+    assert status["alert_quality_rotation_handoff_focus_symbol"] == ""
+    assert status["alert_quality_rotation_handoff_source"] == ""
+    assert status["alert_quality_discard_handoff_status"] == "NOT_REQUESTED"
+    assert status["alert_quality_discard_handoff_expected_symbol"] == ""
+    assert status["alert_quality_discard_handoff_focus_symbol"] == ""
+    assert status["alert_quality_discard_handoff_source"] == ""
+
+
+def test_status_snapshot_uses_market_coverage_action_when_rotation_action_missing(tmp_path, monkeypatch):
+    import roxy_ai
+
+    quality_path = tmp_path / "alert_quality.json"
+    monkeypatch.setattr(roxy_ai, "ALERT_QUALITY_JSON_PATH", quality_path)
+    quality_path.write_text(
+        json.dumps(
+            {
+                "brief_generated_at": "2026-06-10T12:00:00+00:00",
+                "state": "WAITING",
+                "blocker_category": "UNCLASSIFIED_WAIT",
+                "false_negative_risk": "MEDIUM",
+                "blocked_markets": ["stock", "options"],
+                "allowed_markets": ["crypto"],
+                "rotation_candidates": ["ETH/USD 73.7% C"],
+                "market_coverage_action": "Priorizar candidatos cripto mientras stock/opciones recuperan proveedor premium.",
+            }
+        )
+    )
+
+    status = build_status_snapshot(
+        {
+            "generated_at": "2026-06-10T12:00:00+00:00",
+            "realtime_health": {
+                "active_route": "PARTIAL_MARKET_ROUTE",
+                "active_route_label": "Operar solo CRYPTO",
+                "active_route_detail": "Operable CRYPTO; bloqueado STOCK, OPTIONS.",
+                "allowed_markets": ["crypto"],
+            },
+            "opportunities": [
+                {
+                    "symbol": "ETH/USD",
+                    "market": "crypto",
+                    "ai_action": "WATCH",
+                    "alert_gate": "WAIT_FULL_CHECKLIST",
+                    "alert_quality": "C",
+                    "alert_readiness_score": 73.7,
+                    "alert_next_action": "Esperar checklist completo.",
+                    "alert_blockers": ["1h confirma: Score tendencia 54"],
+                }
+            ],
+        }
+    )
+
+    assert status["alert_quality_rotation_candidates"] == ["ETH/USD 73.7% C"]
+    assert status["alert_quality_recommended_action"] == (
+        "Priorizar candidatos cripto mientras stock/opciones recuperan proveedor premium."
+    )
+    assert status["alert_quality_market_coverage_action"] == (
+        "Priorizar candidatos cripto mientras stock/opciones recuperan proveedor premium."
+    )
+    assert status["recommended_action"] == (
+        "Priorizar candidatos cripto mientras stock/opciones recuperan proveedor premium."
+    )
+    assert status["safe_mode"] == "NO_STOCK_OR_OPTIONS_ALERTS"
+
+
+def test_status_snapshot_downgrades_buy_tone_for_waiting_alert_quality(tmp_path, monkeypatch):
+    import roxy_ai
+
+    quality_path = tmp_path / "alert_quality.json"
+    monkeypatch.setattr(roxy_ai, "ALERT_QUALITY_JSON_PATH", quality_path)
+    quality_path.write_text(
+        json.dumps(
+            {
+                "brief_generated_at": "2026-06-10T12:00:00+00:00",
+                "state": "WAITING",
+                "label": "Esperando confirmacion",
+                "tone": "buy",
+                "diagnostic_label": "Esperando confirmacion",
+                "diagnostic_severity": "OK",
+                "blocker_category": "MARKET_CONFIRMATION_WAIT",
+                "false_negative_risk": "LOW",
+                "blocked_markets": ["stock", "options"],
+                "allowed_markets": ["crypto"],
+            }
+        )
+    )
+
+    status = build_status_snapshot(
+        {
+            "generated_at": "2026-06-10T12:00:00+00:00",
+            "realtime_health": {
+                "active_route": "PARTIAL_MARKET_ROUTE",
+                "active_route_label": "Operar solo CRYPTO",
+                "active_route_detail": "Operable CRYPTO; bloqueado STOCK, OPTIONS.",
+                "allowed_markets": ["crypto"],
+            },
+            "opportunities": [
+                {
+                    "symbol": "ETH/USD",
+                    "market": "crypto",
+                    "ai_action": "WATCH",
+                    "alert_gate": "WAIT_FULL_CHECKLIST",
+                    "alert_readiness_score": 68.4,
+                    "alert_quality": "C",
+                    "alert_next_action": "Esperar checklist completo.",
+                }
+            ],
+        }
+    )
+
+    assert status["state"] == "WAITING"
+    assert status["label"] == "Esperando confirmacion"
+    assert status["tone"] == "watch"
+
+
+def test_status_snapshot_prefers_alert_quality_top_level_contract(tmp_path, monkeypatch):
+    import roxy_ai
+
+    quality_path = tmp_path / "alert_quality.json"
+    monkeypatch.setattr(roxy_ai, "ALERT_QUALITY_JSON_PATH", quality_path)
+    quality_path.write_text(
+        json.dumps(
+            {
+                "brief_generated_at": "2026-06-10T12:00:00+00:00",
+                "status": "WARN",
+                "status_reason": "Alert quality requires manual review or attention.",
+                "state": "BLOCKED_REALTIME",
+                "diagnostic_label": "Bloqueo parcial",
+                "diagnostic_severity": "ATTENTION",
+                "blocker_category": "MARKET_PARTIAL_BLOCK",
+                "false_negative_risk": "MEDIUM",
+                "silence_mode": "MARKET_PARTIAL_BLOCK",
+                "silence_reason": "stock, options bloqueado por proveedor premium; cripto sigue permitido",
+                "blocked_markets": ["stock", "options"],
+                "blocked_route_markets": ["stock", "options"],
+                "blocked_route_market_count": 2,
+                "blocked_opportunity_market_count": 1,
+                "stock_alerts_allowed": False,
+                "crypto_alerts_allowed": True,
+                "options_alerts_allowed": False,
+                "session_stock_alerts_allowed": True,
+                "recommended_action": "Configurar POLYGON_API_KEY/POLYGON_API_TOKEN.",
+                "chart_contract_label": "Graficas parciales",
+                "chart_contract_action": "Priorizar oportunidades con LIVE_DATA_OK.",
+                "chart_contract_operable_count": 1,
+                "chart_contract_blocked_count": 2,
+                "chart_contract_missing_count": 2,
+                "chart_contract_blocked_symbols": ["WMT: CHART_CONTRACT_MISSING", "PEP: CHART_CONTRACT_MISSING"],
+                "summary": {
+                    "state": "WAITING",
+                    "diagnostic_label": "Stale summary",
+                    "recommended_action": "Accion vieja",
+                },
+            }
+        )
+    )
+
+    status = build_status_snapshot(
+        {
+            "generated_at": "2026-06-10T12:00:00+00:00",
+            "realtime_health": {
+                "label": "Premium bloqueado",
+                "detail": "Operar solo CRYPTO: Operable CRYPTO; bloqueado STOCK, OPTIONS.",
+                "active_route": "PARTIAL_MARKET_ROUTE",
+                "active_route_label": "Operar solo CRYPTO",
+                "active_route_detail": "Operable CRYPTO; bloqueado STOCK, OPTIONS.",
+                "allowed_markets": ["crypto"],
+            },
+            "opportunities": [
+                {
+                    "symbol": "WMT",
+                    "market": "stock",
+                    "ai_action": "WATCH",
+                    "alert_gate": "BLOCKED_REALTIME_DATA",
+                    "alert_quality": "C",
+                    "alert_readiness_score": 61.1,
+                    "alert_next_action": "Configurar proveedor premium.",
+                    "alert_blockers": ["Datos realtime: Premium bloqueado"],
+                }
+            ],
+        }
+    )
+
+    assert status["alert_quality_state"] == "BLOCKED_REALTIME"
+    assert status["alert_quality_diagnostic_label"] == "Bloqueo parcial"
+    assert status["alert_quality_report_status"] == "WARN"
+    assert status["alert_quality_status_reason"] == "Alert quality requires manual review or attention."
+    assert status["alert_quality_blocker_category"] == "MARKET_PARTIAL_BLOCK"
+    assert status["alert_quality_false_negative_risk"] == "MEDIUM"
+    assert status["alert_quality_silence_mode"] == "MARKET_PARTIAL_BLOCK"
+    assert status["alert_quality_blocked_markets"] == ["stock", "options"]
+    assert status["alert_quality_blocked_route_markets"] == ["stock", "options"]
+    assert status["alert_quality_blocked_route_market_count"] == 2
+    assert status["alert_quality_blocked_opportunity_market_count"] == 1
+    assert status["alert_quality_recommended_action"] == "Configurar POLYGON_API_KEY/POLYGON_API_TOKEN."
+    assert status["alert_quality_chart_contract_label"] == "Graficas parciales"
+    assert status["alert_quality_chart_contract_action"] == "Priorizar oportunidades con LIVE_DATA_OK."
+    assert status["alert_quality_chart_contract_operable_count"] == 1
+    assert status["alert_quality_chart_contract_blocked_count"] == 2
+    assert status["alert_quality_chart_contract_missing_count"] == 2
+    assert status["alert_quality_chart_contract_blocked_symbols"] == [
+        "WMT: CHART_CONTRACT_MISSING",
+        "PEP: CHART_CONTRACT_MISSING",
+    ]
+    assert status["system_status"] == "WARN"
+    assert status["market_state"] == "BLOCKED_REALTIME"
+    assert status["status"] == "WARN"
+    assert status["state"] == "BLOCKED_REALTIME"
+    assert status["route"] == "Operar solo CRYPTO"
+    assert status["contract_version"] == 2
+    assert status["label"] == "Bloqueo parcial"
+    assert status["tone"] == "avoid"
+    assert status["safe_mode"] == "NO_STOCK_OR_OPTIONS_ALERTS"
+    assert status["active_route"] == "PARTIAL_MARKET_ROUTE"
+    assert status["active_route_label"] == "Operar solo CRYPTO"
+    assert status["active_route_detail"] == "Operable CRYPTO; bloqueado STOCK, OPTIONS."
+    assert status["allowed_markets"] == ["crypto"]
+    assert status["blocked_markets"] == ["stock", "options"]
+    assert status["blocked_route_markets"] == ["stock", "options"]
+    assert status["blocked_route_market_count"] == 2
+    assert status["blocked_opportunity_market_count"] == 1
+    assert status["stock_alerts_allowed"] is False
+    assert status["crypto_alerts_allowed"] is True
+    assert status["options_alerts_allowed"] is False
+    assert status["session_stock_alerts_allowed"] is True
+    assert status["recommended_action"] == "Configurar POLYGON_API_KEY/POLYGON_API_TOKEN."
+
+
+def test_status_snapshot_keeps_stock_options_blocked_while_crypto_waits(tmp_path, monkeypatch):
+    import roxy_ai
+
+    quality_path = tmp_path / "alert_quality.json"
+    monkeypatch.setattr(roxy_ai, "ALERT_QUALITY_JSON_PATH", quality_path)
+    quality_path.write_text(
+        json.dumps(
+            {
+                "brief_generated_at": "2026-06-10T12:00:00+00:00",
+                "state": "WAITING",
+                "diagnostic_label": "Esperando gatillo 15m",
+                "blocker_category": "MARKET_TRIGGER_WAIT",
+                "false_negative_risk": "MEDIUM",
+                "blocked_markets": ["stock", "options"],
+                "blocked_route_markets": ["stock", "options"],
+                "blocked_route_market_count": 2,
+                "blocked_opportunity_market_count": 0,
+                "allowed_markets": ["crypto"],
+                "recommended_action": "Mantener watchlist; no alertar hasta que 15m confirme entrada",
+            }
+        )
+    )
+
+    status = build_status_snapshot(
+        {
+            "generated_at": "2026-06-10T12:00:00+00:00",
+            "realtime_health": {
+                "active_route": "PARTIAL_MARKET_ROUTE",
+                "active_route_label": "Operar solo CRYPTO",
+                "active_route_detail": "Operable CRYPTO; bloqueado STOCK, OPTIONS.",
+                "allowed_markets": ["crypto"],
+            },
+            "opportunities": [
+                {
+                    "symbol": "BTC/USD",
+                    "market": "crypto",
+                    "ai_action": "WATCH",
+                    "alert_gate": "WAIT_15M_ENTRY",
+                    "alert_quality": "B",
+                    "alert_readiness_score": 78.9,
+                }
+            ],
+        }
+    )
+
+    assert status["market_state"] == "WAITING"
+    assert status["safe_mode"] == "NO_STOCK_OR_OPTIONS_ALERTS"
+    assert status["active_route_label"] == "Operar solo CRYPTO"
+    assert status["allowed_markets"] == ["crypto"]
+    assert status["blocked_markets"] == ["stock", "options"]
+    assert status["blocked_route_markets"] == ["stock", "options"]
+    assert status["blocked_route_market_count"] == 2
+    assert status["blocked_opportunity_market_count"] == 0
+    assert status["stock_alerts_allowed"] is False
+    assert status["crypto_alerts_allowed"] is True
+    assert status["options_alerts_allowed"] is False
+
+
+def test_status_snapshot_routes_around_chart_blocked_markets(tmp_path, monkeypatch):
+    import roxy_ai
+
+    quality_path = tmp_path / "alert_quality.json"
+    monkeypatch.setattr(roxy_ai, "ALERT_QUALITY_JSON_PATH", quality_path)
+    quality_path.write_text(
+        json.dumps(
+            {
+                "brief_generated_at": "2026-06-10T12:00:00+00:00",
+                "state": "BLOCKED_REALTIME",
+                "diagnostic_label": "Graficas bloquean",
+                "blocker_category": "CHART_CONTRACT_BLOCK",
+                "false_negative_risk": "HIGH",
+                "blocked_markets": ["stock", "options"],
+                "recommended_action": "No emitir alertas hasta recuperar contrato realtime de grafica.",
+                "chart_contract_label": "Graficas bloqueadas",
+                "chart_contract_blocked_count": 2,
+            }
+        )
+    )
+
+    status = build_status_snapshot(
+        {
+            "generated_at": "2026-06-10T12:00:00+00:00",
+            "realtime_health": {
+                "active_route": "ALL_MARKETS_ROUTE",
+                "active_route_label": "Operar mercados realtime",
+                "active_route_detail": "Operable STOCK, CRYPTO, OPTIONS.",
+                "allowed_markets": ["stock", "crypto", "options"],
+            },
+            "opportunities": [
+                {
+                    "symbol": "ASML",
+                    "market": "stock",
+                    "ai_action": "WATCH",
+                    "alert_gate": "BLOCKED_REALTIME_DATA",
+                    "alert_quality": "C",
+                    "alert_readiness_score": 60,
+                }
+            ],
+        }
+    )
+
+    assert status["safe_mode"] == "NO_STOCK_OR_OPTIONS_ALERTS"
+    assert status["allowed_markets"] == ["crypto"]
+    assert status["blocked_markets"] == ["stock", "options"]
+    assert status["active_route"] == "PARTIAL_MARKET_ROUTE"
+    assert status["active_route_label"] == "Operar solo CRYPTO"
+    assert status["active_route_detail"] == "Operable CRYPTO; bloqueado STOCK, OPTIONS."
+
+
+def test_status_snapshot_closes_route_when_chart_blocks_all_markets(tmp_path, monkeypatch):
+    import roxy_ai
+
+    quality_path = tmp_path / "alert_quality.json"
+    monkeypatch.setattr(roxy_ai, "ALERT_QUALITY_JSON_PATH", quality_path)
+    quality_path.write_text(
+        json.dumps(
+            {
+                "brief_generated_at": "2026-06-10T12:00:00+00:00",
+                "state": "BLOCKED_REALTIME",
+                "diagnostic_label": "Graficas bloquean",
+                "blocker_category": "CHART_CONTRACT_BLOCK",
+                "false_negative_risk": "HIGH",
+                "blocked_markets": ["crypto", "stock", "options"],
+                "recommended_action": "No emitir alertas hasta recuperar contrato realtime de grafica.",
+            }
+        )
+    )
+
+    status = build_status_snapshot(
+        {
+            "generated_at": "2026-06-10T12:00:00+00:00",
+            "realtime_health": {
+                "active_route": "ALL_MARKETS_ROUTE",
+                "active_route_label": "Operar mercados realtime",
+                "active_route_detail": "Operable STOCK, CRYPTO, OPTIONS.",
+                "allowed_markets": ["stock", "crypto", "options"],
+            },
+            "opportunities": [{"symbol": "ETH/USD", "market": "crypto", "alert_gate": "BLOCKED_REALTIME_DATA"}],
+        }
+    )
+
+    assert status["safe_mode"] == "NO_ALERTS_UNTIL_DATA_OK"
+    assert status["allowed_markets"] == []
+    assert status["blocked_markets"] == ["crypto", "stock", "options"]
+    assert status["active_route"] == "NO_MARKET_ROUTE"
+    assert status["active_route_label"] == "No operar realtime"
+    assert status["active_route_detail"] == "Bloqueado STOCK, CRYPTO, OPTIONS."
+
+
+def test_write_status_snapshot_outputs_active_market_route(tmp_path, monkeypatch):
+    import roxy_ai
+
+    monkeypatch.setattr(roxy_ai, "STATUS_TEXT_PATH", tmp_path / "status.txt")
+    monkeypatch.setattr(roxy_ai, "STATUS_JSON_PATH", tmp_path / "status.json")
+    monkeypatch.setattr(roxy_ai, "ALERT_QUALITY_JSON_PATH", tmp_path / "missing_alert_quality.json")
+    brief = {
+        "generated_at": "2026-06-10T12:00:00+00:00",
+        "realtime_health": {
+            "label": "Premium bloqueado",
+            "detail": "Operar solo CRYPTO: Operable CRYPTO; bloqueado STOCK, OPTIONS.",
+            "active_route": "PARTIAL_MARKET_ROUTE",
+            "active_route_label": "Operar solo CRYPTO",
+            "active_route_detail": "Operable CRYPTO; bloqueado STOCK, OPTIONS.",
+            "allowed_markets": ["crypto"],
+        },
+        "opportunities": [
+            {
+                "symbol": "ETH/USD",
+                "market": "crypto",
+                "ai_action": "WATCH",
+                "alert_gate": "WAIT_15M_ENTRY",
+                "alert_quality": "B",
+                "alert_readiness_score": 88.9,
+                "alert_next_action": "Esperar gatillo BUY en 15m.",
+                "alert_blockers": ["15m da entrada: WAIT"],
+            }
+        ],
+    }
+
+    status = write_status_snapshot(brief)
+    status_text = (tmp_path / "status.txt").read_text()
+    status_json = json.loads((tmp_path / "status.json").read_text())
+
+    assert status["active_route_label"] == "Operar solo CRYPTO"
+    assert status_json["active_route_detail"] == "Operable CRYPTO; bloqueado STOCK, OPTIONS."
+    assert "Route: Operar solo CRYPTO | Operable CRYPTO; bloqueado STOCK, OPTIONS." in status_text
+
+
+def test_status_snapshot_ignores_stale_alert_quality_action(tmp_path, monkeypatch):
+    import roxy_ai
+
+    quality_path = tmp_path / "alert_quality.json"
+    monkeypatch.setattr(roxy_ai, "ALERT_QUALITY_JSON_PATH", quality_path)
+    quality_path.write_text(
+        json.dumps(
+            {
+                "brief_generated_at": "2026-06-10T11:59:00+00:00",
+                "summary": {
+                    "state": "WAITING",
+                    "recommended_action": "Rotar foco viejo",
+                    "rotation_candidates": ["OLD 50.0% C"],
+                    "waiting_streak": 50,
+                },
+            }
+        )
+    )
+
+    status = build_status_snapshot({"generated_at": "2026-06-10T12:00:00+00:00", "opportunities": []})
+
+    assert status["alert_quality_recommended_action"] == "-"
+    assert status["alert_quality_rotation_candidates"] == []
+    assert status["alert_quality_waiting_streak"] == 0
+    assert status["system_status"] == "WARN"
+    assert status["market_state"] == "NO_SETUPS"
+    assert status["safe_mode"] == "NO_SETUPS"
+    assert status["recommended_action"] == "-"
 
 
 def test_update_alert_outcomes_marks_target_milestones():
@@ -765,6 +2762,53 @@ def test_update_trade_progress_tracks_partial_move_and_drawdown():
     assert row["max_drawdown_pct"] == 0.01
     assert row["progress_to_2pct"] == 0.75
     assert round(row["progress_to_stop"], 4) == 0.3333
+    assert row["best_target_hit"] == "-"
+    assert row["best_reward_r"] == 0.5
+    assert row["stopped_after_target"] is False
+    assert row["stopped_before_target"] is False
+    assert row["outcome_state"] == "NEAR_2PCT"
+
+
+def test_update_alert_outcomes_uses_max_price_for_target_memory():
+    memory = {
+        "symbols": {},
+        "lessons": [],
+        "strategy_stats": {"Pullback": {"seen": 1, "alerts": 1}},
+        "alert_history": [
+            {
+                "symbol": "AAPL",
+                "entry": 100,
+                "stop": 97,
+                "max_price": 106,
+                "status": "OPEN",
+                "milestones": [],
+                "strategy_family": "Pullback",
+            }
+        ],
+    }
+
+    updated = update_alert_outcomes(memory, {"AAPL": 101})
+    alert = updated["alert_history"][0]
+
+    assert alert["status"] == "HIT_5PCT"
+    assert alert["best_target_hit"] == "5%"
+    assert alert["best_target_pct"] == 5.0
+    assert alert["best_reward_r"] == 2.0
+    assert alert["outcome_state"] == "HIT_5PCT"
+    assert updated["strategy_stats"]["Pullback"]["hit_2pct"] == 1
+    assert updated["strategy_stats"]["Pullback"]["hit_5pct"] == 1
+
+
+def test_update_trade_progress_marks_target_then_stop_separately():
+    row = {"max_price": 105.5, "min_price": 100}
+
+    update_trade_progress(row, current=96.9, entry=100, stop=97)
+
+    assert row["best_target_hit"] == "5%"
+    assert row["progress_to_stop"] == 1.0
+    assert row["stopped_after_target"] is True
+    assert row["stopped_before_target"] is False
+    assert row["outcome_state"] == "HIT_5PCT_THEN_STOP"
 
 
 def test_current_prices_by_symbol_uses_multiple_price_columns():

@@ -1,4 +1,10 @@
-from platform_router import build_platform_ticket, execution_context_gate, infer_asset_type, position_size_from_risk, route_platform
+from platform_router import (
+    build_platform_ticket,
+    execution_context_gate,
+    infer_asset_type,
+    position_size_from_risk,
+    route_platform,
+)
 
 
 def test_crypto_routes_to_crypto_com_by_default():
@@ -13,7 +19,14 @@ def test_crypto_routes_to_crypto_com_by_default():
 
 
 def test_stock_routes_to_schwab_by_default():
-    row = {"market": "stock", "symbol": "AAPL", "signal": "BUY", "decision": "TRADE_FOR_2PCT", "entry": 200, "stop": 195}
+    row = {
+        "market": "stock",
+        "symbol": "AAPL",
+        "signal": "BUY",
+        "decision": "TRADE_FOR_2PCT",
+        "entry": 200,
+        "stop": 195,
+    }
 
     ticket = build_platform_ticket(row, account_equity=500, risk_per_trade_pct=0.01)
 
@@ -54,7 +67,22 @@ def test_user_can_prefer_webull_for_supported_assets():
     }
 
     assert route_platform(stock, preferred_stock="webull") == "webull"
-    assert build_platform_ticket(option, preferred_product="option", preferred_option="webull")["platform_id"] == "webull"
+    assert (
+        build_platform_ticket(option, preferred_product="option", preferred_option="webull")["platform_id"] == "webull"
+    )
+
+
+def test_user_can_prefer_robinhood_for_preview_supported_assets():
+    stock = {"market": "stock", "symbol": "NVDA", "signal": "WATCH", "entry": 120, "stop": 117.5}
+    crypto = {"market": "crypto", "symbol": "BTC/USD", "signal": "WATCH", "entry": 65000, "stop": 63700}
+
+    assert route_platform(stock, preferred_stock="robinhood") == "robinhood"
+    assert route_platform(crypto, preferred_crypto="robinhood") == "robinhood"
+    ticket = build_platform_ticket(stock, preferred_stock="robinhood")
+
+    assert ticket["platform_id"] == "robinhood"
+    assert ticket["platform"] == "Robinhood"
+    assert "Preview-only" in ticket["api_status"]
 
 
 def test_statuses_separate_ready_wait_and_no_trade():
@@ -74,7 +102,14 @@ def test_position_size_respects_risk_budget():
 
 
 def test_stock_ticket_uses_whole_share_quantity():
-    row = {"market": "stock", "symbol": "TTEK", "signal": "BUY", "decision": "TRADE_FOR_2PCT", "entry": 27.94, "stop": 27.51}
+    row = {
+        "market": "stock",
+        "symbol": "TTEK",
+        "signal": "BUY",
+        "decision": "TRADE_FOR_2PCT",
+        "entry": 27.94,
+        "stop": 27.51,
+    }
 
     ticket = build_platform_ticket(row, account_equity=500, risk_per_trade_pct=0.01)
 
@@ -83,7 +118,14 @@ def test_stock_ticket_uses_whole_share_quantity():
 
 
 def test_execution_context_blocks_stock_preview_when_market_closed():
-    row = {"market": "stock", "symbol": "AAPL", "signal": "BUY", "decision": "TRADE_FOR_2PCT", "entry": 200, "stop": 195}
+    row = {
+        "market": "stock",
+        "symbol": "AAPL",
+        "signal": "BUY",
+        "decision": "TRADE_FOR_2PCT",
+        "entry": 200,
+        "stop": 195,
+    }
 
     ticket = build_platform_ticket(
         row,
@@ -96,7 +138,14 @@ def test_execution_context_blocks_stock_preview_when_market_closed():
 
 
 def test_execution_context_allows_crypto_when_stock_market_closed():
-    row = {"market": "crypto", "symbol": "BTC/USD", "signal": "BUY", "decision": "TRADE_FOR_2PCT", "entry": 65000, "stop": 63700}
+    row = {
+        "market": "crypto",
+        "symbol": "BTC/USD",
+        "signal": "BUY",
+        "decision": "TRADE_FOR_2PCT",
+        "entry": 65000,
+        "stop": 63700,
+    }
 
     ticket = build_platform_ticket(
         row,
@@ -109,7 +158,14 @@ def test_execution_context_allows_crypto_when_stock_market_closed():
 
 
 def test_execution_context_blocks_stale_data_for_all_assets():
-    row = {"market": "crypto", "symbol": "ETH/USD", "signal": "BUY", "decision": "TRADE_FOR_2PCT", "entry": 3000, "stop": 2940}
+    row = {
+        "market": "crypto",
+        "symbol": "ETH/USD",
+        "signal": "BUY",
+        "decision": "TRADE_FOR_2PCT",
+        "entry": 3000,
+        "stop": 2940,
+    }
 
     ticket = build_platform_ticket(
         row,

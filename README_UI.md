@@ -96,7 +96,7 @@ Notes and limitations
 
 Server-side service
 
-`tools/voice_service.py` is a FastAPI scaffold that exposes a secure API endpoint `/v1/assist`.
+`tools/voice_service.py` is a FastAPI scaffold that exposes secure API endpoints including `/v1/assist` and `/v1/webhooks/tradingview`.
 
 Quick run (development):
 
@@ -111,6 +111,17 @@ Request example (curl):
 ```bash
 curl -H "Authorization: Bearer $VOICE_API_KEY" -X POST http://127.0.0.1:8000/v1/assist -d '{"query":"balance","user":"alice"}' -H "Content-Type: application/json"
 ```
+
+TradingView webhook example:
+
+```bash
+export TRADINGVIEW_WEBHOOK_SECRET=changeme-tv
+curl -X POST http://127.0.0.1:8000/v1/webhooks/tradingview \
+  -H "Content-Type: application/json" \
+  -d '{"symbol":"NASDAQ:AAPL","timeframe":"15","signal":"BUY","price":185.25,"passphrase":"changeme-tv"}'
+```
+
+The webhook endpoint records analysis confirmations only. It writes to `alerts/tradingview_webhooks.jsonl`, redacts secrets, and never places live orders.
 
 Next steps
 

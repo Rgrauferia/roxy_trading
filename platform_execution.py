@@ -10,6 +10,7 @@ LIVE_EXECUTION_FLAG = "ROXY_ENABLE_LIVE_BROKER_EXECUTION"
 
 BROKER_ADAPTERS_IMPLEMENTED: dict[str, bool] = {
     "crypto_com": False,
+    "robinhood": False,
     "schwab": False,
     "webull": False,
 }
@@ -32,6 +33,11 @@ BROKER_ENV_KEYS: dict[str, tuple[str, ...]] = {
         "WEBULL_ACCESS_TOKEN",
         "WEBULL_ACCOUNT_ID",
     ),
+    "robinhood": (
+        "ROBINHOOD_USERNAME",
+        "ROBINHOOD_DEVICE_TOKEN",
+        "ROBINHOOD_ACCOUNT_ID",
+    ),
 }
 
 
@@ -51,10 +57,11 @@ def platform_connection_status(platform_id: str, env: Mapping[str, str] | None =
     present = [key for key in required if _env_value(env, key)]
     missing = [key for key in required if key not in present]
     configured = not missing and bool(required)
-    live_enabled = live_execution_requested(env)
+    strict_preview_only = bool(profile.get("strict_preview_only"))
+    live_enabled = live_execution_requested(env) and not strict_preview_only
     if not configured:
         mode = "NEEDS_CREDENTIALS"
-    elif not live_enabled:
+    elif strict_preview_only or not live_enabled:
         mode = "PREVIEW_ONLY"
     else:
         mode = "LIVE_ARMED"
@@ -66,6 +73,7 @@ def platform_connection_status(platform_id: str, env: Mapping[str, str] | None =
         "missing_keys": missing,
         "configured": configured,
         "live_enabled": live_enabled,
+        "strict_preview_only": strict_preview_only,
         "mode": mode,
     }
 
@@ -73,15 +81,20 @@ def platform_connection_status(platform_id: str, env: Mapping[str, str] | None =
 def broker_adapter_status(platform_id: str) -> dict[str, Any]:
     profile = PLATFORM_PROFILES.get(platform_id, PLATFORM_PROFILES["schwab"])
     implemented = BROKER_ADAPTERS_IMPLEMENTED.get(platform_id, False)
+    strict_preview_only = bool(profile.get("strict_preview_only"))
     return {
         "platform_id": platform_id,
         "platform": profile["name"],
-        "implemented": implemented,
-        "status": "IMPLEMENTED" if implemented else "PREVIEW_ONLY",
+        "implemented": implemented and not strict_preview_only,
+        "status": "IMPLEMENTED" if implemented and not strict_preview_only else "PREVIEW_ONLY",
         "reason": (
             "Live broker adapter is implemented behind the execution gate."
-            if implemented
-            else "No live broker adapter is implemented yet; Roxy prepares manual and preview payloads only."
+            if implemented and not strict_preview_only
+            else (
+                "This platform is intentionally preview-only; Roxy never sends live orders to it."
+                if strict_preview_only
+                else "No live broker adapter is implemented yet; Roxy prepares manual and preview payloads only."
+            )
         ),
     }
 
@@ -125,7 +138,10 @@ def execution_blockers(ticket: dict[str, Any], status: dict[str, Any]) -> list[s
     if not status["configured"]:
         blockers.append("Platform credentials are missing.")
     if not status["live_enabled"]:
-        blockers.append(f"{LIVE_EXECUTION_FLAG}=1 is not set.")
+        if status.get("strict_preview_only"):
+            blockers.append("Platform is configured as strict preview-only; live broker execution is disabled.")
+        else:
+            blockers.append(f"{LIVE_EXECUTION_FLAG}=1 is not set.")
     if (safe_float(ticket.get("quantity")) or 0) <= 0:
         blockers.append("Quantity is zero or unavailable.")
     if safe_float(ticket.get("entry")) is None:

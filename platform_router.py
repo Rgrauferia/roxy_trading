@@ -49,6 +49,21 @@ PLATFORM_PROFILES: dict[str, dict[str, Any]] = {
             "Registra el resultado en la memoria de Roxy.",
         ],
     },
+    "robinhood": {
+        "name": "Robinhood",
+        "assets": ["stock", "option", "crypto"],
+        "api_status": "Preview-only: sin adaptador de trading live en Roxy",
+        "auth": "Robinhood credentials placeholders; no se usan para enviar ordenes",
+        "best_for": "Preview manual de acciones, ETFs, opciones y crypto en Robinhood",
+        "strict_preview_only": True,
+        "manual_steps": [
+            "Abre Robinhood.",
+            "Busca el simbolo, contrato o par que muestra Roxy.",
+            "Usa Roxy solo para revisar entrada, stop, target y tamano teorico.",
+            "Previsualiza la orden manualmente; no habilites ejecucion automatica desde Roxy.",
+            "Registra fill y resultado en la memoria de Roxy si decides operar fuera de Roxy.",
+        ],
+    },
 }
 
 DEFAULT_PLATFORM_BY_ASSET = {
@@ -118,7 +133,9 @@ def route_platform(
         "crypto": preferred_crypto,
         "stock": preferred_stock,
         "option": preferred_option,
-    }.get(asset_type) or DEFAULT_PLATFORM_BY_ASSET.get(asset_type, "schwab")
+    }.get(
+        asset_type
+    ) or DEFAULT_PLATFORM_BY_ASSET.get(asset_type, "schwab")
     profile = platform_profile(requested)
     if asset_type in profile["assets"]:
         return requested
@@ -162,7 +179,10 @@ def execution_context_gate(
     session = market_session or {}
     if asset_type in {"stock", "option"} and session and not session.get("stock_alerts_allowed", True):
         stock_session = safe_text(session.get("stock_session")) or "closed"
-        return "BLOCKED_MARKET_CLOSED", f"Acciones/opciones estan en {stock_session}; usa Roxy para estudio hasta que reabra."
+        return (
+            "BLOCKED_MARKET_CLOSED",
+            f"Acciones/opciones estan en {stock_session}; usa Roxy para estudio hasta que reabra.",
+        )
 
     return "OK", "Contexto aceptable para preparar ticket manual; no envia orden real."
 

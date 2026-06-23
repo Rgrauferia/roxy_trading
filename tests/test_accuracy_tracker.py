@@ -50,6 +50,7 @@ def test_alert_history_rows_detect_targets_and_stop():
                 "max_drawdown_pct": 0.006,
                 "progress_to_2pct": 1.0,
                 "progress_to_stop": 0.2,
+                "stopped_after_target": False,
             },
             {
                 "symbol": "MSFT",
@@ -68,8 +69,67 @@ def test_alert_history_rows_detect_targets_and_stop():
     assert by_symbol["AAPL"]["milestones"] == "2%, 5%"
     assert by_symbol["AAPL"]["max_gain_pct"] == 0.052
     assert by_symbol["AAPL"]["progress_to_stop"] == 0.2
+    assert by_symbol["AAPL"]["stopped_after_target"] is False
+    assert by_symbol["AAPL"]["outcome_state"] == "HIT_5PCT"
     assert by_symbol["MSFT"]["status"] == "STOP"
     assert by_symbol["MSFT"]["strategy_family"] == "Canal alcista"
+
+
+def test_signal_journal_rows_exposes_best_target_and_reward():
+    memory = {
+        "signal_journal": [
+            {
+                "symbol": "AAPL",
+                "market": "stock",
+                "ai_action": "WATCH",
+                "strategy_family": "Pullback",
+                "entry": 100,
+                "stop": 97,
+                "last_price": 101,
+                "max_price": 105.5,
+                "best_target_hit": "5%",
+                "best_target_pct": 5.0,
+                "best_reward_r": 1.8333,
+                "current_reward_r": 0.3333,
+                "outcome_state": "HIT_5PCT",
+            }
+        ]
+    }
+
+    rows = signal_journal_rows(memory)
+
+    assert rows[0]["best_target_hit"] == "5%"
+    assert rows[0]["best_target_pct"] == 5.0
+    assert rows[0]["best_reward_r"] == 1.8333
+    assert rows[0]["outcome_state"] == "HIT_5PCT"
+
+
+def test_signal_journal_rows_exposes_target_then_stop_state():
+    memory = {
+        "signal_journal": [
+            {
+                "symbol": "AAPL",
+                "market": "stock",
+                "ai_action": "WATCH",
+                "strategy_family": "Pullback",
+                "entry": 100,
+                "stop": 97,
+                "last_price": 96.9,
+                "max_price": 105.5,
+                "min_price": 96.9,
+                "best_target_hit": "5%",
+                "progress_to_stop": 1.0,
+                "stopped_after_target": True,
+                "outcome_state": "HIT_5PCT_THEN_STOP",
+            }
+        ]
+    }
+
+    rows = signal_journal_rows(memory)
+
+    assert rows[0]["stopped_after_target"] is True
+    assert rows[0]["stopped_before_target"] is False
+    assert rows[0]["outcome_state"] == "HIT_5PCT_THEN_STOP"
 
 
 def test_build_accuracy_report_returns_actions_and_symbol_rows():

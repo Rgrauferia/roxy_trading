@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.roxy.video-learning</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/robertograu/roxy_trading/.venv/bin/python</string>
+    <string>/Users/robertograu/roxy_trading/tools/video_learning_ingest.py</string>
+    <string>--source</string>
+    <string>/Users/robertograu/Downloads</string>
+    <string>--source</string>
+    <string>/Users/robertograu/Movies</string>
+    <string>--source</string>
+    <string>/Users/robertograu/Desktop</string>
+    <string>--source</string>
+    <string>/Users/robertograu/Documents/Roxy trading</string>
+    <string>--source</string>
+    <string>/Volumes/RoxyData/RoxyTrading</string>
+    <string>--source</string>
+    <string>/Volumes/RoxyData/Roxy trading</string>
+    <string>--source</string>
+    <string>/Volumes/RoxyData/Videos</string>
+    <string>--source</string>
+    <string>/Volumes/RoxyData/Downloads</string>
+    <string>--archive-dir</string>
+    <string>/Volumes/RoxyData/RoxyVideosAnalizados</string>
+    <string>--archive-indexed</string>
+    <string>--idle-review</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/robertograu/roxy_trading</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StartInterval</key>
+  <integer>2100</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/robertograu/roxy_trading/logs/video_learning_launchd.out</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/robertograu/roxy_trading/logs/video_learning_launchd.err</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
+  </dict>
+</dict>
+</plist>

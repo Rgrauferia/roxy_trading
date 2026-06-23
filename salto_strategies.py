@@ -128,6 +128,48 @@ SALTO_STRATEGIES: tuple[SaltoStrategyDefinition, ...] = (
         confirmation_timeframes=("15m", "1h", "2h", "4h"),
         direction="transition",
     ),
+    SaltoStrategyDefinition(
+        key="BUSQUEDA_REBOTE_MEDIA",
+        family="Busqueda de media movil con confirmacion",
+        headline="Buscar rebote controlado cuando el precio toca SMA20/SMA40 o EMA9 y confirma recuperacion.",
+        works_when="Tendencia mayor no bajista, precio sobre SMA200, toque/rebote en media y 15m/1h confirman.",
+        entry="Esperar cierre verde sobre EMA9/SMA20 o SMA40; comprar solo si volumen, riesgo y target 2% son validos.",
+        avoid="Evitar una media aislada, entradas bajo SMA200, vela llena, exposicion fuera de Bollinger o rebote sin confirmacion.",
+        option_note="Calls solo si la accion ya tiene setup BUY/WATCH confirmado; no comprar prima por simple toque de media.",
+        practice="Marca la zona EMA9/SMA20/SMA40, espera toque, rechazo y cierre limpio; mide stop bajo la media/soporte.",
+        requirements=(
+            "Tendencia mayor no debe estar bajista",
+            "Precio sobre SMA200 o recuperandola con cierre fuerte",
+            "Toque o rebote en EMA9/SMA20/SMA40",
+            "Cierre verde sobre la media que actua como piso",
+            "Volumen relativo acompanando",
+            "15m confirma entrada y 1h sostiene tendencia",
+            "Stop medible y target minimo 2% viable",
+        ),
+        confirmation_timeframes=("15m", "1h", "2h", "4h"),
+        direction="rebound",
+    ),
+    SaltoStrategyDefinition(
+        key="PATRON_IMPARABLE_EMA9",
+        family="Patron imparable EMA9",
+        headline="Buscar rebote o continuacion cuando EMA9 guia el movimiento y el oscilador deja espacio.",
+        works_when="Precio respeta EMA9/SMA20, SMA20/SMA40 no se quiebran, SMA200 no bloquea y Bollinger deja espacio.",
+        entry="Esperar cierre sobre EMA9 con 15m/1h alineados; en lateralidad, solo operar rebote en soporte o ruptura limpia.",
+        avoid="Evitar si SMA20 esta lateral/invertida sin recuperacion, si EMA9 cruza bajista o si el movimiento es manipulacion sin confirmacion.",
+        option_note="Opciones solo si el setup esta confirmado; no comprar prima cuando el patron sigue en fase de manipulacion/lateralidad.",
+        practice="Marca EMA9, SMA20, SMA40, SMA200, bandas y soporte/resistencia; identifica si la fase es lateral, invertida o bajista.",
+        requirements=(
+            "EMA9 guia o recupera el movimiento",
+            "SMA20/SMA40 sostienen el canal o muestran recuperacion",
+            "SMA200 no bloquea compras",
+            "Bollinger deja espacio para continuidad",
+            "Oscilador superior/inferior no esta cerrando el movimiento",
+            "Evitar manipulacion sin cierre confirmado",
+            "15m y 1h deben confirmar antes de operar",
+        ),
+        confirmation_timeframes=("15m", "1h", "4h"),
+        direction="structure",
+    ),
 )
 
 SALTO_STRATEGY_FAMILIES = tuple(item.family for item in SALTO_STRATEGIES)
@@ -177,8 +219,14 @@ def normalize_salto_family(value: Any) -> str | None:
         return SALTO_KEY_TO_FAMILY["SALTO_EMA_2H_BEARISH"]
     if "CAMBIO" in upper and "CANAL" in upper:
         return SALTO_KEY_TO_FAMILY["SALTO_CHANNEL_CHANGE"]
+    if "PATRON" in upper or "IMPARABLE" in upper:
+        return SALTO_KEY_TO_FAMILY["PATRON_IMPARABLE_EMA9"]
+    if "BUSQUEDA" in upper or "BÚSQUEDA" in upper or "REBOTE" in upper:
+        return SALTO_KEY_TO_FAMILY["BUSQUEDA_REBOTE_MEDIA"]
     if "EMA" in upper and ("HORA" in upper or "HOURS" in upper):
         return SALTO_KEY_TO_FAMILY["SALTO_EMA_HOURS"]
+    if "EMA9" in upper:
+        return SALTO_KEY_TO_FAMILY["PATRON_IMPARABLE_EMA9"]
     return None
 
 
@@ -211,6 +259,18 @@ def _crossed(fast: pd.Series, slow: pd.Series, *, direction: str) -> bool:
     return bool(prev_fast >= prev_slow and last_fast < last_slow)
 
 
+def _touch_event_count(price: pd.Series, reference: pd.Series, *, tolerance_pct: float = 0.8, lookback: int = 60) -> int:
+    price_clean = pd.to_numeric(price, errors="coerce")
+    reference_clean = pd.to_numeric(reference, errors="coerce")
+    frame = pd.DataFrame({"price": price_clean, "reference": reference_clean}).dropna().tail(lookback)
+    if frame.empty:
+        return 0
+    distance = ((frame["price"] / frame["reference"]) - 1.0).abs() * 100.0
+    touches = distance <= tolerance_pct
+    touch_starts = touches & ~touches.shift(1, fill_value=False)
+    return int(touch_starts.sum())
+
+
 def _status(active: bool, watch: bool) -> str:
     if active:
         return "ACTIVE"
@@ -232,6 +292,7 @@ def detect_salto_setups(chart_df: pd.DataFrame, setup: dict[str, Any] | None = N
 
     close = safe_float(last.get("close"))
     open_ = safe_float(last.get("open")) or close
+    low = safe_float(last.get("low"))
     ema9 = safe_float(last.get("ema9"))
     sma20 = safe_float(last.get("sma20"))
     sma40 = safe_float(last.get("sma40"))
@@ -249,9 +310,12 @@ def detect_salto_setups(chart_df: pd.DataFrame, setup: dict[str, Any] | None = N
     has_ma = close is not None and all(value is not None for value in (ema9, sma20, sma40, sma100, sma200))
     bullish_stack = bool(has_ma and sma20 > sma40 > sma100 > sma200)
     bearish_stack = bool(has_ma and sma20 < sma40 < sma100 < sma200)
+    close_above_200 = bool(close is not None and sma200 is not None and close > sma200)
     green_close = bool(close is not None and open_ is not None and close >= open_)
     near_ema9 = abs(_pct_distance(close, ema9) or 999.0) <= 1.0
     near_sma20 = abs(_pct_distance(close, sma20) or 999.0) <= 1.8
+    near_sma40 = abs(_pct_distance(close, sma40) or 999.0) <= 1.8
+    near_resistance = abs(_pct_distance(close, resistance) or 999.0) <= 2.0
     dist_20_40 = abs(_pct_distance(sma20, sma40) or 0.0)
     dist_40_100 = abs(_pct_distance(sma40, sma100) or 0.0)
     dist_close_20 = abs(_pct_distance(close, sma20) or 0.0)
@@ -269,6 +333,7 @@ def detect_salto_setups(chart_df: pd.DataFrame, setup: dict[str, Any] | None = N
     breakout = bool(close is not None and resistance is not None and close > resistance)
     band_space_up = bool(close is not None and upper is not None and close < upper * 0.995)
     band_space_down = bool(close is not None and lower is not None and close > lower * 1.005)
+    lower_reclaim = bool(close is not None and lower is not None and support is not None and close > support and close > lower)
     ema_cross_down = "ema9" in data.columns and "sma20" in data.columns and _crossed(data["ema9"], data["sma20"], direction="below")
     ema_cross_up = "ema9" in data.columns and "sma20" in data.columns and _crossed(data["ema9"], data["sma20"], direction="above")
     sma20_slope = _slope(data["sma20"]) if "sma20" in data.columns else None
@@ -279,6 +344,29 @@ def detect_salto_setups(chart_df: pd.DataFrame, setup: dict[str, Any] | None = N
     prev_channel_low = safe_float(data["low"].tail(40).head(20).min()) if "low" in data.columns and len(data) >= 40 else None
     stopped_new_highs = bool(channel_high is not None and prev_channel_high is not None and channel_high <= prev_channel_high * 1.005)
     stopped_new_lows = bool(channel_low is not None and prev_channel_low is not None and channel_low >= prev_channel_low * 0.995)
+    ema9_above_20 = bool(ema9 is not None and sma20 is not None and ema9 >= sma20)
+    ema9_recovered = bool(close is not None and ema9 is not None and close >= ema9)
+    ema9_touch_events = (
+        _touch_event_count(data["close"], data["ema9"], tolerance_pct=0.9, lookback=80)
+        if "close" in data.columns and "ema9" in data.columns
+        else 0
+    )
+    ema9_touch_capacity = bool(ema9_touch_events <= 4)
+    touched_rebound_zone = bool(
+        low is not None
+        and close is not None
+        and any(
+            level is not None and low <= level * 1.01 and close >= level * 0.995
+            for level in (ema9, sma20, sma40)
+        )
+    )
+    sma20_lateral = bool(sma20_slope is not None and abs(sma20_slope) <= 0.35)
+    sma20_inverted = bool(sma20_slope is not None and sma20_slope < -0.35)
+    manipulation_risk = bool(
+        (near_resistance and not breakout)
+        or (close is not None and upper is not None and close >= upper and not strong_volume)
+        or (sma20_lateral and not strong_volume)
+    )
 
     rows: list[dict[str, Any]] = []
 
@@ -364,6 +452,53 @@ def detect_salto_setups(chart_df: pd.DataFrame, setup: dict[str, Any] | None = N
         score=70 if stopped_new_highs or stopped_new_lows else 46,
     )
 
+    add(
+        "BUSQUEDA_REBOTE_MEDIA",
+        active=bool(
+            close_above_200
+            and not bearish_stack
+            and touched_rebound_zone
+            and green_close
+            and (near_ema9 or near_sma20 or near_sma40)
+            and oscillator_confirms_up
+            and (strong_volume or rel_vol is None)
+            and band_space_up
+        ),
+        watch=bool(
+            close_above_200
+            and not bearish_stack
+            and (touched_rebound_zone or near_ema9 or near_sma20 or near_sma40)
+        ),
+        trigger="Busqueda/rebote en EMA9, SMA20 o SMA40 con cierre confirmado",
+        action="Esperar que la media funcione como piso: cierre verde, 15m/1h alineados, volumen y stop bajo la zona.",
+        why="La clase de busqueda de media exige rebote confirmado; tocar una media sin estructura no es entrada.",
+        score=82 if close_above_200 and touched_rebound_zone and green_close and oscillator_confirms_up else 58,
+    )
+
+    add(
+        "PATRON_IMPARABLE_EMA9",
+        active=bool(
+            ema9_recovered
+            and ema9_above_20
+            and close_above_200
+            and ema9_touch_capacity
+            and not manipulation_risk
+            and (near_ema9 or near_sma20)
+            and (strong_volume or oscillator_confirms_up)
+        ),
+        watch=bool(
+            (ema9_recovered and not bearish_stack)
+            or (near_ema9 and close_above_200)
+            or (lower_reclaim and oscillator_confirms_up)
+        ),
+        trigger="Patron EMA9: rebote/recuperacion con oscilador y bandas",
+        action=(
+            "Esperar cierre sobre EMA9/SMA20 con 15m y 1h alineados; si supera 4 toques EMA9, esperar reinicio o nueva separacion."
+        ),
+        why="El patron imparable no opera una media aislada: exige EMA9, SMA20/SMA40, SMA200, bandas, volumen, cierre confirmado y toques EMA9 controlados.",
+        score=80 if ema9_recovered and ema9_above_20 and close_above_200 and ema9_touch_capacity and not manipulation_risk else 58,
+    )
+
     order = {"ACTIVE": 0, "WATCH": 1, "BLOCKED": 2}
     return sorted(rows, key=lambda row: (order.get(str(row["status"]), 9), -int(row["score"])))
 
@@ -373,3 +508,61 @@ def best_salto_setup(chart_df: pd.DataFrame, setup: dict[str, Any] | None = None
         if row.get("status") in {"ACTIVE", "WATCH"}:
             return row
     return None
+
+
+def apply_learned_strategy_brain(chart_df: pd.DataFrame, setup: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Attach the strongest learned class strategy to a symbol setup.
+
+    This is Roxy's explicit learning bridge: class/video strategies stay
+    separate from the raw SMA score, then enrich the trade brief with the
+    best matching setup, blockers, and teaching explanation.
+    """
+    enriched = dict(setup or {})
+    detections = detect_salto_setups(chart_df, enriched)
+    if not detections:
+        enriched.setdefault("learned_strategy_status", "NO_MATCH")
+        enriched.setdefault("learned_strategy_note", "Sin estrategia aprendida detectada en esta grafica.")
+        return enriched
+
+    actionable = [row for row in detections if row.get("status") in {"ACTIVE", "WATCH"}]
+    best = actionable[0] if actionable else detections[0]
+    learned_status = str(best.get("status") or "BLOCKED")
+    learned_family = str(best.get("family") or "")
+    learned_score = safe_float(best.get("score")) or 0.0
+
+    enriched["learned_strategy"] = learned_family
+    enriched["learned_strategy_key"] = best.get("key")
+    enriched["learned_strategy_status"] = learned_status
+    enriched["learned_strategy_score"] = learned_score
+    enriched["learned_strategy_trigger"] = best.get("trigger")
+    enriched["learned_strategy_action"] = best.get("action")
+    enriched["learned_strategy_reason"] = best.get("why")
+    enriched["learned_strategy_requirements"] = best.get("requirements") or []
+    enriched["learned_strategy_timeframes"] = best.get("confirmation_timeframes") or []
+    enriched["learned_strategy_direction"] = best.get("direction")
+    enriched["learned_strategy_candidates"] = detections
+
+    if learned_status == "ACTIVE":
+        enriched["strategy_family"] = learned_family
+        enriched["salto_family"] = learned_family
+        enriched["learned_strategy_note"] = (
+            f"Roxy detecta {learned_family}: {best.get('why')} "
+            f"Accion: {best.get('action')}"
+        )
+        base_score = safe_float(enriched.get("score")) or 0.0
+        enriched["score"] = max(base_score, min(100.0, learned_score))
+        if safe_text(enriched.get("signal")).upper() != "AVOID":
+            enriched["signal"] = "WATCH" if learned_score < 82 else "BUY"
+    elif learned_status == "WATCH":
+        enriched.setdefault("strategy_family", learned_family)
+        enriched.setdefault("salto_family", learned_family)
+        enriched["learned_strategy_note"] = (
+            f"Roxy esta vigilando {learned_family}: {best.get('action')}"
+        )
+        base_score = safe_float(enriched.get("score")) or 0.0
+        enriched["score"] = max(base_score, min(74.0, learned_score))
+    else:
+        enriched["learned_strategy_note"] = (
+            f"Roxy bloquea la estrategia aprendida principal: {best.get('why')}"
+        )
+    return enriched

@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import importlib
 import json
 import shlex
+import sys
 from pathlib import Path
 from typing import Any
+
+BASE_DIR = Path(__file__).resolve().parents[1]
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+from roxy_paths import alerts_dir as configured_alerts_dir
 
 
 CORE_LAUNCHD_MODULES: dict[str, str] = {
@@ -29,11 +37,20 @@ HEALTH_WATCHDOG_REQUIRED_FLAGS = [
     "--ensure-live-data",
     "--ensure-yfinance-cache",
     "--ensure-streamlit-app",
+    "--ensure-dashboard-history-sample",
+    "--ensure-dashboard-render-probe-report",
     "--ensure-chart-health-report",
     "--ensure-output-maintenance-report",
     "--ensure-alert-quality-report",
+    "--ensure-daily-opportunity-plan-report",
+    "--ensure-status-snapshot-report",
     "--no-fail",
 ]
+DEFAULT_REPORT_PATH = configured_alerts_dir() / "launchd_recovery.json"
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def command_has_flag(command: str, flag: str) -> bool:
@@ -42,6 +59,24 @@ def command_has_flag(command: str, flag: str) -> bool:
     except ValueError:
         parts = command.split()
     return flag in parts
+
+
+def command_script_segment(command: str, script_name: str) -> str:
+    for segment in str(command or "").split("&&"):
+        if script_name in segment:
+            return segment
+    return ""
+
+
+def command_script_has_flag(command: str, script_name: str, flag: str) -> bool:
+    return command_has_flag(command_script_segment(command, script_name), flag)
+
+
+def command_script_position(command: str, script_name: str) -> int | None:
+    for idx, segment in enumerate(str(command or "").split("&&")):
+        if script_name in segment:
+            return idx
+    return None
 
 
 def command_parts(command: str) -> list[str]:
@@ -59,6 +94,10 @@ def command_option_value(command: str, option: str) -> str | None:
     if idx + 1 >= len(parts):
         return None
     return parts[idx + 1]
+
+
+def command_script_option_value(command: str, script_name: str, option: str) -> str | None:
+    return command_option_value(command_script_segment(command, script_name), option)
 
 
 def command_option_int(command: str, option: str) -> int | None:
@@ -97,9 +136,13 @@ def health_watchdog_install_args(module: Any) -> argparse.Namespace:
         ensure_live_data=True,
         ensure_yfinance_cache=True,
         ensure_streamlit_app=True,
+        ensure_dashboard_history_sample=True,
+        ensure_dashboard_render_probe_report=True,
         ensure_chart_health_report=True,
         ensure_output_maintenance_report=True,
         ensure_alert_quality_report=True,
+        ensure_daily_opportunity_plan_report=True,
+        ensure_status_snapshot_report=True,
         interval_seconds=getattr(module, "DEFAULT_INTERVAL_SECONDS"),
         load=True,
         run_now=False,
@@ -111,7 +154,27 @@ def recover_health_watchdog_config() -> dict[str, Any]:
 
     before = roxy_health_launchd.status()
     command = str(before.get("command") or "")
-    missing_flags = [flag for flag in HEALTH_WATCHDOG_REQUIRED_FLAGS if not command_has_flag(command, flag)]
+    missing_flags = [
+        flag
+        for flag in HEALTH_WATCHDOG_REQUIRED_FLAGS
+        if not command_script_has_flag(command, "roxy_realtime_check.py", flag)
+    ]
+    forced_chart_symbol = command_script_option_value(command, "roxy_realtime_check.py", "--chart-symbol")
+    app_url = command_script_option_value(command, "roxy_realtime_check.py", "--app-url") or ""
+    chart_health_preflight = "chart_realtime_health.py" in command
+    alert_quality_preflight = "alert_quality.py" in command
+    chart_health_active_symbols_disabled = command_has_flag(command, "--no-active-alert-symbols")
+    chart_health_preflight_no_fail = command_script_has_flag(command, "chart_realtime_health.py", "--no-fail")
+    chart_health_position = command_script_position(command, "chart_realtime_health.py")
+    alert_quality_position = command_script_position(command, "alert_quality.py")
+    realtime_check_position = command_script_position(command, "roxy_realtime_check.py")
+    preflight_order_ok = (
+        chart_health_position is not None
+        and alert_quality_position is not None
+        and realtime_check_position is not None
+        and chart_health_position < realtime_check_position
+        and alert_quality_position < realtime_check_position
+    )
     try:
         interval_seconds = int(before.get("interval_seconds") or 0)
     except (TypeError, ValueError):
@@ -125,6 +188,20 @@ def recover_health_watchdog_config() -> dict[str, Any]:
         issues.append("wrong_command")
     if missing_flags:
         issues.append("missing_flags")
+    if forced_chart_symbol and not getattr(roxy_health_launchd, "DEFAULT_CHART_SYMBOL", ""):
+        issues.append("forced_chart_symbol")
+    if not app_url:
+        issues.append("missing_app_url")
+    if not chart_health_preflight:
+        issues.append("missing_chart_health_preflight")
+    elif not chart_health_preflight_no_fail:
+        issues.append("missing_chart_health_preflight_no_fail")
+    elif chart_health_active_symbols_disabled:
+        issues.append("chart_health_active_symbols_disabled")
+    if not alert_quality_preflight:
+        issues.append("missing_alert_quality_preflight")
+    if chart_health_preflight and alert_quality_preflight and not preflight_order_ok:
+        issues.append("watchdog_preflight_order")
     if interval_seconds <= 0:
         issues.append("missing_interval")
     elif interval_seconds > 900:
@@ -135,6 +212,16 @@ def recover_health_watchdog_config() -> dict[str, Any]:
         "label": str(before.get("label") or getattr(roxy_health_launchd, "DEFAULT_LABEL", "")),
         "before": before,
         "missing_flags": missing_flags,
+        "forced_chart_symbol": forced_chart_symbol or "",
+        "app_url": app_url,
+        "chart_health_preflight": chart_health_preflight,
+        "alert_quality_preflight": alert_quality_preflight,
+        "chart_health_active_symbols_disabled": chart_health_active_symbols_disabled,
+        "chart_health_preflight_no_fail": chart_health_preflight_no_fail,
+        "chart_health_position": chart_health_position,
+        "alert_quality_position": alert_quality_position,
+        "realtime_check_position": realtime_check_position,
+        "preflight_order_ok": preflight_order_ok,
         "issues": issues,
         "interval_seconds": interval_seconds,
         "action": "none",
@@ -150,13 +237,60 @@ def recover_health_watchdog_config() -> dict[str, Any]:
         after = roxy_health_launchd.status()
         after_command = str(after.get("command") or "")
         after_missing_flags = [
-            flag for flag in HEALTH_WATCHDOG_REQUIRED_FLAGS if not command_has_flag(after_command, flag)
+            flag
+            for flag in HEALTH_WATCHDOG_REQUIRED_FLAGS
+            if not command_script_has_flag(after_command, "roxy_realtime_check.py", flag)
         ]
+        after_forced_chart_symbol = command_script_option_value(
+            after_command,
+            "roxy_realtime_check.py",
+            "--chart-symbol",
+        )
+        after_app_url = command_script_option_value(after_command, "roxy_realtime_check.py", "--app-url") or ""
+        after_chart_health_preflight = "chart_realtime_health.py" in after_command
+        after_alert_quality_preflight = "alert_quality.py" in after_command
+        after_chart_health_active_symbols_disabled = command_has_flag(after_command, "--no-active-alert-symbols")
+        after_chart_health_preflight_no_fail = command_script_has_flag(
+            after_command,
+            "chart_realtime_health.py",
+            "--no-fail",
+        )
+        after_chart_health_position = command_script_position(after_command, "chart_realtime_health.py")
+        after_alert_quality_position = command_script_position(after_command, "alert_quality.py")
+        after_realtime_check_position = command_script_position(after_command, "roxy_realtime_check.py")
+        after_preflight_order_ok = (
+            after_chart_health_position is not None
+            and after_alert_quality_position is not None
+            and after_realtime_check_position is not None
+            and after_chart_health_position < after_realtime_check_position
+            and after_alert_quality_position < after_realtime_check_position
+        )
         result["action"] = "reinstalled"
         result["path"] = str(path)
         result["after"] = after
         result["after_missing_flags"] = after_missing_flags
-        result["ok"] = bool(after.get("installed") and after.get("loaded") and not after_missing_flags)
+        result["after_forced_chart_symbol"] = after_forced_chart_symbol or ""
+        result["after_app_url"] = after_app_url
+        result["after_chart_health_preflight"] = after_chart_health_preflight
+        result["after_alert_quality_preflight"] = after_alert_quality_preflight
+        result["after_chart_health_active_symbols_disabled"] = after_chart_health_active_symbols_disabled
+        result["after_chart_health_preflight_no_fail"] = after_chart_health_preflight_no_fail
+        result["after_chart_health_position"] = after_chart_health_position
+        result["after_alert_quality_position"] = after_alert_quality_position
+        result["after_realtime_check_position"] = after_realtime_check_position
+        result["after_preflight_order_ok"] = after_preflight_order_ok
+        result["ok"] = bool(
+            after.get("installed")
+            and after.get("loaded")
+            and not after_missing_flags
+            and not (after_forced_chart_symbol and not getattr(roxy_health_launchd, "DEFAULT_CHART_SYMBOL", ""))
+            and bool(after_app_url)
+            and after_chart_health_preflight
+            and after_alert_quality_preflight
+            and after_chart_health_preflight_no_fail
+            and after_preflight_order_ok
+            and not after_chart_health_active_symbols_disabled
+        )
         return result
     except Exception as exc:
         result["action"] = "error"
@@ -180,8 +314,8 @@ def ma_live_install_args(module: Any) -> argparse.Namespace:
         limit=30,
         report_limit=12,
         retention_count=96,
-        health_check=True,
-        health_app_url="http://127.0.0.1:8501",
+        health_check=False,
+        health_app_url="http://127.0.0.1:3000",
         health_chart_symbol="AAPL",
         health_chart_timeframe="1h",
         health_skip_chart_fetch=False,
@@ -209,8 +343,8 @@ def ma_live_config_issues(info: dict[str, Any]) -> list[str]:
         issues.append("retention_missing")
     elif retention_count <= 0 or retention_count > 288:
         issues.append("retention_out_of_range")
-    if not command_has_flag(command, "--health-check"):
-        issues.append("health_check_missing")
+    if command_has_flag(command, "--health-check"):
+        issues.append("health_check_duplicate")
     return issues
 
 
@@ -396,6 +530,7 @@ def output_maintenance_install_args(module: Any) -> argparse.Namespace:
         label=getattr(module, "DEFAULT_LABEL"),
         python_path=None,
         dry_run=False,
+        enable_local_cache_cleanup=True,
         hour=getattr(module, "DEFAULT_HOUR"),
         minute=getattr(module, "DEFAULT_MINUTE"),
         run_at_load=False,
@@ -419,6 +554,8 @@ def recover_output_maintenance_config() -> dict[str, Any]:
         issues.append("wrong_command")
     if command_has_flag(command, "--dry-run"):
         issues.append("dry_run")
+    if not command_has_flag(command, "--enable-local-cache-cleanup"):
+        issues.append("local_cache_cleanup_disabled")
     if "Hour" not in schedule or "Minute" not in schedule:
         issues.append("missing_schedule")
 
@@ -449,6 +586,8 @@ def recover_output_maintenance_config() -> dict[str, Any]:
             after_issues.append("wrong_command")
         if command_has_flag(after_command, "--dry-run"):
             after_issues.append("dry_run")
+        if not command_has_flag(after_command, "--enable-local-cache-cleanup"):
+            after_issues.append("local_cache_cleanup_disabled")
         if "Hour" not in after_schedule or "Minute" not in after_schedule:
             after_issues.append("missing_schedule")
         result["action"] = "reinstalled"
@@ -579,7 +718,22 @@ def restart_launch_agent(module_name: str, *, label: str | None = None) -> dict[
         return result
 
 
-def ensure_core_launch_agents(modules: dict[str, str] | None = None) -> dict[str, Any]:
+def write_launchd_recovery_report(result: dict[str, Any], report_path: str | Path = DEFAULT_REPORT_PATH) -> Path:
+    path = Path(report_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "generated_at": utc_now().isoformat(),
+        **result,
+    }
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str))
+    return path
+
+
+def ensure_core_launch_agents(
+    modules: dict[str, str] | None = None,
+    *,
+    report_path: str | Path | None = None,
+) -> dict[str, Any]:
     selected = dict(modules or CORE_LAUNCHD_MODULES)
     services = {name: recover_launch_agent(module_name) for name, module_name in selected.items()}
     if modules is None:
@@ -591,13 +745,18 @@ def ensure_core_launch_agents(modules: dict[str, str] | None = None) -> dict[str
     recovered = [name for name, item in services.items() if item.get("action") == "bootstrapped" and item.get("ok")]
     recovered.extend(name for name, item in services.items() if item.get("action") == "reinstalled" and item.get("ok"))
     failed = [name for name, item in services.items() if not item.get("ok")]
-    return {
+    result = {
         "status": "OK" if not failed else "WARN",
         "service_count": len(services),
         "recovered": recovered,
         "failed": failed,
         "services": services,
     }
+    if modules is None or report_path is not None:
+        path = Path(report_path or DEFAULT_REPORT_PATH)
+        result["report_path"] = str(path)
+        write_launchd_recovery_report(result, path)
+    return result
 
 
 def parse_args() -> argparse.Namespace:
@@ -608,10 +767,10 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    modules = CORE_LAUNCHD_MODULES
+    modules = None
     if args.service:
         modules = {name: CORE_LAUNCHD_MODULES[name] for name in args.service}
-    print(json.dumps(ensure_core_launch_agents(modules), indent=2, sort_keys=True))
+    print(json.dumps(ensure_core_launch_agents(modules, report_path=DEFAULT_REPORT_PATH), indent=2, sort_keys=True))
 
 
 if __name__ == "__main__":

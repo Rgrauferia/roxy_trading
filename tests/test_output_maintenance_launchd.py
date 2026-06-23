@@ -1,6 +1,6 @@
 import plistlib
 
-from tools.output_maintenance_launchd import build_plist, build_shell_command, parse_args, write_plist
+from tools.output_maintenance_launchd import build_maintenance_args, build_plist, build_shell_command, parse_args, write_plist
 
 
 def test_build_shell_command_runs_output_maintenance():
@@ -11,6 +11,16 @@ def test_build_shell_command_runs_output_maintenance():
     assert "/tmp/venv/bin/python" in command
     assert "tools/output_maintenance.py" in command
     assert "--dry-run" in command
+    assert "--enable-local-cache-cleanup" in command
+
+
+def test_build_maintenance_args_can_disable_local_cache_cleanup():
+    args = build_maintenance_args(
+        python_path="/tmp/venv/bin/python",
+        enable_local_cache_cleanup=False,
+    )
+
+    assert "--enable-local-cache-cleanup" not in [str(item) for item in args]
 
 
 def test_build_plist_has_daily_calendar_and_logs():
@@ -59,3 +69,15 @@ def test_install_defaults_to_overnight_cleanup(monkeypatch):
     assert args.hour == 3
     assert args.minute == 10
     assert args.dry_run is False
+    assert args.enable_local_cache_cleanup is True
+
+
+def test_install_can_keep_local_cache_cleanup_preview_only(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        ["output_maintenance_launchd.py", "install", "--no-load", "--no-enable-local-cache-cleanup"],
+    )
+
+    args = parse_args()
+
+    assert args.enable_local_cache_cleanup is False

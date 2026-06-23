@@ -1,3 +1,8 @@
+import json
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 
 from tools import launchd_recovery
@@ -6,6 +11,35 @@ from tools import ma_live_launchd
 from tools import output_maintenance_launchd
 from tools import roxy_health_launchd
 from tools import streamlit_launchd
+
+
+def test_launchd_recovery_cli_help_runs_from_repo_root():
+    root = Path(__file__).resolve().parents[1]
+
+    result = subprocess.run(
+        [sys.executable, "tools/launchd_recovery.py", "--help"],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "Recover installed Roxy LaunchAgents" in result.stdout
+
+
+def health_watchdog_command(realtime_command: str) -> str:
+    if "roxy_realtime_check.py" in realtime_command and "--app-url" not in realtime_command:
+        realtime_command = realtime_command.replace(
+            "roxy_realtime_check.py ",
+            "roxy_realtime_check.py --app-url http://127.0.0.1:3000 ",
+            1,
+        )
+    return (
+        "python tools/chart_realtime_health.py --include-active-alert-symbols --no-fail "
+        "&& python alert_quality.py "
+        f"&& {realtime_command}"
+    )
 
 
 def test_recover_launch_agent_does_nothing_when_loaded(monkeypatch):
@@ -58,12 +92,38 @@ def test_ensure_core_launch_agents_summarizes_failures(monkeypatch):
     assert result["failed"] == ["fail"]
 
 
+def test_ensure_core_launch_agents_writes_report_when_path_is_provided(monkeypatch, tmp_path):
+    report_path = tmp_path / "launchd_recovery.json"
+    generated_at = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
+    results = {
+        "tools.ok": {"action": "already_loaded", "ok": True},
+        "tools.recovered": {"action": "bootstrapped", "ok": True},
+    }
+    monkeypatch.setattr(launchd_recovery, "recover_launch_agent", lambda module_name: results[module_name])
+    monkeypatch.setattr(launchd_recovery, "utc_now", lambda: generated_at)
+
+    result = launchd_recovery.ensure_core_launch_agents(
+        {"ok": "tools.ok", "recovered": "tools.recovered"},
+        report_path=report_path,
+    )
+
+    payload = json.loads(report_path.read_text())
+    assert result["status"] == "OK"
+    assert result["report_path"] == str(report_path)
+    assert payload["generated_at"] == "2026-06-10T12:00:00+00:00"
+    assert payload["status"] == "OK"
+    assert payload["service_count"] == 2
+    assert payload["recovered"] == ["recovered"]
+    assert payload["failed"] == []
+    assert payload["report_path"] == str(report_path)
+
+
 def test_recover_health_watchdog_config_does_nothing_when_current(monkeypatch):
-    command = (
-        "python tools/roxy_realtime_check.py --notify-health --ensure-runtime-backup-daemon "
+    command = health_watchdog_command(
+        "python tools/roxy_realtime_check.py --app-url http://127.0.0.1:3000 --notify-health --ensure-runtime-backup-daemon "
         "--ensure-runtime-backup-report --ensure-core-launchagents --ensure-storage-migration --ensure-streamlit-app "
-        "--ensure-live-data --ensure-yfinance-cache --ensure-chart-health-report --ensure-output-maintenance-report "
-        "--ensure-alert-quality-report --no-fail"
+        "--ensure-live-data --ensure-yfinance-cache --ensure-dashboard-history-sample --ensure-dashboard-render-probe-report --ensure-chart-health-report --ensure-output-maintenance-report "
+        "--ensure-alert-quality-report --ensure-daily-opportunity-plan-report --ensure-status-snapshot-report --no-fail"
     )
     monkeypatch.setattr(
         roxy_health_launchd,
@@ -87,16 +147,21 @@ def test_recover_health_watchdog_config_does_nothing_when_current(monkeypatch):
     assert result["action"] == "already_current"
     assert result["ok"] is True
     assert result["missing_flags"] == []
+    assert result["app_url"] == "http://127.0.0.1:3000"
+    assert result["chart_health_preflight"] is True
+    assert result["alert_quality_preflight"] is True
+    assert result["chart_health_preflight_no_fail"] is True
+    assert result["preflight_order_ok"] is True
 
 
 def test_recover_health_watchdog_config_reinstalls_when_flags_are_missing(monkeypatch, tmp_path):
     calls = []
     old_command = "python tools/roxy_realtime_check.py --notify-health --no-fail"
-    new_command = (
+    new_command = health_watchdog_command(
         "python tools/roxy_realtime_check.py --notify-health --ensure-runtime-backup-daemon "
         "--ensure-runtime-backup-report --ensure-core-launchagents --ensure-storage-migration --ensure-streamlit-app "
-        "--ensure-live-data --ensure-yfinance-cache --ensure-chart-health-report --ensure-output-maintenance-report "
-        "--ensure-alert-quality-report --no-fail"
+        "--ensure-live-data --ensure-yfinance-cache --ensure-dashboard-history-sample --ensure-dashboard-render-probe-report --ensure-chart-health-report --ensure-output-maintenance-report "
+        "--ensure-alert-quality-report --ensure-daily-opportunity-plan-report --ensure-status-snapshot-report --no-fail"
     )
 
     def status():
@@ -128,22 +193,343 @@ def test_recover_health_watchdog_config_reinstalls_when_flags_are_missing(monkey
         "--ensure-live-data",
         "--ensure-yfinance-cache",
         "--ensure-streamlit-app",
+        "--ensure-dashboard-history-sample",
+        "--ensure-dashboard-render-probe-report",
         "--ensure-chart-health-report",
         "--ensure-output-maintenance-report",
         "--ensure-alert-quality-report",
+        "--ensure-daily-opportunity-plan-report",
+        "--ensure-status-snapshot-report",
     ]
     assert result["after_missing_flags"] == []
+    assert result["after_chart_health_preflight"] is True
+    assert result["after_alert_quality_preflight"] is True
+    assert result["after_chart_health_preflight_no_fail"] is True
     assert calls[0].load is True
+    assert calls[0].ensure_dashboard_history_sample is True
     assert calls[0].interval_seconds == roxy_health_launchd.DEFAULT_INTERVAL_SECONDS
+
+
+def test_recover_health_watchdog_config_reinstalls_when_realtime_flag_is_missing(monkeypatch, tmp_path):
+    calls = []
+    old_realtime_command = (
+        "python tools/roxy_realtime_check.py --app-url http://127.0.0.1:3000 --notify-health "
+        "--ensure-runtime-backup-daemon --ensure-runtime-backup-report --ensure-core-launchagents "
+        "--ensure-storage-migration --ensure-streamlit-app --ensure-live-data --ensure-yfinance-cache "
+        "--ensure-dashboard-history-sample --ensure-dashboard-render-probe-report --ensure-chart-health-report "
+        "--ensure-output-maintenance-report --ensure-alert-quality-report --ensure-daily-opportunity-plan-report "
+        "--ensure-status-snapshot-report"
+    )
+    new_realtime_command = f"{old_realtime_command} --no-fail"
+    old_command = (
+        "python tools/chart_realtime_health.py --include-active-alert-symbols --no-fail "
+        "&& python alert_quality.py "
+        f"&& {old_realtime_command}"
+    )
+    new_command = health_watchdog_command(new_realtime_command)
+
+    def status():
+        command = new_command if calls else old_command
+        return {
+            "label": "com.roxy.health_watchdog",
+            "installed": True,
+            "loaded": True,
+            "interval_seconds": 300,
+            "command": command,
+        }
+
+    def install(args):
+        calls.append(args)
+        return tmp_path / "com.roxy.health_watchdog.plist"
+
+    monkeypatch.setattr(roxy_health_launchd, "status", status)
+    monkeypatch.setattr(roxy_health_launchd, "install", install)
+
+    result = launchd_recovery.recover_health_watchdog_config()
+
+    assert result["action"] == "reinstalled"
+    assert result["ok"] is True
+    assert result["issues"] == ["missing_flags"]
+    assert result["missing_flags"] == ["--no-fail"]
+    assert result["after_missing_flags"] == []
+    assert calls
+
+
+def test_recover_health_watchdog_config_reinstalls_for_forced_chart_symbol(monkeypatch, tmp_path):
+    calls = []
+    old_command = health_watchdog_command(
+        "python tools/roxy_realtime_check.py --chart-symbol AAPL --notify-health --ensure-runtime-backup-daemon "
+        "--ensure-runtime-backup-report --ensure-core-launchagents --ensure-storage-migration --ensure-streamlit-app "
+        "--ensure-live-data --ensure-yfinance-cache --ensure-dashboard-history-sample --ensure-dashboard-render-probe-report "
+        "--ensure-chart-health-report --ensure-output-maintenance-report --ensure-alert-quality-report "
+        "--ensure-daily-opportunity-plan-report --ensure-status-snapshot-report --no-fail"
+    )
+    new_command = old_command.replace("--chart-symbol AAPL ", "")
+
+    def status():
+        command = new_command if calls else old_command
+        return {
+            "label": "com.roxy.health_watchdog",
+            "installed": True,
+            "loaded": True,
+            "interval_seconds": 300,
+            "command": command,
+        }
+
+    def install(args):
+        calls.append(args)
+        return tmp_path / "com.roxy.health_watchdog.plist"
+
+    monkeypatch.setattr(roxy_health_launchd, "status", status)
+    monkeypatch.setattr(roxy_health_launchd, "install", install)
+
+    result = launchd_recovery.recover_health_watchdog_config()
+
+    assert result["action"] == "reinstalled"
+    assert result["ok"] is True
+    assert result["issues"] == ["forced_chart_symbol"]
+    assert result["forced_chart_symbol"] == "AAPL"
+    assert calls[0].chart_symbol == ""
+
+
+def test_recover_health_watchdog_config_reinstalls_when_preflights_are_missing(monkeypatch, tmp_path):
+    calls = []
+    old_command = (
+        "python tools/roxy_realtime_check.py --app-url http://127.0.0.1:3000 --notify-health --ensure-runtime-backup-daemon "
+        "--ensure-runtime-backup-report --ensure-core-launchagents --ensure-storage-migration --ensure-streamlit-app "
+        "--ensure-live-data --ensure-yfinance-cache --ensure-dashboard-history-sample --ensure-dashboard-render-probe-report "
+        "--ensure-chart-health-report --ensure-output-maintenance-report --ensure-alert-quality-report "
+        "--ensure-daily-opportunity-plan-report --ensure-status-snapshot-report --no-fail"
+    )
+    new_command = health_watchdog_command(old_command)
+
+    def status():
+        command = new_command if calls else old_command
+        return {
+            "label": "com.roxy.health_watchdog",
+            "installed": True,
+            "loaded": True,
+            "interval_seconds": 300,
+            "command": command,
+        }
+
+    def install(args):
+        calls.append(args)
+        return tmp_path / "com.roxy.health_watchdog.plist"
+
+    monkeypatch.setattr(roxy_health_launchd, "status", status)
+    monkeypatch.setattr(roxy_health_launchd, "install", install)
+
+    result = launchd_recovery.recover_health_watchdog_config()
+
+    assert result["action"] == "reinstalled"
+    assert result["ok"] is True
+    assert result["issues"] == ["missing_chart_health_preflight", "missing_alert_quality_preflight"]
+    assert result["chart_health_preflight"] is False
+    assert result["alert_quality_preflight"] is False
+    assert result["after_chart_health_preflight"] is True
+    assert result["after_alert_quality_preflight"] is True
+    assert calls
+
+
+def test_recover_health_watchdog_config_reinstalls_when_chart_preflight_can_fail(monkeypatch, tmp_path):
+    calls = []
+    realtime_command = (
+        "python tools/roxy_realtime_check.py --app-url http://127.0.0.1:3000 --notify-health --ensure-runtime-backup-daemon "
+        "--ensure-runtime-backup-report --ensure-core-launchagents --ensure-storage-migration --ensure-streamlit-app "
+        "--ensure-live-data --ensure-yfinance-cache --ensure-dashboard-history-sample --ensure-dashboard-render-probe-report "
+        "--ensure-chart-health-report --ensure-output-maintenance-report --ensure-alert-quality-report "
+        "--ensure-daily-opportunity-plan-report --ensure-status-snapshot-report --no-fail"
+    )
+    old_command = (
+        "python tools/chart_realtime_health.py --include-active-alert-symbols "
+        "&& python alert_quality.py "
+        f"&& {realtime_command}"
+    )
+    new_command = health_watchdog_command(realtime_command)
+
+    def status():
+        command = new_command if calls else old_command
+        return {
+            "label": "com.roxy.health_watchdog",
+            "installed": True,
+            "loaded": True,
+            "interval_seconds": 300,
+            "command": command,
+        }
+
+    def install(args):
+        calls.append(args)
+        return tmp_path / "com.roxy.health_watchdog.plist"
+
+    monkeypatch.setattr(roxy_health_launchd, "status", status)
+    monkeypatch.setattr(roxy_health_launchd, "install", install)
+
+    result = launchd_recovery.recover_health_watchdog_config()
+
+    assert result["action"] == "reinstalled"
+    assert result["ok"] is True
+    assert result["issues"] == ["missing_chart_health_preflight_no_fail"]
+    assert result["chart_health_preflight"] is True
+    assert result["chart_health_preflight_no_fail"] is False
+    assert result["after_chart_health_preflight_no_fail"] is True
+    assert calls
+
+
+def test_recover_health_watchdog_config_reinstalls_when_preflights_run_after_check(monkeypatch, tmp_path):
+    calls = []
+    realtime_command = (
+        "python tools/roxy_realtime_check.py --app-url http://127.0.0.1:3000 --notify-health --ensure-runtime-backup-daemon "
+        "--ensure-runtime-backup-report --ensure-core-launchagents --ensure-storage-migration --ensure-streamlit-app "
+        "--ensure-live-data --ensure-yfinance-cache --ensure-dashboard-history-sample --ensure-dashboard-render-probe-report "
+        "--ensure-chart-health-report --ensure-output-maintenance-report --ensure-alert-quality-report "
+        "--ensure-daily-opportunity-plan-report --ensure-status-snapshot-report --no-fail"
+    )
+    old_command = (
+        f"{realtime_command} "
+        "&& python tools/chart_realtime_health.py --include-active-alert-symbols --no-fail "
+        "&& python alert_quality.py"
+    )
+    new_command = health_watchdog_command(realtime_command)
+
+    def status():
+        command = new_command if calls else old_command
+        return {
+            "label": "com.roxy.health_watchdog",
+            "installed": True,
+            "loaded": True,
+            "interval_seconds": 300,
+            "command": command,
+        }
+
+    def install(args):
+        calls.append(args)
+        return tmp_path / "com.roxy.health_watchdog.plist"
+
+    monkeypatch.setattr(roxy_health_launchd, "status", status)
+    monkeypatch.setattr(roxy_health_launchd, "install", install)
+
+    result = launchd_recovery.recover_health_watchdog_config()
+
+    assert result["action"] == "reinstalled"
+    assert result["ok"] is True
+    assert result["issues"] == ["watchdog_preflight_order"]
+    assert result["preflight_order_ok"] is False
+    assert result["realtime_check_position"] < result["chart_health_position"]
+    assert result["after_preflight_order_ok"] is True
+    assert calls
+
+
+def test_recover_health_watchdog_config_reinstalls_when_app_url_is_missing(monkeypatch, tmp_path):
+    calls = []
+    old_realtime_command = (
+        "python tools/roxy_realtime_check.py --notify-health --ensure-runtime-backup-daemon "
+        "--ensure-runtime-backup-report --ensure-core-launchagents --ensure-storage-migration --ensure-streamlit-app "
+        "--ensure-live-data --ensure-yfinance-cache --ensure-dashboard-history-sample --ensure-dashboard-render-probe-report "
+        "--ensure-chart-health-report --ensure-output-maintenance-report --ensure-alert-quality-report "
+        "--ensure-daily-opportunity-plan-report --ensure-status-snapshot-report --no-fail"
+    )
+    new_realtime_command = (
+        "python tools/roxy_realtime_check.py --app-url http://127.0.0.1:3000 --notify-health "
+        "--ensure-runtime-backup-daemon --ensure-runtime-backup-report --ensure-core-launchagents "
+        "--ensure-storage-migration --ensure-streamlit-app --ensure-live-data --ensure-yfinance-cache "
+        "--ensure-dashboard-history-sample --ensure-dashboard-render-probe-report --ensure-chart-health-report "
+        "--ensure-output-maintenance-report --ensure-alert-quality-report --ensure-daily-opportunity-plan-report "
+        "--ensure-status-snapshot-report --no-fail"
+    )
+    old_command = (
+        "python tools/chart_realtime_health.py --include-active-alert-symbols --no-fail "
+        "&& python alert_quality.py "
+        f"&& {old_realtime_command}"
+    )
+    new_command = health_watchdog_command(new_realtime_command)
+
+    def status():
+        command = new_command if calls else old_command
+        return {
+            "label": "com.roxy.health_watchdog",
+            "installed": True,
+            "loaded": True,
+            "interval_seconds": 300,
+            "command": command,
+        }
+
+    def install(args):
+        calls.append(args)
+        return tmp_path / "com.roxy.health_watchdog.plist"
+
+    monkeypatch.setattr(roxy_health_launchd, "status", status)
+    monkeypatch.setattr(roxy_health_launchd, "install", install)
+
+    result = launchd_recovery.recover_health_watchdog_config()
+
+    assert result["action"] == "reinstalled"
+    assert result["ok"] is True
+    assert result["issues"] == ["missing_app_url"]
+    assert result["app_url"] == ""
+    assert result["after_app_url"] == "http://127.0.0.1:3000"
+    assert calls[0].app_url == roxy_health_launchd.DEFAULT_APP_URL
+
+
+def test_recover_health_watchdog_config_reinstalls_when_realtime_app_url_is_missing(monkeypatch, tmp_path):
+    calls = []
+    old_realtime_command = (
+        "python tools/roxy_realtime_check.py --notify-health --ensure-runtime-backup-daemon "
+        "--ensure-runtime-backup-report --ensure-core-launchagents --ensure-storage-migration --ensure-streamlit-app "
+        "--ensure-live-data --ensure-yfinance-cache --ensure-dashboard-history-sample --ensure-dashboard-render-probe-report "
+        "--ensure-chart-health-report --ensure-output-maintenance-report --ensure-alert-quality-report "
+        "--ensure-daily-opportunity-plan-report --ensure-status-snapshot-report --no-fail"
+    )
+    new_realtime_command = (
+        "python tools/roxy_realtime_check.py --app-url http://127.0.0.1:3000 --notify-health "
+        "--ensure-runtime-backup-daemon --ensure-runtime-backup-report --ensure-core-launchagents "
+        "--ensure-storage-migration --ensure-streamlit-app --ensure-live-data --ensure-yfinance-cache "
+        "--ensure-dashboard-history-sample --ensure-dashboard-render-probe-report --ensure-chart-health-report "
+        "--ensure-output-maintenance-report --ensure-alert-quality-report --ensure-daily-opportunity-plan-report "
+        "--ensure-status-snapshot-report --no-fail"
+    )
+    old_command = (
+        "python tools/chart_realtime_health.py --app-url http://127.0.0.1:3000 "
+        "--include-active-alert-symbols --no-fail "
+        "&& python alert_quality.py "
+        f"&& {old_realtime_command}"
+    )
+    new_command = health_watchdog_command(new_realtime_command)
+
+    def status():
+        command = new_command if calls else old_command
+        return {
+            "label": "com.roxy.health_watchdog",
+            "installed": True,
+            "loaded": True,
+            "interval_seconds": 300,
+            "command": command,
+        }
+
+    def install(args):
+        calls.append(args)
+        return tmp_path / "com.roxy.health_watchdog.plist"
+
+    monkeypatch.setattr(roxy_health_launchd, "status", status)
+    monkeypatch.setattr(roxy_health_launchd, "install", install)
+
+    result = launchd_recovery.recover_health_watchdog_config()
+
+    assert result["action"] == "reinstalled"
+    assert result["ok"] is True
+    assert result["issues"] == ["missing_app_url"]
+    assert result["app_url"] == ""
+    assert result["after_app_url"] == "http://127.0.0.1:3000"
+    assert calls[0].app_url == roxy_health_launchd.DEFAULT_APP_URL
 
 
 def test_recover_health_watchdog_config_reinstalls_when_unloaded(monkeypatch, tmp_path):
     calls = []
-    command = (
+    command = health_watchdog_command(
         "python tools/roxy_realtime_check.py --notify-health --ensure-runtime-backup-daemon "
         "--ensure-runtime-backup-report --ensure-core-launchagents --ensure-storage-migration --ensure-streamlit-app "
-        "--ensure-live-data --ensure-yfinance-cache --ensure-chart-health-report --ensure-output-maintenance-report "
-        "--ensure-alert-quality-report --no-fail"
+        "--ensure-live-data --ensure-yfinance-cache --ensure-dashboard-history-sample --ensure-dashboard-render-probe-report --ensure-chart-health-report --ensure-output-maintenance-report "
+        "--ensure-alert-quality-report --ensure-daily-opportunity-plan-report --ensure-status-snapshot-report --no-fail"
     )
 
     def status():
@@ -178,7 +564,7 @@ def test_recover_output_maintenance_config_does_nothing_when_current(monkeypatch
             "label": "com.roxy.output_maintenance",
             "installed": True,
             "loaded": True,
-            "command": "python tools/output_maintenance.py",
+            "command": "python tools/output_maintenance.py --enable-local-cache-cleanup",
             "schedule": {"Hour": 3, "Minute": 10},
         },
     )
@@ -204,7 +590,7 @@ def test_recover_output_maintenance_config_reinstalls_dry_run_job(monkeypatch, t
                 "label": "com.roxy.output_maintenance",
                 "installed": True,
                 "loaded": True,
-                "command": "python tools/output_maintenance.py",
+                "command": "python tools/output_maintenance.py --enable-local-cache-cleanup",
                 "schedule": {"Hour": 3, "Minute": 10},
             }
         return {
@@ -226,10 +612,47 @@ def test_recover_output_maintenance_config_reinstalls_dry_run_job(monkeypatch, t
 
     assert result["action"] == "reinstalled"
     assert result["ok"] is True
-    assert result["issues"] == ["dry_run"]
+    assert result["issues"] == ["dry_run", "local_cache_cleanup_disabled"]
     assert result["after_issues"] == []
     assert calls[0].dry_run is False
+    assert calls[0].enable_local_cache_cleanup is True
     assert calls[0].load is True
+
+
+def test_recover_output_maintenance_config_reinstalls_preview_only_cache_job(monkeypatch, tmp_path):
+    calls = []
+
+    def status():
+        if calls:
+            return {
+                "label": "com.roxy.output_maintenance",
+                "installed": True,
+                "loaded": True,
+                "command": "python tools/output_maintenance.py --enable-local-cache-cleanup",
+                "schedule": {"Hour": 3, "Minute": 10},
+            }
+        return {
+            "label": "com.roxy.output_maintenance",
+            "installed": True,
+            "loaded": True,
+            "command": "python tools/output_maintenance.py",
+            "schedule": {"Hour": 3, "Minute": 10},
+        }
+
+    def install(args):
+        calls.append(args)
+        return tmp_path / "com.roxy.output_maintenance.plist"
+
+    monkeypatch.setattr(output_maintenance_launchd, "status", status)
+    monkeypatch.setattr(output_maintenance_launchd, "install", install)
+
+    result = launchd_recovery.recover_output_maintenance_config()
+
+    assert result["action"] == "reinstalled"
+    assert result["ok"] is True
+    assert result["issues"] == ["local_cache_cleanup_disabled"]
+    assert result["after_issues"] == []
+    assert calls[0].enable_local_cache_cleanup is True
 
 
 def test_recover_ma_live_config_does_nothing_when_current(monkeypatch):
@@ -243,7 +666,7 @@ def test_recover_ma_live_config_does_nothing_when_current(monkeypatch):
             "keep_alive": True,
             "command": (
                 "python tools/ma_live.py --stock-intervals 15m,1h,2h,4h "
-                "--crypto-timeframes 15m,1h,2h,4h --retention-count 96 --health-check"
+                "--crypto-timeframes 15m,1h,2h,4h --retention-count 96"
             ),
         },
     )
@@ -272,7 +695,7 @@ def test_recover_ma_live_config_reinstalls_outdated_command(monkeypatch, tmp_pat
                 "keep_alive": True,
                 "command": (
                     "python tools/ma_live.py --stock-intervals 15m,1h,2h,4h "
-                    "--crypto-timeframes 15m,1h,2h,4h --retention-count 96 --health-check"
+                    "--crypto-timeframes 15m,1h,2h,4h --retention-count 96"
                 ),
             }
         return {
@@ -294,13 +717,47 @@ def test_recover_ma_live_config_reinstalls_outdated_command(monkeypatch, tmp_pat
 
     assert result["action"] == "reinstalled"
     assert result["ok"] is True
-    assert result["issues"] == ["stock_timeframes", "crypto_timeframes", "retention_missing", "health_check_missing"]
+    assert result["issues"] == ["stock_timeframes", "crypto_timeframes", "retention_missing"]
     assert result["after_issues"] == []
     assert calls[0].stock_intervals == "15m,1h,2h,4h"
     assert calls[0].crypto_timeframes == "15m,1h,2h,4h"
     assert calls[0].retention_count == 96
-    assert calls[0].health_check is True
+    assert calls[0].health_check is False
     assert calls[0].load is True
+
+
+def test_recover_ma_live_config_removes_duplicate_health_check(monkeypatch, tmp_path):
+    calls = []
+
+    def status():
+        command = (
+            "python tools/ma_live.py --stock-intervals 15m,1h,2h,4h "
+            "--crypto-timeframes 15m,1h,2h,4h --retention-count 96"
+        )
+        if not calls:
+            command = f"{command} --health-check"
+        return {
+            "label": "com.roxy.ma_live",
+            "installed": True,
+            "loaded": True,
+            "keep_alive": True,
+            "command": command,
+        }
+
+    def install(args):
+        calls.append(args)
+        return tmp_path / "com.roxy.ma_live.plist"
+
+    monkeypatch.setattr(ma_live_launchd, "status", status)
+    monkeypatch.setattr(ma_live_launchd, "install", install)
+
+    result = launchd_recovery.recover_ma_live_config()
+
+    assert result["action"] == "reinstalled"
+    assert result["ok"] is True
+    assert result["issues"] == ["health_check_duplicate"]
+    assert result["after_issues"] == []
+    assert calls[0].health_check is False
 
 
 def test_recover_streamlit_config_does_nothing_when_current(monkeypatch):
@@ -312,9 +769,9 @@ def test_recover_streamlit_config_does_nothing_when_current(monkeypatch):
             "installed": True,
             "loaded": True,
             "keep_alive": True,
-            "command": "python -m streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port 8501",
+            "command": "python -m streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port 3000",
             "address": "0.0.0.0",
-            "port": 8501,
+            "port": 3000,
             "lan_ready": True,
         },
     )
@@ -341,9 +798,9 @@ def test_recover_streamlit_config_reinstalls_wrong_port(monkeypatch, tmp_path):
                 "installed": True,
                 "loaded": True,
                 "keep_alive": True,
-                "command": "python -m streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port 8501",
+                "command": "python -m streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port 3000",
                 "address": "0.0.0.0",
-                "port": 8501,
+                "port": 3000,
                 "lan_ready": True,
             }
         return {
@@ -495,7 +952,7 @@ def test_restart_launch_agent_reinstalls_when_bootstrap_leaves_service_unloaded(
     module = SimpleNamespace(
         DEFAULT_LABEL="com.roxy.streamlit",
         DEFAULT_ADDRESS="0.0.0.0",
-        DEFAULT_PORT=8501,
+        DEFAULT_PORT=3000,
         status=tracked_status,
         bootout=bootout,
         bootstrap=bootstrap,

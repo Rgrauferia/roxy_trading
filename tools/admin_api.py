@@ -9,10 +9,11 @@ Endpoints:
 from __future__ import annotations
 
 import os
-from flask import Flask, request, Response, abort
+from flask import Flask, request, Response, abort, jsonify
 import storage
 import io
 import csv
+from tradingview_webhooks import append_authenticated_tradingview_webhook, configured_tradingview_webhook_secret
 
 app = Flask(__name__)
 
@@ -30,6 +31,25 @@ def _check_token():
     # require token via header `X-Admin-Token` only (avoid token-in-query leakage)
     h = request.headers.get("X-Admin-Token")
     return h == token
+
+
+@app.route("/health")
+def health():
+    return jsonify({"ok": True, "service": "roxy-admin-api"})
+
+
+@app.route("/tradingview/status")
+def tradingview_status():
+    configured = bool(configured_tradingview_webhook_secret())
+    return jsonify(
+        {
+            "ok": True,
+            "endpoint": "/tradingview/webhook",
+            "auth": "configured" if configured else "missing",
+            "paper_only": True,
+            "real_orders_enabled": False,
+        }
+    )
 
 
 @app.route("/audit.csv")
@@ -55,6 +75,18 @@ def audit_log():
     with open(p, "r", encoding="utf-8") as fh:
         data = fh.read()
     return Response(data, mimetype="text/plain")
+
+
+@app.route("/tradingview/webhook", methods=["POST"])
+def tradingview_webhook():
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"ok": False, "status": "INVALID_JSON", "detail": "Expected JSON object payload."}), 400
+    result = append_authenticated_tradingview_webhook(payload, headers=request.headers)
+    if result.get("ok"):
+        return jsonify(result), 200
+    status_code = 503 if result.get("status") == "MISSING_SECRET_CONFIG" else 403
+    return jsonify(result), status_code
 
 
 if __name__ == "__main__":

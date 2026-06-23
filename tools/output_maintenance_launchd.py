@@ -71,18 +71,34 @@ def sync_launchd_env() -> None:
     LAUNCHD_ENV_PATH.chmod(0o600)
 
 
-def build_maintenance_args(*, python_path: str | Path, dry_run: bool = False) -> list[str | Path]:
+def build_maintenance_args(
+    *,
+    python_path: str | Path,
+    dry_run: bool = False,
+    enable_local_cache_cleanup: bool = True,
+) -> list[str | Path]:
     args: list[str | Path] = [
         Path(python_path),
         TOOLS_DIR / "output_maintenance.py",
     ]
     if dry_run:
         args.append("--dry-run")
+    if enable_local_cache_cleanup:
+        args.append("--enable-local-cache-cleanup")
     return args
 
 
-def build_shell_command(*, python_path: str | Path, dry_run: bool = False) -> str:
-    maintenance_args = build_maintenance_args(python_path=python_path, dry_run=dry_run)
+def build_shell_command(
+    *,
+    python_path: str | Path,
+    dry_run: bool = False,
+    enable_local_cache_cleanup: bool = True,
+) -> str:
+    maintenance_args = build_maintenance_args(
+        python_path=python_path,
+        dry_run=dry_run,
+        enable_local_cache_cleanup=enable_local_cache_cleanup,
+    )
     return (
         f"cd {shlex.quote(str(BASE_DIR))} "
         "&& set -a "
@@ -174,7 +190,11 @@ def install(args: argparse.Namespace) -> Path:
     LAUNCHD_LOG_DIR.mkdir(parents=True, exist_ok=True)
     sync_launchd_env()
     python_path = normalize_python_path(args.python_path) if args.python_path else launchd_python_path()
-    command = build_shell_command(python_path=python_path, dry_run=args.dry_run)
+    command = build_shell_command(
+        python_path=python_path,
+        dry_run=args.dry_run,
+        enable_local_cache_cleanup=args.enable_local_cache_cleanup,
+    )
     plist = build_plist(
         label=args.label,
         command=command,
@@ -206,7 +226,11 @@ def uninstall(args: argparse.Namespace) -> Path:
 
 def run_now(args: argparse.Namespace) -> int:
     python_path = normalize_python_path(args.python_path or default_python_path())
-    command = build_shell_command(python_path=python_path, dry_run=args.dry_run)
+    command = build_shell_command(
+        python_path=python_path,
+        dry_run=args.dry_run,
+        enable_local_cache_cleanup=args.enable_local_cache_cleanup,
+    )
     result = subprocess.run(["/bin/bash", "-lc", command], cwd=BASE_DIR, text=True, check=False)
     return result.returncode
 
@@ -257,6 +281,19 @@ def add_shared_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--label", default=DEFAULT_LABEL)
     parser.add_argument("--python-path")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--enable-local-cache-cleanup",
+        dest="enable_local_cache_cleanup",
+        action="store_true",
+        default=True,
+        help="Enable guarded cleanup for SAFE_CACHE_REVIEW_READY local cache entries.",
+    )
+    parser.add_argument(
+        "--no-enable-local-cache-cleanup",
+        dest="enable_local_cache_cleanup",
+        action="store_false",
+        help="Keep local cache cleanup in preview-only mode.",
+    )
 
 
 def parse_args() -> argparse.Namespace:

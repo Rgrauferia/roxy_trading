@@ -15,6 +15,9 @@ DEFAULT_REPORT_PATH = BASE_DIR / "alerts" / "runtime_backup.json"
 DEFAULT_TEXT_PATH = BASE_DIR / "alerts" / "runtime_backup.txt"
 DEFAULT_INCLUDE_PATHS = ("alerts", "db", "data")
 DEFAULT_RETENTION_COUNT = 7
+DEFAULT_REQUIRED_ALERT_MEMBERS = ("alerts/roxy_realtime_check.json", "alerts/runtime_backup.json")
+DEFAULT_REQUIRED_DB_MEMBERS = ("db/scan_history.csv",)
+DEFAULT_REQUIRED_DB_EXTENSIONS = (".db", ".sqlite", ".sqlite3")
 
 
 def utc_now() -> datetime:
@@ -49,15 +52,57 @@ def archive_candidates(base_dir: Path, include_paths: tuple[str, ...]) -> list[P
     return paths
 
 
+def critical_archive_members(expected_paths: tuple[str, ...] | list[str]) -> tuple[list[str], bool]:
+    expected = {str(value).strip().strip("/") for value in expected_paths if str(value).strip()}
+    members: list[str] = []
+    if "alerts" in expected:
+        members.extend(DEFAULT_REQUIRED_ALERT_MEMBERS)
+    if "db" in expected:
+        members.extend(DEFAULT_REQUIRED_DB_MEMBERS)
+    return members, "db" in expected
+
+
+def ensure_preflight_report_member(*, root: Path, report_file: Path, include_paths: tuple[str, ...], now: datetime) -> None:
+    if "alerts" not in {str(value).strip().strip("/") for value in include_paths}:
+        return
+    try:
+        relative_report = report_file.resolve().relative_to(root.resolve())
+    except ValueError:
+        return
+    if str(relative_report).strip("/") != "alerts/runtime_backup.json":
+        return
+    if report_file.exists():
+        return
+    report_file.parent.mkdir(parents=True, exist_ok=True)
+    report_file.write_text(
+        json.dumps(
+            {
+                "generated_at": now.isoformat(),
+                "status": "BOOTSTRAP",
+                "detail": "preflight marker for runtime backup archive membership",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
 def verify_archive_contents(archive_path: str | Path, expected_paths: tuple[str, ...] | list[str]) -> dict[str, Any]:
     path = Path(archive_path)
     expected = [str(value).strip().strip("/") for value in expected_paths if str(value).strip()]
+    required_members, requires_db_member = critical_archive_members(expected)
     result: dict[str, Any] = {
         "archive_readable": False,
         "archive_verified": False,
         "archive_member_count": 0,
         "archive_verified_paths": [],
         "archive_missing_verified_paths": expected,
+        "archive_verified_members": [],
+        "archive_missing_critical_members": [
+            *required_members,
+            *(["db/*.db"] if requires_db_member else []),
+        ],
+        "archive_database_member_verified": not requires_db_member,
         "archive_verification_error": "",
     }
     if not path.exists():
@@ -72,18 +117,34 @@ def verify_archive_contents(archive_path: str | Path, expected_paths: tuple[str,
 
     verified: list[str] = []
     missing: list[str] = []
+    normalized_names = {str(name).strip().strip("/") for name in names if str(name).strip()}
     for expected_path in expected:
-        if any(name == expected_path or name.startswith(f"{expected_path}/") for name in names):
+        if any(name == expected_path or name.startswith(f"{expected_path}/") for name in normalized_names):
             verified.append(expected_path)
         else:
             missing.append(expected_path)
+    verified_members = [member for member in required_members if member in normalized_names]
+    missing_critical_members = [member for member in required_members if member not in set(verified_members)]
+    database_member_verified = (
+        not requires_db_member
+        or any(
+            name.startswith("db/")
+            and Path(name).suffix.lower() in DEFAULT_REQUIRED_DB_EXTENSIONS
+            for name in normalized_names
+        )
+    )
+    if requires_db_member and not database_member_verified:
+        missing_critical_members.append("db/*.db")
     result.update(
         {
             "archive_readable": True,
-            "archive_verified": not missing,
+            "archive_verified": not missing and not missing_critical_members and database_member_verified,
             "archive_member_count": len(names),
             "archive_verified_paths": verified,
             "archive_missing_verified_paths": missing,
+            "archive_verified_members": verified_members,
+            "archive_missing_critical_members": missing_critical_members,
+            "archive_database_member_verified": database_member_verified,
         }
     )
     return result
@@ -119,6 +180,8 @@ def create_runtime_backup(
     current = now or utc_now()
     if current.tzinfo is None:
         current = current.replace(tzinfo=timezone.utc)
+    if not dry_run:
+        ensure_preflight_report_member(root=root, report_file=report_file, include_paths=include_paths, now=current)
     candidates = archive_candidates(root, include_paths)
     target.mkdir(parents=True, exist_ok=True)
     archive_path = target / backup_filename(current)
@@ -142,6 +205,9 @@ def create_runtime_backup(
             "archive_member_count": 0,
             "archive_verified_paths": [],
             "archive_missing_verified_paths": included,
+            "archive_verified_members": [],
+            "archive_missing_critical_members": [],
+            "archive_database_member_verified": "db" not in set(included),
             "archive_verification_error": "dry run",
         }
         if dry_run
@@ -187,6 +253,12 @@ def render_text_report(result: dict[str, Any]) -> str:
         lines.append("Missing: " + ", ".join(result.get("missing_paths") or []))
     if result.get("archive_missing_verified_paths"):
         lines.append("Archive missing: " + ", ".join(result.get("archive_missing_verified_paths") or []))
+    if result.get("archive_verified_members") or result.get("archive_missing_critical_members"):
+        verified_members = result.get("archive_verified_members") or []
+        missing_members = result.get("archive_missing_critical_members") or []
+        lines.append(f"Critical verified: {len(verified_members)}/{len(verified_members) + len(missing_members)}")
+    if result.get("archive_missing_critical_members"):
+        lines.append("Critical missing: " + ", ".join(result.get("archive_missing_critical_members") or []))
     if result.get("archive_verification_error") and not result.get("dry_run"):
         lines.append(f"Archive verification error: {result.get('archive_verification_error')}")
     return "\n".join(lines) + "\n"

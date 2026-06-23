@@ -144,6 +144,7 @@ def test_trading_desk_rows_returns_expected_columns_when_empty():
     assert rows.columns.tolist() == ["#", "Prioridad", "Ticker", "Estado", "Paper", "Falta", "Edge", "Score", "Riesgo", "Target", "R/R", "RVol", "HTF", "Mover", "Setup", "Siguiente", "Razón"]
     assert rows.empty
 
+
 def test_filter_trading_desk_display_filters_status_score_and_query():
     rows = pd.DataFrame(
         [
@@ -170,7 +171,6 @@ def test_filter_trading_desk_display_searches_paper_state():
     filtered = filter_trading_desk_display(rows, query="paper listo")
 
     assert filtered["Ticker"].tolist() == ["AAPL"]
-
 
 
 def test_filter_trading_desk_display_searches_priority_label():
@@ -226,6 +226,7 @@ def test_filter_trading_desk_display_filters_blocker_summary():
     assert filtered["Ticker"].tolist() == ["MSFT"]
     assert filtered["#"].tolist() == [1]
 
+
 def test_filter_trading_desk_display_applies_fast_presets():
     rows = pd.DataFrame(
         [
@@ -267,8 +268,6 @@ def test_trading_desk_preset_counts_match_fast_presets():
     }
 
 
-
-
 def test_trading_desk_blocker_summary_explains_missing_requirement():
     assert trading_desk_blocker_summary("Operar", "Paper listo", "Confirmar", "1h confirma") == "Completo"
     assert trading_desk_blocker_summary("Operar", "Bloq riesgo/target", "Esperar", "Riesgo alto") == "Falta Riesgo + Target 2%"
@@ -307,14 +306,6 @@ def test_trading_desk_card_action_prioritizes_immediate_instruction():
     }
 
 
-def test_trading_desk_priority_label_marks_operational_state():
-    assert trading_desk_priority_label("Operar", "Paper listo", 90, 0.018, 1.4) == "🔥 Paper listo"
-    assert trading_desk_priority_label("Operar", "Bloq riesgo/target", 90, 0.06, 1.4) == "⚠ Bloqueada"
-    assert trading_desk_priority_label("Vigilar", "Setup", 88, 0.022, 0.9) == "👀 Alta vigilancia"
-    assert trading_desk_priority_label("Vigilar", "Setup", 70, 0.022, 0.9) == "👀 Vigilar"
-    assert trading_desk_priority_label("Evitar", "No tocar", 99, 0.07, 2.0) == "⛔ No tocar"
-
-
 def test_trading_desk_blocker_counts_groups_visible_requirements():
     rows = pd.DataFrame(
         [
@@ -332,6 +323,7 @@ def test_trading_desk_blocker_counts_groups_visible_requirements():
         {"blocker": "Completo", "count": 1, "tone": "buy"},
         {"blocker": "No tocar", "count": 1, "tone": "avoid"},
     ]
+
 
 def test_trading_desk_summary_counts_visible_operational_state():
     rows = pd.DataFrame(
@@ -442,14 +434,6 @@ def test_trading_desk_queue_reason_label_compacts_priority_context():
     assert trading_desk_queue_reason_label("Evitar", "No tocar", "No tocar", None, None, None) == "No tocar"
 
 
-def test_trading_desk_readiness_pct_scores_operational_distance():
-    assert trading_desk_readiness_pct("Operar", "Paper listo", "Completo", 90, 1.4) == 100
-    assert trading_desk_readiness_pct("Operar", "Bloq riesgo/target", "Falta Riesgo + Target", 88, 1.5) == 50
-    assert trading_desk_readiness_pct("Vigilar", "Setup", "Falta 15m", 94, 1.8) == 70
-    assert trading_desk_readiness_pct("Vigilar", "Setup", "Falta 1h", 70, 0.8) == 55
-    assert trading_desk_readiness_pct("Evitar", "No tocar", "No tocar", 99, 2.0) == 0
-
-
 def test_trading_desk_urgency_label_marks_operational_timing():
     assert trading_desk_urgency_label("Operar", "Paper listo", 90, 1.8, 1.4) == "Ahora"
     assert trading_desk_urgency_label("Operar", "Paper listo", 76, 3.0, 0.9) == "Lista"
@@ -512,8 +496,24 @@ def test_trading_desk_compact_plan_label_combines_blocker_and_next_step():
     assert trading_desk_compact_plan_label("No tocar", "No tocar", "Riesgo alto") == "No tocar · Riesgo alto"
 
 
+def test_trading_desk_readiness_pct_scores_operational_distance():
+    assert trading_desk_readiness_pct("Operar", "Paper listo", "Completo", 90, 1.4) == 100
+    assert trading_desk_readiness_pct("Operar", "Bloq riesgo/target", "Falta Riesgo + Target", 88, 1.5) == 50
+    assert trading_desk_readiness_pct("Vigilar", "Setup", "Falta 15m", 94, 1.8) == 70
+    assert trading_desk_readiness_pct("Vigilar", "Setup", "Falta 1h", 70, 0.8) == 55
+    assert trading_desk_readiness_pct("Evitar", "No tocar", "No tocar", 99, 2.0) == 0
+
+
 def test_trading_desk_paper_state_flags_blockers():
     assert trading_desk_paper_state(status="Operar", risk=0.018, target=0.03, rel_volume=1.2, htf="2/2") == "Paper listo"
     assert trading_desk_paper_state(status="Vigilar", risk=0.018, target=0.03, rel_volume=1.2, htf="2/2") == "Setup"
     assert trading_desk_paper_state(status="Evitar", risk=0.018, target=0.03, rel_volume=1.2, htf="2/2") == "No tocar"
     assert trading_desk_paper_state(status="Operar", risk=0.06, target=0.01, rel_volume=0.4, htf="0/2") == "Bloq riesgo/target"
+
+
+def test_trading_desk_priority_label_marks_operational_state():
+    assert trading_desk_priority_label("Operar", "Paper listo", 90, 0.018, 1.4) == "🔥 Paper listo"
+    assert trading_desk_priority_label("Operar", "Bloq riesgo/target", 90, 0.06, 1.4) == "⚠ Bloqueada"
+    assert trading_desk_priority_label("Vigilar", "Setup", 88, 0.022, 0.9) == "👀 Alta vigilancia"
+    assert trading_desk_priority_label("Vigilar", "Setup", 70, 0.022, 0.9) == "👀 Vigilar"
+    assert trading_desk_priority_label("Evitar", "No tocar", 99, 0.07, 2.0) == "⛔ No tocar"

@@ -2,6 +2,7 @@ pandas
 numpy
 ccxt
 yfinance
+alpaca-py
 ta
 pytest
 flake8
@@ -12,6 +13,7 @@ black
 isort
 streamlit
 matplotlib
+playwright
 APScheduler
 feedparser
 vaderSentiment
@@ -25,6 +27,8 @@ filelock==3.20.1
 fastapi
 uvicorn[standard]
 openai>=0.27.0
+faster-whisper
+pypdf
 redis>=4.0.0
 
 # LLM providers
@@ -32,4 +36,3 @@ anthropic
 keyring
 cryptography>=40.0
 APScheduler
-

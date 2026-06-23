@@ -22,6 +22,7 @@ logs/
 
 # Local training/media captures; keep large files outside Git.
 training_videos/
+data/video_ingest_staging/
 
 # Local runtime databases/state
 db/

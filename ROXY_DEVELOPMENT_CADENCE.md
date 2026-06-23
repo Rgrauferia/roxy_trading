@@ -15,9 +15,9 @@ Roxy debe evolucionar de scanner tecnico a plataforma comercial de decision de t
 - Mejorar graficas, educacion, laboratorio, alertas y gestion de riesgo.
 - Mantener ejecucion real bloqueada hasta que paper trading, credenciales, controles y aprobacion esten listos.
 
-## Cadencia Cada 2 Horas: Graficas Y Experiencia Visual
+## Cadencia Cada 20 Minutos: Graficas Y Experiencia Visual
 
-Cada bloque de 2 horas debe revisar y mejorar la experiencia grafica. Prioridad:
+Cada bloque de 20 minutos debe revisar y mejorar la experiencia grafica. Prioridad:
 
 1. Confirmar que la grafica principal carga sin errores.
 2. Mejorar velas, SMA/EMA, volumen, bandas, zonas, soportes/resistencias, entrada, stop y targets.
@@ -32,14 +32,14 @@ Cada bloque de 2 horas debe revisar y mejorar la experiencia grafica. Prioridad:
    - Que condicion falta?
    - Por que Roxy espera o evita?
 
-Resultado esperado de cada ciclo de 2 horas:
+Resultado esperado de cada ciclo de 20 minutos:
 
 - Una mejora pequena pero real en graficas, layout, claridad o datos visuales.
 - Si no hay mejora de codigo, dejar nota de auditoria con el proximo ajuste visual.
 
-## Cadencia Cada 2 Horas: Desarrollo Comercial Y Sincronizacion
+## Cadencia Cada 20 Minutos: Desarrollo Comercial Y Sincronizacion
 
-Cada 2 horas se debe revisar que cambiaron otras pestanas/sesiones y avanzar el producto completo. Prioridad:
+Cada 20 minutos se debe revisar que cambiaron otras pestanas/sesiones y avanzar el producto completo. Prioridad:
 
 1. Revisar `git status`, `MASTER_CONTEXT.md`, `ROXY_DEVELOPMENT_CADENCE.md` y archivos de sincronizacion como `training_videos/ROXY_LEARNING_SYNC.md`.
 2. Identificar trabajo nuevo hecho por otras pestanas.
@@ -59,7 +59,7 @@ Cada 2 horas se debe revisar que cambiaron otras pestanas/sesiones y avanzar el 
 6. Ejecutar pruebas enfocadas.
 7. Actualizar contexto si cambia una regla importante.
 
-Resultado esperado de cada ciclo de 2 horas:
+Resultado esperado de cada ciclo de 20 minutos:
 
 - Roxy debe quedar mas cerca de un producto vendible.
 - La app debe seguir corriendo.
@@ -71,14 +71,16 @@ Resultado esperado de cada ciclo de 2 horas:
 Para que el proyecto no dependa de repetir instrucciones manualmente, existe un runner local:
 
 - Script: `tools/roxy_development_cadence.py`
-- LaunchAgent preparado: `deployment/com.roxy.development-cadence.plist`
-- Intervalo: cada `7200` segundos, o sea 2 horas.
+- LaunchAgent preparado: `deployment/com.roxy.development-cadence.plist` pero deshabilitado por defecto.
+- Intervalo si se activa manualmente: auditoria diaria. No usar este runner como fuente de mercado live.
 - Reporte actual: `logs/development_cadence/latest_report.md`
 - Cola de siguientes tareas: `logs/development_cadence/NEXT_TASKS.md`
 - Estado JSON: `logs/development_cadence/status.json`
 - Historial JSONL: `logs/development_cadence/events.jsonl`
 
-Este runner es `audit_only`: no edita codigo, no opera, no manda ordenes y no cambia reglas por su cuenta. Su funcion es dejar contexto fresco para que Roxy/Codex sepan que toca mejorar cada 2 horas.
+Este runner es `audit_only`: no edita codigo, no opera, no manda ordenes y no cambia reglas por su cuenta. Su funcion es dejar contexto para Roxy/Codex, no alimentar trades ni precios live.
+
+Para trading, Roxy debe usar el dashboard live y proveedores de mercado con refresco en segundos. Una cadencia de reportes de 20 minutos no es aceptable para entradas, stops o alertas.
 
 Limitacion importante: Codex no puede despertarse solo desde el chat si no hay una automatizacion activa de la app. Este runner mantiene la auditoria local en la Mac; una sesion de Codex debe leer los reportes para programar las mejoras.
 

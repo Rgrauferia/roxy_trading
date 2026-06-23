@@ -16,7 +16,7 @@ def test_build_shell_command_runs_live_tool_with_polling():
         report_limit=12,
         retention_count=96,
         health_check=True,
-        health_app_url="http://127.0.0.1:8501",
+        health_app_url="http://127.0.0.1:3000",
         health_chart_symbol="AAPL",
         health_chart_timeframe="1h",
         health_skip_chart_fetch=False,
@@ -34,7 +34,7 @@ def test_build_shell_command_runs_live_tool_with_polling():
     assert "--poll-seconds 300" in command
     assert "--retention-count 96" in command
     assert "--health-check" in command
-    assert "--health-app-url http://127.0.0.1:8501" in command
+    assert "--health-app-url http://127.0.0.1:3000" in command
     assert "--health-chart-symbol AAPL" in command
     assert "--symbols AAPL,MSFT" in command
 
@@ -83,4 +83,12 @@ def test_install_defaults_cover_higher_timeframes(monkeypatch):
     assert args.stock_intervals == "15m,1h,2h,4h"
     assert args.crypto_timeframes == "15m,1h,2h,4h"
     assert args.retention_count == 96
+    assert args.health_check is False
+
+
+def test_install_allows_explicit_health_check(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["ma_live_launchd.py", "install", "--no-load", "--health-check"])
+
+    args = parse_args()
+
     assert args.health_check is True

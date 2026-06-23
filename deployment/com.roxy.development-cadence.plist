@@ -6,6 +6,9 @@
   <key>Label</key>
   <string>com.roxy.development-cadence</string>
 
+  <key>Disabled</key>
+  <true/>
+
   <key>ProgramArguments</key>
   <array>
     <string>/Users/robertograu/roxy_trading/.venv/bin/python</string>
@@ -20,7 +23,7 @@
   <true/>
 
   <key>StartInterval</key>
-  <integer>7200</integer>
+  <integer>86400</integer>
 
   <key>StandardOutPath</key>
   <string>/Users/robertograu/roxy_trading/logs/development_cadence_launchd.out</string>

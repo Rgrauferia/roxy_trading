@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -10,6 +9,8 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+
+from dashboard_history import append_scan_history
 
 # Optional data sources
 import yfinance as yf
@@ -37,6 +38,68 @@ ALERTS_DIR.mkdir(exist_ok=True)
 DB_DIR.mkdir(exist_ok=True)
 
 SCAN_DB = DB_DIR / "scan_history.csv"
+
+MARKET_OPTIONS = ["stocks", "crypto"]
+STOCK_TIMEFRAMES = ["1m", "5m", "15m", "1h", "1d"]
+CRYPTO_TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"]
+
+
+def query_value(params, key, default=""):
+    try:
+        value = params.get(key, default)
+    except AttributeError:
+        return default
+    if isinstance(value, (list, tuple)):
+        value = value[0] if value else default
+    return str(value or default).strip()
+
+
+def normalize_market_mode(value):
+    text = str(value or "").strip().lower()
+    return text if text in MARKET_OPTIONS else "stocks"
+
+
+def normalize_timeframe(value, options, default):
+    text = str(value or "").strip().lower()
+    return text if text in options else default
+
+
+def normalize_symbol(value, default):
+    text = str(value or "").strip().upper()
+    return text or default
+
+
+def initialize_legacy_dashboard_state():
+    market = normalize_market_mode(query_value(st.query_params, "market", "stocks"))
+    symbol = normalize_symbol(query_value(st.query_params, "symbol", ""), "BTC/USDT" if market == "crypto" else "AAPL")
+    tf = query_value(st.query_params, "tf", "1h")
+    st.session_state.setdefault("legacy_market_mode", market)
+    st.session_state.setdefault("legacy_stock_symbol", symbol if market == "stocks" else "AAPL")
+    st.session_state.setdefault("legacy_crypto_symbol", symbol if market == "crypto" else "BTC/USDT")
+    st.session_state.setdefault("legacy_stock_tf", normalize_timeframe(tf, STOCK_TIMEFRAMES, "1h"))
+    st.session_state.setdefault("legacy_crypto_tf", normalize_timeframe(tf, CRYPTO_TIMEFRAMES, "1h"))
+
+
+def legacy_dashboard_trade_state():
+    market = normalize_market_mode(st.session_state.get("legacy_market_mode", "stocks"))
+    if market == "crypto":
+        return {
+            "market": "crypto",
+            "symbol": normalize_symbol(st.session_state.get("legacy_crypto_symbol"), "BTC/USDT"),
+            "tf": normalize_timeframe(st.session_state.get("legacy_crypto_tf"), CRYPTO_TIMEFRAMES, "1h"),
+        }
+    return {
+        "market": "stocks",
+        "symbol": normalize_symbol(st.session_state.get("legacy_stock_symbol"), "AAPL"),
+        "tf": normalize_timeframe(st.session_state.get("legacy_stock_tf"), STOCK_TIMEFRAMES, "1h"),
+    }
+
+
+def persist_legacy_dashboard_query_params():
+    state = legacy_dashboard_trade_state()
+    for key, value in state.items():
+        if query_value(st.query_params, key) != value:
+            st.query_params[key] = value
 
 
 # -------------------------
@@ -343,11 +406,7 @@ def build_candles(df, title, levels=None):
 # -------------------------
 def append_history(row):
     try:
-        df = pd.DataFrame([row])
-        if SCAN_DB.exists():
-            df.to_csv(SCAN_DB, mode="a", header=False, index=False)
-        else:
-            df.to_csv(SCAN_DB, index=False)
+        append_scan_history(SCAN_DB, row)
     except Exception:
         pass
 
@@ -368,129 +427,162 @@ def load_recent_scans(limit=200):
 # Sidebar
 # -------------------------
 st.sidebar.title("🤖 ROXY Trader PRO")
-st.sidebar.caption(f"Last refresh: {now_str()}")
+st.sidebar.caption("Live data sin recargar la pagina")
 
-market_mode = st.sidebar.selectbox("Market", ["stocks", "crypto"], index=0)
+initialize_legacy_dashboard_state()
+
+market_mode = st.sidebar.selectbox(
+    "Market",
+    MARKET_OPTIONS,
+    index=MARKET_OPTIONS.index(normalize_market_mode(st.session_state.get("legacy_market_mode", "stocks"))),
+    key="legacy_market_mode",
+    on_change=persist_legacy_dashboard_query_params,
+)
 
 if market_mode == "stocks":
-    symbol_default = "AAPL"
-    symbol = st.sidebar.text_input("Symbol (Stocks)", value=symbol_default).upper().strip()
-    tf = st.sidebar.selectbox("Timeframe", ["1m", "5m", "15m", "1h", "1d"], index=3)
+    symbol = st.sidebar.text_input(
+        "Symbol (Stocks)",
+        key="legacy_stock_symbol",
+        on_change=persist_legacy_dashboard_query_params,
+    ).upper().strip()
+    tf = st.sidebar.selectbox(
+        "Timeframe",
+        STOCK_TIMEFRAMES,
+        index=STOCK_TIMEFRAMES.index(normalize_timeframe(st.session_state.get("legacy_stock_tf"), STOCK_TIMEFRAMES, "1h")),
+        key="legacy_stock_tf",
+        on_change=persist_legacy_dashboard_query_params,
+    )
     data_source = st.sidebar.selectbox("Source", ["yfinance"], index=0)
 else:
-    symbol_default = "BTC/USDT"
-    symbol = st.sidebar.text_input("Symbol (Crypto)", value=symbol_default).upper().strip()
-    tf = st.sidebar.selectbox("Timeframe", ["1m", "5m", "15m", "1h", "4h", "1d"], index=3)
+    symbol = st.sidebar.text_input(
+        "Symbol (Crypto)",
+        key="legacy_crypto_symbol",
+        on_change=persist_legacy_dashboard_query_params,
+    ).upper().strip()
+    tf = st.sidebar.selectbox(
+        "Timeframe",
+        CRYPTO_TIMEFRAMES,
+        index=CRYPTO_TIMEFRAMES.index(
+            normalize_timeframe(st.session_state.get("legacy_crypto_tf"), CRYPTO_TIMEFRAMES, "1h")
+        ),
+        key="legacy_crypto_tf",
+        on_change=persist_legacy_dashboard_query_params,
+    )
     data_source = st.sidebar.selectbox("Source", ["ccxt:binance"], index=0)
 
-auto_refresh = st.sidebar.checkbox("Auto refresh", value=True)
+auto_refresh = st.sidebar.checkbox("Live updates", value=True)
 refresh_sec = st.sidebar.slider("Refresh seconds", 10, 120, 30)
+persist_legacy_dashboard_query_params()
 
 st.sidebar.markdown("---")
 atr_stop = st.sidebar.slider("ATR Stop (x)", 0.5, 3.0, 1.5, 0.1)
 atr_tp1 = st.sidebar.slider("ATR TP1 (x)", 0.5, 3.0, 1.0, 0.1)
 atr_tp2 = st.sidebar.slider("ATR TP2 (x)", 0.5, 5.0, 2.0, 0.1)
 
-# -------------------------
-# Header
-# -------------------------
-c1, c2, c3, c4 = st.columns([2.0, 1.2, 1.2, 1.2])
+def render_live_dashboard() -> None:
+    # -------------------------
+    # Header
+    # -------------------------
+    c1, c2, c3, c4 = st.columns([2.0, 1.2, 1.2, 1.2])
 
-with c1:
-    st.markdown("## 🚀 ROXY Trader Dashboard")
-    st.caption("Candles + Indicators + Signals + Alerts (safe & explainable)")
+    with c1:
+        st.markdown("## 🚀 ROXY Trader Dashboard")
+        st.caption(f"Candles + Indicators + Signals + Alerts | actualizado {now_str()}")
 
-# Fetch live
-with st.spinner("Cargando data..."):
-    if market_mode == "stocks":
-        df_live = fetch_yf(symbol, tf, lookback_days=365 if tf == "1d" else 90)
+    # Fetch live
+    with st.spinner("Cargando data..."):
+        if market_mode == "stocks":
+            df_live = fetch_yf(symbol, tf, lookback_days=365 if tf == "1d" else 90)
+        else:
+            df_live = fetch_ccxt(symbol, tf, limit=500, exchange_id="binance")
+
+    df_live = ensure_ohlcv(df_live)
+
+    sig, score, meta = opportunity_ai(df_live)
+    levels = trade_levels(df_live, atr_mult_stop=atr_stop, atr_mult_tp1=atr_tp1, atr_mult_tp2=atr_tp2)
+
+    with c2:
+        st.metric("Signal", sig)
+    with c3:
+        st.metric("Score", str(score))
+    with c4:
+        st.metric("RR(TP2)", "-" if not levels else fnum(levels.get("rr_tp2")))
+
+    # Reasons
+    st.markdown("### 🧠 Roxy Explicación (por qué)")
+    if isinstance(meta, dict):
+        reasons = meta.get("reasons", [])
+        if reasons:
+            st.write("• " + "\n• ".join(reasons))
+        else:
+            st.caption("Sin razones fuertes (señal débil).")
+
+    # Chart
+    build_candles(df_live, f"{symbol} ({market_mode.upper()}) - {tf}", levels=levels)
+
+    # -------------------------
+    # Alerts Panel + History
+    # -------------------------
+    st.markdown("---")
+    st.subheader("🚨 Alertas")
+
+    df_scan = pd.DataFrame(
+        [
+            {
+                "ts": now_str(),
+                "market": market_mode,
+                "symbol": symbol,
+                "tf": tf,
+                "signal": sig,
+                "score": score,
+                "rr_tp2": None if not levels else levels.get("rr_tp2"),
+                "entry": None if not levels else levels.get("entry"),
+                "stop": None if not levels else levels.get("stop"),
+                "tp2": None if not levels else levels.get("tp2"),
+            }
+        ]
+    )
+
+    append_history(df_scan.iloc[0].to_dict())
+
+    alerts = df_scan[df_scan["signal"].isin(["BUY", "PRE-BUY"])].copy()
+    if alerts.empty:
+        st.info("No hay BUY/PRE-BUY ahora mismo.")
     else:
-        df_live = fetch_ccxt(symbol, tf, limit=500, exchange_id="binance")
+        st.success("Oportunidades activas:")
+        show = alerts.copy()
+        for col in ["rr_tp2", "entry", "stop", "tp2"]:
+            show[col] = show[col].map(fnum)
+        st.dataframe(show[["symbol", "tf", "signal", "score", "rr_tp2", "entry", "stop", "tp2"]], use_container_width=True)
 
-df_live = ensure_ohlcv(df_live)
+    # latest_alert.txt
+    try:
+        latest_path = ALERTS_DIR / "latest_alert.txt"
+        if not alerts.empty:
+            lines = []
+            for _, r in alerts.iterrows():
+                lines.append(
+                    f"{market_mode.upper()} {r['symbol']} [{r['tf']}] {r['signal']} | "
+                    f"Score {int(r.get('score',0))} | RR2 {fnum(r.get('rr_tp2'))} | Entry {fnum(r.get('entry'))}"
+                )
+            latest_path.write_text("\n".join(lines).strip(), encoding="utf-8")
+    except Exception:
+        pass
 
-sig, score, meta = opportunity_ai(df_live)
-levels = trade_levels(df_live, atr_mult_stop=atr_stop, atr_mult_tp1=atr_tp1, atr_mult_tp2=atr_tp2)
-
-with c2:
-    st.metric("Signal", sig)
-with c3:
-    st.metric("Score", str(score))
-with c4:
-    st.metric("RR(TP2)", "-" if not levels else fnum(levels.get("rr_tp2")))
-
-# Reasons
-st.markdown("### 🧠 Roxy Explicación (por qué)")
-if isinstance(meta, dict):
-    reasons = meta.get("reasons", [])
-    if reasons:
-        st.write("• " + "\n• ".join(reasons))
+    st.markdown("---")
+    st.subheader("🗃️ Historial reciente (DB local)")
+    hist = load_recent_scans(limit=200)
+    if hist is None or hist.empty:
+        st.caption("Sin historial aún.")
     else:
-        st.caption("Sin razones fuertes (señal débil).")
+        st.dataframe(hist.tail(200), use_container_width=True, height=260)
 
-# Chart
-build_candles(df_live, f"{symbol} ({market_mode.upper()}) - {tf}", levels=levels)
 
-# -------------------------
-# Alerts Panel + History
-# -------------------------
-st.markdown("---")
-st.subheader("🚨 Alertas")
+if auto_refresh and hasattr(st, "fragment"):
+    @st.fragment(run_every=f"{int(refresh_sec)}s")
+    def _live_dashboard_fragment() -> None:
+        render_live_dashboard()
 
-df_scan = pd.DataFrame(
-    [
-        {
-            "ts": now_str(),
-            "market": market_mode,
-            "symbol": symbol,
-            "tf": tf,
-            "signal": sig,
-            "score": score,
-            "rr_tp2": None if not levels else levels.get("rr_tp2"),
-            "entry": None if not levels else levels.get("entry"),
-            "stop": None if not levels else levels.get("stop"),
-            "tp2": None if not levels else levels.get("tp2"),
-        }
-    ]
-)
-
-append_history(df_scan.iloc[0].to_dict())
-
-alerts = df_scan[df_scan["signal"].isin(["BUY", "PRE-BUY"])].copy()
-if alerts.empty:
-    st.info("No hay BUY/PRE-BUY ahora mismo.")
+    _live_dashboard_fragment()
 else:
-    st.success("Oportunidades activas:")
-    show = alerts.copy()
-    for col in ["rr_tp2", "entry", "stop", "tp2"]:
-        show[col] = show[col].map(fnum)
-    st.dataframe(show[["symbol", "tf", "signal", "score", "rr_tp2", "entry", "stop", "tp2"]], use_container_width=True)
-
-# latest_alert.txt
-try:
-    latest_path = ALERTS_DIR / "latest_alert.txt"
-    if not alerts.empty:
-        lines = []
-        for _, r in alerts.iterrows():
-            lines.append(
-                f"{market_mode.upper()} {r['symbol']} [{r['tf']}] {r['signal']} | "
-                f"Score {int(r.get('score',0))} | RR2 {fnum(r.get('rr_tp2'))} | Entry {fnum(r.get('entry'))}"
-            )
-        latest_path.write_text("\n".join(lines).strip(), encoding="utf-8")
-except Exception:
-    pass
-
-st.markdown("---")
-st.subheader("🗃️ Historial reciente (DB local)")
-hist = load_recent_scans(limit=200)
-if hist is None or hist.empty:
-    st.caption("Sin historial aún.")
-else:
-    st.dataframe(hist.tail(200), use_container_width=True, height=260)
-
-# -------------------------
-# Auto refresh loop
-# -------------------------
-if auto_refresh:
-    time.sleep(int(refresh_sec))
-    st.rerun()
+    render_live_dashboard()

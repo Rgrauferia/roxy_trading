@@ -68,6 +68,34 @@ def test_live_flag_and_credentials_can_arm_preview_gate():
     assert preview["manual_order"]["limit_price"] == 200
 
 
+def test_robinhood_stays_strict_preview_only_even_with_live_flag_and_credentials():
+    ticket = build_platform_ticket(
+        {"market": "stock", "symbol": "AAPL", "signal": "BUY", "decision": "TRADE_FOR_2PCT", "entry": 200, "stop": 195},
+        preferred_stock="robinhood",
+    )
+    env = {
+        LIVE_EXECUTION_FLAG: "1",
+        "ROBINHOOD_USERNAME": "user",
+        "ROBINHOOD_DEVICE_TOKEN": "device",
+        "ROBINHOOD_ACCOUNT_ID": "account",
+    }
+
+    status = platform_connection_status("robinhood", env=env)
+    preview = build_order_preview(ticket, connection_status=status)
+
+    assert status["configured"] is True
+    assert status["strict_preview_only"] is True
+    assert status["mode"] == "PREVIEW_ONLY"
+    assert status["live_enabled"] is False
+    assert preview["api_send_allowed"] is False
+    assert preview["live_send_ready"] is False
+    assert "strict preview-only" in " ".join(preview["send_blockers"])
+    assert preview["adapter_status"]["status"] == "PREVIEW_ONLY"
+    assert "intentionally preview-only" in preview["adapter_status"]["reason"]
+    assert "user" not in str(preview)
+    assert "device" not in str(preview)
+
+
 def test_order_preview_accepts_connection_status_override():
     status = {
         "platform_id": "schwab",
@@ -86,7 +114,9 @@ def test_order_preview_accepts_connection_status_override():
 
 
 def test_no_trade_ticket_stays_blocked_even_with_credentials():
-    ticket = build_platform_ticket({"symbol": "AMD", "signal": "AVOID", "decision": "NO_TRADE", "entry": 100, "stop": 98})
+    ticket = build_platform_ticket(
+        {"symbol": "AMD", "signal": "AVOID", "decision": "NO_TRADE", "entry": 100, "stop": 98}
+    )
     env = {
         LIVE_EXECUTION_FLAG: "1",
         "SCHWAB_CLIENT_ID": "id",

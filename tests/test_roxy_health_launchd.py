@@ -6,7 +6,7 @@ from tools.roxy_health_launchd import build_plist, build_shell_command, parse_ar
 def test_build_shell_command_runs_realtime_check():
     command = build_shell_command(
         python_path="/tmp/venv/bin/python",
-        app_url="http://127.0.0.1:8501",
+        app_url="http://127.0.0.1:3000",
         chart_symbol="AAPL",
         chart_timeframe="1h",
     )
@@ -15,9 +15,10 @@ def test_build_shell_command_runs_realtime_check():
     assert "PYTHONPATH=" in command
     assert "/tmp/venv/bin/python" in command
     assert "tools/chart_realtime_health.py" in command
+    assert "--include-active-alert-symbols" in command
     assert "alert_quality.py" in command
     assert "tools/roxy_realtime_check.py" in command
-    assert "--app-url http://127.0.0.1:8501" in command
+    assert "--app-url http://127.0.0.1:3000" in command
     assert "--chart-symbol AAPL" in command
     assert "--chart-timeframe 1h" in command
     assert "--notify-health" in command
@@ -28,9 +29,13 @@ def test_build_shell_command_runs_realtime_check():
     assert "--ensure-live-data" in command
     assert "--ensure-yfinance-cache" in command
     assert "--ensure-streamlit-app" in command
+    assert "--ensure-dashboard-history-sample" in command
+    assert "--ensure-dashboard-render-probe-report" in command
     assert "--ensure-chart-health-report" in command
     assert "--ensure-output-maintenance-report" in command
     assert "--ensure-alert-quality-report" in command
+    assert "--ensure-daily-opportunity-plan-report" in command
+    assert "--ensure-status-snapshot-report" in command
     assert "--no-fail" in command
 
 
@@ -99,8 +104,8 @@ def test_install_defaults_to_five_minute_watchdog(monkeypatch):
     args = parse_args()
 
     assert args.interval_seconds == 300
-    assert args.app_url == "http://127.0.0.1:8501"
-    assert args.chart_symbol == "AAPL"
+    assert args.app_url == "http://127.0.0.1:3000"
+    assert args.chart_symbol == ""
     assert args.skip_chart_health is False
     assert args.skip_alert_quality is False
     assert args.notify_health is True
@@ -111,15 +116,29 @@ def test_install_defaults_to_five_minute_watchdog(monkeypatch):
     assert args.ensure_live_data is True
     assert args.ensure_yfinance_cache is True
     assert args.ensure_streamlit_app is True
+    assert args.ensure_dashboard_render_probe_report is True
     assert args.ensure_chart_health_report is True
     assert args.ensure_output_maintenance_report is True
     assert args.ensure_alert_quality_report is True
+    assert args.ensure_daily_opportunity_plan_report is True
+    assert args.ensure_status_snapshot_report is True
+
+
+def test_build_shell_command_defaults_to_auto_chart_symbol():
+    command = build_shell_command(
+        python_path="/tmp/venv/bin/python",
+        app_url="http://127.0.0.1:3000",
+    )
+
+    assert "--chart-symbol" not in command
+    assert "--chart-timeframe 1h" in command
+    assert "tools/roxy_realtime_check.py" in command
 
 
 def test_build_shell_command_can_skip_chart_health():
     command = build_shell_command(
         python_path="/tmp/venv/bin/python",
-        app_url="http://127.0.0.1:8501",
+        app_url="http://127.0.0.1:3000",
         chart_symbol="AAPL",
         chart_timeframe="1h",
         skip_chart_health=True,

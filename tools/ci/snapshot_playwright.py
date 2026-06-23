@@ -2,7 +2,7 @@
 """Simple Playwright snapshot helper for CI.
 
 Usage:
-  python tools/ci/snapshot_playwright.py --url http://127.0.0.1:8501 --out run/streamlit_snapshot.png
+  python tools/ci/snapshot_playwright.py --url http://127.0.0.1:3000 --out run/streamlit_snapshot.png
 """
 import argparse
 import time

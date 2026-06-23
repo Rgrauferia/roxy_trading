@@ -1,5 +1,6 @@
 import os
 import logging
+import json
 from fastapi.testclient import TestClient
 
 
@@ -10,6 +11,75 @@ def test_health():
     r = client.get("/health")
     assert r.status_code == 200
     assert r.json().get("status") == "ok"
+
+
+def test_tradingview_webhook_requires_configured_secret(tmp_path, monkeypatch):
+    from tools import voice_service
+
+    monkeypatch.setattr(voice_service, "TRADINGVIEW_WEBHOOK_SECRET", None)
+    monkeypatch.setattr(voice_service, "TRADINGVIEW_WEBHOOK_PATH", tmp_path / "tv.jsonl")
+    client = TestClient(voice_service.app)
+
+    r = client.post(
+        "/v1/webhooks/tradingview",
+        json={
+            "symbol": "NASDAQ:AAPL",
+            "timeframe": "15",
+            "signal": "BUY",
+            "price": 185.25,
+            "passphrase": "local-test-secret",
+        },
+    )
+
+    assert r.status_code == 503
+    assert "TRADINGVIEW_WEBHOOK_SECRET" in r.json()["detail"]
+    assert not (tmp_path / "tv.jsonl").exists()
+
+
+def test_tradingview_webhook_requires_secret_when_configured(tmp_path, monkeypatch):
+    from tools import voice_service
+
+    monkeypatch.setattr(voice_service, "TRADINGVIEW_WEBHOOK_SECRET", "expected-secret")
+    monkeypatch.setattr(voice_service, "TRADINGVIEW_WEBHOOK_PATH", tmp_path / "tv.jsonl")
+    client = TestClient(voice_service.app)
+
+    invalid = client.post(
+        "/v1/webhooks/tradingview",
+        json={"symbol": "AAPL", "signal": "BUY", "passphrase": "wrong"},
+    )
+
+    assert invalid.status_code == 403
+    assert not (tmp_path / "tv.jsonl").exists()
+
+
+def test_tradingview_webhook_accepts_payload_passphrase_and_status(tmp_path, monkeypatch):
+    from tools import voice_service
+
+    monkeypatch.setattr(voice_service, "TRADINGVIEW_WEBHOOK_SECRET", "expected-secret")
+    monkeypatch.setattr(voice_service, "TRADINGVIEW_WEBHOOK_PATH", tmp_path / "tv.jsonl")
+    client = TestClient(voice_service.app)
+
+    r = client.post(
+        "/v1/webhooks/tradingview",
+        json={
+            "symbol": "BINANCE:BTCUSDT",
+            "interval": "60",
+            "action": "long",
+            "price": 65000,
+            "passphrase": "expected-secret",
+        },
+    )
+    status = client.get("/v1/webhooks/tradingview/status")
+
+    assert r.status_code == 200
+    assert r.json()["symbol"] == "BTC/USDT"
+    assert r.json()["timeframe"] == "1h"
+    assert r.json()["auth_mode"] == "secret"
+    assert status.status_code == 200
+    assert status.json()["count"] == 1
+    assert status.json()["latest"]["symbol"] == "BTC/USDT"
+    stored = json.loads((tmp_path / "tv.jsonl").read_text().splitlines()[0])
+    assert stored["raw_payload"]["passphrase"] == "[redacted]"
 
 
 def test_roxy_live_page():
@@ -283,7 +353,7 @@ def test_roxy_live_page():
     assert 'speakLocalControlMessage(message, language, "voice: session brief", "voice-context", ctx.action_url || "", ctx.action_label || "")' in r.text
     assert "Handoff operativo listo: " in r.text
     assert "Operational handoff ready: " in r.text
-    assert "127\\.0\\.0\\.1:8501" in r.text
+    assert "127\\.0\\.0\\.1:3000" in r.text
     assert "Abrir Roxy Trade" in r.text
     assert "Open Roxy Trade" in r.text
     assert "voice: operational handoff" in r.text
@@ -991,7 +1061,7 @@ def test_voice_assistant_session_brief_includes_trading_handoff_context():
                 "last_safety_level": "guarded",
                 "needs_confirmation": False,
                 "next_best_actions": ["trade_readiness", "monitoring_plan", "position_size"],
-                "action_url": "http://127.0.0.1:8501/?view=Activo&symbol=ETH%2FUSD&market=crypto&tf=4h",
+                "action_url": "http://127.0.0.1:3000/?view=Activo&symbol=ETH%2FUSD&market=crypto&tf=4h",
                 "action_label": "Open Roxy Trade",
                 "action_kind": "local_trading_dashboard",
             },

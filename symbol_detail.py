@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import json
+import os
+from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import urlencode
+from urllib.request import urlopen
 
 import pandas as pd
 
@@ -29,17 +34,43 @@ SYMBOL_ALIASES = {
 }
 
 DERIVED_INTRADAY_TIMEFRAMES = {"2h": "2h", "4h": "4h"}
+STOCK_ALPACA_TIMEFRAMES = {"1m", "5m", "15m", "1h", "1d", "1w"}
+STOCK_POLYGON_TIMEFRAMES = {"1m", "5m", "15m", "1h", "1d", "1w"}
+ALPACA_KEY_ENV_KEYS = ("ALPACA_API_KEY",)
+ALPACA_SECRET_ENV_KEYS = ("ALPACA_API_SECRET", "ALPACA_SECRET_KEY")
+POLYGON_KEY_ENV_KEYS = ("POLYGON_API_KEY", "POLYGON_API_TOKEN")
+ALPACA_PLACEHOLDER_VALUES = {
+    "TU_KEY_PAPER",
+    "TU_SECRET_PAPER",
+    "YOUR_ALPACA_API_KEY",
+    "YOUR_ALPACA_API_SECRET",
+    "YOUR_ALPACA_SECRET_KEY",
+    "CHANGE_ME",
+    "REPLACE_ME",
+    "PASTE_KEY_HERE",
+    "PASTE_SECRET_HERE",
+}
 
 
 def normalize_timeframe(timeframe: str) -> str:
     value = str(timeframe or "1h").strip().lower()
     aliases = {
+        "1min": "1m",
+        "1 minute": "1m",
+        "5min": "5m",
+        "5 minute": "5m",
+        "15min": "15m",
+        "15 minute": "15m",
         "60m": "1h",
         "120m": "2h",
         "240m": "4h",
         "1d": "1d",
         "day": "1d",
         "daily": "1d",
+        "1wk": "1w",
+        "1w": "1w",
+        "week": "1w",
+        "weekly": "1w",
     }
     return aliases.get(value, value)
 
@@ -82,6 +113,484 @@ def resolve_symbol_query(query: str, market: str = "stock") -> str:
     return value
 
 
+def first_env_value(source: dict[str, str], keys: tuple[str, ...]) -> tuple[str, str]:
+    for key in keys:
+        value = str(source.get(key) or "").strip()
+        if value:
+            return value, key
+    return "", ""
+
+
+def alpaca_env_credentials(env: dict[str, str] | None = None) -> dict[str, str]:
+    source = env if env is not None else os.environ
+    key, key_name = first_env_value(source, ALPACA_KEY_ENV_KEYS)
+    secret, secret_name = first_env_value(source, ALPACA_SECRET_ENV_KEYS)
+    return {"key": key, "key_name": key_name, "secret": secret, "secret_name": secret_name}
+
+
+def looks_like_placeholder_secret(value: str) -> bool:
+    normalized = str(value or "").strip().upper()
+    if not normalized:
+        return False
+    return (
+        normalized in ALPACA_PLACEHOLDER_VALUES
+        or normalized.startswith("TU_")
+        or normalized.startswith("YOUR_")
+        or normalized.startswith("PASTE_")
+        or normalized.endswith("_HERE")
+    )
+
+
+def alpaca_placeholder_credential_keys(env: dict[str, str] | None = None) -> list[str]:
+    credentials = alpaca_env_credentials(env)
+    placeholder_keys: list[str] = []
+    for value_name, key_name_name in (("key", "key_name"), ("secret", "secret_name")):
+        value = credentials.get(value_name) or ""
+        key_name = credentials.get(key_name_name) or value_name
+        if looks_like_placeholder_secret(value):
+            placeholder_keys.append(key_name)
+    return placeholder_keys
+
+
+def alpaca_credentials_available(env: dict[str, str] | None = None) -> bool:
+    credentials = alpaca_env_credentials(env)
+    return bool(credentials["key"] and credentials["secret"]) and not alpaca_placeholder_credential_keys(env)
+
+
+def polygon_api_key(env: dict[str, str] | None = None) -> tuple[str, str]:
+    source = env if env is not None else os.environ
+    return first_env_value(source, POLYGON_KEY_ENV_KEYS)
+
+
+def polygon_credentials_available(env: dict[str, str] | None = None) -> bool:
+    key, _key_name = polygon_api_key(env)
+    return bool(key)
+
+
+def alpaca_fallback_info(reason: str, *, exc: Exception | None = None) -> dict[str, str]:
+    raw_text = " ".join(str(part) for part in getattr(exc, "args", []) if part) if exc is not None else ""
+    text = f"{type(exc).__name__ if exc is not None else ''} {raw_text} {str(exc) if exc is not None else ''}".lower()
+    code = str(reason or "alpaca_unavailable")
+    if exc is not None:
+        if any(token in text for token in ["401", "403", "unauthorized", "forbidden", "invalid", "authentication", "permission"]):
+            if any(token in text for token in ["subscription", "sip", "iex", "feed", "permission"]):
+                code = "alpaca_feed_permission"
+                detail = "Alpaca respondio, pero el feed/permisos no permiten esas velas."
+                action = "Revisar permisos IEX/SIP o usar yfinance como respaldo para esa grafica."
+            else:
+                code = "alpaca_auth"
+                detail = "Alpaca rechazo las credenciales o el token."
+                action = "Revisar credenciales ALPACA_API_KEY y ALPACA_API_SECRET/ALPACA_SECRET_KEY en el entorno del servicio Streamlit."
+        elif any(token in text for token in ["429", "rate limit", "too many requests"]):
+            code = "alpaca_rate_limit"
+            detail = "Alpaca limito temporalmente las llamadas."
+            action = "Mantener fallback y reintentar en el siguiente ciclo."
+        elif any(token in text for token in ["timeout", "connection", "network", "temporarily", "503", "502", "500"]):
+            code = "alpaca_network"
+            detail = "Alpaca no respondio de forma estable."
+            action = "Mantener fallback y verificar conectividad/API status."
+        else:
+            code = f"alpaca_error:{type(exc).__name__}"
+            detail = "Alpaca fallo con un error no clasificado."
+            action = "Mantener fallback y revisar logs si se repite."
+    elif code == "alpaca_not_configured":
+        detail = "El servicio no tiene credenciales Alpaca disponibles."
+        action = "Configurar ALPACA_API_KEY y ALPACA_API_SECRET/ALPACA_SECRET_KEY para activar velas Alpaca."
+    elif code == "alpaca_placeholder_credentials":
+        detail = "El servicio todavia tiene placeholders de Alpaca en lugar de credenciales paper reales."
+        action = "Reemplazar TU_KEY_PAPER/TU_SECRET_PAPER por claves paper reales en el .env del servicio y recargar Roxy."
+    elif code == "unsupported_timeframe":
+        detail = "Ese timeframe no esta conectado a Alpaca directo."
+        action = "Roxy usa base 1h o yfinance para derivar la grafica."
+    elif code == "alpaca_empty":
+        detail = "Alpaca respondio sin velas utilizables."
+        action = "Mantener fallback y validar simbolo/timeframe/feed."
+    else:
+        detail = "Alpaca no pudo alimentar esta grafica."
+        action = "Mantener fallback hasta recuperar la fuente premium."
+    return {"fallback_reason": code, "fallback_detail": detail, "fallback_action": action}
+
+
+def polygon_fallback_info(reason: str, *, exc: Exception | None = None) -> dict[str, str]:
+    raw_text = " ".join(str(part) for part in getattr(exc, "args", []) if part) if exc is not None else ""
+    text = f"{type(exc).__name__ if exc is not None else ''} {raw_text} {str(exc) if exc is not None else ''}".lower()
+    code = str(reason or "polygon_unavailable")
+    if exc is not None:
+        if any(token in text for token in ["401", "403", "unauthorized", "forbidden", "invalid"]):
+            code = "polygon_auth"
+            detail = "Polygon rechazo la API key o no permite esa consulta."
+            action = "Revisar POLYGON_API_KEY/POLYGON_API_TOKEN y permisos de plan."
+        elif any(token in text for token in ["429", "rate limit", "too many requests"]):
+            code = "polygon_rate_limit"
+            detail = "Polygon limito temporalmente las llamadas."
+            action = "Mantener fallback y reintentar en el siguiente ciclo."
+        elif any(token in text for token in ["timeout", "connection", "network", "temporarily", "503", "502", "500"]):
+            code = "polygon_network"
+            detail = "Polygon no respondio de forma estable."
+            action = "Mantener fallback y verificar conectividad/API status."
+        else:
+            code = f"polygon_error:{type(exc).__name__}"
+            detail = "Polygon fallo con un error no clasificado."
+            action = "Mantener fallback y revisar logs si se repite."
+    elif code == "polygon_not_configured":
+        detail = "El servicio no tiene POLYGON_API_KEY/POLYGON_API_TOKEN disponible."
+        action = "Configurar Polygon como proveedor premium alterno para acciones."
+    elif code == "unsupported_timeframe":
+        detail = "Ese timeframe no esta conectado a Polygon directo."
+        action = "Roxy usa base 1h o yfinance para derivar la grafica."
+    elif code == "polygon_empty":
+        detail = "Polygon respondio sin velas utilizables."
+        action = "Mantener fallback y validar simbolo/timeframe/plan."
+    else:
+        detail = "Polygon no pudo alimentar esta grafica."
+        action = "Mantener fallback hasta recuperar la fuente premium."
+    return {"polygon_fallback_reason": code, "polygon_fallback_detail": detail, "polygon_fallback_action": action}
+
+
+def alpaca_timeframe_for(timeframe: str):
+    try:
+        from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
+    except Exception:
+        return None
+
+    normalized = normalize_timeframe(timeframe)
+    if normalized == "1m":
+        return TimeFrame.Minute
+    if normalized == "5m":
+        return TimeFrame(5, TimeFrameUnit.Minute)
+    if normalized == "15m":
+        return TimeFrame(15, TimeFrameUnit.Minute)
+    if normalized == "1h":
+        return TimeFrame.Hour
+    if normalized == "1d":
+        return TimeFrame.Day
+    if normalized == "1w":
+        return TimeFrame.Week
+    return None
+
+
+def alpaca_start_for_timeframe(timeframe: str, *, now: datetime | None = None) -> datetime:
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    normalized = normalize_timeframe(timeframe)
+    if normalized == "1m":
+        return current - timedelta(days=7)
+    if normalized == "5m":
+        return current - timedelta(days=30)
+    if normalized == "15m":
+        return current - timedelta(days=45)
+    if normalized == "1h":
+        return current - timedelta(days=180)
+    if normalized == "1w":
+        return current - timedelta(days=3650)
+    return current - timedelta(days=730)
+
+
+def polygon_range_for_timeframe(timeframe: str) -> tuple[int, str] | None:
+    normalized = normalize_timeframe(timeframe)
+    if normalized == "1m":
+        return 1, "minute"
+    if normalized == "5m":
+        return 5, "minute"
+    if normalized == "15m":
+        return 15, "minute"
+    if normalized == "1h":
+        return 1, "hour"
+    if normalized == "1d":
+        return 1, "day"
+    if normalized == "1w":
+        return 1, "week"
+    return None
+
+
+def polygon_start_for_timeframe(timeframe: str, *, now: datetime | None = None) -> datetime:
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    normalized = normalize_timeframe(timeframe)
+    if normalized == "1m":
+        return current - timedelta(days=7)
+    if normalized == "5m":
+        return current - timedelta(days=30)
+    if normalized == "15m":
+        return current - timedelta(days=30)
+    if normalized == "1h":
+        return current - timedelta(days=120)
+    if normalized == "1w":
+        return current - timedelta(days=3650)
+    return current - timedelta(days=730)
+
+
+def normalize_alpaca_bars_frame(raw: Any, symbol: str) -> pd.DataFrame:
+    df = getattr(raw, "df", raw)
+    if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+        return pd.DataFrame()
+    data = df.copy()
+    if isinstance(data.index, pd.MultiIndex):
+        data = data.reset_index()
+        if "symbol" in data.columns:
+            data = data[data["symbol"].astype(str).str.upper().eq(str(symbol).upper())]
+    else:
+        data = data.reset_index()
+
+    rename = {
+        "timestamp": "ts",
+        "time": "ts",
+        "Timestamp": "ts",
+        "Open": "open",
+        "High": "high",
+        "Low": "low",
+        "Close": "close",
+        "Volume": "volume",
+    }
+    data = data.rename(columns={column: rename.get(column, column) for column in data.columns})
+    if "ts" not in data.columns:
+        first_datetime = next((column for column in data.columns if "time" in str(column).lower() or "date" in str(column).lower()), None)
+        if first_datetime:
+            data = data.rename(columns={first_datetime: "ts"})
+    required = ["ts", "open", "high", "low", "close", "volume"]
+    if not set(required).issubset(data.columns):
+        return pd.DataFrame()
+    out = data[required].copy()
+    out["ts"] = pd.to_datetime(out["ts"], errors="coerce")
+    for column in ["open", "high", "low", "close", "volume"]:
+        out[column] = pd.to_numeric(out[column], errors="coerce")
+    out = out.dropna(subset=["ts", "open", "high", "low", "close"]).sort_values("ts")
+    return out.reset_index(drop=True)
+
+
+def normalize_polygon_aggs_payload(raw: Any) -> pd.DataFrame:
+    if not isinstance(raw, dict):
+        return pd.DataFrame()
+    results = raw.get("results")
+    if not isinstance(results, list) or not results:
+        return pd.DataFrame()
+    data = pd.DataFrame(results)
+    rename = {
+        "t": "ts",
+        "o": "open",
+        "h": "high",
+        "l": "low",
+        "c": "close",
+        "v": "volume",
+    }
+    data = data.rename(columns={column: rename.get(column, column) for column in data.columns})
+    required = ["ts", "open", "high", "low", "close", "volume"]
+    if not set(required).issubset(data.columns):
+        return pd.DataFrame()
+    out = data[required].copy()
+    out["ts"] = pd.to_datetime(pd.to_numeric(out["ts"], errors="coerce"), unit="ms", utc=True, errors="coerce")
+    for column in ["open", "high", "low", "close", "volume"]:
+        out[column] = pd.to_numeric(out[column], errors="coerce")
+    out = out.dropna(subset=["ts", "open", "high", "low", "close"]).sort_values("ts")
+    return out.reset_index(drop=True)
+
+
+def fetch_alpaca_stock_ohlcv(
+    symbol: str,
+    *,
+    timeframe: str,
+    limit: int = 1000,
+    env: dict[str, str] | None = None,
+    feed: str = "iex",
+) -> pd.DataFrame:
+    credentials = alpaca_env_credentials(env)
+    key = credentials["key"]
+    secret = credentials["secret"]
+    if not key or not secret or alpaca_placeholder_credential_keys(env):
+        return pd.DataFrame()
+
+    alpaca_timeframe = alpaca_timeframe_for(timeframe)
+    if alpaca_timeframe is None:
+        return pd.DataFrame()
+
+    try:
+        from alpaca.data.enums import DataFeed
+        from alpaca.data.historical.stock import StockHistoricalDataClient
+        from alpaca.data.requests import StockBarsRequest
+    except Exception:
+        return pd.DataFrame()
+
+    feed_value = str(feed or "iex").strip().upper()
+    data_feed = getattr(DataFeed, feed_value, DataFeed.IEX)
+    client = StockHistoricalDataClient(key, secret)
+    request = StockBarsRequest(
+        symbol_or_symbols=str(symbol).upper(),
+        timeframe=alpaca_timeframe,
+        start=alpaca_start_for_timeframe(timeframe),
+        limit=limit,
+        feed=data_feed,
+    )
+    bars = client.get_stock_bars(request)
+    return normalize_alpaca_bars_frame(bars, symbol)
+
+
+def fetch_polygon_stock_ohlcv(
+    symbol: str,
+    *,
+    timeframe: str,
+    limit: int = 1000,
+    env: dict[str, str] | None = None,
+    timeout: float = 12.0,
+) -> pd.DataFrame:
+    key, _key_name = polygon_api_key(env)
+    if not key:
+        return pd.DataFrame()
+    range_spec = polygon_range_for_timeframe(timeframe)
+    if range_spec is None:
+        return pd.DataFrame()
+
+    multiplier, timespan = range_spec
+    start = polygon_start_for_timeframe(timeframe).date().isoformat()
+    end = datetime.now(timezone.utc).date().isoformat()
+    query = urlencode(
+        {
+            "adjusted": "true",
+            "sort": "asc",
+            "limit": max(1, int(limit)),
+            "apiKey": key,
+        }
+    )
+    url = (
+        f"https://api.polygon.io/v2/aggs/ticker/{str(symbol).upper()}/range/"
+        f"{multiplier}/{timespan}/{start}/{end}?{query}"
+    )
+    with urlopen(url, timeout=timeout) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    if isinstance(payload, dict) and str(payload.get("status") or "").upper() in {"ERROR", "NOT_AUTHORIZED"}:
+        raise RuntimeError(str(payload.get("error") or payload.get("message") or payload.get("status")))
+    return normalize_polygon_aggs_payload(payload)
+
+
+def _fetch_stock_history_with_source(
+    symbol: str,
+    *,
+    timeframe: str,
+    include_extended_hours: bool = True,
+    env: dict[str, str] | None = None,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    import roxy_scanner as scanner
+
+    timeframe = normalize_timeframe(timeframe)
+    alpaca_configured = alpaca_credentials_available(env)
+    alpaca_placeholder_keys = alpaca_placeholder_credential_keys(env)
+    polygon_configured = polygon_credentials_available(env)
+    provider_fallback_meta: dict[str, str] = {}
+    if alpaca_configured and timeframe in STOCK_ALPACA_TIMEFRAMES:
+        try:
+            alpaca_df = fetch_alpaca_stock_ohlcv(symbol, timeframe=timeframe, env=env)
+            if not alpaca_df.empty:
+                return alpaca_df, {
+                    "provider": "Alpaca",
+                    "source": "alpaca_iex",
+                    "mode": "BROKER_DATA",
+                    "label": "Alpaca IEX",
+                    "detail": "Velas de acciones desde Alpaca/IEX.",
+                    "fallback": False,
+                }
+        except Exception as exc:
+            provider_fallback_meta.update(alpaca_fallback_info("alpaca_error", exc=exc))
+        else:
+            provider_fallback_meta.update(alpaca_fallback_info("alpaca_empty"))
+    else:
+        if alpaca_placeholder_keys:
+            alpaca_reason = "alpaca_placeholder_credentials"
+        else:
+            alpaca_reason = "alpaca_not_configured" if not alpaca_configured else "unsupported_timeframe"
+        provider_fallback_meta.update(alpaca_fallback_info(alpaca_reason))
+
+    if polygon_configured and timeframe in STOCK_POLYGON_TIMEFRAMES:
+        try:
+            polygon_df = fetch_polygon_stock_ohlcv(symbol, timeframe=timeframe, env=env)
+            if not polygon_df.empty:
+                return polygon_df, {
+                    "provider": "Polygon",
+                    "source": "polygon_aggs",
+                    "mode": "PREMIUM_DATA",
+                    "label": "Polygon aggregates",
+                    "detail": "Velas de acciones desde Polygon como proveedor premium alterno.",
+                    "fallback": False,
+                    "upstream_fallback_reason": provider_fallback_meta.get("fallback_reason", ""),
+                    "upstream_fallback_detail": provider_fallback_meta.get("fallback_detail", ""),
+                    "upstream_fallback_action": provider_fallback_meta.get("fallback_action", ""),
+                }
+        except Exception as exc:
+            provider_fallback_meta.update(polygon_fallback_info("polygon_error", exc=exc))
+        else:
+            provider_fallback_meta.update(polygon_fallback_info("polygon_empty"))
+    else:
+        provider_fallback_meta.update(polygon_fallback_info("polygon_not_configured" if not polygon_configured else "unsupported_timeframe"))
+
+    period = stock_period_for_interval(timeframe, None, "60d")
+    fallback_df = scanner.fetch_stock_ohlcv(
+        symbol,
+        interval=stock_fetch_interval(timeframe),
+        period=period,
+        prepost=include_extended_hours and is_intraday_stock_interval(timeframe),
+    )
+    return fallback_df, {
+        "provider": "yfinance",
+        "source": "yfinance",
+        "mode": "FALLBACK",
+        "label": "yfinance fallback",
+        "detail": "Velas de acciones desde yfinance fallback.",
+        "fallback": True,
+        **provider_fallback_meta,
+    }
+
+
+def fetch_symbol_history_with_source(
+    symbol: str,
+    *,
+    market: str,
+    timeframe: str,
+    include_extended_hours: bool = True,
+    env: dict[str, str] | None = None,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    import roxy_scanner as scanner
+
+    timeframe = normalize_timeframe(timeframe)
+    if timeframe in DERIVED_INTRADAY_TIMEFRAMES:
+        if market == "crypto":
+            base = scanner.fetch_crypto_ohlcv(symbol, timeframe="1h", limit=1000)
+            return resample_ohlcv(base, DERIVED_INTRADAY_TIMEFRAMES[timeframe]), {
+                "provider": "ccxt",
+                "source": "ccxt:binanceus",
+                "mode": "EXCHANGE_API",
+                "label": "BinanceUS API",
+                "detail": "Velas cripto via ccxt/binanceus.",
+                "fallback": False,
+            }
+        base, meta = _fetch_stock_history_with_source(
+            symbol,
+            timeframe="1h",
+            include_extended_hours=include_extended_hours,
+            env=env,
+        )
+        meta = dict(meta)
+        meta["derived_from"] = "1h"
+        meta["timeframe"] = timeframe
+        return resample_ohlcv(base, DERIVED_INTRADAY_TIMEFRAMES[timeframe]), meta
+
+    if market == "crypto":
+        return scanner.fetch_crypto_ohlcv(symbol, timeframe=timeframe, limit=1000), {
+            "provider": "ccxt",
+            "source": "ccxt:binanceus",
+            "mode": "EXCHANGE_API",
+            "label": "BinanceUS API",
+            "detail": "Velas cripto via ccxt/binanceus.",
+            "fallback": False,
+        }
+
+    return _fetch_stock_history_with_source(
+        symbol,
+        timeframe=timeframe,
+        include_extended_hours=include_extended_hours,
+        env=env,
+    )
+
+
 def fetch_symbol_history(
     symbol: str,
     *,
@@ -89,32 +598,13 @@ def fetch_symbol_history(
     timeframe: str,
     include_extended_hours: bool = True,
 ) -> pd.DataFrame:
-    import roxy_scanner as scanner
-
-    timeframe = normalize_timeframe(timeframe)
-    if timeframe in DERIVED_INTRADAY_TIMEFRAMES:
-        if market == "crypto":
-            base = scanner.fetch_crypto_ohlcv(symbol, timeframe="1h", limit=1000)
-        else:
-            base_period = stock_period_for_interval("1h", None, "730d" if timeframe == "4h" else "60d")
-            base = scanner.fetch_stock_ohlcv(
-                symbol,
-                interval=stock_fetch_interval("1h"),
-                period=base_period,
-                prepost=include_extended_hours,
-            )
-        return resample_ohlcv(base, DERIVED_INTRADAY_TIMEFRAMES[timeframe])
-
-    if market == "crypto":
-        return scanner.fetch_crypto_ohlcv(symbol, timeframe=timeframe, limit=500)
-
-    period = stock_period_for_interval(timeframe, None, "60d")
-    return scanner.fetch_stock_ohlcv(
+    data, _source = fetch_symbol_history_with_source(
         symbol,
-        interval=stock_fetch_interval(timeframe),
-        period=period,
-        prepost=include_extended_hours and is_intraday_stock_interval(timeframe),
+        market=market,
+        timeframe=timeframe,
+        include_extended_hours=include_extended_hours,
     )
+    return data
 
 
 def prepare_symbol_chart_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -674,6 +1164,7 @@ def latest_chart_strategy_events(chart_df: pd.DataFrame, setup: dict[str, Any] |
         "SALTO_ATH_BREAKOUT": "#f97316",
         "SALTO_EMA_2H_BEARISH": "#ef4444",
         "SALTO_CHANNEL_CHANGE": "#c084fc",
+        "PATRON_IMPARABLE_EMA9": "#22c55e",
     }
     for salto in detect_salto_setups(complete, setup):
         if salto.get("status") == "BLOCKED":

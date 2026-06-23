@@ -19,8 +19,8 @@ APP_SUPPORT_DIR = Path.home() / "Library" / "Application Support" / "RoxyTrading
 LAUNCHD_ENV_PATH = APP_SUPPORT_DIR / ".env"
 DEFAULT_LABEL = "com.roxy.health_watchdog"
 DEFAULT_INTERVAL_SECONDS = 300
-DEFAULT_APP_URL = "http://127.0.0.1:8501"
-DEFAULT_CHART_SYMBOL = "AAPL"
+DEFAULT_APP_URL = "http://127.0.0.1:3000"
+DEFAULT_CHART_SYMBOL = ""
 DEFAULT_CHART_TIMEFRAME = "1h"
 
 
@@ -88,9 +88,13 @@ def build_health_args(
     ensure_live_data: bool = True,
     ensure_yfinance_cache: bool = True,
     ensure_streamlit_app: bool = True,
+    ensure_dashboard_history_sample: bool = True,
+    ensure_dashboard_render_probe_report: bool = True,
     ensure_chart_health_report: bool = True,
     ensure_output_maintenance_report: bool = True,
     ensure_alert_quality_report: bool = True,
+    ensure_daily_opportunity_plan_report: bool = True,
+    ensure_status_snapshot_report: bool = True,
     no_fail: bool = True,
 ) -> list[str | Path]:
     args: list[str | Path] = [
@@ -121,12 +125,20 @@ def build_health_args(
         args.append("--ensure-yfinance-cache")
     if ensure_streamlit_app:
         args.append("--ensure-streamlit-app")
+    if ensure_dashboard_history_sample:
+        args.append("--ensure-dashboard-history-sample")
+    if ensure_dashboard_render_probe_report:
+        args.append("--ensure-dashboard-render-probe-report")
     if ensure_chart_health_report:
         args.append("--ensure-chart-health-report")
     if ensure_output_maintenance_report:
         args.append("--ensure-output-maintenance-report")
     if ensure_alert_quality_report:
         args.append("--ensure-alert-quality-report")
+    if ensure_daily_opportunity_plan_report:
+        args.append("--ensure-daily-opportunity-plan-report")
+    if ensure_status_snapshot_report:
+        args.append("--ensure-status-snapshot-report")
     if no_fail:
         args.append("--no-fail")
     return args
@@ -136,6 +148,7 @@ def build_chart_health_args(*, python_path: str | Path) -> list[str | Path]:
     return [
         Path(python_path),
         TOOLS_DIR / "chart_realtime_health.py",
+        "--include-active-alert-symbols",
         "--no-fail",
     ]
 
@@ -163,9 +176,13 @@ def build_shell_command(
     ensure_live_data: bool = True,
     ensure_yfinance_cache: bool = True,
     ensure_streamlit_app: bool = True,
+    ensure_dashboard_history_sample: bool = True,
+    ensure_dashboard_render_probe_report: bool = True,
     ensure_chart_health_report: bool = True,
     ensure_output_maintenance_report: bool = True,
     ensure_alert_quality_report: bool = True,
+    ensure_daily_opportunity_plan_report: bool = True,
+    ensure_status_snapshot_report: bool = True,
     skip_alert_quality: bool = False,
 ) -> str:
     chart_health_args = build_chart_health_args(python_path=python_path)
@@ -184,9 +201,13 @@ def build_shell_command(
         ensure_live_data=ensure_live_data,
         ensure_yfinance_cache=ensure_yfinance_cache,
         ensure_streamlit_app=ensure_streamlit_app,
+        ensure_dashboard_history_sample=ensure_dashboard_history_sample,
+        ensure_dashboard_render_probe_report=ensure_dashboard_render_probe_report,
         ensure_chart_health_report=ensure_chart_health_report,
         ensure_output_maintenance_report=ensure_output_maintenance_report,
         ensure_alert_quality_report=ensure_alert_quality_report,
+        ensure_daily_opportunity_plan_report=ensure_daily_opportunity_plan_report,
+        ensure_status_snapshot_report=ensure_status_snapshot_report,
         no_fail=True,
     )
     chart_command = "" if skip_chart_health else f"&& {shell_join(chart_health_args)} "
@@ -298,9 +319,13 @@ def install(args: argparse.Namespace) -> Path:
         ensure_live_data=args.ensure_live_data,
         ensure_yfinance_cache=args.ensure_yfinance_cache,
         ensure_streamlit_app=args.ensure_streamlit_app,
+        ensure_dashboard_history_sample=args.ensure_dashboard_history_sample,
+        ensure_dashboard_render_probe_report=args.ensure_dashboard_render_probe_report,
         ensure_chart_health_report=args.ensure_chart_health_report,
         ensure_output_maintenance_report=args.ensure_output_maintenance_report,
         ensure_alert_quality_report=args.ensure_alert_quality_report,
+        ensure_daily_opportunity_plan_report=args.ensure_daily_opportunity_plan_report,
+        ensure_status_snapshot_report=args.ensure_status_snapshot_report,
         skip_alert_quality=args.skip_alert_quality,
     )
     plist = build_plist(
@@ -348,9 +373,12 @@ def run_now(args: argparse.Namespace) -> int:
         ensure_live_data=args.ensure_live_data,
         ensure_yfinance_cache=args.ensure_yfinance_cache,
         ensure_streamlit_app=args.ensure_streamlit_app,
+        ensure_dashboard_render_probe_report=args.ensure_dashboard_render_probe_report,
         ensure_chart_health_report=args.ensure_chart_health_report,
         ensure_output_maintenance_report=args.ensure_output_maintenance_report,
         ensure_alert_quality_report=args.ensure_alert_quality_report,
+        ensure_daily_opportunity_plan_report=args.ensure_daily_opportunity_plan_report,
+        ensure_status_snapshot_report=args.ensure_status_snapshot_report,
         skip_alert_quality=args.skip_alert_quality,
     )
     result = subprocess.run(["/bin/bash", "-lc", command], cwd=BASE_DIR, text=True, check=False)
@@ -425,12 +453,20 @@ def add_shared_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--no-ensure-yfinance-cache", dest="ensure_yfinance_cache", action="store_false")
     parser.add_argument("--ensure-streamlit-app", dest="ensure_streamlit_app", action="store_true", default=True)
     parser.add_argument("--no-ensure-streamlit-app", dest="ensure_streamlit_app", action="store_false")
+    parser.add_argument("--ensure-dashboard-history-sample", dest="ensure_dashboard_history_sample", action="store_true", default=True)
+    parser.add_argument("--no-ensure-dashboard-history-sample", dest="ensure_dashboard_history_sample", action="store_false")
+    parser.add_argument("--ensure-dashboard-render-probe-report", dest="ensure_dashboard_render_probe_report", action="store_true", default=True)
+    parser.add_argument("--no-ensure-dashboard-render-probe-report", dest="ensure_dashboard_render_probe_report", action="store_false")
     parser.add_argument("--ensure-chart-health-report", dest="ensure_chart_health_report", action="store_true", default=True)
     parser.add_argument("--no-ensure-chart-health-report", dest="ensure_chart_health_report", action="store_false")
     parser.add_argument("--ensure-output-maintenance-report", dest="ensure_output_maintenance_report", action="store_true", default=True)
     parser.add_argument("--no-ensure-output-maintenance-report", dest="ensure_output_maintenance_report", action="store_false")
     parser.add_argument("--ensure-alert-quality-report", dest="ensure_alert_quality_report", action="store_true", default=True)
     parser.add_argument("--no-ensure-alert-quality-report", dest="ensure_alert_quality_report", action="store_false")
+    parser.add_argument("--ensure-daily-opportunity-plan-report", dest="ensure_daily_opportunity_plan_report", action="store_true", default=True)
+    parser.add_argument("--no-ensure-daily-opportunity-plan-report", dest="ensure_daily_opportunity_plan_report", action="store_false")
+    parser.add_argument("--ensure-status-snapshot-report", dest="ensure_status_snapshot_report", action="store_true", default=True)
+    parser.add_argument("--no-ensure-status-snapshot-report", dest="ensure_status_snapshot_report", action="store_false")
 
 
 def parse_args() -> argparse.Namespace:

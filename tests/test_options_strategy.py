@@ -4,6 +4,8 @@ import pandas as pd
 
 from options_strategy import (
     OptionSelectionConfig,
+    analyze_option_contract,
+    best_option_contract,
     fetch_tradier_scored_option_candidates,
     professional_options_feed_status,
     score_options_chain,
@@ -181,3 +183,73 @@ def test_fetch_tradier_scored_option_candidates_preserves_professional_greeks():
     assert out.loc[0, "greek_quality"] == "FULL_GREEKS"
     assert out.loc[0, "openInterest"] == 1500
     assert out.loc[0, "option_decision"] == "OPTION_CANDIDATE"
+
+
+def test_analyze_option_contract_requires_professional_call_quality():
+    row = {
+        "symbol": "AAPL",
+        "contractSymbol": "AAPL260220C00101000",
+        "option_type": "call",
+        "option_decision": "OPTION_CANDIDATE",
+        "option_score": 88,
+        "dte": 20,
+        "strike": 101,
+        "bid": 1.15,
+        "ask": 1.20,
+        "spread_pct": 0.043,
+        "volume": 700,
+        "openInterest": 2000,
+        "underlying_price": 100,
+        "target_pct": 0.05,
+        "breakeven_price": 102.20,
+        "breakeven_pct": 0.022,
+        "max_loss_per_contract": 120,
+        "delta": 0.48,
+        "gamma": 0.03,
+        "theta": -0.04,
+        "vega": 0.12,
+        "greek_quality": "FULL_GREEKS",
+    }
+
+    brief = analyze_option_contract(row, account_equity=20000, risk_pct=0.01)
+
+    assert brief["professional_decision"] == "MIRAR_CALL"
+    assert brief["human_decision"] == "Mirar Call"
+    assert brief["contracts_by_risk"] == 1
+    assert brief["risk_budget"] == 200
+    assert not brief["blockers"]
+    assert "DTE 20" in brief["summary"]
+    assert "break-even 102.20" in brief["summary"]
+    assert any(item["label"] == "Open interest" and item["passed"] for item in brief["checks"])
+
+
+def test_best_option_contract_blocks_missing_greeks_and_bad_liquidity():
+    options = pd.DataFrame(
+        [
+            {
+                "symbol": "AAPL",
+                "contractSymbol": "AAPL_BAD",
+                "option_type": "call",
+                "option_decision": "OPTION_CANDIDATE",
+                "option_score": 90,
+                "dte": 20,
+                "strike": 101,
+                "bid": 1.0,
+                "ask": 1.05,
+                "spread_pct": 0.05,
+                "volume": 5,
+                "openInterest": 10,
+                "underlying_price": 100,
+                "breakeven_price": 102.05,
+                "breakeven_pct": 0.0205,
+                "max_loss_per_contract": 105,
+            }
+        ]
+    )
+
+    brief = best_option_contract(options, "AAPL", account_equity=20000, risk_pct=0.01, target_pct=0.05)
+
+    assert brief["professional_decision"] == "NO_OPERAR"
+    assert any("Delta" in item for item in brief["blockers"])
+    assert any("Volumen" in item for item in brief["blockers"])
+    assert any("Open interest" in item for item in brief["blockers"])

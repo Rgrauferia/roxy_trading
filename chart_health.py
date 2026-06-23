@@ -8,6 +8,101 @@ from typing import Any
 import pandas as pd
 
 
+SYMBOL_KEYS = {"symbol", "top_symbol", "daily_plan_top_symbol"}
+BLOCKED_CHART_GATES = {
+    "BLOCKED_DATA",
+    "BLOCKED_REALTIME_DATA",
+    "BLOCKED_BY_MEMORY",
+    "DATOS BLOQUEAN",
+    "BLOQUEADO POR DATOS REALTIME",
+}
+
+
+def normalize_chart_symbol(value: Any) -> str:
+    symbol = str(value or "").strip().upper().replace("$", "")
+    if symbol in {"", "-", "N/A", "NA", "NONE", "NULL"}:
+        return ""
+    if "/" in symbol:
+        parts = [part for part in symbol.split("/") if part]
+        if len(parts) == 2 and all(part.replace("-", "").isalnum() for part in parts):
+            return "/".join(parts)
+        return ""
+    if not symbol[0].isalpha():
+        return ""
+    allowed = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-")
+    if any(char not in allowed for char in symbol):
+        return ""
+    return symbol[:16]
+
+
+def active_chart_symbols_from_payloads(payloads: list[Any], *, limit: int = 8) -> list[str]:
+    symbols: list[str] = []
+    seen: set[str] = set()
+
+    def chart_candidate_blocked(value: Any) -> bool:
+        if not isinstance(value, dict):
+            return False
+        gates = [
+            value.get("state"),
+            value.get("status_state"),
+            value.get("market_state"),
+            value.get("alert_gate"),
+            value.get("gate"),
+            value.get("top_gate"),
+            value.get("daily_plan_top_gate"),
+            value.get("label"),
+            value.get("blocker"),
+        ]
+        for gate in gates:
+            normalized = str(gate or "").strip().upper()
+            if normalized in BLOCKED_CHART_GATES:
+                return True
+            if "DATOS REALTIME" in normalized and ("FALLO" in normalized or "BLOQUE" in normalized):
+                return True
+        return False
+
+    def add(value: Any, *, blocked: bool = False) -> None:
+        if blocked:
+            return
+        symbol = normalize_chart_symbol(value)
+        if symbol and symbol not in seen and len(symbols) < limit:
+            seen.add(symbol)
+            symbols.append(symbol)
+
+    def walk(value: Any, *, key: str = "") -> None:
+        if len(symbols) >= limit:
+            return
+        if isinstance(value, dict):
+            for item_key, item_value in value.items():
+                if str(item_key) in SYMBOL_KEYS:
+                    add(item_value, blocked=chart_candidate_blocked(value))
+                elif str(item_key) in {"rows", "opportunities", "alerts", "watchlist"}:
+                    walk(item_value, key=str(item_key))
+        elif isinstance(value, list) and key in {"rows", "opportunities", "alerts", "watchlist"}:
+            for item in value:
+                walk(item, key=key)
+
+    for payload in payloads:
+        walk(payload)
+        if len(symbols) >= limit:
+            break
+    return symbols
+
+
+def active_chart_symbols_from_alerts(alerts_path: str | Path, *, limit: int = 8) -> list[str]:
+    base = Path(alerts_path)
+    payloads: list[Any] = []
+    for name in ("roxy_ai_brief.json", "roxy_status.json", "roxy_daily_opportunity_plan.json"):
+        path = base / name
+        if not path.exists():
+            continue
+        try:
+            payloads.append(json.loads(path.read_text()))
+        except Exception:
+            continue
+    return active_chart_symbols_from_payloads(payloads, limit=limit)
+
+
 def timeframe_minutes(timeframe: str) -> int:
     value = str(timeframe or "1h").strip().lower()
     if value.endswith("m"):
@@ -163,32 +258,61 @@ def chart_freshness_status(
     cadence_lag_minutes = max(0.0, age_minutes - expected)
     health_lag_minutes = max(0.0, age_minutes - freshness_budget)
     next_expected_update_in_minutes = max(0.0, expected - age_minutes)
+    candle_progress_pct = min(100.0, max(0.0, (age_minutes / expected) * 100.0)) if expected > 0 else 0.0
+    close_soon_threshold = max(1.0, min(5.0, expected * 0.2))
     market_value = str(market or "stock").lower()
 
     if stock_alerts_allowed is None:
         try:
             from roxy_ai import market_session_status
 
-            stock_alerts_allowed = bool(market_session_status().get("stock_alerts_allowed"))
+            stock_alerts_allowed = bool(market_session_status(now=current).get("stock_alerts_allowed"))
         except Exception:
             stock_alerts_allowed = True
 
-    if market_value == "stock" and not stock_alerts_allowed and age_minutes <= max(24 * 60, expected * 8):
+    market_closed_freshness_budget = max(96 * 60, expected * 8)
+    market_closed_accepted = (
+        market_value == "stock"
+        and not stock_alerts_allowed
+        and age_minutes <= market_closed_freshness_budget
+    )
+    if market_closed_accepted:
         label = "Mercado cerrado"
         tone = "watch"
-        status = "WARN"
+        status = "OK"
+        cadence_lag_minutes = 0.0
+        health_lag_minutes = 0.0
+        next_expected_update_in_minutes = 0.0
+        candle_phase = "MARKET_CLOSED"
+        candle_phase_label = "Mercado cerrado"
     elif age_minutes <= freshness_budget:
         label = "Viva"
         tone = "buy"
         status = "OK"
+        if cadence_lag_minutes > 0:
+            candle_phase = "LATE_WITHIN_BUDGET"
+            candle_phase_label = "Retraso leve"
+        elif next_expected_update_in_minutes <= close_soon_threshold:
+            candle_phase = "CLOSE_SOON"
+            candle_phase_label = "Cierre cerca"
+        elif candle_progress_pct <= 20.0:
+            candle_phase = "NEW_CANDLE"
+            candle_phase_label = "Vela nueva"
+        else:
+            candle_phase = "IN_PROGRESS"
+            candle_phase_label = "Vela en curso"
     elif age_minutes <= max(expected * 8, 45):
         label = "Revisar"
         tone = "watch"
         status = "WARN"
+        candle_phase = "LATE"
+        candle_phase_label = "Vela retrasada"
     else:
         label = "Estancada"
         tone = "avoid"
         status = "FAIL"
+        candle_phase = "STALE"
+        candle_phase_label = "Sin pulso"
 
     return {
         "label": label,
@@ -202,6 +326,10 @@ def chart_freshness_status(
         "cadence_lag_minutes": cadence_lag_minutes,
         "health_lag_minutes": health_lag_minutes,
         "next_expected_update_in_minutes": next_expected_update_in_minutes,
+        "candle_progress_pct": candle_progress_pct,
+        "candle_phase": candle_phase,
+        "candle_phase_label": candle_phase_label,
+        "market_closed_accepted": market_closed_accepted,
     }
 
 
@@ -225,10 +353,28 @@ def chart_health_row(
     has_macd = "macd_hist" in chart_df.columns and chart_df["macd_hist"].notna().any()
     indicator_status = "OK" if len(chart_df) >= 40 and has_rsi and has_macd else "FAIL"
     quality = chart_data_quality_status(chart_df)
-    status = severity_max(freshness["status"], indicator_status, quality["status"])
+    quality_status = quality["status"]
+    quality_detail = quality["detail"]
+    quality_grace = False
+    try:
+        candle_progress_pct = float(freshness.get("candle_progress_pct") or 0.0)
+    except (TypeError, ValueError):
+        candle_progress_pct = 0.0
+    if (
+        quality_status == "FAIL"
+        and bool(quality.get("flat_close"))
+        and quality_detail == "cierre plano"
+        and freshness.get("status") == "OK"
+        and freshness.get("candle_phase") == "NEW_CANDLE"
+        and candle_progress_pct <= 20.0
+    ):
+        quality_status = "WARN"
+        quality_detail = "cierre plano en vela nueva; revalidar al cierre"
+        quality_grace = True
+    status = severity_max(freshness["status"], indicator_status, quality_status)
     detail = freshness["detail"]
-    if quality["status"] != "OK":
-        detail = f"{detail}; calidad: {quality['detail']}"
+    if quality_status != "OK":
+        detail = f"{detail}; calidad: {quality_detail}"
     tone = "avoid" if status == "FAIL" else "watch" if status == "WARN" else freshness["tone"]
     return {
         "symbol": str(symbol).upper(),
@@ -245,12 +391,17 @@ def chart_health_row(
         "cadence_lag_minutes": freshness.get("cadence_lag_minutes"),
         "health_lag_minutes": freshness.get("health_lag_minutes"),
         "next_expected_update_in_minutes": freshness.get("next_expected_update_in_minutes"),
+        "candle_progress_pct": freshness.get("candle_progress_pct"),
+        "candle_phase": freshness.get("candle_phase"),
+        "candle_phase_label": freshness.get("candle_phase_label"),
+        "market_closed_accepted": freshness.get("market_closed_accepted"),
         "rows": int(len(chart_df)),
         "has_rsi": bool(has_rsi),
         "has_macd": bool(has_macd),
         "indicator_status": indicator_status,
-        "data_quality_status": quality["status"],
-        "data_quality_detail": quality["detail"],
+        "data_quality_status": quality_status,
+        "data_quality_detail": quality_detail,
+        "data_quality_grace": quality_grace,
         "valid_ohlc_rows": quality["valid_ohlc_rows"],
         "duplicate_ts_count": quality["duplicate_ts_count"],
         "flat_close": quality["flat_close"],
@@ -258,9 +409,68 @@ def chart_health_row(
     }
 
 
+def chart_freshness_margin_state(
+    margin_minutes: float | None,
+    budget_minutes: float | None,
+) -> tuple[str, float | None]:
+    if margin_minutes is None or budget_minutes is None or budget_minutes <= 0:
+        return "UNKNOWN", None
+    warn_threshold = min(10.0, max(2.0, float(budget_minutes) * 0.2))
+    if margin_minutes <= 0:
+        return "STALE", round(warn_threshold, 1)
+    if margin_minutes <= warn_threshold:
+        return "WATCH", round(warn_threshold, 1)
+    return "OK", round(warn_threshold, 1)
+
+
+def _chart_freshness_margin_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    margin_rows: list[dict[str, Any]] = []
+    for row in rows:
+        try:
+            age_minutes = float(row.get("age_minutes"))
+            budget_minutes = float(row.get("freshness_budget_minutes"))
+        except (TypeError, ValueError):
+            continue
+        if budget_minutes <= 0:
+            continue
+        margin_minutes = budget_minutes - age_minutes
+        margin_rows.append(
+            {
+                "symbol": row.get("symbol"),
+                "timeframe": row.get("timeframe"),
+                "market": row.get("market"),
+                "age_minutes": round(age_minutes, 1),
+                "freshness_budget_minutes": round(budget_minutes, 1),
+                "margin_minutes": round(margin_minutes, 1),
+                "margin_ratio": round(margin_minutes / budget_minutes, 4),
+                "market_closed_accepted": bool(row.get("market_closed_accepted")),
+            }
+        )
+    return margin_rows
+
+
 def summarize_chart_health(rows: list[dict[str, Any]]) -> dict[str, Any]:
     fail_count = sum(1 for row in rows if str(row.get("status")) == "FAIL")
-    warn_count = sum(1 for row in rows if str(row.get("status")) == "WARN")
+    raw_warn_count = sum(1 for row in rows if str(row.get("status")) == "WARN")
+    market_closed_ok_count = sum(
+        1
+        for row in rows
+        if str(row.get("label")) == "Mercado cerrado"
+        and str(row.get("status")) in {"OK", "WARN"}
+        and str(row.get("indicator_status")) == "OK"
+        and str(row.get("data_quality_status", "OK")) == "OK"
+        and float(row.get("health_lag_minutes") or 0.0) <= 0.0
+    )
+    market_closed_warn_count = sum(
+        1
+        for row in rows
+        if str(row.get("status")) == "WARN"
+        and str(row.get("label")) == "Mercado cerrado"
+        and str(row.get("indicator_status")) == "OK"
+        and str(row.get("data_quality_status", "OK")) == "OK"
+        and float(row.get("health_lag_minutes") or 0.0) <= 0.0
+    )
+    warn_count = max(0, raw_warn_count - market_closed_warn_count)
     stale_count = sum(1 for row in rows if str(row.get("label")) == "Estancada")
     missing_indicator_count = sum(1 for row in rows if str(row.get("indicator_status")) == "FAIL")
     data_quality_issue_count = sum(1 for row in rows if str(row.get("data_quality_status", "OK")) != "OK")
@@ -269,11 +479,26 @@ def summarize_chart_health(rows: list[dict[str, Any]]) -> dict[str, Any]:
         for row in rows
         if row.get("age_minutes") is not None
     ]
+    operable_rows = [row for row in rows if not bool(row.get("market_closed_accepted"))]
+    operable_age_values = [
+        float(row.get("age_minutes"))
+        for row in operable_rows
+        if row.get("age_minutes") is not None
+    ]
     max_age_minutes = round(max(age_values), 1) if age_values else None
     avg_age_minutes = round(sum(age_values) / len(age_values), 1) if age_values else None
+    operable_max_age_minutes = round(max(operable_age_values), 1) if operable_age_values else None
+    operable_avg_age_minutes = (
+        round(sum(operable_age_values) / len(operable_age_values), 1) if operable_age_values else None
+    )
     cadence_lag_values = [
         float(row.get("cadence_lag_minutes"))
         for row in rows
+        if row.get("cadence_lag_minutes") is not None
+    ]
+    operable_cadence_lag_values = [
+        float(row.get("cadence_lag_minutes"))
+        for row in operable_rows
         if row.get("cadence_lag_minutes") is not None
     ]
     health_lag_values = [
@@ -281,18 +506,44 @@ def summarize_chart_health(rows: list[dict[str, Any]]) -> dict[str, Any]:
         for row in rows
         if row.get("health_lag_minutes") is not None
     ]
+    operable_health_lag_values = [
+        float(row.get("health_lag_minutes"))
+        for row in operable_rows
+        if row.get("health_lag_minutes") is not None
+    ]
     next_update_values = [
         float(row.get("next_expected_update_in_minutes"))
         for row in rows
         if row.get("next_expected_update_in_minutes") is not None and float(row.get("next_expected_update_in_minutes") or 0) > 0
     ]
+    operable_next_update_values = [
+        float(row.get("next_expected_update_in_minutes"))
+        for row in operable_rows
+        if row.get("next_expected_update_in_minutes") is not None
+        and float(row.get("next_expected_update_in_minutes") or 0) > 0
+    ]
     max_cadence_lag_minutes = round(max(cadence_lag_values), 1) if cadence_lag_values else None
+    operable_max_cadence_lag_minutes = (
+        round(max(operable_cadence_lag_values), 1) if operable_cadence_lag_values else None
+    )
     max_health_lag_minutes = round(max(health_lag_values), 1) if health_lag_values else None
+    operable_max_health_lag_minutes = (
+        round(max(operable_health_lag_values), 1) if operable_health_lag_values else None
+    )
     next_expected_update_in_minutes = round(min(next_update_values), 1) if next_update_values else None
+    operable_next_expected_update_in_minutes = (
+        round(min(operable_next_update_values), 1) if operable_next_update_values else None
+    )
     stalest_chart = {}
     if age_values:
         stalest_chart = max(
             (row for row in rows if row.get("age_minutes") is not None),
+            key=lambda row: float(row.get("age_minutes") or 0),
+        )
+    operable_stalest_chart = {}
+    if operable_age_values:
+        operable_stalest_chart = max(
+            (row for row in operable_rows if row.get("age_minutes") is not None),
             key=lambda row: float(row.get("age_minutes") or 0),
         )
     most_overdue_chart = {}
@@ -301,6 +552,40 @@ def summarize_chart_health(rows: list[dict[str, Any]]) -> dict[str, Any]:
             (row for row in rows if row.get("cadence_lag_minutes") is not None),
             key=lambda row: float(row.get("cadence_lag_minutes") or 0),
         )
+    operable_most_overdue_chart = {}
+    if operable_cadence_lag_values and max(operable_cadence_lag_values) > 0:
+        operable_most_overdue_chart = max(
+            (row for row in operable_rows if row.get("cadence_lag_minutes") is not None),
+            key=lambda row: float(row.get("cadence_lag_minutes") or 0),
+        )
+    freshness_margin_rows = _chart_freshness_margin_rows(rows)
+    min_freshness_margin_chart = (
+        min(freshness_margin_rows, key=lambda row: float(row.get("margin_minutes") or 0.0))
+        if freshness_margin_rows
+        else {}
+    )
+    operable_freshness_margin_rows = [
+        row for row in freshness_margin_rows if not bool(row.get("market_closed_accepted"))
+    ]
+    operable_min_freshness_margin_chart = (
+        min(operable_freshness_margin_rows, key=lambda row: float(row.get("margin_minutes") or 0.0))
+        if operable_freshness_margin_rows
+        else {}
+    )
+    operable_min_freshness_margin_minutes = operable_min_freshness_margin_chart.get("margin_minutes")
+    operable_min_freshness_budget_minutes = operable_min_freshness_margin_chart.get(
+        "freshness_budget_minutes"
+    )
+    operable_freshness_margin_state, operable_freshness_margin_warn_threshold_minutes = (
+        chart_freshness_margin_state(
+            float(operable_min_freshness_margin_minutes)
+            if operable_min_freshness_margin_minutes is not None
+            else None,
+            float(operable_min_freshness_budget_minutes)
+            if operable_min_freshness_budget_minutes is not None
+            else None,
+        )
+    )
     if fail_count:
         status = "FAIL"
         label = "Graficas fallan"
@@ -317,24 +602,61 @@ def summarize_chart_health(rows: list[dict[str, Any]]) -> dict[str, Any]:
         status = "WARN"
         label = "Sin graficas"
         tone = "watch"
-    top_issue = next((row for row in rows if str(row.get("status")) in {"FAIL", "WARN"}), {})
+    top_issue = next(
+        (
+            row
+            for row in rows
+            if str(row.get("status")) == "FAIL"
+            or (
+                str(row.get("status")) == "WARN"
+                and not (
+                    str(row.get("label")) == "Mercado cerrado"
+                    and str(row.get("indicator_status")) == "OK"
+                    and str(row.get("data_quality_status", "OK")) == "OK"
+                    and float(row.get("health_lag_minutes") or 0.0) <= 0.0
+                )
+            )
+        ),
+        {},
+    )
     return {
         "status": status,
         "label": label,
         "tone": tone,
         "checked_count": len(rows),
+        "operable_checked_count": len(operable_rows),
         "fail_count": fail_count,
         "warn_count": warn_count,
+        "market_closed_ok_count": market_closed_ok_count,
         "stale_count": stale_count,
         "missing_indicator_count": missing_indicator_count,
         "data_quality_issue_count": data_quality_issue_count,
         "max_age_minutes": max_age_minutes,
         "avg_age_minutes": avg_age_minutes,
+        "operable_max_age_minutes": operable_max_age_minutes,
+        "operable_avg_age_minutes": operable_avg_age_minutes,
         "max_cadence_lag_minutes": max_cadence_lag_minutes,
+        "operable_max_cadence_lag_minutes": operable_max_cadence_lag_minutes,
         "max_health_lag_minutes": max_health_lag_minutes,
+        "operable_max_health_lag_minutes": operable_max_health_lag_minutes,
+        "min_freshness_margin_minutes": min_freshness_margin_chart.get("margin_minutes"),
+        "min_freshness_margin_ratio": min_freshness_margin_chart.get("margin_ratio"),
+        "min_freshness_budget_minutes": min_freshness_margin_chart.get("freshness_budget_minutes"),
+        "min_freshness_margin_chart": min_freshness_margin_chart,
+        "operable_min_freshness_margin_minutes": operable_min_freshness_margin_minutes,
+        "operable_min_freshness_margin_ratio": operable_min_freshness_margin_chart.get("margin_ratio"),
+        "operable_min_freshness_budget_minutes": operable_min_freshness_budget_minutes,
+        "operable_freshness_margin_state": operable_freshness_margin_state,
+        "operable_freshness_margin_warn_threshold_minutes": (
+            operable_freshness_margin_warn_threshold_minutes
+        ),
+        "operable_min_freshness_margin_chart": operable_min_freshness_margin_chart,
         "next_expected_update_in_minutes": next_expected_update_in_minutes,
+        "operable_next_expected_update_in_minutes": operable_next_expected_update_in_minutes,
         "stalest_chart": stalest_chart,
+        "operable_stalest_chart": operable_stalest_chart,
         "most_overdue_chart": most_overdue_chart,
+        "operable_most_overdue_chart": operable_most_overdue_chart,
         "top_issue": top_issue,
     }
 
@@ -345,9 +667,16 @@ def write_chart_health_report(rows: list[dict[str, Any]], path: str | Path, *, g
     current = generated_at or datetime.now(timezone.utc)
     if current.tzinfo is None:
         current = current.replace(tzinfo=timezone.utc)
+    summary = summarize_chart_health(rows)
     payload = {
         "generated_at": current.isoformat(),
-        "summary": summarize_chart_health(rows),
+        **summary,
+        "checked": summary.get("checked_count"),
+        "max_chart_age_minutes": summary.get("max_age_minutes"),
+        "operable_max_chart_age_minutes": summary.get("operable_max_age_minutes"),
+        "next_candle_minutes": summary.get("next_expected_update_in_minutes"),
+        "operable_next_candle_minutes": summary.get("operable_next_expected_update_in_minutes"),
+        "summary": summary,
         "charts": rows,
     }
     report_path.write_text(json.dumps(payload, indent=2, sort_keys=True))

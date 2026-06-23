@@ -17,6 +17,7 @@ def test_create_runtime_backup_archives_selected_paths(tmp_path):
     db.mkdir()
     (alerts / "roxy_realtime_check.json").write_text("{}")
     (db / "roxy.db").write_text("db")
+    (db / "scan_history.csv").write_text("ts,market,symbol,tf,signal,score\n")
 
     result = create_runtime_backup(
         base_dir=base,
@@ -36,15 +37,25 @@ def test_create_runtime_backup_archives_selected_paths(tmp_path):
     assert result["archive_verified"] is True
     assert result["archive_missing_verified_paths"] == []
     assert set(result["archive_verified_paths"]) == {"alerts", "db"}
+    assert result["archive_verified_members"] == [
+        "alerts/roxy_realtime_check.json",
+        "alerts/runtime_backup.json",
+        "db/scan_history.csv",
+    ]
+    assert result["archive_missing_critical_members"] == []
+    assert result["archive_database_member_verified"] is True
     assert result["archive_member_count"] >= 4
     assert result["missing_paths"] == ["data"]
     assert json.loads((base / "alerts" / "runtime_backup.json").read_text())["archive_exists"] is True
     assert "Roxy runtime backup: OK" in (base / "alerts" / "runtime_backup.txt").read_text()
     assert "Verified: True" in (base / "alerts" / "runtime_backup.txt").read_text()
+    assert "Critical verified: 3/3" in (base / "alerts" / "runtime_backup.txt").read_text()
     with tarfile.open(archive_path, "r:gz") as archive:
         names = archive.getnames()
     assert "alerts/roxy_realtime_check.json" in names
+    assert "alerts/runtime_backup.json" in names
     assert "db/roxy.db" in names
+    assert "db/scan_history.csv" in names
 
 
 def test_verify_archive_contents_reports_missing_expected_paths(tmp_path):
@@ -61,6 +72,41 @@ def test_verify_archive_contents_reports_missing_expected_paths(tmp_path):
     assert result["archive_verified"] is False
     assert result["archive_verified_paths"] == ["alerts"]
     assert result["archive_missing_verified_paths"] == ["db"]
+    assert result["archive_verified_members"] == ["alerts/roxy_realtime_check.json"]
+    assert result["archive_missing_critical_members"] == [
+        "alerts/runtime_backup.json",
+        "db/scan_history.csv",
+        "db/*.db",
+    ]
+    assert result["archive_database_member_verified"] is False
+
+
+def test_verify_archive_contents_accepts_critical_members(tmp_path):
+    archive_path = tmp_path / "runtime.tar.gz"
+    alerts = tmp_path / "alerts"
+    db = tmp_path / "db"
+    alerts.mkdir()
+    db.mkdir()
+    (alerts / "roxy_realtime_check.json").write_text("{}")
+    (alerts / "runtime_backup.json").write_text("{}")
+    (db / "scan_history.csv").write_text("ts,market,symbol,tf,signal,score\n")
+    (db / "roxy.sqlite3").write_text("db")
+    with tarfile.open(archive_path, "w:gz") as archive:
+        archive.add(alerts, arcname="alerts")
+        archive.add(db, arcname="db")
+
+    result = verify_archive_contents(archive_path, ("alerts", "db"))
+
+    assert result["archive_readable"] is True
+    assert result["archive_verified"] is True
+    assert result["archive_missing_verified_paths"] == []
+    assert result["archive_verified_members"] == [
+        "alerts/roxy_realtime_check.json",
+        "alerts/runtime_backup.json",
+        "db/scan_history.csv",
+    ]
+    assert result["archive_missing_critical_members"] == []
+    assert result["archive_database_member_verified"] is True
 
 
 def test_verify_archive_contents_reports_unreadable_archive(tmp_path):
@@ -72,6 +118,10 @@ def test_verify_archive_contents_reports_unreadable_archive(tmp_path):
     assert result["archive_readable"] is False
     assert result["archive_verified"] is False
     assert result["archive_missing_verified_paths"] == ["alerts"]
+    assert result["archive_missing_critical_members"] == [
+        "alerts/roxy_realtime_check.json",
+        "alerts/runtime_backup.json",
+    ]
     assert result["archive_verification_error"]
 
 

@@ -10,7 +10,7 @@ from urllib.request import urlopen
 
 
 DEFAULT_VOICE_BASE = "http://127.0.0.1:8010"
-DEFAULT_TRADE_URL = "http://127.0.0.1:8501/?view=Activo&symbol=SPY&market=stock&tf=1h"
+DEFAULT_TRADE_URL = "http://127.0.0.1:3000/?view=Activo&symbol=SPY&market=stock&tf=1h"
 
 
 @dataclass(frozen=True)

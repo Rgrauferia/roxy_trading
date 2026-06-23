@@ -6,10 +6,45 @@ from typing import Any
 
 import pandas as pd
 
+from multitimeframe_rules import build_multitimeframe_context, multitimeframe_condition_checks
+from natalia_strategy_rules import evaluate_natalia_strategy_rules
+from options_strategy import best_option_contract
 from salto_strategies import SALTO_STRATEGY_FAMILIES, normalize_salto_family
+from trade_enrichment import build_trade_enrichment
 
 
 TARGET_PCTS = (0.02, 0.05, 0.10)
+MIN_REWARD_RISK = 1.0
+MIN_MACRO_EVENT_REWARD_RISK = 1.5
+MIN_MACRO_EVENT_SCORE = 85
+MIN_MACRO_EVENT_VOLUME = 1.1
+MAX_SMA20_EXTENSION = 0.08
+FED_EVENT_HIGH_KEYWORDS = (
+    "FOMC",
+    "FED",
+    "FEDERAL RESERVE",
+    "POWELL",
+    "RATE DECISION",
+    "RATE HIKE",
+    "RATE CUT",
+    "FED FUNDS",
+    "STATEMENT",
+    "PRESS CONFERENCE",
+    "DOT PLOT",
+    "MINUTES",
+)
+FED_EVENT_MEDIUM_KEYWORDS = (
+    "CPI",
+    "PCE",
+    "NFP",
+    "JOBS",
+    "PAYROLL",
+    "INFLATION",
+    "UNEMPLOYMENT",
+    "GDP",
+    "YIELD",
+    "TREASURY",
+)
 CORE_STRATEGIES = (
     "Canal alcista",
     "Canal lateral",
@@ -55,6 +90,119 @@ def safe_bool(value: Any) -> bool:
     except Exception:
         pass
     return str(value).strip().lower() in {"1", "true", "yes", "y"}
+
+
+def is_execution_timeframe(value: Any) -> bool:
+    text = safe_text(value).lower().replace(" ", "")
+    return text in {"1m", "1min", "1minute", "5m", "5min", "5minute"}
+
+
+def reward_risk_ratio(risk_pct: Any, target_pct: Any) -> float | None:
+    risk = safe_float(risk_pct)
+    target = safe_float(target_pct)
+    if risk is None or target is None or risk <= 0:
+        return None
+    return target / risk
+
+
+def macro_event_risk(source: dict[str, Any] | None) -> dict[str, Any]:
+    """Detect FED/macro news context learned from the support class videos."""
+    if not isinstance(source, dict):
+        return {
+            "active": False,
+            "severity": "NONE",
+            "label": "Sin evento macro",
+            "detail": "No hay evento FED/macro detectado.",
+            "keywords": [],
+        }
+    keys = (
+        "macro_event",
+        "fed_event",
+        "event_risk",
+        "risk_event",
+        "news_event",
+        "market_event",
+        "calendar_event",
+        "economic_event",
+        "fomc_event",
+        "event_label",
+        "event_name",
+        "headline",
+        "headlines",
+        "news_headline",
+        "news_summary",
+        "macro_context",
+        "market_context",
+        "notes",
+    )
+    text = " ".join(safe_text(source.get(key)) for key in keys).upper()
+    explicit = any(safe_bool(source.get(key)) for key in ("macro_event", "fed_event", "event_risk", "risk_event"))
+    high_hits = [keyword for keyword in FED_EVENT_HIGH_KEYWORDS if keyword in text]
+    medium_hits = [keyword for keyword in FED_EVENT_MEDIUM_KEYWORDS if keyword in text]
+    if explicit or high_hits:
+        severity = "HIGH"
+        active = True
+        hits = high_hits or ["MACRO"]
+    elif medium_hits:
+        severity = "MEDIUM"
+        active = True
+        hits = medium_hits
+    else:
+        severity = "NONE"
+        active = False
+        hits = []
+
+    if not active:
+        detail = "No hay evento FED/macro detectado."
+    elif severity == "HIGH":
+        detail = (
+            "Evento FED/macro fuerte: esperar reaccion inicial y exigir confirmacion limpia "
+            "antes de operar."
+        )
+    else:
+        detail = "Evento macro medio: bajar agresividad y confirmar volumen/riesgo antes de operar."
+    return {
+        "active": active,
+        "severity": severity,
+        "label": "Evento FED/macro" if active else "Sin evento macro",
+        "detail": detail,
+        "keywords": hits,
+    }
+
+
+def macro_event_confirmation_ok(
+    macro_risk: dict[str, Any],
+    *,
+    confirmed_buy: bool,
+    score: Any,
+    reward_r: Any,
+    volume: Any,
+    higher_tf_ok: bool,
+) -> tuple[bool, str]:
+    if not bool((macro_risk or {}).get("active")):
+        return True, "Sin evento FED/macro."
+    score_value = safe_float(score) or 0.0
+    reward_value = safe_float(reward_r)
+    volume_value = safe_float(volume)
+    clean = (
+        confirmed_buy
+        and higher_tf_ok
+        and score_value >= MIN_MACRO_EVENT_SCORE
+        and reward_value is not None
+        and reward_value >= MIN_MACRO_EVENT_REWARD_RISK
+        and volume_value is not None
+        and volume_value >= MIN_MACRO_EVENT_VOLUME
+    )
+    if clean:
+        return True, (
+            f"Evento macro activo, pero confirmacion limpia: score {score_value:.0f}, "
+            f"{reward_value:.2f}R, volumen {volume_value:.2f}x."
+        )
+    return False, (
+        "Evento FED/macro activo: Roxy espera post-noticia o confirmacion mas fuerte "
+        f"(score>={MIN_MACRO_EVENT_SCORE}, RR>={MIN_MACRO_EVENT_REWARD_RISK:.1f}R, "
+        f"volumen>={MIN_MACRO_EVENT_VOLUME:.1f}x y 2h/4h sin bloqueo)."
+    )
 
 
 def strategy_family_from_setup(setup: str | None, *, trend_setup: str | None = None) -> str:
@@ -163,6 +311,56 @@ def target_ladder(entry: Any, stop: Any) -> list[dict[str, Any]]:
 def price_text(value: Any) -> str:
     number = safe_float(value)
     return f"{number:.2f}" if number is not None else "-"
+
+
+def non_negotiable_checks(setup: dict[str, Any], confluence: dict[str, Any]) -> list[dict[str, Any]]:
+    close = safe_float(setup.get("close") or setup.get("entry") or confluence.get("entry"))
+    open_ = safe_float(setup.get("open"))
+    high = safe_float(setup.get("high"))
+    low = safe_float(setup.get("low"))
+    upper = safe_float(setup.get("bb_upper"))
+    lower = safe_float(setup.get("bb_lower"))
+    sma20 = safe_float(setup.get("sma20") or confluence.get("sma20"))
+    sma40 = safe_float(setup.get("sma40") or confluence.get("sma40"))
+    signal = safe_text(setup.get("signal") or confluence.get("signal")).upper()
+    setup_name = safe_text(setup.get("setup") or confluence.get("trigger_setup")).upper()
+    exposed = bool(close is not None and ((upper is not None and close > upper) or (lower is not None and close < lower)))
+
+    candle_range = (high - low) if high is not None and low is not None and high > low else None
+    candle_body = abs(close - open_) if close is not None and open_ is not None else None
+    body_pct = candle_body / candle_range if candle_range and candle_body is not None else None
+    full_candle = bool(body_pct is not None and body_pct >= 0.75)
+    sma20_extension = (close - sma20) / sma20 if close is not None and sma20 and sma20 > 0 else None
+    overextended = bool(sma20_extension is not None and sma20_extension > MAX_SMA20_EXTENSION)
+    bullish_setup = signal != "AVOID" and setup_name not in {"DOWNTREND", "NEUTRAL", "NO_DATA", "ERROR"}
+    lost_sma40 = bool(bullish_setup and close is not None and sma40 is not None and close < sma40)
+
+    return [
+        {
+            "label": "No expuesto Bollinger",
+            "passed": not exposed,
+            "detail": "Fuera de banda; no perseguir" if exposed else "Dentro de bandas o sin exceso medible",
+        },
+        {
+            "label": "No vela llena",
+            "passed": not full_candle,
+            "detail": f"Cuerpo {body_pct * 100:.0f}%" if body_pct is not None else "Sin vela completa medible",
+        },
+        {
+            "label": "No perseguir extension",
+            "passed": not overextended,
+            "detail": (
+                f"{sma20_extension * 100:.1f}% sobre SMA20; esperar pullback"
+                if sma20_extension is not None
+                else "Sin SMA20 medible"
+            ),
+        },
+        {
+            "label": "SMA40 sostiene canal",
+            "passed": not lost_sma40,
+            "detail": f"Precio {price_text(close)} debajo de SMA40 {price_text(sma40)}" if lost_sma40 else "SMA40 no rota o no aplica",
+        },
+    ]
 
 
 def build_watch_plan(
@@ -293,6 +491,7 @@ def build_decision_reason(
     sma200 = safe_float(setup.get("sma200"))
     risk_pct = safe_float(confluence.get("risk_pct"))
     target_pct = safe_float(confluence.get("recommended_target_pct"))
+    reward_r = reward_risk_ratio(risk_pct, target_pct)
     rel_vol = safe_float(confluence.get("relative_volume_15m")) or safe_float(setup.get("relative_volume"))
 
     structure = "Estructura de medias mixta."
@@ -306,6 +505,7 @@ def build_decision_reason(
 
     risk_line = f"Riesgo a stop {risk_pct * 100:.2f}%." if risk_pct is not None else "Riesgo no medible porque falta stop valido."
     target_line = f"Target minimo {target_pct * 100:.0f}% viable." if target_pct is not None else "Target minimo 2% no confirmado."
+    rr_line = f"Reward/risk {reward_r:.2f}R." if reward_r is not None else "Reward/risk no medible por falta de riesgo u objetivo."
     volume_line = f"Volumen relativo {rel_vol:.2f}x." if rel_vol is not None else "Volumen relativo no disponible."
 
     if action in {"BUY_STOCK", "WATCH_CALL"}:
@@ -319,6 +519,7 @@ def build_decision_reason(
             "15m y 1h estan alineados para entrada." if confluence_signal == "BUY" else "La tendencia principal permite buscar entrada.",
             risk_line,
             target_line,
+            rr_line,
             volume_line,
             "Backtest elegible." if backtest_eligible else "Backtest no confirmado; bajar tamano si se opera.",
         ]
@@ -349,13 +550,13 @@ def build_decision_reason(
             if memory_bias == "negative":
                 missing.append("La memoria de Roxy penaliza esta estrategia.")
         summary = f"Roxy evita operar porque {missing[0].lower() if missing else 'la entrada no esta limpia'}"
-        bullets = [structure, risk_line, target_line, volume_line] + missing
+        bullets = [structure, risk_line, target_line, rr_line, volume_line] + missing
         next_steps = list(watch_plan.get("confirmations") or [])[:4]
         tone = "avoid"
     else:
         title = "Por que WATCH"
         summary = safe_text(watch_plan.get("summary")) or "Roxy espera una confirmacion mas limpia."
-        bullets = [structure, risk_line, target_line, volume_line]
+        bullets = [structure, risk_line, target_line, rr_line, volume_line]
         bullets.extend(list(watch_plan.get("confirmations") or [])[:4])
         next_steps = list(watch_plan.get("confirmations") or [])[:4]
         tone = "watch"
@@ -434,8 +635,22 @@ def strategy_explanation_lines(
     trend_setup = safe_text(confluence.get("trend_setup")).upper()
     trade_decision = safe_text(confluence.get("trade_decision")).upper()
     target_pct = safe_float(confluence.get("recommended_target_pct"))
+    learned_strategy = safe_text(setup.get("learned_strategy"))
+    learned_status = safe_text(setup.get("learned_strategy_status"))
+    learned_trigger = safe_text(setup.get("learned_strategy_trigger"))
+    learned_action = safe_text(setup.get("learned_strategy_action"))
+    learned_reason = safe_text(setup.get("learned_strategy_reason"))
 
     lines = [f"Roxy esta leyendo {symbol.upper()} como {strategy_family}."]
+    if learned_strategy:
+        lines.append(
+            f"Cerebro aprendido: {learned_strategy} esta en estado {learned_status or 'NO_MATCH'}; "
+            f"gatillo observado: {learned_trigger or '-'}."
+        )
+        if learned_reason:
+            lines.append(f"Razon de clase: {learned_reason}")
+        if learned_action:
+            lines.append(f"Movimiento que espera Roxy: {learned_action}")
     if None not in (close, sma20, sma40, sma100, sma200):
         if sma20 > sma40 > sma100 > sma200 and close > max(sma20, sma40, sma100, sma200):
             lines.append(
@@ -529,15 +744,16 @@ def direct_trade_plan(
     condition_checks: list[dict[str, Any]],
 ) -> dict[str, Any]:
     option_symbol = safe_text((option or {}).get("contractSymbol"))
+    reward_r = reward_risk_ratio(risk_pct, target_pct)
     if action == "WATCH_CALL":
         status = "Mirar Call"
         product = "Call"
         tone = "buy"
-        summary = (
+        summary = safe_text(option.get("summary")) or (
             f"{symbol} califica como accion base; valida contrato, delta, spread, DTE, volumen, "
             "open interest y perdida maxima antes de entrar."
         )
-        next_step = "Buscar call liquido que quepa en 1R y no perseguir si el spread se abre."
+        next_step = "Usar solo el contrato validado; si spread, liquidez o riesgo cambian, volver a Esperar."
     elif action == "BUY_STOCK":
         status = "Operar"
         product = "Accion"
@@ -567,7 +783,12 @@ def direct_trade_plan(
         "strategy": strategy_family,
         "risk_pct": risk_pct,
         "target_pct": target_pct,
+        "reward_r": reward_r,
         "option_symbol": option_symbol,
+        "option_professional_decision": option.get("professional_decision"),
+        "option_contracts_by_risk": option.get("contracts_by_risk"),
+        "option_risk_budget": option.get("risk_budget"),
+        "option_max_loss_per_contract": option.get("max_loss_per_contract"),
         "display_decision": decision,
     }
 
@@ -599,16 +820,40 @@ def build_symbol_trade_brief(
     relative_volume = safe_float(confluence.get("relative_volume_15m")) or safe_float(setup.get("relative_volume"))
     backtest_eligible = safe_bool(confluence.get("backtest_eligible") if confluence else setup.get("backtest_eligible"))
     target_pct = safe_float(confluence.get("recommended_target_pct"))
-    option = nearest_option(options_df, symbol) if market == "stock" else {}
+    option = (
+        best_option_contract(
+            options_df,
+            symbol,
+            account_equity=account_equity,
+            risk_pct=account_risk_pct,
+            target_pct=target_pct,
+        )
+        if market == "stock"
+        else {}
+    )
     option_score = safe_float(option.get("option_score"))
     option_decision = safe_text(option.get("option_decision")).upper()
+    professional_option_decision = safe_text(option.get("professional_decision")).upper()
+    learned_strategy = safe_text(setup.get("learned_strategy"))
+    learned_status = safe_text(setup.get("learned_strategy_status")).upper()
+    learned_action = safe_text(setup.get("learned_strategy_action"))
+    learned_reason = safe_text(setup.get("learned_strategy_reason"))
+    learned_trigger = safe_text(setup.get("learned_strategy_trigger"))
 
     confirmed_buy = confluence_signal == "BUY" and trade_decision.startswith("TRADE_FOR")
     setup_buy = signal == "BUY"
     risk_ok = risk_pct is not None and risk_pct <= 0.035
     volume_ok = relative_volume is None or relative_volume >= 0.8
     target_ok = target_pct is not None and target_pct >= 0.02
-    option_ok = option_decision == "OPTION_CANDIDATE" and (option_score or 0) >= 70
+    reward_r = reward_risk_ratio(risk_pct, target_pct)
+    reward_r_ok = reward_r is not None and reward_r >= MIN_REWARD_RISK
+    confluence = {
+        **confluence,
+        "risk_pct": risk_pct,
+        "recommended_target_pct": target_pct,
+        "reward_r": reward_r,
+    }
+    option_ok = professional_option_decision == "MIRAR_CALL" and (option_score or 0) >= 70
     strategy_family = (
         normalize_salto_family(setup.get("strategy_family"))
         or normalize_salto_family(setup.get("salto_family"))
@@ -622,6 +867,7 @@ def build_symbol_trade_brief(
     trigger_score = safe_float(confluence.get("trigger_score"))
     one_hour_ok = confirmed_buy or (trend_score is not None and trend_score >= 70)
     fifteen_ok = confirmed_buy or (confluence_signal == "BUY" and (trigger_score is None or trigger_score >= 65))
+    execution_tf = is_execution_timeframe(timeframe)
     htf_bias = safe_text(confluence.get("higher_tf_bias")).upper()
     htf_present = any(
         key in confluence
@@ -646,6 +892,27 @@ def build_symbol_trade_brief(
             htf_detail = f"Bloqueado {int(blocks or 0)}/2"
         else:
             htf_detail = "Falta data 2h/4h"
+    mtf_source = {
+        **setup,
+        **confluence,
+        "symbol": symbol,
+        "market": market,
+        "timeframe": timeframe,
+        "strategy_family": strategy_family,
+    }
+    mtf_context = build_multitimeframe_context(mtf_source)
+    mtf_alignment = safe_text(mtf_context.get("alignment")).upper()
+    execution_timing_ok = not execution_tf or (confirmed_buy and one_hour_ok and htf_ok)
+    macro_risk = macro_event_risk(mtf_source)
+    macro_ok, macro_detail = macro_event_confirmation_ok(
+        macro_risk,
+        confirmed_buy=confirmed_buy,
+        score=score,
+        reward_r=reward_r,
+        volume=relative_volume,
+        higher_tf_ok=htf_ok,
+    )
+    natalia_rules = evaluate_natalia_strategy_rules(setup, confluence)
 
     blockers: list[str] = []
     if setup_name == "DOWNTREND" or signal == "AVOID":
@@ -657,16 +924,37 @@ def build_symbol_trade_brief(
             blockers.append("Las temporalidades 2h/4h contradicen el gatillo actual.")
         else:
             blockers.append("Falta confirmacion 2h/4h para validar el salto.")
+    if mtf_alignment == "BLOCKED":
+        blockers.append("El mapa multitemporal indica que 15m no debe operar contra el canal mayor.")
+    if not execution_timing_ok:
+        blockers.append("1m/5m solo sirve para afinar entrada; no autoriza comprar sin 15m/1h/2h/4h alineados.")
+    if not macro_ok:
+        blockers.append(macro_detail)
     if risk_pct is None:
         blockers.append("No hay stop valido para medir riesgo.")
     elif not risk_ok:
         blockers.append("El stop queda demasiado lejos para una entrada limpia.")
     if not volume_ok:
         blockers.append("El volumen relativo no acompana la entrada.")
+    if risk_pct is not None and target_pct is not None and not reward_r_ok:
+        blockers.append(
+            f"Reward/risk no compensa: el objetivo paga {reward_r:.2f}R y Roxy exige minimo {MIN_REWARD_RISK:.1f}R."
+        )
+    no_negotiables = non_negotiable_checks(setup, confluence)
+    no_negotiables_ok = all(bool(item.get("passed")) for item in no_negotiables)
+    for item in no_negotiables:
+        if not bool(item.get("passed")):
+            blockers.append(f"No negociable: {item.get('label')} ({item.get('detail')}).")
     if not backtest_eligible:
         blockers.append("El filtro historico todavia no valida este setup.")
     if memory_bias == "negative":
         blockers.append("La memoria de Roxy penaliza esta estrategia por resultados debiles recientes.")
+    if learned_status == "BLOCKED":
+        blockers.append("La estrategia aprendida de las clases esta bloqueada en esta grafica.")
+    if natalia_rules.get("hard_block"):
+        blockers.append(f"Reglas Natalia: {safe_text(natalia_rules.get('summary'))}")
+    elif natalia_rules.get("wait_block"):
+        blockers.append(f"Reglas Natalia piden espera: {safe_text(natalia_rules.get('summary'))}")
 
     condition_checks = [
         {
@@ -680,9 +968,25 @@ def build_symbol_trade_brief(
             "detail": trade_decision or confluence_signal or "Sin gatillo intradia",
         },
         {
+            "label": "1m/5m solo timing",
+            "passed": execution_timing_ok,
+            "detail": (
+                "Marco mayor ya valida; usar 1m/5m solo para precision"
+                if execution_tf and execution_timing_ok
+                else "No usar 1m/5m como gatillo principal"
+                if execution_tf
+                else "No aplica"
+            ),
+        },
+        {
             "label": "2h/4h validan",
             "passed": htf_ok,
             "detail": htf_detail,
+        },
+        {
+            "label": "Evento FED/macro",
+            "passed": macro_ok,
+            "detail": macro_detail,
         },
         {
             "label": "Volumen acompana",
@@ -700,6 +1004,11 @@ def build_symbol_trade_brief(
             "detail": f"{target_pct * 100:.0f}%" if target_pct is not None else "Sin objetivo confirmado",
         },
         {
+            "label": "Reward/Risk viable",
+            "passed": reward_r_ok,
+            "detail": f"{reward_r:.2f}R" if reward_r is not None else "Falta riesgo/target",
+        },
+        {
             "label": "Filtro historico",
             "passed": backtest_eligible,
             "detail": "Backtest elegible" if backtest_eligible else "No validado por backtest",
@@ -710,11 +1019,42 @@ def build_symbol_trade_brief(
             "detail": safe_text(memory_context.get("note")),
         },
     ]
+    if market == "stock" and option:
+        condition_checks.append(
+            {
+                "label": "Call profesional",
+                "passed": option_ok,
+                "detail": safe_text(option.get("summary"))
+                or safe_text(option.get("human_decision"))
+                or "Contrato de opcion no validado",
+            }
+        )
+    condition_checks.extend(no_negotiables)
+    condition_checks.extend(multitimeframe_condition_checks(mtf_source))
+    if learned_strategy:
+        condition_checks.append(
+            {
+                "label": "Clase/estrategia",
+                "passed": learned_status in {"ACTIVE", "WATCH", ""},
+                "detail": f"{learned_strategy} · {learned_status or 'NO_MATCH'}",
+            }
+        )
+    condition_checks.append(
+        {
+            "label": "Reglas Natalia",
+            "passed": not bool(natalia_rules.get("hard_block") or natalia_rules.get("wait_block")),
+            "detail": safe_text(natalia_rules.get("summary")) or "Filtro aprendido sin bloqueos",
+        }
+    )
     operation_status = operation_gate_status(
         condition_checks,
         hard_block=setup_name == "DOWNTREND"
         or signal == "AVOID"
         or htf_bias == "BLOCKED"
+        or mtf_alignment == "BLOCKED"
+        or not macro_ok
+        or not no_negotiables_ok
+        or bool(natalia_rules.get("hard_block"))
         or memory_bias == "negative",
     )
     watch_plan = build_watch_plan(
@@ -729,23 +1069,58 @@ def build_symbol_trade_brief(
         backtest_eligible=backtest_eligible,
         memory_bias=memory_bias,
     )
+    if execution_tf:
+        timing_note = "1m/5m solo afina el precio de entrada; la decision real depende de 15m, 1h, 2h/4h, volumen, riesgo y target."
+        watch_plan["confirmations"] = [timing_note] + list(watch_plan.get("confirmations") or [])
+        if not execution_timing_ok:
+            watch_plan["movement"] = timing_note
+            watch_plan["summary"] = f"Movimiento esperado: {timing_note}"
+    if natalia_rules.get("hard_block"):
+        watch_plan["movement"] = safe_text(natalia_rules.get("movement")) or watch_plan["movement"]
+        watch_plan["summary"] = f"Movimiento esperado: {watch_plan['movement']}"
+        watch_plan["confirmations"] = list(natalia_rules.get("reasons") or []) + list(watch_plan.get("confirmations") or [])
+    elif natalia_rules.get("wait_block"):
+        watch_plan["confirmations"] = list(natalia_rules.get("reasons") or []) + list(watch_plan.get("confirmations") or [])
 
     if (
         market == "stock"
         and confirmed_buy
+        and execution_timing_ok
         and htf_ok
+        and macro_ok
         and risk_ok
         and volume_ok
         and backtest_eligible
         and target_ok
+        and reward_r_ok
+        and no_negotiables_ok
+        and not natalia_rules.get("hard_block")
+        and not natalia_rules.get("wait_block")
         and option_ok
         and memory_bias != "negative"
     ):
         decision = "Mirar call"
         action = "WATCH_CALL"
-    elif confirmed_buy and htf_ok and risk_ok and volume_ok and backtest_eligible and target_ok and memory_bias != "negative":
+    elif (
+        confirmed_buy
+        and execution_timing_ok
+        and htf_ok
+        and macro_ok
+        and risk_ok
+        and volume_ok
+        and backtest_eligible
+        and target_ok
+        and reward_r_ok
+        and no_negotiables_ok
+        and not natalia_rules.get("hard_block")
+        and not natalia_rules.get("wait_block")
+        and memory_bias != "negative"
+    ):
         decision = "Comprar accion"
         action = "BUY_STOCK"
+    elif natalia_rules.get("hard_block"):
+        decision = "No operar"
+        action = "NO_TRADE"
     elif setup_buy or confluence_signal == "WATCH" or score >= 55:
         decision = "Esperar"
         action = "WAIT"
@@ -753,18 +1128,53 @@ def build_symbol_trade_brief(
         decision = "No operar"
         action = "NO_TRADE"
 
+    enrichment = build_trade_enrichment(
+        symbol=symbol,
+        market=market,
+        timeframe=timeframe,
+        setup=setup,
+        confluence=confluence,
+        option=option,
+        memory_context=memory_context,
+        strategy_family=strategy_family,
+        decision=decision,
+        action=action,
+        risk_pct=risk_pct,
+        target_pct=target_pct,
+        reward_r=reward_r,
+        relative_volume=relative_volume,
+    )
+    enrichment_summary = safe_text(enrichment.get("summary"))
+
     if action in {"BUY_STOCK", "WATCH_CALL"}:
         reasons = [
             "1h y 15m estan alineados para una posible entrada.",
             "El stop permite medir riesgo antes de operar.",
             "El objetivo minimo de 2% es viable segun el plan.",
+            f"El reward/risk paga {reward_r:.2f}R o mejor.",
         ]
         if htf_present:
             reasons.append(f"Contexto 2h/4h: {htf_detail}.")
+        if bool(macro_risk.get("active")):
+            reasons.append(macro_detail)
+        reasons.append(safe_text(mtf_context.get("explanation")))
         if relative_volume is not None:
             reasons.append(f"Volumen relativo actual: {relative_volume:.2f}x.")
     else:
         reasons = [watch_plan["summary"]] + (blockers[:4] or ["Esperar una confirmacion mas limpia antes de operar."])
+        reasons.append(safe_text(mtf_context.get("explanation")))
+    if learned_strategy:
+        reasons.append(
+            f"Estrategia aprendida: {learned_strategy}. "
+            f"{learned_reason or learned_action or learned_trigger or 'Roxy la usa como contexto de decision.'}"
+        )
+    reasons.append(f"Reglas Natalia: {safe_text(natalia_rules.get('summary'))}")
+    if execution_tf:
+        reasons.append(
+            "Timing aprendido: 1m/5m no decide la operacion; solo ayuda a entrar fino cuando 15m/1h/2h/4h ya validaron."
+        )
+    if enrichment_summary:
+        reasons.append(f"Capa enriquecida: {enrichment_summary}")
     reasons.append(str(memory_context.get("note")))
 
     sizing = risk_sizing(
@@ -781,6 +1191,12 @@ def build_symbol_trade_brief(
         strategy_family=strategy_family,
         memory_context=memory_context,
     )
+    mtf_explanation = safe_text(mtf_context.get("explanation"))
+    if mtf_explanation and mtf_explanation not in explanation_lines:
+        explanation_lines.insert(1, mtf_explanation)
+    if enrichment_summary:
+        explanation_lines.append(f"Enriquecimiento aprendido: {enrichment_summary}")
+    explanation_lines.append(f"Reglas Natalia activas: {safe_text(natalia_rules.get('movement'))}")
     decision_reason = build_decision_reason(
         action=action,
         decision=decision,
@@ -821,6 +1237,11 @@ def build_symbol_trade_brief(
         blockers=blockers,
         condition_checks=condition_checks,
     )
+    direct_plan = {
+        **direct_plan,
+        "enrichment_summary": enrichment_summary,
+        "execution_rule": (enrichment.get("operator_rules") or [""])[0],
+    }
 
     return {
         "symbol": symbol,
@@ -842,6 +1263,8 @@ def build_symbol_trade_brief(
         "backtest_eligible": backtest_eligible,
         "higher_tf_bias": htf_bias or "-",
         "higher_tf_detail": htf_detail,
+        "macro_event_risk": macro_risk,
+        "multitimeframe": mtf_context,
         "target_ladder": target_ladder(entry, stop),
         "recommended_target_pct": target_pct,
         "recommended_target_price": safe_float(confluence.get("recommended_target_price")),
@@ -856,8 +1279,21 @@ def build_symbol_trade_brief(
         "teaching_note": " ".join(explanation_lines[:4]),
         "blockers": blockers,
         "memory": memory_context,
+        "enrichment": enrichment,
+        "enrichment_checks": enrichment.get("checks", []),
+        "natalia_rules": natalia_rules,
         "condition_checks": condition_checks,
         "operation_status": operation_status,
+        "learned_strategy": {
+            "name": learned_strategy or "-",
+            "status": learned_status or "-",
+            "trigger": learned_trigger or "-",
+            "action": learned_action or "-",
+            "reason": learned_reason or "-",
+            "score": safe_float(setup.get("learned_strategy_score")),
+            "requirements": setup.get("learned_strategy_requirements") or [],
+            "timeframes": setup.get("learned_strategy_timeframes") or [],
+        },
     }
 
 
@@ -879,8 +1315,12 @@ def summarize_backtest_by_strategy(trades_df: pd.DataFrame) -> pd.DataFrame:
         )
     data = trades_df.copy()
     data["strategy_family"] = data["entry_setup"].apply(strategy_family_from_setup)
-    data["pnl"] = pd.to_numeric(data.get("pnl"), errors="coerce").fillna(0.0)
-    data["return_pct"] = pd.to_numeric(data.get("return_pct"), errors="coerce").fillna(0.0)
+    if "pnl" not in data.columns:
+        data["pnl"] = 0.0
+    if "return_pct" not in data.columns:
+        data["return_pct"] = 0.0
+    data["pnl"] = pd.to_numeric(data["pnl"], errors="coerce").fillna(0.0)
+    data["return_pct"] = pd.to_numeric(data["return_pct"], errors="coerce").fillna(0.0)
     rows = []
     for family, group in data.groupby("strategy_family"):
         wins = group[group["pnl"] > 0]
@@ -920,6 +1360,118 @@ def summarize_backtest_by_strategy(trades_df: pd.DataFrame) -> pd.DataFrame:
     if out.empty:
         return out
     return out.sort_values(["profit_factor", "total_pnl", "trades"], ascending=[False, False, False]).reset_index(drop=True)
+
+
+def summarize_backtest_performance(
+    trades_df: pd.DataFrame,
+    *,
+    group_cols: list[str] | None = None,
+    starting_equity: float = 10_000.0,
+) -> pd.DataFrame:
+    columns = [
+        "strategy_family",
+        "timeframe",
+        "symbol",
+        "source",
+        "trades",
+        "wins",
+        "losses",
+        "win_rate",
+        "profit_factor",
+        "max_drawdown",
+        "max_drawdown_pct",
+        "avg_r",
+        "total_r",
+        "avg_return_pct",
+        "total_pnl",
+        "expectancy",
+        "tone",
+    ]
+    if trades_df.empty:
+        return pd.DataFrame(columns=columns)
+    data = trades_df.copy()
+    if "strategy_family" not in data.columns:
+        if "entry_setup" in data.columns:
+            data["strategy_family"] = data["entry_setup"].apply(strategy_family_from_setup)
+        elif "setup" in data.columns:
+            data["strategy_family"] = data["setup"].apply(strategy_family_from_setup)
+        else:
+            data["strategy_family"] = "Sin clasificar"
+    if "timeframe" not in data.columns:
+        data["timeframe"] = data.get("tf", "-")
+    if "symbol" not in data.columns:
+        data["symbol"] = "-"
+    if "source" not in data.columns:
+        data["source"] = data.get("data_source", "-")
+    if "pnl" not in data.columns:
+        data["pnl"] = 0.0
+    if "return_pct" not in data.columns:
+        data["return_pct"] = 0.0
+    data["pnl"] = pd.to_numeric(data["pnl"], errors="coerce").fillna(0.0)
+    data["return_pct"] = pd.to_numeric(data["return_pct"], errors="coerce").fillna(0.0)
+    if "r_multiple" in data.columns:
+        data["r_multiple"] = pd.to_numeric(data["r_multiple"], errors="coerce")
+    elif "risk_dollars" in data.columns:
+        risk = pd.to_numeric(data["risk_dollars"], errors="coerce").replace(0, pd.NA)
+        data["r_multiple"] = data["pnl"] / risk
+    else:
+        data["r_multiple"] = pd.NA
+
+    groups = group_cols or ["strategy_family", "timeframe"]
+    for column in groups:
+        if column not in data.columns:
+            data[column] = "-"
+    rows: list[dict[str, Any]] = []
+    for key, group in data.groupby(groups, dropna=False):
+        key_values = key if isinstance(key, tuple) else (key,)
+        group_info = {column: safe_text(value) or "-" for column, value in zip(groups, key_values)}
+        wins = group[group["pnl"] > 0]
+        losses = group[group["pnl"] <= 0]
+        gross_profit = float(wins["pnl"].sum())
+        gross_loss = abs(float(losses["pnl"].sum()))
+        profit_factor = float("inf") if gross_loss == 0 and gross_profit > 0 else 0.0 if gross_loss == 0 else gross_profit / gross_loss
+        equity_curve = float(starting_equity) + group["pnl"].cumsum()
+        peak = equity_curve.cummax()
+        drawdown = (peak - equity_curve).fillna(0.0)
+        max_drawdown = float(drawdown.max()) if not drawdown.empty else 0.0
+        max_drawdown_pct = max_drawdown / float(starting_equity) if starting_equity else 0.0
+        r_values = pd.to_numeric(group["r_multiple"], errors="coerce").dropna()
+        avg_r = float(r_values.mean()) if not r_values.empty else 0.0
+        total_r = float(r_values.sum()) if not r_values.empty else 0.0
+        win_rate = len(wins) / len(group) if len(group) else 0.0
+        expectancy = float(group["pnl"].mean()) if len(group) else 0.0
+        tone = "buy" if len(group) >= 10 and win_rate >= 0.48 and profit_factor >= 1.2 and avg_r > 0 else "avoid" if profit_factor < 1.0 or avg_r < 0 else "watch"
+        row = {
+            "strategy_family": "-",
+            "timeframe": "-",
+            "symbol": "-",
+            "source": "-",
+            **group_info,
+            "trades": int(len(group)),
+            "wins": int(len(wins)),
+            "losses": int(len(losses)),
+            "win_rate": round(win_rate, 4),
+            "profit_factor": round(profit_factor, 4) if profit_factor != float("inf") else profit_factor,
+            "max_drawdown": round(max_drawdown, 4),
+            "max_drawdown_pct": round(max_drawdown_pct, 6),
+            "avg_r": round(avg_r, 4),
+            "total_r": round(total_r, 4),
+            "avg_return_pct": round(float(group["return_pct"].mean()) if len(group) else 0.0, 6),
+            "total_pnl": round(float(group["pnl"].sum()), 4),
+            "expectancy": round(expectancy, 4),
+            "tone": tone,
+        }
+        rows.append(row)
+    out = pd.DataFrame(rows, columns=columns)
+    if out.empty:
+        return out
+    tone_rank = {"buy": 0, "watch": 1, "avoid": 2}
+    out["_tone_rank"] = out["tone"].map(tone_rank).fillna(1)
+    return (
+        out.sort_values(["_tone_rank", "profit_factor", "avg_r", "trades"], ascending=[True, False, False, False])
+        .drop(columns=["_tone_rank"])
+        .reset_index(drop=True)
+    )
 
 
 def latest_backtest_trades(pattern: str = "output/ma_backtest_trades_*.csv") -> tuple[str | None, pd.DataFrame]:

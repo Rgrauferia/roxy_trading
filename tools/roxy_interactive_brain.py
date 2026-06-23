@@ -687,7 +687,7 @@ def _trading_dashboard_url(symbol: str, market: str, timeframe: str) -> str:
     clean_market = "crypto" if _safe_text(market).lower() == "crypto" or "/" in clean_symbol else "stock"
     clean_timeframe = _extract_query_timeframe(timeframe)
     return (
-        "http://127.0.0.1:8501/?view=Activo"
+        "http://127.0.0.1:3000/?view=Activo"
         f"&symbol={quote(clean_symbol, safe='')}"
         f"&market={quote(clean_market, safe='')}"
         f"&tf={quote(clean_timeframe, safe='')}"

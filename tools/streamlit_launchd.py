@@ -17,7 +17,7 @@ LAUNCHD_LOG_DIR = Path.home() / "Library" / "Logs" / "RoxyTrading"
 APP_SUPPORT_DIR = Path.home() / "Library" / "Application Support" / "RoxyTrading"
 LAUNCHD_ENV_PATH = APP_SUPPORT_DIR / ".env"
 DEFAULT_LABEL = "com.roxy.streamlit"
-DEFAULT_PORT = 8501
+DEFAULT_PORT = 3000
 DEFAULT_ADDRESS = "0.0.0.0"
 
 
@@ -26,10 +26,7 @@ def venv_site_packages() -> Path:
 
 
 def launchd_python_path() -> Path:
-    system_python = Path("/Library/Developer/CommandLineTools/usr/bin/python3")
-    if system_python.exists():
-        return system_python
-    return Path(sys.executable)
+    return default_python_path()
 
 
 def default_python_path() -> Path:
@@ -64,6 +61,10 @@ def build_program_arguments(
         str(int(port)),
         "--server.headless",
         "true",
+        "--server.runOnSave",
+        "true",
+        "--server.fileWatcherType",
+        "auto",
         "--browser.gatherUsageStats",
         "false",
     ]

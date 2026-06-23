@@ -13,14 +13,14 @@ def test_should_run_hourly_when_missing_state():
 
 def test_should_not_run_hourly_before_interval():
     now = datetime(2026, 6, 12, 12, 0, tzinfo=timezone.utc)
-    state = {"last_hourly_at": (now - timedelta(minutes=30)).isoformat(timespec="seconds")}
+    state = {"last_hourly_at": (now - timedelta(minutes=10)).isoformat(timespec="seconds")}
 
     assert cadence.should_run_hourly(state, now) is False
 
 
-def test_should_run_hourly_after_two_hours():
+def test_should_run_hourly_after_twenty_minutes():
     now = datetime(2026, 6, 12, 12, 0, tzinfo=timezone.utc)
-    state = {"last_hourly_at": (now - timedelta(hours=2, seconds=1)).isoformat(timespec="seconds")}
+    state = {"last_hourly_at": (now - timedelta(minutes=20, seconds=1)).isoformat(timespec="seconds")}
 
     assert cadence.should_run_hourly(state, now) is True
 
@@ -58,5 +58,6 @@ def test_run_once_writes_cadence_outputs(tmp_path, monkeypatch):
     assert (log_dir / "latest_report.md").exists()
     assert (log_dir / "NEXT_TASKS.md").exists()
     saved = json.loads((log_dir / "status.json").read_text())
-    assert saved["cadence"]["chart_minutes"] == 120
+    assert saved["cadence"]["chart_minutes"] == 20
+    assert saved["cadence"]["hourly_minutes"] == 20
     assert "next_chart_tasks" in saved

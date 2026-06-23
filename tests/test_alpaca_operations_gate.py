@@ -38,6 +38,25 @@ def test_alpaca_operations_gate_blocks_live_endpoint_even_with_credentials():
     assert "live-secret-value" not in str(gate)
 
 
+def test_alpaca_operations_gate_blocks_paper_when_endpoint_points_to_live():
+    gate = alpaca_operations_gate(
+        {
+            "ALPACA_API_KEY": "paper-key-value",
+            "ALPACA_API_SECRET": "paper-secret-value",
+            "ALPACA_PAPER": "true",
+            "ALPACA_BASE_URL": "https://api.alpaca.markets",
+        }
+    )
+
+    assert gate["mode"] == "ENDPOINT_MISMATCH"
+    assert gate["status"] == "Endpoint desalineado"
+    assert gate["paper_orders_allowed"] is False
+    assert gate["live_orders_allowed"] is False
+    assert gate["endpoint_mismatch"] is True
+    assert "paper-key-value" not in str(gate)
+    assert "paper-secret-value" not in str(gate)
+
+
 def test_alpaca_operations_gate_reports_missing_secret_without_values():
     gate = alpaca_operations_gate({"ALPACA_API_KEY": "key-only"})
 

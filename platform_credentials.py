@@ -200,10 +200,11 @@ def platform_credential_status(platform_id: str, env: Mapping[str, str] | None =
         key_rows.append({"key": key_name, "source": source, "configured": source != "missing"})
 
     configured = bool(required) and not missing_keys
-    live_enabled = live_execution_requested(env)
+    strict_preview_only = bool(profile.get("strict_preview_only"))
+    live_enabled = live_execution_requested(env) and not strict_preview_only
     if not configured:
         mode = "NEEDS_CREDENTIALS"
-    elif not live_enabled:
+    elif strict_preview_only or not live_enabled:
         mode = "PREVIEW_ONLY"
     else:
         mode = "LIVE_ARMED"
@@ -216,6 +217,7 @@ def platform_credential_status(platform_id: str, env: Mapping[str, str] | None =
         "key_rows": key_rows,
         "configured": configured,
         "live_enabled": live_enabled,
+        "strict_preview_only": strict_preview_only,
         "mode": mode,
     }
 
@@ -238,7 +240,9 @@ def credential_table_rows(env: Mapping[str, str] | None = None) -> list[dict[str
     return rows
 
 
-def save_platform_credential(platform_id: str, key_name: str, value: str, *, actor: str = "streamlit_ui") -> dict[str, Any]:
+def save_platform_credential(
+    platform_id: str, key_name: str, value: str, *, actor: str = "streamlit_ui"
+) -> dict[str, Any]:
     if key_name not in BROKER_ENV_KEYS.get(platform_id, ()):
         raise ValueError(f"{key_name} is not a supported credential for {platform_id}")
     if not safe_text(value):
@@ -286,7 +290,12 @@ def save_platform_credential(platform_id: str, key_name: str, value: str, *, act
             version = 1
         cur.execute(
             "INSERT INTO secret_audit (secret_id, actor, action, details) VALUES (?, ?, ?, ?)",
-            (secret_id, actor, f"platform_{action}", json.dumps({"name": name, "platform_id": platform_id, "key_name": key_name})),
+            (
+                secret_id,
+                actor,
+                f"platform_{action}",
+                json.dumps({"name": name, "platform_id": platform_id, "key_name": key_name}),
+            ),
         )
         conn.commit()
         return {"name": name, "platform_id": platform_id, "key_name": key_name, "version": version, "action": action}
@@ -297,7 +306,9 @@ def save_platform_credential(platform_id: str, key_name: str, value: str, *, act
         conn.close()
 
 
-def save_platform_credentials(platform_id: str, values: Mapping[str, str], *, actor: str = "streamlit_ui") -> list[dict[str, Any]]:
+def save_platform_credentials(
+    platform_id: str, values: Mapping[str, str], *, actor: str = "streamlit_ui"
+) -> list[dict[str, Any]]:
     results = []
     for key_name, value in values.items():
         if safe_text(value):

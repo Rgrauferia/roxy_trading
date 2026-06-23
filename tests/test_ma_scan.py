@@ -1,5 +1,9 @@
+import json
+import sys
+
 import pandas as pd
 
+from tools import ma_scan
 from tools.ma_scan import (
     apply_backtest_filter,
     parse_csv_list,
@@ -126,3 +130,58 @@ def test_resample_ohlcv_for_derived_stock_interval():
     assert out.iloc[-1]["low"] == 11
     assert out.iloc[-1]["close"] == 14.5
     assert out.iloc[-1]["volume"] == 700
+
+
+def test_main_writes_timing_json(tmp_path, monkeypatch):
+    output_dir = tmp_path / "output"
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "watchlist_stocks.txt").write_text("AAPL\n")
+    (data_dir / "watchlist_crypto.txt").write_text("BTC/USD\n")
+    timing_path = tmp_path / "alerts" / "timing.json"
+
+    def frame(market: str, symbol: str, tf: str) -> pd.DataFrame:
+        return pd.DataFrame(
+            [
+                {
+                    "market": market,
+                    "symbol": symbol,
+                    "tf": tf,
+                    "signal": "WATCH",
+                    "score": 55,
+                    "reasons": ["test"],
+                }
+            ]
+        )
+
+    monkeypatch.setattr(ma_scan, "OUTPUT_DIR", output_dir)
+    monkeypatch.setattr(ma_scan, "DATA_DIR", data_dir)
+    monkeypatch.setattr(ma_scan, "run_stock_scan", lambda symbols, interval, period, config, include_extended_hours=False: frame("stock", symbols[0], interval))
+    monkeypatch.setattr(ma_scan, "run_crypto_scan", lambda symbols, timeframe, limit, config: frame("crypto", symbols[0], timeframe))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "ma_scan.py",
+            "--market",
+            "both",
+            "--stock-intervals",
+            "15m",
+            "--crypto-timeframes",
+            "1h",
+            "--timing-json",
+            str(timing_path),
+            "--save",
+        ],
+    )
+
+    ma_scan.main()
+
+    payload = json.loads(timing_path.read_text())
+    assert payload["status"] == "SUCCESS"
+    assert payload["market"] == "both"
+    assert payload["total_rows"] == 2
+    assert payload["saved_path"]
+    assert [step["market"] for step in payload["steps"]] == ["stock", "crypto"]
+    assert [step["timeframe"] for step in payload["steps"]] == ["15m", "1h"]
+    assert all(step["duration_seconds"] >= 0 for step in payload["steps"])

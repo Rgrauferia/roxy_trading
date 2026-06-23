@@ -60,6 +60,22 @@ def _alert_status(alert: dict[str, Any]) -> str:
     return status or "OPEN"
 
 
+def _outcome_state(alert: dict[str, Any]) -> str:
+    state = safe_text(alert.get("outcome_state")).upper()
+    if state:
+        return state
+    status = _alert_status(alert)
+    if status in {"STOP", "HIT_2PCT", "HIT_5PCT", "HIT_10PCT", "HIT_PARTIAL"}:
+        return status
+    progress_to_2pct = safe_float(alert.get("progress_to_2pct")) or 0.0
+    progress_to_stop = safe_float(alert.get("progress_to_stop")) or 0.0
+    if progress_to_stop >= 0.75 and progress_to_2pct < 0.50:
+        return "DANGER_STOP"
+    if progress_to_2pct >= 0.75:
+        return "NEAR_2PCT"
+    return status
+
+
 def _empty_counts() -> dict[str, int]:
     return {
         "alerts": 0,
@@ -255,8 +271,17 @@ def alert_history_rows(memory: dict[str, Any]) -> list[dict[str, Any]]:
                 "min_price": safe_float(alert.get("min_price")),
                 "max_gain_pct": safe_float(alert.get("max_gain_pct")),
                 "max_drawdown_pct": safe_float(alert.get("max_drawdown_pct")),
+                "current_gain_pct": safe_float(alert.get("current_gain_pct")),
+                "current_drawdown_pct": safe_float(alert.get("current_drawdown_pct")),
                 "progress_to_2pct": safe_float(alert.get("progress_to_2pct")),
                 "progress_to_stop": safe_float(alert.get("progress_to_stop")),
+                "best_target_hit": safe_text(alert.get("best_target_hit")) or "-",
+                "best_target_pct": safe_float(alert.get("best_target_pct")),
+                "best_reward_r": safe_float(alert.get("best_reward_r")),
+                "current_reward_r": safe_float(alert.get("current_reward_r")),
+                "stopped_after_target": bool(alert.get("stopped_after_target")),
+                "stopped_before_target": bool(alert.get("stopped_before_target")),
+                "outcome_state": _outcome_state(alert),
                 "milestones": ", ".join(milestones) if milestones else "-",
                 "opened_at": alert.get("opened_at") or alert.get("created_at") or alert.get("ts"),
                 "last_checked_at": alert.get("last_checked_at") or alert.get("updated_at"),
@@ -289,8 +314,17 @@ def signal_journal_rows(memory: dict[str, Any]) -> list[dict[str, Any]]:
                 "min_price": safe_float(signal.get("min_price")),
                 "max_gain_pct": safe_float(signal.get("max_gain_pct")),
                 "max_drawdown_pct": safe_float(signal.get("max_drawdown_pct")),
+                "current_gain_pct": safe_float(signal.get("current_gain_pct")),
+                "current_drawdown_pct": safe_float(signal.get("current_drawdown_pct")),
                 "progress_to_2pct": safe_float(signal.get("progress_to_2pct")),
                 "progress_to_stop": safe_float(signal.get("progress_to_stop")),
+                "best_target_hit": safe_text(signal.get("best_target_hit")) or "-",
+                "best_target_pct": safe_float(signal.get("best_target_pct")),
+                "best_reward_r": safe_float(signal.get("best_reward_r")),
+                "current_reward_r": safe_float(signal.get("current_reward_r")),
+                "stopped_after_target": bool(signal.get("stopped_after_target")),
+                "stopped_before_target": bool(signal.get("stopped_before_target")),
+                "outcome_state": _outcome_state(signal),
                 "milestones": ", ".join(milestones) if milestones else "-",
                 "opened_at": signal.get("opened_at") or signal.get("created_at") or signal.get("ts"),
                 "last_seen_at": signal.get("last_seen_at"),

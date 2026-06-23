@@ -3,6 +3,7 @@ import plistlib
 from tools.streamlit_launchd import (
     build_plist,
     build_program_arguments,
+    launchd_python_path,
     status,
     streamlit_address_from_plist,
     streamlit_port_from_plist,
@@ -17,8 +18,16 @@ def test_build_program_arguments_defaults_to_lan_binding():
     assert "--server.address" in args
     assert args[args.index("--server.address") + 1] == "0.0.0.0"
     assert "--server.port" in args
-    assert args[args.index("--server.port") + 1] == "8501"
+    assert args[args.index("--server.port") + 1] == "3000"
     assert "--server.headless" in args
+    assert args[args.index("--server.runOnSave") + 1] == "true"
+    assert args[args.index("--server.fileWatcherType") + 1] == "auto"
+
+
+def test_launchd_python_path_prefers_project_venv():
+    path = launchd_python_path()
+
+    assert str(path).endswith(".venv/bin/python")
 
 
 def test_build_plist_reads_address_and_port():
@@ -26,7 +35,7 @@ def test_build_plist_reads_address_and_port():
         label="com.roxy.streamlit",
         python_path="/tmp/venv/bin/python",
         address="0.0.0.0",
-        port=8501,
+        port=3000,
         stdout_path="/tmp/out.log",
         stderr_path="/tmp/err.log",
     )
@@ -34,7 +43,7 @@ def test_build_plist_reads_address_and_port():
     assert plist["Label"] == "com.roxy.streamlit"
     assert plist["KeepAlive"] is True
     assert streamlit_address_from_plist(plist) == "0.0.0.0"
-    assert streamlit_port_from_plist(plist) == 8501
+    assert streamlit_port_from_plist(plist) == 3000
 
 
 def test_write_plist_round_trips(tmp_path):
@@ -59,7 +68,7 @@ def test_status_exposes_keepalive_and_command(tmp_path, monkeypatch):
         label="com.roxy.streamlit",
         python_path="/tmp/venv/bin/python",
         address="0.0.0.0",
-        port=8501,
+        port=3000,
         stdout_path="/tmp/out.log",
         stderr_path="/tmp/err.log",
     )
@@ -72,5 +81,5 @@ def test_status_exposes_keepalive_and_command(tmp_path, monkeypatch):
     assert info["installed"] is True
     assert info["loaded"] is True
     assert info["keep_alive"] is True
-    assert info["port"] == 8501
+    assert info["port"] == 3000
     assert "streamlit_app.py" in info["command"]

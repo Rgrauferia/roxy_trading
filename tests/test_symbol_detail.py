@@ -1,11 +1,19 @@
 import pandas as pd
 
 from symbol_detail import (
+    alpaca_credentials_available,
+    alpaca_env_credentials,
+    alpaca_fallback_info,
+    alpaca_placeholder_credential_keys,
+    fetch_symbol_history_with_source,
     classify_strategy_playbook,
     detect_reference_strategies,
     latest_chart_strategy_events,
     latest_confluence_row,
     latest_symbol_rows,
+    normalize_polygon_aggs_payload,
+    polygon_credentials_available,
+    polygon_api_key,
     prepare_symbol_chart_data,
     resample_ohlcv,
     resolve_symbol_query,
@@ -64,6 +72,232 @@ def test_resample_ohlcv_builds_two_hour_candles():
     assert last["low"] == 11
     assert last["close"] == 14.5
     assert last["volume"] == 700
+
+
+def test_fetch_symbol_history_with_source_prefers_alpaca_when_available(monkeypatch):
+    alpaca_df = pd.DataFrame(
+        {
+            "ts": pd.date_range("2026-06-01 09:30", periods=3, freq="15min"),
+            "open": [10, 11, 12],
+            "high": [11, 12, 13],
+            "low": [9, 10, 11],
+            "close": [10.5, 11.5, 12.5],
+            "volume": [100, 120, 140],
+        }
+    )
+
+    monkeypatch.setattr("symbol_detail.fetch_alpaca_stock_ohlcv", lambda *args, **kwargs: alpaca_df)
+
+    out, source = fetch_symbol_history_with_source(
+        "AAPL",
+        market="stock",
+        timeframe="15m",
+        env={"ALPACA_API_KEY": "key", "ALPACA_API_SECRET": "secret"},
+    )
+
+    assert out.equals(alpaca_df)
+    assert source["provider"] == "Alpaca"
+    assert source["source"] == "alpaca_iex"
+    assert source["mode"] == "BROKER_DATA"
+    assert source["fallback"] is False
+
+
+def test_alpaca_env_credentials_accepts_secret_key_alias():
+    env = {"ALPACA_API_KEY": "key", "ALPACA_SECRET_KEY": "secret"}
+
+    credentials = alpaca_env_credentials(env)
+
+    assert credentials["key_name"] == "ALPACA_API_KEY"
+    assert credentials["secret_name"] == "ALPACA_SECRET_KEY"
+    assert credentials["key"] == "key"
+    assert credentials["secret"] == "secret"
+    assert alpaca_credentials_available(env) is True
+
+
+def test_polygon_api_key_accepts_token_alias_without_values():
+    env = {"POLYGON_API_TOKEN": "polygon-secret"}
+
+    key, key_name = polygon_api_key(env)
+
+    assert key == "polygon-secret"
+    assert key_name == "POLYGON_API_TOKEN"
+    assert polygon_credentials_available(env) is True
+
+
+def test_fetch_symbol_history_with_source_prefers_alpaca_with_secret_key_alias(monkeypatch):
+    alpaca_df = pd.DataFrame(
+        {
+            "ts": pd.date_range("2026-06-01 09:30", periods=3, freq="15min"),
+            "open": [10, 11, 12],
+            "high": [11, 12, 13],
+            "low": [9, 10, 11],
+            "close": [10.5, 11.5, 12.5],
+            "volume": [100, 120, 140],
+        }
+    )
+
+    monkeypatch.setattr("symbol_detail.fetch_alpaca_stock_ohlcv", lambda *args, **kwargs: alpaca_df)
+
+    out, source = fetch_symbol_history_with_source(
+        "AAPL",
+        market="stock",
+        timeframe="15m",
+        env={"ALPACA_API_KEY": "key", "ALPACA_SECRET_KEY": "secret"},
+    )
+
+    assert out.equals(alpaca_df)
+    assert source["provider"] == "Alpaca"
+    assert source["mode"] == "BROKER_DATA"
+
+
+def test_normalize_polygon_aggs_payload_maps_ohlcv_columns():
+    out = normalize_polygon_aggs_payload(
+        {
+            "results": [
+                {"t": 1_780_000_000_000, "o": "10", "h": "11", "l": "9", "c": "10.5", "v": "1000"},
+                {"t": 1_780_003_600_000, "o": "10.5", "h": "12", "l": "10", "c": "11.5", "v": "1200"},
+            ]
+        }
+    )
+
+    assert list(out.columns) == ["ts", "open", "high", "low", "close", "volume"]
+    assert len(out) == 2
+    assert out.loc[0, "open"] == 10.0
+    assert out.loc[1, "close"] == 11.5
+
+
+def test_fetch_symbol_history_with_source_uses_polygon_after_alpaca_auth_failure(monkeypatch):
+    polygon_df = pd.DataFrame(
+        {
+            "ts": pd.date_range("2026-06-01 09:30", periods=3, freq="h"),
+            "open": [30, 31, 32],
+            "high": [31, 32, 33],
+            "low": [29, 30, 31],
+            "close": [30.5, 31.5, 32.5],
+            "volume": [300, 320, 340],
+        }
+    )
+
+    def raise_auth(*args, **kwargs):
+        raise RuntimeError("401 unauthorized invalid API key")
+
+    monkeypatch.setattr("symbol_detail.fetch_alpaca_stock_ohlcv", raise_auth)
+    monkeypatch.setattr("symbol_detail.fetch_polygon_stock_ohlcv", lambda *args, **kwargs: polygon_df)
+
+    out, source = fetch_symbol_history_with_source(
+        "AAPL",
+        market="stock",
+        timeframe="1h",
+        env={"ALPACA_API_KEY": "key", "ALPACA_API_SECRET": "secret", "POLYGON_API_KEY": "polygon-key-value"},
+    )
+
+    assert out.equals(polygon_df)
+    assert source["provider"] == "Polygon"
+    assert source["source"] == "polygon_aggs"
+    assert source["mode"] == "PREMIUM_DATA"
+    assert source["fallback"] is False
+    assert source["upstream_fallback_reason"] == "alpaca_auth"
+    assert "polygon-key-value" not in str(source)
+
+
+def test_fetch_symbol_history_with_source_falls_back_to_yfinance_when_alpaca_empty(monkeypatch):
+    fallback_df = pd.DataFrame(
+        {
+            "ts": pd.date_range("2026-06-01", periods=2, freq="h"),
+            "open": [20, 21],
+            "high": [21, 22],
+            "low": [19, 20],
+            "close": [20.5, 21.5],
+            "volume": [200, 220],
+        }
+    )
+
+    monkeypatch.setattr("symbol_detail.fetch_alpaca_stock_ohlcv", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr("roxy_scanner.fetch_stock_ohlcv", lambda *args, **kwargs: fallback_df)
+
+    out, source = fetch_symbol_history_with_source(
+        "AAPL",
+        market="stock",
+        timeframe="1h",
+        env={"ALPACA_API_KEY": "key", "ALPACA_API_SECRET": "secret"},
+    )
+
+    assert out.equals(fallback_df)
+    assert source["provider"] == "yfinance"
+    assert source["mode"] == "FALLBACK"
+    assert source["fallback"] is True
+    assert source["fallback_reason"] == "alpaca_empty"
+    assert "sin velas" in source["fallback_detail"]
+
+
+def test_fetch_symbol_history_with_source_reports_alpaca_placeholder_credentials(monkeypatch):
+    fallback_df = pd.DataFrame(
+        {
+            "ts": pd.date_range("2026-06-01", periods=2, freq="h"),
+            "open": [20, 21],
+            "high": [21, 22],
+            "low": [19, 20],
+            "close": [20.5, 21.5],
+            "volume": [200, 220],
+        }
+    )
+
+    monkeypatch.setattr(
+        "symbol_detail.fetch_alpaca_stock_ohlcv",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("placeholder keys should not call Alpaca")),
+    )
+    monkeypatch.setattr("roxy_scanner.fetch_stock_ohlcv", lambda *args, **kwargs: fallback_df)
+
+    env = {"ALPACA_API_KEY": "TU_KEY_PAPER", "ALPACA_API_SECRET": "TU_SECRET_PAPER"}
+    out, source = fetch_symbol_history_with_source("AAPL", market="stock", timeframe="1h", env=env)
+
+    assert out.equals(fallback_df)
+    assert alpaca_credentials_available(env) is False
+    assert alpaca_placeholder_credential_keys(env) == ["ALPACA_API_KEY", "ALPACA_API_SECRET"]
+    assert source["fallback_reason"] == "alpaca_placeholder_credentials"
+    assert "placeholders" in source["fallback_detail"]
+    assert "claves paper reales" in source["fallback_action"]
+
+
+def test_fetch_symbol_history_with_source_classifies_alpaca_feed_permission(monkeypatch):
+    fallback_df = pd.DataFrame(
+        {
+            "ts": pd.date_range("2026-06-01", periods=2, freq="h"),
+            "open": [20, 21],
+            "high": [21, 22],
+            "low": [19, 20],
+            "close": [20.5, 21.5],
+            "volume": [200, 220],
+        }
+    )
+
+    def raise_feed_error(*args, **kwargs):
+        raise RuntimeError("403 subscription does not permit querying SIP feed")
+
+    monkeypatch.setattr("symbol_detail.fetch_alpaca_stock_ohlcv", raise_feed_error)
+    monkeypatch.setattr("roxy_scanner.fetch_stock_ohlcv", lambda *args, **kwargs: fallback_df)
+
+    out, source = fetch_symbol_history_with_source(
+        "AAPL",
+        market="stock",
+        timeframe="1h",
+        env={"ALPACA_API_KEY": "key", "ALPACA_API_SECRET": "secret"},
+    )
+
+    assert out.equals(fallback_df)
+    assert source["fallback_reason"] == "alpaca_feed_permission"
+    assert "feed/permisos" in source["fallback_detail"]
+    assert "IEX/SIP" in source["fallback_action"]
+
+
+def test_alpaca_fallback_info_classifies_auth_and_rate_limit():
+    auth = alpaca_fallback_info("alpaca_error", exc=RuntimeError("401 unauthorized invalid API key"))
+    rate = alpaca_fallback_info("alpaca_error", exc=RuntimeError("429 rate limit exceeded"))
+
+    assert auth["fallback_reason"] == "alpaca_auth"
+    assert "credenciales" in auth["fallback_action"]
+    assert rate["fallback_reason"] == "alpaca_rate_limit"
+    assert "reintentar" in rate["fallback_action"]
 
 
 def test_latest_symbol_rows_and_confluence_are_case_insensitive():

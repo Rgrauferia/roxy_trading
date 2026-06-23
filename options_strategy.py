@@ -22,6 +22,11 @@ class OptionSelectionConfig:
     max_otm_pct: float = 0.08
     max_itm_pct: float = 0.08
     min_score: int = 70
+    min_call_delta: float = 0.30
+    max_call_delta: float = 0.70
+    min_put_delta: float = -0.70
+    max_put_delta: float = -0.30
+    max_breakeven_buffer_pct: float = 0.02
 
 
 TRADIER_DEFAULT_BASE_URL = "https://api.tradier.com/v1"
@@ -39,6 +44,15 @@ def _safe_float(value: Any) -> float | None:
 def _safe_int(value: Any) -> int:
     number = _safe_float(value)
     return int(number) if number is not None else 0
+
+
+def _safe_text(value: Any) -> str:
+    try:
+        if pd.isna(value):
+            return ""
+    except Exception:
+        pass
+    return str(value or "").strip()
 
 
 def _parse_expiry(value: str | date | datetime) -> date:
@@ -62,6 +76,289 @@ def _option_data_source(row: pd.Series) -> str:
         if value is not None and not pd.isna(value) and str(value).strip():
             return str(value).strip()
     return "Yahoo/basic"
+
+
+def _option_side_from_contract(contract: Any) -> str:
+    text = _safe_text(contract).upper()
+    if len(text) >= 9 and text[-9] in {"C", "P"}:
+        return "call" if text[-9] == "C" else "put"
+    tail = text[-10:]
+    if "C" in tail:
+        return "call"
+    if "P" in tail:
+        return "put"
+    return "call"
+
+
+def _option_side_from_row(row: dict[str, Any]) -> str:
+    explicit = _safe_text(row.get("option_type") or row.get("side") or row.get("type")).lower()
+    if explicit in {"call", "calls", "c"}:
+        return "call"
+    if explicit in {"put", "puts", "p"}:
+        return "put"
+    return _option_side_from_contract(row.get("contractSymbol") or row.get("contract"))
+
+
+def _metric_check(label: str, passed: bool, value: Any, rule: str, *, severity: str = "hard") -> dict[str, Any]:
+    return {
+        "label": label,
+        "passed": bool(passed),
+        "value": value,
+        "rule": rule,
+        "severity": severity,
+    }
+
+
+def _contracts_by_risk(max_loss_per_contract: float | None, risk_budget: float) -> int:
+    if max_loss_per_contract is None or max_loss_per_contract <= 0 or risk_budget <= 0:
+        return 0
+    return max(0, int(math.floor(risk_budget / max_loss_per_contract)))
+
+
+def _option_delta_ok(delta: float | None, side: str, config: OptionSelectionConfig) -> bool:
+    if delta is None:
+        return False
+    if side == "put":
+        return config.min_put_delta <= delta <= config.max_put_delta
+    return config.min_call_delta <= delta <= config.max_call_delta
+
+
+def analyze_option_contract(
+    row: dict[str, Any] | pd.Series,
+    *,
+    account_equity: float = 500.0,
+    risk_pct: float = 0.01,
+    target_pct: float | None = None,
+    config: OptionSelectionConfig | None = None,
+) -> dict[str, Any]:
+    """Convert a scored contract into an actionable options brief."""
+    cfg = config or OptionSelectionConfig()
+    data = row.to_dict() if isinstance(row, pd.Series) else dict(row or {})
+    side = _option_side_from_row(data)
+    side_label = "Call" if side == "call" else "Put"
+    score = _safe_float(data.get("option_score")) or 0.0
+    option_decision = _safe_text(data.get("option_decision")).upper()
+    dte = _safe_float(data.get("dte"))
+    bid = _safe_float(data.get("bid"))
+    ask = _safe_float(data.get("ask"))
+    mid = _safe_float(data.get("mid"))
+    if mid is None and bid is not None and ask is not None:
+        mid = (bid + ask) / 2.0
+    spread_dollars = _safe_float(data.get("spread_dollars"))
+    if spread_dollars is None and bid is not None and ask is not None:
+        spread_dollars = ask - bid
+    spread_pct = _safe_float(data.get("spread_pct"))
+    if spread_pct is None:
+        spread_pct = _spread_pct(bid, ask)
+    volume = _safe_float(data.get("volume")) or 0.0
+    open_interest = _safe_float(data.get("openInterest") or data.get("open_interest")) or 0.0
+    delta = _safe_float(data.get("delta"))
+    gamma = _safe_float(data.get("gamma"))
+    theta = _safe_float(data.get("theta"))
+    vega = _safe_float(data.get("vega"))
+    implied_volatility = _safe_float(data.get("impliedVolatility") or data.get("iv"))
+    strike = _safe_float(data.get("strike"))
+    underlying_price = _safe_float(data.get("underlying_price"))
+    breakeven_price = _safe_float(data.get("breakeven_price"))
+    if breakeven_price is None and strike is not None and ask is not None:
+        breakeven_price = strike + ask if side == "call" else strike - ask
+    breakeven_pct = _safe_float(data.get("breakeven_pct"))
+    if breakeven_pct is None and breakeven_price is not None and underlying_price and underlying_price > 0:
+        breakeven_pct = (breakeven_price / underlying_price) - 1.0
+    max_loss_per_contract = _safe_float(data.get("max_loss_per_contract"))
+    if max_loss_per_contract is None and ask is not None:
+        max_loss_per_contract = ask * 100.0
+
+    effective_target_pct = target_pct if target_pct is not None else _safe_float(data.get("target_pct"))
+    risk_budget = max(0.0, float(account_equity or 0.0) * float(risk_pct or 0.0))
+    contracts = _contracts_by_risk(max_loss_per_contract, risk_budget)
+    risk_multiple = (
+        max_loss_per_contract / risk_budget
+        if max_loss_per_contract is not None and risk_budget > 0
+        else None
+    )
+    full_greeks = all(value is not None for value in (delta, gamma, theta, vega))
+    reported_or_estimated = _safe_text(data.get("greek_quality")).upper()
+    greeks_available = delta is not None and reported_or_estimated != "MISSING_GREEKS"
+    greek_quality = _safe_text(data.get("greek_quality")) or (
+        "FULL_GREEKS" if full_greeks else "REPORTED_DELTA_ONLY" if delta is not None else "MISSING_GREEKS"
+    )
+
+    breakeven_ok = True
+    breakeven_rule = "break-even dentro del objetivo + buffer"
+    if breakeven_pct is None:
+        breakeven_ok = False
+        breakeven_rule = "break-even requerido"
+    elif effective_target_pct is not None:
+        if side == "put":
+            breakeven_ok = abs(breakeven_pct) <= (effective_target_pct + cfg.max_breakeven_buffer_pct)
+        else:
+            breakeven_ok = breakeven_pct <= (effective_target_pct + cfg.max_breakeven_buffer_pct)
+    elif side == "put":
+        breakeven_ok = breakeven_pct < 0
+    else:
+        breakeven_ok = breakeven_pct > 0
+
+    fits_risk = max_loss_per_contract is not None and max_loss_per_contract > 0 and (
+        risk_budget <= 0 or max_loss_per_contract <= risk_budget
+    )
+    checks = [
+        _metric_check(
+            "DTE",
+            dte is not None and cfg.min_dte <= dte <= cfg.max_dte,
+            dte,
+            f"{cfg.min_dte}-{cfg.max_dte} dias",
+        ),
+        _metric_check(
+            "Delta",
+            _option_delta_ok(delta, side, cfg),
+            delta,
+            f"{cfg.min_call_delta:.2f}-{cfg.max_call_delta:.2f}" if side == "call" else f"{cfg.min_put_delta:.2f}-{cfg.max_put_delta:.2f}",
+        ),
+        _metric_check(
+            "Spread",
+            spread_pct is not None and spread_pct <= cfg.max_spread_pct,
+            spread_pct,
+            f"<= {cfg.max_spread_pct * 100:.0f}%",
+        ),
+        _metric_check("Volumen", volume >= cfg.min_volume, volume, f">= {cfg.min_volume}"),
+        _metric_check("Open interest", open_interest >= cfg.min_open_interest, open_interest, f">= {cfg.min_open_interest}"),
+        _metric_check("Break-even", breakeven_ok, breakeven_pct, breakeven_rule, severity="soft"),
+        _metric_check("Max loss", max_loss_per_contract is not None and max_loss_per_contract > 0, max_loss_per_contract, "perdida maxima medible"),
+        _metric_check(
+            "Cabe en 1R",
+            fits_risk,
+            risk_multiple,
+            "max loss <= riesgo de cuenta",
+            severity="soft" if risk_budget > 0 else "info",
+        ),
+        _metric_check("Greeks", greeks_available, greek_quality, "delta obligatorio; gamma/theta/vega preferidos"),
+    ]
+    blockers = [
+        f"{item['label']}: {item['rule']}"
+        for item in checks
+        if not item["passed"] and item.get("severity") == "hard"
+    ]
+    cautions = [
+        f"{item['label']}: {item['rule']}"
+        for item in checks
+        if not item["passed"] and item.get("severity") != "hard"
+    ]
+    is_candidate = option_decision in {"OPTION_CANDIDATE", "WATCH", "BUY", ""}
+    hard_ok = not blockers and score >= cfg.min_score and is_candidate
+    if hard_ok and cautions:
+        professional_decision = "ESPERAR"
+        human_decision = f"Esperar {side_label}"
+    elif hard_ok:
+        professional_decision = "MIRAR_CALL" if side == "call" else "MIRAR_PUT"
+        human_decision = f"Mirar {side_label}"
+    elif blockers and any(
+        item.startswith(("Delta:", "Volumen:", "Open interest:", "Greeks:")) for item in blockers
+    ):
+        professional_decision = "NO_OPERAR"
+        human_decision = "No operar"
+    elif score >= max(50, cfg.min_score - 15) and not any("Spread" in item for item in blockers):
+        professional_decision = "ESPERAR"
+        human_decision = f"Esperar {side_label}"
+    else:
+        professional_decision = "NO_OPERAR"
+        human_decision = "No operar"
+
+    spread_text = f"{spread_pct * 100:.1f}%" if spread_pct is not None else "-"
+    delta_text = f"{delta:.2f}" if delta is not None else "-"
+    dte_text = f"{int(dte)}" if dte is not None else "-"
+    be_text = f"{breakeven_price:.2f}" if breakeven_price is not None else "-"
+    max_loss_text = f"${max_loss_per_contract:.2f}" if max_loss_per_contract is not None else "-"
+    summary = (
+        f"{human_decision}: {data.get('contractSymbol') or '-'} | DTE {dte_text} | "
+        f"delta {delta_text} | spread {spread_text} | OI {int(open_interest)} | "
+        f"vol {int(volume)} | break-even {be_text} | max loss {max_loss_text}."
+    )
+    if cautions:
+        summary += " Precaucion: " + "; ".join(cautions[:2]) + "."
+    if blockers:
+        summary += " Bloquea: " + "; ".join(blockers[:2]) + "."
+
+    return {
+        **data,
+        "contract": data.get("contractSymbol") or data.get("contract"),
+        "contractSymbol": data.get("contractSymbol") or data.get("contract"),
+        "side": side.upper(),
+        "side_label": side_label,
+        "professional_decision": professional_decision,
+        "human_decision": human_decision,
+        "quality": "PROFESSIONAL" if full_greeks else "PARTIAL" if greeks_available else "INCOMPLETE",
+        "quality_label": "Greeks completos" if full_greeks else "Delta disponible" if greeks_available else "Faltan Greeks",
+        "score": score,
+        "option_score": score,
+        "option_decision": option_decision or data.get("option_decision"),
+        "dte": dte,
+        "bid": bid,
+        "ask": ask,
+        "mid": mid,
+        "spread_dollars": spread_dollars,
+        "spread_pct": spread_pct,
+        "volume": volume,
+        "openInterest": open_interest,
+        "delta": delta,
+        "gamma": gamma,
+        "theta": theta,
+        "vega": vega,
+        "impliedVolatility": implied_volatility,
+        "strike": strike,
+        "underlying_price": underlying_price,
+        "breakeven_price": breakeven_price,
+        "breakeven_pct": breakeven_pct,
+        "max_loss_per_contract": max_loss_per_contract,
+        "risk_budget": risk_budget,
+        "risk_multiple": risk_multiple,
+        "contracts_by_risk": contracts,
+        "fits_1r": fits_risk,
+        "greek_quality": greek_quality,
+        "greek_note": data.get("greek_note") or "",
+        "checks": checks,
+        "blockers": blockers,
+        "cautions": cautions,
+        "summary": summary,
+        "data_source": data.get("data_source") or data.get("source") or data.get("provider") or "Yahoo/basic",
+    }
+
+
+def best_option_contract(
+    options_df: pd.DataFrame,
+    symbol: str,
+    *,
+    account_equity: float = 500.0,
+    risk_pct: float = 0.01,
+    target_pct: float | None = None,
+    config: OptionSelectionConfig | None = None,
+) -> dict[str, Any]:
+    if options_df.empty or "symbol" not in options_df.columns:
+        return {}
+    rows = options_df[options_df["symbol"].astype(str).str.upper().eq(str(symbol).upper())].copy()
+    if rows.empty:
+        return {}
+    analyzed = [
+        analyze_option_contract(
+            row,
+            account_equity=account_equity,
+            risk_pct=risk_pct,
+            target_pct=target_pct,
+            config=config,
+        )
+        for _, row in rows.iterrows()
+    ]
+    rank = {"MIRAR_CALL": 3, "MIRAR_PUT": 3, "ESPERAR": 2, "NO_OPERAR": 1}
+    analyzed.sort(
+        key=lambda item: (
+            rank.get(str(item.get("professional_decision")), 0),
+            float(item.get("option_score") or 0),
+            -float(item.get("spread_pct") if item.get("spread_pct") is not None else 99),
+            -float(item.get("dte") if item.get("dte") is not None else 999),
+        ),
+        reverse=True,
+    )
+    return analyzed[0]
 
 
 def professional_options_feed_status(env: dict[str, str] | None = None) -> dict[str, Any]:

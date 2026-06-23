@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -15,6 +17,12 @@ STATUS_PATH = LOG_DIR / "status.json"
 EVENTS_PATH = LOG_DIR / "events.jsonl"
 REPORT_PATH = LOG_DIR / "latest_report.md"
 TASKS_PATH = LOG_DIR / "NEXT_TASKS.md"
+LEARNING_INDEX_PATH = BASE_DIR / "training_videos" / "video_learning_index.json"
+NATALIA_SOURCE_FILTER = "natalia_trading_copy_20260614_175259"
+NATALIA_SUMMARY_PATH = BASE_DIR / "training_videos" / "NATALIA_LEARNING_SUMMARY.md"
+NATALIA_WORKER_PID_PATH = BASE_DIR / "run" / "natalia_learning_worker.pid"
+DEVELOPMENT_CADENCE_MINUTES = 20
+DEVELOPMENT_CADENCE_SECONDS = DEVELOPMENT_CADENCE_MINUTES * 60
 
 CHART_FILES = [
     "streamlit_app.py",
@@ -89,6 +97,65 @@ def run_git_status(repo: Path) -> list[str]:
     return [line for line in result.stdout.splitlines() if line.strip()]
 
 
+def pid_is_running(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def learning_counts() -> dict[str, Any]:
+    counts: dict[str, Any] = {
+        "index_exists": LEARNING_INDEX_PATH.exists(),
+        "natalia_videos_indexed": 0,
+        "natalia_materials_indexed": 0,
+        "summary_exists": NATALIA_SUMMARY_PATH.exists(),
+        "summary_path": str(NATALIA_SUMMARY_PATH),
+    }
+    if LEARNING_INDEX_PATH.exists():
+        try:
+            index = json.loads(LEARNING_INDEX_PATH.read_text(errors="ignore"))
+        except (json.JSONDecodeError, OSError):
+            index = {}
+        counts["natalia_videos_indexed"] = sum(
+            1 for item in index.get("videos", []) if NATALIA_SOURCE_FILTER in str(item.get("source_path") or "")
+        )
+        counts["natalia_materials_indexed"] = sum(
+            1 for item in index.get("materials", []) if NATALIA_SOURCE_FILTER in str(item.get("source_path") or "")
+        )
+    pid_text = NATALIA_WORKER_PID_PATH.read_text().strip() if NATALIA_WORKER_PID_PATH.exists() else ""
+    pid = int(pid_text) if pid_text.isdigit() else 0
+    counts["natalia_worker_pid"] = pid or None
+    counts["natalia_worker_running"] = bool(pid and pid_is_running(pid))
+    return counts
+
+
+def refresh_learning_summary() -> bool:
+    script = BASE_DIR / "tools" / "generate_learning_summary.py"
+    if not script.exists():
+        return False
+    try:
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(script),
+                "--source-filter",
+                NATALIA_SOURCE_FILTER,
+                "--output",
+                str(NATALIA_SUMMARY_PATH),
+            ],
+            cwd=BASE_DIR,
+            text=True,
+            capture_output=True,
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return proc.returncode == 0
+
+
 def file_snapshot(repo: Path, files: list[str]) -> list[dict[str, Any]]:
     snapshot: list[dict[str, Any]] = []
     for name in files:
@@ -116,7 +183,7 @@ def changed_files(git_lines: list[str], watched: list[str]) -> list[str]:
     return sorted(set(changed))
 
 
-def should_run_hourly(state: dict[str, Any], now: datetime, interval_seconds: int = 7200) -> bool:
+def should_run_hourly(state: dict[str, Any], now: datetime, interval_seconds: int = DEVELOPMENT_CADENCE_SECONDS) -> bool:
     last = state.get("last_hourly_at")
     if not isinstance(last, str) or not last:
         return True
@@ -132,6 +199,9 @@ def should_run_hourly(state: dict[str, Any], now: datetime, interval_seconds: in
 def build_status(repo: Path, now: datetime, state: dict[str, Any]) -> dict[str, Any]:
     git_lines = run_git_status(repo)
     hourly_due = should_run_hourly(state, now)
+    learning_summary_refreshed = refresh_learning_summary()
+    learning = learning_counts()
+    learning["summary_refreshed"] = learning_summary_refreshed
     return {
         "generated_at": iso(now),
         "repo": str(repo),
@@ -143,8 +213,8 @@ def build_status(repo: Path, now: datetime, state: dict[str, Any]) -> dict[str, 
             "purpose": "Mantener contexto, reportes y siguientes tareas para Codex/Roxy.",
         },
         "cadence": {
-            "chart_minutes": 120,
-            "hourly_minutes": 120,
+            "chart_minutes": DEVELOPMENT_CADENCE_MINUTES,
+            "hourly_minutes": DEVELOPMENT_CADENCE_MINUTES,
             "run_count": int(state.get("run_count", 0)) + 1,
             "hourly_due": hourly_due,
         },
@@ -154,6 +224,7 @@ def build_status(repo: Path, now: datetime, state: dict[str, Any]) -> dict[str, 
             "chart_changed": changed_files(git_lines, CHART_FILES),
             "hourly_changed": changed_files(git_lines, HOURLY_FILES),
         },
+        "learning": learning,
         "snapshots": {
             "chart_files": file_snapshot(repo, CHART_FILES),
             "hourly_files": file_snapshot(repo, HOURLY_FILES),
@@ -169,12 +240,25 @@ def render_tasks(status: dict[str, Any]) -> str:
         "",
         f"Generated: {status['generated_at']}",
         "",
-        "## Cada 2 Horas: Graficas",
+        f"## Cada {DEVELOPMENT_CADENCE_MINUTES} Minutos: Graficas",
     ]
     lines.extend(f"- [ ] {task}" for task in status["next_chart_tasks"])
-    lines.extend(["", "## Cada 2 Horas: Producto"])
-    hourly_tasks = status.get("next_hourly_tasks") or ["Todavia no toca bloque de 2 horas; seguir con graficas y claridad."]
+    lines.extend(["", f"## Cada {DEVELOPMENT_CADENCE_MINUTES} Minutos: Producto"])
+    hourly_tasks = status.get("next_hourly_tasks") or [
+        f"Todavia no toca bloque de {DEVELOPMENT_CADENCE_MINUTES} minutos; seguir con graficas y claridad."
+    ]
     lines.extend(f"- [ ] {task}" for task in hourly_tasks)
+    learning = status.get("learning") or {}
+    lines.extend(
+        [
+            "",
+            "## Aprendizaje Natalia",
+            f"- Videos indexados: `{learning.get('natalia_videos_indexed', 0)}`",
+            f"- Materiales indexados: `{learning.get('natalia_materials_indexed', 0)}`",
+            f"- Worker activo: `{learning.get('natalia_worker_running', False)}`",
+            f"- Resumen: `{learning.get('summary_path', '')}`",
+        ]
+    )
     lines.extend(
         [
             "",
@@ -192,7 +276,12 @@ def render_report(status: dict[str, Any]) -> str:
     git = status["git"]
     chart_changed = git["chart_changed"] or ["Sin cambios detectados en archivos de grafica."]
     hourly_changed = git["hourly_changed"] or ["Sin cambios detectados en archivos de producto/contexto."]
-    hourly_note = "Toca bloque de 2 horas." if status["cadence"]["hourly_due"] else "No toca bloque de 2 horas todavia."
+    hourly_note = (
+        f"Toca bloque de {DEVELOPMENT_CADENCE_MINUTES} minutos."
+        if status["cadence"]["hourly_due"]
+        else f"No toca bloque de {DEVELOPMENT_CADENCE_MINUTES} minutos todavia."
+    )
+    learning = status.get("learning") or {}
     lines = [
         "# Roxy Development Cadence Report",
         "",
@@ -204,16 +293,21 @@ def render_report(status: dict[str, Any]) -> str:
         f"- Run count: `{status['cadence']['run_count']}`",
         f"- Dirty files: `{git['dirty_count']}`",
         f"- Hourly: {hourly_note}",
+        f"- Natalia videos indexados: `{learning.get('natalia_videos_indexed', 0)}`",
+        f"- Natalia worker activo: `{learning.get('natalia_worker_running', False)}`",
+        f"- Resumen aprendizaje actualizado: `{learning.get('summary_refreshed', False)}`",
         "",
         "## Cambios Relevantes Para Graficas",
     ]
     lines.extend(f"- {item}" for item in chart_changed)
     lines.extend(["", "## Cambios Relevantes Para Producto"])
     lines.extend(f"- {item}" for item in hourly_changed)
-    lines.extend(["", "## Proximo Bloque De 2 Horas"])
+    lines.extend(["", f"## Proximo Bloque De {DEVELOPMENT_CADENCE_MINUTES} Minutos"])
     lines.extend(f"- {task}" for task in status["next_chart_tasks"])
-    lines.extend(["", "## Proximo Bloque De 2 Horas"])
-    hourly_tasks = status.get("next_hourly_tasks") or ["Esperar al proximo ciclo de 2 horas."]
+    lines.extend(["", f"## Proximo Bloque De {DEVELOPMENT_CADENCE_MINUTES} Minutos"])
+    hourly_tasks = status.get("next_hourly_tasks") or [
+        f"Esperar al proximo ciclo de {DEVELOPMENT_CADENCE_MINUTES} minutos."
+    ]
     lines.extend(f"- {task}" for task in hourly_tasks)
     lines.extend(
         [
@@ -250,7 +344,7 @@ def run_once(repo: Path = BASE_DIR) -> dict[str, Any]:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Audit Roxy development cadence every 2 hours.")
+    parser = argparse.ArgumentParser(description=f"Audit Roxy development cadence every {DEVELOPMENT_CADENCE_MINUTES} minutes.")
     parser.add_argument("--repo", default=str(BASE_DIR), help="Roxy repo path.")
     parser.add_argument("--once", action="store_true", help="Run one audit cycle and exit.")
     parser.add_argument("--json", action="store_true", help="Print status JSON.")

@@ -36,7 +36,7 @@ Antes de cada commit de Dashboard/UI/Graficas:
 1. `git status --short`
 2. `python -m py_compile streamlit_app.py`
 3. `python -m pytest tests/test_trading_desk_table.py tests/test_alpaca_operations_gate.py tests/test_alpaca_paper_execution.py -q`
-4. Validar localhost si esta disponible: `http://127.0.0.1:8501/?view=Dashboard&symbol=AAPL&market=stock&tf=1h`
+4. Validar localhost si esta disponible: `http://127.0.0.1:3000/?view=Dashboard&symbol=AAPL&market=stock&tf=1h`
 5. Escanear secretos antes de commitear usando patrones locales seguros; no escribir llaves ni fragmentos reales en documentacion o codigo.
 
 Si el cambio solo toca documentacion, basta con `git diff --check` y revisar `git status --short`, salvo que el cambio documente comandos nuevos o afecte flujo de validacion.

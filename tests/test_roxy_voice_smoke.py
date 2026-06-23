@@ -8,14 +8,14 @@ from tools import roxy_voice_smoke
 def test_build_targets_normalizes_voice_base_url():
     targets = roxy_voice_smoke.build_targets(
         voice_base="http://127.0.0.1:8010/",
-        trade_url="http://127.0.0.1:8501/?view=Activo",
+        trade_url="http://127.0.0.1:3000/?view=Activo",
     )
 
     assert [target.name for target in targets] == ["health", "roxy_live", "sessions", "trade_dashboard"]
     assert targets[0].url == "http://127.0.0.1:8010/health"
     assert targets[1].url == "http://127.0.0.1:8010/roxy-live"
     assert targets[2].url == "http://127.0.0.1:8010/v1/assist/sessions?language=es&limit=1"
-    assert targets[3].url == "http://127.0.0.1:8501/?view=Activo"
+    assert targets[3].url == "http://127.0.0.1:3000/?view=Activo"
 
 
 def test_run_smoke_passes_with_expected_roxy_responses(monkeypatch):

@@ -110,3 +110,25 @@ def test_credential_table_rows_lists_sources_not_values(monkeypatch, tmp_path):
     assert "CRYPTO_COM_API_KEY:vault" in crypto["sources"]
     assert "api-key" not in str(rows)
     assert "api-secret" not in str(rows)
+
+
+def test_robinhood_credentials_are_vault_placeholders_and_preview_only(monkeypatch, tmp_path):
+    configure_temp_vault(monkeypatch, tmp_path)
+    save_platform_credentials(
+        "robinhood",
+        {
+            "ROBINHOOD_USERNAME": "user@example.com",
+            "ROBINHOOD_DEVICE_TOKEN": "device-token",
+            "ROBINHOOD_ACCOUNT_ID": "account-id",
+        },
+    )
+
+    status = platform_credential_status("robinhood", env={"ROXY_ENABLE_LIVE_BROKER_EXECUTION": "1"})
+
+    assert status["configured"] is True
+    assert status["strict_preview_only"] is True
+    assert status["mode"] == "PREVIEW_ONLY"
+    assert status["live_enabled"] is False
+    assert all(row["source"] == "vault" for row in status["key_rows"])
+    assert "user@example.com" not in str(status)
+    assert "device-token" not in str(status)

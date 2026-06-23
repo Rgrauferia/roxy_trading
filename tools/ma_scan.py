@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import glob
+import json
 import sys
+import time
 import warnings
 from datetime import datetime
 from pathlib import Path
@@ -54,7 +56,12 @@ def is_intraday_stock_interval(interval: str) -> bool:
 
 
 def stock_fetch_interval(interval: str) -> str:
-    return "60m" if interval.lower() == "1h" else interval
+    normalized = interval.lower()
+    if normalized == "1h":
+        return "60m"
+    if normalized == "1w":
+        return "1wk"
+    return normalized
 
 
 def resample_ohlcv(df: pd.DataFrame, rule: str) -> pd.DataFrame:
@@ -100,6 +107,36 @@ def parse_bool(value: Any) -> bool:
     if value is None or pd.isna(value):
         return False
     return str(value).strip().lower() in {"1", "true", "yes", "y"}
+
+
+def write_timing_json(
+    path: str | Path | None,
+    *,
+    market: str,
+    stock_intervals: list[str],
+    crypto_timeframes: list[str],
+    started_monotonic: float,
+    steps: list[dict[str, Any]],
+    total_rows: int = 0,
+    saved_path: str | None = None,
+    status: str = "RUNNING",
+) -> None:
+    if not path:
+        return
+    timing_path = Path(path)
+    timing_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "generated_at": datetime.now().astimezone().isoformat(),
+        "status": status,
+        "market": market,
+        "stock_intervals": stock_intervals,
+        "crypto_timeframes": crypto_timeframes,
+        "total_duration_seconds": round(time.monotonic() - started_monotonic, 2),
+        "total_rows": int(total_rows),
+        "saved_path": saved_path,
+        "steps": steps,
+    }
+    timing_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
 
 
 def latest_backtest_summary_paths(market: str) -> list[Path]:
@@ -337,6 +374,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--limit", type=int, default=25, help="Rows to print.")
     parser.add_argument("--save", action="store_true", help="Save a CSV under output/.")
     parser.add_argument("--output-prefix", default="ma_strategy")
+    parser.add_argument("--timing-json", help="Optional path to write per-market/interval scan timing telemetry.")
     parser.add_argument("--buy-score", type=int, default=70)
     parser.add_argument("--watch-score", type=int, default=45)
     parser.add_argument("--max-extension-pct", type=float, default=12.0)
@@ -356,6 +394,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    started_monotonic = time.monotonic()
     config = MovingAverageConfig(
         buy_score=args.buy_score,
         watch_score=args.watch_score,
@@ -364,6 +403,9 @@ def main() -> None:
     )
 
     frames = []
+    timing_steps: list[dict[str, Any]] = []
+    stock_intervals: list[str] = []
+    crypto_timeframes: list[str] = []
     if args.market in {"stocks", "both"}:
         stocks = (
             parse_csv_list(args.symbols)
@@ -373,14 +415,33 @@ def main() -> None:
         stock_intervals = parse_csv_list(args.stock_intervals, default=[args.stock_interval])
         for interval in stock_intervals:
             period = stock_period_for_interval(interval, args.stock_period, args.intraday_stock_period)
-            frames.append(
-                run_stock_scan(
-                    stocks,
-                    interval,
-                    period,
-                    config,
-                    include_extended_hours=args.include_extended_hours,
-                )
+            step_started = time.monotonic()
+            frame = run_stock_scan(
+                stocks,
+                interval,
+                period,
+                config,
+                include_extended_hours=args.include_extended_hours,
+            )
+            frames.append(frame)
+            timing_steps.append(
+                {
+                    "market": "stock",
+                    "timeframe": interval,
+                    "symbol_count": len(stocks),
+                    "rows": 0 if frame is None else int(len(frame)),
+                    "duration_seconds": round(time.monotonic() - step_started, 2),
+                    "period": period,
+                }
+            )
+            write_timing_json(
+                args.timing_json,
+                market=args.market,
+                stock_intervals=stock_intervals,
+                crypto_timeframes=crypto_timeframes,
+                started_monotonic=started_monotonic,
+                steps=timing_steps,
+                status="RUNNING",
             )
 
     if args.market in {"crypto", "both"}:
@@ -391,7 +452,28 @@ def main() -> None:
         )
         crypto_timeframes = parse_csv_list(args.crypto_timeframes, default=[args.crypto_timeframe])
         for timeframe in crypto_timeframes:
-            frames.append(run_crypto_scan(crypto, timeframe, args.crypto_limit, config))
+            step_started = time.monotonic()
+            frame = run_crypto_scan(crypto, timeframe, args.crypto_limit, config)
+            frames.append(frame)
+            timing_steps.append(
+                {
+                    "market": "crypto",
+                    "timeframe": timeframe,
+                    "symbol_count": len(crypto),
+                    "rows": 0 if frame is None else int(len(frame)),
+                    "duration_seconds": round(time.monotonic() - step_started, 2),
+                    "limit": args.crypto_limit,
+                }
+            )
+            write_timing_json(
+                args.timing_json,
+                market=args.market,
+                stock_intervals=stock_intervals,
+                crypto_timeframes=crypto_timeframes,
+                started_monotonic=started_monotonic,
+                steps=timing_steps,
+                status="RUNNING",
+            )
 
     frames = [frame for frame in frames if frame is not None and not frame.empty]
     result = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
@@ -406,6 +488,7 @@ def main() -> None:
 
     print_table(result, args.limit)
 
+    saved_path = None
     if args.save and not result.empty:
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -413,7 +496,20 @@ def main() -> None:
         to_save = result.copy()
         to_save["reasons"] = to_save["reasons"].apply(compact_reasons)
         to_save.to_csv(path, index=False)
+        saved_path = str(path)
         print(f"\nSaved: {path}")
+    if args.timing_json:
+        write_timing_json(
+            args.timing_json,
+            market=args.market,
+            stock_intervals=stock_intervals,
+            crypto_timeframes=crypto_timeframes,
+            started_monotonic=started_monotonic,
+            steps=timing_steps,
+            total_rows=int(len(result)),
+            saved_path=saved_path,
+            status="SUCCESS",
+        )
 
 
 if __name__ == "__main__":

@@ -22,6 +22,7 @@ from roxy_ai import (
     build_brief,
     build_notification_lines,
     load_memory,
+    macro_calendar_status,
     market_session_status,
     realtime_health_status,
     source_freshness_status,
@@ -39,6 +40,10 @@ def latest_file(pattern: str, *, directory: Path = OUTPUT_DIR) -> str | None:
         return None
     files.sort(key=lambda path: Path(path).stat().st_mtime, reverse=True)
     return files[0]
+
+
+def latest_live_scan_file(*, directory: Path = OUTPUT_DIR) -> str | None:
+    return latest_file("ma_live_strategy_*.csv", directory=directory)
 
 
 def read_csv(path: str | None) -> pd.DataFrame:
@@ -61,7 +66,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    scan_path = args.scan_csv or latest_file("ma_live_strategy_both_*.csv") or latest_file("ma_live_strategy_*.csv")
+    scan_path = args.scan_csv or latest_live_scan_file()
     confluence_path = args.confluence_csv or latest_file("ma_confluence_*.csv")
     options_path = args.options_csv or latest_file("options_candidates_*.csv")
 
@@ -84,6 +89,7 @@ def main() -> None:
     brief["source_freshness"] = source_freshness_status(source_files)
     brief["realtime_health"] = realtime_health_status()
     brief["market_session"] = market_session_status()
+    brief["macro_calendar"] = macro_calendar_status()
     brief = apply_global_alert_context(brief)
     write_brief(brief)
 
