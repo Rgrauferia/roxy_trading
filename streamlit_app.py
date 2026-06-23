@@ -30073,7 +30073,15 @@ def render_focused_home_live(
     )
     macro_context = brief.get("macro_calendar") if isinstance(brief.get("macro_calendar"), dict) else macro_calendar_status()
 
-    render_selected_asset_banner(symbol_input, market, timeframe, top_symbol=top_symbol)
+    render_trade_desk_platform_header(
+        symbol_input,
+        market,
+        timeframe,
+        top_symbol=top_symbol,
+        account_equity=account_equity,
+        risk_pct=risk_pct,
+        realtime_enabled=bool(controls.get("realtime_enabled", True)),
+    )
     if clean_mode:
         if not defer_command_analysis:
             render_command_center_live_panel(confluence_df, options_df, brief, controls, render_side_panel=False)
@@ -30093,7 +30101,7 @@ def render_focused_home_live(
                 risk_pct=risk_pct,
                 max_trades=max_daily_trades,
             )
-            with st.expander("Detalles avanzados de oportunidades", expanded=False):
+            with st.expander("Panel avanzado: ranking y distribucion de oportunidades", expanded=False):
                 render_budget_top_trades_panel(
                     display_best,
                     account_equity=account_equity,
@@ -30110,19 +30118,17 @@ def render_focused_home_live(
                 )
                 render_budget_strategy_allocation_panel(display_best, account_equity=account_equity, risk_pct=risk_pct)
                 render_opportunity_ranking_panel(display_best, account_equity=account_equity, risk_pct=risk_pct)
-        with st.expander("Plan detallado: confirmaciones, vigilancia y salidas", expanded=False):
+        with st.expander("Panel avanzado: validaciones, medicion y guardrails", expanded=False):
             render_paper_readiness_gap_panel(best)
             render_trading_desk_table(best, confluence_df, scan_df)
             render_confirmation_radar(confluence_df)
             render_buy_readiness_gap_panel(confluence_df)
             render_exit_plan_board(best, confluence_df)
-        with st.expander("Paper labs y medicion", expanded=False):
             paper_journal_snapshot = alpaca_paper_journal_snapshot(limit=8)
             st.session_state["alpaca_paper_journal_snapshot"] = paper_journal_snapshot
             render_alpaca_paper_practice_lab(best, paper_journal_snapshot, account_equity=account_equity, risk_pct=risk_pct)
             render_crypto_paper_practice_lab(best)
             render_small_account_learning_panel()
-        with st.expander("Riesgo, broker y guardrails paper", expanded=False):
             render_broker_simulation_hub(best, account_equity=float(account_equity), risk_pct=float(risk_pct))
             render_paper_operational_risk_panel(paper_risk_state)
             render_market_event_guard_panel(best, macro_context)
@@ -30166,7 +30172,7 @@ def render_focused_home_live(
                 risk_pct=risk_pct,
                 max_trades=max_daily_trades,
             )
-            with st.expander("Detalles avanzados de oportunidades", expanded=False):
+            with st.expander("Panel avanzado: ranking y distribucion de oportunidades", expanded=False):
                 render_budget_top_trades_panel(
                     display_best,
                     account_equity=account_equity,
@@ -31994,6 +32000,50 @@ def render_selected_asset_banner(symbol: str, market: str, timeframe: str, *, to
     )
 
 
+def render_trade_desk_platform_header(
+    symbol: str,
+    market: str,
+    timeframe: str,
+    *,
+    top_symbol: str = "",
+    account_equity: float = 0.0,
+    risk_pct: float = 0.0,
+    realtime_enabled: bool = True,
+) -> None:
+    active_symbol = text_display(symbol).upper() or "AAPL"
+    active_market = normalize_command_market(market, active_symbol).upper()
+    active_timeframe = normalize_command_timeframe(timeframe)
+    top_label = text_display(top_symbol).upper()
+    focus_label = top_label if top_label and top_label != active_symbol else active_symbol
+    risk_budget = max(0.0, safe_float(account_equity) or 0.0) * max(0.0, safe_float(risk_pct) or 0.0)
+    live_label = "Live ON" if realtime_enabled else "Manual"
+    scope = "Grafica activa" if focus_label == active_symbol else "Scanner global"
+    st.markdown(
+        f"""
+        <section class="trade-desk-platform-head">
+          <div class="trade-desk-platform-brand">
+            {brand_logo_html()}
+            <div>
+              <span>Roxy Trading</span>
+              <strong>Trade Desk</strong>
+              <small>Paper/manual · ordenes reales OFF</small>
+            </div>
+          </div>
+          <div class="trade-desk-platform-focus">
+            <span>Activo en grafica</span>
+            <strong>{html.escape(active_symbol)}</strong>
+            <small>{html.escape(active_market)} · {html.escape(active_timeframe)} · {html.escape(live_label)}</small>
+          </div>
+          <div class="trade-desk-platform-meta">
+            <div><span>Foco</span><strong>{html.escape(focus_label)}</strong><small>{html.escape(scope)}</small></div>
+            <div><span>Capital</span><strong>${account_equity:,.0f}</strong><small>1R ${risk_budget:,.2f}</small></div>
+          </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_dashboard_action_queue(table: pd.DataFrame) -> None:
     if table.empty:
         return
@@ -33178,6 +33228,29 @@ def show_focused_roxy_app() -> None:
         options_df = context.get("options_df") if isinstance(context.get("options_df"), pd.DataFrame) else pd.DataFrame()
         home_controls = render_command_center_controls(confluence_df, brief)
         home_controls = {**home_controls, "defer_command_analysis": True, "suppress_budget_summary": True}
+        header_best = focused_opportunity_table(brief)
+        header_equity = float(safe_float(home_controls.get("account_equity")) or 100.0)
+        header_risk_pct = float(safe_float(home_controls.get("risk_pct")) or 0.01)
+        header_scope = text_display(home_controls.get("budget_market_scope") or "Todos")
+        header_max_trades = int(safe_float(home_controls.get("max_daily_trades")) or 3)
+        header_budget_best = budget_filtered_opportunity_table(
+            header_best,
+            account_equity=header_equity,
+            risk_pct=header_risk_pct,
+            market_scope=header_scope,
+            max_trades=header_max_trades,
+        )
+        header_display_best = header_budget_best if not header_budget_best.empty else header_best
+        header_symbol = text_display(home_controls.get("symbol_input") or st.session_state.get("command_symbol") or "AAPL")
+        render_trade_desk_platform_header(
+            header_symbol,
+            normalize_command_market(home_controls.get("market"), header_symbol),
+            normalize_command_timeframe(home_controls.get("timeframe")),
+            top_symbol=selected_dashboard_symbol(header_display_best),
+            account_equity=header_equity,
+            risk_pct=header_risk_pct,
+            realtime_enabled=bool(realtime.get("enabled", True)),
+        )
         run_every = f"{normalize_realtime_refresh_interval(realtime.get('interval_seconds'))}s"
 
         def _trade_desk_live_controls(live_context: dict[str, Any]) -> tuple[dict[str, Any], pd.DataFrame, pd.DataFrame, dict[str, Any]]:
@@ -33236,7 +33309,7 @@ def show_focused_roxy_app() -> None:
                 max_trades=live_max_trades,
             )
             display_live_best = budget_live_best if has_budget_candidates else live_best
-            with st.expander("Detalles avanzados de oportunidades", expanded=False):
+            with st.expander("Panel avanzado: ranking, memoria y diagnostico", expanded=False):
                 render_priority_trade_lanes(display_live_best)
                 render_opportunity_ranking_panel(
                     display_live_best,
@@ -33255,7 +33328,6 @@ def show_focused_roxy_app() -> None:
                     account_equity=live_equity,
                     risk_pct=live_risk_pct,
                 )
-            with st.expander("Aprendizaje por resultado", expanded=False):
                 render_small_account_learning_panel()
 
         _render_trade_desk_static(context)
@@ -33268,9 +33340,8 @@ def show_focused_roxy_app() -> None:
             _live_trade_lanes()
         else:
             _render_trade_lanes(context)
-        with st.expander("Resumen operativo y decision actual", expanded=False):
+        with st.expander("Panel avanzado: estado live y diagnostico", expanded=False):
             render_launch_operator_shell(brief, home_controls, realtime)
-        with st.expander("Estado live, salud de mercado y diagnostico de lanzamiento", expanded=False):
             render_living_market_pulse(home_controls, realtime, compact=True)
             render_dashboard_compact_header(context, realtime)
     if selected_page != "Dashboard":
@@ -33287,7 +33358,7 @@ def show_focused_roxy_app() -> None:
                 st.session_state.get("command_symbol", "AAPL"),
             )
             if live_selected_page == "Dashboard":
-                with st.expander("Pulso live y diagnostico tecnico", expanded=False):
+                with st.expander("Panel tecnico live", expanded=False):
                     render_living_market_pulse(home_controls, realtime, compact=True)
                     render_focused_live_status_workspace(live_context, realtime)
             else:
@@ -33296,7 +33367,7 @@ def show_focused_roxy_app() -> None:
         _live_workspace()
         return
     if selected_page == "Dashboard":
-        with st.expander("Pulso live y diagnostico tecnico", expanded=False):
+        with st.expander("Panel tecnico live", expanded=False):
             render_focused_live_status_workspace(context, realtime)
     else:
         render_focused_live_status_workspace(context, realtime)
@@ -33437,6 +33508,22 @@ def main() -> None:
         .dashboard-compact-brand{display:flex;gap:10px;align-items:center}
         .dashboard-compact-brand .brand-logo-img{width:96px;max-width:96px;border-radius:7px}
 
+        .trade-desk-platform-head{display:grid;grid-template-columns:minmax(260px,1fr) minmax(220px,.78fr) minmax(260px,.82fr);gap:1px;align-items:stretch;border:1px solid rgba(212,175,96,.32);border-radius:8px;background:rgba(148,163,184,.14);overflow:hidden;margin:0 0 8px;box-shadow:0 18px 42px rgba(2,6,23,.30)}
+        .trade-desk-platform-brand,.trade-desk-platform-focus,.trade-desk-platform-meta{background:#080d18;min-width:0}
+        .trade-desk-platform-brand{display:flex;align-items:center;gap:13px;padding:10px 12px;border-left:4px solid #d4af60}
+        .trade-desk-platform-brand .brand-logo-img{width:126px!important;max-width:126px!important;min-width:104px;border-radius:7px;border-color:rgba(212,175,96,.48);box-shadow:0 10px 26px rgba(0,0,0,.42)}
+        .trade-desk-platform-brand .roxy-logo-svg{width:56px;height:56px}
+        .trade-desk-platform-brand span,.trade-desk-platform-focus span,.trade-desk-platform-meta span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .trade-desk-platform-brand strong{display:block;color:#f8fafc;font-size:22px;line-height:1.02;margin-top:3px;font-weight:950}
+        .trade-desk-platform-brand small,.trade-desk-platform-focus small,.trade-desk-platform-meta small{display:block;color:#cbd5e1;font-size:10px;line-height:1.18;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .trade-desk-platform-focus{display:flex;flex-direction:column;justify-content:center;padding:10px 12px;background:linear-gradient(135deg,rgba(8,47,73,.32),#080d18)}
+        .trade-desk-platform-focus strong{display:block;color:#f8fafc;font-size:28px;line-height:1;margin-top:4px;font-weight:950}
+        .trade-desk-platform-meta{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:rgba(148,163,184,.14)}
+        .trade-desk-platform-meta>div{background:#0b1220;padding:10px 11px;display:flex;flex-direction:column;justify-content:center;min-width:0}
+        .trade-desk-platform-meta strong{display:block;color:#f8fafc;font-size:17px;line-height:1.05;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        @media (max-width:900px){.trade-desk-platform-head{grid-template-columns:1fr}.trade-desk-platform-brand{padding:9px 10px}.trade-desk-platform-brand .brand-logo-img{width:106px!important;max-width:106px!important;min-width:92px}.trade-desk-platform-focus strong{font-size:24px}.trade-desk-platform-meta{grid-template-columns:1fr 1fr}}
+        @media (max-width:560px){.trade-desk-platform-brand .brand-logo-img{width:96px!important;max-width:96px!important;min-width:86px}.trade-desk-platform-meta{grid-template-columns:1fr}.trade-desk-platform-brand strong{font-size:20px}}
+
         .selected-asset-banner{display:flex;justify-content:space-between;gap:14px;align-items:center;border:1px solid rgba(34,211,238,.36);border-left:4px solid #22d3ee;border-radius:8px;background:linear-gradient(135deg,rgba(8,47,73,.72),rgba(15,23,42,.92));padding:9px 11px;margin:7px 0 8px;box-shadow:0 12px 28px rgba(8,47,73,.18)}
         .selected-asset-banner span{display:block;color:#67e8f9;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em;line-height:1}
         .selected-asset-banner strong{display:block;color:#f8fafc;font-size:16px;line-height:1.1;margin-top:4px}
@@ -33537,15 +33624,15 @@ def main() -> None:
         .budget-market-panel>header strong{color:#f8fafc;font-size:15px;font-weight:950;line-height:1.1}
         .budget-market-panel>header span{color:#93c5fd;font-size:11px;text-align:right}
         .budget-market-panel>p{margin:0;padding:11px;color:#cbd5e1;font-size:12px;line-height:1.35}
-        .budget-market-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
-        .budget-market-card{display:flex;flex-direction:column;gap:7px;min-width:0;background:#0b1220;padding:10px;border-top:3px solid rgba(148,163,184,.34)}
+        .budget-market-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1px;background:rgba(148,163,184,.14)}
+        .budget-market-card{display:flex;flex-direction:column;gap:6px;min-width:0;background:#0b1220;padding:9px;border-top:3px solid rgba(148,163,184,.34)}
         .budget-market-card header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
-        .budget-market-card header a{color:#f8fafc!important;font-size:23px;font-weight:950;line-height:1;text-decoration:none!important}
+        .budget-market-card header a{color:#f8fafc!important;font-size:21px;font-weight:950;line-height:1;text-decoration:none!important}
         .budget-market-card header a:hover{text-decoration:underline!important;text-underline-offset:3px}
         .budget-market-card header span{color:#cbd5e1;font-size:10px;font-weight:950;text-align:right;text-transform:uppercase;line-height:1.15}
         .budget-market-card p{margin:0;color:#cbd5e1;font-size:11px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .budget-market-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border:1px solid rgba(148,163,184,.14);border-radius:6px;overflow:hidden}
-        .budget-market-metrics b{display:block;min-width:0;background:#0f172a;color:#f8fafc;font-size:12px;line-height:1.1;padding:7px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .budget-market-metrics b{display:block;min-width:0;background:#0f172a;color:#f8fafc;font-size:11px;line-height:1.1;padding:6px 7px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .budget-market-metrics small{display:block;color:#94a3b8;font-size:8px;line-height:1;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
         .budget-market-card em{display:block;margin:0;color:#94a3b8;font-size:10px;line-height:1.25;font-style:normal;min-height:24px}
         .budget-chart-link{display:inline-flex;align-self:flex-start;align-items:center;justify-content:center;border:1px solid rgba(96,165,250,.45);border-radius:6px;background:rgba(37,99,235,.22);color:#bfdbfe!important;font-size:10px;font-weight:950;letter-spacing:.04em;text-transform:uppercase;text-decoration:none!important;padding:6px 9px}

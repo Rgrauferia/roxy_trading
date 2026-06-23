@@ -3701,6 +3701,7 @@ def test_trade_desk_prioritizes_chart_visibility_over_secondary_controls():
     chart_source = function_source_from_file("streamlit_app.py", "render_operational_chart_first")
     controls_source = function_source_from_file("streamlit_app.py", "render_command_center_controls")
     live_home_source = function_source_from_file("streamlit_app.py", "render_focused_home_live")
+    platform_header_source = function_source_from_file("streamlit_app.py", "render_trade_desk_platform_header")
     compact_header_source = function_source_from_file("streamlit_app.py", "render_dashboard_compact_header")
     command_panel_source = function_source_from_file("streamlit_app.py", "render_command_center_panel")
     command_analysis_source = function_source_from_file("streamlit_app.py", "render_command_center_analysis")
@@ -3718,9 +3719,15 @@ def test_trade_desk_prioritizes_chart_visibility_over_secondary_controls():
         'with st.expander("Mas filtros de presupuesto y vista", expanded=False):'
     )
     assert 'with st.expander("Cambiar activo, mercado, timeframe y riesgo", expanded=False)' not in controls_source
-    assert 'with st.expander("Plan detallado: confirmaciones, vigilancia y salidas", expanded=False)' in live_home_source
-    assert 'with st.expander("Paper labs y medicion", expanded=False)' in live_home_source
-    assert live_home_source.find('with st.expander("Paper labs y medicion", expanded=False)') < live_home_source.find("render_alpaca_paper_practice_lab(")
+    assert "brand_logo_html()" in platform_header_source
+    assert "Trade Desk" in platform_header_source
+    assert "ordenes reales OFF" in platform_header_source
+    assert "render_trade_desk_platform_header(" in live_home_source
+    assert "render_trade_desk_platform_header(" in app_source
+    assert 'with st.expander("Panel avanzado: validaciones, medicion y guardrails", expanded=False)' in live_home_source
+    assert 'with st.expander("Plan detallado: confirmaciones, vigilancia y salidas", expanded=False)' not in live_home_source
+    assert 'with st.expander("Paper labs y medicion", expanded=False)' not in live_home_source
+    assert live_home_source.find('with st.expander("Panel avanzado: validaciones, medicion y guardrails", expanded=False)') < live_home_source.find("render_alpaca_paper_practice_lab(")
     assert 'with st.expander("Decision detallada: entrada, stop, salida e invalidacion", expanded=False)' in compact_header_source
     assert compact_header_source.find("render_dashboard_action_queue(table)") < compact_header_source.find("render_trade_decision_card(best)")
     assert 'class="command-quick-strip command-quick-strip-' in command_panel_source
