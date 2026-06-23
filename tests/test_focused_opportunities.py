@@ -129,6 +129,7 @@ from streamlit_app import (
     budget_strategy_watch_label,
     budget_strategy_watch_reason,
     budget_wide_search_rows,
+    crypto_twenty_min_strike_rows,
     default_crypto_budget_watch_rows,
     budget_top_trade_rows,
     budget_execution_stage,
@@ -2926,6 +2927,34 @@ def test_default_crypto_budget_watch_rows_provides_chartable_crypto_fallbacks(mo
     assert rows.iloc[0]["risk_dollars"] <= 1.0
     assert rows.iloc[0]["reward_1_dollars"] > 0
     assert rows.iloc[0]["quality_label"] == "Plan operativo"
+    assert "market=crypto" in rows.iloc[0]["href"]
+
+
+def test_crypto_twenty_min_strike_rows_builds_paper_decision(monkeypatch):
+    def fake_crypto_history(symbol, *, timeframe="1m", limit=80):
+        assert timeframe == "1m"
+        base = 100.0
+        closes = [base + idx * 0.08 for idx in range(80)]
+        return pd.DataFrame(
+            {
+                "ts": pd.date_range("2026-06-01", periods=80, freq="min", tz="UTC"),
+                "open": closes,
+                "high": [value + 0.18 for value in closes],
+                "low": [value - 0.14 for value in closes],
+                "close": closes,
+                "volume": [1000 + idx for idx in range(80)],
+            }
+        )
+
+    monkeypatch.setattr(streamlit_app, "fetch_crypto_history_fast", fake_crypto_history)
+
+    rows = crypto_twenty_min_strike_rows(account_equity=100, risk_pct=0.01, symbols=["BTC/USD"], limit=1)
+
+    assert rows.iloc[0]["symbol"] == "BTC/USD"
+    assert rows.iloc[0]["direction"] == "Arriba"
+    assert rows.iloc[0]["strike"] > rows.iloc[0]["price"]
+    assert rows.iloc[0]["risk_dollars"] == 1.0
+    assert rows.iloc[0]["confidence"] >= 55
     assert "market=crypto" in rows.iloc[0]["href"]
 
 

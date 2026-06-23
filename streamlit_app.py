@@ -23,7 +23,7 @@ from urllib.parse import quote
 from glob import glob
 from pathlib import Path
 from typing import Any, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import sqlite3
@@ -23159,6 +23159,203 @@ def default_crypto_budget_watch_rows(
     return pd.DataFrame(rows, columns=columns)
 
 
+def crypto_twenty_min_strike_rows(
+    *,
+    account_equity: float = 100.0,
+    risk_pct: float = 0.01,
+    symbols: list[str] | tuple[str, ...] | None = None,
+    limit: int = 4,
+    now: datetime | None = None,
+) -> pd.DataFrame:
+    columns = [
+        "symbol",
+        "price",
+        "direction",
+        "strike",
+        "distance_pct",
+        "momentum_20m",
+        "confidence",
+        "action",
+        "risk_dollars",
+        "source",
+        "expires_at",
+        "next_step",
+        "tone",
+        "href",
+    ]
+    risk_budget = max(1.0, safe_float(account_equity) or 100.0) * max(0.001, safe_float(risk_pct) or 0.01)
+    selected_symbols = list(dict.fromkeys(symbols or DEFAULT_CRYPTO_SYMBOLS))[: max(1, int(limit or 4))]
+    current_time = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    expires_at = current_time + timedelta(minutes=20)
+    rows: list[dict[str, Any]] = []
+    for symbol in selected_symbols:
+        href = f"?view=Activo&symbol={quote(str(symbol).upper(), safe='')}&market=crypto&tf=1m"
+        try:
+            frame = fetch_crypto_history_fast(str(symbol), timeframe="1m", limit=80)
+        except Exception as exc:
+            rows.append(
+                {
+                    "symbol": str(symbol).upper(),
+                    "price": None,
+                    "direction": "Esperar",
+                    "strike": None,
+                    "distance_pct": None,
+                    "momentum_20m": None,
+                    "confidence": 0,
+                    "action": "Sin datos 1m",
+                    "risk_dollars": risk_budget,
+                    "source": f"crypto_1m_error:{type(exc).__name__}",
+                    "expires_at": expires_at.strftime("%H:%M UTC"),
+                    "next_step": "No operar 20m hasta recibir velas 1m frescas.",
+                    "tone": "avoid",
+                    "href": href,
+                }
+            )
+            continue
+        if not isinstance(frame, pd.DataFrame) or frame.empty or "close" not in frame.columns:
+            rows.append(
+                {
+                    "symbol": str(symbol).upper(),
+                    "price": None,
+                    "direction": "Esperar",
+                    "strike": None,
+                    "distance_pct": None,
+                    "momentum_20m": None,
+                    "confidence": 0,
+                    "action": "Sin velas 1m",
+                    "risk_dollars": risk_budget,
+                    "source": "crypto_1m_empty",
+                    "expires_at": expires_at.strftime("%H:%M UTC"),
+                    "next_step": "No operar 20m hasta tener precio y velas 1m.",
+                    "tone": "avoid",
+                    "href": href,
+                }
+            )
+            continue
+
+        data = frame.copy().tail(80)
+        for column in ("open", "high", "low", "close", "volume"):
+            if column in data.columns:
+                data[column] = pd.to_numeric(data[column], errors="coerce")
+        data = data.dropna(subset=["close"])
+        price = safe_float(data["close"].iloc[-1]) if not data.empty else None
+        if price is None or price <= 0 or len(data) < 24:
+            rows.append(
+                {
+                    "symbol": str(symbol).upper(),
+                    "price": price,
+                    "direction": "Esperar",
+                    "strike": None,
+                    "distance_pct": None,
+                    "momentum_20m": None,
+                    "confidence": 0,
+                    "action": "Historial corto",
+                    "risk_dollars": risk_budget,
+                    "source": "crypto_1m_insufficient",
+                    "expires_at": expires_at.strftime("%H:%M UTC"),
+                    "next_step": "Esperar mas velas 1m antes de decidir arriba/abajo.",
+                    "tone": "watch",
+                    "href": href,
+                }
+            )
+            continue
+
+        close = data["close"]
+        prior = safe_float(close.iloc[-21]) if len(close) >= 21 else safe_float(close.iloc[0])
+        momentum_20m = ((price / prior) - 1.0) if prior else 0.0
+        sma9 = safe_float(close.tail(9).mean()) or price
+        sma20 = safe_float(close.tail(20).mean()) or price
+        returns = close.pct_change().replace([float("inf"), float("-inf")], pd.NA).dropna()
+        minute_vol = safe_float(returns.tail(20).std()) or 0.001
+        expected_move_pct = min(0.018, max(0.0015, minute_vol * math.sqrt(20)))
+        strike_gap = min(0.012, max(0.0015, expected_move_pct * 0.55))
+        direction = "Arriba" if momentum_20m >= 0 and price >= sma9 else "Abajo"
+        if direction == "Arriba":
+            strike = price * (1.0 + strike_gap)
+            trend_ok = price >= sma9 >= min(sma20, sma9)
+        else:
+            strike = price * (1.0 - strike_gap)
+            trend_ok = price <= sma9 <= max(sma20, sma9)
+        distance_pct = abs(strike - price) / price
+        momentum_aligned = (direction == "Arriba" and momentum_20m > 0) or (direction == "Abajo" and momentum_20m < 0)
+        confidence = 45
+        confidence += 16 if trend_ok else 4
+        confidence += 16 if expected_move_pct >= distance_pct else 6
+        confidence += min(18, abs(momentum_20m) * 2400)
+        confidence += 8 if momentum_aligned else 0
+        confidence = int(min(92, max(35, round(confidence))))
+        tone = "buy" if confidence >= 68 else ("watch" if confidence >= 55 else "avoid")
+        action = "Paper SI 20m" if tone == "buy" else ("Vigilar 20m" if tone == "watch" else "No operar 20m")
+        next_step = (
+            f"Solo paper/manual: {direction.lower()} de {price_display(strike)} en ventana de 20m; "
+            "confirmar spread y liquidez antes de arriesgar."
+        )
+        rows.append(
+            {
+                "symbol": str(symbol).upper(),
+                "price": price,
+                "direction": direction,
+                "strike": strike,
+                "distance_pct": distance_pct,
+                "momentum_20m": momentum_20m,
+                "confidence": confidence,
+                "action": action,
+                "risk_dollars": risk_budget,
+                "source": "crypto_1m_ohlcv",
+                "expires_at": expires_at.strftime("%H:%M UTC"),
+                "next_step": next_step,
+                "tone": tone,
+                "href": href,
+            }
+        )
+    return pd.DataFrame(rows, columns=columns).sort_values("confidence", ascending=False).reset_index(drop=True)
+
+
+def render_crypto_twenty_min_strike_panel(
+    *,
+    account_equity: float,
+    risk_pct: float,
+    symbols: list[str] | tuple[str, ...] | None = None,
+) -> None:
+    rows = crypto_twenty_min_strike_rows(
+        account_equity=account_equity,
+        risk_pct=risk_pct,
+        symbols=symbols,
+        limit=4,
+    )
+    if rows.empty:
+        return
+    cards: list[str] = []
+    for row in rows.to_dict("records"):
+        tone = text_display(row.get("tone"))
+        if tone not in {"buy", "watch", "avoid"}:
+            tone = "watch"
+        cards.append(
+            f'<article class="strike20-card strike20-{html.escape(tone)}">'
+            f'<header><a href="{html.escape(text_display(row.get("href")))}">{html.escape(text_display(row.get("symbol")))}</a>'
+            f'<span>{html.escape(text_display(row.get("expires_at")))}</span></header>'
+            f'<strong>{html.escape(text_display(row.get("action")))}</strong>'
+            f'<p>{html.escape(text_display(row.get("direction")))} de <b>{html.escape(price_display(row.get("strike")))}</b> en 20 min</p>'
+            '<div class="strike20-metrics">'
+            f'<b><small>Ahora</small>{html.escape(price_display(row.get("price")))}</b>'
+            f'<b><small>Distancia</small>{html.escape(pct_display(row.get("distance_pct")))}</b>'
+            f'<b><small>Mom. 20m</small>{html.escape(pct_display(row.get("momentum_20m")))}</b>'
+            f'<b><small>Conf.</small>{html.escape(num_display(row.get("confidence"), 0))}/100</b>'
+            f'<b><small>Riesgo</small>${html.escape(num_display(row.get("risk_dollars"), 2))}</b>'
+            "</div>"
+            f'<em>{html.escape(text_display(row.get("next_step"))[:160])}</em>'
+            f'<a class="budget-chart-link" href="{html.escape(text_display(row.get("href")))}">Cargar en graficas</a>'
+            "</article>"
+        )
+    st.markdown(
+        '<section class="strike20-panel">'
+        '<header><strong>Crypto 20 minutos</strong><span>Simulacion paper/manual · no coloca orden real · no es garantia</span></header>'
+        f'<div class="strike20-grid">{"".join(cards)}</div>'
+        "</section>",
+        unsafe_allow_html=True,
+    )
+
+
 def budget_trade_plan_rows(
     table: pd.DataFrame,
     *,
@@ -23674,6 +23871,10 @@ def render_budget_split_opportunities_panel(
         risk_pct=risk_pct,
         market_label="Criptomonedas disponibles para trabajar",
         market_scope="Crypto",
+    )
+    render_crypto_twenty_min_strike_panel(
+        account_equity=account_equity,
+        risk_pct=risk_pct,
     )
 
 
@@ -34053,6 +34254,25 @@ def main() -> None:
         .budget-chart-link{display:inline-flex;align-self:flex-start;border:1px solid rgba(59,130,246,.45);border-radius:999px;background:rgba(30,64,175,.18);color:#bfdbfe!important;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.04em;text-decoration:none!important;padding:4px 8px}
         .budget-chart-link:hover{background:rgba(37,99,235,.30);color:#eff6ff!important}
         .budget-market-buy{border-top-color:#22c55e;background:rgba(20,83,45,.24)}.budget-market-watch{border-top-color:#f59e0b;background:rgba(120,53,15,.20)}.budget-market-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.18)}
+        .strike20-panel{border:1px solid rgba(14,165,233,.28);border-radius:8px;background:#060b14;margin:8px 0 10px;overflow:hidden}
+        .strike20-panel>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 10px;background:#07111f;border-bottom:1px solid rgba(148,163,184,.14)}
+        .strike20-panel>header strong{color:#f8fafc;font-size:15px;font-weight:950;line-height:1.1}
+        .strike20-panel>header span{color:#7dd3fc;font-size:11px;text-align:right}
+        .strike20-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
+        .strike20-card{display:flex;flex-direction:column;gap:6px;min-width:0;background:#0b1220;padding:9px;border-top:3px solid #64748b}
+        .strike20-card header{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+        .strike20-card header a{color:#f8fafc!important;font-size:20px;font-weight:950;line-height:1;text-decoration:none!important}
+        .strike20-card header span{color:#93c5fd;font-size:10px;font-weight:900;text-align:right;text-transform:uppercase}
+        .strike20-card strong{color:#e2e8f0;font-size:13px;line-height:1.05}
+        .strike20-card p{margin:0;color:#cbd5e1;font-size:11px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .strike20-card p b{color:#f8fafc}
+        .strike20-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border:1px solid rgba(148,163,184,.14);border-radius:6px;overflow:hidden}
+        .strike20-metrics b{display:block;min-width:0;background:#0f172a;color:#f8fafc;font-size:10px;line-height:1.05;padding:6px 6px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .strike20-metrics small{display:block;color:#94a3b8;font-size:7px;line-height:1;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+        .strike20-card em{display:block;margin:0;color:#94a3b8;font-size:10px;line-height:1.25;font-style:normal;min-height:24px}
+        .strike20-buy{border-top-color:#22c55e;background:linear-gradient(180deg,rgba(20,83,45,.26),#0b1220)}
+        .strike20-watch{border-top-color:#f59e0b;background:linear-gradient(180deg,rgba(120,53,15,.24),#0b1220)}
+        .strike20-avoid{border-top-color:#ef4444;background:linear-gradient(180deg,rgba(127,29,29,.22),#0b1220)}
         .budget-top-panel{border:1px solid rgba(34,197,94,.28);border-radius:8px;background:#070b14;margin:8px 0 10px;overflow:hidden}
         .budget-top-panel>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:8px 10px;background:#0d1424;border-bottom:1px solid rgba(148,163,184,.14)}
         .budget-top-panel>header strong{color:#f8fafc;font-size:15px;font-weight:950;line-height:1}
@@ -34435,7 +34655,7 @@ def main() -> None:
         div[data-testid="stDataFrame"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;overflow:hidden}
         @media (max-width:1100px){.command-checklist{grid-template-columns:repeat(3,minmax(0,1fr))}}
         @media (max-width:1100px){.ticker-intel,.alpaca-gate,.alpaca-paper-panel{grid-template-columns:1fr}.ticker-intel-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.paper-journal-summary,.paper-exec-summary,.paper-practice-summary,.trading-desk-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.trading-desk-queue>div{grid-template-columns:repeat(2,minmax(0,1fr))}.desk-opportunity-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.paper-position-grid,.paper-strategy-grid,.paper-practice-grid,.paper-journal-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exit-grid,.provider-grid,.preset-grid,.research-grid,.paper-exec-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.confirm-radar-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.executive-cockpit{grid-template-columns:1fr}.scanner-tape,.scanner-compass{grid-template-columns:1fr}.scanner-tape div{border-right:0;border-bottom:1px solid rgba(148,163,184,.16);padding:0 0 8px}.scanner-tape div:last-child{border-bottom:0;padding-bottom:0}.scanner-compass em{text-align:left}.scanner-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-lane-grid{grid-template-columns:1fr}.wall-main{grid-template-columns:1fr}.wall-heatmap{grid-template-columns:repeat(4,minmax(0,1fr))}.market-mover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-grid-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.validation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.buy-gap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.breadth-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.index-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mover-grid{grid-template-columns:1fr}.discovery-grid{grid-template-columns:1fr}.crypto-discovery-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.brand-logo-img{width:150px;max-width:42vw}.roxy-hero-right{grid-template-columns:1fr 1fr}.dashboard-compact-head{grid-template-columns:1fr 1fr}.dashboard-compact-head p,.dashboard-compact-head small{grid-column:1/-1;text-align:left}.dashboard-action-queue header,.priority-trade-lanes>header,.budget-top-panel>header,.budget-fit-strip>header,.budget-allocation-panel>header,.budget-plan-panel>header,.budget-market-panel>header,.small-learning-panel>header{display:block}.dashboard-action-queue header span,.priority-trade-lanes>header span,.budget-top-panel>header span,.budget-fit-strip>header span,.budget-allocation-panel>header span,.budget-plan-panel>header span,.budget-market-panel>header span,.small-learning-panel>header span{display:block;text-align:left;margin-top:4px}.dashboard-action-queue>div,.priority-lane-grid,.budget-top-panel>div,.budget-fit-strip>div,.budget-allocation-panel>div,.budget-plan-panel>div,.budget-market-grid,.small-learning-panel>div{grid-template-columns:1fr}.budget-empty-card{display:block}.budget-empty-card p,.budget-empty-card small{display:block;text-align:left;white-space:normal;margin-top:4px}.dashboard-compact-brand .brand-logo-img{width:82px;max-width:82px}.chart-command-head{display:block}.chart-command-head aside{justify-content:flex-start;margin-top:8px}.chart-next-action{white-space:normal;max-width:none;overflow:visible;text-overflow:clip}.chart-check-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}.command-quick-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.market-route{display:block}.market-route p{margin-top:8px}.market-route-chips{justify-content:flex-start;margin-top:8px}.selected-asset-banner{display:block;padding:8px 9px}.selected-asset-banner strong{font-size:14px}.selected-asset-banner small{font-size:10px}.selected-asset-scope{text-align:left;min-width:0;margin-top:7px}.priority-trade-card p,.priority-trade-card b,.budget-top-card b,.budget-top-card i,.budget-fit-card b,.budget-fit-card i,.budget-allocation-card b,.budget-allocation-card i,.budget-plan-card strong,.budget-plan-card small,.budget-market-card p,.budget-market-card em,.budget-market-metrics b,.small-learning-card strong{white-space:normal}}
+        @media (max-width:900px){.roxy-hero{grid-template-columns:1fr}.platform-strip{grid-template-columns:1fr}.roxy-hero h1{font-size:26px}.brand-logo-img{width:150px;max-width:42vw}.roxy-hero-right{grid-template-columns:1fr 1fr}.dashboard-compact-head{grid-template-columns:1fr 1fr}.dashboard-compact-head p,.dashboard-compact-head small{grid-column:1/-1;text-align:left}.dashboard-action-queue header,.priority-trade-lanes>header,.budget-top-panel>header,.budget-fit-strip>header,.budget-allocation-panel>header,.budget-plan-panel>header,.budget-market-panel>header,.strike20-panel>header,.small-learning-panel>header{display:block}.dashboard-action-queue header span,.priority-trade-lanes>header span,.budget-top-panel>header span,.budget-fit-strip>header span,.budget-allocation-panel>header span,.budget-plan-panel>header span,.budget-market-panel>header span,.strike20-panel>header span,.small-learning-panel>header span{display:block;text-align:left;margin-top:4px}.dashboard-action-queue>div,.priority-lane-grid,.budget-top-panel>div,.budget-fit-strip>div,.budget-allocation-panel>div,.budget-plan-panel>div,.budget-market-grid,.strike20-grid,.small-learning-panel>div{grid-template-columns:1fr}.budget-empty-card{display:block}.budget-empty-card p,.budget-empty-card small{display:block;text-align:left;white-space:normal;margin-top:4px}.dashboard-compact-brand .brand-logo-img{width:82px;max-width:82px}.chart-command-head{display:block}.chart-command-head aside{justify-content:flex-start;margin-top:8px}.chart-next-action{white-space:normal;max-width:none;overflow:visible;text-overflow:clip}.chart-check-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-context{grid-template-columns:1fr}.command-center{grid-template-columns:1fr}.command-quick-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.market-route{display:block}.market-route p{margin-top:8px}.market-route-chips{justify-content:flex-start;margin-top:8px}.selected-asset-banner{display:block;padding:8px 9px}.selected-asset-banner strong{font-size:14px}.selected-asset-banner small{font-size:10px}.selected-asset-scope{text-align:left;min-width:0;margin-top:7px}.priority-trade-card p,.priority-trade-card b,.budget-top-card b,.budget-top-card i,.budget-fit-card b,.budget-fit-card i,.budget-allocation-card b,.budget-allocation-card i,.budget-plan-card strong,.budget-plan-card small,.budget-market-card p,.budget-market-card em,.budget-market-metrics b,.strike20-card p,.strike20-card em,.strike20-metrics b,.small-learning-card strong{white-space:normal}}
         @media (max-width:600px){.metric-card{min-width:120px}.roxy-brand-row{align-items:flex-start}.brand-logo-img{width:132px;max-width:46vw}.roxy-hero-right{grid-template-columns:1fr}.study-hero{display:block}.study-status{margin-top:12px}.flow-step{width:100%}.chart-command-head strong{font-size:19px}.chart-check-strip{grid-template-columns:1fr}.chart-check-pill{display:block;padding:7px 8px}.chart-check-pill strong{margin-top:6px}.chart-check-pill small{white-space:normal}.command-checklist,.command-quick-strip{grid-template-columns:1fr}.command-main h2{font-size:25px}.ticker-intel-kpis{grid-template-columns:1fr 1fr}.ticker-intel-main h3{font-size:23px}.company-research>header,.confirmation-radar>header,.exit-board>header,.paper-position-panel>header,.paper-strategy-panel>header,.paper-practice-panel>header,.paper-journal-panel>header,.paper-exec-panel>header,.provider-center>header,.screener-presets>header,.trading-desk-queue>header,.live-pulse header,.live-ops-strip header{display:block}.company-research>header span,.confirmation-radar>header span,.exit-board>header span,.paper-position-panel>header span,.paper-strategy-panel>header span,.paper-practice-panel>header span,.paper-journal-panel>header span,.paper-exec-panel>header span,.provider-center>header span,.screener-presets>header span,.trading-desk-queue>header span,.live-pulse header span,.live-ops-strip header span{display:block;text-align:left;margin-top:4px}.chart-data-contract{display:block}.chart-data-contract aside{grid-template-columns:1fr 1fr}.chart-data-contract p{border-top:1px solid rgba(148,163,184,.14)}.live-pulse-grid,.live-ops-grid{grid-template-columns:1fr}.provider-quality,.provider-confirmation{display:block}.provider-quality p,.provider-confirmation p{margin-top:8px}.provider-quality small{margin-top:6px}.provider-confirmation aside{grid-template-columns:1fr;margin-top:8px}.paper-journal-summary,.paper-exec-summary,.paper-practice-summary,.trading-desk-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.trading-desk-focus{display:block}.trading-desk-focus p{margin-top:8px}.trading-desk-focus small{display:block;margin-top:5px;white-space:normal}.trading-desk-queue>div{grid-template-columns:1fr}.desk-opportunity-grid{grid-template-columns:1fr}.paper-position-grid,.paper-strategy-grid,.paper-practice-grid,.paper-journal-grid{grid-template-columns:1fr}.exit-grid,.provider-grid,.preset-grid,.research-grid,.confirm-radar-grid,.paper-exec-grid{grid-template-columns:1fr}.exec-kpis{grid-template-columns:1fr 1fr}.exec-main h2{font-size:23px}.roxy-radar-guide,.scanner-card-grid{grid-template-columns:1fr}.scanner-lane-row{grid-template-columns:1fr}.scanner-lane-row span,.scanner-lane-row em{text-align:left}.scanner-tape div{display:block}.scanner-tape span{text-align:left;display:block;margin-top:4px}.wall-ticker{grid-template-columns:1fr}.wall-ticker span{text-align:left}.wall-stats{grid-template-columns:1fr 1fr}.wall-heatmap{grid-template-columns:repeat(2,minmax(0,1fr))}.wall-tables{grid-template-columns:1fr}.top-opps-header{display:block}.top-opps-header span{display:block;text-align:left;margin-top:4px}.compare-board>header{display:block}.compare-board>header span{display:block;text-align:left;margin-top:4px}.compare-grid-cards{grid-template-columns:1fr}.opportunity-matrix header{display:block}.opportunity-matrix aside{text-align:left;margin-top:7px}.matrix-summary{grid-template-columns:1fr}.matrix-grid{grid-template-columns:1fr}.validation-board header{display:block}.validation-board header span{text-align:left;display:block;margin-top:4px}.validation-grid{grid-template-columns:1fr}.buy-gap-panel header{display:block}.buy-gap-panel header span{display:block;text-align:left;margin-top:4px}.buy-gap-grid{grid-template-columns:1fr}.buy-gap-strip{grid-template-columns:1fr}.buy-gap-strip em{white-space:normal}.breadth-grid{grid-template-columns:1fr}.index-grid{grid-template-columns:1fr}.market-discovery-deck>header{grid-template-columns:1fr}.mover-section-grid,.sector-map-grid,.crypto-discovery-grid,.asset-stat-grid{grid-template-columns:1fr 1fr}.stock-monitor-row{grid-template-columns:1fr}.stock-monitor-row small{white-space:normal}}
         </style>
         """,
