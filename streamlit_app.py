@@ -23174,11 +23174,14 @@ def crypto_twenty_min_strike_rows(
         "strike",
         "distance_pct",
         "momentum_20m",
+        "momentum_5m",
         "confidence",
         "action",
         "risk_dollars",
         "source",
         "expires_at",
+        "minutes_to_expiry",
+        "timer_state",
         "next_step",
         "tone",
         "href",
@@ -23186,7 +23189,14 @@ def crypto_twenty_min_strike_rows(
     risk_budget = max(1.0, safe_float(account_equity) or 100.0) * max(0.001, safe_float(risk_pct) or 0.01)
     selected_symbols = list(dict.fromkeys(symbols or DEFAULT_CRYPTO_SYMBOLS))[: max(1, int(limit or 4))]
     current_time = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    expires_at = current_time + timedelta(minutes=20)
+    minute_block = (current_time.minute // 20 + 1) * 20
+    expires_at = current_time.replace(second=0, microsecond=0)
+    if minute_block >= 60:
+        expires_at = expires_at.replace(minute=0) + timedelta(hours=1)
+    else:
+        expires_at = expires_at.replace(minute=minute_block)
+    minutes_to_expiry = max(0.0, (expires_at - current_time).total_seconds() / 60.0)
+    timer_state = "Ventana valida" if 8.0 <= minutes_to_expiry <= 18.5 else "Esperar proxima ronda"
     rows: list[dict[str, Any]] = []
     for symbol in selected_symbols:
         href = f"?view=Activo&symbol={quote(str(symbol).upper(), safe='')}&market=crypto&tf=1m"
@@ -23201,11 +23211,14 @@ def crypto_twenty_min_strike_rows(
                     "strike": None,
                     "distance_pct": None,
                     "momentum_20m": None,
+                    "momentum_5m": None,
                     "confidence": 0,
                     "action": "Sin datos 1m",
                     "risk_dollars": risk_budget,
                     "source": f"crypto_1m_error:{type(exc).__name__}",
                     "expires_at": expires_at.strftime("%H:%M UTC"),
+                    "minutes_to_expiry": minutes_to_expiry,
+                    "timer_state": timer_state,
                     "next_step": "No operar 20m hasta recibir velas 1m frescas.",
                     "tone": "avoid",
                     "href": href,
@@ -23221,11 +23234,14 @@ def crypto_twenty_min_strike_rows(
                     "strike": None,
                     "distance_pct": None,
                     "momentum_20m": None,
+                    "momentum_5m": None,
                     "confidence": 0,
                     "action": "Sin velas 1m",
                     "risk_dollars": risk_budget,
                     "source": "crypto_1m_empty",
                     "expires_at": expires_at.strftime("%H:%M UTC"),
+                    "minutes_to_expiry": minutes_to_expiry,
+                    "timer_state": timer_state,
                     "next_step": "No operar 20m hasta tener precio y velas 1m.",
                     "tone": "avoid",
                     "href": href,
@@ -23248,11 +23264,14 @@ def crypto_twenty_min_strike_rows(
                     "strike": None,
                     "distance_pct": None,
                     "momentum_20m": None,
+                    "momentum_5m": None,
                     "confidence": 0,
                     "action": "Historial corto",
                     "risk_dollars": risk_budget,
                     "source": "crypto_1m_insufficient",
                     "expires_at": expires_at.strftime("%H:%M UTC"),
+                    "minutes_to_expiry": minutes_to_expiry,
+                    "timer_state": timer_state,
                     "next_step": "Esperar mas velas 1m antes de decidir arriba/abajo.",
                     "tone": "watch",
                     "href": href,
@@ -23262,34 +23281,60 @@ def crypto_twenty_min_strike_rows(
 
         close = data["close"]
         prior = safe_float(close.iloc[-21]) if len(close) >= 21 else safe_float(close.iloc[0])
+        prior_5m = safe_float(close.iloc[-6]) if len(close) >= 6 else safe_float(close.iloc[0])
         momentum_20m = ((price / prior) - 1.0) if prior else 0.0
+        momentum_5m = ((price / prior_5m) - 1.0) if prior_5m else 0.0
         sma9 = safe_float(close.tail(9).mean()) or price
         sma20 = safe_float(close.tail(20).mean()) or price
         returns = close.pct_change().replace([float("inf"), float("-inf")], pd.NA).dropna()
         minute_vol = safe_float(returns.tail(20).std()) or 0.001
         expected_move_pct = min(0.018, max(0.0015, minute_vol * math.sqrt(20)))
         strike_gap = min(0.012, max(0.0015, expected_move_pct * 0.55))
-        direction = "Arriba" if momentum_20m >= 0 and price >= sma9 else "Abajo"
+        bullish_confirmed = momentum_20m > 0.0005 and momentum_5m > 0.0002 and price >= sma9 >= sma20
+        bearish_confirmed = momentum_20m < -0.0005 and momentum_5m < -0.0002 and price <= sma9 <= sma20
+        if bullish_confirmed:
+            direction = "Arriba"
+        elif bearish_confirmed:
+            direction = "Abajo"
+        else:
+            direction = "Esperar"
         if direction == "Arriba":
             strike = price * (1.0 + strike_gap)
-            trend_ok = price >= sma9 >= min(sma20, sma9)
-        else:
+            trend_ok = bullish_confirmed
+        elif direction == "Abajo":
             strike = price * (1.0 - strike_gap)
-            trend_ok = price <= sma9 <= max(sma20, sma9)
+            trend_ok = bearish_confirmed
+        else:
+            strike = price * (1.0 + strike_gap if momentum_5m >= 0 else 1.0 - strike_gap)
+            trend_ok = False
         distance_pct = abs(strike - price) / price
         momentum_aligned = (direction == "Arriba" and momentum_20m > 0) or (direction == "Abajo" and momentum_20m < 0)
-        confidence = 45
-        confidence += 16 if trend_ok else 4
-        confidence += 16 if expected_move_pct >= distance_pct else 6
-        confidence += min(18, abs(momentum_20m) * 2400)
-        confidence += 8 if momentum_aligned else 0
-        confidence = int(min(92, max(35, round(confidence))))
-        tone = "buy" if confidence >= 68 else ("watch" if confidence >= 55 else "avoid")
+        edge_ratio = expected_move_pct / distance_pct if distance_pct else 0.0
+        confidence = 35
+        confidence += 20 if trend_ok else 0
+        confidence += 16 if momentum_aligned and direction != "Esperar" else 0
+        confidence += 14 if edge_ratio >= 1.35 else (6 if edge_ratio >= 1.0 else 0)
+        confidence += min(12, abs(momentum_20m) * 1200)
+        confidence += 6 if 8.0 <= minutes_to_expiry <= 18.5 else -18
+        confidence = int(min(92, max(0, round(confidence))))
+        timer_ok = timer_state == "Ventana valida"
+        ready = direction != "Esperar" and trend_ok and momentum_aligned and edge_ratio >= 1.1 and timer_ok
+        tone = "buy" if ready and confidence >= 78 else ("watch" if confidence >= 58 else "avoid")
         action = "Paper SI 20m" if tone == "buy" else ("Vigilar 20m" if tone == "watch" else "No operar 20m")
-        next_step = (
-            f"Solo paper/manual: {direction.lower()} de {price_display(strike)} en ventana de 20m; "
-            "confirmar spread y liquidez antes de arriesgar."
-        )
+        if not timer_ok:
+            action = "Esperar timer"
+            tone = "watch"
+            next_step = (
+                f"No entrar ahora: quedan {num_display(minutes_to_expiry, 1)} min para el cierre. "
+                "Evaluar al inicio de la proxima ronda :00/:20/:40."
+            )
+        elif direction == "Esperar":
+            next_step = "No operar 20m: 20m y 5m no estan alineados con medias; esperar confirmacion clara."
+        else:
+            next_step = (
+                f"Solo paper/manual: {direction.lower()} de {price_display(strike)} antes de {expires_at.strftime('%H:%M UTC')}; "
+                "confirmar spread y liquidez antes de arriesgar."
+            )
         rows.append(
             {
                 "symbol": str(symbol).upper(),
@@ -23298,11 +23343,14 @@ def crypto_twenty_min_strike_rows(
                 "strike": strike,
                 "distance_pct": distance_pct,
                 "momentum_20m": momentum_20m,
+                "momentum_5m": momentum_5m,
                 "confidence": confidence,
                 "action": action,
                 "risk_dollars": risk_budget,
                 "source": "crypto_1m_ohlcv",
                 "expires_at": expires_at.strftime("%H:%M UTC"),
+                "minutes_to_expiry": minutes_to_expiry,
+                "timer_state": timer_state,
                 "next_step": next_step,
                 "tone": tone,
                 "href": href,
@@ -23340,9 +23388,11 @@ def render_crypto_twenty_min_strike_panel(
             f'<b><small>Ahora</small>{html.escape(price_display(row.get("price")))}</b>'
             f'<b><small>Distancia</small>{html.escape(pct_display(row.get("distance_pct")))}</b>'
             f'<b><small>Mom. 20m</small>{html.escape(pct_display(row.get("momentum_20m")))}</b>'
+            f'<b><small>Mom. 5m</small>{html.escape(pct_display(row.get("momentum_5m")))}</b>'
+            f'<b><small>Timer</small>{html.escape(num_display(row.get("minutes_to_expiry"), 1))}m</b>'
             f'<b><small>Conf.</small>{html.escape(num_display(row.get("confidence"), 0))}/100</b>'
-            f'<b><small>Riesgo</small>${html.escape(num_display(row.get("risk_dollars"), 2))}</b>'
             "</div>"
+            f'<small>{html.escape(text_display(row.get("timer_state")))}</small>'
             f'<em>{html.escape(text_display(row.get("next_step"))[:160])}</em>'
             f'<a class="budget-chart-link" href="{html.escape(text_display(row.get("href")))}">Cargar en graficas</a>'
             "</article>"
@@ -34266,9 +34316,10 @@ def main() -> None:
         .strike20-card strong{color:#e2e8f0;font-size:13px;line-height:1.05}
         .strike20-card p{margin:0;color:#cbd5e1;font-size:11px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .strike20-card p b{color:#f8fafc}
-        .strike20-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border:1px solid rgba(148,163,184,.14);border-radius:6px;overflow:hidden}
+        .strike20-metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border:1px solid rgba(148,163,184,.14);border-radius:6px;overflow:hidden}
         .strike20-metrics b{display:block;min-width:0;background:#0f172a;color:#f8fafc;font-size:10px;line-height:1.05;padding:6px 6px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .strike20-metrics small{display:block;color:#94a3b8;font-size:7px;line-height:1;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+        .strike20-card>small{display:block;color:#93c5fd;font-size:10px;line-height:1;font-weight:900;text-transform:uppercase;letter-spacing:.04em}
         .strike20-card em{display:block;margin:0;color:#94a3b8;font-size:10px;line-height:1.25;font-style:normal;min-height:24px}
         .strike20-buy{border-top-color:#22c55e;background:linear-gradient(180deg,rgba(20,83,45,.26),#0b1220)}
         .strike20-watch{border-top-color:#f59e0b;background:linear-gradient(180deg,rgba(120,53,15,.24),#0b1220)}

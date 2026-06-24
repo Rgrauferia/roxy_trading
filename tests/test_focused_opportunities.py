@@ -2948,14 +2948,64 @@ def test_crypto_twenty_min_strike_rows_builds_paper_decision(monkeypatch):
 
     monkeypatch.setattr(streamlit_app, "fetch_crypto_history_fast", fake_crypto_history)
 
-    rows = crypto_twenty_min_strike_rows(account_equity=100, risk_pct=0.01, symbols=["BTC/USD"], limit=1)
+    rows = crypto_twenty_min_strike_rows(
+        account_equity=100,
+        risk_pct=0.01,
+        symbols=["BTC/USD"],
+        limit=1,
+        now=datetime(2026, 6, 1, 12, 5, tzinfo=timezone.utc),
+    )
 
     assert rows.iloc[0]["symbol"] == "BTC/USD"
     assert rows.iloc[0]["direction"] == "Arriba"
     assert rows.iloc[0]["strike"] > rows.iloc[0]["price"]
     assert rows.iloc[0]["risk_dollars"] == 1.0
-    assert rows.iloc[0]["confidence"] >= 55
+    assert rows.iloc[0]["confidence"] >= 58
+    assert rows.iloc[0]["action"] == "Vigilar 20m"
+    assert rows.iloc[0]["expires_at"] == "12:20 UTC"
     assert "market=crypto" in rows.iloc[0]["href"]
+
+
+def test_crypto_twenty_min_strike_rows_blocks_late_timer(monkeypatch):
+    def fake_crypto_history(symbol, *, timeframe="1m", limit=80):
+        closes = [100.0 + idx * 0.08 for idx in range(80)]
+        return pd.DataFrame({"close": closes, "volume": [1000] * 80})
+
+    monkeypatch.setattr(streamlit_app, "fetch_crypto_history_fast", fake_crypto_history)
+
+    rows = crypto_twenty_min_strike_rows(
+        account_equity=100,
+        risk_pct=0.01,
+        symbols=["BTC/USD"],
+        limit=1,
+        now=datetime(2026, 6, 1, 12, 16, tzinfo=timezone.utc),
+    )
+
+    assert rows.iloc[0]["expires_at"] == "12:20 UTC"
+    assert rows.iloc[0]["action"] == "Esperar timer"
+    assert rows.iloc[0]["timer_state"] == "Esperar proxima ronda"
+    assert rows.iloc[0]["confidence"] < 78
+
+
+def test_crypto_twenty_min_strike_rows_blocks_unaligned_reversal(monkeypatch):
+    def fake_crypto_history(symbol, *, timeframe="1m", limit=80):
+        closes = [100.0] * 60 + [99, 98, 97, 96, 95, 94, 93, 92, 91, 90, 89, 88, 87, 86]
+        closes += [86.2, 86.4, 86.6, 86.8, 87.0, 87.2]
+        return pd.DataFrame({"close": closes, "volume": [1000] * 80})
+
+    monkeypatch.setattr(streamlit_app, "fetch_crypto_history_fast", fake_crypto_history)
+
+    rows = crypto_twenty_min_strike_rows(
+        account_equity=100,
+        risk_pct=0.01,
+        symbols=["ETH/USD"],
+        limit=1,
+        now=datetime(2026, 6, 1, 12, 5, tzinfo=timezone.utc),
+    )
+
+    assert rows.iloc[0]["direction"] == "Esperar"
+    assert rows.iloc[0]["action"] != "Paper SI 20m"
+    assert "no estan alineados" in rows.iloc[0]["next_step"]
 
 
 def test_opportunity_budget_fit_caps_crypto_position_to_account_equity():
