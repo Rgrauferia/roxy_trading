@@ -400,6 +400,37 @@ def roxy_avatar_html(state: str = "ready", variant: str = "mini", label: str = "
     )
 
 
+def roxy_hologram_avatar_html(state: str = "listening", label: str = "Roxy Trading AI") -> str:
+    path = ROXY_AVATAR_VARIANT_PATHS.get("splash", ROXY_AVATAR_PATH)
+    try:
+        data = path.read_bytes()
+    except OSError:
+        image_html = ROXY_LOGO_SVG.strip()
+    else:
+        encoded = base64.b64encode(data).decode("ascii")
+        safe_label = html.escape(str(label or "Roxy Trading AI"))
+        image_html = f'<img src="data:image/jpeg;base64,{encoded}" alt="{safe_label}"/>'
+    safe_state = html.escape(str(state or "listening"))
+    safe_label = html.escape(str(label or "Roxy Trading AI"))
+    wave_bars = "".join(f"<i style=\"--i:{idx}\"></i>" for idx in range(1, 18))
+    return (
+        f'<div class="roxy-hologram-avatar roxy-hologram-{safe_state}" title="{safe_label}">'
+        '<div class="roxy-orbit roxy-orbit-one"></div>'
+        '<div class="roxy-orbit roxy-orbit-two"></div>'
+        '<div class="roxy-orbit roxy-orbit-three"></div>'
+        '<div class="roxy-avatar-core">'
+        f"{image_html}"
+        '<span class="roxy-face-glow"></span>'
+        '<span class="roxy-blink"></span>'
+        '</div>'
+        '<div class="roxy-audio-wave" aria-hidden="true">'
+        f"{wave_bars}"
+        "</div>"
+        '<div class="roxy-hologram-name"><strong>ROXY</strong><span>AI Trading Core</span></div>'
+        "</div>"
+    )
+
+
 def roxy_welcome_card_html() -> str:
     path = ROXY_AVATAR_VARIANT_PATHS.get("card", ROXY_AVATAR_PATH)
     try:
@@ -9369,21 +9400,24 @@ def render_roxy_brand_header(
         )
 
     hero_html = (
-        '<section class="roxy-hero">'
-        '<div class="roxy-hero-left">'
+        '<section class="roxy-hero roxy-holographic-hero">'
+        '<div class="roxy-hero-panel roxy-hero-left">'
         '<div class="roxy-brand-row">'
         f'{brand_logo_html()}'
-        '<div><h1>Roxy Trading</h1>'
-        '<p>Scanner profesional · SMA 20/40/100/200 · saltos · alertas IA 24h</p></div>'
+        '<div><span class="roxy-kicker">Grau Service LLC · AI trading terminal</span>'
+        '<h1>Roxy Trading</h1>'
+        '<p>Terminal holografica para escanear mercado, leer estrategia y proteger capital en paper/manual.</p></div>'
         '</div>'
         '<div class="hero-flow">'
-        '<div class="flow-step"><span>1</span>Detecta setup</div>'
-        '<div class="flow-step"><span>2</span>Valida 1h + 15m</div>'
-        '<div class="flow-step"><span>3</span>Plan de riesgo</div>'
-        '<div class="flow-step"><span>4</span>Ticket manual</div>'
-        '<div class="flow-step"><span>5</span>Memoria IA</div>'
+        '<div class="flow-step"><span>01</span>Market scan live</div>'
+        '<div class="flow-step"><span>02</span>Valida 1h + 15m</div>'
+        '<div class="flow-step"><span>03</span>Entrada · stop · target</div>'
+        '<div class="flow-step"><span>04</span>Riesgo por presupuesto</div>'
         '</div></div>'
-        '<div class="roxy-hero-right">'
+        '<div class="roxy-hero-center">'
+        f'{roxy_hologram_avatar_html("listening", "Roxy Trading AI")}'
+        '</div>'
+        '<div class="roxy-hero-panel roxy-hero-right">'
         f'{chip("24h", service_label, service_tone)}'
         f'{chip("Datos", freshness.get("label"), data_tone)}'
         f'{chip("Realtime", realtime_data_status.get("label"), realtime_data_status.get("tone", "watch"))}'
@@ -32709,6 +32743,22 @@ def render_focused_static_workspace(context: dict[str, Any], realtime: dict[str,
         st.session_state.get("command_symbol", "AAPL"),
     )
     if selected_page == "Dashboard":
+        render_roxy_brand_header(
+            scan_df=context.get("scan_df") if isinstance(context.get("scan_df"), pd.DataFrame) else pd.DataFrame(),
+            confluence_df=(
+                context.get("confluence_df")
+                if isinstance(context.get("confluence_df"), pd.DataFrame)
+                else pd.DataFrame()
+            ),
+            options_df=(
+                context.get("options_df") if isinstance(context.get("options_df"), pd.DataFrame) else pd.DataFrame()
+            ),
+            daily_path=context.get("daily_path"),
+            live_path=context.get("live_path"),
+            confluence_path=context.get("confluence_path"),
+            options_path=context.get("options_path"),
+            brief=brief,
+        )
         with st.expander("Herramientas globales de Roxy", expanded=False):
             show_focused_controls()
             render_roxy_now_strip(brief)
@@ -34465,10 +34515,32 @@ def main() -> None:
         .roxy-now-buy{border-left:4px solid #22c55e}.roxy-now-buy .roxy-now-main{background:rgba(21,93,62,.24)}
         .roxy-now-watch{border-left:4px solid #f59e0b}.roxy-now-watch .roxy-now-main{background:rgba(120,74,15,.22)}
         .roxy-now-avoid{border-left:4px solid #ef4444}.roxy-now-avoid .roxy-now-main{background:rgba(127,29,29,.24)}
-        .roxy-hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,520px);gap:18px;align-items:stretch;border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#0d1426;padding:16px 18px;margin:0 0 10px;box-shadow:0 16px 42px rgba(0,0,0,.24)}
+        @keyframes roxyBreath{0%,100%{transform:translateY(0) scale(1);filter:drop-shadow(0 0 18px rgba(56,189,248,.40))}50%{transform:translateY(-4px) scale(1.018);filter:drop-shadow(0 0 28px rgba(56,189,248,.62))}}
+        @keyframes roxyBlink{0%,92%,100%{opacity:0;transform:scaleY(.05)}94%,96%{opacity:.55;transform:scaleY(1)}}
+        @keyframes roxyOrbit{0%{transform:translate(-50%,-50%) rotate(0deg)}100%{transform:translate(-50%,-50%) rotate(360deg)}}
+        @keyframes roxyPulse{0%,100%{opacity:.42;transform:translate(-50%,-50%) scale(.92)}50%{opacity:.88;transform:translate(-50%,-50%) scale(1.04)}}
+        @keyframes roxyWave{0%,100%{height:8px;opacity:.45}50%{height:34px;opacity:1}}
+        @keyframes roxyScanline{0%{transform:translateX(-35%);opacity:0}18%,72%{opacity:.7}100%{transform:translateX(135%);opacity:0}}
+        @keyframes roxyParticleDrift{0%{background-position:0 0,0 0,0 0}100%{background-position:140px -220px,-180px 260px,90px 180px}}
+        .stApp{background:
+            radial-gradient(circle at 50% 10%,rgba(56,189,248,.15),transparent 34%),
+            radial-gradient(circle at 88% 8%,rgba(212,175,96,.12),transparent 28%),
+            linear-gradient(135deg,#020617 0%,#071426 46%,#04111f 100%)!important;color:#e5edf7}
+        .stApp:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background-image:
+            radial-gradient(circle,rgba(125,211,252,.34) 0 1px,transparent 1.5px),
+            radial-gradient(circle,rgba(212,175,96,.22) 0 1px,transparent 1.5px),
+            linear-gradient(120deg,transparent 0 46%,rgba(56,189,248,.08) 48%,transparent 50%);background-size:92px 92px,142px 142px,100% 100%;animation:roxyParticleDrift 18s linear infinite;opacity:.42}
+        .block-container{position:relative;z-index:1}
+        .roxy-hero{position:relative;display:grid;grid-template-columns:minmax(280px,.95fr) minmax(260px,420px) minmax(290px,.9fr);gap:18px;align-items:center;border:1px solid rgba(56,189,248,.28);border-radius:8px;background:
+            linear-gradient(135deg,rgba(2,6,23,.76),rgba(8,47,73,.42) 46%,rgba(2,6,23,.82)),
+            radial-gradient(circle at 50% 40%,rgba(56,189,248,.24),transparent 42%);padding:18px;margin:0 0 10px;overflow:hidden;box-shadow:0 28px 80px rgba(0,0,0,.42),0 0 44px rgba(56,189,248,.12),inset 0 0 0 1px rgba(255,255,255,.04);backdrop-filter:blur(18px)}
+        .roxy-hero:before{content:"";position:absolute;inset:-1px;background:linear-gradient(90deg,transparent,rgba(56,189,248,.22),rgba(212,175,96,.18),transparent);animation:roxyScanline 7.5s ease-in-out infinite;pointer-events:none}
+        .roxy-hero:after{content:"";position:absolute;inset:0;background:linear-gradient(rgba(125,211,252,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,252,.04) 1px,transparent 1px);background-size:44px 44px;mask-image:radial-gradient(circle at 50% 45%,#000,transparent 76%);pointer-events:none}
+        .roxy-holographic-hero>*{position:relative;z-index:1}
+        .roxy-hero-panel{border:1px solid rgba(125,211,252,.20);border-radius:8px;background:linear-gradient(145deg,rgba(15,23,42,.70),rgba(8,21,38,.40));box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 18px 44px rgba(2,6,23,.28);padding:14px;backdrop-filter:blur(12px)}
         .roxy-brand-row{display:flex;align-items:center;gap:14px}
         .roxy-logo-svg{width:58px;height:58px;flex:0 0 auto;filter:drop-shadow(0 10px 18px rgba(34,197,94,.15))}
-        .brand-logo-img{width:178px;max-width:32vw;height:auto;display:block;border:1px solid rgba(212,175,96,.32);border-radius:8px;background:#030307;box-shadow:0 12px 30px rgba(0,0,0,.32)}
+        .brand-logo-img{width:178px;max-width:32vw;height:auto;display:block;border:1px solid rgba(212,175,96,.48);border-radius:8px;background:#030307;box-shadow:0 14px 34px rgba(0,0,0,.34),0 0 28px rgba(212,175,96,.16)}
         .roxy-ai-mark{width:58px;height:58px;display:grid;place-items:center;flex:0 0 auto;border-radius:8px;border:1px solid rgba(96,165,250,.38);background:linear-gradient(135deg,rgba(37,99,235,.24),rgba(14,165,233,.10));box-shadow:0 14px 30px rgba(0,0,0,.24)}
         .roxy-ai-mark span{display:grid;place-items:center;width:34px;height:34px;border-radius:8px;background:rgba(15,23,42,.88);color:#bfdbfe;font-size:13px;font-weight:950;letter-spacing:.04em;border:1px solid rgba(147,197,253,.28)}
         .roxy-avatar{position:relative;width:78px;height:78px;flex:0 0 auto;border-radius:8px;overflow:hidden;border:1px solid rgba(96,165,250,.42);background:#06111f;box-shadow:0 16px 34px rgba(0,0,0,.34)}
@@ -34487,11 +34559,29 @@ def main() -> None:
         .roxy-welcome-card span{display:block;color:#93c5fd;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:0}
         .roxy-welcome-card strong{display:block;color:#f8fafc;font-size:17px;line-height:1.18;margin-top:4px}
         .roxy-welcome-card p{margin:5px 0 0;color:#94a3b8;font-size:13px;line-height:1.35}
-        .roxy-hero h1{font-size:34px;line-height:1.05;margin:0;color:#f8fafc;letter-spacing:0}
-        .roxy-hero p{margin:6px 0 0;color:#b7c1d0;font-size:14px;line-height:1.35}
+        .roxy-kicker{display:block;color:#d4af60;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.12em;margin-bottom:4px}
+        .roxy-hero h1{font-size:38px;line-height:1;margin:0;color:#f8fafc;letter-spacing:0;text-shadow:0 0 24px rgba(56,189,248,.36)}
+        .roxy-hero p{margin:7px 0 0;color:#c8d7ea;font-size:14px;line-height:1.35}
         .hero-flow{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
-        .flow-step{display:flex;align-items:center;gap:7px;border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#111827;padding:8px 10px;color:#dbeafe;font-weight:750;font-size:12px;line-height:1.2}
-        .flow-step span{display:inline-grid;place-items:center;width:19px;height:19px;border-radius:50%;background:#1f2937;color:#93c5fd;font-size:11px;font-weight:900}
+        .flow-step{display:flex;align-items:center;gap:7px;border:1px solid rgba(56,189,248,.26);border-radius:8px;background:rgba(2,6,23,.42);padding:8px 10px;color:#dbeafe;font-weight:800;font-size:12px;line-height:1.2;box-shadow:inset 0 0 18px rgba(56,189,248,.06)}
+        .flow-step span{display:inline-grid;place-items:center;min-width:23px;height:19px;border-radius:999px;background:rgba(212,175,96,.18);border:1px solid rgba(212,175,96,.35);color:#fde68a;font-size:10px;font-weight:950}
+        .roxy-hero-center{min-height:340px;display:grid;place-items:center;position:relative}
+        .roxy-hologram-avatar{position:relative;width:min(360px,100%);aspect-ratio:1/1.12;display:grid;place-items:center;isolation:isolate}
+        .roxy-avatar-core{position:relative;width:70%;aspect-ratio:1/1.18;border-radius:8px;overflow:hidden;border:1px solid rgba(125,211,252,.42);background:#030711;box-shadow:0 0 0 1px rgba(255,255,255,.06),0 0 56px rgba(56,189,248,.28),0 26px 80px rgba(0,0,0,.55);animation:roxyBreath 4.8s ease-in-out infinite;transform-origin:center bottom}
+        .roxy-avatar-core img{width:100%;height:100%;object-fit:cover;object-position:center 20%;display:block;filter:saturate(1.12) contrast(1.04)}
+        .roxy-avatar-core:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(56,189,248,.12),transparent 30%,rgba(212,175,96,.10) 68%,transparent),linear-gradient(180deg,transparent 68%,rgba(2,6,23,.62));mix-blend-mode:screen;pointer-events:none}
+        .roxy-avatar-core:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(180deg,rgba(125,211,252,.12) 0 1px,transparent 1px 7px);opacity:.18;pointer-events:none}
+        .roxy-face-glow{position:absolute;inset:6%;border-radius:50%;box-shadow:0 0 34px rgba(56,189,248,.25);pointer-events:none}
+        .roxy-blink{position:absolute;left:23%;right:23%;top:32%;height:8%;border-radius:999px;background:linear-gradient(180deg,rgba(2,6,23,.74),rgba(2,6,23,.18));opacity:0;animation:roxyBlink 5.6s infinite;pointer-events:none}
+        .roxy-orbit{position:absolute;left:50%;top:66%;border-radius:50%;border:1px solid rgba(56,189,248,.36);box-shadow:0 0 24px rgba(56,189,248,.18);transform:translate(-50%,-50%);pointer-events:none}
+        .roxy-orbit-one{width:84%;height:21%;animation:roxyOrbit 11s linear infinite}
+        .roxy-orbit-two{width:102%;height:28%;border-color:rgba(212,175,96,.28);animation:roxyOrbit 15s linear infinite reverse}
+        .roxy-orbit-three{width:64%;height:16%;border-color:rgba(125,211,252,.24);animation:roxyPulse 3.2s ease-in-out infinite}
+        .roxy-audio-wave{position:absolute;left:50%;bottom:9%;transform:translateX(-50%);display:flex;align-items:center;gap:4px;height:42px;padding:8px 12px;border:1px solid rgba(56,189,248,.26);border-radius:999px;background:rgba(2,6,23,.42);box-shadow:0 0 22px rgba(56,189,248,.14);backdrop-filter:blur(10px)}
+        .roxy-audio-wave i{display:block;width:3px;height:14px;border-radius:999px;background:linear-gradient(180deg,#d4af60,#38bdf8);animation:roxyWave 1.35s ease-in-out infinite;animation-delay:calc(var(--i) * -0.07s)}
+        .roxy-hologram-name{position:absolute;left:50%;bottom:-1%;transform:translateX(-50%);text-align:center;text-shadow:0 0 18px rgba(56,189,248,.55)}
+        .roxy-hologram-name strong{display:block;color:#f8fafc;font-size:36px;line-height:.9;font-weight:950;letter-spacing:.10em}
+        .roxy-hologram-name span{display:block;color:#bfdbfe;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.20em;margin-top:6px}
         .market-route{display:grid;grid-template-columns:minmax(220px,.42fr) minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid rgba(148,163,184,.22);border-left:3px solid rgba(148,163,184,.45);border-radius:8px;background:#0b1220;padding:10px 12px;margin:8px 0 10px}
         .market-route-head span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}
         .market-route-head strong{display:block;color:#f8fafc;font-size:18px;line-height:1.08;font-weight:950;margin-top:3px}
@@ -34503,14 +34593,15 @@ def main() -> None:
         .market-route-buy{border-left-color:#22c55e;background:rgba(21,93,62,.14)}
         .market-route-watch{border-left-color:#f59e0b;background:rgba(120,74,15,.14)}
         .market-route-avoid{border-left-color:#ef4444;background:rgba(127,29,29,.16)}
-        .roxy-hero-right{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-        .hero-chip{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#111827;padding:10px 12px;min-height:68px}
-        .hero-chip span{display:block;color:#94a3b8;font-size:12px;font-weight:800;margin-bottom:6px}
-        .hero-chip strong{display:block;color:#f8fafc;font-size:18px;line-height:1.18;overflow-wrap:anywhere}
-        .hero-chip-buy{border-color:rgba(34,197,94,.42);box-shadow:inset 0 0 0 1px rgba(34,197,94,.12)}
-        .hero-chip-watch{border-color:rgba(245,158,11,.42);box-shadow:inset 0 0 0 1px rgba(245,158,11,.10)}
-        .hero-chip-avoid{border-color:rgba(239,68,68,.42);box-shadow:inset 0 0 0 1px rgba(239,68,68,.10)}
-        .hero-subline{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:#9aa4b2;font-size:12px;margin:0 0 12px;padding:0 2px}
+        .roxy-hero-right{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-content:center}
+        .hero-chip{position:relative;border:1px solid rgba(125,211,252,.22);border-radius:8px;background:linear-gradient(145deg,rgba(15,23,42,.76),rgba(8,21,38,.48));padding:10px 12px;min-height:72px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 10px 26px rgba(2,6,23,.22);overflow:hidden}
+        .hero-chip:after{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,transparent,rgba(56,189,248,.70),rgba(212,175,96,.55),transparent)}
+        .hero-chip span{display:block;color:#9bdcff;font-size:11px;font-weight:950;margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em}
+        .hero-chip strong{display:block;color:#f8fafc;font-size:17px;line-height:1.16;overflow-wrap:anywhere}
+        .hero-chip-buy{border-color:rgba(34,197,94,.42);box-shadow:inset 0 0 0 1px rgba(34,197,94,.10),0 0 22px rgba(34,197,94,.08)}
+        .hero-chip-watch{border-color:rgba(212,175,96,.48);box-shadow:inset 0 0 0 1px rgba(212,175,96,.10),0 0 22px rgba(212,175,96,.08)}
+        .hero-chip-avoid{border-color:rgba(239,68,68,.42);box-shadow:inset 0 0 0 1px rgba(239,68,68,.10),0 0 22px rgba(239,68,68,.08)}
+        .hero-subline{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:#a7b6cc;font-size:12px;margin:0 0 12px;padding:0 2px;text-shadow:0 0 12px rgba(56,189,248,.18)}
         .platform-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 14px}
         .platform-badge{display:flex;align-items:center;gap:10px;border:1px solid rgba(148,163,184,.18);border-radius:8px;background:#0b1220;padding:10px 12px;min-height:70px}
         .platform-badge-buy{border-color:rgba(34,197,94,.32)}
