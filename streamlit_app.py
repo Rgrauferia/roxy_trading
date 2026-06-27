@@ -30624,6 +30624,34 @@ def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> 
     current_equity = float(st.session_state.get("command_equity", 100.0) or 100.0)
     current_risk = float(st.session_state.get("command_risk", 1.0) or 1.0)
     current_1r = current_equity * (current_risk / 100.0)
+    table = best if isinstance(best, pd.DataFrame) else pd.DataFrame()
+    ready_now = 0
+    watch_now = 0
+    if not table.empty:
+        pulse = market_pulse_summary(table)
+        ready_now = int(pulse.get("ready") or 0)
+        watch_now = int(pulse.get("watch") or 0)
+    st.markdown(
+        f"""
+        <section class="roxy-trade-cockpit">
+          <div class="roxy-cockpit-copy">
+            <span>Grau Service LLC · Roxy AI Trading</span>
+            <strong>{html.escape(text_display(current_symbol).upper())}</strong>
+            <p>Roxy esta leyendo precio, velas, presupuesto y estrategia antes de marcar entrada.</p>
+          </div>
+          <div class="roxy-cockpit-avatar">
+            {roxy_hologram_avatar_html("listening", "Roxy escucha el mercado")}
+          </div>
+          <div class="roxy-cockpit-telemetry">
+            <div><span>Capital</span><strong>${current_equity:,.0f}</strong></div>
+            <div><span>1R</span><strong>${current_1r:,.2f}</strong></div>
+            <div><span>Listas</span><strong>{ready_now}</strong></div>
+            <div><span>Vigilar</span><strong>{watch_now}</strong></div>
+          </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
     st.markdown(
         f"""
         <section class="trade-desk-control-panel">
@@ -34479,6 +34507,26 @@ def main() -> None:
         .trade-desk-order-note{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid rgba(56,189,248,.24);border-left:3px solid #38bdf8;border-radius:6px;background:rgba(11,18,32,.72);padding:5px 8px;margin:0 0 4px}
         .trade-desk-order-note strong{color:#f8fafc;font-size:12px;font-weight:950;line-height:1;text-transform:uppercase;letter-spacing:.04em}
         .trade-desk-order-note span{color:#cbd5e1;font-size:11px;font-weight:750;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .roxy-trade-cockpit{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 160px minmax(250px,.9fr);gap:12px;align-items:center;border:1px solid rgba(56,189,248,.34);border-left:4px solid #d4af60;border-radius:8px;background:
+            radial-gradient(circle at 50% 45%,rgba(56,189,248,.20),transparent 36%),
+            linear-gradient(135deg,rgba(2,6,23,.92),rgba(8,47,73,.56) 52%,rgba(2,6,23,.92));padding:10px 12px;margin:0 0 8px;overflow:hidden;box-shadow:0 18px 48px rgba(2,6,23,.42),0 0 36px rgba(56,189,248,.10),inset 0 1px 0 rgba(255,255,255,.06)}
+        .roxy-trade-cockpit:before{content:"";position:absolute;inset:0;background:linear-gradient(rgba(125,211,252,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,252,.045) 1px,transparent 1px);background-size:36px 36px;mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);pointer-events:none}
+        .roxy-trade-cockpit:after{content:"";position:absolute;left:-20%;top:0;width:34%;height:100%;background:linear-gradient(90deg,transparent,rgba(56,189,248,.22),rgba(212,175,96,.18),transparent);transform:skewX(-18deg);animation:roxyScanline 6.5s ease-in-out infinite;pointer-events:none}
+        .roxy-trade-cockpit>*{position:relative;z-index:1}
+        .roxy-cockpit-copy span{display:block;color:#d4af60;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.10em;line-height:1}
+        .roxy-cockpit-copy strong{display:block;color:#f8fafc;font-size:30px;line-height:.95;margin-top:6px;font-weight:950;text-shadow:0 0 24px rgba(56,189,248,.42)}
+        .roxy-cockpit-copy p{margin:6px 0 0;color:#c8d7ea;font-size:12px;line-height:1.25;max-width:520px}
+        .roxy-cockpit-avatar{display:grid;place-items:center;min-height:126px}
+        .roxy-cockpit-avatar .roxy-hologram-avatar{width:150px;aspect-ratio:1/.96}
+        .roxy-cockpit-avatar .roxy-avatar-core{width:72%;border-radius:50%;aspect-ratio:1/1;box-shadow:0 0 0 1px rgba(255,255,255,.06),0 0 42px rgba(56,189,248,.34),0 18px 48px rgba(0,0,0,.48)}
+        .roxy-cockpit-avatar .roxy-avatar-core img{object-position:center 22%}
+        .roxy-cockpit-avatar .roxy-hologram-name{display:none}
+        .roxy-cockpit-avatar .roxy-audio-wave{bottom:1%;height:28px;padding:5px 9px}
+        .roxy-cockpit-avatar .roxy-audio-wave i{width:2px}
+        .roxy-cockpit-telemetry{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+        .roxy-cockpit-telemetry div{border:1px solid rgba(125,211,252,.22);border-radius:8px;background:rgba(2,6,23,.45);padding:8px 9px;min-width:0;box-shadow:inset 0 0 18px rgba(56,189,248,.045)}
+        .roxy-cockpit-telemetry span{display:block;color:#8bd8ff;font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.07em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .roxy-cockpit-telemetry strong{display:block;color:#f8fafc;font-size:16px;line-height:1.05;margin-top:4px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .trade-desk-control-panel{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid rgba(34,197,94,.24);border-left:4px solid #f59e0b;border-radius:8px;background:linear-gradient(135deg,rgba(7,12,22,.96),rgba(12,20,36,.90));padding:8px 10px;margin:0 0 6px;box-shadow:0 14px 34px rgba(2,6,23,.26)}
         .trade-desk-control-brand{display:flex;align-items:center;gap:10px;min-width:0}
         .trade-desk-control-brand .brand-logo-img{width:72px;max-width:72px;min-width:72px;border-radius:6px;object-fit:contain}
@@ -34489,6 +34537,8 @@ def main() -> None:
         .trade-desk-control-status strong,.trade-desk-quick-metrics strong{display:block;color:#f8fafc;font-size:13px;line-height:1.05;font-weight:950;white-space:nowrap}
         .trade-desk-quick-metrics{margin-top:0}
         .trade-desk-quick-metrics small{display:block;color:#cbd5e1;font-size:10px;line-height:1.1;margin-top:3px;white-space:nowrap}
+        @media (max-width:980px){.roxy-trade-cockpit{grid-template-columns:minmax(0,1fr) 118px;gap:8px;padding:9px 10px}.roxy-cockpit-avatar{grid-column:2;grid-row:1 / span 2;min-height:104px}.roxy-cockpit-avatar .roxy-hologram-avatar{width:110px}.roxy-cockpit-copy{grid-column:1;grid-row:1}.roxy-cockpit-copy strong{font-size:24px}.roxy-cockpit-copy p{font-size:11px}.roxy-cockpit-telemetry{grid-column:1;grid-row:2;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}.roxy-cockpit-telemetry div{padding:6px}.roxy-cockpit-telemetry strong{font-size:13px}.roxy-cockpit-avatar .roxy-audio-wave{display:none}}
+        @media (max-width:520px){.roxy-trade-cockpit{grid-template-columns:minmax(0,1fr) 82px;margin-bottom:6px}.roxy-cockpit-copy span{font-size:8px}.roxy-cockpit-copy strong{font-size:21px}.roxy-cockpit-copy p{display:none}.roxy-cockpit-avatar{min-height:82px}.roxy-cockpit-avatar .roxy-hologram-avatar{width:82px}.roxy-cockpit-telemetry{grid-template-columns:repeat(2,minmax(0,1fr))}.roxy-cockpit-telemetry div:nth-child(n+3){display:none}.roxy-cockpit-telemetry span{font-size:8px}.roxy-cockpit-telemetry strong{font-size:12px}}
         @media (max-width:720px){.trade-desk-control-panel{grid-template-columns:1fr;padding:8px;margin-bottom:4px}.trade-desk-control-brand .brand-logo-img{width:64px;max-width:64px;min-width:64px}.trade-desk-control-brand strong{font-size:18px}.trade-desk-control-status{display:none}.trade-desk-quick-metrics{min-width:0;padding:8px 7px}.trade-desk-control-brand small{font-size:10px}}
         .launch-operator-shell{display:grid;grid-template-columns:minmax(220px,.85fr) minmax(280px,1.25fr) minmax(420px,1.45fr);gap:1px;border:1px solid rgba(148,163,184,.24);border-radius:8px;background:rgba(148,163,184,.16);overflow:hidden;margin:8px 0 10px;box-shadow:0 18px 46px rgba(2,6,23,.34)}
         .launch-operator-brand,.launch-operator-main,.launch-operator-metrics,.launch-operator-bottom{background:#070c16;min-width:0}
