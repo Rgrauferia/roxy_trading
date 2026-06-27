@@ -35392,6 +35392,8 @@ def main() -> None:
         .roxy-reference-stage .roxy-stage-center:before{content:"";position:absolute;left:50%;top:50%;width:min(520px,86vw);height:78%;transform:translate(-50%,-50%);background:radial-gradient(ellipse at 50% 45%,rgba(56,189,248,.26),rgba(14,165,233,.09) 34%,transparent 72%);filter:blur(2px);pointer-events:none;animation:roxyHaloBreathe 5.6s ease-in-out infinite}
         .roxy-reference-stage .roxy-stage-left,.roxy-reference-stage .roxy-stage-center,.roxy-reference-stage .roxy-stage-right{display:grid}
         .roxy-reference-stage .roxy-stage-center .roxy-hologram-avatar{width:min(500px,100%);aspect-ratio:.78/1}
+        .roxy-reference-stage .roxy-stage-center .roxy-avatar-core{border:0;border-radius:0;background:transparent;box-shadow:none;filter:drop-shadow(0 0 42px rgba(56,189,248,.42));-webkit-mask-image:radial-gradient(ellipse 47% 58% at 50% 46%,#000 0 70%,rgba(0,0,0,.76) 80%,rgba(0,0,0,.22) 90%,transparent 100%);mask-image:radial-gradient(ellipse 47% 58% at 50% 46%,#000 0 70%,rgba(0,0,0,.76) 80%,rgba(0,0,0,.22) 90%,transparent 100%)}
+        .roxy-reference-stage .roxy-stage-center .roxy-avatar-core img{filter:saturate(1.22) contrast(1.08) brightness(1.06)}
         .roxy-reference-stage .roxy-stage-title{display:none}
         .roxy-reference-stage .roxy-stage-title strong{font-size:76px;letter-spacing:.05em}
         .roxy-reference-stage .roxy-stage-title span{font-size:14px}
