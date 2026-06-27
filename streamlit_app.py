@@ -418,7 +418,6 @@ ROXY_LOGO_SVG = """
 """
 
 BRAND_LOGO_PATH = project_path("assets/grau_service_logo.png")
-ROXY_COMMAND_REFERENCE_PATH = project_path("assets/roxy_command_reference.jpg")
 ROXY_AVATAR_PATH = project_path("assets/roxy_avatar.jpg")
 ROXY_AVATAR_VARIANT_PATHS = {
     "main": ROXY_AVATAR_PATH,
@@ -436,15 +435,6 @@ def brand_logo_html() -> str:
         return ROXY_LOGO_SVG.strip()
     encoded = base64.b64encode(data).decode("ascii")
     return f'<img class="brand-logo-img" src="data:image/png;base64,{encoded}" alt="Grau Service LLC logo"/>'
-
-
-def image_css_url(path: Path, mime: str = "image/jpeg") -> str:
-    try:
-        data = path.read_bytes()
-    except OSError:
-        return "none"
-    encoded = base64.b64encode(data).decode("ascii")
-    return f"url('data:{mime};base64,{encoded}')"
 
 
 def roxy_avatar_html(state: str = "ready", variant: str = "mini", label: str = "Roxy AI") -> str:
@@ -31004,7 +30994,6 @@ def render_roxy_opening_stage(
     active_module = normalize_roxy_module(module_from_query, default="") if module_from_query else ""
     if active_module:
         st.session_state["roxy_active_module"] = active_module
-    reference_bg = image_css_url(ROXY_COMMAND_REFERENCE_PATH, "image/jpeg")
     modules_html = "".join(
         f"""
         <a class="roxy-stage-module {'roxy-stage-module-active' if item['slug'] == active_module else ''}"
@@ -31018,7 +31007,7 @@ def render_roxy_opening_stage(
     )
     st.markdown(
         f"""
-        <section class="roxy-opening-stage roxy-reference-stage" style="--roxy-reference-bg:{reference_bg};">
+        <section class="roxy-opening-stage roxy-reference-stage">
           <div class="roxy-stage-left">
             <div class="roxy-stage-bubble">
               <strong>Hola, soy Roxy.</strong>
@@ -35382,9 +35371,22 @@ def main() -> None:
         .roxy-stage-module b{display:grid;place-items:center;width:38px;height:38px;margin:0 auto 8px;border:1px solid rgba(56,189,248,.44);border-radius:50%;background:radial-gradient(circle,rgba(56,189,248,.25),rgba(2,6,23,.70));color:#e0f2fe;font-size:12px;font-weight:950;line-height:1;letter-spacing:.02em;box-shadow:0 0 22px rgba(56,189,248,.20)}
         .roxy-stage-module span{color:#8bd8ff;font-size:9px;letter-spacing:.08em}
         .roxy-stage-module strong{display:block;color:#f8fafc;font-size:11px;line-height:1.18;margin-top:5px;min-height:26px;overflow:hidden}
-        .roxy-reference-stage{display:grid;grid-template-columns:1fr;grid-template-areas:"modules";align-items:end;aspect-ratio:16/9;min-height:620px;padding:0 44px 24px;background-image:linear-gradient(180deg,rgba(0,0,0,.04),rgba(0,0,0,.02) 55%,rgba(2,6,23,.76) 78%,rgba(2,6,23,.96)),var(--roxy-reference-bg)!important;background-size:cover!important;background-position:center center!important;border-left-width:0;border-color:rgba(56,189,248,.20);box-shadow:0 26px 90px rgba(0,0,0,.52)}
-        .roxy-reference-stage .roxy-stage-left,.roxy-reference-stage .roxy-stage-center,.roxy-reference-stage .roxy-stage-right{display:none}
-        .roxy-reference-stage .roxy-stage-modules{grid-area:modules;grid-template-columns:repeat(6,minmax(0,1fr));gap:0;margin:0;align-self:end;background:linear-gradient(90deg,transparent,rgba(2,6,23,.34) 10%,rgba(2,6,23,.38) 90%,transparent);padding-top:4px}
+        .roxy-reference-stage{grid-template-columns:minmax(220px,.86fr) minmax(330px,520px) minmax(250px,.9fr);grid-template-areas:"left center right" "modules modules modules";align-items:center;min-height:620px;padding:28px 40px 24px;background:
+            radial-gradient(circle at 50% 42%,rgba(56,189,248,.30),transparent 33%),
+            radial-gradient(circle at 75% 18%,rgba(212,175,96,.13),transparent 23%),
+            linear-gradient(90deg,rgba(2,6,23,.94),rgba(8,47,73,.56) 47%,rgba(2,6,23,.94)),
+            linear-gradient(180deg,#030711,#061320)!important;border-left-width:0;border-color:rgba(56,189,248,.22);box-shadow:0 26px 90px rgba(0,0,0,.52),0 0 54px rgba(56,189,248,.10)}
+        .roxy-reference-stage .roxy-stage-left,.roxy-reference-stage .roxy-stage-center,.roxy-reference-stage .roxy-stage-right{display:grid}
+        .roxy-reference-stage .roxy-stage-center .roxy-hologram-avatar{width:min(500px,100%);aspect-ratio:.78/1}
+        .roxy-reference-stage .roxy-stage-title{display:none}
+        .roxy-reference-stage .roxy-stage-title strong{font-size:76px;letter-spacing:.05em}
+        .roxy-reference-stage .roxy-stage-title span{font-size:14px}
+        .roxy-reference-stage .roxy-stage-brand{border:0;background:transparent;box-shadow:none;padding:0;justify-items:start}
+        .roxy-reference-stage .roxy-stage-brand .brand-logo-img{width:220px;border-color:rgba(212,175,96,.54);background:rgba(2,6,23,.38)}
+        .roxy-reference-stage .roxy-stage-brand span{color:#f8fafc;font-size:13px;letter-spacing:.12em}
+        .roxy-reference-stage .roxy-stage-brand strong{font-size:19px;max-width:260px}
+        .roxy-reference-stage .roxy-stage-values div{background:rgba(15,23,42,.38);backdrop-filter:blur(8px)}
+        .roxy-reference-stage .roxy-stage-modules{grid-area:modules;grid-template-columns:repeat(6,minmax(0,1fr));gap:0;margin:8px 0 0;align-self:end;background:linear-gradient(90deg,transparent,rgba(2,6,23,.24) 10%,rgba(2,6,23,.30) 90%,transparent);padding-top:10px}
         .roxy-reference-stage .roxy-stage-module{border:0;border-radius:0;background:transparent;padding:2px 13px 0;box-shadow:none;border-right:1px solid rgba(125,211,252,.22)}
         .roxy-reference-stage .roxy-stage-module:last-child{border-right:0}
         .roxy-reference-stage .roxy-stage-module:hover{transform:translateY(-3px);box-shadow:none}
@@ -35440,9 +35442,9 @@ def main() -> None:
         .roxy-floating-avatar div>span{display:block;color:#cbd5e1;font-size:10px;line-height:1.2;margin-top:3px}
         @media (max-width:760px){.roxy-folder-head{grid-template-columns:1fr}.roxy-folder-head small{text-align:left}}
         @media (max-width:1080px){.roxy-opening-stage{grid-template-columns:minmax(0,1fr) minmax(250px,360px);grid-template-areas:"left center" "right center" "modules modules";min-height:390px}.roxy-stage-right{grid-template-columns:1fr 1fr}.roxy-stage-brand{align-content:center}.roxy-stage-values{gap:6px}.roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-stage-title strong{font-size:50px}}
-        @media (max-width:1080px){.roxy-reference-stage{grid-template-areas:"modules";grid-template-columns:1fr;min-height:min(620px,calc((100vw - 32px)*.78));aspect-ratio:auto;padding:0 18px 18px;background-position:center top!important}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:10px;background:linear-gradient(180deg,rgba(2,6,23,.10),rgba(2,6,23,.74));padding-top:12px}.roxy-reference-stage .roxy-stage-module{border-right:0}.roxy-reference-stage .roxy-stage-module b{width:44px;height:44px}}
+        @media (max-width:1080px){.roxy-reference-stage{grid-template-columns:minmax(0,1fr) minmax(260px,420px);grid-template-areas:"left center" "right center" "modules modules";min-height:580px;padding:20px 18px 18px}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:10px;background:linear-gradient(180deg,rgba(2,6,23,.10),rgba(2,6,23,.74));padding-top:12px}.roxy-reference-stage .roxy-stage-module{border-right:0}.roxy-reference-stage .roxy-stage-module b{width:44px;height:44px}}
         @media (max-width:760px){.roxy-opening-stage{grid-template-columns:1fr;grid-template-areas:"center" "modules";gap:10px;min-height:0;padding:10px 10px 9px;margin-top:2px}.roxy-stage-center{min-height:270px}.roxy-stage-center .roxy-hologram-avatar{width:min(292px,91vw)}.roxy-stage-title{bottom:8px}.roxy-stage-title strong{font-size:44px}.roxy-stage-title span{font-size:10px;letter-spacing:.18em}.roxy-stage-left{display:block;position:absolute;left:15px;top:13px;width:min(150px,40%);z-index:3}.roxy-stage-bubble{max-width:none;padding:9px 10px;border-radius:8px;background:rgba(2,6,23,.54)}.roxy-stage-bubble:after{display:none}.roxy-stage-bubble strong{font-size:15px}.roxy-stage-bubble span{font-size:10px;line-height:1.15;margin-top:5px}.roxy-stage-bubble i{width:4px;height:4px;margin-top:7px}.roxy-stage-wave,.roxy-stage-status{display:none}.roxy-stage-right{display:block;position:absolute;right:14px;top:12px;width:min(132px,36%);z-index:3}.roxy-stage-brand{display:grid;justify-items:end;gap:2px;border:0;background:transparent;padding:0;box-shadow:none;text-align:right}.roxy-stage-brand .brand-logo-img{width:112px;border-color:rgba(212,175,96,.42);background:rgba(2,6,23,.25)}.roxy-stage-brand span{font-size:8px;color:#f8fafc}.roxy-stage-brand strong{display:none}.roxy-stage-values{display:none}.roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:0}.roxy-stage-module{padding:8px 6px}.roxy-stage-module b{width:32px;height:32px;margin-bottom:6px}.roxy-stage-module strong{font-size:10px;min-height:24px}.roxy-asset-card{grid-template-columns:1fr 1fr;padding:10px}.roxy-asset-command-bar{grid-template-columns:1fr;gap:8px}.roxy-asset-live{text-align:left;justify-items:start}.roxy-floating-avatar{right:10px;bottom:66px;max-width:210px}}
-        @media (max-width:760px){.roxy-reference-stage{min-height:650px;padding:0 14px 16px;background-size:120% auto!important;background-repeat:no-repeat!important;background-position:center top!important;background-color:#020817}.roxy-reference-stage .roxy-stage-left,.roxy-reference-stage .roxy-stage-center,.roxy-reference-stage .roxy-stage-right{display:none}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;background:linear-gradient(180deg,rgba(2,6,23,.16),rgba(2,6,23,.82));padding-top:10px}.roxy-reference-stage .roxy-stage-module{padding:4px 5px}.roxy-reference-stage .roxy-stage-module b{width:42px;height:42px;margin-bottom:7px}.roxy-reference-stage .roxy-stage-module span{font-size:9px}.roxy-reference-stage .roxy-stage-module strong{font-size:9px;min-height:24px}}
+        @media (max-width:760px){.roxy-reference-stage{grid-template-columns:1fr;grid-template-areas:"center" "modules";min-height:620px;padding:10px 14px 14px}.roxy-reference-stage .roxy-stage-center{min-height:330px}.roxy-reference-stage .roxy-stage-center .roxy-hologram-avatar{width:min(315px,92vw);aspect-ratio:.70/1}.roxy-reference-stage .roxy-stage-left{display:block;position:absolute;left:16px;top:18px;width:min(178px,47%);z-index:3}.roxy-reference-stage .roxy-stage-right{display:block;position:absolute;right:14px;top:16px;width:min(132px,35%);z-index:3}.roxy-reference-stage .roxy-stage-brand .brand-logo-img{width:124px}.roxy-reference-stage .roxy-stage-brand span{font-size:8px}.roxy-reference-stage .roxy-stage-brand strong,.roxy-reference-stage .roxy-stage-values,.roxy-reference-stage .roxy-stage-wave,.roxy-reference-stage .roxy-stage-status{display:none}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;background:linear-gradient(180deg,rgba(2,6,23,.16),rgba(2,6,23,.82));padding-top:8px}.roxy-reference-stage .roxy-stage-module{padding:2px 5px}.roxy-reference-stage .roxy-stage-module b{width:40px;height:40px;margin-bottom:6px}.roxy-reference-stage .roxy-stage-module span{font-size:8.5px}.roxy-reference-stage .roxy-stage-module strong{font-size:8.5px;min-height:21px}}
         @media (max-width:430px){.roxy-stage-center{min-height:245px}.roxy-stage-center .roxy-hologram-avatar{width:min(255px,90vw)}.roxy-stage-title strong{font-size:38px}.roxy-stage-modules{grid-template-columns:repeat(2,minmax(0,1fr))}.roxy-stage-module:nth-child(n+5){display:block}.roxy-stage-module{padding:7px 5px}}
         .roxy-trade-cockpit{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 160px minmax(250px,.9fr);gap:12px;align-items:center;border:1px solid rgba(56,189,248,.34);border-left:4px solid #d4af60;border-radius:8px;background:
             radial-gradient(circle at 50% 45%,rgba(56,189,248,.20),transparent 36%),
