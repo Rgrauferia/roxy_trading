@@ -30612,6 +30612,84 @@ def render_roxy_lab_visual(brief: dict, memory: dict) -> None:
     )
 
 
+def render_roxy_opening_stage(
+    symbol: str,
+    market: str,
+    timeframe: str,
+    equity: float,
+    risk_pct: float,
+    risk_cash: float,
+    ready_now: int,
+    watch_now: int,
+) -> None:
+    safe_symbol = html.escape(text_display(symbol).upper())
+    safe_market = html.escape(text_display(market).upper())
+    safe_timeframe = html.escape(text_display(timeframe))
+    module_items = [
+        ("Graficas", f"{safe_timeframe} + 15m"),
+        ("Watchlist", f"{ready_now} listas"),
+        ("Vigilar", f"{watch_now} setups"),
+        ("Capital", f"${equity:,.0f}"),
+        ("Riesgo", f"{risk_pct:.1f}%"),
+        ("1R", f"${risk_cash:,.2f}"),
+    ]
+    modules_html = "".join(
+        f"""
+        <div class="roxy-stage-module">
+          <span>{label}</span>
+          <strong>{value}</strong>
+        </div>
+        """
+        for label, value in module_items
+    )
+    st.markdown(
+        f"""
+        <section class="roxy-opening-stage">
+          <div class="roxy-stage-left">
+            <div class="roxy-stage-bubble">
+              <strong>Hola, soy Roxy.</strong>
+              <span>Estoy lista para analizar {safe_symbol} y buscar oportunidades con tu presupuesto.</span>
+              <i></i><i></i><i></i>
+            </div>
+            <div class="roxy-stage-wave" aria-hidden="true">
+              <b style="--i:1"></b><b style="--i:2"></b><b style="--i:3"></b><b style="--i:4"></b>
+              <b style="--i:5"></b><b style="--i:6"></b><b style="--i:7"></b><b style="--i:8"></b>
+              <b style="--i:9"></b><b style="--i:10"></b><b style="--i:11"></b><b style="--i:12"></b>
+            </div>
+            <div class="roxy-stage-status">
+              <span>Terminal de trading IA</span>
+              <strong>{safe_symbol}</strong>
+              <small>{safe_market} · {safe_timeframe} · paper/manual</small>
+            </div>
+          </div>
+          <div class="roxy-stage-center">
+            {roxy_hologram_avatar_html("listening", "Roxy esta escuchando el mercado")}
+            <div class="roxy-stage-title">
+              <strong>ROXY</strong>
+              <span>AI TRADING ASSISTANT</span>
+            </div>
+          </div>
+          <div class="roxy-stage-right">
+            <div class="roxy-stage-brand">
+              {brand_logo_html()}
+              <span>Grau Service LLC</span>
+              <strong>Trading inteligente, controlado y visual.</strong>
+            </div>
+            <div class="roxy-stage-values">
+              <div><span>Confianza</span><strong>Datos, velas y fuente visible</strong></div>
+              <div><span>Eficiencia</span><strong>Roxy filtra antes de operar</strong></div>
+              <div><span>Control</span><strong>Ordenes reales apagadas</strong></div>
+            </div>
+          </div>
+          <div class="roxy-stage-modules">
+            {modules_html}
+          </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> dict[str, Any]:
     best = focused_opportunity_table(brief)
     default_symbol = default_trade_plan_symbol(confluence_df, brief)
@@ -30631,26 +30709,15 @@ def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> 
         pulse = market_pulse_summary(table)
         ready_now = int(pulse.get("ready") or 0)
         watch_now = int(pulse.get("watch") or 0)
-    st.markdown(
-        f"""
-        <section class="roxy-trade-cockpit">
-          <div class="roxy-cockpit-copy">
-            <span>Grau Service LLC · Roxy AI Trading</span>
-            <strong>{html.escape(text_display(current_symbol).upper())}</strong>
-            <p>Roxy esta leyendo precio, velas, presupuesto y estrategia antes de marcar entrada.</p>
-          </div>
-          <div class="roxy-cockpit-avatar">
-            {roxy_hologram_avatar_html("listening", "Roxy escucha el mercado")}
-          </div>
-          <div class="roxy-cockpit-telemetry">
-            <div><span>Capital</span><strong>${current_equity:,.0f}</strong></div>
-            <div><span>1R</span><strong>${current_1r:,.2f}</strong></div>
-            <div><span>Listas</span><strong>{ready_now}</strong></div>
-            <div><span>Vigilar</span><strong>{watch_now}</strong></div>
-          </div>
-        </section>
-        """,
-        unsafe_allow_html=True,
+    render_roxy_opening_stage(
+        current_symbol,
+        current_market,
+        current_timeframe,
+        current_equity,
+        current_risk,
+        current_1r,
+        ready_now,
+        watch_now,
     )
     st.markdown(
         f"""
@@ -34507,6 +34574,48 @@ def main() -> None:
         .trade-desk-order-note{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid rgba(56,189,248,.24);border-left:3px solid #38bdf8;border-radius:6px;background:rgba(11,18,32,.72);padding:5px 8px;margin:0 0 4px}
         .trade-desk-order-note strong{color:#f8fafc;font-size:12px;font-weight:950;line-height:1;text-transform:uppercase;letter-spacing:.04em}
         .trade-desk-order-note span{color:#cbd5e1;font-size:11px;font-weight:750;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .roxy-opening-stage{position:relative;display:grid;grid-template-columns:minmax(230px,.86fr) minmax(280px,430px) minmax(250px,.9fr);grid-template-areas:"left center right" "modules modules modules";gap:14px;align-items:center;min-height:430px;border:1px solid rgba(56,189,248,.34);border-left:4px solid #d4af60;border-radius:8px;background:
+            radial-gradient(circle at 50% 42%,rgba(56,189,248,.24),transparent 36%),
+            radial-gradient(circle at 77% 18%,rgba(212,175,96,.12),transparent 28%),
+            linear-gradient(135deg,rgba(2,6,23,.94),rgba(8,47,73,.55) 48%,rgba(2,6,23,.96));padding:18px;margin:0 0 10px;overflow:hidden;box-shadow:0 30px 90px rgba(0,0,0,.48),0 0 58px rgba(56,189,248,.14),inset 0 1px 0 rgba(255,255,255,.06)}
+        .roxy-opening-stage:before{content:"";position:absolute;inset:0;background-image:radial-gradient(circle,rgba(125,211,252,.32) 0 1px,transparent 1.5px),radial-gradient(circle,rgba(212,175,96,.24) 0 1px,transparent 1.5px),linear-gradient(rgba(125,211,252,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,252,.045) 1px,transparent 1px);background-size:84px 84px,138px 138px,42px 42px,42px 42px;mask-image:radial-gradient(circle at 50% 42%,#000 0 62%,transparent 86%);animation:roxyParticleDrift 20s linear infinite;opacity:.42;pointer-events:none}
+        .roxy-opening-stage:after{content:"";position:absolute;left:-28%;top:0;width:34%;height:100%;background:linear-gradient(90deg,transparent,rgba(56,189,248,.24),rgba(212,175,96,.18),transparent);transform:skewX(-17deg);animation:roxyScanline 7.8s ease-in-out infinite;pointer-events:none}
+        .roxy-opening-stage>*{position:relative;z-index:1}
+        .roxy-stage-left{grid-area:left;display:grid;gap:14px;align-content:center}
+        .roxy-stage-center{grid-area:center;display:grid;place-items:center;min-height:350px}
+        .roxy-stage-right{grid-area:right;display:grid;gap:12px;align-content:center}
+        .roxy-stage-bubble{position:relative;max-width:360px;border:1px solid rgba(125,211,252,.34);border-radius:8px;background:linear-gradient(145deg,rgba(15,23,42,.74),rgba(2,6,23,.54));padding:16px 18px;box-shadow:0 18px 44px rgba(2,6,23,.34),0 0 28px rgba(56,189,248,.12);backdrop-filter:blur(14px)}
+        .roxy-stage-bubble:after{content:"";position:absolute;right:-14px;bottom:25px;width:26px;height:22px;border-right:1px solid rgba(125,211,252,.34);border-bottom:1px solid rgba(125,211,252,.34);background:rgba(7,17,31,.72);transform:rotate(-26deg);border-radius:0 0 5px 0}
+        .roxy-stage-bubble strong{display:block;color:#e0f2fe;font-size:28px;line-height:1.05;font-weight:850;text-shadow:0 0 18px rgba(56,189,248,.35)}
+        .roxy-stage-bubble span{display:block;color:#dbeafe;font-size:15px;line-height:1.35;margin-top:8px}
+        .roxy-stage-bubble i{display:inline-block;width:6px;height:6px;border-radius:999px;background:#38bdf8;margin:12px 4px 0 0;box-shadow:0 0 12px rgba(56,189,248,.9);animation:roxyPulse 1.8s ease-in-out infinite}
+        .roxy-stage-bubble i:nth-child(4){animation-delay:.22s}.roxy-stage-bubble i:nth-child(5){animation-delay:.44s}
+        .roxy-stage-wave{display:flex;align-items:center;gap:4px;height:54px;padding:10px 12px;border:1px solid rgba(56,189,248,.20);border-radius:8px;background:rgba(2,6,23,.36);width:max-content;max-width:100%}
+        .roxy-stage-wave b{display:block;width:3px;height:12px;border-radius:999px;background:linear-gradient(180deg,#d4af60,#38bdf8);animation:roxyWave 1.35s ease-in-out infinite;animation-delay:calc(var(--i) * -0.065s);box-shadow:0 0 10px rgba(56,189,248,.42)}
+        .roxy-stage-status{border:1px solid rgba(212,175,96,.26);border-radius:8px;background:rgba(2,6,23,.44);padding:12px 14px;max-width:360px}
+        .roxy-stage-status span,.roxy-stage-brand span,.roxy-stage-values span,.roxy-stage-module span{display:block;color:#d4af60;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.10em;line-height:1}
+        .roxy-stage-status strong{display:block;color:#f8fafc;font-size:36px;line-height:.95;margin-top:8px;text-shadow:0 0 22px rgba(56,189,248,.45);overflow-wrap:anywhere}
+        .roxy-stage-status small{display:block;color:#bfdbfe;font-size:12px;line-height:1.2;margin-top:7px}
+        .roxy-stage-center .roxy-hologram-avatar{width:min(410px,100%);aspect-ratio:1/1.08}
+        .roxy-stage-center .roxy-avatar-core{border-radius:8px}
+        .roxy-stage-title{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);text-align:center;text-shadow:0 0 28px rgba(56,189,248,.6);pointer-events:none}
+        .roxy-stage-title strong{display:block;color:#f8fafc;font-size:64px;line-height:.82;font-weight:950;letter-spacing:.08em}
+        .roxy-stage-title span{display:block;color:#dbeafe;font-size:13px;font-weight:950;text-transform:uppercase;letter-spacing:.24em;margin-top:12px}
+        .roxy-stage-brand{display:grid;justify-items:start;gap:9px;border:1px solid rgba(212,175,96,.30);border-radius:8px;background:rgba(2,6,23,.44);padding:14px;box-shadow:0 18px 44px rgba(2,6,23,.28)}
+        .roxy-stage-brand .brand-logo-img{width:190px;max-width:100%;border-color:rgba(212,175,96,.62)}
+        .roxy-stage-brand strong{display:block;color:#f8fafc;font-size:16px;line-height:1.25;font-weight:850}
+        .roxy-stage-values{display:grid;gap:8px}
+        .roxy-stage-values div{display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:center;border:1px solid rgba(125,211,252,.22);border-radius:8px;background:rgba(15,23,42,.52);padding:9px 10px;box-shadow:inset 0 0 18px rgba(56,189,248,.045)}
+        .roxy-stage-values div:before{content:"";width:30px;height:30px;border-radius:8px;border:1px solid rgba(56,189,248,.40);background:radial-gradient(circle,rgba(56,189,248,.28),rgba(15,23,42,.70));box-shadow:0 0 16px rgba(56,189,248,.14)}
+        .roxy-stage-values span{color:#8bd8ff;letter-spacing:.06em}
+        .roxy-stage-values strong{display:block;color:#e5edf7;font-size:12px;line-height:1.25;font-weight:820}
+        .roxy-stage-modules{grid-area:modules;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-top:2px}
+        .roxy-stage-module{min-width:0;border:1px solid rgba(125,211,252,.20);border-radius:8px;background:linear-gradient(145deg,rgba(15,23,42,.72),rgba(2,6,23,.46));padding:10px 12px;text-align:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 10px 28px rgba(2,6,23,.22)}
+        .roxy-stage-module span{color:#8bd8ff;font-size:9px;letter-spacing:.08em}
+        .roxy-stage-module strong{display:block;color:#f8fafc;font-size:14px;line-height:1.1;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        @media (max-width:1080px){.roxy-opening-stage{grid-template-columns:minmax(0,1fr) minmax(250px,360px);grid-template-areas:"left center" "right center" "modules modules";min-height:390px}.roxy-stage-right{grid-template-columns:1fr 1fr}.roxy-stage-brand{align-content:center}.roxy-stage-values{gap:6px}.roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-stage-title strong{font-size:50px}}
+        @media (max-width:760px){.roxy-opening-stage{grid-template-columns:1fr;grid-template-areas:"center" "left" "right" "modules";gap:10px;min-height:0;padding:13px;margin-top:2px}.roxy-stage-center{min-height:280px}.roxy-stage-center .roxy-hologram-avatar{width:min(300px,92vw)}.roxy-stage-title{bottom:8px}.roxy-stage-title strong{font-size:44px}.roxy-stage-title span{font-size:10px;letter-spacing:.18em}.roxy-stage-bubble{max-width:none;padding:12px 14px}.roxy-stage-bubble:after{display:none}.roxy-stage-bubble strong{font-size:22px}.roxy-stage-bubble span{font-size:12px}.roxy-stage-wave{height:36px;padding:7px 10px}.roxy-stage-status{max-width:none;padding:10px 12px}.roxy-stage-status strong{font-size:28px}.roxy-stage-right{grid-template-columns:1fr}.roxy-stage-brand{display:none}.roxy-stage-values{grid-template-columns:1fr}.roxy-stage-values div:nth-child(n+3){display:none}.roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.roxy-stage-module{padding:8px 6px}.roxy-stage-module strong{font-size:12px}}
+        @media (max-width:430px){.roxy-stage-center{min-height:245px}.roxy-stage-center .roxy-hologram-avatar{width:min(255px,90vw)}.roxy-stage-title strong{font-size:38px}.roxy-stage-modules{grid-template-columns:repeat(2,minmax(0,1fr))}.roxy-stage-module:nth-child(n+5){display:none}}
         .roxy-trade-cockpit{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 160px minmax(250px,.9fr);gap:12px;align-items:center;border:1px solid rgba(56,189,248,.34);border-left:4px solid #d4af60;border-radius:8px;background:
             radial-gradient(circle at 50% 45%,rgba(56,189,248,.20),transparent 36%),
             linear-gradient(135deg,rgba(2,6,23,.92),rgba(8,47,73,.56) 52%,rgba(2,6,23,.92));padding:10px 12px;margin:0 0 8px;overflow:hidden;box-shadow:0 18px 48px rgba(2,6,23,.42),0 0 36px rgba(56,189,248,.10),inset 0 1px 0 rgba(255,255,255,.06)}
