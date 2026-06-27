@@ -13,10 +13,12 @@ import inspect
 import json
 import math
 import os
+import re
 import shutil
 import socket
 import subprocess
 import sys
+import unicodedata
 import warnings
 from contextlib import nullcontext
 from urllib.parse import quote
@@ -183,6 +185,28 @@ def _container_width_to_width(kwargs: dict[str, Any]) -> dict[str, Any]:
     return kwargs
 
 
+def _streamlit_width_kwargs(
+    kwargs: dict[str, Any],
+    *,
+    supports_width: bool,
+    supports_container_width: bool,
+) -> dict[str, Any]:
+    normalized = dict(kwargs)
+    if normalized.get("width") in {"stretch", "content"}:
+        width_value = normalized.pop("width")
+        if supports_container_width:
+            normalized["use_container_width"] = width_value == "stretch"
+    elif "width" in normalized and not supports_width:
+        width_value = normalized.pop("width")
+        if supports_container_width and width_value in {"stretch", "content"}:
+            normalized["use_container_width"] = width_value == "stretch"
+    if "use_container_width" in normalized and not supports_container_width:
+        use_container_width = normalized.pop("use_container_width")
+        if supports_width:
+            normalized.setdefault("width", "stretch" if use_container_width else "content")
+    return normalized
+
+
 def _chart_with_container_width(chart: Any) -> Any:
     if hasattr(chart, "properties"):
         chart_type = type(chart).__name__.lower()
@@ -220,16 +244,46 @@ def install_streamlit_width_compat() -> None:
     original_button = st.button
     original_link_button = st.link_button
     original_altair_chart = st.altair_chart
+    dataframe_params = inspect.signature(original_dataframe).parameters
+    button_params = inspect.signature(original_button).parameters
+    link_button_params = inspect.signature(original_link_button).parameters
+    dataframe_supports_width = "width" in dataframe_params
+    dataframe_supports_container_width = "use_container_width" in dataframe_params
+    button_supports_width = "width" in button_params
+    button_supports_container_width = "use_container_width" in button_params
+    link_button_supports_width = "width" in link_button_params
+    link_button_supports_container_width = "use_container_width" in link_button_params
     altair_supports_container_width = "use_container_width" in inspect.signature(original_altair_chart).parameters
 
     def dataframe_compat(*args: Any, **kwargs: Any) -> Any:
-        return original_dataframe(*args, **_container_width_to_width(kwargs))
+        return original_dataframe(
+            *args,
+            **_streamlit_width_kwargs(
+                kwargs,
+                supports_width=dataframe_supports_width,
+                supports_container_width=dataframe_supports_container_width,
+            ),
+        )
 
     def button_compat(*args: Any, **kwargs: Any) -> Any:
-        return original_button(*args, **_container_width_to_width(kwargs))
+        return original_button(
+            *args,
+            **_streamlit_width_kwargs(
+                kwargs,
+                supports_width=button_supports_width,
+                supports_container_width=button_supports_container_width,
+            ),
+        )
 
     def link_button_compat(*args: Any, **kwargs: Any) -> Any:
-        return original_link_button(*args, **_container_width_to_width(kwargs))
+        return original_link_button(
+            *args,
+            **_streamlit_width_kwargs(
+                kwargs,
+                supports_width=link_button_supports_width,
+                supports_container_width=link_button_supports_container_width,
+            ),
+        )
 
     def altair_chart_compat(chart: Any, *args: Any, **kwargs: Any) -> Any:
         use_container_width = kwargs.pop("use_container_width", None)
@@ -422,6 +476,7 @@ def roxy_hologram_avatar_html(state: str = "listening", label: str = "Roxy Tradi
         f"{image_html}"
         '<span class="roxy-face-glow"></span>'
         '<span class="roxy-blink"></span>'
+        '<span class="roxy-mouth"></span>'
         '</div>'
         '<div class="roxy-audio-wave" aria-hidden="true">'
         f"{wave_bars}"
@@ -1765,6 +1820,156 @@ def normalize_command_market(value: Any, symbol: Any = "") -> str:
     return "crypto" if "/" in str(symbol or "") else "stock"
 
 
+ROXY_COMMAND_SYMBOL_ALIASES = {
+    "apple": "AAPL",
+    "aapl": "AAPL",
+    "tesla": "TSLA",
+    "tsla": "TSLA",
+    "nvidia": "NVDA",
+    "nvda": "NVDA",
+    "amd": "AMD",
+    "microsoft": "MSFT",
+    "msft": "MSFT",
+    "amazon": "AMZN",
+    "amzn": "AMZN",
+    "google": "GOOGL",
+    "alphabet": "GOOGL",
+    "meta": "META",
+    "pltr": "PLTR",
+    "qqq": "QQQ",
+    "spy": "SPY",
+    "bitcoin": "BTC/USD",
+    "btc": "BTC/USD",
+    "ethereum": "ETH/USD",
+    "ether": "ETH/USD",
+    "eth": "ETH/USD",
+    "solana": "SOL/USD",
+    "sol": "SOL/USD",
+    "doge": "DOGE/USD",
+}
+
+
+def normalize_roxy_command_text(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return re.sub(r"\s+", " ", text)
+
+
+def symbol_from_roxy_command(value: Any) -> str:
+    text = normalize_roxy_command_text(value)
+    for alias, symbol in ROXY_COMMAND_SYMBOL_ALIASES.items():
+        if re.search(rf"\b{re.escape(alias)}\b", text):
+            return symbol
+    crypto_match = re.search(r"\b([a-z]{2,6})\s*/\s*(usd|usdt)\b", text)
+    if crypto_match:
+        return f"{crypto_match.group(1).upper()}/{crypto_match.group(2).upper()}"
+    ticker_match = re.search(r"\b[A-Za-z]{1,5}\b", str(value or "").strip())
+    if ticker_match:
+        candidate = ticker_match.group(0).upper()
+        ignored = {
+            "ROXY",
+            "ABRE",
+            "QUIERO",
+            "VER",
+            "LAS",
+            "LOS",
+            "UNA",
+            "CON",
+            "PARA",
+            "QUE",
+        }
+        if candidate not in ignored:
+            return candidate
+    return ""
+
+
+def apply_roxy_navigation_target(
+    *,
+    page: str = "Dashboard",
+    symbol: Any | None = None,
+    market: Any | None = None,
+    timeframe: Any | None = None,
+    budget_scope: str | None = None,
+    message: str = "",
+) -> None:
+    active_symbol = str(symbol or st.session_state.get("command_symbol") or "AAPL").strip().upper() or "AAPL"
+    active_market = normalize_command_market(market or st.session_state.get("command_market"), active_symbol)
+    active_timeframe = normalize_command_timeframe(timeframe or st.session_state.get("command_timeframe") or "1h")
+    target_page = normalize_focused_page(page)
+    st.session_state["command_symbol"] = active_symbol
+    st.session_state["command_market"] = active_market
+    st.session_state["command_timeframe"] = active_timeframe
+    if "roxy_focused_page" in st.session_state:
+        st.session_state["roxy_focused_page_pending"] = target_page
+    else:
+        st.session_state["roxy_focused_page"] = target_page
+    st.session_state["roxy_last_selected_page"] = target_page
+    if budget_scope:
+        st.session_state["command_budget_market_scope"] = budget_scope
+    if message:
+        st.session_state["roxy_launch_message"] = message
+    sync_dashboard_query_params(
+        st.query_params,
+        symbol=active_symbol,
+        market=active_market,
+        timeframe=active_timeframe,
+        page=target_page,
+    )
+    write_dashboard_ui_state(
+        symbol=active_symbol,
+        market=active_market,
+        timeframe=active_timeframe,
+        page=target_page,
+    )
+
+
+def apply_roxy_text_command(command: Any) -> bool:
+    text = normalize_roxy_command_text(command)
+    if not text:
+        return False
+    symbol = symbol_from_roxy_command(command)
+    if symbol:
+        apply_roxy_navigation_target(
+            page="Activo",
+            symbol=symbol,
+            market="crypto" if "/" in symbol else "stock",
+            message=f"Roxy cargo {symbol} en la grafica.",
+        )
+        return True
+    if any(term in text for term in ["crypto", "cripto", "bitcoin", "btc"]):
+        apply_roxy_navigation_target(
+            page="Dashboard",
+            symbol="BTC/USD",
+            market="crypto",
+            budget_scope="Crypto",
+            message="Roxy abrio oportunidades de crypto.",
+        )
+        return True
+    if any(term in text for term in ["accion", "acciones", "stock", "stocks", "oportunidad", "oportunidades"]):
+        apply_roxy_navigation_target(
+            page="Dashboard",
+            symbol=st.session_state.get("command_symbol") or "AAPL",
+            market="stock",
+            budget_scope="Acciones",
+            message="Roxy abrio oportunidades de acciones.",
+        )
+        return True
+    if "opcion" in text or "opciones" in text:
+        apply_roxy_navigation_target(page="Opciones", budget_scope="Opciones", message="Roxy abrio opciones.")
+        return True
+    if "capital" in text or "riesgo" in text:
+        apply_roxy_navigation_target(page="Capital", message="Roxy abrio capital y riesgo.")
+        return True
+    if "estudio" in text or "manual" in text:
+        apply_roxy_navigation_target(page="Estudios", message="Roxy abrio estudios.")
+        return True
+    if "roxy" in text or "voz" in text or "ia" in text:
+        apply_roxy_navigation_target(page="Roxy IA", message="Roxy abrio su panel IA.")
+        return True
+    return False
+
+
 def command_state_from_query_params(
     params: Any,
     default_symbol: str = "AAPL",
@@ -1820,7 +2025,6 @@ def hydrate_focused_page_state(params: Any, session_state: Any, default_symbol: 
     page = session_page or query_page
     if session_page == "Dashboard" and query_page != "Dashboard":
         page = query_page
-    session_state["roxy_focused_page"] = page
     session_state["roxy_last_selected_page"] = page
     return page
 
@@ -30690,6 +30894,121 @@ def render_roxy_opening_stage(
     )
 
 
+def render_roxy_first_screen_launchpad(
+    table: pd.DataFrame,
+    *,
+    symbol: str,
+    market: str,
+    timeframe: str,
+) -> None:
+    message = st.session_state.pop("roxy_launch_message", "")
+    if message:
+        st.success(message)
+
+    st.markdown(
+        """
+        <section class="roxy-launchpad-head">
+          <div><span>Accesos Roxy</span><strong>Elige modulo o dile que activo abrir</strong></div>
+          <small>Dashboard conserva el scanner; Activo carga la grafica seleccionada.</small>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+    module_cols = st.columns(6, gap="small")
+    modules = [
+        ("Acciones", "Dashboard", symbol or "AAPL", "stock", "Acciones"),
+        ("Crypto", "Dashboard", "BTC/USD", "crypto", "Crypto"),
+        ("Opciones", "Opciones", symbol or "AAPL", "stock", "Opciones"),
+        ("Capital", "Capital", symbol or "AAPL", market, None),
+        ("Estudios", "Estudios", symbol or "AAPL", market, None),
+        ("Roxy IA", "Roxy IA", symbol or "AAPL", market, None),
+    ]
+    for idx, (label, page, target_symbol, target_market, budget_scope) in enumerate(modules):
+        with module_cols[idx]:
+            if st.button(label, key=f"roxy_launch_module_{idx}_{safe_key(label)}"):
+                apply_roxy_navigation_target(
+                    page=page,
+                    symbol=target_symbol,
+                    market=target_market,
+                    timeframe=timeframe,
+                    budget_scope=budget_scope,
+                    message=f"Roxy abrio {label}.",
+                )
+                st.rerun()
+
+    command_cols = st.columns([1.35, 0.42], gap="small")
+    with command_cols[0]:
+        command = st.text_input(
+            "Comando Roxy",
+            value="",
+            key="roxy_launch_command",
+            placeholder="Roxy, quiero ver Apple",
+            label_visibility="collapsed",
+        )
+    with command_cols[1]:
+        if st.button("Abrir", key="roxy_launch_command_submit"):
+            if apply_roxy_text_command(command):
+                st.rerun()
+            else:
+                st.warning("Roxy no encontro esa orden. Prueba con Apple, AAPL, crypto, acciones u opciones.")
+
+    if not isinstance(table, pd.DataFrame) or table.empty:
+        return
+
+    pulse = market_pulse_rows(table)
+    launch_rows: list[dict[str, Any]] = []
+    for idx, (_, item) in enumerate(table.head(4).iterrows()):
+        row = item.to_dict()
+        pulse_row = pulse.iloc[idx].to_dict() if idx < len(pulse) else {}
+        status = trade_decision_card_status(row)
+        row_symbol = text_display(row.get("symbol")).upper()
+        row_market = normalize_command_market(row.get("market"), row_symbol)
+        launch_rows.append(
+            {
+                "symbol": row_symbol,
+                "market": row_market,
+                "action": text_display(status.get("action") or human_trade_action(row)),
+                "tone": text_display(status.get("tone") or pulse_row.get("tone") or "watch"),
+                "readiness": num_display(row.get("readiness"), 0),
+                "strategy": strategy_family_for_row(row),
+                "why": text_display(row.get("waiting_for") or row.get("por_que") or row.get("gate")),
+            }
+        )
+    if not launch_rows:
+        return
+
+    st.markdown('<div class="roxy-launchpad-opps">', unsafe_allow_html=True)
+    opp_cols = st.columns(len(launch_rows), gap="small")
+    for idx, item in enumerate(launch_rows):
+        tone = item["tone"] if item["tone"] in {"buy", "watch", "avoid"} else "watch"
+        with opp_cols[idx]:
+            st.markdown(
+                f"""
+                <div class="roxy-launch-opp roxy-launch-opp-{html.escape(tone)}">
+                  <span>{html.escape(item["market"].upper())}</span>
+                  <strong>{html.escape(item["symbol"])}</strong>
+                  <small>{html.escape(item["action"])} · Readiness {html.escape(item["readiness"])}</small>
+                  <p>{html.escape(item["strategy"])}</p>
+                  <em>{html.escape(item["why"][:90])}</em>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            if st.button(
+                "Abrir grafica",
+                key=f"roxy_launch_opp_{idx}_{safe_key(item['symbol'])}",
+            ):
+                apply_roxy_navigation_target(
+                    page="Activo",
+                    symbol=item["symbol"],
+                    market=item["market"],
+                    timeframe=timeframe,
+                    message=f"Roxy cargo {item['symbol']} en la grafica.",
+                )
+                st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
 def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> dict[str, Any]:
     best = focused_opportunity_table(brief)
     default_symbol = default_trade_plan_symbol(confluence_df, brief)
@@ -30719,6 +31038,12 @@ def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> 
         ready_now,
         watch_now,
     )
+    render_roxy_first_screen_launchpad(
+        table,
+        symbol=text_display(current_symbol).upper(),
+        market=current_market,
+        timeframe=current_timeframe,
+    )
     st.markdown(
         f"""
         <section class="trade-desk-control-panel">
@@ -30740,13 +31065,17 @@ def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> 
     )
     quick_cols = st.columns([1.0, 0.42], gap="small")
     with quick_cols[0]:
+        symbol_input_kwargs: dict[str, Any] = {
+            "key": "command_symbol",
+            "on_change": persist_command_symbol_query_params,
+            "label_visibility": "collapsed",
+            "placeholder": "Ticker o crypto: AAPL, TSLA, BTC/USD",
+        }
+        if "command_symbol" not in st.session_state:
+            symbol_input_kwargs["value"] = current_symbol
         symbol_input = st.text_input(
             "Cambiar activo",
-            value=current_symbol,
-            key="command_symbol",
-            on_change=persist_command_symbol_query_params,
-            label_visibility="collapsed",
-            placeholder="Ticker o crypto: AAPL, TSLA, BTC/USD",
+            **symbol_input_kwargs,
         )
     with quick_cols[1]:
         st.markdown(
@@ -30765,33 +31094,58 @@ def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> 
         inferred_market = normalize_command_market(current_market, symbol_input)
         with control_cols[0]:
             market_index = 1 if inferred_market == "crypto" else 0
+            market_kwargs: dict[str, Any] = {
+                "key": "command_market",
+                "on_change": persist_command_query_params,
+            }
+            if "command_market" not in st.session_state:
+                market_kwargs["index"] = market_index
             market = st.selectbox(
                 "Mercado",
                 ["stock", "crypto"],
-                index=market_index,
-                key="command_market",
-                on_change=persist_command_query_params,
+                **market_kwargs,
             )
         with control_cols[1]:
+            timeframe_kwargs: dict[str, Any] = {
+                "key": "command_timeframe",
+                "on_change": persist_command_query_params,
+            }
+            if "command_timeframe" not in st.session_state:
+                timeframe_kwargs["index"] = (
+                    TIMEFRAME_OPTIONS.index(current_timeframe)
+                    if current_timeframe in TIMEFRAME_OPTIONS
+                    else DEFAULT_TIMEFRAME_INDEX
+                )
             timeframe = st.selectbox(
                 "Marco",
                 TIMEFRAME_OPTIONS,
-                index=TIMEFRAME_OPTIONS.index(current_timeframe) if current_timeframe in TIMEFRAME_OPTIONS else DEFAULT_TIMEFRAME_INDEX,
-                key="command_timeframe",
-                on_change=persist_command_query_params,
+                **timeframe_kwargs,
             )
         with control_cols[2]:
+            equity_kwargs: dict[str, Any] = {
+                "min_value": 50.0,
+                "step": 50.0,
+                "key": "command_equity",
+                "help": "Roxy calcula tamaño, riesgo y potencial según este capital; no usa un riesgo fijo.",
+            }
+            if "command_equity" not in st.session_state:
+                equity_kwargs["value"] = current_equity
             account_equity = st.number_input(
                 "Capital disponible",
-                min_value=50.0,
-                value=current_equity,
-                step=50.0,
-                key="command_equity",
-                help="Roxy calcula tamaño, riesgo y potencial según este capital; no usa un riesgo fijo.",
+                **equity_kwargs,
             )
         with control_cols[3]:
+            risk_kwargs: dict[str, Any] = {
+                "min_value": 0.1,
+                "max_value": 5.0,
+                "step": 0.1,
+                "key": "command_risk",
+            }
+            if "command_risk" not in st.session_state:
+                risk_kwargs["value"] = current_risk
             risk_pct_ui = st.number_input(
-                "Riesgo %", min_value=0.1, max_value=5.0, value=current_risk, step=0.1, key="command_risk"
+                "Riesgo %",
+                **risk_kwargs,
             )
         extra_cols = st.columns([0.75, 0.55, 0.48], gap="small")
         with extra_cols[0]:
@@ -30802,21 +31156,29 @@ def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> 
                 help="Modo Tengo $X hoy: Roxy filtra oportunidades antes de mostrarlas como candidatas principales.",
             )
         with extra_cols[1]:
+            max_trades_kwargs: dict[str, Any] = {
+                "min_value": 1,
+                "max_value": 5,
+                "step": 1,
+                "key": "command_max_daily_trades",
+                "help": "Roxy devuelve solo las mejores oportunidades que caben en este limite diario.",
+            }
+            if "command_max_daily_trades" not in st.session_state:
+                max_trades_kwargs["value"] = 3
             max_daily_trades = st.number_input(
                 "Max trades/dia",
-                min_value=1,
-                max_value=5,
-                value=3,
-                step=1,
-                key="command_max_daily_trades",
-                help="Roxy devuelve solo las mejores oportunidades que caben en este limite diario.",
+                **max_trades_kwargs,
             )
         with extra_cols[2]:
+            clean_mode_kwargs: dict[str, Any] = {
+                "key": "command_clean_mode",
+                "help": "Muestra primero oportunidades accionables y oculta paneles secundarios del Dashboard.",
+            }
+            if "command_clean_mode" not in st.session_state:
+                clean_mode_kwargs["value"] = True
             clean_mode = st.toggle(
                 "Modo limpio",
-                value=True,
-                key="command_clean_mode",
-                help="Muestra primero oportunidades accionables y oculta paneles secundarios del Dashboard.",
+                **clean_mode_kwargs,
             )
     market = normalize_command_market(st.session_state.get("command_market", current_market), symbol_input)
     timeframe = normalize_command_timeframe(st.session_state.get("command_timeframe", current_timeframe))
@@ -32753,14 +33115,17 @@ def _summarize_voice_context(row: dict) -> str:
 
 
 def render_focused_page_navigation() -> str:
+    pending_page = st.session_state.pop("roxy_focused_page_pending", None)
+    if pending_page:
+        st.session_state["roxy_focused_page"] = normalize_focused_page(pending_page)
     page = hydrate_focused_page_state(st.query_params, st.session_state, st.session_state.get("command_symbol", "AAPL"))
-    return st.sidebar.selectbox(
-        "Vista",
-        FOCUSED_PAGE_LABELS,
-        index=FOCUSED_PAGE_LABELS.index(page),
-        key="roxy_focused_page",
-        on_change=persist_focused_page_query_param,
-    )
+    kwargs: dict[str, Any] = {
+        "key": "roxy_focused_page",
+        "on_change": persist_focused_page_query_param,
+    }
+    if "roxy_focused_page" not in st.session_state:
+        kwargs["index"] = FOCUSED_PAGE_LABELS.index(page)
+    return st.sidebar.selectbox("Vista", FOCUSED_PAGE_LABELS, **kwargs)
 
 
 def load_focused_live_context() -> dict[str, Any]:
@@ -34613,8 +34978,24 @@ def main() -> None:
         .roxy-stage-module{min-width:0;border:1px solid rgba(125,211,252,.20);border-radius:8px;background:linear-gradient(145deg,rgba(15,23,42,.72),rgba(2,6,23,.46));padding:10px 12px;text-align:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 10px 28px rgba(2,6,23,.22)}
         .roxy-stage-module span{color:#8bd8ff;font-size:9px;letter-spacing:.08em}
         .roxy-stage-module strong{display:block;color:#f8fafc;font-size:14px;line-height:1.1;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .roxy-launchpad-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid rgba(56,189,248,.26);border-left:4px solid #38bdf8;border-radius:8px;background:linear-gradient(135deg,rgba(7,12,22,.94),rgba(8,47,73,.48));padding:9px 11px;margin:0 0 8px;box-shadow:0 14px 34px rgba(2,6,23,.28)}
+        .roxy-launchpad-head span{display:block;color:#8bd8ff;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}
+        .roxy-launchpad-head strong{display:block;color:#f8fafc;font-size:16px;line-height:1.1;margin-top:3px}
+        .roxy-launchpad-head small{color:#cbd5e1;font-size:11px;text-align:right}
+        .roxy-launchpad-opps{margin:8px 0 8px}
+        .roxy-launch-opp{border:1px solid rgba(148,163,184,.22);border-radius:8px 8px 0 0;background:#0b1220;padding:10px;min-height:132px;border-bottom:0;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+        .roxy-launch-opp span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.05em}
+        .roxy-launch-opp strong{display:block;color:#f8fafc;font-size:25px;line-height:1;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .roxy-launch-opp small{display:block;color:#cbd5e1;font-size:10px;line-height:1.15;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .roxy-launch-opp p{margin:8px 0 0;color:#e2e8f0;font-size:11px;line-height:1.2;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .roxy-launch-opp em{display:block;color:#94a3b8;font-size:10px;line-height:1.2;font-style:normal;margin-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+        .roxy-launch-opp-buy{border-color:rgba(34,197,94,.44);background:linear-gradient(180deg,rgba(20,83,45,.30),#0b1220)}
+        .roxy-launch-opp-watch{border-color:rgba(245,158,11,.42);background:linear-gradient(180deg,rgba(120,53,15,.25),#0b1220)}
+        .roxy-launch-opp-avoid{border-color:rgba(239,68,68,.42);background:linear-gradient(180deg,rgba(127,29,29,.24),#0b1220)}
+        @media (max-width:760px){.roxy-launchpad-head{grid-template-columns:1fr}.roxy-launchpad-head small{text-align:left}}
         @media (max-width:1080px){.roxy-opening-stage{grid-template-columns:minmax(0,1fr) minmax(250px,360px);grid-template-areas:"left center" "right center" "modules modules";min-height:390px}.roxy-stage-right{grid-template-columns:1fr 1fr}.roxy-stage-brand{align-content:center}.roxy-stage-values{gap:6px}.roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-stage-title strong{font-size:50px}}
         @media (max-width:760px){.roxy-opening-stage{grid-template-columns:1fr;grid-template-areas:"center" "left" "right" "modules";gap:10px;min-height:0;padding:13px;margin-top:2px}.roxy-stage-center{min-height:280px}.roxy-stage-center .roxy-hologram-avatar{width:min(300px,92vw)}.roxy-stage-title{bottom:8px}.roxy-stage-title strong{font-size:44px}.roxy-stage-title span{font-size:10px;letter-spacing:.18em}.roxy-stage-bubble{max-width:none;padding:12px 14px}.roxy-stage-bubble:after{display:none}.roxy-stage-bubble strong{font-size:22px}.roxy-stage-bubble span{font-size:12px}.roxy-stage-wave{height:36px;padding:7px 10px}.roxy-stage-status{max-width:none;padding:10px 12px}.roxy-stage-status strong{font-size:28px}.roxy-stage-right{grid-template-columns:1fr}.roxy-stage-brand{display:none}.roxy-stage-values{grid-template-columns:1fr}.roxy-stage-values div:nth-child(n+3){display:none}.roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.roxy-stage-module{padding:8px 6px}.roxy-stage-module strong{font-size:12px}}
+        @media (max-width:760px){.roxy-opening-stage{grid-template-areas:"center" "modules";padding:10px 10px 9px}.roxy-stage-left,.roxy-stage-right{display:none}.roxy-stage-center{min-height:255px}.roxy-stage-modules{margin-top:0}}
         @media (max-width:430px){.roxy-stage-center{min-height:245px}.roxy-stage-center .roxy-hologram-avatar{width:min(255px,90vw)}.roxy-stage-title strong{font-size:38px}.roxy-stage-modules{grid-template-columns:repeat(2,minmax(0,1fr))}.roxy-stage-module:nth-child(n+5){display:none}}
         .roxy-trade-cockpit{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 160px minmax(250px,.9fr);gap:12px;align-items:center;border:1px solid rgba(56,189,248,.34);border-left:4px solid #d4af60;border-radius:8px;background:
             radial-gradient(circle at 50% 45%,rgba(56,189,248,.20),transparent 36%),
@@ -34676,6 +35057,7 @@ def main() -> None:
         .roxy-now-avoid{border-left:4px solid #ef4444}.roxy-now-avoid .roxy-now-main{background:rgba(127,29,29,.24)}
         @keyframes roxyBreath{0%,100%{transform:translateY(0) scale(1);filter:drop-shadow(0 0 18px rgba(56,189,248,.40))}50%{transform:translateY(-4px) scale(1.018);filter:drop-shadow(0 0 28px rgba(56,189,248,.62))}}
         @keyframes roxyBlink{0%,92%,100%{opacity:0;transform:scaleY(.05)}94%,96%{opacity:.55;transform:scaleY(1)}}
+        @keyframes roxyMouth{0%,100%{transform:scaleX(.72) scaleY(.42);opacity:.58}35%{transform:scaleX(1) scaleY(1.45);opacity:.92}62%{transform:scaleX(.88) scaleY(.86);opacity:.76}}
         @keyframes roxyOrbit{0%{transform:translate(-50%,-50%) rotate(0deg)}100%{transform:translate(-50%,-50%) rotate(360deg)}}
         @keyframes roxyPulse{0%,100%{opacity:.42;transform:translate(-50%,-50%) scale(.92)}50%{opacity:.88;transform:translate(-50%,-50%) scale(1.04)}}
         @keyframes roxyWave{0%,100%{height:8px;opacity:.45}50%{height:34px;opacity:1}}
@@ -34732,6 +35114,7 @@ def main() -> None:
         .roxy-avatar-core:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(180deg,rgba(125,211,252,.12) 0 1px,transparent 1px 7px);opacity:.18;pointer-events:none}
         .roxy-face-glow{position:absolute;inset:6%;border-radius:50%;box-shadow:0 0 34px rgba(56,189,248,.25);pointer-events:none}
         .roxy-blink{position:absolute;left:23%;right:23%;top:32%;height:8%;border-radius:999px;background:linear-gradient(180deg,rgba(2,6,23,.74),rgba(2,6,23,.18));opacity:0;animation:roxyBlink 5.6s infinite;pointer-events:none}
+        .roxy-mouth{position:absolute;left:43%;top:58%;width:14%;height:3.2%;border-radius:999px;background:linear-gradient(180deg,rgba(251,191,36,.72),rgba(56,189,248,.70));box-shadow:0 0 14px rgba(56,189,248,.44);opacity:.82;transform-origin:center;animation:roxyMouth 1.18s ease-in-out infinite;pointer-events:none}
         .roxy-orbit{position:absolute;left:50%;top:66%;border-radius:50%;border:1px solid rgba(56,189,248,.36);box-shadow:0 0 24px rgba(56,189,248,.18);transform:translate(-50%,-50%);pointer-events:none}
         .roxy-orbit-one{width:84%;height:21%;animation:roxyOrbit 11s linear infinite}
         .roxy-orbit-two{width:102%;height:28%;border-color:rgba(212,175,96,.28);animation:roxyOrbit 15s linear infinite reverse}
