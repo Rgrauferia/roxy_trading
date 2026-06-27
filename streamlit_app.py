@@ -31002,10 +31002,10 @@ def render_roxy_opening_stage(
     safe_symbol = html.escape(text_display(symbol).upper())
     safe_market = html.escape(text_display(market).upper())
     safe_timeframe = html.escape(text_display(timeframe))
-    active_module = normalize_roxy_module(
-        first_query_param_value(st.query_params, "module") or st.session_state.get("roxy_active_module") or "acciones"
-    )
-    st.session_state["roxy_active_module"] = active_module
+    module_from_query = first_query_param_value(st.query_params, "module")
+    active_module = normalize_roxy_module(module_from_query, default="") if module_from_query else ""
+    if active_module:
+        st.session_state["roxy_active_module"] = active_module
     query_timeframe = quote(str(timeframe or "1h"), safe="")
     modules_html = "".join(
         f"""
@@ -31024,7 +31024,7 @@ def render_roxy_opening_stage(
           <div class="roxy-stage-left">
             <div class="roxy-stage-bubble">
               <strong>Hola, soy Roxy.</strong>
-              <span>Estoy lista para analizar {safe_symbol} y buscar oportunidades con tu presupuesto.</span>
+              <span>¿En qué puedo ayudarte?</span>
               <i></i><i></i><i></i>
             </div>
             <div class="roxy-stage-wave" aria-hidden="true">
@@ -31077,52 +31077,22 @@ def render_roxy_first_screen_launchpad(
     if message:
         st.success(message)
     module_from_query = first_query_param_value(st.query_params, "module")
-    if module_from_query:
-        st.session_state["roxy_active_module"] = normalize_roxy_module(module_from_query)
-    active_module = normalize_roxy_module(st.session_state.get("roxy_active_module") or "acciones")
+    if not module_from_query:
+        return
+    st.session_state["roxy_active_module"] = normalize_roxy_module(module_from_query)
+    active_module = normalize_roxy_module(module_from_query)
     active_info = roxy_module_by_slug(active_module)
 
     st.markdown(
         f"""
-        <section class="roxy-launchpad-head">
-          <div><span>Modulo activo</span><strong>{html.escape(active_info["label"])}</strong></div>
+        <section class="roxy-folder-head">
+          <a href="?view=Dashboard&symbol={quote(str(symbol or 'AAPL'), safe='')}&market={quote(str(market or 'stock'), safe='')}&tf={quote(str(timeframe or '1h'), safe='')}">Cerrar carpeta</a>
+          <div><span>Carpeta Roxy</span><strong>{html.escape(active_info["label"])}</strong></div>
           <small>{html.escape(active_info["detail"])} Toca una card para cargar la grafica.</small>
         </section>
         """,
         unsafe_allow_html=True,
     )
-    module_cols = st.columns(4, gap="small")
-    for idx, item in enumerate(ROXY_COMMAND_MODULES):
-        with module_cols[idx % len(module_cols)]:
-            label = f"{item['mark']}  {item['label']}"
-            if st.button(label, key=f"roxy_launch_module_{idx}_{safe_key(item['slug'])}"):
-                st.session_state["roxy_active_module"] = item["slug"]
-                apply_roxy_navigation_target(
-                    page=item["page"],
-                    symbol=item["symbol"],
-                    market=item["market"],
-                    timeframe=timeframe,
-                    budget_scope=item["scope"],
-                    message=f"Roxy abrio {item['label']}.",
-                )
-                st.rerun()
-
-    command_cols = st.columns([1.35, 0.42], gap="small")
-    with command_cols[0]:
-        command = st.text_input(
-            "Comando Roxy",
-            value="",
-            key="roxy_launch_command",
-            placeholder="Roxy, quiero ver Apple",
-            label_visibility="collapsed",
-        )
-    with command_cols[1]:
-        if st.button("Abrir", key="roxy_launch_command_submit"):
-            if apply_roxy_text_command(command):
-                st.rerun()
-            else:
-                st.warning("Roxy no encontro esa orden. Prueba con Apple, AAPL, crypto, acciones u opciones.")
-
     render_roxy_module_workspace(table, active_module=active_module, timeframe=timeframe)
     return
 
@@ -31389,22 +31359,40 @@ def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> 
         pulse = market_pulse_summary(table)
         ready_now = int(pulse.get("ready") or 0)
         watch_now = int(pulse.get("watch") or 0)
-    render_roxy_opening_stage(
-        current_symbol,
-        current_market,
-        current_timeframe,
-        current_equity,
-        current_risk,
-        current_1r,
-        ready_now,
-        watch_now,
-    )
-    render_roxy_first_screen_launchpad(
-        table,
-        symbol=text_display(current_symbol).upper(),
-        market=current_market,
-        timeframe=current_timeframe,
-    )
+    module_is_open = bool(first_query_param_value(st.query_params, "module"))
+    if module_is_open:
+        render_roxy_first_screen_launchpad(
+            table,
+            symbol=text_display(current_symbol).upper(),
+            market=current_market,
+            timeframe=current_timeframe,
+        )
+    else:
+        render_roxy_opening_stage(
+            current_symbol,
+            current_market,
+            current_timeframe,
+            current_equity,
+            current_risk,
+            current_1r,
+            ready_now,
+            watch_now,
+        )
+    return {
+        "best": best,
+        "default_symbol": default_symbol,
+        "symbol_input": current_symbol,
+        "market": current_market,
+        "timeframe": current_timeframe,
+        "account_equity": float(current_equity),
+        "risk_pct": float(current_risk) / 100.0,
+        "budget_market_scope": st.session_state.get("command_budget_market_scope", "Todos"),
+        "max_daily_trades": int(st.session_state.get("command_max_daily_trades", 3) or 3),
+        "realtime_report": read_summary_json("alerts/roxy_realtime_check.json"),
+        "clean_mode": True,
+        "command_center_only": True,
+        "roxy_folder_open": module_is_open,
+    }
     st.markdown(
         f"""
         <section class="trade-desk-control-panel">
@@ -34853,6 +34841,8 @@ def show_focused_roxy_app() -> None:
         )
         options_df = context.get("options_df") if isinstance(context.get("options_df"), pd.DataFrame) else pd.DataFrame()
         home_controls = render_command_center_controls(confluence_df, brief)
+        if bool(home_controls.get("command_center_only")):
+            return
         home_controls = {**home_controls, "defer_command_analysis": True, "suppress_budget_summary": True}
         run_every = f"{normalize_realtime_refresh_interval(realtime.get('interval_seconds'))}s"
 
@@ -35374,10 +35364,11 @@ def main() -> None:
         .roxy-stage-module b{display:grid;place-items:center;width:38px;height:38px;margin:0 auto 8px;border:1px solid rgba(56,189,248,.44);border-radius:50%;background:radial-gradient(circle,rgba(56,189,248,.25),rgba(2,6,23,.70));color:#e0f2fe;font-size:12px;font-weight:950;line-height:1;letter-spacing:.02em;box-shadow:0 0 22px rgba(56,189,248,.20)}
         .roxy-stage-module span{color:#8bd8ff;font-size:9px;letter-spacing:.08em}
         .roxy-stage-module strong{display:block;color:#f8fafc;font-size:11px;line-height:1.18;margin-top:5px;min-height:26px;overflow:hidden}
-        .roxy-launchpad-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid rgba(56,189,248,.26);border-left:4px solid #38bdf8;border-radius:8px;background:linear-gradient(135deg,rgba(7,12,22,.94),rgba(8,47,73,.48));padding:9px 11px;margin:0 0 8px;box-shadow:0 14px 34px rgba(2,6,23,.28)}
-        .roxy-launchpad-head span{display:block;color:#8bd8ff;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}
-        .roxy-launchpad-head strong{display:block;color:#f8fafc;font-size:16px;line-height:1.1;margin-top:3px}
-        .roxy-launchpad-head small{color:#cbd5e1;font-size:11px;text-align:right}
+        .roxy-folder-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;border:1px solid rgba(56,189,248,.26);border-left:4px solid #38bdf8;border-radius:8px;background:linear-gradient(135deg,rgba(7,12,22,.94),rgba(8,47,73,.48));padding:10px 12px;margin:0 0 8px;box-shadow:0 14px 34px rgba(2,6,23,.28)}
+        .roxy-folder-head a{color:#e0f2fe!important;text-decoration:none!important;border:1px solid rgba(125,211,252,.34);border-radius:6px;background:rgba(2,6,23,.48);padding:7px 9px;font-size:11px;font-weight:900;white-space:nowrap}
+        .roxy-folder-head span{display:block;color:#8bd8ff;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}
+        .roxy-folder-head strong{display:block;color:#f8fafc;font-size:22px;line-height:1.05;margin-top:3px}
+        .roxy-folder-head small{color:#cbd5e1;font-size:11px;text-align:right}
         .roxy-launchpad-opps{margin:8px 0 8px}
         .roxy-launch-opp{border:1px solid rgba(148,163,184,.22);border-radius:8px 8px 0 0;background:#0b1220;padding:10px;min-height:132px;border-bottom:0;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
         .roxy-launch-opp span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.05em}
@@ -35420,10 +35411,9 @@ def main() -> None:
         .roxy-floating-avatar .roxy-avatar span{display:none}
         .roxy-floating-avatar strong{display:block;color:#f8fafc;font-size:12px;line-height:1}
         .roxy-floating-avatar div>span{display:block;color:#cbd5e1;font-size:10px;line-height:1.2;margin-top:3px}
-        @media (max-width:760px){.roxy-launchpad-head{grid-template-columns:1fr}.roxy-launchpad-head small{text-align:left}}
+        @media (max-width:760px){.roxy-folder-head{grid-template-columns:1fr}.roxy-folder-head small{text-align:left}}
         @media (max-width:1080px){.roxy-opening-stage{grid-template-columns:minmax(0,1fr) minmax(250px,360px);grid-template-areas:"left center" "right center" "modules modules";min-height:390px}.roxy-stage-right{grid-template-columns:1fr 1fr}.roxy-stage-brand{align-content:center}.roxy-stage-values{gap:6px}.roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-stage-title strong{font-size:50px}}
-        @media (max-width:760px){.roxy-opening-stage{grid-template-columns:1fr;grid-template-areas:"center" "left" "right" "modules";gap:10px;min-height:0;padding:13px;margin-top:2px}.roxy-stage-center{min-height:280px}.roxy-stage-center .roxy-hologram-avatar{width:min(300px,92vw)}.roxy-stage-title{bottom:8px}.roxy-stage-title strong{font-size:44px}.roxy-stage-title span{font-size:10px;letter-spacing:.18em}.roxy-stage-bubble{max-width:none;padding:12px 14px}.roxy-stage-bubble:after{display:none}.roxy-stage-bubble strong{font-size:22px}.roxy-stage-bubble span{font-size:12px}.roxy-stage-wave{height:36px;padding:7px 10px}.roxy-stage-status{max-width:none;padding:10px 12px}.roxy-stage-status strong{font-size:28px}.roxy-stage-right{grid-template-columns:1fr}.roxy-stage-brand{display:none}.roxy-stage-values{grid-template-columns:1fr}.roxy-stage-values div:nth-child(n+3){display:none}.roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.roxy-stage-module{padding:8px 6px}.roxy-stage-module strong{font-size:12px}}
-        @media (max-width:760px){.roxy-opening-stage{grid-template-areas:"center" "modules";padding:10px 10px 9px}.roxy-stage-left,.roxy-stage-right{display:none}.roxy-stage-center{min-height:255px}.roxy-stage-modules{margin-top:0}.roxy-stage-module b{width:32px;height:32px;margin-bottom:6px}.roxy-stage-module strong{font-size:10px;min-height:24px}.roxy-asset-card{grid-template-columns:1fr 1fr;padding:10px}.roxy-asset-command-bar{grid-template-columns:1fr;gap:8px}.roxy-asset-live{text-align:left;justify-items:start}.roxy-floating-avatar{right:10px;bottom:66px;max-width:210px}}
+        @media (max-width:760px){.roxy-opening-stage{grid-template-columns:1fr;grid-template-areas:"center" "modules";gap:10px;min-height:0;padding:10px 10px 9px;margin-top:2px}.roxy-stage-center{min-height:270px}.roxy-stage-center .roxy-hologram-avatar{width:min(292px,91vw)}.roxy-stage-title{bottom:8px}.roxy-stage-title strong{font-size:44px}.roxy-stage-title span{font-size:10px;letter-spacing:.18em}.roxy-stage-left{display:block;position:absolute;left:15px;top:13px;width:min(150px,40%);z-index:3}.roxy-stage-bubble{max-width:none;padding:9px 10px;border-radius:8px;background:rgba(2,6,23,.54)}.roxy-stage-bubble:after{display:none}.roxy-stage-bubble strong{font-size:15px}.roxy-stage-bubble span{font-size:10px;line-height:1.15;margin-top:5px}.roxy-stage-bubble i{width:4px;height:4px;margin-top:7px}.roxy-stage-wave,.roxy-stage-status{display:none}.roxy-stage-right{display:block;position:absolute;right:14px;top:12px;width:min(132px,36%);z-index:3}.roxy-stage-brand{display:grid;justify-items:end;gap:2px;border:0;background:transparent;padding:0;box-shadow:none;text-align:right}.roxy-stage-brand .brand-logo-img{width:112px;border-color:rgba(212,175,96,.42);background:rgba(2,6,23,.25)}.roxy-stage-brand span{font-size:8px;color:#f8fafc}.roxy-stage-brand strong{display:none}.roxy-stage-values{display:none}.roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:0}.roxy-stage-module{padding:8px 6px}.roxy-stage-module b{width:32px;height:32px;margin-bottom:6px}.roxy-stage-module strong{font-size:10px;min-height:24px}.roxy-asset-card{grid-template-columns:1fr 1fr;padding:10px}.roxy-asset-command-bar{grid-template-columns:1fr;gap:8px}.roxy-asset-live{text-align:left;justify-items:start}.roxy-floating-avatar{right:10px;bottom:66px;max-width:210px}}
         @media (max-width:430px){.roxy-stage-center{min-height:245px}.roxy-stage-center .roxy-hologram-avatar{width:min(255px,90vw)}.roxy-stage-title strong{font-size:38px}.roxy-stage-modules{grid-template-columns:repeat(2,minmax(0,1fr))}.roxy-stage-module:nth-child(n+5){display:block}.roxy-stage-module{padding:7px 5px}}
         .roxy-trade-cockpit{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 160px minmax(250px,.9fr);gap:12px;align-items:center;border:1px solid rgba(56,189,248,.34);border-left:4px solid #d4af60;border-radius:8px;background:
             radial-gradient(circle at 50% 45%,rgba(56,189,248,.20),transparent 36%),
@@ -35536,8 +35526,8 @@ def main() -> None:
         .flow-step span{display:inline-grid;place-items:center;min-width:23px;height:19px;border-radius:999px;background:rgba(212,175,96,.18);border:1px solid rgba(212,175,96,.35);color:#fde68a;font-size:10px;font-weight:950}
         .roxy-hero-center{min-height:340px;display:grid;place-items:center;position:relative}
         .roxy-hologram-avatar{position:relative;width:min(360px,100%);aspect-ratio:1/1.12;display:grid;place-items:center;isolation:isolate}
-        .roxy-avatar-core{position:relative;width:70%;aspect-ratio:1/1.18;border-radius:8px;overflow:hidden;border:1px solid rgba(125,211,252,.42);background:#030711;box-shadow:0 0 0 1px rgba(255,255,255,.06),0 0 56px rgba(56,189,248,.28),0 26px 80px rgba(0,0,0,.55);animation:roxyBreath 4.8s ease-in-out infinite;transform-origin:center bottom}
-        .roxy-avatar-core img{width:100%;height:100%;object-fit:cover;object-position:center 20%;display:block;filter:saturate(1.12) contrast(1.04)}
+        .roxy-avatar-core{position:relative;width:62%;aspect-ratio:.58/1;border-radius:10px;overflow:hidden;border:1px solid rgba(125,211,252,.42);background:#030711;box-shadow:0 0 0 1px rgba(255,255,255,.06),0 0 56px rgba(56,189,248,.28),0 26px 80px rgba(0,0,0,.55);animation:roxyBreath 4.8s ease-in-out infinite;transform-origin:center bottom}
+        .roxy-avatar-core img{width:100%;height:100%;object-fit:cover;object-position:center center;display:block;filter:saturate(1.12) contrast(1.04)}
         .roxy-avatar-core:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(56,189,248,.12),transparent 30%,rgba(212,175,96,.10) 68%,transparent),linear-gradient(180deg,transparent 68%,rgba(2,6,23,.62));mix-blend-mode:screen;pointer-events:none}
         .roxy-avatar-core:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(180deg,rgba(125,211,252,.12) 0 1px,transparent 1px 7px);opacity:.18;pointer-events:none}
         .roxy-face-glow{position:absolute;inset:6%;border-radius:50%;box-shadow:0 0 34px rgba(56,189,248,.25);pointer-events:none}
