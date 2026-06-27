@@ -31269,6 +31269,57 @@ def roxy_trade_plan_from_row(
     }
 
 
+def render_roxy_folder_dual_chart(
+    *,
+    symbol: str,
+    market: str,
+    trade_plan: dict[str, Any],
+    height: int = 390,
+) -> bool:
+    panes = [("15m", "Entrada 15m"), ("1h", "Tendencia 1h")]
+    pane_data: list[tuple[str, str, pd.DataFrame]] = []
+    for pane_tf, label in panes:
+        try:
+            pane_df = cached_trade_desk_chart_df(symbol, market, pane_tf)
+        except Exception:
+            pane_df = pd.DataFrame()
+        pane_data.append((pane_tf, label, pane_df if isinstance(pane_df, pd.DataFrame) else pd.DataFrame()))
+    if all(pane_df.empty for _, _, pane_df in pane_data):
+        return False
+    st.markdown(
+        (
+            '<div class="dual-chart-contract-strip" '
+            'style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;'
+            'margin:3px 0 5px;padding:4px 8px;border:1px solid rgba(34,197,94,.24);'
+            'border-radius:6px;background:rgba(15,23,42,.62);color:#cbd5e1;font-size:11px;">'
+            '<strong>2 GRAFICAS LIVE</strong>'
+            f"<span>{html.escape(text_display(symbol).upper())} · 15m + 1h</span>"
+            "<span>Entrada 15m · tendencia 1h · EMA9 · Avg20/40 · Bollinger · volumen</span>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+    columns = st.columns([1, 1], gap="small")
+    rendered = False
+    fallback_df = next((pane_df for _, _, pane_df in pane_data if not pane_df.empty), pd.DataFrame())
+    for col, (pane_tf, label, pane_df) in zip(columns, pane_data):
+        chart_df = pane_df if not pane_df.empty else fallback_df
+        with col:
+            rendered = (
+                render_browser_live_candle_chart_panel(
+                    chart_df,
+                    symbol=symbol,
+                    market=market,
+                    timeframe=pane_tf,
+                    trade_plan=trade_plan,
+                    height=height,
+                    panel_label=label,
+                )
+                or rendered
+            )
+    return rendered
+
+
 def render_roxy_folder_trade_chart(
     rows: list[dict[str, Any]], *, market: str, timeframe: str, key_prefix: str
 ) -> None:
@@ -31315,11 +31366,6 @@ def render_roxy_folder_trade_chart(
         unsafe_allow_html=True,
     )
     resolved_symbol = resolve_symbol_query(symbol, row_market)
-    chart_df = pd.DataFrame()
-    try:
-        chart_df = cached_trade_desk_chart_df(resolved_symbol, row_market, selected_timeframe)
-    except Exception:
-        chart_df = pd.DataFrame()
     trade_plan = roxy_trade_plan_from_row(
         row,
         symbol=resolved_symbol,
@@ -31327,6 +31373,18 @@ def render_roxy_folder_trade_chart(
         timeframe=selected_timeframe,
         action=action,
     )
+    rendered = render_roxy_folder_dual_chart(
+        symbol=resolved_symbol,
+        market=row_market,
+        trade_plan=trade_plan,
+        height=390,
+    )
+    if rendered:
+        return
+    try:
+        chart_df = cached_trade_desk_chart_df(resolved_symbol, row_market, selected_timeframe)
+    except Exception:
+        chart_df = pd.DataFrame()
     if isinstance(chart_df, pd.DataFrame) and not chart_df.empty:
         rendered = render_browser_live_candle_chart_panel(
             chart_df,
@@ -31334,7 +31392,7 @@ def render_roxy_folder_trade_chart(
             market=row_market,
             timeframe=selected_timeframe,
             trade_plan=trade_plan,
-            height=410,
+            height=390,
             panel_label="Grafica operable",
         )
         if rendered:
