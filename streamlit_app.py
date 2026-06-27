@@ -418,6 +418,7 @@ ROXY_LOGO_SVG = """
 """
 
 BRAND_LOGO_PATH = project_path("assets/grau_service_logo.png")
+ROXY_COMMAND_REFERENCE_PATH = project_path("assets/roxy_command_reference.jpg")
 ROXY_AVATAR_PATH = project_path("assets/roxy_avatar.jpg")
 ROXY_AVATAR_VARIANT_PATHS = {
     "main": ROXY_AVATAR_PATH,
@@ -435,6 +436,15 @@ def brand_logo_html() -> str:
         return ROXY_LOGO_SVG.strip()
     encoded = base64.b64encode(data).decode("ascii")
     return f'<img class="brand-logo-img" src="data:image/png;base64,{encoded}" alt="Grau Service LLC logo"/>'
+
+
+def image_css_url(path: Path, mime: str = "image/jpeg") -> str:
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return "none"
+    encoded = base64.b64encode(data).decode("ascii")
+    return f"url('data:{mime};base64,{encoded}')"
 
 
 def roxy_avatar_html(state: str = "ready", variant: str = "mini", label: str = "Roxy AI") -> str:
@@ -1928,110 +1938,98 @@ def apply_roxy_navigation_target(
 
 ROXY_COMMAND_MODULES = [
     {
-        "label": "Acciones",
-        "slug": "acciones",
-        "mark": "STK",
+        "label": "Acciones disponibles para operar",
+        "slug": "acciones-operar",
+        "mark": "ACT",
         "page": "Dashboard",
         "symbol": "AAPL",
         "market": "stock",
         "scope": "Acciones",
-        "detail": "Stocks con entrada, stop y target.",
+        "tf": "1h",
+        "detail": "Entradas con stop, target y recomendacion.",
     },
     {
-        "label": "Crypto",
-        "slug": "crypto",
-        "mark": "BTC",
+        "label": "Criptomonedas disponibles para trabajar",
+        "slug": "crypto-trabajar",
+        "mark": "CRY",
         "page": "Dashboard",
         "symbol": "BTC/USD",
         "market": "crypto",
         "scope": "Crypto",
-        "detail": "BTC, ETH, SOL y mas.",
+        "tf": "1h",
+        "detail": "BTC, ETH, SOL, XRP y mas.",
     },
     {
-        "label": "Opciones",
-        "slug": "opciones",
-        "mark": "OPT",
+        "label": "Crypto 20 minutos",
+        "slug": "crypto-20m",
+        "mark": "20M",
         "page": "Dashboard",
-        "symbol": "AAPL",
-        "market": "stock",
-        "scope": "Opciones",
-        "detail": "Calls y puts calificados.",
+        "symbol": "BTC/USD",
+        "market": "crypto",
+        "scope": "Crypto",
+        "tf": "1m",
+        "detail": "Lectura rapida para movimientos cortos.",
     },
     {
-        "label": "Watchlist",
-        "slug": "watchlist",
-        "mark": "WCH",
+        "label": "Crypto 2h",
+        "slug": "crypto-2h",
+        "mark": "2H",
         "page": "Dashboard",
-        "symbol": "AAPL",
-        "market": "stock",
-        "scope": "Todos",
-        "detail": "Favoritos listos para vigilar.",
+        "symbol": "BTC/USD",
+        "market": "crypto",
+        "scope": "Crypto",
+        "tf": "2h",
+        "detail": "Tendencia media y confirmacion.",
     },
     {
-        "label": "Scanner",
-        "slug": "scanner",
-        "mark": "SCN",
+        "label": "Crypto daily",
+        "slug": "crypto-daily",
+        "mark": "DAY",
         "page": "Dashboard",
-        "symbol": "AAPL",
-        "market": "stock",
-        "scope": "Todos",
-        "detail": "Mercado vivo y filtros IA.",
+        "symbol": "BTC/USD",
+        "market": "crypto",
+        "scope": "Crypto",
+        "tf": "1d",
+        "detail": "Estructura diaria y zonas mayores.",
     },
     {
-        "label": "Recomendaciones",
-        "slug": "recomendaciones",
-        "mark": "AI",
-        "page": "Dashboard",
-        "symbol": "AAPL",
-        "market": "stock",
-        "scope": "Todos",
-        "detail": "Mejores ideas de Roxy.",
-    },
-    {
-        "label": "Capital/Riesgo",
-        "slug": "capital-riesgo",
-        "mark": "1R",
+        "label": "Classroom",
+        "slug": "classroom",
+        "mark": "CLS",
         "page": "Dashboard",
         "symbol": "AAPL",
         "market": "stock",
         "scope": "Todos",
-        "detail": "Tamano, riesgo y guardrails.",
-    },
-    {
-        "label": "Historial",
-        "slug": "historial",
-        "mark": "HST",
-        "page": "Dashboard",
-        "symbol": "AAPL",
-        "market": "stock",
-        "scope": "Todos",
-        "detail": "Resultados y aprendizaje paper.",
+        "tf": "1h",
+        "detail": "Aprende la lectura de Roxy paso a paso.",
     },
 ]
 
 
-def normalize_roxy_module(value: Any, default: str = "acciones") -> str:
+def normalize_roxy_module(value: Any, default: str = "acciones-operar") -> str:
     text = safe_key(value).replace("_", "-")
     aliases = {
-        "accion": "acciones",
-        "acciones": "acciones",
-        "stock": "acciones",
-        "stocks": "acciones",
-        "crypto": "crypto",
-        "cripto": "crypto",
-        "opcion": "opciones",
-        "opciones": "opciones",
-        "watch": "watchlist",
-        "watchlist": "watchlist",
-        "scanner": "scanner",
-        "scan": "scanner",
-        "recomendacion": "recomendaciones",
-        "recomendaciones": "recomendaciones",
-        "capital": "capital-riesgo",
-        "riesgo": "capital-riesgo",
-        "capital-riesgo": "capital-riesgo",
-        "historial": "historial",
-        "history": "historial",
+        "accion": "acciones-operar",
+        "acciones": "acciones-operar",
+        "acciones-operar": "acciones-operar",
+        "stock": "acciones-operar",
+        "stocks": "acciones-operar",
+        "crypto": "crypto-trabajar",
+        "cripto": "crypto-trabajar",
+        "crypto-trabajar": "crypto-trabajar",
+        "criptomonedas": "crypto-trabajar",
+        "crypto-20": "crypto-20m",
+        "crypto-20m": "crypto-20m",
+        "20m": "crypto-20m",
+        "20-minutos": "crypto-20m",
+        "crypto-2h": "crypto-2h",
+        "2h": "crypto-2h",
+        "crypto-daily": "crypto-daily",
+        "daily": "crypto-daily",
+        "class": "classroom",
+        "classes": "classroom",
+        "classes-room": "classroom",
+        "classroom": "classroom",
     }
     valid = {item["slug"] for item in ROXY_COMMAND_MODULES}
     return aliases.get(text, text if text in valid else default)
@@ -2059,7 +2057,7 @@ def apply_roxy_text_command(command: Any) -> bool:
         )
         return True
     if any(term in text for term in ["crypto", "cripto", "bitcoin", "btc"]):
-        st.session_state["roxy_active_module"] = "crypto"
+        st.session_state["roxy_active_module"] = "crypto-trabajar"
         apply_roxy_navigation_target(
             page="Dashboard",
             symbol="BTC/USD",
@@ -2069,7 +2067,7 @@ def apply_roxy_text_command(command: Any) -> bool:
         )
         return True
     if any(term in text for term in ["accion", "acciones", "stock", "stocks", "oportunidad", "oportunidades"]):
-        st.session_state["roxy_active_module"] = "acciones"
+        st.session_state["roxy_active_module"] = "acciones-operar"
         apply_roxy_navigation_target(
             page="Dashboard",
             symbol=st.session_state.get("command_symbol") or "AAPL",
@@ -2079,8 +2077,8 @@ def apply_roxy_text_command(command: Any) -> bool:
         )
         return True
     if "opcion" in text or "opciones" in text:
-        st.session_state["roxy_active_module"] = "opciones"
-        apply_roxy_navigation_target(page="Dashboard", budget_scope="Opciones", message="Roxy abrio opciones.")
+        st.session_state["roxy_active_module"] = "acciones-operar"
+        apply_roxy_navigation_target(page="Dashboard", budget_scope="Acciones", message="Roxy abrio acciones.")
         return True
     if "capital" in text or "riesgo" in text:
         st.session_state["roxy_active_module"] = "capital-riesgo"
@@ -31006,11 +31004,11 @@ def render_roxy_opening_stage(
     active_module = normalize_roxy_module(module_from_query, default="") if module_from_query else ""
     if active_module:
         st.session_state["roxy_active_module"] = active_module
-    query_timeframe = quote(str(timeframe or "1h"), safe="")
+    reference_bg = image_css_url(ROXY_COMMAND_REFERENCE_PATH, "image/jpeg")
     modules_html = "".join(
         f"""
         <a class="roxy-stage-module {'roxy-stage-module-active' if item['slug'] == active_module else ''}"
-           href="?view={quote(item['page'], safe='')}&symbol={quote(item['symbol'], safe='')}&market={quote(item['market'], safe='')}&tf={query_timeframe}&module={quote(item['slug'], safe='')}">
+           href="?view={quote(item['page'], safe='')}&symbol={quote(item['symbol'], safe='')}&market={quote(item['market'], safe='')}&tf={quote(str(item.get('tf') or timeframe or '1h'), safe='')}&module={quote(item['slug'], safe='')}">
           <b>{html.escape(item['mark'])}</b>
           <span>{html.escape(item['label'])}</span>
           <strong>{html.escape(item['detail'])}</strong>
@@ -31020,7 +31018,7 @@ def render_roxy_opening_stage(
     )
     st.markdown(
         f"""
-        <section class="roxy-opening-stage">
+        <section class="roxy-opening-stage roxy-reference-stage" style="--roxy-reference-bg:{reference_bg};">
           <div class="roxy-stage-left">
             <div class="roxy-stage-bubble">
               <strong>Hola, soy Roxy.</strong>
@@ -31300,40 +31298,60 @@ def render_roxy_options_module(timeframe: str) -> None:
             )
 
 
+def render_roxy_classroom_module() -> None:
+    lessons = [
+        ("Primer paso", "Como leer entrada, stop, target y riesgo antes de tocar una grafica."),
+        ("Velas y tiempo", "Diferencia entre crypto 20 minutos, crypto 2h y crypto daily."),
+        ("Reglas de Roxy", "Cuando esperar, cuando mirar y cuando no operar."),
+        ("Practica paper", "Como revisar oportunidades sin colocar ordenes reales."),
+    ]
+    cols = st.columns(2, gap="small")
+    for idx, (title, detail) in enumerate(lessons):
+        with cols[idx % 2]:
+            st.markdown(
+                f"""
+                <div class="roxy-asset-card roxy-asset-card-watch roxy-classroom-card">
+                  <span>CLASSROOM</span>
+                  <strong>{html.escape(title)}</strong>
+                  <em>Leccion de Roxy</em>
+                  <p>{html.escape(detail)}</p>
+                  <small>Contenido educativo; no coloca ordenes reales.</small>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+
 def render_roxy_module_workspace(table: pd.DataFrame, *, active_module: str, timeframe: str) -> None:
     active_module = normalize_roxy_module(active_module)
-    if active_module == "acciones":
+    if active_module == "acciones-operar":
         rows = roxy_asset_rows_for_market(table, "stock")
-        render_roxy_asset_cards(rows, market="stock", timeframe=timeframe, key_prefix="acciones")
+        render_roxy_asset_cards(rows, market="stock", timeframe="1h", key_prefix="acciones-operar")
         return
-    if active_module == "crypto":
+    if active_module == "crypto-trabajar":
         rows = roxy_asset_rows_for_market(table, "crypto")
-        render_roxy_asset_cards(rows, market="crypto", timeframe=timeframe, key_prefix="crypto")
+        render_roxy_asset_cards(rows, market="crypto", timeframe="1h", key_prefix="crypto-trabajar")
         return
-    if active_module == "opciones":
-        render_roxy_options_module(timeframe)
+    if active_module == "crypto-20m":
+        rows = roxy_asset_rows_for_market(table, "crypto")
+        render_roxy_asset_cards(rows, market="crypto", timeframe="1m", key_prefix="crypto-20m")
         return
-    if active_module in {"watchlist", "scanner", "recomendaciones"}:
-        source = table if isinstance(table, pd.DataFrame) and not table.empty else pd.DataFrame(roxy_fallback_asset_rows("stock"))
-        rows = [item.to_dict() for _, item in source.head(8).iterrows()]
-        render_roxy_asset_cards(rows, market="stock", timeframe=timeframe, key_prefix=active_module)
+    if active_module == "crypto-2h":
+        rows = roxy_asset_rows_for_market(table, "crypto")
+        render_roxy_asset_cards(rows, market="crypto", timeframe="2h", key_prefix="crypto-2h")
         return
-    if active_module == "capital-riesgo":
-        st.markdown(
-            """
-            <div class="roxy-module-empty">
-              <strong>Capital y riesgo</strong>
-              <span>Ajusta capital, 1R y max trades en el panel de control. Roxy filtra oportunidades que caben en tu presupuesto.</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    if active_module == "crypto-daily":
+        rows = roxy_asset_rows_for_market(table, "crypto")
+        render_roxy_asset_cards(rows, market="crypto", timeframe="1d", key_prefix="crypto-daily")
+        return
+    if active_module == "classroom":
+        render_roxy_classroom_module()
         return
     st.markdown(
         """
         <div class="roxy-module-empty">
-          <strong>Historial paper</strong>
-          <span>Resultados, alertas y aprendizaje se mantienen como contexto para mejorar las recomendaciones.</span>
+          <strong>Carpeta en preparacion</strong>
+          <span>Roxy esta preparando esta seccion.</span>
         </div>
         """,
         unsafe_allow_html=True,
@@ -35364,6 +35382,15 @@ def main() -> None:
         .roxy-stage-module b{display:grid;place-items:center;width:38px;height:38px;margin:0 auto 8px;border:1px solid rgba(56,189,248,.44);border-radius:50%;background:radial-gradient(circle,rgba(56,189,248,.25),rgba(2,6,23,.70));color:#e0f2fe;font-size:12px;font-weight:950;line-height:1;letter-spacing:.02em;box-shadow:0 0 22px rgba(56,189,248,.20)}
         .roxy-stage-module span{color:#8bd8ff;font-size:9px;letter-spacing:.08em}
         .roxy-stage-module strong{display:block;color:#f8fafc;font-size:11px;line-height:1.18;margin-top:5px;min-height:26px;overflow:hidden}
+        .roxy-reference-stage{display:grid;grid-template-columns:1fr;grid-template-areas:"modules";align-items:end;aspect-ratio:16/9;min-height:620px;padding:0 44px 24px;background-image:linear-gradient(180deg,rgba(0,0,0,.04),rgba(0,0,0,.02) 55%,rgba(2,6,23,.76) 78%,rgba(2,6,23,.96)),var(--roxy-reference-bg)!important;background-size:cover!important;background-position:center center!important;border-left-width:0;border-color:rgba(56,189,248,.20);box-shadow:0 26px 90px rgba(0,0,0,.52)}
+        .roxy-reference-stage .roxy-stage-left,.roxy-reference-stage .roxy-stage-center,.roxy-reference-stage .roxy-stage-right{display:none}
+        .roxy-reference-stage .roxy-stage-modules{grid-area:modules;grid-template-columns:repeat(6,minmax(0,1fr));gap:0;margin:0;align-self:end;background:linear-gradient(90deg,transparent,rgba(2,6,23,.34) 10%,rgba(2,6,23,.38) 90%,transparent);padding-top:4px}
+        .roxy-reference-stage .roxy-stage-module{border:0;border-radius:0;background:transparent;padding:2px 13px 0;box-shadow:none;border-right:1px solid rgba(125,211,252,.22)}
+        .roxy-reference-stage .roxy-stage-module:last-child{border-right:0}
+        .roxy-reference-stage .roxy-stage-module:hover{transform:translateY(-3px);box-shadow:none}
+        .roxy-reference-stage .roxy-stage-module b{width:58px;height:58px;margin-bottom:9px;border-color:rgba(125,211,252,.72);background:radial-gradient(circle,rgba(56,189,248,.20),rgba(2,6,23,.32));font-size:13px;box-shadow:0 0 22px rgba(56,189,248,.32),inset 0 0 16px rgba(56,189,248,.10)}
+        .roxy-reference-stage .roxy-stage-module span{color:#f8fafc;font-size:11px;letter-spacing:.08em;text-shadow:0 0 12px rgba(56,189,248,.55)}
+        .roxy-reference-stage .roxy-stage-module strong{font-size:10px;color:#dbeafe;line-height:1.18;min-height:34px;margin-top:5px;text-shadow:0 0 12px rgba(2,6,23,.75)}
         .roxy-folder-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;border:1px solid rgba(56,189,248,.26);border-left:4px solid #38bdf8;border-radius:8px;background:linear-gradient(135deg,rgba(7,12,22,.94),rgba(8,47,73,.48));padding:10px 12px;margin:0 0 8px;box-shadow:0 14px 34px rgba(2,6,23,.28)}
         .roxy-folder-head a{color:#e0f2fe!important;text-decoration:none!important;border:1px solid rgba(125,211,252,.34);border-radius:6px;background:rgba(2,6,23,.48);padding:7px 9px;font-size:11px;font-weight:900;white-space:nowrap}
         .roxy-folder-head span{display:block;color:#8bd8ff;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}
@@ -35413,7 +35440,9 @@ def main() -> None:
         .roxy-floating-avatar div>span{display:block;color:#cbd5e1;font-size:10px;line-height:1.2;margin-top:3px}
         @media (max-width:760px){.roxy-folder-head{grid-template-columns:1fr}.roxy-folder-head small{text-align:left}}
         @media (max-width:1080px){.roxy-opening-stage{grid-template-columns:minmax(0,1fr) minmax(250px,360px);grid-template-areas:"left center" "right center" "modules modules";min-height:390px}.roxy-stage-right{grid-template-columns:1fr 1fr}.roxy-stage-brand{align-content:center}.roxy-stage-values{gap:6px}.roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-stage-title strong{font-size:50px}}
+        @media (max-width:1080px){.roxy-reference-stage{grid-template-areas:"modules";grid-template-columns:1fr;min-height:min(620px,calc((100vw - 32px)*.78));aspect-ratio:auto;padding:0 18px 18px;background-position:center top!important}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:10px;background:linear-gradient(180deg,rgba(2,6,23,.10),rgba(2,6,23,.74));padding-top:12px}.roxy-reference-stage .roxy-stage-module{border-right:0}.roxy-reference-stage .roxy-stage-module b{width:44px;height:44px}}
         @media (max-width:760px){.roxy-opening-stage{grid-template-columns:1fr;grid-template-areas:"center" "modules";gap:10px;min-height:0;padding:10px 10px 9px;margin-top:2px}.roxy-stage-center{min-height:270px}.roxy-stage-center .roxy-hologram-avatar{width:min(292px,91vw)}.roxy-stage-title{bottom:8px}.roxy-stage-title strong{font-size:44px}.roxy-stage-title span{font-size:10px;letter-spacing:.18em}.roxy-stage-left{display:block;position:absolute;left:15px;top:13px;width:min(150px,40%);z-index:3}.roxy-stage-bubble{max-width:none;padding:9px 10px;border-radius:8px;background:rgba(2,6,23,.54)}.roxy-stage-bubble:after{display:none}.roxy-stage-bubble strong{font-size:15px}.roxy-stage-bubble span{font-size:10px;line-height:1.15;margin-top:5px}.roxy-stage-bubble i{width:4px;height:4px;margin-top:7px}.roxy-stage-wave,.roxy-stage-status{display:none}.roxy-stage-right{display:block;position:absolute;right:14px;top:12px;width:min(132px,36%);z-index:3}.roxy-stage-brand{display:grid;justify-items:end;gap:2px;border:0;background:transparent;padding:0;box-shadow:none;text-align:right}.roxy-stage-brand .brand-logo-img{width:112px;border-color:rgba(212,175,96,.42);background:rgba(2,6,23,.25)}.roxy-stage-brand span{font-size:8px;color:#f8fafc}.roxy-stage-brand strong{display:none}.roxy-stage-values{display:none}.roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:0}.roxy-stage-module{padding:8px 6px}.roxy-stage-module b{width:32px;height:32px;margin-bottom:6px}.roxy-stage-module strong{font-size:10px;min-height:24px}.roxy-asset-card{grid-template-columns:1fr 1fr;padding:10px}.roxy-asset-command-bar{grid-template-columns:1fr;gap:8px}.roxy-asset-live{text-align:left;justify-items:start}.roxy-floating-avatar{right:10px;bottom:66px;max-width:210px}}
+        @media (max-width:760px){.roxy-reference-stage{min-height:650px;padding:0 14px 16px;background-size:120% auto!important;background-repeat:no-repeat!important;background-position:center top!important;background-color:#020817}.roxy-reference-stage .roxy-stage-left,.roxy-reference-stage .roxy-stage-center,.roxy-reference-stage .roxy-stage-right{display:none}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;background:linear-gradient(180deg,rgba(2,6,23,.16),rgba(2,6,23,.82));padding-top:10px}.roxy-reference-stage .roxy-stage-module{padding:4px 5px}.roxy-reference-stage .roxy-stage-module b{width:42px;height:42px;margin-bottom:7px}.roxy-reference-stage .roxy-stage-module span{font-size:9px}.roxy-reference-stage .roxy-stage-module strong{font-size:9px;min-height:24px}}
         @media (max-width:430px){.roxy-stage-center{min-height:245px}.roxy-stage-center .roxy-hologram-avatar{width:min(255px,90vw)}.roxy-stage-title strong{font-size:38px}.roxy-stage-modules{grid-template-columns:repeat(2,minmax(0,1fr))}.roxy-stage-module:nth-child(n+5){display:block}.roxy-stage-module{padding:7px 5px}}
         .roxy-trade-cockpit{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 160px minmax(250px,.9fr);gap:12px;align-items:center;border:1px solid rgba(56,189,248,.34);border-left:4px solid #d4af60;border-radius:8px;background:
             radial-gradient(circle at 50% 45%,rgba(56,189,248,.20),transparent 36%),
