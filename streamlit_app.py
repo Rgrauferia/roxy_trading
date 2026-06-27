@@ -744,8 +744,10 @@ def fetch_direct_yfinance_ohlcv(symbol: str, timeframe: str) -> pd.DataFrame:
     if yf is None:
         return pd.DataFrame()
     clean_symbol = str(symbol or "").strip().upper()
-    if not clean_symbol or "/" in clean_symbol:
+    if not clean_symbol:
         return pd.DataFrame()
+    if "/" in clean_symbol:
+        clean_symbol = clean_symbol.replace("/", "-")
     normalized_tf = normalize_command_timeframe(timeframe)
     interval = {"1m": "1m", "5m": "5m", "15m": "15m", "1h": "60m", "2h": "60m", "4h": "60m", "1d": "1d", "1w": "1wk"}.get(normalized_tf, "60m")
     period = {"1m": "7d", "5m": "30d", "15m": "30d", "1h": "120d", "2h": "120d", "4h": "180d", "1d": "2y", "1w": "10y"}.get(normalized_tf, "120d")
@@ -1924,6 +1926,125 @@ def apply_roxy_navigation_target(
     )
 
 
+ROXY_COMMAND_MODULES = [
+    {
+        "label": "Acciones",
+        "slug": "acciones",
+        "mark": "STK",
+        "page": "Dashboard",
+        "symbol": "AAPL",
+        "market": "stock",
+        "scope": "Acciones",
+        "detail": "Stocks con entrada, stop y target.",
+    },
+    {
+        "label": "Crypto",
+        "slug": "crypto",
+        "mark": "BTC",
+        "page": "Dashboard",
+        "symbol": "BTC/USD",
+        "market": "crypto",
+        "scope": "Crypto",
+        "detail": "BTC, ETH, SOL y mas.",
+    },
+    {
+        "label": "Opciones",
+        "slug": "opciones",
+        "mark": "OPT",
+        "page": "Dashboard",
+        "symbol": "AAPL",
+        "market": "stock",
+        "scope": "Opciones",
+        "detail": "Calls y puts calificados.",
+    },
+    {
+        "label": "Watchlist",
+        "slug": "watchlist",
+        "mark": "WCH",
+        "page": "Dashboard",
+        "symbol": "AAPL",
+        "market": "stock",
+        "scope": "Todos",
+        "detail": "Favoritos listos para vigilar.",
+    },
+    {
+        "label": "Scanner",
+        "slug": "scanner",
+        "mark": "SCN",
+        "page": "Dashboard",
+        "symbol": "AAPL",
+        "market": "stock",
+        "scope": "Todos",
+        "detail": "Mercado vivo y filtros IA.",
+    },
+    {
+        "label": "Recomendaciones",
+        "slug": "recomendaciones",
+        "mark": "AI",
+        "page": "Dashboard",
+        "symbol": "AAPL",
+        "market": "stock",
+        "scope": "Todos",
+        "detail": "Mejores ideas de Roxy.",
+    },
+    {
+        "label": "Capital/Riesgo",
+        "slug": "capital-riesgo",
+        "mark": "1R",
+        "page": "Dashboard",
+        "symbol": "AAPL",
+        "market": "stock",
+        "scope": "Todos",
+        "detail": "Tamano, riesgo y guardrails.",
+    },
+    {
+        "label": "Historial",
+        "slug": "historial",
+        "mark": "HST",
+        "page": "Dashboard",
+        "symbol": "AAPL",
+        "market": "stock",
+        "scope": "Todos",
+        "detail": "Resultados y aprendizaje paper.",
+    },
+]
+
+
+def normalize_roxy_module(value: Any, default: str = "acciones") -> str:
+    text = safe_key(value).replace("_", "-")
+    aliases = {
+        "accion": "acciones",
+        "acciones": "acciones",
+        "stock": "acciones",
+        "stocks": "acciones",
+        "crypto": "crypto",
+        "cripto": "crypto",
+        "opcion": "opciones",
+        "opciones": "opciones",
+        "watch": "watchlist",
+        "watchlist": "watchlist",
+        "scanner": "scanner",
+        "scan": "scanner",
+        "recomendacion": "recomendaciones",
+        "recomendaciones": "recomendaciones",
+        "capital": "capital-riesgo",
+        "riesgo": "capital-riesgo",
+        "capital-riesgo": "capital-riesgo",
+        "historial": "historial",
+        "history": "historial",
+    }
+    valid = {item["slug"] for item in ROXY_COMMAND_MODULES}
+    return aliases.get(text, text if text in valid else default)
+
+
+def roxy_module_by_slug(slug: Any) -> dict[str, str]:
+    normalized = normalize_roxy_module(slug)
+    for item in ROXY_COMMAND_MODULES:
+        if item["slug"] == normalized:
+            return item
+    return ROXY_COMMAND_MODULES[0]
+
+
 def apply_roxy_text_command(command: Any) -> bool:
     text = normalize_roxy_command_text(command)
     if not text:
@@ -1938,6 +2059,7 @@ def apply_roxy_text_command(command: Any) -> bool:
         )
         return True
     if any(term in text for term in ["crypto", "cripto", "bitcoin", "btc"]):
+        st.session_state["roxy_active_module"] = "crypto"
         apply_roxy_navigation_target(
             page="Dashboard",
             symbol="BTC/USD",
@@ -1947,6 +2069,7 @@ def apply_roxy_text_command(command: Any) -> bool:
         )
         return True
     if any(term in text for term in ["accion", "acciones", "stock", "stocks", "oportunidad", "oportunidades"]):
+        st.session_state["roxy_active_module"] = "acciones"
         apply_roxy_navigation_target(
             page="Dashboard",
             symbol=st.session_state.get("command_symbol") or "AAPL",
@@ -1956,10 +2079,12 @@ def apply_roxy_text_command(command: Any) -> bool:
         )
         return True
     if "opcion" in text or "opciones" in text:
-        apply_roxy_navigation_target(page="Opciones", budget_scope="Opciones", message="Roxy abrio opciones.")
+        st.session_state["roxy_active_module"] = "opciones"
+        apply_roxy_navigation_target(page="Dashboard", budget_scope="Opciones", message="Roxy abrio opciones.")
         return True
     if "capital" in text or "riesgo" in text:
-        apply_roxy_navigation_target(page="Capital", message="Roxy abrio capital y riesgo.")
+        st.session_state["roxy_active_module"] = "capital-riesgo"
+        apply_roxy_navigation_target(page="Dashboard", message="Roxy abrio capital y riesgo.")
         return True
     if "estudio" in text or "manual" in text:
         apply_roxy_navigation_target(page="Estudios", message="Roxy abrio estudios.")
@@ -29209,22 +29334,70 @@ def show_trade_plan_screen(
             setup = analyze_moving_average_setup(history) if not history.empty else {}
             setup = apply_learned_strategy_brain(chart_df, setup) if setup else setup
         except Exception as exc:
-            st.error(f"No se pudo construir el plan para {symbol}: {exc}")
+            if market == "crypto":
+                history = fetch_direct_yfinance_ohlcv(symbol, timeframe)
+                if not history.empty:
+                    data_source = {
+                        "provider": "yfinance",
+                        "source": "yfinance_crypto_fallback",
+                        "mode": "FALLBACK",
+                        "label": "yfinance crypto fallback",
+                        "detail": "Velas publicas de crypto usadas porque ccxt/binanceus no esta disponible localmente.",
+                        "fallback": True,
+                        "fallback_reason": type(exc).__name__,
+                        "fallback_detail": str(exc),
+                        "fallback_action": "Confirmar precio en exchange/broker antes de operar.",
+                    }
+                    chart_df = prepare_symbol_chart_data(history)
+                    setup = analyze_moving_average_setup(history) if not history.empty else {}
+                    setup = apply_learned_strategy_brain(chart_df, setup) if setup else setup
+                else:
+                    st.error(f"No se pudo construir el plan para {symbol}: {exc}")
+                    render_professional_chart_block(
+                        pd.DataFrame(),
+                        {"symbol": symbol, "market": market, "timeframe": timeframe},
+                        {},
+                        {},
+                        key_prefix="trade_plan_error",
+                        source_meta={
+                            "source": "unavailable",
+                            "mode": "NO_DATA",
+                            "label": "Proveedor no disponible",
+                            "detail": "No se recibieron velas para la grafica.",
+                            "fallback_reason": "provider_error",
+                            "fallback_detail": f"{type(exc).__name__}: {exc}",
+                            "fallback_action": "Revisar proveedor, credenciales o intentar otro timeframe.",
+                        },
+                    )
+                    return
+            else:
+                st.error(f"No se pudo construir el plan para {symbol}: {exc}")
+                render_professional_chart_block(
+                    pd.DataFrame(),
+                    {"symbol": symbol, "market": market, "timeframe": timeframe},
+                    {},
+                    {},
+                    key_prefix="trade_plan_error",
+                    source_meta={
+                        "source": "unavailable",
+                        "mode": "NO_DATA",
+                        "label": "Proveedor no disponible",
+                        "detail": "No se recibieron velas para la grafica.",
+                        "fallback_reason": "provider_error",
+                        "fallback_detail": f"{type(exc).__name__}: {exc}",
+                        "fallback_action": "Revisar proveedor, credenciales o intentar otro timeframe.",
+                    },
+                )
+                return
+        if chart_df.empty or not setup:
+            st.warning(f"Roxy no recibio velas suficientes para {symbol}.")
             render_professional_chart_block(
-                pd.DataFrame(),
+                chart_df,
                 {"symbol": symbol, "market": market, "timeframe": timeframe},
+                setup if isinstance(setup, dict) else {},
                 {},
-                {},
-                key_prefix="trade_plan_error",
-                source_meta={
-                    "source": "unavailable",
-                    "mode": "NO_DATA",
-                    "label": "Proveedor no disponible",
-                    "detail": "No se recibieron velas para la grafica.",
-                    "fallback_reason": "provider_error",
-                    "fallback_detail": f"{type(exc).__name__}: {exc}",
-                    "fallback_action": "Revisar proveedor, credenciales o intentar otro timeframe.",
-                },
+                key_prefix="trade_plan_empty",
+                source_meta=data_source,
             )
             return
 
@@ -30829,22 +31002,21 @@ def render_roxy_opening_stage(
     safe_symbol = html.escape(text_display(symbol).upper())
     safe_market = html.escape(text_display(market).upper())
     safe_timeframe = html.escape(text_display(timeframe))
-    module_items = [
-        ("Graficas", f"{safe_timeframe} + 15m"),
-        ("Watchlist", f"{ready_now} listas"),
-        ("Vigilar", f"{watch_now} setups"),
-        ("Capital", f"${equity:,.0f}"),
-        ("Riesgo", f"{risk_pct:.1f}%"),
-        ("1R", f"${risk_cash:,.2f}"),
-    ]
+    active_module = normalize_roxy_module(
+        first_query_param_value(st.query_params, "module") or st.session_state.get("roxy_active_module") or "acciones"
+    )
+    st.session_state["roxy_active_module"] = active_module
+    query_timeframe = quote(str(timeframe or "1h"), safe="")
     modules_html = "".join(
         f"""
-        <div class="roxy-stage-module">
-          <span>{label}</span>
-          <strong>{value}</strong>
-        </div>
+        <a class="roxy-stage-module {'roxy-stage-module-active' if item['slug'] == active_module else ''}"
+           href="?view={quote(item['page'], safe='')}&symbol={quote(item['symbol'], safe='')}&market={quote(item['market'], safe='')}&tf={query_timeframe}&module={quote(item['slug'], safe='')}">
+          <b>{html.escape(item['mark'])}</b>
+          <span>{html.escape(item['label'])}</span>
+          <strong>{html.escape(item['detail'])}</strong>
+        </a>
         """
-        for label, value in module_items
+        for item in ROXY_COMMAND_MODULES
     )
     st.markdown(
         f"""
@@ -30882,7 +31054,7 @@ def render_roxy_opening_stage(
             <div class="roxy-stage-values">
               <div><span>Confianza</span><strong>Datos, velas y fuente visible</strong></div>
               <div><span>Eficiencia</span><strong>Roxy filtra antes de operar</strong></div>
-              <div><span>Control</span><strong>Ordenes reales apagadas</strong></div>
+              <div><span>Control</span><strong>Ordenes reales apagadas · 1R ${risk_cash:,.2f}</strong></div>
             </div>
           </div>
           <div class="roxy-stage-modules">
@@ -30904,35 +31076,34 @@ def render_roxy_first_screen_launchpad(
     message = st.session_state.pop("roxy_launch_message", "")
     if message:
         st.success(message)
+    module_from_query = first_query_param_value(st.query_params, "module")
+    if module_from_query:
+        st.session_state["roxy_active_module"] = normalize_roxy_module(module_from_query)
+    active_module = normalize_roxy_module(st.session_state.get("roxy_active_module") or "acciones")
+    active_info = roxy_module_by_slug(active_module)
 
     st.markdown(
-        """
+        f"""
         <section class="roxy-launchpad-head">
-          <div><span>Accesos Roxy</span><strong>Elige modulo o dile que activo abrir</strong></div>
-          <small>Dashboard conserva el scanner; Activo carga la grafica seleccionada.</small>
+          <div><span>Modulo activo</span><strong>{html.escape(active_info["label"])}</strong></div>
+          <small>{html.escape(active_info["detail"])} Toca una card para cargar la grafica.</small>
         </section>
         """,
         unsafe_allow_html=True,
     )
-    module_cols = st.columns(6, gap="small")
-    modules = [
-        ("Acciones", "Dashboard", symbol or "AAPL", "stock", "Acciones"),
-        ("Crypto", "Dashboard", "BTC/USD", "crypto", "Crypto"),
-        ("Opciones", "Opciones", symbol or "AAPL", "stock", "Opciones"),
-        ("Capital", "Capital", symbol or "AAPL", market, None),
-        ("Estudios", "Estudios", symbol or "AAPL", market, None),
-        ("Roxy IA", "Roxy IA", symbol or "AAPL", market, None),
-    ]
-    for idx, (label, page, target_symbol, target_market, budget_scope) in enumerate(modules):
-        with module_cols[idx]:
-            if st.button(label, key=f"roxy_launch_module_{idx}_{safe_key(label)}"):
+    module_cols = st.columns(4, gap="small")
+    for idx, item in enumerate(ROXY_COMMAND_MODULES):
+        with module_cols[idx % len(module_cols)]:
+            label = f"{item['mark']}  {item['label']}"
+            if st.button(label, key=f"roxy_launch_module_{idx}_{safe_key(item['slug'])}"):
+                st.session_state["roxy_active_module"] = item["slug"]
                 apply_roxy_navigation_target(
-                    page=page,
-                    symbol=target_symbol,
-                    market=target_market,
+                    page=item["page"],
+                    symbol=item["symbol"],
+                    market=item["market"],
                     timeframe=timeframe,
-                    budget_scope=budget_scope,
-                    message=f"Roxy abrio {label}.",
+                    budget_scope=item["scope"],
+                    message=f"Roxy abrio {item['label']}.",
                 )
                 st.rerun()
 
@@ -30951,6 +31122,9 @@ def render_roxy_first_screen_launchpad(
                 st.rerun()
             else:
                 st.warning("Roxy no encontro esa orden. Prueba con Apple, AAPL, crypto, acciones u opciones.")
+
+    render_roxy_module_workspace(table, active_module=active_module, timeframe=timeframe)
+    return
 
     if not isinstance(table, pd.DataFrame) or table.empty:
         return
@@ -31007,6 +31181,193 @@ def render_roxy_first_screen_launchpad(
                 )
                 st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
+
+
+def roxy_fallback_asset_rows(market: str) -> list[dict[str, Any]]:
+    if market == "crypto":
+        symbols = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD", "DOGE/USD"]
+    else:
+        symbols = ["AAPL", "MSFT", "NVDA", "TSLA", "AMD", "META", "AMZN", "QQQ"]
+    return [
+        {
+            "symbol": symbol,
+            "market": market,
+            "current_price": None,
+            "entry": None,
+            "stop": None,
+            "target_price": None,
+            "risk_pct": None,
+            "signal": "WATCH",
+            "action": "Vigilar",
+            "decision": "WAIT",
+            "strategy_family": "Esperando confirmacion de Roxy",
+            "por_que": "Abre la grafica para que Roxy recalcule velas, indicadores y recomendacion.",
+            "readiness": 0,
+        }
+        for symbol in symbols
+    ]
+
+
+def roxy_asset_rows_for_market(table: pd.DataFrame, market: str, *, limit: int = 8) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    if isinstance(table, pd.DataFrame) and not table.empty and "symbol" in table.columns:
+        data = table.copy()
+        if "market" in data.columns:
+            data = data[data["market"].astype(str).str.lower().map(lambda value: normalize_command_market(value, "")) == market]
+        else:
+            data = data[data["symbol"].astype(str).map(lambda value: normalize_command_market(None, value)) == market]
+        for _, item in data.head(limit).iterrows():
+            row = item.to_dict()
+            symbol = text_display(row.get("symbol")).upper()
+            if symbol and symbol not in seen:
+                row["symbol"] = symbol
+                row["market"] = market
+                rows.append(row)
+                seen.add(symbol)
+    for row in roxy_fallback_asset_rows(market):
+        symbol = text_display(row.get("symbol")).upper()
+        if symbol and symbol not in seen:
+            rows.append(row)
+            seen.add(symbol)
+        if len(rows) >= limit:
+            break
+    return rows[:limit]
+
+
+def roxy_row_recommendation(row: dict[str, Any]) -> tuple[str, str]:
+    status = trade_decision_card_status(row)
+    action = text_display(status.get("action") or human_trade_action(row) or row.get("signal") or "Vigilar")
+    tone = text_display(status.get("tone") or "watch")
+    if tone not in {"buy", "watch", "avoid"}:
+        tone = "watch"
+    return action, tone
+
+
+def render_roxy_asset_cards(rows: list[dict[str, Any]], *, market: str, timeframe: str, key_prefix: str) -> None:
+    if not rows:
+        st.info("Roxy no encontro activos para este modulo todavia.")
+        return
+    card_cols = st.columns(2, gap="small")
+    for idx, row in enumerate(rows):
+        symbol = text_display(row.get("symbol")).upper()
+        row_market = normalize_command_market(row.get("market") or market, symbol)
+        action, tone = roxy_row_recommendation(row)
+        entry = price_display(row.get("entry") or row.get("current_price") or row.get("price"))
+        stop = price_display(row.get("stop"))
+        target = price_display(row.get("target_price") or row.get("target") or row.get("recommended_target_price"))
+        risk = pct_display(row.get("risk_pct")) if safe_float(row.get("risk_pct")) is not None else "-"
+        price = price_display(row.get("current_price") or row.get("price") or row.get("last_price"))
+        strategy = text_display(row.get("strategy_family") or row.get("trigger") or "Setup IA")
+        reason = text_display(row.get("por_que") or row.get("waiting_for") or row.get("gate"))
+        with card_cols[idx % 2]:
+            st.markdown(
+                f"""
+                <a class="roxy-asset-card roxy-asset-card-{html.escape(tone)}"
+                   href="?view=Activo&symbol={quote(symbol, safe='')}&market={quote(row_market, safe='')}&tf={quote(timeframe, safe='')}&module={quote(key_prefix, safe='')}">
+                  <span>{html.escape(row_market.upper())}</span>
+                  <strong>{html.escape(symbol)}</strong>
+                  <em>{html.escape(action)}</em>
+                  <div><b>Precio</b><i>{html.escape(price)}</i></div>
+                  <div><b>Entrada</b><i>{html.escape(entry)}</i></div>
+                  <div><b>Stop</b><i>{html.escape(stop)}</i></div>
+                  <div><b>Target</b><i>{html.escape(target)}</i></div>
+                  <div><b>Riesgo</b><i>{html.escape(risk)}</i></div>
+                  <p>{html.escape(strategy[:64])}</p>
+                  <small>{html.escape(reason[:110])}</small>
+                </a>
+                """,
+                unsafe_allow_html=True,
+            )
+
+
+def render_roxy_options_module(timeframe: str) -> None:
+    _options_path, options_df = load_latest_options_candidates()
+    data = prepare_options_view(options_df)
+    if data.empty:
+        st.markdown(
+            """
+            <div class="roxy-module-empty">
+              <strong>Opciones en espera</strong>
+              <span>Roxy abrira calls/puts cuando la accion base tenga setup medible y contrato con riesgo claro.</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if st.button("Abrir vista completa de opciones", key="roxy_open_options_full"):
+            apply_roxy_navigation_target(page="Opciones", budget_scope="Opciones", timeframe=timeframe)
+            st.rerun()
+        return
+    data = annotate_professional_options_contracts(data.head(6))
+    card_cols = st.columns(2, gap="small")
+    for idx, (_, item) in enumerate(data.iterrows()):
+        row = item.to_dict()
+        symbol = text_display(row.get("symbol")).upper() or "AAPL"
+        side = text_display(row.get("side") or row.get("contract_type") or "-").upper()
+        contract = text_display(row.get("contractSymbol") or row.get("contract") or f"{symbol} {side}")
+        score = num_display(row.get("option_score") or row.get("score"), 0)
+        entry = price_display(row.get("mid") or row.get("lastPrice") or row.get("mark") or row.get("ask"))
+        expiry = text_display(row.get("expiration") or row.get("expiry") or row.get("expirationDate"))
+        risk = text_display(row.get("risk_label") or row.get("budget_decision") or row.get("professional_decision"))
+        target = price_display(row.get("target_price") or row.get("target") or row.get("take_profit"))
+        with card_cols[idx % 2]:
+            st.markdown(
+                f"""
+                <a class="roxy-asset-card roxy-asset-card-watch"
+                   href="?view=Activo&symbol={quote(symbol, safe='')}&market=stock&tf={quote(timeframe, safe='')}&module=opciones">
+                  <span>{html.escape(side or "OPTION")}</span>
+                  <strong>{html.escape(symbol)}</strong>
+                  <em>{html.escape(contract[:42])}</em>
+                  <div><b>Entrada</b><i>{html.escape(entry)}</i></div>
+                  <div><b>Expira</b><i>{html.escape(expiry)}</i></div>
+                  <div><b>Riesgo</b><i>{html.escape(risk[:24])}</i></div>
+                  <div><b>Target</b><i>{html.escape(target)}</i></div>
+                  <p>Score {html.escape(score)} · revisar spread/OI antes de entrada.</p>
+                  <small>Tap para cargar la accion base en la grafica principal.</small>
+                </a>
+                """,
+                unsafe_allow_html=True,
+            )
+
+
+def render_roxy_module_workspace(table: pd.DataFrame, *, active_module: str, timeframe: str) -> None:
+    active_module = normalize_roxy_module(active_module)
+    if active_module == "acciones":
+        rows = roxy_asset_rows_for_market(table, "stock")
+        render_roxy_asset_cards(rows, market="stock", timeframe=timeframe, key_prefix="acciones")
+        return
+    if active_module == "crypto":
+        rows = roxy_asset_rows_for_market(table, "crypto")
+        render_roxy_asset_cards(rows, market="crypto", timeframe=timeframe, key_prefix="crypto")
+        return
+    if active_module == "opciones":
+        render_roxy_options_module(timeframe)
+        return
+    if active_module in {"watchlist", "scanner", "recomendaciones"}:
+        source = table if isinstance(table, pd.DataFrame) and not table.empty else pd.DataFrame(roxy_fallback_asset_rows("stock"))
+        rows = [item.to_dict() for _, item in source.head(8).iterrows()]
+        render_roxy_asset_cards(rows, market="stock", timeframe=timeframe, key_prefix=active_module)
+        return
+    if active_module == "capital-riesgo":
+        st.markdown(
+            """
+            <div class="roxy-module-empty">
+              <strong>Capital y riesgo</strong>
+              <span>Ajusta capital, 1R y max trades en el panel de control. Roxy filtra oportunidades que caben en tu presupuesto.</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        return
+    st.markdown(
+        """
+        <div class="roxy-module-empty">
+          <strong>Historial paper</strong>
+          <span>Resultados, alertas y aprendizaje se mantienen como contexto para mejorar las recomendaciones.</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> dict[str, Any]:
@@ -33224,22 +33585,50 @@ def render_focused_static_workspace(context: dict[str, Any], realtime: dict[str,
             render_roxy_now_strip(brief)
             show_focused_voice(brief)
         return
-    render_roxy_brand_header(
-        scan_df=context.get("scan_df") if isinstance(context.get("scan_df"), pd.DataFrame) else pd.DataFrame(),
-        confluence_df=(
-            context.get("confluence_df") if isinstance(context.get("confluence_df"), pd.DataFrame) else pd.DataFrame()
-        ),
-        options_df=context.get("options_df") if isinstance(context.get("options_df"), pd.DataFrame) else pd.DataFrame(),
-        daily_path=context.get("daily_path"),
-        live_path=context.get("live_path"),
-        confluence_path=context.get("confluence_path"),
-        options_path=context.get("options_path"),
-        brief=brief,
-    )
-    show_focused_controls()
-    render_roxy_now_strip(brief)
-    with st.expander("Roxy IA / voz global", expanded=False):
+    render_roxy_compact_trade_header(brief, selected_page=selected_page, realtime=realtime)
+    with st.expander("Herramientas globales de Roxy", expanded=False):
+        show_focused_controls()
+        render_roxy_now_strip(brief)
         show_focused_voice(brief)
+
+
+def render_roxy_compact_trade_header(brief: dict, *, selected_page: str, realtime: dict[str, Any]) -> None:
+    symbol = text_display(st.session_state.get("command_symbol") or first_query_param_value(st.query_params, "symbol") or "AAPL").upper()
+    market = normalize_command_market(st.session_state.get("command_market") or first_query_param_value(st.query_params, "market"), symbol)
+    timeframe = normalize_command_timeframe(st.session_state.get("command_timeframe") or first_query_param_value(st.query_params, "tf") or "1h")
+    table = focused_opportunity_table(brief)
+    row: dict[str, Any] = {"symbol": symbol, "market": market, "timeframe": timeframe}
+    if isinstance(table, pd.DataFrame) and not table.empty and "symbol" in table.columns:
+        selected_rows = table[table["symbol"].astype(str).str.upper().eq(symbol)]
+        if not selected_rows.empty:
+            row = selected_rows.iloc[0].to_dict()
+    action, tone = roxy_row_recommendation(row)
+    entry = price_display(row.get("entry") or row.get("current_price") or row.get("price"))
+    stop = price_display(row.get("stop"))
+    target = price_display(row.get("target_price") or row.get("target") or row.get("recommended_target_price"))
+    live_state = "Live ON" if realtime.get("enabled") else "Live manual"
+    st.markdown(
+        f"""
+        <section class="roxy-asset-command-bar roxy-asset-command-{html.escape(tone)}">
+          <div class="roxy-asset-brand">
+            {brand_logo_html()}
+            <div><span>Roxy Trading</span><strong>{html.escape(symbol)}</strong><small>{html.escape(market.upper())} · {html.escape(timeframe)} · {html.escape(selected_page)}</small></div>
+          </div>
+          <div class="roxy-asset-decision">
+            <span>Roxy dice</span><strong>{html.escape(action)}</strong><small>Entrada {html.escape(entry)} · Stop {html.escape(stop)} · Target {html.escape(target)}</small>
+          </div>
+          <div class="roxy-asset-live">
+            <span>{html.escape(live_state)}</span>
+            <a href="?view=Dashboard&symbol={quote(symbol, safe='')}&market={quote(market, safe='')}&tf={quote(timeframe, safe='')}&module={quote(normalize_roxy_module(st.session_state.get('roxy_active_module') or 'acciones'), safe='')}">Command Center</a>
+          </div>
+        </section>
+        <section class="roxy-floating-avatar">
+          {roxy_avatar_html("online", "icon", "Roxy minimizada")}
+          <div><strong>Roxy</strong><span>{html.escape(action[:70])}</span></div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def selected_dashboard_symbol(table: pd.DataFrame) -> str:
@@ -34436,23 +34825,26 @@ def show_focused_roxy_app() -> None:
                 selected_symbol,
             )
             live_price_contract = live_price_data_contract(cached_live_price_snapshot(selected_symbol, selected_market))
-            st.caption("Contrato de datos live para el activo seleccionado")
-            st.markdown(render_chart_data_contract(live_price_contract), unsafe_allow_html=True)
-            render_active_data_source_strip(live_price_contract)
-            active_table = focused_opportunity_table(context.get("brief") if isinstance(context.get("brief"), dict) else {})
-            active_rows = (
-                active_table[active_table["symbol"].astype(str).str.upper().eq(selected_symbol.upper())]
-                if not active_table.empty and "symbol" in active_table.columns
-                else pd.DataFrame()
-            )
-            active_decision = active_rows.iloc[0].to_dict() if not active_rows.empty else {
-                "symbol": selected_symbol,
-                "market": selected_market,
-                "live_price_contract": live_price_contract,
-            }
-            render_trade_decision_card(active_decision)
-            render_alpaca_active_diagnostic(cached_alpaca_market_data_diagnostic(selected_symbol, selected_market))
-            render_alert_live_panel(context.get("brief") if isinstance(context.get("brief"), dict) else {}, compact=True)
+            with st.expander("Diagnostico de datos del activo", expanded=False):
+                st.caption("Contrato de datos live para el activo seleccionado")
+                st.markdown(render_chart_data_contract(live_price_contract), unsafe_allow_html=True)
+                render_active_data_source_strip(live_price_contract)
+                active_table = focused_opportunity_table(
+                    context.get("brief") if isinstance(context.get("brief"), dict) else {}
+                )
+                active_rows = (
+                    active_table[active_table["symbol"].astype(str).str.upper().eq(selected_symbol.upper())]
+                    if not active_table.empty and "symbol" in active_table.columns
+                    else pd.DataFrame()
+                )
+                active_decision = active_rows.iloc[0].to_dict() if not active_rows.empty else {
+                    "symbol": selected_symbol,
+                    "market": selected_market,
+                    "live_price_contract": live_price_contract,
+                }
+                render_trade_decision_card(active_decision)
+                render_alpaca_active_diagnostic(cached_alpaca_market_data_diagnostic(selected_symbol, selected_market))
+                render_alert_live_panel(context.get("brief") if isinstance(context.get("brief"), dict) else {}, compact=True)
     home_controls = None
     if selected_page == "Dashboard":
         brief = context.get("brief") if isinstance(context.get("brief"), dict) else {}
@@ -34974,10 +35366,14 @@ def main() -> None:
         .roxy-stage-values div:before{content:"";width:30px;height:30px;border-radius:8px;border:1px solid rgba(56,189,248,.40);background:radial-gradient(circle,rgba(56,189,248,.28),rgba(15,23,42,.70));box-shadow:0 0 16px rgba(56,189,248,.14)}
         .roxy-stage-values span{color:#8bd8ff;letter-spacing:.06em}
         .roxy-stage-values strong{display:block;color:#e5edf7;font-size:12px;line-height:1.25;font-weight:820}
-        .roxy-stage-modules{grid-area:modules;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-top:2px}
-        .roxy-stage-module{min-width:0;border:1px solid rgba(125,211,252,.20);border-radius:8px;background:linear-gradient(145deg,rgba(15,23,42,.72),rgba(2,6,23,.46));padding:10px 12px;text-align:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 10px 28px rgba(2,6,23,.22)}
+        .roxy-stage-modules{grid-area:modules;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;margin-top:2px}
+        .roxy-stage-modules p{margin:0}
+        .roxy-stage-module{display:block;min-width:0;border:1px solid rgba(125,211,252,.20);border-radius:8px;background:linear-gradient(145deg,rgba(15,23,42,.72),rgba(2,6,23,.46));padding:10px 12px;text-align:center;text-decoration:none!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 10px 28px rgba(2,6,23,.22);transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+        .roxy-stage-module:hover{transform:translateY(-2px);border-color:rgba(56,189,248,.65);box-shadow:0 0 26px rgba(56,189,248,.18),inset 0 1px 0 rgba(255,255,255,.07)}
+        .roxy-stage-module-active{border-color:rgba(212,175,96,.72);background:linear-gradient(145deg,rgba(15,23,42,.82),rgba(8,47,73,.62));box-shadow:0 0 30px rgba(56,189,248,.20),0 0 22px rgba(212,175,96,.10)}
+        .roxy-stage-module b{display:grid;place-items:center;width:38px;height:38px;margin:0 auto 8px;border:1px solid rgba(56,189,248,.44);border-radius:50%;background:radial-gradient(circle,rgba(56,189,248,.25),rgba(2,6,23,.70));color:#e0f2fe;font-size:12px;font-weight:950;line-height:1;letter-spacing:.02em;box-shadow:0 0 22px rgba(56,189,248,.20)}
         .roxy-stage-module span{color:#8bd8ff;font-size:9px;letter-spacing:.08em}
-        .roxy-stage-module strong{display:block;color:#f8fafc;font-size:14px;line-height:1.1;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .roxy-stage-module strong{display:block;color:#f8fafc;font-size:11px;line-height:1.18;margin-top:5px;min-height:26px;overflow:hidden}
         .roxy-launchpad-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid rgba(56,189,248,.26);border-left:4px solid #38bdf8;border-radius:8px;background:linear-gradient(135deg,rgba(7,12,22,.94),rgba(8,47,73,.48));padding:9px 11px;margin:0 0 8px;box-shadow:0 14px 34px rgba(2,6,23,.28)}
         .roxy-launchpad-head span{display:block;color:#8bd8ff;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}
         .roxy-launchpad-head strong{display:block;color:#f8fafc;font-size:16px;line-height:1.1;margin-top:3px}
@@ -34992,11 +35388,43 @@ def main() -> None:
         .roxy-launch-opp-buy{border-color:rgba(34,197,94,.44);background:linear-gradient(180deg,rgba(20,83,45,.30),#0b1220)}
         .roxy-launch-opp-watch{border-color:rgba(245,158,11,.42);background:linear-gradient(180deg,rgba(120,53,15,.25),#0b1220)}
         .roxy-launch-opp-avoid{border-color:rgba(239,68,68,.42);background:linear-gradient(180deg,rgba(127,29,29,.24),#0b1220)}
+        .roxy-asset-card{display:grid;grid-template-columns:1fr 1fr;gap:7px;border:1px solid rgba(125,211,252,.22);border-radius:8px;background:linear-gradient(145deg,rgba(15,23,42,.88),rgba(2,6,23,.66));padding:12px;margin:0 0 8px;text-decoration:none!important;box-shadow:0 16px 40px rgba(2,6,23,.28),inset 0 1px 0 rgba(255,255,255,.05);transition:transform .18s ease,border-color .18s ease}
+        .roxy-asset-card:hover{transform:translateY(-2px);border-color:rgba(56,189,248,.62)}
+        .roxy-asset-card>span{grid-column:1;color:#8bd8ff;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}
+        .roxy-asset-card>strong{grid-column:1 / -1;color:#f8fafc;font-size:30px;line-height:.95;font-weight:950;text-shadow:0 0 18px rgba(56,189,248,.32);overflow-wrap:anywhere}
+        .roxy-asset-card>em{grid-column:1 / -1;color:#d4af60;font-size:12px;font-style:normal;font-weight:900;line-height:1.15}
+        .roxy-asset-card div{min-width:0;border:1px solid rgba(148,163,184,.14);border-radius:6px;background:rgba(2,6,23,.38);padding:6px 7px}
+        .roxy-asset-card b{display:block;color:#94a3b8;font-size:9px;text-transform:uppercase;letter-spacing:.05em;line-height:1}
+        .roxy-asset-card i{display:block;color:#e5edf7;font-size:13px;font-style:normal;font-weight:900;line-height:1.1;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .roxy-asset-card p,.roxy-asset-card small{grid-column:1 / -1;margin:0;color:#cbd5e1;font-size:11px;line-height:1.25}
+        .roxy-asset-card small{color:#94a3b8;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+        .roxy-asset-card-buy{border-color:rgba(34,197,94,.42);background:linear-gradient(160deg,rgba(20,83,45,.24),rgba(2,6,23,.72))}
+        .roxy-asset-card-watch{border-color:rgba(56,189,248,.34)}
+        .roxy-asset-card-avoid{border-color:rgba(239,68,68,.34);background:linear-gradient(160deg,rgba(127,29,29,.18),rgba(2,6,23,.72))}
+        .roxy-module-empty{border:1px solid rgba(56,189,248,.24);border-left:4px solid #38bdf8;border-radius:8px;background:rgba(2,6,23,.54);padding:14px;margin:0 0 8px}
+        .roxy-module-empty strong{display:block;color:#f8fafc;font-size:18px;line-height:1.1}
+        .roxy-module-empty span{display:block;color:#cbd5e1;font-size:12px;line-height:1.35;margin-top:6px}
+        .roxy-asset-command-bar{position:relative;display:grid;grid-template-columns:minmax(190px,.85fr) minmax(0,1.4fr) auto;gap:10px;align-items:center;border:1px solid rgba(56,189,248,.28);border-left:4px solid #d4af60;border-radius:8px;background:linear-gradient(135deg,rgba(2,6,23,.94),rgba(8,47,73,.50),rgba(2,6,23,.94));padding:10px 12px;margin:0 0 8px;overflow:hidden;box-shadow:0 18px 48px rgba(2,6,23,.36),0 0 30px rgba(56,189,248,.10)}
+        .roxy-asset-command-bar:before{content:"";position:absolute;inset:0;background:linear-gradient(rgba(125,211,252,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,252,.045) 1px,transparent 1px);background-size:32px 32px;opacity:.52;pointer-events:none}
+        .roxy-asset-command-bar>*{position:relative;z-index:1}
+        .roxy-asset-brand{display:flex;align-items:center;gap:10px;min-width:0}
+        .roxy-asset-brand .brand-logo-img{width:76px;border-color:rgba(212,175,96,.50)}
+        .roxy-asset-brand span,.roxy-asset-decision span,.roxy-asset-live span{display:block;color:#8bd8ff;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em;line-height:1}
+        .roxy-asset-brand strong{display:block;color:#f8fafc;font-size:26px;line-height:.95;margin-top:5px;overflow-wrap:anywhere}
+        .roxy-asset-brand small,.roxy-asset-decision small{display:block;color:#cbd5e1;font-size:11px;line-height:1.15;margin-top:5px}
+        .roxy-asset-decision strong{display:block;color:#f8fafc;font-size:18px;line-height:1.08;margin-top:5px}
+        .roxy-asset-live{text-align:right;display:grid;gap:5px;justify-items:end}
+        .roxy-asset-live a{color:#f8fafc!important;text-decoration:none!important;border:1px solid rgba(125,211,252,.34);border-radius:6px;padding:6px 9px;background:rgba(15,23,42,.60);font-size:11px;font-weight:900}
+        .roxy-floating-avatar{position:fixed;right:14px;bottom:72px;z-index:999;display:flex;align-items:center;gap:8px;max-width:260px;border:1px solid rgba(56,189,248,.32);border-radius:8px;background:rgba(2,6,23,.82);padding:7px 9px;box-shadow:0 18px 44px rgba(2,6,23,.42),0 0 26px rgba(56,189,248,.18);backdrop-filter:blur(14px)}
+        .roxy-floating-avatar .roxy-avatar{width:44px;min-width:44px}
+        .roxy-floating-avatar .roxy-avatar span{display:none}
+        .roxy-floating-avatar strong{display:block;color:#f8fafc;font-size:12px;line-height:1}
+        .roxy-floating-avatar div>span{display:block;color:#cbd5e1;font-size:10px;line-height:1.2;margin-top:3px}
         @media (max-width:760px){.roxy-launchpad-head{grid-template-columns:1fr}.roxy-launchpad-head small{text-align:left}}
         @media (max-width:1080px){.roxy-opening-stage{grid-template-columns:minmax(0,1fr) minmax(250px,360px);grid-template-areas:"left center" "right center" "modules modules";min-height:390px}.roxy-stage-right{grid-template-columns:1fr 1fr}.roxy-stage-brand{align-content:center}.roxy-stage-values{gap:6px}.roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-stage-title strong{font-size:50px}}
         @media (max-width:760px){.roxy-opening-stage{grid-template-columns:1fr;grid-template-areas:"center" "left" "right" "modules";gap:10px;min-height:0;padding:13px;margin-top:2px}.roxy-stage-center{min-height:280px}.roxy-stage-center .roxy-hologram-avatar{width:min(300px,92vw)}.roxy-stage-title{bottom:8px}.roxy-stage-title strong{font-size:44px}.roxy-stage-title span{font-size:10px;letter-spacing:.18em}.roxy-stage-bubble{max-width:none;padding:12px 14px}.roxy-stage-bubble:after{display:none}.roxy-stage-bubble strong{font-size:22px}.roxy-stage-bubble span{font-size:12px}.roxy-stage-wave{height:36px;padding:7px 10px}.roxy-stage-status{max-width:none;padding:10px 12px}.roxy-stage-status strong{font-size:28px}.roxy-stage-right{grid-template-columns:1fr}.roxy-stage-brand{display:none}.roxy-stage-values{grid-template-columns:1fr}.roxy-stage-values div:nth-child(n+3){display:none}.roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.roxy-stage-module{padding:8px 6px}.roxy-stage-module strong{font-size:12px}}
-        @media (max-width:760px){.roxy-opening-stage{grid-template-areas:"center" "modules";padding:10px 10px 9px}.roxy-stage-left,.roxy-stage-right{display:none}.roxy-stage-center{min-height:255px}.roxy-stage-modules{margin-top:0}}
-        @media (max-width:430px){.roxy-stage-center{min-height:245px}.roxy-stage-center .roxy-hologram-avatar{width:min(255px,90vw)}.roxy-stage-title strong{font-size:38px}.roxy-stage-modules{grid-template-columns:repeat(2,minmax(0,1fr))}.roxy-stage-module:nth-child(n+5){display:none}}
+        @media (max-width:760px){.roxy-opening-stage{grid-template-areas:"center" "modules";padding:10px 10px 9px}.roxy-stage-left,.roxy-stage-right{display:none}.roxy-stage-center{min-height:255px}.roxy-stage-modules{margin-top:0}.roxy-stage-module b{width:32px;height:32px;margin-bottom:6px}.roxy-stage-module strong{font-size:10px;min-height:24px}.roxy-asset-card{grid-template-columns:1fr 1fr;padding:10px}.roxy-asset-command-bar{grid-template-columns:1fr;gap:8px}.roxy-asset-live{text-align:left;justify-items:start}.roxy-floating-avatar{right:10px;bottom:66px;max-width:210px}}
+        @media (max-width:430px){.roxy-stage-center{min-height:245px}.roxy-stage-center .roxy-hologram-avatar{width:min(255px,90vw)}.roxy-stage-title strong{font-size:38px}.roxy-stage-modules{grid-template-columns:repeat(2,minmax(0,1fr))}.roxy-stage-module:nth-child(n+5){display:block}.roxy-stage-module{padding:7px 5px}}
         .roxy-trade-cockpit{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 160px minmax(250px,.9fr);gap:12px;align-items:center;border:1px solid rgba(56,189,248,.34);border-left:4px solid #d4af60;border-radius:8px;background:
             radial-gradient(circle at 50% 45%,rgba(56,189,248,.20),transparent 36%),
             linear-gradient(135deg,rgba(2,6,23,.92),rgba(8,47,73,.56) 52%,rgba(2,6,23,.92));padding:10px 12px;margin:0 0 8px;overflow:hidden;box-shadow:0 18px 48px rgba(2,6,23,.42),0 0 36px rgba(56,189,248,.10),inset 0 1px 0 rgba(255,255,255,.06)}
@@ -35114,7 +35542,7 @@ def main() -> None:
         .roxy-avatar-core:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(180deg,rgba(125,211,252,.12) 0 1px,transparent 1px 7px);opacity:.18;pointer-events:none}
         .roxy-face-glow{position:absolute;inset:6%;border-radius:50%;box-shadow:0 0 34px rgba(56,189,248,.25);pointer-events:none}
         .roxy-blink{position:absolute;left:23%;right:23%;top:32%;height:8%;border-radius:999px;background:linear-gradient(180deg,rgba(2,6,23,.74),rgba(2,6,23,.18));opacity:0;animation:roxyBlink 5.6s infinite;pointer-events:none}
-        .roxy-mouth{position:absolute;left:43%;top:58%;width:14%;height:3.2%;border-radius:999px;background:linear-gradient(180deg,rgba(251,191,36,.72),rgba(56,189,248,.70));box-shadow:0 0 14px rgba(56,189,248,.44);opacity:.82;transform-origin:center;animation:roxyMouth 1.18s ease-in-out infinite;pointer-events:none}
+        .roxy-mouth{position:absolute;left:46.5%;top:57.5%;width:9%;height:1.7%;border-radius:999px;background:rgba(248,113,113,.52);box-shadow:0 0 8px rgba(56,189,248,.18);opacity:.46;transform-origin:center;animation:roxyMouth 1.18s ease-in-out infinite;pointer-events:none}
         .roxy-orbit{position:absolute;left:50%;top:66%;border-radius:50%;border:1px solid rgba(56,189,248,.36);box-shadow:0 0 24px rgba(56,189,248,.18);transform:translate(-50%,-50%);pointer-events:none}
         .roxy-orbit-one{width:84%;height:21%;animation:roxyOrbit 11s linear infinite}
         .roxy-orbit-two{width:102%;height:28%;border-color:rgba(212,175,96,.28);animation:roxyOrbit 15s linear infinite reverse}
