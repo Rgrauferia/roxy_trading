@@ -31175,12 +31175,21 @@ def roxy_fallback_asset_rows(market: str) -> list[dict[str, Any]]:
 def roxy_asset_rows_for_market(table: pd.DataFrame, market: str, *, limit: int = 8) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
+    priority = {"stock": ["AAPL", "MSFT", "NVDA", "TSLA"], "crypto": ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD"]}.get(
+        market, []
+    )
+    priority_rows = {text_display(row.get("symbol")).upper(): row for row in roxy_fallback_asset_rows(market)}
     if isinstance(table, pd.DataFrame) and not table.empty and "symbol" in table.columns:
         data = table.copy()
         if "market" in data.columns:
             data = data[data["market"].astype(str).str.lower().map(lambda value: normalize_command_market(value, "")) == market]
         else:
             data = data[data["symbol"].astype(str).map(lambda value: normalize_command_market(None, value)) == market]
+        if not data.empty and priority:
+            data["_roxy_priority"] = data["symbol"].astype(str).str.upper().map(
+                lambda value: priority.index(value) if value in priority else len(priority)
+            )
+            data = data.sort_values("_roxy_priority", kind="stable").drop(columns=["_roxy_priority"], errors="ignore")
         for _, item in data.head(limit).iterrows():
             row = item.to_dict()
             symbol = text_display(row.get("symbol")).upper()
@@ -31189,6 +31198,10 @@ def roxy_asset_rows_for_market(table: pd.DataFrame, market: str, *, limit: int =
                 row["market"] = market
                 rows.append(row)
                 seen.add(symbol)
+    for symbol in priority:
+        if symbol and symbol not in seen and symbol in priority_rows:
+            rows.append(priority_rows[symbol])
+            seen.add(symbol)
     for row in roxy_fallback_asset_rows(market):
         symbol = text_display(row.get("symbol")).upper()
         if symbol and symbol not in seen:
@@ -31208,10 +31221,140 @@ def roxy_row_recommendation(row: dict[str, Any]) -> tuple[str, str]:
     return action, tone
 
 
+def selected_roxy_asset_row(
+    rows: list[dict[str, Any]], *, default_market: str, default_timeframe: str
+) -> tuple[dict[str, Any], str, str, str]:
+    selected_symbol = text_display(first_query_param_value(st.query_params, "symbol")).upper()
+    selected_timeframe = normalize_command_timeframe(first_query_param_value(st.query_params, "tf"), default=default_timeframe)
+    if not selected_symbol and rows:
+        selected_symbol = text_display(rows[0].get("symbol")).upper()
+    selected_market = normalize_command_market(
+        first_query_param_value(st.query_params, "market") or default_market,
+        selected_symbol,
+    )
+    selected_row: dict[str, Any] = {}
+    for row in rows:
+        row_symbol = text_display(row.get("symbol")).upper()
+        if row_symbol == selected_symbol:
+            selected_row = row
+            break
+    if not selected_row and rows:
+        selected_row = rows[0]
+        selected_symbol = text_display(selected_row.get("symbol")).upper()
+        selected_market = normalize_command_market(selected_row.get("market") or default_market, selected_symbol)
+    return selected_row, selected_symbol, selected_market, selected_timeframe
+
+
+def roxy_trade_plan_from_row(
+    row: dict[str, Any],
+    *,
+    symbol: str,
+    market: str,
+    timeframe: str,
+    action: str,
+) -> dict[str, Any]:
+    entry = safe_float(row.get("entry") or row.get("current_price") or row.get("price") or row.get("last_price"))
+    stop = safe_float(row.get("stop") or row.get("stop_loss"))
+    target = safe_float(row.get("target_price") or row.get("target") or row.get("recommended_target_price"))
+    return {
+        "symbol": symbol,
+        "market": market,
+        "timeframe": timeframe,
+        "action": action,
+        "entry": entry,
+        "stop": stop,
+        "target": target,
+        "target_price": target,
+        "risk_pct": safe_float(row.get("risk_pct")),
+    }
+
+
+def render_roxy_folder_trade_chart(
+    rows: list[dict[str, Any]], *, market: str, timeframe: str, key_prefix: str
+) -> None:
+    if not rows:
+        return
+    row, symbol, row_market, selected_timeframe = selected_roxy_asset_row(
+        rows,
+        default_market=market,
+        default_timeframe=timeframe,
+    )
+    if not symbol:
+        return
+    action, tone = roxy_row_recommendation(row)
+    price = price_display(row.get("current_price") or row.get("price") or row.get("last_price"))
+    entry = price_display(row.get("entry") or row.get("current_price") or row.get("price") or row.get("last_price"))
+    stop = price_display(row.get("stop") or row.get("stop_loss"))
+    target = price_display(row.get("target_price") or row.get("target") or row.get("recommended_target_price"))
+    risk = pct_display(row.get("risk_pct")) if safe_float(row.get("risk_pct")) is not None else "1.0%"
+    reason = text_display(row.get("por_que") or row.get("waiting_for") or row.get("gate"))
+    if not reason:
+        reason = "Roxy carga velas, indicadores y zonas para validar la entrada antes de operar."
+    tf_label = selected_timeframe.upper() if len(selected_timeframe) <= 2 else selected_timeframe
+    st.markdown(
+        f"""
+        <section class="roxy-folder-trade-desk roxy-folder-trade-desk-{html.escape(tone)}">
+          <div class="roxy-folder-chart-head">
+            <div>
+              <span>Roxy recomienda revisar</span>
+              <strong>{html.escape(symbol)}</strong>
+              <small>{html.escape(row_market.upper())} · {html.escape(tf_label)} · carpeta {html.escape(key_prefix)}</small>
+            </div>
+            <em>{html.escape(action)}</em>
+          </div>
+          <div class="roxy-folder-chart-metrics">
+            <div><b>Precio</b><i>{html.escape(price)}</i></div>
+            <div><b>Entrada</b><i>{html.escape(entry)}</i></div>
+            <div><b>Stop</b><i>{html.escape(stop)}</i></div>
+            <div><b>Target</b><i>{html.escape(target)}</i></div>
+            <div><b>Riesgo</b><i>{html.escape(risk)}</i></div>
+          </div>
+          <p>{html.escape(reason[:180])}</p>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+    resolved_symbol = resolve_symbol_query(symbol, row_market)
+    chart_df = pd.DataFrame()
+    try:
+        chart_df = cached_trade_desk_chart_df(resolved_symbol, row_market, selected_timeframe)
+    except Exception:
+        chart_df = pd.DataFrame()
+    trade_plan = roxy_trade_plan_from_row(
+        row,
+        symbol=resolved_symbol,
+        market=row_market,
+        timeframe=selected_timeframe,
+        action=action,
+    )
+    if isinstance(chart_df, pd.DataFrame) and not chart_df.empty:
+        rendered = render_browser_live_candle_chart_panel(
+            chart_df,
+            symbol=resolved_symbol,
+            market=row_market,
+            timeframe=selected_timeframe,
+            trade_plan=trade_plan,
+            height=410,
+            panel_label="Grafica operable",
+        )
+        if rendered:
+            return
+    st.markdown(
+        """
+        <div class="roxy-module-empty">
+          <strong>Grafica en espera</strong>
+          <span>Roxy no pudo cargar velas para este activo todavia. Revisa proveedor o intenta otro simbolo.</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_roxy_asset_cards(rows: list[dict[str, Any]], *, market: str, timeframe: str, key_prefix: str) -> None:
     if not rows:
         st.info("Roxy no encontro activos para este modulo todavia.")
         return
+    selected_symbol = text_display(first_query_param_value(st.query_params, "symbol")).upper()
     card_cols = st.columns(2, gap="small")
     for idx, row in enumerate(rows):
         symbol = text_display(row.get("symbol")).upper()
@@ -31224,21 +31367,23 @@ def render_roxy_asset_cards(rows: list[dict[str, Any]], *, market: str, timefram
         price = price_display(row.get("current_price") or row.get("price") or row.get("last_price"))
         strategy = text_display(row.get("strategy_family") or row.get("trigger") or "Setup IA")
         reason = text_display(row.get("por_que") or row.get("waiting_for") or row.get("gate"))
+        active_class = " roxy-asset-card-active" if selected_symbol == symbol else ""
         with card_cols[idx % 2]:
             st.markdown(
                 f"""
-                <a class="roxy-asset-card roxy-asset-card-{html.escape(tone)}"
-                   href="?view=Activo&symbol={quote(symbol, safe='')}&market={quote(row_market, safe='')}&tf={quote(timeframe, safe='')}&module={quote(key_prefix, safe='')}">
-                  <span>{html.escape(row_market.upper())}</span>
+                <a class="roxy-asset-card roxy-asset-card-{html.escape(tone)}{active_class}"
+                   href="?view=Dashboard&symbol={quote(symbol, safe='')}&market={quote(row_market, safe='')}&tf={quote(timeframe, safe='')}&module={quote(key_prefix, safe='')}"
+                   target="_self">
+                  <span class="roxy-asset-kicker">{html.escape(row_market.upper())}</span>
                   <strong>{html.escape(symbol)}</strong>
                   <em>{html.escape(action)}</em>
-                  <div><b>Precio</b><i>{html.escape(price)}</i></div>
-                  <div><b>Entrada</b><i>{html.escape(entry)}</i></div>
-                  <div><b>Stop</b><i>{html.escape(stop)}</i></div>
-                  <div><b>Target</b><i>{html.escape(target)}</i></div>
-                  <div><b>Riesgo</b><i>{html.escape(risk)}</i></div>
-                  <p>{html.escape(strategy[:64])}</p>
-                  <small>{html.escape(reason[:110])}</small>
+                  <span class="roxy-asset-metric"><b>Precio</b><i>{html.escape(price)}</i></span>
+                  <span class="roxy-asset-metric"><b>Entrada</b><i>{html.escape(entry)}</i></span>
+                  <span class="roxy-asset-metric"><b>Stop</b><i>{html.escape(stop)}</i></span>
+                  <span class="roxy-asset-metric"><b>Target</b><i>{html.escape(target)}</i></span>
+                  <span class="roxy-asset-metric"><b>Riesgo</b><i>{html.escape(risk)}</i></span>
+                  <span class="roxy-asset-detail">{html.escape(strategy[:64])}</span>
+                  <span class="roxy-asset-note">{html.escape(reason[:110])}</span>
                 </a>
                 """,
                 unsafe_allow_html=True,
@@ -31279,15 +31424,15 @@ def render_roxy_options_module(timeframe: str) -> None:
                 f"""
                 <a class="roxy-asset-card roxy-asset-card-watch"
                    href="?view=Activo&symbol={quote(symbol, safe='')}&market=stock&tf={quote(timeframe, safe='')}&module=opciones">
-                  <span>{html.escape(side or "OPTION")}</span>
+                  <span class="roxy-asset-kicker">{html.escape(side or "OPTION")}</span>
                   <strong>{html.escape(symbol)}</strong>
                   <em>{html.escape(contract[:42])}</em>
-                  <div><b>Entrada</b><i>{html.escape(entry)}</i></div>
-                  <div><b>Expira</b><i>{html.escape(expiry)}</i></div>
-                  <div><b>Riesgo</b><i>{html.escape(risk[:24])}</i></div>
-                  <div><b>Target</b><i>{html.escape(target)}</i></div>
-                  <p>Score {html.escape(score)} · revisar spread/OI antes de entrada.</p>
-                  <small>Tap para cargar la accion base en la grafica principal.</small>
+                  <span class="roxy-asset-metric"><b>Entrada</b><i>{html.escape(entry)}</i></span>
+                  <span class="roxy-asset-metric"><b>Expira</b><i>{html.escape(expiry)}</i></span>
+                  <span class="roxy-asset-metric"><b>Riesgo</b><i>{html.escape(risk[:24])}</i></span>
+                  <span class="roxy-asset-metric"><b>Target</b><i>{html.escape(target)}</i></span>
+                  <span class="roxy-asset-detail">Score {html.escape(score)} · revisar spread/OI antes de entrada.</span>
+                  <span class="roxy-asset-note">Tap para cargar la accion base en la grafica principal.</span>
                 </a>
                 """,
                 unsafe_allow_html=True,
@@ -31307,11 +31452,11 @@ def render_roxy_classroom_module() -> None:
             st.markdown(
                 f"""
                 <div class="roxy-asset-card roxy-asset-card-watch roxy-classroom-card">
-                  <span>CLASSROOM</span>
+                  <span class="roxy-asset-kicker">CLASSROOM</span>
                   <strong>{html.escape(title)}</strong>
                   <em>Leccion de Roxy</em>
-                  <p>{html.escape(detail)}</p>
-                  <small>Contenido educativo; no coloca ordenes reales.</small>
+                  <span class="roxy-asset-detail">{html.escape(detail)}</span>
+                  <span class="roxy-asset-note">Contenido educativo; no coloca ordenes reales.</span>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -31322,22 +31467,27 @@ def render_roxy_module_workspace(table: pd.DataFrame, *, active_module: str, tim
     active_module = normalize_roxy_module(active_module)
     if active_module == "acciones-operar":
         rows = roxy_asset_rows_for_market(table, "stock")
+        render_roxy_folder_trade_chart(rows, market="stock", timeframe="1h", key_prefix="acciones-operar")
         render_roxy_asset_cards(rows, market="stock", timeframe="1h", key_prefix="acciones-operar")
         return
     if active_module == "crypto-trabajar":
         rows = roxy_asset_rows_for_market(table, "crypto")
+        render_roxy_folder_trade_chart(rows, market="crypto", timeframe="1h", key_prefix="crypto-trabajar")
         render_roxy_asset_cards(rows, market="crypto", timeframe="1h", key_prefix="crypto-trabajar")
         return
     if active_module == "crypto-20m":
         rows = roxy_asset_rows_for_market(table, "crypto")
+        render_roxy_folder_trade_chart(rows, market="crypto", timeframe="1m", key_prefix="crypto-20m")
         render_roxy_asset_cards(rows, market="crypto", timeframe="1m", key_prefix="crypto-20m")
         return
     if active_module == "crypto-2h":
         rows = roxy_asset_rows_for_market(table, "crypto")
+        render_roxy_folder_trade_chart(rows, market="crypto", timeframe="2h", key_prefix="crypto-2h")
         render_roxy_asset_cards(rows, market="crypto", timeframe="2h", key_prefix="crypto-2h")
         return
     if active_module == "crypto-daily":
         rows = roxy_asset_rows_for_market(table, "crypto")
+        render_roxy_folder_trade_chart(rows, market="crypto", timeframe="1d", key_prefix="crypto-daily")
         render_roxy_asset_cards(rows, market="crypto", timeframe="1d", key_prefix="crypto-daily")
         return
     if active_module == "classroom":
@@ -35418,6 +35568,22 @@ def main() -> None:
         .roxy-folder-head span{display:block;color:#8bd8ff;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}
         .roxy-folder-head strong{display:block;color:#f8fafc;font-size:22px;line-height:1.05;margin-top:3px}
         .roxy-folder-head small{color:#cbd5e1;font-size:11px;text-align:right}
+        .roxy-folder-trade-desk{position:relative;border:1px solid rgba(125,211,252,.28);border-left:4px solid #d4af60;border-radius:8px;background:radial-gradient(circle at 88% 8%,rgba(56,189,248,.18),transparent 28%),linear-gradient(135deg,rgba(2,6,23,.94),rgba(8,47,73,.48),rgba(2,6,23,.88));padding:12px;margin:0 0 8px;overflow:hidden;box-shadow:0 18px 46px rgba(2,6,23,.36),0 0 32px rgba(56,189,248,.12),inset 0 1px 0 rgba(255,255,255,.06)}
+        .roxy-folder-trade-desk:before{content:"";position:absolute;inset:0;background:linear-gradient(rgba(125,211,252,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,252,.04) 1px,transparent 1px);background-size:30px 30px;opacity:.56;pointer-events:none}
+        .roxy-folder-trade-desk>*{position:relative;z-index:1}
+        .roxy-folder-chart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+        .roxy-folder-chart-head span{display:block;color:#d4af60;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.10em;line-height:1}
+        .roxy-folder-chart-head strong{display:block;color:#f8fafc;font-size:34px;line-height:.92;margin-top:6px;text-shadow:0 0 24px rgba(56,189,248,.38);overflow-wrap:anywhere}
+        .roxy-folder-chart-head small{display:block;color:#cbd5e1;font-size:11px;line-height:1.15;margin-top:6px}
+        .roxy-folder-chart-head em{font-style:normal;color:#e0f2fe;border:1px solid rgba(125,211,252,.34);border-radius:999px;background:rgba(2,6,23,.52);padding:7px 10px;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+        .roxy-folder-chart-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:0 0 9px}
+        .roxy-folder-chart-metrics div{border:1px solid rgba(148,163,184,.16);border-radius:7px;background:rgba(2,6,23,.42);padding:7px 8px;min-width:0}
+        .roxy-folder-chart-metrics b{display:block;color:#94a3b8;font-size:9px;text-transform:uppercase;letter-spacing:.06em;line-height:1}
+        .roxy-folder-chart-metrics i{display:block;color:#f8fafc;font-size:13px;font-style:normal;font-weight:950;line-height:1.1;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .roxy-folder-trade-desk p{margin:0;color:#cbd5e1;font-size:12px;line-height:1.35}
+        .roxy-folder-trade-desk-buy{border-left-color:#22c55e}
+        .roxy-folder-trade-desk-watch{border-left-color:#38bdf8}
+        .roxy-folder-trade-desk-avoid{border-left-color:#ef4444}
         .roxy-launchpad-opps{margin:8px 0 8px}
         .roxy-launch-opp{border:1px solid rgba(148,163,184,.22);border-radius:8px 8px 0 0;background:#0b1220;padding:10px;min-height:132px;border-bottom:0;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
         .roxy-launch-opp span{display:block;color:#94a3b8;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.05em}
@@ -35430,14 +35596,15 @@ def main() -> None:
         .roxy-launch-opp-avoid{border-color:rgba(239,68,68,.42);background:linear-gradient(180deg,rgba(127,29,29,.24),#0b1220)}
         .roxy-asset-card{display:grid;grid-template-columns:1fr 1fr;gap:7px;border:1px solid rgba(125,211,252,.22);border-radius:8px;background:linear-gradient(145deg,rgba(15,23,42,.88),rgba(2,6,23,.66));padding:12px;margin:0 0 8px;text-decoration:none!important;box-shadow:0 16px 40px rgba(2,6,23,.28),inset 0 1px 0 rgba(255,255,255,.05);transition:transform .18s ease,border-color .18s ease}
         .roxy-asset-card:hover{transform:translateY(-2px);border-color:rgba(56,189,248,.62)}
-        .roxy-asset-card>span{grid-column:1;color:#8bd8ff;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}
+        .roxy-asset-card-active{border-color:rgba(212,175,96,.78)!important;box-shadow:0 18px 46px rgba(2,6,23,.34),0 0 30px rgba(212,175,96,.14),inset 0 1px 0 rgba(255,255,255,.08)}
+        .roxy-asset-card>.roxy-asset-kicker{grid-column:1;color:#8bd8ff;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}
         .roxy-asset-card>strong{grid-column:1 / -1;color:#f8fafc;font-size:30px;line-height:.95;font-weight:950;text-shadow:0 0 18px rgba(56,189,248,.32);overflow-wrap:anywhere}
         .roxy-asset-card>em{grid-column:1 / -1;color:#d4af60;font-size:12px;font-style:normal;font-weight:900;line-height:1.15}
-        .roxy-asset-card div{min-width:0;border:1px solid rgba(148,163,184,.14);border-radius:6px;background:rgba(2,6,23,.38);padding:6px 7px}
+        .roxy-asset-card .roxy-asset-metric{display:block;min-width:0;border:1px solid rgba(148,163,184,.14);border-radius:6px;background:rgba(2,6,23,.38);padding:6px 7px}
         .roxy-asset-card b{display:block;color:#94a3b8;font-size:9px;text-transform:uppercase;letter-spacing:.05em;line-height:1}
         .roxy-asset-card i{display:block;color:#e5edf7;font-size:13px;font-style:normal;font-weight:900;line-height:1.1;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .roxy-asset-card p,.roxy-asset-card small{grid-column:1 / -1;margin:0;color:#cbd5e1;font-size:11px;line-height:1.25}
-        .roxy-asset-card small{color:#94a3b8;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+        .roxy-asset-card .roxy-asset-detail,.roxy-asset-card .roxy-asset-note{grid-column:1 / -1;margin:0;color:#cbd5e1;font-size:11px;line-height:1.25}
+        .roxy-asset-card .roxy-asset-note{color:#94a3b8;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
         .roxy-asset-card-buy{border-color:rgba(34,197,94,.42);background:linear-gradient(160deg,rgba(20,83,45,.24),rgba(2,6,23,.72))}
         .roxy-asset-card-watch{border-color:rgba(56,189,248,.34)}
         .roxy-asset-card-avoid{border-color:rgba(239,68,68,.34);background:linear-gradient(160deg,rgba(127,29,29,.18),rgba(2,6,23,.72))}
@@ -35460,7 +35627,7 @@ def main() -> None:
         .roxy-floating-avatar .roxy-avatar span{display:none}
         .roxy-floating-avatar strong{display:block;color:#f8fafc;font-size:12px;line-height:1}
         .roxy-floating-avatar div>span{display:block;color:#cbd5e1;font-size:10px;line-height:1.2;margin-top:3px}
-        @media (max-width:760px){.roxy-folder-head{grid-template-columns:1fr}.roxy-folder-head small{text-align:left}}
+        @media (max-width:760px){.roxy-folder-head{grid-template-columns:1fr}.roxy-folder-head small{text-align:left}.roxy-folder-chart-head{display:grid;gap:8px}.roxy-folder-chart-head strong{font-size:31px}.roxy-folder-chart-head em{justify-self:start}.roxy-folder-chart-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.roxy-folder-chart-metrics div:last-child{grid-column:1 / -1}}
         @media (max-width:1080px){.roxy-opening-stage{grid-template-columns:minmax(0,1fr) minmax(250px,360px);grid-template-areas:"left center" "right center" "modules modules";min-height:390px}.roxy-stage-right{grid-template-columns:1fr 1fr}.roxy-stage-brand{align-content:center}.roxy-stage-values{gap:6px}.roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-stage-title strong{font-size:50px}}
         @media (max-width:1080px){.roxy-reference-stage{grid-template-columns:minmax(0,1fr) minmax(260px,420px);grid-template-areas:"left center" "right center" "modules modules";min-height:580px;padding:20px 18px 18px}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:10px;background:linear-gradient(180deg,rgba(2,6,23,.10),rgba(2,6,23,.74));padding-top:12px}.roxy-reference-stage .roxy-stage-module{border-right:0}.roxy-reference-stage .roxy-stage-module b{width:44px;height:44px}}
         @media (max-width:760px){.roxy-opening-stage{grid-template-columns:1fr;grid-template-areas:"center" "modules";gap:10px;min-height:0;padding:10px 10px 9px;margin-top:2px}.roxy-stage-center{min-height:270px}.roxy-stage-center .roxy-hologram-avatar{width:min(292px,91vw)}.roxy-stage-title{bottom:8px}.roxy-stage-title strong{font-size:44px}.roxy-stage-title span{font-size:10px;letter-spacing:.18em}.roxy-stage-left{display:block;position:absolute;left:15px;top:13px;width:min(150px,40%);z-index:3}.roxy-stage-bubble{max-width:none;padding:9px 10px;border-radius:8px;background:rgba(2,6,23,.54)}.roxy-stage-bubble:after{display:none}.roxy-stage-bubble strong{font-size:15px}.roxy-stage-bubble span{font-size:10px;line-height:1.15;margin-top:5px}.roxy-stage-bubble i{width:4px;height:4px;margin-top:7px}.roxy-stage-wave,.roxy-stage-status{display:none}.roxy-stage-right{display:block;position:absolute;right:14px;top:12px;width:min(132px,36%);z-index:3}.roxy-stage-brand{display:grid;justify-items:end;gap:2px;border:0;background:transparent;padding:0;box-shadow:none;text-align:right}.roxy-stage-brand .brand-logo-img{width:112px;border-color:rgba(212,175,96,.42);background:rgba(2,6,23,.25)}.roxy-stage-brand span{font-size:8px;color:#f8fafc}.roxy-stage-brand strong{display:none}.roxy-stage-values{display:none}.roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:0}.roxy-stage-module{padding:8px 6px}.roxy-stage-module b{width:32px;height:32px;margin-bottom:6px}.roxy-stage-module strong{font-size:10px;min-height:24px}.roxy-asset-card{grid-template-columns:1fr 1fr;padding:10px}.roxy-asset-command-bar{grid-template-columns:1fr;gap:8px}.roxy-asset-live{text-align:left;justify-items:start}.roxy-floating-avatar{right:10px;bottom:66px;max-width:210px}}
