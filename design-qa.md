@@ -31,6 +31,15 @@ Checks completed:
 - Operational charts remain mounted in the folder flow. Daily QA showed `WS STREAM / STREAM ON`, `BTC/USD · 1d · velas live`, `BinanceUS WebSocket + REST fallback`, EMA/Bollinger/volume controls, and drawing tools.
 - Temporary QA user `qa_roxy_805270` was removed from the local user store after testing.
 
+## Functional QA: Strategy-Specific Operational Charts
+
+Checks completed:
+- Crypto 20min opens operational charts as `Entrada 1m · Crypto 20min` and `Contexto 1h · Crypto 20min`, with `Scalping: 1m entrada · 1h contexto · EMA9/21 · BB 20 2 · volumen`, BinanceUS WebSocket stream, `EMA9`, `EMA21`, `BBand`, `Plan`, `Info`, and `Vol` active.
+- Crypto 2H opens operational charts as `Ejecucion 2h · Crypto 2H` and `Confirmacion 4h · Crypto 2H`, with `Confirmacion: 2h ejecucion · 4h contexto · EMA20/Avg40 · soporte/resistencia`, BinanceUS WebSocket stream, `EMA20`, `Avg 40`, `BBand`, `Plan`, `Info`, and `Vol` active.
+- Crypto Daily opens operational charts as `Estructura 1D · Crypto Daily` and `Confirmacion 1W · Crypto Daily`, with `Macro: 1D estructura · 1W confirmacion · SMA20/40/100/200 · niveles clave`, BinanceUS WebSocket stream, `Avg 20`, `Avg 40`, `Avg 100`, `Avg 200`, `BBand`, `Plan`, `Info`, `Labels`, and `Vol` active.
+- The Roxy plan overlay now receives entry zone, entry, stop, target 2, target 5, target 10, and R:R values, so the chart opens ready for operational review instead of requiring manual setup.
+- Temporary QA user `qa_roxy_strategy` was removed from the local user store after testing.
+
 Known acceptable differences:
 - Apple and Google buttons are visual entry points only until real OAuth client credentials are configured.
 - Streamlit sessions reset per browser tab/reload, but registered users persist locally through the user store.

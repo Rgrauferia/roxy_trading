@@ -4439,9 +4439,17 @@ def live_candle_chart_payload(
     timeframe: str,
     live_price: dict[str, Any] | None = None,
     trade_plan: dict[str, Any] | None = None,
+    strategy_profile: str | None = None,
     max_candles: int = 3000,
 ) -> dict[str, Any]:
     window = prepare_chart_window(chart_df, limit=max_candles)
+    if isinstance(window, pd.DataFrame) and not window.empty and "close" in window.columns:
+        window = window.copy()
+        close_series = pd.to_numeric(window["close"], errors="coerce")
+        if "ema20" not in window.columns:
+            window["ema20"] = close_series.ewm(span=20, adjust=False).mean()
+        if "ema21" not in window.columns:
+            window["ema21"] = close_series.ewm(span=21, adjust=False).mean()
     rows: list[dict[str, Any]] = []
     for row in window.to_dict("records"):
         ts = pd.to_datetime(row.get("ts"), errors="coerce", utc=True)
@@ -4525,6 +4533,39 @@ def live_candle_chart_payload(
     normalized_timeframe = normalize_command_timeframe(timeframe)
     live_price = live_price or {}
     trade_plan = trade_plan if isinstance(trade_plan, dict) else {}
+    profile_key = text_display(strategy_profile or trade_plan.get("strategy_profile") or "default").lower()
+    default_indicators = {
+        "EMA9": True,
+        "EMA20": False,
+        "EMA21": False,
+        "SMA20": True,
+        "SMA40": True,
+        "SMA100": False,
+        "SMA200": False,
+        "BB Upper": True,
+        "BB Mid": False,
+        "BB Lower": True,
+        "BBand": True,
+        "Labels": False,
+        "Plan": True,
+        "Info": True,
+        "Scale": True,
+        "Volume": True,
+    }
+    strategy_title = "Roxy operativo"
+    strategy_detail = "EMA9 · Avg20/40 · Bollinger · volumen · plan"
+    if profile_key == "crypto_20m":
+        default_indicators.update({"EMA9": True, "EMA21": True, "SMA20": False, "SMA40": False, "SMA100": False, "SMA200": False})
+        strategy_title = "Crypto 20min"
+        strategy_detail = "Scalping: 1m entrada · 1h contexto · EMA9/21 · BB 20 2 · volumen"
+    elif profile_key == "crypto_2h":
+        default_indicators.update({"EMA9": False, "EMA20": True, "EMA21": False, "SMA20": False, "SMA40": True, "SMA100": False, "SMA200": False})
+        strategy_title = "Crypto 2H"
+        strategy_detail = "Confirmacion: 2h ejecucion · 4h contexto · EMA20/Avg40 · soporte/resistencia"
+    elif profile_key == "crypto_daily":
+        default_indicators.update({"EMA9": False, "EMA20": False, "EMA21": False, "SMA20": True, "SMA40": True, "SMA100": True, "SMA200": True, "BB Mid": True, "Labels": True})
+        strategy_title = "Crypto Daily"
+        strategy_detail = "Macro: 1D estructura · 1W confirmacion · SMA20/40/100/200 · niveles clave"
     return {
         "symbol": normalized_symbol,
         "market": normalized_market,
@@ -4532,6 +4573,8 @@ def live_candle_chart_payload(
         "candles": rows,
         "lines": {
             "EMA9": _line("ema9"),
+            "EMA20": _line("ema20"),
+            "EMA21": _line("ema21"),
             "SMA20": _line("sma20"),
             "SMA40": _line("sma40"),
             "SMA100": _line("sma100"),
@@ -4542,6 +4585,8 @@ def live_candle_chart_payload(
         },
         "lineColors": {
             "EMA9": "#d946ef",
+            "EMA20": "#60a5fa",
+            "EMA21": "#a855f7",
             "SMA20": "#22c55e",
             "SMA40": "#38bdf8",
             "SMA100": "#f59e0b",
@@ -4550,21 +4595,13 @@ def live_candle_chart_payload(
             "BB Mid": "#94a3b8",
             "BB Lower": "#cbd5e1",
         },
-        "defaultIndicators": {
-            "EMA9": True,
-            "SMA20": True,
-            "SMA40": True,
-            "SMA100": False,
-            "SMA200": False,
-            "BB Upper": True,
-            "BB Mid": False,
-            "BB Lower": True,
-            "BBand": True,
-            "Labels": False,
-            "Plan": False,
-            "Info": False,
-            "Scale": True,
-            "Volume": True,
+        "defaultIndicators": default_indicators,
+        "strategy": {
+            "profile": profile_key,
+            "title": strategy_title,
+            "detail": strategy_detail,
+            "role": text_display(trade_plan.get("strategy_role")),
+            "timeframes": text_display(trade_plan.get("strategy_timeframes")),
         },
         "live": {
             "price": safe_float(live_price.get("price")),
@@ -4744,6 +4781,7 @@ def render_browser_live_candle_chart_panel(
     timeframe: str,
     live_price: dict[str, Any] | None = None,
     trade_plan: dict[str, Any] | None = None,
+    strategy_profile: str | None = None,
     height: int = TRADE_DESK_CHART_HEIGHT,
     panel_label: str = "Grafica",
 ) -> bool:
@@ -4754,6 +4792,7 @@ def render_browser_live_candle_chart_panel(
         timeframe=timeframe,
         live_price=live_price,
         trade_plan=trade_plan,
+        strategy_profile=strategy_profile,
     )
     if not payload.get("candles"):
         return False
@@ -4770,6 +4809,7 @@ def render_browser_live_candle_chart_panel(
             f"<strong>{html.escape(stream_label)}</strong>"
             f"<span>{html.escape(panel_label)} · {html.escape(text_display(symbol).upper())} · {html.escape(normalize_command_timeframe(timeframe))} · velas live</span>"
             f"<span>{candle_count:,} velas · {html.escape(stream_source)}</span>"
+            f"<span>{html.escape(text_display(payload.get('strategy', {}).get('detail')))}</span>"
             "</div>"
         ),
         unsafe_allow_html=True,
@@ -4805,6 +4845,8 @@ def render_browser_live_candle_chart_panel(
         <button data-fasttf="1w">W</button>
         <span class="rlc-indicator-title">BBand 20 2</span>
         <label><input type="checkbox" data-indicator="EMA9"> EMA9</label>
+        <label><input type="checkbox" data-indicator="EMA20"> EMA20</label>
+        <label><input type="checkbox" data-indicator="EMA21"> EMA21</label>
         <label><input type="checkbox" data-indicator="SMA20"> Avg 20</label>
         <label><input type="checkbox" data-indicator="SMA40"> Avg 40</label>
         <label><input type="checkbox" data-indicator="SMA100"> Avg 100</label>
@@ -5002,7 +5044,9 @@ def render_browser_live_candle_chart_panel(
       const rangeEl = document.getElementById("rlc-range");
       const titleEl = document.getElementById("rlc-title");
       const symbolChip = document.getElementById("rlc-symbol-chip");
+      const indicatorTitle = document.querySelector(".rlc-indicator-title");
 	      const tradePlan = payload.tradePlan || {};
+      const strategy = payload.strategy || {};
 	      const fmt = (value) => Number(value).toLocaleString(undefined, { maximumFractionDigits: value > 1000 ? 2 : 6 });
 	      const finitePrice = (value) => Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : null;
 	      const chartTimeToSeconds = (time) => {
@@ -5020,6 +5064,7 @@ def render_browser_live_candle_chart_panel(
       if (window.lucide && typeof window.lucide.createIcons === "function") window.lucide.createIcons();
       titleEl.textContent = `${payload.symbol} · ${payload.timeframe} · velas live`;
       symbolChip.textContent = payload.symbol;
+      if (indicatorTitle && strategy.title) indicatorTitle.textContent = strategy.title;
       rangeEl.textContent = `${candles.length.toLocaleString()} velas cargadas`;
       const navigateToTimeframe = (timeframe) => {
         const cleanTimeframe = String(timeframe || "").toLowerCase();
@@ -5067,19 +5112,19 @@ def render_browser_live_candle_chart_panel(
         button.classList.toggle("active", String(button.dataset.fasttf || "").toLowerCase() === String(payload.timeframe || "").toLowerCase());
         button.addEventListener("click", () => navigateToTimeframe(button.dataset.fasttf));
       });
-      const settingsKey = `roxy-chart-settings:v4:${payload.symbol}:${payload.timeframe}`;
+      const settingsKey = `roxy-chart-settings:v5:${payload.symbol}:${payload.timeframe}:${strategy.profile || "default"}`;
       const defaultSettings = Object.assign({}, payload.defaultIndicators || {});
       const indicatorPresets = {
         naked: {
-          EMA9: false, SMA20: false, SMA40: false, SMA100: false, SMA200: false,
+          EMA9: false, EMA20: false, EMA21: false, SMA20: false, SMA40: false, SMA100: false, SMA200: false,
           BBand: false, Labels: false, Plan: false, Info: false, Scale: true, Volume: true,
         },
         clean: {
-          EMA9: true, SMA20: true, SMA40: true, SMA100: false, SMA200: false,
+          EMA9: true, EMA20: false, EMA21: false, SMA20: true, SMA40: true, SMA100: false, SMA200: false,
           BBand: true, Labels: false, Plan: false, Info: false, Scale: true, Volume: true,
         },
         full: {
-          EMA9: true, SMA20: true, SMA40: true, SMA100: true, SMA200: true,
+          EMA9: true, EMA20: true, EMA21: true, SMA20: true, SMA40: true, SMA100: true, SMA200: true,
           BBand: true, Labels: true, Plan: true, Info: true, Scale: false, Volume: true,
         },
       };
@@ -32873,15 +32918,40 @@ def roxy_trade_plan_from_row(
     entry = safe_float(row.get("entry") or row.get("current_price") or row.get("price") or row.get("last_price"))
     stop = safe_float(row.get("stop") or row.get("stop_loss"))
     target = safe_float(row.get("target_price") or row.get("target") or row.get("recommended_target_price"))
+    target_2 = safe_float(row.get("target_2") or row.get("target_2pct_price") or target)
+    target_5 = safe_float(row.get("target_5") or row.get("target_5pct_price"))
+    target_10 = safe_float(row.get("target_10") or row.get("target_10pct_price"))
+    if entry is not None:
+        if target_2 is None:
+            target_2 = entry * (1.004 if timeframe in {"1m", "5m", "15m"} else 1.02)
+        if target_5 is None:
+            target_5 = entry * (1.008 if timeframe in {"1m", "5m", "15m"} else 1.05)
+        if target_10 is None:
+            target_10 = entry * (1.012 if timeframe in {"1m", "5m", "15m"} else 1.10)
+    rr_to_2 = None
+    if entry is not None and stop is not None and target_2 is not None and abs(entry - stop) > 0:
+        rr_to_2 = abs(target_2 - entry) / abs(entry - stop)
+    entry_zone_low = safe_float(row.get("entry_zone_low"))
+    entry_zone_high = safe_float(row.get("entry_zone_high"))
+    if entry is not None:
+        entry_zone_low = entry_zone_low if entry_zone_low is not None else entry * 0.998
+        entry_zone_high = entry_zone_high if entry_zone_high is not None else entry * 1.002
     return {
         "symbol": symbol,
         "market": market,
         "timeframe": timeframe,
         "action": action,
+        "plan_status": "Plan operativo listo",
         "entry": entry,
         "stop": stop,
         "target": target,
         "target_price": target,
+        "target_2": target_2,
+        "target_5": target_5,
+        "target_10": target_10,
+        "entry_zone_low": entry_zone_low,
+        "entry_zone_high": entry_zone_high,
+        "rr_to_2": rr_to_2,
         "risk_pct": safe_float(row.get("risk_pct")),
     }
 
@@ -32921,6 +32991,8 @@ def render_roxy_folder_dual_chart(
     fallback_df = next((pane_df for _, _, pane_df in pane_data if not pane_df.empty), pd.DataFrame())
     for col, (pane_tf, label, pane_df) in zip(columns, pane_data):
         chart_df = pane_df if not pane_df.empty else fallback_df
+        pane_plan = dict(trade_plan or {})
+        pane_plan.update({"strategy_profile": "acciones_15m_1h", "strategy_role": label, "strategy_timeframes": "15m + 1h"})
         with col:
             rendered = (
                 render_browser_live_candle_chart_panel(
@@ -32928,7 +33000,7 @@ def render_roxy_folder_dual_chart(
                     symbol=symbol,
                     market=market,
                     timeframe=pane_tf,
-                    trade_plan=trade_plan,
+                    trade_plan=pane_plan,
                     height=height,
                     panel_label=label,
                 )
@@ -32944,7 +33016,7 @@ def render_roxy_crypto20_operational_charts(
     trade_plan: dict[str, Any],
     height: int = 340,
 ) -> bool:
-    panes = [("1m", "Grafica operativa 1"), ("1h", "Grafica operativa 2")]
+    panes = [("1m", "Entrada 1m · Crypto 20min"), ("1h", "Contexto 1h · Crypto 20min")]
     pane_data: list[tuple[str, str, pd.DataFrame]] = []
     for pane_tf, label in panes:
         try:
@@ -32969,6 +33041,8 @@ def render_roxy_crypto20_operational_charts(
     fallback_df = next((pane_df for _, _, pane_df in pane_data if not pane_df.empty), pd.DataFrame())
     for col, (pane_tf, label, pane_df) in zip(columns, pane_data):
         chart_df = pane_df if not pane_df.empty else fallback_df
+        pane_plan = dict(trade_plan or {})
+        pane_plan.update({"strategy_profile": "crypto_20m", "strategy_role": label, "strategy_timeframes": "1m + 1h"})
         with col:
             rendered = (
                 render_browser_live_candle_chart_panel(
@@ -32976,7 +33050,8 @@ def render_roxy_crypto20_operational_charts(
                     symbol=symbol,
                     market=market,
                     timeframe=pane_tf,
-                    trade_plan=trade_plan,
+                    trade_plan=pane_plan,
+                    strategy_profile="crypto_20m",
                     height=height,
                     panel_label=label,
                 )
@@ -32992,7 +33067,7 @@ def render_roxy_crypto2h_operational_charts(
     trade_plan: dict[str, Any],
     height: int = 340,
 ) -> bool:
-    panes = [("2h", "Grafica operativa 1"), ("4h", "Grafica operativa 2")]
+    panes = [("2h", "Ejecucion 2h · Crypto 2H"), ("4h", "Confirmacion 4h · Crypto 2H")]
     pane_data: list[tuple[str, str, pd.DataFrame]] = []
     for pane_tf, label in panes:
         try:
@@ -33017,6 +33092,8 @@ def render_roxy_crypto2h_operational_charts(
     fallback_df = next((pane_df for _, _, pane_df in pane_data if not pane_df.empty), pd.DataFrame())
     for col, (pane_tf, label, pane_df) in zip(columns, pane_data):
         chart_df = pane_df if not pane_df.empty else fallback_df
+        pane_plan = dict(trade_plan or {})
+        pane_plan.update({"strategy_profile": "crypto_2h", "strategy_role": label, "strategy_timeframes": "2h + 4h"})
         with col:
             rendered = (
                 render_browser_live_candle_chart_panel(
@@ -33024,7 +33101,8 @@ def render_roxy_crypto2h_operational_charts(
                     symbol=symbol,
                     market=market,
                     timeframe=pane_tf,
-                    trade_plan=trade_plan,
+                    trade_plan=pane_plan,
+                    strategy_profile="crypto_2h",
                     height=height,
                     panel_label=label,
                 )
@@ -33040,7 +33118,7 @@ def render_roxy_crypto_daily_operational_charts(
     trade_plan: dict[str, Any],
     height: int = 340,
 ) -> bool:
-    panes = [("1d", "Grafica operativa 1"), ("1w", "Grafica operativa 2")]
+    panes = [("1d", "Estructura 1D · Crypto Daily"), ("1w", "Confirmacion 1W · Crypto Daily")]
     pane_data: list[tuple[str, str, pd.DataFrame]] = []
     for pane_tf, label in panes:
         try:
@@ -33065,6 +33143,8 @@ def render_roxy_crypto_daily_operational_charts(
     fallback_df = next((pane_df for _, _, pane_df in pane_data if not pane_df.empty), pd.DataFrame())
     for col, (pane_tf, label, pane_df) in zip(columns, pane_data):
         chart_df = pane_df if not pane_df.empty else fallback_df
+        pane_plan = dict(trade_plan or {})
+        pane_plan.update({"strategy_profile": "crypto_daily", "strategy_role": label, "strategy_timeframes": "1d + 1w"})
         with col:
             rendered = (
                 render_browser_live_candle_chart_panel(
@@ -33072,7 +33152,8 @@ def render_roxy_crypto_daily_operational_charts(
                     symbol=symbol,
                     market=market,
                     timeframe=pane_tf,
-                    trade_plan=trade_plan,
+                    trade_plan=pane_plan,
+                    strategy_profile="crypto_daily",
                     height=height,
                     panel_label=label,
                 )
