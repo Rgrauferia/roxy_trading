@@ -35887,7 +35887,19 @@ def main() -> None:
             radial-gradient(circle at 75% 18%,rgba(212,175,96,.13),transparent 23%),
             linear-gradient(90deg,rgba(2,6,23,.94),rgba(8,47,73,.56) 47%,rgba(2,6,23,.94)),
             linear-gradient(180deg,#030711,#061320)!important;border-left-width:0;border-color:rgba(56,189,248,.22);box-shadow:0 26px 90px rgba(0,0,0,.52),0 0 54px rgba(56,189,248,.10)}
-        .roxy-reference-stage:before{opacity:.62;filter:drop-shadow(0 0 10px rgba(56,189,248,.18))}
+        .roxy-reference-stage:before{opacity:.72;filter:drop-shadow(0 0 8px rgba(125,211,252,.16));background-image:
+            radial-gradient(circle at 12% 18%,rgba(226,246,255,.82) 0 1px,transparent 1.6px),
+            radial-gradient(circle at 24% 68%,rgba(147,197,253,.68) 0 1px,transparent 1.7px),
+            radial-gradient(circle at 42% 24%,rgba(248,250,252,.70) 0 .9px,transparent 1.5px),
+            radial-gradient(circle at 61% 78%,rgba(125,211,252,.64) 0 1px,transparent 1.8px),
+            radial-gradient(circle at 79% 36%,rgba(226,232,240,.76) 0 1px,transparent 1.6px),
+            radial-gradient(circle at 91% 72%,rgba(212,175,96,.46) 0 1px,transparent 1.7px),
+            linear-gradient(115deg,transparent 0 31%,rgba(125,211,252,.13) 31.2% 31.5%,transparent 31.8% 100%),
+            linear-gradient(28deg,transparent 0 58%,rgba(125,211,252,.10) 58.2% 58.45%,transparent 58.8% 100%)!important;
+            background-size:180px 210px,230px 250px,310px 290px,260px 320px,370px 340px,420px 390px,260px 220px,300px 260px!important;
+            background-position:0 0,48px 82px,120px 18px,24px 140px,180px 90px,80px 210px,12% 18%,76% 34%!important;
+            mask-image:radial-gradient(ellipse at 50% 42%,#000 0 72%,rgba(0,0,0,.72) 82%,transparent 100%)!important;animation:roxyStarDrift 44s linear infinite,roxyConstellationPulse 6.8s ease-in-out infinite!important}
+        .roxy-reference-stage:after{left:auto!important;right:-18%!important;top:10%!important;width:38%!important;height:2px!important;border-radius:999px;background:linear-gradient(90deg,transparent,rgba(226,246,255,.85),rgba(56,189,248,.38),transparent)!important;box-shadow:0 0 18px rgba(125,211,252,.38)!important;transform:rotate(-18deg)!important;animation:roxyShootingStar 8.5s ease-in-out infinite!important;opacity:0;pointer-events:none}
         .roxy-reference-stage .roxy-stage-center:before{content:"";position:absolute;left:50%;top:50%;width:min(520px,86vw);height:78%;transform:translate(-50%,-50%);background:radial-gradient(ellipse at 50% 45%,rgba(56,189,248,.26),rgba(14,165,233,.09) 34%,transparent 72%);filter:blur(2px);pointer-events:none;animation:roxyHaloBreathe 5.6s ease-in-out infinite}
         .roxy-reference-stage .roxy-stage-left,.roxy-reference-stage .roxy-stage-center,.roxy-reference-stage .roxy-stage-right{display:grid}
         .roxy-reference-stage .roxy-stage-center .roxy-hologram-avatar{width:min(560px,100%);aspect-ratio:.78/1}
@@ -36190,6 +36202,9 @@ def main() -> None:
         @keyframes roxyWave{0%,100%{height:8px;opacity:.45}50%{height:34px;opacity:1}}
         @keyframes roxyScanline{0%{transform:translateX(-35%);opacity:0}18%,72%{opacity:.7}100%{transform:translateX(135%);opacity:0}}
         @keyframes roxyParticleDrift{0%{background-position:0 0,0 0,0 0}100%{background-position:140px -220px,-180px 260px,90px 180px}}
+        @keyframes roxyStarDrift{0%{background-position:0 0,48px 82px,120px 18px,24px 140px,180px 90px,80px 210px,12% 18%,76% 34%}100%{background-position:-80px 160px,120px -80px,20px 220px,150px -40px,40px 260px,190px 10px,18% 22%,70% 38%}}
+        @keyframes roxyConstellationPulse{0%,100%{opacity:.48}45%{opacity:.78}60%{opacity:.58}}
+        @keyframes roxyShootingStar{0%,62%{opacity:0;transform:translate3d(0,0,0) rotate(-18deg)}66%{opacity:.86}78%{opacity:0;transform:translate3d(-155vw,52vh,0) rotate(-18deg)}100%{opacity:0;transform:translate3d(-155vw,52vh,0) rotate(-18deg)}}
         .stApp{background:
             radial-gradient(circle at 50% 10%,rgba(56,189,248,.15),transparent 34%),
             radial-gradient(circle at 88% 8%,rgba(212,175,96,.12),transparent 28%),
