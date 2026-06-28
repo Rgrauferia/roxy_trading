@@ -31223,7 +31223,7 @@ def render_roxy_opening_stage(
         f"""
         <div class="roxy-ref-live-grid">
           <div class="roxy-ref-panel roxy-ref-movers">
-            <span>Mayores movimientos</span>
+            <span><i class="material-symbols-outlined" aria-hidden="true">trending_up</i>Mayores movimientos</span>
             <div><i class="roxy-mover-logo roxy-mover-nvda">N</i><p><strong>NVDA</strong><small>NVIDIA Corporation</small></p><b>+4.21%</b></div>
             <div><i class="roxy-mover-logo roxy-mover-tsla">T</i><p><strong>TSLA</strong><small>Tesla, Inc.</small></p><b>+3.18%</b></div>
             <div><i class="roxy-mover-logo roxy-mover-meta">M</i><p><strong>META</strong><small>Meta Platforms</small></p><b>+2.74%</b></div>
@@ -31231,7 +31231,7 @@ def render_roxy_opening_stage(
           </div>
           {home_chart_html}
           <div class="roxy-ref-panel roxy-ref-events">
-            <span>Proximos eventos</span>
+            <span><i class="material-symbols-outlined" aria-hidden="true">event_upcoming</i>Proximos eventos</span>
             <div><strong>10:30 AM</strong><b>GDP · impacto alto</b></div>
             <div><strong>12:00 PM</strong><b>PCE Core · impacto alto</b></div>
             <div><strong>2:30 PM</strong><b>Sentimiento · impacto medio</b></div>
@@ -31246,9 +31246,9 @@ def render_roxy_opening_stage(
             <a href="?view=Dashboard&module=acciones-operar" target="_self">Mostrar oportunidades</a>
           </div>
           <div class="roxy-ref-panel roxy-ref-actions">
-            <a href="?view=Dashboard&module=acciones-operar" target="_self">Mostrar oportunidades</a>
-            <a href="?view=Dashboard&symbol={quote(str(symbol or 'AAPL'), safe='')}&market={quote(str(market or 'stock'), safe='')}&tf={quote(str(timeframe or '1h'), safe='')}&module=acciones-operar" target="_self">Analisis de {safe_symbol}</a>
-            <a href="?view=Portafolio" target="_self">Revisar mi portafolio</a>
+            <a href="?view=Dashboard&module=acciones-operar" target="_self"><i class="material-symbols-outlined" aria-hidden="true">query_stats</i>Mostrar oportunidades</a>
+            <a href="?view=Dashboard&symbol={quote(str(symbol or 'AAPL'), safe='')}&market={quote(str(market or 'stock'), safe='')}&tf={quote(str(timeframe or '1h'), safe='')}&module=acciones-operar" target="_self"><i class="material-symbols-outlined" aria-hidden="true">candlestick_chart</i>Analisis de {safe_symbol}</a>
+            <a href="?view=Portafolio" target="_self"><i class="material-symbols-outlined" aria-hidden="true">business_center</i>Revisar mi portafolio</a>
           </div>
         </div>
         """
@@ -36015,6 +36015,7 @@ def main() -> None:
         .roxy-ref-single-chart-grid .roxy-ref-chart{width:100%}
         .roxy-ref-panel{border:1px solid rgba(125,211,252,.20);border-radius:8px;background:linear-gradient(145deg,rgba(15,23,42,.66),rgba(2,6,23,.48));padding:11px 12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 14px 36px rgba(2,6,23,.22);min-width:0}
         .roxy-ref-panel span{display:block;color:#8bd8ff;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em;line-height:1}
+        .roxy-ref-panel span .material-symbols-outlined{font-size:15px;line-height:1;margin-right:5px;vertical-align:-3px;color:#dff7ff;text-shadow:0 0 12px rgba(56,189,248,.75)}
         .roxy-ref-panel div{min-width:0}
         .roxy-ref-panel strong{color:#f8fafc;font-size:13px;line-height:1.05;font-weight:950}
         .roxy-ref-panel b{color:#22c55e;font-size:12px;line-height:1;font-weight:950}
@@ -36083,6 +36084,7 @@ def main() -> None:
         .roxy-ref-bot{display:grid;place-items:end center;min-height:148px;overflow:hidden}.roxy-ref-bot .roxy-hologram-avatar{width:112px;aspect-ratio:.72/1}.roxy-ref-bot .roxy-hologram-name{display:none}.roxy-ref-bot .roxy-audio-wave{display:none}.roxy-ref-bot .roxy-holo-pedestal{bottom:6%}
         .roxy-ref-actions{display:grid;gap:8px;align-content:center}
         .roxy-ref-actions a{display:flex!important;margin:0!important;align-items:center;min-height:34px;border:1px solid rgba(125,211,252,.18);border-radius:7px;background:rgba(2,6,23,.48);padding:7px 10px;color:#bfdbfe!important;text-decoration:none!important;font-size:10px;font-weight:950;text-transform:none;letter-spacing:0}
+        .roxy-ref-actions a .material-symbols-outlined{font-size:16px;margin-right:8px;color:#dff7ff;text-shadow:0 0 13px rgba(56,189,248,.65)}
         .roxy-ref-bottomnav{grid-area:nav;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:10px;border:1px solid rgba(125,211,252,.14);border-radius:26px;background:rgba(2,6,23,.66);padding:8px 10px;box-shadow:0 0 32px rgba(56,189,248,.12),inset 0 1px 0 rgba(255,255,255,.05)}
         .roxy-ref-bottomnav a{display:grid;place-items:center;text-decoration:none!important;color:#94a3b8!important;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.02em;gap:3px;min-width:0}
         .roxy-ref-bottomnav b{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;border:1px solid rgba(125,211,252,.20);font-size:13px;line-height:1;color:#bfdbfe}
@@ -36183,6 +36185,7 @@ def main() -> None:
         .roxy-reference-stage .roxy-stage-modules{margin-top:0!important}
         .roxy-ref-live-grid{margin-top:4px!important;align-items:start!important}
         @media (hover:none), (pointer:coarse){.roxy-reference-stage{grid-template-columns:96px minmax(0,1fr) 96px!important;grid-template-areas:"top top top" "left center right" "modules modules modules" "live live live" "nav nav nav"!important;gap:4px!important;min-height:0!important;align-content:start!important;padding:7px 5px 8px!important;overflow:hidden!important}.roxy-reference-stage .roxy-stage-center{min-height:245px!important;align-self:end!important}.roxy-reference-stage .roxy-stage-center .roxy-hologram-avatar{width:min(205px,56vw)!important;aspect-ratio:.72/1!important}.roxy-reference-stage .roxy-stage-center:before{height:70%!important}.roxy-reference-stage .roxy-hologram-name strong{font-size:33px!important}.roxy-reference-stage .roxy-hologram-name span{font-size:7px!important}.roxy-reference-stage .roxy-audio-wave{height:19px!important;bottom:8%!important}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(5,minmax(0,1fr))!important;padding-top:2px!important;margin-top:-6px!important}.roxy-reference-stage .roxy-stage-module b{width:31px!important;height:31px!important}.roxy-reference-stage .roxy-stage-module span{font-size:5.8px!important}.roxy-reference-stage .roxy-stage-module strong{font-size:5.1px!important;min-height:15px!important}.roxy-ref-live-grid{grid-template-columns:minmax(0,1fr)!important;grid-template-areas:"chart" "assistant" "actions"!important;gap:5px!important;margin-top:-2px!important;width:100%!important}.roxy-ref-chart{width:100%!important;grid-area:chart!important}.roxy-ref-movers,.roxy-ref-events,.roxy-ref-bot{display:none!important}.roxy-real-candle-chart{height:168px!important}.roxy-ref-bottomnav{margin-top:4px!important}}
+        @media (hover:none), (pointer:coarse){.roxy-ref-live-grid{display:grid!important;grid-template-columns:1fr 1fr!important;grid-template-areas:"chart chart" "movers events" "assistant actions" "bot bot"!important;gap:5px!important;margin-top:2px!important;width:100%!important}.roxy-ref-movers,.roxy-ref-events{display:block!important;min-height:0!important;padding:6px!important}.roxy-ref-bot{display:grid!important;grid-area:bot!important;min-height:58px!important;padding:0!important}.roxy-ref-assistant{grid-area:assistant!important;display:grid!important;grid-template-columns:25px minmax(0,1fr)!important;gap:5px!important;padding:6px!important}.roxy-ref-actions{grid-area:actions!important;display:grid!important;gap:4px!important;padding:6px!important}.roxy-ref-chart{grid-area:chart!important}.roxy-ref-movers{grid-area:movers!important}.roxy-ref-events{grid-area:events!important}.roxy-ref-panel span{font-size:5.9px!important;line-height:1!important;letter-spacing:.04em!important}.roxy-ref-panel span .material-symbols-outlined{font-size:10px!important;margin-right:3px!important;vertical-align:-2px!important}.roxy-ref-movers div,.roxy-ref-events div{gap:4px!important;margin-top:4px!important;padding-bottom:3px!important}.roxy-ref-movers p small{display:none!important}.roxy-ref-panel strong{font-size:7px!important}.roxy-ref-panel b{font-size:6.2px!important}.roxy-ref-panel a{font-size:5.7px!important;margin-top:4px!important}.roxy-ref-events b{font-size:5.6px!important}.roxy-mover-logo{width:14px!important;height:14px!important;flex-basis:14px!important;margin-right:3px!important;border-radius:4px!important;font-size:7px!important}.roxy-ref-assistant .roxy-avatar{width:24px!important;height:24px!important}.roxy-ref-assistant p{font-size:6px!important;line-height:1.1!important}.roxy-ref-assistant p strong{font-size:7.6px!important;margin-bottom:1px!important}.roxy-ref-assistant a{grid-column:1/-1!important;font-size:5.6px!important}.roxy-ref-actions a{min-height:20px!important;padding:3px 5px!important;font-size:5.5px!important}.roxy-ref-actions a .material-symbols-outlined{font-size:10px!important;margin-right:4px!important}.roxy-ref-bot .roxy-hologram-avatar{width:54px!important}.roxy-ref-bot .roxy-hologram-name,.roxy-ref-bot .roxy-audio-wave{display:none!important}}
         .roxy-trade-cockpit{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 160px minmax(250px,.9fr);gap:12px;align-items:center;border:1px solid rgba(56,189,248,.34);border-left:4px solid #d4af60;border-radius:8px;background:
             radial-gradient(circle at 50% 45%,rgba(56,189,248,.20),transparent 36%),
             linear-gradient(135deg,rgba(2,6,23,.92),rgba(8,47,73,.56) 52%,rgba(2,6,23,.92));padding:10px 12px;margin:0 0 8px;overflow:hidden;box-shadow:0 18px 48px rgba(2,6,23,.42),0 0 36px rgba(56,189,248,.10),inset 0 1px 0 rgba(255,255,255,.06)}
