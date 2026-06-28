@@ -4282,7 +4282,7 @@ def trade_desk_timeframe_pair(timeframe: Any) -> tuple[str, str]:
     return "1h", "15m"
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def cached_trade_desk_chart_df(symbol: str, market: str, timeframe: str) -> pd.DataFrame:
     resolved_symbol = resolve_symbol_query(symbol, market)
     normalized_timeframe = normalize_command_timeframe(timeframe)
