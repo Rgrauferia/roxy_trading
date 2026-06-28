@@ -31870,36 +31870,87 @@ def render_roxy_classroom_module() -> None:
     ]
 
     def classroom_chart_thumb_html(kind: str) -> str:
-        candle_sets = {
+        def candle(x: int, open_y: int, close_y: int, high_y: int, low_y: int) -> str:
+            color = "#22c55e" if close_y < open_y else "#ef4444"
+            glow = "rgba(34,197,94,.62)" if close_y < open_y else "rgba(239,68,68,.52)"
+            body_y = min(open_y, close_y)
+            body_h = max(5, abs(open_y - close_y))
+            return (
+                f'<line x1="{x}" y1="{high_y}" x2="{x}" y2="{low_y}" stroke="{color}" stroke-width="1.2" opacity=".78"/>'
+                f'<rect x="{x - 3}" y="{body_y}" width="6" height="{body_h}" rx="2.5" fill="{color}" '
+                f'style="filter:drop-shadow(0 0 4px {glow})"/>'
+            )
+
+        grid = (
+            '<defs>'
+            '<linearGradient id="thumbGlow" x1="0" x2="1"><stop stop-color="#38bdf8" stop-opacity=".0"/><stop offset=".5" stop-color="#22c55e" stop-opacity=".35"/><stop offset="1" stop-color="#38bdf8" stop-opacity=".0"/></linearGradient>'
+            '<filter id="softBlue"><feGaussianBlur stdDeviation="1.1"/></filter>'
+            '</defs>'
+            '<rect width="150" height="58" fill="#030712"/>'
+            '<path d="M0 14H150 M0 29H150 M0 44H150 M18 0V58 M45 0V58 M72 0V58 M99 0V58 M126 0V58" stroke="#7dd3fc" stroke-opacity=".10" stroke-width=".7"/>'
+            '<circle cx="114" cy="17" r="22" fill="#22c55e" opacity=".10" filter="url(#softBlue)"/>'
+        )
+        candles = {
             "roxy-thumb-up": [
-                ("up", 66, 22, 58, 34), ("up", 58, 18, 52, 40), ("down", 50, 16, 46, 35), ("up", 45, 26, 39, 44),
-                ("up", 38, 18, 31, 39), ("down", 32, 16, 28, 34), ("up", 30, 22, 24, 36), ("up", 24, 18, 18, 33),
+                (18, 47, 34, 29, 51), (31, 42, 30, 25, 47), (44, 36, 43, 28, 48), (57, 39, 27, 22, 43),
+                (70, 34, 25, 21, 39), (83, 27, 34, 22, 39), (96, 31, 20, 16, 35), (109, 26, 15, 11, 31),
             ],
             "roxy-thumb-bb": [
-                ("up", 59, 28, 48, 40), ("down", 42, 22, 35, 38), ("up", 49, 18, 37, 34), ("up", 32, 28, 24, 42),
-                ("down", 26, 20, 20, 32), ("up", 39, 19, 31, 36), ("up", 47, 24, 36, 44), ("down", 31, 22, 27, 36),
+                (18, 44, 28, 23, 49), (31, 31, 42, 24, 47), (44, 39, 27, 21, 44), (57, 32, 21, 17, 37),
+                (70, 24, 35, 19, 40), (83, 38, 27, 22, 43), (96, 40, 24, 18, 45), (109, 26, 39, 20, 44),
             ],
             "roxy-thumb-macd": [
-                ("down", 28, 15, 24, 31), ("down", 36, 18, 31, 36), ("down", 45, 24, 38, 45), ("up", 57, 18, 45, 36),
-                ("up", 52, 20, 40, 39), ("up", 46, 18, 35, 33), ("up", 39, 16, 29, 31), ("up", 35, 18, 26, 29),
+                (18, 22, 33, 17, 37), (31, 28, 42, 22, 48), (44, 35, 48, 30, 51), (57, 46, 35, 29, 50),
+                (70, 42, 31, 26, 47), (83, 39, 28, 24, 43), (96, 33, 24, 20, 39), (109, 29, 18, 15, 34),
             ],
             "roxy-thumb-break": [
-                ("up", 62, 18, 55, 28), ("down", 53, 16, 47, 26), ("up", 58, 15, 47, 28), ("up", 47, 18, 39, 30),
-                ("down", 41, 14, 36, 26), ("up", 34, 20, 28, 32), ("up", 26, 18, 20, 28), ("up", 18, 22, 13, 31),
+                (18, 43, 32, 27, 48), (31, 34, 41, 29, 46), (44, 39, 29, 24, 44), (57, 34, 24, 20, 39),
+                (70, 27, 35, 22, 40), (83, 31, 20, 16, 36), (96, 22, 12, 8, 27), (109, 19, 9, 5, 24),
             ],
-        }
-        candles = candle_sets.get(kind, candle_sets["roxy-thumb-up"])
-        candle_html = "".join(
-            f'<span class="roxy-mini-candle {tone}" style="--x:{10 + idx * 11}%;--top:{top}%;--h:{height}%;--wick-top:{wick_top}%;--wick-h:{wick_height}%"></span>'
-            for idx, (tone, top, height, wick_top, wick_height) in enumerate(candles)
-        )
-        extras = {
-            "roxy-thumb-up": '<u class="ema ema-fast"></u><u class="ema ema-slow"></u>',
-            "roxy-thumb-bb": '<u class="band band-upper"></u><u class="band band-lower"></u><u class="ema ema-fast"></u><small class="rsi-line"></small>',
-            "roxy-thumb-macd": '<u class="ema ema-fast"></u><u class="ema ema-slow"></u><b style="--x:12%;--h:18%"></b><b style="--x:22%;--h:12%"></b><b class="neg" style="--x:34%;--h:22%"></b><b class="neg" style="--x:46%;--h:28%"></b><b style="--x:58%;--h:16%"></b><b style="--x:70%;--h:24%"></b><b style="--x:82%;--h:31%"></b>',
-            "roxy-thumb-break": '<u class="level resistance"></u><u class="level support"></u><u class="breakout-ray"></u><small class="breakout-tag">ORB</small>',
+        }.get(kind, [])
+        candle_svg = "".join(candle(*item) for item in candles)
+        overlays = {
+            "roxy-thumb-up": (
+                '<path d="M12 40 C38 35, 61 29, 116 14" stroke="#38bdf8" stroke-width="2.2" fill="none" stroke-linecap="round"/>'
+                '<path d="M12 46 C41 41, 70 34, 118 21" stroke="#facc15" stroke-width="1.8" fill="none" stroke-linecap="round"/>'
+                '<path d="M87 25 L109 15 L105 25" stroke="#bbf7d0" stroke-width="1.4" fill="none" stroke-linecap="round"/>'
+                '<text x="103" y="12" fill="#8bd8ff" font-size="6" font-weight="900">EMA 9</text>'
+                '<text x="11" y="53" fill="#facc15" font-size="6" font-weight="900">EMA 21</text>'
+                '<text x="111" y="24" fill="#bbf7d0" font-size="6" font-weight="900">ENTRADA</text>'
+            ),
+            "roxy-thumb-bb": (
+                '<path d="M10 18 C35 5, 65 8, 87 13 S122 19, 139 10" stroke="#93c5fd" stroke-width="1.3" fill="none" opacity=".76"/>'
+                '<path d="M10 43 C34 54, 64 50, 88 44 S120 37, 139 46" stroke="#93c5fd" stroke-width="1.3" fill="none" opacity=".76"/>'
+                '<path d="M10 31 C36 29, 64 27, 88 29 S120 35, 139 31" stroke="#a78bfa" stroke-width="1.8" fill="none"/>'
+                '<path d="M14 51 C40 49, 63 54, 91 50 S120 45, 138 49" stroke="#38bdf8" stroke-width="1.7" fill="none"/>'
+                '<text x="9" y="10" fill="#bfdbfe" font-size="6" font-weight="900">BANDAS</text>'
+                '<text x="120" y="53" fill="#e9d5ff" font-size="6" font-weight="900">RSI</text>'
+            ),
+            "roxy-thumb-macd": (
+                '<path d="M10 18 C42 22, 62 30, 83 29 S116 22, 139 16" stroke="#38bdf8" stroke-width="2" fill="none" stroke-linecap="round"/>'
+                '<path d="M10 11 C40 16, 67 24, 93 26 S121 25, 139 22" stroke="#fb923c" stroke-width="1.8" fill="none" stroke-linecap="round"/>'
+                '<line x1="12" y1="45" x2="138" y2="45" stroke="#e2e8f0" stroke-opacity=".25" stroke-width="1"/>'
+                '<rect x="18" y="45" width="5" height="6" rx="1" fill="#ef4444"/><rect x="31" y="45" width="5" height="8" rx="1" fill="#ef4444"/><rect x="44" y="45" width="5" height="5" rx="1" fill="#ef4444"/>'
+                '<rect x="65" y="39" width="5" height="6" rx="1" fill="#22c55e"/><rect x="78" y="35" width="5" height="10" rx="1" fill="#22c55e"/><rect x="91" y="32" width="5" height="13" rx="1" fill="#22c55e"/><rect x="104" y="29" width="5" height="16" rx="1" fill="#22c55e"/>'
+                '<text x="9" y="54" fill="#fca5a5" font-size="6" font-weight="900">MACD</text>'
+                '<text x="105" y="10" fill="#dbeafe" font-size="6" font-weight="900">CONFIRMA</text>'
+            ),
+            "roxy-thumb-break": (
+                '<line x1="10" y1="22" x2="138" y2="22" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="5 5" opacity=".75"/>'
+                '<line x1="10" y1="42" x2="138" y2="42" stroke="#38bdf8" stroke-width="1" stroke-dasharray="5 5" opacity=".55"/>'
+                '<path d="M83 22 L119 9" stroke="#22c55e" stroke-width="2.4" fill="none" stroke-linecap="round"/>'
+                '<path d="M119 9 L114 18 M119 9 L108 8" stroke="#bbf7d0" stroke-width="1.4" fill="none" stroke-linecap="round"/>'
+                '<text x="10" y="19" fill="#e5e7eb" font-size="5.5" font-weight="900">RESISTENCIA</text>'
+                '<text x="10" y="51" fill="#7dd3fc" font-size="5.5" font-weight="900">SOPORTE</text>'
+                '<text x="118" y="12" fill="#8bd8ff" font-size="6" font-weight="900">ORB</text>'
+            ),
         }.get(kind, "")
-        return f'<div class="roxy-class-thumb {html.escape(kind)}">{candle_html}{extras}</div>'
+        svg = (
+            '<svg viewBox="0 0 150 58" preserveAspectRatio="none" role="img" aria-hidden="true">'
+            f"{grid}{candle_svg}{overlays}"
+            "</svg>"
+        )
+        return f'<div class="roxy-class-thumb {html.escape(kind)}">{svg}</div>'
 
     stat_html = "".join(
         f"""
@@ -36367,14 +36418,16 @@ def main() -> None:
             linear-gradient(90deg,rgba(125,211,252,.05) 1px,transparent 1px),
             radial-gradient(circle at 74% 18%,rgba(34,197,94,.16),transparent 30%),
             #030712;background-size:20px 20px,20px 20px,100% 100%,100% 100%;box-shadow:inset 0 0 18px rgba(56,189,248,.07)}
+        .roxy-class-thumb svg{position:absolute;inset:0;z-index:3;width:100%;height:100%;display:block}
         .roxy-class-thumb:before{content:"";position:absolute;left:6%;right:6%;top:50%;height:1px;background:rgba(125,211,252,.16);z-index:1}.roxy-class-thumb:after{content:"";position:absolute;left:0;right:0;bottom:0;height:30%;background:linear-gradient(180deg,transparent,rgba(2,6,23,.64));z-index:2;pointer-events:none}
-        .roxy-mini-candle{position:absolute;left:var(--x);top:0;width:5px;height:100%;transform:translateX(-50%);z-index:4}.roxy-mini-candle:before{content:"";position:absolute;left:50%;top:var(--wick-top);width:1px;height:var(--wick-h);transform:translateX(-50%);background:rgba(34,197,94,.84);box-shadow:0 0 6px rgba(34,197,94,.42)}.roxy-mini-candle:after{content:"";position:absolute;left:0;right:0;top:var(--top);height:var(--h);border-radius:3px;background:#22c55e;box-shadow:0 0 9px rgba(34,197,94,.56)}
+        .roxy-mini-candle{position:absolute;left:var(--x);top:0;width:6px;height:100%;transform:translateX(-50%);z-index:4}.roxy-mini-candle:before{content:"";position:absolute;left:50%;top:var(--wick-top);width:1px;height:var(--wick-h);transform:translateX(-50%);background:rgba(34,197,94,.84);box-shadow:0 0 6px rgba(34,197,94,.42)}.roxy-mini-candle:after{content:"";position:absolute;left:0;right:0;top:var(--top);height:var(--h);border-radius:3px;background:#22c55e;box-shadow:0 0 9px rgba(34,197,94,.56)}
         .roxy-mini-candle.down:before{background:rgba(248,113,113,.86);box-shadow:0 0 6px rgba(248,113,113,.38)}.roxy-mini-candle.down:after{background:#ef4444;box-shadow:0 0 9px rgba(239,68,68,.48)}
-        .roxy-class-thumb u,.roxy-class-thumb small,.roxy-class-thumb b{position:absolute;display:block;z-index:5;text-decoration:none;font-style:normal}
-        .roxy-class-thumb .ema{left:5%;right:5%;height:2px;border-radius:999px;filter:drop-shadow(0 0 7px rgba(56,189,248,.42));opacity:.92}.roxy-class-thumb .ema-fast{top:43%;background:linear-gradient(100deg,transparent,#38bdf8 12%,#d946ef 50%,#22c55e 82%,transparent);transform:rotate(-9deg)}.roxy-class-thumb .ema-slow{top:59%;background:linear-gradient(100deg,transparent,#f97316 12%,#facc15 46%,#60a5fa 82%,transparent);transform:rotate(-5deg)}
-        .roxy-thumb-bb .band{left:8%;right:8%;height:35px;border:1px solid rgba(125,211,252,.48);border-left-color:transparent;border-right-color:transparent;border-radius:50%;opacity:.78}.roxy-thumb-bb .band-upper{top:10%;transform:rotate(-8deg)}.roxy-thumb-bb .band-lower{top:28%;transform:rotate(7deg)}.roxy-thumb-bb .rsi-line{left:7%;right:7%;bottom:10%;height:2px;border-radius:999px;background:linear-gradient(90deg,transparent,#a78bfa,#38bdf8,transparent);box-shadow:0 0 8px rgba(167,139,250,.45)}
-        .roxy-thumb-macd b{bottom:7%;left:var(--x);width:5px;height:var(--h);border-radius:2px;background:#22c55e;box-shadow:0 0 7px rgba(34,197,94,.42)}.roxy-thumb-macd b.neg{background:#ef4444;box-shadow:0 0 7px rgba(239,68,68,.38)}.roxy-thumb-macd .ema-fast{top:31%;transform:rotate(8deg);background:linear-gradient(100deg,transparent,#38bdf8,#a78bfa,transparent)}.roxy-thumb-macd .ema-slow{top:43%;transform:rotate(5deg);background:linear-gradient(100deg,transparent,#f97316,#facc15,transparent)}
-        .roxy-thumb-break .level{left:7%;right:7%;height:1px;border-radius:999px;border-top:1px dashed rgba(226,232,240,.54)}.roxy-thumb-break .resistance{top:28%}.roxy-thumb-break .support{top:67%;border-color:rgba(56,189,248,.45)}.roxy-thumb-break .breakout-ray{left:58%;right:8%;top:24%;height:2px;border-radius:999px;background:linear-gradient(90deg,#22c55e,#8bd8ff);transform:rotate(-19deg);box-shadow:0 0 10px rgba(34,197,94,.55)}.roxy-thumb-break .breakout-tag{right:5px;top:5px;border:1px solid rgba(125,211,252,.26);border-radius:3px;background:rgba(2,6,23,.62);color:#8bd8ff;font-size:5.8px;font-weight:950;padding:1px 3px;letter-spacing:.04em}
+        .roxy-class-thumb u,.roxy-class-thumb small,.roxy-class-thumb b,.roxy-class-thumb strong{position:absolute;display:block;z-index:5;text-decoration:none;font-style:normal}
+        .roxy-class-thumb .ema{left:5%;right:5%;height:3px;border-radius:999px;filter:drop-shadow(0 0 8px rgba(56,189,248,.46));opacity:.95}.roxy-class-thumb .ema-fast{top:42%;background:linear-gradient(100deg,transparent,#38bdf8 12%,#60a5fa 38%,#22c55e 82%,transparent);transform:rotate(-9deg)}.roxy-class-thumb .ema-slow{top:56%;background:linear-gradient(100deg,transparent,#f97316 12%,#facc15 46%,#d946ef 82%,transparent);transform:rotate(-5deg)}
+        .roxy-class-thumb .thumb-label{border-radius:4px;background:rgba(2,6,23,.70);border:1px solid rgba(125,211,252,.24);padding:1px 3px;color:#bfdbfe;font-size:5.6px;font-weight:950;line-height:1;text-transform:uppercase;letter-spacing:.03em}.roxy-class-thumb .label-fast{right:7px;top:10px;color:#8bd8ff}.roxy-class-thumb .label-slow{left:7px;bottom:7px;color:#facc15}.roxy-class-thumb .thumb-signal{right:7px;bottom:7px;border-radius:4px;background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.42);color:#bbf7d0;font-size:5.6px;line-height:1;padding:2px 4px;text-transform:uppercase;letter-spacing:.03em;box-shadow:0 0 9px rgba(34,197,94,.24)}
+        .roxy-thumb-bb .band{left:7%;right:7%;height:35px;border:1px solid rgba(125,211,252,.52);border-left-color:transparent;border-right-color:transparent;border-radius:50%;opacity:.84}.roxy-thumb-bb .band-upper{top:7%;transform:rotate(-8deg)}.roxy-thumb-bb .band-lower{top:31%;transform:rotate(7deg)}.roxy-thumb-bb .band-mid{top:47%;height:2px;border:0;background:linear-gradient(90deg,transparent,#60a5fa,#a78bfa,transparent);transform:rotate(-5deg)}.roxy-thumb-bb .rsi-line{left:7%;right:7%;bottom:8%;height:4px;border-radius:999px;background:linear-gradient(90deg,rgba(167,139,250,.12),#a78bfa,#38bdf8,rgba(56,189,248,.12));box-shadow:0 0 9px rgba(167,139,250,.50)}.roxy-thumb-bb .bb-label{left:7px;top:6px}.roxy-thumb-bb .rsi-signal{right:7px;bottom:7px;color:#e9d5ff;background:rgba(88,28,135,.50);border-color:rgba(167,139,250,.48)}
+        .roxy-thumb-macd b{bottom:7%;left:var(--x);width:6px;height:var(--h);border-radius:2px;background:#22c55e;box-shadow:0 0 7px rgba(34,197,94,.42)}.roxy-thumb-macd b.neg{background:#ef4444;box-shadow:0 0 7px rgba(239,68,68,.38)}.roxy-thumb-macd .ema-fast{top:28%;transform:rotate(8deg);background:linear-gradient(100deg,transparent,#38bdf8,#a78bfa,transparent)}.roxy-thumb-macd .ema-slow{top:41%;transform:rotate(5deg);background:linear-gradient(100deg,transparent,#f97316,#facc15,transparent)}.roxy-thumb-macd .macd-zero{left:7%;right:7%;bottom:24%;height:1px;background:rgba(226,232,240,.24);border-radius:999px}.roxy-thumb-macd .macd-label{left:7px;bottom:7px;color:#fca5a5}.roxy-thumb-macd .trend-signal{right:7px;top:7px;color:#dbeafe;background:rgba(37,99,235,.30);border-color:rgba(96,165,250,.44)}
+        .roxy-thumb-break .level{left:7%;right:7%;height:1px;border-radius:999px;border-top:1px dashed rgba(226,232,240,.62)}.roxy-thumb-break .resistance{top:28%}.roxy-thumb-break .support{top:67%;border-color:rgba(56,189,248,.52)}.roxy-thumb-break .breakout-ray{left:56%;right:6%;top:24%;height:3px;border-radius:999px;background:linear-gradient(90deg,#22c55e,#8bd8ff);transform:rotate(-19deg);box-shadow:0 0 12px rgba(34,197,94,.64)}.roxy-thumb-break .breakout-tag{right:5px;top:5px;border:1px solid rgba(125,211,252,.34);border-radius:3px;background:rgba(2,6,23,.72);color:#8bd8ff;font-size:5.8px;font-weight:950;padding:1px 3px;letter-spacing:.04em}.roxy-thumb-break .resistance-label{left:7px;top:13px;color:#e5e7eb}.roxy-thumb-break .support-label{left:7px;bottom:5px;color:#7dd3fc}.roxy-thumb-break .breakout-signal{right:6px;top:22px;color:#bbf7d0;background:rgba(21,128,61,.28);border-color:rgba(34,197,94,.46)}
         .roxy-class-games{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.roxy-class-game{display:grid;align-content:start;justify-items:center;min-height:130px;border-radius:8px;padding:14px 8px;text-align:center;text-decoration:none!important;color:#dbeafe!important}.roxy-class-game i{font-size:34px!important;color:#d6b978;text-shadow:0 0 14px rgba(212,175,96,.52)}.roxy-class-game strong{margin-top:10px;color:#93c5fd;font-size:10px;line-height:1.12;text-transform:uppercase;letter-spacing:.04em}.roxy-class-game span{margin-top:6px;color:#aebdd0;font-size:9px;line-height:1.22}.roxy-class-game em{align-self:end;margin-top:10px;color:#60a5fa;font-size:10px;font-style:normal;font-weight:950}
         .roxy-class-practice{display:grid;grid-template-columns:54px minmax(0,1fr) 150px;gap:13px;align-items:center;margin-top:13px;border-radius:8px;padding:12px 14px}.roxy-class-practice>i{display:grid;place-items:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(96,165,250,.48);color:#dbeafe;font-size:32px!important;text-shadow:0 0 16px rgba(96,165,250,.86);background:radial-gradient(circle,rgba(37,99,235,.24),rgba(2,6,23,.40))}.roxy-class-practice strong{display:block;color:#f8fafc;font-size:17px;line-height:1}.roxy-class-practice span{display:block;margin-top:5px;color:#c8d7ea;font-size:11px;line-height:1.28}.roxy-class-practice a{display:grid!important;place-items:center!important;height:38px;margin:0!important;border-radius:999px;border:1px solid rgba(96,165,250,.54);background:linear-gradient(180deg,#2563eb,#1d4ed8);color:#fff!important;text-decoration:none!important;font-size:11px!important;font-weight:950!important;text-transform:uppercase;letter-spacing:.04em;box-shadow:0 0 22px rgba(37,99,235,.42),inset 0 1px 0 rgba(255,255,255,.18)}
         .roxy-class-bottomnav{display:grid;grid-template-columns:1fr 1fr 1.35fr 1fr;gap:6px;margin-top:14px;border-radius:30px;background:rgba(2,6,23,.72);padding:9px 13px}.roxy-class-bottomnav a{display:grid!important;place-items:center!important;gap:4px;margin:0!important;color:#7f93ad!important;text-decoration:none!important;font-size:9px!important;font-weight:900!important;text-transform:uppercase}.roxy-class-bottomnav i{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;font-size:24px!important;font-style:normal;color:#94a3b8}.roxy-class-bottomnav a.active i{width:58px;height:58px;margin-top:-30px;background:radial-gradient(circle,#2563eb,#082f49);border:1px solid rgba(96,165,250,.78);color:#fff;font-size:30px!important;font-weight:950;box-shadow:0 0 38px rgba(37,99,235,.88)}.roxy-class-bottomnav a.active span{color:#60a5fa}
