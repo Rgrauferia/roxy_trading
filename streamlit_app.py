@@ -31263,6 +31263,12 @@ def render_roxy_opening_stage(
             <i class="roxy-space-stars roxy-space-stars-near"></i>
             <i class="roxy-space-planet"></i>
             <i class="roxy-space-comet"></i>
+            <i class="roxy-space-aurora"></i>
+            <i class="roxy-space-constellation roxy-space-constellation-a"></i>
+            <i class="roxy-space-constellation roxy-space-constellation-b"></i>
+            <i class="roxy-space-moon"></i>
+            <i class="roxy-space-stream roxy-space-stream-a"></i>
+            <i class="roxy-space-stream roxy-space-stream-b"></i>
           </div>
           <div class="roxy-ref-topbar">
             <div class="roxy-ref-menu" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -35936,6 +35942,24 @@ def main() -> None:
             box-shadow:0 0 36px rgba(96,165,250,.18);opacity:.22;filter:blur(.25px);animation:roxyPlanetFloat 28s ease-in-out infinite}
         .roxy-space-planet:after{content:"";position:absolute;left:-42%;top:47%;width:184%;height:18%;border:1px solid rgba(125,211,252,.18);border-left-color:transparent;border-right-color:transparent;border-radius:50%;transform:rotate(-19deg);filter:blur(.2px)}
         .roxy-space-comet{left:-22%;top:64%;width:130px;height:2px;border-radius:999px;background:linear-gradient(90deg,transparent,rgba(226,246,255,.72),rgba(56,189,248,.28),transparent);box-shadow:0 0 20px rgba(125,211,252,.32);opacity:0;animation:roxyDeepComet 16s ease-in-out infinite}
+        .roxy-space-aurora{left:14%;right:12%;top:12%;height:62%;border-radius:50%;background:
+            radial-gradient(ellipse at 48% 44%,rgba(34,211,238,.22),rgba(59,130,246,.10) 26%,transparent 58%),
+            conic-gradient(from 210deg at 50% 55%,transparent 0 18%,rgba(56,189,248,.16) 25%,transparent 36%,rgba(212,175,96,.08) 48%,transparent 62%,rgba(96,165,250,.15) 76%,transparent 100%);
+            filter:blur(14px) saturate(1.45);mix-blend-mode:screen;opacity:.54;animation:roxyAuroraDance 11s ease-in-out infinite}
+        .roxy-space-constellation{width:230px;height:118px;opacity:0;filter:drop-shadow(0 0 10px rgba(125,211,252,.28));background:
+            radial-gradient(circle at 8% 74%,rgba(248,250,252,.90) 0 1.4px,transparent 2.5px),
+            radial-gradient(circle at 30% 34%,rgba(186,230,253,.84) 0 1.2px,transparent 2.3px),
+            radial-gradient(circle at 58% 58%,rgba(226,246,255,.92) 0 1.5px,transparent 2.6px),
+            radial-gradient(circle at 82% 24%,rgba(125,211,252,.78) 0 1.2px,transparent 2.4px),
+            linear-gradient(24deg,transparent 0 22%,rgba(125,211,252,.18) 22.3% 22.9%,transparent 23.3%),
+            linear-gradient(152deg,transparent 0 39%,rgba(125,211,252,.14) 39.2% 39.8%,transparent 40.2%),
+            linear-gradient(8deg,transparent 0 61%,rgba(226,246,255,.12) 61.2% 61.8%,transparent 62.2%)}
+        .roxy-space-constellation-a{left:-32%;top:24%;animation:roxyConstellationTravelA 18s ease-in-out infinite}
+        .roxy-space-constellation-b{right:-30%;top:46%;transform:scale(.72) rotate(-16deg);animation:roxyConstellationTravelB 23s ease-in-out infinite 5s}
+        .roxy-space-moon{left:9%;top:58%;width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 34% 31%,rgba(248,250,252,.86),rgba(147,197,253,.36) 32%,rgba(15,23,42,.20) 68%,transparent 74%);box-shadow:0 0 28px rgba(147,197,253,.18);opacity:.16;animation:roxyMoonDrift 24s ease-in-out infinite}
+        .roxy-space-stream{height:1px;width:190px;border-radius:999px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.76),rgba(56,189,248,.35),transparent);box-shadow:0 0 18px rgba(125,211,252,.34);opacity:0}
+        .roxy-space-stream-a{left:-38%;top:30%;animation:roxyStarStreamA 9.5s ease-in-out infinite 1.2s}
+        .roxy-space-stream-b{right:-36%;top:68%;animation:roxyStarStreamB 12s ease-in-out infinite 4.8s}
         @media (hover:hover){.roxy-reference-stage:hover .roxy-space-stars-near{animation-duration:22s;opacity:.62}.roxy-reference-stage:hover .roxy-space-nebula{opacity:.90;filter:blur(8px) saturate(1.45)}}
         .roxy-reference-stage .roxy-stage-center:before{content:"";position:absolute;left:50%;top:50%;width:min(520px,86vw);height:78%;transform:translate(-50%,-50%);background:radial-gradient(ellipse at 50% 45%,rgba(56,189,248,.26),rgba(14,165,233,.09) 34%,transparent 72%);filter:blur(2px);pointer-events:none;animation:roxyHaloBreathe 5.6s ease-in-out infinite}
         .roxy-reference-stage .roxy-stage-left,.roxy-reference-stage .roxy-stage-center,.roxy-reference-stage .roxy-stage-right{display:grid}
@@ -36249,6 +36273,12 @@ def main() -> None:
         @keyframes roxyStarTwinkle{0%,100%{filter:drop-shadow(0 0 4px rgba(186,230,253,.18));opacity:.48}44%{filter:drop-shadow(0 0 9px rgba(186,230,253,.34));opacity:.82}72%{opacity:.58}}
         @keyframes roxyPlanetFloat{0%,100%{transform:translate3d(0,0,0) scale(.92);opacity:.16}42%{transform:translate3d(-18px,22px,0) scale(1.04);opacity:.28}74%{transform:translate3d(10px,-11px,0) scale(.97);opacity:.20}}
         @keyframes roxyDeepComet{0%,68%{opacity:0;transform:translate3d(0,0,0) rotate(-11deg)}72%{opacity:.50}84%{opacity:0;transform:translate3d(145vw,-36vh,0) rotate(-11deg)}100%{opacity:0;transform:translate3d(145vw,-36vh,0) rotate(-11deg)}}
+        @keyframes roxyAuroraDance{0%,100%{transform:translate3d(0,0,0) rotate(0deg) scale(.96);opacity:.38}28%{transform:translate3d(-3%,2%,0) rotate(7deg) scale(1.08);opacity:.64}58%{transform:translate3d(3%,-1.5%,0) rotate(-5deg) scale(1.02);opacity:.52}82%{transform:translate3d(-1%,1%,0) rotate(3deg) scale(1.10);opacity:.70}}
+        @keyframes roxyConstellationTravelA{0%,10%{opacity:0;transform:translate3d(0,0,0) scale(.72) rotate(10deg)}22%,58%{opacity:.46}74%,100%{opacity:0;transform:translate3d(132vw,20vh,0) scale(.88) rotate(18deg)}}
+        @keyframes roxyConstellationTravelB{0%,12%{opacity:0;transform:translate3d(0,0,0) scale(.62) rotate(-16deg)}28%,64%{opacity:.36}82%,100%{opacity:0;transform:translate3d(-126vw,-18vh,0) scale(.82) rotate(-7deg)}}
+        @keyframes roxyMoonDrift{0%,100%{transform:translate3d(0,0,0) scale(.82);opacity:.10}35%{transform:translate3d(34vw,-20vh,0) scale(1);opacity:.23}72%{transform:translate3d(62vw,-10vh,0) scale(.92);opacity:.16}}
+        @keyframes roxyStarStreamA{0%,48%{opacity:0;transform:translate3d(0,0,0) rotate(18deg)}52%{opacity:.74}68%{opacity:0;transform:translate3d(118vw,28vh,0) rotate(18deg)}100%{opacity:0;transform:translate3d(118vw,28vh,0) rotate(18deg)}}
+        @keyframes roxyStarStreamB{0%,55%{opacity:0;transform:translate3d(0,0,0) rotate(-22deg)}59%{opacity:.62}75%{opacity:0;transform:translate3d(-112vw,-26vh,0) rotate(-22deg)}100%{opacity:0;transform:translate3d(-112vw,-26vh,0) rotate(-22deg)}}
         .stApp{background:
             radial-gradient(circle at 50% 10%,rgba(56,189,248,.15),transparent 34%),
             radial-gradient(circle at 88% 8%,rgba(212,175,96,.12),transparent 28%),
