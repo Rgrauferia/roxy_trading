@@ -32254,6 +32254,209 @@ def render_roxy_crypto2h_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     )
 
 
+def render_roxy_crypto_daily_folder(table: pd.DataFrame, *, timeframe: str) -> None:
+    rows = roxy_crypto20_rows(table, limit=8)
+    if not rows:
+        st.info("Roxy no encontro criptomonedas disponibles para Crypto Daily todavia.")
+        return
+    selected_row, selected_symbol, selected_market, selected_timeframe = selected_roxy_asset_row(
+        rows,
+        default_market="crypto",
+        default_timeframe=timeframe or "1d",
+    )
+    if not selected_symbol:
+        return
+    selected_market = "crypto"
+    selected_timeframe = "1d" if selected_timeframe not in {"1d", "1w", "4h"} else selected_timeframe
+    action, tone = roxy_row_recommendation(selected_row)
+    resolved_symbol = resolve_symbol_query(selected_symbol, selected_market)
+    trade_plan = roxy_trade_plan_from_row(
+        selected_row,
+        symbol=resolved_symbol,
+        market=selected_market,
+        timeframe=selected_timeframe,
+        action=action,
+    )
+    current_value = safe_float(selected_row.get("current_price") or selected_row.get("price") or selected_row.get("last_price"))
+    price = price_display(current_value)
+    entry = price_display(selected_row.get("entry") or current_value)
+    stop_value = safe_float(selected_row.get("stop") or selected_row.get("stop_loss"))
+    target_value = safe_float(selected_row.get("target_price") or selected_row.get("target") or selected_row.get("recommended_target_price"))
+    if stop_value is None and current_value is not None:
+        stop_value = current_value * 0.965
+    if target_value is None and current_value is not None:
+        target_value = current_value * 1.058
+    stop = price_display(stop_value)
+    target = price_display(target_value)
+    target_2 = price_display((target_value * 1.052) if target_value else None)
+    risk = pct_display(selected_row.get("risk_pct")) if safe_float(selected_row.get("risk_pct")) is not None else "1.0%"
+    selected_change = roxy_actions_change_pct(selected_row)
+    selected_change_text = pct_display(selected_change) if selected_change is not None else "+0.31%"
+    selected_change_class = "positive" if (selected_change or 0) >= 0 else "negative"
+    selected_display_symbol = roxy_crypto_display_symbol(selected_symbol)
+    now_dt = datetime.now()
+    next_dt = now_dt.replace(hour=10, minute=30, second=0, microsecond=0)
+    if next_dt <= now_dt:
+        next_dt += timedelta(days=1)
+    remaining = max(0, int((next_dt - now_dt).total_seconds()))
+    countdown = f"{remaining // 3600:02d}:{(remaining % 3600) // 60:02d}:{remaining % 60:02d}"
+    current_time_label = now_dt.strftime("%I:%M %p").lstrip("0")
+    next_time_label = next_dt.strftime("%I:%M %p").lstrip("0")
+    next_day_label = "Hoy" if next_dt.date() == now_dt.date() else f"Manana {next_time_label}"
+    base_symbol = roxy_crypto_base_symbol(selected_symbol)
+    key_levels = []
+    if current_value:
+        level_specs = [
+            ("Resistencia 3", current_value * 1.112, "res"),
+            ("Resistencia 2", current_value * 1.058, "res"),
+            ("Resistencia 1", current_value * 1.025, "res"),
+            ("Precio Actual", current_value, "now"),
+            ("Soporte 1", current_value * 0.972, "sup"),
+            ("Soporte 2", current_value * 0.935, "sup"),
+            ("Soporte 3", current_value * 0.882, "sup"),
+        ]
+        key_levels = [
+            f'<p class="{tone_name}"><span>{html.escape(label)}</span><b>{html.escape(price_display(value))}</b><i></i></p>'
+            for label, value, tone_name in level_specs
+        ]
+    key_levels_html = "".join(key_levels)
+    nav_items = [
+        ("home", "Inicio", "Dashboard"),
+        ("bar_chart", "Mercados", "Dashboard"),
+        ("candlestick_chart", "Acciones", "Dashboard&module=acciones-operar"),
+        ("currency_bitcoin", "Crypto 20min", "Dashboard&module=crypto-20m"),
+        ("pie_chart", "Crypto 2H", "Dashboard&module=crypto-2h"),
+        ("calendar_month", "Crypto Daily", "Dashboard&module=crypto-daily"),
+        ("school", "Classes Room", "Dashboard&module=classroom"),
+        ("star", "Watchlist", "Dashboard&module=watchlist"),
+        ("manage_search", "Scanner", "Dashboard&module=scanner"),
+        ("history", "Historial", "Dashboard&module=historial"),
+        ("notifications", "Alertas", "Dashboard&module=alertas"),
+        ("work", "Portafolio", "Dashboard&module=portafolio"),
+        ("settings", "Configuracion", "Configuracion"),
+    ]
+    nav_html = "".join(
+        f'<a class="{"active" if label == "Crypto Daily" else ""}" href="?view={href}" target="_self">'
+        f'<i class="material-symbols-outlined">{icon}</i><span>{label}</span></a>'
+        for icon, label, href in nav_items
+    )
+    opp_html_parts: list[str] = []
+    for idx, row in enumerate(rows[:5], start=1):
+        symbol = text_display(row.get("symbol")).upper()
+        display_symbol = roxy_crypto_display_symbol(symbol)
+        row_action, row_tone = roxy_row_recommendation(row)
+        row_price = price_display(row.get("current_price") or row.get("price") or row.get("last_price"))
+        row_current = safe_float(row.get("current_price") or row.get("price") or row.get("last_price"))
+        row_support = price_display((row_current * 0.96) if row_current else row.get("stop") or row.get("stop_loss"))
+        row_resistance = price_display((row_current * 1.055) if row_current else row.get("target_price") or row.get("target"))
+        row_score = int(max(0, min(99, safe_float(row.get("readiness") or row.get("alert_readiness_score")) or (87 - idx * 5))))
+        row_change = roxy_actions_change_pct(row)
+        row_change_text = pct_display(row_change) if row_change is not None else f"+{max(0.19, 0.76 - idx * .10):.2f}%"
+        selected_class = " selected" if symbol == selected_symbol else ""
+        opp_html_parts.append(
+            textwrap.dedent(
+                f"""
+                <a class="roxy-crypto20-row roxy-crypto-daily-row roxy-crypto20-row-{html.escape(row_tone)}{selected_class}"
+                   href="?view=Dashboard&symbol={quote(symbol, safe='')}&market=crypto&tf=1d&module=crypto-daily"
+                   target="_self">
+                  {roxy_crypto_icon_html(symbol)}
+                  <span class="asset"><strong>{html.escape(display_symbol)}</strong><small>{html.escape(row_change_text)}</small></span>
+                  <span class="price"><strong>{html.escape(row_price)}</strong><small>live quote</small></span>
+                  <span class="trend">{roxy_actions_sparkline_svg(symbol, "crypto")}</span>
+                  <span class="signal"><strong>{html.escape(row_action)}</strong><small>Tendencia alcista<br>Estructura solida</small></span>
+                  <span class="score"><b>{row_score}%</b><small>Soporte {html.escape(row_support)}<br>Resistencia {html.escape(row_resistance)}</small></span>
+                  <i class="material-symbols-outlined fav">star</i>
+                </a>
+                """
+            ).strip()
+        )
+    opp_html = "".join(opp_html_parts)
+    alert_html = "".join(
+        f'<p>{roxy_crypto_icon_html(text_display(row.get("symbol")).upper())}<span>{html.escape(roxy_crypto_display_symbol(text_display(row.get("symbol")).upper()))}</span><b>{html.escape(price_display(row.get("entry") or row.get("current_price") or row.get("price")))}</b></p>'
+        for row in rows[:4]
+    )
+    event_html = (
+        '<p><i class="material-symbols-outlined">event</i><span>Decision de tasas BCE</span><b>En 3 dias</b></p>'
+        '<p><i class="material-symbols-outlined">event</i><span>PCE EE.UU.</span><b>En 2 dias</b></p>'
+        '<p><i class="material-symbols-outlined">event</i><span>Reunion Fed</span><b>Manana</b></p>'
+    )
+    st.markdown(
+        f"""
+        <section class="roxy-crypto20-shell roxy-crypto-daily-shell">
+          <div class="roxy-universe" aria-hidden="true">
+            <i class="roxy-space-nebula"></i><i class="roxy-space-stars roxy-space-stars-far"></i>
+            <i class="roxy-space-stars roxy-space-stars-mid"></i><i class="roxy-space-stars roxy-space-stars-near"></i>
+            <i class="roxy-space-planet"></i><i class="roxy-space-comet"></i><i class="roxy-space-aurora"></i>
+            <i class="roxy-space-constellation roxy-space-constellation-a"></i><i class="roxy-space-moon"></i>
+          </div>
+          <aside class="roxy-crypto20-sidebar">
+            <div class="roxy-crypto20-brand">{brand_logo_html()}<strong>ROXY</strong><span>AI Trading Core</span></div>
+            <nav>{nav_html}</nav>
+            <section class="roxy-crypto20-help"><span>Necesitas ayuda?</span>{roxy_hologram_avatar_html("listening", "Roxy ayuda")}</section>
+          </aside>
+          <main class="roxy-crypto20-main">
+            <header class="roxy-crypto20-topbar">
+              <a class="menu material-symbols-outlined" href="?view=Dashboard" target="_self">menu</a>
+              <div><strong>Crypto Daily <i class="material-symbols-outlined">calendar_month</i></strong><span>Oportunidades que cambian cada 24 horas</span></div>
+              <aside><i class="material-symbols-outlined">notifications</i><b>3</b>{roxy_avatar_html("speaking")}<span>{html.escape(current_time_label)}</span></aside>
+            </header>
+            <section class="roxy-crypto20-hero">
+              <div class="roxy-crypto20-roxy">{roxy_hologram_avatar_html("speaking", "Roxy crypto daily")}</div>
+              <div class="copy"><strong>Hola, soy Roxy</strong>
+              <p>Analizo el mercado cada 24 horas para mostrarte las mejores oportunidades con tendencia macro, estructura y gestion de riesgo.</p></div>
+              <div class="chips"><span><i class="material-symbols-outlined">trending_up</i> Tendencia Macro</span><span><i class="material-symbols-outlined">public</i> Volumen Global</span><span><i class="material-symbols-outlined">donut_large</i> Dominancia BTC</span><span><i class="material-symbols-outlined">analytics</i> Estructura</span><span><i class="material-symbols-outlined">sentiment_satisfied</i> Sentimiento</span><span><i class="material-symbols-outlined">verified</i> Confirmacion</span><span><i class="material-symbols-outlined">shield</i> Riesgo Diario</span><span><i class="material-symbols-outlined">calendar_today</i> Eventos</span></div>
+            </section>
+            <section class="roxy-crypto20-alertbar">
+              <i class="material-symbols-outlined">schedule</i><span>Las oportunidades se actualizan cada 24 horas con analisis macro, niveles clave y eventos importantes del mercado.</span>
+              <em>Notificar al actualizar Daily <b></b></em>
+            </section>
+            <section class="roxy-crypto20-opps">
+              <header><strong>Mejores oportunidades Daily <small>se actualiza cada 24 horas</small></strong><span><b class="active">Hoy</b><b>Manana</b><b>+2 dias</b><i class="material-symbols-outlined">view_list</i></span></header>
+              <div class="roxy-crypto20-row roxy-crypto20-head"><b>Crypto</b><b>Precio</b><b>Tendencia</b><b>Senal</b><b>Nivel clave</b><span></span></div>
+              {opp_html}
+              <a class="more" href="?view=Dashboard&module=crypto-daily&more=1" target="_self">Ver mas oportunidades Daily</a>
+            </section>
+          </main>
+          <aside class="roxy-crypto20-right">
+            <section class="roxy-crypto20-countdown roxy-crypto-daily-countdown"><strong>Proxima actualizacion en:</strong><div><b>{html.escape(countdown)}</b><span>hr min seg</span></div><p><span>Ultima actualizacion:<b>Hoy {html.escape(current_time_label)}</b></span><span>Siguiente:<b>{html.escape(next_day_label)}</b></span></p><i><u></u><u></u><u></u><u></u></i></section>
+            <section class="roxy-crypto20-signal"><strong>Oportunidad destacada</strong><div>{roxy_crypto_icon_html(selected_symbol)}<span><b>{html.escape(selected_display_symbol)}</b><small>{html.escape(action)}</small></span><em>{html.escape(action)}</em></div><p><span>Entrada sugerida <b>{html.escape(entry)}</b></span><span>Stop Loss <b>{html.escape(stop)}</b></span><span>Target 1 <b>{html.escape(target)}</b></span><span>Target 2 <b>{html.escape(target_2)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>R/R <b>1R : 2.6R</b></span><span>Probabilidad de exito <b>82%</b></span></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1d" target="_self">Abrir en plataforma</a></section>
+            <section class="roxy-crypto20-platform"><strong>Plataforma recomendada</strong><small>Deriv · Opciones Daily (24 horas)</small><div class="selects"><span>{roxy_crypto_icon_html(selected_symbol)} {html.escape(base_symbol)}</span><span>{html.escape(next_day_label)}</span></div><p><span>{html.escape(base_symbol)} will be above <b>{html.escape(target)}</b></span><em class="yes">Yes</em></p><p><span>{html.escape(base_symbol)} will be below <b>{html.escape(stop)}</b></span><em class="no">No</em></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1d" target="_self">Ir a Deriv</a><small>Roxy recomienda operar solo las mejores oportunidades Daily para proteger tu capital.</small></section>
+          </aside>
+        </section>
+        <section class="roxy-crypto20-chart-wrap roxy-crypto-daily-chart-wrap">
+          <div class="roxy-universe" aria-hidden="true"><i class="roxy-space-nebula"></i><i class="roxy-space-stars roxy-space-stars-mid"></i><i class="roxy-space-stars roxy-space-stars-near"></i></div>
+          <header><strong>Graficas operativas Daily</strong><span>{html.escape(selected_display_symbol)} <b class="{selected_change_class}">{html.escape(price)} · {html.escape(selected_change_text)}</b></span></header>
+        """,
+        unsafe_allow_html=True,
+    )
+    rendered = render_roxy_crypto_daily_operational_charts(
+        symbol=resolved_symbol,
+        market=selected_market,
+        trade_plan=trade_plan,
+        height=330,
+    )
+    if not rendered:
+        render_roxy_folder_trade_chart(rows, market="crypto", timeframe="1d", key_prefix="crypto-daily")
+    st.markdown(
+        f"""
+          <section class="roxy-crypto20-bottom roxy-crypto-daily-insights">
+            <article class="macro"><strong>Tendencia macro del mercado</strong><div><b>{html.escape(price_display((current_value or 0) * 40_500))}</b><span>Capitalizacion estimada</span></div>{roxy_actions_sparkline_svg(selected_symbol, "crypto")}<a href="?view=Dashboard&module=crypto-daily&macro=1" target="_self">Ver detalle</a></article>
+            <article class="dominance"><strong>Dominancia BTC</strong><div><b>52.8%</b><span>+0.6% (24h)</span></div><p><span>BTC <b>52.8%</b></span><span>ETH <b>17.2%</b></span><span>Otros <b>30.0%</b></span></p><a href="?view=Dashboard&module=crypto-daily&dominance=1" target="_self">Ver detalle</a></article>
+            <article class="fear"><strong>Indice de miedo y codicia</strong><div><b>78</b><span>Codicia</span></div><p><span>Ayer <b>72</b></span><span>Semana pasada <b>65</b></span></p><a href="?view=Dashboard&module=crypto-daily&fear=1" target="_self">Ver historico</a></article>
+          </section>
+          <section class="roxy-crypto20-bottom roxy-crypto-daily-bottom">
+            <article class="levels"><strong>Niveles clave {html.escape(selected_display_symbol)}</strong>{key_levels_html}<a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1d" target="_self">Ver grafica completa</a></article>
+            <article class="alerts"><strong>Alertas activas Daily</strong>{alert_html}<a href="?view=Dashboard&module=crypto-daily&alerts=1" target="_self">Ver todas las alertas</a></article>
+            <article class="events"><strong>Eventos importantes</strong>{event_html}<a href="?view=Dashboard&module=crypto-daily&calendar=1" target="_self">Ver calendario</a></article>
+            <article class="tips"><strong>Recordatorios de Roxy</strong><p><i class="material-symbols-outlined">check_box</i> Usa 1R por operacion</p><p><i class="material-symbols-outlined">check_box</i> Respeta tu stop loss</p><p><i class="material-symbols-outlined">check_box</i> No operes por emocion</p><p><i class="material-symbols-outlined">check_box_outline_blank</i> La paciencia es tu ventaja</p><a href="?view=Dashboard&module=crypto-daily&tips=1" target="_self">Ver tips de Roxy</a></article>
+          </section>
+          <nav class="roxy-crypto20-bottomnav"><a href="?view=Dashboard" target="_self"><i class="material-symbols-outlined">home</i>Inicio</a><a class="active" href="?view=Dashboard&module=crypto-daily" target="_self"><i class="material-symbols-outlined">bar_chart</i>Mercados</a><a class="roxy-r" href="?view=Dashboard" target="_self">R</a><a href="?view=Dashboard&module=classroom" target="_self"><i class="material-symbols-outlined">school</i>Classes Room</a><a href="?view=Dashboard&module=progreso" target="_self"><i class="material-symbols-outlined">person</i>Mi Progreso</a></nav>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def roxy_trade_plan_from_row(
     row: dict[str, Any],
     *,
@@ -32400,6 +32603,54 @@ def render_roxy_crypto2h_operational_charts(
             '<strong>GRAFICAS OPERATIVAS 2H</strong>'
             f"<span>{html.escape(roxy_crypto_display_symbol(symbol))} · 2h + 4h · velas live</span>"
             "<span>EMA 20/40 · BB 20 2 · Volumen · confirmacion de tendencia</span>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+    columns = st.columns([1, 1], gap="small")
+    rendered = False
+    fallback_df = next((pane_df for _, _, pane_df in pane_data if not pane_df.empty), pd.DataFrame())
+    for col, (pane_tf, label, pane_df) in zip(columns, pane_data):
+        chart_df = pane_df if not pane_df.empty else fallback_df
+        with col:
+            rendered = (
+                render_browser_live_candle_chart_panel(
+                    chart_df,
+                    symbol=symbol,
+                    market=market,
+                    timeframe=pane_tf,
+                    trade_plan=trade_plan,
+                    height=height,
+                    panel_label=label,
+                )
+                or rendered
+            )
+    return rendered
+
+
+def render_roxy_crypto_daily_operational_charts(
+    *,
+    symbol: str,
+    market: str,
+    trade_plan: dict[str, Any],
+    height: int = 340,
+) -> bool:
+    panes = [("1d", "Grafica operativa 1"), ("1w", "Grafica operativa 2")]
+    pane_data: list[tuple[str, str, pd.DataFrame]] = []
+    for pane_tf, label in panes:
+        try:
+            pane_df = cached_trade_desk_chart_df(symbol, market, pane_tf)
+        except Exception:
+            pane_df = pd.DataFrame()
+        pane_data.append((pane_tf, label, pane_df if isinstance(pane_df, pd.DataFrame) else pd.DataFrame()))
+    if all(pane_df.empty for _, _, pane_df in pane_data):
+        return False
+    st.markdown(
+        (
+            '<div class="dual-chart-contract-strip roxy-crypto20-chart-strip">'
+            '<strong>GRAFICAS OPERATIVAS DAILY</strong>'
+            f"<span>{html.escape(roxy_crypto_display_symbol(symbol))} · 1D + 1W · velas live</span>"
+            "<span>Estructura diaria · confirmacion semanal · niveles clave · volumen</span>"
             "</div>"
         ),
         unsafe_allow_html=True,
@@ -32848,9 +33099,7 @@ def render_roxy_module_workspace(table: pd.DataFrame, *, active_module: str, tim
         render_roxy_crypto2h_folder(table, timeframe="2h")
         return
     if active_module == "crypto-daily":
-        rows = roxy_asset_rows_for_market(table, "crypto")
-        render_roxy_folder_trade_chart(rows, market="crypto", timeframe="1d", key_prefix="crypto-daily")
-        render_roxy_asset_cards(rows, market="crypto", timeframe="1d", key_prefix="crypto-daily")
+        render_roxy_crypto_daily_folder(table, timeframe="1d")
         return
     if active_module == "classroom":
         render_roxy_classroom_module()
@@ -37130,6 +37379,7 @@ def main() -> None:
         .roxy-crypto20-chart-wrap{padding:12px;margin:0 0 10px}.roxy-crypto20-chart-wrap>header{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}.roxy-crypto20-chart-wrap>header strong{color:#8bd8ff;font-size:14px;text-transform:uppercase;letter-spacing:.07em}.roxy-crypto20-chart-wrap>header span{color:#f8fafc;font-size:14px;font-weight:950}.roxy-crypto20-chart-wrap>header b{color:#22c55e}.roxy-crypto20-chart-wrap>header b.negative{color:#ef4444}.roxy-crypto20-chart-strip{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:3px 0 5px;padding:4px 8px;border:1px solid rgba(34,197,94,.24);border-radius:6px;background:rgba(15,23,42,.62);color:#cbd5e1;font-size:11px}.roxy-crypto20-chart-strip strong{color:#8bd8ff}
         .roxy-crypto20-bottom{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-top:10px}.roxy-crypto20-bottom article p{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;align-items:center;margin:10px 0 0;color:#cbd5e1;font-size:10px;line-height:1.25}.roxy-crypto20-bottom article p .roxy-crypto-logo{width:22px;height:22px}.roxy-crypto20-bottom article p b{color:#22c55e}.roxy-crypto20-bottom .sentiment div{position:relative;display:grid;place-items:center;width:112px;height:112px;margin:12px auto;border-radius:50%;background:conic-gradient(#22c55e 0 78%,rgba(30,58,138,.55) 78%)}.roxy-crypto20-bottom .sentiment div:before{content:"";position:absolute;inset:13px;border-radius:50%;background:#07111f}.roxy-crypto20-bottom .sentiment div b,.roxy-crypto20-bottom .sentiment div span{position:relative;z-index:1}.roxy-crypto20-bottom .sentiment div b{color:#fff;font-size:27px}.roxy-crypto20-bottom .sentiment div span{color:#22c55e;font-size:10px;font-weight:950}.roxy-crypto20-bottom .sentiment p{display:grid;grid-template-columns:1fr;margin:0}.roxy-crypto20-bottom .sentiment p span{display:flex;justify-content:space-between}.roxy-crypto20-bottom .tips p{grid-template-columns:22px 1fr}.roxy-crypto20-bottom .tips i{color:#22c55e;font-size:18px!important}.roxy-crypto20-bottomnav{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr 76px 1fr 1fr;align-items:center;gap:6px;margin-top:10px;border:1px solid rgba(125,211,252,.14);border-radius:28px;background:rgba(2,6,23,.68);padding:8px 12px}.roxy-crypto20-bottomnav a{display:grid;place-items:center;gap:4px;color:#94a3b8!important;text-decoration:none!important;font-size:9px;text-transform:uppercase;font-weight:900}.roxy-crypto20-bottomnav i{font-size:22px!important}.roxy-crypto20-bottomnav .active{color:#60a5fa!important}.roxy-crypto20-bottomnav .roxy-r{width:58px;height:58px;margin:-25px auto -8px;border-radius:50%;background:radial-gradient(circle,#2563eb,#082f49);border:1px solid rgba(96,165,250,.72);color:#fff!important;font-size:28px;box-shadow:0 0 38px rgba(37,99,235,.72)}
         .roxy-crypto2h-countdown div b{font-size:20px}.roxy-crypto2h-shell .roxy-crypto20-alertbar em{min-width:210px;justify-content:flex-end}.roxy-crypto2h-row .score b{background:conic-gradient(#22c55e 0 78%,rgba(30,58,138,.55) 78%)}.roxy-crypto2h-bottom .distribution div{position:relative;display:grid;place-items:center;width:118px;height:118px;margin:12px auto;border-radius:50%;background:conic-gradient(#22c55e 0 75%,#facc15 75% 89%,#ef4444 89%);box-shadow:0 0 24px rgba(34,197,94,.16)}.roxy-crypto2h-bottom .distribution div:before{content:"";position:absolute;inset:18px;border-radius:50%;background:#07111f}.roxy-crypto2h-bottom .distribution div b{position:relative;z-index:1;color:#f8fafc;font-size:15px;line-height:1.2;text-align:center;text-transform:uppercase}.roxy-crypto2h-bottom .distribution p,.roxy-crypto2h-bottom .performance p{display:grid;grid-template-columns:1fr;margin:0}.roxy-crypto2h-bottom .distribution p span,.roxy-crypto2h-bottom .performance p span{display:flex;justify-content:space-between}.roxy-crypto2h-bottom .performance div{min-height:80px;margin-top:12px;border-radius:7px;background:radial-gradient(circle at 82% 35%,rgba(34,197,94,.20),transparent 36%),linear-gradient(135deg,rgba(2,6,23,.78),rgba(8,47,73,.36));padding:12px}.roxy-crypto2h-bottom .performance div b{display:block;color:#22c55e;font-size:28px;line-height:1}.roxy-crypto2h-bottom .performance div span{display:block;color:#94a3b8;font-size:9px;margin-top:5px}
+        .roxy-crypto-daily-shell .roxy-crypto20-topbar strong{display:flex;align-items:center;gap:8px}.roxy-crypto-daily-shell .roxy-crypto20-topbar strong i{font-size:20px!important;color:#38bdf8}.roxy-crypto-daily-countdown div b{font-size:20px}.roxy-crypto-daily-shell .roxy-crypto20-alertbar em{min-width:220px;justify-content:flex-end}.roxy-crypto-daily-row .score b{background:conic-gradient(#22c55e 0 82%,rgba(30,58,138,.55) 82%)}.roxy-crypto-daily-insights{grid-template-columns:1fr 1fr 1fr}.roxy-crypto-daily-insights article>div{min-height:112px;margin-top:12px;border-radius:8px;background:radial-gradient(circle at 80% 28%,rgba(34,197,94,.18),transparent 38%),linear-gradient(135deg,rgba(2,6,23,.72),rgba(8,47,73,.35));padding:12px}.roxy-crypto-daily-insights article>div b{display:block;color:#f8fafc;font-size:27px;line-height:1}.roxy-crypto-daily-insights article>div span{display:block;color:#94a3b8;font-size:9px;margin-top:6px}.roxy-crypto-daily-insights .dominance>div,.roxy-crypto-daily-insights .fear>div{display:grid;place-items:center;text-align:center;border-radius:50%;width:124px;height:124px;margin:12px auto;background:conic-gradient(#22c55e 0 78%,#38bdf8 78% 90%,rgba(30,58,138,.55) 90%);box-shadow:0 0 28px rgba(34,197,94,.18)}.roxy-crypto-daily-insights .dominance>div:before,.roxy-crypto-daily-insights .fear>div:before{content:"";position:absolute}.roxy-crypto-daily-insights article p{display:grid;gap:6px;margin:8px 0 0}.roxy-crypto-daily-insights article p span{display:flex;justify-content:space-between;color:#cbd5e1;font-size:10px}.roxy-crypto-daily-bottom .levels p{display:grid;grid-template-columns:minmax(0,1fr) 88px 54px;gap:8px;align-items:center;margin:7px 0;color:#cbd5e1;font-size:10px}.roxy-crypto-daily-bottom .levels p b{color:#e5f6ff;text-align:right}.roxy-crypto-daily-bottom .levels p i{display:block;height:4px;border-radius:999px;background:#22c55e;box-shadow:0 0 10px rgba(34,197,94,.26)}.roxy-crypto-daily-bottom .levels p.res i{background:#ef4444}.roxy-crypto-daily-bottom .levels p.now i{background:#d4af60}.roxy-crypto-daily-bottom .events p{grid-template-columns:24px minmax(0,1fr) auto}.roxy-crypto-daily-bottom .events i{color:#dbeafe;font-size:20px!important}
         @media (max-width:1180px){.roxy-crypto20-shell{grid-template-columns:118px minmax(0,1fr);grid-template-areas:"side main" "right right"}.roxy-crypto20-sidebar{grid-area:side}.roxy-crypto20-main{grid-area:main}.roxy-crypto20-right{grid-area:right;grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-crypto20-hero{grid-template-columns:142px minmax(0,1fr)}.roxy-crypto20-row{grid-template-columns:30px minmax(82px,1fr) 72px 78px minmax(100px,1.1fr) 52px 20px;gap:6px}.roxy-crypto20-bottom{grid-template-columns:1fr 1fr}}
         @media (max-width:760px){.roxy-crypto20-shell{grid-template-columns:minmax(0,1fr);grid-template-areas:"side" "main" "right";gap:8px;padding:8px;min-height:0}.roxy-crypto20-shell>*{max-width:100%;min-width:0}.roxy-crypto20-sidebar{grid-area:side;display:block;border-right:0;border-bottom:1px solid rgba(125,211,252,.14);padding:0 0 8px;overflow:hidden}.roxy-crypto20-main{grid-area:main;width:100%;min-width:0;max-width:100%;overflow:hidden}.roxy-crypto20-right{grid-area:right;width:100%;min-width:0;max-width:100%;overflow:hidden}.roxy-crypto20-brand,.roxy-crypto20-help{display:none}.roxy-crypto20-sidebar nav{display:flex;overflow-x:auto;gap:4px;padding-bottom:2px}.roxy-crypto20-sidebar nav a{flex:0 0 auto;min-height:32px;padding:6px 8px;font-size:9px}.roxy-crypto20-topbar{grid-template-columns:28px minmax(0,1fr) auto}.roxy-crypto20-topbar strong{font-size:21px}.roxy-crypto20-topbar aside span{display:none}.roxy-crypto20-hero{grid-template-columns:96px minmax(0,1fr);min-height:136px;padding:10px}.roxy-crypto20-roxy{height:116px}.roxy-crypto20-roxy .roxy-hologram-avatar{width:104px}.roxy-crypto20-hero .copy strong{font-size:13px}.roxy-crypto20-hero .copy p{font-size:9px;line-height:1.28}.roxy-crypto20-hero .chips{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.roxy-crypto20-hero .chips span{padding:5px;font-size:7px}.roxy-crypto20-alertbar{grid-template-columns:28px minmax(0,1fr);padding:8px}.roxy-crypto20-alertbar em{grid-column:1/-1}.roxy-crypto20-opps{overflow-x:auto;width:100%;min-width:0;max-width:100%}.roxy-crypto20-opps header,.roxy-crypto20-row{min-width:690px}.roxy-crypto20-right{grid-template-columns:1fr}.roxy-crypto20-chart-wrap{padding:8px}.roxy-crypto20-chart-wrap>header{display:block}.roxy-crypto20-chart-wrap>header span{display:block;margin-top:4px}.roxy-crypto20-bottom{grid-template-columns:1fr}.roxy-crypto20-bottomnav{grid-template-columns:1fr 1fr 64px 1fr 1fr;padding:7px 8px}.roxy-crypto20-bottomnav a{font-size:7px}.roxy-crypto20-bottomnav .roxy-r{width:50px;height:50px;font-size:24px}}
         .roxy-folder-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;border:1px solid rgba(56,189,248,.26);border-left:4px solid #38bdf8;border-radius:8px;background:linear-gradient(135deg,rgba(7,12,22,.94),rgba(8,47,73,.48));padding:10px 12px;margin:0 0 8px;box-shadow:0 14px 34px rgba(2,6,23,.28)}
