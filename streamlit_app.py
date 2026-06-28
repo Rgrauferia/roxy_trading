@@ -24,7 +24,7 @@ import textwrap
 import unicodedata
 import warnings
 from contextlib import nullcontext
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from glob import glob
 from pathlib import Path
 from typing import Any, Optional
@@ -35,6 +35,34 @@ import sqlite3
 import streamlit as st
 import streamlit.components.v1 as components
 import altair as alt
+
+try:
+    from webauthn import (
+        generate_authentication_options,
+        generate_registration_options,
+        verify_authentication_response,
+        verify_registration_response,
+    )
+    from webauthn.helpers import options_to_json
+    from webauthn.helpers.structs import (
+        AuthenticatorSelectionCriteria,
+        PublicKeyCredentialDescriptor,
+        ResidentKeyRequirement,
+        UserVerificationRequirement,
+    )
+
+    ROXY_WEBAUTHN_AVAILABLE = True
+except Exception:  # pragma: no cover - optional security dependency
+    generate_authentication_options = None
+    generate_registration_options = None
+    verify_authentication_response = None
+    verify_registration_response = None
+    options_to_json = None
+    AuthenticatorSelectionCriteria = None
+    PublicKeyCredentialDescriptor = None
+    ResidentKeyRequirement = None
+    UserVerificationRequirement = None
+    ROXY_WEBAUTHN_AVAILABLE = False
 
 try:
     import plotly.graph_objects as go
@@ -434,6 +462,9 @@ ROXY_AVATAR_VARIANT_PATHS = {
 ROXY_USERS_PATH = project_path("data/roxy_users.json")
 ROXY_SESSION_PARAM = "rx_session"
 ROXY_SESSION_STORAGE_KEY = "roxy_trading_session"
+ROXY_PASSKEY_ACTION_PARAM = "rx_passkey_action"
+ROXY_PASSKEY_RESULT_PARAM = "rx_passkey_result"
+ROXY_PASSKEY_PENDING_SECONDS = 600
 
 
 def brand_logo_html() -> str:
@@ -550,6 +581,31 @@ def roxy_hash_password(password: str, salt: str) -> str:
     return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 160_000).hex()
 
 
+def roxy_b64url_encode(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def roxy_b64url_decode(value: Any) -> bytes:
+    clean = text_display(value).strip()
+    if not clean:
+        return b""
+    clean += "=" * (-len(clean) % 4)
+    return base64.urlsafe_b64decode(clean.encode("ascii"))
+
+
+def roxy_json_b64url_encode(payload: dict[str, Any]) -> str:
+    return roxy_b64url_encode(json.dumps(payload, separators=(",", ":"), ensure_ascii=True).encode("utf-8"))
+
+
+def roxy_json_b64url_decode(value: Any) -> dict[str, Any]:
+    try:
+        decoded = roxy_b64url_decode(value).decode("utf-8")
+        payload = json.loads(decoded)
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
 def roxy_find_user(identifier: str) -> tuple[str, dict[str, Any]] | tuple[str, None]:
     ident = text_display(identifier).strip().lower()
     if not ident:
@@ -563,6 +619,402 @@ def roxy_find_user(identifier: str) -> tuple[str, dict[str, Any]] | tuple[str, N
         if text_display(profile.get("email")).strip().lower() == ident:
             return str(username), profile
     return "", None
+
+
+def roxy_user_passkeys(profile: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not isinstance(profile, dict):
+        return []
+    passkeys = profile.get("passkeys")
+    if not isinstance(passkeys, list):
+        return []
+    return [item for item in passkeys if isinstance(item, dict) and text_display(item.get("id")).strip()]
+
+
+def roxy_passkey_count(username: str) -> int:
+    _, profile = roxy_find_user(username)
+    return len(roxy_user_passkeys(profile if isinstance(profile, dict) else None))
+
+
+def roxy_passkey_challenge_key(action: str) -> str:
+    return "pending_passkey_registration" if action == "register" else "pending_passkey_auth"
+
+
+def roxy_store_passkey_challenge(username: str, action: str, challenge: bytes) -> None:
+    safe_username = text_display(username).strip().lower()
+    if not safe_username:
+        return
+    data = roxy_load_users()
+    users = data.setdefault("users", {})
+    profile = users.get(safe_username)
+    if not isinstance(profile, dict):
+        return
+    profile[roxy_passkey_challenge_key(action)] = {
+        "challenge": roxy_b64url_encode(challenge),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    roxy_save_users(data)
+
+
+def roxy_pending_passkey_challenge(profile: dict[str, Any], action: str) -> bytes:
+    pending = profile.get(roxy_passkey_challenge_key(action))
+    if not isinstance(pending, dict):
+        return b""
+    try:
+        created = datetime.fromisoformat(text_display(pending.get("created_at")).replace("Z", "+00:00"))
+    except Exception:
+        return b""
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) - created > timedelta(seconds=ROXY_PASSKEY_PENDING_SECONDS):
+        return b""
+    return roxy_b64url_decode(pending.get("challenge"))
+
+
+def roxy_clear_passkey_challenge(username: str, action: str) -> None:
+    safe_username = text_display(username).strip().lower()
+    if not safe_username:
+        return
+    data = roxy_load_users()
+    users = data.setdefault("users", {})
+    profile = users.get(safe_username)
+    if isinstance(profile, dict):
+        profile.pop(roxy_passkey_challenge_key(action), None)
+        roxy_save_users(data)
+
+
+def roxy_expected_webauthn_context(payload: dict[str, Any]) -> tuple[str, str]:
+    origin = text_display(payload.get("origin")).strip()
+    rp_id = text_display(payload.get("rpId")).strip().lower()
+    parsed = urlparse(origin)
+    host = text_display(parsed.hostname).strip().lower()
+    if not origin or not rp_id or not host:
+        return "", ""
+    if rp_id != host and not host.endswith(f".{rp_id}"):
+        return "", ""
+    if parsed.scheme == "http" and host not in {"localhost", "127.0.0.1"}:
+        return "", ""
+    if parsed.scheme not in {"http", "https"}:
+        return "", ""
+    return origin, rp_id
+
+
+def roxy_passkey_registration_options(username: str, profile: dict[str, Any]) -> tuple[bool, str, dict[str, Any]]:
+    if not ROXY_WEBAUTHN_AVAILABLE:
+        return False, "Face ID necesita instalar la dependencia webauthn en el servidor.", {}
+    assert generate_registration_options and options_to_json and AuthenticatorSelectionCriteria
+    display_name = text_display(profile.get("name") or username).strip() or username
+    existing = []
+    for passkey in roxy_user_passkeys(profile):
+        try:
+            existing.append(PublicKeyCredentialDescriptor(id=roxy_b64url_decode(passkey.get("id"))))
+        except Exception:
+            continue
+    options = generate_registration_options(
+        rp_id="localhost",
+        rp_name="Roxy Trading",
+        user_name=username,
+        user_id=hashlib.sha256(f"roxy:{username}".encode("utf-8")).digest(),
+        user_display_name=display_name,
+        timeout=60000,
+        authenticator_selection=AuthenticatorSelectionCriteria(
+            resident_key=ResidentKeyRequirement.PREFERRED if ResidentKeyRequirement else None,
+            user_verification=UserVerificationRequirement.REQUIRED if UserVerificationRequirement else None,
+        ),
+        exclude_credentials=existing or None,
+    )
+    roxy_store_passkey_challenge(username, "register", options.challenge)
+    return True, "", json.loads(options_to_json(options))
+
+
+def roxy_passkey_authentication_options(identifier: str) -> tuple[bool, str, dict[str, Any], str]:
+    if not ROXY_WEBAUTHN_AVAILABLE:
+        return False, "Face ID necesita instalar la dependencia webauthn en el servidor.", {}, ""
+    username, profile = roxy_find_user(identifier)
+    if not username or not isinstance(profile, dict):
+        return False, "Escribe el usuario o correo registrado antes de usar Face ID.", {}, ""
+    passkeys = roxy_user_passkeys(profile)
+    if not passkeys:
+        return False, "Esta cuenta todavia no tiene Face ID activado. Entra con contrasena y actívalo.", {}, username
+    descriptors = []
+    for passkey in passkeys:
+        try:
+            descriptors.append(PublicKeyCredentialDescriptor(id=roxy_b64url_decode(passkey.get("id"))))
+        except Exception:
+            continue
+    if not descriptors:
+        return False, "No pude preparar el passkey de esta cuenta.", {}, username
+    assert generate_authentication_options and options_to_json
+    options = generate_authentication_options(
+        rp_id="localhost",
+        timeout=60000,
+        allow_credentials=descriptors,
+        user_verification=UserVerificationRequirement.REQUIRED if UserVerificationRequirement else None,
+    )
+    roxy_store_passkey_challenge(username, "auth", options.challenge)
+    return True, "", json.loads(options_to_json(options)), username
+
+
+def roxy_clear_passkey_query_params() -> None:
+    for key in (ROXY_PASSKEY_ACTION_PARAM, ROXY_PASSKEY_RESULT_PARAM):
+        try:
+            del st.query_params[key]
+        except Exception:
+            pass
+
+
+def roxy_process_passkey_result() -> tuple[bool, str]:
+    action = first_query_param_value(st.query_params, ROXY_PASSKEY_ACTION_PARAM)
+    encoded = first_query_param_value(st.query_params, ROXY_PASSKEY_RESULT_PARAM)
+    if action not in {"register", "auth"} or not encoded:
+        return False, ""
+    payload = roxy_json_b64url_decode(encoded)
+    credential = payload.get("credential") if isinstance(payload, dict) else None
+    username = text_display(payload.get("username")).strip().lower() if isinstance(payload, dict) else ""
+    origin, rp_id = roxy_expected_webauthn_context(payload)
+    if not ROXY_WEBAUTHN_AVAILABLE or not isinstance(credential, dict) or not username or not origin or not rp_id:
+        roxy_clear_passkey_query_params()
+        return False, "No pude validar Face ID. Usa usuario y contrasena e intenta activar el passkey otra vez."
+    data = roxy_load_users()
+    users = data.setdefault("users", {})
+    profile = users.get(username)
+    if not isinstance(profile, dict):
+        roxy_clear_passkey_query_params()
+        return False, "No encontre la cuenta asociada a este Face ID."
+    challenge = roxy_pending_passkey_challenge(profile, "register" if action == "register" else "auth")
+    if not challenge:
+        roxy_clear_passkey_query_params()
+        return False, "El intento de Face ID expiro. Vuelve a intentarlo."
+    try:
+        if action == "register":
+            assert verify_registration_response
+            verified = verify_registration_response(
+                credential=credential,
+                expected_challenge=challenge,
+                expected_rp_id=rp_id,
+                expected_origin=origin,
+                require_user_verification=True,
+            )
+            credential_id = roxy_b64url_encode(verified.credential_id)
+            passkeys = profile.setdefault("passkeys", [])
+            passkeys = [item for item in passkeys if not isinstance(item, dict) or item.get("id") != credential_id]
+            passkeys.append(
+                {
+                    "id": credential_id,
+                    "public_key": roxy_b64url_encode(verified.credential_public_key),
+                    "sign_count": int(verified.sign_count or 0),
+                    "device": "Face ID / Passkey",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "last_used_at": "",
+                    "rp_id": rp_id,
+                }
+            )
+            profile["passkeys"] = passkeys
+            profile.pop(roxy_passkey_challenge_key("register"), None)
+            users[username] = profile
+            roxy_save_users(data)
+            roxy_clear_passkey_query_params()
+            st.session_state.pop("roxy_passkey_registration_options", None)
+            st.session_state.roxy_passkey_offer_visible = False
+            roxy_remember_authenticated_user(username, profile)
+            return True, "Face ID / Passkey quedo activado para esta cuenta."
+        assert verify_authentication_response
+        credential_id = text_display(credential.get("id") or credential.get("rawId")).strip()
+        passkeys = roxy_user_passkeys(profile)
+        matched = next((item for item in passkeys if text_display(item.get("id")).strip() == credential_id), None)
+        if not matched:
+            raise ValueError("Passkey no reconocido para esta cuenta.")
+        verified = verify_authentication_response(
+            credential=credential,
+            expected_challenge=challenge,
+            expected_rp_id=rp_id,
+            expected_origin=origin,
+            credential_public_key=roxy_b64url_decode(matched.get("public_key")),
+            credential_current_sign_count=int(matched.get("sign_count") or 0),
+            require_user_verification=True,
+        )
+        matched["sign_count"] = int(verified.new_sign_count or matched.get("sign_count") or 0)
+        matched["last_used_at"] = datetime.now(timezone.utc).isoformat()
+        profile["passkeys"] = passkeys
+        profile.pop(roxy_passkey_challenge_key("auth"), None)
+        users[username] = profile
+        roxy_save_users(data)
+        roxy_clear_passkey_query_params()
+        st.session_state.pop("roxy_passkey_auth_options", None)
+        st.session_state.pop("roxy_passkey_auth_username", None)
+        roxy_remember_authenticated_user(username, profile)
+        return True, f"Bienvenido, {text_display(profile.get('name') or username)}. Face ID confirmado."
+    except Exception as exc:
+        roxy_clear_passkey_query_params()
+        return False, f"Face ID no se pudo validar: {text_display(exc)}"
+
+
+def render_roxy_passkey_launcher(action: str, username: str, options: dict[str, Any], label: str) -> None:
+    if not isinstance(options, dict) or not options:
+        return
+    options_json = json.dumps(options)
+    action_js = json.dumps(action)
+    username_js = json.dumps(text_display(username).strip().lower())
+    label_html = html.escape(label)
+    components.html(
+        f"""
+        <div class="rx-passkey-frame">
+          <button id="rxPasskeyButton" type="button">{label_html}</button>
+          <small id="rxPasskeyStatus">Face ID / Passkey se abre en tu dispositivo seguro.</small>
+        </div>
+        <script>
+        (() => {{
+          const parentWindow = window.parent || window;
+          const button = document.getElementById("rxPasskeyButton");
+          const status = document.getElementById("rxPasskeyStatus");
+          const action = {action_js};
+          const username = {username_js};
+          const originalOptions = {options_json};
+          const actionParam = "{ROXY_PASSKEY_ACTION_PARAM}";
+          const resultParam = "{ROXY_PASSKEY_RESULT_PARAM}";
+          const bytesToB64Url = (buffer) => {{
+            const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+            let binary = "";
+            for (let i = 0; i < bytes.length; i += 0x8000) {{
+              binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+            }}
+            return btoa(binary).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/g, "");
+          }};
+          const b64UrlToBytes = (value) => {{
+            const padded = String(value || "").replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(String(value || "").length / 4) * 4, "=");
+            const binary = atob(padded);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            return bytes;
+          }};
+          const encodePayload = (payload) => bytesToB64Url(new TextEncoder().encode(JSON.stringify(payload)));
+          const currentOrigin = () => parentWindow.location.origin;
+          const currentRpId = () => parentWindow.location.hostname;
+          const cleanCreationOptions = () => {{
+            const publicKey = JSON.parse(JSON.stringify(originalOptions));
+            publicKey.challenge = b64UrlToBytes(publicKey.challenge);
+            if (publicKey.user && publicKey.user.id) publicKey.user.id = b64UrlToBytes(publicKey.user.id);
+            if (publicKey.rp) publicKey.rp.id = currentRpId();
+            (publicKey.excludeCredentials || []).forEach((cred) => {{ cred.id = b64UrlToBytes(cred.id); }});
+            return publicKey;
+          }};
+          const cleanRequestOptions = () => {{
+            const publicKey = JSON.parse(JSON.stringify(originalOptions));
+            publicKey.challenge = b64UrlToBytes(publicKey.challenge);
+            publicKey.rpId = currentRpId();
+            (publicKey.allowCredentials || []).forEach((cred) => {{ cred.id = b64UrlToBytes(cred.id); }});
+            return publicKey;
+          }};
+          const sendPayload = (credential) => {{
+            const url = new URL(parentWindow.location.href);
+            url.searchParams.set(actionParam, action);
+            url.searchParams.set(resultParam, encodePayload({{
+              username,
+              rpId: currentRpId(),
+              origin: currentOrigin(),
+              credential,
+            }}));
+            parentWindow.location.href = url.toString();
+          }};
+          const register = async () => {{
+            const publicKey = cleanCreationOptions();
+            const cred = await navigator.credentials.create({{ publicKey }});
+            sendPayload({{
+              id: cred.id,
+              rawId: bytesToB64Url(cred.rawId),
+              type: cred.type,
+              response: {{
+                clientDataJSON: bytesToB64Url(cred.response.clientDataJSON),
+                attestationObject: bytesToB64Url(cred.response.attestationObject),
+                transports: cred.response.getTransports ? cred.response.getTransports() : [],
+              }},
+              authenticatorAttachment: cred.authenticatorAttachment || null,
+              clientExtensionResults: cred.getClientExtensionResults ? cred.getClientExtensionResults() : {{}},
+            }});
+          }};
+          const authenticate = async () => {{
+            const publicKey = cleanRequestOptions();
+            const cred = await navigator.credentials.get({{ publicKey }});
+            sendPayload({{
+              id: cred.id,
+              rawId: bytesToB64Url(cred.rawId),
+              type: cred.type,
+              response: {{
+                clientDataJSON: bytesToB64Url(cred.response.clientDataJSON),
+                authenticatorData: bytesToB64Url(cred.response.authenticatorData),
+                signature: bytesToB64Url(cred.response.signature),
+                userHandle: cred.response.userHandle ? bytesToB64Url(cred.response.userHandle) : null,
+              }},
+              authenticatorAttachment: cred.authenticatorAttachment || null,
+              clientExtensionResults: cred.getClientExtensionResults ? cred.getClientExtensionResults() : {{}},
+            }});
+          }};
+          button.addEventListener("click", async () => {{
+            try {{
+              if (!window.PublicKeyCredential || !navigator.credentials) {{
+                status.textContent = "Este navegador no soporta passkeys. Usa contraseña.";
+                return;
+              }}
+              status.textContent = "Abriendo seguridad del dispositivo...";
+              if (action === "register") await register();
+              else await authenticate();
+            }} catch (error) {{
+              status.textContent = error && error.name === "NotAllowedError"
+                ? "Face ID fue cancelado o expiró. Inténtalo otra vez."
+                : "No pude abrir Face ID: " + (error && error.message ? error.message : error);
+            }}
+          }});
+        }})();
+        </script>
+        <style>
+          .rx-passkey-frame{{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:2px 0 8px;background:transparent}}
+          .rx-passkey-frame button{{width:100%;min-height:54px;border:1px solid rgba(125,211,252,.42);border-radius:10px;background:linear-gradient(180deg,#10b4ff,#0b63f6 66%,#063bbb);color:white;font-size:16px;font-weight:900;box-shadow:0 16px 34px rgba(37,99,235,.34),0 0 24px rgba(56,189,248,.20);cursor:pointer}}
+          .rx-passkey-frame small{{display:block;margin-top:8px;color:#9cc7e8;font-size:12px;line-height:1.25;text-align:center}}
+        </style>
+        """,
+        height=86,
+    )
+
+
+def render_roxy_passkey_setup_panel() -> None:
+    username = text_display(st.session_state.get("user")).strip().lower()
+    if not username:
+        return
+    _, profile = roxy_find_user(username)
+    if not isinstance(profile, dict):
+        return
+    passkey_count = len(roxy_user_passkeys(profile))
+    if passkey_count and not st.session_state.get("roxy_passkey_manage_visible"):
+        return
+    if not st.session_state.get("roxy_passkey_offer_visible", passkey_count == 0):
+        return
+    display_name = text_display(profile.get("name") or username).strip() or username
+    st.markdown(
+        f"""
+        <section class="roxy-passkey-panel">
+          <div><i class="material-symbols-outlined">passkey</i></div>
+          <article>
+            <strong>Activar Face ID para {html.escape(display_name)}</strong>
+            <span>Roxy usara un passkey seguro del dispositivo. En iPhone se abre Face ID; en Mac puede abrir Touch ID o passkey.</span>
+          </article>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+    col_enable, col_skip = st.columns([2, 1])
+    with col_enable:
+        if st.button("Activar Face ID / Passkey", key="roxy_enable_passkey"):
+            ok, msg, options = roxy_passkey_registration_options(username, profile)
+            if ok:
+                st.session_state["roxy_passkey_registration_options"] = options
+            else:
+                st.error(msg)
+    with col_skip:
+        if st.button("Ahora no", key="roxy_skip_passkey"):
+            st.session_state.roxy_passkey_offer_visible = False
+            st.rerun()
+    options = st.session_state.get("roxy_passkey_registration_options")
+    if isinstance(options, dict) and options:
+        render_roxy_passkey_launcher("register", username, options, "Abrir Face ID ahora")
 
 
 def roxy_session_token_from_query() -> str:
@@ -620,6 +1072,7 @@ def roxy_set_authenticated_user(username: str, profile: dict[str, Any]) -> None:
 
 def roxy_remember_authenticated_user(username: str, profile: dict[str, Any]) -> None:
     roxy_set_authenticated_user(username, profile)
+    st.session_state.roxy_passkey_offer_visible = len(roxy_user_passkeys(profile)) == 0
     token = roxy_issue_session_token(username)
     if token:
         st.session_state.roxy_session_token = token
@@ -824,12 +1277,24 @@ def render_roxy_auth_gate() -> None:
             with col_forgot:
                 st.markdown('<span class="roxy-auth-forgot">¿Olvidaste tu contraseña?</span>', unsafe_allow_html=True)
             submitted = st.form_submit_button("Iniciar sesión")
+            passkey_submitted = st.form_submit_button("Entrar con Face ID / Passkey")
             if submitted:
                 ok, msg = roxy_login_user(identifier, password)
                 if ok:
                     st.success(msg)
                     st.rerun()
                 st.error(msg)
+            if passkey_submitted:
+                ok, msg, options, passkey_username = roxy_passkey_authentication_options(identifier)
+                if ok:
+                    st.session_state["roxy_passkey_auth_options"] = options
+                    st.session_state["roxy_passkey_auth_username"] = passkey_username
+                else:
+                    st.error(msg)
+        auth_options = st.session_state.get("roxy_passkey_auth_options")
+        auth_username = text_display(st.session_state.get("roxy_passkey_auth_username")).strip().lower()
+        if isinstance(auth_options, dict) and auth_options and auth_username:
+            render_roxy_passkey_launcher("auth", auth_username, auth_options, "Abrir Face ID ahora")
         st.markdown(
             """
             <div class="roxy-auth-divider"><span></span><b>O continuar con</b><span></span></div>
@@ -843,7 +1308,7 @@ def render_roxy_auth_gate() -> None:
         )
     st.markdown(
         """
-            <footer><i class="material-symbols-outlined">shield</i><span>Tu información está protegida con contraseña local cifrada por hash.</span></footer>
+            <footer><i class="material-symbols-outlined">shield</i><span>Tu información está protegida con contraseña cifrada por hash y passkeys del dispositivo cuando activas Face ID.</span></footer>
           </div>
         </section>
         """,
@@ -38417,11 +38882,16 @@ def main() -> None:
         .roxy-auth-card [data-testid="stSelectbox"]>div>div{min-height:48px;border:1px solid rgba(148,163,184,.22);border-radius:9px;background:rgba(5,10,21,.78);color:#f8fafc}
         .roxy-auth-card [data-testid="stCheckbox"] label{color:#e5edf7!important;font-size:13px!important;font-weight:760}.roxy-auth-card [data-testid="stCheckbox"] [data-testid="stMarkdownContainer"] p{font-size:13px!important}
         .roxy-auth-card .stButton button,.roxy-auth-card [data-testid="stFormSubmitButton"] button{width:100%;min-height:58px;border:1px solid rgba(125,211,252,.32)!important;border-radius:9px!important;background:linear-gradient(180deg,#0ea5ff,#0b63f6 65%,#0751d8)!important;color:#f8fafc!important;font-size:19px!important;font-weight:950!important;box-shadow:0 14px 30px rgba(37,99,235,.34),inset 0 1px 0 rgba(255,255,255,.20)}
+        .stApp:has(.roxy-auth-screen) [data-testid="stForm"] [data-testid="stFormSubmitButton"]:has(button[kind="secondaryFormSubmit"]) button{margin-top:8px!important;background:linear-gradient(180deg,rgba(15,23,42,.96),rgba(8,47,73,.86))!important;border-color:rgba(125,211,252,.42)!important;color:#dff7ff!important;font-size:16px!important;box-shadow:inset 0 0 0 1px rgba(125,211,252,.08),0 0 22px rgba(56,189,248,.14)!important}
         .roxy-auth-forgot{display:block;text-align:right;color:#3b82f6;font-size:12.5px;font-weight:780;margin-top:10px}
         .roxy-auth-divider{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin:18px 0 14px;color:#94a3b8;font-size:13px}.roxy-auth-divider span{height:1px;background:rgba(148,163,184,.24)}.roxy-auth-divider b{font-weight:650}
         .roxy-auth-socials{display:grid;gap:10px}.roxy-auth-socials button{display:flex;align-items:center;justify-content:center;gap:13px;width:100%;height:54px;border:1px solid rgba(148,163,184,.22);border-radius:8px;background:rgba(5,10,21,.72);color:#f8fafc;font-size:17px;font-weight:800}.roxy-auth-socials img{width:22px;height:22px;object-fit:contain}
         .roxy-auth-switch{text-align:center;color:#cbd5e1;font-size:14px;font-weight:700;margin:17px 0 0}.roxy-auth-switch a{color:#2563eb!important;text-decoration:none!important;font-weight:950}
         .roxy-auth-card footer{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;align-items:center;margin-top:18px;color:#94a3b8;font-size:13px;line-height:1.28}.roxy-auth-card footer i{color:#38bdf8;font-size:28px!important;text-shadow:0 0 16px rgba(56,189,248,.55)}
+        .roxy-passkey-panel{position:relative;z-index:6;display:grid;grid-template-columns:50px minmax(0,1fr);gap:12px;align-items:center;margin:0 auto 12px;max-width:min(760px,96vw);border:1px solid rgba(56,189,248,.32);border-radius:14px;background:linear-gradient(135deg,rgba(2,6,23,.88),rgba(8,47,73,.70));padding:12px 14px;box-shadow:0 0 30px rgba(37,99,235,.18),inset 0 1px 0 rgba(255,255,255,.06);backdrop-filter:blur(18px)}
+        .roxy-passkey-panel div{width:46px;height:46px;border:1px solid rgba(125,211,252,.50);border-radius:999px;display:grid;place-items:center;background:radial-gradient(circle,rgba(37,99,235,.48),rgba(2,6,23,.75));box-shadow:0 0 24px rgba(56,189,248,.34)}
+        .roxy-passkey-panel i{font-size:28px!important;color:#dff7ff;text-shadow:0 0 18px rgba(56,189,248,.78)}
+        .roxy-passkey-panel strong{display:block;color:#f8fafc;font-size:15px;font-weight:950;line-height:1.1}.roxy-passkey-panel span{display:block;color:#b6c9da;font-size:12px;line-height:1.28;margin-top:4px}
         .roxy-auth-register .roxy-auth-hero{min-height:335px}.roxy-auth-register .roxy-auth-hero .roxy-hologram-avatar{width:min(275px,76vw)}.roxy-auth-register .roxy-auth-title{margin-top:-58px}.roxy-auth-register .roxy-auth-title strong{font-size:clamp(48px,15vw,72px)}.roxy-auth-register .roxy-auth-card{padding-top:20px}
         .stApp:has(.roxy-auth-screen) .block-container{max-width:430px!important;padding-top:0!important;padding-left:4px!important;padding-right:4px!important}
         .stApp:has(.roxy-auth-screen) [data-testid="stSidebar"]{display:none!important}
@@ -38483,11 +38953,18 @@ def main() -> None:
     if "user" not in st.session_state:
         st.session_state.user = None
     roxy_restore_user_from_session()
+    passkey_handled, passkey_message = roxy_process_passkey_result()
+    if passkey_message:
+        if passkey_handled:
+            st.success(passkey_message)
+        else:
+            st.error(passkey_message)
     if not st.session_state.get("user"):
         render_roxy_session_restore_bridge()
         render_roxy_auth_gate()
         return
     render_roxy_browser_session_bridge()
+    render_roxy_passkey_setup_panel()
     show_focused_roxy_app()
     return
 

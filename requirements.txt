@@ -35,4 +35,5 @@ redis>=4.0.0
 anthropic
 keyring
 cryptography>=40.0
+webauthn>=2.7.1
 APScheduler
