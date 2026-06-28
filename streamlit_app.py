@@ -31074,27 +31074,57 @@ def render_roxy_opening_stage(
           <div class="roxy-stage-modules">
             {modules_html}
           </div>
-          <div class="roxy-ref-live-grid roxy-ref-single-chart-grid">
+          <div class="roxy-ref-live-grid">
+            <div class="roxy-ref-panel roxy-ref-movers">
+              <span>Mayores movimientos</span>
+              <div><i class="roxy-mover-logo roxy-mover-nvda">N</i><p><strong>NVDA</strong><small>NVIDIA Corporation</small></p><b>+4.21%</b></div>
+              <div><i class="roxy-mover-logo roxy-mover-tsla">T</i><p><strong>TSLA</strong><small>Tesla, Inc.</small></p><b>+3.18%</b></div>
+              <div><i class="roxy-mover-logo roxy-mover-meta">M</i><p><strong>META</strong><small>Meta Platforms</small></p><b>+2.74%</b></div>
+              <a href="?view=Dashboard&module=acciones-operar" target="_self">Ver todas</a>
+            </div>
             <div class="roxy-ref-panel roxy-ref-chart">
-              <header><span>Grafica principal</span><strong>{safe_symbol}</strong><b>+1.28%</b></header>
+              <header><span>Grafica principal</span><strong>{safe_symbol}</strong><b>194.87 · +1.28%</b></header>
               <div class="roxy-ref-timeframes"><i>1M</i><i>5M</i><i>15M</i><i>1H</i><i class="active">1D</i><i>1W</i></div>
-              <div class="roxy-ref-candle-chart" aria-hidden="true">
+              <div class="roxy-ref-candle-chart roxy-ref-live-like-chart" aria-hidden="true">
                 <span class="roxy-chart-price roxy-price-1">198.00</span>
                 <span class="roxy-chart-price roxy-price-2">196.00</span>
                 <span class="roxy-chart-price roxy-price-3">194.00</span>
                 <span class="roxy-chart-price roxy-price-4">192.00</span>
-                <i class="roxy-chart-ema roxy-chart-ema-fast"></i>
-                <i class="roxy-chart-ema roxy-chart-ema-slow"></i>
-                <b style="--h:34%;--x:7%;--y:22%;--c:#22c55e"></b><b style="--h:48%;--x:15%;--y:20%;--c:#22c55e"></b>
-                <b style="--h:42%;--x:23%;--y:26%;--c:#ef4444"></b><b style="--h:66%;--x:31%;--y:18%;--c:#22c55e"></b>
-                <b style="--h:58%;--x:39%;--y:20%;--c:#22c55e"></b><b style="--h:73%;--x:47%;--y:17%;--c:#ef4444"></b>
-                <b style="--h:62%;--x:55%;--y:19%;--c:#22c55e"></b><b style="--h:78%;--x:63%;--y:14%;--c:#22c55e"></b>
-                <b style="--h:70%;--x:71%;--y:18%;--c:#ef4444"></b><b style="--h:82%;--x:79%;--y:12%;--c:#22c55e"></b>
-                <b style="--h:76%;--x:87%;--y:16%;--c:#22c55e"></b>
+                <i class="roxy-op-ma roxy-op-ma-fast"></i>
+                <i class="roxy-op-ma roxy-op-ma-slow"></i>
+                <b class="up" style="--h:18%;--x:6%;--y:18%;--c:#22c55e"></b><b class="up" style="--h:23%;--x:11%;--y:22%;--c:#22c55e"></b>
+                <b class="down" style="--h:16%;--x:16%;--y:27%;--c:#ef4444"></b><b class="up" style="--h:28%;--x:21%;--y:29%;--c:#22c55e"></b>
+                <b class="up" style="--h:22%;--x:26%;--y:36%;--c:#22c55e"></b><b class="down" style="--h:26%;--x:31%;--y:32%;--c:#ef4444"></b>
+                <b class="up" style="--h:34%;--x:36%;--y:34%;--c:#22c55e"></b><b class="up" style="--h:30%;--x:41%;--y:39%;--c:#22c55e"></b>
+                <b class="down" style="--h:22%;--x:46%;--y:43%;--c:#ef4444"></b><b class="up" style="--h:31%;--x:51%;--y:45%;--c:#22c55e"></b>
+                <b class="up" style="--h:26%;--x:56%;--y:49%;--c:#22c55e"></b><b class="down" style="--h:20%;--x:61%;--y:53%;--c:#ef4444"></b>
+                <b class="up" style="--h:33%;--x:66%;--y:50%;--c:#22c55e"></b><b class="up" style="--h:29%;--x:71%;--y:55%;--c:#22c55e"></b>
+                <b class="down" style="--h:23%;--x:76%;--y:58%;--c:#ef4444"></b><b class="up" style="--h:35%;--x:81%;--y:55%;--c:#22c55e"></b>
+                <b class="up" style="--h:31%;--x:86%;--y:60%;--c:#22c55e"></b>
                 <small class="roxy-chart-last">195.00</small>
-                <div class="roxy-chart-volume"><u style="--h:32%;--x:8%"></u><u style="--h:44%;--x:18%"></u><u style="--h:36%;--x:28%"></u><u style="--h:52%;--x:42%"></u><u style="--h:48%;--x:58%"></u><u style="--h:66%;--x:72%"></u><u style="--h:60%;--x:86%"></u></div>
+                <div class="roxy-chart-volume"><u style="--h:20%;--x:7%"></u><u style="--h:36%;--x:18%"></u><u style="--h:28%;--x:29%"></u><u style="--h:50%;--x:40%"></u><u style="--h:41%;--x:51%"></u><u style="--h:62%;--x:64%"></u><u style="--h:54%;--x:79%"></u><u style="--h:44%;--x:88%"></u></div>
               </div>
               <div class="roxy-chart-indicators"><i>EMA 9</i><i>EMA 21</i><i>EMA 50</i><i>BB 20 2</i><i>VOL</i></div>
+            </div>
+            <div class="roxy-ref-panel roxy-ref-events">
+              <span>Proximos eventos</span>
+              <div><strong>10:30 AM</strong><b>GDP · impacto alto</b></div>
+              <div><strong>12:00 PM</strong><b>PCE Core · impacto alto</b></div>
+              <div><strong>2:30 PM</strong><b>Sentimiento · impacto medio</b></div>
+              <a href="?view=Calendario" target="_self">Ver calendario</a>
+            </div>
+            <div class="roxy-ref-panel roxy-ref-bot">
+              {roxy_hologram_avatar_html("speaking", "Roxy avatar mini")}
+            </div>
+            <div class="roxy-ref-panel roxy-ref-assistant">
+              <div class="roxy-ref-assistant-avatar">{roxy_avatar_html("speaking", "Roxy hablando")}</div>
+              <p><strong>Roxy</strong><span>He encontrado {ready_now} oportunidades listas y {watch_now} en vigilancia.</span></p>
+              <a href="?view=Dashboard&module=acciones-operar" target="_self">Mostrar oportunidades</a>
+            </div>
+            <div class="roxy-ref-panel roxy-ref-actions">
+              <a href="?view=Dashboard&module=acciones-operar" target="_self">Mostrar oportunidades</a>
+              <a href="?view=Dashboard&symbol={quote(str(symbol or 'AAPL'), safe='')}&market={quote(str(market or 'stock'), safe='')}&tf={quote(str(timeframe or '1h'), safe='')}&module=acciones-operar" target="_self">Analisis de {safe_symbol}</a>
+              <a href="?view=Portafolio" target="_self">Revisar mi portafolio</a>
             </div>
           </div>
           <nav class="roxy-ref-bottomnav" aria-label="Roxy navigation">
@@ -35744,6 +35774,14 @@ def main() -> None:
         .roxy-ref-candle-chart b{bottom:var(--y);width:8px;border-radius:4px;box-shadow:0 0 12px color-mix(in srgb,var(--c) 66%,transparent)}
         .roxy-ref-candle-chart b:before{left:3.5px;top:-16px;height:calc(100% + 32px);opacity:.56}
         .roxy-ref-candle-chart b:after{content:"";position:absolute;left:-3px;right:-3px;top:50%;height:1px;background:rgba(248,250,252,.20)}
+        .roxy-ref-live-like-chart{height:184px!important}
+        .roxy-ref-live-like-chart:before{top:56%;opacity:.48}
+        .roxy-ref-live-like-chart b{width:5px!important;min-height:10px;border-radius:2px!important}
+        .roxy-ref-live-like-chart b:before{left:2px!important;top:-13px!important;height:calc(100% + 26px)!important;opacity:.45!important}
+        .roxy-ref-live-like-chart b:after{display:none!important}
+        .roxy-op-ma{position:absolute;left:7%;right:13%;height:2px;border-radius:999px;z-index:3;opacity:.9;filter:drop-shadow(0 0 7px rgba(56,189,248,.42));transform-origin:left center}
+        .roxy-op-ma-fast{top:56%;transform:rotate(-13deg);background:linear-gradient(90deg,transparent,#38bdf8 12%,#a78bfa 45%,#f97316 70%,transparent)}
+        .roxy-op-ma-slow{top:66%;transform:rotate(-9deg);background:linear-gradient(90deg,transparent,#f97316 8%,#facc15 35%,#60a5fa 65%,#22c55e 88%,transparent)}
         .roxy-chart-price{position:absolute;right:6px;color:#53ff71;font-size:10px;font-weight:950;line-height:1;text-shadow:0 0 10px rgba(34,197,94,.55);z-index:3}.roxy-price-1{top:13%}.roxy-price-2{top:34%}.roxy-price-3{top:55%}.roxy-price-4{top:76%}
         .roxy-chart-last{position:absolute;right:6px;top:51%;display:block;border-radius:4px;background:#22c55e;color:#06200f;font-size:10px;font-weight:950;line-height:1;padding:3px 5px;box-shadow:0 0 14px rgba(34,197,94,.55);z-index:4}
         .roxy-chart-ema{position:absolute;left:6%;right:12%;height:2px;border-radius:999px;opacity:.92;filter:drop-shadow(0 0 7px rgba(56,189,248,.38));z-index:2}
@@ -35852,6 +35890,7 @@ def main() -> None:
         @media (max-width:430px){.roxy-stage-center{min-height:245px}.roxy-stage-center .roxy-hologram-avatar{width:min(255px,90vw)}.roxy-stage-title strong{font-size:38px}.roxy-stage-modules{grid-template-columns:repeat(2,minmax(0,1fr))}.roxy-stage-module:nth-child(n+5){display:block}.roxy-stage-module{padding:7px 5px}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(5,minmax(0,1fr))}.roxy-reference-stage .roxy-stage-module{padding:2px 1px 0}.roxy-reference-stage .roxy-stage-center .roxy-hologram-avatar{width:min(228px,58vw)}}
         @media (max-width:760px){.roxy-reference-stage{grid-template-columns:104px minmax(0,1fr) 104px!important;grid-template-areas:"top top top" "left center right" "modules modules modules" "live live live" "nav nav nav"!important;gap:5px!important;min-height:0!important;padding:7px 5px 8px!important;overflow:hidden}.roxy-ref-topbar{grid-template-columns:24px 78px minmax(0,1fr) 24px 31px!important}.roxy-reference-stage .roxy-stage-center{min-height:305px!important;align-self:end}.roxy-reference-stage .roxy-stage-center .roxy-hologram-avatar{width:min(232px,61vw)!important;aspect-ratio:.72/1!important}.roxy-reference-stage .roxy-stage-center:before{width:min(318px,84vw)!important;height:82%!important}.roxy-reference-stage .roxy-hologram-name strong{font-size:39px!important;letter-spacing:.08em}.roxy-reference-stage .roxy-hologram-name span{font-size:7.6px!important}.roxy-reference-stage .roxy-audio-wave{height:23px!important;bottom:9%!important;padding:3px 7px!important}.roxy-reference-stage .roxy-stage-left{gap:4px!important;align-self:center}.roxy-reference-stage .roxy-stage-bubble{padding:6px!important}.roxy-reference-stage .roxy-stage-bubble strong{font-size:12px!important}.roxy-reference-stage .roxy-stage-bubble span{font-size:7.5px!important}.roxy-reference-stage .roxy-stage-live-msg{height:15px!important}.roxy-reference-stage .roxy-stage-wave{display:grid!important;grid-template-columns:1fr!important;min-height:29px!important;border:1px solid rgba(125,211,252,.18)!important;border-radius:8px!important;background:rgba(2,6,23,.28)!important;padding:3px!important}.roxy-reference-stage .roxy-stage-wave span{font-size:5.5px!important;text-align:left}.roxy-reference-stage .roxy-stage-wave div{height:20px!important}.roxy-reference-stage .roxy-ref-market-summary{display:block!important;padding:5px 6px}.roxy-reference-stage .roxy-ref-market-summary>span{font-size:5.6px;margin-bottom:3px}.roxy-reference-stage .roxy-ref-market-summary div{padding:2px 0;gap:2px 4px}.roxy-reference-stage .roxy-ref-market-summary strong,.roxy-reference-stage .roxy-ref-market-summary b{font-size:6.2px}.roxy-reference-stage .roxy-ref-market-summary em,.roxy-reference-stage .roxy-ref-market-summary small{font-size:5.3px}.roxy-reference-stage .roxy-stage-status{display:block!important;padding:6px!important}.roxy-reference-stage .roxy-stage-status span{font-size:5.6px!important}.roxy-reference-stage .roxy-stage-status strong{font-size:13px!important;margin-top:4px}.roxy-reference-stage .roxy-stage-status small{font-size:5.8px!important;line-height:1.18}.roxy-reference-stage .roxy-stage-status a{font-size:5.5px!important;padding:4px 6px;margin-top:5px}.roxy-reference-stage .roxy-stage-right{gap:4px!important;justify-items:stretch}.roxy-reference-stage .roxy-stage-brand{justify-items:end!important}.roxy-reference-stage .roxy-stage-brand span{font-size:5.6px!important}.roxy-reference-stage .roxy-stage-brand strong{font-size:7.3px!important;max-width:94px!important}.roxy-reference-stage .roxy-stage-values{display:grid!important;width:100%!important;gap:4px!important}.roxy-reference-stage .roxy-stage-values div{display:grid!important;grid-template-columns:16px minmax(0,1fr)!important;gap:4px!important;padding:5px 5px 7px!important}.roxy-reference-stage .roxy-stage-values div:before{width:14px!important;height:14px!important}.roxy-reference-stage .roxy-stage-values span{font-size:5px!important}.roxy-reference-stage .roxy-stage-values strong{display:block!important;font-size:5.6px!important;line-height:1.1}.roxy-reference-stage .roxy-stage-values em{display:block!important;font-size:5.4px!important}.roxy-reference-stage .roxy-stage-values div:after{height:3px!important;margin-top:2px}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(5,minmax(0,1fr))!important;padding-top:8px!important;margin-top:1px!important}.roxy-reference-stage .roxy-stage-module{position:relative!important;padding:2px 2px 0!important}.roxy-reference-stage .roxy-stage-module em{top:0!important;min-width:13px!important;height:13px!important;font-size:5.8px!important;transform:translateX(8px)!important}.roxy-reference-stage .roxy-stage-module b{width:34px!important;height:34px!important;font-size:7.5px!important;margin-bottom:4px!important}.roxy-reference-stage .roxy-stage-module span{font-size:5.8px!important;line-height:1.02!important}.roxy-reference-stage .roxy-stage-module strong{font-size:5.1px!important;min-height:16px!important}.roxy-ref-live-grid{grid-template-columns:1.05fr 1.85fr .95fr!important;grid-template-areas:"movers chart events" "bot assistant actions"!important;gap:6px!important;margin-top:5px!important}.roxy-ref-panel{padding:6px!important}.roxy-ref-chart{min-width:0}.roxy-ref-chart header{gap:4px;margin-bottom:4px}.roxy-ref-chart header span{font-size:6.4px!important}.roxy-ref-chart header strong{font-size:9px!important}.roxy-ref-chart header b{font-size:7.2px!important}.roxy-ref-timeframes{gap:3px;margin-bottom:4px}.roxy-ref-timeframes i{min-width:21px;height:19px;font-size:6.4px}.roxy-ref-candle-chart{height:128px!important;background-size:27px 27px}.roxy-ref-candle-chart b{width:6px}.roxy-ref-movers,.roxy-ref-events{display:block!important}.roxy-ref-movers div,.roxy-ref-events div{display:flex!important;margin-top:5px!important;padding-bottom:3px!important}.roxy-ref-panel span{font-size:6.4px!important}.roxy-ref-panel strong{font-size:8.2px!important}.roxy-ref-panel b{font-size:7.1px!important}.roxy-ref-panel a{font-size:5.8px!important}.roxy-ref-events b{font-size:5.8px!important}.roxy-ref-bot{min-height:76px!important;padding:0!important}.roxy-ref-bot .roxy-hologram-avatar{width:60px!important}.roxy-ref-assistant{grid-template-columns:28px minmax(0,1fr)!important;gap:5px!important}.roxy-ref-assistant .roxy-avatar{width:26px!important;height:26px!important}.roxy-ref-assistant p{font-size:6.2px!important;line-height:1.12}.roxy-ref-assistant p strong{font-size:8px!important}.roxy-ref-assistant a{grid-column:1/-1!important}.roxy-ref-actions{gap:4px!important}.roxy-ref-actions a{min-height:21px!important;padding:4px 5px!important;font-size:5.8px!important}.roxy-ref-bottomnav{display:grid!important;margin-top:5px!important;padding:4px 8px!important;border-radius:24px}.roxy-ref-bottomnav a{font-size:5.5px!important}.roxy-ref-bottomnav b{width:20px!important;height:20px!important;font-size:9px!important}.roxy-ref-bottomnav a.active b{width:38px!important;height:38px!important;font-size:18px!important;margin-top:-16px!important}}
         @media (max-width:760px){.roxy-reference-stage .roxy-stage-module b .material-symbols-outlined{font-size:21px!important}.roxy-reference-stage .roxy-stage-values strong{display:none!important}.roxy-reference-stage .roxy-stage-values span{font-size:5.6px!important;line-height:1.05!important}.roxy-reference-stage .roxy-stage-values em{font-size:5.8px!important}.roxy-ref-single-chart-grid{grid-template-columns:minmax(0,1fr)!important;grid-template-areas:"chart"!important;justify-content:stretch!important}.roxy-ref-single-chart-grid .roxy-ref-chart{grid-area:chart!important;width:100%!important}.roxy-ref-candle-chart{background-size:27px 27px,27px 27px,100% 100%,100% 100%!important}.roxy-ref-candle-chart b{width:7px!important}.roxy-chart-price{right:3px!important;font-size:6.4px!important}.roxy-chart-last{right:3px!important;font-size:6.6px!important;padding:2px 3px!important}.roxy-chart-volume u{width:4px!important}.roxy-chart-indicators{gap:2px!important;margin-top:4px!important}.roxy-chart-indicators i{height:14px!important;font-size:4.8px!important;border-radius:4px!important}.roxy-ref-movers p small{display:none!important}.roxy-mover-logo{width:14px!important;height:14px!important;flex-basis:14px!important;margin-right:3px!important;border-radius:4px!important;font-size:7px!important}.roxy-ref-bottomnav b.material-symbols-outlined{font-size:15px!important}.roxy-ref-bot .roxy-hologram-name{display:none!important}}
+        @media (max-width:760px){.roxy-ref-live-like-chart b{width:4px!important}.roxy-ref-live-like-chart b:before{left:1.5px!important}.roxy-ref-live-like-chart .roxy-chart-volume u{width:3px!important}}
         .roxy-trade-cockpit{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 160px minmax(250px,.9fr);gap:12px;align-items:center;border:1px solid rgba(56,189,248,.34);border-left:4px solid #d4af60;border-radius:8px;background:
             radial-gradient(circle at 50% 45%,rgba(56,189,248,.20),transparent 36%),
             linear-gradient(135deg,rgba(2,6,23,.92),rgba(8,47,73,.56) 52%,rgba(2,6,23,.92));padding:10px 12px;margin:0 0 8px;overflow:hidden;box-shadow:0 18px 48px rgba(2,6,23,.42),0 0 36px rgba(56,189,248,.10),inset 0 1px 0 rgba(255,255,255,.06)}
