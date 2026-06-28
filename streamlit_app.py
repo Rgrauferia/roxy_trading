@@ -18,6 +18,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import textwrap
 import unicodedata
 import warnings
 from contextlib import nullcontext
@@ -4284,11 +4285,17 @@ def trade_desk_timeframe_pair(timeframe: Any) -> tuple[str, str]:
 @st.cache_data(ttl=300, show_spinner=False)
 def cached_trade_desk_chart_df(symbol: str, market: str, timeframe: str) -> pd.DataFrame:
     resolved_symbol = resolve_symbol_query(symbol, market)
-    history, _data_source = fetch_symbol_history_with_source(
-        resolved_symbol,
-        market=market,
-        timeframe=normalize_command_timeframe(timeframe),
-    )
+    normalized_timeframe = normalize_command_timeframe(timeframe)
+    try:
+        history, _data_source = fetch_symbol_history_with_source(
+            resolved_symbol,
+            market=market,
+            timeframe=normalized_timeframe,
+        )
+    except Exception:
+        history = fetch_direct_yfinance_ohlcv(resolved_symbol, normalized_timeframe)
+    if history is None or history.empty:
+        history = fetch_direct_yfinance_ohlcv(resolved_symbol, normalized_timeframe)
     return prepare_symbol_chart_data(history)
 
 
@@ -30977,6 +30984,203 @@ def render_roxy_lab_visual(brief: dict, memory: dict) -> None:
     )
 
 
+def roxy_clean_html_fragment(fragment: str) -> str:
+    return re.sub(r"\n[ \t]+<", "\n<", textwrap.dedent(fragment).strip())
+
+
+def roxy_home_live_chart_html(*, symbol: str, market: str, timeframe: str) -> str:
+    normalized_symbol = text_display(symbol or "AAPL").upper()
+    normalized_market = normalize_command_market(market, normalized_symbol)
+    normalized_timeframe = normalize_command_timeframe(timeframe or "1h")
+    try:
+        chart_df = cached_trade_desk_chart_df(normalized_symbol, normalized_market, normalized_timeframe)
+    except Exception:
+        chart_df = pd.DataFrame()
+    if not isinstance(chart_df, pd.DataFrame) or chart_df.empty:
+        safe_symbol = html.escape(normalized_symbol)
+        return roxy_clean_html_fragment(f"""
+            <div class="roxy-ref-panel roxy-ref-chart roxy-real-chart-card" data-live-chart="loading">
+              <header><span>Grafica principal</span><strong>{safe_symbol}</strong><b>Datos live...</b></header>
+              <div class="roxy-ref-timeframes"><i>1M</i><i>5M</i><i>15M</i><i>1H</i><i class="active">1D</i><i>1W</i></div>
+              <div class="roxy-ref-candle-chart roxy-real-candle-chart roxy-real-chart-empty">
+                <strong>Roxy esta cargando velas reales</strong>
+                <small>Conectando historial, precio e indicadores del proveedor.</small>
+              </div>
+              <div class="roxy-chart-indicators"><i>EMA 9</i><i>EMA 21</i><i>EMA 50</i><i>BB 20 2</i><i>VOL</i></div>
+            </div>
+        """)
+
+    payload = live_candle_chart_payload(
+        chart_df,
+        symbol=normalized_symbol,
+        market=normalized_market,
+        timeframe=normalized_timeframe,
+        max_candles=90,
+    )
+    candles = list(payload.get("candles") or [])[-42:]
+    if len(candles) < 2:
+        safe_symbol = html.escape(normalized_symbol)
+        return roxy_clean_html_fragment(f"""
+            <div class="roxy-ref-panel roxy-ref-chart roxy-real-chart-card" data-live-chart="loading">
+              <header><span>Grafica principal</span><strong>{safe_symbol}</strong><b>Esperando velas</b></header>
+              <div class="roxy-ref-timeframes"><i>1M</i><i>5M</i><i>15M</i><i>1H</i><i class="active">1D</i><i>1W</i></div>
+              <div class="roxy-ref-candle-chart roxy-real-candle-chart roxy-real-chart-empty">
+                <strong>Roxy necesita mas historial</strong>
+                <small>El proveedor devolvio menos de dos velas para esta vista.</small>
+              </div>
+              <div class="roxy-chart-indicators"><i>EMA 9</i><i>EMA 21</i><i>EMA 50</i><i>BB 20 2</i><i>VOL</i></div>
+            </div>
+        """)
+
+    line_items = payload.get("lines") if isinstance(payload.get("lines"), dict) else {}
+    time_index = {int(candle["time"]): idx for idx, candle in enumerate(candles)}
+    visible_times = set(time_index)
+    visible_values: list[float] = []
+    for candle in candles:
+        visible_values.extend(
+            [
+                float(candle.get("high") or candle.get("close") or 0),
+                float(candle.get("low") or candle.get("close") or 0),
+            ]
+        )
+    for line_name in ["EMA9", "SMA20", "SMA40", "BB Upper", "BB Lower"]:
+        for point in line_items.get(line_name, []) or []:
+            if int(point.get("time") or 0) in visible_times:
+                value = safe_float(point.get("value"))
+                if value is not None:
+                    visible_values.append(value)
+    price_low = min(visible_values)
+    price_high = max(visible_values)
+    if price_high <= price_low:
+        price_high = price_low + max(abs(price_low) * 0.01, 1.0)
+    pad = (price_high - price_low) * 0.08
+    price_low -= pad
+    price_high += pad
+    price_range = price_high - price_low
+
+    def y_pct(value: Any) -> float:
+        number = safe_float(value)
+        if number is None:
+            number = price_low
+        return max(3.0, min(97.0, 100.0 - ((number - price_low) / price_range * 100.0)))
+
+    def x_pct(index: int) -> float:
+        if len(candles) <= 1:
+            return 50.0
+        return 7.0 + (index / (len(candles) - 1)) * 82.0
+
+    candle_html: list[str] = []
+    volume_values = [max(0.0, float(candle.get("volume") or 0)) for candle in candles]
+    max_volume = max(volume_values) if any(volume_values) else 1.0
+    volume_html: list[str] = []
+    for idx, candle in enumerate(candles):
+        open_price = float(candle.get("open") or candle.get("close") or 0)
+        close_price = float(candle.get("close") or open_price)
+        high_price = float(candle.get("high") or max(open_price, close_price))
+        low_price = float(candle.get("low") or min(open_price, close_price))
+        wick_top = y_pct(high_price)
+        wick_bottom = y_pct(low_price)
+        body_top = y_pct(max(open_price, close_price))
+        body_bottom = y_pct(min(open_price, close_price))
+        body_height = max(body_bottom - body_top, 1.6)
+        color_class = "up" if close_price >= open_price else "down"
+        x_value = x_pct(idx)
+        candle_html.append(
+            (
+                f'<span class="roxy-real-candle {color_class}" '
+                f'style="--x:{x_value:.2f}%;--wick-top:{wick_top:.2f}%;'
+                f'--wick-h:{max(wick_bottom - wick_top, 2.0):.2f}%;'
+                f'--body-top:{body_top:.2f}%;--body-h:{body_height:.2f}%"></span>'
+            )
+        )
+        volume_height = 10.0 + (max(0.0, float(candle.get("volume") or 0)) / max_volume) * 55.0
+        volume_html.append(f'<u style="--x:{x_value:.2f}%;--h:{volume_height:.2f}%"></u>')
+
+    def line_points(line_name: str) -> str:
+        points: list[str] = []
+        for point in line_items.get(line_name, []) or []:
+            point_time = int(point.get("time") or 0)
+            if point_time not in time_index:
+                continue
+            value = safe_float(point.get("value"))
+            if value is None:
+                continue
+            points.append(f"{x_pct(time_index[point_time]):.2f},{y_pct(value):.2f}")
+        return " ".join(points)
+
+    ema9_points = line_points("EMA9")
+    sma20_points = line_points("SMA20")
+    sma40_points = line_points("SMA40")
+    bb_upper_points = line_points("BB Upper")
+    bb_lower_points = line_points("BB Lower")
+    lines_svg = f"""
+        <svg class="roxy-real-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <polyline class="bb upper" points="{html.escape(bb_upper_points)}"></polyline>
+          <polyline class="bb lower" points="{html.escape(bb_lower_points)}"></polyline>
+          <polyline class="ema fast" points="{html.escape(ema9_points)}"></polyline>
+          <polyline class="ema mid" points="{html.escape(sma20_points)}"></polyline>
+          <polyline class="ema slow" points="{html.escape(sma40_points)}"></polyline>
+        </svg>
+    """
+    latest = candles[-1]
+    previous = candles[-2]
+    latest_close = float(latest.get("close") or 0)
+    previous_close = float(previous.get("close") or latest_close)
+    change_pct = ((latest_close / previous_close) - 1.0) if previous_close else 0.0
+    change_class = "positive" if change_pct >= 0 else "negative"
+    last_top = y_pct(latest_close)
+    axis_values = [price_high - pad, price_high - price_range * 0.28, price_high - price_range * 0.52, price_low + pad]
+    price_axis_html = "".join(
+        f'<span class="roxy-chart-price" style="top:{y_pct(value):.2f}%">{html.escape(price_display(value))}</span>'
+        for value in axis_values
+    )
+
+    def time_label(candle: dict[str, Any]) -> str:
+        ts = pd.to_datetime(candle.get("time"), unit="s", utc=True, errors="coerce")
+        if pd.isna(ts):
+            return ""
+        if normalized_timeframe in {"1d", "1w"}:
+            return ts.strftime("%d")
+        return ts.strftime("%H:%M")
+
+    label_indices = [0, max(0, len(candles) // 3), max(0, (len(candles) * 2) // 3), len(candles) - 1]
+    x_axis_html = "".join(
+        f'<span style="left:{x_pct(idx):.2f}%">{html.escape(time_label(candles[idx]))}</span>'
+        for idx in dict.fromkeys(label_indices)
+    )
+    timeframe_items = ["1m", "5m", "15m", "1h", "1d", "1w"]
+    timeframe_html = "".join(
+        f'<a class="{"active" if normalize_command_timeframe(item) == normalized_timeframe else ""}" '
+        f'href="?view=Dashboard&symbol={quote(normalized_symbol, safe="")}&market={quote(normalized_market, safe="")}&tf={quote(item, safe="")}">'
+        f"{html.escape(item.upper())}</a>"
+        for item in timeframe_items
+    )
+    safe_symbol = html.escape(normalized_symbol)
+    safe_price = html.escape(price_display(latest_close))
+    safe_change = html.escape(pct_display(change_pct))
+    source = text_display(payload.get("stream", {}).get("provider") or "historial real")
+    return roxy_clean_html_fragment(f"""
+        <div class="roxy-ref-panel roxy-ref-chart roxy-real-chart-card" data-live-chart="real" data-symbol="{safe_symbol}">
+          <header>
+            <span>Grafica principal</span>
+            <strong>{safe_symbol}</strong>
+            <b class="{change_class}">{safe_price} · {safe_change}</b>
+          </header>
+          <div class="roxy-ref-timeframes roxy-real-timeframes">{timeframe_html}</div>
+          <div class="roxy-ref-candle-chart roxy-real-candle-chart">
+            {price_axis_html}
+            {lines_svg}
+            {''.join(candle_html)}
+            <small class="roxy-chart-last" style="top:{last_top:.2f}%">{safe_price}</small>
+            <div class="roxy-chart-volume">{''.join(volume_html)}</div>
+            <div class="roxy-chart-x-axis">{x_axis_html}</div>
+          </div>
+          <div class="roxy-chart-indicators"><i>EMA 9</i><i>EMA 20</i><i>EMA 40</i><i>BB 20 2</i><i>VOL</i></div>
+          <small class="roxy-real-source">Datos reales · {html.escape(source)} · {html.escape(normalized_timeframe.upper())}</small>
+        </div>
+    """)
+
+
 def render_roxy_opening_stage(
     symbol: str,
     market: str,
@@ -30990,6 +31194,7 @@ def render_roxy_opening_stage(
     safe_symbol = html.escape(text_display(symbol).upper())
     safe_market = html.escape(text_display(market).upper())
     safe_timeframe = html.escape(text_display(timeframe))
+    home_chart_html = roxy_home_live_chart_html(symbol=symbol, market=market, timeframe=timeframe)
     module_from_query = first_query_param_value(st.query_params, "module")
     active_module = normalize_roxy_module(module_from_query, default="") if module_from_query else ""
     if active_module:
@@ -31082,30 +31287,7 @@ def render_roxy_opening_stage(
               <div><i class="roxy-mover-logo roxy-mover-meta">M</i><p><strong>META</strong><small>Meta Platforms</small></p><b>+2.74%</b></div>
               <a href="?view=Dashboard&module=acciones-operar" target="_self">Ver todas</a>
             </div>
-            <div class="roxy-ref-panel roxy-ref-chart">
-              <header><span>Grafica principal</span><strong>{safe_symbol}</strong><b>194.87 · +1.28%</b></header>
-              <div class="roxy-ref-timeframes"><i>1M</i><i>5M</i><i>15M</i><i>1H</i><i class="active">1D</i><i>1W</i></div>
-              <div class="roxy-ref-candle-chart roxy-ref-live-like-chart" aria-hidden="true">
-                <span class="roxy-chart-price roxy-price-1">198.00</span>
-                <span class="roxy-chart-price roxy-price-2">196.00</span>
-                <span class="roxy-chart-price roxy-price-3">194.00</span>
-                <span class="roxy-chart-price roxy-price-4">192.00</span>
-                <i class="roxy-op-ma roxy-op-ma-fast"></i>
-                <i class="roxy-op-ma roxy-op-ma-slow"></i>
-                <b class="up" style="--h:18%;--x:6%;--y:18%;--c:#22c55e"></b><b class="up" style="--h:23%;--x:11%;--y:22%;--c:#22c55e"></b>
-                <b class="down" style="--h:16%;--x:16%;--y:27%;--c:#ef4444"></b><b class="up" style="--h:28%;--x:21%;--y:29%;--c:#22c55e"></b>
-                <b class="up" style="--h:22%;--x:26%;--y:36%;--c:#22c55e"></b><b class="down" style="--h:26%;--x:31%;--y:32%;--c:#ef4444"></b>
-                <b class="up" style="--h:34%;--x:36%;--y:34%;--c:#22c55e"></b><b class="up" style="--h:30%;--x:41%;--y:39%;--c:#22c55e"></b>
-                <b class="down" style="--h:22%;--x:46%;--y:43%;--c:#ef4444"></b><b class="up" style="--h:31%;--x:51%;--y:45%;--c:#22c55e"></b>
-                <b class="up" style="--h:26%;--x:56%;--y:49%;--c:#22c55e"></b><b class="down" style="--h:20%;--x:61%;--y:53%;--c:#ef4444"></b>
-                <b class="up" style="--h:33%;--x:66%;--y:50%;--c:#22c55e"></b><b class="up" style="--h:29%;--x:71%;--y:55%;--c:#22c55e"></b>
-                <b class="down" style="--h:23%;--x:76%;--y:58%;--c:#ef4444"></b><b class="up" style="--h:35%;--x:81%;--y:55%;--c:#22c55e"></b>
-                <b class="up" style="--h:31%;--x:86%;--y:60%;--c:#22c55e"></b>
-                <small class="roxy-chart-last">195.00</small>
-                <div class="roxy-chart-volume"><u style="--h:20%;--x:7%"></u><u style="--h:36%;--x:18%"></u><u style="--h:28%;--x:29%"></u><u style="--h:50%;--x:40%"></u><u style="--h:41%;--x:51%"></u><u style="--h:62%;--x:64%"></u><u style="--h:54%;--x:79%"></u><u style="--h:44%;--x:88%"></u></div>
-              </div>
-              <div class="roxy-chart-indicators"><i>EMA 9</i><i>EMA 21</i><i>EMA 50</i><i>BB 20 2</i><i>VOL</i></div>
-            </div>
+{home_chart_html}
             <div class="roxy-ref-panel roxy-ref-events">
               <span>Proximos eventos</span>
               <div><strong>10:30 AM</strong><b>GDP · impacto alto</b></div>
@@ -35762,6 +35944,8 @@ def main() -> None:
         .roxy-ref-timeframes{display:flex;gap:5px;margin:0 0 8px;overflow:hidden}
         .roxy-ref-timeframes i{display:grid;place-items:center;min-width:28px;height:22px;border-radius:5px;border:1px solid rgba(125,211,252,.18);background:rgba(2,6,23,.44);color:#94a3b8;font-size:9px;font-style:normal;font-weight:900}
         .roxy-ref-timeframes i.active{background:#2563eb;color:#fff;border-color:rgba(96,165,250,.7);box-shadow:0 0 18px rgba(37,99,235,.35)}
+        .roxy-ref-timeframes a{display:grid!important;place-items:center!important;min-width:28px;height:22px;margin:0!important;border-radius:5px;border:1px solid rgba(125,211,252,.18);background:rgba(2,6,23,.44);color:#94a3b8!important;text-decoration:none!important;font-size:9px!important;font-style:normal;font-weight:900!important;text-transform:uppercase!important;letter-spacing:0!important}
+        .roxy-ref-timeframes a.active{background:#2563eb!important;color:#fff!important;border-color:rgba(96,165,250,.7)!important;box-shadow:0 0 18px rgba(37,99,235,.35)}
         .roxy-ref-candle-chart{position:relative;height:244px;border:1px solid rgba(125,211,252,.14);border-radius:7px;background:linear-gradient(rgba(125,211,252,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,252,.045) 1px,transparent 1px),rgba(2,6,23,.54);background-size:38px 38px;overflow:hidden}
         .roxy-ref-candle-chart:before{content:"";position:absolute;left:6%;right:6%;top:48%;height:2px;background:linear-gradient(90deg,transparent,#38bdf8,#d4af60,transparent);filter:drop-shadow(0 0 10px rgba(56,189,248,.55))}
         .roxy-ref-candle-chart b{position:absolute;left:var(--x);bottom:18%;width:7px;height:var(--h);border-radius:3px;background:var(--c);box-shadow:0 0 10px color-mix(in srgb,var(--c) 62%,transparent)}
@@ -35779,6 +35963,24 @@ def main() -> None:
         .roxy-ref-live-like-chart b{width:5px!important;min-height:10px;border-radius:2px!important}
         .roxy-ref-live-like-chart b:before{left:2px!important;top:-13px!important;height:calc(100% + 26px)!important;opacity:.45!important}
         .roxy-ref-live-like-chart b:after{display:none!important}
+        .roxy-real-chart-card header b.positive{color:#22c55e}.roxy-real-chart-card header b.negative{color:#f87171}
+        .roxy-real-candle-chart{height:184px!important;padding:0 28px 20px 4px;background:linear-gradient(rgba(125,211,252,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,252,.045) 1px,transparent 1px),radial-gradient(circle at 55% 48%,rgba(14,165,233,.11),transparent 48%),rgba(2,6,23,.70)!important;background-size:34px 34px,34px 34px,100% 100%,100% 100%!important}
+        .roxy-real-candle-chart:before{left:7%!important;right:10%!important;top:50%!important;height:1px!important;opacity:.62}
+        .roxy-real-candle{position:absolute;left:var(--x);top:0;width:6px;height:100%;transform:translateX(-50%);z-index:3}
+        .roxy-real-candle:before{content:"";position:absolute;left:50%;top:var(--wick-top);width:1px;height:var(--wick-h);transform:translateX(-50%);background:rgba(34,197,94,.80);box-shadow:0 0 8px rgba(34,197,94,.42)}
+        .roxy-real-candle:after{content:"";position:absolute;left:0;right:0;top:var(--body-top);height:var(--body-h);border-radius:4px;background:#22c55e;box-shadow:0 0 12px rgba(34,197,94,.56)}
+        .roxy-real-candle.down:before{background:rgba(248,113,113,.78);box-shadow:0 0 8px rgba(248,113,113,.38)}
+        .roxy-real-candle.down:after{background:#ef4444;box-shadow:0 0 12px rgba(239,68,68,.46)}
+        .roxy-real-lines{position:absolute;inset:0 28px 20px 4px;width:calc(100% - 32px);height:calc(100% - 20px);z-index:2;overflow:visible;pointer-events:none}
+        .roxy-real-lines polyline{fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.35;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 4px rgba(56,189,248,.42))}
+        .roxy-real-lines .ema.fast{stroke:#d946ef}.roxy-real-lines .ema.mid{stroke:#38bdf8}.roxy-real-lines .ema.slow{stroke:#f97316}.roxy-real-lines .bb{stroke:#cbd5e1;stroke-width:1;stroke-dasharray:2 3;opacity:.60}
+        .roxy-real-candle-chart .roxy-chart-price{right:6px;transform:translateY(-50%);color:#9be8ff;text-align:right;min-width:36px}
+        .roxy-real-candle-chart .roxy-chart-last{right:4px;transform:translateY(-50%);background:#22c55e;color:#052e16}
+        .roxy-chart-x-axis{position:absolute;left:4px;right:28px;bottom:5px;height:14px;z-index:4;color:#8ba2bd;font-size:8px;font-weight:900}
+        .roxy-chart-x-axis span{position:absolute;bottom:0;transform:translateX(-50%);display:block!important;color:#8ba2bd!important;font-size:8px!important;letter-spacing:0!important}
+        .roxy-real-source{display:block;margin-top:5px;color:#64748b;font-size:7px;font-weight:800;letter-spacing:.02em;text-transform:uppercase}
+        .roxy-real-chart-empty{display:grid;place-items:center;text-align:center;color:#cbd5e1}
+        .roxy-real-chart-empty strong{font-size:12px}.roxy-real-chart-empty small{color:#8ba2bd;font-size:9px}
         .roxy-op-ma{position:absolute;left:7%;right:13%;height:2px;border-radius:999px;z-index:3;opacity:.9;filter:drop-shadow(0 0 7px rgba(56,189,248,.42));transform-origin:left center}
         .roxy-op-ma-fast{top:56%;transform:rotate(-13deg);background:linear-gradient(90deg,transparent,#38bdf8 12%,#a78bfa 45%,#f97316 70%,transparent)}
         .roxy-op-ma-slow{top:66%;transform:rotate(-9deg);background:linear-gradient(90deg,transparent,#f97316 8%,#facc15 35%,#60a5fa 65%,#22c55e 88%,transparent)}
