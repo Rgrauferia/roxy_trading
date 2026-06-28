@@ -12,6 +12,8 @@ Checks completed:
 - Roxy personalization verified with a temporary user: dashboard showed `Bienvenido, Carlos Rivera`, and the assistant message addressed `Carlos Rivera`.
 - Mobile DOM check at 393px width: login shell width 385px, document scroll width 393px, login form 347px wide, submit button 305px wide, 2 Roxy avatar images, 2 social actions.
 - Register DOM check at 393px width: register form 347px wide, required placeholders visible, submit button 305px wide, document scroll width 393px.
+- Desktop DOM check at 1440px width: login shell width 1180px, two-column composition, Roxy hero on the left, login card/form on the right, form at 430px wide, no horizontal overflow.
+- Desktop register check at 1440px width: register shell width 1180px, register card/form on the right, form at 430px wide, switch link inside first viewport, no horizontal overflow.
 - Browser console error check returned no errors.
 - `python3 -m py_compile streamlit_app.py` passed.
 
