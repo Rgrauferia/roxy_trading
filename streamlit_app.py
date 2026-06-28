@@ -1938,6 +1938,7 @@ ROXY_COMMAND_MODULES = [
         "scope": "Acciones",
         "tf": "1h",
         "detail": "Oportunidades en el mercado",
+        "badge": "126",
     },
     {
         "label": "Crypto 20min",
@@ -1949,6 +1950,7 @@ ROXY_COMMAND_MODULES = [
         "scope": "Crypto",
         "tf": "1m",
         "detail": "Analisis rapido 20 minutos",
+        "badge": "20",
     },
     {
         "label": "Crypto 2H",
@@ -1960,6 +1962,7 @@ ROXY_COMMAND_MODULES = [
         "scope": "Crypto",
         "tf": "2h",
         "detail": "Tendencia y senales cada 2 horas",
+        "badge": "12",
     },
     {
         "label": "Crypto Daily",
@@ -1971,6 +1974,7 @@ ROXY_COMMAND_MODULES = [
         "scope": "Crypto",
         "tf": "1d",
         "detail": "Analisis diario completo",
+        "badge": "7",
     },
     {
         "label": "Classes Room",
@@ -1982,6 +1986,7 @@ ROXY_COMMAND_MODULES = [
         "scope": "Todos",
         "tf": "1h",
         "detail": "Aprende y mejora tus estrategias",
+        "badge": "8",
     },
 ]
 
@@ -30989,6 +30994,7 @@ def render_roxy_opening_stage(
         <a class="roxy-stage-module {'roxy-stage-module-active' if item['slug'] == active_module else ''}"
            href="?view={quote(item['page'], safe='')}&symbol={quote(item['symbol'], safe='')}&market={quote(item['market'], safe='')}&tf={quote(str(item.get('tf') or timeframe or '1h'), safe='')}&module={quote(item['slug'], safe='')}"
            target="_self">
+          <em>{html.escape(str(item.get('badge') or ''))}</em>
           <b>{html.escape(item['mark'])}</b>
           <span>{html.escape(item['label'])}</span>
           <strong>{html.escape(item['detail'])}</strong>
@@ -31028,10 +31034,17 @@ def render_roxy_opening_stage(
                 <b style="--i:9"></b><b style="--i:10"></b><b style="--i:11"></b><b style="--i:12"></b>
               </div>
             </div>
+            <div class="roxy-ref-market-summary">
+              <span>Resumen del mercado</span>
+              <div><strong>S&P 500</strong><b>5,278.40</b><em>+0.83%</em></div>
+              <div><strong>NASDAQ</strong><b>16,735.02</b><em>+1.21%</em></div>
+              <div><strong>DOW JONES</strong><b>38,991.12</b><em>+0.72%</em></div>
+              <small>Actualizado: 9:02 AM</small>
+            </div>
             <div class="roxy-stage-status">
               <span>Señal destacada</span>
               <strong>{safe_symbol}</strong>
-              <small>Entrada · stop loss · target · riesgo {risk_pct:.1f}%</small>
+              <small><b>Compra</b> · Entrada 194.50 · Stop 190.20 · Target 201.80 · Riesgo {risk_pct:.1f}%</small>
               <a href="?view=Dashboard&symbol={quote(str(symbol or 'AAPL'), safe='')}&market={quote(str(market or 'stock'), safe='')}&tf={quote(str(timeframe or '1h'), safe='')}&module=acciones-operar" target="_self">Ver analisis</a>
             </div>
           </div>
@@ -31048,9 +31061,9 @@ def render_roxy_opening_stage(
               <strong>Trading inteligente, controlado y visual.</strong>
             </div>
             <div class="roxy-stage-values">
-              <div><span>Confianza</span><strong>Comprometidos con tu seguridad.</strong><em>100%</em></div>
-              <div><span>Eficiencia</span><strong>Soluciones rapidas y efectivas.</strong><em>98%</em></div>
-              <div><span>Cercania</span><strong>Estamos contigo en cada paso.</strong><em>100%</em></div>
+              <div style="--p:100%"><span>Confianza</span><strong>Comprometidos con tu seguridad.</strong><em>100%</em></div>
+              <div style="--p:98%"><span>Eficiencia</span><strong>Soluciones rapidas y efectivas.</strong><em>98%</em></div>
+              <div style="--p:100%"><span>Cercania</span><strong>Estamos contigo en cada paso.</strong><em>100%</em></div>
             </div>
           </div>
           <div class="roxy-stage-modules">
@@ -31083,12 +31096,27 @@ def render_roxy_opening_stage(
               <div><strong>2:30 PM</strong><b>Sentimiento · impacto medio</b></div>
               <a href="?view=Calendario" target="_self">Ver calendario</a>
             </div>
+            <div class="roxy-ref-panel roxy-ref-bot">
+              {roxy_hologram_avatar_html("speaking", "Roxy avatar mini")}
+            </div>
             <div class="roxy-ref-panel roxy-ref-assistant">
               <div class="roxy-ref-assistant-avatar">{roxy_avatar_html("speaking", "Roxy hablando")}</div>
               <p><strong>Roxy</strong><span>He encontrado {ready_now} oportunidades listas y {watch_now} en vigilancia.</span></p>
               <a href="?view=Dashboard&module=acciones-operar" target="_self">Mostrar oportunidades</a>
             </div>
+            <div class="roxy-ref-panel roxy-ref-actions">
+              <a href="?view=Dashboard&module=acciones-operar" target="_self">Mostrar oportunidades</a>
+              <a href="?view=Dashboard&symbol={quote(str(symbol or 'AAPL'), safe='')}&market={quote(str(market or 'stock'), safe='')}&tf={quote(str(timeframe or '1h'), safe='')}&module=acciones-operar" target="_self">Analisis de {safe_symbol}</a>
+              <a href="?view=Portafolio" target="_self">Revisar mi portafolio</a>
+            </div>
           </div>
+          <nav class="roxy-ref-bottomnav" aria-label="Roxy navigation">
+            <a href="?view=Dashboard" target="_self"><b>⌂</b><span>Inicio</span></a>
+            <a href="?view=Alertas" target="_self"><b>!</b><span>Alertas</span></a>
+            <a class="active" href="?view=Dashboard" target="_self"><b>R</b><span>Roxy</span></a>
+            <a href="?view=Aprender" target="_self"><b>▤</b><span>Aprender</span></a>
+            <a href="?view=Configuracion" target="_self"><b>⚙</b><span>Configuracion</span></a>
+          </nav>
         </section>
         """,
         unsafe_allow_html=True,
@@ -35642,7 +35670,7 @@ def main() -> None:
         .roxy-stage-module b{position:relative;display:grid;place-items:center;width:38px;height:38px;margin:0 auto 8px;border:1px solid rgba(56,189,248,.44);border-radius:50%;background:radial-gradient(circle,rgba(56,189,248,.25),rgba(2,6,23,.70));color:#e0f2fe;font-size:12px;font-weight:950;line-height:1;letter-spacing:.02em;box-shadow:0 0 22px rgba(56,189,248,.20)}
         .roxy-stage-module span{color:#8bd8ff;font-size:9px;letter-spacing:.08em}
         .roxy-stage-module strong{display:block;color:#f8fafc;font-size:11px;line-height:1.18;margin-top:5px;min-height:26px;overflow:hidden}
-        .roxy-reference-stage{grid-template-columns:minmax(220px,.86fr) minmax(330px,520px) minmax(250px,.9fr);grid-template-areas:"top top top" "left center right" "modules modules modules" "live live live";align-items:center;min-height:820px;padding:18px 24px 22px;background:
+        .roxy-reference-stage{grid-template-columns:minmax(190px,.78fr) minmax(330px,1.28fr) minmax(190px,.78fr);grid-template-areas:"top top top" "left center right" "modules modules modules" "live live live" "nav nav nav";align-items:center;min-height:1050px;padding:18px 18px 16px;background:
             radial-gradient(ellipse at 50% 69%,rgba(56,189,248,.22),transparent 21%),
             linear-gradient(90deg,transparent 0 19%,rgba(56,189,248,.075) 33%,rgba(125,211,252,.12) 50%,rgba(56,189,248,.075) 67%,transparent 84%),
             radial-gradient(circle at 50% 42%,rgba(56,189,248,.30),transparent 33%),
@@ -35652,7 +35680,7 @@ def main() -> None:
         .roxy-reference-stage:before{opacity:.62;filter:drop-shadow(0 0 10px rgba(56,189,248,.18))}
         .roxy-reference-stage .roxy-stage-center:before{content:"";position:absolute;left:50%;top:50%;width:min(520px,86vw);height:78%;transform:translate(-50%,-50%);background:radial-gradient(ellipse at 50% 45%,rgba(56,189,248,.26),rgba(14,165,233,.09) 34%,transparent 72%);filter:blur(2px);pointer-events:none;animation:roxyHaloBreathe 5.6s ease-in-out infinite}
         .roxy-reference-stage .roxy-stage-left,.roxy-reference-stage .roxy-stage-center,.roxy-reference-stage .roxy-stage-right{display:grid}
-        .roxy-reference-stage .roxy-stage-center .roxy-hologram-avatar{width:min(500px,100%);aspect-ratio:.78/1}
+        .roxy-reference-stage .roxy-stage-center .roxy-hologram-avatar{width:min(560px,100%);aspect-ratio:.78/1}
         .roxy-reference-stage .roxy-stage-center .roxy-avatar-core{border:0;border-radius:0;background:transparent;box-shadow:none;filter:drop-shadow(0 0 42px rgba(56,189,248,.42));-webkit-mask-image:radial-gradient(ellipse 47% 58% at 50% 46%,#000 0 70%,rgba(0,0,0,.76) 80%,rgba(0,0,0,.22) 90%,transparent 100%);mask-image:radial-gradient(ellipse 47% 58% at 50% 46%,#000 0 70%,rgba(0,0,0,.76) 80%,rgba(0,0,0,.22) 90%,transparent 100%)}
         .roxy-reference-stage .roxy-stage-center .roxy-avatar-core img{filter:saturate(1.22) contrast(1.08) brightness(1.06)}
         .roxy-reference-stage .roxy-stage-title{display:none}
@@ -35662,7 +35690,8 @@ def main() -> None:
         .roxy-reference-stage .roxy-stage-brand .brand-logo-img{width:220px;border-color:rgba(212,175,96,.54);background:rgba(2,6,23,.38)}
         .roxy-reference-stage .roxy-stage-brand span{color:#f8fafc;font-size:13px;letter-spacing:.12em}
         .roxy-reference-stage .roxy-stage-brand strong{font-size:19px;max-width:260px}
-        .roxy-reference-stage .roxy-stage-values div{background:rgba(15,23,42,.38);backdrop-filter:blur(8px)}
+        .roxy-reference-stage .roxy-stage-values div{position:relative;background:rgba(15,23,42,.38);backdrop-filter:blur(8px);padding-bottom:18px}
+        .roxy-reference-stage .roxy-stage-values div:after{content:"";grid-column:2;display:block;height:4px;width:var(--p,100%);border-radius:999px;background:linear-gradient(90deg,#2563eb,#60a5fa);box-shadow:0 0 15px rgba(59,130,246,.45);margin-top:7px}
         .roxy-reference-stage .roxy-stage-values div:nth-child(1):before{background:radial-gradient(circle,rgba(34,211,238,.38),rgba(15,23,42,.70))}
         .roxy-reference-stage .roxy-stage-values div:nth-child(2):before{background:radial-gradient(circle,rgba(56,189,248,.42),rgba(15,23,42,.70))}
         .roxy-reference-stage .roxy-stage-values div:nth-child(3):before{background:radial-gradient(circle,rgba(212,175,96,.38),rgba(15,23,42,.70))}
@@ -35681,18 +35710,27 @@ def main() -> None:
         .roxy-reference-stage .roxy-stage-module{border:0;border-radius:0;background:transparent;padding:2px 13px 0;box-shadow:none;border-right:1px solid rgba(125,211,252,.22)}
         .roxy-reference-stage .roxy-stage-module:last-child{border-right:0}
         .roxy-reference-stage .roxy-stage-module:hover{transform:translateY(-3px);box-shadow:none}
+        .roxy-reference-stage .roxy-stage-module em{position:absolute;left:50%;top:-2px;z-index:3;transform:translateX(13px);display:grid;place-items:center;min-width:18px;height:18px;border-radius:999px;background:#0ea5e9;color:#e0f2fe;border:1px solid rgba(125,211,252,.70);box-shadow:0 0 16px rgba(14,165,233,.55);font-size:8px;font-style:normal;font-weight:950;line-height:1}
         .roxy-reference-stage .roxy-stage-module b{width:58px;height:58px;margin-bottom:9px;border-color:rgba(125,211,252,.72);background:radial-gradient(circle,rgba(56,189,248,.20),rgba(2,6,23,.32));font-size:13px;box-shadow:0 0 22px rgba(56,189,248,.32),inset 0 0 16px rgba(56,189,248,.10)}
         .roxy-reference-stage .roxy-stage-module b:after{content:"";position:absolute;width:72%;height:72%;border-radius:50%;border:1px solid rgba(125,211,252,.20);animation:roxyModulePing 3.8s ease-in-out infinite}
         .roxy-reference-stage .roxy-stage-module span{color:#f8fafc;font-size:11px;letter-spacing:.08em;text-shadow:0 0 12px rgba(56,189,248,.55)}
         .roxy-reference-stage .roxy-stage-module strong{font-size:10px;color:#dbeafe;line-height:1.18;min-height:34px;margin-top:5px;text-shadow:0 0 12px rgba(2,6,23,.75)}
-        .roxy-ref-live-grid{grid-area:live;display:grid;grid-template-columns:minmax(160px,.72fr) minmax(280px,1.6fr) minmax(160px,.72fr);grid-template-areas:"movers chart events" "assistant assistant assistant";gap:10px;margin-top:8px}
+        .roxy-ref-market-summary{border:1px solid rgba(125,211,252,.20);border-radius:8px;background:linear-gradient(145deg,rgba(15,23,42,.66),rgba(2,6,23,.48));padding:11px 12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 14px 36px rgba(2,6,23,.22)}
+        .roxy-ref-market-summary>span{display:block;color:#8bd8ff;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em;margin-bottom:9px}
+        .roxy-ref-market-summary div{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;padding:6px 0;border-bottom:1px solid rgba(125,211,252,.10)}
+        .roxy-ref-market-summary strong{color:#f8fafc;font-size:11px;line-height:1;font-weight:950}
+        .roxy-ref-market-summary b{color:#f8fafc;font-size:12px;line-height:1;font-weight:950;text-align:right}
+        .roxy-ref-market-summary em{grid-column:2;color:#22c55e;font-size:10px;line-height:1;font-style:normal;font-weight:950;text-align:right}
+        .roxy-ref-market-summary small{display:block;color:#64748b;font-size:9px;line-height:1.1;margin-top:7px}
+        .roxy-stage-status small b{color:#22c55e;border:1px solid rgba(34,197,94,.24);border-radius:4px;background:rgba(34,197,94,.12);padding:2px 5px;text-transform:uppercase;font-size:9px}
+        .roxy-ref-live-grid{grid-area:live;display:grid;grid-template-columns:minmax(150px,.72fr) minmax(270px,1.6fr) minmax(150px,.72fr);grid-template-areas:"movers chart events" "bot assistant actions";gap:10px;margin-top:8px}
         .roxy-ref-panel{border:1px solid rgba(125,211,252,.20);border-radius:8px;background:linear-gradient(145deg,rgba(15,23,42,.66),rgba(2,6,23,.48));padding:11px 12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 14px 36px rgba(2,6,23,.22);min-width:0}
         .roxy-ref-panel span{display:block;color:#8bd8ff;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em;line-height:1}
         .roxy-ref-panel div{min-width:0}
         .roxy-ref-panel strong{color:#f8fafc;font-size:13px;line-height:1.05;font-weight:950}
         .roxy-ref-panel b{color:#22c55e;font-size:12px;line-height:1;font-weight:950}
         .roxy-ref-panel a{display:inline-flex;margin-top:8px;color:#bfdbfe!important;text-decoration:none!important;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}
-        .roxy-ref-movers{grid-area:movers}.roxy-ref-chart{grid-area:chart}.roxy-ref-events{grid-area:events}.roxy-ref-assistant{grid-area:assistant}
+        .roxy-ref-movers{grid-area:movers}.roxy-ref-chart{grid-area:chart}.roxy-ref-events{grid-area:events}.roxy-ref-bot{grid-area:bot}.roxy-ref-assistant{grid-area:assistant}.roxy-ref-actions{grid-area:actions}
         .roxy-ref-movers div,.roxy-ref-events div{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;border-bottom:1px solid rgba(125,211,252,.10);padding-bottom:7px}
         .roxy-ref-events b{color:#cbd5e1;font-size:10px;font-weight:800;text-align:right}
         .roxy-ref-chart header{display:flex;align-items:center;gap:8px;justify-content:space-between;margin-bottom:8px}
@@ -35700,7 +35738,7 @@ def main() -> None:
         .roxy-ref-timeframes{display:flex;gap:5px;margin:0 0 8px;overflow:hidden}
         .roxy-ref-timeframes i{display:grid;place-items:center;min-width:28px;height:22px;border-radius:5px;border:1px solid rgba(125,211,252,.18);background:rgba(2,6,23,.44);color:#94a3b8;font-size:9px;font-style:normal;font-weight:900}
         .roxy-ref-timeframes i.active{background:#2563eb;color:#fff;border-color:rgba(96,165,250,.7);box-shadow:0 0 18px rgba(37,99,235,.35)}
-        .roxy-ref-candle-chart{position:relative;height:154px;border:1px solid rgba(125,211,252,.14);border-radius:7px;background:linear-gradient(rgba(125,211,252,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,252,.045) 1px,transparent 1px),rgba(2,6,23,.54);background-size:38px 38px;overflow:hidden}
+        .roxy-ref-candle-chart{position:relative;height:244px;border:1px solid rgba(125,211,252,.14);border-radius:7px;background:linear-gradient(rgba(125,211,252,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,252,.045) 1px,transparent 1px),rgba(2,6,23,.54);background-size:38px 38px;overflow:hidden}
         .roxy-ref-candle-chart:before{content:"";position:absolute;left:6%;right:6%;top:48%;height:2px;background:linear-gradient(90deg,transparent,#38bdf8,#d4af60,transparent);filter:drop-shadow(0 0 10px rgba(56,189,248,.55))}
         .roxy-ref-candle-chart b{position:absolute;left:var(--x);bottom:18%;width:7px;height:var(--h);border-radius:3px;background:var(--c);box-shadow:0 0 10px color-mix(in srgb,var(--c) 62%,transparent)}
         .roxy-ref-candle-chart b:before{content:"";position:absolute;left:3px;top:-12px;width:1px;height:calc(100% + 24px);background:var(--c);opacity:.55}
@@ -35708,6 +35746,13 @@ def main() -> None:
         .roxy-ref-assistant .roxy-avatar{width:44px;height:44px;border-radius:8px}.roxy-ref-assistant .roxy-avatar span{display:none}
         .roxy-ref-assistant p{margin:0;color:#cbd5e1;font-size:12px;line-height:1.25}
         .roxy-ref-assistant p strong{display:block;color:#f8fafc;font-size:13px;margin-bottom:3px}
+        .roxy-ref-bot{display:grid;place-items:center;min-height:148px}.roxy-ref-bot .roxy-hologram-avatar{width:112px;aspect-ratio:.72/1}.roxy-ref-bot .roxy-hologram-name strong{font-size:18px}.roxy-ref-bot .roxy-hologram-name span,.roxy-ref-bot .roxy-audio-wave{display:none}.roxy-ref-bot .roxy-holo-pedestal{bottom:6%}
+        .roxy-ref-actions{display:grid;gap:8px;align-content:center}
+        .roxy-ref-actions a{display:flex!important;margin:0!important;align-items:center;min-height:34px;border:1px solid rgba(125,211,252,.18);border-radius:7px;background:rgba(2,6,23,.48);padding:7px 10px;color:#bfdbfe!important;text-decoration:none!important;font-size:10px;font-weight:950;text-transform:none;letter-spacing:0}
+        .roxy-ref-bottomnav{grid-area:nav;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:10px;border:1px solid rgba(125,211,252,.14);border-radius:26px;background:rgba(2,6,23,.66);padding:8px 10px;box-shadow:0 0 32px rgba(56,189,248,.12),inset 0 1px 0 rgba(255,255,255,.05)}
+        .roxy-ref-bottomnav a{display:grid;place-items:center;text-decoration:none!important;color:#94a3b8!important;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.02em;gap:3px;min-width:0}
+        .roxy-ref-bottomnav b{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;border:1px solid rgba(125,211,252,.20);font-size:13px;line-height:1;color:#bfdbfe}
+        .roxy-ref-bottomnav a.active b{width:46px;height:46px;margin-top:-22px;background:radial-gradient(circle,#1d4ed8,#082f49);border-color:rgba(96,165,250,.8);color:#fff;font-size:22px;box-shadow:0 0 34px rgba(37,99,235,.78)}
         .roxy-folder-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;border:1px solid rgba(56,189,248,.26);border-left:4px solid #38bdf8;border-radius:8px;background:linear-gradient(135deg,rgba(7,12,22,.94),rgba(8,47,73,.48));padding:10px 12px;margin:0 0 8px;box-shadow:0 14px 34px rgba(2,6,23,.28)}
         .roxy-folder-head a{color:#e0f2fe!important;text-decoration:none!important;border:1px solid rgba(125,211,252,.34);border-radius:6px;background:rgba(2,6,23,.48);padding:7px 9px;font-size:11px;font-weight:900;white-space:nowrap}
         .roxy-folder-head span{display:block;color:#8bd8ff;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}
@@ -35794,6 +35839,7 @@ def main() -> None:
         @media (max-width:760px){.block-container{padding-top:0!important;padding-left:.25rem!important;padding-right:.25rem!important;max-width:100vw!important}[data-testid="stHeader"]{display:none!important}.roxy-reference-stage,.roxy-reference-stage *{box-sizing:border-box}.roxy-reference-stage{grid-template-columns:68px minmax(0,1fr) 90px;grid-template-areas:"left center right" "modules modules modules";min-height:min(550px,72vh);width:100%;max-width:100%;padding:9px 6px 10px;gap:3px;align-items:center;overflow:hidden}.roxy-reference-stage .roxy-stage-center{min-height:390px;align-self:end;min-width:0}.roxy-reference-stage .roxy-stage-center:before{width:min(310px,80vw);height:72%}.roxy-reference-stage .roxy-stage-center .roxy-hologram-avatar{width:min(218px,52vw);aspect-ratio:.70/1}.roxy-reference-stage .roxy-hologram-name strong{font-size:34px;letter-spacing:.07em}.roxy-reference-stage .roxy-hologram-name span{font-size:8px;letter-spacing:.18em}.roxy-reference-stage .roxy-holo-pedestal{bottom:13%;width:98%;height:24%}.roxy-reference-stage .roxy-audio-wave{height:32px;padding:5px 8px;gap:3px}.roxy-reference-stage .roxy-audio-wave i{width:2px}.roxy-reference-stage .roxy-stage-left{display:grid;position:relative;left:auto;top:auto;width:100%;min-width:0;z-index:3;align-self:center;gap:8px}.roxy-reference-stage .roxy-stage-bubble{width:100%;padding:7px 6px;border-radius:8px;background:rgba(2,6,23,.48);max-width:none}.roxy-reference-stage .roxy-stage-bubble strong{font-size:12px;line-height:1.08}.roxy-reference-stage .roxy-stage-bubble span{font-size:8px;line-height:1.12;margin-top:6px}.roxy-reference-stage .roxy-stage-live-msg{height:20px;margin-top:6px}.roxy-reference-stage .roxy-stage-live-msg small{font-size:6.8px;line-height:1.12}.roxy-reference-stage .roxy-stage-bubble i{width:4px;height:4px;margin:6px 3px 0 0}.roxy-reference-stage .roxy-stage-wave{display:flex;width:100%;height:28px;padding:4px 2px;gap:1px;background:transparent;border:0}.roxy-reference-stage .roxy-stage-wave b{width:2px}.roxy-reference-stage .roxy-stage-right{display:grid;position:relative;right:auto;top:auto;width:100%;min-width:0;z-index:3;align-self:start;justify-items:end;gap:4px}.roxy-reference-stage .roxy-stage-brand{width:100%;justify-items:end}.roxy-reference-stage .roxy-stage-brand .brand-logo-img{width:84px;max-width:100%}.roxy-reference-stage .roxy-stage-brand span{font-size:6px;letter-spacing:.06em}.roxy-reference-stage .roxy-stage-brand strong{display:block;font-size:8px;line-height:1.05;text-align:right;max-width:84px}.roxy-reference-stage .roxy-stage-values{display:grid;width:88px;gap:4px}.roxy-reference-stage .roxy-stage-values div{grid-template-columns:13px minmax(0,1fr);gap:3px;padding:4px 3px;border-radius:6px;background:rgba(15,23,42,.38);min-width:0}.roxy-reference-stage .roxy-stage-values div:before{width:12px;height:12px;border-radius:4px}.roxy-reference-stage .roxy-stage-values span{font-size:4.45px;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:clip}.roxy-reference-stage .roxy-stage-values strong{display:none}.roxy-reference-stage .roxy-stage-status{display:none}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(6,minmax(0,1fr));gap:0;background:linear-gradient(90deg,transparent,rgba(2,6,23,.34) 9%,rgba(2,6,23,.42) 91%,transparent);padding-top:6px;margin-top:0;width:100%;max-width:100%;min-width:0;overflow:hidden}.roxy-reference-stage .roxy-stage-module{padding:2px 1px 0;border-right:1px solid rgba(125,211,252,.16);min-width:0;max-width:100%;overflow:hidden}.roxy-reference-stage .roxy-stage-module:last-child{border-right:0}.roxy-reference-stage .roxy-stage-module b{width:28px;height:28px;margin-bottom:5px;font-size:8px}.roxy-reference-stage .roxy-stage-module b:after{animation-duration:4.6s}.roxy-reference-stage .roxy-stage-module span{font-size:5.4px;line-height:1.02;letter-spacing:.02em;overflow-wrap:anywhere;word-break:break-word;hyphens:auto;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.roxy-reference-stage .roxy-stage-module strong{font-size:5.3px;line-height:1.08;min-height:17px;margin-top:3px;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}}
         @media (max-width:760px){.roxy-reference-stage{grid-template-columns:66px minmax(0,1fr) 86px;grid-template-areas:"top top top" "left center right" "modules modules modules" "live live live";min-height:auto;width:100%;max-width:100%;padding:7px 5px 10px;gap:4px;align-items:center;overflow:hidden}.roxy-ref-topbar{grid-template-columns:22px 76px minmax(0,1fr) 24px 30px;gap:6px;min-height:42px;padding-bottom:6px;margin:0}.roxy-ref-logo .brand-logo-img{width:74px;max-width:74px}.roxy-ref-welcome strong{font-size:10px}.roxy-ref-welcome span{font-size:7px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.roxy-ref-alert{width:24px;height:24px}.roxy-ref-alert b{width:12px;height:12px;font-size:7px}.roxy-ref-mini-avatar .roxy-avatar{width:28px;height:28px}.roxy-reference-stage .roxy-stage-center{min-height:382px;align-self:end;min-width:0}.roxy-reference-stage .roxy-stage-center:before{width:min(330px,84vw);height:74%}.roxy-reference-stage .roxy-stage-center .roxy-hologram-avatar{width:min(236px,56vw);aspect-ratio:.70/1}.roxy-reference-stage .roxy-hologram-name strong{font-size:38px;letter-spacing:.08em}.roxy-reference-stage .roxy-hologram-name span{font-size:8px;letter-spacing:.18em}.roxy-reference-stage .roxy-stage-left{display:grid;position:relative;left:auto;top:auto;width:100%;min-width:0;z-index:3;align-self:center;gap:7px}.roxy-reference-stage .roxy-stage-bubble{width:100%;padding:7px 6px;border-radius:8px;background:rgba(2,6,23,.52);max-width:none}.roxy-reference-stage .roxy-stage-bubble strong{font-size:12px;line-height:1.08}.roxy-reference-stage .roxy-stage-bubble span{font-size:8px;line-height:1.12;margin-top:6px}.roxy-reference-stage .roxy-stage-live-msg{height:20px;margin-top:6px}.roxy-reference-stage .roxy-stage-live-msg small{font-size:6.8px;line-height:1.12}.roxy-reference-stage .roxy-stage-wave{grid-template-columns:1fr;height:auto;min-height:30px;width:100%;padding:4px 2px;gap:2px;background:transparent;border:0}.roxy-reference-stage .roxy-stage-wave span{font-size:0}.roxy-reference-stage .roxy-stage-wave div{height:28px;gap:1px}.roxy-reference-stage .roxy-stage-wave b{width:2px}.roxy-reference-stage .roxy-stage-right{display:grid;position:relative;right:auto;top:auto;width:100%;min-width:0;z-index:3;align-self:start;justify-items:end;gap:4px}.roxy-reference-stage .roxy-stage-brand{width:100%;justify-items:end}.roxy-reference-stage .roxy-stage-brand span{font-size:6px;letter-spacing:.06em}.roxy-reference-stage .roxy-stage-brand strong{display:block;font-size:8px;line-height:1.05;text-align:right;max-width:84px}.roxy-reference-stage .roxy-stage-values{display:grid;width:86px;gap:4px}.roxy-reference-stage .roxy-stage-values div{grid-template-columns:13px minmax(0,1fr);gap:3px;padding:4px 3px;border-radius:6px;background:rgba(15,23,42,.38);min-width:0}.roxy-reference-stage .roxy-stage-values div:before{width:12px;height:12px;border-radius:4px}.roxy-reference-stage .roxy-stage-values span{font-size:4.4px;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:clip}.roxy-reference-stage .roxy-stage-values strong,.roxy-reference-stage .roxy-stage-values em,.roxy-reference-stage .roxy-stage-status{display:none}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(5,minmax(0,1fr));gap:0;background:linear-gradient(90deg,transparent,rgba(2,6,23,.34) 9%,rgba(2,6,23,.42) 91%,transparent);padding-top:7px;margin-top:0;width:100%;max-width:100%;min-width:0;overflow:hidden}.roxy-reference-stage .roxy-stage-module{padding:2px 1px 0;border-right:1px solid rgba(125,211,252,.16);min-width:0;max-width:100%;overflow:hidden}.roxy-reference-stage .roxy-stage-module:last-child{border-right:0}.roxy-reference-stage .roxy-stage-module b{width:31px;height:31px;margin-bottom:5px;font-size:8px}.roxy-reference-stage .roxy-stage-module span{font-size:6px;line-height:1.02;letter-spacing:.02em;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.roxy-reference-stage .roxy-stage-module strong{font-size:5.7px;line-height:1.08;min-height:18px;margin-top:3px;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.roxy-ref-live-grid{grid-template-columns:1fr;grid-template-areas:"chart" "movers" "events" "assistant";gap:7px;margin-top:7px}.roxy-ref-panel{padding:8px}.roxy-ref-movers,.roxy-ref-events{display:grid;grid-template-columns:1fr 1fr;gap:5px}.roxy-ref-movers>span,.roxy-ref-events>span,.roxy-ref-movers>a,.roxy-ref-events>a{grid-column:1/-1}.roxy-ref-movers div,.roxy-ref-events div{margin-top:3px;padding-bottom:4px}.roxy-ref-candle-chart{height:132px}.roxy-ref-assistant{grid-template-columns:38px minmax(0,1fr);gap:8px}.roxy-ref-assistant a{grid-column:1/-1;margin-top:2px}}
         @media (max-width:430px){.roxy-stage-center{min-height:245px}.roxy-stage-center .roxy-hologram-avatar{width:min(255px,90vw)}.roxy-stage-title strong{font-size:38px}.roxy-stage-modules{grid-template-columns:repeat(2,minmax(0,1fr))}.roxy-stage-module:nth-child(n+5){display:block}.roxy-stage-module{padding:7px 5px}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(5,minmax(0,1fr))}.roxy-reference-stage .roxy-stage-module{padding:2px 1px 0}.roxy-reference-stage .roxy-stage-center .roxy-hologram-avatar{width:min(228px,58vw)}}
+        @media (max-width:760px){.roxy-reference-stage{grid-template-columns:104px minmax(0,1fr) 104px!important;grid-template-areas:"top top top" "left center right" "modules modules modules" "live live live" "nav nav nav"!important;gap:5px!important;min-height:0!important;padding:7px 5px 8px!important;overflow:hidden}.roxy-ref-topbar{grid-template-columns:24px 78px minmax(0,1fr) 24px 31px!important}.roxy-reference-stage .roxy-stage-center{min-height:305px!important;align-self:end}.roxy-reference-stage .roxy-stage-center .roxy-hologram-avatar{width:min(232px,61vw)!important;aspect-ratio:.72/1!important}.roxy-reference-stage .roxy-stage-center:before{width:min(318px,84vw)!important;height:82%!important}.roxy-reference-stage .roxy-hologram-name strong{font-size:39px!important;letter-spacing:.08em}.roxy-reference-stage .roxy-hologram-name span{font-size:7.6px!important}.roxy-reference-stage .roxy-audio-wave{height:23px!important;bottom:9%!important;padding:3px 7px!important}.roxy-reference-stage .roxy-stage-left{gap:4px!important;align-self:center}.roxy-reference-stage .roxy-stage-bubble{padding:6px!important}.roxy-reference-stage .roxy-stage-bubble strong{font-size:12px!important}.roxy-reference-stage .roxy-stage-bubble span{font-size:7.5px!important}.roxy-reference-stage .roxy-stage-live-msg{height:15px!important}.roxy-reference-stage .roxy-stage-wave{display:grid!important;grid-template-columns:1fr!important;min-height:29px!important;border:1px solid rgba(125,211,252,.18)!important;border-radius:8px!important;background:rgba(2,6,23,.28)!important;padding:3px!important}.roxy-reference-stage .roxy-stage-wave span{font-size:5.5px!important;text-align:left}.roxy-reference-stage .roxy-stage-wave div{height:20px!important}.roxy-reference-stage .roxy-ref-market-summary{display:block!important;padding:5px 6px}.roxy-reference-stage .roxy-ref-market-summary>span{font-size:5.6px;margin-bottom:3px}.roxy-reference-stage .roxy-ref-market-summary div{padding:2px 0;gap:2px 4px}.roxy-reference-stage .roxy-ref-market-summary strong,.roxy-reference-stage .roxy-ref-market-summary b{font-size:6.2px}.roxy-reference-stage .roxy-ref-market-summary em,.roxy-reference-stage .roxy-ref-market-summary small{font-size:5.3px}.roxy-reference-stage .roxy-stage-status{display:block!important;padding:6px!important}.roxy-reference-stage .roxy-stage-status span{font-size:5.6px!important}.roxy-reference-stage .roxy-stage-status strong{font-size:13px!important;margin-top:4px}.roxy-reference-stage .roxy-stage-status small{font-size:5.8px!important;line-height:1.18}.roxy-reference-stage .roxy-stage-status a{font-size:5.5px!important;padding:4px 6px;margin-top:5px}.roxy-reference-stage .roxy-stage-right{gap:4px!important;justify-items:stretch}.roxy-reference-stage .roxy-stage-brand{justify-items:end!important}.roxy-reference-stage .roxy-stage-brand span{font-size:5.6px!important}.roxy-reference-stage .roxy-stage-brand strong{font-size:7.3px!important;max-width:94px!important}.roxy-reference-stage .roxy-stage-values{display:grid!important;width:100%!important;gap:4px!important}.roxy-reference-stage .roxy-stage-values div{display:grid!important;grid-template-columns:16px minmax(0,1fr)!important;gap:4px!important;padding:5px 5px 7px!important}.roxy-reference-stage .roxy-stage-values div:before{width:14px!important;height:14px!important}.roxy-reference-stage .roxy-stage-values span{font-size:5px!important}.roxy-reference-stage .roxy-stage-values strong{display:block!important;font-size:5.6px!important;line-height:1.1}.roxy-reference-stage .roxy-stage-values em{display:block!important;font-size:5.4px!important}.roxy-reference-stage .roxy-stage-values div:after{height:3px!important;margin-top:2px}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(5,minmax(0,1fr))!important;padding-top:8px!important;margin-top:1px!important}.roxy-reference-stage .roxy-stage-module{position:relative!important;padding:2px 2px 0!important}.roxy-reference-stage .roxy-stage-module em{top:0!important;min-width:13px!important;height:13px!important;font-size:5.8px!important;transform:translateX(8px)!important}.roxy-reference-stage .roxy-stage-module b{width:34px!important;height:34px!important;font-size:7.5px!important;margin-bottom:4px!important}.roxy-reference-stage .roxy-stage-module span{font-size:5.8px!important;line-height:1.02!important}.roxy-reference-stage .roxy-stage-module strong{font-size:5.1px!important;min-height:16px!important}.roxy-ref-live-grid{grid-template-columns:1.05fr 1.85fr .95fr!important;grid-template-areas:"movers chart events" "bot assistant actions"!important;gap:6px!important;margin-top:5px!important}.roxy-ref-panel{padding:6px!important}.roxy-ref-chart{min-width:0}.roxy-ref-chart header{gap:4px;margin-bottom:4px}.roxy-ref-chart header span{font-size:6.4px!important}.roxy-ref-chart header strong{font-size:9px!important}.roxy-ref-chart header b{font-size:7.2px!important}.roxy-ref-timeframes{gap:3px;margin-bottom:4px}.roxy-ref-timeframes i{min-width:21px;height:19px;font-size:6.4px}.roxy-ref-candle-chart{height:128px!important;background-size:27px 27px}.roxy-ref-candle-chart b{width:6px}.roxy-ref-movers,.roxy-ref-events{display:block!important}.roxy-ref-movers div,.roxy-ref-events div{display:flex!important;margin-top:5px!important;padding-bottom:3px!important}.roxy-ref-panel span{font-size:6.4px!important}.roxy-ref-panel strong{font-size:8.2px!important}.roxy-ref-panel b{font-size:7.1px!important}.roxy-ref-panel a{font-size:5.8px!important}.roxy-ref-events b{font-size:5.8px!important}.roxy-ref-bot{min-height:76px!important;padding:0!important}.roxy-ref-bot .roxy-hologram-avatar{width:60px!important}.roxy-ref-assistant{grid-template-columns:28px minmax(0,1fr)!important;gap:5px!important}.roxy-ref-assistant .roxy-avatar{width:26px!important;height:26px!important}.roxy-ref-assistant p{font-size:6.2px!important;line-height:1.12}.roxy-ref-assistant p strong{font-size:8px!important}.roxy-ref-assistant a{grid-column:1/-1!important}.roxy-ref-actions{gap:4px!important}.roxy-ref-actions a{min-height:21px!important;padding:4px 5px!important;font-size:5.8px!important}.roxy-ref-bottomnav{display:grid!important;margin-top:5px!important;padding:4px 8px!important;border-radius:24px}.roxy-ref-bottomnav a{font-size:5.5px!important}.roxy-ref-bottomnav b{width:20px!important;height:20px!important;font-size:9px!important}.roxy-ref-bottomnav a.active b{width:38px!important;height:38px!important;font-size:18px!important;margin-top:-16px!important}}
         .roxy-trade-cockpit{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 160px minmax(250px,.9fr);gap:12px;align-items:center;border:1px solid rgba(56,189,248,.34);border-left:4px solid #d4af60;border-radius:8px;background:
             radial-gradient(circle at 50% 45%,rgba(56,189,248,.20),transparent 36%),
             linear-gradient(135deg,rgba(2,6,23,.92),rgba(8,47,73,.56) 52%,rgba(2,6,23,.92));padding:10px 12px;margin:0 0 8px;overflow:hidden;box-shadow:0 18px 48px rgba(2,6,23,.42),0 0 36px rgba(56,189,248,.10),inset 0 1px 0 rgba(255,255,255,.06)}
