@@ -478,8 +478,6 @@ def roxy_hologram_avatar_html(state: str = "listening", label: str = "Roxy Tradi
         f'<span class="roxy-neck-head" aria-hidden="true">{image_html}</span>'
         '<span class="roxy-face-glow"></span>'
         '<span class="roxy-face-life"></span>'
-        '<span class="roxy-eye roxy-eye-left"></span>'
-        '<span class="roxy-eye roxy-eye-right"></span>'
         '</div>'
         '<div class="roxy-audio-wave" aria-hidden="true">'
         f"{wave_bars}"
@@ -35828,9 +35826,7 @@ def main() -> None:
         .roxy-avatar-core:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(180deg,rgba(125,211,252,.12) 0 1px,transparent 1px 7px);opacity:.18;pointer-events:none}
         .roxy-face-glow{position:absolute;inset:6%;z-index:3;border-radius:50%;box-shadow:0 0 34px rgba(56,189,248,.25);pointer-events:none}
         .roxy-face-life{position:absolute;left:50%;top:45%;z-index:3;width:54%;height:40%;border-radius:50%;background:radial-gradient(ellipse at 50% 50%,rgba(125,211,252,.24),rgba(125,211,252,.08) 42%,transparent 70%);mix-blend-mode:screen;opacity:.28;transform:translate(-50%,-50%);animation:roxyFaceAlive 4.4s ease-in-out infinite;pointer-events:none}
-        .roxy-gaze,.roxy-mouth,.roxy-lip,.roxy-blink{display:none!important}
-        .roxy-eye{position:absolute;top:36.2%;z-index:5;width:12.8%;height:3.6%;border-radius:999px;background:linear-gradient(180deg,rgba(5,10,18,.76),rgba(15,23,42,.22));box-shadow:none;opacity:0;animation:roxyEyeLid 4.8s infinite;pointer-events:none}
-        .roxy-eye-left{left:32.5%;animation-delay:.08s}.roxy-eye-right{right:32.2%;animation-delay:.12s}
+        .roxy-gaze,.roxy-mouth,.roxy-lip,.roxy-blink,.roxy-eye{display:none!important}
         .roxy-hologram-speaking .roxy-avatar-core{animation:roxyHumanBodyStill 5.8s ease-in-out infinite}
         .roxy-hologram-speaking .roxy-avatar-core>img{animation:roxyPortraitLookAround 8.4s ease-in-out infinite}
         .roxy-hologram-speaking .roxy-mouth{display:none!important}
