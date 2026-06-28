@@ -32614,6 +32614,201 @@ def roxy_actions_sparkline_svg(symbol: str, market: str = "stock") -> str:
     )
 
 
+def roxy_crypto_ccxt_symbol_candidates(symbol: str) -> list[str]:
+    raw = text_display(symbol).strip().upper().replace("-", "/")
+    base = roxy_crypto_base_symbol(raw)
+    quote = raw.split("/", 1)[1] if "/" in raw else "USD"
+    candidates = []
+    for candidate_quote in (quote, "USD", "USDT", "USDC"):
+        if base and candidate_quote:
+            candidates.append(f"{base}/{candidate_quote}")
+    return list(dict.fromkeys(candidates))
+
+
+@st.cache_data(ttl=5, show_spinner=False)
+def roxy_crypto_history_for_signal(symbol: str, timeframe: str, limit: int = 180) -> pd.DataFrame:
+    for candidate in roxy_crypto_ccxt_symbol_candidates(symbol):
+        try:
+            frame = fetch_crypto_history_fast(candidate, timeframe=timeframe, limit=limit)
+        except Exception:
+            continue
+        if isinstance(frame, pd.DataFrame) and not frame.empty and "close" in frame.columns:
+            out = frame.copy()
+            out["symbol_used"] = candidate
+            return out
+    return pd.DataFrame()
+
+
+def roxy_crypto_cycle_window(kind: str, now: datetime | None = None) -> dict[str, Any]:
+    current = now or datetime.now()
+    normalized = text_display(kind).lower()
+    if normalized == "20m":
+        next_minute = ((current.minute // 20) + 1) * 20
+        if next_minute >= 60:
+            next_dt = current.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+        else:
+            next_dt = current.replace(minute=next_minute, second=0, microsecond=0)
+        last_dt = next_dt - timedelta(minutes=20)
+        cycle_seconds = 20 * 60
+        mode = "mmss"
+    elif normalized == "2h":
+        anchor = current.replace(hour=0, minute=30, second=0, microsecond=0)
+        while anchor <= current:
+            anchor += timedelta(hours=2)
+        next_dt = anchor
+        last_dt = next_dt - timedelta(hours=2)
+        cycle_seconds = 2 * 60 * 60
+        mode = "hhmmss"
+    else:
+        next_dt = current.replace(hour=10, minute=30, second=0, microsecond=0)
+        if next_dt <= current:
+            next_dt += timedelta(days=1)
+        last_dt = next_dt - timedelta(days=1)
+        cycle_seconds = 24 * 60 * 60
+        mode = "hhmmss"
+    remaining = max(0, int((next_dt - current).total_seconds()))
+    return {
+        "now": current,
+        "last": last_dt,
+        "next": next_dt,
+        "remaining": remaining,
+        "countdown": f"{remaining // 60:02d}:{remaining % 60:02d}" if mode == "mmss" else f"{remaining // 3600:02d}:{(remaining % 3600) // 60:02d}:{remaining % 60:02d}",
+        "mode": mode,
+        "cycle_ms": cycle_seconds * 1000,
+        "next_ts_ms": int(next_dt.timestamp() * 1000),
+        "current_time_label": current.strftime("%I:%M %p").lstrip("0"),
+        "last_time_label": last_dt.strftime("%I:%M %p").lstrip("0"),
+        "next_time_label": next_dt.strftime("%I:%M %p").lstrip("0"),
+        "next_day_label": "Hoy" if next_dt.date() == current.date() else f"Manana {next_dt.strftime('%I:%M %p').lstrip('0')}",
+    }
+
+
+@st.cache_data(ttl=5, show_spinner=False)
+def roxy_crypto_horizon_signal(symbol: str, horizon: str) -> dict[str, Any]:
+    profile = text_display(horizon).lower()
+    if profile == "20m":
+        timeframe, limit, horizon_bars, horizon_label = "1m", 140, 20, "20 minutos"
+    elif profile == "2h":
+        timeframe, limit, horizon_bars, horizon_label = "5m", 180, 24, "2 horas"
+    else:
+        timeframe, limit, horizon_bars, horizon_label = "1h", 220, 24, "daily"
+    frame = roxy_crypto_history_for_signal(symbol, timeframe, limit)
+    empty_result = {
+        "symbol": text_display(symbol).upper(),
+        "direction": "Esperar",
+        "action": "Sin datos live",
+        "tone": "watch",
+        "price": None,
+        "expected_price": None,
+        "above_price": None,
+        "below_price": None,
+        "primary_side": "WAIT",
+        "primary_label": "Esperar",
+        "confidence": 0,
+        "probability": 0,
+        "forecast_pct": None,
+        "momentum_pct": None,
+        "short_momentum_pct": None,
+        "volatility_pct": None,
+        "source": "sin_velas_crypto",
+        "horizon_label": horizon_label,
+        "next_step": "No operar hasta recibir velas reales del exchange.",
+    }
+    if not isinstance(frame, pd.DataFrame) or frame.empty or "close" not in frame.columns:
+        return empty_result
+    data = frame.copy()
+    for column in ("open", "high", "low", "close", "volume"):
+        if column in data.columns:
+            data[column] = pd.to_numeric(data[column], errors="coerce")
+    data = data.dropna(subset=["close"]).tail(limit)
+    if len(data) < max(30, horizon_bars + 8):
+        result = dict(empty_result)
+        result.update({"source": "historial_crypto_corto", "next_step": "Esperar mas velas reales antes de decidir arriba/abajo."})
+        return result
+    close = data["close"]
+    price = safe_float(close.iloc[-1])
+    if price is None or price <= 0:
+        result = dict(empty_result)
+        result.update({"source": "precio_crypto_invalido"})
+        return result
+    ema_fast_span = 9 if profile == "20m" else (20 if profile == "2h" else 20)
+    ema_slow_span = 21 if profile == "20m" else (40 if profile == "2h" else 50)
+    ema_fast = close.ewm(span=ema_fast_span, adjust=False).mean()
+    ema_slow = close.ewm(span=ema_slow_span, adjust=False).mean()
+    long_prior = safe_float(close.iloc[-horizon_bars - 1]) if len(close) > horizon_bars else safe_float(close.iloc[0])
+    short_window = max(3, min(horizon_bars // 4, 8))
+    short_prior = safe_float(close.iloc[-short_window - 1]) if len(close) > short_window else safe_float(close.iloc[0])
+    momentum = ((price / long_prior) - 1.0) if long_prior else 0.0
+    short_momentum = ((price / short_prior) - 1.0) if short_prior else 0.0
+    ema_spread = ((safe_float(ema_fast.iloc[-1]) or price) / ((safe_float(ema_slow.iloc[-1]) or price) or price) - 1.0)
+    returns = close.pct_change().replace([float("inf"), float("-inf")], pd.NA).dropna()
+    bar_vol = safe_float(returns.tail(max(20, horizon_bars)).std()) or 0.001
+    expected_vol = min(0.18, max(0.001, bar_vol * math.sqrt(horizon_bars)))
+    drift = (momentum * 0.50) + (short_momentum * 0.25) + (ema_spread * 0.25)
+    max_projection = max(expected_vol * 1.45, 0.001)
+    forecast_pct = max(-max_projection, min(max_projection, drift))
+    if abs(forecast_pct) < max(0.00035, expected_vol * 0.18):
+        primary_side = "WAIT"
+        direction = "Esperar"
+    elif forecast_pct > 0:
+        primary_side = "ABOVE"
+        direction = "Arriba"
+    else:
+        primary_side = "BELOW"
+        direction = "Abajo"
+    expected_price = price * (1.0 + forecast_pct)
+    threshold_gap = max(price * 0.00035, abs(expected_price - price) * 0.48, price * expected_vol * 0.22)
+    above_price = price + threshold_gap
+    below_price = price - threshold_gap
+    trend_aligned = (primary_side == "ABOVE" and price >= (safe_float(ema_fast.iloc[-1]) or price) >= (safe_float(ema_slow.iloc[-1]) or price)) or (
+        primary_side == "BELOW" and price <= (safe_float(ema_fast.iloc[-1]) or price) <= (safe_float(ema_slow.iloc[-1]) or price)
+    )
+    edge = abs(forecast_pct) / expected_vol if expected_vol else 0.0
+    confidence = 42
+    confidence += 20 if primary_side != "WAIT" else -8
+    confidence += 15 if trend_aligned else 0
+    confidence += 12 if (momentum > 0 and short_momentum > 0 and primary_side == "ABOVE") or (momentum < 0 and short_momentum < 0 and primary_side == "BELOW") else 0
+    confidence += 10 if edge >= 0.85 else (4 if edge >= 0.55 else 0)
+    confidence = int(max(0, min(92, round(confidence))))
+    tone = "buy" if confidence >= 72 and primary_side != "WAIT" else ("watch" if confidence >= 54 else "avoid")
+    action = (
+        f"Paper {direction} {horizon_label}"
+        if tone == "buy"
+        else (f"Vigilar {horizon_label}" if primary_side != "WAIT" else f"Esperar {horizon_label}")
+    )
+    if primary_side == "ABOVE":
+        primary_label = f"Will be above {price_display(above_price)}"
+        next_step = f"Solo paper/manual: arriba de {price_display(above_price)} en {horizon_label}; confirmar spread, liquidez y timer."
+    elif primary_side == "BELOW":
+        primary_label = f"Will be below {price_display(below_price)}"
+        next_step = f"Solo paper/manual: abajo de {price_display(below_price)} en {horizon_label}; confirmar spread, liquidez y timer."
+    else:
+        primary_label = "Esperar confirmacion"
+        next_step = "No operar: momentum, medias y volatilidad no dan ventaja suficiente ahora."
+    source_symbol = text_display(data["symbol_used"].iloc[-1]) if "symbol_used" in data.columns else roxy_crypto_ccxt_symbol_candidates(symbol)[0]
+    return {
+        "symbol": text_display(symbol).upper(),
+        "direction": direction,
+        "action": action,
+        "tone": tone,
+        "price": price,
+        "expected_price": expected_price,
+        "above_price": above_price,
+        "below_price": below_price,
+        "primary_side": primary_side,
+        "primary_label": primary_label,
+        "confidence": confidence,
+        "probability": confidence,
+        "forecast_pct": forecast_pct,
+        "momentum_pct": momentum,
+        "short_momentum_pct": short_momentum,
+        "volatility_pct": expected_vol,
+        "source": f"BinanceUS {source_symbol} {timeframe}",
+        "horizon_label": horizon_label,
+        "next_step": next_step,
+    }
+
+
 def roxy_actions_change_pct(row: dict[str, Any]) -> float | None:
     for key in ("change_pct", "pct_change", "daily_change_pct", "regular_change_pct", "momentum_pct"):
         value = safe_float(row.get(key))
@@ -32810,8 +33005,13 @@ def render_roxy_crypto20_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         return
     selected_market = "crypto"
     selected_timeframe = "1m" if selected_timeframe not in {"1m", "5m", "15m", "1h"} else selected_timeframe
-    action, tone = roxy_row_recommendation(selected_row)
     resolved_symbol = resolve_symbol_query(selected_symbol, selected_market)
+    horizon_signal = roxy_crypto_horizon_signal(resolved_symbol, "20m")
+    signal_action = text_display(horizon_signal.get("action"))
+    action, tone = roxy_row_recommendation(selected_row)
+    if signal_action and signal_action != "Sin datos live":
+        action = signal_action
+        tone = text_display(horizon_signal.get("tone") or tone)
     trade_plan = roxy_trade_plan_from_row(
         selected_row,
         symbol=resolved_symbol,
@@ -32819,8 +33019,9 @@ def render_roxy_crypto20_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         timeframe=selected_timeframe,
         action=action,
     )
-    price = price_display(selected_row.get("current_price") or selected_row.get("price") or selected_row.get("last_price"))
-    entry = price_display(selected_row.get("entry") or selected_row.get("current_price") or selected_row.get("price"))
+    live_signal_price = safe_float(horizon_signal.get("price"))
+    price = price_display(live_signal_price or selected_row.get("current_price") or selected_row.get("price") or selected_row.get("last_price"))
+    entry = price_display(live_signal_price or selected_row.get("entry") or selected_row.get("current_price") or selected_row.get("price"))
     stop = price_display(selected_row.get("stop") or selected_row.get("stop_loss"))
     target = price_display(
         selected_row.get("target_price") or selected_row.get("target") or selected_row.get("recommended_target_price")
@@ -32829,25 +33030,24 @@ def render_roxy_crypto20_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     selected_change = roxy_actions_change_pct(selected_row)
     selected_change_text = pct_display(selected_change) if selected_change is not None else "+0.11%"
     selected_change_class = "positive" if (selected_change or 0) >= 0 else "negative"
-    current_price_value = safe_float(selected_row.get("current_price") or selected_row.get("price") or selected_row.get("last_price"))
+    current_price_value = live_signal_price or safe_float(selected_row.get("current_price") or selected_row.get("price") or selected_row.get("last_price"))
     entry_value = safe_float(selected_row.get("entry")) or current_price_value
     target_value = safe_float(selected_row.get("target_price") or selected_row.get("target") or selected_row.get("recommended_target_price"))
     if target_value is None and entry_value is not None:
         target_value = entry_value * 1.004
-    above_price = price_display(target_value or entry_value)
-    below_price = price_display((safe_float(selected_row.get("stop") or selected_row.get("stop_loss")) or entry_value or 0) or None)
-    now_dt = datetime.now()
-    next_minute = ((now_dt.minute // 20) + 1) * 20
-    if next_minute >= 60:
-        next_dt = now_dt.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-    else:
-        next_dt = now_dt.replace(minute=next_minute, second=0, microsecond=0)
-    remaining = max(0, int((next_dt - now_dt).total_seconds()))
-    countdown = f"{remaining // 60:02d}:{remaining % 60:02d}"
-    current_time_label = now_dt.strftime("%I:%M %p").lstrip("0")
-    next_time_label = next_dt.strftime("%I:%M %p").lstrip("0")
-    next_ts_ms = int(next_dt.timestamp() * 1000)
-    cycle_ms = 20 * 60 * 1000
+    above_price = price_display(horizon_signal.get("above_price") or target_value or entry_value)
+    below_price = price_display(horizon_signal.get("below_price") or (safe_float(selected_row.get("stop") or selected_row.get("stop_loss")) or entry_value or 0) or None)
+    cycle = roxy_crypto_cycle_window("20m")
+    countdown = text_display(cycle.get("countdown"))
+    current_time_label = text_display(cycle.get("current_time_label"))
+    next_time_label = text_display(cycle.get("next_time_label"))
+    next_ts_ms = int(cycle.get("next_ts_ms") or 0)
+    cycle_ms = int(cycle.get("cycle_ms") or 20 * 60 * 1000)
+    primary_side = text_display(horizon_signal.get("primary_side") or "WAIT")
+    above_decision = "Yes" if primary_side == "ABOVE" else ("Wait" if primary_side == "WAIT" else "No")
+    below_decision = "Yes" if primary_side == "BELOW" else ("Wait" if primary_side == "WAIT" else "No")
+    probability = int(max(0, min(99, safe_float(horizon_signal.get("probability")) or 0)))
+    signal_detail = text_display(horizon_signal.get("next_step") or "Esperar confirmacion.")
     selected_display_symbol = roxy_crypto_display_symbol(selected_symbol)
     nav_items = [
         ("home", "Inicio", "Dashboard"),
@@ -32875,14 +33075,18 @@ def render_roxy_crypto20_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     for idx, row in enumerate(rows[:6], start=1):
         symbol = text_display(row.get("symbol")).upper()
         display_symbol = roxy_crypto_display_symbol(symbol)
+        row_signal = roxy_crypto_horizon_signal(resolve_symbol_query(symbol, "crypto"), "20m")
         row_action, row_tone = roxy_row_recommendation(row)
-        row_price = price_display(row.get("current_price") or row.get("price") or row.get("last_price"))
-        row_entry = price_display(row.get("entry") or row.get("current_price") or row.get("price"))
+        if text_display(row_signal.get("action")) and text_display(row_signal.get("action")) != "Sin datos live":
+            row_action = text_display(row_signal.get("action"))
+            row_tone = text_display(row_signal.get("tone") or row_tone)
+        row_price = price_display(row_signal.get("price") or row.get("current_price") or row.get("price") or row.get("last_price"))
+        row_entry = price_display(row_signal.get("price") or row.get("entry") or row.get("current_price") or row.get("price"))
         row_stop = price_display(row.get("stop") or row.get("stop_loss"))
         row_target = price_display(row.get("target_price") or row.get("target") or row.get("recommended_target_price"))
-        row_score = int(max(0, min(99, safe_float(row.get("readiness") or row.get("alert_readiness_score")) or (79 - idx * 5))))
+        row_score = int(max(0, min(99, safe_float(row_signal.get("probability")) or safe_float(row.get("readiness") or row.get("alert_readiness_score")) or (79 - idx * 5))))
         row_change = roxy_actions_change_pct(row)
-        row_change_text = pct_display(row_change) if row_change is not None else f"+{max(0.11, 0.72 - idx * .08):.2f}%"
+        row_change_text = pct_display(row_signal.get("forecast_pct") if safe_float(row_signal.get("forecast_pct")) is not None else row_change) if (safe_float(row_signal.get("forecast_pct")) is not None or row_change is not None) else "live"
         selected_class = " selected" if symbol == selected_symbol else ""
         opp_html_parts.append(
             textwrap.dedent(
@@ -32894,7 +33098,7 @@ def render_roxy_crypto20_folder(table: pd.DataFrame, *, timeframe: str) -> None:
                   <span class="asset"><strong>{html.escape(display_symbol)}</strong><small>{html.escape(row_change_text)}</small></span>
                   <span class="price"><strong>{html.escape(row_price)}</strong><small>live quote</small></span>
                   <span class="trend">{roxy_actions_sparkline_svg(symbol, "crypto")}</span>
-                  <span class="signal"><strong>{html.escape(row_action)}</strong><small>Entrada {html.escape(row_entry)}<br>Stop {html.escape(row_stop)} · Target {html.escape(row_target)}</small></span>
+                  <span class="signal"><strong>{html.escape(row_action)}</strong><small>{html.escape(text_display(row_signal.get("primary_label") or "Esperar"))}<br>Ahora {html.escape(row_entry)} · Fuente {html.escape(text_display(row_signal.get("source") or "live"))}</small></span>
                   <span class="score"><b>{row_score}%</b><small>{html.escape(next_time_label)}</small></span>
                   <i class="material-symbols-outlined fav">star</i>
                 </a>
@@ -32911,6 +33115,13 @@ def render_roxy_crypto20_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         f'<p>{roxy_crypto_icon_html(text_display(row.get("symbol")).upper())}<span>{html.escape(roxy_crypto_display_symbol(text_display(row.get("symbol")).upper()))}: vela y volumen actualizados con datos del proveedor.</span></p>'
         for row in rows[:3]
     )
+    summary_signals = [roxy_crypto_horizon_signal(resolve_symbol_query(text_display(row.get("symbol")).upper(), "crypto"), "20m") for row in rows[:5]]
+    usable_signals = [item for item in summary_signals if safe_float(item.get("probability")) is not None]
+    avg_confidence = int(round(sum(float(item.get("probability") or 0) for item in usable_signals) / max(1, len(usable_signals))))
+    above_count = sum(1 for item in summary_signals if item.get("primary_side") == "ABOVE")
+    below_count = sum(1 for item in summary_signals if item.get("primary_side") == "BELOW")
+    wait_count = sum(1 for item in summary_signals if item.get("primary_side") == "WAIT")
+    sentiment_label = "Alcista" if above_count > below_count and above_count >= wait_count else ("Bajista" if below_count > above_count and below_count >= wait_count else "Esperar")
     st.markdown(
         f"""
         <section class="roxy-crypto20-shell">
@@ -32950,8 +33161,8 @@ def render_roxy_crypto20_folder(table: pd.DataFrame, *, timeframe: str) -> None:
           </main>
           <aside class="roxy-crypto20-right">
             <section class="roxy-crypto20-countdown" data-roxy-countdown="crypto-20m" data-countdown-mode="mmss" data-next-ts="{next_ts_ms}" data-cycle-ms="{cycle_ms}"><strong>Proxima actualizacion en:</strong><div><b data-roxy-countdown-value>{html.escape(countdown)}</b><span>min seg</span></div><p><span>Ultima actualizacion:<b>{html.escape(current_time_label)}</b></span><span>Siguiente:<b>{html.escape(next_time_label)}</b></span></p><i><u></u><u></u><u></u><u></u></i></section>
-            <section class="roxy-crypto20-signal"><strong>Oportunidad destacada</strong><div>{roxy_crypto_icon_html(selected_symbol)}<span><b>{html.escape(selected_display_symbol)}</b><small>{html.escape(action)}</small></span><em>{html.escape(action)}</em></div><p><span>Entrada <b>{html.escape(entry)}</b></span><span>Stop Loss <b>{html.escape(stop)}</b></span><span>Target 1 <b>{html.escape(target)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>R/R <b>1R : 2.0R</b></span><span>Probabilidad <b>71%</b></span></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1m" target="_self">Abrir en plataforma</a></section>
-            <section class="roxy-crypto20-platform"><strong>Plataforma recomendada</strong><small>Deriv · Opciones 20 minutos</small><div class="selects"><span>{roxy_crypto_icon_html(selected_symbol)} {html.escape(roxy_crypto_base_symbol(selected_symbol))}</span><span>{html.escape(next_time_label)} (20 mins)</span></div><p><span>{html.escape(roxy_crypto_base_symbol(selected_symbol))} will be above <b>{html.escape(above_price)}</b></span><em class="yes">Yes</em></p><p><span>{html.escape(roxy_crypto_base_symbol(selected_symbol))} will be below <b>{html.escape(below_price)}</b></span><em class="no">No</em></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1m" target="_self">Ir a Deriv</a><small>Roxy recomienda operar en 20 minutos para mayor precision.</small></section>
+            <section class="roxy-crypto20-signal"><strong>Oportunidad destacada</strong><div>{roxy_crypto_icon_html(selected_symbol)}<span><b>{html.escape(selected_display_symbol)}</b><small>{html.escape(action)}</small></span><em>{html.escape(text_display(horizon_signal.get("direction") or action))}</em></div><p><span>Ahora <b>{html.escape(entry)}</b></span><span>Precio esperado <b>{html.escape(price_display(horizon_signal.get("expected_price")))}</b></span><span>Above strike <b>{html.escape(above_price)}</b></span><span>Below strike <b>{html.escape(below_price)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>Confianza <b>{probability}%</b></span></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1m" target="_self">Abrir en plataforma</a></section>
+            <section class="roxy-crypto20-platform"><strong>Plataforma recomendada</strong><small>Crypto.com / Deriv · Opciones 20 minutos</small><div class="selects"><span>{roxy_crypto_icon_html(selected_symbol)} {html.escape(roxy_crypto_base_symbol(selected_symbol))}</span><span>{html.escape(next_time_label)} (20 mins)</span></div><p><span>{html.escape(roxy_crypto_base_symbol(selected_symbol))} will be above <b>{html.escape(above_price)}</b></span><em class="yes">{html.escape(above_decision)}</em></p><p><span>{html.escape(roxy_crypto_base_symbol(selected_symbol))} will be below <b>{html.escape(below_price)}</b></span><em class="no">{html.escape(below_decision)}</em></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1m" target="_self">Ir a plataforma</a><small>{html.escape(signal_detail)}</small></section>
           </aside>
         </section>
         <section class="roxy-crypto20-chart-wrap">
@@ -32973,7 +33184,7 @@ def render_roxy_crypto20_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         f"""
           <section class="roxy-crypto20-bottom">
             <article class="alerts"><strong>Alertas activas 20min</strong>{alert_html}<a href="?view=Dashboard&module=crypto-20m&alerts=1" target="_self">Ver todas las alertas</a></article>
-            <article class="sentiment"><strong>Sentimiento del mercado</strong><div><b>78%</b><span>Alcista</span></div><p><span>Alcista <b>78%</b></span><span>Neutral <b>15%</b></span><span>Bajista <b>7%</b></span></p></article>
+            <article class="sentiment"><strong>Sentimiento 20min real</strong><div><b>{avg_confidence}%</b><span>{html.escape(sentiment_label)}</span></div><p><span>Above <b>{above_count}</b></span><span>Wait <b>{wait_count}</b></span><span>Below <b>{below_count}</b></span></p></article>
             <article class="news"><strong>Noticias relevantes</strong>{news_html}<a href="?view=Dashboard&module=crypto-20m&news=1" target="_self">Ver todas las noticias</a></article>
             <article class="tips"><strong>Recordatorios de Roxy</strong><p><i class="material-symbols-outlined">check_box</i> Usa 1R por operacion</p><p><i class="material-symbols-outlined">check_box</i> Respeta tu stop loss</p><p><i class="material-symbols-outlined">check_box</i> No operes por emocion</p><p><i class="material-symbols-outlined">check_box_outline_blank</i> Espera confirmacion</p><a href="?view=Dashboard&module=crypto-20m&tips=1" target="_self">Ver tips de Roxy</a></article>
           </section>
@@ -32998,8 +33209,13 @@ def render_roxy_crypto2h_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         return
     selected_market = "crypto"
     selected_timeframe = "2h" if selected_timeframe not in {"2h", "4h", "1h", "1d"} else selected_timeframe
-    action, tone = roxy_row_recommendation(selected_row)
     resolved_symbol = resolve_symbol_query(selected_symbol, selected_market)
+    horizon_signal = roxy_crypto_horizon_signal(resolved_symbol, "2h")
+    signal_action = text_display(horizon_signal.get("action"))
+    action, tone = roxy_row_recommendation(selected_row)
+    if signal_action and signal_action != "Sin datos live":
+        action = signal_action
+        tone = text_display(horizon_signal.get("tone") or tone)
     trade_plan = roxy_trade_plan_from_row(
         selected_row,
         symbol=resolved_symbol,
@@ -33007,8 +33223,9 @@ def render_roxy_crypto2h_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         timeframe=selected_timeframe,
         action=action,
     )
-    price = price_display(selected_row.get("current_price") or selected_row.get("price") or selected_row.get("last_price"))
-    entry = price_display(selected_row.get("entry") or selected_row.get("current_price") or selected_row.get("price"))
+    live_signal_price = safe_float(horizon_signal.get("price"))
+    price = price_display(live_signal_price or selected_row.get("current_price") or selected_row.get("price") or selected_row.get("last_price"))
+    entry = price_display(live_signal_price or selected_row.get("entry") or selected_row.get("current_price") or selected_row.get("price"))
     stop = price_display(selected_row.get("stop") or selected_row.get("stop_loss"))
     target = price_display(
         selected_row.get("target_price") or selected_row.get("target") or selected_row.get("recommended_target_price")
@@ -33017,24 +33234,24 @@ def render_roxy_crypto2h_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     selected_change = roxy_actions_change_pct(selected_row)
     selected_change_text = pct_display(selected_change) if selected_change is not None else "+0.31%"
     selected_change_class = "positive" if (selected_change or 0) >= 0 else "negative"
-    entry_value = safe_float(selected_row.get("entry") or selected_row.get("current_price") or selected_row.get("price"))
+    entry_value = live_signal_price or safe_float(selected_row.get("entry") or selected_row.get("current_price") or selected_row.get("price"))
     target_value = safe_float(selected_row.get("target_price") or selected_row.get("target") or selected_row.get("recommended_target_price"))
     if target_value is None and entry_value is not None:
         target_value = entry_value * 1.007
-    above_price = price_display(target_value or entry_value)
-    below_price = price_display((safe_float(selected_row.get("stop") or selected_row.get("stop_loss")) or entry_value or 0) or None)
-    now_dt = datetime.now()
-    next_dt = now_dt.replace(minute=30, second=0, microsecond=0)
-    while next_dt <= now_dt:
-        next_dt += timedelta(hours=2)
-    last_dt = next_dt - timedelta(hours=2)
-    remaining = max(0, int((next_dt - now_dt).total_seconds()))
-    countdown = f"{remaining // 3600:02d}:{(remaining % 3600) // 60:02d}:{remaining % 60:02d}"
-    current_time_label = now_dt.strftime("%I:%M %p").lstrip("0")
-    last_time_label = last_dt.strftime("%I:%M %p").lstrip("0")
-    next_time_label = next_dt.strftime("%I:%M %p").lstrip("0")
-    next_ts_ms = int(next_dt.timestamp() * 1000)
-    cycle_ms = 2 * 60 * 60 * 1000
+    above_price = price_display(horizon_signal.get("above_price") or target_value or entry_value)
+    below_price = price_display(horizon_signal.get("below_price") or (safe_float(selected_row.get("stop") or selected_row.get("stop_loss")) or entry_value or 0) or None)
+    cycle = roxy_crypto_cycle_window("2h")
+    countdown = text_display(cycle.get("countdown"))
+    current_time_label = text_display(cycle.get("current_time_label"))
+    last_time_label = text_display(cycle.get("last_time_label"))
+    next_time_label = text_display(cycle.get("next_time_label"))
+    next_ts_ms = int(cycle.get("next_ts_ms") or 0)
+    cycle_ms = int(cycle.get("cycle_ms") or 2 * 60 * 60 * 1000)
+    primary_side = text_display(horizon_signal.get("primary_side") or "WAIT")
+    above_decision = "Yes" if primary_side == "ABOVE" else ("Wait" if primary_side == "WAIT" else "No")
+    below_decision = "Yes" if primary_side == "BELOW" else ("Wait" if primary_side == "WAIT" else "No")
+    probability = int(max(0, min(99, safe_float(horizon_signal.get("probability")) or 0)))
+    signal_detail = text_display(horizon_signal.get("next_step") or "Esperar confirmacion.")
     selected_display_symbol = roxy_crypto_display_symbol(selected_symbol)
     nav_items = [
         ("home", "Inicio", "Dashboard"),
@@ -33062,14 +33279,18 @@ def render_roxy_crypto2h_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     for idx, row in enumerate(rows[:5], start=1):
         symbol = text_display(row.get("symbol")).upper()
         display_symbol = roxy_crypto_display_symbol(symbol)
+        row_signal = roxy_crypto_horizon_signal(resolve_symbol_query(symbol, "crypto"), "2h")
         row_action, row_tone = roxy_row_recommendation(row)
-        row_price = price_display(row.get("current_price") or row.get("price") or row.get("last_price"))
-        row_entry = price_display(row.get("entry") or row.get("current_price") or row.get("price"))
+        if text_display(row_signal.get("action")) and text_display(row_signal.get("action")) != "Sin datos live":
+            row_action = text_display(row_signal.get("action"))
+            row_tone = text_display(row_signal.get("tone") or row_tone)
+        row_price = price_display(row_signal.get("price") or row.get("current_price") or row.get("price") or row.get("last_price"))
+        row_entry = price_display(row_signal.get("price") or row.get("entry") or row.get("current_price") or row.get("price"))
         row_stop = price_display(row.get("stop") or row.get("stop_loss"))
         row_target = price_display(row.get("target_price") or row.get("target") or row.get("recommended_target_price"))
-        row_score = int(max(0, min(99, safe_float(row.get("readiness") or row.get("alert_readiness_score")) or (83 - idx * 5))))
+        row_score = int(max(0, min(99, safe_float(row_signal.get("probability")) or safe_float(row.get("readiness") or row.get("alert_readiness_score")) or (83 - idx * 5))))
         row_change = roxy_actions_change_pct(row)
-        row_change_text = pct_display(row_change) if row_change is not None else f"+{max(0.19, 0.72 - idx * .10):.2f}%"
+        row_change_text = pct_display(row_signal.get("forecast_pct") if safe_float(row_signal.get("forecast_pct")) is not None else row_change) if (safe_float(row_signal.get("forecast_pct")) is not None or row_change is not None) else "live"
         selected_class = " selected" if symbol == selected_symbol else ""
         opp_html_parts.append(
             textwrap.dedent(
@@ -33081,7 +33302,7 @@ def render_roxy_crypto2h_folder(table: pd.DataFrame, *, timeframe: str) -> None:
                   <span class="asset"><strong>{html.escape(display_symbol)}</strong><small>{html.escape(row_change_text)}</small></span>
                   <span class="price"><strong>{html.escape(row_price)}</strong><small>live quote</small></span>
                   <span class="trend">{roxy_actions_sparkline_svg(symbol, "crypto")}</span>
-                  <span class="signal"><strong>{html.escape(row_action)}</strong><small>Tendencia alcista<br>Entrada {html.escape(row_entry)} · Stop {html.escape(row_stop)} · Target {html.escape(row_target)}</small></span>
+                  <span class="signal"><strong>{html.escape(row_action)}</strong><small>{html.escape(text_display(row_signal.get("primary_label") or "Esperar"))}<br>Ahora {html.escape(row_entry)} · Fuente {html.escape(text_display(row_signal.get("source") or "live"))}</small></span>
                   <span class="score"><b>{row_score}%</b><small>{html.escape(next_time_label)}</small></span>
                   <i class="material-symbols-outlined fav">star</i>
                 </a>
@@ -33093,6 +33314,16 @@ def render_roxy_crypto2h_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         f'<p>{roxy_crypto_icon_html(text_display(row.get("symbol")).upper())}<span>{html.escape(roxy_crypto_display_symbol(text_display(row.get("symbol")).upper()))}</span><b>{html.escape(price_display(row.get("entry") or row.get("current_price") or row.get("price")))}</b></p>'
         for row in rows[:4]
     )
+    summary_signals = [roxy_crypto_horizon_signal(resolve_symbol_query(text_display(row.get("symbol")).upper(), "crypto"), "2h") for row in rows[:5]]
+    usable_signals = [item for item in summary_signals if safe_float(item.get("probability")) is not None]
+    avg_confidence = int(round(sum(float(item.get("probability") or 0) for item in usable_signals) / max(1, len(usable_signals))))
+    above_count = sum(1 for item in summary_signals if item.get("primary_side") == "ABOVE")
+    below_count = sum(1 for item in summary_signals if item.get("primary_side") == "BELOW")
+    wait_count = sum(1 for item in summary_signals if item.get("primary_side") == "WAIT")
+    total_signals = max(1, len(summary_signals))
+    buy_count = sum(1 for item in summary_signals if text_display(item.get("tone")) == "buy")
+    watch_count = sum(1 for item in summary_signals if text_display(item.get("tone")) == "watch")
+    avoid_count = max(0, total_signals - buy_count - watch_count)
     st.markdown(
         f"""
         <section class="roxy-crypto20-shell roxy-crypto2h-shell">
@@ -33132,8 +33363,8 @@ def render_roxy_crypto2h_folder(table: pd.DataFrame, *, timeframe: str) -> None:
           </main>
           <aside class="roxy-crypto20-right">
             <section class="roxy-crypto20-countdown roxy-crypto2h-countdown" data-roxy-countdown="crypto-2h" data-countdown-mode="hhmmss" data-next-ts="{next_ts_ms}" data-cycle-ms="{cycle_ms}"><strong>Proxima actualizacion en:</strong><div><b data-roxy-countdown-value>{html.escape(countdown)}</b><span>hr min seg</span></div><p><span>Ultima actualizacion:<b>{html.escape(last_time_label)}</b></span><span>Siguiente:<b>{html.escape(next_time_label)}</b></span></p><i><u></u><u></u><u></u><u></u></i></section>
-            <section class="roxy-crypto20-signal"><strong>Oportunidad destacada 2H</strong><div>{roxy_crypto_icon_html(selected_symbol)}<span><b>{html.escape(selected_display_symbol)}</b><small>{html.escape(action)}</small></span><em>{html.escape(action)}</em></div><p><span>Entrada sugerida <b>{html.escape(entry)}</b></span><span>Stop Loss <b>{html.escape(stop)}</b></span><span>Target 1 <b>{html.escape(target)}</b></span><span>Target 2 <b>{html.escape(above_price)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>R/R <b>1R : 2.0R</b></span><span>Probabilidad de exito <b>78%</b></span></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=2h" target="_self">Abrir en plataforma</a></section>
-            <section class="roxy-crypto20-platform"><strong>Plataforma recomendada</strong><small>Deriv · Opciones 2 horas</small><div class="selects"><span>{roxy_crypto_icon_html(selected_symbol)} {html.escape(roxy_crypto_base_symbol(selected_symbol))}</span><span>{html.escape(next_time_label)} (2 hours)</span></div><p><span>{html.escape(roxy_crypto_base_symbol(selected_symbol))} will be above <b>{html.escape(above_price)}</b></span><em class="yes">Yes</em></p><p><span>{html.escape(roxy_crypto_base_symbol(selected_symbol))} will be below <b>{html.escape(below_price)}</b></span><em class="no">No</em></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=2h" target="_self">Ir a Deriv</a><small>Roxy te recomienda operar en 2 horas para mayor confirmacion y mejor gestion del riesgo.</small></section>
+            <section class="roxy-crypto20-signal"><strong>Oportunidad destacada 2H</strong><div>{roxy_crypto_icon_html(selected_symbol)}<span><b>{html.escape(selected_display_symbol)}</b><small>{html.escape(action)}</small></span><em>{html.escape(text_display(horizon_signal.get("direction") or action))}</em></div><p><span>Ahora <b>{html.escape(entry)}</b></span><span>Precio esperado <b>{html.escape(price_display(horizon_signal.get("expected_price")))}</b></span><span>Above strike <b>{html.escape(above_price)}</b></span><span>Below strike <b>{html.escape(below_price)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>Confianza <b>{probability}%</b></span></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=2h" target="_self">Abrir en plataforma</a></section>
+            <section class="roxy-crypto20-platform"><strong>Plataforma recomendada</strong><small>Crypto.com / Deriv · Opciones 2 horas</small><div class="selects"><span>{roxy_crypto_icon_html(selected_symbol)} {html.escape(roxy_crypto_base_symbol(selected_symbol))}</span><span>{html.escape(next_time_label)} (2 hours)</span></div><p><span>{html.escape(roxy_crypto_base_symbol(selected_symbol))} will be above <b>{html.escape(above_price)}</b></span><em class="yes">{html.escape(above_decision)}</em></p><p><span>{html.escape(roxy_crypto_base_symbol(selected_symbol))} will be below <b>{html.escape(below_price)}</b></span><em class="no">{html.escape(below_decision)}</em></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=2h" target="_self">Ir a plataforma</a><small>{html.escape(signal_detail)}</small></section>
           </aside>
         </section>
         <section class="roxy-crypto20-chart-wrap roxy-crypto2h-chart-wrap">
@@ -33155,8 +33386,8 @@ def render_roxy_crypto2h_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         f"""
           <section class="roxy-crypto20-bottom roxy-crypto2h-bottom">
             <article class="alerts"><strong>Alertas activas 2H</strong>{alert_html}<a href="?view=Dashboard&module=crypto-2h&alerts=1" target="_self">Ver todas las alertas</a></article>
-            <article class="distribution"><strong>Distribucion de oportunidades</strong><div><b>Total<br>28</b></div><p><span>Compra <b>75%</b></span><span>Neutral <b>14%</b></span><span>Evitar <b>11%</b></span></p></article>
-            <article class="performance"><strong>Rendimiento 2H simulado</strong><div><b>+12.8%</b><span>Ultimos 7 dias</span></div><p><span>Operaciones ganadoras <b>18</b></span><span>Operaciones totales <b>24</b></span><span>Win rate <b>75%</b></span></p><a href="?view=Dashboard&module=crypto-2h&stats=1" target="_self">Ver estadisticas</a></article>
+            <article class="distribution"><strong>Distribucion real 2H</strong><div><b>Total<br>{total_signals}</b></div><p><span>Above <b>{above_count}</b></span><span>Wait <b>{wait_count}</b></span><span>Below <b>{below_count}</b></span></p></article>
+            <article class="performance"><strong>Calidad 2H actual</strong><div><b>{avg_confidence}%</b><span>Confianza promedio</span></div><p><span>Listas <b>{buy_count}</b></span><span>Vigilancia <b>{watch_count}</b></span><span>Evitar <b>{avoid_count}</b></span></p><a href="?view=Dashboard&module=crypto-2h&stats=1" target="_self">Ver estadisticas</a></article>
             <article class="tips"><strong>Recordatorios de Roxy</strong><p><i class="material-symbols-outlined">check_box</i> Usa 1R por operacion</p><p><i class="material-symbols-outlined">check_box</i> Respeta tu stop loss</p><p><i class="material-symbols-outlined">check_box</i> No operes por emocion</p><p><i class="material-symbols-outlined">check_box_outline_blank</i> Espera confirmacion</p><a href="?view=Dashboard&module=crypto-2h&tips=1" target="_self">Ver tips de Roxy</a></article>
           </section>
           <nav class="roxy-crypto20-bottomnav"><a href="?view=Dashboard" target="_self"><i class="material-symbols-outlined">home</i>Inicio</a><a class="active" href="?view=Dashboard&module=crypto-2h" target="_self"><i class="material-symbols-outlined">bar_chart</i>Mercados</a><a class="roxy-r" href="?view=Dashboard" target="_self">R</a><a href="?view=Dashboard&module=classroom" target="_self"><i class="material-symbols-outlined">school</i>Classes Room</a><a href="?view=Dashboard&module=progreso" target="_self"><i class="material-symbols-outlined">person</i>Mi Progreso</a></nav>
@@ -33180,8 +33411,13 @@ def render_roxy_crypto_daily_folder(table: pd.DataFrame, *, timeframe: str) -> N
         return
     selected_market = "crypto"
     selected_timeframe = "1d" if selected_timeframe not in {"1d", "1w", "4h"} else selected_timeframe
-    action, tone = roxy_row_recommendation(selected_row)
     resolved_symbol = resolve_symbol_query(selected_symbol, selected_market)
+    horizon_signal = roxy_crypto_horizon_signal(resolved_symbol, "daily")
+    signal_action = text_display(horizon_signal.get("action"))
+    action, tone = roxy_row_recommendation(selected_row)
+    if signal_action and signal_action != "Sin datos live":
+        action = signal_action
+        tone = text_display(horizon_signal.get("tone") or tone)
     trade_plan = roxy_trade_plan_from_row(
         selected_row,
         symbol=resolved_symbol,
@@ -33189,7 +33425,7 @@ def render_roxy_crypto_daily_folder(table: pd.DataFrame, *, timeframe: str) -> N
         timeframe=selected_timeframe,
         action=action,
     )
-    current_value = safe_float(selected_row.get("current_price") or selected_row.get("price") or selected_row.get("last_price"))
+    current_value = safe_float(horizon_signal.get("price")) or safe_float(selected_row.get("current_price") or selected_row.get("price") or selected_row.get("last_price"))
     price = price_display(current_value)
     entry = price_display(selected_row.get("entry") or current_value)
     stop_value = safe_float(selected_row.get("stop") or selected_row.get("stop_loss"))
@@ -33200,24 +33436,26 @@ def render_roxy_crypto_daily_folder(table: pd.DataFrame, *, timeframe: str) -> N
         target_value = current_value * 1.058
     stop = price_display(stop_value)
     target = price_display(target_value)
-    target_2 = price_display((target_value * 1.052) if target_value else None)
+    target_2 = price_display(horizon_signal.get("expected_price") or ((target_value * 1.052) if target_value else None))
     risk = pct_display(selected_row.get("risk_pct")) if safe_float(selected_row.get("risk_pct")) is not None else "1.0%"
     selected_change = roxy_actions_change_pct(selected_row)
     selected_change_text = pct_display(selected_change) if selected_change is not None else "+0.31%"
     selected_change_class = "positive" if (selected_change or 0) >= 0 else "negative"
     selected_display_symbol = roxy_crypto_display_symbol(selected_symbol)
-    now_dt = datetime.now()
-    next_dt = now_dt.replace(hour=10, minute=30, second=0, microsecond=0)
-    if next_dt <= now_dt:
-        next_dt += timedelta(days=1)
-    remaining = max(0, int((next_dt - now_dt).total_seconds()))
-    countdown = f"{remaining // 3600:02d}:{(remaining % 3600) // 60:02d}:{remaining % 60:02d}"
-    current_time_label = now_dt.strftime("%I:%M %p").lstrip("0")
-    next_time_label = next_dt.strftime("%I:%M %p").lstrip("0")
-    next_day_label = "Hoy" if next_dt.date() == now_dt.date() else f"Manana {next_time_label}"
-    next_ts_ms = int(next_dt.timestamp() * 1000)
-    cycle_ms = 24 * 60 * 60 * 1000
+    cycle = roxy_crypto_cycle_window("daily")
+    countdown = text_display(cycle.get("countdown"))
+    current_time_label = text_display(cycle.get("current_time_label"))
+    next_day_label = text_display(cycle.get("next_day_label"))
+    next_ts_ms = int(cycle.get("next_ts_ms") or 0)
+    cycle_ms = int(cycle.get("cycle_ms") or 24 * 60 * 60 * 1000)
     base_symbol = roxy_crypto_base_symbol(selected_symbol)
+    above_price = price_display(horizon_signal.get("above_price") or target_value)
+    below_price = price_display(horizon_signal.get("below_price") or stop_value)
+    primary_side = text_display(horizon_signal.get("primary_side") or "WAIT")
+    above_decision = "Yes" if primary_side == "ABOVE" else ("Wait" if primary_side == "WAIT" else "No")
+    below_decision = "Yes" if primary_side == "BELOW" else ("Wait" if primary_side == "WAIT" else "No")
+    probability = int(max(0, min(99, safe_float(horizon_signal.get("probability")) or 0)))
+    signal_detail = text_display(horizon_signal.get("next_step") or "Esperar confirmacion.")
     key_levels = []
     if current_value:
         level_specs = [
@@ -33258,14 +33496,18 @@ def render_roxy_crypto_daily_folder(table: pd.DataFrame, *, timeframe: str) -> N
     for idx, row in enumerate(rows[:5], start=1):
         symbol = text_display(row.get("symbol")).upper()
         display_symbol = roxy_crypto_display_symbol(symbol)
+        row_signal = roxy_crypto_horizon_signal(resolve_symbol_query(symbol, "crypto"), "daily")
         row_action, row_tone = roxy_row_recommendation(row)
-        row_price = price_display(row.get("current_price") or row.get("price") or row.get("last_price"))
-        row_current = safe_float(row.get("current_price") or row.get("price") or row.get("last_price"))
+        if text_display(row_signal.get("action")) and text_display(row_signal.get("action")) != "Sin datos live":
+            row_action = text_display(row_signal.get("action"))
+            row_tone = text_display(row_signal.get("tone") or row_tone)
+        row_price = price_display(row_signal.get("price") or row.get("current_price") or row.get("price") or row.get("last_price"))
+        row_current = safe_float(row_signal.get("price") or row.get("current_price") or row.get("price") or row.get("last_price"))
         row_support = price_display((row_current * 0.96) if row_current else row.get("stop") or row.get("stop_loss"))
         row_resistance = price_display((row_current * 1.055) if row_current else row.get("target_price") or row.get("target"))
-        row_score = int(max(0, min(99, safe_float(row.get("readiness") or row.get("alert_readiness_score")) or (87 - idx * 5))))
+        row_score = int(max(0, min(99, safe_float(row_signal.get("probability")) or safe_float(row.get("readiness") or row.get("alert_readiness_score")) or (87 - idx * 5))))
         row_change = roxy_actions_change_pct(row)
-        row_change_text = pct_display(row_change) if row_change is not None else f"+{max(0.19, 0.76 - idx * .10):.2f}%"
+        row_change_text = pct_display(row_signal.get("forecast_pct") if safe_float(row_signal.get("forecast_pct")) is not None else row_change) if (safe_float(row_signal.get("forecast_pct")) is not None or row_change is not None) else "live"
         selected_class = " selected" if symbol == selected_symbol else ""
         opp_html_parts.append(
             textwrap.dedent(
@@ -33277,7 +33519,7 @@ def render_roxy_crypto_daily_folder(table: pd.DataFrame, *, timeframe: str) -> N
                   <span class="asset"><strong>{html.escape(display_symbol)}</strong><small>{html.escape(row_change_text)}</small></span>
                   <span class="price"><strong>{html.escape(row_price)}</strong><small>live quote</small></span>
                   <span class="trend">{roxy_actions_sparkline_svg(symbol, "crypto")}</span>
-                  <span class="signal"><strong>{html.escape(row_action)}</strong><small>Tendencia alcista<br>Estructura solida</small></span>
+                  <span class="signal"><strong>{html.escape(row_action)}</strong><small>{html.escape(text_display(row_signal.get("primary_label") or "Esperar"))}<br>Fuente {html.escape(text_display(row_signal.get("source") or "live"))}</small></span>
                   <span class="score"><b>{row_score}%</b><small>Soporte {html.escape(row_support)}<br>Resistencia {html.escape(row_resistance)}</small></span>
                   <i class="material-symbols-outlined fav">star</i>
                 </a>
@@ -33294,6 +33536,11 @@ def render_roxy_crypto_daily_folder(table: pd.DataFrame, *, timeframe: str) -> N
         '<p><i class="material-symbols-outlined">event</i><span>PCE EE.UU.</span><b>En 2 dias</b></p>'
         '<p><i class="material-symbols-outlined">event</i><span>Reunion Fed</span><b>Manana</b></p>'
     )
+    daily_forecast = pct_display(horizon_signal.get("forecast_pct"))
+    daily_momentum = pct_display(horizon_signal.get("momentum_pct"))
+    daily_volatility = pct_display(horizon_signal.get("volatility_pct"))
+    daily_confidence = int(max(0, min(99, safe_float(horizon_signal.get("probability")) or 0)))
+    daily_direction = text_display(horizon_signal.get("direction") or "Esperar")
     st.markdown(
         f"""
         <section class="roxy-crypto20-shell roxy-crypto-daily-shell">
@@ -33333,8 +33580,8 @@ def render_roxy_crypto_daily_folder(table: pd.DataFrame, *, timeframe: str) -> N
           </main>
           <aside class="roxy-crypto20-right">
             <section class="roxy-crypto20-countdown roxy-crypto-daily-countdown" data-roxy-countdown="crypto-daily" data-countdown-mode="hhmmss" data-next-ts="{next_ts_ms}" data-cycle-ms="{cycle_ms}"><strong>Proxima actualizacion en:</strong><div><b data-roxy-countdown-value>{html.escape(countdown)}</b><span>hr min seg</span></div><p><span>Ultima actualizacion:<b>Hoy {html.escape(current_time_label)}</b></span><span>Siguiente:<b>{html.escape(next_day_label)}</b></span></p><i><u></u><u></u><u></u><u></u></i></section>
-            <section class="roxy-crypto20-signal"><strong>Oportunidad destacada</strong><div>{roxy_crypto_icon_html(selected_symbol)}<span><b>{html.escape(selected_display_symbol)}</b><small>{html.escape(action)}</small></span><em>{html.escape(action)}</em></div><p><span>Entrada sugerida <b>{html.escape(entry)}</b></span><span>Stop Loss <b>{html.escape(stop)}</b></span><span>Target 1 <b>{html.escape(target)}</b></span><span>Target 2 <b>{html.escape(target_2)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>R/R <b>1R : 2.6R</b></span><span>Probabilidad de exito <b>82%</b></span></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1d" target="_self">Abrir en plataforma</a></section>
-            <section class="roxy-crypto20-platform"><strong>Plataforma recomendada</strong><small>Deriv · Opciones Daily (24 horas)</small><div class="selects"><span>{roxy_crypto_icon_html(selected_symbol)} {html.escape(base_symbol)}</span><span>{html.escape(next_day_label)}</span></div><p><span>{html.escape(base_symbol)} will be above <b>{html.escape(target)}</b></span><em class="yes">Yes</em></p><p><span>{html.escape(base_symbol)} will be below <b>{html.escape(stop)}</b></span><em class="no">No</em></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1d" target="_self">Ir a Deriv</a><small>Roxy recomienda operar solo las mejores oportunidades Daily para proteger tu capital.</small></section>
+            <section class="roxy-crypto20-signal"><strong>Oportunidad destacada</strong><div>{roxy_crypto_icon_html(selected_symbol)}<span><b>{html.escape(selected_display_symbol)}</b><small>{html.escape(action)}</small></span><em>{html.escape(text_display(horizon_signal.get("direction") or action))}</em></div><p><span>Ahora <b>{html.escape(entry)}</b></span><span>Precio esperado <b>{html.escape(price_display(horizon_signal.get("expected_price")))}</b></span><span>Above strike <b>{html.escape(above_price)}</b></span><span>Below strike <b>{html.escape(below_price)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>Confianza <b>{probability}%</b></span></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1d" target="_self">Abrir en plataforma</a></section>
+            <section class="roxy-crypto20-platform"><strong>Plataforma recomendada</strong><small>Crypto.com / Deriv · Opciones Daily (24 horas)</small><div class="selects"><span>{roxy_crypto_icon_html(selected_symbol)} {html.escape(base_symbol)}</span><span>{html.escape(next_day_label)}</span></div><p><span>{html.escape(base_symbol)} will be above <b>{html.escape(above_price)}</b></span><em class="yes">{html.escape(above_decision)}</em></p><p><span>{html.escape(base_symbol)} will be below <b>{html.escape(below_price)}</b></span><em class="no">{html.escape(below_decision)}</em></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1d" target="_self">Ir a plataforma</a><small>{html.escape(signal_detail)}</small></section>
           </aside>
         </section>
         <section class="roxy-crypto20-chart-wrap roxy-crypto-daily-chart-wrap">
@@ -33355,9 +33602,9 @@ def render_roxy_crypto_daily_folder(table: pd.DataFrame, *, timeframe: str) -> N
     st.markdown(
         f"""
           <section class="roxy-crypto20-bottom roxy-crypto-daily-insights">
-            <article class="macro"><strong>Tendencia macro del mercado</strong><div><b>{html.escape(price_display((current_value or 0) * 40_500))}</b><span>Capitalizacion estimada</span></div>{roxy_actions_sparkline_svg(selected_symbol, "crypto")}<a href="?view=Dashboard&module=crypto-daily&macro=1" target="_self">Ver detalle</a></article>
-            <article class="dominance"><strong>Dominancia BTC</strong><div><b>52.8%</b><span>+0.6% (24h)</span></div><p><span>BTC <b>52.8%</b></span><span>ETH <b>17.2%</b></span><span>Otros <b>30.0%</b></span></p><a href="?view=Dashboard&module=crypto-daily&dominance=1" target="_self">Ver detalle</a></article>
-            <article class="fear"><strong>Indice de miedo y codicia</strong><div><b>78</b><span>Codicia</span></div><p><span>Ayer <b>72</b></span><span>Semana pasada <b>65</b></span></p><a href="?view=Dashboard&module=crypto-daily&fear=1" target="_self">Ver historico</a></article>
+            <article class="macro"><strong>Forecast Daily real</strong><div><b>{html.escape(price_display(horizon_signal.get("expected_price")))}</b><span>{html.escape(daily_direction)} · {html.escape(daily_forecast)}</span></div>{roxy_actions_sparkline_svg(selected_symbol, "crypto")}<a href="?view=Dashboard&module=crypto-daily&macro=1" target="_self">Ver detalle</a></article>
+            <article class="dominance"><strong>Momentum Daily</strong><div><b>{html.escape(daily_momentum)}</b><span>Desde velas 1h</span></div><p><span>Volatilidad <b>{html.escape(daily_volatility)}</b></span><span>Fuente <b>BinanceUS</b></span></p><a href="?view=Dashboard&module=crypto-daily&dominance=1" target="_self">Ver detalle</a></article>
+            <article class="fear"><strong>Confianza direccional</strong><div><b>{daily_confidence}%</b><span>{html.escape(text_display(horizon_signal.get("primary_label") or "Esperar"))}</span></div><p><span>Above <b>{html.escape(above_decision)}</b></span><span>Below <b>{html.escape(below_decision)}</b></span></p><a href="?view=Dashboard&module=crypto-daily&fear=1" target="_self">Ver historico</a></article>
           </section>
           <section class="roxy-crypto20-bottom roxy-crypto-daily-bottom">
             <article class="levels"><strong>Niveles clave {html.escape(selected_display_symbol)}</strong>{key_levels_html}<a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1d" target="_self">Ver grafica completa</a></article>
