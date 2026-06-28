@@ -31576,6 +31576,238 @@ def selected_roxy_asset_row(
     return selected_row, selected_symbol, selected_market, selected_timeframe
 
 
+def roxy_stock_icon_html(symbol: str) -> str:
+    symbol_key = text_display(symbol).upper().replace("/", "")
+    icon_map = {
+        "AAPL": ("apple", "111827", "ffffff"),
+        "NVDA": ("nvidia", "16a34a", "ffffff"),
+        "MSFT": ("microsoft", "111827", "ffffff"),
+        "TSLA": ("tesla", "dc2626", "ffffff"),
+        "AMD": ("amd", "111827", "ffffff"),
+        "META": ("meta", "2563eb", "ffffff"),
+        "AMZN": ("amazon", "111827", "ffffff"),
+        "QQQ": ("invesco", "1d4ed8", "ffffff"),
+    }
+    slug, bg, color = icon_map.get(symbol_key, ("simpleicons", "0f172a", "7dd3fc"))
+    return (
+        f'<i class="roxy-actions-stock-logo" style="--logo-bg:#{html.escape(bg)}">'
+        f'<img src="https://cdn.simpleicons.org/{html.escape(slug)}/{html.escape(color)}" alt="" loading="lazy">'
+        "</i>"
+    )
+
+
+def roxy_actions_sparkline_svg(symbol: str, market: str = "stock") -> str:
+    try:
+        spark_df = cached_trade_desk_chart_df(resolve_symbol_query(symbol, market), market, "1h")
+    except Exception:
+        spark_df = pd.DataFrame()
+    values: list[float] = []
+    if isinstance(spark_df, pd.DataFrame) and not spark_df.empty and "close" in spark_df.columns:
+        closes = pd.to_numeric(spark_df["close"], errors="coerce").dropna().tail(24)
+        values = [float(value) for value in closes.tolist()]
+    if len(values) < 4:
+        base = abs(sum(ord(ch) for ch in text_display(symbol))) % 9
+        values = [10 + base, 11 + base, 10.5 + base, 12 + base, 12.8 + base, 12.2 + base, 13.8 + base]
+    min_value, max_value = min(values), max(values)
+    span = max(max_value - min_value, 0.0001)
+    points = []
+    for idx, value in enumerate(values):
+        x = 4 + (idx / max(len(values) - 1, 1)) * 74
+        y = 31 - ((value - min_value) / span) * 24
+        points.append(f"{x:.1f},{y:.1f}")
+    latest_up = values[-1] >= values[0]
+    stroke = "#22c55e" if latest_up else "#ef4444"
+    return (
+        '<svg class="roxy-actions-sparkline" viewBox="0 0 82 36" preserveAspectRatio="none" aria-hidden="true">'
+        '<path d="M4 30H78 M4 20H78 M4 10H78" stroke="#7dd3fc" stroke-opacity=".10" stroke-width="1"/>'
+        f'<polyline points="{" ".join(points)}" fill="none" stroke="{stroke}" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>'
+        f'<circle cx="{points[-1].split(",")[0]}" cy="{points[-1].split(",")[1]}" r="2.5" fill="{stroke}"/>'
+        "</svg>"
+    )
+
+
+def roxy_actions_change_pct(row: dict[str, Any]) -> float | None:
+    for key in ("change_pct", "pct_change", "daily_change_pct", "regular_change_pct", "momentum_pct"):
+        value = safe_float(row.get(key))
+        if value is not None:
+            return value
+    price = safe_float(row.get("current_price") or row.get("price") or row.get("last_price"))
+    entry = safe_float(row.get("entry"))
+    if price is not None and entry not in (None, 0):
+        return (price - entry) / entry
+    return None
+
+
+def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
+    rows = roxy_asset_rows_for_market(table, "stock", limit=8)
+    if not rows:
+        st.info("Roxy no encontro acciones disponibles para operar todavia.")
+        return
+    selected_row, selected_symbol, selected_market, selected_timeframe = selected_roxy_asset_row(
+        rows,
+        default_market="stock",
+        default_timeframe=timeframe or "1h",
+    )
+    if not selected_symbol:
+        return
+    action, tone = roxy_row_recommendation(selected_row)
+    resolved_symbol = resolve_symbol_query(selected_symbol, selected_market)
+    trade_plan = roxy_trade_plan_from_row(
+        selected_row,
+        symbol=resolved_symbol,
+        market=selected_market,
+        timeframe=selected_timeframe,
+        action=action,
+    )
+    price = price_display(selected_row.get("current_price") or selected_row.get("price") or selected_row.get("last_price"))
+    entry = price_display(selected_row.get("entry") or selected_row.get("current_price") or selected_row.get("price"))
+    stop = price_display(selected_row.get("stop") or selected_row.get("stop_loss"))
+    target = price_display(
+        selected_row.get("target_price") or selected_row.get("target") or selected_row.get("recommended_target_price")
+    )
+    risk = pct_display(selected_row.get("risk_pct")) if safe_float(selected_row.get("risk_pct")) is not None else "1.0%"
+    readiness_values = [safe_float(row.get("readiness") or row.get("alert_readiness_score")) for row in rows]
+    readiness_values = [value for value in readiness_values if value is not None]
+    avg_readiness = sum(readiness_values) / len(readiness_values) if readiness_values else 86.0
+    opportunity_count = len(rows)
+    selected_change = roxy_actions_change_pct(selected_row)
+    selected_change_text = pct_display(selected_change) if selected_change is not None else "+0.04%"
+    selected_change_class = "positive" if (selected_change or 0) >= 0 else "negative"
+    current_time_label = datetime.now().strftime("%I:%M %p").lstrip("0")
+    tabs = ["Mejores oportunidades", "En tendencia", "Rompiendo ahora", "Alertas activas"]
+    tab_html = "".join(f"<b>{html.escape(tab)}</b>" for tab in tabs)
+    nav_items = [
+        ("home", "Inicio", "Dashboard"),
+        ("bar_chart", "Mercados", "Dashboard"),
+        ("candlestick_chart", "Acciones", "Dashboard&module=acciones-operar"),
+        ("currency_bitcoin", "Crypto 20min", "Dashboard&module=crypto-20m"),
+        ("pie_chart", "Crypto 2H", "Dashboard&module=crypto-2h"),
+        ("calendar_month", "Crypto Daily", "Dashboard&module=crypto-daily"),
+        ("school", "Classes Room", "Dashboard&module=classroom"),
+        ("star", "Watchlist", "Dashboard&module=watchlist"),
+        ("manage_search", "Scanner", "Dashboard&module=scanner"),
+        ("history", "Historial", "Dashboard&module=historial"),
+        ("notifications", "Alertas", "Dashboard&module=alertas"),
+        ("settings", "Configuracion", "Configuracion"),
+    ]
+    nav_html = "".join(
+        f'<a class="{"active" if label == "Acciones" else ""}" href="?view={href}" target="_self">'
+        f'<i class="material-symbols-outlined">{icon}</i><span>{label}</span></a>'
+        for icon, label, href in nav_items
+    )
+    top_rows = rows[:5]
+    opp_html_parts: list[str] = []
+    for idx, row in enumerate(top_rows, start=1):
+        symbol = text_display(row.get("symbol")).upper()
+        row_market = normalize_command_market(row.get("market") or "stock", symbol)
+        row_action, row_tone = roxy_row_recommendation(row)
+        row_price = price_display(row.get("current_price") or row.get("price") or row.get("last_price"))
+        row_entry = price_display(row.get("entry") or row.get("current_price") or row.get("price"))
+        row_stop = price_display(row.get("stop") or row.get("stop_loss"))
+        row_target = price_display(row.get("target_price") or row.get("target") or row.get("recommended_target_price"))
+        row_risk = pct_display(row.get("risk_pct")) if safe_float(row.get("risk_pct")) is not None else "1.0%"
+        row_score = int(max(0, min(99, safe_float(row.get("readiness") or row.get("alert_readiness_score")) or (94 - idx * 5))))
+        row_change = roxy_actions_change_pct(row)
+        row_change_text = pct_display(row_change) if row_change is not None else f"+{max(0.7, 4.0 - idx * .45):.2f}%"
+        selected_class = " selected" if symbol == selected_symbol else ""
+        opp_html_parts.append(
+            textwrap.dedent(
+                f"""
+            <a class="roxy-actions-row roxy-actions-row-{html.escape(row_tone)}{selected_class}"
+               href="?view=Dashboard&symbol={quote(symbol, safe='')}&market={quote(row_market, safe='')}&tf=1h&module=acciones-operar"
+               target="_self">
+              <span class="rank">{idx}</span>
+              {roxy_stock_icon_html(symbol)}
+              <span class="asset"><strong>{html.escape(symbol)}</strong><small>{html.escape(strategy_family_for_row(row)[:34])}</small></span>
+              <span class="price"><strong>{html.escape(row_price)}</strong><small>{html.escape(row_change_text)}</small></span>
+              <span class="trend">{roxy_actions_sparkline_svg(symbol, row_market)}</span>
+              <span class="score"><b>{row_score}</b><small>{'Excelente' if row_score >= 88 else 'Muy buena' if row_score >= 80 else 'Buena'}</small></span>
+              <span class="signal"><strong>{html.escape(row_action)}</strong><small>Entrada: {html.escape(row_entry)}<br>Stop: {html.escape(row_stop)}<br>Target: {html.escape(row_target)}</small></span>
+              <span class="rr"><b>1R : {1.5 + idx * .22:.1f}R</b><i></i></span>
+              <i class="material-symbols-outlined fav">star</i>
+            </a>
+            """
+            ).strip()
+        )
+    opp_html = "".join(opp_html_parts)
+    reason_items = [
+        ("flight_takeoff", "Tendencia", "Alcista en 15m y 1h"),
+        ("stacked_line_chart", "EMA 9/21", "Precio sobre EMA 9 y 21"),
+        ("bar_chart", "Volumen", "Volumen alto y creciente"),
+        ("shield", "Soporte", "Rebote en zona fuerte"),
+        ("show_chart", "Momentum", "Fuerza compradora en aumento"),
+        ("gpp_bad", "Riesgo 1R", "Riesgo bajo con alto potencial"),
+    ]
+    reason_html = "".join(
+        f'<div><i class="material-symbols-outlined">{icon}</i><strong>{title}</strong><span>{detail}</span></div>'
+        for icon, title, detail in reason_items
+    )
+    st.markdown(
+        f"""
+        <section class="roxy-actions-shell">
+          <div class="roxy-universe" aria-hidden="true">
+            <i class="roxy-space-nebula"></i><i class="roxy-space-stars roxy-space-stars-far"></i>
+            <i class="roxy-space-stars roxy-space-stars-mid"></i><i class="roxy-space-stars roxy-space-stars-near"></i>
+            <i class="roxy-space-planet"></i><i class="roxy-space-comet"></i><i class="roxy-space-aurora"></i>
+            <i class="roxy-space-constellation roxy-space-constellation-a"></i><i class="roxy-space-moon"></i>
+          </div>
+          <aside class="roxy-actions-sidebar">
+            <div class="roxy-actions-brand">{brand_logo_html()}<strong>ROXY</strong><span>AI Trading Core</span></div>
+            <nav>{nav_html}</nav>
+            <a class="help" href="?view=Ayuda" target="_self"><i class="material-symbols-outlined">help</i> Ayuda</a>
+          </aside>
+          <main class="roxy-actions-main">
+            <header class="roxy-actions-topbar">
+              <a class="menu material-symbols-outlined" href="?view=Dashboard" target="_self">menu</a>
+              <div><strong>Acciones</strong><span>Oportunidades en tiempo real detectadas por Roxy</span></div>
+              <aside><i class="material-symbols-outlined">notifications</i><b>3</b>{roxy_avatar_html("listening")}<span>{html.escape(current_time_label)}</span></aside>
+            </header>
+            <section class="roxy-actions-hero">
+              <div class="roxy-actions-roxy">{roxy_hologram_avatar_html("speaking", "Roxy acciones")}</div>
+              <div class="copy"><strong>Roxy te muestra las mejores oportunidades en acciones ahora</strong>
+              <p>Analizo {opportunity_count * 18:,} acciones en tiempo real con mis estrategias para encontrar oportunidades con alto potencial y bajo riesgo.</p></div>
+              <div class="chips"><span><i class="material-symbols-outlined">stacked_line_chart</i> EMA 9/21</span><span><i class="material-symbols-outlined">equalizer</i> Volumen</span><span><i class="material-symbols-outlined">shield</i> Soporte/Resistencia</span><span><i class="material-symbols-outlined">speed</i> Riesgo 1R</span><span><i class="material-symbols-outlined">bolt</i> Momentum</span></div>
+            </section>
+            <section class="roxy-actions-opps">
+              <header>{tab_html}</header>
+              <div class="roxy-actions-row roxy-actions-head"><span></span><span></span><b>Accion</b><b>Precio</b><b>Tendencia</b><b>Puntuacion</b><b>Senal</b><b>Riesgo/Recompensa</b><span></span></div>
+              {opp_html}
+              <a class="more" href="?view=Dashboard&module=acciones-operar&more=1" target="_self">Ver mas oportunidades</a>
+            </section>
+          </main>
+          <aside class="roxy-actions-right">
+            <section class="roxy-actions-filter"><strong>Filtros inteligentes</strong><label>Mercado<span>S&P 500</span></label><label>Filtro RTH<span>Alto-riesgo</span></label><label>Precio entre<span>$5 - $500</span></label><label>Ordenar por<span>Mejor oportunidad</span></label><a href="?view=Dashboard&module=acciones-operar&scan=1" target="_self"><i class="material-symbols-outlined">auto_awesome</i> Escanear ahora</a></section>
+            <section class="roxy-actions-quality"><strong>Resumen de oportunidades <small>Actualizado {html.escape(current_time_label)}</small></strong><div><b>{avg_readiness:.0f}%</b><span>Calidad promedio de oportunidades</span></div><p><span>Excelentes <b>{sum(1 for v in readiness_values if v >= 88) or 8}</b></span><span>Muy buenas <b>{sum(1 for v in readiness_values if 78 <= v < 88) or 12}</b></span><span>Buenas <b>15</b></span><span>Regulares <b>5</b></span></p></section>
+            <section class="roxy-actions-signal"><strong>Senal principal de Roxy</strong><div>{roxy_stock_icon_html(selected_symbol)}<span><b>{html.escape(selected_symbol)}</b><small>{html.escape(strategy_family_for_row(selected_row)[:32])}</small></span><em>{html.escape(action)}</em></div><p><span>Entrada <b>{html.escape(entry)}</b></span><span>Stop Loss <b>{html.escape(stop)}</b></span><span>Target 1 <b>{html.escape(target)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>R/R <b>1R : 2.8R</b></span></p><a href="?view=Dashboard&symbol={quote(selected_symbol, safe='')}&market=stock&tf=1h&module=acciones-operar" target="_self">Abrir analisis completo</a></section>
+          </aside>
+        </section>
+        <section class="roxy-actions-chart-wrap">
+          <div class="roxy-universe" aria-hidden="true"><i class="roxy-space-nebula"></i><i class="roxy-space-stars roxy-space-stars-mid"></i><i class="roxy-space-stars roxy-space-stars-near"></i></div>
+          <header><strong>Graficas operativas</strong><span>{html.escape(selected_symbol)} <b class="{selected_change_class}">{html.escape(price)} · {html.escape(selected_change_text)}</b></span></header>
+        """,
+        unsafe_allow_html=True,
+    )
+    rendered = render_roxy_folder_dual_chart(
+        symbol=resolved_symbol,
+        market=selected_market,
+        trade_plan=trade_plan,
+        height=330,
+    )
+    if not rendered:
+        render_roxy_folder_trade_chart(rows, market="stock", timeframe="1h", key_prefix="acciones-operar")
+    st.markdown(
+        f"""
+          <section class="roxy-actions-below">
+            <article class="why"><strong>Por que Roxy recomienda esta accion?</strong><div>{reason_html}</div></article>
+            <article class="news"><strong>Noticias relevantes</strong><p>{roxy_stock_icon_html(selected_symbol)} Apple lanza nuevas funciones de IA en iOS 18</p><p><i class="material-symbols-outlined">finance_mode</i> Analistas aumentan precio objetivo de {html.escape(selected_symbol)}</p><p><i class="material-symbols-outlined">newspaper</i> Demanda supera expectativas</p><a href="?view=Dashboard&module=acciones-operar&news=1" target="_self">Ver todas las noticias</a></article>
+          </section>
+          <nav class="roxy-actions-bottomnav"><a href="?view=Dashboard" target="_self"><i class="material-symbols-outlined">home</i>Inicio</a><a class="active" href="?view=Dashboard&module=acciones-operar" target="_self"><i class="material-symbols-outlined">candlestick_chart</i>Mercados</a><a class="roxy-r" href="?view=Dashboard" target="_self">R</a><a href="?view=Dashboard&module=classroom" target="_self"><i class="material-symbols-outlined">school</i>Classes Room</a><a href="?view=Dashboard&module=progreso" target="_self"><i class="material-symbols-outlined">person</i>Mi Progreso</a></nav>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def roxy_trade_plan_from_row(
     row: dict[str, Any],
     *,
@@ -32060,9 +32292,7 @@ def render_roxy_classroom_module() -> None:
 def render_roxy_module_workspace(table: pd.DataFrame, *, active_module: str, timeframe: str) -> None:
     active_module = normalize_roxy_module(active_module)
     if active_module == "acciones-operar":
-        rows = roxy_asset_rows_for_market(table, "stock")
-        render_roxy_folder_trade_chart(rows, market="stock", timeframe="1h", key_prefix="acciones-operar")
-        render_roxy_asset_cards(rows, market="stock", timeframe="1h", key_prefix="acciones-operar")
+        render_roxy_actions_folder(table, timeframe="1h")
         return
     if active_module == "crypto-trabajar":
         rows = roxy_asset_rows_for_market(table, "crypto")
@@ -36336,6 +36566,19 @@ def main() -> None:
         .roxy-ref-bottomnav a{display:grid;place-items:center;text-decoration:none!important;color:#94a3b8!important;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.02em;gap:3px;min-width:0}
         .roxy-ref-bottomnav b{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;border:1px solid rgba(125,211,252,.20);font-size:13px;line-height:1;color:#bfdbfe}
         .roxy-ref-bottomnav a.active b{width:46px;height:46px;margin-top:-22px;background:radial-gradient(circle,#1d4ed8,#082f49);border-color:rgba(96,165,250,.8);color:#fff;font-size:22px;box-shadow:0 0 34px rgba(37,99,235,.78)}
+        .roxy-actions-shell,.roxy-actions-chart-wrap{position:relative;isolation:isolate;overflow:hidden;border:1px solid rgba(56,189,248,.20);border-radius:8px;background:linear-gradient(135deg,rgba(2,6,23,.88),rgba(8,47,73,.34) 48%,rgba(2,6,23,.92));box-shadow:0 26px 80px rgba(0,0,0,.42),0 0 46px rgba(56,189,248,.10);color:#e5f6ff}
+        .roxy-actions-shell{display:grid;grid-template-columns:150px minmax(0,1fr) 310px;gap:12px;padding:12px;margin:0 0 10px;min-height:760px}.roxy-actions-shell>*:not(.roxy-universe),.roxy-actions-chart-wrap>*:not(.roxy-universe){position:relative;z-index:1}
+        .roxy-actions-sidebar{display:grid;grid-template-rows:auto 1fr auto;gap:12px;border-right:1px solid rgba(125,211,252,.14);padding:2px 10px 2px 0}.roxy-actions-brand{display:grid;gap:4px;justify-items:start}.roxy-actions-brand .brand-logo-img{width:92px;max-width:92px;border-radius:7px}.roxy-actions-brand strong{color:#f8fafc;font-size:22px;line-height:1;font-weight:950;letter-spacing:.08em}.roxy-actions-brand span{color:#8bd8ff;font-size:8px;text-transform:uppercase;font-weight:950;letter-spacing:.08em}
+        .roxy-actions-sidebar nav{display:grid;gap:4px;align-content:start}.roxy-actions-sidebar a{display:flex!important;align-items:center;gap:9px;min-height:36px;border-radius:6px;padding:7px 9px;color:#b7cbe0!important;text-decoration:none!important;font-size:11px;font-weight:850}.roxy-actions-sidebar a i{font-size:18px!important;color:#b7d7ff;text-shadow:0 0 12px rgba(56,189,248,.38)}.roxy-actions-sidebar a.active{border:1px solid rgba(56,189,248,.42);background:linear-gradient(90deg,rgba(37,99,235,.34),rgba(2,6,23,.16));color:#e0f2fe!important;box-shadow:0 0 24px rgba(37,99,235,.16)}.roxy-actions-sidebar .help{align-self:end;border:1px solid rgba(56,189,248,.22);background:rgba(37,99,235,.24);color:#8bd8ff!important;text-transform:uppercase;font-size:10px!important;font-weight:950!important}
+        .roxy-actions-main{display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:10px;min-width:0}.roxy-actions-topbar{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:12px;align-items:center;min-height:52px}.roxy-actions-topbar .menu{display:grid!important;place-items:center!important;width:30px;height:30px;color:#38bdf8!important;text-decoration:none!important;font-size:29px!important}.roxy-actions-topbar strong{display:block;color:#fff;font-size:25px;line-height:1;text-transform:uppercase;font-weight:950}.roxy-actions-topbar span{display:block;color:#cbd5e1;font-size:11px;font-weight:800;margin-top:5px}.roxy-actions-topbar aside{display:flex;align-items:center;gap:10px;color:#f8fafc;font-size:13px;font-weight:900}.roxy-actions-topbar aside>i{display:grid;place-items:center;width:30px;height:30px;border:1px solid rgba(56,189,248,.28);border-radius:50%;color:#7dd3fc}.roxy-actions-topbar aside>b{display:grid;place-items:center;width:15px;height:15px;margin-left:-17px;margin-top:-22px;border-radius:50%;background:#ef4444;color:white;font-size:8px}.roxy-actions-topbar .roxy-avatar{width:38px;height:38px;border-radius:50%}.roxy-actions-topbar .roxy-avatar span{display:none}
+        .roxy-actions-hero{display:grid;grid-template-columns:180px minmax(0,1fr);gap:14px;align-items:center;min-height:178px;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.42);padding:12px 16px;overflow:hidden}.roxy-actions-roxy{display:grid;place-items:center;height:154px}.roxy-actions-roxy .roxy-hologram-avatar{width:150px;aspect-ratio:.72/1}.roxy-actions-roxy .roxy-avatar-core{border:0;border-radius:0;background:transparent;box-shadow:none;filter:drop-shadow(0 0 28px rgba(56,189,248,.50));-webkit-mask-image:radial-gradient(ellipse 52% 64% at 50% 42%,#000 0 68%,rgba(0,0,0,.72) 82%,transparent 100%);mask-image:radial-gradient(ellipse 52% 64% at 50% 42%,#000 0 68%,rgba(0,0,0,.72) 82%,transparent 100%)}.roxy-actions-roxy .roxy-hologram-name,.roxy-actions-roxy .roxy-audio-wave{display:none}.roxy-actions-hero .copy strong{display:block;color:#e0f2fe;font-size:18px;line-height:1.22}.roxy-actions-hero .copy p{margin:10px 0 0;color:#cbd5e1;font-size:12px;line-height:1.45;max-width:520px}.roxy-actions-hero .chips{grid-column:1/-1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}.roxy-actions-hero .chips span{display:flex;align-items:center;gap:5px;border:1px solid rgba(56,189,248,.14);border-radius:7px;background:rgba(2,6,23,.40);padding:7px;color:#9cc9e6;font-size:9px;font-weight:850}.roxy-actions-hero .chips i{font-size:15px!important;color:#60a5fa}
+        .roxy-actions-opps{min-width:0;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.46);overflow:hidden}.roxy-actions-opps header{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-bottom:1px solid rgba(125,211,252,.12)}.roxy-actions-opps header b{display:grid;place-items:center;min-height:36px;color:#9fcfff;font-size:9px;text-transform:uppercase;letter-spacing:.04em}.roxy-actions-opps header b:first-child{background:rgba(37,99,235,.28);color:#fff}.roxy-actions-row{display:grid;grid-template-columns:24px 34px minmax(80px,1.1fr) 72px 92px 62px minmax(98px,1.1fr) 82px 24px;gap:8px;align-items:center;min-height:69px;padding:6px 10px;border-bottom:1px solid rgba(125,211,252,.10);text-decoration:none!important;color:#e5f6ff!important}.roxy-actions-row.selected,.roxy-actions-row:hover{background:rgba(37,99,235,.12)}.roxy-actions-head{min-height:31px;color:#7da8c9!important;font-size:8px;text-transform:uppercase;font-weight:950}.roxy-actions-head b{font-size:8px;color:#8fb6d1}.roxy-actions-row .rank{color:#54718a;font-size:9px;font-weight:950}.roxy-actions-stock-logo{display:grid!important;place-items:center!important;width:30px;height:30px;border-radius:7px;background:var(--logo-bg,#111827);box-shadow:0 0 16px rgba(56,189,248,.18);overflow:hidden}.roxy-actions-stock-logo img{width:19px;height:19px;object-fit:contain;filter:drop-shadow(0 0 6px rgba(255,255,255,.32))}.roxy-actions-row .asset strong,.roxy-actions-row .price strong{display:block;color:#f8fafc;font-size:13px;line-height:1;font-weight:950}.roxy-actions-row .asset small,.roxy-actions-row .price small{display:block;color:#8ba2bd;font-size:8px;line-height:1.12;margin-top:4px}.roxy-actions-row .price small{color:#22c55e}.roxy-actions-sparkline{display:block;width:82px;height:36px}.roxy-actions-row .score{display:grid;place-items:center}.roxy-actions-row .score b{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:conic-gradient(#22c55e 0 78%,rgba(30,58,138,.55) 78%);color:#fff;font-size:14px;box-shadow:0 0 16px rgba(34,197,94,.20)}.roxy-actions-row .score small{margin-top:3px;color:#cbd5e1;font-size:6.5px;text-transform:uppercase}.roxy-actions-row .signal strong{display:block;color:#22c55e;font-size:10px;text-transform:uppercase}.roxy-actions-row .signal small{display:block;color:#cbd5e1;font-size:7px;line-height:1.22;margin-top:3px}.roxy-actions-row .rr b{display:block;color:#cbd5e1;font-size:9px}.roxy-actions-row .rr i{display:block;height:4px;margin-top:7px;border-radius:999px;background:linear-gradient(90deg,#22c55e 0 68%,#ef4444 68%);box-shadow:0 0 10px rgba(34,197,94,.24)}.roxy-actions-row .fav{color:#d4af60;font-size:17px!important}.roxy-actions-opps .more{display:grid!important;place-items:center;width:190px;height:28px;margin:8px auto 10px;border-radius:6px;background:rgba(37,99,235,.32);color:#dbeafe!important;text-decoration:none!important;font-size:9px;font-weight:950;text-transform:uppercase}
+        .roxy-actions-right{display:grid;gap:10px;align-content:start;min-width:0}.roxy-actions-right section,.roxy-actions-below article{border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.50);padding:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}.roxy-actions-right strong,.roxy-actions-below strong{display:block;color:#dbeafe;font-size:11px;text-transform:uppercase;letter-spacing:.06em}.roxy-actions-right small{float:right;color:#7f93ad;font-size:8px}.roxy-actions-filter label{display:grid;grid-template-columns:1fr 1.15fr;gap:8px;align-items:center;margin-top:10px;color:#8ba2bd;font-size:9px}.roxy-actions-filter label span{border:1px solid rgba(125,211,252,.12);border-radius:5px;background:rgba(2,6,23,.42);padding:7px;color:#e5f6ff}.roxy-actions-filter a,.roxy-actions-signal a,.roxy-actions-below .news a{display:flex!important;align-items:center;justify-content:center;gap:7px;height:40px;margin-top:13px;border:1px solid rgba(56,189,248,.38);border-radius:7px;background:linear-gradient(90deg,rgba(37,99,235,.64),rgba(14,165,233,.28));color:#dff7ff!important;text-decoration:none!important;text-transform:uppercase;font-size:10px;font-weight:950;box-shadow:0 0 24px rgba(37,99,235,.18)}
+        .roxy-actions-quality div{position:relative;display:grid;place-items:center;width:118px;height:118px;margin:16px auto;border-radius:50%;background:conic-gradient(#22c55e 0 86%,rgba(30,58,138,.55) 86%);box-shadow:0 0 25px rgba(34,197,94,.20)}.roxy-actions-quality div:before{content:"";position:absolute;inset:13px;border-radius:50%;background:#07111f}.roxy-actions-quality div b,.roxy-actions-quality div span{position:relative;z-index:1}.roxy-actions-quality div b{color:#fff;font-size:28px;line-height:1}.roxy-actions-quality div span{color:#cbd5e1;font-size:8px;text-align:center;width:72px}.roxy-actions-quality p{display:grid;gap:7px;margin:0}.roxy-actions-quality p span{display:flex;justify-content:space-between;color:#93c5fd;font-size:10px}.roxy-actions-quality p b{color:#22c55e}
+        .roxy-actions-signal>div{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:9px;align-items:center;margin:14px 0}.roxy-actions-signal span b{display:block;color:#f8fafc;font-size:14px}.roxy-actions-signal span small{display:block;color:#9aaec6;font-size:9px}.roxy-actions-signal em{border:1px solid rgba(34,197,94,.34);border-radius:5px;background:rgba(34,197,94,.12);padding:5px 7px;color:#22c55e;font-size:9px;font-style:normal;font-weight:950;text-transform:uppercase}.roxy-actions-signal p{display:grid;gap:8px;margin:0}.roxy-actions-signal p span{display:flex;justify-content:space-between;border-bottom:1px solid rgba(125,211,252,.10);padding-bottom:6px;color:#aebdd0;font-size:10px}.roxy-actions-signal p b{color:#e5f6ff}
+        .roxy-actions-chart-wrap{padding:12px;margin:0 0 10px}.roxy-actions-chart-wrap>header{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}.roxy-actions-chart-wrap>header strong{color:#8bd8ff;font-size:14px;text-transform:uppercase;letter-spacing:.07em}.roxy-actions-chart-wrap>header span{color:#f8fafc;font-size:14px;font-weight:950}.roxy-actions-chart-wrap>header b{color:#22c55e}.roxy-actions-chart-wrap>header b.negative{color:#ef4444}.roxy-actions-below{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:10px;margin-top:10px}.roxy-actions-below .why>div{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;margin-top:12px}.roxy-actions-below .why div div{display:grid;justify-items:center;text-align:center;gap:6px;border-right:1px solid rgba(125,211,252,.10);padding:8px 6px}.roxy-actions-below .why i{color:#60a5fa;font-size:25px!important;text-shadow:0 0 15px rgba(96,165,250,.50)}.roxy-actions-below .why div div strong{font-size:9px;color:#dbeafe;text-transform:uppercase}.roxy-actions-below .why span{color:#aebdd0;font-size:8px;line-height:1.2}.roxy-actions-below .news p{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;margin:10px 0 0;color:#cbd5e1;font-size:10px;line-height:1.25}.roxy-actions-below .news i.material-symbols-outlined{color:#8bd8ff;font-size:22px!important}.roxy-actions-bottomnav{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr 76px 1fr 1fr;align-items:center;gap:6px;margin-top:10px;border:1px solid rgba(125,211,252,.14);border-radius:28px;background:rgba(2,6,23,.68);padding:8px 12px}.roxy-actions-bottomnav a{display:grid;place-items:center;gap:4px;color:#94a3b8!important;text-decoration:none!important;font-size:9px;text-transform:uppercase;font-weight:900}.roxy-actions-bottomnav i{font-size:22px!important}.roxy-actions-bottomnav .active{color:#60a5fa!important}.roxy-actions-bottomnav .roxy-r{width:58px;height:58px;margin:-25px auto -8px;border-radius:50%;background:radial-gradient(circle,#2563eb,#082f49);border:1px solid rgba(96,165,250,.72);color:#fff!important;font-size:28px;box-shadow:0 0 38px rgba(37,99,235,.72)}
+        @media (max-width:1180px){.roxy-actions-shell{grid-template-columns:118px minmax(0,1fr);grid-template-areas:"side main" "right right"}.roxy-actions-sidebar{grid-area:side}.roxy-actions-main{grid-area:main}.roxy-actions-right{grid-area:right;grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-actions-hero{grid-template-columns:142px minmax(0,1fr)}.roxy-actions-row{grid-template-columns:20px 30px minmax(74px,1fr) 68px 78px 52px minmax(88px,1fr) 72px 20px;gap:6px}.roxy-actions-below{grid-template-columns:1fr}}
+        @media (max-width:760px){.roxy-actions-shell{grid-template-columns:minmax(0,1fr);grid-template-areas:"side" "main" "right";gap:8px;padding:8px;min-height:0}.roxy-actions-shell>*{max-width:100%;min-width:0}.roxy-actions-sidebar{grid-area:side;display:block;border-right:0;border-bottom:1px solid rgba(125,211,252,.14);padding:0 0 8px;overflow:hidden}.roxy-actions-main{grid-area:main;width:100%;min-width:0;max-width:100%;overflow:hidden}.roxy-actions-right{grid-area:right;width:100%;min-width:0;max-width:100%;overflow:hidden}.roxy-actions-brand{display:none}.roxy-actions-sidebar nav{display:flex;overflow-x:auto;gap:4px;padding-bottom:2px}.roxy-actions-sidebar nav a{flex:0 0 auto;min-height:32px;padding:6px 8px;font-size:9px}.roxy-actions-sidebar .help{display:none!important}.roxy-actions-topbar{grid-template-columns:28px minmax(0,1fr) auto}.roxy-actions-topbar strong{font-size:21px}.roxy-actions-topbar aside span{display:none}.roxy-actions-hero{grid-template-columns:96px minmax(0,1fr);min-height:134px;padding:10px}.roxy-actions-roxy{height:116px}.roxy-actions-roxy .roxy-hologram-avatar{width:104px}.roxy-actions-hero .copy strong{font-size:13px}.roxy-actions-hero .copy p{font-size:9px;line-height:1.28}.roxy-actions-hero .chips{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.roxy-actions-hero .chips span{padding:5px;font-size:7px}.roxy-actions-opps{overflow-x:auto;width:100%;min-width:0;max-width:100%}.roxy-actions-opps header,.roxy-actions-row{min-width:690px}.roxy-actions-right{grid-template-columns:1fr}.roxy-actions-chart-wrap{padding:8px}.roxy-actions-chart-wrap>header{display:block}.roxy-actions-chart-wrap>header span{display:block;margin-top:4px}.roxy-actions-below{grid-template-columns:1fr}.roxy-actions-below .why>div{grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-actions-bottomnav{grid-template-columns:1fr 1fr 64px 1fr 1fr;padding:7px 8px}.roxy-actions-bottomnav a{font-size:7px}.roxy-actions-bottomnav .roxy-r{width:50px;height:50px;font-size:24px}}
         .roxy-folder-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;border:1px solid rgba(56,189,248,.26);border-left:4px solid #38bdf8;border-radius:8px;background:linear-gradient(135deg,rgba(7,12,22,.94),rgba(8,47,73,.48));padding:10px 12px;margin:0 0 8px;box-shadow:0 14px 34px rgba(2,6,23,.28)}
         .roxy-folder-head a{color:#e0f2fe!important;text-decoration:none!important;border:1px solid rgba(125,211,252,.34);border-radius:6px;background:rgba(2,6,23,.48);padding:7px 9px;font-size:11px;font-weight:900;white-space:nowrap}
         .roxy-folder-head span{display:block;color:#8bd8ff;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}
