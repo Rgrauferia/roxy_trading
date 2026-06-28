@@ -38168,33 +38168,34 @@ def main() -> None:
         .stApp:has(.roxy-auth-screen) .roxy-auth-socials button{box-sizing:border-box}
         .stApp:has(.roxy-auth-register) [data-testid="stForm"]{margin-top:-335px!important}
         @media (min-width:700px){
-          .stApp:has(.roxy-auth-screen){background:radial-gradient(ellipse at 50% 28%,rgba(14,165,233,.20),transparent 38%),linear-gradient(180deg,#020611,#061521 54%,#020712)!important}
-          .stApp:has(.roxy-auth-screen) .block-container{max-width:min(1180px,94vw)!important;padding-top:26px!important;padding-left:0!important;padding-right:0!important}
-          .roxy-auth-screen{max-width:min(1180px,94vw)!important;min-height:780px!important;margin:0 auto!important;padding:clamp(26px,3vw,36px) clamp(24px,4vw,44px) 42px!important;display:grid!important;grid-template-columns:minmax(0,1.16fr) minmax(320px,430px)!important;grid-template-rows:auto 1fr!important;column-gap:clamp(24px,4vw,58px)!important;align-items:center!important}
-          .roxy-auth-screen:before{inset:0!important;background:radial-gradient(ellipse at 30% 42%,rgba(56,189,248,.18),transparent 44%),linear-gradient(108deg,transparent 4%,rgba(37,99,235,.10) 23%,rgba(59,130,246,.46) 24%,rgba(59,130,246,.13) 25%,transparent 48%),linear-gradient(150deg,transparent 18%,rgba(56,189,248,.20) 52%,rgba(56,189,248,.52) 53%,transparent 74%)!important}
-          .roxy-auth-screen:after{left:39%!important;right:-7%!important;top:20%!important;height:360px!important;opacity:.28!important}
-          .roxy-auth-language{right:42px!important;top:34px!important}
-          .roxy-auth-hero{grid-column:1!important;grid-row:1 / span 2!important;min-height:700px!important;padding-top:0!important;align-content:center!important}
-          .roxy-auth-hero .roxy-hologram-avatar{width:min(570px,42vw)!important;min-width:250px!important;aspect-ratio:.98/1!important}
-          .roxy-auth-hero .roxy-avatar-core{width:56%!important}
-          .roxy-auth-title{margin-top:-106px!important}
-          .roxy-auth-title strong{font-size:clamp(72px,8.5vw,138px)!important;letter-spacing:.075em!important}
-          .roxy-auth-title span{font-size:clamp(15px,1.55vw,22px)!important;letter-spacing:.22em!important;margin-top:24px!important}
-          .roxy-auth-title em{font-size:clamp(14px,1.35vw,20px)!important;margin-top:13px!important}
-          .roxy-auth-card{grid-column:2!important;grid-row:1!important;width:min(430px,100%)!important;max-width:100%!important;align-self:end!important;margin:94px 0 0!important;padding:30px clamp(20px,2.4vw,28px) 24px!important;border-radius:20px 20px 0 0!important;border-bottom:0!important}
-          .roxy-auth-card header strong{font-size:clamp(24px,2.2vw,30px)!important}
+          .stApp:has(.roxy-auth-screen){background:radial-gradient(ellipse at 50% 28%,rgba(14,165,233,.22),transparent 38%),linear-gradient(180deg,#020611,#061521 54%,#020712)!important}
+          .stApp:has(.roxy-auth-screen) .block-container{max-width:min(700px,92vw)!important;padding-top:18px!important;padding-left:0!important;padding-right:0!important}
+          .roxy-auth-screen{max-width:min(700px,92vw)!important;min-height:660px!important;margin:0 auto!important;padding:28px clamp(34px,5vw,58px) 32px!important;display:block!important;border-color:rgba(59,130,246,.34)!important;background:radial-gradient(ellipse at 50% 24%,rgba(37,99,235,.28),transparent 35%),radial-gradient(ellipse at 50% 58%,rgba(14,165,233,.18),transparent 42%),linear-gradient(180deg,#020611 0%,#071729 52%,#02050d 100%)!important;box-shadow:0 0 92px rgba(56,189,248,.22),0 26px 90px rgba(0,0,0,.64)!important}
+          .roxy-auth-screen:before{inset:0!important;background:radial-gradient(ellipse at 50% 35%,rgba(56,189,248,.16),transparent 45%),linear-gradient(108deg,transparent 4%,rgba(37,99,235,.08) 23%,rgba(59,130,246,.40) 24%,rgba(59,130,246,.12) 25%,transparent 48%),linear-gradient(150deg,transparent 18%,rgba(56,189,248,.18) 52%,rgba(56,189,248,.48) 53%,transparent 74%)!important}
+          .roxy-auth-screen:after{left:-10%!important;right:-10%!important;top:27%!important;height:260px!important;opacity:.30!important}
+          .roxy-auth-language{right:clamp(34px,5vw,58px)!important;top:26px!important}
+          .roxy-auth-hero{min-height:365px!important;padding-top:0!important;align-content:center!important}
+          .roxy-auth-hero .roxy-hologram-avatar{width:min(350px,60vw)!important;aspect-ratio:.98/1!important}
+          .roxy-auth-hero .roxy-avatar-core{width:57%!important}
+          .roxy-auth-title{margin-top:-72px!important}
+          .roxy-auth-title strong{font-size:clamp(68px,8.2vw,90px)!important;letter-spacing:.075em!important}
+          .roxy-auth-title span{font-size:clamp(14px,1.7vw,17px)!important;letter-spacing:.24em!important;margin-top:18px!important}
+          .roxy-auth-title em{font-size:clamp(14px,1.7vw,18px)!important;margin-top:12px!important}
+          .roxy-auth-card{width:min(560px,100%)!important;max-width:100%!important;margin:0 auto 0!important;padding:26px clamp(24px,4vw,34px) 20px!important;border-radius:20px 20px 0 0!important;border-bottom:0!important}
+          .roxy-auth-card header strong{font-size:clamp(26px,3vw,32px)!important}
           .roxy-auth-card header span{font-size:15px!important}
-          .stApp:has(.roxy-auth-screen) [data-testid="stForm"]{grid-column:2!important;grid-row:2!important;width:min(430px,100%)!important;max-width:100%!important;margin:-518px 0 0 auto!important;padding:0 clamp(20px,2.4vw,28px) 24px!important;border-radius:0 0 20px 20px!important}
+          .stApp:has(.roxy-auth-screen) [data-testid="stForm"]{width:min(560px,100%)!important;max-width:100%!important;margin:-18px auto 0!important;padding:0 clamp(24px,4vw,34px) 24px!important;border-radius:0 0 20px 20px!important}
           .stApp:has(.roxy-auth-screen) [data-testid="stForm"] input{height:62px!important;font-size:17px!important}
           .stApp:has(.roxy-auth-screen) [data-testid="stForm"] [data-testid="stFormSubmitButton"] button{min-height:62px!important;font-size:20px!important}
-          .stApp:has(.roxy-auth-screen) .roxy-auth-divider,.stApp:has(.roxy-auth-screen) .roxy-auth-socials,.stApp:has(.roxy-auth-screen) .roxy-auth-switch,.stApp:has(.roxy-auth-screen) .roxy-auth-card footer{width:min(430px,100%)!important;max-width:100%!important;margin-left:auto!important;margin-right:0!important}
-          .stApp:has(.roxy-auth-screen) .roxy-auth-divider{margin-top:-320px!important}
+          .stApp:has(.roxy-auth-screen) .roxy-auth-divider,.stApp:has(.roxy-auth-screen) .roxy-auth-socials,.stApp:has(.roxy-auth-screen) .roxy-auth-switch,.stApp:has(.roxy-auth-screen) .roxy-auth-card footer{width:min(560px,100%)!important;max-width:100%!important;margin-left:auto!important;margin-right:auto!important}
+          .stApp:has(.roxy-auth-screen) .roxy-auth-divider{margin-top:16px!important}
           .roxy-auth-socials button{height:58px!important;font-size:18px!important}
-          .roxy-auth-register .roxy-auth-hero{min-height:700px!important}
-          .roxy-auth-register .roxy-auth-hero .roxy-hologram-avatar{width:min(520px,39vw)!important;min-width:235px!important}
-          .roxy-auth-register .roxy-auth-title strong{font-size:clamp(64px,7vw,118px)!important}
-          .stApp:has(.roxy-auth-register) [data-testid="stForm"]{margin:-518px 0 0 auto!important}
-          .stApp:has(.roxy-auth-register) .roxy-auth-switch{margin-top:-126px!important}
+          .roxy-auth-register .roxy-auth-hero{min-height:440px!important}
+          .roxy-auth-register .roxy-auth-hero .roxy-hologram-avatar{width:min(440px,66vw)!important}
+          .roxy-auth-register .roxy-auth-title{margin-top:-84px!important}
+          .roxy-auth-register .roxy-auth-title strong{font-size:clamp(72px,10vw,104px)!important}
+          .stApp:has(.roxy-auth-register) [data-testid="stForm"]{margin:-18px auto 0!important}
+          .stApp:has(.roxy-auth-register) .roxy-auth-switch{margin-top:16px!important}
         }
         @keyframes roxyAuthMarketDrift{0%,100%{transform:translateX(-3%) translateY(0)}50%{transform:translateX(4%) translateY(-5px)}}@keyframes roxyAuthChartPulse{0%,100%{opacity:.24;transform:translateY(0)}50%{opacity:.42;transform:translateY(-7px)}}
         [data-testid="stTabs"] button{font-weight:800;color:#cbd5e1}
