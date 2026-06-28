@@ -1929,7 +1929,7 @@ def apply_roxy_navigation_target(
 
 ROXY_COMMAND_MODULES = [
     {
-        "label": "Acciones disponibles para operar",
+        "label": "Acciones",
         "slug": "acciones-operar",
         "mark": "ACT",
         "page": "Dashboard",
@@ -1937,21 +1937,10 @@ ROXY_COMMAND_MODULES = [
         "market": "stock",
         "scope": "Acciones",
         "tf": "1h",
-        "detail": "Entradas con stop, target y recomendacion.",
+        "detail": "Oportunidades en el mercado",
     },
     {
-        "label": "Criptomonedas disponibles para trabajar",
-        "slug": "crypto-trabajar",
-        "mark": "CRY",
-        "page": "Dashboard",
-        "symbol": "BTC/USD",
-        "market": "crypto",
-        "scope": "Crypto",
-        "tf": "1h",
-        "detail": "BTC, ETH, SOL, XRP y mas.",
-    },
-    {
-        "label": "Crypto 20 minutos",
+        "label": "Crypto 20min",
         "slug": "crypto-20m",
         "mark": "20M",
         "page": "Dashboard",
@@ -1959,10 +1948,10 @@ ROXY_COMMAND_MODULES = [
         "market": "crypto",
         "scope": "Crypto",
         "tf": "1m",
-        "detail": "Lectura rapida para movimientos cortos.",
+        "detail": "Analisis rapido 20 minutos",
     },
     {
-        "label": "Crypto 2h",
+        "label": "Crypto 2H",
         "slug": "crypto-2h",
         "mark": "2H",
         "page": "Dashboard",
@@ -1970,10 +1959,10 @@ ROXY_COMMAND_MODULES = [
         "market": "crypto",
         "scope": "Crypto",
         "tf": "2h",
-        "detail": "Tendencia media y confirmacion.",
+        "detail": "Tendencia y senales cada 2 horas",
     },
     {
-        "label": "Crypto daily",
+        "label": "Crypto Daily",
         "slug": "crypto-daily",
         "mark": "DAY",
         "page": "Dashboard",
@@ -1981,10 +1970,10 @@ ROXY_COMMAND_MODULES = [
         "market": "crypto",
         "scope": "Crypto",
         "tf": "1d",
-        "detail": "Estructura diaria y zonas mayores.",
+        "detail": "Analisis diario completo",
     },
     {
-        "label": "Classroom",
+        "label": "Classes Room",
         "slug": "classroom",
         "mark": "CLS",
         "page": "Dashboard",
@@ -1992,7 +1981,7 @@ ROXY_COMMAND_MODULES = [
         "market": "stock",
         "scope": "Todos",
         "tf": "1h",
-        "detail": "Aprende la lectura de Roxy paso a paso.",
+        "detail": "Aprende y mejora tus estrategias",
     },
 ]
 
@@ -2005,10 +1994,10 @@ def normalize_roxy_module(value: Any, default: str = "acciones-operar") -> str:
         "acciones-operar": "acciones-operar",
         "stock": "acciones-operar",
         "stocks": "acciones-operar",
-        "crypto": "crypto-trabajar",
-        "cripto": "crypto-trabajar",
-        "crypto-trabajar": "crypto-trabajar",
-        "criptomonedas": "crypto-trabajar",
+        "crypto": "crypto-20m",
+        "cripto": "crypto-20m",
+        "crypto-trabajar": "crypto-20m",
+        "criptomonedas": "crypto-20m",
         "crypto-20": "crypto-20m",
         "crypto-20m": "crypto-20m",
         "20m": "crypto-20m",
@@ -23751,7 +23740,7 @@ def render_crypto_twenty_min_strike_panel(
         )
     st.markdown(
         '<section class="strike20-panel">'
-        '<header><strong>Crypto 20 minutos</strong><span>Simulacion paper/manual · no coloca orden real · no es garantia</span></header>'
+        '<header><strong>Crypto 20min</strong><span>Simulacion paper/manual · no coloca orden real · no es garantia</span></header>'
         f'<div class="strike20-grid">{"".join(cards)}</div>'
         "</section>",
         unsafe_allow_html=True,
@@ -24263,7 +24252,7 @@ def render_budget_split_opportunities_panel(
         fallback_rows=stock_fallback,
         account_equity=account_equity,
         risk_pct=risk_pct,
-        market_label="Acciones disponibles para trabajar",
+        market_label="Acciones",
         market_scope="Acciones",
     )
     render_budget_market_cards(
@@ -24271,7 +24260,7 @@ def render_budget_split_opportunities_panel(
         fallback_rows=crypto_fallback,
         account_equity=account_equity,
         risk_pct=risk_pct,
-        market_label="Criptomonedas disponibles para trabajar",
+        market_label="Crypto 20min",
         market_scope="Crypto",
     )
     render_crypto_twenty_min_strike_panel(
@@ -31010,6 +30999,16 @@ def render_roxy_opening_stage(
     st.markdown(
         f"""
         <section class="roxy-opening-stage roxy-reference-stage">
+          <div class="roxy-ref-topbar">
+            <div class="roxy-ref-menu" aria-hidden="true"><span></span><span></span><span></span></div>
+            <div class="roxy-ref-logo">{brand_logo_html()}</div>
+            <div class="roxy-ref-welcome">
+              <strong>Bienvenido, Roberto</strong>
+              <span>Roxy Trading · {safe_symbol} · {safe_timeframe}</span>
+            </div>
+            <div class="roxy-ref-alert" aria-hidden="true"><b>3</b></div>
+            <div class="roxy-ref-mini-avatar">{roxy_avatar_html("ready", "mini", "Roxy lista")}</div>
+          </div>
           <div class="roxy-stage-left">
             <div class="roxy-stage-bubble">
               <strong>Hola, soy Roxy.</strong>
@@ -31021,15 +31020,19 @@ def render_roxy_opening_stage(
               </div>
               <i></i><i></i><i></i>
             </div>
-            <div class="roxy-stage-wave" aria-hidden="true">
-              <b style="--i:1"></b><b style="--i:2"></b><b style="--i:3"></b><b style="--i:4"></b>
-              <b style="--i:5"></b><b style="--i:6"></b><b style="--i:7"></b><b style="--i:8"></b>
-              <b style="--i:9"></b><b style="--i:10"></b><b style="--i:11"></b><b style="--i:12"></b>
+            <div class="roxy-stage-wave">
+              <span>Escuchar a Roxy</span>
+              <div aria-hidden="true">
+                <b style="--i:1"></b><b style="--i:2"></b><b style="--i:3"></b><b style="--i:4"></b>
+                <b style="--i:5"></b><b style="--i:6"></b><b style="--i:7"></b><b style="--i:8"></b>
+                <b style="--i:9"></b><b style="--i:10"></b><b style="--i:11"></b><b style="--i:12"></b>
+              </div>
             </div>
             <div class="roxy-stage-status">
-              <span>Terminal de trading IA</span>
+              <span>Señal destacada</span>
               <strong>{safe_symbol}</strong>
-              <small>{safe_market} · {safe_timeframe} · paper/manual</small>
+              <small>Entrada · stop loss · target · riesgo {risk_pct:.1f}%</small>
+              <a href="?view=Dashboard&symbol={quote(str(symbol or 'AAPL'), safe='')}&market={quote(str(market or 'stock'), safe='')}&tf={quote(str(timeframe or '1h'), safe='')}&module=acciones-operar" target="_self">Ver analisis</a>
             </div>
           </div>
           <div class="roxy-stage-center">
@@ -31041,18 +31044,50 @@ def render_roxy_opening_stage(
           </div>
           <div class="roxy-stage-right">
             <div class="roxy-stage-brand">
-              {brand_logo_html()}
               <span>Grau Service LLC</span>
               <strong>Trading inteligente, controlado y visual.</strong>
             </div>
             <div class="roxy-stage-values">
-              <div><span>Confianza</span><strong>Datos, velas y fuente visible</strong></div>
-              <div><span>Eficiencia</span><strong>Roxy filtra antes de operar</strong></div>
-              <div><span>Control</span><strong>Ordenes reales apagadas · 1R ${risk_cash:,.2f}</strong></div>
+              <div><span>Confianza</span><strong>Comprometidos con tu seguridad.</strong><em>100%</em></div>
+              <div><span>Eficiencia</span><strong>Soluciones rapidas y efectivas.</strong><em>98%</em></div>
+              <div><span>Cercania</span><strong>Estamos contigo en cada paso.</strong><em>100%</em></div>
             </div>
           </div>
           <div class="roxy-stage-modules">
             {modules_html}
+          </div>
+          <div class="roxy-ref-live-grid">
+            <div class="roxy-ref-panel roxy-ref-movers">
+              <span>Mayores movimientos</span>
+              <div><strong>NVDA</strong><b>+4.21%</b></div>
+              <div><strong>TSLA</strong><b>+3.18%</b></div>
+              <div><strong>META</strong><b>+2.74%</b></div>
+              <a href="?view=Dashboard&module=acciones-operar" target="_self">Ver todas</a>
+            </div>
+            <div class="roxy-ref-panel roxy-ref-chart">
+              <header><span>Grafica principal</span><strong>{safe_symbol}</strong><b>+1.28%</b></header>
+              <div class="roxy-ref-timeframes"><i>1M</i><i>5M</i><i>15M</i><i>1H</i><i class="active">1D</i><i>1W</i></div>
+              <div class="roxy-ref-candle-chart" aria-hidden="true">
+                <b style="--h:34%;--x:8%;--c:#22c55e"></b><b style="--h:48%;--x:16%;--c:#22c55e"></b>
+                <b style="--h:42%;--x:24%;--c:#ef4444"></b><b style="--h:66%;--x:32%;--c:#22c55e"></b>
+                <b style="--h:58%;--x:40%;--c:#22c55e"></b><b style="--h:73%;--x:48%;--c:#ef4444"></b>
+                <b style="--h:62%;--x:56%;--c:#22c55e"></b><b style="--h:78%;--x:64%;--c:#22c55e"></b>
+                <b style="--h:70%;--x:72%;--c:#ef4444"></b><b style="--h:82%;--x:80%;--c:#22c55e"></b>
+                <b style="--h:76%;--x:88%;--c:#22c55e"></b>
+              </div>
+            </div>
+            <div class="roxy-ref-panel roxy-ref-events">
+              <span>Proximos eventos</span>
+              <div><strong>10:30 AM</strong><b>GDP · impacto alto</b></div>
+              <div><strong>12:00 PM</strong><b>PCE Core · impacto alto</b></div>
+              <div><strong>2:30 PM</strong><b>Sentimiento · impacto medio</b></div>
+              <a href="?view=Calendario" target="_self">Ver calendario</a>
+            </div>
+            <div class="roxy-ref-panel roxy-ref-assistant">
+              <div class="roxy-ref-assistant-avatar">{roxy_avatar_html("speaking", "Roxy hablando")}</div>
+              <p><strong>Roxy</strong><span>He encontrado {ready_now} oportunidades listas y {watch_now} en vigilancia.</span></p>
+              <a href="?view=Dashboard&module=acciones-operar" target="_self">Mostrar oportunidades</a>
+            </div>
           </div>
         </section>
         """,
@@ -31398,11 +31433,25 @@ def render_roxy_folder_trade_chart(
         if rendered:
             return
     st.markdown(
-        """
-        <div class="roxy-module-empty">
-          <strong>Grafica en espera</strong>
-          <span>Roxy no pudo cargar velas para este activo todavia. Revisa proveedor o intenta otro simbolo.</span>
-        </div>
+        f"""
+        <section class="roxy-folder-chart-fallback">
+          <header>
+            <strong>2 GRAFICAS LIVE</strong>
+            <span>{html.escape(symbol)} · 15m + 1h · esperando velas del proveedor</span>
+          </header>
+          <div class="roxy-folder-chart-fallback-grid">
+            <article>
+              <b>Entrada 15m</b>
+              <div aria-hidden="true"><i style="--x:8%;--h:24%"></i><i style="--x:18%;--h:42%"></i><i style="--x:28%;--h:35%"></i><i style="--x:38%;--h:55%"></i><i style="--x:50%;--h:48%"></i><i style="--x:62%;--h:68%"></i><i style="--x:74%;--h:58%"></i><i style="--x:86%;--h:76%"></i></div>
+              <span>Roxy espera datos 15m para validar entrada.</span>
+            </article>
+            <article>
+              <b>Tendencia 1h</b>
+              <div aria-hidden="true"><i style="--x:8%;--h:34%"></i><i style="--x:18%;--h:39%"></i><i style="--x:28%;--h:52%"></i><i style="--x:38%;--h:47%"></i><i style="--x:50%;--h:62%"></i><i style="--x:62%;--h:66%"></i><i style="--x:74%;--h:72%"></i><i style="--x:86%;--h:64%"></i></div>
+              <span>Roxy espera datos 1h para confirmar tendencia.</span>
+            </article>
+          </div>
+        </section>
         """,
         unsafe_allow_html=True,
     )
@@ -35562,12 +35611,15 @@ def main() -> None:
         .roxy-stage-live-msg small:nth-child(2){animation-delay:3s}.roxy-stage-live-msg small:nth-child(3){animation-delay:6s}
         .roxy-stage-bubble i{display:inline-block;width:6px;height:6px;border-radius:999px;background:#38bdf8;margin:12px 4px 0 0;box-shadow:0 0 12px rgba(56,189,248,.9);animation:roxyPulse 1.8s ease-in-out infinite}
         .roxy-stage-bubble i:nth-child(4){animation-delay:.22s}.roxy-stage-bubble i:nth-child(5){animation-delay:.44s}
-        .roxy-stage-wave{display:flex;align-items:center;gap:4px;height:54px;padding:10px 12px;border:1px solid rgba(56,189,248,.20);border-radius:8px;background:rgba(2,6,23,.36);width:max-content;max-width:100%}
+        .roxy-stage-wave{display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;min-height:54px;padding:10px 12px;border:1px solid rgba(56,189,248,.20);border-radius:8px;background:rgba(2,6,23,.36);width:min(360px,100%);max-width:100%}
+        .roxy-stage-wave span{display:block;color:#8bd8ff;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em;line-height:1}
+        .roxy-stage-wave div{display:flex;align-items:center;gap:4px;height:36px}
         .roxy-stage-wave b{display:block;width:3px;height:12px;border-radius:999px;background:linear-gradient(180deg,#d4af60,#38bdf8);animation:roxyWave 1.35s ease-in-out infinite;animation-delay:calc(var(--i) * -0.065s);box-shadow:0 0 10px rgba(56,189,248,.42)}
         .roxy-stage-status{border:1px solid rgba(212,175,96,.26);border-radius:8px;background:rgba(2,6,23,.44);padding:12px 14px;max-width:360px}
         .roxy-stage-status span,.roxy-stage-brand span,.roxy-stage-values span,.roxy-stage-module span{display:block;color:#d4af60;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.10em;line-height:1}
         .roxy-stage-status strong{display:block;color:#f8fafc;font-size:36px;line-height:.95;margin-top:8px;text-shadow:0 0 22px rgba(56,189,248,.45);overflow-wrap:anywhere}
         .roxy-stage-status small{display:block;color:#bfdbfe;font-size:12px;line-height:1.2;margin-top:7px}
+        .roxy-stage-status a{display:inline-flex;margin-top:10px;color:#e0f2fe!important;text-decoration:none!important;border:1px solid rgba(125,211,252,.34);border-radius:6px;background:rgba(2,6,23,.48);padding:7px 9px;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}
         .roxy-stage-center .roxy-hologram-avatar{width:min(410px,100%);aspect-ratio:1/1.08}
         .roxy-stage-center .roxy-avatar-core{border-radius:8px}
         .roxy-stage-title{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);text-align:center;text-shadow:0 0 28px rgba(56,189,248,.6);pointer-events:none}
@@ -35581,6 +35633,7 @@ def main() -> None:
         .roxy-stage-values div:before{content:"";width:30px;height:30px;border-radius:8px;border:1px solid rgba(56,189,248,.40);background:radial-gradient(circle,rgba(56,189,248,.28),rgba(15,23,42,.70));box-shadow:0 0 16px rgba(56,189,248,.14)}
         .roxy-stage-values span{color:#8bd8ff;letter-spacing:.06em}
         .roxy-stage-values strong{display:block;color:#e5edf7;font-size:12px;line-height:1.25;font-weight:820}
+        .roxy-stage-values em{display:block;grid-column:2;color:#8bd8ff;font-size:10px;font-style:normal;font-weight:950;line-height:1;margin-top:5px}
         .roxy-stage-modules{grid-area:modules;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;margin-top:2px}
         .roxy-stage-modules p{margin:0}
         .roxy-stage-module{display:block;min-width:0;border:1px solid rgba(125,211,252,.20);border-radius:8px;background:linear-gradient(145deg,rgba(15,23,42,.72),rgba(2,6,23,.46));padding:10px 12px;text-align:center;text-decoration:none!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 10px 28px rgba(2,6,23,.22);transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
@@ -35589,7 +35642,7 @@ def main() -> None:
         .roxy-stage-module b{position:relative;display:grid;place-items:center;width:38px;height:38px;margin:0 auto 8px;border:1px solid rgba(56,189,248,.44);border-radius:50%;background:radial-gradient(circle,rgba(56,189,248,.25),rgba(2,6,23,.70));color:#e0f2fe;font-size:12px;font-weight:950;line-height:1;letter-spacing:.02em;box-shadow:0 0 22px rgba(56,189,248,.20)}
         .roxy-stage-module span{color:#8bd8ff;font-size:9px;letter-spacing:.08em}
         .roxy-stage-module strong{display:block;color:#f8fafc;font-size:11px;line-height:1.18;margin-top:5px;min-height:26px;overflow:hidden}
-        .roxy-reference-stage{grid-template-columns:minmax(220px,.86fr) minmax(330px,520px) minmax(250px,.9fr);grid-template-areas:"left center right" "modules modules modules";align-items:center;min-height:620px;padding:28px 40px 24px;background:
+        .roxy-reference-stage{grid-template-columns:minmax(220px,.86fr) minmax(330px,520px) minmax(250px,.9fr);grid-template-areas:"top top top" "left center right" "modules modules modules" "live live live";align-items:center;min-height:820px;padding:18px 24px 22px;background:
             radial-gradient(ellipse at 50% 69%,rgba(56,189,248,.22),transparent 21%),
             linear-gradient(90deg,transparent 0 19%,rgba(56,189,248,.075) 33%,rgba(125,211,252,.12) 50%,rgba(56,189,248,.075) 67%,transparent 84%),
             radial-gradient(circle at 50% 42%,rgba(56,189,248,.30),transparent 33%),
@@ -35613,7 +35666,18 @@ def main() -> None:
         .roxy-reference-stage .roxy-stage-values div:nth-child(1):before{background:radial-gradient(circle,rgba(34,211,238,.38),rgba(15,23,42,.70))}
         .roxy-reference-stage .roxy-stage-values div:nth-child(2):before{background:radial-gradient(circle,rgba(56,189,248,.42),rgba(15,23,42,.70))}
         .roxy-reference-stage .roxy-stage-values div:nth-child(3):before{background:radial-gradient(circle,rgba(212,175,96,.38),rgba(15,23,42,.70))}
-        .roxy-reference-stage .roxy-stage-modules{grid-area:modules;grid-template-columns:repeat(6,minmax(0,1fr));gap:0;margin:8px 0 0;align-self:end;background:linear-gradient(90deg,transparent,rgba(2,6,23,.24) 10%,rgba(2,6,23,.30) 90%,transparent);padding-top:10px}
+        .roxy-ref-topbar{grid-area:top;display:grid;grid-template-columns:34px auto minmax(0,1fr) 34px 42px;gap:12px;align-items:center;min-height:54px;border-bottom:1px solid rgba(125,211,252,.16);padding:0 0 12px;margin-bottom:2px}
+        .roxy-ref-menu{display:grid;gap:5px;width:22px}
+        .roxy-ref-menu span{display:block;height:2px;border-radius:999px;background:#38bdf8;box-shadow:0 0 10px rgba(56,189,248,.55)}
+        .roxy-ref-logo .brand-logo-img{width:108px;max-width:108px;border-color:rgba(212,175,96,.55);background:rgba(2,6,23,.46)}
+        .roxy-ref-welcome strong{display:block;color:#f8fafc;font-size:15px;line-height:1.05;font-weight:900}
+        .roxy-ref-welcome span{display:block;color:#bfdbfe;font-size:11px;line-height:1.15;margin-top:5px}
+        .roxy-ref-alert{position:relative;width:30px;height:30px;border-radius:50%;border:1px solid rgba(56,189,248,.38);background:rgba(2,6,23,.50);box-shadow:0 0 18px rgba(56,189,248,.12)}
+        .roxy-ref-alert:before{content:"";position:absolute;inset:8px;border-radius:50%;border:2px solid rgba(125,211,252,.70);border-top-color:transparent}
+        .roxy-ref-alert b{position:absolute;right:-4px;top:-5px;display:grid;place-items:center;width:15px;height:15px;border-radius:50%;background:#ef4444;color:#fff;font-size:8px;line-height:1}
+        .roxy-ref-mini-avatar .roxy-avatar{width:40px;height:40px;border-radius:50%}
+        .roxy-ref-mini-avatar .roxy-avatar span{display:none}
+        .roxy-reference-stage .roxy-stage-modules{grid-area:modules;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;margin:8px 0 0;align-self:end;background:linear-gradient(90deg,transparent,rgba(2,6,23,.24) 10%,rgba(2,6,23,.30) 90%,transparent);padding-top:10px}
         .roxy-reference-stage .roxy-stage-module{border:0;border-radius:0;background:transparent;padding:2px 13px 0;box-shadow:none;border-right:1px solid rgba(125,211,252,.22)}
         .roxy-reference-stage .roxy-stage-module:last-child{border-right:0}
         .roxy-reference-stage .roxy-stage-module:hover{transform:translateY(-3px);box-shadow:none}
@@ -35621,6 +35685,29 @@ def main() -> None:
         .roxy-reference-stage .roxy-stage-module b:after{content:"";position:absolute;width:72%;height:72%;border-radius:50%;border:1px solid rgba(125,211,252,.20);animation:roxyModulePing 3.8s ease-in-out infinite}
         .roxy-reference-stage .roxy-stage-module span{color:#f8fafc;font-size:11px;letter-spacing:.08em;text-shadow:0 0 12px rgba(56,189,248,.55)}
         .roxy-reference-stage .roxy-stage-module strong{font-size:10px;color:#dbeafe;line-height:1.18;min-height:34px;margin-top:5px;text-shadow:0 0 12px rgba(2,6,23,.75)}
+        .roxy-ref-live-grid{grid-area:live;display:grid;grid-template-columns:minmax(160px,.72fr) minmax(280px,1.6fr) minmax(160px,.72fr);grid-template-areas:"movers chart events" "assistant assistant assistant";gap:10px;margin-top:8px}
+        .roxy-ref-panel{border:1px solid rgba(125,211,252,.20);border-radius:8px;background:linear-gradient(145deg,rgba(15,23,42,.66),rgba(2,6,23,.48));padding:11px 12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 14px 36px rgba(2,6,23,.22);min-width:0}
+        .roxy-ref-panel span{display:block;color:#8bd8ff;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em;line-height:1}
+        .roxy-ref-panel div{min-width:0}
+        .roxy-ref-panel strong{color:#f8fafc;font-size:13px;line-height:1.05;font-weight:950}
+        .roxy-ref-panel b{color:#22c55e;font-size:12px;line-height:1;font-weight:950}
+        .roxy-ref-panel a{display:inline-flex;margin-top:8px;color:#bfdbfe!important;text-decoration:none!important;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}
+        .roxy-ref-movers{grid-area:movers}.roxy-ref-chart{grid-area:chart}.roxy-ref-events{grid-area:events}.roxy-ref-assistant{grid-area:assistant}
+        .roxy-ref-movers div,.roxy-ref-events div{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;border-bottom:1px solid rgba(125,211,252,.10);padding-bottom:7px}
+        .roxy-ref-events b{color:#cbd5e1;font-size:10px;font-weight:800;text-align:right}
+        .roxy-ref-chart header{display:flex;align-items:center;gap:8px;justify-content:space-between;margin-bottom:8px}
+        .roxy-ref-chart header span{flex:1}.roxy-ref-chart header strong{font-size:14px}.roxy-ref-chart header b{color:#22c55e}
+        .roxy-ref-timeframes{display:flex;gap:5px;margin:0 0 8px;overflow:hidden}
+        .roxy-ref-timeframes i{display:grid;place-items:center;min-width:28px;height:22px;border-radius:5px;border:1px solid rgba(125,211,252,.18);background:rgba(2,6,23,.44);color:#94a3b8;font-size:9px;font-style:normal;font-weight:900}
+        .roxy-ref-timeframes i.active{background:#2563eb;color:#fff;border-color:rgba(96,165,250,.7);box-shadow:0 0 18px rgba(37,99,235,.35)}
+        .roxy-ref-candle-chart{position:relative;height:154px;border:1px solid rgba(125,211,252,.14);border-radius:7px;background:linear-gradient(rgba(125,211,252,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,252,.045) 1px,transparent 1px),rgba(2,6,23,.54);background-size:38px 38px;overflow:hidden}
+        .roxy-ref-candle-chart:before{content:"";position:absolute;left:6%;right:6%;top:48%;height:2px;background:linear-gradient(90deg,transparent,#38bdf8,#d4af60,transparent);filter:drop-shadow(0 0 10px rgba(56,189,248,.55))}
+        .roxy-ref-candle-chart b{position:absolute;left:var(--x);bottom:18%;width:7px;height:var(--h);border-radius:3px;background:var(--c);box-shadow:0 0 10px color-mix(in srgb,var(--c) 62%,transparent)}
+        .roxy-ref-candle-chart b:before{content:"";position:absolute;left:3px;top:-12px;width:1px;height:calc(100% + 24px);background:var(--c);opacity:.55}
+        .roxy-ref-assistant{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:10px;align-items:center}
+        .roxy-ref-assistant .roxy-avatar{width:44px;height:44px;border-radius:8px}.roxy-ref-assistant .roxy-avatar span{display:none}
+        .roxy-ref-assistant p{margin:0;color:#cbd5e1;font-size:12px;line-height:1.25}
+        .roxy-ref-assistant p strong{display:block;color:#f8fafc;font-size:13px;margin-bottom:3px}
         .roxy-folder-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;border:1px solid rgba(56,189,248,.26);border-left:4px solid #38bdf8;border-radius:8px;background:linear-gradient(135deg,rgba(7,12,22,.94),rgba(8,47,73,.48));padding:10px 12px;margin:0 0 8px;box-shadow:0 14px 34px rgba(2,6,23,.28)}
         .roxy-folder-head a{color:#e0f2fe!important;text-decoration:none!important;border:1px solid rgba(125,211,252,.34);border-radius:6px;background:rgba(2,6,23,.48);padding:7px 9px;font-size:11px;font-weight:900;white-space:nowrap}
         .roxy-folder-head span{display:block;color:#8bd8ff;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}
@@ -35671,6 +35758,19 @@ def main() -> None:
         .roxy-module-empty{border:1px solid rgba(56,189,248,.24);border-left:4px solid #38bdf8;border-radius:8px;background:rgba(2,6,23,.54);padding:14px;margin:0 0 8px}
         .roxy-module-empty strong{display:block;color:#f8fafc;font-size:18px;line-height:1.1}
         .roxy-module-empty span{display:block;color:#cbd5e1;font-size:12px;line-height:1.35;margin-top:6px}
+        .roxy-folder-chart-fallback{border:1px solid rgba(56,189,248,.22);border-radius:8px;background:linear-gradient(135deg,rgba(2,6,23,.86),rgba(8,47,73,.42));padding:8px;margin:0 0 8px;box-shadow:0 14px 36px rgba(2,6,23,.28),inset 0 1px 0 rgba(255,255,255,.04)}
+        .roxy-folder-chart-fallback header{display:flex;align-items:center;gap:8px;justify-content:space-between;margin:0 0 7px;color:#cbd5e1;font-size:11px}
+        .roxy-folder-chart-fallback header strong{color:#8bd8ff;font-size:11px;font-weight:950;letter-spacing:.05em}
+        .roxy-folder-chart-fallback header span{color:#cbd5e1;font-size:10px;text-align:right}
+        .roxy-folder-chart-fallback-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+        .roxy-folder-chart-fallback article{border:1px solid rgba(125,211,252,.18);border-radius:7px;background:rgba(2,6,23,.50);padding:8px;min-width:0}
+        .roxy-folder-chart-fallback article>b{display:block;color:#f8fafc;font-size:12px;line-height:1;margin-bottom:6px}
+        .roxy-folder-chart-fallback article>div{position:relative;height:168px;border:1px solid rgba(125,211,252,.12);border-radius:6px;background:linear-gradient(rgba(125,211,252,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,252,.045) 1px,transparent 1px),rgba(2,6,23,.62);background-size:30px 30px;overflow:hidden}
+        .roxy-folder-chart-fallback article>div:before{content:"";position:absolute;left:6%;right:6%;top:52%;height:2px;background:linear-gradient(90deg,transparent,#38bdf8,#d4af60,transparent);filter:drop-shadow(0 0 10px rgba(56,189,248,.45))}
+        .roxy-folder-chart-fallback article i{position:absolute;left:var(--x);bottom:15%;width:8px;height:var(--h);border-radius:3px;background:linear-gradient(180deg,#22c55e,#38bdf8);box-shadow:0 0 10px rgba(56,189,248,.35)}
+        .roxy-folder-chart-fallback article i:nth-child(2n){background:linear-gradient(180deg,#ef4444,#d4af60)}
+        .roxy-folder-chart-fallback article i:before{content:"";position:absolute;left:3px;top:-12px;width:1px;height:calc(100% + 24px);background:rgba(226,232,240,.42)}
+        .roxy-folder-chart-fallback article span{display:block;color:#94a3b8;font-size:10px;line-height:1.2;margin-top:6px}
         .roxy-asset-command-bar{position:relative;display:grid;grid-template-columns:minmax(190px,.85fr) minmax(0,1.4fr) auto;gap:10px;align-items:center;border:1px solid rgba(56,189,248,.28);border-left:4px solid #d4af60;border-radius:8px;background:linear-gradient(135deg,rgba(2,6,23,.94),rgba(8,47,73,.50),rgba(2,6,23,.94));padding:10px 12px;margin:0 0 8px;overflow:hidden;box-shadow:0 18px 48px rgba(2,6,23,.36),0 0 30px rgba(56,189,248,.10)}
         .roxy-asset-command-bar:before{content:"";position:absolute;inset:0;background:linear-gradient(rgba(125,211,252,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,252,.045) 1px,transparent 1px);background-size:32px 32px;opacity:.52;pointer-events:none}
         .roxy-asset-command-bar>*{position:relative;z-index:1}
@@ -35689,10 +35789,11 @@ def main() -> None:
         .roxy-floating-avatar div>span{display:block;color:#cbd5e1;font-size:10px;line-height:1.2;margin-top:3px}
         @media (max-width:760px){.roxy-folder-head{grid-template-columns:1fr}.roxy-folder-head small{text-align:left}.roxy-folder-chart-head{display:grid;gap:8px}.roxy-folder-chart-head strong{font-size:31px}.roxy-folder-chart-head em{justify-self:start}.roxy-folder-chart-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.roxy-folder-chart-metrics div:last-child{grid-column:1 / -1}}
         @media (max-width:1080px){.roxy-opening-stage{grid-template-columns:minmax(0,1fr) minmax(250px,360px);grid-template-areas:"left center" "right center" "modules modules";min-height:390px}.roxy-stage-right{grid-template-columns:1fr 1fr}.roxy-stage-brand{align-content:center}.roxy-stage-values{gap:6px}.roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-stage-title strong{font-size:50px}}
-        @media (max-width:1080px){.roxy-reference-stage{grid-template-columns:minmax(0,1fr) minmax(260px,420px);grid-template-areas:"left center" "right center" "modules modules";min-height:580px;padding:20px 18px 18px}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:10px;background:linear-gradient(180deg,rgba(2,6,23,.10),rgba(2,6,23,.74));padding-top:12px}.roxy-reference-stage .roxy-stage-module{border-right:0}.roxy-reference-stage .roxy-stage-module b{width:44px;height:44px}}
+        @media (max-width:1080px){.roxy-reference-stage{grid-template-columns:minmax(0,1fr) minmax(260px,420px);grid-template-areas:"top top" "left center" "right center" "modules modules" "live live";min-height:760px;padding:18px}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(5,minmax(0,1fr));row-gap:10px;background:linear-gradient(180deg,rgba(2,6,23,.10),rgba(2,6,23,.74));padding-top:12px}.roxy-reference-stage .roxy-stage-module{border-right:0}.roxy-reference-stage .roxy-stage-module b{width:44px;height:44px}.roxy-ref-live-grid{grid-template-columns:1fr 1.35fr;grid-template-areas:"movers chart" "events chart" "assistant assistant"}}
         @media (max-width:760px){.roxy-opening-stage{grid-template-columns:1fr;grid-template-areas:"center" "modules";gap:10px;min-height:0;padding:10px 10px 9px;margin-top:2px}.roxy-stage-center{min-height:270px}.roxy-stage-center .roxy-hologram-avatar{width:min(292px,91vw)}.roxy-stage-title{bottom:8px}.roxy-stage-title strong{font-size:44px}.roxy-stage-title span{font-size:10px;letter-spacing:.18em}.roxy-stage-left{display:block;position:absolute;left:15px;top:13px;width:min(150px,40%);z-index:3}.roxy-stage-bubble{max-width:none;padding:9px 10px;border-radius:8px;background:rgba(2,6,23,.54)}.roxy-stage-bubble:after{display:none}.roxy-stage-bubble strong{font-size:15px}.roxy-stage-bubble span{font-size:10px;line-height:1.15;margin-top:5px}.roxy-stage-bubble i{width:4px;height:4px;margin-top:7px}.roxy-stage-wave,.roxy-stage-status{display:none}.roxy-stage-right{display:block;position:absolute;right:14px;top:12px;width:min(132px,36%);z-index:3}.roxy-stage-brand{display:grid;justify-items:end;gap:2px;border:0;background:transparent;padding:0;box-shadow:none;text-align:right}.roxy-stage-brand .brand-logo-img{width:112px;border-color:rgba(212,175,96,.42);background:rgba(2,6,23,.25)}.roxy-stage-brand span{font-size:8px;color:#f8fafc}.roxy-stage-brand strong{display:none}.roxy-stage-values{display:none}.roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:0}.roxy-stage-module{padding:8px 6px}.roxy-stage-module b{width:32px;height:32px;margin-bottom:6px}.roxy-stage-module strong{font-size:10px;min-height:24px}.roxy-asset-card{grid-template-columns:1fr 1fr;padding:10px}.roxy-asset-command-bar{grid-template-columns:1fr;gap:8px}.roxy-asset-live{text-align:left;justify-items:start}.roxy-floating-avatar{right:10px;bottom:66px;max-width:210px}}
         @media (max-width:760px){.block-container{padding-top:0!important;padding-left:.25rem!important;padding-right:.25rem!important;max-width:100vw!important}[data-testid="stHeader"]{display:none!important}.roxy-reference-stage,.roxy-reference-stage *{box-sizing:border-box}.roxy-reference-stage{grid-template-columns:68px minmax(0,1fr) 90px;grid-template-areas:"left center right" "modules modules modules";min-height:min(550px,72vh);width:100%;max-width:100%;padding:9px 6px 10px;gap:3px;align-items:center;overflow:hidden}.roxy-reference-stage .roxy-stage-center{min-height:390px;align-self:end;min-width:0}.roxy-reference-stage .roxy-stage-center:before{width:min(310px,80vw);height:72%}.roxy-reference-stage .roxy-stage-center .roxy-hologram-avatar{width:min(218px,52vw);aspect-ratio:.70/1}.roxy-reference-stage .roxy-hologram-name strong{font-size:34px;letter-spacing:.07em}.roxy-reference-stage .roxy-hologram-name span{font-size:8px;letter-spacing:.18em}.roxy-reference-stage .roxy-holo-pedestal{bottom:13%;width:98%;height:24%}.roxy-reference-stage .roxy-audio-wave{height:32px;padding:5px 8px;gap:3px}.roxy-reference-stage .roxy-audio-wave i{width:2px}.roxy-reference-stage .roxy-stage-left{display:grid;position:relative;left:auto;top:auto;width:100%;min-width:0;z-index:3;align-self:center;gap:8px}.roxy-reference-stage .roxy-stage-bubble{width:100%;padding:7px 6px;border-radius:8px;background:rgba(2,6,23,.48);max-width:none}.roxy-reference-stage .roxy-stage-bubble strong{font-size:12px;line-height:1.08}.roxy-reference-stage .roxy-stage-bubble span{font-size:8px;line-height:1.12;margin-top:6px}.roxy-reference-stage .roxy-stage-live-msg{height:20px;margin-top:6px}.roxy-reference-stage .roxy-stage-live-msg small{font-size:6.8px;line-height:1.12}.roxy-reference-stage .roxy-stage-bubble i{width:4px;height:4px;margin:6px 3px 0 0}.roxy-reference-stage .roxy-stage-wave{display:flex;width:100%;height:28px;padding:4px 2px;gap:1px;background:transparent;border:0}.roxy-reference-stage .roxy-stage-wave b{width:2px}.roxy-reference-stage .roxy-stage-right{display:grid;position:relative;right:auto;top:auto;width:100%;min-width:0;z-index:3;align-self:start;justify-items:end;gap:4px}.roxy-reference-stage .roxy-stage-brand{width:100%;justify-items:end}.roxy-reference-stage .roxy-stage-brand .brand-logo-img{width:84px;max-width:100%}.roxy-reference-stage .roxy-stage-brand span{font-size:6px;letter-spacing:.06em}.roxy-reference-stage .roxy-stage-brand strong{display:block;font-size:8px;line-height:1.05;text-align:right;max-width:84px}.roxy-reference-stage .roxy-stage-values{display:grid;width:88px;gap:4px}.roxy-reference-stage .roxy-stage-values div{grid-template-columns:13px minmax(0,1fr);gap:3px;padding:4px 3px;border-radius:6px;background:rgba(15,23,42,.38);min-width:0}.roxy-reference-stage .roxy-stage-values div:before{width:12px;height:12px;border-radius:4px}.roxy-reference-stage .roxy-stage-values span{font-size:4.45px;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:clip}.roxy-reference-stage .roxy-stage-values strong{display:none}.roxy-reference-stage .roxy-stage-status{display:none}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(6,minmax(0,1fr));gap:0;background:linear-gradient(90deg,transparent,rgba(2,6,23,.34) 9%,rgba(2,6,23,.42) 91%,transparent);padding-top:6px;margin-top:0;width:100%;max-width:100%;min-width:0;overflow:hidden}.roxy-reference-stage .roxy-stage-module{padding:2px 1px 0;border-right:1px solid rgba(125,211,252,.16);min-width:0;max-width:100%;overflow:hidden}.roxy-reference-stage .roxy-stage-module:last-child{border-right:0}.roxy-reference-stage .roxy-stage-module b{width:28px;height:28px;margin-bottom:5px;font-size:8px}.roxy-reference-stage .roxy-stage-module b:after{animation-duration:4.6s}.roxy-reference-stage .roxy-stage-module span{font-size:5.4px;line-height:1.02;letter-spacing:.02em;overflow-wrap:anywhere;word-break:break-word;hyphens:auto;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.roxy-reference-stage .roxy-stage-module strong{font-size:5.3px;line-height:1.08;min-height:17px;margin-top:3px;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}}
-        @media (max-width:430px){.roxy-stage-center{min-height:245px}.roxy-stage-center .roxy-hologram-avatar{width:min(255px,90vw)}.roxy-stage-title strong{font-size:38px}.roxy-stage-modules{grid-template-columns:repeat(2,minmax(0,1fr))}.roxy-stage-module:nth-child(n+5){display:block}.roxy-stage-module{padding:7px 5px}}
+        @media (max-width:760px){.roxy-reference-stage{grid-template-columns:66px minmax(0,1fr) 86px;grid-template-areas:"top top top" "left center right" "modules modules modules" "live live live";min-height:auto;width:100%;max-width:100%;padding:7px 5px 10px;gap:4px;align-items:center;overflow:hidden}.roxy-ref-topbar{grid-template-columns:22px 76px minmax(0,1fr) 24px 30px;gap:6px;min-height:42px;padding-bottom:6px;margin:0}.roxy-ref-logo .brand-logo-img{width:74px;max-width:74px}.roxy-ref-welcome strong{font-size:10px}.roxy-ref-welcome span{font-size:7px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.roxy-ref-alert{width:24px;height:24px}.roxy-ref-alert b{width:12px;height:12px;font-size:7px}.roxy-ref-mini-avatar .roxy-avatar{width:28px;height:28px}.roxy-reference-stage .roxy-stage-center{min-height:382px;align-self:end;min-width:0}.roxy-reference-stage .roxy-stage-center:before{width:min(330px,84vw);height:74%}.roxy-reference-stage .roxy-stage-center .roxy-hologram-avatar{width:min(236px,56vw);aspect-ratio:.70/1}.roxy-reference-stage .roxy-hologram-name strong{font-size:38px;letter-spacing:.08em}.roxy-reference-stage .roxy-hologram-name span{font-size:8px;letter-spacing:.18em}.roxy-reference-stage .roxy-stage-left{display:grid;position:relative;left:auto;top:auto;width:100%;min-width:0;z-index:3;align-self:center;gap:7px}.roxy-reference-stage .roxy-stage-bubble{width:100%;padding:7px 6px;border-radius:8px;background:rgba(2,6,23,.52);max-width:none}.roxy-reference-stage .roxy-stage-bubble strong{font-size:12px;line-height:1.08}.roxy-reference-stage .roxy-stage-bubble span{font-size:8px;line-height:1.12;margin-top:6px}.roxy-reference-stage .roxy-stage-live-msg{height:20px;margin-top:6px}.roxy-reference-stage .roxy-stage-live-msg small{font-size:6.8px;line-height:1.12}.roxy-reference-stage .roxy-stage-wave{grid-template-columns:1fr;height:auto;min-height:30px;width:100%;padding:4px 2px;gap:2px;background:transparent;border:0}.roxy-reference-stage .roxy-stage-wave span{font-size:0}.roxy-reference-stage .roxy-stage-wave div{height:28px;gap:1px}.roxy-reference-stage .roxy-stage-wave b{width:2px}.roxy-reference-stage .roxy-stage-right{display:grid;position:relative;right:auto;top:auto;width:100%;min-width:0;z-index:3;align-self:start;justify-items:end;gap:4px}.roxy-reference-stage .roxy-stage-brand{width:100%;justify-items:end}.roxy-reference-stage .roxy-stage-brand span{font-size:6px;letter-spacing:.06em}.roxy-reference-stage .roxy-stage-brand strong{display:block;font-size:8px;line-height:1.05;text-align:right;max-width:84px}.roxy-reference-stage .roxy-stage-values{display:grid;width:86px;gap:4px}.roxy-reference-stage .roxy-stage-values div{grid-template-columns:13px minmax(0,1fr);gap:3px;padding:4px 3px;border-radius:6px;background:rgba(15,23,42,.38);min-width:0}.roxy-reference-stage .roxy-stage-values div:before{width:12px;height:12px;border-radius:4px}.roxy-reference-stage .roxy-stage-values span{font-size:4.4px;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:clip}.roxy-reference-stage .roxy-stage-values strong,.roxy-reference-stage .roxy-stage-values em,.roxy-reference-stage .roxy-stage-status{display:none}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(5,minmax(0,1fr));gap:0;background:linear-gradient(90deg,transparent,rgba(2,6,23,.34) 9%,rgba(2,6,23,.42) 91%,transparent);padding-top:7px;margin-top:0;width:100%;max-width:100%;min-width:0;overflow:hidden}.roxy-reference-stage .roxy-stage-module{padding:2px 1px 0;border-right:1px solid rgba(125,211,252,.16);min-width:0;max-width:100%;overflow:hidden}.roxy-reference-stage .roxy-stage-module:last-child{border-right:0}.roxy-reference-stage .roxy-stage-module b{width:31px;height:31px;margin-bottom:5px;font-size:8px}.roxy-reference-stage .roxy-stage-module span{font-size:6px;line-height:1.02;letter-spacing:.02em;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.roxy-reference-stage .roxy-stage-module strong{font-size:5.7px;line-height:1.08;min-height:18px;margin-top:3px;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.roxy-ref-live-grid{grid-template-columns:1fr;grid-template-areas:"chart" "movers" "events" "assistant";gap:7px;margin-top:7px}.roxy-ref-panel{padding:8px}.roxy-ref-movers,.roxy-ref-events{display:grid;grid-template-columns:1fr 1fr;gap:5px}.roxy-ref-movers>span,.roxy-ref-events>span,.roxy-ref-movers>a,.roxy-ref-events>a{grid-column:1/-1}.roxy-ref-movers div,.roxy-ref-events div{margin-top:3px;padding-bottom:4px}.roxy-ref-candle-chart{height:132px}.roxy-ref-assistant{grid-template-columns:38px minmax(0,1fr);gap:8px}.roxy-ref-assistant a{grid-column:1/-1;margin-top:2px}}
+        @media (max-width:430px){.roxy-stage-center{min-height:245px}.roxy-stage-center .roxy-hologram-avatar{width:min(255px,90vw)}.roxy-stage-title strong{font-size:38px}.roxy-stage-modules{grid-template-columns:repeat(2,minmax(0,1fr))}.roxy-stage-module:nth-child(n+5){display:block}.roxy-stage-module{padding:7px 5px}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(5,minmax(0,1fr))}.roxy-reference-stage .roxy-stage-module{padding:2px 1px 0}.roxy-reference-stage .roxy-stage-center .roxy-hologram-avatar{width:min(228px,58vw)}}
         .roxy-trade-cockpit{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 160px minmax(250px,.9fr);gap:12px;align-items:center;border:1px solid rgba(56,189,248,.34);border-left:4px solid #d4af60;border-radius:8px;background:
             radial-gradient(circle at 50% 45%,rgba(56,189,248,.20),transparent 36%),
             linear-gradient(135deg,rgba(2,6,23,.92),rgba(8,47,73,.56) 52%,rgba(2,6,23,.92));padding:10px 12px;margin:0 0 8px;overflow:hidden;box-shadow:0 18px 48px rgba(2,6,23,.42),0 0 36px rgba(56,189,248,.10),inset 0 1px 0 rgba(255,255,255,.06)}
