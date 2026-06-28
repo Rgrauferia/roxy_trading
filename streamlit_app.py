@@ -31955,6 +31955,57 @@ def roxy_crypto_display_symbol(symbol: str) -> str:
     return f"{roxy_crypto_base_symbol(symbol)}/USDT"
 
 
+def render_roxy_countdown_runtime() -> None:
+    components.html(
+        """
+        <script>
+        (() => {
+          const doc = window.parent && window.parent.document ? window.parent.document : document;
+          if (doc.__roxyCountdownRuntime) return;
+          doc.__roxyCountdownRuntime = true;
+          const formatRemaining = (seconds, mode) => {
+            const safe = Math.max(0, Math.floor(Number(seconds) || 0));
+            const hh = Math.floor(safe / 3600);
+            const mm = Math.floor((safe % 3600) / 60);
+            const ss = safe % 60;
+            const pad = (value) => String(value).padStart(2, "0");
+            return mode === "mmss" ? `${pad(mm)}:${pad(ss)}` : `${pad(hh)}:${pad(mm)}:${pad(ss)}`;
+          };
+          const rollTargetForward = (target, cycleMs) => {
+            let next = Number(target) || 0;
+            const cycle = Number(cycleMs) || 0;
+            const now = Date.now();
+            if (!next || !cycle) return next;
+            while (next <= now) next += cycle;
+            return next;
+          };
+          const tick = () => {
+            doc.querySelectorAll("[data-roxy-countdown]").forEach((section) => {
+              const cycleMs = Number(section.dataset.cycleMs || 0);
+              let target = rollTargetForward(section.dataset.nextTs, cycleMs);
+              if (target && String(target) !== section.dataset.nextTs) {
+                section.dataset.nextTs = String(target);
+              }
+              const remainingMs = Math.max(0, target - Date.now());
+              const remainingSeconds = remainingMs / 1000;
+              const value = section.querySelector("[data-roxy-countdown-value]");
+              if (value) value.textContent = formatRemaining(remainingSeconds, section.dataset.countdownMode || "hhmmss");
+              if (cycleMs > 0) {
+                const progress = Math.max(0, Math.min(100, ((cycleMs - remainingMs) / cycleMs) * 100));
+                section.style.setProperty("--roxy-countdown-progress", `${progress.toFixed(2)}%`);
+              }
+              section.classList.toggle("is-hot", remainingSeconds <= 60);
+            });
+          };
+          tick();
+          window.setInterval(tick, 1000);
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+
 def roxy_crypto_icon_html(symbol: str) -> str:
     base = roxy_crypto_base_symbol(symbol)
     icon_map = {
@@ -32285,6 +32336,8 @@ def render_roxy_crypto20_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     countdown = f"{remaining // 60:02d}:{remaining % 60:02d}"
     current_time_label = now_dt.strftime("%I:%M %p").lstrip("0")
     next_time_label = next_dt.strftime("%I:%M %p").lstrip("0")
+    next_ts_ms = int(next_dt.timestamp() * 1000)
+    cycle_ms = 20 * 60 * 1000
     selected_display_symbol = roxy_crypto_display_symbol(selected_symbol)
     nav_items = [
         ("home", "Inicio", "Dashboard"),
@@ -32386,7 +32439,7 @@ def render_roxy_crypto20_folder(table: pd.DataFrame, *, timeframe: str) -> None:
             </section>
           </main>
           <aside class="roxy-crypto20-right">
-            <section class="roxy-crypto20-countdown"><strong>Proxima actualizacion en:</strong><div><b>{html.escape(countdown)}</b><span>min seg</span></div><p><span>Ultima actualizacion:<b>{html.escape(current_time_label)}</b></span><span>Siguiente:<b>{html.escape(next_time_label)}</b></span></p><i><u></u><u></u><u></u><u></u></i></section>
+            <section class="roxy-crypto20-countdown" data-roxy-countdown="crypto-20m" data-countdown-mode="mmss" data-next-ts="{next_ts_ms}" data-cycle-ms="{cycle_ms}"><strong>Proxima actualizacion en:</strong><div><b data-roxy-countdown-value>{html.escape(countdown)}</b><span>min seg</span></div><p><span>Ultima actualizacion:<b>{html.escape(current_time_label)}</b></span><span>Siguiente:<b>{html.escape(next_time_label)}</b></span></p><i><u></u><u></u><u></u><u></u></i></section>
             <section class="roxy-crypto20-signal"><strong>Oportunidad destacada</strong><div>{roxy_crypto_icon_html(selected_symbol)}<span><b>{html.escape(selected_display_symbol)}</b><small>{html.escape(action)}</small></span><em>{html.escape(action)}</em></div><p><span>Entrada <b>{html.escape(entry)}</b></span><span>Stop Loss <b>{html.escape(stop)}</b></span><span>Target 1 <b>{html.escape(target)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>R/R <b>1R : 2.0R</b></span><span>Probabilidad <b>71%</b></span></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1m" target="_self">Abrir en plataforma</a></section>
             <section class="roxy-crypto20-platform"><strong>Plataforma recomendada</strong><small>Deriv · Opciones 20 minutos</small><div class="selects"><span>{roxy_crypto_icon_html(selected_symbol)} {html.escape(roxy_crypto_base_symbol(selected_symbol))}</span><span>{html.escape(next_time_label)} (20 mins)</span></div><p><span>{html.escape(roxy_crypto_base_symbol(selected_symbol))} will be above <b>{html.escape(above_price)}</b></span><em class="yes">Yes</em></p><p><span>{html.escape(roxy_crypto_base_symbol(selected_symbol))} will be below <b>{html.escape(below_price)}</b></span><em class="no">No</em></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1m" target="_self">Ir a Deriv</a><small>Roxy recomienda operar en 20 minutos para mayor precision.</small></section>
           </aside>
@@ -32397,6 +32450,7 @@ def render_roxy_crypto20_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         """,
         unsafe_allow_html=True,
     )
+    render_roxy_countdown_runtime()
     rendered = render_roxy_crypto20_operational_charts(
         symbol=resolved_symbol,
         market=selected_market,
@@ -32469,6 +32523,8 @@ def render_roxy_crypto2h_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     current_time_label = now_dt.strftime("%I:%M %p").lstrip("0")
     last_time_label = last_dt.strftime("%I:%M %p").lstrip("0")
     next_time_label = next_dt.strftime("%I:%M %p").lstrip("0")
+    next_ts_ms = int(next_dt.timestamp() * 1000)
+    cycle_ms = 2 * 60 * 60 * 1000
     selected_display_symbol = roxy_crypto_display_symbol(selected_symbol)
     nav_items = [
         ("home", "Inicio", "Dashboard"),
@@ -32565,7 +32621,7 @@ def render_roxy_crypto2h_folder(table: pd.DataFrame, *, timeframe: str) -> None:
             </section>
           </main>
           <aside class="roxy-crypto20-right">
-            <section class="roxy-crypto20-countdown roxy-crypto2h-countdown"><strong>Proxima actualizacion en:</strong><div><b>{html.escape(countdown)}</b><span>hr min seg</span></div><p><span>Ultima actualizacion:<b>{html.escape(last_time_label)}</b></span><span>Siguiente:<b>{html.escape(next_time_label)}</b></span></p><i><u></u><u></u><u></u><u></u></i></section>
+            <section class="roxy-crypto20-countdown roxy-crypto2h-countdown" data-roxy-countdown="crypto-2h" data-countdown-mode="hhmmss" data-next-ts="{next_ts_ms}" data-cycle-ms="{cycle_ms}"><strong>Proxima actualizacion en:</strong><div><b data-roxy-countdown-value>{html.escape(countdown)}</b><span>hr min seg</span></div><p><span>Ultima actualizacion:<b>{html.escape(last_time_label)}</b></span><span>Siguiente:<b>{html.escape(next_time_label)}</b></span></p><i><u></u><u></u><u></u><u></u></i></section>
             <section class="roxy-crypto20-signal"><strong>Oportunidad destacada 2H</strong><div>{roxy_crypto_icon_html(selected_symbol)}<span><b>{html.escape(selected_display_symbol)}</b><small>{html.escape(action)}</small></span><em>{html.escape(action)}</em></div><p><span>Entrada sugerida <b>{html.escape(entry)}</b></span><span>Stop Loss <b>{html.escape(stop)}</b></span><span>Target 1 <b>{html.escape(target)}</b></span><span>Target 2 <b>{html.escape(above_price)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>R/R <b>1R : 2.0R</b></span><span>Probabilidad de exito <b>78%</b></span></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=2h" target="_self">Abrir en plataforma</a></section>
             <section class="roxy-crypto20-platform"><strong>Plataforma recomendada</strong><small>Deriv · Opciones 2 horas</small><div class="selects"><span>{roxy_crypto_icon_html(selected_symbol)} {html.escape(roxy_crypto_base_symbol(selected_symbol))}</span><span>{html.escape(next_time_label)} (2 hours)</span></div><p><span>{html.escape(roxy_crypto_base_symbol(selected_symbol))} will be above <b>{html.escape(above_price)}</b></span><em class="yes">Yes</em></p><p><span>{html.escape(roxy_crypto_base_symbol(selected_symbol))} will be below <b>{html.escape(below_price)}</b></span><em class="no">No</em></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=2h" target="_self">Ir a Deriv</a><small>Roxy te recomienda operar en 2 horas para mayor confirmacion y mejor gestion del riesgo.</small></section>
           </aside>
@@ -32576,6 +32632,7 @@ def render_roxy_crypto2h_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         """,
         unsafe_allow_html=True,
     )
+    render_roxy_countdown_runtime()
     rendered = render_roxy_crypto2h_operational_charts(
         symbol=resolved_symbol,
         market=selected_market,
@@ -32648,6 +32705,8 @@ def render_roxy_crypto_daily_folder(table: pd.DataFrame, *, timeframe: str) -> N
     current_time_label = now_dt.strftime("%I:%M %p").lstrip("0")
     next_time_label = next_dt.strftime("%I:%M %p").lstrip("0")
     next_day_label = "Hoy" if next_dt.date() == now_dt.date() else f"Manana {next_time_label}"
+    next_ts_ms = int(next_dt.timestamp() * 1000)
+    cycle_ms = 24 * 60 * 60 * 1000
     base_symbol = roxy_crypto_base_symbol(selected_symbol)
     key_levels = []
     if current_value:
@@ -32763,7 +32822,7 @@ def render_roxy_crypto_daily_folder(table: pd.DataFrame, *, timeframe: str) -> N
             </section>
           </main>
           <aside class="roxy-crypto20-right">
-            <section class="roxy-crypto20-countdown roxy-crypto-daily-countdown"><strong>Proxima actualizacion en:</strong><div><b>{html.escape(countdown)}</b><span>hr min seg</span></div><p><span>Ultima actualizacion:<b>Hoy {html.escape(current_time_label)}</b></span><span>Siguiente:<b>{html.escape(next_day_label)}</b></span></p><i><u></u><u></u><u></u><u></u></i></section>
+            <section class="roxy-crypto20-countdown roxy-crypto-daily-countdown" data-roxy-countdown="crypto-daily" data-countdown-mode="hhmmss" data-next-ts="{next_ts_ms}" data-cycle-ms="{cycle_ms}"><strong>Proxima actualizacion en:</strong><div><b data-roxy-countdown-value>{html.escape(countdown)}</b><span>hr min seg</span></div><p><span>Ultima actualizacion:<b>Hoy {html.escape(current_time_label)}</b></span><span>Siguiente:<b>{html.escape(next_day_label)}</b></span></p><i><u></u><u></u><u></u><u></u></i></section>
             <section class="roxy-crypto20-signal"><strong>Oportunidad destacada</strong><div>{roxy_crypto_icon_html(selected_symbol)}<span><b>{html.escape(selected_display_symbol)}</b><small>{html.escape(action)}</small></span><em>{html.escape(action)}</em></div><p><span>Entrada sugerida <b>{html.escape(entry)}</b></span><span>Stop Loss <b>{html.escape(stop)}</b></span><span>Target 1 <b>{html.escape(target)}</b></span><span>Target 2 <b>{html.escape(target_2)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>R/R <b>1R : 2.6R</b></span><span>Probabilidad de exito <b>82%</b></span></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1d" target="_self">Abrir en plataforma</a></section>
             <section class="roxy-crypto20-platform"><strong>Plataforma recomendada</strong><small>Deriv · Opciones Daily (24 horas)</small><div class="selects"><span>{roxy_crypto_icon_html(selected_symbol)} {html.escape(base_symbol)}</span><span>{html.escape(next_day_label)}</span></div><p><span>{html.escape(base_symbol)} will be above <b>{html.escape(target)}</b></span><em class="yes">Yes</em></p><p><span>{html.escape(base_symbol)} will be below <b>{html.escape(stop)}</b></span><em class="no">No</em></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1d" target="_self">Ir a Deriv</a><small>Roxy recomienda operar solo las mejores oportunidades Daily para proteger tu capital.</small></section>
           </aside>
@@ -32774,6 +32833,7 @@ def render_roxy_crypto_daily_folder(table: pd.DataFrame, *, timeframe: str) -> N
         """,
         unsafe_allow_html=True,
     )
+    render_roxy_countdown_runtime()
     rendered = render_roxy_crypto_daily_operational_charts(
         symbol=resolved_symbol,
         market=selected_market,
@@ -37718,7 +37778,7 @@ def main() -> None:
         .roxy-crypto20-hero{display:grid;grid-template-columns:178px minmax(0,1fr);gap:14px;align-items:center;min-height:188px;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.44);padding:12px 16px;overflow:hidden}.roxy-crypto20-roxy{display:grid;place-items:center;height:164px}.roxy-crypto20-roxy .roxy-hologram-avatar{width:154px;aspect-ratio:.72/1}.roxy-crypto20-roxy .roxy-avatar-core{border:0;border-radius:0;background:transparent;box-shadow:none;filter:drop-shadow(0 0 28px rgba(56,189,248,.50));-webkit-mask-image:radial-gradient(ellipse 52% 64% at 50% 42%,#000 0 68%,rgba(0,0,0,.72) 82%,transparent 100%);mask-image:radial-gradient(ellipse 52% 64% at 50% 42%,#000 0 68%,rgba(0,0,0,.72) 82%,transparent 100%)}.roxy-crypto20-roxy .roxy-hologram-name,.roxy-crypto20-roxy .roxy-audio-wave{display:none}.roxy-crypto20-hero .copy strong{display:block;color:#e0f2fe;font-size:18px;line-height:1.22}.roxy-crypto20-hero .copy p{margin:10px 0 0;color:#cbd5e1;font-size:12px;line-height:1.45;max-width:520px}.roxy-crypto20-hero .chips{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.roxy-crypto20-hero .chips span{display:flex;align-items:center;gap:5px;border:1px solid rgba(56,189,248,.14);border-radius:7px;background:rgba(2,6,23,.40);padding:7px;color:#9cc9e6;font-size:9px;font-weight:850}.roxy-crypto20-hero .chips i{font-size:15px!important;color:#34d399}
         .roxy-crypto20-alertbar{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.48);padding:10px 12px}.roxy-crypto20-alertbar>i{display:grid;place-items:center;width:28px;height:28px;border:1px solid rgba(125,211,252,.22);border-radius:50%;color:#7dd3fc}.roxy-crypto20-alertbar span{color:#cbd5e1;font-size:11px;font-weight:800}.roxy-crypto20-alertbar em{display:flex;align-items:center;gap:9px;color:#9cc9e6;font-size:10px;font-style:normal}.roxy-crypto20-alertbar em b{position:relative;width:38px;height:20px;border-radius:999px;background:#2563eb;box-shadow:0 0 16px rgba(37,99,235,.52)}.roxy-crypto20-alertbar em b:after{content:"";position:absolute;right:3px;top:3px;width:14px;height:14px;border-radius:50%;background:white}
         .roxy-crypto20-opps{min-width:0;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.48);overflow:hidden}.roxy-crypto20-opps header{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;padding:0 12px;border-bottom:1px solid rgba(125,211,252,.12)}.roxy-crypto20-opps header strong{color:#dbeafe;font-size:12px;text-transform:uppercase;letter-spacing:.04em}.roxy-crypto20-opps header small{color:#7f93ad;font-size:8px}.roxy-crypto20-opps header span{display:flex;align-items:center;gap:5px}.roxy-crypto20-opps header b{display:grid;place-items:center;min-width:32px;height:20px;border:1px solid rgba(125,211,252,.14);border-radius:5px;color:#8fb6d1;font-size:8px}.roxy-crypto20-opps header b.active{background:#2563eb;color:#fff}.roxy-crypto20-row{display:grid;grid-template-columns:34px minmax(86px,1fr) 78px 92px minmax(112px,1.1fr) 58px 22px;gap:8px;align-items:center;min-height:67px;padding:6px 10px;border-bottom:1px solid rgba(125,211,252,.10);text-decoration:none!important;color:#e5f6ff!important}.roxy-crypto20-row.selected,.roxy-crypto20-row:hover{background:rgba(37,99,235,.13)}.roxy-crypto20-head{min-height:30px;color:#7da8c9!important;font-size:8px;text-transform:uppercase;font-weight:950}.roxy-crypto20-head b{font-size:8px;color:#8fb6d1}.roxy-crypto-logo{display:grid!important;place-items:center!important;width:30px;height:30px;border-radius:50%;background:var(--logo-bg,#111827);box-shadow:0 0 18px rgba(56,189,248,.22);overflow:hidden}.roxy-crypto-logo img{width:19px;height:19px;object-fit:contain;filter:drop-shadow(0 0 6px rgba(255,255,255,.32))}.roxy-crypto20-row .asset strong,.roxy-crypto20-row .price strong{display:block;color:#f8fafc;font-size:12px;line-height:1;font-weight:950}.roxy-crypto20-row .asset small,.roxy-crypto20-row .price small{display:block;color:#22c55e;font-size:8px;line-height:1.12;margin-top:4px}.roxy-crypto20-row .price small{color:#8ba2bd}.roxy-crypto20-row .signal strong{display:block;color:#22c55e;font-size:10px;text-transform:uppercase}.roxy-crypto20-row .signal small{display:block;color:#cbd5e1;font-size:7px;line-height:1.22;margin-top:3px}.roxy-crypto20-row .score b{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:conic-gradient(#22c55e 0 72%,rgba(30,58,138,.55) 72%);color:#fff;font-size:11px;box-shadow:0 0 16px rgba(34,197,94,.20)}.roxy-crypto20-row .score small{display:block;margin-top:3px;color:#cbd5e1;font-size:6.5px;text-align:center}.roxy-crypto20-row .fav{color:#d4af60;font-size:17px!important}.roxy-crypto20-opps .more{display:grid!important;place-items:center;width:190px;height:28px;margin:8px auto 10px;border-radius:6px;background:rgba(37,99,235,.32);color:#dbeafe!important;text-decoration:none!important;font-size:9px;font-weight:950;text-transform:uppercase}
-        .roxy-crypto20-right{display:grid;gap:10px;align-content:start;min-width:0}.roxy-crypto20-right section,.roxy-crypto20-bottom article{border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.52);padding:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}.roxy-crypto20-right strong,.roxy-crypto20-bottom strong{display:block;color:#dbeafe;font-size:11px;text-transform:uppercase;letter-spacing:.06em}.roxy-crypto20-countdown{border-color:rgba(212,175,96,.38)!important}.roxy-crypto20-countdown div{position:relative;display:grid;place-items:center;width:116px;height:116px;margin:14px auto;border-radius:50%;background:conic-gradient(#34d399 0 68%,rgba(30,58,138,.55) 68%);box-shadow:0 0 25px rgba(20,184,166,.22)}.roxy-crypto20-countdown div:before{content:"";position:absolute;inset:12px;border-radius:50%;background:#07111f}.roxy-crypto20-countdown div b,.roxy-crypto20-countdown div span{position:relative;z-index:1}.roxy-crypto20-countdown div b{color:#fff;font-size:25px;line-height:1}.roxy-crypto20-countdown div span{color:#cbd5e1;font-size:8px;text-transform:uppercase}.roxy-crypto20-countdown p{display:grid;gap:7px;margin:0}.roxy-crypto20-countdown p span{display:flex;justify-content:space-between;color:#93c5fd;font-size:10px}.roxy-crypto20-countdown p b{color:#e5f6ff}.roxy-crypto20-countdown i{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:13px}.roxy-crypto20-countdown u{height:7px;border-radius:999px;background:linear-gradient(90deg,#22c55e,#2563eb);text-decoration:none}
+        .roxy-crypto20-right{display:grid;gap:10px;align-content:start;min-width:0}.roxy-crypto20-right section,.roxy-crypto20-bottom article{border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.52);padding:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}.roxy-crypto20-right strong,.roxy-crypto20-bottom strong{display:block;color:#dbeafe;font-size:11px;text-transform:uppercase;letter-spacing:.06em}.roxy-crypto20-countdown{--roxy-countdown-progress:0%;border-color:rgba(212,175,96,.38)!important}.roxy-crypto20-countdown div{position:relative;display:grid;place-items:center;width:116px;height:116px;margin:14px auto;border-radius:50%;background:conic-gradient(#34d399 0 var(--roxy-countdown-progress),rgba(30,58,138,.55) var(--roxy-countdown-progress) 100%);box-shadow:0 0 25px rgba(20,184,166,.22)}.roxy-crypto20-countdown div:after{content:"";position:absolute;inset:-3px;border-radius:50%;border:1px solid rgba(125,211,252,.34);filter:drop-shadow(0 0 10px rgba(52,211,153,.38));animation:roxy-countdown-orbit 6s linear infinite}.roxy-crypto20-countdown div:before{content:"";position:absolute;inset:12px;border-radius:50%;background:#07111f}.roxy-crypto20-countdown div b,.roxy-crypto20-countdown div span{position:relative;z-index:1}.roxy-crypto20-countdown div b{color:#fff;font-size:25px;line-height:1;font-variant-numeric:tabular-nums;text-shadow:0 0 16px rgba(52,211,153,.40)}.roxy-crypto20-countdown.is-hot div b{animation:roxy-timer-hot 1s steps(2,end) infinite;color:#fef3c7}.roxy-crypto20-countdown div span{color:#cbd5e1;font-size:8px;text-transform:uppercase}.roxy-crypto20-countdown p{display:grid;gap:7px;margin:0}.roxy-crypto20-countdown p span{display:flex;justify-content:space-between;color:#93c5fd;font-size:10px}.roxy-crypto20-countdown p b{color:#e5f6ff}.roxy-crypto20-countdown i{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:13px}.roxy-crypto20-countdown i:after{content:"";position:absolute;left:0;top:0;height:7px;width:var(--roxy-countdown-progress);border-radius:999px;background:linear-gradient(90deg,#34d399,#38bdf8,#2563eb);box-shadow:0 0 14px rgba(56,189,248,.42);transition:width .45s linear}.roxy-crypto20-countdown u{height:7px;border-radius:999px;background:rgba(30,58,138,.38);text-decoration:none}@keyframes roxy-countdown-orbit{to{transform:rotate(360deg)}}@keyframes roxy-timer-hot{50%{filter:brightness(1.35)}}
         .roxy-crypto20-signal>div{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:9px;align-items:center;margin:14px 0}.roxy-crypto20-signal span b{display:block;color:#f8fafc;font-size:14px}.roxy-crypto20-signal span small{display:block;color:#9aaec6;font-size:9px}.roxy-crypto20-signal em{border:1px solid rgba(34,197,94,.34);border-radius:5px;background:rgba(34,197,94,.12);padding:5px 7px;color:#22c55e;font-size:9px;font-style:normal;font-weight:950;text-transform:uppercase}.roxy-crypto20-signal p{display:grid;gap:8px;margin:0}.roxy-crypto20-signal p span{display:flex;justify-content:space-between;border-bottom:1px solid rgba(125,211,252,.10);padding-bottom:6px;color:#aebdd0;font-size:10px}.roxy-crypto20-signal p b{color:#e5f6ff}.roxy-crypto20-signal a,.roxy-crypto20-platform a,.roxy-crypto20-bottom a{display:flex!important;align-items:center;justify-content:center;gap:7px;height:40px;margin-top:13px;border:1px solid rgba(56,189,248,.38);border-radius:7px;background:linear-gradient(90deg,rgba(37,99,235,.64),rgba(14,165,233,.28));color:#dff7ff!important;text-decoration:none!important;text-transform:uppercase;font-size:10px;font-weight:950;box-shadow:0 0 24px rgba(37,99,235,.18)}
         .roxy-crypto20-platform small{display:block;color:#9aaec6;font-size:9px;margin-top:4px}.roxy-crypto20-platform .selects{display:grid;grid-template-columns:1fr 1.2fr;gap:7px;margin:12px 0}.roxy-crypto20-platform .selects span{display:flex;align-items:center;gap:5px;border:1px solid rgba(125,211,252,.14);border-radius:6px;background:rgba(2,6,23,.48);padding:8px;color:#e5f6ff;font-size:10px;font-weight:900}.roxy-crypto20-platform .selects .roxy-crypto-logo{width:20px;height:20px}.roxy-crypto20-platform p{display:grid;grid-template-columns:minmax(0,1fr) 54px;gap:7px;align-items:center;margin:8px 0}.roxy-crypto20-platform p span{color:#cbd5e1;font-size:10px}.roxy-crypto20-platform p b{display:block;color:#f8fafc;margin-top:4px}.roxy-crypto20-platform em{display:grid;place-items:center;min-height:38px;border-radius:5px;color:#fff;font-style:normal;font-size:11px;font-weight:950}.roxy-crypto20-platform .yes{background:#22c55e}.roxy-crypto20-platform .no{background:#e11d48}
         .roxy-crypto20-chart-wrap{padding:12px;margin:0 0 10px}.roxy-crypto20-chart-wrap>header{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}.roxy-crypto20-chart-wrap>header strong{color:#8bd8ff;font-size:14px;text-transform:uppercase;letter-spacing:.07em}.roxy-crypto20-chart-wrap>header span{color:#f8fafc;font-size:14px;font-weight:950}.roxy-crypto20-chart-wrap>header b{color:#22c55e}.roxy-crypto20-chart-wrap>header b.negative{color:#ef4444}.roxy-crypto20-chart-strip{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:3px 0 5px;padding:4px 8px;border:1px solid rgba(34,197,94,.24);border-radius:6px;background:rgba(15,23,42,.62);color:#cbd5e1;font-size:11px}.roxy-crypto20-chart-strip strong{color:#8bd8ff}

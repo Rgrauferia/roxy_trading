@@ -21,8 +21,19 @@ Checks completed:
 - Browser console error check returned no errors.
 - `python3 -m py_compile streamlit_app.py` passed.
 
+## Functional QA: Live Folders
+
+Checks completed:
+- Crypto 20min countdown is browser-live: verified it moved from `19:27` to `19:24` without a Streamlit reload, and the circular progress CSS variable updated to `2.92%`.
+- Crypto 2H countdown is browser-live: verified it moved from `01:49:07` to `01:49:05`, with session preserved and no login screen.
+- Crypto Daily countdown is browser-live: verified it moved from `21:48:58` to `21:48:56`, with session preserved and no login screen.
+- Folder URLs keep `rx_session` after navigation, so changing folders does not force a new registration/login.
+- Operational charts remain mounted in the folder flow. Daily QA showed `WS STREAM / STREAM ON`, `BTC/USD · 1d · velas live`, `BinanceUS WebSocket + REST fallback`, EMA/Bollinger/volume controls, and drawing tools.
+- Temporary QA user `qa_roxy_805270` was removed from the local user store after testing.
+
 Known acceptable differences:
 - Apple and Google buttons are visual entry points only until real OAuth client credentials are configured.
 - Streamlit sessions reset per browser tab/reload, but registered users persist locally through the user store.
+- Stock charts use live/premium provider data when configured and fall back to public market data when broker/feed credentials are unavailable; the chart labels disclose the active source.
 
 Final result: passed.
