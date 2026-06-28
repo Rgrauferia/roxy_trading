@@ -31404,6 +31404,10 @@ def render_roxy_first_screen_launchpad(
     active_module = normalize_roxy_module(module_from_query)
     active_info = roxy_module_by_slug(active_module)
 
+    if active_module == "classroom":
+        render_roxy_module_workspace(table, active_module=active_module, timeframe=timeframe)
+        return
+
     st.markdown(
         f"""
         <section class="roxy-folder-head">
@@ -31839,27 +31843,134 @@ def render_roxy_options_module(timeframe: str) -> None:
 
 
 def render_roxy_classroom_module() -> None:
-    lessons = [
-        ("Primer paso", "Como leer entrada, stop, target y riesgo antes de tocar una grafica."),
-        ("Velas y tiempo", "Diferencia entre crypto 20 minutos, crypto 2h y crypto daily."),
-        ("Reglas de Roxy", "Cuando esperar, cuando mirar y cuando no operar."),
-        ("Practica paper", "Como revisar oportunidades sin colocar ordenes reales."),
+    stats = [
+        ("menu_book", "12", "Cursos", "Disponibles"),
+        ("star", "8", "Juegos", "Interactivos"),
+        ("emoji_events", "1250", "Puntos XP", "Nivel 7"),
+        ("local_fire_department", "7", "Racha", "Dias seguidos"),
     ]
-    cols = st.columns(2, gap="small")
-    for idx, (title, detail) in enumerate(lessons):
-        with cols[idx % 2]:
-            st.markdown(
-                f"""
-                <div class="roxy-asset-card roxy-asset-card-watch roxy-classroom-card">
-                  <span class="roxy-asset-kicker">CLASSROOM</span>
-                  <strong>{html.escape(title)}</strong>
-                  <em>Leccion de Roxy</em>
-                  <span class="roxy-asset-detail">{html.escape(detail)}</span>
-                  <span class="roxy-asset-note">Contenido educativo; no coloca ordenes reales.</span>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+    routes = [
+        ("trending_up", "Basico", "Fundamentos del trading inteligente", "0%"),
+        ("track_changes", "Intermedio", "Estrategias y analisis de oportunidades", "35%"),
+        ("rocket_launch", "Avanzado", "Domina las estrategias de Roxy", "10%"),
+        ("diamond", "Experto", "Conviertete en un trader consistente", "0%"),
+    ]
+    lessons = [
+        ("roxy-thumb-up", "Estrategia EMA 9/21", "Basico", "18 min", "Aprende como Roxy usa las EMA 9 y 21 para detectar entradas de alta probabilidad."),
+        ("roxy-thumb-bb", "Bollinger Bands + RSI", "Intermedio", "22 min", "Combina volatilidad y momentum para encontrar oportunidades precisas."),
+        ("roxy-thumb-macd", "MACD + Tendencia", "Intermedio", "20 min", "Sigue la tendencia con confirmacion del MACD como lo hace Roxy."),
+        ("roxy-thumb-break", "Soportes, Resistencias y Breakouts", "Intermedio", "25 min", "Identifica niveles clave y opera rupturas con gestion de riesgo inteligente."),
+    ]
+    games = [
+        ("my_location", "Detecta la entrada", "Encuentra la mejor entrada en la grafica", "100 XP"),
+        ("shield", "Pon el stop", "Coloca el stop loss en el lugar correcto", "100 XP"),
+        ("swap_horiz", "Compra o espera", "Es una buena oportunidad?", "150 XP"),
+        ("emoji_events", "Roxy Quiz", "Responde preguntas y gana puntos XP", "75 XP"),
+        ("show_chart", "Risk Master", "Aprende a calcular tu riesgo ideal", "125 XP"),
+    ]
+    stat_html = "".join(
+        f"""
+        <a class="roxy-class-stat" href="?view=Dashboard&module=classroom&metric={quote(label.lower(), safe='')}" target="_self">
+          <i class="material-symbols-outlined" aria-hidden="true">{html.escape(icon)}</i>
+          <strong>{html.escape(value)}</strong>
+          <b>{html.escape(label)}</b>
+          <span>{html.escape(detail)}</span>
+        </a>
+        """
+        for icon, value, label, detail in stats
+    )
+    route_html = "".join(
+        f"""
+        <a class="roxy-class-route" href="?view=Dashboard&module=classroom&route={quote(title.lower(), safe='')}" target="_self" style="--p:{html.escape(progress)}">
+          <i class="material-symbols-outlined" aria-hidden="true">{html.escape(icon)}</i>
+          <strong>{html.escape(title)}</strong>
+          <span>{html.escape(detail)}</span>
+          <em>{html.escape(progress)}</em>
+        </a>
+        """
+        for icon, title, detail, progress in routes
+    )
+    lesson_html = "".join(
+        f"""
+        <a class="roxy-class-lesson" href="?view=Dashboard&module=classroom&lesson={quote(title.lower().replace(' ', '-'), safe='')}" target="_self">
+          <div class="roxy-class-thumb {html.escape(thumb)}"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div>
+            <strong>{html.escape(title)} <small>{html.escape(level)}</small> <em>{html.escape(minutes)}</em></strong>
+            <span>{html.escape(detail)}</span>
+          </div>
+          <b class="material-symbols-outlined" aria-hidden="true">play_arrow</b>
+        </a>
+        """
+        for thumb, title, level, minutes, detail in lessons
+    )
+    game_html = "".join(
+        f"""
+        <a class="roxy-class-game" href="?view=Dashboard&module=classroom&game={quote(title.lower().replace(' ', '-'), safe='')}" target="_self">
+          <i class="material-symbols-outlined" aria-hidden="true">{html.escape(icon)}</i>
+          <strong>{html.escape(title)}</strong>
+          <span>{html.escape(detail)}</span>
+          <em>{html.escape(xp)}</em>
+        </a>
+        """
+        for icon, title, detail, xp in games
+    )
+    st.markdown(
+        f"""
+        <section class="roxy-classroom-shell">
+          <div class="roxy-universe" aria-hidden="true">
+            <i class="roxy-space-nebula"></i>
+            <i class="roxy-space-stars roxy-space-stars-far"></i>
+            <i class="roxy-space-stars roxy-space-stars-mid"></i>
+            <i class="roxy-space-stars roxy-space-stars-near"></i>
+            <i class="roxy-space-planet"></i>
+            <i class="roxy-space-comet"></i>
+            <i class="roxy-space-aurora"></i>
+            <i class="roxy-space-constellation roxy-space-constellation-a"></i>
+            <i class="roxy-space-constellation roxy-space-constellation-b"></i>
+            <i class="roxy-space-moon"></i>
+            <i class="roxy-space-stream roxy-space-stream-a"></i>
+            <i class="roxy-space-stream roxy-space-stream-b"></i>
+          </div>
+          <div class="roxy-class-content">
+            <header class="roxy-class-head">
+              <a class="roxy-class-back material-symbols-outlined" href="?view=Dashboard" target="_self">arrow_back_ios_new</a>
+              <div class="roxy-class-title">
+                <i class="material-symbols-outlined" aria-hidden="true">school</i>
+                <div><strong>Classes Room</strong><span>Aprende. Practica. Domina.</span></div>
+              </div>
+              <div class="roxy-class-hero-avatar">{roxy_hologram_avatar_html("speaking", "Roxy profesora")}</div>
+            </header>
+            <div class="roxy-class-intro">
+              <div class="roxy-class-bubble">
+                <strong>Hola, soy Roxy.</strong>
+                <span>Aqui aprenderas todo sobre trading de forma practica, divertida e inteligente.</span>
+                <em></em><em></em><em></em>
+                <div aria-hidden="true"><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></div>
+              </div>
+            </div>
+            <div class="roxy-class-stats">{stat_html}</div>
+            <div class="roxy-class-section-head"><strong>Rutas de Aprendizaje</strong><a href="?view=Dashboard&module=classroom&section=rutas" target="_self">Ver todas <i class="material-symbols-outlined">chevron_right</i></a></div>
+            <div class="roxy-class-routes">{route_html}</div>
+            <div class="roxy-class-section-head"><strong>Clases Destacadas</strong><a href="?view=Dashboard&module=classroom&section=clases" target="_self">Ver todas <i class="material-symbols-outlined">chevron_right</i></a></div>
+            <div class="roxy-class-lessons">{lesson_html}</div>
+            <div class="roxy-class-section-head"><strong>Juegos de Practica</strong><a href="?view=Dashboard&module=classroom&section=juegos" target="_self">Ver todos <i class="material-symbols-outlined">chevron_right</i></a></div>
+            <div class="roxy-class-games">{game_html}</div>
+            <div class="roxy-class-practice">
+              <i class="material-symbols-outlined" aria-hidden="true">track_changes</i>
+              <div><strong>Modo Practica</strong><span>Opera con datos historicos sin dinero real. Roxy te dara feedback en tiempo real.</span></div>
+              <a href="?view=Dashboard&module=classroom&practice=1" target="_self">Iniciar practica</a>
+            </div>
+            <nav class="roxy-class-bottomnav" aria-label="Classroom navigation">
+              <a href="?view=Dashboard" target="_self"><i class="material-symbols-outlined">home</i><span>Inicio</span></a>
+              <a href="?view=Dashboard&module=acciones-operar" target="_self"><i class="material-symbols-outlined">bar_chart</i><span>Mercados</span></a>
+              <a class="active" href="?view=Dashboard&module=classroom" target="_self"><i>R</i><span>Classes Room</span></a>
+              <a href="?view=Dashboard&module=classroom&progress=1" target="_self"><i class="material-symbols-outlined">person</i><span>Mi Progreso</span></a>
+            </nav>
+          </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_roxy_module_workspace(table: pd.DataFrame, *, active_module: str, timeframe: str) -> None:
@@ -36188,6 +36299,44 @@ def main() -> None:
         .roxy-asset-card-buy{border-color:rgba(34,197,94,.42);background:linear-gradient(160deg,rgba(20,83,45,.24),rgba(2,6,23,.72))}
         .roxy-asset-card-watch{border-color:rgba(56,189,248,.34)}
         .roxy-asset-card-avoid{border-color:rgba(239,68,68,.34);background:linear-gradient(160deg,rgba(127,29,29,.18),rgba(2,6,23,.72))}
+        .roxy-classroom-shell{position:relative;isolation:isolate;overflow:hidden;width:min(100%,760px);margin:0 auto 10px;border:1px solid rgba(56,189,248,.20);border-radius:10px;background:
+            radial-gradient(ellipse at 72% 8%,rgba(56,189,248,.22),transparent 28%),
+            radial-gradient(ellipse at 48% 2%,rgba(37,99,235,.16),transparent 38%),
+            linear-gradient(180deg,#020611 0%,#06111f 48%,#020611 100%);box-shadow:0 28px 90px rgba(0,0,0,.58),0 0 56px rgba(56,189,248,.12);color:#e5f6ff}
+        .roxy-classroom-shell:before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(2,6,23,.08),rgba(2,6,23,.54) 58%,rgba(2,6,23,.74));pointer-events:none;z-index:0}
+        .roxy-classroom-shell .roxy-universe{opacity:.92}.roxy-classroom-shell .roxy-space-planet{right:3%;top:5%;width:42px;height:42px}.roxy-classroom-shell .roxy-space-moon{left:8%;top:4%;opacity:.22}
+        .roxy-class-content{position:relative;z-index:1;padding:16px 18px 18px}
+        .roxy-class-head{display:grid;grid-template-columns:30px minmax(0,1fr) 150px;gap:14px;align-items:start;min-height:118px}
+        .roxy-class-back{display:grid!important;place-items:center!important;width:28px;height:28px;margin-top:16px!important;color:#60a5fa!important;text-decoration:none!important;font-size:28px!important;text-shadow:0 0 14px rgba(96,165,250,.74)}
+        .roxy-class-title{display:flex;align-items:center;gap:13px;padding-top:9px;min-width:0}
+        .roxy-class-title>i{display:grid;place-items:center;width:54px;height:54px;border-radius:50%;border:1px solid rgba(96,165,250,.48);background:radial-gradient(circle,rgba(37,99,235,.28),rgba(2,6,23,.38));color:#8bd8ff;font-size:28px!important;text-shadow:0 0 16px rgba(96,165,250,.8);box-shadow:0 0 26px rgba(37,99,235,.28),inset 0 0 20px rgba(56,189,248,.08)}
+        .roxy-class-title strong{display:block;color:#f8fafc;font-size:25px;line-height:1;text-transform:uppercase;letter-spacing:.02em;text-shadow:0 0 18px rgba(96,165,250,.30)}
+        .roxy-class-title span{display:block;margin-top:5px;color:#9aaec6;font-size:12px;font-weight:800}
+        .roxy-class-hero-avatar{display:grid;justify-items:center;align-items:start;height:132px;overflow:visible}
+        .roxy-class-hero-avatar .roxy-hologram-avatar{width:150px;aspect-ratio:.74/1}.roxy-class-hero-avatar .roxy-avatar-core{width:72%;border:0;border-radius:0;background:transparent;box-shadow:none;filter:drop-shadow(0 0 34px rgba(56,189,248,.54));-webkit-mask-image:radial-gradient(ellipse 50% 62% at 50% 42%,#000 0 68%,rgba(0,0,0,.7) 80%,transparent 100%);mask-image:radial-gradient(ellipse 50% 62% at 50% 42%,#000 0 68%,rgba(0,0,0,.7) 80%,transparent 100%)}
+        .roxy-class-hero-avatar .roxy-avatar-core img{filter:saturate(1.18) contrast(1.06) brightness(1.05)}.roxy-class-hero-avatar .roxy-hologram-name,.roxy-class-hero-avatar .roxy-audio-wave{display:none}.roxy-class-hero-avatar .roxy-holo-pedestal{bottom:1%;width:110%;height:26%}
+        .roxy-class-intro{display:grid;grid-template-columns:minmax(0,1fr) 155px;margin-top:-47px}
+        .roxy-class-bubble{position:relative;grid-column:1;width:min(100%,360px);border:1px solid rgba(96,165,250,.28);border-radius:8px;background:rgba(2,6,23,.52);padding:15px 17px 12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 16px 44px rgba(0,0,0,.28)}
+        .roxy-class-bubble:after{content:"";position:absolute;right:-34px;top:38px;width:34px;height:30px;border-top:1px solid rgba(96,165,250,.28);border-right:1px solid rgba(96,165,250,.28);transform:skewX(22deg);background:linear-gradient(135deg,rgba(2,6,23,.44),transparent)}
+        .roxy-class-bubble strong{display:block;color:#7dd3fc;font-size:17px;line-height:1.1}.roxy-class-bubble span{display:block;margin-top:8px;color:#d6e6f6;font-size:12px;line-height:1.35;font-weight:780}
+        .roxy-class-bubble em{display:inline-block;width:5px;height:5px;border-radius:50%;margin:13px 5px 0 0;background:#60a5fa;box-shadow:0 0 10px rgba(96,165,250,.85);font-style:normal}
+        .roxy-class-bubble div{position:absolute;left:110px;right:24px;bottom:17px;height:18px;display:flex;align-items:center;gap:2px;opacity:.58}.roxy-class-bubble div b{display:block;width:2px;height:var(--h,10px);border-radius:999px;background:linear-gradient(180deg,#8bd8ff,#2563eb);box-shadow:0 0 8px rgba(96,165,250,.50);animation:roxyWave 1.4s ease-in-out infinite}.roxy-class-bubble div b:nth-child(2n){--h:15px}.roxy-class-bubble div b:nth-child(3n){--h:8px}.roxy-class-bubble div b:nth-child(4n){--h:19px}
+        .roxy-class-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:27px 0 18px}
+        .roxy-class-stat,.roxy-class-route,.roxy-class-lesson,.roxy-class-game,.roxy-class-practice,.roxy-class-bottomnav{border:1px solid rgba(96,165,250,.18);background:rgba(2,6,23,.52);box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 16px 38px rgba(0,0,0,.24)}
+        .roxy-class-stat{display:grid;place-items:center;min-height:112px;border-radius:8px;padding:14px 8px;text-align:center;text-decoration:none!important;color:#dbeafe!important}
+        .roxy-class-stat i{color:#7dd3fc;font-size:32px!important;text-shadow:0 0 15px rgba(96,165,250,.82)}.roxy-class-stat strong{margin-top:8px;color:#fff;font-size:25px;line-height:1;font-weight:950}.roxy-class-stat b{margin-top:7px;color:#f8fafc;font-size:10px;text-transform:uppercase;letter-spacing:.05em}.roxy-class-stat span{margin-top:4px;color:#9db3ca;font-size:10px;font-weight:800}
+        .roxy-class-section-head{display:flex;align-items:center;justify-content:space-between;margin:19px 0 9px}.roxy-class-section-head strong{color:#fff;font-size:15px;line-height:1;font-weight:900}.roxy-class-section-head a{display:flex!important;align-items:center;gap:4px;margin:0!important;color:#38bdf8!important;font-size:9px!important;font-weight:950;text-decoration:none!important;text-transform:uppercase;letter-spacing:.04em}.roxy-class-section-head i{font-size:15px!important}
+        .roxy-class-routes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+        .roxy-class-route{position:relative;min-height:132px;border-radius:8px;padding:15px 12px 13px;text-align:center;text-decoration:none!important;color:#e5f6ff!important;overflow:hidden}.roxy-class-route i{color:#60a5fa;font-size:33px!important;text-shadow:0 0 15px rgba(96,165,250,.84)}.roxy-class-route strong{display:block;margin-top:9px;color:#93c5fd;font-size:12px;text-transform:uppercase;letter-spacing:.03em}.roxy-class-route span{display:block;margin-top:7px;color:#cbd5e1;font-size:10px;line-height:1.24}.roxy-class-route em{position:absolute;left:14px;right:14px;bottom:12px;color:#cbd5e1;font-size:9px;font-style:normal;text-align:left}.roxy-class-route:before{content:"";position:absolute;left:38px;right:14px;bottom:15px;height:4px;border-radius:999px;background:rgba(30,58,138,.58)}.roxy-class-route:after{content:"";position:absolute;left:38px;bottom:15px;width:var(--p);max-width:calc(100% - 52px);height:4px;border-radius:999px;background:#38bdf8;box-shadow:0 0 12px rgba(56,189,248,.75)}
+        .roxy-class-lessons{display:grid;gap:8px}.roxy-class-lesson{display:grid;grid-template-columns:150px minmax(0,1fr) 42px;gap:14px;align-items:center;min-height:78px;border-radius:8px;padding:8px;text-decoration:none!important;color:#e5f6ff!important}.roxy-class-lesson strong{display:block;color:#f8fafc;font-size:13px;line-height:1.1}.roxy-class-lesson small{margin-left:8px;border-radius:999px;background:rgba(37,99,235,.34);padding:2px 6px;color:#93c5fd;font-size:8px;text-transform:uppercase}.roxy-class-lesson em{margin-left:8px;color:#9aaec6;font-size:10px;font-style:normal;font-weight:800}.roxy-class-lesson span{display:block;margin-top:6px;color:#aebdd0;font-size:11px;line-height:1.32}.roxy-class-lesson>b{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;border:1px solid rgba(96,165,250,.36);color:#60a5fa!important;background:rgba(15,23,42,.56);font-size:26px!important;text-shadow:0 0 12px rgba(96,165,250,.72)}
+        .roxy-class-thumb{position:relative;height:58px;border-radius:6px;overflow:hidden;background:linear-gradient(rgba(125,211,252,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,252,.045) 1px,transparent 1px),radial-gradient(circle at 74% 18%,rgba(34,197,94,.16),transparent 30%),#030712;background-size:20px 20px}.roxy-class-thumb:before,.roxy-class-thumb:after{content:"";position:absolute;left:7%;right:7%;height:2px;border-radius:999px;filter:drop-shadow(0 0 8px rgba(56,189,248,.42))}.roxy-class-thumb:before{top:37%;background:linear-gradient(100deg,transparent,#22c55e 18%,#38bdf8 44%,#d946ef 65%,transparent)}.roxy-class-thumb:after{top:58%;background:linear-gradient(100deg,transparent,#f97316 20%,#60a5fa 52%,#22c55e 78%,transparent)}.roxy-class-thumb i{position:absolute;bottom:18%;width:5px;border-radius:2px;background:#22c55e;box-shadow:0 0 9px rgba(34,197,94,.45)}.roxy-class-thumb i:nth-child(1){left:10%;height:18px}.roxy-class-thumb i:nth-child(2){left:20%;height:26px;background:#ef4444}.roxy-class-thumb i:nth-child(3){left:31%;height:24px}.roxy-class-thumb i:nth-child(4){left:43%;height:35px}.roxy-class-thumb i:nth-child(5){left:55%;height:19px;background:#ef4444}.roxy-class-thumb i:nth-child(6){left:67%;height:31px}.roxy-class-thumb i:nth-child(7){left:78%;height:28px}.roxy-class-thumb i:nth-child(8){left:88%;height:38px;background:#ef4444}
+        .roxy-thumb-macd:before{top:48%;background:linear-gradient(100deg,transparent,#38bdf8,#f97316,transparent)}.roxy-thumb-macd:after{top:63%;background:linear-gradient(100deg,transparent,#ef4444,#d946ef,#22c55e,transparent)}.roxy-thumb-bb:before,.roxy-thumb-bb:after{border:1px solid rgba(125,211,252,.45);height:34px;top:14%;background:transparent;border-radius:50%}.roxy-thumb-break:before{top:31%;background:linear-gradient(100deg,transparent,#f97316,#22c55e,transparent)}
+        .roxy-class-games{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.roxy-class-game{display:grid;align-content:start;justify-items:center;min-height:130px;border-radius:8px;padding:14px 8px;text-align:center;text-decoration:none!important;color:#dbeafe!important}.roxy-class-game i{font-size:34px!important;color:#d6b978;text-shadow:0 0 14px rgba(212,175,96,.52)}.roxy-class-game strong{margin-top:10px;color:#93c5fd;font-size:10px;line-height:1.12;text-transform:uppercase;letter-spacing:.04em}.roxy-class-game span{margin-top:6px;color:#aebdd0;font-size:9px;line-height:1.22}.roxy-class-game em{align-self:end;margin-top:10px;color:#60a5fa;font-size:10px;font-style:normal;font-weight:950}
+        .roxy-class-practice{display:grid;grid-template-columns:54px minmax(0,1fr) 150px;gap:13px;align-items:center;margin-top:13px;border-radius:8px;padding:12px 14px}.roxy-class-practice>i{display:grid;place-items:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(96,165,250,.48);color:#dbeafe;font-size:32px!important;text-shadow:0 0 16px rgba(96,165,250,.86);background:radial-gradient(circle,rgba(37,99,235,.24),rgba(2,6,23,.40))}.roxy-class-practice strong{display:block;color:#f8fafc;font-size:17px;line-height:1}.roxy-class-practice span{display:block;margin-top:5px;color:#c8d7ea;font-size:11px;line-height:1.28}.roxy-class-practice a{display:grid!important;place-items:center!important;height:38px;margin:0!important;border-radius:999px;border:1px solid rgba(96,165,250,.54);background:linear-gradient(180deg,#2563eb,#1d4ed8);color:#fff!important;text-decoration:none!important;font-size:11px!important;font-weight:950!important;text-transform:uppercase;letter-spacing:.04em;box-shadow:0 0 22px rgba(37,99,235,.42),inset 0 1px 0 rgba(255,255,255,.18)}
+        .roxy-class-bottomnav{display:grid;grid-template-columns:1fr 1fr 1.35fr 1fr;gap:6px;margin-top:14px;border-radius:30px;background:rgba(2,6,23,.72);padding:9px 13px}.roxy-class-bottomnav a{display:grid!important;place-items:center!important;gap:4px;margin:0!important;color:#7f93ad!important;text-decoration:none!important;font-size:9px!important;font-weight:900!important;text-transform:uppercase}.roxy-class-bottomnav i{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;font-size:24px!important;font-style:normal;color:#94a3b8}.roxy-class-bottomnav a.active i{width:58px;height:58px;margin-top:-30px;background:radial-gradient(circle,#2563eb,#082f49);border:1px solid rgba(96,165,250,.78);color:#fff;font-size:30px!important;font-weight:950;box-shadow:0 0 38px rgba(37,99,235,.88)}.roxy-class-bottomnav a.active span{color:#60a5fa}
+        .roxy-class-stat:hover,.roxy-class-route:hover,.roxy-class-lesson:hover,.roxy-class-game:hover{border-color:rgba(96,165,250,.50);transform:translateY(-1px);box-shadow:0 18px 44px rgba(0,0,0,.30),0 0 24px rgba(56,189,248,.12)}
+        @media (max-width:760px){.roxy-classroom-shell{width:100%;border-radius:0;margin-top:0}.roxy-class-content{padding:14px 12px 14px}.roxy-class-head{grid-template-columns:26px minmax(0,1fr) 118px;gap:9px;min-height:110px}.roxy-class-back{width:24px;height:24px;margin-top:14px!important;font-size:25px!important}.roxy-class-title{gap:10px;padding-top:7px}.roxy-class-title>i{width:48px;height:48px;font-size:25px!important}.roxy-class-title strong{font-size:21px}.roxy-class-title span{font-size:11px}.roxy-class-hero-avatar{height:120px}.roxy-class-hero-avatar .roxy-hologram-avatar{width:125px}.roxy-class-intro{grid-template-columns:1fr 92px;margin-top:-37px}.roxy-class-bubble{max-width:100%;padding:12px 13px 10px}.roxy-class-bubble strong{font-size:15px}.roxy-class-bubble span{font-size:11px}.roxy-class-bubble:after{right:-24px;width:24px}.roxy-class-stats{gap:7px;margin-top:24px}.roxy-class-stat{min-height:101px;padding:11px 6px}.roxy-class-stat i{font-size:29px!important}.roxy-class-stat strong{font-size:22px}.roxy-class-stat b{font-size:9px}.roxy-class-stat span{font-size:8.5px}.roxy-class-routes{grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.roxy-class-route{min-height:125px;padding:12px 7px}.roxy-class-route i{font-size:30px!important}.roxy-class-route strong{font-size:10px}.roxy-class-route span{font-size:8.5px}.roxy-class-lesson{grid-template-columns:108px minmax(0,1fr) 34px;gap:9px;min-height:72px}.roxy-class-thumb{height:54px}.roxy-class-lesson strong{font-size:11px}.roxy-class-lesson small{font-size:6.5px;margin-left:4px;padding:2px 4px}.roxy-class-lesson em{font-size:8px;margin-left:4px}.roxy-class-lesson span{font-size:9px}.roxy-class-lesson>b{width:32px;height:32px;font-size:22px!important}.roxy-class-games{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.roxy-class-game{min-height:124px;padding:12px 5px}.roxy-class-game i{font-size:30px!important}.roxy-class-game strong{font-size:8.2px}.roxy-class-game span{font-size:7.7px}.roxy-class-game em{font-size:8.5px}.roxy-class-practice{grid-template-columns:45px minmax(0,1fr) 124px;padding:10px 11px}.roxy-class-practice>i{width:40px;height:40px;font-size:28px!important}.roxy-class-practice strong{font-size:15px}.roxy-class-practice span{font-size:10px}.roxy-class-practice a{height:34px;font-size:9.5px!important}.roxy-class-bottomnav{padding:8px 10px}.roxy-class-bottomnav a{font-size:7.4px!important}.roxy-class-bottomnav i{width:25px;height:25px;font-size:21px!important}.roxy-class-bottomnav a.active i{width:54px;height:54px;margin-top:-27px;font-size:28px!important}}
+        @media (max-width:430px){.roxy-class-content{padding:13px 10px 12px}.roxy-class-head{grid-template-columns:24px minmax(0,1fr) 104px;gap:7px;min-height:102px}.roxy-class-title>i{width:44px;height:44px}.roxy-class-title strong{font-size:19px}.roxy-class-title span{font-size:10px}.roxy-class-hero-avatar .roxy-hologram-avatar{width:112px}.roxy-class-intro{grid-template-columns:1fr 76px}.roxy-class-stats{gap:6px}.roxy-class-stat{min-height:97px}.roxy-class-stat strong{font-size:20px}.roxy-class-routes{gap:6px}.roxy-class-route{min-height:118px}.roxy-class-lesson{grid-template-columns:100px minmax(0,1fr) 31px}.roxy-class-games{gap:5px}.roxy-class-game{min-height:119px}.roxy-class-game strong{font-size:7.8px}.roxy-class-game span{font-size:7.2px}.roxy-class-practice{grid-template-columns:40px minmax(0,1fr);gap:9px}.roxy-class-practice a{grid-column:1/-1}.roxy-class-bottomnav a.active i{width:50px;height:50px}}
         .roxy-module-empty{border:1px solid rgba(56,189,248,.24);border-left:4px solid #38bdf8;border-radius:8px;background:rgba(2,6,23,.54);padding:14px;margin:0 0 8px}
         .roxy-module-empty strong{display:block;color:#f8fafc;font-size:18px;line-height:1.1}
         .roxy-module-empty span{display:block;color:#cbd5e1;font-size:12px;line-height:1.35;margin-top:6px}
