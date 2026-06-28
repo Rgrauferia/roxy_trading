@@ -31868,6 +31868,39 @@ def render_roxy_classroom_module() -> None:
         ("emoji_events", "Roxy Quiz", "Responde preguntas y gana puntos XP", "75 XP"),
         ("show_chart", "Risk Master", "Aprende a calcular tu riesgo ideal", "125 XP"),
     ]
+
+    def classroom_chart_thumb_html(kind: str) -> str:
+        candle_sets = {
+            "roxy-thumb-up": [
+                ("up", 66, 22, 58, 34), ("up", 58, 18, 52, 40), ("down", 50, 16, 46, 35), ("up", 45, 26, 39, 44),
+                ("up", 38, 18, 31, 39), ("down", 32, 16, 28, 34), ("up", 30, 22, 24, 36), ("up", 24, 18, 18, 33),
+            ],
+            "roxy-thumb-bb": [
+                ("up", 59, 28, 48, 40), ("down", 42, 22, 35, 38), ("up", 49, 18, 37, 34), ("up", 32, 28, 24, 42),
+                ("down", 26, 20, 20, 32), ("up", 39, 19, 31, 36), ("up", 47, 24, 36, 44), ("down", 31, 22, 27, 36),
+            ],
+            "roxy-thumb-macd": [
+                ("down", 28, 15, 24, 31), ("down", 36, 18, 31, 36), ("down", 45, 24, 38, 45), ("up", 57, 18, 45, 36),
+                ("up", 52, 20, 40, 39), ("up", 46, 18, 35, 33), ("up", 39, 16, 29, 31), ("up", 35, 18, 26, 29),
+            ],
+            "roxy-thumb-break": [
+                ("up", 62, 18, 55, 28), ("down", 53, 16, 47, 26), ("up", 58, 15, 47, 28), ("up", 47, 18, 39, 30),
+                ("down", 41, 14, 36, 26), ("up", 34, 20, 28, 32), ("up", 26, 18, 20, 28), ("up", 18, 22, 13, 31),
+            ],
+        }
+        candles = candle_sets.get(kind, candle_sets["roxy-thumb-up"])
+        candle_html = "".join(
+            f'<span class="roxy-mini-candle {tone}" style="--x:{10 + idx * 11}%;--top:{top}%;--h:{height}%;--wick-top:{wick_top}%;--wick-h:{wick_height}%"></span>'
+            for idx, (tone, top, height, wick_top, wick_height) in enumerate(candles)
+        )
+        extras = {
+            "roxy-thumb-up": '<u class="ema ema-fast"></u><u class="ema ema-slow"></u>',
+            "roxy-thumb-bb": '<u class="band band-upper"></u><u class="band band-lower"></u><u class="ema ema-fast"></u><small class="rsi-line"></small>',
+            "roxy-thumb-macd": '<u class="ema ema-fast"></u><u class="ema ema-slow"></u><b style="--x:12%;--h:18%"></b><b style="--x:22%;--h:12%"></b><b class="neg" style="--x:34%;--h:22%"></b><b class="neg" style="--x:46%;--h:28%"></b><b style="--x:58%;--h:16%"></b><b style="--x:70%;--h:24%"></b><b style="--x:82%;--h:31%"></b>',
+            "roxy-thumb-break": '<u class="level resistance"></u><u class="level support"></u><u class="breakout-ray"></u><small class="breakout-tag">ORB</small>',
+        }.get(kind, "")
+        return f'<div class="roxy-class-thumb {html.escape(kind)}">{candle_html}{extras}</div>'
+
     stat_html = "".join(
         f"""
         <a class="roxy-class-stat" href="?view=Dashboard&module=classroom&metric={quote(label.lower(), safe='')}" target="_self">
@@ -31893,7 +31926,7 @@ def render_roxy_classroom_module() -> None:
     lesson_html = "".join(
         f"""
         <a class="roxy-class-lesson" href="?view=Dashboard&module=classroom&lesson={quote(title.lower().replace(' ', '-'), safe='')}" target="_self">
-          <div class="roxy-class-thumb {html.escape(thumb)}"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          {classroom_chart_thumb_html(thumb)}
           <div>
             <strong>{html.escape(title)} <small>{html.escape(level)}</small> <em>{html.escape(minutes)}</em></strong>
             <span>{html.escape(detail)}</span>
@@ -36329,8 +36362,19 @@ def main() -> None:
         .roxy-class-routes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
         .roxy-class-route{position:relative;min-height:132px;border-radius:8px;padding:15px 12px 13px;text-align:center;text-decoration:none!important;color:#e5f6ff!important;overflow:hidden}.roxy-class-route i{color:#60a5fa;font-size:33px!important;text-shadow:0 0 15px rgba(96,165,250,.84)}.roxy-class-route strong{display:block;margin-top:9px;color:#93c5fd;font-size:12px;text-transform:uppercase;letter-spacing:.03em}.roxy-class-route span{display:block;margin-top:7px;color:#cbd5e1;font-size:10px;line-height:1.24}.roxy-class-route em{position:absolute;left:14px;right:14px;bottom:12px;color:#cbd5e1;font-size:9px;font-style:normal;text-align:left}.roxy-class-route:before{content:"";position:absolute;left:38px;right:14px;bottom:15px;height:4px;border-radius:999px;background:rgba(30,58,138,.58)}.roxy-class-route:after{content:"";position:absolute;left:38px;bottom:15px;width:var(--p);max-width:calc(100% - 52px);height:4px;border-radius:999px;background:#38bdf8;box-shadow:0 0 12px rgba(56,189,248,.75)}
         .roxy-class-lessons{display:grid;gap:8px}.roxy-class-lesson{display:grid;grid-template-columns:150px minmax(0,1fr) 42px;gap:14px;align-items:center;min-height:78px;border-radius:8px;padding:8px;text-decoration:none!important;color:#e5f6ff!important}.roxy-class-lesson strong{display:block;color:#f8fafc;font-size:13px;line-height:1.1}.roxy-class-lesson small{margin-left:8px;border-radius:999px;background:rgba(37,99,235,.34);padding:2px 6px;color:#93c5fd;font-size:8px;text-transform:uppercase}.roxy-class-lesson em{margin-left:8px;color:#9aaec6;font-size:10px;font-style:normal;font-weight:800}.roxy-class-lesson span{display:block;margin-top:6px;color:#aebdd0;font-size:11px;line-height:1.32}.roxy-class-lesson>b{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;border:1px solid rgba(96,165,250,.36);color:#60a5fa!important;background:rgba(15,23,42,.56);font-size:26px!important;text-shadow:0 0 12px rgba(96,165,250,.72)}
-        .roxy-class-thumb{position:relative;height:58px;border-radius:6px;overflow:hidden;background:linear-gradient(rgba(125,211,252,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,252,.045) 1px,transparent 1px),radial-gradient(circle at 74% 18%,rgba(34,197,94,.16),transparent 30%),#030712;background-size:20px 20px}.roxy-class-thumb:before,.roxy-class-thumb:after{content:"";position:absolute;left:7%;right:7%;height:2px;border-radius:999px;filter:drop-shadow(0 0 8px rgba(56,189,248,.42))}.roxy-class-thumb:before{top:37%;background:linear-gradient(100deg,transparent,#22c55e 18%,#38bdf8 44%,#d946ef 65%,transparent)}.roxy-class-thumb:after{top:58%;background:linear-gradient(100deg,transparent,#f97316 20%,#60a5fa 52%,#22c55e 78%,transparent)}.roxy-class-thumb i{position:absolute;bottom:18%;width:5px;border-radius:2px;background:#22c55e;box-shadow:0 0 9px rgba(34,197,94,.45)}.roxy-class-thumb i:nth-child(1){left:10%;height:18px}.roxy-class-thumb i:nth-child(2){left:20%;height:26px;background:#ef4444}.roxy-class-thumb i:nth-child(3){left:31%;height:24px}.roxy-class-thumb i:nth-child(4){left:43%;height:35px}.roxy-class-thumb i:nth-child(5){left:55%;height:19px;background:#ef4444}.roxy-class-thumb i:nth-child(6){left:67%;height:31px}.roxy-class-thumb i:nth-child(7){left:78%;height:28px}.roxy-class-thumb i:nth-child(8){left:88%;height:38px;background:#ef4444}
-        .roxy-thumb-macd:before{top:48%;background:linear-gradient(100deg,transparent,#38bdf8,#f97316,transparent)}.roxy-thumb-macd:after{top:63%;background:linear-gradient(100deg,transparent,#ef4444,#d946ef,#22c55e,transparent)}.roxy-thumb-bb:before,.roxy-thumb-bb:after{border:1px solid rgba(125,211,252,.45);height:34px;top:14%;background:transparent;border-radius:50%}.roxy-thumb-break:before{top:31%;background:linear-gradient(100deg,transparent,#f97316,#22c55e,transparent)}
+        .roxy-class-thumb{position:relative;height:58px;border-radius:6px;overflow:hidden;background:
+            linear-gradient(rgba(125,211,252,.07) 1px,transparent 1px),
+            linear-gradient(90deg,rgba(125,211,252,.05) 1px,transparent 1px),
+            radial-gradient(circle at 74% 18%,rgba(34,197,94,.16),transparent 30%),
+            #030712;background-size:20px 20px,20px 20px,100% 100%,100% 100%;box-shadow:inset 0 0 18px rgba(56,189,248,.07)}
+        .roxy-class-thumb:before{content:"";position:absolute;left:6%;right:6%;top:50%;height:1px;background:rgba(125,211,252,.16);z-index:1}.roxy-class-thumb:after{content:"";position:absolute;left:0;right:0;bottom:0;height:30%;background:linear-gradient(180deg,transparent,rgba(2,6,23,.64));z-index:2;pointer-events:none}
+        .roxy-mini-candle{position:absolute;left:var(--x);top:0;width:5px;height:100%;transform:translateX(-50%);z-index:4}.roxy-mini-candle:before{content:"";position:absolute;left:50%;top:var(--wick-top);width:1px;height:var(--wick-h);transform:translateX(-50%);background:rgba(34,197,94,.84);box-shadow:0 0 6px rgba(34,197,94,.42)}.roxy-mini-candle:after{content:"";position:absolute;left:0;right:0;top:var(--top);height:var(--h);border-radius:3px;background:#22c55e;box-shadow:0 0 9px rgba(34,197,94,.56)}
+        .roxy-mini-candle.down:before{background:rgba(248,113,113,.86);box-shadow:0 0 6px rgba(248,113,113,.38)}.roxy-mini-candle.down:after{background:#ef4444;box-shadow:0 0 9px rgba(239,68,68,.48)}
+        .roxy-class-thumb u,.roxy-class-thumb small,.roxy-class-thumb b{position:absolute;display:block;z-index:5;text-decoration:none;font-style:normal}
+        .roxy-class-thumb .ema{left:5%;right:5%;height:2px;border-radius:999px;filter:drop-shadow(0 0 7px rgba(56,189,248,.42));opacity:.92}.roxy-class-thumb .ema-fast{top:43%;background:linear-gradient(100deg,transparent,#38bdf8 12%,#d946ef 50%,#22c55e 82%,transparent);transform:rotate(-9deg)}.roxy-class-thumb .ema-slow{top:59%;background:linear-gradient(100deg,transparent,#f97316 12%,#facc15 46%,#60a5fa 82%,transparent);transform:rotate(-5deg)}
+        .roxy-thumb-bb .band{left:8%;right:8%;height:35px;border:1px solid rgba(125,211,252,.48);border-left-color:transparent;border-right-color:transparent;border-radius:50%;opacity:.78}.roxy-thumb-bb .band-upper{top:10%;transform:rotate(-8deg)}.roxy-thumb-bb .band-lower{top:28%;transform:rotate(7deg)}.roxy-thumb-bb .rsi-line{left:7%;right:7%;bottom:10%;height:2px;border-radius:999px;background:linear-gradient(90deg,transparent,#a78bfa,#38bdf8,transparent);box-shadow:0 0 8px rgba(167,139,250,.45)}
+        .roxy-thumb-macd b{bottom:7%;left:var(--x);width:5px;height:var(--h);border-radius:2px;background:#22c55e;box-shadow:0 0 7px rgba(34,197,94,.42)}.roxy-thumb-macd b.neg{background:#ef4444;box-shadow:0 0 7px rgba(239,68,68,.38)}.roxy-thumb-macd .ema-fast{top:31%;transform:rotate(8deg);background:linear-gradient(100deg,transparent,#38bdf8,#a78bfa,transparent)}.roxy-thumb-macd .ema-slow{top:43%;transform:rotate(5deg);background:linear-gradient(100deg,transparent,#f97316,#facc15,transparent)}
+        .roxy-thumb-break .level{left:7%;right:7%;height:1px;border-radius:999px;border-top:1px dashed rgba(226,232,240,.54)}.roxy-thumb-break .resistance{top:28%}.roxy-thumb-break .support{top:67%;border-color:rgba(56,189,248,.45)}.roxy-thumb-break .breakout-ray{left:58%;right:8%;top:24%;height:2px;border-radius:999px;background:linear-gradient(90deg,#22c55e,#8bd8ff);transform:rotate(-19deg);box-shadow:0 0 10px rgba(34,197,94,.55)}.roxy-thumb-break .breakout-tag{right:5px;top:5px;border:1px solid rgba(125,211,252,.26);border-radius:3px;background:rgba(2,6,23,.62);color:#8bd8ff;font-size:5.8px;font-weight:950;padding:1px 3px;letter-spacing:.04em}
         .roxy-class-games{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.roxy-class-game{display:grid;align-content:start;justify-items:center;min-height:130px;border-radius:8px;padding:14px 8px;text-align:center;text-decoration:none!important;color:#dbeafe!important}.roxy-class-game i{font-size:34px!important;color:#d6b978;text-shadow:0 0 14px rgba(212,175,96,.52)}.roxy-class-game strong{margin-top:10px;color:#93c5fd;font-size:10px;line-height:1.12;text-transform:uppercase;letter-spacing:.04em}.roxy-class-game span{margin-top:6px;color:#aebdd0;font-size:9px;line-height:1.22}.roxy-class-game em{align-self:end;margin-top:10px;color:#60a5fa;font-size:10px;font-style:normal;font-weight:950}
         .roxy-class-practice{display:grid;grid-template-columns:54px minmax(0,1fr) 150px;gap:13px;align-items:center;margin-top:13px;border-radius:8px;padding:12px 14px}.roxy-class-practice>i{display:grid;place-items:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(96,165,250,.48);color:#dbeafe;font-size:32px!important;text-shadow:0 0 16px rgba(96,165,250,.86);background:radial-gradient(circle,rgba(37,99,235,.24),rgba(2,6,23,.40))}.roxy-class-practice strong{display:block;color:#f8fafc;font-size:17px;line-height:1}.roxy-class-practice span{display:block;margin-top:5px;color:#c8d7ea;font-size:11px;line-height:1.28}.roxy-class-practice a{display:grid!important;place-items:center!important;height:38px;margin:0!important;border-radius:999px;border:1px solid rgba(96,165,250,.54);background:linear-gradient(180deg,#2563eb,#1d4ed8);color:#fff!important;text-decoration:none!important;font-size:11px!important;font-weight:950!important;text-transform:uppercase;letter-spacing:.04em;box-shadow:0 0 22px rgba(37,99,235,.42),inset 0 1px 0 rgba(255,255,255,.18)}
         .roxy-class-bottomnav{display:grid;grid-template-columns:1fr 1fr 1.35fr 1fr;gap:6px;margin-top:14px;border-radius:30px;background:rgba(2,6,23,.72);padding:9px 13px}.roxy-class-bottomnav a{display:grid!important;place-items:center!important;gap:4px;margin:0!important;color:#7f93ad!important;text-decoration:none!important;font-size:9px!important;font-weight:900!important;text-transform:uppercase}.roxy-class-bottomnav i{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;font-size:24px!important;font-style:normal;color:#94a3b8}.roxy-class-bottomnav a.active i{width:58px;height:58px;margin-top:-30px;background:radial-gradient(circle,#2563eb,#082f49);border:1px solid rgba(96,165,250,.78);color:#fff;font-size:30px!important;font-weight:950;box-shadow:0 0 38px rgba(37,99,235,.88)}.roxy-class-bottomnav a.active span{color:#60a5fa}
