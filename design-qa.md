@@ -9,7 +9,10 @@ Checks completed:
 - Register mode includes name, username, email, password, language, remember option, and create-account action.
 - Registration stores a local salted password hash in `data/roxy_users.json` at runtime and sets the session profile.
 - Login accepts username or email and restores the user profile from the local user store.
+- Auth persistence creates a browser session token after login/register, keeps it in localStorage, appends it to internal folder links, and restores the user from `rx_session` when Streamlit opens a new browser session.
 - Roxy personalization verified with a temporary user: dashboard showed `Bienvenido, Carlos Rivera`, and the assistant message addressed `Carlos Rivera`.
+- Folder navigation QA with a temporary user: opening Crypto Daily kept the user authenticated and did not show the auth screen.
+- Clean URL restore QA with a temporary user: visiting `?view=Dashboard&module=acciones-operar` without a token restored the session from browser storage, added `rx_session`, and opened the Acciones folder without re-registering.
 - Mobile DOM check at 393px width: login shell width 385px, document scroll width 393px, login form 347px wide, submit button 305px wide, 2 Roxy avatar images, 2 social actions.
 - Register DOM check at 393px width: register form 347px wide, required placeholders visible, submit button 305px wide, document scroll width 393px.
 - Desktop DOM check at 1440px width: login shell width 700px, centered premium console, compact Roxy hero above the welcome card, form centered beneath it, no horizontal overflow.

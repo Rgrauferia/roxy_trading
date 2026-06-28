@@ -33,6 +33,7 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 import sqlite3
 import streamlit as st
+import streamlit.components.v1 as components
 import altair as alt
 
 try:
@@ -431,6 +432,8 @@ ROXY_AVATAR_VARIANT_PATHS = {
 }
 
 ROXY_USERS_PATH = project_path("data/roxy_users.json")
+ROXY_SESSION_PARAM = "rx_session"
+ROXY_SESSION_STORAGE_KEY = "roxy_trading_session"
 
 
 def brand_logo_html() -> str:
@@ -562,6 +565,42 @@ def roxy_find_user(identifier: str) -> tuple[str, dict[str, Any]] | tuple[str, N
     return "", None
 
 
+def roxy_session_token_from_query() -> str:
+    token = text_display(first_query_param_value(st.query_params, ROXY_SESSION_PARAM)).strip()
+    return token if len(token) >= 24 else ""
+
+
+def roxy_issue_session_token(username: str) -> str:
+    safe_username = text_display(username).strip().lower()
+    if not safe_username:
+        return ""
+    data = roxy_load_users()
+    users = data.setdefault("users", {})
+    profile = users.get(safe_username)
+    if not isinstance(profile, dict):
+        return ""
+    token = text_display(profile.get("session_token")).strip()
+    if len(token) < 24:
+        token = secrets.token_urlsafe(32)
+        profile["session_token"] = token
+    profile["session_updated_at"] = datetime.now(timezone.utc).isoformat()
+    roxy_save_users(data)
+    return token
+
+
+def roxy_find_user_by_session_token(token: str) -> tuple[str, dict[str, Any]] | tuple[str, None]:
+    clean_token = text_display(token).strip()
+    if len(clean_token) < 24:
+        return "", None
+    users = roxy_load_users().get("users", {})
+    for username, profile in users.items():
+        if not isinstance(profile, dict):
+            continue
+        if secrets.compare_digest(text_display(profile.get("session_token")).strip(), clean_token):
+            return str(username), profile
+    return "", None
+
+
 def roxy_set_authenticated_user(username: str, profile: dict[str, Any]) -> None:
     safe_username = text_display(username).strip()
     display_name = text_display(profile.get("name") or safe_username).strip()
@@ -577,6 +616,94 @@ def roxy_set_authenticated_user(username: str, profile: dict[str, Any]) -> None:
         storage.create_account_if_missing(safe_username)
     except Exception:
         pass
+
+
+def roxy_remember_authenticated_user(username: str, profile: dict[str, Any]) -> None:
+    roxy_set_authenticated_user(username, profile)
+    token = roxy_issue_session_token(username)
+    if token:
+        st.session_state.roxy_session_token = token
+        st.query_params[ROXY_SESSION_PARAM] = token
+
+
+def roxy_restore_user_from_session() -> bool:
+    if st.session_state.get("user"):
+        return True
+    token = roxy_session_token_from_query()
+    if not token:
+        return False
+    username, profile = roxy_find_user_by_session_token(token)
+    if not username or not isinstance(profile, dict):
+        return False
+    roxy_set_authenticated_user(username, profile)
+    st.session_state.roxy_session_token = token
+    return True
+
+
+def render_roxy_browser_session_bridge(active: bool = True) -> None:
+    token = text_display(st.session_state.get("roxy_session_token") or roxy_session_token_from_query()).strip()
+    storage_key = html.escape(ROXY_SESSION_STORAGE_KEY, quote=True)
+    param_key = html.escape(ROXY_SESSION_PARAM, quote=True)
+    token_js = json.dumps(token)
+    active_js = "true" if active else "false"
+    components.html(
+        f"""
+        <script>
+        (() => {{
+          const storageKey = "{storage_key}";
+          const paramKey = "{param_key}";
+          const explicitToken = {token_js};
+          const parentWindow = window.parent || window;
+          const parentDocument = parentWindow.document;
+          const currentUrl = new URL(parentWindow.location.href);
+          const storedToken = parentWindow.localStorage.getItem(storageKey) || "";
+          const token = explicitToken || currentUrl.searchParams.get(paramKey) || storedToken;
+          if (!token) return;
+          if ({active_js}) parentWindow.localStorage.setItem(storageKey, token);
+          if (!currentUrl.searchParams.get(paramKey)) {{
+            currentUrl.searchParams.set(paramKey, token);
+            parentWindow.history.replaceState(null, "", currentUrl.toString());
+          }}
+          const patchLinks = () => {{
+            parentDocument.querySelectorAll('a[href]').forEach((link) => {{
+              const rawHref = link.getAttribute("href") || "";
+              const url = new URL(rawHref, parentWindow.location.href);
+              if (url.origin !== parentWindow.location.origin) return;
+              if (!url.searchParams.get(paramKey)) {{
+                url.searchParams.set(paramKey, token);
+                link.setAttribute("href", url.pathname + url.search + url.hash);
+              }}
+            }});
+          }};
+          patchLinks();
+          new MutationObserver(patchLinks).observe(parentDocument.body, {{ childList: true, subtree: true }});
+        }})();
+        </script>
+        """,
+        height=0,
+    )
+
+
+def render_roxy_session_restore_bridge() -> None:
+    storage_key = html.escape(ROXY_SESSION_STORAGE_KEY, quote=True)
+    param_key = html.escape(ROXY_SESSION_PARAM, quote=True)
+    components.html(
+        f"""
+        <script>
+        (() => {{
+          const parentWindow = window.parent || window;
+          const url = new URL(parentWindow.location.href);
+          if (url.searchParams.get("{param_key}")) return;
+          const token = parentWindow.localStorage.getItem("{storage_key}");
+          if (!token) return;
+          url.searchParams.set("{param_key}", token);
+          parentWindow.history.replaceState(null, "", url.toString());
+          parentWindow.location.reload();
+        }})();
+        </script>
+        """,
+        height=0,
+    )
 
 
 def roxy_register_user(*, name: str, username: str, email: str, password: str, language: str) -> tuple[bool, str]:
@@ -610,7 +737,7 @@ def roxy_register_user(*, name: str, username: str, email: str, password: str, l
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     roxy_save_users(data)
-    roxy_set_authenticated_user(clean_username, users[clean_username])
+    roxy_remember_authenticated_user(clean_username, users[clean_username])
     return True, f"Cuenta creada. Hola {clean_name}, Roxy ya sabe tu nombre."
 
 
@@ -622,7 +749,7 @@ def roxy_login_user(identifier: str, password: str) -> tuple[bool, str]:
     expected = text_display(profile.get("password_hash"))
     if not salt or not expected or not secrets.compare_digest(roxy_hash_password(password or "", salt), expected):
         return False, "Contrasena incorrecta."
-    roxy_set_authenticated_user(username, profile)
+    roxy_remember_authenticated_user(username, profile)
     return True, f"Bienvenido, {text_display(profile.get('name') or username)}."
 
 
@@ -38214,9 +38341,12 @@ def main() -> None:
     )
     if "user" not in st.session_state:
         st.session_state.user = None
+    roxy_restore_user_from_session()
     if not st.session_state.get("user"):
+        render_roxy_session_restore_bridge()
         render_roxy_auth_gate()
         return
+    render_roxy_browser_session_bridge()
     show_focused_roxy_app()
     return
 
