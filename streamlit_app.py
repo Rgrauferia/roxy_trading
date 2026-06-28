@@ -7,6 +7,7 @@ confluence, symbol analysis, AI-ranked opportunities, and 24h watch status.
 from __future__ import annotations
 
 import base64
+import hashlib
 import html
 import importlib
 import inspect
@@ -14,6 +15,7 @@ import json
 import math
 import os
 import re
+import secrets
 import shutil
 import socket
 import subprocess
@@ -428,6 +430,8 @@ ROXY_AVATAR_VARIANT_PATHS = {
     "card": project_path("assets/roxy_avatar_card.jpg"),
 }
 
+ROXY_USERS_PATH = project_path("data/roxy_users.json")
+
 
 def brand_logo_html() -> str:
     try:
@@ -504,6 +508,219 @@ def roxy_welcome_card_html() -> str:
         '<strong>Conversacion, estrategia y lectura operativa en tiempo real.</strong>'
         '<p>Avatar oficial · voz femenina · memoria por sesion · confirmacion para acciones sensibles</p>'
         "</div></aside>"
+    )
+
+
+def roxy_user_display_name(default: str = "Roberto") -> str:
+    profile = st.session_state.get("roxy_user_profile")
+    if isinstance(profile, dict):
+        for key in ("name", "username", "email"):
+            value = text_display(profile.get(key)).strip()
+            if value:
+                return value.split("@")[0].strip().title()
+    user_value = text_display(st.session_state.get("user")).strip()
+    if user_value:
+        return user_value.split("@")[0].strip().title()
+    return default
+
+
+def roxy_load_users() -> dict[str, Any]:
+    try:
+        raw = ROXY_USERS_PATH.read_text(encoding="utf-8")
+        data = json.loads(raw)
+    except (OSError, json.JSONDecodeError):
+        return {"users": {}}
+    if not isinstance(data, dict):
+        return {"users": {}}
+    users = data.get("users")
+    if not isinstance(users, dict):
+        data["users"] = {}
+    return data
+
+
+def roxy_save_users(data: dict[str, Any]) -> None:
+    ROXY_USERS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    ROXY_USERS_PATH.write_text(json.dumps(data, indent=2, ensure_ascii=True), encoding="utf-8")
+
+
+def roxy_hash_password(password: str, salt: str) -> str:
+    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 160_000).hex()
+
+
+def roxy_find_user(identifier: str) -> tuple[str, dict[str, Any]] | tuple[str, None]:
+    ident = text_display(identifier).strip().lower()
+    if not ident:
+        return "", None
+    users = roxy_load_users().get("users", {})
+    if ident in users and isinstance(users[ident], dict):
+        return ident, users[ident]
+    for username, profile in users.items():
+        if not isinstance(profile, dict):
+            continue
+        if text_display(profile.get("email")).strip().lower() == ident:
+            return str(username), profile
+    return "", None
+
+
+def roxy_set_authenticated_user(username: str, profile: dict[str, Any]) -> None:
+    safe_username = text_display(username).strip()
+    display_name = text_display(profile.get("name") or safe_username).strip()
+    st.session_state.user = safe_username
+    st.session_state.roxy_user_profile = {
+        "username": safe_username,
+        "name": display_name or safe_username,
+        "email": text_display(profile.get("email")).strip(),
+        "language": text_display(profile.get("language") or "es").strip() or "es",
+    }
+    st.session_state.roxy_launch_message = f"Bienvenido, {display_name or safe_username}. Roxy ya reconoce tu perfil."
+    try:
+        storage.create_account_if_missing(safe_username)
+    except Exception:
+        pass
+
+
+def roxy_register_user(*, name: str, username: str, email: str, password: str, language: str) -> tuple[bool, str]:
+    clean_name = text_display(name).strip()
+    clean_username = re.sub(r"[^a-zA-Z0-9_.-]+", "", text_display(username).strip()).lower()
+    clean_email = text_display(email).strip().lower()
+    clean_language = text_display(language).strip() or "es"
+    if len(clean_name) < 2:
+        return False, "Escribe tu nombre para que Roxy pueda llamarte correctamente."
+    if len(clean_username) < 3:
+        return False, "El username debe tener al menos 3 caracteres."
+    if "@" not in clean_email or "." not in clean_email.split("@")[-1]:
+        return False, "Escribe un correo valido."
+    if len(password or "") < 6:
+        return False, "La contrasena debe tener al menos 6 caracteres."
+    data = roxy_load_users()
+    users = data.setdefault("users", {})
+    if clean_username in users:
+        return False, "Ese username ya existe. Inicia sesion o usa otro."
+    for profile in users.values():
+        if isinstance(profile, dict) and text_display(profile.get("email")).strip().lower() == clean_email:
+            return False, "Ese correo ya esta registrado."
+    salt = secrets.token_hex(16)
+    users[clean_username] = {
+        "username": clean_username,
+        "name": clean_name,
+        "email": clean_email,
+        "language": clean_language,
+        "password_salt": salt,
+        "password_hash": roxy_hash_password(password, salt),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    roxy_save_users(data)
+    roxy_set_authenticated_user(clean_username, users[clean_username])
+    return True, f"Cuenta creada. Hola {clean_name}, Roxy ya sabe tu nombre."
+
+
+def roxy_login_user(identifier: str, password: str) -> tuple[bool, str]:
+    username, profile = roxy_find_user(identifier)
+    if not username or not profile:
+        return False, "No encontre esa cuenta. Registrate primero."
+    salt = text_display(profile.get("password_salt"))
+    expected = text_display(profile.get("password_hash"))
+    if not salt or not expected or not secrets.compare_digest(roxy_hash_password(password or "", salt), expected):
+        return False, "Contrasena incorrecta."
+    roxy_set_authenticated_user(username, profile)
+    return True, f"Bienvenido, {text_display(profile.get('name') or username)}."
+
+
+def render_roxy_auth_gate() -> None:
+    mode = first_query_param_value(st.query_params, "auth") or st.session_state.get("roxy_auth_mode") or "login"
+    mode = "register" if str(mode).lower().startswith("reg") else "login"
+    st.session_state["roxy_auth_mode"] = mode
+    title = "Crea tu cuenta" if mode == "register" else "¡Bienvenido de nuevo!"
+    subtitle = "Registrate para que Roxy aprenda tu nombre." if mode == "register" else "Inicia sesion para continuar con Roxy"
+    safe_mode_class = "register" if mode == "register" else "login"
+    st.markdown(
+        f"""
+        <section class="roxy-auth-screen roxy-auth-{safe_mode_class}">
+          <div class="roxy-universe" aria-hidden="true">
+            <i class="roxy-space-nebula"></i>
+            <i class="roxy-space-stars roxy-space-stars-far"></i>
+            <i class="roxy-space-stars roxy-space-stars-mid"></i>
+            <i class="roxy-space-stars roxy-space-stars-near"></i>
+            <i class="roxy-space-planet"></i>
+            <i class="roxy-space-comet"></i>
+            <i class="roxy-space-aurora"></i>
+            <i class="roxy-space-constellation roxy-space-constellation-a"></i>
+            <i class="roxy-space-constellation roxy-space-constellation-b"></i>
+            <i class="roxy-space-moon"></i>
+            <i class="roxy-space-stream roxy-space-stream-a"></i>
+            <i class="roxy-space-stream roxy-space-stream-b"></i>
+          </div>
+          <div class="roxy-auth-language"><span>🇪🇸</span><b>Español</b><i class="material-symbols-outlined">expand_more</i></div>
+          <div class="roxy-auth-hero">
+            {roxy_hologram_avatar_html("speaking", "Roxy bienvenida")}
+            <div class="roxy-auth-title"><strong>ROXY</strong><span>AI TRADING CORE</span><em>Analiza. Aprende. Opera. Gana.</em></div>
+          </div>
+          <div class="roxy-auth-card">
+            <header><strong>{html.escape(title)}</strong><span>{html.escape(subtitle)}</span></header>
+        """,
+        unsafe_allow_html=True,
+    )
+    if mode == "register":
+        with st.form("roxy_register_form", clear_on_submit=False):
+            name = st.text_input("Nombre completo", key="roxy_register_name", placeholder="Tu nombre")
+            username = st.text_input("Username", key="roxy_register_username", placeholder="usuario")
+            email = st.text_input("Correo", key="roxy_register_email", placeholder="correo@email.com")
+            password = st.text_input("Contraseña", type="password", key="roxy_register_password", placeholder="Crea tu contraseña")
+            language = st.selectbox("Idioma de Roxy", ["Español", "English"], key="roxy_register_language")
+            remember = st.checkbox("Recordarme", value=True, key="roxy_register_remember")
+            submitted = st.form_submit_button("Crear cuenta")
+            if submitted:
+                ok, msg = roxy_register_user(
+                    name=name,
+                    username=username,
+                    email=email,
+                    password=password,
+                    language="es" if language == "Español" else "en",
+                )
+                if ok:
+                    st.success(msg)
+                    st.rerun()
+                st.error(msg)
+        st.markdown(
+            """
+            <div class="roxy-auth-switch">¿Ya tienes una cuenta? <a href="?auth=login" target="_self">Inicia sesión</a></div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        with st.form("roxy_login_form", clear_on_submit=False):
+            identifier = st.text_input("Usuario o correo", key="roxy_login_identifier", placeholder="Usuario")
+            password = st.text_input("Contraseña", type="password", key="roxy_login_password", placeholder="Contraseña")
+            col_remember, col_forgot = st.columns([1, 1])
+            with col_remember:
+                st.checkbox("Recordarme", value=True, key="roxy_login_remember")
+            with col_forgot:
+                st.markdown('<span class="roxy-auth-forgot">¿Olvidaste tu contraseña?</span>', unsafe_allow_html=True)
+            submitted = st.form_submit_button("Iniciar sesión")
+            if submitted:
+                ok, msg = roxy_login_user(identifier, password)
+                if ok:
+                    st.success(msg)
+                    st.rerun()
+                st.error(msg)
+        st.markdown(
+            """
+            <div class="roxy-auth-divider"><span></span><b>O continuar con</b><span></span></div>
+            <div class="roxy-auth-socials">
+              <button type="button"><img src="https://cdn.simpleicons.org/apple/ffffff" alt="">Continuar con Apple</button>
+              <button type="button"><img src="https://cdn.simpleicons.org/google" alt="">Continuar con Google</button>
+            </div>
+            <div class="roxy-auth-switch">¿No tienes una cuenta? <a href="?auth=register" target="_self">Regístrate</a></div>
+            """,
+            unsafe_allow_html=True,
+        )
+    st.markdown(
+        """
+            <footer><i class="material-symbols-outlined">shield</i><span>Tu información está protegida con contraseña local cifrada por hash.</span></footer>
+          </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
     )
 
 
@@ -31235,6 +31452,7 @@ def render_roxy_opening_stage(
     safe_symbol = html.escape(text_display(symbol).upper())
     safe_market = html.escape(text_display(market).upper())
     safe_timeframe = html.escape(text_display(timeframe))
+    safe_user_name = html.escape(roxy_user_display_name())
     home_chart_html = roxy_home_live_chart_html(symbol=symbol, market=market, timeframe=timeframe)
     module_from_query = first_query_param_value(st.query_params, "module")
     active_module = normalize_roxy_module(module_from_query, default="") if module_from_query else ""
@@ -31283,7 +31501,7 @@ def render_roxy_opening_stage(
           </div>
           <div class="roxy-ref-panel roxy-ref-assistant">
             <div class="roxy-ref-assistant-avatar">{roxy_avatar_html("speaking", "Roxy hablando")}</div>
-            <p><strong>Roxy</strong><span>He encontrado {ready_now} oportunidades listas y {watch_now} en vigilancia.</span></p>
+            <p><strong>Roxy</strong><span>{safe_user_name}, he encontrado {ready_now} oportunidades listas y {watch_now} en vigilancia.</span></p>
             <a href="?view=Dashboard&module=acciones-operar" target="_self">Mostrar oportunidades</a>
           </div>
           <div class="roxy-ref-panel roxy-ref-actions">
@@ -31315,7 +31533,7 @@ def render_roxy_opening_stage(
             <div class="roxy-ref-menu" aria-hidden="true"><span></span><span></span><span></span></div>
             <div class="roxy-ref-logo">{brand_logo_html()}</div>
             <div class="roxy-ref-welcome">
-              <strong>Bienvenido, Roberto</strong>
+              <strong>Bienvenido, {safe_user_name}</strong>
               <span>Roxy Trading · {safe_symbol} · {safe_timeframe}</span>
             </div>
             <div class="roxy-ref-alert" aria-hidden="true"><b>3</b></div>
@@ -37906,6 +38124,50 @@ def main() -> None:
         .sector-map-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;min-height:150px}.sector-tile{display:flex;flex-direction:column;justify-content:space-between;min-height:52px;border:1px solid rgba(148,163,184,.12);border-radius:5px;background:rgba(20,83,45,calc(.16 + var(--sector-weight)*.28));padding:7px;overflow:hidden}.sector-tile strong{color:#f8fafc;font-size:11px;line-height:1.08}.sector-tile span{color:#bbf7d0;font-size:13px;font-weight:950}.sector-tile-watch{background:rgba(120,74,15,calc(.14 + var(--sector-weight)*.25))}.sector-tile-watch span{color:#fde68a}.sector-tile-avoid{background:rgba(127,29,29,calc(.14 + var(--sector-weight)*.25))}.sector-tile-avoid span{color:#fecaca}.sector-empty,.crypto-discovery-empty{color:#94a3b8;font-size:11px;border:1px dashed rgba(148,163,184,.22);border-radius:8px;padding:10px}
         .crypto-discovery-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}.crypto-discovery-card{border-top:3px solid #f59e0b;border-radius:8px;background:#111827;padding:8px;min-width:0}.crypto-discovery-card span{display:block;color:#f8fafc;font-size:12px;font-weight:950}.crypto-discovery-card strong{display:block;color:#e2e8f0;font-size:18px;line-height:1;margin-top:4px}.crypto-discovery-card small{display:block;color:#94a3b8;font-size:10px;line-height:1.1;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.crypto-discovery-card em{display:block;color:#cbd5e1;font-size:10px;font-style:normal;margin-top:5px}.crypto-discovery-buy{border-top-color:#22c55e}.crypto-discovery-avoid{border-top-color:#ef4444}
         .asset-detail-panel strong{display:block;color:#f8fafc;font-size:17px;line-height:1.1}.asset-detail-panel>span{display:block;color:#94a3b8;font-size:11px;margin:3px 0 8px}.asset-stat-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border:1px solid rgba(148,163,184,.14);border-radius:8px;overflow:hidden}.asset-stat-grid div{background:#111827;padding:7px 8px;min-width:0}.asset-stat-grid span{display:block;color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase}.asset-stat-grid strong{display:block;color:#f8fafc;font-size:12px!important;line-height:1.05;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.asset-detail-panel p{color:#cbd5e1!important;margin:8px 0 5px!important}.asset-detail-panel small{display:block;color:#93c5fd;font-size:10px;line-height:1.2}.asset-detail-buy{box-shadow:inset 3px 0 0 #22c55e}.asset-detail-watch{box-shadow:inset 3px 0 0 #f59e0b}.asset-detail-avoid{box-shadow:inset 3px 0 0 #ef4444}
+        .roxy-auth-screen{position:relative;min-height:calc(100vh - 1.5rem);max-width:430px;margin:0 auto;padding:18px 18px 22px;overflow:hidden;border:1px solid rgba(56,189,248,.18);border-radius:8px;background:radial-gradient(ellipse at 50% 20%,rgba(14,165,233,.20),transparent 32%),radial-gradient(ellipse at 72% 38%,rgba(29,78,216,.18),transparent 36%),linear-gradient(180deg,#020611 0%,#06111f 48%,#02050d 100%);box-shadow:0 0 70px rgba(56,189,248,.16),0 26px 90px rgba(0,0,0,.62);isolation:isolate}
+        .roxy-auth-screen:before{content:"";position:absolute;inset:9% -12% 42%;z-index:0;background:linear-gradient(105deg,transparent 5%,rgba(37,99,235,.10) 22%,rgba(59,130,246,.45) 23%,rgba(59,130,246,.16) 24%,transparent 46%),linear-gradient(150deg,transparent 14%,rgba(56,189,248,.18) 42%,rgba(56,189,248,.55) 43%,rgba(56,189,248,.10) 45%,transparent 72%);filter:drop-shadow(0 0 22px rgba(56,189,248,.38));opacity:.72;animation:roxyAuthMarketDrift 16s ease-in-out infinite;pointer-events:none}
+        .roxy-auth-screen:after{content:"";position:absolute;left:-8%;right:-8%;top:24%;height:185px;z-index:0;background:linear-gradient(90deg,transparent,rgba(37,99,235,.18),transparent),repeating-linear-gradient(90deg,transparent 0 14px,rgba(59,130,246,.52) 14px 17px,transparent 17px 30px);clip-path:polygon(0 75%,8% 62%,18% 70%,30% 48%,43% 54%,56% 35%,70% 42%,86% 16%,100% 22%,100% 100%,0 100%);opacity:.33;filter:drop-shadow(0 0 16px rgba(37,99,235,.52));animation:roxyAuthChartPulse 7s ease-in-out infinite;pointer-events:none}
+        .roxy-auth-screen>*{position:relative;z-index:2}
+        .roxy-auth-screen .roxy-universe{opacity:.88}
+        .roxy-auth-language{position:absolute;right:18px;top:18px;z-index:4;display:flex;align-items:center;gap:7px;height:39px;border:1px solid rgba(96,165,250,.38);border-radius:8px;background:rgba(2,6,23,.62);padding:0 10px;color:#f8fafc;box-shadow:0 0 22px rgba(37,99,235,.18);backdrop-filter:blur(14px)}
+        .roxy-auth-language span{font-size:16px}.roxy-auth-language b{font-size:14px;font-weight:800}.roxy-auth-language i{font-size:19px!important;color:#93c5fd}
+        .roxy-auth-hero{display:grid;place-items:center;text-align:center;padding-top:6px;min-height:430px}
+        .roxy-auth-hero .roxy-hologram-avatar{width:min(335px,88vw);aspect-ratio:.92/1;margin-top:4px}
+        .roxy-auth-hero .roxy-avatar-core{width:60%;border-radius:50% 50% 18px 18px;border-color:rgba(56,189,248,.48);box-shadow:0 0 0 1px rgba(255,255,255,.08),0 0 92px rgba(37,99,235,.58),0 34px 96px rgba(0,0,0,.72)}
+        .roxy-auth-hero .roxy-hologram-name{display:none}
+        .roxy-auth-title{margin-top:-74px;pointer-events:none;text-shadow:0 0 30px rgba(56,189,248,.85),0 12px 28px rgba(0,0,0,.86)}
+        .roxy-auth-title strong{display:block;font-size:clamp(58px,18vw,92px);line-height:.78;font-weight:950;letter-spacing:.06em;color:#dff7ff;-webkit-text-stroke:1px rgba(125,211,252,.70);background:linear-gradient(180deg,#f7fdff 0%,#7dd3fc 44%,#2563eb 72%,#0b49e8 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+        .roxy-auth-title span{display:block;color:#e0f2fe;font-size:16px;font-weight:950;letter-spacing:.22em;margin-top:17px;text-transform:uppercase}
+        .roxy-auth-title em{display:block;color:#38bdf8;font-size:15px;font-style:normal;font-weight:760;letter-spacing:.02em;margin-top:9px}
+        .roxy-auth-card{position:relative;z-index:3;border:1px solid rgba(59,130,246,.56);border-radius:18px;background:linear-gradient(180deg,rgba(7,16,30,.82),rgba(3,8,18,.88));padding:24px 20px 20px;box-shadow:0 0 0 1px rgba(125,211,252,.06),0 0 36px rgba(37,99,235,.28),inset 0 1px 0 rgba(255,255,255,.08);backdrop-filter:blur(18px)}
+        .roxy-auth-card header{text-align:center;margin-bottom:18px}.roxy-auth-card header strong{display:block;color:#f8fafc;font-size:25px;line-height:1.08;font-weight:950}.roxy-auth-card header span{display:block;color:#cbd5e1;font-size:13.5px;line-height:1.25;margin-top:8px}
+        .roxy-auth-card [data-testid="stForm"]{border:0!important;padding:0!important;background:transparent!important}
+        .roxy-auth-card [data-testid="stTextInput"] label,.roxy-auth-card [data-testid="stSelectbox"] label{display:none!important}
+        .roxy-auth-card [data-testid="stTextInput"]{margin-bottom:10px}
+        .roxy-auth-card input{height:58px!important;border:1px solid rgba(148,163,184,.22)!important;border-radius:9px!important;background:rgba(5,10,21,.78)!important;color:#f8fafc!important;font-size:16px!important;font-weight:650!important;padding-left:15px!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.02)!important}
+        .roxy-auth-card input::placeholder{color:#64748b!important}.roxy-auth-card input:focus{border-color:rgba(59,130,246,.82)!important;box-shadow:0 0 0 1px rgba(59,130,246,.70),0 0 24px rgba(37,99,235,.22)!important}
+        .roxy-auth-card [data-testid="stSelectbox"]>div>div{min-height:48px;border:1px solid rgba(148,163,184,.22);border-radius:9px;background:rgba(5,10,21,.78);color:#f8fafc}
+        .roxy-auth-card [data-testid="stCheckbox"] label{color:#e5edf7!important;font-size:13px!important;font-weight:760}.roxy-auth-card [data-testid="stCheckbox"] [data-testid="stMarkdownContainer"] p{font-size:13px!important}
+        .roxy-auth-card .stButton button,.roxy-auth-card [data-testid="stFormSubmitButton"] button{width:100%;min-height:58px;border:1px solid rgba(125,211,252,.32)!important;border-radius:9px!important;background:linear-gradient(180deg,#0ea5ff,#0b63f6 65%,#0751d8)!important;color:#f8fafc!important;font-size:19px!important;font-weight:950!important;box-shadow:0 14px 30px rgba(37,99,235,.34),inset 0 1px 0 rgba(255,255,255,.20)}
+        .roxy-auth-forgot{display:block;text-align:right;color:#3b82f6;font-size:12.5px;font-weight:780;margin-top:10px}
+        .roxy-auth-divider{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin:18px 0 14px;color:#94a3b8;font-size:13px}.roxy-auth-divider span{height:1px;background:rgba(148,163,184,.24)}.roxy-auth-divider b{font-weight:650}
+        .roxy-auth-socials{display:grid;gap:10px}.roxy-auth-socials button{display:flex;align-items:center;justify-content:center;gap:13px;width:100%;height:54px;border:1px solid rgba(148,163,184,.22);border-radius:8px;background:rgba(5,10,21,.72);color:#f8fafc;font-size:17px;font-weight:800}.roxy-auth-socials img{width:22px;height:22px;object-fit:contain}
+        .roxy-auth-switch{text-align:center;color:#cbd5e1;font-size:14px;font-weight:700;margin:17px 0 0}.roxy-auth-switch a{color:#2563eb!important;text-decoration:none!important;font-weight:950}
+        .roxy-auth-card footer{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;align-items:center;margin-top:18px;color:#94a3b8;font-size:13px;line-height:1.28}.roxy-auth-card footer i{color:#38bdf8;font-size:28px!important;text-shadow:0 0 16px rgba(56,189,248,.55)}
+        .roxy-auth-register .roxy-auth-hero{min-height:335px}.roxy-auth-register .roxy-auth-hero .roxy-hologram-avatar{width:min(275px,76vw)}.roxy-auth-register .roxy-auth-title{margin-top:-58px}.roxy-auth-register .roxy-auth-title strong{font-size:clamp(48px,15vw,72px)}.roxy-auth-register .roxy-auth-card{padding-top:20px}
+        .stApp:has(.roxy-auth-screen) .block-container{max-width:430px!important;padding-top:0!important;padding-left:4px!important;padding-right:4px!important}
+        .stApp:has(.roxy-auth-screen) [data-testid="stSidebar"]{display:none!important}
+        .stApp:has(.roxy-auth-screen) [data-testid="stForm"]{position:relative;z-index:5;max-width:347px;margin:-260px auto 0!important;border:1px solid rgba(59,130,246,.56)!important;border-top:0!important;border-radius:0 0 18px 18px!important;background:linear-gradient(180deg,rgba(7,16,30,.82),rgba(3,8,18,.90))!important;padding:0 20px 20px!important;box-shadow:0 26px 62px rgba(0,0,0,.42),0 0 36px rgba(37,99,235,.20)!important}
+        .stApp:has(.roxy-auth-screen) [data-testid="stForm"] [data-testid="stTextInput"] label,.stApp:has(.roxy-auth-screen) [data-testid="stForm"] [data-testid="stSelectbox"] label{display:none!important}
+        .stApp:has(.roxy-auth-screen) [data-testid="stForm"] input{height:58px!important;border:1px solid rgba(148,163,184,.22)!important;border-radius:9px!important;background:rgba(5,10,21,.78)!important;color:#f8fafc!important;font-size:16px!important;font-weight:650!important;padding-left:15px!important}
+        .stApp:has(.roxy-auth-screen) [data-testid="stForm"] input::placeholder{color:#64748b!important}
+        .stApp:has(.roxy-auth-screen) [data-testid="stForm"] input:focus{border-color:rgba(59,130,246,.82)!important;box-shadow:0 0 0 1px rgba(59,130,246,.70),0 0 24px rgba(37,99,235,.22)!important}
+        .stApp:has(.roxy-auth-screen) [data-testid="stForm"] [data-testid="stFormSubmitButton"] button{width:100%!important;min-height:58px!important;border:1px solid rgba(125,211,252,.32)!important;border-radius:9px!important;background:linear-gradient(180deg,#0ea5ff,#0b63f6 65%,#0751d8)!important;color:#f8fafc!important;font-size:19px!important;font-weight:950!important;box-shadow:0 14px 30px rgba(37,99,235,.34),inset 0 1px 0 rgba(255,255,255,.20)!important}
+        .stApp:has(.roxy-auth-screen) .roxy-auth-divider,.stApp:has(.roxy-auth-screen) .roxy-auth-socials,.stApp:has(.roxy-auth-screen) .roxy-auth-switch,.stApp:has(.roxy-auth-screen) .roxy-auth-card footer{position:relative;z-index:5;max-width:347px;margin-left:auto;margin-right:auto}
+        .stApp:has(.roxy-auth-screen) .roxy-auth-divider{margin-top:15px}
+        .stApp:has(.roxy-auth-screen) .roxy-auth-socials button{box-sizing:border-box}
+        .stApp:has(.roxy-auth-register) [data-testid="stForm"]{margin-top:-335px!important}
+        @keyframes roxyAuthMarketDrift{0%,100%{transform:translateX(-3%) translateY(0)}50%{transform:translateX(4%) translateY(-5px)}}@keyframes roxyAuthChartPulse{0%,100%{opacity:.24;transform:translateY(0)}50%{opacity:.42;transform:translateY(-7px)}}
         [data-testid="stTabs"] button{font-weight:800;color:#cbd5e1}
         [data-testid="stTabs"] button[aria-selected="true"]{color:#a78bfa}
         [data-testid="stVegaLiteChart"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;background:#0b1220;padding:10px}
@@ -37920,6 +38182,11 @@ def main() -> None:
         """,
         unsafe_allow_html=True,
     )
+    if "user" not in st.session_state:
+        st.session_state.user = None
+    if not st.session_state.get("user"):
+        render_roxy_auth_gate()
+        return
     show_focused_roxy_app()
     return
 

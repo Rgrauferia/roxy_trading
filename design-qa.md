@@ -1,23 +1,22 @@
-# Design QA: Roxy Crypto Daily Folder
+# Design QA: Roxy Auth Welcome Screen
 
-Source visual: user-provided Crypto Daily folder reference image.
-Prototype state: `http://localhost:8502/?view=Dashboard&module=crypto-daily&symbol=BTC/USD&market=crypto&tf=1d`
+Source visual: user-provided mobile login/register reference for Roxy Trading.
+Prototype state: `http://localhost:8502/?auth=login` and `http://localhost:8502/?auth=register`.
 
 Checks completed:
-- Crypto Daily folder shell renders with sidebar, topbar, Roxy hero, 24-hour update countdown, notification strip, opportunity table, featured Daily opportunity, Deriv-style Daily platform panel, operative chart area, macro panels, key levels, events, alerts, tips, and bottom navigation.
-- Living universe background is preserved in the folder and chart sections.
-- Opportunity rows render as clickable links, not escaped code.
-- Visible priority order matches the requested crypto folder: BTC/USDT, ETH/USDT, SOL/USDT, XRP/USDT, BNB/USDT.
-- Crypto icons render through Simple Icons URLs where available.
-- Operative chart section renders two live chart iframes through the existing chart pipeline: 1D and 1W confirmation.
-- Selecting a crypto row updates the folder URL, selected row, and chart header. SOL/USDT was verified after navigation with 2 visible chart iframes.
-- Desktop DOM check: shell present, chart wrapper present, 5 clickable crypto rows, 11 crypto icon images, 2 visible chart iframes at 543px x 330px, 0 escaped crypto markup code blocks.
-- Mobile DOM check at 393px width: shell width 385px, chart width 385px, document scroll width 393px, insights and bottom panels collapse to one column, 2 visible chart iframes at 361px x 330px.
+- Login gate renders before the dashboard when no Roxy user is authenticated.
+- The screen keeps the living universe background, animated Roxy avatar, large ROXY title, language selector, login form, Apple/Google visual actions, registration link, and security note.
+- Register mode includes name, username, email, password, language, remember option, and create-account action.
+- Registration stores a local salted password hash in `data/roxy_users.json` at runtime and sets the session profile.
+- Login accepts username or email and restores the user profile from the local user store.
+- Roxy personalization verified with a temporary user: dashboard showed `Bienvenido, Carlos Rivera`, and the assistant message addressed `Carlos Rivera`.
+- Mobile DOM check at 393px width: login shell width 385px, document scroll width 393px, login form 347px wide, submit button 305px wide, 2 Roxy avatar images, 2 social actions.
+- Register DOM check at 393px width: register form 347px wide, required placeholders visible, submit button 305px wide, document scroll width 393px.
 - Browser console error check returned no errors.
+- `python3 -m py_compile streamlit_app.py` passed.
 
 Known acceptable differences:
-- Exact third-party icon availability depends on the Simple Icons CDN.
-- Live chart content depends on current provider data availability.
-- Screenshot capture is unreliable on this heavy Streamlit page with embedded chart iframes, so QA used DOM, layout, iframe, responsive, and console checks.
+- Apple and Google buttons are visual entry points only until real OAuth client credentials are configured.
+- Streamlit sessions reset per browser tab/reload, but registered users persist locally through the user store.
 
 Final result: passed.
