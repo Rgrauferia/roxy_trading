@@ -31256,6 +31256,14 @@ def render_roxy_opening_stage(
     st.markdown(
         f"""
         <section class="roxy-opening-stage roxy-reference-stage">
+          <div class="roxy-universe" aria-hidden="true">
+            <i class="roxy-space-nebula"></i>
+            <i class="roxy-space-stars roxy-space-stars-far"></i>
+            <i class="roxy-space-stars roxy-space-stars-mid"></i>
+            <i class="roxy-space-stars roxy-space-stars-near"></i>
+            <i class="roxy-space-planet"></i>
+            <i class="roxy-space-comet"></i>
+          </div>
           <div class="roxy-ref-topbar">
             <div class="roxy-ref-menu" aria-hidden="true"><span></span><span></span><span></span></div>
             <div class="roxy-ref-logo">{brand_logo_html()}</div>
@@ -35901,6 +35909,34 @@ def main() -> None:
             background-position:0 0,42px 78px,112px 18px,24px 140px,176px 90px,80px 210px,18px 24px,center!important;
             mask-image:radial-gradient(ellipse at 50% 42%,#000 0 74%,rgba(0,0,0,.70) 84%,transparent 100%)!important;animation:roxyStarDrift 58s linear infinite,roxyConstellationPulse 7.6s ease-in-out infinite!important}
         .roxy-reference-stage:after{left:auto!important;right:-14%!important;top:14%!important;width:22%!important;height:1px!important;border-radius:999px;background:linear-gradient(90deg,transparent,rgba(226,246,255,.74),rgba(56,189,248,.22),transparent)!important;box-shadow:0 0 14px rgba(125,211,252,.30)!important;transform:rotate(-14deg)!important;animation:roxyShootingStar 13s ease-in-out infinite!important;opacity:0;pointer-events:none}
+        .roxy-universe{position:absolute!important;inset:0;z-index:0!important;overflow:hidden;pointer-events:none;isolation:isolate;opacity:.96}
+        .roxy-universe i{position:absolute;display:block;pointer-events:none}
+        .roxy-space-nebula{inset:-20% -18%;background:
+            radial-gradient(ellipse at 50% 41%,rgba(56,189,248,.22),rgba(14,165,233,.10) 24%,transparent 47%),
+            radial-gradient(ellipse at 34% 28%,rgba(59,130,246,.16),transparent 34%),
+            radial-gradient(ellipse at 74% 33%,rgba(212,175,96,.09),transparent 26%),
+            radial-gradient(ellipse at 48% 74%,rgba(14,165,233,.12),transparent 38%);
+            filter:blur(10px) saturate(1.25);mix-blend-mode:screen;opacity:.78;animation:roxyNebulaFlow 19s ease-in-out infinite}
+        .roxy-space-stars{inset:-12%;background-repeat:repeat;mix-blend-mode:screen;filter:drop-shadow(0 0 5px rgba(186,230,253,.22))}
+        .roxy-space-stars-far{opacity:.54;background-image:
+            radial-gradient(circle,rgba(226,246,255,.70) 0 .55px,transparent 1.2px),
+            radial-gradient(circle,rgba(125,211,252,.38) 0 .7px,transparent 1.5px);
+            background-size:96px 114px,151px 169px;background-position:0 0,41px 67px;animation:roxyStarfieldFar 74s linear infinite,roxyStarTwinkle 5.2s ease-in-out infinite}
+        .roxy-space-stars-mid{opacity:.64;background-image:
+            radial-gradient(circle,rgba(248,250,252,.86) 0 .85px,transparent 1.7px),
+            radial-gradient(circle,rgba(147,197,253,.62) 0 .95px,transparent 1.9px),
+            radial-gradient(circle,rgba(212,175,96,.38) 0 .75px,transparent 1.5px);
+            background-size:142px 178px,205px 233px,286px 314px;background-position:29px 13px,80px 120px,160px 54px;animation:roxyStarfieldMid 52s linear infinite reverse,roxyStarTwinkle 6.6s ease-in-out infinite}
+        .roxy-space-stars-near{opacity:.50;background-image:
+            radial-gradient(circle,rgba(255,255,255,.94) 0 1.2px,transparent 2.4px),
+            radial-gradient(circle,rgba(125,211,252,.72) 0 1px,transparent 2px);
+            background-size:265px 310px,350px 410px;background-position:70px 34px,190px 160px;animation:roxyStarfieldNear 34s linear infinite,roxyStarTwinkle 4.8s ease-in-out infinite}
+        .roxy-space-planet{right:7%;top:22%;width:52px;height:52px;border-radius:50%;background:
+            radial-gradient(circle at 36% 32%,rgba(226,246,255,.72),rgba(96,165,250,.28) 33%,rgba(15,23,42,.08) 64%,transparent 72%);
+            box-shadow:0 0 36px rgba(96,165,250,.18);opacity:.22;filter:blur(.25px);animation:roxyPlanetFloat 28s ease-in-out infinite}
+        .roxy-space-planet:after{content:"";position:absolute;left:-42%;top:47%;width:184%;height:18%;border:1px solid rgba(125,211,252,.18);border-left-color:transparent;border-right-color:transparent;border-radius:50%;transform:rotate(-19deg);filter:blur(.2px)}
+        .roxy-space-comet{left:-22%;top:64%;width:130px;height:2px;border-radius:999px;background:linear-gradient(90deg,transparent,rgba(226,246,255,.72),rgba(56,189,248,.28),transparent);box-shadow:0 0 20px rgba(125,211,252,.32);opacity:0;animation:roxyDeepComet 16s ease-in-out infinite}
+        @media (hover:hover){.roxy-reference-stage:hover .roxy-space-stars-near{animation-duration:22s;opacity:.62}.roxy-reference-stage:hover .roxy-space-nebula{opacity:.90;filter:blur(8px) saturate(1.45)}}
         .roxy-reference-stage .roxy-stage-center:before{content:"";position:absolute;left:50%;top:50%;width:min(520px,86vw);height:78%;transform:translate(-50%,-50%);background:radial-gradient(ellipse at 50% 45%,rgba(56,189,248,.26),rgba(14,165,233,.09) 34%,transparent 72%);filter:blur(2px);pointer-events:none;animation:roxyHaloBreathe 5.6s ease-in-out infinite}
         .roxy-reference-stage .roxy-stage-left,.roxy-reference-stage .roxy-stage-center,.roxy-reference-stage .roxy-stage-right{display:grid}
         .roxy-reference-stage .roxy-stage-center .roxy-hologram-avatar{width:min(560px,100%);aspect-ratio:.78/1}
@@ -36206,6 +36242,13 @@ def main() -> None:
         @keyframes roxyStarDrift{0%{background-position:0 0,42px 78px,112px 18px,24px 140px,176px 90px,80px 210px,18px 24px,center}100%{background-position:-46px 122px,102px -64px,18px 204px,128px -38px,36px 245px,174px 20px,54px 86px,center}}
         @keyframes roxyConstellationPulse{0%,100%{opacity:.52}35%{opacity:.80}66%{opacity:.62}}
         @keyframes roxyShootingStar{0%,72%{opacity:0;transform:translate3d(0,0,0) rotate(-14deg)}75%{opacity:.58}84%{opacity:0;transform:translate3d(-115vw,34vh,0) rotate(-14deg)}100%{opacity:0;transform:translate3d(-115vw,34vh,0) rotate(-14deg)}}
+        @keyframes roxyNebulaFlow{0%,100%{transform:translate3d(0,0,0) scale(1);opacity:.68}34%{transform:translate3d(-2.5%,1.6%,0) scale(1.055);opacity:.86}68%{transform:translate3d(2.2%,-1.2%,0) scale(1.025);opacity:.74}}
+        @keyframes roxyStarfieldFar{0%{background-position:0 0,41px 67px}100%{background-position:-120px 190px,92px -146px}}
+        @keyframes roxyStarfieldMid{0%{background-position:29px 13px,80px 120px,160px 54px}100%{background-position:150px -210px,-90px 260px,220px -180px}}
+        @keyframes roxyStarfieldNear{0%{background-position:70px 34px,190px 160px;transform:translate3d(0,0,0)}100%{background-position:-180px 310px,330px -220px;transform:translate3d(-1.2%,.9%,0)}}
+        @keyframes roxyStarTwinkle{0%,100%{filter:drop-shadow(0 0 4px rgba(186,230,253,.18));opacity:.48}44%{filter:drop-shadow(0 0 9px rgba(186,230,253,.34));opacity:.82}72%{opacity:.58}}
+        @keyframes roxyPlanetFloat{0%,100%{transform:translate3d(0,0,0) scale(.92);opacity:.16}42%{transform:translate3d(-18px,22px,0) scale(1.04);opacity:.28}74%{transform:translate3d(10px,-11px,0) scale(.97);opacity:.20}}
+        @keyframes roxyDeepComet{0%,68%{opacity:0;transform:translate3d(0,0,0) rotate(-11deg)}72%{opacity:.50}84%{opacity:0;transform:translate3d(145vw,-36vh,0) rotate(-11deg)}100%{opacity:0;transform:translate3d(145vw,-36vh,0) rotate(-11deg)}}
         .stApp{background:
             radial-gradient(circle at 50% 10%,rgba(56,189,248,.15),transparent 34%),
             radial-gradient(circle at 88% 8%,rgba(212,175,96,.12),transparent 28%),
