@@ -478,14 +478,8 @@ def roxy_hologram_avatar_html(state: str = "listening", label: str = "Roxy Tradi
         f'<span class="roxy-neck-head" aria-hidden="true">{image_html}</span>'
         '<span class="roxy-face-glow"></span>'
         '<span class="roxy-face-life"></span>'
-        '<span class="roxy-gaze roxy-gaze-left"></span>'
-        '<span class="roxy-gaze roxy-gaze-right"></span>'
-        '<span class="roxy-blink"></span>'
         '<span class="roxy-eye roxy-eye-left"></span>'
         '<span class="roxy-eye roxy-eye-right"></span>'
-        '<span class="roxy-mouth"></span>'
-        '<span class="roxy-lip roxy-lip-upper"></span>'
-        '<span class="roxy-lip roxy-lip-lower"></span>'
         '</div>'
         '<div class="roxy-audio-wave" aria-hidden="true">'
         f"{wave_bars}"
@@ -35762,15 +35756,15 @@ def main() -> None:
         @keyframes roxyBreath{0%,100%{transform:translateY(0) rotate(-.25deg) scale(1);filter:drop-shadow(0 0 22px rgba(56,189,248,.52))}36%{transform:translateY(-4px) rotate(.55deg) scale(1.018);filter:drop-shadow(0 0 34px rgba(56,189,248,.72))}68%{transform:translateY(-2px) rotate(-.45deg) scale(1.01);filter:drop-shadow(0 0 30px rgba(56,189,248,.62))}}
         @keyframes roxyPortraitMicroMove{0%,100%{transform:translate3d(0,0,0) scale(1.012)}25%{transform:translate3d(.7%,-.35%,0) scale(1.018)}52%{transform:translate3d(-.55%,.25%,0) scale(1.014)}76%{transform:translate3d(.35%,.15%,0) scale(1.016)}}
         @keyframes roxyBlink{0%,88%,91%,100%{opacity:0;transform:scaleY(.05)}89.3%,90.2%{opacity:.72;transform:scaleY(1)}96.2%,96.9%{opacity:.62;transform:scaleY(.86)}}
-        @keyframes roxyEyeLid{0%,88%,91%,100%{opacity:0;transform:translateY(-6px) scaleY(.1)}89.2%,90.4%{opacity:.78;transform:translateY(0) scaleY(1)}96.1%,96.8%{opacity:.58;transform:translateY(-1px) scaleY(.76)}}
+        @keyframes roxyEyeLid{0%,86%,91%,100%{opacity:0;transform:translateY(-4px) scaleY(.08)}87.4%,89.3%{opacity:.72;transform:translateY(0) scaleY(1)}95.2%,96.2%{opacity:.46;transform:translateY(-1px) scaleY(.62)}}
         @keyframes roxyMouth{0%,100%{transform:translateX(-50%) scaleX(.72) scaleY(.38);opacity:.50}45%{transform:translateX(-50%) scaleX(.86) scaleY(.55);opacity:.62}}
-        @keyframes roxyTalkMouth{0%{transform:translateX(-50%) scaleX(.62) scaleY(.30);opacity:.64;border-radius:999px}14%{transform:translateX(-50%) scaleX(1.18) scaleY(2.65);opacity:1;border-radius:48%}30%{transform:translateX(-50%) scaleX(.82) scaleY(.82);opacity:.86;border-radius:999px}48%{transform:translateX(-50%) scaleX(1.34) scaleY(1.95);opacity:.98;border-radius:42%}66%{transform:translateX(-50%) scaleX(.72) scaleY(.55);opacity:.76;border-radius:999px}84%{transform:translateX(-50%) scaleX(1.05) scaleY(2.25);opacity:.96;border-radius:46%}100%{transform:translateX(-50%) scaleX(.92) scaleY(.78);opacity:.88;border-radius:999px}}
-        @keyframes roxyLowerLipTalk{0%,100%{transform:translateX(-50%) translateY(0) scaleX(.80);opacity:.54}28%{transform:translateX(-50%) translateY(6px) scaleX(1.18);opacity:.86}54%{transform:translateX(-50%) translateY(2px) scaleX(.92);opacity:.66}76%{transform:translateX(-50%) translateY(5px) scaleX(1.08);opacity:.80}}
+        @keyframes roxyTalkMouth{0%,100%{opacity:0}}
+        @keyframes roxyLowerLipTalk{0%,100%{opacity:0}}
         @keyframes roxyFaceAlive{0%,100%{opacity:.18;transform:translate(-50%,-50%) scale(.96)}50%{opacity:.42;transform:translate(-50%,-51%) scale(1.04)}}
         @keyframes roxyHumanBodyStill{0%,100%{transform:translateY(0) scale(1);filter:drop-shadow(0 0 24px rgba(56,189,248,.58))}50%{transform:translateY(-1.5px) scale(1.004);filter:drop-shadow(0 0 31px rgba(56,189,248,.68))}}
         @keyframes roxyNeckLookHuman{0%,12%,100%{transform:perspective(520px) translate3d(0,0,0) rotateY(0deg) rotateZ(0deg) scale(1.006)}23%,36%{transform:perspective(520px) translate3d(-2.2%,-.5%,0) rotateY(-7deg) rotateZ(-.8deg) scale(1.018)}47%,58%{transform:perspective(520px) translate3d(0,-.2%,0) rotateY(0deg) rotateZ(0deg) scale(1.01)}69%,82%{transform:perspective(520px) translate3d(2.1%,-.45%,0) rotateY(7deg) rotateZ(.8deg) scale(1.018)}91%{transform:perspective(520px) translate3d(0,0,0) rotateY(0deg) rotateZ(0deg) scale(1.006)}}
         @keyframes roxyPortraitLookAround{0%,100%{transform:translate3d(0,0,0) scale(1.01)}50%{transform:translate3d(0,-.15%,0) scale(1.012)}}
-        @keyframes roxyGazeLook{0%,12%,100%{transform:translateX(0) translateY(0);opacity:.58}23%,36%{transform:translateX(-7px) translateY(-1px);opacity:.96}47%,58%{transform:translateX(0) translateY(0);opacity:.72}69%,82%{transform:translateX(7px) translateY(-1px);opacity:.96}91%{transform:translateX(0) translateY(0);opacity:.70}}
+        @keyframes roxyGazeLook{0%,100%{opacity:0}}
         @keyframes roxyBigBlink{0%,77%,82%,100%{opacity:0;transform:translateY(-7px) scaleY(.05)}78.2%,80.8%{opacity:1;transform:translateY(0) scaleY(1.08)}91.4%,93.1%{opacity:.88;transform:translateY(-1px) scaleY(.82)}}
         @keyframes roxyOrbit{0%{transform:translate(-50%,-50%) rotate(0deg)}100%{transform:translate(-50%,-50%) rotate(360deg)}}
         @keyframes roxyPulse{0%,100%{opacity:.42;transform:translate(-50%,-50%) scale(.92)}50%{opacity:.88;transform:translate(-50%,-50%) scale(1.04)}}
@@ -35834,17 +35828,13 @@ def main() -> None:
         .roxy-avatar-core:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(180deg,rgba(125,211,252,.12) 0 1px,transparent 1px 7px);opacity:.18;pointer-events:none}
         .roxy-face-glow{position:absolute;inset:6%;z-index:3;border-radius:50%;box-shadow:0 0 34px rgba(56,189,248,.25);pointer-events:none}
         .roxy-face-life{position:absolute;left:50%;top:45%;z-index:3;width:54%;height:40%;border-radius:50%;background:radial-gradient(ellipse at 50% 50%,rgba(125,211,252,.24),rgba(125,211,252,.08) 42%,transparent 70%);mix-blend-mode:screen;opacity:.28;transform:translate(-50%,-50%);animation:roxyFaceAlive 4.4s ease-in-out infinite;pointer-events:none}
-        .roxy-gaze{position:absolute;top:38%;z-index:4;width:6.4%;height:3.9%;border-radius:50%;background:radial-gradient(circle at 42% 38%,#ffffff 0 16%,#67e8f9 30%,rgba(56,189,248,.45) 56%,transparent 78%);mix-blend-mode:screen;filter:drop-shadow(0 0 10px rgba(56,189,248,1));opacity:.70;animation:roxyGazeLook 8.4s ease-in-out infinite;pointer-events:none}
-        .roxy-gaze-left{left:35.1%;animation-delay:.08s}.roxy-gaze-right{right:34.2%;animation-delay:.12s}
-        .roxy-blink{position:absolute;left:19.8%;right:19.8%;top:33.8%;z-index:5;height:12%;border-radius:999px;background:linear-gradient(180deg,rgba(2,6,23,.96),rgba(15,23,42,.42));opacity:0;animation:roxyBigBlink 4.4s infinite;pointer-events:none}
-        .roxy-eye{position:absolute;top:35.7%;z-index:5;width:17.5%;height:6.8%;border-radius:999px;background:linear-gradient(180deg,rgba(2,6,23,.94),rgba(2,6,23,.34));box-shadow:0 0 14px rgba(56,189,248,.22);opacity:0;animation:roxyEyeLid 4.4s infinite;pointer-events:none}
-        .roxy-eye-left{left:29.6%;animation-delay:.08s}.roxy-eye-right{right:29.2%;animation-delay:.12s}
-        .roxy-mouth{position:absolute;left:50%;top:58.9%;z-index:5;width:30%;min-width:26px;height:5.4%;min-height:7px;border-radius:999px;background:radial-gradient(ellipse at 50% 50%,rgba(255,214,222,.90) 0 13%,rgba(190,18,60,.80) 42%,rgba(2,6,23,.62));box-shadow:0 0 18px rgba(56,189,248,.40),inset 0 0 9px rgba(2,6,23,.55);opacity:.86;transform:translateX(-50%);transform-origin:center;animation:roxyMouth 3.2s ease-in-out infinite;pointer-events:none}
-        .roxy-lip{position:absolute;left:50%;top:56.8%;z-index:5;width:27%;min-width:23px;height:1.7%;border-radius:999px;background:rgba(255,226,226,.46);filter:blur(.2px);opacity:.70;transform:translateX(-50%);pointer-events:none}.roxy-lip-lower{top:63.5%;background:rgba(127,29,29,.52);opacity:.66}
+        .roxy-gaze,.roxy-mouth,.roxy-lip,.roxy-blink{display:none!important}
+        .roxy-eye{position:absolute;top:36.2%;z-index:5;width:12.8%;height:3.6%;border-radius:999px;background:linear-gradient(180deg,rgba(5,10,18,.76),rgba(15,23,42,.22));box-shadow:none;opacity:0;animation:roxyEyeLid 4.8s infinite;pointer-events:none}
+        .roxy-eye-left{left:32.5%;animation-delay:.08s}.roxy-eye-right{right:32.2%;animation-delay:.12s}
         .roxy-hologram-speaking .roxy-avatar-core{animation:roxyHumanBodyStill 5.8s ease-in-out infinite}
         .roxy-hologram-speaking .roxy-avatar-core>img{animation:roxyPortraitLookAround 8.4s ease-in-out infinite}
-        .roxy-hologram-speaking .roxy-mouth{animation:roxyTalkMouth .74s ease-in-out infinite}
-        .roxy-hologram-speaking .roxy-lip-lower{animation:roxyLowerLipTalk .74s ease-in-out infinite}
+        .roxy-hologram-speaking .roxy-mouth{display:none!important}
+        .roxy-hologram-speaking .roxy-lip-lower{display:none!important}
         .roxy-hologram-speaking .roxy-face-life{animation-duration:2.8s;opacity:.36}
         .roxy-hologram-speaking .roxy-audio-wave i{animation-duration:.74s}
         .roxy-hologram-thinking .roxy-mouth,.roxy-hologram-listening .roxy-mouth{animation-duration:3.4s}
