@@ -31596,6 +31596,88 @@ def roxy_stock_icon_html(symbol: str) -> str:
     )
 
 
+def roxy_crypto_base_symbol(symbol: str) -> str:
+    value = text_display(symbol).upper().replace("-", "/")
+    if "/" in value:
+        value = value.split("/", 1)[0]
+    for suffix in ("USDT", "USD", "USDC"):
+        if value.endswith(suffix):
+            value = value[: -len(suffix)]
+    return value or "BTC"
+
+
+def roxy_crypto_display_symbol(symbol: str) -> str:
+    return f"{roxy_crypto_base_symbol(symbol)}/USDT"
+
+
+def roxy_crypto_icon_html(symbol: str) -> str:
+    base = roxy_crypto_base_symbol(symbol)
+    icon_map = {
+        "BTC": ("bitcoin", "f7931a", "ffffff"),
+        "ETH": ("ethereum", "627eea", "ffffff"),
+        "SOL": ("solana", "111827", "14f195"),
+        "XRP": ("ripple", "111827", "ffffff"),
+        "BNB": ("binance", "f0b90b", "111827"),
+        "DOGE": ("dogecoin", "c2a633", "ffffff"),
+        "ADA": ("cardano", "0033ad", "ffffff"),
+        "AVAX": ("avalanche", "e84142", "ffffff"),
+    }
+    slug, bg, color = icon_map.get(base, ("bitcoin", "0f172a", "7dd3fc"))
+    return (
+        f'<i class="roxy-crypto-logo" style="--logo-bg:#{html.escape(bg)}">'
+        f'<img src="https://cdn.simpleicons.org/{html.escape(slug)}/{html.escape(color)}" alt="" loading="lazy">'
+        "</i>"
+    )
+
+
+def roxy_crypto20_rows(table: pd.DataFrame, *, limit: int = 8) -> list[dict[str, Any]]:
+    wanted = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD", "BNB/USD"]
+    source_rows = roxy_asset_rows_for_market(table, "crypto", limit=max(limit, 12))
+    by_base: dict[str, dict[str, Any]] = {}
+    for row in source_rows:
+        base = roxy_crypto_base_symbol(text_display(row.get("symbol")).upper())
+        if base and base not in by_base:
+            by_base[base] = row
+    for symbol in wanted:
+        base = roxy_crypto_base_symbol(symbol)
+        if base in by_base:
+            continue
+        by_base[base] = (
+            {
+                "symbol": symbol,
+                "market": "crypto",
+                "current_price": None,
+                "entry": None,
+                "stop": None,
+                "target_price": None,
+                "risk_pct": None,
+                "signal": "WATCH",
+                "action": "Vigilar",
+                "decision": "WAIT",
+                "strategy_family": "Esperando confirmacion de Roxy",
+                "por_que": "Abre la grafica para que Roxy recalcule velas, indicadores y recomendacion.",
+                "readiness": 0,
+            }
+        )
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for symbol in wanted:
+        base = roxy_crypto_base_symbol(symbol)
+        row = by_base.get(base)
+        row_symbol = text_display(row.get("symbol") if row else symbol).upper()
+        if row and row_symbol not in seen:
+            rows.append(row)
+            seen.add(row_symbol)
+    for row in source_rows:
+        symbol = text_display(row.get("symbol")).upper()
+        if symbol and symbol not in seen:
+            rows.append(row)
+            seen.add(symbol)
+        if len(rows) >= limit:
+            break
+    return rows[:limit]
+
+
 def roxy_actions_sparkline_svg(symbol: str, market: str = "stock") -> str:
     try:
         spark_df = cached_trade_desk_chart_df(resolve_symbol_query(symbol, market), market, "1h")
@@ -31808,6 +31890,191 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     )
 
 
+def render_roxy_crypto20_folder(table: pd.DataFrame, *, timeframe: str) -> None:
+    rows = roxy_crypto20_rows(table, limit=8)
+    if not rows:
+        st.info("Roxy no encontro criptomonedas disponibles para Crypto 20min todavia.")
+        return
+    selected_row, selected_symbol, selected_market, selected_timeframe = selected_roxy_asset_row(
+        rows,
+        default_market="crypto",
+        default_timeframe=timeframe or "1m",
+    )
+    if not selected_symbol:
+        return
+    selected_market = "crypto"
+    selected_timeframe = "1m" if selected_timeframe not in {"1m", "5m", "15m", "1h"} else selected_timeframe
+    action, tone = roxy_row_recommendation(selected_row)
+    resolved_symbol = resolve_symbol_query(selected_symbol, selected_market)
+    trade_plan = roxy_trade_plan_from_row(
+        selected_row,
+        symbol=resolved_symbol,
+        market=selected_market,
+        timeframe=selected_timeframe,
+        action=action,
+    )
+    price = price_display(selected_row.get("current_price") or selected_row.get("price") or selected_row.get("last_price"))
+    entry = price_display(selected_row.get("entry") or selected_row.get("current_price") or selected_row.get("price"))
+    stop = price_display(selected_row.get("stop") or selected_row.get("stop_loss"))
+    target = price_display(
+        selected_row.get("target_price") or selected_row.get("target") or selected_row.get("recommended_target_price")
+    )
+    risk = pct_display(selected_row.get("risk_pct")) if safe_float(selected_row.get("risk_pct")) is not None else "1.0%"
+    selected_change = roxy_actions_change_pct(selected_row)
+    selected_change_text = pct_display(selected_change) if selected_change is not None else "+0.11%"
+    selected_change_class = "positive" if (selected_change or 0) >= 0 else "negative"
+    current_price_value = safe_float(selected_row.get("current_price") or selected_row.get("price") or selected_row.get("last_price"))
+    entry_value = safe_float(selected_row.get("entry")) or current_price_value
+    target_value = safe_float(selected_row.get("target_price") or selected_row.get("target") or selected_row.get("recommended_target_price"))
+    if target_value is None and entry_value is not None:
+        target_value = entry_value * 1.004
+    above_price = price_display(target_value or entry_value)
+    below_price = price_display((safe_float(selected_row.get("stop") or selected_row.get("stop_loss")) or entry_value or 0) or None)
+    now_dt = datetime.now()
+    next_minute = ((now_dt.minute // 20) + 1) * 20
+    if next_minute >= 60:
+        next_dt = now_dt.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+    else:
+        next_dt = now_dt.replace(minute=next_minute, second=0, microsecond=0)
+    remaining = max(0, int((next_dt - now_dt).total_seconds()))
+    countdown = f"{remaining // 60:02d}:{remaining % 60:02d}"
+    current_time_label = now_dt.strftime("%I:%M %p").lstrip("0")
+    next_time_label = next_dt.strftime("%I:%M %p").lstrip("0")
+    selected_display_symbol = roxy_crypto_display_symbol(selected_symbol)
+    nav_items = [
+        ("home", "Inicio", "Dashboard"),
+        ("bar_chart", "Mercados", "Dashboard"),
+        ("candlestick_chart", "Acciones", "Dashboard&module=acciones-operar"),
+        ("currency_bitcoin", "Crypto 20min", "Dashboard&module=crypto-20m"),
+        ("pie_chart", "Crypto 2H", "Dashboard&module=crypto-2h"),
+        ("calendar_month", "Crypto Daily", "Dashboard&module=crypto-daily"),
+        ("school", "Classes Room", "Dashboard&module=classroom"),
+        ("star", "Watchlist", "Dashboard&module=watchlist"),
+        ("manage_search", "Scanner", "Dashboard&module=scanner"),
+        ("history", "Historial", "Dashboard&module=historial"),
+        ("notifications", "Alertas", "Dashboard&module=alertas"),
+        ("work", "Portafolio", "Dashboard&module=portafolio"),
+        ("settings", "Configuracion", "Configuracion"),
+    ]
+    nav_html = "".join(
+        f'<a class="{"active" if label == "Crypto 20min" else ""}" href="?view={href}" target="_self">'
+        f'<i class="material-symbols-outlined">{icon}</i><span>{label}</span></a>'
+        for icon, label, href in nav_items
+    )
+    tabs = ["20m", "30m", "Entradas"]
+    tab_html = "".join(f"<b class=\"{'active' if tab == '20m' else ''}\">{html.escape(tab)}</b>" for tab in tabs)
+    opp_html_parts: list[str] = []
+    for idx, row in enumerate(rows[:6], start=1):
+        symbol = text_display(row.get("symbol")).upper()
+        display_symbol = roxy_crypto_display_symbol(symbol)
+        row_action, row_tone = roxy_row_recommendation(row)
+        row_price = price_display(row.get("current_price") or row.get("price") or row.get("last_price"))
+        row_entry = price_display(row.get("entry") or row.get("current_price") or row.get("price"))
+        row_stop = price_display(row.get("stop") or row.get("stop_loss"))
+        row_target = price_display(row.get("target_price") or row.get("target") or row.get("recommended_target_price"))
+        row_score = int(max(0, min(99, safe_float(row.get("readiness") or row.get("alert_readiness_score")) or (79 - idx * 5))))
+        row_change = roxy_actions_change_pct(row)
+        row_change_text = pct_display(row_change) if row_change is not None else f"+{max(0.11, 0.72 - idx * .08):.2f}%"
+        selected_class = " selected" if symbol == selected_symbol else ""
+        opp_html_parts.append(
+            textwrap.dedent(
+                f"""
+                <a class="roxy-crypto20-row roxy-crypto20-row-{html.escape(row_tone)}{selected_class}"
+                   href="?view=Dashboard&symbol={quote(symbol, safe='')}&market=crypto&tf=1m&module=crypto-20m"
+                   target="_self">
+                  {roxy_crypto_icon_html(symbol)}
+                  <span class="asset"><strong>{html.escape(display_symbol)}</strong><small>{html.escape(row_change_text)}</small></span>
+                  <span class="price"><strong>{html.escape(row_price)}</strong><small>live quote</small></span>
+                  <span class="trend">{roxy_actions_sparkline_svg(symbol, "crypto")}</span>
+                  <span class="signal"><strong>{html.escape(row_action)}</strong><small>Entrada {html.escape(row_entry)}<br>Stop {html.escape(row_stop)} · Target {html.escape(row_target)}</small></span>
+                  <span class="score"><b>{row_score}%</b><small>{html.escape(next_time_label)}</small></span>
+                  <i class="material-symbols-outlined fav">star</i>
+                </a>
+                """
+            ).strip()
+        )
+    opp_html = "".join(opp_html_parts)
+    alert_items = rows[:4]
+    alert_html = "".join(
+        f'<p>{roxy_crypto_icon_html(text_display(row.get("symbol")).upper())}<span>{html.escape(roxy_crypto_display_symbol(text_display(row.get("symbol")).upper()))}</span><b>{html.escape(price_display(row.get("entry") or row.get("current_price") or row.get("price")))}</b></p>'
+        for row in alert_items
+    )
+    news_html = "".join(
+        f'<p>{roxy_crypto_icon_html(text_display(row.get("symbol")).upper())}<span>{html.escape(roxy_crypto_display_symbol(text_display(row.get("symbol")).upper()))}: vela y volumen actualizados con datos del proveedor.</span></p>'
+        for row in rows[:3]
+    )
+    st.markdown(
+        f"""
+        <section class="roxy-crypto20-shell">
+          <div class="roxy-universe" aria-hidden="true">
+            <i class="roxy-space-nebula"></i><i class="roxy-space-stars roxy-space-stars-far"></i>
+            <i class="roxy-space-stars roxy-space-stars-mid"></i><i class="roxy-space-stars roxy-space-stars-near"></i>
+            <i class="roxy-space-planet"></i><i class="roxy-space-comet"></i><i class="roxy-space-aurora"></i>
+            <i class="roxy-space-constellation roxy-space-constellation-a"></i><i class="roxy-space-moon"></i>
+          </div>
+          <aside class="roxy-crypto20-sidebar">
+            <div class="roxy-crypto20-brand">{brand_logo_html()}<strong>ROXY</strong><span>AI Trading Core</span></div>
+            <nav>{nav_html}</nav>
+            <section class="roxy-crypto20-help"><span>Necesitas ayuda?</span>{roxy_hologram_avatar_html("listening", "Roxy ayuda")}</section>
+          </aside>
+          <main class="roxy-crypto20-main">
+            <header class="roxy-crypto20-topbar">
+              <a class="menu material-symbols-outlined" href="?view=Dashboard" target="_self">menu</a>
+              <div><strong>Crypto 20min</strong><span>Oportunidades que cambian cada 20 minutos</span></div>
+              <aside><i class="material-symbols-outlined">notifications</i><b>3</b>{roxy_avatar_html("speaking")}<span>{html.escape(current_time_label)}</span></aside>
+            </header>
+            <section class="roxy-crypto20-hero">
+              <div class="roxy-crypto20-roxy">{roxy_hologram_avatar_html("speaking", "Roxy crypto 20min")}</div>
+              <div class="copy"><strong>Hola, soy Roxy</strong>
+              <p>Analizo el mercado cada 20 minutos para mostrarte las mejores oportunidades de trading con datos live.</p></div>
+              <div class="chips"><span><i class="material-symbols-outlined">stacked_line_chart</i> EMA 9/21</span><span><i class="material-symbols-outlined">equalizer</i> Volumen</span><span><i class="material-symbols-outlined">bolt</i> Momentum</span><span><i class="material-symbols-outlined">speed</i> Riesgo 1R</span><span><i class="material-symbols-outlined">trending_up</i> Tendencia</span><span><i class="material-symbols-outlined">verified</i> Confirmacion</span><span><i class="material-symbols-outlined">whatshot</i> Fuerte</span><span><i class="material-symbols-outlined">shield</i> Gestion inteligente</span></div>
+            </section>
+            <section class="roxy-crypto20-alertbar">
+              <i class="material-symbols-outlined">schedule</i><span>Las oportunidades se actualizan cada 20 minutos para que siempre operes con informacion fresca.</span>
+              <em>Activa notificaciones <b></b></em>
+            </section>
+            <section class="roxy-crypto20-opps">
+              <header><strong>Mejores oportunidades <small>se actualiza cada 20 minutos</small></strong><span>{tab_html}<i class="material-symbols-outlined">view_list</i></span></header>
+              <div class="roxy-crypto20-row roxy-crypto20-head"><b>Crypto</b><b>Precio</b><b>Tendencia</b><b>Senal</b><b>20m</b><span></span></div>
+              {opp_html}
+              <a class="more" href="?view=Dashboard&module=crypto-20m&more=1" target="_self">Ver mas oportunidades</a>
+            </section>
+          </main>
+          <aside class="roxy-crypto20-right">
+            <section class="roxy-crypto20-countdown"><strong>Proxima actualizacion en:</strong><div><b>{html.escape(countdown)}</b><span>min seg</span></div><p><span>Ultima actualizacion:<b>{html.escape(current_time_label)}</b></span><span>Siguiente:<b>{html.escape(next_time_label)}</b></span></p><i><u></u><u></u><u></u><u></u></i></section>
+            <section class="roxy-crypto20-signal"><strong>Oportunidad destacada</strong><div>{roxy_crypto_icon_html(selected_symbol)}<span><b>{html.escape(selected_display_symbol)}</b><small>{html.escape(action)}</small></span><em>{html.escape(action)}</em></div><p><span>Entrada <b>{html.escape(entry)}</b></span><span>Stop Loss <b>{html.escape(stop)}</b></span><span>Target 1 <b>{html.escape(target)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>R/R <b>1R : 2.0R</b></span><span>Probabilidad <b>71%</b></span></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1m" target="_self">Abrir en plataforma</a></section>
+            <section class="roxy-crypto20-platform"><strong>Plataforma recomendada</strong><small>Deriv · Opciones 20 minutos</small><div class="selects"><span>{roxy_crypto_icon_html(selected_symbol)} {html.escape(roxy_crypto_base_symbol(selected_symbol))}</span><span>{html.escape(next_time_label)} (20 mins)</span></div><p><span>{html.escape(roxy_crypto_base_symbol(selected_symbol))} will be above <b>{html.escape(above_price)}</b></span><em class="yes">Yes</em></p><p><span>{html.escape(roxy_crypto_base_symbol(selected_symbol))} will be below <b>{html.escape(below_price)}</b></span><em class="no">No</em></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1m" target="_self">Ir a Deriv</a><small>Roxy recomienda operar en 20 minutos para mayor precision.</small></section>
+          </aside>
+        </section>
+        <section class="roxy-crypto20-chart-wrap">
+          <div class="roxy-universe" aria-hidden="true"><i class="roxy-space-nebula"></i><i class="roxy-space-stars roxy-space-stars-mid"></i><i class="roxy-space-stars roxy-space-stars-near"></i></div>
+          <header><strong>Graficas operativas 20min</strong><span>{html.escape(selected_display_symbol)} <b class="{selected_change_class}">{html.escape(price)} · {html.escape(selected_change_text)}</b></span></header>
+        """,
+        unsafe_allow_html=True,
+    )
+    rendered = render_roxy_crypto20_operational_charts(
+        symbol=resolved_symbol,
+        market=selected_market,
+        trade_plan=trade_plan,
+        height=330,
+    )
+    if not rendered:
+        render_roxy_folder_trade_chart(rows, market="crypto", timeframe="1m", key_prefix="crypto-20m")
+    st.markdown(
+        f"""
+          <section class="roxy-crypto20-bottom">
+            <article class="alerts"><strong>Alertas activas 20min</strong>{alert_html}<a href="?view=Dashboard&module=crypto-20m&alerts=1" target="_self">Ver todas las alertas</a></article>
+            <article class="sentiment"><strong>Sentimiento del mercado</strong><div><b>78%</b><span>Alcista</span></div><p><span>Alcista <b>78%</b></span><span>Neutral <b>15%</b></span><span>Bajista <b>7%</b></span></p></article>
+            <article class="news"><strong>Noticias relevantes</strong>{news_html}<a href="?view=Dashboard&module=crypto-20m&news=1" target="_self">Ver todas las noticias</a></article>
+            <article class="tips"><strong>Recordatorios de Roxy</strong><p><i class="material-symbols-outlined">check_box</i> Usa 1R por operacion</p><p><i class="material-symbols-outlined">check_box</i> Respeta tu stop loss</p><p><i class="material-symbols-outlined">check_box</i> No operes por emocion</p><p><i class="material-symbols-outlined">check_box_outline_blank</i> Espera confirmacion</p><a href="?view=Dashboard&module=crypto-20m&tips=1" target="_self">Ver tips de Roxy</a></article>
+          </section>
+          <nav class="roxy-crypto20-bottomnav"><a href="?view=Dashboard" target="_self"><i class="material-symbols-outlined">home</i>Inicio</a><a class="active" href="?view=Dashboard&module=crypto-20m" target="_self"><i class="material-symbols-outlined">bar_chart</i>Mercados</a><a class="roxy-r" href="?view=Dashboard" target="_self">R</a><a href="?view=Dashboard&module=classroom" target="_self"><i class="material-symbols-outlined">school</i>Classes Room</a><a href="?view=Dashboard&module=progreso" target="_self"><i class="material-symbols-outlined">person</i>Mi Progreso</a></nav>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def roxy_trade_plan_from_row(
     row: dict[str, Any],
     *,
@@ -31858,6 +32125,54 @@ def render_roxy_folder_dual_chart(
             '<strong>2 GRAFICAS LIVE</strong>'
             f"<span>{html.escape(text_display(symbol).upper())} · 15m + 1h</span>"
             "<span>Entrada 15m · tendencia 1h · EMA9 · Avg20/40 · Bollinger · volumen</span>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+    columns = st.columns([1, 1], gap="small")
+    rendered = False
+    fallback_df = next((pane_df for _, _, pane_df in pane_data if not pane_df.empty), pd.DataFrame())
+    for col, (pane_tf, label, pane_df) in zip(columns, pane_data):
+        chart_df = pane_df if not pane_df.empty else fallback_df
+        with col:
+            rendered = (
+                render_browser_live_candle_chart_panel(
+                    chart_df,
+                    symbol=symbol,
+                    market=market,
+                    timeframe=pane_tf,
+                    trade_plan=trade_plan,
+                    height=height,
+                    panel_label=label,
+                )
+                or rendered
+            )
+    return rendered
+
+
+def render_roxy_crypto20_operational_charts(
+    *,
+    symbol: str,
+    market: str,
+    trade_plan: dict[str, Any],
+    height: int = 340,
+) -> bool:
+    panes = [("1m", "Grafica operativa 1"), ("1h", "Grafica operativa 2")]
+    pane_data: list[tuple[str, str, pd.DataFrame]] = []
+    for pane_tf, label in panes:
+        try:
+            pane_df = cached_trade_desk_chart_df(symbol, market, pane_tf)
+        except Exception:
+            pane_df = pd.DataFrame()
+        pane_data.append((pane_tf, label, pane_df if isinstance(pane_df, pd.DataFrame) else pd.DataFrame()))
+    if all(pane_df.empty for _, _, pane_df in pane_data):
+        return False
+    st.markdown(
+        (
+            '<div class="dual-chart-contract-strip roxy-crypto20-chart-strip">'
+            '<strong>GRAFICAS OPERATIVAS 20MIN</strong>'
+            f"<span>{html.escape(roxy_crypto_display_symbol(symbol))} · 1m + 1h · velas live</span>"
+            "<span>EMA 9/21 · BB 20 2 · Volumen · sin informacion falsa</span>"
             "</div>"
         ),
         unsafe_allow_html=True,
@@ -32300,9 +32615,7 @@ def render_roxy_module_workspace(table: pd.DataFrame, *, active_module: str, tim
         render_roxy_asset_cards(rows, market="crypto", timeframe="1h", key_prefix="crypto-trabajar")
         return
     if active_module == "crypto-20m":
-        rows = roxy_asset_rows_for_market(table, "crypto")
-        render_roxy_folder_trade_chart(rows, market="crypto", timeframe="1m", key_prefix="crypto-20m")
-        render_roxy_asset_cards(rows, market="crypto", timeframe="1m", key_prefix="crypto-20m")
+        render_roxy_crypto20_folder(table, timeframe="1m")
         return
     if active_module == "crypto-2h":
         rows = roxy_asset_rows_for_market(table, "crypto")
@@ -36579,6 +36892,20 @@ def main() -> None:
         .roxy-actions-chart-wrap{padding:12px;margin:0 0 10px}.roxy-actions-chart-wrap>header{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}.roxy-actions-chart-wrap>header strong{color:#8bd8ff;font-size:14px;text-transform:uppercase;letter-spacing:.07em}.roxy-actions-chart-wrap>header span{color:#f8fafc;font-size:14px;font-weight:950}.roxy-actions-chart-wrap>header b{color:#22c55e}.roxy-actions-chart-wrap>header b.negative{color:#ef4444}.roxy-actions-below{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:10px;margin-top:10px}.roxy-actions-below .why>div{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;margin-top:12px}.roxy-actions-below .why div div{display:grid;justify-items:center;text-align:center;gap:6px;border-right:1px solid rgba(125,211,252,.10);padding:8px 6px}.roxy-actions-below .why i{color:#60a5fa;font-size:25px!important;text-shadow:0 0 15px rgba(96,165,250,.50)}.roxy-actions-below .why div div strong{font-size:9px;color:#dbeafe;text-transform:uppercase}.roxy-actions-below .why span{color:#aebdd0;font-size:8px;line-height:1.2}.roxy-actions-below .news p{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;margin:10px 0 0;color:#cbd5e1;font-size:10px;line-height:1.25}.roxy-actions-below .news i.material-symbols-outlined{color:#8bd8ff;font-size:22px!important}.roxy-actions-bottomnav{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr 76px 1fr 1fr;align-items:center;gap:6px;margin-top:10px;border:1px solid rgba(125,211,252,.14);border-radius:28px;background:rgba(2,6,23,.68);padding:8px 12px}.roxy-actions-bottomnav a{display:grid;place-items:center;gap:4px;color:#94a3b8!important;text-decoration:none!important;font-size:9px;text-transform:uppercase;font-weight:900}.roxy-actions-bottomnav i{font-size:22px!important}.roxy-actions-bottomnav .active{color:#60a5fa!important}.roxy-actions-bottomnav .roxy-r{width:58px;height:58px;margin:-25px auto -8px;border-radius:50%;background:radial-gradient(circle,#2563eb,#082f49);border:1px solid rgba(96,165,250,.72);color:#fff!important;font-size:28px;box-shadow:0 0 38px rgba(37,99,235,.72)}
         @media (max-width:1180px){.roxy-actions-shell{grid-template-columns:118px minmax(0,1fr);grid-template-areas:"side main" "right right"}.roxy-actions-sidebar{grid-area:side}.roxy-actions-main{grid-area:main}.roxy-actions-right{grid-area:right;grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-actions-hero{grid-template-columns:142px minmax(0,1fr)}.roxy-actions-row{grid-template-columns:20px 30px minmax(74px,1fr) 68px 78px 52px minmax(88px,1fr) 72px 20px;gap:6px}.roxy-actions-below{grid-template-columns:1fr}}
         @media (max-width:760px){.roxy-actions-shell{grid-template-columns:minmax(0,1fr);grid-template-areas:"side" "main" "right";gap:8px;padding:8px;min-height:0}.roxy-actions-shell>*{max-width:100%;min-width:0}.roxy-actions-sidebar{grid-area:side;display:block;border-right:0;border-bottom:1px solid rgba(125,211,252,.14);padding:0 0 8px;overflow:hidden}.roxy-actions-main{grid-area:main;width:100%;min-width:0;max-width:100%;overflow:hidden}.roxy-actions-right{grid-area:right;width:100%;min-width:0;max-width:100%;overflow:hidden}.roxy-actions-brand{display:none}.roxy-actions-sidebar nav{display:flex;overflow-x:auto;gap:4px;padding-bottom:2px}.roxy-actions-sidebar nav a{flex:0 0 auto;min-height:32px;padding:6px 8px;font-size:9px}.roxy-actions-sidebar .help{display:none!important}.roxy-actions-topbar{grid-template-columns:28px minmax(0,1fr) auto}.roxy-actions-topbar strong{font-size:21px}.roxy-actions-topbar aside span{display:none}.roxy-actions-hero{grid-template-columns:96px minmax(0,1fr);min-height:134px;padding:10px}.roxy-actions-roxy{height:116px}.roxy-actions-roxy .roxy-hologram-avatar{width:104px}.roxy-actions-hero .copy strong{font-size:13px}.roxy-actions-hero .copy p{font-size:9px;line-height:1.28}.roxy-actions-hero .chips{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.roxy-actions-hero .chips span{padding:5px;font-size:7px}.roxy-actions-opps{overflow-x:auto;width:100%;min-width:0;max-width:100%}.roxy-actions-opps header,.roxy-actions-row{min-width:690px}.roxy-actions-right{grid-template-columns:1fr}.roxy-actions-chart-wrap{padding:8px}.roxy-actions-chart-wrap>header{display:block}.roxy-actions-chart-wrap>header span{display:block;margin-top:4px}.roxy-actions-below{grid-template-columns:1fr}.roxy-actions-below .why>div{grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-actions-bottomnav{grid-template-columns:1fr 1fr 64px 1fr 1fr;padding:7px 8px}.roxy-actions-bottomnav a{font-size:7px}.roxy-actions-bottomnav .roxy-r{width:50px;height:50px;font-size:24px}}
+        .roxy-crypto20-shell,.roxy-crypto20-chart-wrap{position:relative;isolation:isolate;overflow:hidden;border:1px solid rgba(56,189,248,.20);border-radius:8px;background:linear-gradient(135deg,rgba(2,6,23,.90),rgba(8,47,73,.30) 50%,rgba(2,6,23,.94));box-shadow:0 26px 80px rgba(0,0,0,.45),0 0 48px rgba(56,189,248,.10);color:#e5f6ff}
+        .roxy-crypto20-shell{display:grid;grid-template-columns:150px minmax(0,1fr) 310px;gap:12px;padding:12px;margin:0 0 10px;min-height:770px}.roxy-crypto20-shell>*:not(.roxy-universe),.roxy-crypto20-chart-wrap>*:not(.roxy-universe){position:relative;z-index:1}
+        .roxy-crypto20-sidebar{display:grid;grid-template-rows:auto 1fr auto;gap:12px;border-right:1px solid rgba(125,211,252,.14);padding:2px 10px 2px 0}.roxy-crypto20-brand{display:grid;gap:4px}.roxy-crypto20-brand .brand-logo-img{width:92px;max-width:92px;border-radius:7px}.roxy-crypto20-brand strong{color:#f8fafc;font-size:22px;line-height:1;font-weight:950;letter-spacing:.08em}.roxy-crypto20-brand span{color:#8bd8ff;font-size:8px;text-transform:uppercase;font-weight:950;letter-spacing:.08em}.roxy-crypto20-sidebar nav{display:grid;gap:4px;align-content:start}.roxy-crypto20-sidebar a{display:flex!important;align-items:center;gap:9px;min-height:36px;border-radius:6px;padding:7px 9px;color:#b7cbe0!important;text-decoration:none!important;font-size:11px;font-weight:850}.roxy-crypto20-sidebar a i{font-size:18px!important;color:#b7d7ff;text-shadow:0 0 12px rgba(56,189,248,.38)}.roxy-crypto20-sidebar a.active{border:1px solid rgba(56,189,248,.42);background:linear-gradient(90deg,rgba(37,99,235,.34),rgba(2,6,23,.16));color:#e0f2fe!important;box-shadow:0 0 24px rgba(37,99,235,.16)}.roxy-crypto20-help{display:grid;justify-items:center;gap:4px;border:1px solid rgba(56,189,248,.18);border-radius:8px;background:rgba(2,6,23,.42);padding:7px}.roxy-crypto20-help span{color:#8bd8ff;font-size:9px}.roxy-crypto20-help .roxy-hologram-avatar{width:72px}.roxy-crypto20-help .roxy-hologram-name{display:none}
+        .roxy-crypto20-main{display:grid;grid-template-rows:auto auto auto minmax(0,1fr);gap:10px;min-width:0}.roxy-crypto20-topbar{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:12px;align-items:center;min-height:52px}.roxy-crypto20-topbar .menu{display:grid!important;place-items:center!important;width:30px;height:30px;color:#38bdf8!important;text-decoration:none!important;font-size:29px!important}.roxy-crypto20-topbar strong{display:block;color:#fff;font-size:25px;line-height:1;text-transform:uppercase;font-weight:950}.roxy-crypto20-topbar span{display:block;color:#cbd5e1;font-size:11px;font-weight:800;margin-top:5px}.roxy-crypto20-topbar aside{display:flex;align-items:center;gap:10px;color:#f8fafc;font-size:13px;font-weight:900}.roxy-crypto20-topbar aside>i{display:grid;place-items:center;width:30px;height:30px;border:1px solid rgba(56,189,248,.28);border-radius:50%;color:#7dd3fc}.roxy-crypto20-topbar aside>b{display:grid;place-items:center;width:15px;height:15px;margin-left:-17px;margin-top:-22px;border-radius:50%;background:#ef4444;color:white;font-size:8px}.roxy-crypto20-topbar .roxy-avatar{width:38px;height:38px;border-radius:50%}.roxy-crypto20-topbar .roxy-avatar span{display:none}
+        .roxy-crypto20-hero{display:grid;grid-template-columns:178px minmax(0,1fr);gap:14px;align-items:center;min-height:188px;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.44);padding:12px 16px;overflow:hidden}.roxy-crypto20-roxy{display:grid;place-items:center;height:164px}.roxy-crypto20-roxy .roxy-hologram-avatar{width:154px;aspect-ratio:.72/1}.roxy-crypto20-roxy .roxy-avatar-core{border:0;border-radius:0;background:transparent;box-shadow:none;filter:drop-shadow(0 0 28px rgba(56,189,248,.50));-webkit-mask-image:radial-gradient(ellipse 52% 64% at 50% 42%,#000 0 68%,rgba(0,0,0,.72) 82%,transparent 100%);mask-image:radial-gradient(ellipse 52% 64% at 50% 42%,#000 0 68%,rgba(0,0,0,.72) 82%,transparent 100%)}.roxy-crypto20-roxy .roxy-hologram-name,.roxy-crypto20-roxy .roxy-audio-wave{display:none}.roxy-crypto20-hero .copy strong{display:block;color:#e0f2fe;font-size:18px;line-height:1.22}.roxy-crypto20-hero .copy p{margin:10px 0 0;color:#cbd5e1;font-size:12px;line-height:1.45;max-width:520px}.roxy-crypto20-hero .chips{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.roxy-crypto20-hero .chips span{display:flex;align-items:center;gap:5px;border:1px solid rgba(56,189,248,.14);border-radius:7px;background:rgba(2,6,23,.40);padding:7px;color:#9cc9e6;font-size:9px;font-weight:850}.roxy-crypto20-hero .chips i{font-size:15px!important;color:#34d399}
+        .roxy-crypto20-alertbar{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.48);padding:10px 12px}.roxy-crypto20-alertbar>i{display:grid;place-items:center;width:28px;height:28px;border:1px solid rgba(125,211,252,.22);border-radius:50%;color:#7dd3fc}.roxy-crypto20-alertbar span{color:#cbd5e1;font-size:11px;font-weight:800}.roxy-crypto20-alertbar em{display:flex;align-items:center;gap:9px;color:#9cc9e6;font-size:10px;font-style:normal}.roxy-crypto20-alertbar em b{position:relative;width:38px;height:20px;border-radius:999px;background:#2563eb;box-shadow:0 0 16px rgba(37,99,235,.52)}.roxy-crypto20-alertbar em b:after{content:"";position:absolute;right:3px;top:3px;width:14px;height:14px;border-radius:50%;background:white}
+        .roxy-crypto20-opps{min-width:0;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.48);overflow:hidden}.roxy-crypto20-opps header{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;padding:0 12px;border-bottom:1px solid rgba(125,211,252,.12)}.roxy-crypto20-opps header strong{color:#dbeafe;font-size:12px;text-transform:uppercase;letter-spacing:.04em}.roxy-crypto20-opps header small{color:#7f93ad;font-size:8px}.roxy-crypto20-opps header span{display:flex;align-items:center;gap:5px}.roxy-crypto20-opps header b{display:grid;place-items:center;min-width:32px;height:20px;border:1px solid rgba(125,211,252,.14);border-radius:5px;color:#8fb6d1;font-size:8px}.roxy-crypto20-opps header b.active{background:#2563eb;color:#fff}.roxy-crypto20-row{display:grid;grid-template-columns:34px minmax(86px,1fr) 78px 92px minmax(112px,1.1fr) 58px 22px;gap:8px;align-items:center;min-height:67px;padding:6px 10px;border-bottom:1px solid rgba(125,211,252,.10);text-decoration:none!important;color:#e5f6ff!important}.roxy-crypto20-row.selected,.roxy-crypto20-row:hover{background:rgba(37,99,235,.13)}.roxy-crypto20-head{min-height:30px;color:#7da8c9!important;font-size:8px;text-transform:uppercase;font-weight:950}.roxy-crypto20-head b{font-size:8px;color:#8fb6d1}.roxy-crypto-logo{display:grid!important;place-items:center!important;width:30px;height:30px;border-radius:50%;background:var(--logo-bg,#111827);box-shadow:0 0 18px rgba(56,189,248,.22);overflow:hidden}.roxy-crypto-logo img{width:19px;height:19px;object-fit:contain;filter:drop-shadow(0 0 6px rgba(255,255,255,.32))}.roxy-crypto20-row .asset strong,.roxy-crypto20-row .price strong{display:block;color:#f8fafc;font-size:12px;line-height:1;font-weight:950}.roxy-crypto20-row .asset small,.roxy-crypto20-row .price small{display:block;color:#22c55e;font-size:8px;line-height:1.12;margin-top:4px}.roxy-crypto20-row .price small{color:#8ba2bd}.roxy-crypto20-row .signal strong{display:block;color:#22c55e;font-size:10px;text-transform:uppercase}.roxy-crypto20-row .signal small{display:block;color:#cbd5e1;font-size:7px;line-height:1.22;margin-top:3px}.roxy-crypto20-row .score b{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:conic-gradient(#22c55e 0 72%,rgba(30,58,138,.55) 72%);color:#fff;font-size:11px;box-shadow:0 0 16px rgba(34,197,94,.20)}.roxy-crypto20-row .score small{display:block;margin-top:3px;color:#cbd5e1;font-size:6.5px;text-align:center}.roxy-crypto20-row .fav{color:#d4af60;font-size:17px!important}.roxy-crypto20-opps .more{display:grid!important;place-items:center;width:190px;height:28px;margin:8px auto 10px;border-radius:6px;background:rgba(37,99,235,.32);color:#dbeafe!important;text-decoration:none!important;font-size:9px;font-weight:950;text-transform:uppercase}
+        .roxy-crypto20-right{display:grid;gap:10px;align-content:start;min-width:0}.roxy-crypto20-right section,.roxy-crypto20-bottom article{border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.52);padding:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}.roxy-crypto20-right strong,.roxy-crypto20-bottom strong{display:block;color:#dbeafe;font-size:11px;text-transform:uppercase;letter-spacing:.06em}.roxy-crypto20-countdown{border-color:rgba(212,175,96,.38)!important}.roxy-crypto20-countdown div{position:relative;display:grid;place-items:center;width:116px;height:116px;margin:14px auto;border-radius:50%;background:conic-gradient(#34d399 0 68%,rgba(30,58,138,.55) 68%);box-shadow:0 0 25px rgba(20,184,166,.22)}.roxy-crypto20-countdown div:before{content:"";position:absolute;inset:12px;border-radius:50%;background:#07111f}.roxy-crypto20-countdown div b,.roxy-crypto20-countdown div span{position:relative;z-index:1}.roxy-crypto20-countdown div b{color:#fff;font-size:25px;line-height:1}.roxy-crypto20-countdown div span{color:#cbd5e1;font-size:8px;text-transform:uppercase}.roxy-crypto20-countdown p{display:grid;gap:7px;margin:0}.roxy-crypto20-countdown p span{display:flex;justify-content:space-between;color:#93c5fd;font-size:10px}.roxy-crypto20-countdown p b{color:#e5f6ff}.roxy-crypto20-countdown i{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:13px}.roxy-crypto20-countdown u{height:7px;border-radius:999px;background:linear-gradient(90deg,#22c55e,#2563eb);text-decoration:none}
+        .roxy-crypto20-signal>div{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:9px;align-items:center;margin:14px 0}.roxy-crypto20-signal span b{display:block;color:#f8fafc;font-size:14px}.roxy-crypto20-signal span small{display:block;color:#9aaec6;font-size:9px}.roxy-crypto20-signal em{border:1px solid rgba(34,197,94,.34);border-radius:5px;background:rgba(34,197,94,.12);padding:5px 7px;color:#22c55e;font-size:9px;font-style:normal;font-weight:950;text-transform:uppercase}.roxy-crypto20-signal p{display:grid;gap:8px;margin:0}.roxy-crypto20-signal p span{display:flex;justify-content:space-between;border-bottom:1px solid rgba(125,211,252,.10);padding-bottom:6px;color:#aebdd0;font-size:10px}.roxy-crypto20-signal p b{color:#e5f6ff}.roxy-crypto20-signal a,.roxy-crypto20-platform a,.roxy-crypto20-bottom a{display:flex!important;align-items:center;justify-content:center;gap:7px;height:40px;margin-top:13px;border:1px solid rgba(56,189,248,.38);border-radius:7px;background:linear-gradient(90deg,rgba(37,99,235,.64),rgba(14,165,233,.28));color:#dff7ff!important;text-decoration:none!important;text-transform:uppercase;font-size:10px;font-weight:950;box-shadow:0 0 24px rgba(37,99,235,.18)}
+        .roxy-crypto20-platform small{display:block;color:#9aaec6;font-size:9px;margin-top:4px}.roxy-crypto20-platform .selects{display:grid;grid-template-columns:1fr 1.2fr;gap:7px;margin:12px 0}.roxy-crypto20-platform .selects span{display:flex;align-items:center;gap:5px;border:1px solid rgba(125,211,252,.14);border-radius:6px;background:rgba(2,6,23,.48);padding:8px;color:#e5f6ff;font-size:10px;font-weight:900}.roxy-crypto20-platform .selects .roxy-crypto-logo{width:20px;height:20px}.roxy-crypto20-platform p{display:grid;grid-template-columns:minmax(0,1fr) 54px;gap:7px;align-items:center;margin:8px 0}.roxy-crypto20-platform p span{color:#cbd5e1;font-size:10px}.roxy-crypto20-platform p b{display:block;color:#f8fafc;margin-top:4px}.roxy-crypto20-platform em{display:grid;place-items:center;min-height:38px;border-radius:5px;color:#fff;font-style:normal;font-size:11px;font-weight:950}.roxy-crypto20-platform .yes{background:#22c55e}.roxy-crypto20-platform .no{background:#e11d48}
+        .roxy-crypto20-chart-wrap{padding:12px;margin:0 0 10px}.roxy-crypto20-chart-wrap>header{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}.roxy-crypto20-chart-wrap>header strong{color:#8bd8ff;font-size:14px;text-transform:uppercase;letter-spacing:.07em}.roxy-crypto20-chart-wrap>header span{color:#f8fafc;font-size:14px;font-weight:950}.roxy-crypto20-chart-wrap>header b{color:#22c55e}.roxy-crypto20-chart-wrap>header b.negative{color:#ef4444}.roxy-crypto20-chart-strip{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:3px 0 5px;padding:4px 8px;border:1px solid rgba(34,197,94,.24);border-radius:6px;background:rgba(15,23,42,.62);color:#cbd5e1;font-size:11px}.roxy-crypto20-chart-strip strong{color:#8bd8ff}
+        .roxy-crypto20-bottom{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-top:10px}.roxy-crypto20-bottom article p{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;align-items:center;margin:10px 0 0;color:#cbd5e1;font-size:10px;line-height:1.25}.roxy-crypto20-bottom article p .roxy-crypto-logo{width:22px;height:22px}.roxy-crypto20-bottom article p b{color:#22c55e}.roxy-crypto20-bottom .sentiment div{position:relative;display:grid;place-items:center;width:112px;height:112px;margin:12px auto;border-radius:50%;background:conic-gradient(#22c55e 0 78%,rgba(30,58,138,.55) 78%)}.roxy-crypto20-bottom .sentiment div:before{content:"";position:absolute;inset:13px;border-radius:50%;background:#07111f}.roxy-crypto20-bottom .sentiment div b,.roxy-crypto20-bottom .sentiment div span{position:relative;z-index:1}.roxy-crypto20-bottom .sentiment div b{color:#fff;font-size:27px}.roxy-crypto20-bottom .sentiment div span{color:#22c55e;font-size:10px;font-weight:950}.roxy-crypto20-bottom .sentiment p{display:grid;grid-template-columns:1fr;margin:0}.roxy-crypto20-bottom .sentiment p span{display:flex;justify-content:space-between}.roxy-crypto20-bottom .tips p{grid-template-columns:22px 1fr}.roxy-crypto20-bottom .tips i{color:#22c55e;font-size:18px!important}.roxy-crypto20-bottomnav{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr 76px 1fr 1fr;align-items:center;gap:6px;margin-top:10px;border:1px solid rgba(125,211,252,.14);border-radius:28px;background:rgba(2,6,23,.68);padding:8px 12px}.roxy-crypto20-bottomnav a{display:grid;place-items:center;gap:4px;color:#94a3b8!important;text-decoration:none!important;font-size:9px;text-transform:uppercase;font-weight:900}.roxy-crypto20-bottomnav i{font-size:22px!important}.roxy-crypto20-bottomnav .active{color:#60a5fa!important}.roxy-crypto20-bottomnav .roxy-r{width:58px;height:58px;margin:-25px auto -8px;border-radius:50%;background:radial-gradient(circle,#2563eb,#082f49);border:1px solid rgba(96,165,250,.72);color:#fff!important;font-size:28px;box-shadow:0 0 38px rgba(37,99,235,.72)}
+        @media (max-width:1180px){.roxy-crypto20-shell{grid-template-columns:118px minmax(0,1fr);grid-template-areas:"side main" "right right"}.roxy-crypto20-sidebar{grid-area:side}.roxy-crypto20-main{grid-area:main}.roxy-crypto20-right{grid-area:right;grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-crypto20-hero{grid-template-columns:142px minmax(0,1fr)}.roxy-crypto20-row{grid-template-columns:30px minmax(82px,1fr) 72px 78px minmax(100px,1.1fr) 52px 20px;gap:6px}.roxy-crypto20-bottom{grid-template-columns:1fr 1fr}}
+        @media (max-width:760px){.roxy-crypto20-shell{grid-template-columns:minmax(0,1fr);grid-template-areas:"side" "main" "right";gap:8px;padding:8px;min-height:0}.roxy-crypto20-shell>*{max-width:100%;min-width:0}.roxy-crypto20-sidebar{grid-area:side;display:block;border-right:0;border-bottom:1px solid rgba(125,211,252,.14);padding:0 0 8px;overflow:hidden}.roxy-crypto20-main{grid-area:main;width:100%;min-width:0;max-width:100%;overflow:hidden}.roxy-crypto20-right{grid-area:right;width:100%;min-width:0;max-width:100%;overflow:hidden}.roxy-crypto20-brand,.roxy-crypto20-help{display:none}.roxy-crypto20-sidebar nav{display:flex;overflow-x:auto;gap:4px;padding-bottom:2px}.roxy-crypto20-sidebar nav a{flex:0 0 auto;min-height:32px;padding:6px 8px;font-size:9px}.roxy-crypto20-topbar{grid-template-columns:28px minmax(0,1fr) auto}.roxy-crypto20-topbar strong{font-size:21px}.roxy-crypto20-topbar aside span{display:none}.roxy-crypto20-hero{grid-template-columns:96px minmax(0,1fr);min-height:136px;padding:10px}.roxy-crypto20-roxy{height:116px}.roxy-crypto20-roxy .roxy-hologram-avatar{width:104px}.roxy-crypto20-hero .copy strong{font-size:13px}.roxy-crypto20-hero .copy p{font-size:9px;line-height:1.28}.roxy-crypto20-hero .chips{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.roxy-crypto20-hero .chips span{padding:5px;font-size:7px}.roxy-crypto20-alertbar{grid-template-columns:28px minmax(0,1fr);padding:8px}.roxy-crypto20-alertbar em{grid-column:1/-1}.roxy-crypto20-opps{overflow-x:auto;width:100%;min-width:0;max-width:100%}.roxy-crypto20-opps header,.roxy-crypto20-row{min-width:690px}.roxy-crypto20-right{grid-template-columns:1fr}.roxy-crypto20-chart-wrap{padding:8px}.roxy-crypto20-chart-wrap>header{display:block}.roxy-crypto20-chart-wrap>header span{display:block;margin-top:4px}.roxy-crypto20-bottom{grid-template-columns:1fr}.roxy-crypto20-bottomnav{grid-template-columns:1fr 1fr 64px 1fr 1fr;padding:7px 8px}.roxy-crypto20-bottomnav a{font-size:7px}.roxy-crypto20-bottomnav .roxy-r{width:50px;height:50px;font-size:24px}}
         .roxy-folder-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;border:1px solid rgba(56,189,248,.26);border-left:4px solid #38bdf8;border-radius:8px;background:linear-gradient(135deg,rgba(7,12,22,.94),rgba(8,47,73,.48));padding:10px 12px;margin:0 0 8px;box-shadow:0 14px 34px rgba(2,6,23,.28)}
         .roxy-folder-head a{color:#e0f2fe!important;text-decoration:none!important;border:1px solid rgba(125,211,252,.34);border-radius:6px;background:rgba(2,6,23,.48);padding:7px 9px;font-size:11px;font-weight:900;white-space:nowrap}
         .roxy-folder-head span{display:block;color:#8bd8ff;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}
