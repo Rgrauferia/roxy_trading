@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import html
 import importlib
 import inspect
@@ -21,10 +22,11 @@ import socket
 import subprocess
 import sys
 import textwrap
+import time
 import unicodedata
 import warnings
 from contextlib import nullcontext
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, urlencode, urlparse
 from glob import glob
 from pathlib import Path
 from typing import Any, Optional
@@ -35,6 +37,11 @@ import sqlite3
 import streamlit as st
 import streamlit.components.v1 as components
 import altair as alt
+
+try:
+    import requests
+except Exception:  # pragma: no cover - optional OAuth/network dependency
+    requests = None
 
 try:
     import websocket as websocket_client
@@ -482,6 +489,10 @@ ROXY_PROFILE_STORAGE_KEY = "roxy_trading_profile"
 ROXY_PASSKEY_ACTION_PARAM = "rx_passkey_action"
 ROXY_PASSKEY_RESULT_PARAM = "rx_passkey_result"
 ROXY_PASSKEY_PENDING_SECONDS = 600
+ROXY_OAUTH_STATE_PARAM = "state"
+ROXY_OAUTH_CODE_PARAM = "code"
+ROXY_OAUTH_ERROR_PARAM = "error"
+ROXY_OAUTH_PENDING_SECONDS = 900
 
 
 def brand_logo_html() -> str:
@@ -1447,6 +1458,394 @@ def roxy_login_user(identifier: str, password: str) -> tuple[bool, str]:
     return True, f"Bienvenido, {text_display(profile.get('name') or username)}."
 
 
+def roxy_config_value(*keys: str) -> str:
+    for key in keys:
+        if not key:
+            continue
+        value = os.environ.get(key)
+        if value is not None:
+            clean = str(value).strip()
+            if clean and clean.lower() not in {"-", "none", "null"}:
+                return clean
+        try:
+            value = st.secrets.get(key)  # type: ignore[attr-defined]
+        except Exception:
+            value = None
+        if value is not None:
+            clean = str(value).strip()
+            if clean and clean.lower() not in {"-", "none", "null"}:
+                return clean
+    return ""
+
+
+def roxy_oauth_secret() -> str:
+    configured = roxy_config_value("ROXY_AUTH_SECRET", "ROXY_OAUTH_SECRET", "SECRET_KEY")
+    if configured:
+        return configured
+    return hashlib.sha256(f"roxy-oauth:{ROXY_USERS_PATH}:{ROXY_USERS_FALLBACK_PATH}".encode("utf-8")).hexdigest()
+
+
+def roxy_default_oauth_redirect_uri() -> str:
+    configured = roxy_config_value("ROXY_OAUTH_REDIRECT_URI", "ROXY_PUBLIC_URL", "ROXY_BASE_URL", "STREAMLIT_PUBLIC_URL")
+    if configured:
+        return configured.rstrip("/") + "/"
+    context_url = ""
+    try:
+        context = getattr(st, "context", None)
+        context_url = text_display(getattr(context, "url", "")).strip() if context is not None else ""
+    except Exception:
+        context_url = ""
+    if context_url:
+        parsed = urlparse(context_url)
+        if parsed.scheme and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}/"
+    return ""
+
+
+def roxy_oauth_redirect_uri(provider: str) -> str:
+    clean_provider = text_display(provider).strip().lower()
+    if clean_provider == "google":
+        return roxy_config_value("ROXY_GOOGLE_REDIRECT_URI", "GOOGLE_REDIRECT_URI") or roxy_default_oauth_redirect_uri()
+    if clean_provider == "apple":
+        return roxy_config_value("ROXY_APPLE_REDIRECT_URI", "APPLE_REDIRECT_URI") or roxy_default_oauth_redirect_uri()
+    return roxy_default_oauth_redirect_uri()
+
+
+def roxy_oauth_state(provider: str) -> str:
+    payload = {
+        "provider": text_display(provider).strip().lower(),
+        "ts": int(time.time()),
+        "nonce": secrets.token_urlsafe(18),
+    }
+    unsigned = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    signature = hmac.new(roxy_oauth_secret().encode("utf-8"), unsigned, hashlib.sha256).hexdigest()
+    payload["sig"] = signature
+    return roxy_json_b64url_encode(payload)
+
+
+def roxy_verify_oauth_state(encoded: str) -> tuple[bool, str]:
+    payload = roxy_json_b64url_decode(encoded)
+    if not payload:
+        return False, ""
+    signature = text_display(payload.pop("sig", "")).strip()
+    unsigned = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    expected = hmac.new(roxy_oauth_secret().encode("utf-8"), unsigned, hashlib.sha256).hexdigest()
+    try:
+        created = int(payload.get("ts") or 0)
+    except Exception:
+        created = 0
+    if not signature or not hmac.compare_digest(signature, expected):
+        return False, ""
+    if created <= 0 or int(time.time()) - created > ROXY_OAUTH_PENDING_SECONDS:
+        return False, ""
+    provider = text_display(payload.get("provider")).strip().lower()
+    return provider in {"google", "apple"}, provider
+
+
+def roxy_oauth_config(provider: str) -> tuple[dict[str, str], list[str]]:
+    clean_provider = text_display(provider).strip().lower()
+    if clean_provider == "google":
+        config = {
+            "client_id": roxy_config_value("ROXY_GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_ID"),
+            "client_secret": roxy_config_value("ROXY_GOOGLE_CLIENT_SECRET", "GOOGLE_CLIENT_SECRET"),
+            "redirect_uri": roxy_oauth_redirect_uri("google"),
+        }
+        labels = {
+            "client_id": "ROXY_GOOGLE_CLIENT_ID",
+            "client_secret": "ROXY_GOOGLE_CLIENT_SECRET",
+            "redirect_uri": "ROXY_PUBLIC_URL o ROXY_GOOGLE_REDIRECT_URI",
+        }
+    elif clean_provider == "apple":
+        config = {
+            "client_id": roxy_config_value("ROXY_APPLE_CLIENT_ID", "APPLE_CLIENT_ID"),
+            "team_id": roxy_config_value("ROXY_APPLE_TEAM_ID", "APPLE_TEAM_ID"),
+            "key_id": roxy_config_value("ROXY_APPLE_KEY_ID", "APPLE_KEY_ID"),
+            "private_key": roxy_config_value("ROXY_APPLE_PRIVATE_KEY", "APPLE_PRIVATE_KEY").replace("\\n", "\n"),
+            "redirect_uri": roxy_oauth_redirect_uri("apple"),
+        }
+        labels = {
+            "client_id": "ROXY_APPLE_CLIENT_ID",
+            "team_id": "ROXY_APPLE_TEAM_ID",
+            "key_id": "ROXY_APPLE_KEY_ID",
+            "private_key": "ROXY_APPLE_PRIVATE_KEY",
+            "redirect_uri": "ROXY_PUBLIC_URL o ROXY_APPLE_REDIRECT_URI",
+        }
+    else:
+        return {}, ["Proveedor OAuth no soportado"]
+    missing = [label for key, label in labels.items() if not str(config.get(key) or "").strip()]
+    if requests is None:
+        missing.append("requests instalado en requirements.txt")
+    return config, missing
+
+
+def roxy_oauth_missing_message(provider_label: str, missing: list[str]) -> str:
+    if not missing:
+        return ""
+    return (
+        f"{provider_label} todavia no esta configurado en el servidor. "
+        f"Falta: {', '.join(missing)}. Cuando esas variables esten en Render/Secrets, el boton entra directo."
+    )
+
+
+def roxy_build_google_oauth_url() -> tuple[str, list[str]]:
+    config, missing = roxy_oauth_config("google")
+    if missing:
+        return "", missing
+    params = {
+        "client_id": config["client_id"],
+        "redirect_uri": config["redirect_uri"],
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": roxy_oauth_state("google"),
+        "prompt": "select_account",
+        "access_type": "offline",
+    }
+    return f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}", []
+
+
+def roxy_build_apple_oauth_url() -> tuple[str, list[str]]:
+    config, missing = roxy_oauth_config("apple")
+    if missing:
+        return "", missing
+    params = {
+        "client_id": config["client_id"],
+        "redirect_uri": config["redirect_uri"],
+        "response_type": "code id_token",
+        "scope": "name email",
+        "response_mode": "query",
+        "state": roxy_oauth_state("apple"),
+    }
+    return f"https://appleid.apple.com/auth/authorize?{urlencode(params)}", []
+
+
+def roxy_decode_jwt_payload(token: str) -> dict[str, Any]:
+    parts = text_display(token).split(".")
+    if len(parts) < 2:
+        return {}
+    return roxy_json_b64url_decode(parts[1])
+
+
+def roxy_apple_client_secret(config: dict[str, str]) -> str:
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
+
+    now = int(time.time())
+    header = {"alg": "ES256", "kid": config["key_id"]}
+    payload = {
+        "iss": config["team_id"],
+        "iat": now,
+        "exp": now + 15777000,
+        "aud": "https://appleid.apple.com",
+        "sub": config["client_id"],
+    }
+    signing_input = f"{roxy_json_b64url_encode(header)}.{roxy_json_b64url_encode(payload)}"
+    private_key = serialization.load_pem_private_key(config["private_key"].encode("utf-8"), password=None)
+    signature_der = private_key.sign(signing_input.encode("ascii"), ec.ECDSA(hashes.SHA256()))
+    r_value, s_value = decode_dss_signature(signature_der)
+    signature = r_value.to_bytes(32, "big") + s_value.to_bytes(32, "big")
+    return f"{signing_input}.{roxy_b64url_encode(signature)}"
+
+
+def roxy_exchange_google_oauth_code(code: str) -> tuple[bool, str, dict[str, Any]]:
+    config, missing = roxy_oauth_config("google")
+    if missing:
+        return False, roxy_oauth_missing_message("Google", missing), {}
+    assert requests is not None
+    token_response = requests.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "code": code,
+            "client_id": config["client_id"],
+            "client_secret": config["client_secret"],
+            "redirect_uri": config["redirect_uri"],
+            "grant_type": "authorization_code",
+        },
+        timeout=15,
+    )
+    if token_response.status_code >= 400:
+        return False, f"Google rechazo el acceso: {token_response.text[:220]}", {}
+    token_data = token_response.json()
+    access_token = text_display(token_data.get("access_token")).strip()
+    if not access_token:
+        return False, "Google no devolvio access_token.", {}
+    info_response = requests.get(
+        "https://openidconnect.googleapis.com/v1/userinfo",
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=15,
+    )
+    if info_response.status_code >= 400:
+        return False, f"No pude leer el perfil de Google: {info_response.text[:220]}", {}
+    profile = info_response.json()
+    return True, "", profile if isinstance(profile, dict) else {}
+
+
+def roxy_exchange_apple_oauth_code(code: str) -> tuple[bool, str, dict[str, Any]]:
+    config, missing = roxy_oauth_config("apple")
+    if missing:
+        return False, roxy_oauth_missing_message("Apple", missing), {}
+    assert requests is not None
+    try:
+        client_secret = roxy_apple_client_secret(config)
+    except Exception as exc:
+        return False, f"No pude firmar el client_secret de Apple: {text_display(exc)}", {}
+    token_response = requests.post(
+        "https://appleid.apple.com/auth/token",
+        data={
+            "code": code,
+            "client_id": config["client_id"],
+            "client_secret": client_secret,
+            "redirect_uri": config["redirect_uri"],
+            "grant_type": "authorization_code",
+        },
+        timeout=15,
+    )
+    if token_response.status_code >= 400:
+        return False, f"Apple rechazo el acceso: {token_response.text[:220]}", {}
+    token_data = token_response.json()
+    id_payload = roxy_decode_jwt_payload(text_display(token_data.get("id_token")).strip())
+    return True, "", id_payload if isinstance(id_payload, dict) else {}
+
+
+def roxy_unique_username(base: str, users: dict[str, Any]) -> str:
+    clean = re.sub(r"[^a-zA-Z0-9_.-]+", "", text_display(base).strip().lower())
+    if len(clean) < 3:
+        clean = f"roxy{secrets.token_hex(3)}"
+    candidate = clean[:28]
+    if candidate not in users:
+        return candidate
+    for index in range(2, 200):
+        next_candidate = f"{candidate[:24]}{index}"
+        if next_candidate not in users:
+            return next_candidate
+    return f"{candidate[:20]}{secrets.token_hex(4)}"
+
+
+def roxy_find_user_by_oauth(provider: str, subject: str) -> tuple[str, dict[str, Any]] | tuple[str, None]:
+    clean_provider = text_display(provider).strip().lower()
+    clean_subject = text_display(subject).strip()
+    if not clean_provider or not clean_subject:
+        return "", None
+    for username, profile in roxy_load_users().get("users", {}).items():
+        if not isinstance(profile, dict):
+            continue
+        providers = profile.get("oauth_providers")
+        if isinstance(providers, dict):
+            stored = providers.get(clean_provider)
+            if isinstance(stored, dict) and secrets.compare_digest(text_display(stored.get("sub")).strip(), clean_subject):
+                return text_display(username).strip().lower(), profile
+    return "", None
+
+
+def roxy_login_oauth_user(provider: str, oauth_profile: dict[str, Any]) -> tuple[bool, str]:
+    clean_provider = text_display(provider).strip().lower()
+    subject = text_display(oauth_profile.get("sub") or oauth_profile.get("id")).strip()
+    email = text_display(oauth_profile.get("email")).strip().lower()
+    name = text_display(oauth_profile.get("name") or oauth_profile.get("given_name") or email.split("@", 1)[0]).strip()
+    if not subject:
+        return False, f"{clean_provider.title()} no devolvio un identificador de usuario."
+    data = roxy_load_users()
+    users = data.setdefault("users", {})
+    username, profile = roxy_find_user_by_oauth(clean_provider, subject)
+    if not username and email:
+        username, profile = roxy_find_user(email)
+    if username and isinstance(profile, dict):
+        profile = dict(profile)
+    else:
+        username = roxy_unique_username(email.split("@", 1)[0] if email else name, users)
+        profile = {
+            "username": username,
+            "name": name or username,
+            "email": email,
+            "language": "es",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "auth_method": clean_provider,
+        }
+    providers = profile.setdefault("oauth_providers", {})
+    if not isinstance(providers, dict):
+        providers = {}
+    providers[clean_provider] = {
+        "sub": subject,
+        "email": email,
+        "linked_at": datetime.now(timezone.utc).isoformat(),
+    }
+    profile["oauth_providers"] = providers
+    if email and not text_display(profile.get("email")).strip():
+        profile["email"] = email
+    if name and not text_display(profile.get("name")).strip():
+        profile["name"] = name
+    profile["last_login_at"] = datetime.now(timezone.utc).isoformat()
+    users[username] = profile
+    roxy_save_users(data)
+    roxy_remember_authenticated_user(username, profile)
+    return True, f"Bienvenido, {text_display(profile.get('name') or username)}. Entraste con {clean_provider.title()}."
+
+
+def roxy_clear_oauth_query_params() -> None:
+    for key in (ROXY_OAUTH_CODE_PARAM, ROXY_OAUTH_STATE_PARAM, ROXY_OAUTH_ERROR_PARAM, "error_description"):
+        try:
+            del st.query_params[key]
+        except Exception:
+            pass
+
+
+def roxy_process_oauth_callback() -> tuple[bool, str]:
+    error = first_query_param_value(st.query_params, ROXY_OAUTH_ERROR_PARAM)
+    if error:
+        description = first_query_param_value(st.query_params, "error_description")
+        roxy_clear_oauth_query_params()
+        return False, f"OAuth cancelado o rechazado: {text_display(description or error)}"
+    code = first_query_param_value(st.query_params, ROXY_OAUTH_CODE_PARAM)
+    state = first_query_param_value(st.query_params, ROXY_OAUTH_STATE_PARAM)
+    if not code or not state:
+        return False, ""
+    valid, provider = roxy_verify_oauth_state(state)
+    if not valid or provider not in {"google", "apple"}:
+        roxy_clear_oauth_query_params()
+        return False, "No pude validar la respuesta OAuth. Intenta entrar otra vez."
+    if provider == "google":
+        ok, msg, oauth_profile = roxy_exchange_google_oauth_code(code)
+    else:
+        ok, msg, oauth_profile = roxy_exchange_apple_oauth_code(code)
+    if not ok:
+        roxy_clear_oauth_query_params()
+        return False, msg
+    ok, msg = roxy_login_oauth_user(provider, oauth_profile)
+    roxy_clear_oauth_query_params()
+    return ok, msg
+
+
+def render_roxy_social_auth_controls() -> None:
+    st.markdown('<div class="roxy-auth-divider"><span></span><b>O continuar con</b><span></span></div>', unsafe_allow_html=True)
+    google_url, google_missing = roxy_build_google_oauth_url()
+    apple_url, apple_missing = roxy_build_apple_oauth_url()
+    st.markdown('<div class="roxy-auth-social-action-row">', unsafe_allow_html=True)
+    apple_col, google_col = st.columns(2)
+    with apple_col:
+        if apple_url:
+            if hasattr(st, "link_button"):
+                st.link_button(" Continuar con Apple", apple_url, use_container_width=True)
+            else:
+                st.markdown(
+                    f'<a class="roxy-auth-social-link" href="{html.escape(apple_url, quote=True)}"> Continuar con Apple</a>',
+                    unsafe_allow_html=True,
+                )
+        elif st.button(" Continuar con Apple", key="roxy_social_apple_missing", use_container_width=True):
+            st.error(roxy_oauth_missing_message("Apple", apple_missing))
+    with google_col:
+        if google_url:
+            if hasattr(st, "link_button"):
+                st.link_button("G Continuar con Google", google_url, use_container_width=True)
+            else:
+                st.markdown(
+                    f'<a class="roxy-auth-social-link" href="{html.escape(google_url, quote=True)}">G Continuar con Google</a>',
+                    unsafe_allow_html=True,
+                )
+        elif st.button("G Continuar con Google", key="roxy_social_google_missing", use_container_width=True):
+            st.error(roxy_oauth_missing_message("Google", google_missing))
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
 def render_roxy_auth_gate() -> None:
     mode = first_query_param_value(st.query_params, "auth") or st.session_state.get("roxy_auth_mode") or "login"
     mode = "register" if str(mode).lower().startswith("reg") else "login"
@@ -1536,13 +1935,9 @@ def render_roxy_auth_gate() -> None:
         auth_username = text_display(st.session_state.get("roxy_passkey_auth_username")).strip().lower()
         if isinstance(auth_options, dict) and auth_options and auth_username:
             render_roxy_passkey_launcher("auth", auth_username, auth_options, "Abrir Face ID ahora")
+        render_roxy_social_auth_controls()
         st.markdown(
             """
-            <div class="roxy-auth-divider"><span></span><b>O continuar con</b><span></span></div>
-            <div class="roxy-auth-socials">
-              <button type="button"><img src="https://cdn.simpleicons.org/apple/ffffff" alt="">Continuar con Apple</button>
-              <button type="button"><img src="https://cdn.simpleicons.org/google" alt="">Continuar con Google</button>
-            </div>
             <div class="roxy-auth-switch">¿No tienes una cuenta? <a href="?auth=register" target="_self">Regístrate</a></div>
             """,
             unsafe_allow_html=True,
@@ -39844,7 +40239,9 @@ def main() -> None:
         .stApp:has(.roxy-auth-screen) [data-testid="stForm"] [data-testid="stFormSubmitButton"]:has(button[kind="secondaryFormSubmit"]) button{margin-top:8px!important;background:linear-gradient(180deg,rgba(15,23,42,.96),rgba(8,47,73,.86))!important;border-color:rgba(125,211,252,.42)!important;color:#dff7ff!important;font-size:16px!important;box-shadow:inset 0 0 0 1px rgba(125,211,252,.08),0 0 22px rgba(56,189,248,.14)!important}
         .roxy-auth-forgot{display:block;text-align:right;color:#3b82f6;font-size:12.5px;font-weight:780;margin-top:10px}
         .roxy-auth-divider{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin:18px 0 14px;color:#94a3b8;font-size:13px}.roxy-auth-divider span{height:1px;background:rgba(148,163,184,.24)}.roxy-auth-divider b{font-weight:650}
-        .roxy-auth-socials{display:grid;gap:10px}.roxy-auth-socials button{display:flex;align-items:center;justify-content:center;gap:13px;width:100%;height:54px;border:1px solid rgba(148,163,184,.22);border-radius:8px;background:rgba(5,10,21,.72);color:#f8fafc;font-size:17px;font-weight:800}.roxy-auth-socials img{width:22px;height:22px;object-fit:contain}
+        .roxy-auth-socials,.roxy-auth-social-action-row{display:grid;gap:10px}.roxy-auth-socials button{display:flex;align-items:center;justify-content:center;gap:13px;width:100%;height:54px;border:1px solid rgba(148,163,184,.22);border-radius:8px;background:rgba(5,10,21,.72);color:#f8fafc;font-size:17px;font-weight:800}.roxy-auth-socials img{width:22px;height:22px;object-fit:contain}
+        .stApp:has(.roxy-auth-screen) [data-testid="stLinkButton"] a,.stApp:has(.roxy-auth-screen) .roxy-auth-social-action-row .stButton button,.roxy-auth-social-link{display:flex!important;align-items:center!important;justify-content:center!important;width:100%!important;min-height:54px!important;border:1px solid rgba(148,163,184,.24)!important;border-radius:9px!important;background:linear-gradient(180deg,rgba(8,14,26,.88),rgba(4,9,20,.92))!important;color:#f8fafc!important;font-size:15px!important;font-weight:900!important;text-decoration:none!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 18px rgba(37,99,235,.10)!important}
+        .stApp:has(.roxy-auth-screen) [data-testid="stLinkButton"] a:hover,.stApp:has(.roxy-auth-screen) .roxy-auth-social-action-row .stButton button:hover,.roxy-auth-social-link:hover{border-color:rgba(96,165,250,.70)!important;box-shadow:0 0 24px rgba(59,130,246,.24),inset 0 1px 0 rgba(255,255,255,.10)!important;color:#fff!important}
         .roxy-auth-switch{text-align:center;color:#cbd5e1;font-size:14px;font-weight:700;margin:17px 0 0}.roxy-auth-switch a{color:#2563eb!important;text-decoration:none!important;font-weight:950}
         .roxy-auth-card footer{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;align-items:center;margin-top:18px;color:#94a3b8;font-size:13px;line-height:1.28}.roxy-auth-card footer i{color:#38bdf8;font-size:28px!important;text-shadow:0 0 16px rgba(56,189,248,.55)}
         .roxy-passkey-panel{position:relative;z-index:6;display:grid;grid-template-columns:50px minmax(0,1fr);gap:12px;align-items:center;margin:0 auto 12px;max-width:min(760px,96vw);border:1px solid rgba(56,189,248,.32);border-radius:14px;background:linear-gradient(135deg,rgba(2,6,23,.88),rgba(8,47,73,.70));padding:12px 14px;box-shadow:0 0 30px rgba(37,99,235,.18),inset 0 1px 0 rgba(255,255,255,.06);backdrop-filter:blur(18px)}
@@ -39860,9 +40257,9 @@ def main() -> None:
         .stApp:has(.roxy-auth-screen) [data-testid="stForm"] input::placeholder{color:#64748b!important}
         .stApp:has(.roxy-auth-screen) [data-testid="stForm"] input:focus{border-color:rgba(59,130,246,.82)!important;box-shadow:0 0 0 1px rgba(59,130,246,.70),0 0 24px rgba(37,99,235,.22)!important}
         .stApp:has(.roxy-auth-screen) [data-testid="stForm"] [data-testid="stFormSubmitButton"] button{width:100%!important;min-height:58px!important;border:1px solid rgba(125,211,252,.32)!important;border-radius:9px!important;background:linear-gradient(180deg,#0ea5ff,#0b63f6 65%,#0751d8)!important;color:#f8fafc!important;font-size:19px!important;font-weight:950!important;box-shadow:0 14px 30px rgba(37,99,235,.34),inset 0 1px 0 rgba(255,255,255,.20)!important}
-        .stApp:has(.roxy-auth-screen) .roxy-auth-divider,.stApp:has(.roxy-auth-screen) .roxy-auth-socials,.stApp:has(.roxy-auth-screen) .roxy-auth-switch,.stApp:has(.roxy-auth-screen) .roxy-auth-card footer{position:relative;z-index:5;max-width:347px;margin-left:auto;margin-right:auto}
+        .stApp:has(.roxy-auth-screen) .roxy-auth-divider,.stApp:has(.roxy-auth-screen) .roxy-auth-socials,.stApp:has(.roxy-auth-screen) .roxy-auth-social-action-row,.stApp:has(.roxy-auth-screen) .roxy-auth-switch,.stApp:has(.roxy-auth-screen) .roxy-auth-card footer{position:relative;z-index:5;max-width:347px;margin-left:auto;margin-right:auto}
         .stApp:has(.roxy-auth-screen) .roxy-auth-divider{margin-top:15px}
-        .stApp:has(.roxy-auth-screen) .roxy-auth-socials button{box-sizing:border-box}
+        .stApp:has(.roxy-auth-screen) .roxy-auth-socials button,.stApp:has(.roxy-auth-screen) .roxy-auth-social-action-row button{box-sizing:border-box}
         .stApp:has(.roxy-auth-register) [data-testid="stForm"]{margin-top:-335px!important}
         @media (min-width:700px){
           .stApp:has(.roxy-auth-screen){background:radial-gradient(ellipse at 50% 28%,rgba(14,165,233,.22),transparent 38%),linear-gradient(180deg,#020611,#061521 54%,#020712)!important}
@@ -39884,9 +40281,9 @@ def main() -> None:
           .stApp:has(.roxy-auth-screen) [data-testid="stForm"]{width:min(560px,100%)!important;max-width:100%!important;margin:-18px auto 0!important;padding:0 clamp(24px,4vw,34px) 24px!important;border-radius:0 0 20px 20px!important}
           .stApp:has(.roxy-auth-screen) [data-testid="stForm"] input{height:62px!important;font-size:17px!important}
           .stApp:has(.roxy-auth-screen) [data-testid="stForm"] [data-testid="stFormSubmitButton"] button{min-height:62px!important;font-size:20px!important}
-          .stApp:has(.roxy-auth-screen) .roxy-auth-divider,.stApp:has(.roxy-auth-screen) .roxy-auth-socials,.stApp:has(.roxy-auth-screen) .roxy-auth-switch,.stApp:has(.roxy-auth-screen) .roxy-auth-card footer{width:min(560px,100%)!important;max-width:100%!important;margin-left:auto!important;margin-right:auto!important}
+          .stApp:has(.roxy-auth-screen) .roxy-auth-divider,.stApp:has(.roxy-auth-screen) .roxy-auth-socials,.stApp:has(.roxy-auth-screen) .roxy-auth-social-action-row,.stApp:has(.roxy-auth-screen) .roxy-auth-switch,.stApp:has(.roxy-auth-screen) .roxy-auth-card footer{width:min(560px,100%)!important;max-width:100%!important;margin-left:auto!important;margin-right:auto!important}
           .stApp:has(.roxy-auth-screen) .roxy-auth-divider{margin-top:16px!important}
-          .roxy-auth-socials button{height:58px!important;font-size:18px!important}
+          .roxy-auth-socials button,.stApp:has(.roxy-auth-screen) [data-testid="stLinkButton"] a,.stApp:has(.roxy-auth-screen) .roxy-auth-social-action-row .stButton button{min-height:58px!important;font-size:16px!important}
           .roxy-auth-register .roxy-auth-hero{min-height:440px!important}
           .roxy-auth-register .roxy-auth-hero .roxy-hologram-avatar{width:min(440px,66vw)!important}
           .roxy-auth-register .roxy-auth-title{margin-top:-84px!important}
@@ -39912,6 +40309,12 @@ def main() -> None:
     if "user" not in st.session_state:
         st.session_state.user = None
     roxy_restore_user_from_session()
+    oauth_handled, oauth_message = roxy_process_oauth_callback()
+    if oauth_message:
+        if oauth_handled:
+            st.success(oauth_message)
+        else:
+            st.error(oauth_message)
     passkey_handled, passkey_message = roxy_process_passkey_result()
     if passkey_message:
         if passkey_handled:

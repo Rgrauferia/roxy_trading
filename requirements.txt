@@ -19,6 +19,7 @@ feedparser
 vaderSentiment
 aiohttp>=3.13.3
 urllib3>=2.6.3
+requests>=2.31.0
 # Pin filelock to fixed release to remediate GHSA advisory.
 # Note: this release may require Python >=3.10; CI will validate.
 filelock==3.20.1
