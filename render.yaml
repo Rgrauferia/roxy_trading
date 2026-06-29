@@ -33,6 +33,20 @@ services:
         value: "false"
       - key: ROXY_AUTOPILOT_CODE_WRITE
         value: "0"
+      - key: ROXY_PUBLIC_URL
+        value: https://roxy-trading.onrender.com
+      - key: ROXY_GOOGLE_CLIENT_ID
+        sync: false
+      - key: ROXY_GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: ROXY_APPLE_CLIENT_ID
+        sync: false
+      - key: ROXY_APPLE_TEAM_ID
+        sync: false
+      - key: ROXY_APPLE_KEY_ID
+        sync: false
+      - key: ROXY_APPLE_PRIVATE_KEY
+        sync: false
       - key: ALPACA_API_KEY
         sync: false
       - key: ALPACA_API_SECRET
