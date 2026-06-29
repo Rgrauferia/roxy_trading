@@ -35927,6 +35927,13 @@ def render_roxy_academy_module() -> None:
     bella_img = academy_asset_img_html("academy_bella_character.jpg", "Bella guardiana", "academy-portrait academy-portrait-bella")
     roxy_academy_img = academy_asset_img_html("academy_roxy_character.jpg", "Roxy Academy", "academy-portrait academy-portrait-roxy")
     ship_img = academy_asset_img_html("academy_ship_ref.png", "Nave Roxy Academy", "academy-ship-img")
+    story_panel_img = academy_asset_img_html("academy_story_roxy_legend.jpg", "Historia Roxy Academy", "academy-universe-img")
+    universe_map_img = academy_asset_img_html("academy_universe_reference_map.jpg", "Mapa del universo Roxy Academy", "academy-universe-img")
+    chaos_panel_img = academy_asset_img_html("academy_chaos_legion.jpg", "La Legion Chaos", "academy-universe-img")
+    how_panel_img = academy_asset_img_html("academy_how_it_works.jpg", "Como funciona Roxy Academy", "academy-strip-img")
+    allies_panel_img = academy_asset_img_html("academy_allies_panel.jpg", "Aliados Roxy Academy", "academy-universe-img")
+    villains_panel_img = academy_asset_img_html("academy_villains_panel.jpg", "Como aparecen los villanos", "academy-universe-img")
+    mission_panel_img = academy_asset_img_html("academy_mission_example.jpg", "Ejemplo de mision Roxy Academy", "academy-universe-img")
     planet_asset_files = {
         "origen": "academy_planet_origin.jpg",
         "cripto": "academy_planet_crypto.jpg",
@@ -35996,6 +36003,74 @@ def render_roxy_academy_module() -> None:
             ("psychology", "Roxy te explica cada respuesta"),
             ("rocket_launch", "Viajas por el universo sin pantallas negras"),
         )
+    )
+    academy_world_planets = (
+        ("Planeta Origen", "Fundamentos", "Aprendes lo basico para entender el universo del trading."),
+        ("Planeta Cripto", "Conceptos clave", "Descubres el mundo digital y como funciona el mercado."),
+        ("Planeta Analisis", "Herramientas", "Aprendes a leer graficos y patrones con calma."),
+        ("Planeta Estrategia", "Gestion basica", "Creas reglas, cuidas tu riesgo y proteges tu capital."),
+        ("Planeta Elite", "Trader completo", "Demuestras dominio, paciencia y control."),
+    )
+    universe_plan_html = "".join(
+        f"""
+        <div>
+          <b>{idx}</b>
+          <span>{html.escape(title)}</span>
+          <small>{html.escape(subtitle)}</small>
+          <em>{html.escape(detail)}</em>
+        </div>
+        """
+        for idx, (title, subtitle, detail) in enumerate(academy_world_planets, start=1)
+    )
+    chaos_villains = (
+        ("Mr. Distracto", "Bla Bla", "Te distrae con redes sociales, videos y cosas que no te llevan a ningun lado.", "phone_iphone"),
+        ("Lady FOMO", "Flash", "Te empuja a entrar rapido por miedo a perder oportunidades.", "bolt"),
+        ("King Ego", "Goldie", "Te hace creer que ya lo sabes todo y te niega aceptar errores.", "workspace_premium"),
+        ("Captain Revenge", "Spike", "Te impulsa a recuperar perdidas rapido, tomando mas riesgo.", "local_fire_department"),
+        ("Doctor Comfort", "Cloudy", "Te mantiene en zona de confort y te convence de dejar para manana.", "bedtime"),
+    )
+    chaos_rows_html = "".join(
+        f"""
+        <div class="academy-chaos-row">
+          <i class="material-symbols-outlined">{icon}</i>
+          <span><strong>{html.escape(name)}</strong><small>Mascota: {html.escape(mascot)}</small></span>
+          <p>{html.escape(detail)}</p>
+        </div>
+        """
+        for name, mascot, detail, icon in chaos_villains
+    )
+    how_steps = (
+        ("menu_book", "Aprendes", "Lecciones, videos y explicaciones claras."),
+        ("fact_check", "Respondes", "Preguntas y misiones para comprobar lo aprendido."),
+        ("trophy", "Ganas XP", "Subes de nivel y desbloqueas planetas."),
+        ("redeem", "Recibes recompensas", "Cofres, cristales y mejoras para tu viaje."),
+        ("shield", "Dominas", "Te conviertes en guardian del mercado."),
+    )
+    how_steps_html = "".join(
+        f"<div><i class=\"material-symbols-outlined\">{icon}</i><strong>{title}</strong><span>{detail}</span></div>"
+        for icon, title, detail in how_steps
+    )
+    villain_triggers = (
+        ("Respondes muy rapido sin leer bien.", "Mr. Distracto aparece."),
+        ("Pierdes varias veces seguidas.", "Captain Revenge aparece."),
+        ("Tienes muchas ganas de entrar tarde.", "Lady FOMO aparece."),
+        ("Dejas de estudiar o practicar.", "Doctor Comfort aparece."),
+        ("Crees que ya lo sabes todo.", "King Ego aparece."),
+    )
+    villain_triggers_html = "".join(
+        f"<div><span>{html.escape(trigger)}</span><strong>{html.escape(result)}</strong></div>"
+        for trigger, result in villain_triggers
+    )
+    mission_steps = (
+        ("Roxy te da la mision.", "Debes responder preguntas para abrir la puerta."),
+        ("Respondes y aprendes.", "Cada respuesta correcta te acerca a tu objetivo."),
+        ("Bella y Luna te ayudan.", "Te dan animo, cofres y recompensas."),
+        ("Ganas XP y subes de nivel.", "Cada nivel te hace mas fuerte y disciplinado."),
+        ("Derrotas a Chaos.", "Los villanos desaparecen, pero no te confies."),
+    )
+    mission_steps_html = "".join(
+        f"<div><b>{idx}</b><span>{html.escape(title)}</span><small>{html.escape(detail)}</small></div>"
+        for idx, (title, detail) in enumerate(mission_steps, start=1)
     )
     lesson_cards = "".join(
         f"""
@@ -36298,9 +36373,59 @@ def render_roxy_academy_module() -> None:
               <article><h3>Todos los niveles</h3>{levels_html}</article>
               <article><h3>Conocimientos por nivel</h3>{knowledge_html}</article>
             </section>
+            <section class="academy-universe-grid" id="universo">
+              <article class="academy-universe-card academy-story-card">
+                <header><span>La historia</span><strong>Roxy Academy</strong></header>
+                <div class="academy-universe-media">{story_panel_img}</div>
+                <p>Hace mucho tiempo, una energia oscura llamada Chaos comenzo a controlar la mente de los traders causando malas decisiones, miedo y perdidas. Roxy creo esta Academia Espacial para entrenar nuevos guardianes del mercado.</p>
+                <b>Tu eres el nuevo cadete. Estas listo para empezar.</b>
+              </article>
+              <article class="academy-universe-card academy-map-story-card">
+                <header><span>Mapa del universo</span><strong>5 planetas · 5 etapas · 1 mision</strong></header>
+                <div class="academy-universe-media academy-map-ref">{universe_map_img}</div>
+                <div class="academy-world-planets">{universe_plan_html}</div>
+                <div class="academy-final-reward">
+                  <i class="material-symbols-outlined">workspace_premium</i>
+                  <span>Recompensa final</span>
+                  <strong>Guardian del Mercado</strong>
+                  <small>Libertad financiera · disciplina · paciencia · control</small>
+                </div>
+              </article>
+              <article class="academy-universe-card academy-chaos-card">
+                <header><span>La Legion Chaos</span><strong>Los enemigos del aprendizaje</strong></header>
+                <div class="academy-universe-media">{chaos_panel_img}</div>
+                <div class="academy-chaos-list">{chaos_rows_html}</div>
+              </article>
+            </section>
+            <section class="academy-mission-grid">
+              <article class="academy-how-card">
+                <header><h3>Como funciona</h3></header>
+                <div class="academy-strip-media">{how_panel_img}</div>
+                <div class="academy-how-steps">{how_steps_html}</div>
+              </article>
+              <article class="academy-allies-card">
+                <header><h3>Tus aliados</h3><span>Ellos te acompanaran en cada paso del camino.</span></header>
+                <div class="academy-universe-media">{allies_panel_img}</div>
+                <div class="academy-allies-grid">{character_card_html}</div>
+              </article>
+              <article class="academy-villain-trigger-card">
+                <header><h3>Como aparecen los villanos</h3></header>
+                <div class="academy-universe-media">{villains_panel_img}</div>
+                <div class="academy-trigger-grid">{villain_triggers_html}</div>
+              </article>
+              <article class="academy-example-mission-card">
+                <header><h3>Ejemplo de mision</h3><span>Rescata los cristales del conocimiento</span></header>
+                <div class="academy-universe-media">{mission_panel_img}</div>
+                <div class="academy-mission-steps">{mission_steps_html}</div>
+              </article>
+            </section>
             <section class="academy-lore-grid">
               <article><h3>Que aprenderas aqui</h3><ul>{planet_learn_html}</ul></article>
-              <article><h3>Personajes del planeta</h3><div>{character_card_html}</div></article>
+              <article><h3>Roxy siempre interviene</h3><ul>
+                <li><i class="material-symbols-outlined">psychology</i><span>Si aparece Chaos, Roxy te ayuda a tomar mejores decisiones.</span></li>
+                <li><i class="material-symbols-outlined">shield</i><span>La meta no es ser perfecto, es ser mejor cada dia.</span></li>
+                <li><i class="material-symbols-outlined">rocket_launch</i><span>Disciplina hoy, libertad manana.</span></li>
+              </ul></article>
             </section>
             <section class="academy-progress-panel" id="progreso">
               <div><strong>XP del Nivel 1</strong><span>{int(state.get('xp', 350))} XP acumulados</span></div>
@@ -40948,6 +41073,9 @@ def main() -> None:
         @keyframes academyRocketFloat{0%,100%{transform:translate(0,0) rotate(-12deg)}50%{transform:translate(12px,-9px) rotate(-5deg)}}@keyframes academyWarp{to{transform:translateX(-90px)}}@keyframes academyShipTravel{0%{transform:translate(-80px,80px) scale(.7) rotate(-15deg)}70%{transform:translate(520px,-230px) scale(1.2) rotate(-18deg)}100%{transform:translate(740px,-330px) scale(.2) rotate(-18deg);opacity:0}}@keyframes academyTravelFade{0%,72%{opacity:1}100%{opacity:0;visibility:hidden}}
         @media (max-width:1180px){.academy-dashboard-grid,.academy-planet-workbench,.academy-learning-grid{grid-template-columns:1fr}.academy-enter-card{min-height:460px}.academy-map{min-height:430px}.academy-main{padding-bottom:112px}}
         @media (max-width:760px){.roxy-academy-shell{min-height:1420px}.academy-sidebar{display:none}.academy-main{margin-left:0}.academy-dashboard-grid{gap:10px}.academy-map{min-height:430px}.academy-planet-origin{left:5%;top:86px}.academy-planet-ice{left:46%;top:62px}.academy-planet-violet{left:68%;top:206px}.academy-planet-forest{left:6%;top:277px}.academy-planet-gold{left:43%;top:302px}.academy-enter-card{min-height:420px}.academy-enter-planet{width:220px;height:220px}.academy-enter-card>strong{font-size:27px}.academy-enter-bot{width:62px;height:62px;bottom:111px}.academy-enter-bot i{font-size:35px!important}.academy-planet-workbench{grid-template-columns:1fr}.academy-learning-grid{grid-template-columns:1fr}.academy-lesson-token{min-width:76px}.travel-rocket{font-size:58px}.academy-travel-overlay strong{font-size:23px;text-align:center}}
+        .academy-universe-grid{display:grid;grid-template-columns:.86fr 1.34fr 1fr;gap:12px;margin-top:14px}.academy-universe-card,.academy-how-card,.academy-allies-card,.academy-villain-trigger-card,.academy-example-mission-card{position:relative;overflow:hidden;border:1px solid rgba(168,85,247,.24);border-radius:18px;background:linear-gradient(180deg,rgba(12,10,33,.82),rgba(5,4,18,.86));box-shadow:0 22px 58px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.06)}.academy-universe-card:before,.academy-how-card:before,.academy-allies-card:before,.academy-villain-trigger-card:before,.academy-example-mission-card:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 24% 18%,rgba(168,85,247,.18),transparent 32%),radial-gradient(circle at 82% 42%,rgba(56,189,248,.10),transparent 28%);pointer-events:none}.academy-universe-card>*{position:relative;z-index:1}.academy-universe-card header,.academy-how-card header,.academy-allies-card header,.academy-villain-trigger-card header,.academy-example-mission-card header{padding:14px 14px 8px}.academy-universe-card header span{display:block;color:#f0abfc;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.10em}.academy-universe-card header strong,.academy-how-card h3,.academy-allies-card h3,.academy-villain-trigger-card h3,.academy-example-mission-card h3{display:block;margin:0;color:#fff;font-size:20px;line-height:1.05;text-transform:uppercase;text-shadow:0 0 18px rgba(168,85,247,.38)}.academy-allies-card header span,.academy-example-mission-card header span{display:block;margin-top:3px;color:#c4b5fd;font-size:12px;font-weight:850}.academy-universe-media{position:relative;margin:0 14px 12px;border:1px solid rgba(168,85,247,.20);border-radius:15px;overflow:hidden;background:rgba(2,6,23,.52);box-shadow:inset 0 0 22px rgba(56,189,248,.05)}.academy-universe-img{display:block;width:100%;height:auto;object-fit:cover}.academy-story-card .academy-universe-media{aspect-ratio:.75/1}.academy-chaos-card .academy-universe-media{aspect-ratio:.89/1}.academy-map-ref{aspect-ratio:1.15/1}.academy-universe-card p{position:relative;margin:0 14px 10px;color:#ddd6fe;font-size:12px;line-height:1.38}.academy-universe-card>b{display:block;margin:0 14px 14px;color:#f0abfc;font-size:12px;text-transform:uppercase;letter-spacing:.05em}.academy-world-planets{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin:0 14px 12px}.academy-world-planets div{min-height:92px;border:1px solid rgba(168,85,247,.16);border-radius:12px;background:rgba(9,8,28,.68);padding:8px;text-align:center}.academy-world-planets b{display:grid;place-items:center;width:24px;height:24px;margin:0 auto 5px;border-radius:50%;background:linear-gradient(180deg,#a855f7,#4c1d95);color:#fff;font-size:12px;box-shadow:0 0 16px rgba(168,85,247,.45)}.academy-world-planets span{display:block;color:#fff;font-size:10px;font-weight:950;line-height:1.08}.academy-world-planets small{display:block;margin-top:2px;color:#facc15;font-size:9px;font-weight:950}.academy-world-planets em{display:block;margin-top:4px;color:#c4b5fd;font-size:8px;line-height:1.18;font-style:normal}.academy-final-reward{display:grid;grid-template-columns:42px minmax(0,1fr);gap:4px 10px;align-items:center;margin:0 14px 14px;border:1px solid rgba(250,204,21,.24);border-radius:14px;background:linear-gradient(135deg,rgba(88,28,135,.42),rgba(15,23,42,.52));padding:10px}.academy-final-reward i{grid-row:1/4;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:radial-gradient(circle,#fde68a,#a16207);color:#fff!important;font-size:25px!important;box-shadow:0 0 20px rgba(250,204,21,.38)}.academy-final-reward span{color:#facc15;font-size:10px;font-weight:1000;text-transform:uppercase}.academy-final-reward strong{color:#fff;font-size:14px}.academy-final-reward small{color:#c4b5fd;font-size:10px}.academy-chaos-list{display:grid;gap:7px;margin:0 14px 14px}.academy-chaos-row{display:grid;grid-template-columns:34px minmax(100px,.8fr) minmax(0,1.2fr);gap:8px;align-items:center;border:1px solid rgba(248,113,113,.16);border-radius:11px;background:linear-gradient(90deg,rgba(69,10,10,.38),rgba(31,13,55,.42));padding:7px}.academy-chaos-row i{display:grid;place-items:center;width:31px;height:31px;border-radius:9px;background:rgba(127,29,29,.62);color:#fca5a5!important;font-size:20px!important}.academy-chaos-row strong{display:block;color:#fff;font-size:11px;text-transform:uppercase}.academy-chaos-row small{display:block;color:#fbbf24;font-size:9px}.academy-chaos-row p{margin:0;color:#fecaca;font-size:9px;line-height:1.18}.academy-mission-grid{display:grid;grid-template-columns:1.2fr .92fr 1.2fr .92fr;gap:12px;margin-top:12px}.academy-strip-media{margin:0 14px 12px;border-radius:12px;overflow:hidden;border:1px solid rgba(168,85,247,.16);background:rgba(2,6,23,.48)}.academy-strip-img{display:block;width:100%;height:auto}.academy-how-steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin:0 14px 14px}.academy-how-steps div,.academy-mission-steps div,.academy-trigger-grid div{border:1px solid rgba(168,85,247,.15);border-radius:12px;background:rgba(15,12,40,.62);padding:9px;text-align:center}.academy-how-steps i{display:grid;place-items:center;width:34px;height:34px;margin:0 auto 6px;border-radius:10px;background:linear-gradient(135deg,#7c3aed,#2563eb);color:#e0f2fe!important;font-size:22px!important}.academy-how-steps strong,.academy-mission-steps span,.academy-trigger-grid span{display:block;color:#fff;font-size:11px;line-height:1.12;font-weight:1000}.academy-how-steps span,.academy-mission-steps small,.academy-trigger-grid strong{display:block;margin-top:4px;color:#c4b5fd;font-size:9px;line-height:1.18}.academy-allies-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 14px 14px}.academy-villain-trigger-card .academy-universe-media{aspect-ratio:2.3/1}.academy-trigger-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin:0 14px 14px}.academy-trigger-grid div{min-height:74px;background:linear-gradient(180deg,rgba(69,10,10,.38),rgba(8,7,26,.76))}.academy-trigger-grid strong{color:#fca5a5}.academy-example-mission-card .academy-universe-media{aspect-ratio:.98/1}.academy-mission-steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:0 14px 14px}.academy-mission-steps div{min-height:90px}.academy-mission-steps b{display:grid;place-items:center;width:24px;height:24px;margin:0 auto 6px;border-radius:50%;background:#4c1d95;color:#fff;font-size:11px;box-shadow:0 0 15px rgba(168,85,247,.45)}
+        @media (max-width:1180px){.academy-universe-grid{grid-template-columns:1fr}.academy-mission-grid{grid-template-columns:1fr 1fr}.academy-story-card .academy-universe-media,.academy-chaos-card .academy-universe-media,.academy-map-ref,.academy-example-mission-card .academy-universe-media{aspect-ratio:auto}.academy-world-planets,.academy-how-steps,.academy-trigger-grid,.academy-mission-steps{grid-template-columns:repeat(2,minmax(0,1fr))}.academy-chaos-row{grid-template-columns:34px minmax(0,1fr)}.academy-chaos-row p{grid-column:2}}
+        @media (max-width:760px){.academy-universe-grid,.academy-mission-grid{grid-template-columns:1fr!important;margin-top:10px!important}.academy-universe-card header,.academy-how-card header,.academy-allies-card header,.academy-villain-trigger-card header,.academy-example-mission-card header{padding:13px 12px 7px!important}.academy-universe-card header strong,.academy-how-card h3,.academy-allies-card h3,.academy-villain-trigger-card h3,.academy-example-mission-card h3{font-size:17px!important}.academy-universe-media,.academy-strip-media{margin-left:12px!important;margin-right:12px!important}.academy-world-planets{grid-template-columns:1fr!important}.academy-world-planets div{display:grid;grid-template-columns:28px minmax(0,1fr);gap:3px 8px;min-height:58px;text-align:left}.academy-world-planets b{grid-row:1/4;margin:0}.academy-world-planets span,.academy-world-planets small,.academy-world-planets em{text-align:left}.academy-how-steps,.academy-trigger-grid,.academy-mission-steps{grid-template-columns:1fr!important}.academy-how-steps div,.academy-mission-steps div,.academy-trigger-grid div{display:grid;grid-template-columns:38px minmax(0,1fr);align-items:center;text-align:left;gap:0 10px;min-height:58px}.academy-how-steps i,.academy-mission-steps b{grid-row:1/3;margin:0}.academy-how-steps strong,.academy-mission-steps span,.academy-trigger-grid span{text-align:left}.academy-how-steps span,.academy-mission-steps small,.academy-trigger-grid strong{text-align:left;margin-top:2px}.academy-chaos-row{grid-template-columns:34px minmax(0,1fr)!important}.academy-chaos-row p{grid-column:2!important}.academy-allies-grid{grid-template-columns:1fr!important}}
         .roxy-classroom-shell{position:relative;isolation:isolate;overflow:hidden;width:min(100%,760px);margin:0 auto 10px;border:1px solid rgba(56,189,248,.20);border-radius:10px;background:
             radial-gradient(ellipse at 72% 8%,rgba(56,189,248,.22),transparent 28%),
             radial-gradient(ellipse at 48% 2%,rgba(37,99,235,.16),transparent 38%),
