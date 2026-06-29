@@ -467,9 +467,18 @@ ROXY_AVATAR_VARIANT_PATHS = {
     "card": project_path("assets/roxy_avatar_card.jpg"),
 }
 
-ROXY_USERS_PATH = project_path("data/roxy_users.json")
+ROXY_RENDER_DATA_DIR = Path("/var/data")
+ROXY_USERS_PATH = Path(
+    os.environ.get(
+        "ROXY_USERS_PATH",
+        str(ROXY_RENDER_DATA_DIR / "roxy_users.json") if ROXY_RENDER_DATA_DIR.exists() else str(project_path("data/roxy_users.json")),
+    )
+)
+ROXY_USERS_FALLBACK_PATH = project_path("data/roxy_users.json")
 ROXY_SESSION_PARAM = "rx_session"
+ROXY_PROFILE_PARAM = "rx_profile"
 ROXY_SESSION_STORAGE_KEY = "roxy_trading_session"
+ROXY_PROFILE_STORAGE_KEY = "roxy_trading_profile"
 ROXY_PASSKEY_ACTION_PARAM = "rx_passkey_action"
 ROXY_PASSKEY_RESULT_PARAM = "rx_passkey_result"
 ROXY_PASSKEY_PENDING_SECONDS = 600
@@ -566,9 +575,41 @@ def roxy_user_display_name(default: str = "Roberto") -> str:
     return default
 
 
-def roxy_load_users() -> dict[str, Any]:
+def roxy_auth_db_path() -> str:
+    return text_display(getattr(storage, "DB_PATH", project_path("db/roxy.db"))).strip() or str(project_path("db/roxy.db"))
+
+
+def roxy_auth_db_init() -> None:
     try:
-        raw = ROXY_USERS_PATH.read_text(encoding="utf-8")
+        storage.init_db()
+    except Exception:
+        pass
+    try:
+        conn = sqlite3.connect(roxy_auth_db_path())
+        cur = conn.cursor()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS roxy_auth_users (
+                username TEXT PRIMARY KEY,
+                email TEXT,
+                name TEXT,
+                profile_json TEXT,
+                session_token TEXT,
+                updated_at TEXT
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_roxy_auth_email ON roxy_auth_users(email)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_roxy_auth_session ON roxy_auth_users(session_token)")
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+
+def roxy_load_users_from_file(path: Path) -> dict[str, Any]:
+    try:
+        raw = path.read_text(encoding="utf-8")
         data = json.loads(raw)
     except (OSError, json.JSONDecodeError):
         return {"users": {}}
@@ -580,9 +621,95 @@ def roxy_load_users() -> dict[str, Any]:
     return data
 
 
+def roxy_load_users_from_db() -> dict[str, Any]:
+    roxy_auth_db_init()
+    users: dict[str, dict[str, Any]] = {}
+    try:
+        conn = sqlite3.connect(roxy_auth_db_path())
+        cur = conn.cursor()
+        cur.execute("SELECT username, profile_json FROM roxy_auth_users")
+        for username, profile_json in cur.fetchall():
+            try:
+                profile = json.loads(profile_json or "{}")
+            except Exception:
+                profile = {}
+            if isinstance(profile, dict) and username:
+                users[text_display(username).strip().lower()] = profile
+        conn.close()
+    except Exception:
+        return {"users": {}}
+    return {"users": users}
+
+
+def roxy_save_users_to_db(data: dict[str, Any]) -> None:
+    roxy_auth_db_init()
+    users = data.get("users") if isinstance(data, dict) else {}
+    if not isinstance(users, dict):
+        return
+    try:
+        conn = sqlite3.connect(roxy_auth_db_path())
+        cur = conn.cursor()
+        now = datetime.now(timezone.utc).isoformat()
+        for username, profile in users.items():
+            if not isinstance(profile, dict):
+                continue
+            clean_username = text_display(username or profile.get("username")).strip().lower()
+            if not clean_username:
+                continue
+            profile = dict(profile)
+            profile["username"] = clean_username
+            cur.execute(
+                """
+                INSERT INTO roxy_auth_users (username, email, name, profile_json, session_token, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(username) DO UPDATE SET
+                    email=excluded.email,
+                    name=excluded.name,
+                    profile_json=excluded.profile_json,
+                    session_token=excluded.session_token,
+                    updated_at=excluded.updated_at
+                """,
+                (
+                    clean_username,
+                    text_display(profile.get("email")).strip().lower(),
+                    text_display(profile.get("name")).strip(),
+                    json.dumps(profile, ensure_ascii=True),
+                    text_display(profile.get("session_token")).strip(),
+                    now,
+                ),
+            )
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+
+def roxy_load_users() -> dict[str, Any]:
+    db_data = roxy_load_users_from_db()
+    primary_data = roxy_load_users_from_file(ROXY_USERS_PATH)
+    fallback_data = roxy_load_users_from_file(ROXY_USERS_FALLBACK_PATH) if ROXY_USERS_FALLBACK_PATH != ROXY_USERS_PATH else {"users": {}}
+    merged: dict[str, Any] = {"users": {}}
+    for source in (fallback_data, primary_data, db_data):
+        users = source.get("users") if isinstance(source, dict) else {}
+        if isinstance(users, dict):
+            for username, profile in users.items():
+                if isinstance(profile, dict):
+                    clean_username = text_display(username or profile.get("username")).strip().lower()
+                    if clean_username:
+                        merged["users"][clean_username] = dict(profile, username=clean_username)
+    if merged["users"] and (not db_data.get("users") or len(merged["users"]) > len(db_data.get("users", {}))):
+        roxy_save_users_to_db(merged)
+    return merged
+
+
 def roxy_save_users(data: dict[str, Any]) -> None:
-    ROXY_USERS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    ROXY_USERS_PATH.write_text(json.dumps(data, indent=2, ensure_ascii=True), encoding="utf-8")
+    roxy_save_users_to_db(data)
+    for path in dict.fromkeys([ROXY_USERS_PATH, ROXY_USERS_FALLBACK_PATH]):
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(data, indent=2, ensure_ascii=True), encoding="utf-8")
+        except OSError:
+            continue
 
 
 def roxy_hash_password(password: str, salt: str) -> str:
@@ -1030,6 +1157,14 @@ def roxy_session_token_from_query() -> str:
     return token if len(token) >= 24 else ""
 
 
+def roxy_profile_from_query() -> dict[str, Any]:
+    encoded = text_display(first_query_param_value(st.query_params, ROXY_PROFILE_PARAM)).strip()
+    if not encoded:
+        return {}
+    profile = roxy_json_b64url_decode(encoded)
+    return profile if isinstance(profile, dict) else {}
+
+
 def roxy_issue_session_token(username: str) -> str:
     safe_username = text_display(username).strip().lower()
     if not safe_username:
@@ -1078,13 +1213,59 @@ def roxy_set_authenticated_user(username: str, profile: dict[str, Any]) -> None:
         pass
 
 
+def roxy_public_profile_payload(username: str, profile: dict[str, Any], token: str = "") -> dict[str, Any]:
+    safe_username = text_display(username or profile.get("username")).strip().lower()
+    return {
+        "username": safe_username,
+        "name": text_display(profile.get("name") or safe_username).strip(),
+        "email": text_display(profile.get("email")).strip().lower(),
+        "language": text_display(profile.get("language") or "es").strip() or "es",
+        "session_token": text_display(token or profile.get("session_token")).strip(),
+    }
+
+
 def roxy_remember_authenticated_user(username: str, profile: dict[str, Any]) -> None:
     roxy_set_authenticated_user(username, profile)
     st.session_state.roxy_passkey_offer_visible = len(roxy_user_passkeys(profile)) == 0
     token = roxy_issue_session_token(username)
     if token:
         st.session_state.roxy_session_token = token
+        st.session_state.roxy_public_profile = roxy_public_profile_payload(username, profile, token)
         st.query_params[ROXY_SESSION_PARAM] = token
+
+
+def roxy_restore_user_from_browser_profile(token: str = "") -> bool:
+    payload = roxy_profile_from_query()
+    clean_token = text_display(token or payload.get("session_token") or roxy_session_token_from_query()).strip()
+    username = re.sub(r"[^a-zA-Z0-9_.-]+", "", text_display(payload.get("username")).strip()).lower()
+    email = text_display(payload.get("email")).strip().lower()
+    if len(clean_token) < 24 or (not username and not email):
+        return False
+    if not username and email:
+        username = re.sub(r"[^a-zA-Z0-9_.-]+", "", email.split("@", 1)[0]).lower()
+    if len(username) < 3:
+        return False
+    data = roxy_load_users()
+    users = data.setdefault("users", {})
+    profile = users.get(username)
+    if not isinstance(profile, dict):
+        profile = {
+            "username": username,
+            "name": text_display(payload.get("name") or username).strip() or username,
+            "email": email,
+            "language": text_display(payload.get("language") or "es").strip() or "es",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "recovered_from_browser": True,
+        }
+    profile["session_token"] = clean_token
+    profile["session_updated_at"] = datetime.now(timezone.utc).isoformat()
+    profile["last_browser_restore_at"] = datetime.now(timezone.utc).isoformat()
+    users[username] = profile
+    roxy_save_users(data)
+    roxy_set_authenticated_user(username, profile)
+    st.session_state.roxy_session_token = clean_token
+    st.session_state.roxy_public_profile = roxy_public_profile_payload(username, profile, clean_token)
+    return True
 
 
 def roxy_restore_user_from_session() -> bool:
@@ -1092,48 +1273,83 @@ def roxy_restore_user_from_session() -> bool:
         return True
     token = roxy_session_token_from_query()
     if not token:
-        return False
+        return roxy_restore_user_from_browser_profile("")
     username, profile = roxy_find_user_by_session_token(token)
     if not username or not isinstance(profile, dict):
-        return False
+        return roxy_restore_user_from_browser_profile(token)
     roxy_set_authenticated_user(username, profile)
     st.session_state.roxy_session_token = token
+    st.session_state.roxy_public_profile = roxy_public_profile_payload(username, profile, token)
     return True
 
 
 def render_roxy_browser_session_bridge(active: bool = True) -> None:
     token = text_display(st.session_state.get("roxy_session_token") or roxy_session_token_from_query()).strip()
     storage_key = html.escape(ROXY_SESSION_STORAGE_KEY, quote=True)
+    profile_storage_key = html.escape(ROXY_PROFILE_STORAGE_KEY, quote=True)
     param_key = html.escape(ROXY_SESSION_PARAM, quote=True)
+    profile_param_key = html.escape(ROXY_PROFILE_PARAM, quote=True)
     token_js = json.dumps(token)
+    profile_payload = st.session_state.get("roxy_public_profile")
+    if not isinstance(profile_payload, dict):
+        profile = st.session_state.get("roxy_user_profile")
+        profile_payload = roxy_public_profile_payload(st.session_state.get("user"), profile if isinstance(profile, dict) else {}, token)
+    profile_js = json.dumps(profile_payload, ensure_ascii=False)
     active_js = "true" if active else "false"
     components.html(
         f"""
         <script>
         (() => {{
           const storageKey = "{storage_key}";
+          const profileStorageKey = "{profile_storage_key}";
           const paramKey = "{param_key}";
+          const profileParamKey = "{profile_param_key}";
           const explicitToken = {token_js};
+          const explicitProfile = {profile_js};
           const parentWindow = window.parent || window;
           const parentDocument = parentWindow.document;
           const currentUrl = new URL(parentWindow.location.href);
           const storedToken = parentWindow.localStorage.getItem(storageKey) || "";
+          const storedProfile = parentWindow.localStorage.getItem(profileStorageKey) || "";
+          const parseProfile = (value) => {{
+            try {{ return value ? JSON.parse(value) : {{}}; }} catch (error) {{ return {{}}; }}
+          }};
           const token = explicitToken || currentUrl.searchParams.get(paramKey) || storedToken;
           if (!token) return;
           if ({active_js}) parentWindow.localStorage.setItem(storageKey, token);
+          const profile = Object.assign({{}}, parseProfile(storedProfile), explicitProfile || {{}}, {{ session_token: token }});
+          if ({active_js} && profile && (profile.username || profile.email)) parentWindow.localStorage.setItem(profileStorageKey, JSON.stringify(profile));
+          const encodeProfile = (payload) => {{
+            try {{
+              const json = JSON.stringify(payload || {{}});
+              const bytes = new TextEncoder().encode(json);
+              let binary = "";
+              bytes.forEach((byte) => binary += String.fromCharCode(byte));
+              return btoa(binary).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/g, "");
+            }} catch (error) {{
+              return "";
+            }}
+          }};
+          const profileToken = encodeProfile(profile);
           if (!currentUrl.searchParams.get(paramKey)) {{
             currentUrl.searchParams.set(paramKey, token);
-            parentWindow.history.replaceState(null, "", currentUrl.toString());
+          }}
+          if (profileToken && !currentUrl.searchParams.get(profileParamKey)) {{
+            currentUrl.searchParams.set(profileParamKey, profileToken);
+          }}
+          parentWindow.history.replaceState(null, "", currentUrl.toString());
+          const applyParams = (url) => {{
+            if (!url.searchParams.get(paramKey)) url.searchParams.set(paramKey, token);
+            if (profileToken && !url.searchParams.get(profileParamKey)) url.searchParams.set(profileParamKey, profileToken);
+            return url;
           }}
           const patchLinks = () => {{
             parentDocument.querySelectorAll('a[href]').forEach((link) => {{
               const rawHref = link.getAttribute("href") || "";
               const url = new URL(rawHref, parentWindow.location.href);
               if (url.origin !== parentWindow.location.origin) return;
-              if (!url.searchParams.get(paramKey)) {{
-                url.searchParams.set(paramKey, token);
-                link.setAttribute("href", url.pathname + url.search + url.hash);
-              }}
+              applyParams(url);
+              link.setAttribute("href", url.pathname + url.search + url.hash);
             }});
           }};
           patchLinks();
@@ -1147,17 +1363,34 @@ def render_roxy_browser_session_bridge(active: bool = True) -> None:
 
 def render_roxy_session_restore_bridge() -> None:
     storage_key = html.escape(ROXY_SESSION_STORAGE_KEY, quote=True)
+    profile_storage_key = html.escape(ROXY_PROFILE_STORAGE_KEY, quote=True)
     param_key = html.escape(ROXY_SESSION_PARAM, quote=True)
+    profile_param_key = html.escape(ROXY_PROFILE_PARAM, quote=True)
     components.html(
         f"""
         <script>
         (() => {{
           const parentWindow = window.parent || window;
           const url = new URL(parentWindow.location.href);
-          if (url.searchParams.get("{param_key}")) return;
           const token = parentWindow.localStorage.getItem("{storage_key}");
+          const profile = parentWindow.localStorage.getItem("{profile_storage_key}");
           if (!token) return;
-          url.searchParams.set("{param_key}", token);
+          let changed = false;
+          if (!url.searchParams.get("{param_key}")) {{
+            url.searchParams.set("{param_key}", token);
+            changed = true;
+          }}
+          if (profile && !url.searchParams.get("{profile_param_key}")) {{
+            try {{
+              const bytes = new TextEncoder().encode(profile);
+              let binary = "";
+              bytes.forEach((byte) => binary += String.fromCharCode(byte));
+              const encoded = btoa(binary).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/g, "");
+              url.searchParams.set("{profile_param_key}", encoded);
+              changed = true;
+            }} catch (error) {{}}
+          }}
+          if (!changed) return;
           parentWindow.history.replaceState(null, "", url.toString());
           parentWindow.location.reload();
         }})();
