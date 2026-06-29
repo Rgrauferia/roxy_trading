@@ -554,6 +554,18 @@ def roxy_hologram_avatar_html(state: str = "listening", label: str = "Roxy Tradi
     )
 
 
+def academy_asset_img_html(filename: str, alt: str, class_name: str) -> str:
+    path = project_path("assets") / filename
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return ""
+    encoded = base64.b64encode(data).decode("ascii")
+    safe_alt = html.escape(str(alt or "Roxy Academy"))
+    safe_class = html.escape(str(class_name or "academy-asset-img"))
+    return f'<img class="{safe_class}" src="data:image/jpeg;base64,{encoded}" alt="{safe_alt}"/>'
+
+
 def roxy_welcome_card_html() -> str:
     path = ROXY_AVATAR_VARIANT_PATHS.get("card", ROXY_AVATAR_PATH)
     try:
@@ -35904,6 +35916,25 @@ def render_roxy_academy_module() -> None:
     selected_kind = html.escape(str(selected_planet.get("kind", "origin")))
     selected_title = html.escape(str(selected_planet["title"]))
     selected_subtitle = html.escape(str(selected_planet["subtitle"]))
+    academy_character_assets = {
+        "atom": ("academy_atom_character.jpg", "Atom"),
+        "luna": ("academy_luna_character.jpg", "Luna"),
+        "bella": ("academy_bella_character.jpg", "Bella"),
+        "roxy": ("academy_roxy_character.jpg", "Roxy"),
+    }
+    atom_img = academy_asset_img_html("academy_atom_character.jpg", "Atom robot tutor", "academy-portrait academy-portrait-atom")
+    luna_img = academy_asset_img_html("academy_luna_character.jpg", "Luna exploradora", "academy-portrait academy-portrait-luna")
+    bella_img = academy_asset_img_html("academy_bella_character.jpg", "Bella guardiana", "academy-portrait academy-portrait-bella")
+    roxy_academy_img = academy_asset_img_html("academy_roxy_character.jpg", "Roxy Academy", "academy-portrait academy-portrait-roxy")
+    lesson_character_key = str(lesson.get("character", "Atom")).strip().lower()
+    lesson_character_img = {
+        "atom": atom_img,
+        "luna": luna_img,
+        "bella": bella_img,
+        "roxy": roxy_academy_img,
+    }.get(lesson_character_key, atom_img)
+    if not lesson_character_img:
+        lesson_character_img = f'<i class="material-symbols-outlined">{html.escape(str(lesson["icon"]))}</i>'
     planet_html = "".join(
         f"""
         <a class="academy-planet academy-planet-{html.escape(str(item['kind']))} {'locked' if item['locked'] else 'active'} {'selected' if item['key'] == planet_param else ''}"
@@ -35918,24 +35949,24 @@ def render_roxy_academy_module() -> None:
     )
     companion_html = """
         <div class="academy-companions" aria-hidden="true">
-          <div class="academy-friend academy-friend-bella"><i class="material-symbols-outlined">pets</i><b>Bella</b></div>
-          <div class="academy-friend academy-friend-luna"><i class="material-symbols-outlined">raven</i><b>Luna</b></div>
+          <div class="academy-friend academy-friend-bella">__BELLA_IMG__<b>Bella</b></div>
+          <div class="academy-friend academy-friend-luna">__LUNA_IMG__<b>Luna</b></div>
         </div>
-    """
+    """.replace("__BELLA_IMG__", bella_img or '<i class="material-symbols-outlined">pets</i>').replace("__LUNA_IMG__", luna_img or '<i class="material-symbols-outlined">raven</i>')
     character_card_html = "".join(
         f"""
         <article class="academy-character academy-character-{slug}">
-          <i class="material-symbols-outlined">{icon}</i>
+          <div class="academy-character-art">{academy_asset_img_html(filename, name, "academy-character-img") or f'<i class="material-symbols-outlined">{icon}</i>'}</div>
           <span>{name}</span>
           <strong>{role}</strong>
           <p>{detail}</p>
         </article>
         """
-        for slug, icon, name, role, detail in (
-            ("atom", "smart_toy", "Atom", "Robot tutor", "Explica conceptos simples paso a paso."),
-            ("luna", "raven", "Luna", "Exploradora", "Ayuda con motivacion y disciplina."),
-            ("bella", "pets", "Bella", "Guardiana leal", "Celebra tus logros y te impulsa a seguir."),
-            ("roxy", "rocket_launch", "Roxy", "Guia principal", "Te acompana por cada planeta."),
+        for slug, icon, filename, name, role, detail in (
+            ("atom", "smart_toy", academy_character_assets["atom"][0], "Atom", "Robot tutor", "Explica conceptos simples paso a paso."),
+            ("luna", "raven", academy_character_assets["luna"][0], "Luna", "Exploradora", "Ayuda con motivacion y disciplina."),
+            ("bella", "pets", academy_character_assets["bella"][0], "Bella", "Guardiana leal", "Celebra tus logros y te impulsa a seguir."),
+            ("roxy", "rocket_launch", academy_character_assets["roxy"][0], "Roxy", "Guia principal", "Te acompana por cada planeta."),
         )
     )
     planet_learn_html = "".join(
@@ -36141,8 +36172,7 @@ def render_roxy_academy_module() -> None:
         else ""
     )
 
-    st.markdown(
-        f"""
+    academy_html = f"""
         <section class="roxy-academy-shell academy-theme-{selected_accent}">
           {travel_overlay}
           <div class="roxy-universe" aria-hidden="true">
@@ -36195,10 +36225,10 @@ def render_roxy_academy_module() -> None:
                 <span>Entrando a</span>
                 <strong>{selected_title}</strong>
                 <div class="academy-enter-planet academy-enter-{selected_kind}"></div>
-                <div class="academy-enter-bot"><i class="material-symbols-outlined">smart_toy</i></div>
+                <div class="academy-enter-bot academy-enter-bot-img">{atom_img or '<i class="material-symbols-outlined">smart_toy</i>'}</div>
                 <div class="academy-enter-companions">
-                  <span class="academy-suit academy-suit-bella"><i class="material-symbols-outlined">pets</i><b>Bella</b></span>
-                  <span class="academy-suit academy-suit-luna"><i class="material-symbols-outlined">raven</i><b>Luna</b></span>
+                  <span class="academy-suit academy-suit-bella">{bella_img or '<i class="material-symbols-outlined">pets</i>'}<b>Bella</b></span>
+                  <span class="academy-suit academy-suit-luna">{luna_img or '<i class="material-symbols-outlined">raven</i>'}<b>Luna</b></span>
                 </div>
                 <p>¡Bienvenido a {selected_title}!<br/>{html.escape(planet_intro)}</p>
                 <a href="{planet_href}&lesson={quote(str(lesson['id']), safe='')}&travel=1" target="_self"><i class="material-symbols-outlined">rocket_launch</i>Aterrizar</a>
@@ -36226,7 +36256,7 @@ def render_roxy_academy_module() -> None:
                 <div class="academy-progress"><span>Leccion {current_index + 1} de {len(ROXY_ACADEMY_LEVEL_1_LESSONS)}</span><i><b style="width:{progress_pct}%"></b></i></div>
                 <h2>{html.escape(str(lesson['title']))}</h2>
                 <div class="academy-character-card">
-                  <div class="academy-atom"><i class="material-symbols-outlined">{html.escape(str(lesson['icon']))}</i><b>{html.escape(str(lesson['character']))}</b></div>
+                  <div class="academy-atom academy-atom-portrait">{lesson_character_img}<b>{html.escape(str(lesson['character']))}</b></div>
                   <p>{html.escape(str(lesson['explanation']))}</p>
                 </div>
                 <a class="academy-listen" href="{current_href}" target="_self">{roxy_avatar_html("speaking", "Roxy")}<span>Escucha a Roxy</span><i class="material-symbols-outlined">play_arrow</i></a>
@@ -36267,9 +36297,11 @@ def render_roxy_academy_module() -> None:
             <a href="{base_href}#progreso" target="_self"><i class="material-symbols-outlined">groups</i><span>Comunidad</span></a>
           </nav>
         </section>
-        """,
-        unsafe_allow_html=True,
-    )
+        """
+    if hasattr(st, "html"):
+        st.html(academy_html)
+    else:
+        st.markdown(academy_html, unsafe_allow_html=True)
 
 
 def render_roxy_classroom_module() -> None:
@@ -40957,6 +40989,7 @@ def main() -> None:
         .academy-character-card{position:relative;overflow:hidden}.academy-character-card:after{content:"";position:absolute;right:16px;top:22px;width:118px;height:78px;border:1px solid rgba(56,189,248,.16);border-radius:12px;background:linear-gradient(180deg,rgba(34,197,94,.12),rgba(59,130,246,.10));box-shadow:inset 0 0 22px rgba(56,189,248,.08)}
         .academy-atom{position:relative}.academy-atom i{animation:academyRobotPulse 2.6s ease-in-out infinite}.academy-atom:after{content:"";position:absolute;right:22px;top:46px;width:92px;height:54px;border:1px solid rgba(125,211,252,.28);border-radius:9px;background:linear-gradient(135deg,rgba(34,197,94,.12),rgba(59,130,246,.16));box-shadow:inset 0 0 20px rgba(56,189,248,.08)}
         .academy-lore-grid{display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.45fr);gap:12px;margin-top:14px}.academy-lore-grid article{border:1px solid rgba(147,51,234,.22);border-radius:16px;background:rgba(8,7,26,.74);padding:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}.academy-lore-grid h3{margin:0 0 12px;color:#f0abfc;font-size:17px;text-transform:uppercase}.academy-lore-grid ul{list-style:none;margin:0;padding:0;display:grid;gap:9px}.academy-lore-grid li{display:flex;gap:9px;align-items:center;color:#e9d5ff;font-size:13px}.academy-lore-grid li i{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:rgba(126,34,206,.45);color:#f0abfc!important}.academy-lore-grid article>div{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.academy-character{min-height:118px;border:1px solid rgba(147,51,234,.16);border-radius:13px;background:linear-gradient(180deg,rgba(17,24,58,.74),rgba(8,7,26,.84));padding:10px;text-align:center}.academy-character i{display:grid;place-items:center;width:48px;height:48px;margin:0 auto 7px;border-radius:50%;background:radial-gradient(circle,#7dd3fc,#1d4ed8);color:#fff;font-size:30px!important;box-shadow:0 0 20px rgba(56,189,248,.42)}.academy-character-bella i{background:radial-gradient(circle,#fde68a,#92400e)}.academy-character-luna i{background:radial-gradient(circle,#f5d0fe,#7e22ce)}.academy-character-roxy i{background:radial-gradient(circle,#f0abfc,#6d28d9)}.academy-character span{display:block;color:#fff;font-weight:1000}.academy-character strong{display:block;color:#c4b5fd;font-size:10px}.academy-character p{margin:5px 0 0;color:#cbd5e1;font-size:10px;line-height:1.25}
+        .academy-character-art{height:154px;margin:-2px -2px 8px;border-radius:12px;overflow:hidden;border:1px solid rgba(196,181,253,.22);background:radial-gradient(circle at 50% 35%,rgba(147,51,234,.42),rgba(8,7,26,.86));box-shadow:0 0 26px rgba(147,51,234,.22),inset 0 1px 0 rgba(255,255,255,.08)}.academy-character-img{display:block;width:100%;height:100%;object-fit:cover;object-position:center top;filter:saturate(1.08) contrast(1.04)}.academy-character-art i{width:100%!important;height:100%!important;border-radius:0!important;margin:0!important}.academy-friend{overflow:hidden}.academy-friend .academy-portrait{width:100%;height:100%;object-fit:cover;object-position:center top;border-radius:inherit;filter:saturate(1.1) contrast(1.05)}.academy-friend b{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);padding:2px 6px;border-radius:999px;background:rgba(8,7,26,.72);backdrop-filter:blur(6px)}.academy-suit{overflow:hidden;position:relative}.academy-suit .academy-portrait{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;border-radius:inherit;filter:saturate(1.08) contrast(1.04)}.academy-suit b{position:absolute;left:50%;bottom:5px;z-index:2;transform:translateX(-50%);padding:2px 6px;border-radius:999px;background:rgba(8,7,26,.74)}.academy-enter-bot-img{overflow:hidden;background:radial-gradient(circle,rgba(125,211,252,.42),rgba(29,78,216,.32))}.academy-enter-bot-img .academy-portrait{width:100%;height:100%;object-fit:cover;object-position:center top;border-radius:50%;filter:saturate(1.12) contrast(1.06)}.academy-atom-portrait{display:grid!important;grid-template-rows:minmax(0,1fr) auto;align-items:end;overflow:hidden;min-height:240px;border-radius:16px;background:radial-gradient(circle at 44% 35%,rgba(56,189,248,.24),rgba(8,7,26,.78));border:1px solid rgba(125,211,252,.18);box-shadow:inset 0 0 30px rgba(56,189,248,.06)}.academy-atom-portrait:after{display:none!important}.academy-atom-portrait .academy-portrait{width:100%;height:210px;object-fit:cover;object-position:center top;filter:saturate(1.12) contrast(1.06);animation:academyRobotPulse 3.2s ease-in-out infinite}.academy-atom-portrait b{position:relative;z-index:2;padding:0 0 10px;color:#e0f2fe;text-shadow:0 0 14px rgba(56,189,248,.72)}
         .academy-mobile-nav{grid-template-columns:repeat(6,1fr);border-radius:20px;background:linear-gradient(180deg,rgba(10,8,31,.94),rgba(5,8,24,.94));border-color:rgba(147,51,234,.30);box-shadow:0 0 42px rgba(147,51,234,.28),0 -18px 60px rgba(0,0,0,.42)}.academy-mobile-nav .roxy-r{width:78px;height:78px;margin:-38px auto 0;background:radial-gradient(circle,#e879f9,#7e22ce 62%,#2e1065);box-shadow:0 0 44px rgba(217,70,239,.92)}.academy-mobile-nav .roxy-r i{font-size:38px!important;color:#fff!important}.academy-mobile-nav a:nth-child(2){color:#e879f9!important}
         .academy-travel-overlay{background:radial-gradient(circle at 72% 34%,rgba(56,189,248,.30),transparent 22%),radial-gradient(circle at 42% 50%,rgba(147,51,234,.34),transparent 28%),linear-gradient(90deg,rgba(2,6,23,.98),rgba(15,23,42,.90))}.travel-stars{background:repeating-linear-gradient(112deg,transparent 0 26px,rgba(255,255,255,.85) 27px 28px,transparent 29px 72px)}.travel-rocket{color:#fef3c7!important}
         @keyframes academyStarDrift{from{background-position:0 0,0 0,0 0,0 0}to{background-position:180px 120px,-160px 170px,130px -150px,-220px 180px}}@keyframes academyPlanetBreathe{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-4px) scale(1.035)}}@keyframes academyRobotPulse{0%,100%{transform:translateY(0);filter:drop-shadow(0 0 10px rgba(56,189,248,.55))}50%{transform:translateY(-5px);filter:drop-shadow(0 0 22px rgba(56,189,248,.95))}}
