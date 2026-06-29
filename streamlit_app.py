@@ -34100,8 +34100,72 @@ def roxy_enrich_stock_row_with_live_plan(row: dict[str, Any]) -> dict[str, Any]:
     return enriched
 
 
+def roxy_manual_stock_symbol(value: Any) -> str:
+    candidate = re.sub(r"[^A-Za-z0-9.\-]", "", str(value or "").strip().upper())
+    if not candidate or len(candidate) > 12:
+        return ""
+    if not re.match(r"^[A-Z][A-Z0-9.\-]{0,11}$", candidate):
+        return ""
+    return candidate
+
+
+def roxy_manual_stock_row(symbol: str) -> dict[str, Any]:
+    clean_symbol = roxy_manual_stock_symbol(symbol)
+    if not clean_symbol:
+        return {}
+    return roxy_enrich_stock_row_with_live_plan(
+        {
+            "symbol": clean_symbol,
+            "market": "stock",
+            "strategy_family": "Ticker buscado manualmente",
+            "signal": "Analisis de Roxy",
+            "readiness": 82,
+        }
+    )
+
+
+def render_roxy_actions_symbol_search(selected_symbol: str) -> None:
+    default_symbol = roxy_manual_stock_symbol(selected_symbol) or "AAPL"
+    with st.form("roxy_actions_symbol_search_form", clear_on_submit=False):
+        st.markdown(
+            """
+            <section class="roxy-actions-search-shell">
+              <strong>Buscar cualquier accion</strong>
+              <span>Escribe un ticker aunque no este en la lista. Roxy lo carga, lo analiza y actualiza las graficas.</span>
+            </section>
+            """,
+            unsafe_allow_html=True,
+        )
+        cols = st.columns([1, 0.24], gap="small")
+        with cols[0]:
+            query = st.text_input(
+                "Ticker",
+                value=default_symbol,
+                key="roxy_actions_symbol_search",
+                placeholder="AAPL, TSLA, PLTR, SMCI...",
+                label_visibility="collapsed",
+            )
+        with cols[1]:
+            submitted = st.form_submit_button("Analizar")
+    if submitted:
+        clean_symbol = roxy_manual_stock_symbol(query)
+        if clean_symbol:
+            st.query_params["view"] = "Dashboard"
+            st.query_params["module"] = "acciones-operar"
+            st.query_params["symbol"] = clean_symbol
+            st.query_params["market"] = "stock"
+            st.query_params["tf"] = "1h"
+            st.rerun()
+        st.warning("Escribe un ticker valido, por ejemplo AAPL, TSLA, PLTR o SMCI.")
+
+
 def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     rows = [roxy_enrich_stock_row_with_live_plan(row) for row in roxy_asset_rows_for_market(table, "stock", limit=12)]
+    requested_symbol = roxy_manual_stock_symbol(first_query_param_value(st.query_params, "symbol"))
+    if requested_symbol and all(text_display(row.get("symbol")).upper() != requested_symbol for row in rows):
+        manual_row = roxy_manual_stock_row(requested_symbol)
+        if manual_row:
+            rows.insert(0, manual_row)
     if not rows:
         st.info("Roxy no encontro acciones disponibles para operar todavia.")
         return
@@ -34112,6 +34176,7 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     )
     if not selected_symbol:
         return
+    render_roxy_actions_symbol_search(selected_symbol)
     action, tone = roxy_row_recommendation(selected_row)
     resolved_symbol = resolve_symbol_query(selected_symbol, selected_market)
     trade_plan = roxy_trade_plan_from_row(
@@ -34262,12 +34327,19 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         """,
         unsafe_allow_html=True,
     )
-    rendered = render_roxy_folder_dual_chart(
+    rendered = render_roxy_actions_dual_plotly_charts(
         symbol=resolved_symbol,
         market=selected_market,
         trade_plan=trade_plan,
-        height=430,
+        height=470,
     )
+    if not rendered:
+        rendered = render_roxy_folder_dual_chart(
+            symbol=resolved_symbol,
+            market=selected_market,
+            trade_plan=trade_plan,
+            height=430,
+        )
     if not rendered:
         render_roxy_folder_trade_chart(rows, market="stock", timeframe="1h", key_prefix="acciones-operar")
     st.markdown(
@@ -34919,6 +34991,223 @@ def roxy_trade_plan_from_row(
         "rr_to_2": rr_to_2,
         "risk_pct": safe_float(row.get("risk_pct")),
     }
+
+
+def roxy_actions_plotly_chart_panel(
+    chart_df: pd.DataFrame,
+    *,
+    symbol: str,
+    timeframe: str,
+    trade_plan: dict[str, Any],
+    title: str,
+    height: int = 470,
+) -> bool:
+    if go is None or make_subplots is None:
+        return False
+    if not isinstance(chart_df, pd.DataFrame) or chart_df.empty:
+        return False
+    required = {"ts", "open", "high", "low", "close"}
+    if not required.issubset(set(chart_df.columns)):
+        return False
+    df = chart_df.copy()
+    df["ts"] = pd.to_datetime(df["ts"], errors="coerce")
+    for column in ["open", "high", "low", "close", "volume", "ema9", "ema20", "ema21", "sma20", "sma40", "bb_upper", "bb_mid", "bb_lower"]:
+        if column in df.columns:
+            df[column] = pd.to_numeric(df[column], errors="coerce")
+    df = df.dropna(subset=["ts", "open", "high", "low", "close"]).tail(180)
+    if df.empty:
+        return False
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.03,
+        row_heights=[0.78, 0.22],
+    )
+    fig.add_trace(
+        go.Candlestick(
+            x=df["ts"],
+            open=df["open"],
+            high=df["high"],
+            low=df["low"],
+            close=df["close"],
+            name=f"{text_display(symbol).upper()} velas",
+            increasing_line_color="#22c55e",
+            increasing_fillcolor="#22c55e",
+            decreasing_line_color="#ef4444",
+            decreasing_fillcolor="#ef4444",
+            whiskerwidth=0.55,
+        ),
+        row=1,
+        col=1,
+    )
+    line_specs = [
+        ("ema9", "EMA 9", "#ec4899", 2),
+        ("ema21", "EMA 21", "#a855f7", 2),
+        ("sma20", "AVG 20", "#38bdf8", 2),
+        ("sma40", "AVG 40", "#f97316", 2),
+        ("bb_upper", "BB Upper", "rgba(226,232,240,.62)", 1),
+        ("bb_lower", "BB Lower", "rgba(226,232,240,.62)", 1),
+    ]
+    for column, label, color, width in line_specs:
+        if column in df.columns and df[column].notna().any():
+            fig.add_trace(
+                go.Scatter(
+                    x=df["ts"],
+                    y=df[column],
+                    mode="lines",
+                    name=label,
+                    line={"color": color, "width": width, "dash": "dot" if column.startswith("bb_") else "solid"},
+                    hovertemplate=f"{label}: %{{y:.2f}}<extra></extra>",
+                ),
+                row=1,
+                col=1,
+            )
+    if "volume" in df.columns:
+        volume_colors = ["rgba(34,197,94,.42)" if close >= open_ else "rgba(239,68,68,.42)" for open_, close in zip(df["open"], df["close"])]
+        fig.add_trace(
+            go.Bar(
+                x=df["ts"],
+                y=df["volume"].fillna(0),
+                name="Volumen",
+                marker_color=volume_colors,
+                hovertemplate="Volumen: %{y:,.0f}<extra></extra>",
+            ),
+            row=2,
+            col=1,
+        )
+    level_specs = [
+        ("Entrada", safe_float(trade_plan.get("entry")), "#22c55e"),
+        ("Stop", safe_float(trade_plan.get("stop")), "#ef4444"),
+        ("Target", safe_float(trade_plan.get("target_2") or trade_plan.get("target_price") or trade_plan.get("target")), "#38bdf8"),
+    ]
+    for label, value, color in level_specs:
+        if value is None:
+            continue
+        fig.add_hline(
+            y=value,
+            line_color=color,
+            line_width=1.8,
+            line_dash="dash",
+            annotation_text=f"{label} {price_display(value)}",
+            annotation_position="right",
+            annotation_font_color=color,
+            row=1,
+            col=1,
+        )
+    lows = pd.to_numeric(df["low"], errors="coerce").dropna()
+    highs = pd.to_numeric(df["high"], errors="coerce").dropna()
+    if not lows.empty and not highs.empty:
+        low_q = float(lows.quantile(0.02))
+        high_q = float(highs.quantile(0.98))
+        span = max(high_q - low_q, abs(high_q) * 0.01, 0.01)
+        fig.update_yaxes(range=[low_q - span * 0.18, high_q + span * 0.18], row=1, col=1)
+    latest_close = safe_float(df["close"].iloc[-1])
+    fig.update_layout(
+        title={"text": f"{title} · {text_display(symbol).upper()} · {timeframe}", "font": {"size": 14, "color": "#e0f2fe"}},
+        height=height,
+        margin={"l": 8, "r": 56, "t": 42, "b": 28},
+        paper_bgcolor="rgba(2,6,23,0)",
+        plot_bgcolor="rgba(2,6,23,.72)",
+        font={"color": "#dbeafe", "size": 10},
+        hovermode="x unified",
+        dragmode="pan",
+        showlegend=True,
+        legend={"orientation": "h", "y": 1.04, "x": 0, "font": {"size": 9}},
+        xaxis_rangeslider_visible=False,
+    )
+    fig.update_xaxes(
+        showgrid=True,
+        gridcolor="rgba(148,163,184,.14)",
+        rangeslider_visible=False,
+        showspikes=True,
+        spikemode="across",
+        spikecolor="rgba(248,250,252,.45)",
+        spikethickness=1,
+        row=1,
+        col=1,
+    )
+    fig.update_xaxes(showgrid=True, gridcolor="rgba(148,163,184,.10)", row=2, col=1)
+    fig.update_yaxes(
+        side="right",
+        showgrid=True,
+        gridcolor="rgba(148,163,184,.14)",
+        tickfont={"color": "#bbf7d0"},
+        row=1,
+        col=1,
+    )
+    fig.update_yaxes(side="right", showgrid=False, tickfont={"color": "#7dd3fc"}, row=2, col=1)
+    if latest_close is not None:
+        fig.add_annotation(
+            x=df["ts"].iloc[-1],
+            y=latest_close,
+            text=price_display(latest_close),
+            showarrow=False,
+            xshift=34,
+            bgcolor="#22c55e",
+            bordercolor="rgba(187,247,208,.55)",
+            font={"color": "#052e16", "size": 10},
+            row=1,
+            col=1,
+        )
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={
+            "displayModeBar": True,
+            "scrollZoom": True,
+            "responsive": True,
+            "modeBarButtonsToAdd": ["drawline", "drawopenpath", "drawrect", "eraseshape"],
+            "displaylogo": False,
+        },
+    )
+    return True
+
+
+def render_roxy_actions_dual_plotly_charts(
+    *,
+    symbol: str,
+    market: str,
+    trade_plan: dict[str, Any],
+    height: int = 470,
+) -> bool:
+    panes = [("15m", "Grafica operativa 1"), ("1h", "Grafica operativa 2")]
+    pane_data: list[tuple[str, str, pd.DataFrame]] = []
+    for pane_tf, label in panes:
+        try:
+            pane_df = cached_trade_desk_chart_df(symbol, market, pane_tf)
+        except Exception:
+            pane_df = pd.DataFrame()
+        pane_data.append((pane_tf, label, pane_df if isinstance(pane_df, pd.DataFrame) else pd.DataFrame()))
+    if all(pane_df.empty for _, _, pane_df in pane_data):
+        return False
+    st.markdown(
+        (
+            '<div class="dual-chart-contract-strip roxy-actions-plotly-strip">'
+            '<strong>GRAFICAS OPERATIVAS REALES</strong>'
+            f"<span>{html.escape(text_display(symbol).upper())} · 15m entrada + 1h tendencia</span>"
+            "<span>Zoom, pan, dibujo, volumen, EMA, Bollinger, entrada, stop y target</span>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+    columns = st.columns([1, 1], gap="small")
+    rendered = False
+    fallback_df = next((pane_df for _, _, pane_df in pane_data if not pane_df.empty), pd.DataFrame())
+    for col, (pane_tf, label, pane_df) in zip(columns, pane_data):
+        with col:
+            rendered = (
+                roxy_actions_plotly_chart_panel(
+                    pane_df if not pane_df.empty else fallback_df,
+                    symbol=symbol,
+                    timeframe=pane_tf,
+                    trade_plan=trade_plan,
+                    title=label,
+                    height=height,
+                )
+                or rendered
+            )
+    return rendered
 
 
 def render_roxy_folder_dual_chart(
@@ -39805,6 +40094,8 @@ def main() -> None:
         .roxy-ref-bottomnav b{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;border:1px solid rgba(125,211,252,.20);font-size:13px;line-height:1;color:#bfdbfe}
         .roxy-ref-bottomnav a.active b{width:46px;height:46px;margin-top:-22px;background:radial-gradient(circle,#1d4ed8,#082f49);border-color:rgba(96,165,250,.8);color:#fff;font-size:22px;box-shadow:0 0 34px rgba(37,99,235,.78)}
         .roxy-actions-shell,.roxy-actions-chart-wrap{position:relative;isolation:isolate;overflow:hidden;border:1px solid rgba(56,189,248,.20);border-radius:8px;background:linear-gradient(135deg,rgba(2,6,23,.88),rgba(8,47,73,.34) 48%,rgba(2,6,23,.92));box-shadow:0 26px 80px rgba(0,0,0,.42),0 0 46px rgba(56,189,248,.10);color:#e5f6ff}
+        .roxy-actions-search-shell{display:grid;gap:3px;margin:0 0 6px;padding:10px 12px;border:1px solid rgba(56,189,248,.22);border-radius:8px;background:linear-gradient(90deg,rgba(2,6,23,.78),rgba(37,99,235,.20),rgba(2,6,23,.62));box-shadow:0 0 28px rgba(37,99,235,.12)}
+        .roxy-actions-search-shell strong{color:#e0f2fe;font-size:12px;text-transform:uppercase;letter-spacing:.08em}.roxy-actions-search-shell span{color:#9cc9e6;font-size:10px;font-weight:800}
         .roxy-actions-shell{display:grid;grid-template-columns:150px minmax(0,1fr) 310px;gap:12px;padding:12px;margin:0 0 10px;min-height:760px}.roxy-actions-shell>*:not(.roxy-universe),.roxy-actions-chart-wrap>*:not(.roxy-universe){position:relative;z-index:1}
         .roxy-actions-sidebar{display:grid;grid-template-rows:auto 1fr auto;gap:12px;border-right:1px solid rgba(125,211,252,.14);padding:2px 10px 2px 0}.roxy-actions-brand{display:grid;gap:4px;justify-items:start}.roxy-actions-brand .brand-logo-img{width:92px;max-width:92px;border-radius:7px}.roxy-actions-brand strong{color:#f8fafc;font-size:22px;line-height:1;font-weight:950;letter-spacing:.08em}.roxy-actions-brand span{color:#8bd8ff;font-size:8px;text-transform:uppercase;font-weight:950;letter-spacing:.08em}
         .roxy-actions-sidebar nav{display:grid;gap:4px;align-content:start}.roxy-actions-sidebar a{display:flex!important;align-items:center;gap:9px;min-height:36px;border-radius:6px;padding:7px 9px;color:#b7cbe0!important;text-decoration:none!important;font-size:11px;font-weight:850}.roxy-actions-sidebar a i{font-size:18px!important;color:#b7d7ff;text-shadow:0 0 12px rgba(56,189,248,.38)}.roxy-actions-sidebar a.active{border:1px solid rgba(56,189,248,.42);background:linear-gradient(90deg,rgba(37,99,235,.34),rgba(2,6,23,.16));color:#e0f2fe!important;box-shadow:0 0 24px rgba(37,99,235,.16)}.roxy-actions-sidebar .help{align-self:end;border:1px solid rgba(56,189,248,.22);background:rgba(37,99,235,.24);color:#8bd8ff!important;text-transform:uppercase;font-size:10px!important;font-weight:950!important}
@@ -39815,6 +40106,7 @@ def main() -> None:
         .roxy-actions-quality div{position:relative;display:grid;place-items:center;width:118px;height:118px;margin:16px auto;border-radius:50%;background:conic-gradient(#22c55e 0 86%,rgba(30,58,138,.55) 86%);box-shadow:0 0 25px rgba(34,197,94,.20)}.roxy-actions-quality div:before{content:"";position:absolute;inset:13px;border-radius:50%;background:#07111f}.roxy-actions-quality div b,.roxy-actions-quality div span{position:relative;z-index:1}.roxy-actions-quality div b{color:#fff;font-size:28px;line-height:1}.roxy-actions-quality div span{color:#cbd5e1;font-size:8px;text-align:center;width:72px}.roxy-actions-quality p{display:grid;gap:7px;margin:0}.roxy-actions-quality p span{display:flex;justify-content:space-between;color:#93c5fd;font-size:10px}.roxy-actions-quality p b{color:#22c55e}
         .roxy-actions-signal>div{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:9px;align-items:center;margin:14px 0}.roxy-actions-signal span b{display:block;color:#f8fafc;font-size:14px}.roxy-actions-signal span small{display:block;color:#9aaec6;font-size:9px}.roxy-actions-signal em{border:1px solid rgba(34,197,94,.34);border-radius:5px;background:rgba(34,197,94,.12);padding:5px 7px;color:#22c55e;font-size:9px;font-style:normal;font-weight:950;text-transform:uppercase}.roxy-actions-signal p{display:grid;gap:8px;margin:0}.roxy-actions-signal p span{display:flex;justify-content:space-between;border-bottom:1px solid rgba(125,211,252,.10);padding-bottom:6px;color:#aebdd0;font-size:10px}.roxy-actions-signal p b{color:#e5f6ff}
         .roxy-actions-chart-wrap{padding:12px;margin:0 0 10px}.roxy-actions-chart-wrap>header{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}.roxy-actions-chart-wrap>header strong{color:#8bd8ff;font-size:14px;text-transform:uppercase;letter-spacing:.07em}.roxy-actions-chart-wrap>header span{color:#f8fafc;font-size:14px;font-weight:950}.roxy-actions-chart-wrap>header b{color:#22c55e}.roxy-actions-chart-wrap>header b.negative{color:#ef4444}.roxy-actions-below{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:10px;margin-top:10px}.roxy-actions-below .why>div{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;margin-top:12px}.roxy-actions-below .why div div{display:grid;justify-items:center;text-align:center;gap:6px;border-right:1px solid rgba(125,211,252,.10);padding:8px 6px}.roxy-actions-below .why i{color:#60a5fa;font-size:25px!important;text-shadow:0 0 15px rgba(96,165,250,.50)}.roxy-actions-below .why div div strong{font-size:9px;color:#dbeafe;text-transform:uppercase}.roxy-actions-below .why span{color:#aebdd0;font-size:8px;line-height:1.2}.roxy-actions-below .news p{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;margin:10px 0 0;color:#cbd5e1;font-size:10px;line-height:1.25}.roxy-actions-below .news i.material-symbols-outlined{color:#8bd8ff;font-size:22px!important}.roxy-actions-bottomnav{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr 76px 1fr 1fr;align-items:center;gap:6px;margin-top:10px;border:1px solid rgba(125,211,252,.14);border-radius:28px;background:rgba(2,6,23,.68);padding:8px 12px}.roxy-actions-bottomnav a{display:grid;place-items:center;gap:4px;color:#94a3b8!important;text-decoration:none!important;font-size:9px;text-transform:uppercase;font-weight:900}.roxy-actions-bottomnav i{font-size:22px!important}.roxy-actions-bottomnav .active{color:#60a5fa!important}.roxy-actions-bottomnav .roxy-r{width:58px;height:58px;margin:-25px auto -8px;border-radius:50%;background:radial-gradient(circle,#2563eb,#082f49);border:1px solid rgba(96,165,250,.72);color:#fff!important;font-size:28px;box-shadow:0 0 38px rgba(37,99,235,.72)}
+        .roxy-actions-plotly-strip{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:3px 0 8px;padding:6px 9px;border:1px solid rgba(34,197,94,.24);border-radius:7px;background:rgba(15,23,42,.70);color:#cbd5e1;font-size:11px}.roxy-actions-plotly-strip strong{color:#8bd8ff}
         @media (max-width:1180px){.roxy-actions-shell{grid-template-columns:118px minmax(0,1fr);grid-template-areas:"side main" "right right"}.roxy-actions-sidebar{grid-area:side}.roxy-actions-main{grid-area:main}.roxy-actions-right{grid-area:right;grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-actions-hero{grid-template-columns:142px minmax(0,1fr)}.roxy-actions-row{grid-template-columns:20px 30px minmax(74px,1fr) 68px 78px 52px minmax(88px,1fr) 72px 20px;gap:6px}.roxy-actions-below{grid-template-columns:1fr}}
         @media (max-width:760px){.roxy-actions-shell{grid-template-columns:minmax(0,1fr);grid-template-areas:"side" "main" "right";gap:8px;padding:8px;min-height:0}.roxy-actions-shell>*{max-width:100%;min-width:0}.roxy-actions-sidebar{grid-area:side;display:block;border-right:0;border-bottom:1px solid rgba(125,211,252,.14);padding:0 0 8px;overflow:hidden}.roxy-actions-main{grid-area:main;width:100%;min-width:0;max-width:100%;overflow:hidden}.roxy-actions-right{grid-area:right;width:100%;min-width:0;max-width:100%;overflow:hidden}.roxy-actions-brand{display:none}.roxy-actions-sidebar nav{display:flex;overflow-x:auto;gap:4px;padding-bottom:2px}.roxy-actions-sidebar nav a{flex:0 0 auto;min-height:32px;padding:6px 8px;font-size:9px}.roxy-actions-sidebar .help{display:none!important}.roxy-actions-topbar{grid-template-columns:28px minmax(0,1fr) auto}.roxy-actions-topbar strong{font-size:21px}.roxy-actions-topbar aside span{display:none}.roxy-actions-hero{grid-template-columns:96px minmax(0,1fr);min-height:134px;padding:10px}.roxy-actions-roxy{height:116px}.roxy-actions-roxy .roxy-hologram-avatar{width:104px}.roxy-actions-hero .copy strong{font-size:13px}.roxy-actions-hero .copy p{font-size:9px;line-height:1.28}.roxy-actions-hero .chips{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.roxy-actions-hero .chips span{padding:5px;font-size:7px}.roxy-actions-opps{overflow-x:auto;width:100%;min-width:0;max-width:100%}.roxy-actions-opps header,.roxy-actions-row{min-width:690px}.roxy-actions-right{grid-template-columns:1fr}.roxy-actions-chart-wrap{padding:8px}.roxy-actions-chart-wrap>header{display:block}.roxy-actions-chart-wrap>header span{display:block;margin-top:4px}.roxy-actions-below{grid-template-columns:1fr}.roxy-actions-below .why>div{grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-actions-bottomnav{grid-template-columns:1fr 1fr 64px 1fr 1fr;padding:7px 8px}.roxy-actions-bottomnav a{font-size:7px}.roxy-actions-bottomnav .roxy-r{width:50px;height:50px;font-size:24px}}
         .roxy-crypto20-shell,.roxy-crypto20-chart-wrap{position:relative;isolation:isolate;overflow:hidden;border:1px solid rgba(56,189,248,.20);border-radius:8px;background:linear-gradient(135deg,rgba(2,6,23,.90),rgba(8,47,73,.30) 50%,rgba(2,6,23,.94));box-shadow:0 26px 80px rgba(0,0,0,.45),0 0 48px rgba(56,189,248,.10);color:#e5f6ff}
