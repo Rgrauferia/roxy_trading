@@ -5655,7 +5655,27 @@ def live_candle_chart_payload(
     }
     strategy_title = "Roxy operativo"
     strategy_detail = "EMA9 · Avg20/40 · Bollinger · volumen · plan"
-    if profile_key == "crypto_20m":
+    if profile_key == "acciones_15m_1h":
+        default_indicators.update(
+            {
+                "EMA9": True,
+                "EMA20": False,
+                "EMA21": True,
+                "SMA20": True,
+                "SMA40": True,
+                "SMA100": False,
+                "SMA200": False,
+                "BB Mid": False,
+                "Labels": False,
+                "Plan": True,
+                "Info": True,
+                "Scale": True,
+                "Volume": True,
+            }
+        )
+        strategy_title = "Acciones 15m/1h"
+        strategy_detail = "Operacion: 15m entrada · 1h tendencia · EMA9/21 · Avg20/40 · Bollinger"
+    elif profile_key == "crypto_20m":
         default_indicators.update({"EMA9": True, "EMA21": True, "SMA20": False, "SMA40": False, "SMA100": False, "SMA200": False})
         strategy_title = "Crypto 20min"
         strategy_detail = "Scalping: 1m entrada · 1h contexto · EMA9/21 · BB 20 2 · volumen"
@@ -6213,7 +6233,7 @@ def render_browser_live_candle_chart_panel(
         button.classList.toggle("active", String(button.dataset.fasttf || "").toLowerCase() === String(payload.timeframe || "").toLowerCase());
         button.addEventListener("click", () => navigateToTimeframe(button.dataset.fasttf));
       });
-      const settingsKey = `roxy-chart-settings:v5:${payload.symbol}:${payload.timeframe}:${strategy.profile || "default"}`;
+      const settingsKey = `roxy-chart-settings:v7:${payload.symbol}:${payload.timeframe}:${strategy.profile || "default"}`;
       const defaultSettings = Object.assign({}, payload.defaultIndicators || {});
       const indicatorPresets = {
         naked: {
@@ -6356,7 +6376,7 @@ def render_browser_live_candle_chart_panel(
         priceFormat: { type: "volume" },
         priceScaleId: "volume",
       });
-      chart.priceScale("volume").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+      chart.priceScale("volume").applyOptions({ scaleMargins: { top: 0.86, bottom: 0 }, borderVisible: false, visible: false });
       volumeSeries.setData(candles.map((c) => ({
         time: c.time,
         value: c.volume || 0,
@@ -6374,6 +6394,7 @@ def render_browser_live_candle_chart_panel(
           crosshairMarkerVisible: !name.startsWith("BB"),
           title: "",
           visible: Boolean(indicatorSettings[name] ?? true),
+          autoscaleInfoProvider: () => null,
         });
         series.setData(values);
         indicatorSeries[name] = series;
@@ -33962,8 +33983,125 @@ def roxy_actions_change_pct(row: dict[str, Any]) -> float | None:
     return None
 
 
+@st.cache_data(ttl=45, show_spinner=False)
+def roxy_stock_live_plan_seed(symbol: str) -> dict[str, Any]:
+    clean_symbol = text_display(symbol).upper()
+    result: dict[str, Any] = {
+        "symbol": clean_symbol,
+        "latest": None,
+        "entry": None,
+        "stop": None,
+        "target_1": None,
+        "target_2": None,
+        "target_5": None,
+        "risk_pct": None,
+        "rr": None,
+        "trend_label": "Sin velas reales",
+        "source": "sin_historial",
+    }
+    frames: list[pd.DataFrame] = []
+    for tf in ("15m", "1h"):
+        try:
+            frame = cached_trade_desk_chart_df(clean_symbol, "stock", tf)
+        except Exception:
+            frame = pd.DataFrame()
+        if isinstance(frame, pd.DataFrame) and not frame.empty and "close" in frame.columns:
+            frames.append(frame.copy())
+    if not frames:
+        return result
+    primary = frames[0]
+    for column in ("open", "high", "low", "close", "volume", "ema9", "sma20", "sma40"):
+        if column in primary.columns:
+            primary[column] = pd.to_numeric(primary[column], errors="coerce")
+    primary = primary.dropna(subset=["close"]).tail(220)
+    if primary.empty:
+        return result
+    latest = safe_float(primary["close"].iloc[-1])
+    if latest is None or latest <= 0:
+        return result
+    highs = pd.to_numeric(primary.get("high", primary["close"]), errors="coerce").dropna()
+    lows = pd.to_numeric(primary.get("low", primary["close"]), errors="coerce").dropna()
+    closes = pd.to_numeric(primary["close"], errors="coerce").dropna()
+    if len(highs) < 8 or len(lows) < 8 or len(closes) < 8:
+        return result
+    ranges = (highs.tail(30).reset_index(drop=True) - lows.tail(30).reset_index(drop=True)).dropna()
+    atr = safe_float(ranges.tail(20).mean()) or latest * 0.01
+    recent_low = safe_float(lows.tail(32).min())
+    recent_high = safe_float(highs.tail(32).max())
+    ema9 = safe_float(primary["ema9"].iloc[-1]) if "ema9" in primary.columns else None
+    sma20 = safe_float(primary["sma20"].iloc[-1]) if "sma20" in primary.columns else None
+    sma40 = safe_float(primary["sma40"].iloc[-1]) if "sma40" in primary.columns else None
+    entry = latest
+    risk_unit = max(latest * 0.0065, atr * 1.12)
+    volatility_stop = entry - risk_unit
+    swing_stop = (recent_low * 0.998) if recent_low is not None and recent_low < entry else None
+    stop = max(volatility_stop, swing_stop) if swing_stop is not None else volatility_stop
+    if stop >= entry:
+        stop = entry - risk_unit
+    risk_unit = max(entry - stop, latest * 0.004)
+    target_1 = entry + risk_unit * 2.0
+    target_2 = entry + risk_unit * 2.8
+    target_5 = max(entry * 1.05, entry + risk_unit * 4.0)
+    rr = (target_1 - entry) / risk_unit if risk_unit else None
+    if ema9 is not None and sma20 is not None and latest >= ema9 >= sma20:
+        trend_label = "Tendencia alcista confirmada"
+    elif sma20 is not None and sma40 is not None and latest >= sma20 >= sma40:
+        trend_label = "Alcista en confirmacion"
+    elif recent_high is not None and recent_low is not None and recent_high > recent_low:
+        trend_label = "Canal lateral con niveles medibles"
+    else:
+        trend_label = "Esperar confirmacion"
+    return {
+        "symbol": clean_symbol,
+        "latest": latest,
+        "entry": entry,
+        "stop": stop,
+        "target_1": target_1,
+        "target_2": target_2,
+        "target_5": target_5,
+        "risk_pct": risk_unit / entry if entry else None,
+        "rr": rr,
+        "trend_label": trend_label,
+        "recent_high": recent_high,
+        "recent_low": recent_low,
+        "source": "velas reales 15m/1h",
+    }
+
+
+def roxy_enrich_stock_row_with_live_plan(row: dict[str, Any]) -> dict[str, Any]:
+    enriched = dict(row or {})
+    symbol = text_display(enriched.get("symbol")).upper()
+    if not symbol or symbol == "-":
+        return enriched
+    plan = roxy_stock_live_plan_seed(symbol)
+    latest = safe_float(plan.get("latest"))
+    if latest is None:
+        return enriched
+    if safe_float(enriched.get("current_price") or enriched.get("price") or enriched.get("last_price")) is None:
+        enriched["current_price"] = latest
+        enriched["price"] = latest
+    if safe_float(enriched.get("entry")) is None:
+        enriched["entry"] = plan.get("entry")
+    if safe_float(enriched.get("stop") or enriched.get("stop_loss")) is None:
+        enriched["stop"] = plan.get("stop")
+        enriched["stop_loss"] = plan.get("stop")
+    if safe_float(enriched.get("target_price") or enriched.get("target") or enriched.get("recommended_target_price")) is None:
+        enriched["target_price"] = plan.get("target_1")
+        enriched["target"] = plan.get("target_1")
+    enriched.setdefault("target_2", plan.get("target_2"))
+    enriched.setdefault("target_5", plan.get("target_5"))
+    enriched.setdefault("target_2pct_price", plan.get("target_1"))
+    if safe_float(enriched.get("risk_pct")) is None:
+        enriched["risk_pct"] = plan.get("risk_pct")
+    if text_display(enriched.get("strategy_family")) in {"-", "Esperando confirmacion de Roxy"}:
+        enriched["strategy_family"] = text_display(plan.get("trend_label"))
+    enriched["roxy_plan_source"] = text_display(plan.get("source"))
+    enriched["roxy_rr"] = plan.get("rr")
+    return enriched
+
+
 def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
-    rows = roxy_asset_rows_for_market(table, "stock", limit=8)
+    rows = [roxy_enrich_stock_row_with_live_plan(row) for row in roxy_asset_rows_for_market(table, "stock", limit=12)]
     if not rows:
         st.info("Roxy no encontro acciones disponibles para operar todavia.")
         return
@@ -33983,13 +34121,14 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         timeframe=selected_timeframe,
         action=action,
     )
-    price = price_display(selected_row.get("current_price") or selected_row.get("price") or selected_row.get("last_price"))
-    entry = price_display(selected_row.get("entry") or selected_row.get("current_price") or selected_row.get("price"))
-    stop = price_display(selected_row.get("stop") or selected_row.get("stop_loss"))
-    target = price_display(
-        selected_row.get("target_price") or selected_row.get("target") or selected_row.get("recommended_target_price")
-    )
-    risk = pct_display(selected_row.get("risk_pct")) if safe_float(selected_row.get("risk_pct")) is not None else "1.0%"
+    latest_value = safe_float(selected_row.get("current_price") or selected_row.get("price") or selected_row.get("last_price"))
+    price = price_display(latest_value or trade_plan.get("entry"))
+    entry = price_display(trade_plan.get("entry"))
+    stop = price_display(trade_plan.get("stop"))
+    target = price_display(trade_plan.get("target_2") or trade_plan.get("target_price") or trade_plan.get("target"))
+    risk = pct_display(trade_plan.get("risk_pct")) if safe_float(trade_plan.get("risk_pct")) is not None else "1.0%"
+    rr_value = safe_float(trade_plan.get("rr_to_2") or selected_row.get("roxy_rr"))
+    rr_text = f"1R : {rr_value:.1f}R" if rr_value is not None else "1R : 2.8R"
     readiness_values = [safe_float(row.get("readiness") or row.get("alert_readiness_score")) for row in rows]
     readiness_values = [value for value in readiness_values if value is not None]
     avg_readiness = sum(readiness_values) / len(readiness_values) if readiness_values else 86.0
@@ -34019,24 +34158,30 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         f'<i class="material-symbols-outlined">{icon}</i><span>{label}</span></a>'
         for icon, label, href in nav_items
     )
-    top_rows = rows[:5]
-    opp_html_parts: list[str] = []
-    for idx, row in enumerate(top_rows, start=1):
+    def action_opportunity_row_html(row: dict[str, Any], idx: int, *, compact: bool = False) -> str:
         symbol = text_display(row.get("symbol")).upper()
         row_market = normalize_command_market(row.get("market") or "stock", symbol)
         row_action, row_tone = roxy_row_recommendation(row)
-        row_price = price_display(row.get("current_price") or row.get("price") or row.get("last_price"))
-        row_entry = price_display(row.get("entry") or row.get("current_price") or row.get("price"))
-        row_stop = price_display(row.get("stop") or row.get("stop_loss"))
-        row_target = price_display(row.get("target_price") or row.get("target") or row.get("recommended_target_price"))
-        row_risk = pct_display(row.get("risk_pct")) if safe_float(row.get("risk_pct")) is not None else "1.0%"
+        row_plan = roxy_trade_plan_from_row(
+            row,
+            symbol=resolve_symbol_query(symbol, row_market),
+            market=row_market,
+            timeframe="1h",
+            action=row_action,
+        )
+        row_price = price_display(row.get("current_price") or row.get("price") or row.get("last_price") or row_plan.get("entry"))
+        row_entry = price_display(row_plan.get("entry"))
+        row_stop = price_display(row_plan.get("stop"))
+        row_target = price_display(row_plan.get("target_2") or row_plan.get("target_price") or row_plan.get("target"))
         row_score = int(max(0, min(99, safe_float(row.get("readiness") or row.get("alert_readiness_score")) or (94 - idx * 5))))
         row_change = roxy_actions_change_pct(row)
         row_change_text = pct_display(row_change) if row_change is not None else f"+{max(0.7, 4.0 - idx * .45):.2f}%"
         selected_class = " selected" if symbol == selected_symbol else ""
-        opp_html_parts.append(
-            textwrap.dedent(
-                f"""
+        row_rr_value = safe_float(row_plan.get("rr_to_2") or row.get("roxy_rr"))
+        row_rr_text = f"1R : {row_rr_value:.1f}R" if row_rr_value is not None else f"1R : {1.5 + idx * .22:.1f}R"
+        compact_class = " more-row" if compact else ""
+        return textwrap.dedent(
+            f"""
             <a class="roxy-actions-row roxy-actions-row-{html.escape(row_tone)}{selected_class}"
                href="?view=Dashboard&symbol={quote(symbol, safe='')}&market={quote(row_market, safe='')}&tf=1h&module=acciones-operar"
                target="_self">
@@ -34047,13 +34192,19 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
               <span class="trend">{roxy_actions_sparkline_svg(symbol, row_market)}</span>
               <span class="score"><b>{row_score}</b><small>{'Excelente' if row_score >= 88 else 'Muy buena' if row_score >= 80 else 'Buena'}</small></span>
               <span class="signal"><strong>{html.escape(row_action)}</strong><small>Entrada: {html.escape(row_entry)}<br>Stop: {html.escape(row_stop)}<br>Target: {html.escape(row_target)}</small></span>
-              <span class="rr"><b>1R : {1.5 + idx * .22:.1f}R</b><i></i></span>
+              <span class="rr"><b>{html.escape(row_rr_text)}</b><i></i></span>
               <i class="material-symbols-outlined fav">star</i>
             </a>
             """
-            ).strip()
+        ).strip().replace('class="roxy-actions-row ', f'class="roxy-actions-row{compact_class} ')
+
+    opp_html = "".join(action_opportunity_row_html(row, idx) for idx, row in enumerate(rows[:5], start=1))
+    more_html = "".join(action_opportunity_row_html(row, idx, compact=True) for idx, row in enumerate(rows[5:12], start=6))
+    if more_html:
+        more_html = (
+            '<details class="roxy-actions-more"><summary>Ver mas oportunidades</summary>'
+            f'<div>{more_html}</div></details>'
         )
-    opp_html = "".join(opp_html_parts)
     reason_items = [
         ("flight_takeoff", "Tendencia", "Alcista en 15m y 1h"),
         ("stacked_line_chart", "EMA 9/21", "Precio sobre EMA 9 y 21"),
@@ -34096,13 +34247,13 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
               <header>{tab_html}</header>
               <div class="roxy-actions-row roxy-actions-head"><span></span><span></span><b>Accion</b><b>Precio</b><b>Tendencia</b><b>Puntuacion</b><b>Senal</b><b>Riesgo/Recompensa</b><span></span></div>
               {opp_html}
-              <a class="more" href="?view=Dashboard&module=acciones-operar&more=1" target="_self">Ver mas oportunidades</a>
+              {more_html}
             </section>
           </main>
           <aside class="roxy-actions-right">
             <section class="roxy-actions-filter"><strong>Filtros inteligentes</strong><label>Mercado<span>S&P 500</span></label><label>Filtro RTH<span>Alto-riesgo</span></label><label>Precio entre<span>$5 - $500</span></label><label>Ordenar por<span>Mejor oportunidad</span></label><a href="?view=Dashboard&module=acciones-operar&scan=1" target="_self"><i class="material-symbols-outlined">auto_awesome</i> Escanear ahora</a></section>
             <section class="roxy-actions-quality"><strong>Resumen de oportunidades <small>Actualizado {html.escape(current_time_label)}</small></strong><div><b>{avg_readiness:.0f}%</b><span>Calidad promedio de oportunidades</span></div><p><span>Excelentes <b>{sum(1 for v in readiness_values if v >= 88) or 8}</b></span><span>Muy buenas <b>{sum(1 for v in readiness_values if 78 <= v < 88) or 12}</b></span><span>Buenas <b>15</b></span><span>Regulares <b>5</b></span></p></section>
-            <section class="roxy-actions-signal"><strong>Senal principal de Roxy</strong><div>{roxy_stock_icon_html(selected_symbol)}<span><b>{html.escape(selected_symbol)}</b><small>{html.escape(strategy_family_for_row(selected_row)[:32])}</small></span><em>{html.escape(action)}</em></div><p><span>Entrada <b>{html.escape(entry)}</b></span><span>Stop Loss <b>{html.escape(stop)}</b></span><span>Target 1 <b>{html.escape(target)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>R/R <b>1R : 2.8R</b></span></p><a href="?view=Dashboard&symbol={quote(selected_symbol, safe='')}&market=stock&tf=1h&module=acciones-operar" target="_self">Abrir analisis completo</a></section>
+            <section class="roxy-actions-signal"><strong>Senal principal de Roxy</strong><div>{roxy_stock_icon_html(selected_symbol)}<span><b>{html.escape(selected_symbol)}</b><small>{html.escape(strategy_family_for_row(selected_row)[:32])}</small></span><em>{html.escape(action)}</em></div><p><span>Entrada <b>{html.escape(entry)}</b></span><span>Stop Loss <b>{html.escape(stop)}</b></span><span>Target 1 <b>{html.escape(target)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>R/R <b>{html.escape(rr_text)}</b></span></p><a href="?view=Dashboard&symbol={quote(selected_symbol, safe='')}&market=stock&tf=1h&module=acciones-operar" target="_self">Abrir analisis completo</a></section>
           </aside>
         </section>
         <section class="roxy-actions-chart-wrap">
@@ -34115,7 +34266,7 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         symbol=resolved_symbol,
         market=selected_market,
         trade_plan=trade_plan,
-        height=330,
+        height=430,
     )
     if not rendered:
         render_roxy_folder_trade_chart(rows, market="stock", timeframe="1h", key_prefix="acciones-operar")
@@ -39659,7 +39810,7 @@ def main() -> None:
         .roxy-actions-sidebar nav{display:grid;gap:4px;align-content:start}.roxy-actions-sidebar a{display:flex!important;align-items:center;gap:9px;min-height:36px;border-radius:6px;padding:7px 9px;color:#b7cbe0!important;text-decoration:none!important;font-size:11px;font-weight:850}.roxy-actions-sidebar a i{font-size:18px!important;color:#b7d7ff;text-shadow:0 0 12px rgba(56,189,248,.38)}.roxy-actions-sidebar a.active{border:1px solid rgba(56,189,248,.42);background:linear-gradient(90deg,rgba(37,99,235,.34),rgba(2,6,23,.16));color:#e0f2fe!important;box-shadow:0 0 24px rgba(37,99,235,.16)}.roxy-actions-sidebar .help{align-self:end;border:1px solid rgba(56,189,248,.22);background:rgba(37,99,235,.24);color:#8bd8ff!important;text-transform:uppercase;font-size:10px!important;font-weight:950!important}
         .roxy-actions-main{display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:10px;min-width:0}.roxy-actions-topbar{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:12px;align-items:center;min-height:52px}.roxy-actions-topbar .menu{display:grid!important;place-items:center!important;width:30px;height:30px;color:#38bdf8!important;text-decoration:none!important;font-size:29px!important}.roxy-actions-topbar strong{display:block;color:#fff;font-size:25px;line-height:1;text-transform:uppercase;font-weight:950}.roxy-actions-topbar span{display:block;color:#cbd5e1;font-size:11px;font-weight:800;margin-top:5px}.roxy-actions-topbar aside{display:flex;align-items:center;gap:10px;color:#f8fafc;font-size:13px;font-weight:900}.roxy-actions-topbar aside>i{display:grid;place-items:center;width:30px;height:30px;border:1px solid rgba(56,189,248,.28);border-radius:50%;color:#7dd3fc}.roxy-actions-topbar aside>b{display:grid;place-items:center;width:15px;height:15px;margin-left:-17px;margin-top:-22px;border-radius:50%;background:#ef4444;color:white;font-size:8px}.roxy-actions-topbar .roxy-avatar{width:38px;height:38px;border-radius:50%}.roxy-actions-topbar .roxy-avatar span{display:none}
         .roxy-actions-hero{display:grid;grid-template-columns:180px minmax(0,1fr);gap:14px;align-items:center;min-height:178px;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.42);padding:12px 16px;overflow:hidden}.roxy-actions-roxy{display:grid;place-items:center;height:154px}.roxy-actions-roxy .roxy-hologram-avatar{width:150px;aspect-ratio:.72/1}.roxy-actions-roxy .roxy-avatar-core{border:0;border-radius:0;background:transparent;box-shadow:none;filter:drop-shadow(0 0 28px rgba(56,189,248,.50));-webkit-mask-image:radial-gradient(ellipse 52% 64% at 50% 42%,#000 0 68%,rgba(0,0,0,.72) 82%,transparent 100%);mask-image:radial-gradient(ellipse 52% 64% at 50% 42%,#000 0 68%,rgba(0,0,0,.72) 82%,transparent 100%)}.roxy-actions-roxy .roxy-hologram-name,.roxy-actions-roxy .roxy-audio-wave{display:none}.roxy-actions-hero .copy strong{display:block;color:#e0f2fe;font-size:18px;line-height:1.22}.roxy-actions-hero .copy p{margin:10px 0 0;color:#cbd5e1;font-size:12px;line-height:1.45;max-width:520px}.roxy-actions-hero .chips{grid-column:1/-1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}.roxy-actions-hero .chips span{display:flex;align-items:center;gap:5px;border:1px solid rgba(56,189,248,.14);border-radius:7px;background:rgba(2,6,23,.40);padding:7px;color:#9cc9e6;font-size:9px;font-weight:850}.roxy-actions-hero .chips i{font-size:15px!important;color:#60a5fa}
-        .roxy-actions-opps{min-width:0;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.46);overflow:hidden}.roxy-actions-opps header{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-bottom:1px solid rgba(125,211,252,.12)}.roxy-actions-opps header b{display:grid;place-items:center;min-height:36px;color:#9fcfff;font-size:9px;text-transform:uppercase;letter-spacing:.04em}.roxy-actions-opps header b:first-child{background:rgba(37,99,235,.28);color:#fff}.roxy-actions-row{display:grid;grid-template-columns:24px 34px minmax(80px,1.1fr) 72px 92px 62px minmax(98px,1.1fr) 82px 24px;gap:8px;align-items:center;min-height:69px;padding:6px 10px;border-bottom:1px solid rgba(125,211,252,.10);text-decoration:none!important;color:#e5f6ff!important}.roxy-actions-row.selected,.roxy-actions-row:hover{background:rgba(37,99,235,.12)}.roxy-actions-head{min-height:31px;color:#7da8c9!important;font-size:8px;text-transform:uppercase;font-weight:950}.roxy-actions-head b{font-size:8px;color:#8fb6d1}.roxy-actions-row .rank{color:#54718a;font-size:9px;font-weight:950}.roxy-actions-stock-logo{display:grid!important;place-items:center!important;width:30px;height:30px;border-radius:7px;background:var(--logo-bg,#111827);box-shadow:0 0 16px rgba(56,189,248,.18);overflow:hidden}.roxy-actions-stock-logo img{width:19px;height:19px;object-fit:contain;filter:drop-shadow(0 0 6px rgba(255,255,255,.32))}.roxy-actions-row .asset strong,.roxy-actions-row .price strong{display:block;color:#f8fafc;font-size:13px;line-height:1;font-weight:950}.roxy-actions-row .asset small,.roxy-actions-row .price small{display:block;color:#8ba2bd;font-size:8px;line-height:1.12;margin-top:4px}.roxy-actions-row .price small{color:#22c55e}.roxy-actions-sparkline{display:block;width:82px;height:36px}.roxy-actions-row .score{display:grid;place-items:center}.roxy-actions-row .score b{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:conic-gradient(#22c55e 0 78%,rgba(30,58,138,.55) 78%);color:#fff;font-size:14px;box-shadow:0 0 16px rgba(34,197,94,.20)}.roxy-actions-row .score small{margin-top:3px;color:#cbd5e1;font-size:6.5px;text-transform:uppercase}.roxy-actions-row .signal strong{display:block;color:#22c55e;font-size:10px;text-transform:uppercase}.roxy-actions-row .signal small{display:block;color:#cbd5e1;font-size:7px;line-height:1.22;margin-top:3px}.roxy-actions-row .rr b{display:block;color:#cbd5e1;font-size:9px}.roxy-actions-row .rr i{display:block;height:4px;margin-top:7px;border-radius:999px;background:linear-gradient(90deg,#22c55e 0 68%,#ef4444 68%);box-shadow:0 0 10px rgba(34,197,94,.24)}.roxy-actions-row .fav{color:#d4af60;font-size:17px!important}.roxy-actions-opps .more{display:grid!important;place-items:center;width:190px;height:28px;margin:8px auto 10px;border-radius:6px;background:rgba(37,99,235,.32);color:#dbeafe!important;text-decoration:none!important;font-size:9px;font-weight:950;text-transform:uppercase}
+        .roxy-actions-opps{min-width:0;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.46);overflow:hidden}.roxy-actions-opps header{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-bottom:1px solid rgba(125,211,252,.12)}.roxy-actions-opps header b{display:grid;place-items:center;min-height:36px;color:#9fcfff;font-size:9px;text-transform:uppercase;letter-spacing:.04em}.roxy-actions-opps header b:first-child{background:rgba(37,99,235,.28);color:#fff}.roxy-actions-row{display:grid;grid-template-columns:24px 34px minmax(80px,1.1fr) 72px 92px 62px minmax(98px,1.1fr) 82px 24px;gap:8px;align-items:center;min-height:69px;padding:6px 10px;border-bottom:1px solid rgba(125,211,252,.10);text-decoration:none!important;color:#e5f6ff!important}.roxy-actions-row.selected,.roxy-actions-row:hover{background:rgba(37,99,235,.12)}.roxy-actions-head{min-height:31px;color:#7da8c9!important;font-size:8px;text-transform:uppercase;font-weight:950}.roxy-actions-head b{font-size:8px;color:#8fb6d1}.roxy-actions-row .rank{color:#54718a;font-size:9px;font-weight:950}.roxy-actions-stock-logo{display:grid!important;place-items:center!important;width:30px;height:30px;border-radius:7px;background:var(--logo-bg,#111827);box-shadow:0 0 16px rgba(56,189,248,.18);overflow:hidden}.roxy-actions-stock-logo img{width:19px;height:19px;object-fit:contain;filter:drop-shadow(0 0 6px rgba(255,255,255,.32))}.roxy-actions-row .asset strong,.roxy-actions-row .price strong{display:block;color:#f8fafc;font-size:13px;line-height:1;font-weight:950}.roxy-actions-row .asset small,.roxy-actions-row .price small{display:block;color:#8ba2bd;font-size:8px;line-height:1.12;margin-top:4px}.roxy-actions-row .price small{color:#22c55e}.roxy-actions-sparkline{display:block;width:82px;height:36px}.roxy-actions-row .score{display:grid;place-items:center}.roxy-actions-row .score b{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:conic-gradient(#22c55e 0 78%,rgba(30,58,138,.55) 78%);color:#fff;font-size:14px;box-shadow:0 0 16px rgba(34,197,94,.20)}.roxy-actions-row .score small{margin-top:3px;color:#cbd5e1;font-size:6.5px;text-transform:uppercase}.roxy-actions-row .signal strong{display:block;color:#22c55e;font-size:10px;text-transform:uppercase}.roxy-actions-row .signal small{display:block;color:#cbd5e1;font-size:7px;line-height:1.22;margin-top:3px}.roxy-actions-row .rr b{display:block;color:#cbd5e1;font-size:9px}.roxy-actions-row .rr i{display:block;height:4px;margin-top:7px;border-radius:999px;background:linear-gradient(90deg,#22c55e 0 68%,#ef4444 68%);box-shadow:0 0 10px rgba(34,197,94,.24)}.roxy-actions-row .fav{color:#d4af60;font-size:17px!important}.roxy-actions-more{display:block;margin:8px 10px 10px}.roxy-actions-more summary{display:grid!important;place-items:center;width:190px;height:28px;margin:0 auto;border-radius:6px;background:rgba(37,99,235,.32);color:#dbeafe!important;cursor:pointer;font-size:9px;font-weight:950;text-transform:uppercase;list-style:none}.roxy-actions-more summary::-webkit-details-marker{display:none}.roxy-actions-more>div{margin-top:8px;border-top:1px solid rgba(125,211,252,.10)}.roxy-actions-row.more-row{background:rgba(15,23,42,.28)}
         .roxy-actions-right{display:grid;gap:10px;align-content:start;min-width:0}.roxy-actions-right section,.roxy-actions-below article{border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.50);padding:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}.roxy-actions-right strong,.roxy-actions-below strong{display:block;color:#dbeafe;font-size:11px;text-transform:uppercase;letter-spacing:.06em}.roxy-actions-right small{float:right;color:#7f93ad;font-size:8px}.roxy-actions-filter label{display:grid;grid-template-columns:1fr 1.15fr;gap:8px;align-items:center;margin-top:10px;color:#8ba2bd;font-size:9px}.roxy-actions-filter label span{border:1px solid rgba(125,211,252,.12);border-radius:5px;background:rgba(2,6,23,.42);padding:7px;color:#e5f6ff}.roxy-actions-filter a,.roxy-actions-signal a,.roxy-actions-below .news a{display:flex!important;align-items:center;justify-content:center;gap:7px;height:40px;margin-top:13px;border:1px solid rgba(56,189,248,.38);border-radius:7px;background:linear-gradient(90deg,rgba(37,99,235,.64),rgba(14,165,233,.28));color:#dff7ff!important;text-decoration:none!important;text-transform:uppercase;font-size:10px;font-weight:950;box-shadow:0 0 24px rgba(37,99,235,.18)}
         .roxy-actions-quality div{position:relative;display:grid;place-items:center;width:118px;height:118px;margin:16px auto;border-radius:50%;background:conic-gradient(#22c55e 0 86%,rgba(30,58,138,.55) 86%);box-shadow:0 0 25px rgba(34,197,94,.20)}.roxy-actions-quality div:before{content:"";position:absolute;inset:13px;border-radius:50%;background:#07111f}.roxy-actions-quality div b,.roxy-actions-quality div span{position:relative;z-index:1}.roxy-actions-quality div b{color:#fff;font-size:28px;line-height:1}.roxy-actions-quality div span{color:#cbd5e1;font-size:8px;text-align:center;width:72px}.roxy-actions-quality p{display:grid;gap:7px;margin:0}.roxy-actions-quality p span{display:flex;justify-content:space-between;color:#93c5fd;font-size:10px}.roxy-actions-quality p b{color:#22c55e}
         .roxy-actions-signal>div{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:9px;align-items:center;margin:14px 0}.roxy-actions-signal span b{display:block;color:#f8fafc;font-size:14px}.roxy-actions-signal span small{display:block;color:#9aaec6;font-size:9px}.roxy-actions-signal em{border:1px solid rgba(34,197,94,.34);border-radius:5px;background:rgba(34,197,94,.12);padding:5px 7px;color:#22c55e;font-size:9px;font-style:normal;font-weight:950;text-transform:uppercase}.roxy-actions-signal p{display:grid;gap:8px;margin:0}.roxy-actions-signal p span{display:flex;justify-content:space-between;border-bottom:1px solid rgba(125,211,252,.10);padding-bottom:6px;color:#aebdd0;font-size:10px}.roxy-actions-signal p b{color:#e5f6ff}
