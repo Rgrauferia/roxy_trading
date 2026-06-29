@@ -37,6 +37,14 @@ import streamlit.components.v1 as components
 import altair as alt
 
 try:
+    import websocket as websocket_client
+
+    ROXY_DERIV_WS_AVAILABLE = True
+except Exception:  # pragma: no cover - optional live Deriv bridge
+    websocket_client = None
+    ROXY_DERIV_WS_AVAILABLE = False
+
+try:
     from webauthn import (
         generate_authentication_options,
         generate_registration_options,
@@ -33026,6 +33034,196 @@ def roxy_crypto_opportunity_row_html(
     ).strip()
 
 
+def roxy_deriv_symbol_for_crypto(symbol: str) -> str:
+    base = roxy_crypto_base_symbol(symbol)
+    return f"cry{base}USD"
+
+
+def roxy_deriv_app_id() -> str:
+    for key in ("DERIV_APP_ID", "ROXY_DERIV_APP_ID"):
+        value = text_display(os.environ.get(key)).strip()
+        if value:
+            return value
+    try:
+        value = text_display(st.secrets.get("DERIV_APP_ID", "")).strip()
+        if value:
+            return value
+    except Exception:
+        pass
+    return "1089"
+
+
+def roxy_deriv_ws_request(payload: dict[str, Any], *, public_options: bool = True, timeout: int = 8) -> dict[str, Any]:
+    if not ROXY_DERIV_WS_AVAILABLE or websocket_client is None:
+        return {"error": {"message": "websocket-client no esta disponible."}}
+    url = (
+        "wss://api.derivws.com/trading/v1/options/ws/public"
+        if public_options
+        else f"wss://ws.derivws.com/websockets/v3?app_id={quote(roxy_deriv_app_id(), safe='')}"
+    )
+    ws = None
+    try:
+        ws = websocket_client.create_connection(url, timeout=timeout)
+        ws.send(json.dumps(payload))
+        return json.loads(ws.recv())
+    except Exception as exc:
+        return {"error": {"message": text_display(exc)}}
+    finally:
+        try:
+            if ws is not None:
+                ws.close()
+        except Exception:
+            pass
+
+
+@st.cache_data(ttl=15, show_spinner=False)
+def roxy_deriv_contracts_for_crypto(symbol: str) -> dict[str, Any]:
+    deriv_symbol = roxy_deriv_symbol_for_crypto(symbol)
+    public_response = roxy_deriv_ws_request({"contracts_for": deriv_symbol}, public_options=True)
+    legacy_response: dict[str, Any] = {}
+    response = public_response
+    if response.get("error"):
+        legacy_response = roxy_deriv_ws_request(
+            {"contracts_for": deriv_symbol, "currency": "USD", "landing_company": "svg", "product_type": "basic"},
+            public_options=False,
+        )
+        response = legacy_response
+    contracts_for = response.get("contracts_for") if isinstance(response, dict) else None
+    available = contracts_for.get("available", []) if isinstance(contracts_for, dict) else []
+    strike_contracts: list[dict[str, Any]] = []
+    for contract in available:
+        if not isinstance(contract, dict):
+            continue
+        category = text_display(contract.get("contract_category")).lower()
+        contract_type = text_display(contract.get("contract_type")).upper()
+        barriers = contract.get("barriers")
+        has_barrier = (safe_float(barriers) or 0) > 0 or contract.get("barrier") is not None or isinstance(contract.get("barrier_range"), list)
+        if category in {"callput", "callputequal"} or contract_type in {"CALL", "PUT", "CALLE", "PUTE"} or has_barrier:
+            strike_contracts.append(contract)
+    return {
+        "symbol": deriv_symbol,
+        "status": "connected" if available else "unavailable",
+        "raw_error": response.get("error") if isinstance(response, dict) else None,
+        "available": available,
+        "strike_contracts": strike_contracts,
+        "endpoint": "Deriv Options public WS" if not public_response.get("error") else "Deriv legacy WS",
+        "requires_options_auth": not bool(strike_contracts),
+    }
+
+
+def roxy_deriv_candidate_strikes_from_contract(contract: dict[str, Any]) -> list[float]:
+    values: list[float] = []
+    for key in ("barrier", "barrier1", "barrier2", "strike", "barrier_value"):
+        value = safe_float(contract.get(key))
+        if value is not None:
+            values.append(value)
+    for key in ("barrier_range", "barriers_range", "strike_range"):
+        value = contract.get(key)
+        if isinstance(value, list):
+            values.extend([item for item in (safe_float(item) for item in value) if item is not None])
+        elif isinstance(value, dict):
+            for item in value.values():
+                numeric = safe_float(item)
+                if numeric is not None:
+                    values.append(numeric)
+    return list(dict.fromkeys(values))
+
+
+def roxy_deriv_best_contract(symbol: str, signal: dict[str, Any], *, period_label: str) -> dict[str, Any]:
+    deriv = roxy_deriv_contracts_for_crypto(symbol)
+    target = safe_float(signal.get("target_price") or signal.get("expected_price"))
+    side = text_display(signal.get("contract_side") or "WAIT")
+    best: dict[str, Any] | None = None
+    for contract in deriv.get("strike_contracts", []):
+        contract_type = text_display(contract.get("contract_type")).upper()
+        sentiment = text_display(contract.get("sentiment")).lower()
+        side_match = (side == "YES" and (contract_type.startswith("CALL") or sentiment == "up")) or (
+            side == "NO" and (contract_type.startswith("PUT") or sentiment == "down")
+        )
+        if side not in {"YES", "NO"} or not side_match:
+            continue
+        strikes = roxy_deriv_candidate_strikes_from_contract(contract)
+        if not strikes and target is not None:
+            strikes = [target]
+        for strike in strikes:
+            distance = abs((strike or 0) - (target or 0)) if target is not None else 0
+            score = max(0.0, 100.0 - (distance / max(abs(target or strike or 1), 1) * 10000))
+            candidate = {
+                "contract": contract,
+                "strike": strike,
+                "side": side,
+                "score": score,
+                "period": period_label,
+            }
+            if best is None or candidate["score"] > safe_float(best.get("score")):
+                best = candidate
+    if best:
+        best["status"] = "ready"
+        best["deriv"] = deriv
+        return best
+    return {
+        "status": "not_ready",
+        "deriv": deriv,
+        "side": side,
+        "period": period_label,
+        "strike": None,
+        "score": 0,
+    }
+
+
+def roxy_deriv_comparison_panel_html(
+    *,
+    selected_symbol: str,
+    signal: dict[str, Any],
+    period_label: str,
+    next_time_label: str,
+    above_price: str,
+    below_price: str,
+) -> str:
+    comparison = roxy_deriv_best_contract(selected_symbol, signal, period_label=period_label)
+    base = roxy_crypto_base_symbol(selected_symbol)
+    side = text_display(comparison.get("side") or signal.get("contract_side") or "WAIT")
+    if comparison.get("status") == "ready":
+        strike = price_display(comparison.get("strike"))
+        score = int(max(0, min(99, safe_float(signal.get("probability")) or safe_float(comparison.get("score")) or 0)))
+        return (
+            '<section class="roxy-crypto20-platform roxy-deriv-compare deriv-ready">'
+            '<strong>Comparacion automatica con Deriv</strong>'
+            f'<small>Deriv live · {html.escape(period_label)} · {html.escape(next_time_label)}</small>'
+            f'<div class="deriv-best"><b>⭐ ESTA ES LA MEJOR</b><span>{html.escape(side)} · {html.escape(strike)}</span><em>Confianza {score}%</em></div>'
+            f'<p><span>{html.escape(base)} will be above <b>{html.escape(above_price)}</b></span><em class="yes">Yes</em></p>'
+            f'<p><span>{html.escape(base)} will be below <b>{html.escape(below_price)}</b></span><em class="no">No</em></p>'
+            '<small>Roxy eligio solo entre contratos strike reales devueltos por Deriv.</small>'
+            '</section>'
+        )
+    deriv = comparison.get("deriv") if isinstance(comparison.get("deriv"), dict) else {}
+    available = deriv.get("available") if isinstance(deriv.get("available"), list) else []
+    available_labels = ", ".join(
+        text_display(item.get("contract_type") or item.get("contract_category")).upper()
+        for item in available[:4]
+        if isinstance(item, dict)
+    )
+    error = deriv.get("raw_error")
+    error_text = text_display(error.get("message") if isinstance(error, dict) else "")
+    status_text = (
+        "Deriv conectado, pero el API publico no expone Strike Options para este simbolo."
+        if available
+        else f"Deriv no entrego contratos live. {error_text}".strip()
+    )
+    internal_target = above_price if side == "YES" else (below_price if side == "NO" else price_display(signal.get("target_price")))
+    return (
+        '<section class="roxy-crypto20-platform roxy-deriv-compare deriv-not-ready">'
+        '<strong>Comparacion automatica con Deriv</strong>'
+        f'<small>{html.escape(status_text)}</small>'
+        '<div class="deriv-best blocked"><b>NO MARCAR MEJOR STRIKE</b>'
+        f'<span>Falta lista real de Strike Options de Deriv</span><em>{html.escape(deriv.get("endpoint") or "Deriv")}</em></div>'
+        f'<p><span>Contratos reales disponibles <b>{html.escape(available_labels or "ninguno")}</b></span><em class="no">Live</em></p>'
+        f'<p><span>Roxy target interno <b>{html.escape(internal_target)}</b></span><em class="yes">{html.escape(side)}</em></p>'
+        '<small>Para elegir “⭐ ESTA ES LA MEJOR” sin inventar, conecta Options API/OAuth de Deriv con acceso a Strike Options.</small>'
+        '</section>'
+    )
+
+
 def render_roxy_crypto_live_runtime() -> None:
     components.html(
         """
@@ -33463,7 +33661,7 @@ def render_roxy_crypto20_folder(table: pd.DataFrame, *, timeframe: str) -> None:
           <aside class="roxy-crypto20-right">
             <section class="roxy-crypto20-countdown" data-roxy-countdown="crypto-20m" data-countdown-mode="mmss" data-next-ts="{next_ts_ms}" data-cycle-ms="{cycle_ms}" data-refresh-on-cycle="true"><strong>Proxima actualizacion en:</strong><div><b data-roxy-countdown-value>{html.escape(countdown)}</b><span>min seg</span></div><p><span>Ultima actualizacion:<b>{html.escape(current_time_label)}</b></span><span>Siguiente:<b>{html.escape(next_time_label)}</b></span></p><i><u></u><u></u><u></u><u></u></i></section>
             <section class="roxy-crypto20-signal"><strong>Plan exacto de Roxy</strong><div>{roxy_crypto_icon_html(selected_symbol)}<span><b>{html.escape(selected_display_symbol)}</b><small>{html.escape(action)}</small></span><em class="state-{html.escape(text_display(horizon_signal.get("decision_class") or "avoid"))}">{html.escape(text_display(horizon_signal.get("decision_state") or "NO OPERAR"))}</em></div><p><span>Periodo <b>20 minutos</b></span><span>Precio actual <b data-roxy-live-price data-roxy-live-symbols="{html.escape(roxy_crypto_live_symbols_attr(selected_symbol))}" data-roxy-price="{html.escape(str(live_signal_price or ''))}">{html.escape(entry)}</b></span><span>Objetivo <b>{html.escape(price_display(horizon_signal.get("target_price")))}</b></span><span>Stop virtual <b>{html.escape(price_display(horizon_signal.get("virtual_stop")))}</b></span><span>Tiempo restante <b data-roxy-countdown-value>{html.escape(countdown)}</b></span><span>Confianza <b>{probability}%</b></span></p><details class="roxy-why-panel"><summary>Por que?</summary><ul>{roxy_crypto_signal_reasons_html(horizon_signal)}</ul></details></section>
-            <section class="roxy-crypto20-platform"><strong>Plataforma recomendada</strong><small>Crypto.com / Deriv · Opciones 20 minutos</small><div class="selects"><span>{roxy_crypto_icon_html(selected_symbol)} {html.escape(roxy_crypto_base_symbol(selected_symbol))}</span><span>{html.escape(next_time_label)} (20 mins)</span></div><p><span>{html.escape(roxy_crypto_base_symbol(selected_symbol))} will be above <b>{html.escape(above_price)}</b></span><em class="yes">{html.escape(above_decision)}</em></p><p><span>{html.escape(roxy_crypto_base_symbol(selected_symbol))} will be below <b>{html.escape(below_price)}</b></span><em class="no">{html.escape(below_decision)}</em></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1m" target="_self">Ir a plataforma</a><small>{html.escape(signal_detail)}</small></section>
+            {roxy_deriv_comparison_panel_html(selected_symbol=selected_symbol, signal=horizon_signal, period_label="20 minutos", next_time_label=next_time_label, above_price=above_price, below_price=below_price)}
           </aside>
         </section>
         <section class="roxy-crypto20-chart-wrap">
@@ -33652,7 +33850,7 @@ def render_roxy_crypto2h_folder(table: pd.DataFrame, *, timeframe: str) -> None:
           <aside class="roxy-crypto20-right">
             <section class="roxy-crypto20-countdown roxy-crypto2h-countdown" data-roxy-countdown="crypto-2h" data-countdown-mode="hhmmss" data-next-ts="{next_ts_ms}" data-cycle-ms="{cycle_ms}" data-refresh-on-cycle="true"><strong>Proxima actualizacion en:</strong><div><b data-roxy-countdown-value>{html.escape(countdown)}</b><span>hr min seg</span></div><p><span>Ultima actualizacion:<b>{html.escape(last_time_label)}</b></span><span>Siguiente:<b>{html.escape(next_time_label)}</b></span></p><i><u></u><u></u><u></u><u></u></i></section>
             <section class="roxy-crypto20-signal"><strong>Plan exacto de Roxy 2H</strong><div>{roxy_crypto_icon_html(selected_symbol)}<span><b>{html.escape(selected_display_symbol)}</b><small>{html.escape(action)}</small></span><em class="state-{html.escape(text_display(horizon_signal.get("decision_class") or "avoid"))}">{html.escape(text_display(horizon_signal.get("decision_state") or "NO OPERAR"))}</em></div><p><span>Periodo <b>2 horas</b></span><span>Precio actual <b data-roxy-live-price data-roxy-live-symbols="{html.escape(roxy_crypto_live_symbols_attr(selected_symbol))}" data-roxy-price="{html.escape(str(live_signal_price or ''))}">{html.escape(entry)}</b></span><span>Objetivo <b>{html.escape(price_display(horizon_signal.get("target_price")))}</b></span><span>Stop virtual <b>{html.escape(price_display(horizon_signal.get("virtual_stop")))}</b></span><span>Tiempo restante <b data-roxy-countdown-value>{html.escape(countdown)}</b></span><span>Confianza <b>{probability}%</b></span></p><details class="roxy-why-panel"><summary>Por que?</summary><ul>{roxy_crypto_signal_reasons_html(horizon_signal)}</ul></details></section>
-            <section class="roxy-crypto20-platform"><strong>Plataforma recomendada</strong><small>Crypto.com / Deriv · Opciones 2 horas</small><div class="selects"><span>{roxy_crypto_icon_html(selected_symbol)} {html.escape(roxy_crypto_base_symbol(selected_symbol))}</span><span>{html.escape(next_time_label)} (2 hours)</span></div><p><span>{html.escape(roxy_crypto_base_symbol(selected_symbol))} will be above <b>{html.escape(above_price)}</b></span><em class="yes">{html.escape(above_decision)}</em></p><p><span>{html.escape(roxy_crypto_base_symbol(selected_symbol))} will be below <b>{html.escape(below_price)}</b></span><em class="no">{html.escape(below_decision)}</em></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=2h" target="_self">Ir a plataforma</a><small>{html.escape(signal_detail)}</small></section>
+            {roxy_deriv_comparison_panel_html(selected_symbol=selected_symbol, signal=horizon_signal, period_label="2 horas", next_time_label=next_time_label, above_price=above_price, below_price=below_price)}
           </aside>
         </section>
         <section class="roxy-crypto20-chart-wrap roxy-crypto2h-chart-wrap">
@@ -33856,7 +34054,7 @@ def render_roxy_crypto_daily_folder(table: pd.DataFrame, *, timeframe: str) -> N
           <aside class="roxy-crypto20-right">
             <section class="roxy-crypto20-countdown roxy-crypto-daily-countdown" data-roxy-countdown="crypto-daily" data-countdown-mode="hhmmss" data-next-ts="{next_ts_ms}" data-cycle-ms="{cycle_ms}" data-refresh-on-cycle="true"><strong>Proxima actualizacion en:</strong><div><b data-roxy-countdown-value>{html.escape(countdown)}</b><span>hr min seg</span></div><p><span>Ultima actualizacion:<b>Hoy {html.escape(current_time_label)}</b></span><span>Siguiente:<b>{html.escape(next_day_label)}</b></span></p><i><u></u><u></u><u></u><u></u></i></section>
             <section class="roxy-crypto20-signal"><strong>Plan exacto de Roxy Daily</strong><div>{roxy_crypto_icon_html(selected_symbol)}<span><b>{html.escape(selected_display_symbol)}</b><small>{html.escape(action)}</small></span><em class="state-{html.escape(text_display(horizon_signal.get("decision_class") or "avoid"))}">{html.escape(text_display(horizon_signal.get("decision_state") or "NO OPERAR"))}</em></div><p><span>Periodo <b>Daily</b></span><span>Precio actual <b data-roxy-live-price data-roxy-live-symbols="{html.escape(roxy_crypto_live_symbols_attr(selected_symbol))}" data-roxy-price="{html.escape(str(current_value or ''))}">{html.escape(entry)}</b></span><span>Objetivo <b>{html.escape(price_display(horizon_signal.get("target_price")))}</b></span><span>Stop virtual <b>{html.escape(price_display(horizon_signal.get("virtual_stop")))}</b></span><span>Tiempo restante <b data-roxy-countdown-value>{html.escape(countdown)}</b></span><span>Confianza <b>{probability}%</b></span></p><details class="roxy-why-panel"><summary>Por que?</summary><ul>{roxy_crypto_signal_reasons_html(horizon_signal)}</ul></details></section>
-            <section class="roxy-crypto20-platform"><strong>Plataforma recomendada</strong><small>Crypto.com / Deriv · Opciones Daily (24 horas)</small><div class="selects"><span>{roxy_crypto_icon_html(selected_symbol)} {html.escape(base_symbol)}</span><span>{html.escape(next_day_label)}</span></div><p><span>{html.escape(base_symbol)} will be above <b>{html.escape(above_price)}</b></span><em class="yes">{html.escape(above_decision)}</em></p><p><span>{html.escape(base_symbol)} will be below <b>{html.escape(below_price)}</b></span><em class="no">{html.escape(below_decision)}</em></p><a href="?view=Activo&symbol={quote(selected_symbol, safe='')}&market=crypto&tf=1d" target="_self">Ir a plataforma</a><small>{html.escape(signal_detail)}</small></section>
+            {roxy_deriv_comparison_panel_html(selected_symbol=selected_symbol, signal=horizon_signal, period_label="Daily", next_time_label=next_day_label, above_price=above_price, below_price=below_price)}
           </aside>
         </section>
         <section class="roxy-crypto20-chart-wrap roxy-crypto-daily-chart-wrap">
@@ -38853,6 +39051,7 @@ def main() -> None:
         .roxy-cycle-command{--roxy-countdown-progress:0%;display:grid;grid-template-columns:auto minmax(88px,130px);gap:10px;align-items:center;margin:0 0 10px;padding:12px;border:1px solid rgba(56,189,248,.20);border-radius:8px;background:linear-gradient(90deg,rgba(15,23,42,.70),rgba(30,64,175,.18),rgba(2,6,23,.58));box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 0 28px rgba(37,99,235,.12)}.roxy-cycle-command div strong{display:block;color:#f8fafc;font-size:20px;line-height:1;font-weight:950;text-transform:uppercase}.roxy-cycle-command div span{display:block;color:#93c5fd;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;margin-top:5px}.roxy-cycle-command>b{justify-self:end;color:#e0f2fe;font-size:24px;font-variant-numeric:tabular-nums;text-shadow:0 0 18px rgba(56,189,248,.50)}.roxy-cycle-command i{position:relative;grid-column:1/-1;display:block;height:10px;border-radius:999px;background:rgba(15,23,42,.72);border:1px solid rgba(125,211,252,.12);overflow:hidden}.roxy-cycle-command i:before{content:"";position:absolute;inset:0 auto 0 0;width:var(--roxy-countdown-progress);border-radius:inherit;background:linear-gradient(90deg,#34d399,#38bdf8,#2563eb);box-shadow:0 0 16px rgba(56,189,248,.60);transition:width .45s linear}.roxy-cycle-command small{grid-column:1/-1;color:#cbd5e1;font-size:9px;line-height:1.25}.roxy-cycle-command.is-hot>b{color:#fef3c7;animation:roxy-timer-hot 1s steps(2,end) infinite}.roxy-cycle-command.is-refreshing{filter:brightness(1.18)}
         .roxy-crypto20-signal>div{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:9px;align-items:center;margin:14px 0}.roxy-crypto20-signal span b{display:block;color:#f8fafc;font-size:14px}.roxy-crypto20-signal span small{display:block;color:#9aaec6;font-size:9px}.roxy-crypto20-signal em{border:1px solid rgba(34,197,94,.34);border-radius:5px;background:rgba(34,197,94,.12);padding:5px 7px;color:#22c55e;font-size:9px;font-style:normal;font-weight:950;text-transform:uppercase}.roxy-crypto20-signal p{display:grid;gap:8px;margin:0}.roxy-crypto20-signal p span{display:flex;justify-content:space-between;border-bottom:1px solid rgba(125,211,252,.10);padding-bottom:6px;color:#aebdd0;font-size:10px}.roxy-crypto20-signal p b{color:#e5f6ff}.roxy-crypto20-signal a,.roxy-crypto20-platform a,.roxy-crypto20-bottom a{display:flex!important;align-items:center;justify-content:center;gap:7px;height:40px;margin-top:13px;border:1px solid rgba(56,189,248,.38);border-radius:7px;background:linear-gradient(90deg,rgba(37,99,235,.64),rgba(14,165,233,.28));color:#dff7ff!important;text-decoration:none!important;text-transform:uppercase;font-size:10px;font-weight:950;box-shadow:0 0 24px rgba(37,99,235,.18)}
         .roxy-crypto20-platform small{display:block;color:#9aaec6;font-size:9px;margin-top:4px}.roxy-crypto20-platform .selects{display:grid;grid-template-columns:1fr 1.2fr;gap:7px;margin:12px 0}.roxy-crypto20-platform .selects span{display:flex;align-items:center;gap:5px;border:1px solid rgba(125,211,252,.14);border-radius:6px;background:rgba(2,6,23,.48);padding:8px;color:#e5f6ff;font-size:10px;font-weight:900}.roxy-crypto20-platform .selects .roxy-crypto-logo{width:20px;height:20px}.roxy-crypto20-platform p{display:grid;grid-template-columns:minmax(0,1fr) 54px;gap:7px;align-items:center;margin:8px 0}.roxy-crypto20-platform p span{color:#cbd5e1;font-size:10px}.roxy-crypto20-platform p b{display:block;color:#f8fafc;margin-top:4px}.roxy-crypto20-platform em{display:grid;place-items:center;min-height:38px;border-radius:5px;color:#fff;font-style:normal;font-size:11px;font-weight:950}.roxy-crypto20-platform .yes{background:#22c55e}.roxy-crypto20-platform .no{background:#e11d48}
+        .roxy-deriv-compare .deriv-best{display:grid;gap:5px;margin:12px 0;padding:12px;border-radius:8px;border:1px solid rgba(34,197,94,.32);background:linear-gradient(135deg,rgba(20,83,45,.34),rgba(2,6,23,.55));box-shadow:0 0 22px rgba(34,197,94,.12)}.roxy-deriv-compare .deriv-best b{color:#fef3c7;font-size:12px;line-height:1;text-transform:uppercase;letter-spacing:.05em}.roxy-deriv-compare .deriv-best span{color:#f8fafc;font-size:18px;font-weight:950}.roxy-deriv-compare .deriv-best em{min-height:26px;background:rgba(34,197,94,.18);color:#86efac}.roxy-deriv-compare .deriv-best.blocked{border-color:rgba(244,63,94,.30);background:linear-gradient(135deg,rgba(127,29,29,.24),rgba(2,6,23,.58));box-shadow:0 0 22px rgba(244,63,94,.10)}.roxy-deriv-compare .deriv-best.blocked b{color:#fda4af}.roxy-deriv-compare .deriv-best.blocked span{font-size:12px;color:#e5e7eb}.roxy-deriv-compare .deriv-best.blocked em{background:rgba(59,130,246,.16);color:#bfdbfe}
         .roxy-crypto20-chart-wrap{padding:12px;margin:0 0 10px}.roxy-crypto20-chart-wrap>header{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}.roxy-crypto20-chart-wrap>header strong{color:#8bd8ff;font-size:14px;text-transform:uppercase;letter-spacing:.07em}.roxy-crypto20-chart-wrap>header span{color:#f8fafc;font-size:14px;font-weight:950}.roxy-crypto20-chart-wrap>header b{color:#22c55e}.roxy-crypto20-chart-wrap>header b.negative{color:#ef4444}.roxy-crypto20-chart-strip{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:3px 0 5px;padding:4px 8px;border:1px solid rgba(34,197,94,.24);border-radius:6px;background:rgba(15,23,42,.62);color:#cbd5e1;font-size:11px}.roxy-crypto20-chart-strip strong{color:#8bd8ff}
         .roxy-crypto20-bottom{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-top:10px}.roxy-crypto20-bottom article p{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;align-items:center;margin:10px 0 0;color:#cbd5e1;font-size:10px;line-height:1.25}.roxy-crypto20-bottom article p .roxy-crypto-logo{width:22px;height:22px}.roxy-crypto20-bottom article p b{color:#22c55e}.roxy-crypto20-bottom .sentiment div{position:relative;display:grid;place-items:center;width:112px;height:112px;margin:12px auto;border-radius:50%;background:conic-gradient(#22c55e 0 78%,rgba(30,58,138,.55) 78%)}.roxy-crypto20-bottom .sentiment div:before{content:"";position:absolute;inset:13px;border-radius:50%;background:#07111f}.roxy-crypto20-bottom .sentiment div b,.roxy-crypto20-bottom .sentiment div span{position:relative;z-index:1}.roxy-crypto20-bottom .sentiment div b{color:#fff;font-size:27px}.roxy-crypto20-bottom .sentiment div span{color:#22c55e;font-size:10px;font-weight:950}.roxy-crypto20-bottom .sentiment p{display:grid;grid-template-columns:1fr;margin:0}.roxy-crypto20-bottom .sentiment p span{display:flex;justify-content:space-between}.roxy-crypto20-bottom .tips p{grid-template-columns:22px 1fr}.roxy-crypto20-bottom .tips i{color:#22c55e;font-size:18px!important}.roxy-crypto20-bottomnav{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr 76px 1fr 1fr;align-items:center;gap:6px;margin-top:10px;border:1px solid rgba(125,211,252,.14);border-radius:28px;background:rgba(2,6,23,.68);padding:8px 12px}.roxy-crypto20-bottomnav a{display:grid;place-items:center;gap:4px;color:#94a3b8!important;text-decoration:none!important;font-size:9px;text-transform:uppercase;font-weight:900}.roxy-crypto20-bottomnav i{font-size:22px!important}.roxy-crypto20-bottomnav .active{color:#60a5fa!important}.roxy-crypto20-bottomnav .roxy-r{width:58px;height:58px;margin:-25px auto -8px;border-radius:50%;background:radial-gradient(circle,#2563eb,#082f49);border:1px solid rgba(96,165,250,.72);color:#fff!important;font-size:28px;box-shadow:0 0 38px rgba(37,99,235,.72)}
         .roxy-crypto2h-countdown div b{font-size:20px}.roxy-crypto2h-shell .roxy-crypto20-alertbar em{min-width:210px;justify-content:flex-end}.roxy-crypto2h-row .score b{background:conic-gradient(#22c55e 0 78%,rgba(30,58,138,.55) 78%)}.roxy-crypto2h-bottom .distribution div{position:relative;display:grid;place-items:center;width:118px;height:118px;margin:12px auto;border-radius:50%;background:conic-gradient(#22c55e 0 75%,#facc15 75% 89%,#ef4444 89%);box-shadow:0 0 24px rgba(34,197,94,.16)}.roxy-crypto2h-bottom .distribution div:before{content:"";position:absolute;inset:18px;border-radius:50%;background:#07111f}.roxy-crypto2h-bottom .distribution div b{position:relative;z-index:1;color:#f8fafc;font-size:15px;line-height:1.2;text-align:center;text-transform:uppercase}.roxy-crypto2h-bottom .distribution p,.roxy-crypto2h-bottom .performance p{display:grid;grid-template-columns:1fr;margin:0}.roxy-crypto2h-bottom .distribution p span,.roxy-crypto2h-bottom .performance p span{display:flex;justify-content:space-between}.roxy-crypto2h-bottom .performance div{min-height:80px;margin-top:12px;border-radius:7px;background:radial-gradient(circle at 82% 35%,rgba(34,197,94,.20),transparent 36%),linear-gradient(135deg,rgba(2,6,23,.78),rgba(8,47,73,.36));padding:12px}.roxy-crypto2h-bottom .performance div b{display:block;color:#22c55e;font-size:28px;line-height:1}.roxy-crypto2h-bottom .performance div span{display:block;color:#94a3b8;font-size:9px;margin-top:5px}
