@@ -35935,11 +35935,11 @@ def render_roxy_academy_module() -> None:
     villains_panel_img = academy_asset_img_html("academy_villains_panel.jpg", "Como aparecen los villanos", "academy-universe-img")
     mission_panel_img = academy_asset_img_html("academy_mission_example.jpg", "Ejemplo de mision Roxy Academy", "academy-universe-img")
     planet_asset_files = {
-        "origen": "academy_planet_origin.jpg",
-        "cripto": "academy_planet_crypto.jpg",
-        "analisis": "academy_planet_analysis.jpg",
-        "estrategia": "academy_planet_strategy.jpg",
-        "elite": "academy_planet_elite.jpg",
+        "origen": "academy_planet_origin_clean.png",
+        "cripto": "academy_planet_crypto_clean.png",
+        "analisis": "academy_planet_analysis_clean.png",
+        "estrategia": "academy_planet_strategy_clean.png",
+        "elite": "academy_planet_elite_clean.png",
     }
     planet_asset_html = {
         key: academy_asset_img_html(filename, key, "academy-planet-img")
@@ -41254,6 +41254,21 @@ def main() -> None:
         @keyframes academySatelliteOrbitMobile{0%{transform:translate(-50%,-50%) rotate(0deg) translateX(78px) scale(.72);opacity:.40}50%{transform:translate(-50%,-50%) rotate(180deg) translateX(78px) scale(1.02);opacity:.88}100%{transform:translate(-50%,-50%) rotate(360deg) translateX(78px) scale(.72);opacity:.40}}
         @keyframes academySatelliteOrbitReverseMobile{0%{transform:translate(-50%,-50%) rotate(360deg) translateX(94px) scale(.66);opacity:.30}50%{transform:translate(-50%,-50%) rotate(180deg) translateX(94px) scale(1.02);opacity:.76}100%{transform:translate(-50%,-50%) rotate(0deg) translateX(94px) scale(.66);opacity:.30}}
         @keyframes academyShipCruiseCleanMobile{0%{transform:translate3d(-96px,342px,0) rotate(-24deg) scale(.46);opacity:0}9%{opacity:1}26%{transform:translate3d(62px,210px,0) rotate(-22deg) scale(.68);opacity:1}47%{transform:translate3d(208px,42px,0) rotate(-17deg) scale(.92);opacity:1}66%{transform:translate3d(350px,204px,0) rotate(16deg) scale(.70);opacity:1}84%{transform:translate3d(224px,394px,0) rotate(22deg) scale(.56);opacity:.76}100%{transform:translate3d(-96px,342px,0) rotate(-24deg) scale(.46);opacity:0}}
+        .academy-planet>i{display:grid!important;place-items:center!important;width:146px!important;height:146px!important;background:radial-gradient(circle at 50% 54%,rgba(56,189,248,.16),rgba(168,85,247,.08) 48%,transparent 66%)!important}
+        .academy-planet-img{width:118%!important;height:118%!important;margin:-9%!important;object-fit:contain!important;object-position:center!important;clip-path:none!important;border-radius:0!important;transform:none!important;mix-blend-mode:screen}
+        .academy-planet-origin .academy-planet-img{filter:saturate(1.30) contrast(1.12) brightness(1.10) drop-shadow(0 0 20px rgba(34,211,238,.90)) drop-shadow(0 0 44px rgba(59,130,246,.34))!important}
+        .academy-planet-ice .academy-planet-img{filter:saturate(1.28) contrast(1.12) brightness(1.08) drop-shadow(0 0 22px rgba(168,85,247,.84))!important}
+        .academy-planet-violet .academy-planet-img{filter:saturate(1.25) contrast(1.12) brightness(1.08) drop-shadow(0 0 22px rgba(244,114,182,.76))!important}
+        .academy-planet-forest .academy-planet-img{filter:saturate(1.24) contrast(1.12) brightness(1.06) drop-shadow(0 0 22px rgba(34,197,94,.70))!important}
+        .academy-planet-gold .academy-planet-img{filter:saturate(1.22) contrast(1.10) brightness(1.06) drop-shadow(0 0 22px rgba(250,204,21,.70))!important}
+        .academy-orbit-path{opacity:.28!important;border-width:2px!important;filter:drop-shadow(0 0 10px rgba(168,85,247,.18))!important}
+        .academy-map:after{opacity:.22!important;border-top-width:2px!important;border-bottom-width:1px!important}
+        .academy-ship-img{transform:rotate(14deg) scale(1.15)!important;transform-origin:50% 58%!important;filter:saturate(1.28) contrast(1.12) brightness(1.10) drop-shadow(0 0 22px rgba(168,85,247,.84)) drop-shadow(0 0 34px rgba(56,189,248,.28))!important}
+        .academy-map-ship{width:150px!important;height:220px!important}
+        .academy-rocket-path{left:0!important;top:265px!important;animation:academyShipCruiseDiagonal 20s cubic-bezier(.46,.04,.24,1) infinite!important}
+        @keyframes academyShipCruiseDiagonal{0%{transform:translate3d(-170px,190px,0) rotate(8deg) scale(.52);opacity:0}8%{opacity:1}22%{transform:translate3d(24px,90px,0) rotate(10deg) scale(.78);opacity:1}42%{transform:translate3d(208px,-24px,0) rotate(13deg) scale(1.02);opacity:1}60%{transform:translate3d(392px,30px,0) rotate(18deg) scale(.94);opacity:1}78%{transform:translate3d(536px,176px,0) rotate(20deg) scale(.76);opacity:.92}100%{transform:translate3d(700px,310px,0) rotate(18deg) scale(.48);opacity:0}}
+        @media (max-width:760px){.academy-planet>i{width:142px!important;height:142px!important}.academy-planet-img{width:116%!important;height:116%!important;margin:-8%!important}.academy-planet:before,.academy-planet:after{top:76px}.academy-planet:before{width:6px;height:6px}.academy-planet:after{width:4px;height:4px}.academy-map-ship{width:138px!important;height:204px!important}.academy-rocket-path{left:-10%!important;top:326px!important;animation:academyShipCruiseDiagonalMobile 19s cubic-bezier(.46,.04,.24,1) infinite!important}.academy-ship-img{transform:rotate(14deg) scale(1.12)!important}}
+        @keyframes academyShipCruiseDiagonalMobile{0%{transform:translate3d(-126px,172px,0) rotate(8deg) scale(.48);opacity:0}9%{opacity:1}27%{transform:translate3d(42px,46px,0) rotate(11deg) scale(.70);opacity:1}48%{transform:translate3d(194px,-76px,0) rotate(14deg) scale(.92);opacity:1}66%{transform:translate3d(322px,42px,0) rotate(18deg) scale(.76);opacity:1}84%{transform:translate3d(456px,176px,0) rotate(20deg) scale(.58);opacity:.75}100%{transform:translate3d(570px,282px,0) rotate(18deg) scale(.42);opacity:0}}
         .roxy-module-empty{border:1px solid rgba(56,189,248,.24);border-left:4px solid #38bdf8;border-radius:8px;background:rgba(2,6,23,.54);padding:14px;margin:0 0 8px}
         .roxy-module-empty strong{display:block;color:#f8fafc;font-size:18px;line-height:1.1}
         .roxy-module-empty span{display:block;color:#cbd5e1;font-size:12px;line-height:1.35;margin-top:6px}
