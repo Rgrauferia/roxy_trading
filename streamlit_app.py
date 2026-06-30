@@ -37153,6 +37153,9 @@ def render_roxy_academy_module() -> None:
           <div class="academy-world-village" aria-hidden="true">
             <i></i><i></i><i></i><i></i><i></i>
           </div>
+          <a class="academy-world-primary-hit" href="{planet_href}&lesson={quote(str(lesson['id']), safe='')}" target="_self" aria-label="Abrir primera leccion del Planeta Origen">
+            <span>Entrar a la leccion</span>
+          </a>
           <div class="academy-world-heroes">
             <span class="academy-world-roxy">{roxy_academy_img or roxy_avatar_html("ready", "mini", "Roxy")}</span>
             <span class="academy-world-bella">{bella_img or '<i class="material-symbols-outlined">pets</i>'}</span>
@@ -37476,10 +37479,11 @@ def render_roxy_academy_module() -> None:
           </nav>
         </section>
         """
-    if hasattr(st, "html"):
-        st.html(academy_html)
-    else:
-        st.markdown(academy_html, unsafe_allow_html=True)
+    # Keep Academy in the top document so taps open lessons/games instead of being
+    # trapped in Streamlit's HTML iframe. Strip leading indentation per line to avoid
+    # Markdown treating the large HTML block as code.
+    academy_html = "\n".join(line.lstrip() for line in textwrap.dedent(academy_html).strip().splitlines())
+    st.markdown(academy_html, unsafe_allow_html=True)
 
 
 def render_roxy_classroom_module() -> None:
@@ -46632,6 +46636,181 @@ def main() -> None:
           0%,100%{transform:scale(2.35) translate3d(0,0,0)}
           38%{transform:scale(2.48) translate3d(-.8%,.35%,0)}
           72%{transform:scale(2.40) translate3d(.7%,-.35%,0)}
+        }
+        /* Mobile interaction fix: the planet world is the primary surface, not a blocked side panel. */
+        @media (max-width:760px){
+          .roxy-academy-shell.academy-world-open .academy-main{
+            overflow-x:hidden!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-planet-world{
+            display:flex!important;
+            flex-direction:column!important;
+            grid-template-columns:none!important;
+            width:100%!important;
+            max-width:100%!important;
+            min-height:0!important;
+            gap:12px!important;
+            margin:0!important;
+            padding:0 0 118px!important;
+            overflow-x:auto!important;
+            overflow-y:visible!important;
+            -webkit-overflow-scrolling:touch!important;
+            touch-action:pan-x pan-y!important;
+            overscroll-behavior-x:contain!important;
+            scroll-snap-type:x proximity!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-planet-world:before{
+            content:"Desliza para explorar el planeta · toca una zona para abrirla";
+            order:0!important;
+            position:sticky!important;
+            left:12px!important;
+            z-index:35!important;
+            align-self:flex-start!important;
+            margin:0 0 -2px 12px!important;
+            padding:7px 11px!important;
+            border-radius:999px!important;
+            color:#dbeafe!important;
+            font-size:10px!important;
+            font-weight:950!important;
+            letter-spacing:.02em!important;
+            background:linear-gradient(135deg,rgba(7,12,32,.88),rgba(30,27,75,.78))!important;
+            border:1px solid rgba(125,211,252,.24)!important;
+            box-shadow:0 10px 28px rgba(0,0,0,.30),0 0 22px rgba(34,211,238,.12)!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-origin-world-scene{
+            order:1!important;
+            flex:0 0 940px!important;
+            width:940px!important;
+            max-width:none!important;
+            min-width:940px!important;
+            min-height:760px!important;
+            margin:0 10px!important;
+            border-radius:24px!important;
+            border:1px solid rgba(125,211,252,.20)!important;
+            scroll-snap-align:start!important;
+            touch-action:pan-x pan-y!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-bg-img{
+            object-position:50% 16%!important;
+            transform:scale(1.68)!important;
+            animation:academyOriginLivingCameraLandscapePanMobile 34s ease-in-out infinite!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-world-title{
+            left:18px!important;
+            top:18px!important;
+            max-width:260px!important;
+            padding:10px 12px!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-world-title strong{font-size:22px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location,
+          .roxy-academy-shell.academy-world-open .academy-world-start{
+            pointer-events:auto!important;
+            cursor:pointer!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-world-location-tree{left:420px!important;top:170px!important;bottom:auto!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-crypto-gate{left:705px!important;right:auto!important;top:110px!important;width:174px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-library{left:82px!important;bottom:185px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-training{left:660px!important;right:auto!important;bottom:210px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-focus{left:410px!important;right:auto!important;bottom:150px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-shop{left:78px!important;bottom:102px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-chests{left:690px!important;right:auto!important;bottom:105px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-start{
+            left:310px!important;
+            right:auto!important;
+            bottom:32px!important;
+            width:340px!important;
+            max-width:340px!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-world-play-hint{
+            display:flex!important;
+            left:22px!important;
+            right:auto!important;
+            bottom:18px!important;
+            max-width:260px!important;
+            z-index:18!important;
+            opacity:.96!important;
+            background:rgba(7,12,32,.78)!important;
+            border:1px solid rgba(125,211,252,.24)!important;
+            box-shadow:0 12px 34px rgba(0,0,0,.34),0 0 24px rgba(34,211,238,.10)!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-world-play-hint span{
+            font-size:10px!important;
+            line-height:1.25!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-world-dialogue{
+            display:none!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-world-lessons{
+            order:2!important;
+            position:relative!important;
+            inset:auto!important;
+            transform:none!important;
+            display:block!important;
+            flex:0 0 auto!important;
+            width:calc(100vw - 24px)!important;
+            max-width:none!important;
+            max-height:none!important;
+            min-height:0!important;
+            margin:4px 12px 0!important;
+            padding:14px!important;
+            overflow:visible!important;
+            border-radius:22px!important;
+            z-index:20!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-world-lessons header strong{
+            font-size:17px!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-world-lesson-list{
+            max-height:none!important;
+            overflow:visible!important;
+          }
+        }
+        @keyframes academyOriginLivingCameraLandscapePanMobile{
+          0%,100%{transform:scale(1.68) translate3d(0,0,0)}
+          34%{transform:scale(1.74) translate3d(-.9%,.4%,0)}
+          68%{transform:scale(1.70) translate3d(.75%,-.35%,0)}
+        }
+        .academy-world-primary-hit{
+          position:absolute!important;
+          left:35%!important;
+          top:22%!important;
+          width:31%!important;
+          height:34%!important;
+          z-index:12!important;
+          display:flex!important;
+          align-items:flex-end!important;
+          justify-content:center!important;
+          color:#dbeafe!important;
+          text-decoration:none!important;
+          border-radius:32px!important;
+          background:transparent!important;
+          pointer-events:auto!important;
+          cursor:pointer!important;
+        }
+        .academy-world-primary-hit span{
+          opacity:.0!important;
+          transform:translateY(8px)!important;
+          transition:opacity .18s ease,transform .18s ease!important;
+          border:1px solid rgba(125,211,252,.28)!important;
+          border-radius:999px!important;
+          padding:7px 11px!important;
+          font-size:10px!important;
+          font-weight:950!important;
+          background:rgba(7,14,35,.78)!important;
+          box-shadow:0 0 22px rgba(34,211,238,.14)!important;
+        }
+        .academy-world-primary-hit:hover span,
+        .academy-world-primary-hit:focus-visible span{
+          opacity:1!important;
+          transform:translateY(0)!important;
+        }
+        @media (max-width:760px){
+          .roxy-academy-shell.academy-world-open .academy-world-primary-hit{
+            left:320px!important;
+            top:124px!important;
+            width:300px!important;
+            height:260px!important;
+          }
         }
         [data-testid="stTabs"] button{font-weight:800;color:#cbd5e1}
         [data-testid="stTabs"] button[aria-selected="true"]{color:#a78bfa}
