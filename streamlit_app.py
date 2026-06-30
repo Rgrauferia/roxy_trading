@@ -34176,12 +34176,68 @@ def roxy_actions_change_pct(row: dict[str, Any]) -> float | None:
     return None
 
 
+@st.cache_data(ttl=15, show_spinner=False)
+def roxy_stock_quote_snapshot(symbol: str) -> dict[str, Any]:
+    clean_symbol = roxy_manual_stock_symbol(symbol) if "roxy_manual_stock_symbol" in globals() else re.sub(r"[^A-Z0-9.\-]", "", str(symbol or "").upper())
+    result: dict[str, Any] = {
+        "symbol": clean_symbol,
+        "price": None,
+        "previous_close": None,
+        "change_pct": None,
+        "source": "unavailable",
+    }
+    if not clean_symbol or yf is None:
+        return result
+    try:
+        ticker = yf.Ticker(clean_symbol)
+        fast_info = getattr(ticker, "fast_info", None)
+
+        def fast_value(key: str) -> Any:
+            if fast_info is None:
+                return None
+            try:
+                if isinstance(fast_info, dict):
+                    return fast_info.get(key)
+                return getattr(fast_info, key)
+            except Exception:
+                try:
+                    return fast_info[key]  # type: ignore[index]
+                except Exception:
+                    return None
+
+        price = safe_float(
+            fast_value("last_price")
+            or fast_value("lastPrice")
+            or fast_value("regular_market_price")
+            or fast_value("regularMarketPrice")
+        )
+        previous = safe_float(
+            fast_value("previous_close")
+            or fast_value("previousClose")
+            or fast_value("regular_market_previous_close")
+        )
+        if price is None:
+            info = getattr(ticker, "info", None) or {}
+            if isinstance(info, dict):
+                price = safe_float(info.get("regularMarketPrice") or info.get("currentPrice") or info.get("previousClose"))
+                previous = previous or safe_float(info.get("previousClose") or info.get("regularMarketPreviousClose"))
+        result["price"] = price
+        result["previous_close"] = previous
+        if price is not None and previous not in (None, 0):
+            result["change_pct"] = (price - previous) / previous
+        result["source"] = "yfinance_fast_info" if price is not None else "unavailable"
+    except Exception:
+        return result
+    return result
+
+
 @st.cache_data(ttl=45, show_spinner=False)
 def roxy_stock_live_plan_seed(symbol: str) -> dict[str, Any]:
     clean_symbol = text_display(symbol).upper()
+    quote_snapshot = roxy_stock_quote_snapshot(clean_symbol)
     result: dict[str, Any] = {
         "symbol": clean_symbol,
-        "latest": None,
+        "latest": quote_snapshot.get("price"),
         "entry": None,
         "stop": None,
         "target_1": None,
@@ -34192,6 +34248,32 @@ def roxy_stock_live_plan_seed(symbol: str) -> dict[str, Any]:
         "trend_label": "Sin velas reales",
         "source": "sin_historial",
     }
+
+    def quote_based_plan(source_label: str) -> dict[str, Any]:
+        latest_quote = safe_float(quote_snapshot.get("price"))
+        if latest_quote is None or latest_quote <= 0:
+            return result
+        risk_unit_quote = max(latest_quote * 0.012, 0.01)
+        stop_quote = latest_quote - risk_unit_quote
+        target_1_quote = latest_quote + risk_unit_quote * 2.0
+        target_2_quote = latest_quote + risk_unit_quote * 2.8
+        return {
+            **result,
+            "latest": latest_quote,
+            "entry": latest_quote,
+            "stop": stop_quote,
+            "target_1": target_1_quote,
+            "target_2": target_2_quote,
+            "target_5": latest_quote + risk_unit_quote * 4.0,
+            "risk_pct": risk_unit_quote / latest_quote,
+            "rr": (target_1_quote - latest_quote) / risk_unit_quote,
+            "trend_label": "Quote real disponible; esperar velas para confirmacion",
+            "recent_high": target_2_quote,
+            "recent_low": stop_quote,
+            "source": source_label,
+            "change_pct": quote_snapshot.get("change_pct"),
+        }
+
     frames: list[pd.DataFrame] = []
     for tf in ("15m", "1h"):
         try:
@@ -34201,17 +34283,23 @@ def roxy_stock_live_plan_seed(symbol: str) -> dict[str, Any]:
         if isinstance(frame, pd.DataFrame) and not frame.empty and "close" in frame.columns:
             frames.append(frame.copy())
     if not frames:
-        return result
+        return quote_based_plan("quote real sin historial intradia")
     primary = frames[0]
     for column in ("open", "high", "low", "close", "volume", "ema9", "sma20", "sma40"):
         if column in primary.columns:
             primary[column] = pd.to_numeric(primary[column], errors="coerce")
-    primary = primary.dropna(subset=["close"]).tail(220)
+    for column in ("open", "high", "low", "close"):
+        if column not in primary.columns:
+            primary[column] = primary.get("close")
+    primary = primary.dropna(subset=["open", "high", "low", "close"])
+    primary = primary[(primary["open"] > 0) & (primary["high"] > 0) & (primary["low"] > 0) & (primary["close"] > 0)]
+    primary = primary[(primary["high"] >= primary["low"]) & (primary["high"] >= primary["close"]) & (primary["high"] >= primary["open"])]
+    primary = primary[(primary["low"] <= primary["close"]) & (primary["low"] <= primary["open"])].tail(220)
     if primary.empty:
-        return result
+        return quote_based_plan("quote real; historial invalido")
     latest = safe_float(primary["close"].iloc[-1])
     if latest is None or latest <= 0:
-        return result
+        return quote_based_plan("quote real; cierre no disponible")
     highs = pd.to_numeric(primary.get("high", primary["close"]), errors="coerce").dropna()
     lows = pd.to_numeric(primary.get("low", primary["close"]), errors="coerce").dropna()
     closes = pd.to_numeric(primary["close"], errors="coerce").dropna()
@@ -34219,6 +34307,7 @@ def roxy_stock_live_plan_seed(symbol: str) -> dict[str, Any]:
         return result
     ranges = (highs.tail(30).reset_index(drop=True) - lows.tail(30).reset_index(drop=True)).dropna()
     atr = safe_float(ranges.tail(20).mean()) or latest * 0.01
+    atr = min(max(atr, latest * 0.004), latest * 0.035)
     recent_low = safe_float(lows.tail(32).min())
     recent_high = safe_float(highs.tail(32).max())
     ema9 = safe_float(primary["ema9"].iloc[-1]) if "ema9" in primary.columns else None
@@ -34258,6 +34347,7 @@ def roxy_stock_live_plan_seed(symbol: str) -> dict[str, Any]:
         "recent_high": recent_high,
         "recent_low": recent_low,
         "source": "velas reales 15m/1h",
+        "change_pct": quote_snapshot.get("change_pct"),
     }
 
 
@@ -34273,6 +34363,10 @@ def roxy_enrich_stock_row_with_live_plan(row: dict[str, Any]) -> dict[str, Any]:
     if safe_float(enriched.get("current_price") or enriched.get("price") or enriched.get("last_price")) is None:
         enriched["current_price"] = latest
         enriched["price"] = latest
+        enriched["last_price"] = latest
+    plan_change = safe_float(plan.get("change_pct"))
+    if plan_change is not None and safe_float(enriched.get("change_pct") or enriched.get("pct_change") or enriched.get("daily_change_pct")) is None:
+        enriched["change_pct"] = plan_change
     if safe_float(enriched.get("entry")) is None:
         enriched["entry"] = plan.get("entry")
     if safe_float(enriched.get("stop") or enriched.get("stop_loss")) is None:
@@ -34290,6 +34384,8 @@ def roxy_enrich_stock_row_with_live_plan(row: dict[str, Any]) -> dict[str, Any]:
         enriched["strategy_family"] = text_display(plan.get("trend_label"))
     enriched["roxy_plan_source"] = text_display(plan.get("source"))
     enriched["roxy_rr"] = plan.get("rr")
+    enriched["roxy_recent_high"] = plan.get("recent_high")
+    enriched["roxy_recent_low"] = plan.get("recent_low")
     return enriched
 
 
@@ -34387,6 +34483,7 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     risk = pct_display(trade_plan.get("risk_pct")) if safe_float(trade_plan.get("risk_pct")) is not None else "1.0%"
     rr_value = safe_float(trade_plan.get("rr_to_2") or selected_row.get("roxy_rr"))
     rr_text = f"1R : {rr_value:.1f}R" if rr_value is not None else "1R : 2.8R"
+    source_label = text_display(selected_row.get("roxy_plan_source") or "quote + historial")
     readiness_values = [safe_float(row.get("readiness") or row.get("alert_readiness_score")) for row in rows]
     readiness_values = [value for value in readiness_values if value is not None]
     avg_readiness = sum(readiness_values) / len(readiness_values) if readiness_values else 86.0
@@ -34511,7 +34608,7 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
           <aside class="roxy-actions-right">
             <section class="roxy-actions-filter"><strong>Filtros inteligentes</strong><label>Mercado<span>S&P 500</span></label><label>Filtro RTH<span>Alto-riesgo</span></label><label>Precio entre<span>$5 - $500</span></label><label>Ordenar por<span>Mejor oportunidad</span></label><a href="?view=Dashboard&module=acciones-operar&scan=1" target="_self"><i class="material-symbols-outlined">auto_awesome</i> Escanear ahora</a></section>
             <section class="roxy-actions-quality"><strong>Resumen de oportunidades <small>Actualizado {html.escape(current_time_label)}</small></strong><div><b>{avg_readiness:.0f}%</b><span>Calidad promedio de oportunidades</span></div><p><span>Excelentes <b>{sum(1 for v in readiness_values if v >= 88) or 8}</b></span><span>Muy buenas <b>{sum(1 for v in readiness_values if 78 <= v < 88) or 12}</b></span><span>Buenas <b>15</b></span><span>Regulares <b>5</b></span></p></section>
-            <section class="roxy-actions-signal"><strong>Senal principal de Roxy</strong><div>{roxy_stock_icon_html(selected_symbol)}<span><b>{html.escape(selected_symbol)}</b><small>{html.escape(strategy_family_for_row(selected_row)[:32])}</small></span><em>{html.escape(action)}</em></div><p><span>Entrada <b>{html.escape(entry)}</b></span><span>Stop Loss <b>{html.escape(stop)}</b></span><span>Target 1 <b>{html.escape(target)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>R/R <b>{html.escape(rr_text)}</b></span></p><a href="?view=Dashboard&symbol={quote(selected_symbol, safe='')}&market=stock&tf=1h&module=acciones-operar" target="_self">Abrir analisis completo</a></section>
+            <section class="roxy-actions-signal"><strong>Senal principal de Roxy</strong><div>{roxy_stock_icon_html(selected_symbol)}<span><b>{html.escape(selected_symbol)}</b><small>{html.escape(strategy_family_for_row(selected_row)[:32])}</small></span><em>{html.escape(action)}</em></div><p><span>Entrada <b>{html.escape(entry)}</b></span><span>Stop Loss <b>{html.escape(stop)}</b></span><span>Target 1 <b>{html.escape(target)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>R/R <b>{html.escape(rr_text)}</b></span><span>Fuente <b>{html.escape(source_label[:26])}</b></span></p><a href="?view=Dashboard&symbol={quote(selected_symbol, safe='')}&market=stock&tf=1h&module=acciones-operar" target="_self">Abrir analisis completo</a></section>
           </aside>
         </section>
         <section class="roxy-actions-chart-wrap">
@@ -35221,8 +35318,24 @@ def roxy_actions_plotly_chart_panel(
     for column in ["open", "high", "low", "close", "volume", "ema9", "ema20", "ema21", "sma20", "sma40", "bb_upper", "bb_mid", "bb_lower"]:
         if column in df.columns:
             df[column] = pd.to_numeric(df[column], errors="coerce")
-    df = df.dropna(subset=["ts", "open", "high", "low", "close"]).tail(180)
-    if df.empty:
+    df = df.dropna(subset=["ts", "open", "high", "low", "close"])
+    df = df[(df["open"] > 0) & (df["high"] > 0) & (df["low"] > 0) & (df["close"] > 0)]
+    df = df[(df["high"] >= df["low"]) & (df["high"] >= df["open"]) & (df["high"] >= df["close"])]
+    df = df[(df["low"] <= df["open"]) & (df["low"] <= df["close"])]
+    close_median = safe_float(df["close"].median()) if not df.empty else None
+    if close_median not in (None, 0):
+        df = df[(df["low"] >= close_median * 0.55) & (df["high"] <= close_median * 1.45)]
+    df = df.tail(180)
+    if df.empty or len(df) < 8:
+        st.markdown(
+            f"""
+            <section class="roxy-actions-chart-empty">
+              <strong>{html.escape(title)} · {html.escape(text_display(symbol).upper())}</strong>
+              <span>El proveedor no entrego suficientes velas limpias para pintar una grafica operativa en {html.escape(timeframe)}. Roxy mantiene la accion en vigilancia y conserva entrada/stop/target desde quote real.</span>
+            </section>
+            """,
+            unsafe_allow_html=True,
+        )
         return False
     fig = make_subplots(
         rows=2,
@@ -35305,8 +35418,12 @@ def roxy_actions_plotly_chart_panel(
     lows = pd.to_numeric(df["low"], errors="coerce").dropna()
     highs = pd.to_numeric(df["high"], errors="coerce").dropna()
     if not lows.empty and not highs.empty:
-        low_q = float(lows.quantile(0.02))
-        high_q = float(highs.quantile(0.98))
+        latest_for_domain = safe_float(df["close"].iloc[-1])
+        low_q = float(lows.quantile(0.04))
+        high_q = float(highs.quantile(0.96))
+        if latest_for_domain not in (None, 0):
+            low_q = max(low_q, latest_for_domain * 0.82)
+            high_q = min(high_q, latest_for_domain * 1.18)
         span = max(high_q - low_q, abs(high_q) * 0.01, 0.01)
         fig.update_yaxes(range=[low_q - span * 0.18, high_q + span * 0.18], row=1, col=1)
     latest_close = safe_float(df["close"].iloc[-1])
@@ -42428,6 +42545,9 @@ def main() -> None:
         .roxy-actions-quality div{position:relative;display:grid;place-items:center;width:118px;height:118px;margin:16px auto;border-radius:50%;background:conic-gradient(#22c55e 0 86%,rgba(30,58,138,.55) 86%);box-shadow:0 0 25px rgba(34,197,94,.20)}.roxy-actions-quality div:before{content:"";position:absolute;inset:13px;border-radius:50%;background:#07111f}.roxy-actions-quality div b,.roxy-actions-quality div span{position:relative;z-index:1}.roxy-actions-quality div b{color:#fff;font-size:28px;line-height:1}.roxy-actions-quality div span{color:#cbd5e1;font-size:8px;text-align:center;width:72px}.roxy-actions-quality p{display:grid;gap:7px;margin:0}.roxy-actions-quality p span{display:flex;justify-content:space-between;color:#93c5fd;font-size:10px}.roxy-actions-quality p b{color:#22c55e}
         .roxy-actions-signal>div{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:9px;align-items:center;margin:14px 0}.roxy-actions-signal span b{display:block;color:#f8fafc;font-size:14px}.roxy-actions-signal span small{display:block;color:#9aaec6;font-size:9px}.roxy-actions-signal em{border:1px solid rgba(34,197,94,.34);border-radius:5px;background:rgba(34,197,94,.12);padding:5px 7px;color:#22c55e;font-size:9px;font-style:normal;font-weight:950;text-transform:uppercase}.roxy-actions-signal p{display:grid;gap:8px;margin:0}.roxy-actions-signal p span{display:flex;justify-content:space-between;border-bottom:1px solid rgba(125,211,252,.10);padding-bottom:6px;color:#aebdd0;font-size:10px}.roxy-actions-signal p b{color:#e5f6ff}
         .roxy-actions-chart-wrap{padding:12px;margin:0 0 10px}.roxy-actions-chart-wrap>header{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}.roxy-actions-chart-wrap>header strong{color:#8bd8ff;font-size:14px;text-transform:uppercase;letter-spacing:.07em}.roxy-actions-chart-wrap>header span{color:#f8fafc;font-size:14px;font-weight:950}.roxy-actions-chart-wrap>header b{color:#22c55e}.roxy-actions-chart-wrap>header b.negative{color:#ef4444}.roxy-actions-below{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:10px;margin-top:10px}.roxy-actions-below .why>div{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;margin-top:12px}.roxy-actions-below .why div div{display:grid;justify-items:center;text-align:center;gap:6px;border-right:1px solid rgba(125,211,252,.10);padding:8px 6px}.roxy-actions-below .why i{color:#60a5fa;font-size:25px!important;text-shadow:0 0 15px rgba(96,165,250,.50)}.roxy-actions-below .why div div strong{font-size:9px;color:#dbeafe;text-transform:uppercase}.roxy-actions-below .why span{color:#aebdd0;font-size:8px;line-height:1.2}.roxy-actions-below .news p{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;margin:10px 0 0;color:#cbd5e1;font-size:10px;line-height:1.25}.roxy-actions-below .news i.material-symbols-outlined{color:#8bd8ff;font-size:22px!important}.roxy-actions-bottomnav{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr 76px 1fr 1fr;align-items:center;gap:6px;margin-top:10px;border:1px solid rgba(125,211,252,.14);border-radius:28px;background:rgba(2,6,23,.68);padding:8px 12px}.roxy-actions-bottomnav a{display:grid;place-items:center;gap:4px;color:#94a3b8!important;text-decoration:none!important;font-size:9px;text-transform:uppercase;font-weight:900}.roxy-actions-bottomnav i{font-size:22px!important}.roxy-actions-bottomnav .active{color:#60a5fa!important}.roxy-actions-bottomnav .roxy-r{width:58px;height:58px;margin:-25px auto -8px;border-radius:50%;background:radial-gradient(circle,#2563eb,#082f49);border:1px solid rgba(96,165,250,.72);color:#fff!important;font-size:28px;box-shadow:0 0 38px rgba(37,99,235,.72)}
+        .roxy-actions-chart-empty{display:grid!important;gap:7px!important;min-height:210px!important;place-content:center!important;text-align:center!important;border:1px solid rgba(96,165,250,.24)!important;border-radius:10px!important;background:linear-gradient(135deg,rgba(15,23,42,.86),rgba(8,47,73,.42))!important;padding:18px!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)!important}
+        .roxy-actions-chart-empty strong{color:#dbeafe!important;font-size:13px!important;text-transform:uppercase!important;letter-spacing:.05em!important}
+        .roxy-actions-chart-empty span{max-width:440px!important;color:#bfdbfe!important;font-size:11px!important;line-height:1.45!important}
         .roxy-actions-plotly-strip{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:3px 0 8px;padding:6px 9px;border:1px solid rgba(34,197,94,.24);border-radius:7px;background:rgba(15,23,42,.70);color:#cbd5e1;font-size:11px}.roxy-actions-plotly-strip strong{color:#8bd8ff}
         @media (max-width:1180px){.roxy-actions-shell{grid-template-columns:118px minmax(0,1fr);grid-template-areas:"side main" "right right"}.roxy-actions-sidebar{grid-area:side}.roxy-actions-main{grid-area:main}.roxy-actions-right{grid-area:right;grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-actions-hero{grid-template-columns:142px minmax(0,1fr)}.roxy-actions-row{grid-template-columns:20px 30px minmax(74px,1fr) 68px 78px 52px minmax(88px,1fr) 72px 20px;gap:6px}.roxy-actions-below{grid-template-columns:1fr}}
         @media (max-width:760px){.roxy-actions-shell{grid-template-columns:minmax(0,1fr);grid-template-areas:"side" "main" "right";gap:8px;padding:8px;min-height:0}.roxy-actions-shell>*{max-width:100%;min-width:0}.roxy-actions-sidebar{grid-area:side;display:block;border-right:0;border-bottom:1px solid rgba(125,211,252,.14);padding:0 0 8px;overflow:hidden}.roxy-actions-main{grid-area:main;width:100%;min-width:0;max-width:100%;overflow:hidden}.roxy-actions-right{grid-area:right;width:100%;min-width:0;max-width:100%;overflow:hidden}.roxy-actions-brand{display:none}.roxy-actions-sidebar nav{display:flex;overflow-x:auto;gap:4px;padding-bottom:2px}.roxy-actions-sidebar nav a{flex:0 0 auto;min-height:32px;padding:6px 8px;font-size:9px}.roxy-actions-sidebar .help{display:none!important}.roxy-actions-topbar{grid-template-columns:28px minmax(0,1fr) auto}.roxy-actions-topbar strong{font-size:21px}.roxy-actions-topbar aside span{display:none}.roxy-actions-hero{grid-template-columns:96px minmax(0,1fr);min-height:134px;padding:10px}.roxy-actions-roxy{height:116px}.roxy-actions-roxy .roxy-hologram-avatar{width:104px}.roxy-actions-hero .copy strong{font-size:13px}.roxy-actions-hero .copy p{font-size:9px;line-height:1.28}.roxy-actions-hero .chips{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.roxy-actions-hero .chips span{padding:5px;font-size:7px}.roxy-actions-opps{overflow-x:auto;width:100%;min-width:0;max-width:100%}.roxy-actions-opps header,.roxy-actions-row{min-width:690px}.roxy-actions-right{grid-template-columns:1fr}.roxy-actions-chart-wrap{padding:8px}.roxy-actions-chart-wrap>header{display:block}.roxy-actions-chart-wrap>header span{display:block;margin-top:4px}.roxy-actions-below{grid-template-columns:1fr}.roxy-actions-below .why>div{grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-actions-bottomnav{grid-template-columns:1fr 1fr 64px 1fr 1fr;padding:7px 8px}.roxy-actions-bottomnav a{font-size:7px}.roxy-actions-bottomnav .roxy-r{width:50px;height:50px;font-size:24px}}
