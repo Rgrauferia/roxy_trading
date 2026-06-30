@@ -35622,144 +35622,441 @@ def render_roxy_options_module(timeframe: str) -> None:
 ROXY_ACADEMY_LEVEL_1_LESSONS = (
     {
         "id": "que-es-trading",
-        "title": "¿Que es el trading?",
+        "title": "Que es el trading?",
         "short": "Trading",
         "icon": "sports_score",
         "character": "Atom",
         "explanation": "El trading es comprar y vender activos financieros con el objetivo de buscar una ganancia, entendiendo que tambien existe riesgo de perdida.",
-        "question": "¿Que es el trading?",
+        "study": "Meta: entender que trading no es adivinar; es aprender un proceso de decision.",
+        "mission": "Abre la puerta del Planeta Origen definiendo trading con tus propias palabras.",
+        "villain": "Mr. Distracto intenta que respondas sin leer.",
+        "example_symbol": "AAPL",
+        "question": "Que es el trading?",
         "options": (
             "Comprar y vender activos financieros para buscar ganancias.",
-            "Guardar dinero en el banco.",
+            "Guardar dinero en el banco sin estudiar el mercado.",
             "Un tipo de moneda.",
+            "Adivinar precios sin reglas.",
         ),
         "answer": 0,
         "feedback": "Correcto. El trading busca aprovechar movimientos del mercado, pero siempre entendiendo que existe riesgo.",
     },
     {
         "id": "activos-financieros",
-        "title": "¿Que son los activos financieros?",
+        "title": "Que son los activos financieros?",
         "short": "Activos",
         "icon": "account_balance_wallet",
         "character": "Atom",
-        "explanation": "Un activo financiero es algo que puede tener valor en el mercado, como una accion, una criptomoneda, una moneda o un fondo.",
-        "question": "¿Que es un activo financiero?",
+        "explanation": "Un activo financiero es algo que puede tener valor en el mercado, como una accion, un ETF, una criptomoneda, una divisa o un contrato.",
+        "study": "Meta: reconocer que cada activo tiene precio, riesgo, liquidez y reglas distintas.",
+        "mission": "Clasifica ejemplos reales entre accion, crypto, divisa e indice.",
+        "villain": "Doctor Comfort quiere que digas 'todo es igual'. No lo es.",
+        "example_symbol": "MSFT",
+        "question": "Cual ejemplo es un activo financiero?",
         "options": (
-            "Algo que puede tener valor y negociarse en el mercado.",
-            "Una contrasena de internet.",
-            "Una deuda que nunca cambia.",
+            "Una accion como Apple.",
+            "Una contrasena personal.",
+            "Un rumor de redes sociales.",
+            "Una foto bonita.",
         ),
         "answer": 0,
         "feedback": "Bien. Primero aprendemos el idioma del mercado: los activos son lo que puedes estudiar, comprar o vender.",
     },
     {
+        "id": "acciones",
+        "title": "Que es una accion?",
+        "short": "Acciones",
+        "icon": "domain",
+        "character": "Roxy",
+        "explanation": "Una accion representa una participacion de propiedad en una empresa. Su precio puede subir o bajar por resultados, noticias, expectativas y mercado.",
+        "study": "Meta: saber que comprar una accion significa exponerte al valor de una empresa.",
+        "mission": "Mira un precio real de AAPL y observa si se mueve arriba o abajo.",
+        "villain": "King Ego dice que una marca famosa siempre sube. Roxy no acepta suposiciones.",
+        "example_symbol": "AAPL",
+        "question": "Que representa una accion?",
+        "options": (
+            "Una participacion de propiedad en una empresa.",
+            "Una deuda bancaria personal.",
+            "Una garantia de ganar dinero.",
+            "Un codigo secreto de internet.",
+        ),
+        "answer": 0,
+        "feedback": "Correcto. Una accion te conecta con una empresa, pero su precio no esta garantizado.",
+    },
+    {
+        "id": "precio",
+        "title": "Que es el precio?",
+        "short": "Precio",
+        "icon": "price_change",
+        "character": "Atom",
+        "explanation": "El precio es el valor al que compradores y vendedores estan negociando un activo en un momento determinado.",
+        "study": "Meta: entender que el precio cambia porque compradores y vendedores no siempre estan de acuerdo.",
+        "mission": "Compara el precio actual con el precio anterior y decide si subio, bajo o no cambio.",
+        "villain": "Mr. Distracto mira el numero sin contexto.",
+        "example_symbol": "NVDA",
+        "question": "Que te dice el precio?",
+        "options": (
+            "A cuanto se negocia un activo en ese momento.",
+            "Que siempre debes comprar.",
+            "Que el mercado esta cerrado para siempre.",
+            "La contrasena de tu broker.",
+        ),
+        "answer": 0,
+        "feedback": "Exacto. El precio es una senal basica, pero necesitas contexto para tomar decisiones.",
+    },
+    {
         "id": "comprar",
-        "title": "¿Que es comprar?",
+        "title": "Que significa comprar?",
         "short": "Comprar",
         "icon": "add_shopping_cart",
         "character": "Roxy",
-        "explanation": "Comprar significa adquirir un activo porque piensas que puede valer mas en el futuro o porque quieres practicar como se mueve.",
-        "question": "Cuando compras un activo, ¿que estas haciendo?",
+        "explanation": "Comprar significa adquirir un activo o abrir una posicion esperando que el plan tenga sentido. No se compra solo porque algo se ve emocionante.",
+        "study": "Meta: diferenciar una compra planificada de una compra impulsiva.",
+        "mission": "Decide si comprarias despues de revisar precio, riesgo y objetivo.",
+        "villain": "Lady FOMO te empuja a comprar por miedo a perderte el movimiento.",
+        "example_symbol": "TSLA",
+        "question": "Cuando compras un activo, que estas haciendo?",
         "options": (
-            "Adquiriendo el activo.",
+            "Adquiriendo el activo o abriendo una posicion de compra.",
             "Cerrando tu cuenta.",
             "Ignorando el precio.",
+            "Evitando todo riesgo.",
         ),
         "answer": 0,
-        "feedback": "Exacto. Comprar es tomar posesion de un activo o abrir una posicion de compra.",
+        "feedback": "Exacto. Comprar debe ser una accion con plan, no una reaccion emocional.",
     },
     {
         "id": "vender",
-        "title": "¿Que es vender?",
+        "title": "Que significa vender?",
         "short": "Vender",
         "icon": "sell",
         "character": "Roxy",
-        "explanation": "Vender significa entregar o cerrar un activo a un precio. Muchas personas venden para asegurar una ganancia o limitar una perdida.",
-        "question": "¿Que significa vender?",
+        "explanation": "Vender significa cerrar, reducir o entregar un activo a un precio. Muchas personas venden para asegurar ganancia o limitar perdida.",
+        "study": "Meta: entender que vender tambien es una decision de proteccion.",
+        "mission": "Identifica si vender sirve para salir con ganancia o limitar dano.",
+        "villain": "King Ego odia cerrar una operacion porque quiere tener razon siempre.",
+        "example_symbol": "AAPL",
+        "question": "Que significa vender?",
         "options": (
-            "Entregar o cerrar un activo a un precio.",
+            "Cerrar, reducir o entregar un activo a un precio.",
             "Comprar mas sin mirar el mercado.",
             "Borrar una grafica.",
+            "Hacer que el precio suba.",
         ),
         "answer": 0,
-        "feedback": "Correcto. Vender es una accion basica para salir o reducir una posicion.",
+        "feedback": "Correcto. Vender es una accion basica para salir, proteger o tomar resultado.",
     },
     {
         "id": "ganancia",
-        "title": "¿Que es ganancia?",
+        "title": "Que es ganancia?",
         "short": "Ganancia",
         "icon": "payments",
         "character": "Luna",
-        "explanation": "Ganancia es cuando el resultado de una operacion termina a tu favor despues de considerar el precio de entrada y salida.",
-        "question": "¿Cuando existe ganancia?",
+        "explanation": "Ganancia es cuando el resultado de una operacion termina a tu favor despues de considerar entrada, salida, costos y tamano.",
+        "study": "Meta: aprender que ganancia no es solo 'subio'; tambien importa cuanto arriesgaste.",
+        "mission": "Calcula si una salida fue positiva despues de comparar entrada y salida.",
+        "villain": "Lady FOMO celebra ganancias pequenas mientras ignora riesgos grandes.",
+        "example_symbol": "MSFT",
+        "question": "Cuando existe ganancia?",
         "options": (
-            "Cuando el resultado termina a tu favor.",
+            "Cuando el resultado neto termina a tu favor.",
             "Cuando operas sin aprender.",
             "Cuando no revisas tu cuenta.",
+            "Cuando duplicas el riesgo para recuperar.",
         ),
         "answer": 0,
-        "feedback": "Muy bien. La ganancia es el resultado positivo, pero nunca se debe perseguir sin disciplina.",
+        "feedback": "Muy bien. La ganancia es positiva, pero debe venir acompanada de disciplina.",
     },
     {
         "id": "perdida",
-        "title": "¿Que es perdida?",
+        "title": "Que es perdida?",
         "short": "Perdida",
         "icon": "money_off",
         "character": "Max",
-        "explanation": "Perdida es cuando el resultado de una operacion termina en contra. Es parte del aprendizaje y se controla con reglas.",
-        "question": "¿Que es una perdida?",
+        "explanation": "Perdida es cuando el resultado termina en contra. En trading no se elimina por completo: se controla con reglas, practica y tamano correcto.",
+        "study": "Meta: aceptar que perder poco y aprender es parte del entrenamiento.",
+        "mission": "Identifica la diferencia entre perdida controlada y perdida por descontrol.",
+        "villain": "Captain Revenge quiere que recuperes rapido y aumentes el riesgo.",
+        "example_symbol": "TSLA",
+        "question": "Que es una perdida?",
         "options": (
             "Un resultado negativo de una operacion.",
             "Una garantia de ganar despues.",
             "Una senal para apostar mas.",
+            "Una prueba de que nunca debes estudiar.",
         ),
         "answer": 0,
-        "feedback": "Correcto. Perder tambien forma parte del trading; lo importante es aprender a controlar el dano.",
+        "feedback": "Correcto. Perder tambien forma parte del trading; lo importante es controlar el dano.",
     },
     {
         "id": "riesgo",
-        "title": "¿Que es el riesgo?",
+        "title": "Que es el riesgo?",
         "short": "Riesgo",
         "icon": "shield",
         "character": "Max",
         "explanation": "Riesgo es la posibilidad de perder dinero o equivocarte en una decision. Todo trader debe saber cuanto puede perder antes de actuar.",
-        "question": "¿Que significa riesgo?",
+        "study": "Meta: pensar en proteccion antes de pensar en ganancia.",
+        "mission": "Marca cuanto puedes perder antes de abrir cualquier operacion de practica.",
+        "villain": "King Ego dice 'a mi no me pasa'. Max te obliga a medir.",
+        "example_symbol": "AAPL",
+        "question": "Que significa riesgo?",
         "options": (
             "La posibilidad de perder dinero o equivocarte.",
             "La seguridad de ganar siempre.",
             "Una moneda digital.",
+            "Un boton para borrar errores.",
         ),
         "answer": 0,
         "feedback": "Correcto. Max recuerda: antes de pensar en ganar, debes saber cuanto puedes perder.",
     },
     {
         "id": "cuenta-demo",
-        "title": "¿Que es una cuenta demo?",
+        "title": "Que es una cuenta demo?",
         "short": "Demo",
         "icon": "science",
         "character": "Atom",
-        "explanation": "Una cuenta demo permite practicar con dinero simulado. Sirve para aprender sin arriesgar dinero real.",
-        "question": "¿Para que sirve una cuenta demo?",
+        "explanation": "Una cuenta demo permite practicar con dinero simulado. Sirve para aprender el proceso sin arriesgar dinero real.",
+        "study": "Meta: usar la demo como simulador serio, no como casino.",
+        "mission": "Completa una decision de practica y escribe que aprendiste.",
+        "villain": "Doctor Comfort dice que practicar no importa. Atom sabe que si.",
+        "example_symbol": "SPY",
+        "question": "Para que sirve una cuenta demo?",
         "options": (
             "Para practicar sin arriesgar dinero real.",
             "Para garantizar ganancias.",
             "Para evitar aprender.",
+            "Para operar mas grande sin reglas.",
         ),
         "answer": 0,
         "feedback": "Excelente. La demo es el laboratorio del trader principiante.",
     },
     {
+        "id": "grafica-basica",
+        "title": "Que es una grafica?",
+        "short": "Grafica",
+        "icon": "show_chart",
+        "character": "Atom",
+        "explanation": "Una grafica muestra como se movio el precio de un activo durante un periodo. Ayuda a ver historia, no a garantizar el futuro.",
+        "study": "Meta: aprender a leer direccion, tiempo y niveles sin usar estrategias avanzadas.",
+        "mission": "Observa una grafica y responde si el precio termino mas alto o mas bajo.",
+        "villain": "Mr. Distracto mira colores sin leer ejes ni tiempo.",
+        "example_symbol": "AAPL",
+        "question": "Que muestra una grafica de precio?",
+        "options": (
+            "El movimiento del precio a traves del tiempo.",
+            "Una garantia de lo que pasara manana.",
+            "La opinion de una sola persona.",
+            "El saldo de tu cuenta bancaria.",
+        ),
+        "answer": 0,
+        "feedback": "Correcto. Una grafica cuenta la historia del precio; el trader aprende a leer esa historia.",
+    },
+    {
+        "id": "velas-japonesas",
+        "title": "Que es una vela?",
+        "short": "Velas",
+        "icon": "candlestick_chart",
+        "character": "Atom",
+        "explanation": "Una vela resume cuatro datos: apertura, maximo, minimo y cierre en un periodo. Su color ayuda a ver si cerro arriba o abajo.",
+        "study": "Meta: reconocer cuerpo, mecha, apertura y cierre.",
+        "mission": "Toca la parte de la vela que marca el cierre.",
+        "villain": "Lady FOMO ve una vela verde y quiere entrar sin contexto.",
+        "example_symbol": "NVDA",
+        "question": "Que datos resume una vela?",
+        "options": (
+            "Apertura, maximo, minimo y cierre.",
+            "Nombre, apellido y correo.",
+            "Solo el volumen.",
+            "Solo una noticia.",
+        ),
+        "answer": 0,
+        "feedback": "Bien. Las velas son el alfabeto visual del mercado.",
+    },
+    {
+        "id": "volumen",
+        "title": "Que es el volumen?",
+        "short": "Volumen",
+        "icon": "bar_chart",
+        "character": "Roxy",
+        "explanation": "El volumen muestra cuantas unidades de un activo se negociaron. Ayuda a entender si hay poca o mucha participacion en el movimiento.",
+        "study": "Meta: aprender que un movimiento con participacion puede ser mas importante que uno sin actividad.",
+        "mission": "Compara una vela con volumen alto y otra con volumen bajo.",
+        "villain": "Mr. Distracto solo mira el precio y olvida la participacion.",
+        "example_symbol": "TSLA",
+        "question": "Que representa el volumen?",
+        "options": (
+            "La cantidad negociada de un activo.",
+            "La emocion del usuario.",
+            "El color de la vela.",
+            "El numero de contrasenas.",
+        ),
+        "answer": 0,
+        "feedback": "Correcto. El volumen no decide por ti, pero te da contexto.",
+    },
+    {
+        "id": "marco-tiempo",
+        "title": "Que es un marco de tiempo?",
+        "short": "Tiempo",
+        "icon": "schedule",
+        "character": "Luna",
+        "explanation": "Un marco de tiempo indica cuanto periodo resume cada vela o grafica, por ejemplo 1 minuto, 15 minutos, 1 hora o 1 dia.",
+        "study": "Meta: entender que una decision cambia segun el tiempo que estas mirando.",
+        "mission": "Cambia entre 15m y 1h y describe que cambia visualmente.",
+        "villain": "Captain Revenge mezcla tiempos y se confunde.",
+        "example_symbol": "AAPL",
+        "question": "Que significa ver una grafica en 1H?",
+        "options": (
+            "Cada vela resume una hora de movimiento.",
+            "La operacion dura siempre un ano.",
+            "El precio no cambia.",
+            "La grafica no tiene datos.",
+        ),
+        "answer": 0,
+        "feedback": "Exacto. El tiempo es parte del contexto; no todos los graficos hablan igual.",
+    },
+    {
+        "id": "volatilidad",
+        "title": "Que es volatilidad?",
+        "short": "Volatilidad",
+        "icon": "monitoring",
+        "character": "Max",
+        "explanation": "Volatilidad es cuanto se mueve el precio. Mas movimiento puede traer oportunidad, pero tambien mas riesgo.",
+        "study": "Meta: reconocer que mucho movimiento no siempre significa buena oportunidad.",
+        "mission": "Identifica si un activo esta tranquilo o moviendose mucho.",
+        "villain": "Lady FOMO confunde movimiento grande con dinero facil.",
+        "example_symbol": "NVDA",
+        "question": "Que es volatilidad?",
+        "options": (
+            "La cantidad de movimiento del precio.",
+            "Una garantia de ganar.",
+            "Un tipo de cuenta bancaria.",
+            "Una manera de borrar riesgo.",
+        ),
+        "answer": 0,
+        "feedback": "Correcto. Volatilidad significa movimiento, y movimiento exige mas control.",
+    },
+    {
+        "id": "ordenes-basicas",
+        "title": "Que son las ordenes basicas?",
+        "short": "Ordenes",
+        "icon": "receipt_long",
+        "character": "Roxy",
+        "explanation": "Una orden es una instruccion para comprar o vender. Las basicas son mercado, limite y stop, pero en este nivel solo aprendemos su idea general.",
+        "study": "Meta: saber que no todo boton de compra/vende ejecuta igual.",
+        "mission": "Elige que orden usarias si quieres controlar el precio de entrada.",
+        "villain": "Mr. Distracto presiona botones sin saber que orden envio.",
+        "example_symbol": "MSFT",
+        "question": "Que es una orden?",
+        "options": (
+            "Una instruccion para comprar o vender.",
+            "Una promesa de ganancia.",
+            "Una noticia economica.",
+            "Un logo de la app.",
+        ),
+        "answer": 0,
+        "feedback": "Bien. Antes de operar necesitas saber que instruccion estas enviando.",
+    },
+    {
+        "id": "spread-liquidez",
+        "title": "Spread y liquidez",
+        "short": "Spread",
+        "icon": "swap_horiz",
+        "character": "Atom",
+        "explanation": "El spread es la diferencia entre precio de compra y venta. La liquidez ayuda a entrar y salir con menos friccion.",
+        "study": "Meta: entender que costos invisibles pueden afectar el resultado.",
+        "mission": "Compara dos activos: uno con spread pequeno y otro grande.",
+        "villain": "Doctor Comfort ignora costos pequenos que se repiten.",
+        "example_symbol": "SPY",
+        "question": "Que es el spread?",
+        "options": (
+            "La diferencia entre precio de compra y precio de venta.",
+            "Una vela japonesa.",
+            "Un premio por completar lecciones.",
+            "Una garantia de liquidez.",
+        ),
+        "answer": 0,
+        "feedback": "Correcto. El spread forma parte del costo de operar.",
+    },
+    {
+        "id": "noticias-eventos",
+        "title": "Noticias y eventos",
+        "short": "Noticias",
+        "icon": "newspaper",
+        "character": "Luna",
+        "explanation": "Noticias, reportes de ganancias, tasas y eventos economicos pueden mover los precios. No se operan a ciegas.",
+        "study": "Meta: revisar calendario y noticias antes de tomar decisiones.",
+        "mission": "Encuentra si una empresa tiene reporte o noticia importante cercana.",
+        "villain": "Mr. Distracto entra justo antes de una noticia sin saberlo.",
+        "example_symbol": "AAPL",
+        "question": "Por que importan las noticias?",
+        "options": (
+            "Porque pueden mover precios y cambiar el riesgo.",
+            "Porque eliminan todas las perdidas.",
+            "Porque reemplazan estudiar.",
+            "Porque siempre dicen exactamente que comprar.",
+        ),
+        "answer": 0,
+        "feedback": "Correcto. Las noticias no son magia, pero pueden cambiar el contexto del mercado.",
+    },
+    {
+        "id": "diario-trading",
+        "title": "Que es un diario de trading?",
+        "short": "Diario",
+        "icon": "edit_note",
+        "character": "Luna",
+        "explanation": "Un diario de trading registra que hiciste, por que lo hiciste y que aprendiste. Sirve para mejorar con evidencia, no con memoria.",
+        "study": "Meta: crear disciplina de aprendizaje desde el primer planeta.",
+        "mission": "Escribe una frase: que hice, que vi, que aprendi.",
+        "villain": "King Ego no quiere revisar errores.",
+        "example_symbol": "AAPL",
+        "question": "Para que sirve un diario de trading?",
+        "options": (
+            "Para registrar decisiones y aprender de ellas.",
+            "Para ocultar errores.",
+            "Para operar sin plan.",
+            "Para garantizar resultados.",
+        ),
+        "answer": 0,
+        "feedback": "Excelente. Lo que registras se puede mejorar; lo que ignoras se repite.",
+    },
+    {
+        "id": "errores-principiante",
+        "title": "Errores de principiante",
+        "short": "Chaos",
+        "icon": "warning",
+        "character": "Bella",
+        "explanation": "Los errores comunes son operar por emocion, copiar sin entender, arriesgar demasiado, no practicar y cambiar de plan cada minuto.",
+        "study": "Meta: reconocer a la Legion Chaos como habitos malos, no como cuento.",
+        "mission": "Derrota un villano eligiendo el habito que debes evitar.",
+        "villain": "La Legion Chaos aparece cuando olvidas disciplina.",
+        "example_symbol": "TSLA",
+        "question": "Cual habito debe evitar un principiante?",
+        "options": (
+            "Operar por emocion sin plan.",
+            "Practicar en demo.",
+            "Leer antes de responder.",
+            "Medir el riesgo.",
+        ),
+        "answer": 0,
+        "feedback": "Correcto. La Legion Chaos representa malos habitos reales que debes detectar temprano.",
+    },
+    {
         "id": "aprender-vs-operar",
-        "title": "Diferencia entre aprender y operar",
-        "short": "Aprender",
+        "title": "Aprender vs operar",
+        "short": "Disciplina",
         "icon": "school",
         "character": "Luna",
         "explanation": "Aprender es estudiar y practicar. Operar es tomar decisiones con dinero o simulacion. Primero se aprende, luego se practica.",
-        "question": "¿Que debe venir primero?",
+        "study": "Meta: separar entrenamiento, simulacion y dinero real.",
+        "mission": "Elige si una accion pertenece a aprender, practicar o operar.",
+        "villain": "Doctor Comfort quiere saltarse el entrenamiento.",
+        "example_symbol": "SPY",
+        "question": "Que debe venir primero?",
         "options": (
             "Aprender y practicar antes de operar con dinero real.",
             "Operar sin entender nada.",
             "Copiar decisiones de otras personas.",
+            "Buscar ganancias rapidas sin reglas.",
         ),
         "answer": 0,
         "feedback": "Correcto. Luna te ayuda con disciplina: aprender primero protege tu futuro.",
@@ -35770,12 +36067,17 @@ ROXY_ACADEMY_LEVEL_1_LESSONS = (
         "short": "Examen",
         "icon": "military_tech",
         "character": "Roxy",
-        "explanation": "Este examen confirma que entiendes las palabras basicas antes de seguir a otros planetas.",
-        "question": "¿Cual es la mejor base para empezar en trading?",
+        "explanation": "Este examen confirma que entiendes las palabras basicas antes de pasar a planetas con graficas, crypto y estrategias.",
+        "study": "Meta: demostrar que conoces el idioma basico del trading.",
+        "mission": "Completa el examen y gana la insignia Explorador del Mercado.",
+        "villain": "La Legion Chaos no puede pasar si estudiaste con calma.",
+        "example_symbol": "AAPL",
+        "question": "Cual es la mejor base para empezar en trading?",
         "options": (
             "Aprender conceptos, practicar y respetar el riesgo.",
             "Buscar ganancias rapidas sin estudiar.",
             "Operar solo por emocion.",
+            "Ignorar costos, noticias y perdida.",
         ),
         "answer": 0,
         "feedback": "Perfecto. Has completado el Planeta Origen y ya conoces el idioma basico del trading.",
@@ -35858,8 +36160,94 @@ def roxy_academy_progress_state() -> dict[str, Any]:
     return state
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def roxy_academy_live_market_example(symbol: str = "AAPL") -> dict[str, Any]:
+    clean_symbol = re.sub(r"[^A-Z0-9.^=-]+", "", str(symbol or "AAPL").upper()) or "AAPL"
+    result: dict[str, Any] = {
+        "symbol": clean_symbol,
+        "price": None,
+        "change": None,
+        "change_pct": None,
+        "status": "unavailable",
+        "source": "yfinance",
+        "as_of": datetime.now().strftime("%I:%M %p"),
+    }
+    if yf is None:
+        return result
+    try:
+        ticker = yf.Ticker(clean_symbol)
+        fast_info = getattr(ticker, "fast_info", None)
+
+        def fast_value(key: str) -> Any:
+            if fast_info is None:
+                return None
+            try:
+                if isinstance(fast_info, dict):
+                    return fast_info.get(key)
+                return getattr(fast_info, key)
+            except Exception:
+                try:
+                    return fast_info[key]  # type: ignore[index]
+                except Exception:
+                    return None
+
+        last = safe_float(fast_value("last_price") or fast_value("lastPrice") or fast_value("regular_market_price"))
+        previous = safe_float(fast_value("previous_close") or fast_value("previousClose") or fast_value("regular_market_previous_close"))
+        if last is None or previous is None:
+            history = ticker.history(period="5d", interval="1m", prepost=True, auto_adjust=False)
+            if history is not None and not history.empty:
+                closes = pd.to_numeric(history.get("Close"), errors="coerce").dropna()
+                if not closes.empty:
+                    last = safe_float(closes.iloc[-1]) if last is None else last
+                    if previous is None and len(closes) > 1:
+                        previous = safe_float(closes.iloc[-2])
+        if last is not None:
+            change = (last - previous) if previous is not None else None
+            change_pct = ((change / previous) * 100) if change is not None and previous not in {None, 0} else None
+            result.update(
+                {
+                    "price": last,
+                    "change": change,
+                    "change_pct": change_pct,
+                    "status": "live" if previous is not None else "quote",
+                    "as_of": datetime.now().strftime("%I:%M:%S %p"),
+                }
+            )
+    except Exception:
+        pass
+    return result
+
+
+def roxy_academy_live_example_html(example: dict[str, Any]) -> str:
+    symbol = html.escape(text_display(example.get("symbol") or "AAPL"))
+    price = price_display(example.get("price"))
+    change = safe_float(example.get("change"))
+    change_pct = safe_float(example.get("change_pct"))
+    direction = "flat"
+    if change is not None and change > 0:
+        direction = "up"
+    elif change is not None and change < 0:
+        direction = "down"
+    change_text = "-"
+    if change is not None:
+        sign = "+" if change >= 0 else ""
+        change_text = f"{sign}{price_display(change)}"
+        if change_pct is not None:
+            change_text += f" ({sign}{change_pct:.2f}%)"
+    status = "Dato real disponible" if example.get("status") in {"live", "quote"} else "Dato real no disponible"
+    as_of = html.escape(text_display(example.get("as_of") or "-"))
+    return f"""
+        <div class="academy-live-example academy-live-{direction}">
+          <i class="material-symbols-outlined">monitoring</i>
+          <span><b>{symbol}</b><strong>{html.escape(price)}</strong><small>{html.escape(change_text)}</small></span>
+          <em>{html.escape(status)} · {as_of}</em>
+        </div>
+    """
+
+
 def render_roxy_academy_module() -> None:
     state = roxy_academy_progress_state()
+    origin_total = len(ROXY_ACADEMY_LEVEL_1_LESSONS)
     completed = [str(item) for item in state.get("completed", [])]
     completed_set = set(completed)
     planet_param = text_display(first_query_param_value(st.query_params, "planet")).strip().lower() or "origen"
@@ -35877,7 +36265,7 @@ def render_roxy_academy_module() -> None:
     current_index = min(requested_index, max(0, unlocked_count - 1))
     lesson = ROXY_ACADEMY_LEVEL_1_LESSONS[current_index]
     answer_param = text_display(first_query_param_value(st.query_params, "answer")).strip()
-    answered = answer_param in {"0", "1", "2"}
+    answered = answer_param.isdigit() and 0 <= int(answer_param) < len(lesson.get("options", ()))
     selected_answer = int(answer_param) if answered else -1
     correct = answered and selected_answer == int(lesson["answer"])
     attempt_key = f"{lesson['id']}:{answer_param}"
@@ -35899,14 +36287,19 @@ def render_roxy_academy_module() -> None:
     progress_pct = int(round((completed_count / len(ROXY_ACADEMY_LEVEL_1_LESSONS)) * 100))
     profile_name = roxy_user_display_name("Trader")
     base_href = "?view=Dashboard&module=classroom"
-    planet_href = f"{base_href}&planet={quote(planet_param, safe='')}"
+    folder_open = (
+        text_display(first_query_param_value(st.query_params, "open")).strip() == "1"
+        or bool(lesson_param)
+        or bool(answer_param)
+    )
+    planet_href = f"{base_href}&planet={quote(planet_param, safe='')}&open=1"
     next_index = min(current_index + 1, len(ROXY_ACADEMY_LEVEL_1_LESSONS) - 1)
     next_href = f"{planet_href}&lesson={quote(ROXY_ACADEMY_LEVEL_1_LESSONS[next_index]['id'], safe='')}"
     current_href = f"{planet_href}&lesson={quote(lesson['id'], safe='')}"
 
     academy_planets = [
-        {"key": "origen", "num": "1", "title": "Planeta Origen", "subtitle": "Fundamentos", "progress": f"{completed_count}/10", "stars": 3, "locked": False, "kind": "origin", "accent": "cyan"},
-        {"key": "cripto", "num": "2", "title": "Planeta Cripto", "subtitle": "Conceptos clave", "progress": "0/15", "stars": 3 if completed_count >= 10 else 0, "locked": False, "kind": "ice", "accent": "violet"},
+        {"key": "origen", "num": "1", "title": "Planeta Origen", "subtitle": "Fundamentos", "progress": f"{completed_count}/{origin_total}", "stars": 3, "locked": False, "kind": "origin", "accent": "cyan"},
+        {"key": "cripto", "num": "2", "title": "Planeta Cripto", "subtitle": "Conceptos clave", "progress": "0/15", "stars": 3 if completed_count >= origin_total else 0, "locked": False, "kind": "ice", "accent": "violet"},
         {"key": "analisis", "num": "3", "title": "Planeta Analisis", "subtitle": "Herramientas", "progress": "0/12", "stars": 0, "locked": False, "kind": "violet", "accent": "pink"},
         {"key": "estrategia", "num": "4", "title": "Planeta Estrategia", "subtitle": "Gestion basica", "progress": "0/15", "stars": 0, "locked": True, "kind": "forest", "accent": "green"},
         {"key": "elite", "num": "5", "title": "Planeta Elite", "subtitle": "Trader completo", "progress": "0/20", "stars": 0, "locked": True, "kind": "gold", "accent": "gold"},
@@ -35946,6 +36339,15 @@ def render_roxy_academy_module() -> None:
         for key, filename in planet_asset_files.items()
     }
     selected_planet_img = planet_asset_html.get(str(selected_planet["key"]), "")
+    lesson_live_example = roxy_academy_live_market_example(str(lesson.get("example_symbol") or "AAPL"))
+    lesson_live_example_html = roxy_academy_live_example_html(lesson_live_example)
+    lesson_intel_html = f"""
+        <div class="academy-lesson-intel">
+          <div><i class="material-symbols-outlined">auto_stories</i><span><b>Estudio</b>{html.escape(str(lesson.get('study') or 'Lee, responde y practica el concepto.'))}</span></div>
+          <div><i class="material-symbols-outlined">flag</i><span><b>Mision</b>{html.escape(str(lesson.get('mission') or 'Completa esta leccion para avanzar.'))}</span></div>
+          <div class="academy-villain-warning"><i class="material-symbols-outlined">warning</i><span><b>Evita</b>{html.escape(str(lesson.get('villain') or 'No avances sin entender.'))}</span></div>
+        </div>
+    """
     lesson_character_key = str(lesson.get("character", "Atom")).strip().lower()
     lesson_character_img = {
         "atom": atom_img,
@@ -35958,7 +36360,7 @@ def render_roxy_academy_module() -> None:
     planet_html = "".join(
         f"""
         <a class="academy-planet academy-planet-{html.escape(str(item['kind']))} {'locked' if item['locked'] else 'active'} {'selected' if item['key'] == planet_param else ''}"
-           href="{base_href}&planet={quote(str(item['key']), safe='')}&travel=1" target="_self">
+           href="{base_href}&planet={quote(str(item['key']), safe='')}&open=1&travel=1" target="_self">
           <span>{html.escape(str(item['num']))}</span><i>{planet_asset_html.get(str(item['key']), '')}</i>
           <strong>{html.escape(str(item['title']))}</strong><em>{html.escape(str(item['subtitle']))}</em>
           <small>{html.escape(str(item['progress']))}</small>
@@ -36165,10 +36567,12 @@ def render_roxy_academy_module() -> None:
         for idx, title in enumerate(current_planet_lessons)
     )
     learning_games = [
-        ("extension", "Empareja correcto", "Une cada termino con su definicion."),
-        ("quiz", "Elige la respuesta", "Responde la opcion correcta."),
-        ("help", "Verdadero o falso", "Decide si la afirmacion es correcta."),
-        ("reorder", "Ordena el concepto", "Ordena los pasos correctamente."),
+        ("hub", "Empareja correcto", "Une trading, activo, ganancia y riesgo con su definicion."),
+        ("quiz", "Elige la respuesta", "Roxy te lanza preguntas rapidas del planeta."),
+        ("checklist", "Ordena la operacion", "Primero aprender, luego medir riesgo, despues practicar."),
+        ("candlestick_chart", "Arma la vela", "Ubica apertura, cierre, maximo y minimo."),
+        ("shield", "Derrota a Chaos", "Elige que mal habito debes evitar antes de avanzar."),
+        ("edit_note", "Diario del cadete", "Completa que viste, que hiciste y que aprendiste."),
     ]
     games_html = "".join(
         f"""
@@ -36180,10 +36584,10 @@ def render_roxy_academy_module() -> None:
     )
     levels_html = "".join(
         f"""
-        <a class="academy-level-row {'done' if item['key'] == 'origen' and completed_count >= 10 else ''} {'locked' if item['locked'] else ''}" href="{base_href}&planet={quote(str(item['key']), safe='')}&travel=1" target="_self">
+        <a class="academy-level-row {'done' if item['key'] == 'origen' and completed_count >= origin_total else ''} {'locked' if item['locked'] else ''}" href="{base_href}&planet={quote(str(item['key']), safe='')}&open=1&travel=1" target="_self">
           <i class="academy-level-dot academy-level-{html.escape(str(item['kind']))}">{planet_asset_html.get(str(item['key']), '')}</i>
           <span><strong>{html.escape(str(item['num']))}. {html.escape(str(item['title']))}</strong><small>{html.escape(str(item['subtitle']))}</small></span>
-          <b class="material-symbols-outlined">{'check_circle' if item['key'] == 'origen' and completed_count >= 10 else ('lock' if item['locked'] else 'rocket_launch')}</b>
+          <b class="material-symbols-outlined">{'check_circle' if item['key'] == 'origen' and completed_count >= origin_total else ('lock' if item['locked'] else 'rocket_launch')}</b>
         </a>
         """
         for item in academy_planets
@@ -36204,12 +36608,12 @@ def render_roxy_academy_module() -> None:
         "elite": "El planeta final reunira disciplina, practica y consistencia.",
     }.get(str(selected_planet["key"]), "Roxy te guia paso a paso.")
     enter_badges = {
-        "origen": ("menu_book", "10 Lecciones", "workspace_premium", "Explorador"),
+        "origen": ("menu_book", f"{origin_total} Lecciones", "workspace_premium", "Explorador"),
         "cripto": ("currency_bitcoin", "15 Lecciones", "diamond", "Mundo digital"),
         "analisis": ("monitoring", "12 Lecciones", "analytics", "Herramientas"),
         "estrategia": ("shield", "15 Lecciones", "target", "Gestion"),
         "elite": ("military_tech", "20 Lecciones", "auto_awesome", "Elite"),
-    }.get(str(selected_planet["key"]), ("menu_book", "10 Lecciones", "workspace_premium", "Insignia"))
+    }.get(str(selected_planet["key"]), ("menu_book", f"{origin_total} Lecciones", "workspace_premium", "Insignia"))
     mission_prompt = {
         "origen": "Domina el idioma basico del trading antes de operar.",
         "cripto": "Aprende como funciona el dinero digital y sus riesgos.",
@@ -36267,7 +36671,7 @@ def render_roxy_academy_module() -> None:
     )
 
     academy_html = f"""
-        <section class="roxy-academy-shell academy-theme-{selected_accent}">
+        <section class="roxy-academy-shell academy-theme-{selected_accent} {'academy-folder-open' if folder_open else 'academy-map-open'}">
           {travel_overlay}
           <div class="roxy-universe" aria-hidden="true">
             <i class="roxy-space-nebula"></i><i class="roxy-space-stars roxy-space-stars-far"></i>
@@ -36309,7 +36713,7 @@ def render_roxy_academy_module() -> None:
             </header>
             <section class="academy-dashboard-grid">
               <div class="academy-map" id="mapa">
-                <div class="academy-map-head"><strong>Mapa de aprendizaje</strong><span>{completed_count}/10 lecciones completadas</span></div>
+                <div class="academy-map-head"><strong>Mapa de aprendizaje</strong><span>{completed_count}/{origin_total} lecciones completadas</span></div>
                 <div class="academy-orbit-path"></div>
                 <span class="academy-rocket-path academy-map-ship">{ship_img or '<i class="material-symbols-outlined">rocket_launch</i>'}</span>
                 <span class="academy-map-ship academy-map-ship-secondary">{ship_img or '<i class="material-symbols-outlined">rocket_launch</i>'}</span>
@@ -36355,6 +36759,8 @@ def render_roxy_academy_module() -> None:
                   <div class="academy-atom academy-atom-portrait">{lesson_character_img}<b>{html.escape(str(lesson['character']))}</b></div>
                   <p>{html.escape(str(lesson['explanation']))}</p>
                 </div>
+                {lesson_live_example_html}
+                {lesson_intel_html}
                 <a class="academy-listen" href="{current_href}" target="_self">{roxy_avatar_html("speaking", "Roxy")}<span>Escucha a Roxy</span><i class="material-symbols-outlined">play_arrow</i></a>
               </article>
               <article class="academy-quiz-panel">
@@ -36438,7 +36844,7 @@ def render_roxy_academy_module() -> None:
             <a class="active" href="{base_href}" target="_self"><i class="material-symbols-outlined">home</i><span>Inicio</span></a>
             <a href="{base_href}#mapa" target="_self"><i class="material-symbols-outlined">school</i><span>Academy</span></a>
             <a href="?view=Dashboard" target="_self"><i class="material-symbols-outlined">bar_chart</i><span>Mercados</span></a>
-            <a class="roxy-r" href="{base_href}&planet={quote(str(selected_planet['key']), safe='')}&travel=1" target="_self"><i class="material-symbols-outlined">rocket_launch</i></a>
+            <a class="roxy-r" href="{base_href}&planet={quote(str(selected_planet['key']), safe='')}&open=1&travel=1" target="_self"><i class="material-symbols-outlined">rocket_launch</i></a>
             <a href="?view=Dashboard&module=acciones-operar" target="_self"><i class="material-symbols-outlined">business_center</i><span>Portafolio</span></a>
             <a href="{base_href}#progreso" target="_self"><i class="material-symbols-outlined">groups</i><span>Comunidad</span></a>
           </nav>
@@ -41269,6 +41675,85 @@ def main() -> None:
         @keyframes academyShipCruiseDiagonal{0%{transform:translate3d(-170px,190px,0) rotate(8deg) scale(.52);opacity:0}8%{opacity:1}22%{transform:translate3d(24px,90px,0) rotate(10deg) scale(.78);opacity:1}42%{transform:translate3d(208px,-24px,0) rotate(13deg) scale(1.02);opacity:1}60%{transform:translate3d(392px,30px,0) rotate(18deg) scale(.94);opacity:1}78%{transform:translate3d(536px,176px,0) rotate(20deg) scale(.76);opacity:.92}100%{transform:translate3d(700px,310px,0) rotate(18deg) scale(.48);opacity:0}}
         @media (max-width:760px){.academy-planet>i{width:142px!important;height:142px!important}.academy-planet-img{width:116%!important;height:116%!important;margin:-8%!important}.academy-planet:before,.academy-planet:after{top:76px}.academy-planet:before{width:6px;height:6px}.academy-planet:after{width:4px;height:4px}.academy-map-ship{width:138px!important;height:204px!important}.academy-rocket-path{left:-10%!important;top:326px!important;animation:academyShipCruiseDiagonalMobile 19s cubic-bezier(.46,.04,.24,1) infinite!important}.academy-ship-img{transform:rotate(14deg) scale(1.12)!important}}
         @keyframes academyShipCruiseDiagonalMobile{0%{transform:translate3d(-126px,172px,0) rotate(8deg) scale(.48);opacity:0}9%{opacity:1}27%{transform:translate3d(42px,46px,0) rotate(11deg) scale(.70);opacity:1}48%{transform:translate3d(194px,-76px,0) rotate(14deg) scale(.92);opacity:1}66%{transform:translate3d(322px,42px,0) rotate(18deg) scale(.76);opacity:1}84%{transform:translate3d(456px,176px,0) rotate(20deg) scale(.58);opacity:.75}100%{transform:translate3d(570px,282px,0) rotate(18deg) scale(.42);opacity:0}}
+        .academy-map{perspective:980px!important;background:
+            radial-gradient(circle at 23% 18%,rgba(34,211,238,.18),transparent 18%),
+            radial-gradient(circle at 76% 32%,rgba(168,85,247,.20),transparent 23%),
+            radial-gradient(circle at 38% 72%,rgba(236,72,153,.10),transparent 25%),
+            linear-gradient(135deg,rgba(2,6,23,.94),rgba(18,9,45,.88) 58%,rgba(3,7,18,.98))!important;background-size:120% 120%,140% 140%,170% 170%,100% 100%!important;animation:academyMapDeepDrift 24s ease-in-out infinite!important}
+        .academy-map:before{content:""!important;position:absolute!important;inset:-35%!important;z-index:0!important;display:block!important;background:
+            radial-gradient(circle,#fff 0 1px,transparent 1.8px) 0 0/74px 92px,
+            radial-gradient(circle,rgba(216,180,254,.95) 0 1.2px,transparent 2px) 21px 38px/118px 132px,
+            radial-gradient(circle,rgba(125,211,252,.85) 0 1px,transparent 2px) 48px 18px/156px 172px!important;opacity:.62!important;animation:academyStarFieldTravel 34s linear infinite!important;pointer-events:none!important}
+        .academy-map:after{content:""!important;position:absolute!important;inset:-16%!important;z-index:0!important;display:block!important;border:0!important;background:
+            radial-gradient(ellipse at 22% 30%,rgba(56,189,248,.10),transparent 22%),
+            radial-gradient(ellipse at 80% 62%,rgba(168,85,247,.14),transparent 24%),
+            linear-gradient(110deg,transparent 0 44%,rgba(168,85,247,.13) 46%,transparent 58%)!important;filter:none!important;opacity:.86!important;animation:academyNebulaWave 28s ease-in-out infinite!important;pointer-events:none!important}
+        .academy-orbit-path{border:0!important;opacity:.38!important;filter:drop-shadow(0 0 12px rgba(168,85,247,.35))!important}
+        .academy-orbit-path:before{content:"";position:absolute;left:1%;right:7%;top:46%;height:2px;background:linear-gradient(90deg,transparent,rgba(216,180,254,.64),rgba(34,211,238,.44),transparent);transform:rotate(-9deg);box-shadow:0 0 18px rgba(168,85,247,.42)}
+        .academy-orbit-path:after{content:"";position:absolute;left:11%;right:0;top:63%;height:2px;background:linear-gradient(90deg,transparent,rgba(244,114,182,.42),rgba(250,204,21,.36),transparent);transform:rotate(13deg);box-shadow:0 0 16px rgba(236,72,153,.32)}
+        .academy-planet{transform-style:preserve-3d!important;will-change:transform!important}
+        .academy-planet:hover{transform:translateY(-6px) scale(1.03)!important}
+        .academy-planet>i{background:transparent!important;box-shadow:none!important;filter:none!important;overflow:visible!important;animation:academyPlanetHumanFloat 8.8s ease-in-out infinite!important}
+        .academy-planet>i:before,.academy-planet>i:after{display:none!important;content:none!important;background:none!important;border:0!important}
+        .academy-planet-img{mix-blend-mode:normal!important;object-fit:contain!important;clip-path:none!important;border-radius:0!important;animation:academyPlanetSlowSpin 18s ease-in-out infinite!important;filter:saturate(1.22) contrast(1.08) brightness(1.06) drop-shadow(0 0 24px rgba(125,211,252,.58))!important}
+        .academy-planet-origin .academy-planet-img{filter:saturate(1.30) contrast(1.12) brightness(1.08) drop-shadow(0 0 26px rgba(34,211,238,.88)) drop-shadow(0 0 44px rgba(59,130,246,.38))!important}
+        .academy-planet-ice .academy-planet-img{filter:saturate(1.28) contrast(1.12) brightness(1.08) drop-shadow(0 0 30px rgba(168,85,247,.88)) drop-shadow(0 0 42px rgba(34,211,238,.28))!important}
+        .academy-planet:before,.academy-planet:after{content:"";position:absolute;z-index:5;border-radius:50%;pointer-events:none;box-shadow:0 0 13px currentColor}
+        .academy-planet:before{left:36px;top:44px;width:7px;height:7px;background:#bae6fd;color:#7dd3fc;animation:academySatelliteTinyOrbit 9.5s linear infinite}
+        .academy-planet:after{left:104px;top:92px;width:5px;height:5px;background:#f0abfc;color:#d946ef;animation:academySatelliteTinyOrbitReverse 12.5s linear infinite}
+        .academy-map-ship{z-index:12!important;display:grid!important;place-items:center!important;background:transparent!important;filter:drop-shadow(0 0 26px rgba(168,85,247,.95)) drop-shadow(0 0 44px rgba(56,189,248,.36))!important}
+        .academy-map-ship:before{content:"";position:absolute;left:18%;right:18%;bottom:3%;height:52%;background:linear-gradient(180deg,rgba(168,85,247,.90),rgba(56,189,248,.20),transparent);clip-path:polygon(42% 0,58% 0,100% 100%,0 100%);filter:blur(5px);opacity:.82;transform-origin:50% 0;animation:academyEnginePulse .8s ease-in-out infinite alternate;pointer-events:none}
+        .academy-ship-img{position:relative;z-index:2;width:100%!important;height:100%!important;object-fit:contain!important;filter:saturate(1.10) contrast(1.04)}
+        .academy-rocket-path{animation:academyShipCinemaCruise 21s cubic-bezier(.44,.03,.23,1) infinite!important}
+        .academy-map-ship-secondary{display:none!important}
+        .academy-live-example{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:11px;align-items:center;margin:16px 0 0;border:1px solid rgba(125,211,252,.24);border-radius:15px;background:linear-gradient(90deg,rgba(14,165,233,.14),rgba(88,28,135,.18));padding:10px 12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 0 24px rgba(56,189,248,.10)}
+        .academy-live-example>i{display:grid;place-items:center;width:36px;height:36px;border-radius:12px;background:rgba(14,165,233,.22);color:#7dd3fc;font-size:23px!important}
+        .academy-live-example span{display:grid;gap:2px}.academy-live-example b{color:#bae6fd;font-size:11px;text-transform:uppercase;letter-spacing:.08em}.academy-live-example strong{color:#fff;font-size:19px;line-height:1}.academy-live-example small{color:#cbd5e1;font-size:11px;font-weight:900}.academy-live-example em{color:#94a3b8;font-size:10px;font-style:normal;text-align:right;font-weight:850}.academy-live-up small{color:#86efac}.academy-live-down small{color:#fca5a5}
+        .academy-lesson-intel{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:12px}
+        .academy-lesson-intel>div{display:grid;grid-template-columns:30px minmax(0,1fr);gap:8px;align-items:start;border:1px solid rgba(167,139,250,.18);border-radius:13px;background:rgba(15,12,40,.62);padding:10px;min-height:86px}
+        .academy-lesson-intel i{display:grid;place-items:center;width:28px;height:28px;border-radius:10px;background:rgba(124,58,237,.38);color:#d8b4fe;font-size:18px!important}
+        .academy-lesson-intel b{display:block;color:#f8fafc;font-size:11px;text-transform:uppercase;letter-spacing:.06em}.academy-lesson-intel span{color:#ddd6fe;font-size:11px;line-height:1.28}.academy-villain-warning{border-color:rgba(248,113,113,.25)!important;background:linear-gradient(135deg,rgba(127,29,29,.22),rgba(15,12,40,.62))!important}.academy-villain-warning i{background:rgba(127,29,29,.38)!important;color:#fca5a5!important}
+        .academy-game-row{position:relative;overflow:hidden}.academy-game-row:after{content:"";position:absolute;inset:auto 12px 8px auto;width:34px;height:2px;background:linear-gradient(90deg,#a855f7,#22d3ee);box-shadow:0 0 14px rgba(168,85,247,.72);opacity:.62}
+        .academy-game-row:hover{transform:translateY(-2px);border-color:rgba(216,180,254,.36);box-shadow:0 0 28px rgba(168,85,247,.24)}
+        @keyframes academyMapDeepDrift{0%,100%{background-position:0% 0%,100% 0%,50% 100%,0 0}50%{background-position:24% 18%,76% 16%,40% 84%,0 0}}
+        @keyframes academyStarFieldTravel{0%{transform:translate3d(0,0,0) rotate(0deg)}100%{transform:translate3d(-110px,150px,0) rotate(.01deg)}}
+        @keyframes academyNebulaWave{0%,100%{transform:translate3d(0,0,0) scale(1);opacity:.78}50%{transform:translate3d(-3%,2%,0) scale(1.08);opacity:.95}}
+        @keyframes academyPlanetHumanFloat{0%,100%{transform:translate3d(0,0,18px) rotateZ(-.6deg)}50%{transform:translate3d(0,-8px,34px) rotateZ(.8deg)}}
+        @keyframes academyPlanetSlowSpin{0%,100%{transform:translateX(0) scale(1.03)}50%{transform:translateX(2px) scale(1.06)}}
+        @keyframes academySatelliteTinyOrbit{0%{transform:translate(0,0) scale(.75);opacity:.35}25%{transform:translate(84px,-28px) scale(1);opacity:1}50%{transform:translate(126px,38px) scale(.72);opacity:.52}75%{transform:translate(30px,76px) scale(1);opacity:.9}100%{transform:translate(0,0) scale(.75);opacity:.35}}
+        @keyframes academySatelliteTinyOrbitReverse{0%{transform:translate(0,0) scale(.75);opacity:.4}25%{transform:translate(-76px,34px) scale(1);opacity:.95}50%{transform:translate(-98px,-26px) scale(.75);opacity:.55}75%{transform:translate(-10px,-66px) scale(1);opacity:.88}100%{transform:translate(0,0) scale(.75);opacity:.4}}
+        @keyframes academyEnginePulse{0%{opacity:.44;transform:scaleY(.82)}100%{opacity:.95;transform:scaleY(1.18)}}
+        @keyframes academyShipCinemaCruise{0%{transform:translate3d(-190px,245px,0) rotate(18deg) scale(.48);opacity:0}8%{opacity:1}22%{transform:translate3d(20px,132px,0) rotate(20deg) scale(.72);opacity:1}40%{transform:translate3d(218px,-14px,0) rotate(24deg) scale(1.02);opacity:1}58%{transform:translate3d(418px,48px,0) rotate(21deg) scale(.88);opacity:.95}78%{transform:translate3d(608px,194px,0) rotate(18deg) scale(.62);opacity:.8}100%{transform:translate3d(760px,330px,0) rotate(16deg) scale(.42);opacity:0}}
+        @media (max-width:760px){.academy-map:after{opacity:.74!important}.academy-orbit-path{opacity:.22!important}.academy-planet>i{width:136px!important;height:136px!important;background:transparent!important}.academy-planet-img{width:122%!important;height:122%!important;margin:-11%!important}.academy-planet:before{left:30px;top:42px}.academy-planet:after{left:92px;top:84px}.academy-rocket-path{left:-19%!important;top:224px!important;animation:academyShipCinemaCruiseMobile 18s cubic-bezier(.44,.03,.23,1) infinite!important}.academy-map-ship{width:118px!important;height:174px!important}.academy-lesson-intel{grid-template-columns:1fr}.academy-live-example{grid-template-columns:38px minmax(0,1fr);gap:9px}.academy-live-example em{grid-column:1/-1;text-align:left}.academy-learning-grid{gap:12px}}
+        @keyframes academyShipCinemaCruiseMobile{0%{transform:translate3d(-132px,312px,0) rotate(18deg) scale(.42);opacity:0}9%{opacity:1}25%{transform:translate3d(72px,168px,0) rotate(20deg) scale(.68);opacity:1}44%{transform:translate3d(235px,14px,0) rotate(23deg) scale(.96);opacity:1}62%{transform:translate3d(372px,124px,0) rotate(18deg) scale(.72);opacity:.92}82%{transform:translate3d(510px,312px,0) rotate(15deg) scale(.50);opacity:.72}100%{transform:translate3d(620px,430px,0) rotate(14deg) scale(.36);opacity:0}}
+        .roxy-academy-shell.academy-map-open .academy-planet-workbench,
+        .roxy-academy-shell.academy-map-open .academy-learning-grid,
+        .roxy-academy-shell.academy-map-open .academy-universe-grid,
+        .roxy-academy-shell.academy-map-open .academy-mission-grid,
+        .roxy-academy-shell.academy-map-open .academy-lore-grid,
+        .roxy-academy-shell.academy-map-open .academy-progress-panel{display:none!important}
+        .roxy-academy-shell.academy-folder-open .academy-dashboard-grid,
+        .roxy-academy-shell.academy-folder-open .academy-level-strip,
+        .roxy-academy-shell.academy-folder-open .academy-universe-grid,
+        .roxy-academy-shell.academy-folder-open .academy-mission-grid,
+        .roxy-academy-shell.academy-folder-open .academy-lore-grid{display:none!important}
+        .roxy-academy-shell.academy-folder-open .academy-planet-workbench{display:grid!important;margin-top:0!important}
+        .roxy-academy-shell.academy-folder-open .academy-learning-grid{display:grid!important}
+        .roxy-academy-shell.academy-folder-open .academy-progress-panel{display:grid!important}
+        .roxy-academy-shell.academy-folder-open .academy-topbar{margin-bottom:14px}
+        .academy-planet.active{cursor:pointer}
+        .academy-planet.active:focus-visible{outline:3px solid rgba(216,180,254,.88);outline-offset:8px;border-radius:24px}
+        @media (max-width:760px){
+          .roxy-academy-shell.academy-map-open{min-height:760px!important}
+          .roxy-academy-shell.academy-map-open .academy-map{min-height:calc(100vh - 168px)!important}
+          .roxy-academy-shell.academy-map-open .academy-enter-card{display:none!important}
+          .roxy-academy-shell.academy-folder-open{min-height:1180px!important}
+          .roxy-academy-shell.academy-folder-open .academy-main{padding-top:12px!important}
+          .roxy-academy-shell.academy-folder-open .academy-planet-workbench{gap:10px!important}
+          .roxy-academy-shell.academy-folder-open .academy-planet-panel{order:1}
+          .roxy-academy-shell.academy-folder-open .academy-lesson-panel{order:2}
+          .roxy-academy-shell.academy-folder-open .academy-quiz-panel{order:3}
+        }
         .roxy-module-empty{border:1px solid rgba(56,189,248,.24);border-left:4px solid #38bdf8;border-radius:8px;background:rgba(2,6,23,.54);padding:14px;margin:0 0 8px}
         .roxy-module-empty strong{display:block;color:#f8fafc;font-size:18px;line-height:1.1}
         .roxy-module-empty span{display:block;color:#cbd5e1;font-size:12px;line-height:1.35;margin-top:6px}
