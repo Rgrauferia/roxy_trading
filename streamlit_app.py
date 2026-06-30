@@ -36636,6 +36636,9 @@ def roxy_academy_default_progress() -> dict[str, Any]:
         "lives": 5,
         "streak": 7,
         "badges": [],
+        "claimed_rewards": [],
+        "owned_tools": [],
+        "completed_games": [],
     }
 
 
@@ -36834,6 +36837,74 @@ def render_roxy_academy_module() -> None:
         completed = [str(item) for item in state.get("completed", [])]
         completed_set = set(completed)
     completed_count = sum(1 for item in origin_lessons if item["id"] in completed_set)
+    state.setdefault("claimed_rewards", [])
+    state.setdefault("owned_tools", [])
+    state.setdefault("completed_games", [])
+    claimed_rewards = {str(item) for item in state.get("claimed_rewards", [])}
+    owned_tools = {str(item) for item in state.get("owned_tools", [])}
+    completed_games = {str(item) for item in state.get("completed_games", [])}
+    claim_param = academy_query_param("claim").lower()
+    buy_param = academy_query_param("buy").lower()
+    game_result_param = academy_query_param("result").lower()
+    academy_action_message = ""
+    reward_catalog = {
+        "initial": {"label": "Cofre inicial", "requires": 1, "xp": 50, "coins": 20, "gems": 0},
+        "streak": {"label": "Cofre de constancia", "requires": 3, "xp": 100, "coins": 35, "gems": 1},
+        "badge": {"label": "Insignia Explorador del Mercado", "requires": origin_total, "xp": 250, "coins": 100, "gems": 5},
+    }
+    shop_catalog = {
+        "cuaderno": {"label": "Cuaderno de practica", "cost": 25},
+        "escudo": {"label": "Escudo de disciplina", "cost": 40},
+        "boost": {"label": "Boost de leccion", "cost": 60},
+    }
+    academy_state_dirty = False
+    if claim_param in reward_catalog:
+        reward = reward_catalog[claim_param]
+        if claim_param in claimed_rewards:
+            academy_action_message = f"{reward['label']} ya fue reclamado."
+        elif completed_count < int(reward["requires"]):
+            academy_action_message = f"{reward['label']} se desbloquea con {reward['requires']} lecciones."
+        else:
+            state["xp"] = int(state.get("xp", 350)) + int(reward["xp"])
+            state["coins"] = int(state.get("coins", 250)) + int(reward["coins"])
+            state["gems"] = int(state.get("gems", 15)) + int(reward["gems"])
+            state["claimed_rewards"].append(claim_param)
+            if claim_param == "badge" and "Explorador del Mercado" not in state["badges"]:
+                state["badges"].append("Explorador del Mercado")
+            academy_action_message = f"{reward['label']} reclamado: +{reward['xp']} XP, +{reward['coins']} monedas, +{reward['gems']} cristales."
+            academy_state_dirty = True
+    if buy_param in shop_catalog:
+        tool = shop_catalog[buy_param]
+        if buy_param in owned_tools:
+            academy_action_message = f"{tool['label']} ya esta en tu mochila."
+        elif int(state.get("coins", 250)) < int(tool["cost"]):
+            academy_action_message = f"Necesitas {tool['cost']} monedas para comprar {tool['label']}."
+        else:
+            state["coins"] = int(state.get("coins", 250)) - int(tool["cost"])
+            state["owned_tools"].append(buy_param)
+            academy_action_message = f"{tool['label']} comprado. Queda guardado en tu mochila."
+            academy_state_dirty = True
+    if game_param and game_result_param in {"ok", "wait", "retry"}:
+        game_attempt_key = f"{planet_param}:{game_param}:{game_result_param}"
+        if game_attempt_key in completed_games:
+            academy_action_message = "Este reto ya fue registrado. Puedes repetirlo para practicar."
+        else:
+            state["completed_games"].append(game_attempt_key)
+            if game_result_param == "ok":
+                state["xp"] = int(state.get("xp", 350)) + 25
+                state["coins"] = int(state.get("coins", 250)) + 5
+                academy_action_message = "Reto completado: +25 XP y +5 monedas."
+            elif game_result_param == "wait":
+                state["xp"] = int(state.get("xp", 350)) + 15
+                academy_action_message = "Buena decision: esperar confirmacion tambien suma disciplina. +15 XP."
+            else:
+                academy_action_message = "Roxy marco este reto para repetirlo con calma."
+            academy_state_dirty = True
+    if academy_state_dirty:
+        roxy_save_academy_progress(roxy_academy_progress_username(), state)
+        claimed_rewards = {str(item) for item in state.get("claimed_rewards", [])}
+        owned_tools = {str(item) for item in state.get("owned_tools", [])}
+        completed_games = {str(item) for item in state.get("completed_games", [])}
     progress_pct = int(round((completed_count / max(1, origin_total)) * 100))
     profile_name = roxy_user_display_name("Trader")
     base_href = "?view=Dashboard&module=classroom"
@@ -37320,6 +37391,12 @@ def render_roxy_academy_module() -> None:
                 break
         return "".join(rows)
 
+    academy_action_message_html = (
+        f'<div class="academy-zone-toast"><i class="material-symbols-outlined">auto_awesome</i><span>{html.escape(academy_action_message)}</span></div>'
+        if academy_action_message
+        else ""
+    )
+
     def academy_zone_panel(title: str, subtitle: str, icon: str, body: str, footer: str = "") -> str:
         return f"""
         <aside class="academy-world-lessons academy-zone-panel academy-zone-{html.escape(zone_param)}">
@@ -37331,6 +37408,7 @@ def render_roxy_academy_module() -> None:
             <span>{planet_lesson_done} / {planet_lesson_total} completadas</span>
             <i><b style="width:{planet_lesson_pct}%"></b></i>
           </div>
+          {academy_action_message_html}
           {body}
           {footer}
         </aside>
@@ -37370,31 +37448,44 @@ def render_roxy_academy_module() -> None:
         """
         for icon, title, detail in learning_games
     )
-    chest_unlocked = completed_count >= 3
+    def reward_card_html(reward_key: str, icon: str, title: str, text: str) -> str:
+        reward = reward_catalog[reward_key]
+        is_done = reward_key in claimed_rewards
+        is_ready = completed_count >= int(reward["requires"])
+        href = f"{planet_href}&zone=cofres&claim={quote(reward_key, safe='')}" if is_ready and not is_done else f"{planet_href}&zone=cofres"
+        status = "Reclamado" if is_done else ("Reclamar" if is_ready else f"{completed_count}/{reward['requires']} lecciones")
+        klass = "done" if is_done else ("ready" if is_ready else "locked")
+        return f"""
+          <a class="academy-zone-card {klass}" href="{href}" target="_self">
+            <i class="material-symbols-outlined">{html.escape(icon)}</i><strong>{html.escape(title)}</strong><p>{html.escape(text)}</p><b>{html.escape(status)}</b>
+          </a>
+        """
+
+    def shop_card_html(tool_key: str, icon: str, title: str, text: str, open_href: str) -> str:
+        tool = shop_catalog[tool_key]
+        is_owned = tool_key in owned_tools
+        can_buy = int(state.get("coins", 250)) >= int(tool["cost"])
+        href = open_href if is_owned else f"{planet_href}&zone=tienda&buy={quote(tool_key, safe='')}"
+        status = "Abrir" if is_owned else (f"Comprar · {tool['cost']} monedas" if can_buy else f"Faltan monedas · {tool['cost']}")
+        klass = "done" if is_owned else ("ready" if can_buy else "locked")
+        return f"""
+          <a class="academy-zone-card {klass}" href="{href}" target="_self">
+            <i class="material-symbols-outlined">{html.escape(icon)}</i><strong>{html.escape(title)}</strong><p>{html.escape(text)}</p><b>{html.escape(status)}</b>
+          </a>
+        """
+
     chest_rows = f"""
       <div class="academy-zone-cards">
-        <a class="academy-zone-card {'ready' if completed_count >= 1 else 'locked'}" href="{next_href}" target="_self">
-          <i class="material-symbols-outlined">redeem</i><strong>Cofre inicial</strong><p>Completa tu primera leccion para reclamar XP y monedas.</p><b>{'Disponible' if completed_count >= 1 else 'Completa 1 leccion'}</b>
-        </a>
-        <a class="academy-zone-card {'ready' if chest_unlocked else 'locked'}" href="{next_href}" target="_self">
-          <i class="material-symbols-outlined">workspace_premium</i><strong>Cofre de constancia</strong><p>Se activa al completar 3 lecciones del planeta.</p><b>{'Disponible' if chest_unlocked else f'{completed_count}/3 lecciones'}</b>
-        </a>
-        <a class="academy-zone-card locked" href="{current_href}" target="_self">
-          <i class="material-symbols-outlined">diamond</i><strong>Insignia del planeta</strong><p>Explorador del Mercado se desbloquea al terminar el examen.</p><b>{completed_count}/{origin_total}</b>
-        </a>
+        {reward_card_html("initial", "redeem", "Cofre inicial", "Completa tu primera leccion para reclamar XP y monedas.")}
+        {reward_card_html("streak", "workspace_premium", "Cofre de constancia", "Se activa al completar 3 lecciones del planeta.")}
+        {reward_card_html("badge", "diamond", "Insignia del planeta", "Explorador del Mercado se desbloquea al terminar el examen.")}
       </div>
     """
     shop_rows = f"""
       <div class="academy-zone-cards">
-        <a class="academy-zone-card" href="{planet_href}&game=diario-del-cadete" target="_self">
-          <i class="material-symbols-outlined">edit_note</i><strong>Cuaderno de practica</strong><p>Abre el diario para registrar que aprendiste antes de avanzar.</p><b>Abrir</b>
-        </a>
-        <a class="academy-zone-card" href="{planet_href}&game=control-emocional" target="_self">
-          <i class="material-symbols-outlined">self_improvement</i><strong>Escudo de disciplina</strong><p>Practica decisiones lentas para evitar operar por impulso.</p><b>Entrenar</b>
-        </a>
-        <a class="academy-zone-card" href="{next_href}" target="_self">
-          <i class="material-symbols-outlined">rocket_launch</i><strong>Boost de leccion</strong><p>Continua con la siguiente clase disponible del planeta.</p><b>Continuar</b>
-        </a>
+        {shop_card_html("cuaderno", "edit_note", "Cuaderno de practica", "Registra que aprendiste, que duda tienes y que debes practicar.", f"{planet_href}&game=diario-del-cadete")}
+        {shop_card_html("escudo", "self_improvement", "Escudo de disciplina", "Entrena decisiones lentas para evitar operar por impulso.", f"{planet_href}&game=control-emocional")}
+        {shop_card_html("boost", "rocket_launch", "Boost de leccion", "Abre la siguiente clase disponible del planeta.", next_href)}
       </div>
     """
     zone_panels = {
@@ -47220,6 +47311,9 @@ def main() -> None:
         .academy-zone-summary{display:grid!important;gap:5px!important;margin:0 0 12px!important;border:1px solid rgba(125,211,252,.18)!important;border-radius:15px!important;background:linear-gradient(135deg,rgba(14,165,233,.14),rgba(88,28,135,.18))!important;padding:12px!important}
         .academy-zone-summary b{color:#fff!important;font-size:13px!important;line-height:1.2!important}
         .academy-zone-summary span{color:#dbeafe!important;font-size:12px!important;line-height:1.35!important}
+        .academy-zone-toast{display:grid!important;grid-template-columns:34px minmax(0,1fr)!important;gap:10px!important;align-items:center!important;margin:0 0 12px!important;border:1px solid rgba(34,197,94,.30)!important;border-radius:15px!important;background:linear-gradient(135deg,rgba(22,163,74,.24),rgba(14,165,233,.14))!important;padding:10px 12px!important;color:#dcfce7!important;box-shadow:0 0 24px rgba(34,197,94,.14)!important}
+        .academy-zone-toast i{display:grid!important;place-items:center!important;width:32px!important;height:32px!important;border-radius:12px!important;background:rgba(34,197,94,.18)!important;color:#86efac!important;font-size:20px!important}
+        .academy-zone-toast span{font-size:12px!important;font-weight:900!important;line-height:1.25!important}
         .academy-zone-actions{display:grid!important;gap:9px!important;max-height:58vh!important;overflow:auto!important;padding-right:2px!important}
         .academy-zone-action{position:relative!important;display:grid!important;grid-template-columns:38px minmax(0,1fr) auto!important;gap:10px!important;align-items:center!important;border:1px solid rgba(167,139,250,.18)!important;border-radius:14px!important;background:linear-gradient(135deg,rgba(15,23,42,.82),rgba(30,27,75,.60))!important;padding:10px!important;color:#fff!important;text-decoration:none!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)!important}
         .academy-zone-action:before{content:""!important;position:absolute!important;inset:0!important;border-radius:14px!important;background:radial-gradient(circle at 18% 0%,rgba(56,189,248,.12),transparent 38%)!important;pointer-events:none!important}
@@ -47239,6 +47333,9 @@ def main() -> None:
         .academy-zone-card p{margin:0!important;color:#c4b5fd!important;font-size:11px!important;line-height:1.3!important}
         .academy-zone-card b{align-self:end!important;justify-self:start!important;border-radius:999px!important;background:rgba(59,130,246,.16)!important;color:#bfdbfe!important;padding:6px 9px!important;font-size:10px!important;text-transform:uppercase!important}
         .academy-zone-card.ready b{background:rgba(34,197,94,.16)!important;color:#86efac!important}
+        .academy-zone-card.done{border-color:rgba(34,197,94,.34)!important;background:linear-gradient(180deg,rgba(20,83,45,.44),rgba(8,7,26,.82))!important}
+        .academy-zone-card.done i{background:linear-gradient(135deg,#22c55e,#2563eb)!important}
+        .academy-zone-card.done b{background:rgba(34,197,94,.22)!important;color:#bbf7d0!important}
         .academy-zone-card.locked{opacity:.68!important}
         .academy-world-location.active{border-color:rgba(34,211,238,.62)!important;background:linear-gradient(135deg,rgba(14,165,233,.32),rgba(124,58,237,.34))!important;box-shadow:0 0 0 1px rgba(125,211,252,.18),0 0 28px rgba(34,211,238,.28)!important}
         .academy-world-location.active i{background:linear-gradient(135deg,#22d3ee,#7c3aed)!important;color:#fff!important}
