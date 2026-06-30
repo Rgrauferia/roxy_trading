@@ -36085,6 +36085,350 @@ ROXY_ACADEMY_LEVEL_1_LESSONS = (
     },
 )
 
+ROXY_ACADEMY_LEVEL_1_LESSONS = ROXY_ACADEMY_LEVEL_1_LESSONS + (
+    {
+        "id": "broker-plataforma",
+        "title": "Que es un broker o plataforma?",
+        "short": "Broker",
+        "icon": "account_balance",
+        "character": "Atom",
+        "explanation": "Un broker o plataforma es el lugar donde ves precios, envias ordenes y administras tu cuenta. No todos tienen los mismos costos, reglas ni activos.",
+        "study": "Meta: entender que la plataforma es una herramienta, no una garantia de ganar.",
+        "mission": "Reconoce que datos debes revisar antes de confiar en una plataforma.",
+        "villain": "Mr. Distracto solo mira botones bonitos y no revisa reglas.",
+        "example_symbol": "SPY",
+        "deep_points": (
+            "Una plataforma muestra precios, graficas, cuenta y botones de operacion.",
+            "Debes revisar costos, horarios, activos disponibles y riesgos antes de usarla.",
+            "Una buena plataforma no reemplaza tu educacion ni tu plan.",
+        ),
+        "practice_steps": (
+            "Identifica donde aparece precio actual.",
+            "Busca donde se veria una orden de compra o venta.",
+            "Anota una regla de seguridad antes de operar.",
+        ),
+        "question": "Que hace una plataforma de trading?",
+        "options": (
+            "Permite ver precios, graficas y enviar ordenes.",
+            "Garantiza que todas las operaciones ganen.",
+            "Elimina el riesgo automaticamente.",
+            "Decide por ti sin que aprendas.",
+        ),
+        "answer": 0,
+        "feedback": "Correcto. La plataforma es tu herramienta; la decision responsable sigue siendo tuya.",
+    },
+    {
+        "id": "mercado-abierto-cerrado",
+        "title": "Mercado abierto y cerrado",
+        "short": "Horarios",
+        "icon": "schedule",
+        "character": "Luna",
+        "explanation": "Los mercados tienen horarios. Algunas acciones se mueven mas durante mercado abierto y otras plataformas muestran datos fuera de horario con menos liquidez.",
+        "study": "Meta: aprender que no todos los precios tienen la misma calidad en todo momento.",
+        "mission": "Mira si el activo de ejemplo esta en horario regular o fuera de horario.",
+        "villain": "Doctor Comfort ignora el horario y luego no entiende por que cambia la liquidez.",
+        "example_symbol": "AAPL",
+        "deep_points": (
+            "En acciones, el mercado regular de EE.UU. suele ser 9:30 AM a 4:00 PM ET.",
+            "Fuera de horario puede haber menos volumen y movimientos mas irregulares.",
+            "Crypto opera 24/7, pero aun asi tiene momentos de mayor y menor actividad.",
+        ),
+        "practice_steps": (
+            "Revisa la hora actual del mercado.",
+            "Compara si el precio se mueve rapido o lento.",
+            "Escribe si estas viendo accion, ETF o crypto.",
+        ),
+        "question": "Por que importan los horarios?",
+        "options": (
+            "Porque afectan liquidez, movimiento y calidad del precio.",
+            "Porque eliminan todas las perdidas.",
+            "Porque solo se puede aprender de noche.",
+            "Porque las graficas dejan de existir.",
+        ),
+        "answer": 0,
+        "feedback": "Correcto. El horario cambia el contexto; un principiante debe saber cuando esta mirando el mercado.",
+    },
+    {
+        "id": "capital-cuenta",
+        "title": "Capital de la cuenta",
+        "short": "Capital",
+        "icon": "savings",
+        "character": "Max",
+        "explanation": "Capital es el dinero disponible para practicar u operar. Protegerlo es mas importante que buscar una ganancia rapida.",
+        "study": "Meta: aprender que tu cuenta es tu combustible, no una ficha de apuesta.",
+        "mission": "Define cuanto capital usarias para practicar sin presion.",
+        "villain": "Captain Revenge quiere arriesgar demasiado para recuperar rapido.",
+        "example_symbol": "SPY",
+        "deep_points": (
+            "El capital determina cuanto margen de error tienes.",
+            "Si arriesgas demasiado pronto, una mala racha te saca del juego.",
+            "Un principiante debe pensar primero en sobrevivir y aprender.",
+        ),
+        "practice_steps": (
+            "Escribe tu capital de practica.",
+            "Decide una cantidad pequena maxima por ejercicio.",
+            "Confirma que puedes perderla sin afectar tu vida diaria.",
+        ),
+        "question": "Que debe hacer un principiante con su capital?",
+        "options": (
+            "Protegerlo y practicar con riesgo pequeno.",
+            "Arriesgarlo todo para aprender rapido.",
+            "Ignorar perdidas pequenas.",
+            "Operar sin medir nada.",
+        ),
+        "answer": 0,
+        "feedback": "Bien. El capital se protege primero; las ganancias vienen despues de proceso y practica.",
+    },
+    {
+        "id": "tamano-posicion",
+        "title": "Tamano de posicion",
+        "short": "Tamano",
+        "icon": "straighten",
+        "character": "Max",
+        "explanation": "El tamano de posicion es cuanto compras o cuanto arriesgas en una idea. Una idea buena puede ser peligrosa si el tamano es demasiado grande.",
+        "study": "Meta: conectar riesgo con cantidad, no solo con direccion del precio.",
+        "mission": "Compara una posicion pequena contra una grande y observa como cambia la perdida posible.",
+        "villain": "King Ego quiere operar grande para sentirse seguro.",
+        "example_symbol": "AAPL",
+        "deep_points": (
+            "No es lo mismo comprar 1 accion que 100 acciones.",
+            "El tamano debe depender de tu capital y del riesgo permitido.",
+            "Controlar tamano reduce presion emocional.",
+        ),
+        "practice_steps": (
+            "Elige un capital de practica.",
+            "Calcula cuanto seria 1% de ese capital.",
+            "Preguntate si aceptarias perder esa cantidad.",
+        ),
+        "question": "Por que importa el tamano de posicion?",
+        "options": (
+            "Porque determina cuanto puedes ganar o perder.",
+            "Porque cambia el nombre del activo.",
+            "Porque elimina las emociones.",
+            "Porque garantiza el resultado.",
+        ),
+        "answer": 0,
+        "feedback": "Correcto. El tamano convierte una idea en riesgo real.",
+    },
+    {
+        "id": "stop-loss-basico",
+        "title": "Que es stop loss?",
+        "short": "Stop",
+        "icon": "emergency_home",
+        "character": "Max",
+        "explanation": "Un stop loss es un nivel o regla para salir si la operacion va en contra. En nivel basico lo vemos como una puerta de emergencia.",
+        "study": "Meta: entender que salir con perdida pequena puede protegerte.",
+        "mission": "Marca donde saldrias si la idea deja de tener sentido.",
+        "villain": "Captain Revenge odia aceptar perdidas pequenas.",
+        "example_symbol": "TSLA",
+        "deep_points": (
+            "Un stop no es castigo; es proteccion.",
+            "Debe decidirse antes, no cuando ya estas nervioso.",
+            "Sin stop o regla de salida, una perdida pequena puede crecer.",
+        ),
+        "practice_steps": (
+            "Mira el precio actual.",
+            "Elige un punto donde tu idea estaria equivocada.",
+            "Anota por que ese punto protege tu cuenta.",
+        ),
+        "question": "Para que sirve un stop loss?",
+        "options": (
+            "Para limitar una perdida si la idea falla.",
+            "Para garantizar ganancias.",
+            "Para esconder errores.",
+            "Para comprar mas automaticamente siempre.",
+        ),
+        "answer": 0,
+        "feedback": "Correcto. El stop es una herramienta de proteccion, especialmente para principiantes.",
+    },
+    {
+        "id": "target-basico",
+        "title": "Que es un target?",
+        "short": "Target",
+        "icon": "my_location",
+        "character": "Roxy",
+        "explanation": "Un target es un objetivo de salida si la operacion va a favor. Sirve para saber que resultado buscas antes de entrar.",
+        "study": "Meta: no entrar sin saber donde podria estar una salida razonable.",
+        "mission": "Define una salida positiva antes de imaginar ganancias.",
+        "villain": "Lady FOMO siempre quiere mas y nunca tiene objetivo.",
+        "example_symbol": "NVDA",
+        "deep_points": (
+            "El target ayuda a convertir una idea en plan.",
+            "Debe compararse con el riesgo para saber si vale la pena.",
+            "Un objetivo irreal puede crear frustracion y malas decisiones.",
+        ),
+        "practice_steps": (
+            "Observa precio actual.",
+            "Elige un objetivo cercano y uno lejano.",
+            "Pregunta si el objetivo compensa el riesgo.",
+        ),
+        "question": "Que es un target?",
+        "options": (
+            "Un objetivo de salida si la operacion va a favor.",
+            "Una garantia de que el precio llegara.",
+            "Un tipo de perdida.",
+            "Una clave de acceso.",
+        ),
+        "answer": 0,
+        "feedback": "Correcto. El target te ayuda a pensar antes de actuar.",
+    },
+    {
+        "id": "riesgo-beneficio",
+        "title": "Riesgo vs beneficio",
+        "short": "R/B",
+        "icon": "balance",
+        "character": "Max",
+        "explanation": "Riesgo vs beneficio compara cuanto podrias perder contra cuanto buscas ganar. No todo movimiento vale la pena.",
+        "study": "Meta: aprender que una oportunidad necesita recompensa suficiente para el riesgo.",
+        "mission": "Compara una idea que arriesga 1 para buscar 2 con otra que arriesga 2 para buscar 1.",
+        "villain": "King Ego solo mira la ganancia posible y no el riesgo.",
+        "example_symbol": "AAPL",
+        "deep_points": (
+            "Si arriesgas 1 para buscar 2, la relacion es 1:2.",
+            "Si arriesgas 2 para buscar 1, necesitas ganar demasiado seguido.",
+            "La relacion no garantiza nada, pero ordena la decision.",
+        ),
+        "practice_steps": (
+            "Escribe una entrada imaginaria.",
+            "Escribe un stop y un target.",
+            "Compara distancia al stop contra distancia al target.",
+        ),
+        "question": "Que compara riesgo/beneficio?",
+        "options": (
+            "Lo que puedes perder contra lo que buscas ganar.",
+            "El nombre de dos empresas.",
+            "La hora del mercado.",
+            "El color de una vela.",
+        ),
+        "answer": 0,
+        "feedback": "Correcto. Roxy quiere que mires ambos lados: proteccion y oportunidad.",
+    },
+    {
+        "id": "watchlist-basica",
+        "title": "Que es una watchlist?",
+        "short": "Watchlist",
+        "icon": "star",
+        "character": "Luna",
+        "explanation": "Una watchlist es una lista de activos que sigues para aprender y observar. Ayuda a enfocarte sin saltar de un activo a otro sin razon.",
+        "study": "Meta: elegir pocos activos para practicar observacion.",
+        "mission": "Crea una lista de 3 activos y observa como se comportan.",
+        "villain": "Mr. Distracto quiere que mires 100 cosas a la vez.",
+        "example_symbol": "MSFT",
+        "deep_points": (
+            "Una watchlist reduce ruido.",
+            "Debe incluir activos que puedas entender y revisar.",
+            "Aprender pocos activos bien es mejor que perseguir todo.",
+        ),
+        "practice_steps": (
+            "Elige 3 activos conocidos.",
+            "Anota precio actual y cambio del dia.",
+            "Vuelve despues y observa que cambio.",
+        ),
+        "question": "Para que sirve una watchlist?",
+        "options": (
+            "Para seguir activos y practicar enfoque.",
+            "Para garantizar entradas.",
+            "Para ocultar perdidas.",
+            "Para operar sin revisar nada.",
+        ),
+        "answer": 0,
+        "feedback": "Bien. Una watchlist convierte el caos en observacion ordenada.",
+    },
+    {
+        "id": "plan-practica",
+        "title": "Plan de practica",
+        "short": "Practica",
+        "icon": "fact_check",
+        "character": "Roxy",
+        "explanation": "Un plan de practica define que vas a estudiar, cuanto tiempo, que vas a medir y cuando vas a repetir. Sin plan, la practica se vuelve entretenimiento.",
+        "study": "Meta: crear una rutina simple antes de operar.",
+        "mission": "Completa una rutina: estudiar, observar, responder, anotar.",
+        "villain": "Doctor Comfort dice que manana empiezas.",
+        "example_symbol": "SPY",
+        "deep_points": (
+            "Practicar no es mirar graficas sin objetivo.",
+            "Una rutina corta diaria crea disciplina.",
+            "La repeticion convierte conceptos en habilidad.",
+        ),
+        "practice_steps": (
+            "Estudia una leccion.",
+            "Observa un activo 5 minutos.",
+            "Responde una pregunta y escribe una nota.",
+        ),
+        "question": "Que hace un plan de practica?",
+        "options": (
+            "Organiza que estudiar, practicar y medir.",
+            "Elimina la necesidad de aprender.",
+            "Garantiza rentabilidad inmediata.",
+            "Reemplaza todas las reglas.",
+        ),
+        "answer": 0,
+        "feedback": "Correcto. Roxy Academy se trata de repetir bien, no de correr.",
+    },
+    {
+        "id": "emociones-basicas",
+        "title": "Emociones basicas",
+        "short": "Emociones",
+        "icon": "psychology",
+        "character": "Bella",
+        "explanation": "Miedo, euforia, prisa y frustracion pueden afectar decisiones. En Nivel 1 aprendemos a reconocerlas antes de operar.",
+        "study": "Meta: saber que una emocion fuerte no debe controlar el boton.",
+        "mission": "Identifica que villano aparece cuando sientes prisa, ego o frustracion.",
+        "villain": "La Legion Chaos vive en decisiones emocionales.",
+        "example_symbol": "TSLA",
+        "deep_points": (
+            "FOMO aparece cuando quieres entrar por miedo a perderte algo.",
+            "Revenge aparece cuando quieres recuperar rapido.",
+            "Ego aparece cuando no aceptas estar equivocado.",
+        ),
+        "practice_steps": (
+            "Antes de responder, di que emocion sientes.",
+            "Si hay prisa, pausa 10 segundos.",
+            "Elige una decision basada en regla, no emocion.",
+        ),
+        "question": "Que debes hacer con una emocion fuerte?",
+        "options": (
+            "Reconocerla y pausar antes de decidir.",
+            "Obedecerla de inmediato.",
+            "Aumentar riesgo para sentir control.",
+            "Ignorar todo plan.",
+        ),
+        "answer": 0,
+        "feedback": "Correcto. Bella celebra cuando decides con calma.",
+    },
+    {
+        "id": "checklist-pre-operar",
+        "title": "Checklist antes de operar",
+        "short": "Checklist",
+        "icon": "checklist",
+        "character": "Roxy",
+        "explanation": "Un checklist es una lista corta que revisas antes de operar. Ayuda a no olvidar riesgo, entrada, salida, contexto y emocion.",
+        "study": "Meta: convertir la decision en proceso repetible.",
+        "mission": "Completa el checklist basico de Roxy antes de pasar al examen.",
+        "villain": "Mr. Distracto intenta saltarse pasos.",
+        "example_symbol": "AAPL",
+        "deep_points": (
+            "Una buena decision tiene motivo, riesgo, salida y registro.",
+            "El checklist no te hace perfecto, te hace consistente.",
+            "Si falta una pieza, la respuesta puede ser esperar.",
+        ),
+        "practice_steps": (
+            "Confirma que entiendes el activo.",
+            "Marca entrada, stop, target y tamano hipotetico.",
+            "Escribe por que esperarias si falta informacion.",
+        ),
+        "question": "Para que sirve un checklist?",
+        "options": (
+            "Para revisar pasos importantes antes de decidir.",
+            "Para operar mas rapido sin pensar.",
+            "Para garantizar que el precio suba.",
+            "Para eliminar la necesidad de diario.",
+        ),
+        "answer": 0,
+        "feedback": "Excelente. El checklist es una defensa contra Chaos.",
+    },
+)
+
 ROXY_ACADEMY_PROGRESS_PATH = project_path("data/roxy_academy_progress.json")
 
 
@@ -36252,7 +36596,7 @@ def render_roxy_academy_module() -> None:
         return "" if value == "-" else value
 
     state = roxy_academy_progress_state()
-    origin_lessons = ROXY_ACADEMY_LEVEL_1_LESSONS[:10]
+    origin_lessons = ROXY_ACADEMY_LEVEL_1_LESSONS
     origin_total = len(origin_lessons)
     completed = [str(item) for item in state.get("completed", [])]
     completed_set = set(completed)
@@ -36355,6 +36699,27 @@ def render_roxy_academy_module() -> None:
           <div class="academy-villain-warning"><i class="material-symbols-outlined">warning</i><span><b>Evita</b>{html.escape(str(lesson.get('villain') or 'No avances sin entender.'))}</span></div>
         </div>
     """
+    concept_points = list(lesson.get("deep_points") or (
+        f"Define {lesson['title']} con tus propias palabras antes de responder.",
+        "Mira el ejemplo vivo y separa dato real, opinion y emocion.",
+        "Escribe una regla simple que puedas repetir en demo.",
+    ))
+    practice_steps = list(lesson.get("practice_steps") or (
+        "Observa el activo de ejemplo durante 30 segundos.",
+        "Di si el precio subio, bajo o se mantuvo sin inventar una senal.",
+        "Anota que dato te falta antes de tomar una decision.",
+    ))
+    concept_points_html = "".join(f"<li>{html.escape(text_display(item))}</li>" for item in concept_points[:5])
+    practice_steps_html = "".join(f"<li>{html.escape(text_display(item))}</li>" for item in practice_steps[:5])
+    roxy_checklist_html = "".join(
+        f"<span><i class=\"material-symbols-outlined\">{icon}</i>{html.escape(label)}</span>"
+        for icon, label in (
+            ("visibility", "Entiendo el concepto"),
+            ("monitoring", "Puedo verlo en un ejemplo real"),
+            ("edit_note", "Puedo explicarlo sin memorizar"),
+        )
+    )
+    live_price_line = f"{text_display(lesson_live_example.get('symbol') or lesson.get('example_symbol') or 'AAPL')} cotiza cerca de {price_display(lesson_live_example.get('price') or lesson_live_example.get('current_price'))}"
     lesson_deep_dive_html = f"""
         <div class="academy-lesson-deep-dive">
           <header>
@@ -36362,25 +36727,31 @@ def render_roxy_academy_module() -> None:
             <span>Entrenamiento profundo</span>
             <strong>{html.escape(str(lesson['title']))}</strong>
           </header>
-          <div class="academy-deep-grid">
-            <article>
-              <b>1. Entiende la idea</b>
+          <div class="academy-deep-lesson">
+            <article class="academy-deep-main">
+              <b>Concepto claro</b>
               <p>{html.escape(str(lesson.get('explanation') or 'Lee la idea central antes de responder.'))}</p>
+              <ul>{concept_points_html}</ul>
             </article>
             <article>
-              <b>2. Ejemplo con mercado real</b>
-              <p>Roxy usa {html.escape(str(lesson.get('example_symbol') or 'AAPL'))} como ejemplo vivo para que practiques con datos actuales, sin convertir esta leccion basica en una senal para operar.</p>
+              <b>Ejemplo vivo</b>
+              <p>{html.escape(live_price_line)}. Este dato se usa para aprender a leer el mercado, no como senal para operar.</p>
+              <small>{html.escape(str(lesson.get('study') or 'Estudia primero, practica despues.'))}</small>
             </article>
             <article>
-              <b>3. Juego rapido</b>
-              <p>Responde, gana XP y derrota al villano de esta mision. Si fallas, Bella y Luna te devuelven a la explicacion correcta.</p>
+              <b>Practica guiada</b>
+              <ol>{practice_steps_html}</ol>
+            </article>
+            <article class="academy-deep-roxy-check">
+              <b>Checklist de Roxy</b>
+              <div>{roxy_checklist_html}</div>
             </article>
           </div>
         </div>
     """
     lesson_character_key = str(lesson.get("character", "Atom")).strip().lower()
     lesson_character_img = {
-        "atom": '<i class="material-symbols-outlined academy-character-symbol academy-character-symbol-atom">smart_toy</i>',
+        "atom": atom_img or '<i class="material-symbols-outlined academy-character-symbol academy-character-symbol-atom">smart_toy</i>',
         "max": '<i class="material-symbols-outlined academy-character-symbol academy-character-symbol-max">shield</i>',
         "luna": luna_img,
         "bella": bella_img,
@@ -36895,8 +37266,8 @@ def render_roxy_academy_module() -> None:
         if answered
         else "Lee con calma y responde. Roxy quiere que entiendas el idioma basico antes de avanzar."
     )
-    continue_href = next_href if correct and current_index < len(origin_lessons) - 1 else current_href
-    continue_label = "Continuar" if correct and current_index < len(origin_lessons) - 1 else ("Repetir leccion" if correct else "Responder")
+    continue_href = next_href if correct and current_index < len(origin_lessons) - 1 else (f"{current_href}&answer={int(lesson.get('answer', 0))}" if not answered else current_href)
+    continue_label = "Continuar" if correct and current_index < len(origin_lessons) - 1 else ("Repetir leccion" if correct else "Comprobar respuesta")
     badge_html = (
         '<div class="academy-badge-earned"><i class="material-symbols-outlined">workspace_premium</i><strong>Explorador del Mercado</strong><span>Nivel 1 completado</span></div>'
         if "Explorador del Mercado" in state.get("badges", [])
@@ -43342,7 +43713,7 @@ def main() -> None:
           height:138%!important;
           max-width:none!important;
           object-fit:cover!important;
-          object-position:50% 22%!important;
+          object-position:50% 0%!important;
           filter:saturate(1.08) drop-shadow(0 0 14px rgba(34,211,238,.28))!important;
         }
         .roxy-academy-shell.academy-world-open .academy-world-live-layer{
@@ -44996,7 +45367,7 @@ def main() -> None:
           width:100%!important;
           height:100%!important;
           object-fit:cover!important;
-          object-position:center center!important;
+          object-position:50% 22%!important;
           opacity:.78!important;
           filter:saturate(1.12) contrast(1.02) brightness(.74)!important;
           transform:scale(1.08)!important;
@@ -45217,6 +45588,715 @@ def main() -> None:
         @keyframes academyOriginTreeCanopyAlive{
           0%,100%{transform:translateX(-50%) scale(1) rotate(-.4deg)}
           50%{transform:translateX(-50%) scale(1.035) rotate(.4deg)}
+        }
+        /* Final Academy Origin repair: the planet interior must feel like a living world, not CSS placeholders. */
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene{
+          min-height:980px!important;
+          overflow:hidden!important;
+          background:#020617!important;
+          isolation:isolate!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-art{
+          display:block!important;
+          position:absolute!important;
+          inset:0!important;
+          z-index:0!important;
+          overflow:hidden!important;
+          pointer-events:none!important;
+          opacity:1!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-bg-img{
+          display:block!important;
+          position:absolute!important;
+          inset:0!important;
+          width:100%!important;
+          height:100%!important;
+          object-fit:cover!important;
+          object-position:center center!important;
+          opacity:.96!important;
+          filter:saturate(1.18) contrast(1.08) brightness(.82)!important;
+          transform:scale(1.24)!important;
+          animation:academyOriginRealWorldDrift 24s ease-in-out infinite!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-art:after{
+          content:""!important;
+          position:absolute!important;
+          inset:0!important;
+          display:block!important;
+          background:
+            radial-gradient(circle at 48% 38%,rgba(125,211,252,.08),transparent 28%),
+            radial-gradient(circle at 52% 68%,rgba(168,85,247,.14),transparent 34%),
+            linear-gradient(180deg,rgba(2,6,23,.18),rgba(2,6,23,.10) 48%,rgba(2,6,23,.52) 100%)!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene:before{
+          content:""!important;
+          position:absolute!important;
+          inset:0!important;
+          z-index:2!important;
+          pointer-events:none!important;
+          background:
+            radial-gradient(circle at 14% 22%,rgba(255,255,255,.82) 0 1px,transparent 2px),
+            radial-gradient(circle at 82% 20%,rgba(196,181,253,.78) 0 1px,transparent 2px),
+            radial-gradient(circle at 72% 56%,rgba(110,231,183,.72) 0 1px,transparent 2px),
+            radial-gradient(circle at 24% 78%,rgba(255,255,255,.66) 0 1px,transparent 2px),
+            linear-gradient(116deg,transparent 0 23%,rgba(34,211,238,.10) 41%,transparent 64%)!important;
+          background-size:180px 220px,240px 260px,210px 250px,160px 190px,100% 100%!important;
+          animation:academyOriginRealParticles 18s linear infinite!important;
+          opacity:.78!important;
+          mix-blend-mode:screen!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene:after{
+          content:""!important;
+          position:absolute!important;
+          inset:-12%!important;
+          z-index:3!important;
+          pointer-events:none!important;
+          background:
+            radial-gradient(ellipse at 50% 18%,rgba(56,189,248,.18),transparent 30%),
+            radial-gradient(ellipse at 18% 78%,rgba(34,197,94,.16),transparent 26%),
+            radial-gradient(ellipse at 86% 76%,rgba(168,85,247,.20),transparent 30%)!important;
+          animation:academyOriginRealAurora 20s ease-in-out infinite!important;
+          opacity:.86!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-sky{
+          z-index:4!important;
+          opacity:.74!important;
+          mix-blend-mode:screen!important;
+          background:
+            radial-gradient(circle at 20% 35%,rgba(255,255,255,.42) 0 1px,transparent 2px),
+            radial-gradient(circle at 72% 42%,rgba(255,255,255,.36) 0 1px,transparent 2px),
+            linear-gradient(90deg,transparent,rgba(125,211,252,.10),transparent)!important;
+          animation:academyOriginSkyLife 16s ease-in-out infinite!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-hub,
+        .roxy-academy-shell.academy-world-open .academy-world-village,
+        .roxy-academy-shell.academy-world-open .academy-world-cloud,
+        .roxy-academy-shell.academy-world-open .academy-world-island{
+          display:none!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-live-layer{z-index:20!important}
+        .roxy-academy-shell.academy-world-open .academy-world-heroes{
+          z-index:29!important;
+          left:50%!important;
+          bottom:260px!important;
+          transform:translateX(-50%)!important;
+          padding:5px!important;
+          border-radius:28px!important;
+          background:linear-gradient(180deg,rgba(2,6,23,.06),rgba(2,6,23,.36))!important;
+          box-shadow:0 0 35px rgba(34,211,238,.12)!important;
+          animation:academyOriginCrewHumanIdle 6s ease-in-out infinite!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-heroes img{
+          filter:drop-shadow(0 18px 26px rgba(0,0,0,.46)) drop-shadow(0 0 18px rgba(34,211,238,.26))!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-companion{
+          z-index:31!important;
+          background:linear-gradient(135deg,rgba(3,7,18,.72),rgba(30,27,75,.66))!important;
+          border-color:rgba(125,211,252,.28)!important;
+          box-shadow:0 14px 34px rgba(0,0,0,.30),0 0 24px rgba(34,211,238,.13)!important;
+          animation:academyOriginNpcBreathing 5.5s ease-in-out infinite!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-location{
+          z-index:40!important;
+          pointer-events:auto!important;
+          border:1px solid rgba(125,211,252,.35)!important;
+          background:linear-gradient(135deg,rgba(3,7,18,.78),rgba(15,23,42,.68))!important;
+          backdrop-filter:blur(16px)!important;
+          box-shadow:0 15px 36px rgba(0,0,0,.36),0 0 28px rgba(34,211,238,.16)!important;
+          transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-location:hover{
+          transform:translateY(-3px) scale(1.02)!important;
+          border-color:rgba(34,211,238,.72)!important;
+          box-shadow:0 18px 42px rgba(0,0,0,.42),0 0 36px rgba(34,211,238,.30)!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-location-tree{left:51%!important;top:31%!important;transform:translateX(-50%)!important}
+        .roxy-academy-shell.academy-world-open .academy-world-location-crypto-gate{right:24px!important;top:150px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-location-library{left:26px!important;bottom:290px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-location-training{right:26px!important;bottom:290px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-location-focus{left:50%!important;bottom:222px!important;transform:translateX(-50%)!important}
+        .roxy-academy-shell.academy-world-open .academy-world-location-shop{left:26px!important;bottom:154px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-location-chests{right:26px!important;bottom:154px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-play-hint{
+          z-index:42!important;
+          bottom:110px!important;
+          background:rgba(3,7,18,.62)!important;
+          border-color:rgba(125,211,252,.24)!important;
+          backdrop-filter:blur(14px)!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-start{
+          z-index:43!important;
+          bottom:48px!important;
+          background:linear-gradient(90deg,#7c3aed,#2563eb,#06b6d4)!important;
+          box-shadow:0 0 34px rgba(124,58,237,.44),0 0 28px rgba(34,211,238,.22)!important;
+          pointer-events:auto!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-title{
+          z-index:44!important;
+          background:linear-gradient(135deg,rgba(3,7,18,.82),rgba(6,78,59,.38))!important;
+          border-color:rgba(125,211,252,.28)!important;
+          backdrop-filter:blur(18px)!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-current-mission{
+          display:grid!important;
+          z-index:41!important;
+          bottom:370px!important;
+          right:26px!important;
+          background:rgba(3,7,18,.62)!important;
+          border-color:rgba(34,197,94,.30)!important;
+          backdrop-filter:blur(14px)!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-live-ship{
+          z-index:35!important;
+          width:138px!important;
+          height:198px!important;
+          filter:drop-shadow(0 0 24px rgba(168,85,247,.42))!important;
+          animation:academyOriginShipLivingPatrol 22s cubic-bezier(.42,.02,.24,1) infinite!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-live-ship img{transform:rotate(26deg)!important}
+        .academy-lesson-deep-dive{
+          margin-top:12px!important;
+          border:1px solid rgba(125,211,252,.20)!important;
+          border-radius:18px!important;
+          background:linear-gradient(145deg,rgba(3,7,18,.72),rgba(20,18,54,.62))!important;
+          padding:13px!important;
+          box-shadow:inset 0 0 24px rgba(59,130,246,.07)!important;
+        }
+        .academy-lesson-deep-dive header{
+          display:grid!important;
+          grid-template-columns:34px minmax(0,1fr)!important;
+          gap:4px 10px!important;
+          align-items:center!important;
+          margin-bottom:10px!important;
+        }
+        .academy-lesson-deep-dive header i{
+          grid-row:1/3!important;
+          display:grid!important;
+          place-items:center!important;
+          width:34px!important;
+          height:34px!important;
+          border-radius:12px!important;
+          color:#67e8f9!important;
+          background:rgba(14,165,233,.16)!important;
+        }
+        .academy-lesson-deep-dive header span{color:#7dd3fc!important;font-size:10px!important;text-transform:uppercase!important;font-weight:1000!important;letter-spacing:.08em!important}
+        .academy-lesson-deep-dive header strong{color:#fff!important;font-size:17px!important}
+        .academy-deep-lesson{
+          display:grid!important;
+          grid-template-columns:1.2fr 1fr!important;
+          gap:10px!important;
+        }
+        .academy-deep-lesson article{
+          border:1px solid rgba(148,163,184,.14)!important;
+          border-radius:14px!important;
+          background:rgba(2,6,23,.48)!important;
+          padding:12px!important;
+        }
+        .academy-deep-lesson article b{display:block!important;color:#f8fafc!important;margin-bottom:6px!important}
+        .academy-deep-lesson article p,
+        .academy-deep-lesson article li,
+        .academy-deep-lesson article small{color:#cbd5e1!important;font-size:13px!important;line-height:1.45!important}
+        .academy-deep-lesson ul,
+        .academy-deep-lesson ol{margin:8px 0 0!important;padding-left:18px!important}
+        .academy-deep-main{grid-row:span 2!important}
+        .academy-deep-roxy-check div{display:grid!important;gap:7px!important}
+        .academy-deep-roxy-check span{display:flex!important;gap:7px!important;align-items:center!important;color:#dbeafe!important;font-size:12px!important;font-weight:850!important}
+        .academy-deep-roxy-check i{font-size:17px!important;color:#22c55e!important}
+        .academy-quiz-panel,
+        .academy-lesson-panel,
+        .academy-option,
+        .academy-continue{
+          position:relative!important;
+          z-index:50!important;
+          pointer-events:auto!important;
+        }
+        .academy-option:hover{
+          border-color:rgba(34,211,238,.58)!important;
+          transform:translateY(-2px)!important;
+          box-shadow:0 12px 26px rgba(0,0,0,.28),0 0 22px rgba(34,211,238,.16)!important;
+        }
+        @media (max-width:760px){
+          .roxy-academy-shell.academy-world-open .academy-origin-world-scene{min-height:960px!important;border-radius:0!important}
+          .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-bg-img{
+            object-position:48% 0%!important;
+            transform:scale(1.62)!important;
+            filter:saturate(1.20) contrast(1.08) brightness(.78)!important;
+            animation:academyOriginRealWorldDriftMobile 24s ease-in-out infinite!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-world-title{top:12px!important;left:12px!important;right:12px!important;max-width:none!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location{
+            min-width:124px!important;
+            padding:8px 9px!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-world-location strong{font-size:9px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location small{font-size:8px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-tree{left:50%!important;top:34%!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-crypto-gate{right:12px!important;top:150px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-library{left:12px!important;bottom:260px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-training{right:12px!important;bottom:260px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-focus{left:50%!important;bottom:202px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-shop,
+          .roxy-academy-shell.academy-world-open .academy-world-location-chests{display:grid!important;bottom:142px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-shop{left:12px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-chests{right:12px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-current-mission{display:none!important}
+          .roxy-academy-shell.academy-world-open .academy-world-heroes{display:none!important}
+          .roxy-academy-shell.academy-world-open .academy-world-companion{display:none!important}
+          .roxy-academy-shell.academy-world-open .academy-world-live-ship{width:108px!important;height:154px!important}
+          .academy-deep-lesson{grid-template-columns:1fr!important}
+          .academy-deep-main{grid-row:auto!important}
+        }
+        @keyframes academyOriginRealWorldDrift{
+          0%,100%{transform:scale(1.24) translate3d(0,0,0)}
+          42%{transform:scale(1.30) translate3d(-1.3%,.8%,0)}
+          72%{transform:scale(1.27) translate3d(1%,-.6%,0)}
+        }
+        @keyframes academyOriginRealWorldDriftMobile{
+          0%,100%{transform:scale(1.62) translate3d(0,0,0)}
+          42%{transform:scale(1.70) translate3d(-1.1%,.8%,0)}
+          72%{transform:scale(1.66) translate3d(.9%,-.6%,0)}
+        }
+        @keyframes academyOriginRealParticles{
+          0%{background-position:0 0,40px 90px,80px 160px,20px 40px,center}
+          100%{background-position:-120px 240px,140px -140px,-80px 260px,160px -120px,center}
+        }
+        @keyframes academyOriginRealAurora{
+          0%,100%{transform:translate3d(0,0,0) scale(1);opacity:.72}
+          50%{transform:translate3d(-2%,1%,0) scale(1.04);opacity:.95}
+        }
+        @keyframes academyOriginSkyLife{
+          0%,100%{transform:translate3d(0,0,0);opacity:.58}
+          50%{transform:translate3d(1.8%,-1%,0);opacity:.82}
+        }
+        @keyframes academyOriginCrewHumanIdle{
+          0%,100%{transform:translateX(-50%) translateY(0) scale(1)}
+          50%{transform:translateX(-50%) translateY(-7px) scale(1.015)}
+        }
+        @keyframes academyOriginNpcBreathing{
+          0%,100%{transform:translateY(0)}
+          50%{transform:translateY(-5px)}
+        }
+        @keyframes academyOriginShipLivingPatrol{
+          0%{transform:translate3d(-150px,700px,0) rotate(-16deg) scale(.50);opacity:0}
+          9%{opacity:1}
+          24%{transform:translate3d(64px,535px,0) rotate(8deg) scale(.76);opacity:1}
+          44%{transform:translate3d(235px,352px,0) rotate(25deg) scale(1.02);opacity:1}
+          61%{transform:translate3d(382px,165px,0) rotate(14deg) scale(.84);opacity:.95}
+          78%{transform:translate3d(260px,230px,0) rotate(204deg) scale(.62);opacity:.76}
+          100%{transform:translate3d(-150px,700px,0) rotate(-16deg) scale(.50);opacity:0}
+        }
+        /* Final Planeta Origen: immersive interactive world override */
+        .roxy-academy-shell.academy-world-open .academy-planet-world{display:grid!important;gap:14px!important}
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene{
+          position:relative!important;
+          min-height:860px!important;
+          border-radius:24px!important;
+          overflow:hidden!important;
+          border:1px solid rgba(76,211,255,.24)!important;
+          background:
+            radial-gradient(circle at 50% 12%,rgba(72,187,120,.22),transparent 24%),
+            radial-gradient(circle at 20% 32%,rgba(59,130,246,.22),transparent 34%),
+            linear-gradient(180deg,#071827 0%,#0b1f35 45%,#071322 100%)!important;
+          box-shadow:0 30px 80px rgba(0,0,0,.42),inset 0 0 90px rgba(34,211,238,.08)!important;
+          isolation:isolate!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-art{
+          display:block!important;
+          position:absolute!important;
+          inset:-2%!important;
+          z-index:1!important;
+          overflow:hidden!important;
+          opacity:.72!important;
+          pointer-events:none!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-bg-img{
+          display:block!important;
+          width:100%!important;
+          height:100%!important;
+          object-fit:cover!important;
+          object-position:54% 28%!important;
+          transform:scale(1.28)!important;
+          filter:saturate(1.22) contrast(1.08) brightness(.70) blur(.45px)!important;
+          animation:academyOriginSceneParallax 26s ease-in-out infinite!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-art:after{
+          content:""!important;
+          position:absolute!important;
+          inset:0!important;
+          background:
+            linear-gradient(180deg,rgba(4,12,24,.20),rgba(4,12,24,.42) 54%,rgba(4,12,24,.82) 100%),
+            radial-gradient(circle at 50% 46%,rgba(34,197,94,.16),transparent 36%),
+            radial-gradient(circle at 18% 72%,rgba(124,58,237,.24),transparent 28%)!important;
+          pointer-events:none!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene:before{
+          content:""!important;
+          position:absolute!important;
+          inset:0!important;
+          z-index:2!important;
+          background:
+            radial-gradient(circle at 12% 14%,rgba(255,255,255,.82) 0 1px,transparent 2px),
+            radial-gradient(circle at 72% 20%,rgba(255,255,255,.72) 0 1px,transparent 2px),
+            radial-gradient(circle at 42% 36%,rgba(125,211,252,.75) 0 1px,transparent 2px),
+            radial-gradient(circle at 86% 62%,rgba(251,191,36,.55) 0 1px,transparent 2px),
+            radial-gradient(circle at 24% 78%,rgba(196,181,253,.72) 0 1px,transparent 2px);
+          background-size:150px 190px,210px 240px,180px 260px,240px 280px,190px 220px!important;
+          opacity:.62!important;
+          animation:academyOriginStarDepth 22s linear infinite!important;
+          pointer-events:none!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene:after{
+          content:""!important;
+          position:absolute!important;
+          inset:0!important;
+          z-index:3!important;
+          background:
+            linear-gradient(115deg,transparent 0 34%,rgba(125,211,252,.08) 42%,transparent 53%),
+            radial-gradient(ellipse at 50% 75%,rgba(16,185,129,.18),transparent 42%),
+            radial-gradient(ellipse at 12% 92%,rgba(124,58,237,.22),transparent 38%)!important;
+          mix-blend-mode:screen!important;
+          animation:academyOriginLightSweep 10s ease-in-out infinite!important;
+          pointer-events:none!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-sky{
+          display:block!important;
+          position:absolute!important;
+          inset:0!important;
+          z-index:4!important;
+          opacity:.92!important;
+          background:
+            radial-gradient(80px 36px at 16% 48%,rgba(147,197,253,.22),transparent 70%),
+            radial-gradient(52px 28px at 88% 24%,rgba(34,211,238,.16),transparent 70%),
+            radial-gradient(120px 50px at 72% 74%,rgba(167,139,250,.13),transparent 70%)!important;
+          animation:academyOriginSkyBreath 13s ease-in-out infinite!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-cloud,
+        .roxy-academy-shell.academy-world-open .academy-world-island{display:none!important}
+        .roxy-academy-shell.academy-world-open .academy-world-hub{
+          display:block!important;
+          position:absolute!important;
+          left:50%!important;
+          top:31%!important;
+          width:330px!important;
+          height:360px!important;
+          transform:translate(-50%,-50%)!important;
+          z-index:10!important;
+          pointer-events:none!important;
+          filter:drop-shadow(0 24px 35px rgba(0,0,0,.34)) drop-shadow(0 0 30px rgba(34,197,94,.22))!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-tree-crown{
+          display:block!important;
+          position:absolute!important;
+          left:50%!important;
+          top:16%!important;
+          width:250px!important;
+          height:180px!important;
+          transform:translateX(-50%)!important;
+          border-radius:46% 54% 44% 56%!important;
+          background:
+            radial-gradient(circle at 28% 32%,#d9f99d 0 10%,transparent 21%),
+            radial-gradient(circle at 48% 18%,#bbf7d0 0 12%,transparent 22%),
+            radial-gradient(circle at 72% 34%,#86efac 0 15%,transparent 25%),
+            radial-gradient(circle at 50% 60%,#16a34a 0 36%,#064e3b 72%)!important;
+          box-shadow:0 0 45px rgba(34,197,94,.30),inset -30px -25px 46px rgba(6,78,59,.75)!important;
+          animation:academyOriginTreeAlive 7s ease-in-out infinite!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-tree-trunk{
+          display:block!important;
+          position:absolute!important;
+          left:50%!important;
+          top:47%!important;
+          width:74px!important;
+          height:148px!important;
+          transform:translateX(-50%)!important;
+          border-radius:38px 38px 22px 22px!important;
+          background:linear-gradient(90deg,#3b2418,#7c3f21 48%,#2a160f)!important;
+          box-shadow:inset 14px 0 25px rgba(251,191,36,.14),0 22px 35px rgba(0,0,0,.30)!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-portal{
+          display:block!important;
+          position:absolute!important;
+          left:50%!important;
+          top:53%!important;
+          width:62px!important;
+          height:88px!important;
+          transform:translateX(-50%)!important;
+          border-radius:50% 50% 28px 28px!important;
+          background:radial-gradient(circle,#e0f2fe,#38bdf8 40%,#2563eb 67%,rgba(30,64,175,.12))!important;
+          box-shadow:0 0 36px rgba(56,189,248,.75),0 0 80px rgba(59,130,246,.40)!important;
+          animation:academyOriginPortalPulse 2.6s ease-in-out infinite!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-path{
+          display:block!important;
+          position:absolute!important;
+          left:50%!important;
+          top:73%!important;
+          width:260px!important;
+          height:86px!important;
+          transform:translateX(-50%) perspective(260px) rotateX(62deg)!important;
+          border-radius:50%!important;
+          background:radial-gradient(ellipse,rgba(34,211,238,.24),rgba(16,185,129,.13) 45%,transparent 70%)!important;
+          border:1px solid rgba(125,211,252,.25)!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-village{
+          display:grid!important;
+          grid-template-columns:repeat(5,1fr)!important;
+          gap:10px!important;
+          position:absolute!important;
+          left:8%!important;
+          right:8%!important;
+          bottom:18%!important;
+          height:150px!important;
+          z-index:9!important;
+          opacity:.78!important;
+          pointer-events:none!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-village i{
+          display:block!important;
+          align-self:end!important;
+          height:70px!important;
+          border-radius:22px 22px 8px 8px!important;
+          border:1px solid rgba(125,211,252,.24)!important;
+          background:linear-gradient(180deg,#164e63,#0f172a 70%)!important;
+          box-shadow:0 0 20px rgba(34,211,238,.14),inset 0 0 18px rgba(56,189,248,.08)!important;
+          animation:academyVillageGlow 5s ease-in-out infinite!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-live-layer{z-index:18!important;position:absolute!important;inset:0!important;pointer-events:none!important}
+        .roxy-academy-shell.academy-world-open .academy-world-butterfly,
+        .roxy-academy-shell.academy-world-open .academy-world-learning-spark,
+        .roxy-academy-shell.academy-world-open .academy-world-leaf{display:block!important;z-index:19!important}
+        .roxy-academy-shell.academy-world-open .academy-world-heroes{
+          display:flex!important;
+          position:absolute!important;
+          left:50%!important;
+          bottom:242px!important;
+          transform:translateX(-50%)!important;
+          align-items:flex-end!important;
+          gap:4px!important;
+          z-index:22!important;
+          opacity:1!important;
+          pointer-events:none!important;
+          background:transparent!important;
+          animation:academyOriginCrewHumanIdle 5.8s ease-in-out infinite!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-heroes span{
+          display:block!important;
+          overflow:hidden!important;
+          border-radius:24px!important;
+          background:transparent!important;
+          box-shadow:none!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-roxy{width:78px!important;height:118px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-bella{width:68px!important;height:98px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-luna{width:52px!important;height:84px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-atom{width:58px!important;height:82px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-heroes img{
+          width:100%!important;
+          height:130%!important;
+          object-fit:cover!important;
+          object-position:50% 0!important;
+          filter:drop-shadow(0 15px 18px rgba(0,0,0,.50)) drop-shadow(0 0 16px rgba(34,211,238,.28))!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-companion{
+          display:grid!important;
+          z-index:31!important;
+          pointer-events:none!important;
+          opacity:1!important;
+          border:1px solid rgba(125,211,252,.24)!important;
+          background:linear-gradient(135deg,rgba(3,7,18,.70),rgba(30,27,75,.62))!important;
+          box-shadow:0 12px 28px rgba(0,0,0,.32),0 0 22px rgba(34,211,238,.12)!important;
+          animation:academyOriginNpcBreathing 5s ease-in-out infinite!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-companion-roxy{left:10%!important;bottom:350px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-companion-bella{left:26%!important;bottom:312px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-companion-luna{right:26%!important;left:auto!important;bottom:302px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-companion-atom{right:9%!important;bottom:360px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-live-ship{
+          display:block!important;
+          z-index:32!important;
+          width:142px!important;
+          height:205px!important;
+          filter:drop-shadow(0 0 25px rgba(168,85,247,.54)) drop-shadow(0 12px 24px rgba(0,0,0,.36))!important;
+          animation:academyOriginShipPatrolNatural 18s cubic-bezier(.44,.02,.22,1) infinite!important;
+          pointer-events:none!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-live-ship img{
+          width:100%!important;
+          height:100%!important;
+          object-fit:contain!important;
+          transform:rotate(23deg)!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-location{
+          display:grid!important;
+          grid-template-columns:34px minmax(0,1fr)!important;
+          gap:8px!important;
+          align-items:center!important;
+          min-width:168px!important;
+          z-index:42!important;
+          pointer-events:auto!important;
+          border:1px solid rgba(125,211,252,.36)!important;
+          border-radius:17px!important;
+          background:linear-gradient(135deg,rgba(2,6,23,.80),rgba(30,27,75,.64))!important;
+          backdrop-filter:blur(14px)!important;
+          box-shadow:0 15px 34px rgba(0,0,0,.36),0 0 24px rgba(34,211,238,.14)!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-location>i{
+          width:34px!important;
+          height:34px!important;
+          display:grid!important;
+          place-items:center!important;
+          border-radius:12px!important;
+          background:linear-gradient(135deg,#7c3aed,#2563eb)!important;
+          color:#fff!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-location strong{font-size:11px!important;color:#fff!important}
+        .roxy-academy-shell.academy-world-open .academy-world-location small{font-size:9px!important;color:#bfdbfe!important}
+        .roxy-academy-shell.academy-world-open .academy-world-location-tree{left:50%!important;top:28%!important;transform:translateX(-50%)!important}
+        .roxy-academy-shell.academy-world-open .academy-world-location-crypto-gate{right:24px!important;top:132px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-location-library{left:28px!important;bottom:282px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-location-training{right:28px!important;bottom:282px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-location-focus{left:50%!important;bottom:216px!important;transform:translateX(-50%)!important}
+        .roxy-academy-shell.academy-world-open .academy-world-location-shop{left:28px!important;bottom:150px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-location-chests{right:28px!important;bottom:150px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-title{
+          z-index:46!important;
+          top:16px!important;
+          left:16px!important;
+          max-width:430px!important;
+          border-radius:22px!important;
+          background:linear-gradient(135deg,rgba(2,6,23,.84),rgba(6,78,59,.38))!important;
+          border-color:rgba(125,211,252,.26)!important;
+          backdrop-filter:blur(18px)!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-title strong{font-size:30px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-start{
+          z-index:47!important;
+          pointer-events:auto!important;
+          bottom:44px!important;
+          left:50%!important;
+          transform:translateX(-50%)!important;
+          width:min(430px,calc(100% - 36px))!important;
+          background:linear-gradient(90deg,#7c3aed,#2563eb,#06b6d4)!important;
+          box-shadow:0 0 34px rgba(124,58,237,.46),0 0 24px rgba(34,211,238,.20)!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-current-mission,
+        .roxy-academy-shell.academy-world-open .academy-world-play-hint{display:none!important}
+        .roxy-academy-shell.academy-world-open .academy-world-lessons{
+          display:block!important;
+          border-color:rgba(125,211,252,.20)!important;
+          background:linear-gradient(180deg,rgba(2,6,23,.82),rgba(15,23,42,.72))!important;
+          backdrop-filter:blur(14px)!important;
+        }
+        .roxy-academy-shell.academy-activity-open .academy-planet-workbench{display:grid!important}
+        .roxy-academy-shell.academy-activity-open .academy-lesson-panel,
+        .roxy-academy-shell.academy-activity-open .academy-quiz-panel,
+        .roxy-academy-shell.academy-activity-open .academy-planet-panel{pointer-events:auto!important}
+        .roxy-academy-shell.academy-activity-open .academy-option{cursor:pointer!important}
+        .academy-atom-portrait{
+          overflow:hidden!important;
+          position:relative!important;
+        }
+        .academy-atom-portrait .academy-portrait-atom,
+        .academy-stage-main .academy-portrait-atom{
+          width:185%!important;
+          height:128%!important;
+          max-width:none!important;
+          object-fit:cover!important;
+          object-position:15% 68%!important;
+          transform:translateX(-12%) scale(1.02)!important;
+          filter:drop-shadow(0 0 24px rgba(56,189,248,.36))!important;
+        }
+        .academy-stage-main .academy-portrait-atom{
+          object-position:14% 58%!important;
+          transform:translateX(-18%) scale(1.08)!important;
+        }
+        .academy-lesson-deep-dive{display:block!important}
+        .academy-deep-lesson{display:grid!important;grid-template-columns:1.15fr 1fr!important;gap:10px!important}
+        .academy-deep-lesson article{border:1px solid rgba(125,211,252,.16)!important;border-radius:14px!important;background:rgba(2,6,23,.50)!important;padding:12px!important}
+        .academy-deep-lesson article b{display:block!important;color:#fff!important;margin-bottom:6px!important}
+        .academy-deep-lesson article p,
+        .academy-deep-lesson article li,
+        .academy-deep-lesson article small{color:#dbeafe!important;font-size:13px!important;line-height:1.45!important}
+        .academy-deep-main{grid-row:span 2!important}
+        .academy-option{pointer-events:auto!important}
+        @media (max-width:760px){
+          .roxy-academy-shell.academy-world-open .academy-origin-world-scene{min-height:930px!important;border-radius:0!important}
+          .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-bg-img{
+            object-position:51% 26%!important;
+            transform:scale(1.74)!important;
+            filter:saturate(1.18) contrast(1.08) brightness(.62) blur(.55px)!important;
+            animation:academyOriginSceneParallaxMobile 24s ease-in-out infinite!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-world-title{top:12px!important;left:12px!important;right:12px!important;max-width:none!important}
+          .roxy-academy-shell.academy-world-open .academy-world-title strong{font-size:26px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-hub{width:270px!important;height:305px!important;top:35%!important}
+          .roxy-academy-shell.academy-world-open .academy-world-tree-crown{width:210px!important;height:152px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-heroes{bottom:248px!important;gap:0!important}
+          .roxy-academy-shell.academy-world-open .academy-world-roxy{width:64px!important;height:98px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-bella{width:58px!important;height:84px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-luna{width:44px!important;height:72px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-atom{width:48px!important;height:72px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-companion{display:none!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location{
+            width:calc(50% - 24px)!important;
+            min-width:0!important;
+            padding:8px!important;
+            grid-template-columns:28px minmax(0,1fr)!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-world-location>i{width:28px!important;height:28px!important;font-size:18px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location strong{font-size:8px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location small{font-size:7px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-tree{left:50%!important;top:34%!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-crypto-gate{right:12px!important;top:136px!important;width:auto!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-library{left:12px!important;bottom:244px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-training{right:12px!important;bottom:244px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-focus{left:50%!important;bottom:188px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-shop{left:12px!important;bottom:130px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-chests{right:12px!important;bottom:130px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-start{bottom:64px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-live-ship{width:112px!important;height:164px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-lessons{position:relative!important;top:auto!important;margin:12px 10px 0!important;max-height:none!important}
+          .academy-deep-lesson{grid-template-columns:1fr!important}
+          .academy-deep-main{grid-row:auto!important}
+        }
+        @keyframes academyOriginSceneParallax{
+          0%,100%{transform:scale(1.28) translate3d(0,0,0)}
+          45%{transform:scale(1.34) translate3d(-1.4%,.8%,0)}
+          72%{transform:scale(1.31) translate3d(1%,-.6%,0)}
+        }
+        @keyframes academyOriginSceneParallaxMobile{
+          0%,100%{transform:scale(1.74) translate3d(0,0,0)}
+          45%{transform:scale(1.82) translate3d(-1%,.8%,0)}
+          72%{transform:scale(1.78) translate3d(.8%,-.5%,0)}
+        }
+        @keyframes academyOriginStarDepth{
+          0%{background-position:0 0,60px 90px,120px 40px,30px 160px,90px 220px}
+          100%{background-position:-90px 220px,130px -120px,40px 270px,150px -80px,-40px 360px}
+        }
+        @keyframes academyOriginLightSweep{
+          0%,100%{opacity:.55;transform:translate3d(0,0,0)}
+          50%{opacity:.95;transform:translate3d(-1.8%,1%,0)}
+        }
+        @keyframes academyOriginSkyBreath{
+          0%,100%{transform:translate3d(0,0,0);opacity:.72}
+          50%{transform:translate3d(1.5%,-.8%,0);opacity:1}
+        }
+        @keyframes academyOriginTreeAlive{
+          0%,100%{transform:translateX(-50%) rotate(-.6deg) scale(1)}
+          50%{transform:translateX(-50%) rotate(.8deg) scale(1.025)}
+        }
+        @keyframes academyOriginPortalPulse{
+          0%,100%{filter:brightness(1);transform:translateX(-50%) scale(1)}
+          50%{filter:brightness(1.35);transform:translateX(-50%) scale(1.07)}
+        }
+        @keyframes academyOriginShipPatrolNatural{
+          0%{transform:translate3d(-170px,650px,0) rotate(-12deg) scale(.50);opacity:0}
+          10%{opacity:1}
+          24%{transform:translate3d(26px,520px,0) rotate(12deg) scale(.72);opacity:1}
+          43%{transform:translate3d(235px,350px,0) rotate(24deg) scale(1);opacity:1}
+          62%{transform:translate3d(390px,150px,0) rotate(10deg) scale(.82);opacity:.96}
+          80%{transform:translate3d(250px,235px,0) rotate(210deg) scale(.62);opacity:.70}
+          100%{transform:translate3d(-170px,650px,0) rotate(-12deg) scale(.50);opacity:0}
         }
         [data-testid="stTabs"] button{font-weight:800;color:#cbd5e1}
         [data-testid="stTabs"] button[aria-selected="true"]{color:#a78bfa}
