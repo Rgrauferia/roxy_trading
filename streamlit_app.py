@@ -36800,6 +36800,11 @@ def render_roxy_academy_module() -> None:
     show_travel = academy_query_param("travel") == "1"
     lesson_param = academy_query_param("lesson")
     game_param = academy_query_param("game")
+    zone_param = academy_query_param("zone").lower()
+    if zone_param not in {"lecciones", "biblioteca", "arbol", "entrenamiento", "enfoque", "cofres", "tienda", "crypto"}:
+        zone_param = "lecciones"
+    if game_param:
+        zone_param = "entrenamiento"
     requested_index = 0
     if lesson_param:
         for idx, item in enumerate(origin_lessons):
@@ -37264,23 +37269,201 @@ def render_roxy_academy_module() -> None:
         for idx, item in enumerate(origin_lessons)
     )
     world_locations = (
-        ("library", "Biblioteca", "Conceptos basicos", "local_library", f"{planet_href}&lesson=activos-financieros"),
-        ("tree", "Arbol del conocimiento", "Lecciones principales", "park", f"{planet_href}&lesson=que-es-trading"),
-        ("training", "Entrenamiento", "Practica guiada", "sports_esports", f"{planet_href}&game=elige-la-respuesta"),
-        ("focus", "Pilar del enfoque", "Mentalidad del trader", "psychology", f"{planet_href}&lesson=riesgo"),
-        ("chests", "Cofres", "Recompensas", "redeem", f"{planet_href}&game=control-emocional"),
-        ("shop", "Tienda", "Mejora tu viaje", "storefront", f"{planet_href}&game=diario-del-cadete"),
+        ("library", "Biblioteca", "Conceptos basicos", "local_library", f"{planet_href}&zone=biblioteca"),
+        ("tree", "Arbol del conocimiento", "Lecciones principales", "park", f"{planet_href}&zone=arbol"),
+        ("training", "Entrenamiento", "Practica guiada", "sports_esports", f"{planet_href}&zone=entrenamiento"),
+        ("focus", "Pilar del enfoque", "Mentalidad del trader", "psychology", f"{planet_href}&zone=enfoque"),
+        ("chests", "Cofres", "Recompensas", "redeem", f"{planet_href}&zone=cofres"),
+        ("shop", "Tienda", "Mejora tu viaje", "storefront", f"{planet_href}&zone=tienda"),
         ("crypto-gate", "Planeta Cripto", "Bloqueado", "lock", f"{base_href}&planet=cripto&open=1&travel=1"),
     )
+    world_location_zone = {
+        "library": "biblioteca",
+        "tree": "arbol",
+        "training": "entrenamiento",
+        "focus": "enfoque",
+        "chests": "cofres",
+        "shop": "tienda",
+        "crypto-gate": "crypto",
+    }
     world_locations_html = "".join(
         f"""
-        <a class="academy-world-location academy-world-location-{slug}" href="{href}" target="_self">
+        <a class="academy-world-location academy-world-location-{slug} {'active' if world_location_zone.get(slug) == zone_param else ''}" href="{href}" target="_self">
           <i class="material-symbols-outlined">{icon}</i>
           <span><strong>{title}</strong><small>{subtitle}</small></span>
         </a>
         """
         for slug, title, subtitle, icon, href in world_locations
     )
+
+    lesson_lookup = {str(item["id"]): item for item in origin_lessons}
+
+    def academy_zone_lesson_rows(lesson_ids: list[str], *, compact: bool = False) -> str:
+        rows = []
+        for lesson_id in lesson_ids:
+            item = lesson_lookup.get(lesson_id)
+            if not item:
+                continue
+            idx = origin_lessons.index(item)
+            is_unlocked = idx < unlocked_count
+            href = f"{planet_href}&lesson={quote(str(item['id']), safe='')}" if is_unlocked else current_href
+            rows.append(
+                f"""
+                <a class="academy-zone-action {'done' if item['id'] in completed_set else ''} {'locked' if not is_unlocked else ''}" href="{href}" target="_self">
+                  <i class="material-symbols-outlined">{html.escape(str(item.get('icon') or 'menu_book'))}</i>
+                  <span><strong>{html.escape(str(item['title']))}</strong><small>{html.escape(str(item.get('study') or item.get('short') or 'Leccion guiada'))}</small></span>
+                  <b>{'Completada' if item['id'] in completed_set else ('Abrir' if is_unlocked else 'Bloqueada')}</b>
+                </a>
+                """
+            )
+            if compact and len(rows) >= 6:
+                break
+        return "".join(rows)
+
+    def academy_zone_panel(title: str, subtitle: str, icon: str, body: str, footer: str = "") -> str:
+        return f"""
+        <aside class="academy-world-lessons academy-zone-panel academy-zone-{html.escape(zone_param)}">
+          <header>
+            <span><i class="material-symbols-outlined">{html.escape(icon)}</i><strong>{html.escape(title)}</strong><small>{html.escape(subtitle)}</small></span>
+            <a href="{planet_href}&zone=lecciones" target="_self" aria-label="Volver a lecciones"><i class="material-symbols-outlined">close</i></a>
+          </header>
+          <div class="academy-world-progress">
+            <span>{planet_lesson_done} / {planet_lesson_total} completadas</span>
+            <i><b style="width:{planet_lesson_pct}%"></b></i>
+          </div>
+          {body}
+          {footer}
+        </aside>
+        """
+
+    library_rows = academy_zone_lesson_rows([
+        "que-es-trading",
+        "activos-financieros",
+        "acciones",
+        "precio",
+        "comprar",
+        "vender",
+        "ganancia",
+        "perdida",
+        "riesgo",
+        "cuenta-demo",
+        "grafica-basica",
+        "velas-japonesas",
+    ])
+    tree_rows = academy_zone_lesson_rows([str(item["id"]) for item in origin_lessons[:min(origin_total, unlocked_count + 3)]])
+    focus_rows = academy_zone_lesson_rows([
+        "riesgo",
+        "perdida",
+        "volatilidad",
+        "spread-liquidez",
+        "diario-trading",
+        "errores-principiante",
+        "aprender-vs-operar",
+    ])
+    training_rows = "".join(
+        f"""
+        <a class="academy-zone-action academy-zone-game" href="{planet_href}&game={quote(title.lower().replace(' ', '-'), safe='')}" target="_self">
+          <i class="material-symbols-outlined">{html.escape(icon)}</i>
+          <span><strong>{html.escape(title)}</strong><small>{html.escape(detail)}</small></span>
+          <b>Jugar</b>
+        </a>
+        """
+        for icon, title, detail in learning_games
+    )
+    chest_unlocked = completed_count >= 3
+    chest_rows = f"""
+      <div class="academy-zone-cards">
+        <a class="academy-zone-card {'ready' if completed_count >= 1 else 'locked'}" href="{next_href}" target="_self">
+          <i class="material-symbols-outlined">redeem</i><strong>Cofre inicial</strong><p>Completa tu primera leccion para reclamar XP y monedas.</p><b>{'Disponible' if completed_count >= 1 else 'Completa 1 leccion'}</b>
+        </a>
+        <a class="academy-zone-card {'ready' if chest_unlocked else 'locked'}" href="{next_href}" target="_self">
+          <i class="material-symbols-outlined">workspace_premium</i><strong>Cofre de constancia</strong><p>Se activa al completar 3 lecciones del planeta.</p><b>{'Disponible' if chest_unlocked else f'{completed_count}/3 lecciones'}</b>
+        </a>
+        <a class="academy-zone-card locked" href="{current_href}" target="_self">
+          <i class="material-symbols-outlined">diamond</i><strong>Insignia del planeta</strong><p>Explorador del Mercado se desbloquea al terminar el examen.</p><b>{completed_count}/{origin_total}</b>
+        </a>
+      </div>
+    """
+    shop_rows = f"""
+      <div class="academy-zone-cards">
+        <a class="academy-zone-card" href="{planet_href}&game=diario-del-cadete" target="_self">
+          <i class="material-symbols-outlined">edit_note</i><strong>Cuaderno de practica</strong><p>Abre el diario para registrar que aprendiste antes de avanzar.</p><b>Abrir</b>
+        </a>
+        <a class="academy-zone-card" href="{planet_href}&game=control-emocional" target="_self">
+          <i class="material-symbols-outlined">self_improvement</i><strong>Escudo de disciplina</strong><p>Practica decisiones lentas para evitar operar por impulso.</p><b>Entrenar</b>
+        </a>
+        <a class="academy-zone-card" href="{next_href}" target="_self">
+          <i class="material-symbols-outlined">rocket_launch</i><strong>Boost de leccion</strong><p>Continua con la siguiente clase disponible del planeta.</p><b>Continuar</b>
+        </a>
+      </div>
+    """
+    zone_panels = {
+        "lecciones": academy_zone_panel(
+            "Lecciones Nivel 1",
+            "Ruta completa del Planeta Origen",
+            "menu_book",
+            f'<div class="academy-world-lesson-list">{world_lesson_rows}</div>',
+            '<div class="academy-world-reward"><span>Recompensa por completar</span><strong>500 XP · 250 monedas · 10 cristales</strong><i class="material-symbols-outlined">redeem</i></div>',
+        ),
+        "biblioteca": academy_zone_panel(
+            "Biblioteca",
+            "Diccionario vivo de conceptos basicos",
+            "local_library",
+            f"""
+            <div class="academy-zone-summary"><b>Empieza aqui si un termino no esta claro.</b><span>Abre una tarjeta para estudiar el concepto con ejemplo, pregunta y practica.</span></div>
+            <div class="academy-zone-actions">{library_rows}</div>
+            """,
+        ),
+        "arbol": academy_zone_panel(
+            "Arbol del conocimiento",
+            "Lecciones principales desbloqueadas",
+            "park",
+            f"""
+            <div class="academy-zone-summary"><b>Ruta actual: Fundamentos</b><span>El arbol crece cuando completas clases. La siguiente clase siempre queda arriba.</span></div>
+            <div class="academy-zone-actions">{tree_rows}</div>
+            """,
+        ),
+        "entrenamiento": academy_zone_panel(
+            "Entrenamiento",
+            "Juegos para practicar lo aprendido",
+            "sports_esports",
+            f"""
+            <div class="academy-zone-summary"><b>Practica antes de avanzar.</b><span>Cada juego abre una actividad real con respuesta, feedback y regreso a la leccion.</span></div>
+            <div class="academy-zone-actions">{training_rows}</div>
+            """,
+        ),
+        "enfoque": academy_zone_panel(
+            "Pilar del enfoque",
+            "Riesgo, disciplina y errores comunes",
+            "psychology",
+            f"""
+            <div class="academy-zone-summary"><b>Aprender trading tambien es aprender a esperar.</b><span>Estas clases evitan que el usuario opere sin entender perdida, riesgo y practica demo.</span></div>
+            <div class="academy-zone-actions">{focus_rows}</div>
+            """,
+        ),
+        "cofres": academy_zone_panel(
+            "Cofres",
+            "Recompensas conectadas al progreso",
+            "redeem",
+            chest_rows,
+        ),
+        "tienda": academy_zone_panel(
+            "Tienda",
+            "Herramientas de aprendizaje desbloqueables",
+            "storefront",
+            shop_rows,
+        ),
+        "crypto": academy_zone_panel(
+            "Planeta Cripto",
+            "Bloqueado hasta completar Fundamentos",
+            "lock",
+            f"""
+            <div class="academy-zone-summary"><b>Primero domina Planeta Origen.</b><span>Cuando completes {origin_total} lecciones, Roxy habilitara el siguiente planeta.</span></div>
+            <div class="academy-zone-actions">{academy_zone_lesson_rows(['examen-nivel-1'])}</div>
+            """,
+        ),
+    }
+    academy_world_panel_html = zone_panels.get(zone_param, zone_panels["lecciones"])
     planet_world_html = f"""
       <section class="academy-planet-world" id="planeta-origen">
         <div class="academy-world-scene academy-origin-world-scene">
@@ -37365,22 +37548,7 @@ def render_roxy_academy_module() -> None:
             <span>Viajar a la siguiente leccion</span>
           </a>
         </div>
-        <aside class="academy-world-lessons">
-          <header>
-            <strong>Lecciones Nivel 1</strong>
-            <a href="{base_href}" target="_self"><i class="material-symbols-outlined">close</i></a>
-          </header>
-          <div class="academy-world-progress">
-            <span>{planet_lesson_done} / {planet_lesson_total} completadas</span>
-            <i><b style="width:{planet_lesson_pct}%"></b></i>
-          </div>
-          <div class="academy-world-lesson-list">{world_lesson_rows}</div>
-          <div class="academy-world-reward">
-            <span>Recompensa por completar</span>
-            <strong>500 XP · 250 monedas · 10 cristales</strong>
-            <i class="material-symbols-outlined">redeem</i>
-          </div>
-        </aside>
+        {academy_world_panel_html}
         <footer class="academy-world-dialogue academy-world-dialogue-roxy">
           {roxy_academy_img or roxy_avatar_html("ready", "mini", "Roxy")}
           <span><strong>Roxy</strong>Bienvenido al Planeta Origen. Aqui aprenderas las bases para convertirte en un gran trader.</span>
@@ -47045,6 +47213,41 @@ def main() -> None:
         .academy-world-primary-hit:focus-visible span{
           opacity:1!important;
           transform:translateY(0)!important;
+        }
+        .academy-zone-panel header span{display:grid!important;grid-template-columns:36px minmax(0,1fr)!important;gap:2px 10px!important;align-items:center!important}
+        .academy-zone-panel header span i{grid-row:1/3!important;display:grid!important;place-items:center!important;width:34px!important;height:34px!important;border-radius:12px!important;background:linear-gradient(135deg,#7c3aed,#2563eb)!important;color:#e0f2fe!important;font-size:21px!important;box-shadow:0 0 22px rgba(124,58,237,.34)!important}
+        .academy-zone-panel header span small{display:block!important;color:#c4b5fd!important;font-size:11px!important;font-weight:800!important;letter-spacing:0!important;text-transform:none!important}
+        .academy-zone-summary{display:grid!important;gap:5px!important;margin:0 0 12px!important;border:1px solid rgba(125,211,252,.18)!important;border-radius:15px!important;background:linear-gradient(135deg,rgba(14,165,233,.14),rgba(88,28,135,.18))!important;padding:12px!important}
+        .academy-zone-summary b{color:#fff!important;font-size:13px!important;line-height:1.2!important}
+        .academy-zone-summary span{color:#dbeafe!important;font-size:12px!important;line-height:1.35!important}
+        .academy-zone-actions{display:grid!important;gap:9px!important;max-height:58vh!important;overflow:auto!important;padding-right:2px!important}
+        .academy-zone-action{position:relative!important;display:grid!important;grid-template-columns:38px minmax(0,1fr) auto!important;gap:10px!important;align-items:center!important;border:1px solid rgba(167,139,250,.18)!important;border-radius:14px!important;background:linear-gradient(135deg,rgba(15,23,42,.82),rgba(30,27,75,.60))!important;padding:10px!important;color:#fff!important;text-decoration:none!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)!important}
+        .academy-zone-action:before{content:""!important;position:absolute!important;inset:0!important;border-radius:14px!important;background:radial-gradient(circle at 18% 0%,rgba(56,189,248,.12),transparent 38%)!important;pointer-events:none!important}
+        .academy-zone-action i{display:grid!important;place-items:center!important;width:36px!important;height:36px!important;border-radius:12px!important;background:rgba(59,130,246,.18)!important;color:#93c5fd!important;font-size:21px!important}
+        .academy-zone-action span,.academy-zone-action b{position:relative!important;z-index:1!important}
+        .academy-zone-action strong{display:block!important;color:#fff!important;font-size:12px!important;line-height:1.15!important}
+        .academy-zone-action small{display:block!important;margin-top:3px!important;color:#c4b5fd!important;font-size:10px!important;line-height:1.25!important}
+        .academy-zone-action>b{justify-self:end!important;border:1px solid rgba(34,197,94,.24)!important;border-radius:999px!important;background:rgba(22,163,74,.14)!important;color:#86efac!important;padding:5px 8px!important;font-size:9px!important;font-weight:1000!important;text-transform:uppercase!important;white-space:nowrap!important}
+        .academy-zone-action.done i{background:rgba(34,197,94,.16)!important;color:#86efac!important}
+        .academy-zone-action.locked{opacity:.62!important}
+        .academy-zone-action.locked>b{border-color:rgba(148,163,184,.20)!important;background:rgba(30,41,59,.42)!important;color:#cbd5e1!important}
+        .academy-zone-game i{background:rgba(168,85,247,.18)!important;color:#d8b4fe!important}
+        .academy-zone-cards{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important}
+        .academy-zone-card{display:grid!important;grid-template-rows:auto auto 1fr auto!important;gap:6px!important;min-height:150px!important;border:1px solid rgba(167,139,250,.20)!important;border-radius:16px!important;background:linear-gradient(180deg,rgba(30,27,75,.72),rgba(8,7,26,.82))!important;padding:12px!important;color:#fff!important;text-decoration:none!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 14px 32px rgba(0,0,0,.20)!important}
+        .academy-zone-card i{display:grid!important;place-items:center!important;width:42px!important;height:42px!important;border-radius:14px!important;background:linear-gradient(135deg,#8b5cf6,#2563eb)!important;color:#e0f2fe!important;font-size:25px!important;box-shadow:0 0 20px rgba(124,58,237,.30)!important}
+        .academy-zone-card strong{color:#fff!important;font-size:13px!important;line-height:1.15!important;text-transform:uppercase!important}
+        .academy-zone-card p{margin:0!important;color:#c4b5fd!important;font-size:11px!important;line-height:1.3!important}
+        .academy-zone-card b{align-self:end!important;justify-self:start!important;border-radius:999px!important;background:rgba(59,130,246,.16)!important;color:#bfdbfe!important;padding:6px 9px!important;font-size:10px!important;text-transform:uppercase!important}
+        .academy-zone-card.ready b{background:rgba(34,197,94,.16)!important;color:#86efac!important}
+        .academy-zone-card.locked{opacity:.68!important}
+        .academy-world-location.active{border-color:rgba(34,211,238,.62)!important;background:linear-gradient(135deg,rgba(14,165,233,.32),rgba(124,58,237,.34))!important;box-shadow:0 0 0 1px rgba(125,211,252,.18),0 0 28px rgba(34,211,238,.28)!important}
+        .academy-world-location.active i{background:linear-gradient(135deg,#22d3ee,#7c3aed)!important;color:#fff!important}
+        @media (max-width:760px){
+          .academy-zone-actions{max-height:none!important;overflow:visible!important}
+          .academy-zone-action{grid-template-columns:34px minmax(0,1fr)!important}
+          .academy-zone-action>b{grid-column:2!important;justify-self:start!important;margin-top:2px!important}
+          .academy-zone-cards{grid-template-columns:1fr!important}
+          .academy-zone-card{min-height:118px!important}
         }
         @media (max-width:760px){
           .roxy-academy-shell.academy-world-open .academy-world-primary-hit{
