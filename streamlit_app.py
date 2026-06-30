@@ -34381,25 +34381,64 @@ def render_roxy_stock_live_runtime() -> None:
             const previous = Number(node.dataset.roxyPrice || 0);
             node.dataset.roxyPrice = String(price);
             node.textContent = fmt(price);
-            node.classList.remove("tick-up", "tick-down");
+            node.classList.remove("tick-up", "tick-down", "tick-pulse");
             if (previous && Number.isFinite(previous) && Number.isFinite(price)) {
               node.classList.add(Number(price) >= previous ? "tick-up" : "tick-down");
             }
+            window.requestAnimationFrame(() => {
+              node.classList.add("tick-pulse");
+              window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
+            });
+          };
+          const setStatus = (symbol, text, tone = "watch") => {
+            doc.querySelectorAll("[data-roxy-stock-live-status]").forEach((node) => {
+              const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
+              if (statusSymbol && statusSymbol !== symbol) return;
+              node.textContent = text;
+              node.classList.remove("tick-up", "tick-down", "tick-watch");
+              node.classList.add(tone === "up" ? "tick-up" : tone === "down" ? "tick-down" : "tick-watch");
+            });
+          };
+          const parseYahoo = (data) => {
+            const result = data && data.chart && data.chart.result && data.chart.result[0];
+            if (!result) return null;
+            const meta = result.meta || {};
+            const quote = result.indicators && result.indicators.quote && result.indicators.quote[0];
+            const closes = quote && Array.isArray(quote.close) ? quote.close.filter((v) => Number.isFinite(Number(v))) : [];
+            const price = Number(meta.regularMarketPrice || meta.postMarketPrice || meta.preMarketPrice || closes[closes.length - 1]);
+            const previous = Number(meta.previousClose || meta.chartPreviousClose || meta.regularMarketPreviousClose);
+            if (!Number.isFinite(price) || price <= 0) return null;
+            return { price, previous: Number.isFinite(previous) && previous > 0 ? previous : null, source: "Yahoo live" };
+          };
+          const fetchYahoo = async (symbol) => {
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1m`;
+            const res = await fetch(url, { cache: "no-store" });
+            if (!res.ok) return null;
+            return parseYahoo(await res.json());
+          };
+          const fetchStooq = async (symbol) => {
+            const stooqSymbol = `${String(symbol).toLowerCase().replace(/[^a-z0-9.\\-]/g, "")}.us`;
+            const url = `https://stooq.com/q/l/?s=${encodeURIComponent(stooqSymbol)}&f=sd2t2ohlcv&h&e=csv`;
+            const res = await fetch(url, { cache: "no-store" });
+            if (!res.ok) return null;
+            const text = await res.text();
+            const lines = text.trim().split(/\\r?\\n/);
+            if (lines.length < 2) return null;
+            const cells = lines[1].split(",");
+            const close = Number(cells[6] || cells[3]);
+            if (!Number.isFinite(close) || close <= 0) return null;
+            return { price: close, previous: null, source: "Stooq quote" };
           };
           const updateSymbol = async (symbol) => {
             try {
-              const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1m`;
-              const res = await fetch(url, { cache: "no-store" });
-              if (!res.ok) return;
-              const data = await res.json();
-              const result = data && data.chart && data.chart.result && data.chart.result[0];
-              if (!result) return;
-              const meta = result.meta || {};
-              const quote = result.indicators && result.indicators.quote && result.indicators.quote[0];
-              const closes = quote && Array.isArray(quote.close) ? quote.close.filter((v) => Number.isFinite(Number(v))) : [];
-              const price = Number(meta.regularMarketPrice || closes[closes.length - 1]);
-              if (!Number.isFinite(price) || price <= 0) return;
-              const previous = Number(meta.previousClose || meta.chartPreviousClose || meta.regularMarketPreviousClose);
+              setStatus(symbol, `consultando ${symbol}...`, "watch");
+              const quote = await fetchYahoo(symbol) || await fetchStooq(symbol);
+              if (!quote) {
+                setStatus(symbol, `${symbol} sin tick nuevo`, "watch");
+                return;
+              }
+              const price = Number(quote.price);
+              const previous = Number(quote.previous);
               const pct = Number.isFinite(previous) && previous > 0 ? (price - previous) / previous : null;
               (nodesBySymbol("[data-roxy-stock-live-price]").get(symbol) || []).forEach((node) => setTone(node, price));
               (nodesBySymbol("[data-roxy-stock-change]").get(symbol) || []).forEach((node) => {
@@ -34407,6 +34446,8 @@ def render_roxy_stock_live_runtime() -> None:
                 node.classList.remove("tick-up", "tick-down");
                 if (Number.isFinite(pct)) node.classList.add(pct >= 0 ? "tick-up" : "tick-down");
               });
+              const stamp = new Date().toLocaleTimeString();
+              setStatus(symbol, `${quote.source} · ${stamp}`, Number.isFinite(pct) ? (pct >= 0 ? "up" : "down") : "watch");
             } catch (error) {}
           };
           const tick = () => {
@@ -34861,7 +34902,7 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         </section>
         <section class="roxy-actions-chart-wrap">
           <div class="roxy-universe" aria-hidden="true"><i class="roxy-space-nebula"></i><i class="roxy-space-stars roxy-space-stars-mid"></i><i class="roxy-space-stars roxy-space-stars-near"></i></div>
-          <header><strong>Graficas operativas</strong><span>{html.escape(selected_symbol)} <b class="{selected_change_class}" data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}" data-roxy-price="{html.escape(str(latest_value or trade_plan.get("entry") or ""))}">{html.escape(price)}</b> · <b class="{selected_change_class}" data-roxy-stock-change data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">{html.escape(selected_change_text)}</b></span></header>
+          <header><strong>Graficas operativas</strong><span>{html.escape(selected_symbol)} <b class="{selected_change_class}" data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}" data-roxy-price="{html.escape(str(latest_value or trade_plan.get("entry") or ""))}">{html.escape(price)}</b> · <b class="{selected_change_class}" data-roxy-stock-change data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">{html.escape(selected_change_text)}</b><small data-roxy-stock-live-status data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">stock live inicializando...</small></span></header>
         """,
         unsafe_allow_html=True,
     )
@@ -34872,6 +34913,13 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         trade_plan=trade_plan,
         height=470,
     )
+    if not rendered:
+        rendered = render_roxy_actions_dual_static_charts(
+            symbol=resolved_symbol,
+            market=selected_market,
+            trade_plan=trade_plan,
+            height=430,
+        )
     if not rendered:
         rendered = render_roxy_folder_dual_chart(
             symbol=resolved_symbol,
@@ -35807,6 +35855,276 @@ def render_roxy_actions_dual_plotly_charts(
                 )
                 or rendered
             )
+    return rendered
+
+
+def roxy_actions_static_chart_svg(
+    chart_df: pd.DataFrame,
+    *,
+    symbol: str,
+    timeframe: str,
+    trade_plan: dict[str, Any],
+    title: str,
+    height: int = 430,
+) -> str:
+    if not isinstance(chart_df, pd.DataFrame) or chart_df.empty:
+        return ""
+    window = prepare_chart_window(chart_df, limit=180).copy()
+    if window.empty or not {"ts", "open", "high", "low", "close"}.issubset(window.columns):
+        return ""
+    window["ts"] = pd.to_datetime(window["ts"], errors="coerce")
+    numeric_columns = [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "ema9",
+        "ema21",
+        "sma20",
+        "sma40",
+        "bb_upper",
+        "bb_mid",
+        "bb_lower",
+    ]
+    for column in numeric_columns:
+        if column in window.columns:
+            window[column] = pd.to_numeric(window[column], errors="coerce")
+    window = window.dropna(subset=["ts", "open", "high", "low", "close"])
+    window = window[(window["open"] > 0) & (window["high"] > 0) & (window["low"] > 0) & (window["close"] > 0)]
+    if window.empty:
+        return ""
+    median_close = safe_float(window["close"].median())
+    if median_close not in (None, 0):
+        window = window[(window["low"] >= median_close * 0.55) & (window["high"] <= median_close * 1.45)]
+    window = window.tail(115).reset_index(drop=True)
+    if len(window) < 8:
+        return ""
+
+    width = 1000
+    height = max(330, min(620, int(height or 430)))
+    margin_left = 38
+    margin_right = 78
+    margin_top = 34
+    margin_bottom = 42
+    volume_height = 66
+    gap = 14
+    price_height = height - margin_top - margin_bottom - volume_height - gap
+    plot_width = width - margin_left - margin_right
+    latest_close = safe_float(window["close"].iloc[-1])
+
+    lows = pd.to_numeric(window["low"], errors="coerce").dropna()
+    highs = pd.to_numeric(window["high"], errors="coerce").dropna()
+    if lows.empty or highs.empty:
+        return ""
+    domain_low = float(lows.quantile(0.03))
+    domain_high = float(highs.quantile(0.97))
+    if latest_close not in (None, 0):
+        domain_low = max(domain_low, latest_close * 0.78)
+        domain_high = min(domain_high, latest_close * 1.22)
+    level_values = [
+        safe_float(trade_plan.get("entry")),
+        safe_float(trade_plan.get("stop")),
+        safe_float(trade_plan.get("target_2") or trade_plan.get("target_price") or trade_plan.get("target")),
+    ]
+    if latest_close not in (None, 0):
+        for value in level_values:
+            if value is not None and latest_close * 0.75 <= value <= latest_close * 1.25:
+                domain_low = min(domain_low, value)
+                domain_high = max(domain_high, value)
+    if domain_high <= domain_low:
+        domain_high = domain_low * 1.01
+    span = max(domain_high - domain_low, abs(domain_high) * 0.01, 0.01)
+    domain_low -= span * 0.12
+    domain_high += span * 0.12
+    domain_span = domain_high - domain_low
+
+    def x_pos(index: int) -> float:
+        if len(window) <= 1:
+            return margin_left + plot_width / 2
+        return margin_left + (plot_width * index / (len(window) - 1))
+
+    def y_pos(value: Any) -> float:
+        number = safe_float(value)
+        if number is None:
+            return margin_top + price_height
+        return margin_top + ((domain_high - number) / domain_span) * price_height
+
+    grid_parts: list[str] = []
+    for idx in range(5):
+        ratio = idx / 4
+        y = margin_top + price_height * ratio
+        price = domain_high - domain_span * ratio
+        grid_parts.append(
+            f'<line x1="{margin_left}" y1="{y:.1f}" x2="{width - margin_right}" y2="{y:.1f}" stroke="rgba(125,211,252,.13)" />'
+        )
+        grid_parts.append(
+            f'<text x="{width - margin_right + 10}" y="{y + 4:.1f}" fill="#9be8ff" font-size="15" font-weight="850">{price_display(price)}</text>'
+        )
+
+    volume_top = margin_top + price_height + gap
+    volume_max = safe_float(pd.to_numeric(window.get("volume"), errors="coerce").max()) if "volume" in window.columns else None
+    if volume_max in (None, 0):
+        volume_max = 1.0
+    candle_width = max(4.2, min(11.0, plot_width / max(len(window), 1) * 0.62))
+    volume_parts: list[str] = []
+    candle_parts: list[str] = []
+    for idx, row in window.iterrows():
+        open_price = safe_float(row.get("open"))
+        high_price = safe_float(row.get("high"))
+        low_price = safe_float(row.get("low"))
+        close_price = safe_float(row.get("close"))
+        if None in (open_price, high_price, low_price, close_price):
+            continue
+        x = x_pos(idx)
+        color = "#22c55e" if close_price >= open_price else "#ef4444"
+        y_high = y_pos(high_price)
+        y_low = y_pos(low_price)
+        y_open = y_pos(open_price)
+        y_close = y_pos(close_price)
+        body_y = min(y_open, y_close)
+        body_h = max(3.0, abs(y_close - y_open))
+        candle_parts.append(
+            f'<line x1="{x:.1f}" y1="{y_high:.1f}" x2="{x:.1f}" y2="{y_low:.1f}" stroke="{color}" stroke-width="2.1" opacity=".88" />'
+        )
+        candle_parts.append(
+            f'<rect x="{x - candle_width / 2:.1f}" y="{body_y:.1f}" width="{candle_width:.1f}" height="{body_h:.1f}" rx="2.4" fill="{color}" opacity=".96" filter="url(#softGlow)" />'
+        )
+        volume = safe_float(row.get("volume")) or 0.0
+        vol_h = max(2.0, min(volume_height, volume_height * (volume / volume_max)))
+        volume_parts.append(
+            f'<rect x="{x - candle_width / 2:.1f}" y="{volume_top + volume_height - vol_h:.1f}" width="{candle_width:.1f}" height="{vol_h:.1f}" rx="2" fill="#38bdf8" opacity=".42" />'
+        )
+
+    def line_path(column: str, color: str, width_px: float = 2.2, dash: str = "") -> str:
+        if column not in window.columns:
+            return ""
+        points = [
+            f"{x_pos(idx):.1f},{y_pos(value):.1f}"
+            for idx, value in enumerate(window[column].tolist())
+            if safe_float(value) is not None
+        ]
+        if len(points) < 2:
+            return ""
+        dash_attr = f' stroke-dasharray="{dash}"' if dash else ""
+        return f'<polyline points="{" ".join(points)}" fill="none" stroke="{color}" stroke-width="{width_px}" opacity=".92"{dash_attr} />'
+
+    bb_fill = ""
+    if "bb_upper" in window.columns and "bb_lower" in window.columns:
+        upper_points = [
+            f"{x_pos(idx):.1f},{y_pos(value):.1f}"
+            for idx, value in enumerate(window["bb_upper"].tolist())
+            if safe_float(value) is not None
+        ]
+        lower_points = [
+            f"{x_pos(idx):.1f},{y_pos(value):.1f}"
+            for idx, value in reversed(list(enumerate(window["bb_lower"].tolist())))
+            if safe_float(value) is not None
+        ]
+        if len(upper_points) > 2 and len(lower_points) > 2:
+            bb_fill = f'<polygon points="{" ".join(upper_points + lower_points)}" fill="rgba(148,163,184,.10)" stroke="none" />'
+
+    level_parts: list[str] = []
+    for label, value, color in [
+        ("Entrada", safe_float(trade_plan.get("entry")), "#22c55e"),
+        ("Stop", safe_float(trade_plan.get("stop")), "#ef4444"),
+        ("Target", safe_float(trade_plan.get("target_2") or trade_plan.get("target_price") or trade_plan.get("target")), "#38bdf8"),
+    ]:
+        if value is None or value < domain_low or value > domain_high:
+            continue
+        y = y_pos(value)
+        level_parts.append(
+            f'<line x1="{margin_left}" y1="{y:.1f}" x2="{width - margin_right}" y2="{y:.1f}" stroke="{color}" stroke-width="2" stroke-dasharray="8 7" opacity=".82" />'
+            f'<rect x="{width - margin_right - 154}" y="{y - 14:.1f}" width="144" height="24" rx="7" fill="{color}" opacity=".90" />'
+            f'<text x="{width - margin_right - 82}" y="{y + 5:.1f}" fill="#04111f" font-size="13" text-anchor="middle" font-weight="950">{html.escape(label)} {price_display(value)}</text>'
+        )
+
+    latest_text = price_display(latest_close)
+    first_ts = pd.Timestamp(window["ts"].iloc[0]).strftime("%m/%d %H:%M")
+    mid_ts = pd.Timestamp(window["ts"].iloc[len(window) // 2]).strftime("%m/%d %H:%M")
+    last_ts = pd.Timestamp(window["ts"].iloc[-1]).strftime("%m/%d %H:%M")
+    safe_symbol = html.escape(text_display(symbol).upper())
+    safe_title = html.escape(title)
+    safe_timeframe = html.escape(normalize_command_timeframe(timeframe))
+    safe_detail = html.escape("Velas reales · EMA 9/21 · Avg20/40 · Bollinger · volumen · entrada/stop/target")
+    return f"""
+    <section class="roxy-actions-static-chart" aria-label="{safe_title} {safe_symbol}">
+      <svg viewBox="0 0 {width} {height}" role="img" width="100%" height="{height}">
+        <defs>
+          <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="2.4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <linearGradient id="chartPanelBg" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#061426"/><stop offset=".5" stop-color="#020617"/><stop offset="1" stop-color="#082f49"/></linearGradient>
+        </defs>
+        <rect x="0" y="0" width="{width}" height="{height}" rx="12" fill="url(#chartPanelBg)" stroke="rgba(125,211,252,.24)" />
+        <rect x="{margin_left}" y="{margin_top}" width="{plot_width}" height="{price_height}" rx="8" fill="rgba(2,6,23,.46)" stroke="rgba(125,211,252,.10)" />
+        <text x="{margin_left}" y="21" fill="#dbeafe" font-size="17" font-weight="950">{safe_title}</text>
+        <text x="{margin_left + 260}" y="21" fill="#f8fafc" font-size="17" font-weight="950">{safe_symbol} · {safe_timeframe}</text>
+        <text x="{width - margin_right}" y="21" fill="#22c55e" font-size="17" font-weight="950" text-anchor="end">{latest_text}</text>
+        {''.join(grid_parts)}
+        {bb_fill}
+        {line_path("bb_upper", "rgba(226,232,240,.68)", 1.5, "5 6")}
+        {line_path("bb_lower", "rgba(226,232,240,.68)", 1.5, "5 6")}
+        {line_path("sma20", "#38bdf8", 2.3)}
+        {line_path("sma40", "#f97316", 2.3)}
+        {line_path("ema21", "#a855f7", 2.2)}
+        {line_path("ema9", "#ec4899", 2.2)}
+        {''.join(candle_parts)}
+        {''.join(level_parts)}
+        <line x1="{margin_left}" y1="{volume_top}" x2="{width - margin_right}" y2="{volume_top}" stroke="rgba(125,211,252,.12)" />
+        {''.join(volume_parts)}
+        <text x="{margin_left}" y="{height - 17}" fill="#94a3b8" font-size="12" font-weight="850">{html.escape(first_ts)}</text>
+        <text x="{margin_left + plot_width / 2}" y="{height - 17}" fill="#94a3b8" font-size="12" font-weight="850" text-anchor="middle">{html.escape(mid_ts)}</text>
+        <text x="{width - margin_right}" y="{height - 17}" fill="#94a3b8" font-size="12" font-weight="850" text-anchor="end">{html.escape(last_ts)}</text>
+      </svg>
+      <div><span>{safe_detail}</span><b>Respaldo operativo si Plotly no carga en Render</b></div>
+    </section>
+    """
+
+
+def render_roxy_actions_dual_static_charts(
+    *,
+    symbol: str,
+    market: str,
+    trade_plan: dict[str, Any],
+    height: int = 430,
+) -> bool:
+    panes = [("15m", "Grafica operativa 1"), ("1h", "Grafica operativa 2")]
+    pane_data: list[tuple[str, str, pd.DataFrame]] = []
+    for pane_tf, label in panes:
+        try:
+            pane_df = cached_trade_desk_chart_df(symbol, market, pane_tf)
+        except Exception:
+            pane_df = pd.DataFrame()
+        pane_data.append((pane_tf, label, pane_df if isinstance(pane_df, pd.DataFrame) else pd.DataFrame()))
+    if all(pane_df.empty for _, _, pane_df in pane_data):
+        return False
+    st.markdown(
+        (
+            '<div class="dual-chart-contract-strip roxy-actions-plotly-strip roxy-actions-safe-strip">'
+            '<strong>GRAFICAS OPERATIVAS REALES</strong>'
+            f"<span>{html.escape(text_display(symbol).upper())} · respaldo claro con velas, EMA, Bollinger, volumen y niveles</span>"
+            "<span>Se activa si el renderer interactivo no esta disponible</span>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+    columns = st.columns([1, 1], gap="small")
+    rendered = False
+    fallback_df = next((pane_df for _, _, pane_df in pane_data if not pane_df.empty), pd.DataFrame())
+    for col, (pane_tf, label, pane_df) in zip(columns, pane_data):
+        chart_df = pane_df if not pane_df.empty else fallback_df
+        svg = roxy_actions_static_chart_svg(
+            chart_df,
+            symbol=symbol,
+            timeframe=pane_tf,
+            trade_plan=trade_plan,
+            title=label,
+            height=height,
+        )
+        if not svg:
+            continue
+        with col:
+            st.markdown(svg, unsafe_allow_html=True)
+        rendered = True
     return rendered
 
 
@@ -42820,11 +43138,16 @@ def main() -> None:
         .roxy-actions-right{display:grid;gap:10px;align-content:start;min-width:0}.roxy-actions-right section,.roxy-actions-below article{border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.50);padding:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}.roxy-actions-right strong,.roxy-actions-below strong{display:block;color:#dbeafe;font-size:11px;text-transform:uppercase;letter-spacing:.06em}.roxy-actions-right small{float:right;color:#7f93ad;font-size:8px}.roxy-actions-filter label{display:grid;grid-template-columns:1fr 1.15fr;gap:8px;align-items:center;margin-top:10px;color:#8ba2bd;font-size:9px}.roxy-actions-filter label span{border:1px solid rgba(125,211,252,.12);border-radius:5px;background:rgba(2,6,23,.42);padding:7px;color:#e5f6ff}.roxy-actions-filter a,.roxy-actions-signal a,.roxy-actions-below .news a{display:flex!important;align-items:center;justify-content:center;gap:7px;height:40px;margin-top:13px;border:1px solid rgba(56,189,248,.38);border-radius:7px;background:linear-gradient(90deg,rgba(37,99,235,.64),rgba(14,165,233,.28));color:#dff7ff!important;text-decoration:none!important;text-transform:uppercase;font-size:10px;font-weight:950;box-shadow:0 0 24px rgba(37,99,235,.18)}
         .roxy-actions-quality div{position:relative;display:grid;place-items:center;width:118px;height:118px;margin:16px auto;border-radius:50%;background:conic-gradient(#22c55e 0 86%,rgba(30,58,138,.55) 86%);box-shadow:0 0 25px rgba(34,197,94,.20)}.roxy-actions-quality div:before{content:"";position:absolute;inset:13px;border-radius:50%;background:#07111f}.roxy-actions-quality div b,.roxy-actions-quality div span{position:relative;z-index:1}.roxy-actions-quality div b{color:#fff;font-size:28px;line-height:1}.roxy-actions-quality div span{color:#cbd5e1;font-size:8px;text-align:center;width:72px}.roxy-actions-quality p{display:grid;gap:7px;margin:0}.roxy-actions-quality p span{display:flex;justify-content:space-between;color:#93c5fd;font-size:10px}.roxy-actions-quality p b{color:#22c55e}
         .roxy-actions-signal>div{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:9px;align-items:center;margin:14px 0}.roxy-actions-signal span b{display:block;color:#f8fafc;font-size:14px}.roxy-actions-signal span small{display:block;color:#9aaec6;font-size:9px}.roxy-actions-signal em{border:1px solid rgba(34,197,94,.34);border-radius:5px;background:rgba(34,197,94,.12);padding:5px 7px;color:#22c55e;font-size:9px;font-style:normal;font-weight:950;text-transform:uppercase}.roxy-actions-signal p{display:grid;gap:8px;margin:0}.roxy-actions-signal p span{display:flex;justify-content:space-between;border-bottom:1px solid rgba(125,211,252,.10);padding-bottom:6px;color:#aebdd0;font-size:10px}.roxy-actions-signal p b{color:#e5f6ff}
-        .roxy-actions-chart-wrap{padding:12px;margin:0 0 10px}.roxy-actions-chart-wrap>header{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}.roxy-actions-chart-wrap>header strong{color:#8bd8ff;font-size:14px;text-transform:uppercase;letter-spacing:.07em}.roxy-actions-chart-wrap>header span{color:#f8fafc;font-size:14px;font-weight:950}.roxy-actions-chart-wrap>header b{color:#22c55e}.roxy-actions-chart-wrap>header b.negative{color:#ef4444}.roxy-actions-below{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:10px;margin-top:10px}.roxy-actions-below .why>div{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;margin-top:12px}.roxy-actions-below .why div div{display:grid;justify-items:center;text-align:center;gap:6px;border-right:1px solid rgba(125,211,252,.10);padding:8px 6px}.roxy-actions-below .why i{color:#60a5fa;font-size:25px!important;text-shadow:0 0 15px rgba(96,165,250,.50)}.roxy-actions-below .why div div strong{font-size:9px;color:#dbeafe;text-transform:uppercase}.roxy-actions-below .why span{color:#aebdd0;font-size:8px;line-height:1.2}.roxy-actions-below .news p{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;margin:10px 0 0;color:#cbd5e1;font-size:10px;line-height:1.25}.roxy-actions-below .news i.material-symbols-outlined{color:#8bd8ff;font-size:22px!important}.roxy-actions-bottomnav{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr 76px 1fr 1fr;align-items:center;gap:6px;margin-top:10px;border:1px solid rgba(125,211,252,.14);border-radius:28px;background:rgba(2,6,23,.68);padding:8px 12px}.roxy-actions-bottomnav a{display:grid;place-items:center;gap:4px;color:#94a3b8!important;text-decoration:none!important;font-size:9px;text-transform:uppercase;font-weight:900}.roxy-actions-bottomnav i{font-size:22px!important}.roxy-actions-bottomnav .active{color:#60a5fa!important}.roxy-actions-bottomnav .roxy-r{width:58px;height:58px;margin:-25px auto -8px;border-radius:50%;background:radial-gradient(circle,#2563eb,#082f49);border:1px solid rgba(96,165,250,.72);color:#fff!important;font-size:28px;box-shadow:0 0 38px rgba(37,99,235,.72)}
+        .roxy-actions-chart-wrap{padding:12px;margin:0 0 10px}.roxy-actions-chart-wrap>header{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}.roxy-actions-chart-wrap>header strong{color:#8bd8ff;font-size:14px;text-transform:uppercase;letter-spacing:.07em}.roxy-actions-chart-wrap>header span{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;color:#f8fafc;font-size:14px;font-weight:950}.roxy-actions-chart-wrap>header b{color:#22c55e}.roxy-actions-chart-wrap>header b.negative{color:#ef4444}.roxy-actions-chart-wrap>header small{display:inline-flex;align-items:center;min-height:18px;border:1px solid rgba(125,211,252,.20);border-radius:999px;background:rgba(2,6,23,.54);padding:2px 7px;color:#93c5fd;font-size:8px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.roxy-actions-chart-wrap>header small:before{content:"";width:5px;height:5px;margin-right:5px;border-radius:50%;background:#38bdf8;box-shadow:0 0 10px rgba(56,189,248,.75)}.roxy-actions-chart-wrap>header small.tick-up:before{background:#22c55e}.roxy-actions-chart-wrap>header small.tick-down:before{background:#fb7185}.roxy-actions-below{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:10px;margin-top:10px}.roxy-actions-below .why>div{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;margin-top:12px}.roxy-actions-below .why div div{display:grid;justify-items:center;text-align:center;gap:6px;border-right:1px solid rgba(125,211,252,.10);padding:8px 6px}.roxy-actions-below .why i{color:#60a5fa;font-size:25px!important;text-shadow:0 0 15px rgba(96,165,250,.50)}.roxy-actions-below .why div div strong{font-size:9px;color:#dbeafe;text-transform:uppercase}.roxy-actions-below .why span{color:#aebdd0;font-size:8px;line-height:1.2}.roxy-actions-below .news p{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;margin:10px 0 0;color:#cbd5e1;font-size:10px;line-height:1.25}.roxy-actions-below .news i.material-symbols-outlined{color:#8bd8ff;font-size:22px!important}.roxy-actions-bottomnav{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr 76px 1fr 1fr;align-items:center;gap:6px;margin-top:10px;border:1px solid rgba(125,211,252,.14);border-radius:28px;background:rgba(2,6,23,.68);padding:8px 12px}.roxy-actions-bottomnav a{display:grid;place-items:center;gap:4px;color:#94a3b8!important;text-decoration:none!important;font-size:9px;text-transform:uppercase;font-weight:900}.roxy-actions-bottomnav i{font-size:22px!important}.roxy-actions-bottomnav .active{color:#60a5fa!important}.roxy-actions-bottomnav .roxy-r{width:58px;height:58px;margin:-25px auto -8px;border-radius:50%;background:radial-gradient(circle,#2563eb,#082f49);border:1px solid rgba(96,165,250,.72);color:#fff!important;font-size:28px;box-shadow:0 0 38px rgba(37,99,235,.72)}
         .roxy-actions-chart-empty{display:grid!important;gap:7px!important;min-height:210px!important;place-content:center!important;text-align:center!important;border:1px solid rgba(96,165,250,.24)!important;border-radius:10px!important;background:linear-gradient(135deg,rgba(15,23,42,.86),rgba(8,47,73,.42))!important;padding:18px!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)!important}
         .roxy-actions-chart-empty strong{color:#dbeafe!important;font-size:13px!important;text-transform:uppercase!important;letter-spacing:.05em!important}
         .roxy-actions-chart-empty span{max-width:440px!important;color:#bfdbfe!important;font-size:11px!important;line-height:1.45!important}
         .roxy-actions-plotly-strip{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:3px 0 8px;padding:6px 9px;border:1px solid rgba(34,197,94,.24);border-radius:7px;background:rgba(15,23,42,.70);color:#cbd5e1;font-size:11px}.roxy-actions-plotly-strip strong{color:#8bd8ff}
+        .roxy-actions-safe-strip{border-color:rgba(56,189,248,.30);background:linear-gradient(90deg,rgba(2,6,23,.78),rgba(8,47,73,.48),rgba(2,6,23,.78))}
+        .roxy-actions-static-chart{display:grid;gap:6px;border:1px solid rgba(125,211,252,.18);border-radius:10px;background:rgba(2,6,23,.44);padding:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 0 24px rgba(56,189,248,.08);overflow:hidden}
+        .roxy-actions-static-chart svg{display:block;width:100%;height:auto;border-radius:8px}
+        .roxy-actions-static-chart div{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#93c5fd;font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.03em}
+        .roxy-actions-static-chart div b{color:#bfdbfe;font-size:8px;text-align:right}
         @media (max-width:1180px){.roxy-actions-shell{grid-template-columns:118px minmax(0,1fr);grid-template-areas:"side main" "right right"}.roxy-actions-sidebar{grid-area:side}.roxy-actions-main{grid-area:main}.roxy-actions-right{grid-area:right;grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-actions-hero{grid-template-columns:142px minmax(0,1fr)}.roxy-actions-row{grid-template-columns:20px 30px minmax(74px,1fr) 68px 78px 52px minmax(88px,1fr) 72px 20px;gap:6px}.roxy-actions-below{grid-template-columns:1fr}}
         @media (max-width:760px){.roxy-actions-shell{grid-template-columns:minmax(0,1fr);grid-template-areas:"side" "main" "right";gap:8px;padding:8px;min-height:0}.roxy-actions-shell>*{max-width:100%;min-width:0}.roxy-actions-sidebar{grid-area:side;display:block;border-right:0;border-bottom:1px solid rgba(125,211,252,.14);padding:0 0 8px;overflow:hidden}.roxy-actions-main{grid-area:main;width:100%;min-width:0;max-width:100%;overflow:hidden}.roxy-actions-right{grid-area:right;width:100%;min-width:0;max-width:100%;overflow:hidden}.roxy-actions-brand{display:none}.roxy-actions-sidebar nav{display:flex;overflow-x:auto;gap:4px;padding-bottom:2px}.roxy-actions-sidebar nav a{flex:0 0 auto;min-height:32px;padding:6px 8px;font-size:9px}.roxy-actions-sidebar .help{display:none!important}.roxy-actions-topbar{grid-template-columns:28px minmax(0,1fr) auto}.roxy-actions-topbar strong{font-size:21px}.roxy-actions-topbar aside span{display:none}.roxy-actions-hero{grid-template-columns:96px minmax(0,1fr);min-height:134px;padding:10px}.roxy-actions-roxy{height:116px}.roxy-actions-roxy .roxy-hologram-avatar{width:104px}.roxy-actions-hero .copy strong{font-size:13px}.roxy-actions-hero .copy p{font-size:9px;line-height:1.28}.roxy-actions-hero .chips{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.roxy-actions-hero .chips span{padding:5px;font-size:7px}.roxy-actions-opps{overflow-x:auto;width:100%;min-width:0;max-width:100%}.roxy-actions-opps header,.roxy-actions-row{min-width:690px}.roxy-actions-right{grid-template-columns:1fr}.roxy-actions-chart-wrap{padding:8px}.roxy-actions-chart-wrap>header{display:block}.roxy-actions-chart-wrap>header span{display:block;margin-top:4px}.roxy-actions-below{grid-template-columns:1fr}.roxy-actions-below .why>div{grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-actions-bottomnav{grid-template-columns:1fr 1fr 64px 1fr 1fr;padding:7px 8px}.roxy-actions-bottomnav a{font-size:7px}.roxy-actions-bottomnav .roxy-r{width:50px;height:50px;font-size:24px}}
         .roxy-crypto20-shell,.roxy-crypto20-chart-wrap{position:relative;isolation:isolate;overflow:hidden;border:1px solid rgba(56,189,248,.20);border-radius:8px;background:linear-gradient(135deg,rgba(2,6,23,.90),rgba(8,47,73,.30) 50%,rgba(2,6,23,.94));box-shadow:0 26px 80px rgba(0,0,0,.45),0 0 48px rgba(56,189,248,.10);color:#e5f6ff}
@@ -42834,7 +43157,7 @@ def main() -> None:
         .roxy-crypto20-hero{display:grid;grid-template-columns:178px minmax(0,1fr);gap:14px;align-items:center;min-height:188px;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.44);padding:12px 16px;overflow:hidden}.roxy-crypto20-roxy{display:grid;place-items:center;height:164px}.roxy-crypto20-roxy .roxy-hologram-avatar{width:154px;aspect-ratio:.72/1}.roxy-crypto20-roxy .roxy-avatar-core{border:0;border-radius:0;background:transparent;box-shadow:none;filter:drop-shadow(0 0 28px rgba(56,189,248,.50));-webkit-mask-image:radial-gradient(ellipse 52% 64% at 50% 42%,#000 0 68%,rgba(0,0,0,.72) 82%,transparent 100%);mask-image:radial-gradient(ellipse 52% 64% at 50% 42%,#000 0 68%,rgba(0,0,0,.72) 82%,transparent 100%)}.roxy-crypto20-roxy .roxy-hologram-name,.roxy-crypto20-roxy .roxy-audio-wave{display:none}.roxy-crypto20-hero .copy strong{display:block;color:#e0f2fe;font-size:18px;line-height:1.22}.roxy-crypto20-hero .copy p{margin:10px 0 0;color:#cbd5e1;font-size:12px;line-height:1.45;max-width:520px}.roxy-crypto20-hero .chips{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.roxy-crypto20-hero .chips span{display:flex;align-items:center;gap:5px;border:1px solid rgba(56,189,248,.14);border-radius:7px;background:rgba(2,6,23,.40);padding:7px;color:#9cc9e6;font-size:9px;font-weight:850}.roxy-crypto20-hero .chips i{font-size:15px!important;color:#34d399}
         .roxy-crypto20-alertbar{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.48);padding:10px 12px}.roxy-crypto20-alertbar>i{display:grid;place-items:center;width:28px;height:28px;border:1px solid rgba(125,211,252,.22);border-radius:50%;color:#7dd3fc}.roxy-crypto20-alertbar span{color:#cbd5e1;font-size:11px;font-weight:800}.roxy-crypto20-alertbar em{display:flex;align-items:center;gap:9px;color:#9cc9e6;font-size:10px;font-style:normal}.roxy-crypto20-alertbar em b{position:relative;width:38px;height:20px;border-radius:999px;background:#2563eb;box-shadow:0 0 16px rgba(37,99,235,.52)}.roxy-crypto20-alertbar em b:after{content:"";position:absolute;right:3px;top:3px;width:14px;height:14px;border-radius:50%;background:white}
         .roxy-crypto20-opps{min-width:0;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.48);overflow:hidden}.roxy-crypto20-opps header{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;padding:0 12px;border-bottom:1px solid rgba(125,211,252,.12)}.roxy-crypto20-opps header strong{color:#dbeafe;font-size:12px;text-transform:uppercase;letter-spacing:.04em}.roxy-crypto20-opps header small{color:#7f93ad;font-size:8px}.roxy-crypto20-opps header span{display:flex;align-items:center;gap:5px}.roxy-crypto20-opps header b{display:grid;place-items:center;min-width:32px;height:20px;border:1px solid rgba(125,211,252,.14);border-radius:5px;color:#8fb6d1;font-size:8px}.roxy-crypto20-opps header b.active{background:#2563eb;color:#fff}.roxy-crypto20-row{display:grid;grid-template-columns:34px minmax(86px,1fr) 78px 92px minmax(112px,1.1fr) 58px 22px;gap:8px;align-items:center;min-height:67px;padding:6px 10px;border-bottom:1px solid rgba(125,211,252,.10);text-decoration:none!important;color:#e5f6ff!important}.roxy-crypto20-row.selected,.roxy-crypto20-row:hover{background:rgba(37,99,235,.13)}.roxy-crypto20-head{min-height:30px;color:#7da8c9!important;font-size:8px;text-transform:uppercase;font-weight:950}.roxy-crypto20-head b{font-size:8px;color:#8fb6d1}.roxy-crypto-logo{display:grid!important;place-items:center!important;width:30px;height:30px;border-radius:50%;background:var(--logo-bg,#111827);box-shadow:0 0 18px rgba(56,189,248,.22);overflow:hidden}.roxy-crypto-logo img{width:19px;height:19px;object-fit:contain;filter:drop-shadow(0 0 6px rgba(255,255,255,.32))}.roxy-crypto20-row .asset strong,.roxy-crypto20-row .price strong{display:block;color:#f8fafc;font-size:12px;line-height:1;font-weight:950}.roxy-crypto20-row .asset small,.roxy-crypto20-row .price small{display:block;color:#22c55e;font-size:8px;line-height:1.12;margin-top:4px}.roxy-crypto20-row .price small{color:#8ba2bd}.roxy-crypto20-row .signal strong{display:block;color:#22c55e;font-size:10px;text-transform:uppercase}.roxy-crypto20-row .signal small{display:block;color:#cbd5e1;font-size:7px;line-height:1.22;margin-top:3px}.roxy-crypto20-row .score b{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:conic-gradient(#22c55e 0 72%,rgba(30,58,138,.55) 72%);color:#fff;font-size:11px;box-shadow:0 0 16px rgba(34,197,94,.20)}.roxy-crypto20-row .score small{display:block;margin-top:3px;color:#cbd5e1;font-size:6.5px;text-align:center}.roxy-crypto20-row .fav{color:#d4af60;font-size:17px!important}.roxy-crypto20-opps .more{display:grid!important;place-items:center;width:190px;height:28px;margin:8px auto 10px;border-radius:6px;background:rgba(37,99,235,.32);color:#dbeafe!important;text-decoration:none!important;font-size:9px;font-weight:950;text-transform:uppercase}
-        .roxy-crypto20-row:not(.roxy-crypto20-head){display:block;min-height:0;padding:0}.roxy-crypto20-row .row-main{display:grid;grid-template-columns:34px minmax(88px,1fr) 82px 92px minmax(150px,1.25fr) 62px 58px;gap:8px;align-items:center;min-height:72px;padding:7px 10px;color:#e5f6ff!important;text-decoration:none!important}.roxy-crypto20-row.is-loading .row-main{box-shadow:inset 3px 0 0 #38bdf8}.roxy-crypto20-row .contract{display:grid;gap:2px;text-align:center}.roxy-crypto20-row .contract b{display:grid;place-items:center;min-height:24px;border-radius:6px;background:rgba(37,99,235,.22);border:1px solid rgba(125,211,252,.18);color:#e0f2fe;font-size:10px;font-weight:950}.roxy-crypto20-row .contract small{color:#93c5fd;font-size:7px;line-height:1.1}.roxy-crypto20-row-buy .signal strong,.roxy-crypto20-row-buy .asset small{color:#22c55e}.roxy-crypto20-row-watch .signal strong,.roxy-crypto20-row-watch .asset small{color:#facc15}.roxy-crypto20-row-avoid .signal strong,.roxy-crypto20-row-avoid .asset small{color:#fb7185}.roxy-why{border-top:1px solid rgba(125,211,252,.08);padding:0 10px 7px 52px}.roxy-why summary{cursor:pointer;width:max-content;color:#7dd3fc;font-size:8px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.roxy-why ul,.roxy-why-panel ul{margin:6px 0 0;padding-left:14px;color:#cbd5e1;font-size:8px;line-height:1.35}.roxy-why li+li,.roxy-why-panel li+li{margin-top:3px}[data-roxy-live-price]{font-variant-numeric:tabular-nums;transition:color .15s ease,text-shadow .15s ease,transform .15s ease}[data-roxy-live-price].tick-up{color:#22c55e!important;text-shadow:0 0 14px rgba(34,197,94,.45);transform:translateY(-1px)}[data-roxy-live-price].tick-down{color:#fb7185!important;text-shadow:0 0 14px rgba(251,113,133,.38);transform:translateY(1px)}.roxy-crypto20-signal em.state-buy{background:rgba(34,197,94,.14)!important;color:#86efac!important}.roxy-crypto20-signal em.state-watch{background:rgba(250,204,21,.14)!important;color:#fde68a!important}.roxy-crypto20-signal em.state-avoid{background:rgba(244,63,94,.14)!important;color:#fda4af!important}.roxy-why-panel{grid-column:1/-1;margin-top:7px}.roxy-why-panel summary{cursor:pointer;color:#7dd3fc;font-size:9px;font-weight:950;text-transform:uppercase}.roxy-crypto20-countdown.is-refreshing{filter:brightness(1.25);box-shadow:0 0 24px rgba(56,189,248,.28)}
+        .roxy-crypto20-row:not(.roxy-crypto20-head){display:block;min-height:0;padding:0}.roxy-crypto20-row .row-main{display:grid;grid-template-columns:34px minmax(88px,1fr) 82px 92px minmax(150px,1.25fr) 62px 58px;gap:8px;align-items:center;min-height:72px;padding:7px 10px;color:#e5f6ff!important;text-decoration:none!important}.roxy-crypto20-row.is-loading .row-main{box-shadow:inset 3px 0 0 #38bdf8}.roxy-crypto20-row .contract{display:grid;gap:2px;text-align:center}.roxy-crypto20-row .contract b{display:grid;place-items:center;min-height:24px;border-radius:6px;background:rgba(37,99,235,.22);border:1px solid rgba(125,211,252,.18);color:#e0f2fe;font-size:10px;font-weight:950}.roxy-crypto20-row .contract small{color:#93c5fd;font-size:7px;line-height:1.1}.roxy-crypto20-row-buy .signal strong,.roxy-crypto20-row-buy .asset small{color:#22c55e}.roxy-crypto20-row-watch .signal strong,.roxy-crypto20-row-watch .asset small{color:#facc15}.roxy-crypto20-row-avoid .signal strong,.roxy-crypto20-row-avoid .asset small{color:#fb7185}.roxy-why{border-top:1px solid rgba(125,211,252,.08);padding:0 10px 7px 52px}.roxy-why summary{cursor:pointer;width:max-content;color:#7dd3fc;font-size:8px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.roxy-why ul,.roxy-why-panel ul{margin:6px 0 0;padding-left:14px;color:#cbd5e1;font-size:8px;line-height:1.35}.roxy-why li+li,.roxy-why-panel li+li{margin-top:3px}[data-roxy-live-price]{font-variant-numeric:tabular-nums;transition:color .15s ease,text-shadow .15s ease,transform .15s ease,filter .15s ease}[data-roxy-live-price].tick-up{color:#22c55e!important;text-shadow:0 0 14px rgba(34,197,94,.45);transform:translateY(-1px)}[data-roxy-live-price].tick-down{color:#fb7185!important;text-shadow:0 0 14px rgba(251,113,133,.38);transform:translateY(1px)}[data-roxy-live-price].tick-pulse{filter:brightness(1.35) drop-shadow(0 0 9px rgba(56,189,248,.72));animation:roxy-live-pulse .9s ease-out 1}@keyframes roxy-live-pulse{0%{transform:scale(1)}35%{transform:scale(1.055)}100%{transform:scale(1)}}.roxy-crypto20-signal em.state-buy{background:rgba(34,197,94,.14)!important;color:#86efac!important}.roxy-crypto20-signal em.state-watch{background:rgba(250,204,21,.14)!important;color:#fde68a!important}.roxy-crypto20-signal em.state-avoid{background:rgba(244,63,94,.14)!important;color:#fda4af!important}.roxy-why-panel{grid-column:1/-1;margin-top:7px}.roxy-why-panel summary{cursor:pointer;color:#7dd3fc;font-size:9px;font-weight:950;text-transform:uppercase}.roxy-crypto20-countdown.is-refreshing{filter:brightness(1.25);box-shadow:0 0 24px rgba(56,189,248,.28)}
         .roxy-crypto-detail-panel{margin-top:10px;border:1px solid rgba(125,211,252,.18);border-radius:8px;background:linear-gradient(135deg,rgba(2,6,23,.72),rgba(30,64,175,.16));box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 0 28px rgba(37,99,235,.10);overflow:hidden}.roxy-crypto-detail-panel header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-bottom:1px solid rgba(125,211,252,.12)}.roxy-crypto-detail-panel header strong{color:#e0f2fe;font-size:12px;text-transform:uppercase;letter-spacing:.06em}.roxy-crypto-detail-panel header a{display:grid;place-items:center;min-width:62px;height:24px;border-radius:6px;background:rgba(37,99,235,.26);border:1px solid rgba(96,165,250,.22);color:#dbeafe!important;text-decoration:none!important;font-size:9px;font-weight:950;text-transform:uppercase}.roxy-crypto-detail-list{display:grid;gap:1px;background:rgba(125,211,252,.08)}.roxy-crypto-detail-list p{display:grid;grid-template-columns:32px minmax(0,1fr) auto;align-items:center;gap:9px;margin:0;padding:9px 12px;background:rgba(2,6,23,.58);color:#cbd5e1;font-size:10px;line-height:1.28}.roxy-crypto-detail-list p span{min-width:0}.roxy-crypto-detail-list p b{color:#93c5fd}.roxy-crypto-detail-list p em{color:#86efac;font-style:normal;font-weight:950}.roxy-crypto-detail-list p .material-symbols-outlined{display:grid;place-items:center;width:28px;height:28px;border-radius:8px;background:rgba(34,197,94,.12);color:#86efac;font-size:18px!important}.roxy-crypto-detail-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(125,211,252,.08)}.roxy-crypto-detail-metrics p{display:grid;place-items:center;gap:5px;margin:0;min-height:78px;background:rgba(2,6,23,.58);text-align:center}.roxy-crypto-detail-metrics b{color:#f8fafc;font-size:25px;line-height:1}.roxy-crypto-detail-metrics span{color:#93c5fd;font-size:9px;text-transform:uppercase;letter-spacing:.04em}
         .roxy-crypto20-head{grid-template-columns:minmax(130px,1fr) 82px 92px minmax(150px,1.25fr) 62px 58px}
         .roxy-crypto20-right{display:grid;gap:10px;align-content:start;min-width:0}.roxy-crypto20-right section,.roxy-crypto20-bottom article{border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.52);padding:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}.roxy-crypto20-right strong,.roxy-crypto20-bottom strong{display:block;color:#dbeafe;font-size:11px;text-transform:uppercase;letter-spacing:.06em}.roxy-crypto20-countdown{--roxy-countdown-progress:0%;border-color:rgba(212,175,96,.38)!important}.roxy-crypto20-countdown div{position:relative;display:grid;place-items:center;width:116px;height:116px;margin:14px auto;border-radius:50%;background:conic-gradient(#34d399 0 var(--roxy-countdown-progress),rgba(30,58,138,.55) var(--roxy-countdown-progress) 100%);box-shadow:0 0 25px rgba(20,184,166,.22)}.roxy-crypto20-countdown div:after{content:"";position:absolute;inset:-3px;border-radius:50%;border:1px solid rgba(125,211,252,.34);filter:drop-shadow(0 0 10px rgba(52,211,153,.38));animation:roxy-countdown-orbit 6s linear infinite}.roxy-crypto20-countdown div:before{content:"";position:absolute;inset:12px;border-radius:50%;background:#07111f}.roxy-crypto20-countdown div b,.roxy-crypto20-countdown div span{position:relative;z-index:1}.roxy-crypto20-countdown div b{color:#fff;font-size:25px;line-height:1;font-variant-numeric:tabular-nums;text-shadow:0 0 16px rgba(52,211,153,.40)}.roxy-crypto20-countdown.is-hot div b{animation:roxy-timer-hot 1s steps(2,end) infinite;color:#fef3c7}.roxy-crypto20-countdown div span{color:#cbd5e1;font-size:8px;text-transform:uppercase}.roxy-crypto20-countdown p{display:grid;gap:7px;margin:0}.roxy-crypto20-countdown p span{display:flex;justify-content:space-between;color:#93c5fd;font-size:10px}.roxy-crypto20-countdown p b{color:#e5f6ff}.roxy-crypto20-countdown i{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:13px}.roxy-crypto20-countdown i:after{content:"";position:absolute;left:0;top:0;height:7px;width:var(--roxy-countdown-progress);border-radius:999px;background:linear-gradient(90deg,#34d399,#38bdf8,#2563eb);box-shadow:0 0 14px rgba(56,189,248,.42);transition:width .45s linear}.roxy-crypto20-countdown u{height:7px;border-radius:999px;background:rgba(30,58,138,.38);text-decoration:none}@keyframes roxy-countdown-orbit{to{transform:rotate(360deg)}}@keyframes roxy-timer-hot{50%{filter:brightness(1.35)}}

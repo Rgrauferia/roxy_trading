@@ -13,6 +13,7 @@ black
 isort
 streamlit
 matplotlib
+plotly
 playwright
 APScheduler
 feedparser
