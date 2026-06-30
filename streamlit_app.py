@@ -36023,13 +36023,13 @@ ROXY_ACADEMY_LEVEL_1_LESSONS = (
     {
         "id": "errores-principiante",
         "title": "Errores de principiante",
-        "short": "Chaos",
+        "short": "Errores",
         "icon": "warning",
         "character": "Bella",
         "explanation": "Los errores comunes son operar por emocion, copiar sin entender, arriesgar demasiado, no practicar y cambiar de plan cada minuto.",
-        "study": "Meta: reconocer a la Legion Chaos como habitos malos, no como cuento.",
-        "mission": "Derrota un villano eligiendo el habito que debes evitar.",
-        "villain": "La Legion Chaos aparece cuando olvidas disciplina.",
+        "study": "Meta: reconocer habitos malos antes de que afecten una decision.",
+        "mission": "Elige el habito que un principiante debe evitar.",
+        "villain": "La prisa aparece cuando olvidas disciplina.",
         "example_symbol": "TSLA",
         "question": "Cual habito debe evitar un principiante?",
         "options": (
@@ -36039,7 +36039,7 @@ ROXY_ACADEMY_LEVEL_1_LESSONS = (
             "Medir el riesgo.",
         ),
         "answer": 0,
-        "feedback": "Correcto. La Legion Chaos representa malos habitos reales que debes detectar temprano.",
+        "feedback": "Correcto. Los malos habitos se detectan temprano con reglas simples y practica.",
     },
     {
         "id": "aprender-vs-operar",
@@ -36071,7 +36071,7 @@ ROXY_ACADEMY_LEVEL_1_LESSONS = (
         "explanation": "Este examen confirma que entiendes las palabras basicas antes de pasar a planetas con graficas, crypto y estrategias.",
         "study": "Meta: demostrar que conoces el idioma basico del trading.",
         "mission": "Completa el examen y gana la insignia Explorador del Mercado.",
-        "villain": "La Legion Chaos no puede pasar si estudiaste con calma.",
+        "villain": "Los errores comunes se reducen cuando estudias con calma.",
         "example_symbol": "AAPL",
         "question": "Cual es la mejor base para empezar en trading?",
         "options": (
@@ -36373,13 +36373,13 @@ ROXY_ACADEMY_LEVEL_1_LESSONS = ROXY_ACADEMY_LEVEL_1_LESSONS + (
         "character": "Bella",
         "explanation": "Miedo, euforia, prisa y frustracion pueden afectar decisiones. En Nivel 1 aprendemos a reconocerlas antes de operar.",
         "study": "Meta: saber que una emocion fuerte no debe controlar el boton.",
-        "mission": "Identifica que villano aparece cuando sientes prisa, ego o frustracion.",
-        "villain": "La Legion Chaos vive en decisiones emocionales.",
+        "mission": "Identifica que emocion aparece cuando sientes prisa, ego o frustracion.",
+        "villain": "Las decisiones emocionales aparecen cuando no haces pausa.",
         "example_symbol": "TSLA",
         "deep_points": (
-            "FOMO aparece cuando quieres entrar por miedo a perderte algo.",
-            "Revenge aparece cuando quieres recuperar rapido.",
-            "Ego aparece cuando no aceptas estar equivocado.",
+            "FOMO es entrar por miedo a perderte algo.",
+            "Revenge trading es querer recuperar rapido despues de perder.",
+            "Ego es no aceptar que una idea puede estar equivocada.",
         ),
         "practice_steps": (
             "Antes de responder, di que emocion sientes.",
@@ -36425,7 +36425,7 @@ ROXY_ACADEMY_LEVEL_1_LESSONS = ROXY_ACADEMY_LEVEL_1_LESSONS + (
             "Para eliminar la necesidad de diario.",
         ),
         "answer": 0,
-        "feedback": "Excelente. El checklist es una defensa contra Chaos.",
+        "feedback": "Excelente. El checklist protege tu disciplina antes de operar.",
     },
 )
 
@@ -36672,10 +36672,8 @@ def render_roxy_academy_module() -> None:
     ship_img = academy_asset_img_html("academy_ship_ref.png", "Nave Roxy Academy", "academy-ship-img")
     story_panel_img = academy_asset_img_html("academy_story_roxy_legend.jpg", "Historia Roxy Academy", "academy-universe-img")
     universe_map_img = academy_asset_img_html("academy_universe_reference_map.jpg", "Mapa del universo Roxy Academy", "academy-universe-img")
-    chaos_panel_img = academy_asset_img_html("academy_chaos_legion.jpg", "La Legion Chaos", "academy-universe-img")
     how_panel_img = academy_asset_img_html("academy_how_it_works.jpg", "Como funciona Roxy Academy", "academy-strip-img")
     allies_panel_img = academy_asset_img_html("academy_allies_panel.jpg", "Aliados Roxy Academy", "academy-universe-img")
-    villains_panel_img = academy_asset_img_html("academy_villains_panel.jpg", "Como aparecen los villanos", "academy-universe-img")
     mission_panel_img = academy_asset_img_html("academy_mission_example.jpg", "Ejemplo de mision Roxy Academy", "academy-universe-img")
     origin_world_scene_img = academy_asset_img_html("academy_origin_world_scene_hd.jpg", "Planeta Origen mundo interactivo", "academy-world-bg-img")
     planet_asset_files = {
@@ -36696,7 +36694,7 @@ def render_roxy_academy_module() -> None:
         <div class="academy-lesson-intel">
           <div><i class="material-symbols-outlined">auto_stories</i><span><b>Estudio</b>{html.escape(str(lesson.get('study') or 'Lee, responde y practica el concepto.'))}</span></div>
           <div><i class="material-symbols-outlined">flag</i><span><b>Mision</b>{html.escape(str(lesson.get('mission') or 'Completa esta leccion para avanzar.'))}</span></div>
-          <div class="academy-villain-warning"><i class="material-symbols-outlined">warning</i><span><b>Evita</b>{html.escape(str(lesson.get('villain') or 'No avances sin entender.'))}</span></div>
+          <div><i class="material-symbols-outlined">self_improvement</i><span><b>Disciplina</b>Lee con calma, responde con evidencia y practica antes de operar.</span></div>
         </div>
     """
     concept_points = list(lesson.get("deep_points") or (
@@ -36771,10 +36769,6 @@ def render_roxy_academy_module() -> None:
           <div class="academy-stage-dialogue academy-stage-dialogue-roxy">
             {roxy_academy_img or roxy_avatar_html("speaking", "mini", "Roxy")}
             <span><strong>Roxy te reta</strong>{html.escape(str(lesson.get('mission') or 'Completa esta leccion para avanzar.'))}</span>
-          </div>
-          <div class="academy-stage-villain">
-            <i class="material-symbols-outlined">warning</i>
-            <span><strong>Chaos intenta distraerte</strong>{html.escape(str(lesson.get('villain') or 'No avances sin entender el concepto.'))}</span>
           </div>
           <div class="academy-stage-steps">
             <a href="{current_href}#leccion" target="_self"><b>1</b><span>Aprende</span></a>
@@ -36894,7 +36888,7 @@ def render_roxy_academy_module() -> None:
         ("Respondes y aprendes.", "Cada respuesta correcta te acerca a tu objetivo."),
         ("Bella y Luna te ayudan.", "Te dan animo, cofres y recompensas."),
         ("Ganas XP y subes de nivel.", "Cada nivel te hace mas fuerte y disciplinado."),
-        ("Derrotas a Chaos.", "Los villanos desaparecen, pero no te confies."),
+        ("Desbloqueas el siguiente paso.", "La practica constante abre nuevas rutas del planeta."),
     )
     mission_steps_html = "".join(
         f"<div><b>{idx}</b><span>{html.escape(title)}</span><small>{html.escape(detail)}</small></div>"
@@ -36997,7 +36991,7 @@ def render_roxy_academy_module() -> None:
         ("quiz", "Elige la respuesta", "Roxy te lanza preguntas rapidas del planeta."),
         ("checklist", "Ordena la operacion", "Primero aprender, luego medir riesgo, despues practicar."),
         ("candlestick_chart", "Arma la vela", "Ubica apertura, cierre, maximo y minimo."),
-        ("shield", "Derrota a Chaos", "Elige que mal habito debes evitar antes de avanzar."),
+        ("psychology", "Control emocional", "Reconoce prisa, ego y frustracion antes de operar."),
         ("edit_note", "Diario del cadete", "Completa que viste, que hiciste y que aprendiste."),
     ]
     games_html = "".join(
@@ -37034,11 +37028,11 @@ def render_roxy_academy_module() -> None:
                 <li>4. Anotar el resultado</li>
               </ol>
             """
-        elif game_param == "derrota-a-chaos":
+        elif game_param == "control-emocional":
             game_body = """
-              <div class="academy-chaos-choice">
-                <a class="good" href="?view=Dashboard&module=classroom&planet=origen&open=1&game=derrota-a-chaos&result=ok" target="_self">Leer antes de responder</a>
-                <a class="bad" href="?view=Dashboard&module=classroom&planet=origen&open=1&game=derrota-a-chaos&result=bad" target="_self">Entrar por FOMO</a>
+              <div class="academy-mini-quiz">
+                <a href="?view=Dashboard&module=classroom&planet=origen&open=1&game=control-emocional&result=ok" target="_self">Leo primero y practico en demo</a>
+                <a href="?view=Dashboard&module=classroom&planet=origen&open=1&game=control-emocional&result=wait" target="_self">Espero confirmacion antes de actuar</a>
               </div>
             """
         else:
@@ -37080,7 +37074,7 @@ def render_roxy_academy_module() -> None:
         ("tree", "Arbol del conocimiento", "Lecciones principales", "park", f"{planet_href}&lesson=que-es-trading"),
         ("training", "Entrenamiento", "Practica guiada", "sports_esports", f"{planet_href}&game=elige-la-respuesta"),
         ("focus", "Pilar del enfoque", "Mentalidad del trader", "psychology", f"{planet_href}&lesson=riesgo"),
-        ("chests", "Cofres", "Recompensas", "redeem", f"{planet_href}&game=derrota-a-chaos"),
+        ("chests", "Cofres", "Recompensas", "redeem", f"{planet_href}&game=control-emocional"),
         ("shop", "Tienda", "Mejora tu viaje", "storefront", f"{planet_href}&game=diario-del-cadete"),
         ("crypto-gate", "Planeta Cripto", "Bloqueado", "lock", f"{base_href}&planet=cripto&open=1&travel=1"),
     )
@@ -37412,8 +37406,8 @@ def render_roxy_academy_module() -> None:
               <article class="academy-universe-card academy-story-card">
                 <header><span>La historia</span><strong>Roxy Academy</strong></header>
                 <div class="academy-universe-media">{story_panel_img}</div>
-                <p>Hace mucho tiempo, una energia oscura llamada Chaos comenzo a controlar la mente de los traders causando malas decisiones, miedo y perdidas. Roxy creo esta Academia Espacial para entrenar nuevos guardianes del mercado.</p>
-                <b>Tu eres el nuevo cadete. Estas listo para empezar.</b>
+                <p>Roxy Academy es una academia espacial para aprender trading desde cero con calma, practica y disciplina. Cada planeta abre un modulo nuevo para dominar conceptos antes de operar.</p>
+                <b>Tu viaje empieza en Planeta Origen. Aprende primero, practica despues.</b>
               </article>
               <article class="academy-universe-card academy-map-story-card">
                 <header><span>Mapa del universo</span><strong>5 planetas · 5 etapas · 1 mision</strong></header>
@@ -37425,11 +37419,6 @@ def render_roxy_academy_module() -> None:
                   <strong>Guardian del Mercado</strong>
                   <small>Libertad financiera · disciplina · paciencia · control</small>
                 </div>
-              </article>
-              <article class="academy-universe-card academy-chaos-card">
-                <header><span>La Legion Chaos</span><strong>Los enemigos del aprendizaje</strong></header>
-                <div class="academy-universe-media">{chaos_panel_img}</div>
-                <div class="academy-chaos-list">{chaos_rows_html}</div>
               </article>
             </section>
             <section class="academy-mission-grid">
@@ -37443,11 +37432,6 @@ def render_roxy_academy_module() -> None:
                 <div class="academy-universe-media">{allies_panel_img}</div>
                 <div class="academy-allies-grid">{character_card_html}</div>
               </article>
-              <article class="academy-villain-trigger-card">
-                <header><h3>Como aparecen los villanos</h3></header>
-                <div class="academy-universe-media">{villains_panel_img}</div>
-                <div class="academy-trigger-grid">{villain_triggers_html}</div>
-              </article>
               <article class="academy-example-mission-card">
                 <header><h3>Ejemplo de mision</h3><span>Rescata los cristales del conocimiento</span></header>
                 <div class="academy-universe-media">{mission_panel_img}</div>
@@ -37457,7 +37441,7 @@ def render_roxy_academy_module() -> None:
             <section class="academy-lore-grid">
               <article><h3>Que aprenderas aqui</h3><ul>{planet_learn_html}</ul></article>
               <article><h3>Roxy siempre interviene</h3><ul>
-                <li><i class="material-symbols-outlined">psychology</i><span>Si aparece Chaos, Roxy te ayuda a tomar mejores decisiones.</span></li>
+                <li><i class="material-symbols-outlined">psychology</i><span>Roxy te ayuda a reconocer errores comunes antes de operar.</span></li>
                 <li><i class="material-symbols-outlined">shield</i><span>La meta no es ser perfecto, es ser mejor cada dia.</span></li>
                 <li><i class="material-symbols-outlined">rocket_launch</i><span>Disciplina hoy, libertad manana.</span></li>
               </ul></article>
@@ -42510,6 +42494,70 @@ def main() -> None:
           64%{transform:translate3d(355px,145px,0) rotate(24deg) scale(.78);opacity:.94}
           84%{transform:translate3d(495px,315px,0) rotate(21deg) scale(.54);opacity:.7}
           100%{transform:translate3d(620px,430px,0) rotate(18deg) scale(.36);opacity:0}
+        }
+        .roxy-academy-shell.academy-map-open .academy-map-ship{
+          width:190px!important;
+          height:278px!important;
+          z-index:44!important;
+          opacity:1!important;
+          filter:drop-shadow(0 0 18px rgba(255,255,255,.34)) drop-shadow(0 0 30px rgba(168,85,247,1)) drop-shadow(0 0 54px rgba(56,189,248,.52))!important;
+        }
+        .roxy-academy-shell.academy-map-open .academy-map-ship:before{
+          left:16%!important;
+          right:16%!important;
+          bottom:-10%!important;
+          height:66%!important;
+          background:linear-gradient(180deg,rgba(255,255,255,.78),rgba(192,132,252,.95) 18%,rgba(59,130,246,.36) 62%,transparent)!important;
+          filter:blur(6px)!important;
+          opacity:.94!important;
+        }
+        .roxy-academy-shell.academy-map-open .academy-ship-img{
+          transform:rotate(18deg) scale(1.38)!important;
+          transform-origin:50% 58%!important;
+        }
+        .roxy-academy-shell.academy-map-open .academy-rocket-path{
+          left:-18%!important;
+          top:208px!important;
+          animation:academyShipHeroVisibleCruise 18s cubic-bezier(.45,.05,.24,1) infinite!important;
+        }
+        @media (max-width:760px){
+          .roxy-academy-shell.academy-map-open .academy-map-ship{
+            width:174px!important;
+            height:256px!important;
+          }
+          .roxy-academy-shell.academy-map-open .academy-rocket-path{
+            left:-24%!important;
+            top:224px!important;
+            animation:academyShipHeroVisibleCruiseMobile 17s cubic-bezier(.45,.05,.24,1) infinite!important;
+          }
+          .roxy-academy-shell.academy-map-open .academy-ship-img{
+            transform:rotate(18deg) scale(1.45)!important;
+          }
+        }
+        @keyframes academyShipHeroVisibleCruise{
+          0%{transform:translate3d(-180px,230px,0) rotate(22deg) scale(.54);opacity:0}
+          9%{opacity:1}
+          25%{transform:translate3d(95px,92px,0) rotate(18deg) scale(.92);opacity:1}
+          43%{transform:translate3d(315px,-20px,0) rotate(15deg) scale(1.16);opacity:1}
+          62%{transform:translate3d(525px,86px,0) rotate(22deg) scale(.96);opacity:.96}
+          82%{transform:translate3d(740px,250px,0) rotate(21deg) scale(.70);opacity:.82}
+          100%{transform:translate3d(930px,380px,0) rotate(17deg) scale(.45);opacity:0}
+        }
+        @keyframes academyShipHeroVisibleCruiseMobile{
+          0%{transform:translate3d(-130px,252px,0) rotate(22deg) scale(.54);opacity:0}
+          9%{opacity:1}
+          24%{transform:translate3d(58px,162px,0) rotate(18deg) scale(.86);opacity:1}
+          42%{transform:translate3d(198px,82px,0) rotate(15deg) scale(1.18);opacity:1}
+          63%{transform:translate3d(330px,165px,0) rotate(23deg) scale(.96);opacity:.96}
+          82%{transform:translate3d(500px,320px,0) rotate(22deg) scale(.68);opacity:.86}
+          100%{transform:translate3d(640px,440px,0) rotate(18deg) scale(.44);opacity:0}
+        }
+        .academy-chaos-card,
+        .academy-villain-trigger-card,
+        .academy-stage-villain,
+        .academy-villain-warning,
+        .academy-chaos-choice{
+          display:none!important;
         }
         .roxy-academy-shell.academy-world-open{min-height:980px!important}
         .roxy-academy-shell.academy-world-open .academy-sidebar{display:none!important}
