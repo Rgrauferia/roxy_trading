@@ -36260,13 +36260,13 @@ def render_roxy_academy_module() -> None:
     game_param = text_display(first_query_param_value(st.query_params, "game")).strip()
     requested_index = 0
     if lesson_param:
-        for idx, item in enumerate(ROXY_ACADEMY_LEVEL_1_LESSONS):
+        for idx, item in enumerate(origin_lessons):
             if lesson_param in {str(idx + 1), item["id"]}:
                 requested_index = idx
                 break
-    unlocked_count = min(len(ROXY_ACADEMY_LEVEL_1_LESSONS), len(completed_set) + 1)
+    unlocked_count = min(len(origin_lessons), len(completed_set) + 1)
     current_index = min(requested_index, max(0, unlocked_count - 1))
-    lesson = ROXY_ACADEMY_LEVEL_1_LESSONS[current_index]
+    lesson = origin_lessons[current_index]
     answer_param = text_display(first_query_param_value(st.query_params, "answer")).strip()
     answered = answer_param.isdigit() and 0 <= int(answer_param) < len(lesson.get("options", ()))
     selected_answer = int(answer_param) if answered else -1
@@ -36295,8 +36295,8 @@ def render_roxy_academy_module() -> None:
     # stale query values during reruns, so travel mode must win over lessons.
     activity_open = folder_open and not show_travel and bool(lesson_param or game_param or answer_param)
     planet_href = f"{base_href}&planet={quote(planet_param, safe='')}&open=1"
-    next_index = min(current_index + 1, len(ROXY_ACADEMY_LEVEL_1_LESSONS) - 1)
-    next_href = f"{planet_href}&lesson={quote(ROXY_ACADEMY_LEVEL_1_LESSONS[next_index]['id'], safe='')}"
+    next_index = min(current_index + 1, len(origin_lessons) - 1)
+    next_href = f"{planet_href}&lesson={quote(origin_lessons[next_index]['id'], safe='')}"
     current_href = f"{planet_href}&lesson={quote(lesson['id'], safe='')}"
 
     academy_planets = [
@@ -36360,6 +36360,30 @@ def render_roxy_academy_module() -> None:
     }.get(lesson_character_key, atom_img)
     if not lesson_character_img:
         lesson_character_img = f'<i class="material-symbols-outlined">{html.escape(str(lesson["icon"]))}</i>'
+    lesson_stage_html = f"""
+        <div class="academy-lesson-stage">
+          <div class="academy-stage-space" aria-hidden="true">
+            <i></i><i></i><i></i><i></i>
+          </div>
+          <div class="academy-stage-character academy-stage-main">
+            {lesson_character_img}
+            <span><b>{html.escape(str(lesson.get('character') or 'Atom'))}</b><em>guia esta mision</em></span>
+          </div>
+          <div class="academy-stage-dialogue academy-stage-dialogue-roxy">
+            {roxy_academy_img or roxy_avatar_html("speaking", "mini", "Roxy")}
+            <span><strong>Roxy te reta</strong>{html.escape(str(lesson.get('mission') or 'Completa esta leccion para avanzar.'))}</span>
+          </div>
+          <div class="academy-stage-villain">
+            <i class="material-symbols-outlined">warning</i>
+            <span><strong>Chaos intenta distraerte</strong>{html.escape(str(lesson.get('villain') or 'No avances sin entender el concepto.'))}</span>
+          </div>
+          <div class="academy-stage-steps">
+            <a href="{current_href}#leccion" target="_self"><b>1</b><span>Aprende</span></a>
+            <a href="{current_href}#pregunta" target="_self"><b>2</b><span>Responde</span></a>
+            <a href="{current_href}&answer={int(lesson.get('answer', 0))}" target="_self"><b>3</b><span>Gana XP</span></a>
+          </div>
+        </div>
+    """
     planet_html = "".join(
         f"""
         <a class="academy-planet academy-planet-{html.escape(str(item['kind']))} {'locked' if item['locked'] else 'active'} {'selected' if item['key'] == planet_param else ''}"
@@ -36486,7 +36510,7 @@ def render_roxy_academy_module() -> None:
           <span>{'★★★' if item['id'] in completed_set else ('0/20' if item['id'] == 'examen-nivel-1' else '★☆☆')}</span>
         </a>
         """
-        for idx, item in enumerate(ROXY_ACADEMY_LEVEL_1_LESSONS)
+        for idx, item in enumerate(origin_lessons)
     )
     nav_items = [
         ("home", "Inicio", base_href, True),
@@ -36563,7 +36587,7 @@ def render_roxy_academy_module() -> None:
     planet_lessons_html = "".join(
         f"""
         <a class="academy-planet-lesson {'active' if idx == current_index else ''} {'done' if planet_param == 'origen' and idx < completed_count else ''} {'locked' if idx >= (unlocked_count if planet_param == 'origen' else 1) else ''}"
-           href="{planet_href}&lesson={quote(str(ROXY_ACADEMY_LEVEL_1_LESSONS[min(idx, len(ROXY_ACADEMY_LEVEL_1_LESSONS)-1)]['id']), safe='')}" target="_self">
+           href="{planet_href}&lesson={quote(str(origin_lessons[min(idx, len(origin_lessons)-1)]['id']), safe='')}" target="_self">
           <b>{idx + 1}</b><span>{html.escape(str(title))}</span>
         </a>
         """
@@ -36684,6 +36708,19 @@ def render_roxy_academy_module() -> None:
             <i class="academy-world-fireflies"></i>
             <i class="academy-world-waterfall academy-world-waterfall-a"></i>
             <i class="academy-world-waterfall academy-world-waterfall-b"></i>
+          </div>
+          <div class="academy-world-live-layer" aria-hidden="true">
+            <span class="academy-world-live-ship">{ship_img or '<i class="material-symbols-outlined">rocket_launch</i>'}</span>
+            <span class="academy-world-orb academy-world-orb-a"></span>
+            <span class="academy-world-orb academy-world-orb-b"></span>
+            <span class="academy-world-orb academy-world-orb-c"></span>
+            <span class="academy-world-comet academy-world-comet-a"></span>
+            <span class="academy-world-comet academy-world-comet-b"></span>
+            <span class="academy-world-beacon academy-world-beacon-tree"></span>
+            <span class="academy-world-beacon academy-world-beacon-training"></span>
+            <span class="academy-world-companion academy-world-companion-roxy">{roxy_academy_img or roxy_avatar_html("ready", "mini", "Roxy")}<b>Roxy</b><em>elige una leccion</em></span>
+            <span class="academy-world-companion academy-world-companion-bella">{bella_img or '<i class="material-symbols-outlined">pets</i>'}<b>Bella</b><em>celebra tu avance</em></span>
+            <span class="academy-world-companion academy-world-companion-atom">{atom_img or '<i class="material-symbols-outlined">smart_toy</i>'}<b>Atom</b><em>explica simple</em></span>
           </div>
           <header class="academy-world-title">
             <a href="{base_href}" target="_self" aria-label="Volver al mapa"><i class="material-symbols-outlined">arrow_back</i></a>
@@ -36809,8 +36846,8 @@ def render_roxy_academy_module() -> None:
         if answered
         else "Lee con calma y responde. Roxy quiere que entiendas el idioma basico antes de avanzar."
     )
-    continue_href = next_href if correct and current_index < len(ROXY_ACADEMY_LEVEL_1_LESSONS) - 1 else current_href
-    continue_label = "Continuar" if correct and current_index < len(ROXY_ACADEMY_LEVEL_1_LESSONS) - 1 else ("Repetir leccion" if correct else "Responder")
+    continue_href = next_href if correct and current_index < len(origin_lessons) - 1 else current_href
+    continue_label = "Continuar" if correct and current_index < len(origin_lessons) - 1 else ("Repetir leccion" if correct else "Responder")
     badge_html = (
         '<div class="academy-badge-earned"><i class="material-symbols-outlined">workspace_premium</i><strong>Explorador del Mercado</strong><span>Nivel 1 completado</span></div>'
         if "Explorador del Mercado" in state.get("badges", [])
@@ -36918,8 +36955,9 @@ def render_roxy_academy_module() -> None:
                 <div class="academy-reward"><i class="material-symbols-outlined">workspace_premium</i><span>Recompensa del planeta</span><strong>1000 XP · 200 monedas</strong></div>
               </aside>
               <article class="academy-lesson-panel">
-                <div class="academy-progress"><span>Leccion {current_index + 1} de {len(ROXY_ACADEMY_LEVEL_1_LESSONS)}</span><i><b style="width:{progress_pct}%"></b></i></div>
+                <div class="academy-progress"><span>Leccion {current_index + 1} de {len(origin_lessons)}</span><i><b style="width:{progress_pct}%"></b></i></div>
                 <h2>{html.escape(str(lesson['title']))}</h2>
+                {lesson_stage_html}
                 <div class="academy-character-card">
                   <div class="academy-atom academy-atom-portrait">{lesson_character_img}<b>{html.escape(str(lesson['character']))}</b></div>
                   <p>{html.escape(str(lesson['explanation']))}</p>
@@ -41623,6 +41661,9 @@ def main() -> None:
         .academy-workbench{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,.95fr);gap:18px;margin-top:20px}.academy-lesson-panel,.academy-quiz-panel,.academy-progress-panel{border:1px solid rgba(167,139,250,.20);border-radius:18px;background:rgba(10,8,31,.76);box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 20px 48px rgba(0,0,0,.25)}
         .academy-lesson-panel,.academy-quiz-panel{padding:22px}.academy-progress{display:grid;gap:8px}.academy-progress span{color:#c4b5fd;font-size:13px;font-weight:950}.academy-progress i{display:block;height:7px;border-radius:999px;background:rgba(67,56,202,.42);overflow:hidden}.academy-progress i b{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#a855f7,#22d3ee)}
         .academy-lesson-panel h2{margin:22px 0 16px;color:#fff;font-size:26px;line-height:1.05}.academy-character-card{display:grid;grid-template-columns:170px minmax(0,1fr);gap:18px;align-items:center}.academy-atom{display:grid;place-items:center;min-height:160px;border-radius:16px;background:radial-gradient(circle at 50% 28%,rgba(56,189,248,.24),rgba(15,12,40,.80));box-shadow:inset 0 0 0 1px rgba(125,211,252,.16)}.academy-atom i{display:grid;place-items:center;width:82px;height:82px;border-radius:50%;background:radial-gradient(circle,#7dd3fc,#2563eb);color:#fff;font-size:48px!important;box-shadow:0 0 26px rgba(56,189,248,.68)}.academy-atom b{margin-top:12px;color:#bae6fd;font-size:16px}.academy-character-card p{margin:0;color:#e9d5ff;font-size:18px;line-height:1.42}
+        .academy-lesson-stage{position:relative;min-height:260px;margin:0 0 16px;border:1px solid rgba(168,85,247,.28);border-radius:18px;overflow:hidden;background:radial-gradient(circle at 28% 42%,rgba(59,130,246,.28),transparent 24%),radial-gradient(circle at 80% 24%,rgba(239,68,68,.20),transparent 18%),linear-gradient(145deg,rgba(10,8,31,.92),rgba(24,16,64,.74));box-shadow:0 18px 46px rgba(0,0,0,.26),inset 0 1px 0 rgba(255,255,255,.06)}
+        .academy-stage-space{position:absolute;inset:0;overflow:hidden;background:radial-gradient(circle,#fff 0 1px,transparent 2px) 14px 20px/88px 92px,radial-gradient(circle,rgba(216,180,254,.85) 0 1px,transparent 2px) 44px 70px/122px 132px;animation:academyStageStars 20s linear infinite;opacity:.72}.academy-stage-space i{position:absolute;width:6px;height:6px;border-radius:50%;background:#67e8f9;box-shadow:0 0 18px #22d3ee;animation:academyStageOrb 7s ease-in-out infinite}.academy-stage-space i:nth-child(1){left:12%;top:18%}.academy-stage-space i:nth-child(2){left:62%;top:24%;animation-delay:-2s;background:#c084fc}.academy-stage-space i:nth-child(3){left:82%;top:70%;animation-delay:-4s;background:#facc15}.academy-stage-space i:nth-child(4){left:38%;top:78%;animation-delay:-5s}
+        .academy-stage-character{position:absolute;z-index:3;display:grid;place-items:center;text-align:center;filter:drop-shadow(0 0 22px rgba(56,189,248,.38));animation:academyStageBreathe 5s ease-in-out infinite}.academy-stage-character img,.academy-stage-character .roxy-avatar{width:112px;height:128px;object-fit:contain;border-radius:18px}.academy-stage-character span{margin-top:-8px;border:1px solid rgba(125,211,252,.28);border-radius:999px;background:rgba(5,8,24,.76);padding:6px 10px;color:#fff;font-size:11px}.academy-stage-character em{display:block;color:#93c5fd;font-style:normal;font-size:9px}.academy-stage-main{left:22px;bottom:18px}.academy-stage-dialogue{position:absolute;z-index:4;display:grid;grid-template-columns:48px minmax(0,1fr);gap:10px;align-items:center;border:1px solid rgba(125,211,252,.24);border-radius:16px;background:rgba(5,8,24,.80);backdrop-filter:blur(10px);box-shadow:0 18px 38px rgba(0,0,0,.28),0 0 22px rgba(34,211,238,.12)}.academy-stage-dialogue img,.academy-stage-dialogue .roxy-avatar{width:46px;height:46px;border-radius:13px;object-fit:cover}.academy-stage-dialogue-roxy{left:142px;right:18px;top:20px;padding:10px}.academy-stage-dialogue span,.academy-stage-villain span{color:#dbeafe;font-size:12px;line-height:1.28}.academy-stage-dialogue strong,.academy-stage-villain strong{display:block;color:#fff;font-size:13px;margin-bottom:3px}.academy-stage-villain{position:absolute;right:18px;bottom:78px;z-index:4;display:grid;grid-template-columns:36px minmax(0,1fr);gap:9px;align-items:center;max-width:300px;border:1px solid rgba(248,113,113,.32);border-radius:16px;background:linear-gradient(135deg,rgba(127,29,29,.68),rgba(30,27,75,.70));padding:10px;animation:academyVillainPulse 3.6s ease-in-out infinite}.academy-stage-villain i{display:grid;place-items:center;width:34px;height:34px;border-radius:12px;background:rgba(248,113,113,.22);color:#fecaca!important}.academy-stage-steps{position:absolute;left:142px;right:18px;bottom:18px;z-index:4;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.academy-stage-steps a{display:flex!important;align-items:center;gap:8px;border:1px solid rgba(167,139,250,.22);border-radius:14px;background:rgba(15,12,40,.74);padding:10px;color:#fff!important;text-decoration:none!important;font-size:12px;font-weight:950}.academy-stage-steps b{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#2563eb);box-shadow:0 0 16px rgba(147,51,234,.42)}
         .academy-listen{display:flex!important;align-items:center;gap:12px;margin-top:19px;border-radius:14px;background:linear-gradient(90deg,rgba(88,28,135,.80),rgba(126,34,206,.88));padding:11px 14px;color:#fff!important;text-decoration:none!important;font-weight:950}.academy-listen .roxy-avatar{width:42px;height:42px}.academy-listen i{margin-left:auto;font-size:34px!important}
         .academy-quiz-panel>span{display:block;color:#c084fc;font-size:13px;font-weight:1000;text-transform:uppercase;letter-spacing:.06em}.academy-quiz-panel h3{margin:9px 0 18px;color:#fff;font-size:23px}.academy-options{display:grid;gap:10px}.academy-option{display:grid!important;grid-template-columns:38px minmax(0,1fr) 30px;align-items:center;gap:12px;min-height:58px;border:1px solid rgba(167,139,250,.18);border-radius:14px;background:rgba(15,12,40,.74);padding:8px 12px;color:#e9d5ff!important;text-decoration:none!important}.academy-option b{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:rgba(88,28,135,.62);color:#e9d5ff}.academy-option span{font-size:14px;line-height:1.22;font-weight:850}.academy-option i{color:#7c6f9d;font-size:24px!important}.academy-option.is-correct{border-color:rgba(34,197,94,.52);background:linear-gradient(90deg,rgba(22,101,52,.86),rgba(21,128,61,.70));color:#fff!important}.academy-option.is-correct b{background:#15803d}.academy-option.is-correct i{color:#bbf7d0}.academy-option.is-wrong{border-color:rgba(248,113,113,.55);background:linear-gradient(90deg,rgba(127,29,29,.82),rgba(153,27,27,.62));color:#fff!important}
         .academy-feedback{display:grid;grid-template-columns:48px minmax(0,1fr);gap:12px;align-items:center;margin-top:15px;border:1px solid rgba(167,139,250,.18);border-radius:14px;background:rgba(15,12,40,.72);padding:12px}.academy-feedback.ok{border-color:rgba(34,197,94,.38);background:rgba(20,83,45,.36)}.academy-feedback.bad{border-color:rgba(248,113,113,.38);background:rgba(127,29,29,.30)}.academy-feedback .roxy-avatar{width:46px;height:46px}.academy-feedback strong{display:block;color:#fff;font-size:15px}.academy-feedback p{margin:3px 0 0;color:#ddd6fe;font-size:13px;line-height:1.32}
@@ -42082,14 +42123,20 @@ def main() -> None:
         .academy-origin-world-scene .academy-world-village i{height:86px!important;background:linear-gradient(180deg,#1e3a5f,#0f172a 72%,#07111f)!important;border-color:rgba(125,211,252,.36)!important;box-shadow:0 0 24px rgba(34,211,238,.20),inset 0 0 18px rgba(56,189,248,.08)!important}
         .academy-origin-world-scene .academy-world-ship{left:7%!important;top:30%!important;width:118px!important;height:174px!important;animation:academyOriginShipIdle 7s ease-in-out infinite!important}
         .academy-origin-world-scene .academy-world-location{background:rgba(7,14,35,.70)!important;border-color:rgba(125,211,252,.35)!important;box-shadow:0 14px 34px rgba(0,0,0,.30),0 0 28px rgba(34,211,238,.15)!important}
+        .academy-origin-world-scene .academy-world-live-layer{position:absolute;inset:0;z-index:6;pointer-events:none;overflow:hidden}
+        .academy-world-live-ship{position:absolute;left:4%;top:59%;width:112px;height:164px;filter:drop-shadow(0 0 24px rgba(168,85,247,.85)) drop-shadow(0 18px 24px rgba(0,0,0,.30));animation:academyWorldShipPatrol 18s cubic-bezier(.42,.02,.32,1) infinite}.academy-world-live-ship img{width:100%;height:100%;object-fit:contain;transform:rotate(18deg)}
+        .academy-world-orb,.academy-world-comet,.academy-world-beacon{position:absolute;display:block}.academy-world-orb{width:8px;height:8px;border-radius:50%;background:#bae6fd;box-shadow:0 0 18px #38bdf8;opacity:.84;animation:academyWorldOrbDrift 8s ease-in-out infinite}.academy-world-orb-a{left:20%;top:20%}.academy-world-orb-b{left:72%;top:36%;animation-delay:-2.5s;background:#d8b4fe;box-shadow:0 0 18px #a855f7}.academy-world-orb-c{left:58%;top:72%;animation-delay:-5s;background:#fef3c7;box-shadow:0 0 18px #f59e0b}.academy-world-comet{width:120px;height:2px;border-radius:999px;background:linear-gradient(90deg,transparent,#e0f2fe,transparent);filter:drop-shadow(0 0 12px rgba(125,211,252,.75));opacity:.0;animation:academyWorldComet 9s linear infinite}.academy-world-comet-a{left:-22%;top:23%;transform:rotate(-18deg)}.academy-world-comet-b{left:-32%;top:68%;animation-delay:-4.2s;transform:rotate(-10deg)}
+        .academy-world-beacon{width:16px;height:16px;border-radius:50%;background:#22d3ee;box-shadow:0 0 0 0 rgba(34,211,238,.5),0 0 24px rgba(34,211,238,.92);animation:academyWorldBeacon 2.6s ease-out infinite}.academy-world-beacon:after{content:"";position:absolute;inset:-22px;border-radius:50%;border:1px solid rgba(125,211,252,.38);animation:academyWorldBeacon 2.6s ease-out infinite}.academy-world-beacon-tree{left:50%;top:38%}.academy-world-beacon-training{right:25%;bottom:39%;animation-delay:-1.1s}
+        .academy-world-companion{position:absolute;display:grid;grid-template-columns:42px minmax(0,1fr);gap:8px;align-items:center;min-width:154px;border:1px solid rgba(125,211,252,.22);border-radius:16px;background:rgba(5,8,24,.66);backdrop-filter:blur(8px);padding:8px;box-shadow:0 16px 34px rgba(0,0,0,.28),0 0 22px rgba(34,211,238,.10);animation:academyWorldCompanionFloat 5.4s ease-in-out infinite}.academy-world-companion img,.academy-world-companion .roxy-avatar{grid-row:1/3;width:40px;height:40px;object-fit:cover;border-radius:12px}.academy-world-companion b{color:#fff;font-size:12px;line-height:1}.academy-world-companion em{color:#bae6fd;font-style:normal;font-size:10px;line-height:1.05}.academy-world-companion-roxy{left:33%;bottom:12%}.academy-world-companion-bella{left:15%;bottom:23%;animation-delay:-1.8s}.academy-world-companion-atom{right:10%;bottom:25%;animation-delay:-3.3s}
+        .academy-origin-world-scene .academy-world-location:after{content:"";position:absolute;inset:-4px;border-radius:17px;border:1px solid rgba(125,211,252,.28);opacity:.0;animation:academyLocationSignal 3.2s ease-out infinite}.academy-origin-world-scene .academy-world-location:nth-of-type(2):after{animation-delay:-1s}.academy-origin-world-scene .academy-world-location:nth-of-type(4):after{animation-delay:-2s}
         .academy-origin-world-scene .academy-world-location-library{left:12%!important;bottom:34%!important}.academy-origin-world-scene .academy-world-location-tree{left:43%!important;top:30%!important}.academy-origin-world-scene .academy-world-location-training{right:12%!important;bottom:34%!important}.academy-origin-world-scene .academy-world-location-focus{left:43%!important;bottom:23%!important}.academy-origin-world-scene .academy-world-location-chests{right:9%!important;bottom:20%!important}.academy-origin-world-scene .academy-world-location-shop{left:8%!important;bottom:20%!important}.academy-origin-world-scene .academy-world-location-crypto-gate{right:8%!important;top:17%!important}
         .academy-origin-world-scene .academy-world-heroes{left:34%!important;bottom:9%!important}.academy-origin-world-scene .academy-world-start{bottom:7%!important;background:linear-gradient(90deg,#7c3aed,#2563eb,#06b6d4)!important}
         .academy-origin-world-scene .academy-world-hub,
         .academy-origin-world-scene .academy-world-village,
-        .academy-origin-world-scene .academy-world-heroes,
-        .academy-origin-world-scene .academy-world-ship,
         .academy-origin-world-scene .academy-world-cloud,
         .academy-origin-world-scene .academy-world-island{display:none!important}
+        .academy-origin-world-scene .academy-world-heroes,
+        .academy-origin-world-scene .academy-world-ship{display:flex!important;opacity:.34!important}
         .academy-origin-world-scene .academy-world-title,
         .academy-origin-world-scene .academy-world-location,
         .academy-origin-world-scene .academy-world-start,
@@ -42101,6 +42148,9 @@ def main() -> None:
         @keyframes academyWaterfall{0%{background-position:0 0;opacity:.52}50%{opacity:.86}100%{background-position:0 64px;opacity:.52}}
         @keyframes academyOriginShipIdle{0%,100%{transform:translate3d(0,0,0) rotate(7deg) scale(1)}35%{transform:translate3d(22px,-18px,0) rotate(12deg) scale(1.04)}70%{transform:translate3d(8px,8px,0) rotate(5deg) scale(.98)}}
         @keyframes academyWorldSceneBreathe{0%,100%{transform:scale(1.02) translate3d(0,0,0)}50%{transform:scale(1.055) translate3d(-1.2%,-.8%,0)}}
+        @keyframes academyWorldShipPatrol{0%{transform:translate3d(-130px,84px,0) rotate(16deg) scale(.58);opacity:0}9%{opacity:1}26%{transform:translate3d(80px,22px,0) rotate(18deg) scale(.82);opacity:1}48%{transform:translate3d(275px,-92px,0) rotate(14deg) scale(1.04);opacity:1}69%{transform:translate3d(520px,40px,0) rotate(21deg) scale(.88);opacity:.92}88%{transform:translate3d(670px,230px,0) rotate(17deg) scale(.54);opacity:.55}100%{transform:translate3d(820px,320px,0) rotate(17deg) scale(.40);opacity:0}}
+        @keyframes academyWorldOrbDrift{0%,100%{transform:translate3d(0,0,0) scale(.9);opacity:.44}50%{transform:translate3d(28px,-24px,0) scale(1.22);opacity:1}}@keyframes academyWorldComet{0%{opacity:0;transform:translate3d(0,0,0) rotate(-16deg)}10%{opacity:.9}42%{opacity:0;transform:translate3d(680px,210px,0) rotate(-16deg)}100%{opacity:0;transform:translate3d(680px,210px,0) rotate(-16deg)}}@keyframes academyWorldBeacon{0%{transform:scale(.75);opacity:.92;box-shadow:0 0 0 0 rgba(34,211,238,.55),0 0 24px rgba(34,211,238,.92)}100%{transform:scale(1.65);opacity:0;box-shadow:0 0 0 26px rgba(34,211,238,0),0 0 24px rgba(34,211,238,0)}}@keyframes academyWorldCompanionFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}@keyframes academyLocationSignal{0%{opacity:.62;transform:scale(.98)}80%,100%{opacity:0;transform:scale(1.12)}}
+        @keyframes academyStageStars{0%{background-position:14px 20px,44px 70px}100%{background-position:-120px 180px,-90px 230px}}@keyframes academyStageOrb{0%,100%{transform:translate3d(0,0,0) scale(.8);opacity:.5}50%{transform:translate3d(20px,-22px,0) scale(1.2);opacity:1}}@keyframes academyStageBreathe{0%,100%{transform:translateY(0) rotate(-.5deg)}50%{transform:translateY(-8px) rotate(.8deg)}}@keyframes academyVillainPulse{0%,100%{box-shadow:0 0 0 rgba(248,113,113,0)}50%{box-shadow:0 0 26px rgba(248,113,113,.20)}}
         @media (max-width:760px){
           .roxy-academy-shell.academy-world-open{min-height:1160px!important}
           .academy-origin-world-scene{min-height:780px!important}
