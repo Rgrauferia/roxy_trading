@@ -46298,6 +46298,341 @@ def main() -> None:
           80%{transform:translate3d(250px,235px,0) rotate(210deg) scale(.62);opacity:.70}
           100%{transform:translate3d(-170px,650px,0) rotate(-12deg) scale(.50);opacity:0}
         }
+        /* Final user polish: remove fake green hub and make Planeta Origen feel alive. */
+        .roxy-academy-shell.academy-world-open .academy-world-hub,
+        .roxy-academy-shell.academy-world-open .academy-world-tree-crown,
+        .roxy-academy-shell.academy-world-open .academy-world-tree-trunk,
+        .roxy-academy-shell.academy-world-open .academy-world-tree-lights,
+        .roxy-academy-shell.academy-world-open .academy-world-portal,
+        .roxy-academy-shell.academy-world-open .academy-world-path{
+          display:none!important;
+          opacity:0!important;
+          visibility:hidden!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene{
+          min-height:820px!important;
+          background:linear-gradient(180deg,#061524 0%,#082034 48%,#07111d 100%)!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-bg-img{
+          object-position:50% 38%!important;
+          transform:scale(1.16)!important;
+          filter:saturate(1.32) contrast(1.10) brightness(.78)!important;
+          animation:academyOriginLivingCameraFinal 28s ease-in-out infinite!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-art{
+          opacity:.88!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-art:after{
+          background:
+            linear-gradient(180deg,rgba(4,12,24,.10),rgba(4,12,24,.20) 52%,rgba(4,12,24,.44) 100%),
+            radial-gradient(ellipse at 50% 25%,rgba(16,185,129,.10),transparent 38%),
+            radial-gradient(ellipse at 24% 78%,rgba(59,130,246,.18),transparent 30%)!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-title{
+          top:18px!important;
+          left:18px!important;
+          max-width:310px!important;
+          padding:13px 15px!important;
+          border-radius:18px!important;
+          background:linear-gradient(135deg,rgba(2,6,23,.56),rgba(6,78,59,.22))!important;
+          border:1px solid rgba(125,211,252,.18)!important;
+          box-shadow:0 16px 34px rgba(0,0,0,.22),0 0 22px rgba(34,211,238,.08)!important;
+          backdrop-filter:blur(10px)!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-title span{font-size:10px!important;letter-spacing:.16em!important}
+        .roxy-academy-shell.academy-world-open .academy-world-title strong{font-size:23px!important;line-height:1!important}
+        .roxy-academy-shell.academy-world-open .academy-world-title p{font-size:11px!important;line-height:1.25!important;margin-top:5px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-title em{font-size:10px!important;padding:5px 10px!important;margin-top:7px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-location-tree{
+          left:50%!important;
+          top:32%!important;
+          transform:translateX(-50%)!important;
+          background:linear-gradient(135deg,rgba(2,6,23,.74),rgba(21,94,117,.50))!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-live-layer:before{
+          content:""!important;
+          position:absolute!important;
+          left:6%!important;
+          right:5%!important;
+          bottom:8%!important;
+          height:34%!important;
+          z-index:17!important;
+          pointer-events:none!important;
+          background:
+            repeating-linear-gradient(104deg,rgba(125,211,252,0) 0 18px,rgba(125,211,252,.20) 19px 21px,rgba(34,211,238,0) 25px 42px),
+            radial-gradient(ellipse at 46% 72%,rgba(34,211,238,.22),transparent 60%),
+            radial-gradient(ellipse at 52% 88%,rgba(56,189,248,.18),transparent 70%)!important;
+          mix-blend-mode:screen!important;
+          filter:blur(.2px)!important;
+          opacity:.82!important;
+          animation:academyOriginRiverFlowFinal 5.2s linear infinite!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-live-layer:after{
+          content:""!important;
+          position:absolute!important;
+          left:30%!important;
+          top:12%!important;
+          width:42%!important;
+          height:42%!important;
+          z-index:18!important;
+          pointer-events:none!important;
+          background:
+            radial-gradient(ellipse at 50% 52%,transparent 44%,rgba(134,239,172,.20) 47%,transparent 52%),
+            radial-gradient(ellipse at 50% 52%,transparent 59%,rgba(56,189,248,.16) 62%,transparent 67%),
+            radial-gradient(ellipse at 50% 52%,transparent 72%,rgba(216,180,254,.12) 74%,transparent 79%)!important;
+          mix-blend-mode:screen!important;
+          opacity:.70!important;
+          animation:academyOriginTreeWavesFinal 6.4s ease-in-out infinite!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-butterfly{
+          width:18px!important;
+          height:14px!important;
+          border-radius:0!important;
+          background:none!important;
+          opacity:1!important;
+          filter:drop-shadow(0 0 8px rgba(255,255,255,.42))!important;
+          z-index:40!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-butterfly:before,
+        .roxy-academy-shell.academy-world-open .academy-world-butterfly:after{
+          content:""!important;
+          position:absolute!important;
+          top:1px!important;
+          width:9px!important;
+          height:12px!important;
+          border-radius:80% 18% 80% 28%!important;
+          background:linear-gradient(135deg,#f0abfc 0%,#38bdf8 48%,#fde047 100%)!important;
+          transform-origin:right center!important;
+          animation:academyButterflyWingFinal .28s ease-in-out infinite alternate!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-butterfly:after{
+          left:8px!important;
+          transform-origin:left center!important;
+          background:linear-gradient(135deg,#34d399 0%,#60a5fa 46%,#fb7185 100%)!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-butterfly-a{left:16%!important;top:38%!important;animation:academyButterflyFlyAFinal 12s ease-in-out infinite!important}
+        .roxy-academy-shell.academy-world-open .academy-world-butterfly-b{left:75%!important;top:30%!important;animation:academyButterflyFlyBFinal 14s ease-in-out infinite!important}
+        .roxy-academy-shell.academy-world-open .academy-world-butterfly-c{left:54%!important;top:56%!important;animation:academyButterflyFlyCFinal 11s ease-in-out infinite!important}
+        .roxy-academy-shell.academy-world-open .academy-world-butterfly-d{left:22%!important;top:66%!important;animation:academyButterflyFlyDFinal 13s ease-in-out infinite!important}
+        .roxy-academy-shell.academy-world-open .academy-world-butterfly-e{left:82%!important;top:62%!important;animation:academyButterflyFlyEFinal 12.6s ease-in-out infinite!important}
+        .roxy-academy-shell.academy-world-open .academy-world-heroes{
+          left:50%!important;
+          bottom:206px!important;
+          transform:translateX(-50%)!important;
+          gap:0!important;
+          animation:none!important;
+          z-index:39!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-roxy{animation:academyRoxyLookAroundFinal 7.5s ease-in-out infinite!important}
+        .roxy-academy-shell.academy-world-open .academy-world-bella{animation:academyBellaCrouchFinal 4.6s ease-in-out infinite!important}
+        .roxy-academy-shell.academy-world-open .academy-world-luna{animation:academyLunaJumpFinal 3.1s ease-in-out infinite!important}
+        .roxy-academy-shell.academy-world-open .academy-world-atom{animation:academyAtomPlayFinal 3.8s ease-in-out infinite!important}
+        .roxy-academy-shell.academy-world-open .academy-world-live-ship{
+          animation:academyOriginShipSoftPatrolFinal 19s cubic-bezier(.42,.02,.28,1) infinite!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-start{
+          bottom:34px!important;
+          width:min(360px,calc(100% - 36px))!important;
+          padding:12px 20px!important;
+        }
+        @media (max-width:760px){
+          .roxy-academy-shell.academy-world-open .academy-origin-world-scene{min-height:880px!important}
+          .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-bg-img{
+            object-position:49% 35%!important;
+            transform:scale(1.52)!important;
+            filter:saturate(1.25) contrast(1.08) brightness(.70)!important;
+            animation:academyOriginLivingCameraMobileFinal 26s ease-in-out infinite!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-world-title{
+            top:10px!important;
+            left:10px!important;
+            right:auto!important;
+            max-width:250px!important;
+            padding:10px 12px!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-world-title strong{font-size:21px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-title p{display:none!important}
+          .roxy-academy-shell.academy-world-open .academy-world-title em{font-size:10px!important;margin-top:5px!important}
+          .roxy-academy-shell.academy-world-open .academy-world-location-tree{top:38%!important}
+          .roxy-academy-shell.academy-world-open .academy-world-heroes{bottom:218px!important;transform:translateX(-50%) scale(.92)!important}
+          .roxy-academy-shell.academy-world-open .academy-world-live-layer:before{bottom:7%!important;height:30%!important}
+          .roxy-academy-shell.academy-world-open .academy-world-start{bottom:54px!important}
+        }
+        @keyframes academyOriginLivingCameraFinal{
+          0%,100%{transform:scale(1.16) translate3d(0,0,0)}
+          35%{transform:scale(1.20) translate3d(-1.1%,.7%,0)}
+          68%{transform:scale(1.18) translate3d(1%,-.7%,0)}
+        }
+        @keyframes academyOriginLivingCameraMobileFinal{
+          0%,100%{transform:scale(1.52) translate3d(0,0,0)}
+          38%{transform:scale(1.58) translate3d(-1%,.7%,0)}
+          70%{transform:scale(1.55) translate3d(.8%,-.5%,0)}
+        }
+        @keyframes academyOriginRiverFlowFinal{
+          0%{background-position:0 0,0 0,0 0;opacity:.62}
+          50%{opacity:.92}
+          100%{background-position:145px 0,24px 10px,-20px 0;opacity:.62}
+        }
+        @keyframes academyOriginTreeWavesFinal{
+          0%,100%{transform:scale(.92) rotate(-2deg);opacity:.42}
+          50%{transform:scale(1.12) rotate(2deg);opacity:.82}
+        }
+        @keyframes academyButterflyWingFinal{
+          from{transform:rotateY(0deg) rotate(-10deg)}
+          to{transform:rotateY(66deg) rotate(15deg)}
+        }
+        @keyframes academyButterflyFlyAFinal{
+          0%,100%{transform:translate3d(0,0,0) rotate(-6deg)}
+          25%{transform:translate3d(90px,-36px,0) rotate(18deg)}
+          58%{transform:translate3d(180px,28px,0) rotate(-12deg)}
+          80%{transform:translate3d(72px,56px,0) rotate(10deg)}
+        }
+        @keyframes academyButterflyFlyBFinal{
+          0%,100%{transform:translate3d(0,0,0) rotate(14deg)}
+          33%{transform:translate3d(-120px,34px,0) rotate(-18deg)}
+          66%{transform:translate3d(-55px,92px,0) rotate(8deg)}
+        }
+        @keyframes academyButterflyFlyCFinal{
+          0%,100%{transform:translate3d(0,0,0) rotate(0deg)}
+          35%{transform:translate3d(72px,-66px,0) rotate(20deg)}
+          70%{transform:translate3d(-84px,-24px,0) rotate(-16deg)}
+        }
+        @keyframes academyButterflyFlyDFinal{
+          0%,100%{transform:translate3d(0,0,0) rotate(-18deg)}
+          50%{transform:translate3d(210px,-120px,0) rotate(18deg)}
+        }
+        @keyframes academyButterflyFlyEFinal{
+          0%,100%{transform:translate3d(0,0,0) rotate(12deg)}
+          45%{transform:translate3d(-180px,-68px,0) rotate(-12deg)}
+          74%{transform:translate3d(-60px,-150px,0) rotate(16deg)}
+        }
+        @keyframes academyRoxyLookAroundFinal{
+          0%,100%{transform:translateY(0) rotate(0deg)}
+          26%{transform:translateY(-3px) rotate(-3deg)}
+          52%{transform:translateY(0) rotate(2.5deg)}
+          78%{transform:translateY(-2px) rotate(-1deg)}
+        }
+        @keyframes academyBellaCrouchFinal{
+          0%,100%{transform:translateY(0) scaleY(1)}
+          46%{transform:translateY(9px) scaleY(.92)}
+          68%{transform:translateY(-2px) scaleY(1.02)}
+        }
+        @keyframes academyLunaJumpFinal{
+          0%,100%{transform:translateY(0) rotate(0deg)}
+          30%{transform:translateY(-18px) rotate(-7deg)}
+          58%{transform:translateY(3px) rotate(5deg)}
+        }
+        @keyframes academyAtomPlayFinal{
+          0%,100%{transform:translateY(0) rotate(0deg)}
+          35%{transform:translateY(-10px) rotate(8deg)}
+          68%{transform:translateY(0) rotate(-6deg)}
+        }
+        @keyframes academyOriginShipSoftPatrolFinal{
+          0%{transform:translate3d(-160px,620px,0) rotate(-8deg) scale(.55);opacity:0}
+          10%{opacity:1}
+          27%{transform:translate3d(70px,470px,0) rotate(10deg) scale(.78);opacity:1}
+          48%{transform:translate3d(280px,305px,0) rotate(20deg) scale(.96);opacity:1}
+          68%{transform:translate3d(410px,155px,0) rotate(8deg) scale(.78);opacity:.96}
+          85%{transform:translate3d(210px,238px,0) rotate(200deg) scale(.62);opacity:.72}
+          100%{transform:translate3d(-160px,620px,0) rotate(-8deg) scale(.55);opacity:0}
+        }
+        /* Final visual correction: crop out embedded UI from the world image and remove green glare. */
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-bg-img{
+          object-position:50% 24%!important;
+          transform:scale(1.46)!important;
+          filter:saturate(1.28) contrast(1.10) brightness(.82)!important;
+          animation:academyOriginLivingCameraCropFinal 30s ease-in-out infinite!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-live-layer:before{
+          left:4%!important;
+          right:4%!important;
+          bottom:2%!important;
+          height:20%!important;
+          background:
+            repeating-linear-gradient(101deg,rgba(125,211,252,0) 0 22px,rgba(125,211,252,.13) 24px 26px,rgba(34,211,238,0) 29px 52px),
+            radial-gradient(ellipse at 48% 84%,rgba(34,211,238,.16),transparent 64%)!important;
+          opacity:.42!important;
+          filter:blur(.5px)!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-live-layer:after{
+          left:33%!important;
+          top:12%!important;
+          width:34%!important;
+          height:30%!important;
+          background:
+            radial-gradient(ellipse at 50% 52%,transparent 54%,rgba(125,211,252,.13) 57%,transparent 62%),
+            radial-gradient(ellipse at 50% 52%,transparent 72%,rgba(216,180,254,.10) 74%,transparent 80%)!important;
+          opacity:.48!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-title{
+          max-width:250px!important;
+          padding:10px 12px!important;
+          border-radius:16px!important;
+          background:linear-gradient(135deg,rgba(2,6,23,.46),rgba(15,23,42,.30))!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-world-title strong{font-size:21px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-title p{display:none!important}
+        .roxy-academy-shell.academy-world-open .academy-world-title em{font-size:10px!important;margin-top:6px!important}
+        .roxy-academy-shell.academy-world-open .academy-world-start{
+          bottom:28px!important;
+          opacity:.92!important;
+        }
+        @media (max-width:760px){
+          .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-bg-img{
+            object-position:50% 22%!important;
+            transform:scale(1.92)!important;
+            filter:saturate(1.24) contrast(1.08) brightness(.76)!important;
+            animation:academyOriginLivingCameraCropMobileFinal 28s ease-in-out infinite!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-world-title{
+            max-width:218px!important;
+            padding:9px 10px!important;
+          }
+          .roxy-academy-shell.academy-world-open .academy-world-title strong{font-size:19px!important}
+        }
+        @keyframes academyOriginLivingCameraCropFinal{
+          0%,100%{transform:scale(1.46) translate3d(0,0,0)}
+          38%{transform:scale(1.52) translate3d(-.9%,.5%,0)}
+          72%{transform:scale(1.49) translate3d(.8%,-.4%,0)}
+        }
+        @keyframes academyOriginLivingCameraCropMobileFinal{
+          0%,100%{transform:scale(1.92) translate3d(0,0,0)}
+          38%{transform:scale(2.02) translate3d(-.8%,.5%,0)}
+          72%{transform:scale(1.97) translate3d(.7%,-.4%,0)}
+        }
+        /* Crop the source art harder so the world is landscape-first, not an embedded UI screenshot. */
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-bg-img{
+          object-position:50% 16%!important;
+          transform:scale(1.92)!important;
+          animation:academyOriginLivingCameraLandscapeFinal 32s ease-in-out infinite!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-art:after{
+          background:
+            linear-gradient(180deg,rgba(4,12,24,.04),rgba(4,12,24,.10) 52%,rgba(4,12,24,.68) 100%),
+            radial-gradient(ellipse at 48% 30%,rgba(34,211,238,.11),transparent 42%)!important;
+        }
+        .roxy-academy-shell.academy-world-open .academy-origin-world-scene:after{
+          background:
+            linear-gradient(180deg,transparent 0 55%,rgba(4,12,24,.48) 82%,rgba(4,12,24,.78) 100%),
+            linear-gradient(115deg,transparent 0 34%,rgba(125,211,252,.05) 42%,transparent 53%)!important;
+        }
+        @media (max-width:760px){
+          .roxy-academy-shell.academy-world-open .academy-origin-world-scene .academy-world-bg-img{
+            object-position:50% 14%!important;
+            transform:scale(2.35)!important;
+            animation:academyOriginLivingCameraLandscapeMobileFinal 30s ease-in-out infinite!important;
+          }
+        }
+        @keyframes academyOriginLivingCameraLandscapeFinal{
+          0%,100%{transform:scale(1.92) translate3d(0,0,0)}
+          38%{transform:scale(2.02) translate3d(-.8%,.4%,0)}
+          72%{transform:scale(1.96) translate3d(.7%,-.35%,0)}
+        }
+        @keyframes academyOriginLivingCameraLandscapeMobileFinal{
+          0%,100%{transform:scale(2.35) translate3d(0,0,0)}
+          38%{transform:scale(2.48) translate3d(-.8%,.35%,0)}
+          72%{transform:scale(2.40) translate3d(.7%,-.35%,0)}
+        }
         [data-testid="stTabs"] button{font-weight:800;color:#cbd5e1}
         [data-testid="stTabs"] button[aria-selected="true"]{color:#a78bfa}
         [data-testid="stVegaLiteChart"]{border:1px solid rgba(148,163,184,.18);border-radius:8px;background:#0b1220;padding:10px}
