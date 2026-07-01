@@ -34484,7 +34484,7 @@ def render_roxy_stock_live_runtime() -> None:
     )
 
 
-def render_roxy_stock_server_refresh(interval_ms: int = 7000) -> None:
+def render_roxy_stock_server_refresh(interval_ms: int = 3500) -> None:
     """Rerun the actions folder periodically so server-side quotes refresh.
 
     Browser-side quote polling is blocked by some providers via CORS. This
@@ -34493,12 +34493,82 @@ def render_roxy_stock_server_refresh(interval_ms: int = 7000) -> None:
     """
     if st_autorefresh is not None:
         try:
-            st_autorefresh(interval=max(4000, int(interval_ms)), key="roxy_stock_live_server_refresh")
+            st_autorefresh(interval=max(2500, int(interval_ms)), key="roxy_stock_live_server_refresh")
         except Exception:
             pass
 
 
-@st.cache_data(ttl=5, show_spinner=False)
+def roxy_secret_value(*keys: str) -> str:
+    for key in keys:
+        value = str(os.environ.get(key) or "").strip()
+        if not value:
+            continue
+        if value.upper() in {"TU_KEY_PAPER", "TU_SECRET_PAPER", "CHANGE_ME", "YOUR_KEY", "YOUR_SECRET"}:
+            continue
+        return value
+    return ""
+
+
+def roxy_alpaca_stock_latest_snapshot(symbol: str) -> dict[str, Any]:
+    result: dict[str, Any] = {"price": None, "previous_close": None, "change_pct": None, "source": "alpaca_unavailable"}
+    if requests is None:
+        return result
+    key = roxy_secret_value("ALPACA_API_KEY")
+    secret = roxy_secret_value("ALPACA_API_SECRET", "ALPACA_SECRET_KEY")
+    if not key or not secret:
+        return result
+    feed = text_display(os.environ.get("ALPACA_DATA_FEED") or "iex").lower()
+    if feed not in {"iex", "sip", "otc"}:
+        feed = "iex"
+    clean_symbol = roxy_manual_stock_symbol(symbol) if "roxy_manual_stock_symbol" in globals() else text_display(symbol).upper()
+    if not clean_symbol:
+        return result
+    headers = {"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret}
+    base = "https://data.alpaca.markets/v2/stocks"
+    try:
+        trade_url = f"{base}/{quote(clean_symbol, safe='')}/trades/latest?feed={quote(feed, safe='')}"
+        response = requests.get(trade_url, headers=headers, timeout=4)
+        if response.ok:
+            payload = response.json() if callable(getattr(response, "json", None)) else {}
+            trade = payload.get("trade") if isinstance(payload, dict) else {}
+            price = safe_float((trade or {}).get("p") or (trade or {}).get("price"))
+            if price is not None and price > 0:
+                result["price"] = price
+                result["source"] = f"alpaca_{feed}_latest_trade"
+        if result.get("price") is None:
+            quote_url = f"{base}/{quote(clean_symbol, safe='')}/quotes/latest?feed={quote(feed, safe='')}"
+            response = requests.get(quote_url, headers=headers, timeout=4)
+            if response.ok:
+                payload = response.json() if callable(getattr(response, "json", None)) else {}
+                quote_data = payload.get("quote") if isinstance(payload, dict) else {}
+                bid = safe_float((quote_data or {}).get("bp") or (quote_data or {}).get("bid_price"))
+                ask = safe_float((quote_data or {}).get("ap") or (quote_data or {}).get("ask_price"))
+                if bid is not None and ask is not None and bid > 0 and ask > 0:
+                    result["price"] = (bid + ask) / 2
+                    result["source"] = f"alpaca_{feed}_mid_quote"
+        try:
+            bars_url = f"{base}/{quote(clean_symbol, safe='')}/bars?timeframe=1Day&limit=2&feed={quote(feed, safe='')}"
+            response = requests.get(bars_url, headers=headers, timeout=4)
+            if response.ok:
+                payload = response.json() if callable(getattr(response, "json", None)) else {}
+                bars = payload.get("bars") if isinstance(payload, dict) else []
+                if isinstance(bars, list) and bars:
+                    close_values = [safe_float(item.get("c") or item.get("close")) for item in bars if isinstance(item, dict)]
+                    close_values = [value for value in close_values if value is not None and value > 0]
+                    if close_values:
+                        result["previous_close"] = close_values[-2] if len(close_values) >= 2 else close_values[-1]
+        except Exception:
+            pass
+    except Exception:
+        return result
+    price = safe_float(result.get("price"))
+    previous = safe_float(result.get("previous_close"))
+    if price is not None and previous not in (None, 0):
+        result["change_pct"] = (price - previous) / previous
+    return result
+
+
+@st.cache_data(ttl=2, show_spinner=False)
 def roxy_stock_quote_snapshot(symbol: str) -> dict[str, Any]:
     clean_symbol = roxy_manual_stock_symbol(symbol) if "roxy_manual_stock_symbol" in globals() else re.sub(r"[^A-Z0-9.\-]", "", str(symbol or "").upper())
     result: dict[str, Any] = {
@@ -34508,7 +34578,18 @@ def roxy_stock_quote_snapshot(symbol: str) -> dict[str, Any]:
         "change_pct": None,
         "source": "unavailable",
     }
-    if not clean_symbol or yf is None:
+    if not clean_symbol:
+        return result
+    alpaca_snapshot = roxy_alpaca_stock_latest_snapshot(clean_symbol)
+    if safe_float(alpaca_snapshot.get("price")) is not None:
+        return {
+            **result,
+            "price": safe_float(alpaca_snapshot.get("price")),
+            "previous_close": safe_float(alpaca_snapshot.get("previous_close")),
+            "change_pct": safe_float(alpaca_snapshot.get("change_pct")),
+            "source": text_display(alpaca_snapshot.get("source") or "alpaca_market_data"),
+        }
+    if yf is None:
         return result
     try:
         ticker = yf.Ticker(clean_symbol)
@@ -34954,12 +35035,19 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         unsafe_allow_html=True,
     )
     render_roxy_stock_live_runtime()
-    rendered = render_roxy_actions_dual_plotly_charts(
+    rendered = render_roxy_actions_dual_pro_charts(
         symbol=resolved_symbol,
         market=selected_market,
         trade_plan=trade_plan,
-        height=560,
+        height=620,
     )
+    if not rendered:
+        rendered = render_roxy_actions_dual_plotly_charts(
+            symbol=resolved_symbol,
+            market=selected_market,
+            trade_plan=trade_plan,
+            height=560,
+        )
     if not rendered:
         rendered = render_roxy_actions_dual_static_charts(
             symbol=resolved_symbol,
@@ -35885,6 +35973,318 @@ def roxy_actions_plotly_chart_panel(
         },
     )
     return True
+
+
+def roxy_actions_pro_chart_payload(
+    chart_df: pd.DataFrame,
+    *,
+    symbol: str,
+    market: str,
+    timeframe: str,
+    trade_plan: dict[str, Any],
+    panel_label: str,
+    max_points: int = 170,
+) -> dict[str, Any]:
+    payload = live_candle_chart_payload(
+        chart_df,
+        symbol=symbol,
+        market=market,
+        timeframe=timeframe,
+        live_price={"price": trade_plan.get("entry"), "source": "quote + historial"},
+        trade_plan=trade_plan,
+        strategy_profile="acciones_15m_1h",
+        max_candles=max(260, max_points + 90),
+    )
+    candles = list(payload.get("candles") or [])
+    if not candles:
+        return {}
+    candles = candles[-max_points:]
+    times = {int(item.get("time")) for item in candles if item.get("time") is not None}
+
+    def trim_line(points: Any) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        if not isinstance(points, list):
+            return out
+        for point in points:
+            if not isinstance(point, dict):
+                continue
+            ts = point.get("time")
+            value = safe_float(point.get("value"))
+            if ts in times and value is not None and math.isfinite(value):
+                out.append({"time": int(ts), "value": float(value)})
+        return out
+
+    cleaned_lines: dict[str, list[dict[str, Any]]] = {}
+    for name, points in dict(payload.get("lines") or {}).items():
+        cleaned_lines[text_display(name)] = trim_line(points)
+    payload["candles"] = candles
+    payload["lines"] = cleaned_lines
+    payload["panelLabel"] = panel_label
+    payload["levels"] = [
+        {"key": "entry", "label": "Entrada", "value": safe_float(trade_plan.get("entry")), "color": "#22c55e"},
+        {"key": "stop", "label": "Stop", "value": safe_float(trade_plan.get("stop")), "color": "#ef4444"},
+        {
+            "key": "target",
+            "label": "Target",
+            "value": safe_float(trade_plan.get("target_2") or trade_plan.get("target_price") or trade_plan.get("target")),
+            "color": "#38bdf8",
+        },
+    ]
+    payload["levels"] = [level for level in payload["levels"] if safe_float(level.get("value")) is not None]
+    payload["roxySummary"] = {
+        "action": text_display(trade_plan.get("action") or "Esperar confirmacion"),
+        "status": text_display(trade_plan.get("plan_status") or "Plan operativo de Roxy"),
+        "entry": safe_float(trade_plan.get("entry")),
+        "stop": safe_float(trade_plan.get("stop")),
+        "target": safe_float(trade_plan.get("target_2") or trade_plan.get("target_price") or trade_plan.get("target")),
+        "rr": safe_float(trade_plan.get("rr_to_2")),
+    }
+    return payload
+
+
+def render_roxy_actions_pro_chart_panel(
+    chart_df: pd.DataFrame,
+    *,
+    symbol: str,
+    market: str,
+    timeframe: str,
+    trade_plan: dict[str, Any],
+    panel_label: str,
+    height: int = 620,
+) -> bool:
+    payload = roxy_actions_pro_chart_payload(
+        chart_df,
+        symbol=symbol,
+        market=market,
+        timeframe=timeframe,
+        trade_plan=trade_plan,
+        panel_label=panel_label,
+    )
+    if not payload.get("candles"):
+        return False
+    payload_json = json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+    chart_id = hashlib.sha1(
+        f"{symbol}-{market}-{timeframe}-{panel_label}-{len(payload.get('candles') or [])}".encode("utf-8")
+    ).hexdigest()[:12]
+    html_doc = """
+    <div class="roxy-pro-chart" id="__CHART_ID__">
+      <header class="rpc-head">
+        <div>
+          <span class="rpc-kicker">GRAFICA OPERATIVA</span>
+          <strong data-rpc-title></strong>
+          <small data-rpc-subtitle></small>
+        </div>
+        <aside data-rpc-last></aside>
+      </header>
+      <section class="rpc-toolbar">
+        <button data-range="60">60 velas</button>
+        <button data-range="110" class="active">110 velas</button>
+        <button data-range="all">Todo</button>
+        <span>Zoom con rueda · arrastra para mover · cursor para leer precio</span>
+      </section>
+      <main class="rpc-stage">
+        <div class="rpc-chart"></div>
+        <div class="rpc-crosscard" data-rpc-cross></div>
+        <div class="rpc-plan" data-rpc-plan></div>
+      </main>
+      <footer class="rpc-legend">
+        <b><i style="background:#ec4899"></i>EMA 9</b>
+        <b><i style="background:#a855f7"></i>EMA 21</b>
+        <b><i style="background:#38bdf8"></i>AVG 20</b>
+        <b><i style="background:#f59e0b"></i>AVG 40</b>
+        <b><i style="background:#94a3b8"></i>Bollinger</b>
+        <b><i style="background:#22c55e"></i>Entrada</b>
+        <b><i style="background:#ef4444"></i>Stop</b>
+        <b><i style="background:#38bdf8"></i>Target</b>
+      </footer>
+    </div>
+    <style>
+      html,body{margin:0;background:transparent;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#e5f3ff}
+      .roxy-pro-chart{height:calc(100vh - 2px);display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(96,165,250,.28);border-radius:14px;background:radial-gradient(circle at 48% 10%,rgba(14,165,233,.18),transparent 32%),linear-gradient(180deg,rgba(5,10,24,.96),rgba(2,6,23,.96));box-shadow:0 0 0 1px rgba(255,255,255,.035) inset,0 18px 38px rgba(0,0,0,.36)}
+      .rpc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 14px 8px;border-bottom:1px solid rgba(96,165,250,.16)}
+      .rpc-kicker{display:block;color:#7dd3fc;font-size:10px;font-weight:950;letter-spacing:.16em}
+      .rpc-head strong{display:block;margin-top:3px;font-size:18px;line-height:1.05;color:#f8fafc;letter-spacing:.02em}
+      .rpc-head small{display:block;margin-top:5px;color:#93c5fd;font-size:11px;font-weight:760}
+      .rpc-head aside{text-align:right;color:#22c55e;font-size:18px;font-weight:1000;text-shadow:0 0 18px rgba(34,197,94,.34)}
+      .rpc-head aside small{display:block;color:#a7f3d0;font-size:10px;font-weight:850}
+      .rpc-toolbar{display:flex;align-items:center;gap:7px;padding:8px 10px;border-bottom:1px solid rgba(96,165,250,.14);overflow-x:auto;white-space:nowrap}
+      .rpc-toolbar button{border:1px solid rgba(96,165,250,.34);border-radius:9px;background:rgba(15,23,42,.86);color:#dbeafe;font-size:11px;font-weight:900;padding:7px 10px;cursor:pointer}
+      .rpc-toolbar button.active,.rpc-toolbar button:hover{background:#2563eb;color:#fff;border-color:#60a5fa;box-shadow:0 0 18px rgba(37,99,235,.36)}
+      .rpc-toolbar span{margin-left:auto;color:#91a8c9;font-size:10px;font-weight:760}
+      .rpc-stage{position:relative;flex:1 1 auto;min-height:0;padding:8px 8px 0}
+      .rpc-chart{position:absolute;inset:8px 8px 0 8px}
+      .rpc-crosscard{position:absolute;left:16px;top:16px;z-index:5;display:none;min-width:190px;padding:8px 10px;border:1px solid rgba(125,211,252,.32);border-left:3px solid #38bdf8;border-radius:10px;background:rgba(2,6,23,.78);backdrop-filter:blur(10px);box-shadow:0 14px 28px rgba(0,0,0,.34);font-size:11px;font-weight:850;line-height:1.35;color:#dbeafe}
+      .rpc-crosscard b{color:#f8fafc}
+      .rpc-plan{position:absolute;right:16px;top:16px;z-index:4;max-width:260px;padding:10px 12px;border:1px solid rgba(34,197,94,.32);border-left:3px solid #22c55e;border-radius:12px;background:rgba(2,6,23,.78);backdrop-filter:blur(10px);box-shadow:0 14px 28px rgba(0,0,0,.34);font-size:11px;font-weight:850;line-height:1.45;color:#dbeafe}
+      .rpc-plan strong{display:block;color:#fff;font-size:12px;margin-bottom:4px}
+      .rpc-plan span{display:grid;grid-template-columns:78px 1fr;gap:8px;color:#a7bce0}
+      .rpc-plan b{color:#f8fafc;text-align:right}
+      .rpc-legend{display:flex;gap:9px;align-items:center;overflow-x:auto;padding:8px 10px 10px;border-top:1px solid rgba(96,165,250,.14);white-space:nowrap}
+      .rpc-legend b{display:inline-flex;align-items:center;gap:5px;color:#bfd7ff;font-size:10px;font-weight:900}
+      .rpc-legend i{display:block;width:18px;height:3px;border-radius:99px;box-shadow:0 0 10px currentColor}
+      @media(max-width:720px){.rpc-head strong{font-size:15px}.rpc-head aside{font-size:15px}.rpc-toolbar span{display:none}.rpc-plan{left:16px;right:16px;top:auto;bottom:16px;max-width:none}.rpc-crosscard{max-width:calc(100% - 32px)}}
+    </style>
+    <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+    <script>
+    (() => {
+      const payload = __PAYLOAD__;
+      const root = document.getElementById("__CHART_ID__");
+      const chartEl = root.querySelector(".rpc-chart");
+      const crossEl = root.querySelector("[data-rpc-cross]");
+      const planEl = root.querySelector("[data-rpc-plan]");
+      const titleEl = root.querySelector("[data-rpc-title]");
+      const subtitleEl = root.querySelector("[data-rpc-subtitle]");
+      const lastEl = root.querySelector("[data-rpc-last]");
+      const candles = payload.candles || [];
+      if (!window.LightweightCharts || !candles.length) {
+        chartEl.innerHTML = "<div style='padding:18px;color:#fecaca'>No se pudo cargar la grafica profesional.</div>";
+        return;
+      }
+      const fmt = (v) => Number(v).toLocaleString("en-US", {minimumFractionDigits: Number(v) >= 1 ? 2 : 4, maximumFractionDigits: Number(v) >= 1 ? 2 : 6});
+      const latest = candles[candles.length - 1];
+      const previous = candles.length > 1 ? candles[candles.length - 2] : latest;
+      const change = latest && previous ? (latest.close - previous.close) / previous.close : 0;
+      titleEl.textContent = `${payload.symbol} · ${payload.timeframe} · ${payload.panelLabel}`;
+      subtitleEl.textContent = "Velas reales · EMA 9/21 · AVG 20/40 · Bollinger · Volumen · Plan Roxy";
+      lastEl.innerHTML = `${fmt(latest.close)}<small>${change >= 0 ? "+" : ""}${(change * 100).toFixed(2)}%</small>`;
+      const chart = LightweightCharts.createChart(chartEl, {
+        autoSize: true,
+        layout: { background: { type: "solid", color: "rgba(2,6,23,0)" }, textColor: "#c7ddff", fontFamily: "Inter, system-ui, sans-serif" },
+        grid: { vertLines: { color: "rgba(148,163,184,.12)" }, horzLines: { color: "rgba(148,163,184,.14)" } },
+        crosshair: {
+          mode: LightweightCharts.CrosshairMode.Normal,
+          vertLine: { color: "rgba(226,232,240,.46)", style: 3, width: 1, labelBackgroundColor: "#2563eb" },
+          horzLine: { color: "rgba(226,232,240,.46)", style: 3, width: 1, labelBackgroundColor: "#2563eb" }
+        },
+        rightPriceScale: { borderColor: "rgba(125,211,252,.24)", scaleMargins: { top: .10, bottom: .22 }, visible: true },
+        timeScale: { borderColor: "rgba(125,211,252,.20)", timeVisible: true, secondsVisible: false, rightOffset: 8, barSpacing: 8 },
+        handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+        handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
+      });
+      const candleSeries = chart.addCandlestickSeries({
+        upColor: "#22c55e", downColor: "#ef4444",
+        borderUpColor: "#86efac", borderDownColor: "#fca5a5",
+        wickUpColor: "#86efac", wickDownColor: "#fca5a5",
+        priceLineVisible: true, lastValueVisible: true,
+        priceFormat: { type: "price", precision: latest.close >= 1 ? 2 : 5, minMove: latest.close >= 1 ? .01 : .00001 },
+      });
+      candleSeries.setData(candles);
+      const lineStyles = {
+        "EMA9": ["#ec4899", 2, 0],
+        "EMA21": ["#a855f7", 2, 0],
+        "SMA20": ["#38bdf8", 2, 0],
+        "SMA40": ["#f59e0b", 2, 0],
+        "BB Upper": ["rgba(203,213,225,.62)", 1, 2],
+        "BB Mid": ["rgba(148,163,184,.46)", 1, 2],
+        "BB Lower": ["rgba(203,213,225,.62)", 1, 2],
+      };
+      Object.entries(lineStyles).forEach(([name, spec]) => {
+        const data = (payload.lines && payload.lines[name]) || [];
+        if (!data.length) return;
+        const series = chart.addLineSeries({ color: spec[0], lineWidth: spec[1], lineStyle: spec[2], priceLineVisible: false, lastValueVisible: false });
+        series.setData(data);
+      });
+      const volume = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "volume", lastValueVisible: false, priceLineVisible: false });
+      volume.setData(candles.map((c) => ({ time: c.time, value: c.volume || 0, color: c.close >= c.open ? "rgba(34,197,94,.38)" : "rgba(239,68,68,.38)" })));
+      chart.priceScale("volume").applyOptions({ scaleMargins: { top: .82, bottom: 0 }, borderVisible: false });
+      (payload.levels || []).forEach((level) => {
+        const value = Number(level.value);
+        if (!Number.isFinite(value)) return;
+        candleSeries.createPriceLine({ price: value, color: level.color, lineWidth: 2, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: `${level.label} ${fmt(value)}` });
+      });
+      const plan = payload.roxySummary || {};
+      planEl.innerHTML = `<strong>Plan Roxy: ${plan.action || "Esperar confirmacion"}</strong>
+        <span>Entrada <b>${plan.entry ? fmt(plan.entry) : "--"}</b></span>
+        <span>Stop <b>${plan.stop ? fmt(plan.stop) : "--"}</b></span>
+        <span>Target <b>${plan.target ? fmt(plan.target) : "--"}</b></span>
+        <span>R/R <b>${plan.rr ? "1R : " + Number(plan.rr).toFixed(1) + "R" : "--"}</b></span>`;
+      const setVisible = (count) => {
+        if (count === "all" || candles.length <= Number(count)) {
+          chart.timeScale().fitContent();
+          return;
+        }
+        const to = candles.length + 5;
+        chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, candles.length - Number(count)), to });
+      };
+      setVisible(110);
+      root.querySelectorAll("[data-range]").forEach((button) => {
+        button.addEventListener("click", () => {
+          root.querySelectorAll("[data-range]").forEach((b) => b.classList.remove("active"));
+          button.classList.add("active");
+          setVisible(button.dataset.range);
+        });
+      });
+      chart.subscribeCrosshairMove((param) => {
+        if (!param || !param.time || !param.point || !param.seriesData) {
+          crossEl.style.display = "none";
+          return;
+        }
+        const data = param.seriesData.get(candleSeries);
+        if (!data) {
+          crossEl.style.display = "none";
+          return;
+        }
+        crossEl.style.display = "block";
+        crossEl.style.left = Math.min(Math.max(14, param.point.x + 18), chartEl.clientWidth - 220) + "px";
+        crossEl.style.top = Math.min(Math.max(14, param.point.y - 10), chartEl.clientHeight - 122) + "px";
+        const dir = data.close >= data.open ? "🟢" : "🔴";
+        crossEl.innerHTML = `<b>${dir} ${payload.symbol}</b><br>O ${fmt(data.open)} · H ${fmt(data.high)}<br>L ${fmt(data.low)} · C ${fmt(data.close)}<br><span>Usa esta lectura para confirmar entrada, stop y target.</span>`;
+      });
+      const ro = new ResizeObserver(() => chart.resize(chartEl.clientWidth, chartEl.clientHeight));
+      ro.observe(chartEl);
+    })();
+    </script>
+    """
+    html_doc = html_doc.replace("__PAYLOAD__", payload_json).replace("__CHART_ID__", f"roxy-pro-{chart_id}")
+    components.html(html_doc, height=height, scrolling=False)
+    return True
+
+
+def render_roxy_actions_dual_pro_charts(
+    *,
+    symbol: str,
+    market: str,
+    trade_plan: dict[str, Any],
+    height: int = 620,
+) -> bool:
+    panes = [("15m", "Entrada 15m"), ("1h", "Tendencia 1h")]
+    pane_data: list[tuple[str, str, pd.DataFrame]] = []
+    for pane_tf, label in panes:
+        try:
+            pane_df = cached_trade_desk_chart_df(symbol, market, pane_tf)
+        except Exception:
+            pane_df = pd.DataFrame()
+        pane_data.append((pane_tf, label, pane_df if isinstance(pane_df, pd.DataFrame) else pd.DataFrame()))
+    if all(pane_df.empty for _, _, pane_df in pane_data):
+        return False
+    st.markdown(
+        (
+            '<div class="dual-chart-contract-strip roxy-actions-plotly-strip">'
+            '<strong>GRAFICAS PRO OPERATIVAS</strong>'
+            f"<span>{html.escape(text_display(symbol).upper())} · 15m entrada + 1h tendencia</span>"
+            "<span>Velas limpias, zoom/pan, Bollinger, EMA, volumen, entrada, stop y target</span>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+    columns = st.columns([1, 1], gap="small")
+    rendered = False
+    fallback_df = next((pane_df for _, _, pane_df in pane_data if not pane_df.empty), pd.DataFrame())
+    for col, (pane_tf, label, pane_df) in zip(columns, pane_data):
+        with col:
+            rendered = (
+                render_roxy_actions_pro_chart_panel(
+                    pane_df if not pane_df.empty else fallback_df,
+                    symbol=symbol,
+                    market=market,
+                    timeframe=pane_tf,
+                    trade_plan=trade_plan,
+                    panel_label=label,
+                    height=height,
+                )
+                or rendered
+            )
+    return rendered
 
 
 def render_roxy_actions_dual_plotly_charts(
