@@ -12,6 +12,7 @@ mypy
 black
 isort
 streamlit
+streamlit-autorefresh
 matplotlib
 plotly
 playwright

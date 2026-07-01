@@ -39,6 +39,11 @@ import streamlit.components.v1 as components
 import altair as alt
 
 try:
+    from streamlit_autorefresh import st_autorefresh
+except Exception:  # pragma: no cover - optional live refresh dependency
+    st_autorefresh = None
+
+try:
     import requests
 except Exception:  # pragma: no cover - optional OAuth/network dependency
     requests = None
@@ -34411,30 +34416,46 @@ def render_roxy_stock_live_runtime() -> None:
             return { price, previous: Number.isFinite(previous) && previous > 0 ? previous : null, source: "Yahoo live" };
           };
           const fetchYahoo = async (symbol) => {
+            const controller = new AbortController();
+            const timer = window.setTimeout(() => controller.abort(), 4200);
             const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1m`;
-            const res = await fetch(url, { cache: "no-store" });
-            if (!res.ok) return null;
-            return parseYahoo(await res.json());
+            try {
+              const res = await fetch(url, { cache: "no-store", signal: controller.signal });
+              if (!res.ok) return null;
+              return parseYahoo(await res.json());
+            } catch (error) {
+              return null;
+            } finally {
+              window.clearTimeout(timer);
+            }
           };
           const fetchStooq = async (symbol) => {
+            const controller = new AbortController();
+            const timer = window.setTimeout(() => controller.abort(), 4200);
             const stooqSymbol = `${String(symbol).toLowerCase().replace(/[^a-z0-9.\\-]/g, "")}.us`;
             const url = `https://stooq.com/q/l/?s=${encodeURIComponent(stooqSymbol)}&f=sd2t2ohlcv&h&e=csv`;
-            const res = await fetch(url, { cache: "no-store" });
-            if (!res.ok) return null;
-            const text = await res.text();
-            const lines = text.trim().split(/\\r?\\n/);
-            if (lines.length < 2) return null;
-            const cells = lines[1].split(",");
-            const close = Number(cells[6] || cells[3]);
-            if (!Number.isFinite(close) || close <= 0) return null;
-            return { price: close, previous: null, source: "Stooq quote" };
+            try {
+              const res = await fetch(url, { cache: "no-store", signal: controller.signal });
+              if (!res.ok) return null;
+              const text = await res.text();
+              const lines = text.trim().split(/\\r?\\n/);
+              if (lines.length < 2) return null;
+              const cells = lines[1].split(",");
+              const close = Number(cells[6] || cells[3]);
+              if (!Number.isFinite(close) || close <= 0) return null;
+              return { price: close, previous: null, source: "Stooq quote" };
+            } catch (error) {
+              return null;
+            } finally {
+              window.clearTimeout(timer);
+            }
           };
           const updateSymbol = async (symbol) => {
             try {
               setStatus(symbol, `consultando ${symbol}...`, "watch");
               const quote = await fetchYahoo(symbol) || await fetchStooq(symbol);
               if (!quote) {
-                setStatus(symbol, `${symbol} sin tick nuevo`, "watch");
+                setStatus(symbol, `${symbol} feed navegador bloqueado · servidor activo`, "watch");
                 return;
               }
               const price = Number(quote.price);
@@ -34463,7 +34484,21 @@ def render_roxy_stock_live_runtime() -> None:
     )
 
 
-@st.cache_data(ttl=15, show_spinner=False)
+def render_roxy_stock_server_refresh(interval_ms: int = 7000) -> None:
+    """Rerun the actions folder periodically so server-side quotes refresh.
+
+    Browser-side quote polling is blocked by some providers via CORS. This
+    keeps the visible stock table tied to server-side yfinance/quote snapshots
+    without inventing prices.
+    """
+    if st_autorefresh is not None:
+        try:
+            st_autorefresh(interval=max(4000, int(interval_ms)), key="roxy_stock_live_server_refresh")
+        except Exception:
+            pass
+
+
+@st.cache_data(ttl=5, show_spinner=False)
 def roxy_stock_quote_snapshot(symbol: str) -> dict[str, Any]:
     clean_symbol = roxy_manual_stock_symbol(symbol) if "roxy_manual_stock_symbol" in globals() else re.sub(r"[^A-Z0-9.\-]", "", str(symbol or "").upper())
     result: dict[str, Any] = {
@@ -34518,7 +34553,7 @@ def roxy_stock_quote_snapshot(symbol: str) -> dict[str, Any]:
     return result
 
 
-@st.cache_data(ttl=45, show_spinner=False)
+@st.cache_data(ttl=8, show_spinner=False)
 def roxy_stock_live_plan_seed(symbol: str) -> dict[str, Any]:
     clean_symbol = text_display(symbol).upper()
     quote_snapshot = roxy_stock_quote_snapshot(clean_symbol)
@@ -34647,12 +34682,11 @@ def roxy_enrich_stock_row_with_live_plan(row: dict[str, Any]) -> dict[str, Any]:
     latest = safe_float(plan.get("latest"))
     if latest is None:
         return enriched
-    if safe_float(enriched.get("current_price") or enriched.get("price") or enriched.get("last_price")) is None:
-        enriched["current_price"] = latest
-        enriched["price"] = latest
-        enriched["last_price"] = latest
+    enriched["current_price"] = latest
+    enriched["price"] = latest
+    enriched["last_price"] = latest
     plan_change = safe_float(plan.get("change_pct"))
-    if plan_change is not None and safe_float(enriched.get("change_pct") or enriched.get("pct_change") or enriched.get("daily_change_pct")) is None:
+    if plan_change is not None:
         enriched["change_pct"] = plan_change
     if safe_float(enriched.get("entry")) is None:
         enriched["entry"] = plan.get("entry")
@@ -34736,6 +34770,7 @@ def render_roxy_actions_symbol_search(selected_symbol: str) -> None:
 
 
 def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
+    render_roxy_stock_server_refresh(interval_ms=6500)
     rows = [roxy_enrich_stock_row_with_live_plan(row) for row in roxy_asset_rows_for_market(table, "stock", limit=12)]
     requested_symbol = roxy_manual_stock_symbol(first_query_param_value(st.query_params, "symbol"))
     if requested_symbol and all(text_display(row.get("symbol")).upper() != requested_symbol for row in rows):
@@ -34903,6 +34938,18 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         <section class="roxy-actions-chart-wrap">
           <div class="roxy-universe" aria-hidden="true"><i class="roxy-space-nebula"></i><i class="roxy-space-stars roxy-space-stars-mid"></i><i class="roxy-space-stars roxy-space-stars-near"></i></div>
           <header><strong>Graficas operativas</strong><span>{html.escape(selected_symbol)} <b class="{selected_change_class}" data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}" data-roxy-price="{html.escape(str(latest_value or trade_plan.get("entry") or ""))}">{html.escape(price)}</b> · <b class="{selected_change_class}" data-roxy-stock-change data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">{html.escape(selected_change_text)}</b><small data-roxy-stock-live-status data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">stock live inicializando...</small></span></header>
+          <style>
+            .roxy-actions-row .price strong[data-roxy-stock-live-price],
+            .roxy-actions-signal b[data-roxy-stock-live-price],
+            .roxy-actions-chart-wrap header b[data-roxy-stock-live-price] {{
+              animation: roxy-stock-server-heartbeat 1.85s ease-in-out infinite;
+              text-shadow: 0 0 14px rgba(34,197,94,.34);
+            }}
+            @keyframes roxy-stock-server-heartbeat {{
+              0%,100% {{ filter: brightness(1); }}
+              45% {{ filter: brightness(1.42) drop-shadow(0 0 8px rgba(56,189,248,.44)); }}
+            }}
+          </style>
         """,
         unsafe_allow_html=True,
     )
@@ -34911,14 +34958,14 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         symbol=resolved_symbol,
         market=selected_market,
         trade_plan=trade_plan,
-        height=470,
+        height=560,
     )
     if not rendered:
         rendered = render_roxy_actions_dual_static_charts(
             symbol=resolved_symbol,
             market=selected_market,
             trade_plan=trade_plan,
-            height=430,
+            height=500,
         )
     if not rendered:
         rendered = render_roxy_folder_dual_chart(
@@ -35649,7 +35696,9 @@ def roxy_actions_plotly_chart_panel(
     close_median = safe_float(df["close"].median()) if not df.empty else None
     if close_median not in (None, 0):
         df = df[(df["low"] >= close_median * 0.55) & (df["high"] <= close_median * 1.45)]
-    df = df.tail(180)
+    normalized_tf = normalize_command_timeframe(timeframe)
+    max_candles = 96 if normalized_tf in {"15m", "15min"} else 86
+    df = df.tail(max_candles)
     if df.empty or len(df) < 8:
         st.markdown(
             f"""
@@ -35661,12 +35710,48 @@ def roxy_actions_plotly_chart_panel(
             unsafe_allow_html=True,
         )
         return False
+    latest_close = safe_float(df["close"].iloc[-1])
+    close_series = pd.to_numeric(df["close"], errors="coerce").dropna()
+    open_series = pd.to_numeric(df["open"], errors="coerce").dropna()
+    body_prices = pd.concat([close_series, open_series], ignore_index=True).dropna()
+    domain_low: float | None = None
+    domain_high: float | None = None
+    if not body_prices.empty:
+        domain_low = float(body_prices.quantile(0.04))
+        domain_high = float(body_prices.quantile(0.96))
+    if latest_close not in (None, 0):
+        domain_low = latest_close * 0.985 if domain_low is None else min(domain_low, latest_close * 0.996)
+        domain_high = latest_close * 1.015 if domain_high is None else max(domain_high, latest_close * 1.004)
+    for level_value in [
+        safe_float(trade_plan.get("entry")),
+        safe_float(trade_plan.get("stop")),
+        safe_float(trade_plan.get("target_2") or trade_plan.get("target_price") or trade_plan.get("target")),
+    ]:
+        if level_value is None:
+            continue
+        if latest_close not in (None, 0) and not (latest_close * 0.90 <= level_value <= latest_close * 1.10):
+            continue
+        domain_low = level_value if domain_low is None else min(domain_low, level_value)
+        domain_high = level_value if domain_high is None else max(domain_high, level_value)
+    if domain_low is None or domain_high is None or domain_high <= domain_low:
+        lows = pd.to_numeric(df["low"], errors="coerce").dropna()
+        highs = pd.to_numeric(df["high"], errors="coerce").dropna()
+        if not lows.empty and not highs.empty:
+            domain_low = float(lows.quantile(0.08))
+            domain_high = float(highs.quantile(0.92))
+    if domain_low is not None and domain_high is not None and domain_high > domain_low:
+        span = max(domain_high - domain_low, abs(domain_high) * 0.004, 0.01)
+        domain_low -= span * 0.38
+        domain_high += span * 0.38
+        df["high"] = pd.to_numeric(df["high"], errors="coerce").clip(upper=domain_high)
+        df["low"] = pd.to_numeric(df["low"], errors="coerce").clip(lower=domain_low)
+
     fig = make_subplots(
         rows=2,
         cols=1,
         shared_xaxes=True,
-        vertical_spacing=0.03,
-        row_heights=[0.78, 0.22],
+        vertical_spacing=0.025,
+        row_heights=[0.80, 0.20],
     )
     fig.add_trace(
         go.Candlestick(
@@ -35680,18 +35765,17 @@ def roxy_actions_plotly_chart_panel(
             increasing_fillcolor="#22c55e",
             decreasing_line_color="#ef4444",
             decreasing_fillcolor="#ef4444",
-            whiskerwidth=0.55,
+            whiskerwidth=0.80,
         ),
         row=1,
         col=1,
     )
     line_specs = [
-        ("ema9", "EMA 9", "#ec4899", 2),
-        ("ema21", "EMA 21", "#a855f7", 2),
-        ("sma20", "AVG 20", "#38bdf8", 2),
-        ("sma40", "AVG 40", "#f97316", 2),
-        ("bb_upper", "BB Upper", "rgba(226,232,240,.62)", 1),
-        ("bb_lower", "BB Lower", "rgba(226,232,240,.62)", 1),
+        ("ema9", "EMA 9", "#ec4899", 2.4),
+        ("ema21", "EMA 21", "#a855f7", 2.1),
+        ("sma20", "AVG 20", "#38bdf8", 2.0),
+        ("bb_upper", "BB Upper", "rgba(226,232,240,.55)", 1),
+        ("bb_lower", "BB Lower", "rgba(226,232,240,.55)", 1),
     ]
     for column, label, color, width in line_specs:
         if column in df.columns and df[column].notna().any():
@@ -35739,30 +35823,20 @@ def roxy_actions_plotly_chart_panel(
             row=1,
             col=1,
         )
-    lows = pd.to_numeric(df["low"], errors="coerce").dropna()
-    highs = pd.to_numeric(df["high"], errors="coerce").dropna()
-    if not lows.empty and not highs.empty:
-        latest_for_domain = safe_float(df["close"].iloc[-1])
-        low_q = float(lows.quantile(0.04))
-        high_q = float(highs.quantile(0.96))
-        if latest_for_domain not in (None, 0):
-            low_q = max(low_q, latest_for_domain * 0.82)
-            high_q = min(high_q, latest_for_domain * 1.18)
-        span = max(high_q - low_q, abs(high_q) * 0.01, 0.01)
-        fig.update_yaxes(range=[low_q - span * 0.18, high_q + span * 0.18], row=1, col=1)
-    latest_close = safe_float(df["close"].iloc[-1])
+    if domain_low is not None and domain_high is not None and domain_high > domain_low:
+        fig.update_yaxes(range=[domain_low, domain_high], row=1, col=1)
     fig.update_layout(
-        title={"text": f"{title} · {text_display(symbol).upper()} · {timeframe}", "font": {"size": 14, "color": "#e0f2fe"}},
+        title={"text": f"{title} · {text_display(symbol).upper()} · {normalized_tf}", "font": {"size": 13, "color": "#e0f2fe"}},
         height=height,
-        margin={"l": 8, "r": 56, "t": 42, "b": 28},
+        margin={"l": 6, "r": 64, "t": 34, "b": 24},
         paper_bgcolor="rgba(2,6,23,0)",
         plot_bgcolor="rgba(2,6,23,.72)",
         font={"color": "#dbeafe", "size": 10},
         hovermode="x unified",
         dragmode="pan",
-        showlegend=True,
-        legend={"orientation": "h", "y": 1.04, "x": 0, "font": {"size": 9}},
+        showlegend=False,
         xaxis_rangeslider_visible=False,
+        transition={"duration": 250, "easing": "cubic-in-out"},
     )
     fig.update_xaxes(
         showgrid=True,
@@ -35802,10 +35876,11 @@ def roxy_actions_plotly_chart_panel(
         fig,
         use_container_width=True,
         config={
-            "displayModeBar": True,
+            "displayModeBar": "hover",
             "scrollZoom": True,
             "responsive": True,
-            "modeBarButtonsToAdd": ["drawline", "drawopenpath", "drawrect", "eraseshape"],
+            "modeBarButtonsToAdd": ["drawline", "eraseshape"],
+            "modeBarButtonsToRemove": ["lasso2d", "select2d", "autoScale2d", "toggleSpikelines"],
             "displaylogo": False,
         },
     )
