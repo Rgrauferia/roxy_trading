@@ -21,7 +21,7 @@ COPY . /app
 
 RUN mkdir -p /var/data/output /var/data/alerts /var/data/data /var/data/db
 
-EXPOSE 3000
+EXPOSE 3000 8765
 
 # Production default. Local development keeps hot reload in docker-compose/Makefile.
 CMD ["sh", "scripts/render_start.sh"]
