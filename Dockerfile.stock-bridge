@@ -15,4 +15,4 @@ COPY tools ./tools
 
 EXPOSE 8765
 
-ENTRYPOINT ["python", "-m", "tools.roxy_stock_stream_bridge"]
+CMD ["python", "-m", "tools.roxy_stock_stream_bridge"]
