@@ -503,6 +503,56 @@ def log_strike_signal(signal: StrikeOptionSignal, path: str | Path | None = None
     return log_path
 
 
+def load_strike_signal_history(path: str | Path | None = None, *, limit: int = 250) -> list[dict[str, Any]]:
+    log_path = Path(path or "logs/strike_options_signals.jsonl")
+    if not log_path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in log_path.read_text(encoding="utf-8").splitlines():
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            rows.append(payload)
+    return rows[-limit:] if limit > 0 else rows
+
+
+def summarize_strike_signal_history(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    actionable = [dict(row) for row in rows if row.get("signal") in {SIGNAL_YES, SIGNAL_NO}]
+    closed = [row for row in actionable if row.get("result") in {"WIN", "LOSS"}]
+    wins = sum(1 for row in closed if row.get("result") == "WIN")
+    losses = sum(1 for row in closed if row.get("result") == "LOSS")
+    win_rate = wins / len(closed) if closed else None
+    profit_loss = sum(_safe_float(row.get("profit_loss"), 0.0) or 0.0 for row in closed)
+    by_expiration: dict[str, dict[str, Any]] = {}
+    for row in closed:
+        key = str(row.get("expiration") or "sin_expiracion")
+        bucket = by_expiration.setdefault(key, {"signals": 0, "wins": 0, "losses": 0, "profit_loss": 0.0})
+        bucket["signals"] += 1
+        bucket["wins"] += 1 if row.get("result") == "WIN" else 0
+        bucket["losses"] += 1 if row.get("result") == "LOSS" else 0
+        bucket["profit_loss"] = round(bucket["profit_loss"] + (_safe_float(row.get("profit_loss"), 0.0) or 0.0), 4)
+    for bucket in by_expiration.values():
+        bucket["win_rate"] = round(bucket["wins"] / bucket["signals"], 4) if bucket["signals"] else None
+    best_timeframe = None
+    if by_expiration:
+        best_timeframe = max(
+            by_expiration.items(),
+            key=lambda item: ((item[1].get("win_rate") or 0.0), item[1].get("signals") or 0),
+        )[0]
+    return {
+        "signals": len(actionable),
+        "closed": len(closed),
+        "wins": wins,
+        "losses": losses,
+        "win_rate": round(win_rate, 4) if win_rate is not None else None,
+        "profit_loss": round(profit_loss, 4),
+        "best_timeframe": best_timeframe,
+        "by_expiration": by_expiration,
+    }
+
+
 def score_signal_result(
     signal: StrikeOptionSignal | Mapping[str, Any],
     *,
@@ -524,4 +574,3 @@ def score_signal_result(
     data["profit_loss"] = round(float(reward if won else -max_loss), 4) if side in {SIGNAL_YES, SIGNAL_NO} else 0.0
     data["final_price"] = final_price
     return data
-

@@ -9,6 +9,7 @@ from roxy_trader.strike_options_strategy import (
     format_roxy_strike_response,
     log_strike_signal,
     score_signal_result,
+    summarize_strike_signal_history,
 )
 
 
@@ -144,3 +145,19 @@ def test_score_signal_result_marks_yes_win():
     assert result["result"] == "WIN"
     assert result["profit_loss"] > 0
 
+
+def test_summarize_strike_signal_history_groups_results():
+    rows = [
+        {"signal": SIGNAL_YES, "expiration": "20 minutos", "result": "WIN", "profit_loss": 0.8},
+        {"signal": SIGNAL_NO, "expiration": "20 minutos", "result": "LOSS", "profit_loss": -0.5},
+        {"signal": SIGNAL_NO_TRADE, "expiration": "20 minutos", "result": "NO_TRADE", "profit_loss": 0},
+        {"signal": SIGNAL_YES, "expiration": "2 horas", "result": "WIN", "profit_loss": 1.0},
+    ]
+
+    summary = summarize_strike_signal_history(rows)
+
+    assert summary["signals"] == 3
+    assert summary["closed"] == 3
+    assert summary["wins"] == 2
+    assert summary["win_rate"] == 0.6667
+    assert summary["by_expiration"]["20 minutos"]["signals"] == 2

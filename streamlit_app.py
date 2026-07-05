@@ -122,6 +122,8 @@ from roxy_trader.strike_options_strategy import (
     SIGNAL_NO_TRADE,
     SIGNAL_YES,
     analyze_strike_option,
+    load_strike_signal_history,
+    summarize_strike_signal_history,
 )
 from salto_strategies import SALTO_STRATEGIES, SALTO_STRATEGY_FAMILIES, apply_learned_strategy_brain
 from symbol_detail import (
@@ -36068,36 +36070,130 @@ def roxy_deriv_candidate_strikes_from_contract(contract: dict[str, Any]) -> list
     return list(dict.fromkeys(values))
 
 
+def roxy_deriv_contract_costs(contract: dict[str, Any]) -> dict[str, float | None]:
+    yes_cost = safe_float(
+        contract.get("yes_cost")
+        or contract.get("yes_price")
+        or contract.get("ask_price")
+        or contract.get("buy_price")
+        or contract.get("display_value")
+    )
+    no_cost = safe_float(
+        contract.get("no_cost")
+        or contract.get("no_price")
+        or contract.get("bid_price")
+        or contract.get("sell_price")
+    )
+    payout = safe_float(contract.get("payout") or contract.get("max_payout") or contract.get("barrier_payout"))
+    return {"yes_cost": yes_cost, "no_cost": no_cost, "payout": payout}
+
+
+def roxy_strike_profile_from_period(period_label: str) -> dict[str, Any]:
+    normalized = text_display(period_label).lower()
+    if "20" in normalized:
+        return {"horizon": "20m", "timeframe": "1m", "limit": 140, "fallback_seconds": 20 * 60}
+    if "2" in normalized and ("h" in normalized or "hora" in normalized):
+        return {"horizon": "2h", "timeframe": "5m", "limit": 180, "fallback_seconds": 2 * 60 * 60}
+    return {"horizon": "daily", "timeframe": "1h", "limit": 220, "fallback_seconds": 24 * 60 * 60}
+
+
+def roxy_strike_engine_candles_for_period(symbol: str, period_label: str) -> tuple[list[dict[str, Any]], int]:
+    profile = roxy_strike_profile_from_period(period_label)
+    try:
+        frame = roxy_crypto_history_for_signal(symbol, text_display(profile["timeframe"]), int(profile["limit"]))
+    except Exception:
+        frame = pd.DataFrame()
+    candles = roxy_candles_for_strike_engine(frame) if isinstance(frame, pd.DataFrame) and not frame.empty else []
+    cycle_state = roxy_crypto_cycle_window(text_display(profile["horizon"]))
+    remaining = int(safe_float(cycle_state.get("remaining")) or safe_float(profile.get("fallback_seconds")) or 0)
+    return candles, remaining
+
+
+def roxy_strike_history_summary() -> dict[str, Any]:
+    try:
+        return summarize_strike_signal_history(load_strike_signal_history(limit=500))
+    except Exception:
+        return {
+            "signals": 0,
+            "closed": 0,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": None,
+            "profit_loss": 0,
+            "best_timeframe": None,
+            "by_expiration": {},
+        }
+
+
 def roxy_deriv_best_contract(symbol: str, signal: dict[str, Any], *, period_label: str) -> dict[str, Any]:
     deriv = roxy_deriv_contracts_for_crypto(symbol)
+    price = safe_float(signal.get("price") or signal.get("entry_price"))
+    if price is None:
+        price = safe_float((signal.get("strike_options_signal") or {}).get("price")) if isinstance(signal.get("strike_options_signal"), dict) else None
     target = safe_float(signal.get("target_price") or signal.get("expected_price"))
-    side = text_display(signal.get("contract_side") or "WAIT")
+    side = text_display(signal.get("contract_side") or "WAIT").upper()
+    candles, remaining = roxy_strike_engine_candles_for_period(symbol, period_label)
     best: dict[str, Any] | None = None
     for contract in deriv.get("strike_contracts", []):
         contract_type = text_display(contract.get("contract_type")).upper()
         sentiment = text_display(contract.get("sentiment")).lower()
-        side_match = (side == "YES" and (contract_type.startswith("CALL") or sentiment == "up")) or (
-            side == "NO" and (contract_type.startswith("PUT") or sentiment == "down")
-        )
-        if side not in {"YES", "NO"} or not side_match:
-            continue
         strikes = roxy_deriv_candidate_strikes_from_contract(contract)
         if not strikes and target is not None:
             strikes = [target]
+        costs = roxy_deriv_contract_costs(contract)
         for strike in strikes:
-            distance = abs((strike or 0) - (target or 0)) if target is not None else 0
-            score = max(0.0, 100.0 - (distance / max(abs(target or strike or 1), 1) * 10000))
+            if price is None:
+                continue
+            try:
+                strike_signal = analyze_strike_option(
+                    asset=roxy_crypto_base_symbol(symbol),
+                    current_price=price,
+                    strike=strike,
+                    time_remaining_seconds=remaining,
+                    expiration_label=period_label,
+                    candles=candles,
+                    yes_cost=costs.get("yes_cost"),
+                    no_cost=costs.get("no_cost"),
+                    payout=costs.get("payout"),
+                    stake=1.0,
+                ).to_dict()
+            except Exception:
+                continue
+            strike_decision = text_display(strike_signal.get("signal")).upper()
+            if strike_decision == SIGNAL_NO_TRADE:
+                decision_bonus = -18.0
+            else:
+                decision_bonus = 12.0
+            if side in {SIGNAL_YES, SIGNAL_NO} and strike_decision == side:
+                decision_bonus += 8.0
+            if contract_type.startswith("CALL") or sentiment == "up":
+                contract_bias = SIGNAL_YES
+            elif contract_type.startswith("PUT") or sentiment == "down":
+                contract_bias = SIGNAL_NO
+            else:
+                contract_bias = strike_decision
+            if contract_bias in {SIGNAL_YES, SIGNAL_NO} and strike_decision in {SIGNAL_YES, SIGNAL_NO} and contract_bias != strike_decision:
+                decision_bonus -= 16.0
+            distance_target = abs((strike or 0) - (target or strike or 0)) if target is not None else abs((strike or 0) - price)
+            distance_score = max(0.0, 12.0 - (distance_target / max(abs(target or price or strike or 1), 1) * 8000))
+            edge_score = max(-12.0, min(16.0, (safe_float(strike_signal.get("edge")) or 0.0) * 100.0))
+            score = (
+                safe_float(strike_signal.get("confidence")) or 0.0
+            ) + decision_bonus + distance_score + edge_score
             candidate = {
                 "contract": contract,
                 "strike": strike,
-                "side": side,
+                "side": strike_decision,
                 "score": score,
                 "period": period_label,
+                "roxy_signal": strike_signal,
+                "contract_bias": contract_bias,
             }
             if best is None or candidate["score"] > safe_float(best.get("score")):
                 best = candidate
     if best:
-        best["status"] = "ready"
+        best_signal = best.get("roxy_signal") if isinstance(best.get("roxy_signal"), dict) else {}
+        best["status"] = "ready" if text_display(best_signal.get("signal")).upper() in {SIGNAL_YES, SIGNAL_NO} else "blocked"
         best["deriv"] = deriv
         return best
     return {
@@ -36122,17 +36218,51 @@ def roxy_deriv_comparison_panel_html(
     comparison = roxy_deriv_best_contract(selected_symbol, signal, period_label=period_label)
     base = roxy_crypto_base_symbol(selected_symbol)
     side = text_display(comparison.get("side") or signal.get("contract_side") or "WAIT")
+    history = roxy_strike_history_summary()
+    win_rate = safe_float(history.get("win_rate"))
+    history_label = f"Win rate {win_rate * 100:.0f}% · {int(safe_float(history.get('closed')) or 0)} cerradas" if win_rate is not None else "Historial pendiente de backtesting"
     if comparison.get("status") == "ready":
+        strike_signal = comparison.get("roxy_signal") if isinstance(comparison.get("roxy_signal"), dict) else {}
         strike = price_display(comparison.get("strike"))
-        score = int(max(0, min(99, safe_float(signal.get("probability")) or safe_float(comparison.get("score")) or 0)))
+        score = int(max(0, min(99, safe_float(strike_signal.get("confidence")) or safe_float(signal.get("probability")) or safe_float(comparison.get("score")) or 0)))
+        risk = text_display(strike_signal.get("risk") or signal.get("strike_risk") or "Pendiente")
+        edge_value = safe_float(strike_signal.get("edge"))
+        edge_label = f"Edge {edge_value * 100:+.1f}%" if edge_value is not None else "Edge sin payout real"
+        entry = text_display(strike_signal.get("recommended_entry") or signal.get("strike_recommended_entry") or "Confirmar contrato en Deriv antes de entrar.")
+        color = text_display(strike_signal.get("color") or signal.get("strike_color") or "yellow")
+        reasons = [text_display(item) for item in strike_signal.get("reasons", []) if text_display(item)]
+        warnings = [text_display(item) for item in strike_signal.get("warning_flags", []) if text_display(item)]
+        reason_text = " · ".join((reasons + warnings)[:3]) or "Roxy esta validando momentum, medias y distancia al strike."
+        status_label = "OPERAR AHORA" if color == "green" and side in {SIGNAL_YES, SIGNAL_NO} else ("ESPERAR" if color == "yellow" else "NO OPERAR")
+        probability_label = str(int(round(safe_float(strike_signal.get("probability_roxy")) or score)))
         return (
-            '<section class="roxy-crypto20-platform roxy-deriv-compare deriv-ready">'
+            f'<section class="roxy-crypto20-platform roxy-deriv-compare deriv-ready deriv-{html.escape(color)}">'
             '<strong>Comparacion automatica con Deriv</strong>'
-            f'<small>Deriv live · {html.escape(period_label)} · {html.escape(next_time_label)}</small>'
+            f'<small>Deriv live · {html.escape(period_label)} · {html.escape(next_time_label)} · {html.escape(history_label)}</small>'
             f'<div class="deriv-best"><b>⭐ ESTA ES LA MEJOR</b><span>{html.escape(side)} · {html.escape(strike)}</span><em>Confianza {score}%</em></div>'
+            f'<p><span>Estado Roxy <b>{html.escape(status_label)}</b></span><em class="yes">{html.escape(risk)}</em></p>'
+            f'<p><span>Ventaja calculada <b>{html.escape(edge_label)}</b></span><em class="yes">{html.escape(probability_label)}%</em></p>'
             f'<p><span>{html.escape(base)} will be above <b>{html.escape(above_price)}</b></span><em class="yes">Yes</em></p>'
             f'<p><span>{html.escape(base)} will be below <b>{html.escape(below_price)}</b></span><em class="no">No</em></p>'
-            '<small>Roxy eligio solo entre contratos strike reales devueltos por Deriv.</small>'
+            f'<small>{html.escape(entry)} · {html.escape(reason_text)}</small>'
+            '</section>'
+        )
+    if comparison.get("status") == "blocked":
+        strike_signal = comparison.get("roxy_signal") if isinstance(comparison.get("roxy_signal"), dict) else {}
+        strike = price_display(comparison.get("strike"))
+        reasons = [text_display(item) for item in strike_signal.get("warning_flags", []) if text_display(item)]
+        reasons.extend([text_display(item) for item in strike_signal.get("reasons", []) if text_display(item)])
+        reason_text = " · ".join(reasons[:4]) or "Senales mezcladas; Roxy no encuentra ventaja suficiente."
+        score = int(max(0, min(99, safe_float(strike_signal.get("confidence")) or safe_float(comparison.get("score")) or 0)))
+        return (
+            '<section class="roxy-crypto20-platform roxy-deriv-compare deriv-not-ready">'
+            '<strong>Comparacion automatica con Deriv</strong>'
+            f'<small>Deriv live · {html.escape(period_label)} · {html.escape(history_label)}</small>'
+            '<div class="deriv-best blocked"><b>NO TRADE</b>'
+            f'<span>Strike evaluado {html.escape(strike)} sin ventaja clara</span><em>Confianza {score}%</em></div>'
+            f'<p><span>Decision Roxy <b>ESPERAR</b></span><em class="no">No operar</em></p>'
+            f'<p><span>Motivo <b>{html.escape(reason_text)}</b></span><em class="no">Riesgo</em></p>'
+            '<small>Roxy vio contratos, pero no marco entrada porque la estrategia no cumple edge/riesgo/timer.</small>'
             '</section>'
         )
     deriv = comparison.get("deriv") if isinstance(comparison.get("deriv"), dict) else {}
@@ -36153,7 +36283,7 @@ def roxy_deriv_comparison_panel_html(
     return (
         '<section class="roxy-crypto20-platform roxy-deriv-compare deriv-not-ready">'
         '<strong>Comparacion automatica con Deriv</strong>'
-        f'<small>{html.escape(status_text)}</small>'
+        f'<small>{html.escape(status_text)} · {html.escape(history_label)}</small>'
         '<div class="deriv-best blocked"><b>NO MARCAR MEJOR STRIKE</b>'
         f'<span>Falta lista real de Strike Options de Deriv</span><em>{html.escape(deriv.get("endpoint") or "Deriv")}</em></div>'
         f'<p><span>Contratos reales disponibles <b>{html.escape(available_labels or "ninguno")}</b></span><em class="no">Live</em></p>'
@@ -38119,6 +38249,27 @@ def clean_roxy_operational_chart_df(
     ) & (
         candle_range_pct.fillna(0) <= max_range_pct
     )
+    # Intraday stock providers can occasionally deliver one isolated bad bar
+    # after a split/session boundary. Removing only structurally isolated jumps
+    # keeps the operational scale readable without synthesizing replacement data.
+    close_return_pct = close.pct_change().abs()
+    open_gap_pct = ((pd.to_numeric(df["open"], errors="coerce") - close.shift(1)).abs() / close.shift(1)).replace(
+        [float("inf"), float("-inf")],
+        pd.NA,
+    )
+    typical_return = safe_float(close_return_pct[(close_return_pct > 0) & (close_return_pct < 0.12)].median()) or 0.0035
+    if tf in {"1m", "5m", "15m"}:
+        max_jump_pct = max(0.026, min(0.070, typical_return * 11.0))
+        max_gap_pct = max(0.032, min(0.085, typical_return * 13.0))
+    elif tf in {"1h", "2h", "4h"}:
+        max_jump_pct = max(0.040, min(0.110, typical_return * 12.5))
+        max_gap_pct = max(0.050, min(0.135, typical_return * 14.0))
+    else:
+        max_jump_pct = max(0.070, min(0.220, typical_return * 16.0))
+        max_gap_pct = max(0.085, min(0.260, typical_return * 18.0))
+    jump_mask = (close_return_pct.fillna(0) <= max_jump_pct) | (close_return_pct.isna())
+    gap_mask = (open_gap_pct.fillna(0) <= max_gap_pct) | (open_gap_pct.isna())
+    clean_mask = clean_mask & jump_mask & gap_mask
     cleaned = df[clean_mask].copy()
     if len(cleaned) < min(12, len(df)):
         relaxed_mask = (
@@ -38532,8 +38683,8 @@ def render_roxy_actions_pro_chart_panel(
         <aside data-rpc-last></aside>
       </header>
 	      <section class="rpc-toolbar">
-	        <button data-range="60">60 velas</button>
-	        <button data-range="90" class="active">90 velas</button>
+	        <button data-range="60" class="active">60 velas</button>
+	        <button data-range="90">90 velas</button>
 	        <button data-range="140">140 velas</button>
 	        <button data-range="all">Todo</button>
 	        <span>Zoom · pan · cursor · precio live sincronizado</span>
@@ -38577,7 +38728,7 @@ def render_roxy_actions_pro_chart_panel(
       .rpc-tradebar small{display:block;color:#7dd3fc;font-size:8px;font-weight:1000;letter-spacing:.10em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .rpc-tradebar b{display:block;margin-top:2px;color:#f8fafc;font-size:12px;font-weight:1000;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .rpc-tradebar .danger small,.rpc-tradebar .danger b{color:#fb7185}.rpc-tradebar .good small,.rpc-tradebar .good b{color:#86efac}.rpc-tradebar .blue small,.rpc-tradebar .blue b{color:#7dd3fc}
-      .rpc-stage{position:relative;flex:1 1 auto;min-height:0;padding:6px 7px 0}
+      .rpc-stage{position:relative;flex:1 1 auto;min-height:420px;padding:6px 7px 0}
 	      .rpc-stage:before{content:"";position:absolute;inset:6px 7px 0;border-radius:12px;background:linear-gradient(90deg,transparent,rgba(56,189,248,.06),transparent),radial-gradient(circle at 70% 16%,rgba(34,197,94,.08),transparent 22%);pointer-events:none}
 	      .rpc-stage:after{content:"";position:absolute;inset:6px 7px 0;border-radius:12px;background-image:linear-gradient(rgba(148,163,184,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.045) 1px,transparent 1px);background-size:44px 44px;opacity:.7;pointer-events:none}
 	      .rpc-chart{position:absolute;inset:6px 7px 0 7px}
@@ -38748,8 +38899,8 @@ def render_roxy_actions_pro_chart_panel(
           vertLine: { color: "rgba(226,232,240,.46)", style: 3, width: 1, labelBackgroundColor: "#2563eb" },
           horzLine: { color: "rgba(226,232,240,.46)", style: 3, width: 1, labelBackgroundColor: "#2563eb" }
         },
-        rightPriceScale: { borderColor: "rgba(125,211,252,.28)", scaleMargins: { top: .06, bottom: .18 }, visible: true },
-        timeScale: { borderColor: "rgba(125,211,252,.22)", timeVisible: true, secondsVisible: false, rightOffset: 8, barSpacing: 12, minBarSpacing: 6 },
+        rightPriceScale: { borderColor: "rgba(125,211,252,.28)", scaleMargins: { top: .04, bottom: .16 }, visible: true },
+        timeScale: { borderColor: "rgba(125,211,252,.22)", timeVisible: true, secondsVisible: false, rightOffset: 10, barSpacing: 15, minBarSpacing: 7 },
         handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
         handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
       });
@@ -38857,7 +39008,7 @@ def render_roxy_actions_pro_chart_panel(
         const to = candles.length + 5;
         chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, candles.length - Number(count)), to });
       };
-	      setVisible(90);
+	      setVisible(60);
       root.querySelectorAll("[data-range]").forEach((button) => {
         button.addEventListener("click", () => {
           root.querySelectorAll("[data-range]").forEach((b) => b.classList.remove("active"));
