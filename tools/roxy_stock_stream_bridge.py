@@ -310,3 +310,21 @@ if app is not None:
                 "Access-Control-Allow-Origin": os.getenv("ROXY_STOCK_STREAM_ALLOWED_ORIGIN", "*"),
             },
         )
+
+
+def main() -> None:
+    if app is None:
+        raise RuntimeError("FastAPI is not installed. Install requirements.stock-bridge.txt.")
+
+    try:
+        import uvicorn
+    except ImportError as exc:
+        raise RuntimeError("uvicorn is not installed. Install requirements.stock-bridge.txt.") from exc
+
+    port = int(os.getenv("PORT", "8765"))
+    print(f"Starting Roxy stock stream bridge on port {port}", flush=True)
+    uvicorn.run(app, host="0.0.0.0", port=port)
+
+
+if __name__ == "__main__":
+    main()
