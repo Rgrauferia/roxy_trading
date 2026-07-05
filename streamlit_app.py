@@ -117,6 +117,12 @@ from dashboard_metrics import (
 )
 from moving_average_strategy import analyze_moving_average_setup
 from options_strategy import analyze_option_contract, professional_options_feed_status
+from roxy_trader.strike_options_strategy import (
+    SIGNAL_NO,
+    SIGNAL_NO_TRADE,
+    SIGNAL_YES,
+    analyze_strike_option,
+)
 from salto_strategies import SALTO_STRATEGIES, SALTO_STRATEGY_FAMILIES, apply_learned_strategy_brain
 from symbol_detail import (
     ALPACA_KEY_ENV_KEYS,
@@ -35301,6 +35307,30 @@ def roxy_crypto_strategy_validation_from_data(
     }
 
 
+def roxy_candles_for_strike_engine(data: pd.DataFrame, *, limit: int = 120) -> list[dict[str, Any]]:
+    candles: list[dict[str, Any]] = []
+    if not isinstance(data, pd.DataFrame) or data.empty:
+        return candles
+    for row in data.tail(limit).to_dict("records"):
+        close_value = safe_float(row.get("close"))
+        if close_value is None:
+            continue
+        open_value = safe_float(row.get("open")) or close_value
+        high_value = safe_float(row.get("high")) or max(open_value, close_value)
+        low_value = safe_float(row.get("low")) or min(open_value, close_value)
+        volume_value = safe_float(row.get("volume")) or 0.0
+        candles.append(
+            {
+                "open": open_value,
+                "high": high_value,
+                "low": low_value,
+                "close": close_value,
+                "volume": volume_value,
+            }
+        )
+    return candles
+
+
 @st.cache_data(ttl=5, show_spinner=False)
 def roxy_crypto_horizon_signal(symbol: str, horizon: str) -> dict[str, Any]:
     profile = text_display(horizon).lower()
@@ -35505,7 +35535,35 @@ def roxy_crypto_horizon_signal(symbol: str, horizon: str) -> dict[str, Any]:
     else:
         reasons.append(f"{text_display(validation.get('label'))}: no hay muestra suficiente para activar entrada.")
     source_symbol = text_display(data["symbol_used"].iloc[-1]) if "symbol_used" in data.columns else roxy_crypto_ccxt_symbol_candidates(symbol)[0]
-    return {
+    cycle_state = roxy_crypto_cycle_window(profile)
+    strike_price = price
+    if primary_side == "ABOVE":
+        strike_price = below_price
+    elif primary_side == "BELOW":
+        strike_price = above_price
+    strike_signal: dict[str, Any] | None = None
+    try:
+        strike_signal = analyze_strike_option(
+            asset=roxy_crypto_base_symbol(symbol),
+            current_price=price,
+            strike=strike_price,
+            time_remaining_seconds=int(safe_float(cycle_state.get("remaining")) or horizon_bars * 60),
+            expiration_label=horizon_label,
+            candles=roxy_candles_for_strike_engine(data),
+            stake=1.0,
+        ).to_dict()
+    except Exception as exc:
+        strike_signal = {
+            "signal": SIGNAL_NO_TRADE,
+            "color": "red",
+            "confidence": 0,
+            "risk": "Alto",
+            "recommended_entry": "No operar: el motor Strike Options no pudo validar la senal.",
+            "reasons": [text_display(exc)],
+            "warning_flags": ["error_motor_strike_options"],
+            "deriv_contract": {"asset": roxy_crypto_base_symbol(symbol), "direction": "WAIT", "strike": strike_price},
+        }
+    result = {
         "symbol": text_display(symbol).upper(),
         "direction": direction,
         "action": action,
@@ -35535,6 +35593,50 @@ def roxy_crypto_horizon_signal(symbol: str, horizon: str) -> dict[str, Any]:
         "horizon_label": horizon_label,
         "next_step": next_step,
     }
+    if isinstance(strike_signal, dict):
+        strike_decision = text_display(strike_signal.get("signal")).upper()
+        strike_confidence = int(max(0, min(100, safe_float(strike_signal.get("confidence")) or confidence)))
+        strike_contract = strike_signal.get("deriv_contract") if isinstance(strike_signal.get("deriv_contract"), dict) else {}
+        result["strike_options_signal"] = strike_signal
+        result["strike_contract"] = strike_contract
+        result["strike_color"] = strike_signal.get("color")
+        result["strike_edge"] = strike_signal.get("edge")
+        result["strike_risk"] = strike_signal.get("risk")
+        result["strike_probability_roxy"] = strike_signal.get("probability_roxy")
+        result["strike_recommended_entry"] = strike_signal.get("recommended_entry")
+        if strike_decision in {SIGNAL_YES, SIGNAL_NO}:
+            result["contract_side"] = strike_decision
+            result["primary_side"] = "ABOVE" if strike_decision == SIGNAL_YES else "BELOW"
+            result["primary_label"] = text_display(strike_contract.get("contract") or primary_label)
+            result["target_price"] = safe_float(strike_contract.get("strike")) or target_price
+            result["probability"] = strike_confidence
+            result["confidence"] = strike_confidence
+            result["strength"] = strike_confidence
+            if text_display(strike_signal.get("color")) == "green":
+                result["decision_state"] = "OPERAR AHORA"
+                result["decision_class"] = "buy"
+                result["tone"] = "buy"
+                result["action"] = f"{strike_decision} {horizon_label}"
+            else:
+                result["decision_state"] = "ESPERAR CONFIRMACION"
+                result["decision_class"] = "watch"
+                result["tone"] = "watch"
+                result["action"] = f"Vigilar {strike_decision} {horizon_label}"
+            result["next_step"] = text_display(strike_signal.get("recommended_entry") or next_step)
+        else:
+            result["contract_side"] = "WAIT"
+            result["primary_label"] = "NO TRADE"
+            result["decision_state"] = "NO OPERAR"
+            result["decision_class"] = "avoid"
+            result["tone"] = "avoid"
+            result["probability"] = strike_confidence
+            result["confidence"] = strike_confidence
+            result["strength"] = strike_confidence
+            result["next_step"] = text_display(strike_signal.get("recommended_entry") or "No abrir contrato ahora.")
+        strike_reasons = [text_display(item) for item in strike_signal.get("reasons", []) if text_display(item)]
+        strike_warnings = [text_display(item) for item in strike_signal.get("warning_flags", []) if text_display(item)]
+        result["reasons"] = list(dict.fromkeys(strike_reasons + strike_warnings + reasons))[:8]
+    return result
 
 
 def roxy_crypto_live_symbols_attr(symbol: str) -> str:
