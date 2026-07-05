@@ -85,7 +85,6 @@ services:
     region: oregon
     dockerfilePath: ./Dockerfile.stock-bridge
     dockerContext: .
-    dockerCommand: python -m tools.roxy_stock_stream_bridge
     healthCheckPath: /health
     autoDeployTrigger: commit
     envVars:

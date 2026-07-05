@@ -15,4 +15,4 @@ COPY tools ./tools
 
 EXPOSE 8765
 
-CMD ["python", "-m", "tools.roxy_stock_stream_bridge"]
+CMD ["sh", "-c", "echo \"Roxy stock bridge booting on PORT=${PORT:-8765}\" && exec python -u -m tools.roxy_stock_stream_bridge"]
