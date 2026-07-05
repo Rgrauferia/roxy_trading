@@ -148,6 +148,11 @@ def test_actions_folder_pushes_server_side_live_stock_quotes():
     assert "roxy_stock_quote_snapshot(symbol)" in refresh_source
     assert "data-roxy-stock-live-price" in refresh_source
     assert "Feed real" in refresh_source
+    assert "data-roxy-stock-tick-arrow" in refresh_source
+    assert "node.dataset.roxySource" in refresh_source
+    assert "node.dataset.roxyMarketOpen" in refresh_source
+    assert "setTickArrow(symbol, firstDirection, quote)" in refresh_source
+    assert "sessionLabel(quote)" in refresh_source
     assert "streamlit_autorefresh" not in refresh_source
     assert "st_autorefresh" not in refresh_source
     assert "live_stock_symbols" in folder_source

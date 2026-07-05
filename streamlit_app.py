@@ -36461,25 +36461,51 @@ def render_roxy_stock_server_refresh(interval_ms: int = 3500, symbols: list[str]
             return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
           };
           const symbolFor = (node) => String(node.dataset.roxyStockSymbol || "").toUpperCase();
+          const sessionLabel = (quote) => quote.marketOpen === false ? "LAST" : quote.marketOpen === true ? "LIVE" : "QUOTE";
           const pulse = (node, direction) => {
             node.classList.remove("roxy-stock-tick-up", "roxy-stock-tick-down", "roxy-stock-tick-flat");
             void node.offsetWidth;
             node.classList.add(direction > 0 ? "roxy-stock-tick-up" : direction < 0 ? "roxy-stock-tick-down" : "roxy-stock-tick-flat");
+          };
+          const setTickArrow = (symbol, direction, quote) => {
+            const price = Number(quote.price);
+            const arrow = direction > 0 ? "↗" : direction < 0 ? "↘" : "●";
+            const tone = direction > 0 ? "tick-up" : direction < 0 ? "tick-down" : "tick-watch";
+            const label = sessionLabel(quote);
+            doc.querySelectorAll("[data-roxy-stock-tick-arrow]").forEach((node) => {
+              if (symbolFor(node) !== symbol) return;
+              node.textContent = `${arrow} ${label}`;
+              node.title = `${symbol} ${label}: ${formatPrice(price)} · ${quote.updatedAt || "ahora"}`;
+              node.classList.remove("tick-up", "tick-down", "tick-watch", "tick-pulse");
+              node.classList.add(tone, "tick-pulse");
+              window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
+            });
           };
           const applyQuotes = () => {
             let hits = 0;
             Object.entries(quotes).forEach(([symbol, quote]) => {
               const price = Number(quote.price);
               if (!Number.isFinite(price)) return;
+              let firstDirection = 0;
+              let directionSet = false;
               doc.querySelectorAll("[data-roxy-stock-live-price]").forEach((node) => {
                 if (symbolFor(node) !== symbol) return;
                 const previousPrice = Number(node.dataset.roxyPrice || node.dataset.roxyServerPrice || price);
                 node.dataset.roxyServerPrice = String(price);
                 node.dataset.roxyPrice = String(price);
+                node.dataset.roxySource = quote.source || "server_quote";
+                node.dataset.roxyFreshness = quote.freshness || "";
+                node.dataset.roxyMarketOpen = quote.marketOpen === true ? "true" : quote.marketOpen === false ? "false" : "";
+                node.dataset.roxyUpdatedAt = quote.updatedAt || "";
                 node.textContent = formatPrice(price);
                 const direction = price - previousPrice;
+                if (!directionSet) {
+                  firstDirection = direction;
+                  directionSet = true;
+                }
                 node.classList.toggle("positive", direction >= 0);
                 node.classList.toggle("negative", direction < 0);
+                node.title = `${symbol} ${sessionLabel(quote)} ${formatPrice(price)} · ${quote.source || "server quote"}`;
                 pulse(node, direction);
                 hits += 1;
               });
@@ -36501,6 +36527,7 @@ def render_roxy_stock_server_refresh(interval_ms: int = 3500, symbols: list[str]
                 node.classList.add("roxy-stock-server-ok");
                 hits += 1;
               });
+              setTickArrow(symbol, firstDirection, quote);
             });
             return hits;
           };
