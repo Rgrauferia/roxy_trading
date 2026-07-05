@@ -195,7 +195,10 @@ def test_professional_actions_chart_syncs_from_parent_live_stock_quote():
     assert "const parentQuote = () =>" in pro_panel
     assert 'parentDoc.querySelectorAll("[data-roxy-stock-live-price]")' in pro_panel
     assert "node.dataset.roxyServerPrice || node.dataset.roxyPrice" in pro_panel
+    assert "node.dataset.roxyMarketOpen" in pro_panel
+    assert "const isClosed =" in pro_panel
+    assert "LAST ${fmt(price)}" in pro_panel
     assert "parentQuote() || await yahooQuote(payload.symbol)" in pro_panel
-    assert "renderTradebar(price, quote.source)" in pro_panel
+    assert "renderTradebar(price, feedLabel)" in pro_panel
     assert "applySmartScale(price)" in pro_panel
     assert "Precio sincronizado sobre la vela actual sin salir de la pagina" in pro_panel

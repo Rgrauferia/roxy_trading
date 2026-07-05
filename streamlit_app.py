@@ -38590,8 +38590,16 @@ def render_roxy_actions_pro_chart_panel(
           const price = Number(raw);
           if (!Number.isFinite(price) || price <= 0) return null;
           const statusNode = parentDoc.querySelector(`[data-roxy-stock-live-status][data-roxy-stock-symbol="${safeSymbol}"]`);
-          const source = statusNode && statusNode.textContent ? String(statusNode.textContent).trim() : "Roxy server live";
-          return { price, state: "", source: source || "Roxy server live" };
+          const source = node.dataset.roxySource || (statusNode && statusNode.textContent ? String(statusNode.textContent).trim() : "Roxy server live");
+          const marketOpen = node.dataset.roxyMarketOpen === "true" ? true : node.dataset.roxyMarketOpen === "false" ? false : null;
+          return {
+            price,
+            state: marketOpen === false ? "CLOSED" : marketOpen === true ? "REGULAR" : "",
+            source: source || "Roxy server live",
+            marketOpen,
+            freshness: node.dataset.roxyFreshness || "",
+            updatedAt: node.dataset.roxyUpdatedAt || ""
+          };
         } catch (error) {
           return null;
         }
@@ -38611,11 +38619,12 @@ def render_roxy_actions_pro_chart_panel(
           const closes = quote && Array.isArray(quote.close) ? quote.close.filter((v) => Number.isFinite(Number(v))) : [];
           const price = Number(meta.regularMarketPrice || meta.postMarketPrice || meta.preMarketPrice || closes[closes.length - 1]);
           if (!Number.isFinite(price) || price <= 0) return null;
-          return {
-            price,
-            state: String(meta.marketState || "").toUpperCase(),
-            source: meta.marketState ? `Yahoo ${String(meta.marketState).toLowerCase()}` : "Yahoo live"
-          };
+	          return {
+	            price,
+	            state: String(meta.marketState || "").toUpperCase(),
+	            source: meta.marketState ? `Yahoo ${String(meta.marketState).toLowerCase()}` : "Yahoo live",
+	            marketOpen: ["REGULAR", "PRE", "POST"].includes(String(meta.marketState || "").toUpperCase())
+	          };
         } catch (error) {
           return null;
         } finally {
@@ -38789,16 +38798,19 @@ def render_roxy_actions_pro_chart_panel(
           low: Math.min(Number(liveCandle.low || price), price)
         };
 	        candleSeries.update(liveCandle);
-	        liveLine.applyOptions({
-	          price,
-	          color: price >= previous.close ? "#22c55e" : "#fb7185",
-	          title: `LIVE ${fmt(price)}`,
-	        });
-	        setLastBadge(price, previous.close, quote.source);
-	        renderTradebar(price, quote.source);
+		        const isClosed = quote.marketOpen === false || (quote.state && !["REGULAR", "PRE", "POST"].includes(String(quote.state).toUpperCase()));
+		        const liveTitle = isClosed ? `LAST ${fmt(price)}` : `LIVE ${fmt(price)}`;
+		        liveLine.applyOptions({
+		          price,
+		          color: price >= previous.close ? "#22c55e" : "#fb7185",
+		          title: liveTitle,
+		        });
+		        const feedLabel = isClosed ? `${quote.source} · ultimo precio` : quote.source;
+		        setLastBadge(price, previous.close, feedLabel);
+		        renderTradebar(price, feedLabel);
 	        applySmartScale(price);
 	        if (statusEl) {
-	          const stateText = quote.state && !["REGULAR", "PRE", "POST"].includes(quote.state) ? " · mercado cerrado" : "";
+		          const stateText = isClosed ? " · mercado cerrado" : "";
 	          const summary = payload.roxySummary || {};
 	          const entry = Number(summary.entry);
 	          const stop = Number(summary.stop);
@@ -38806,8 +38818,8 @@ def render_roxy_actions_pro_chart_panel(
 	          const nearStop = Number.isFinite(stop) && Math.abs(price - stop) <= Math.max(Math.abs(stop) * .0035, .02);
 	          statusEl.classList.toggle("rpc-near-entry", nearEntry);
 	          statusEl.classList.toggle("rpc-danger", nearStop);
-	          statusEl.innerHTML = `<span><span class="rpc-dot"></span><b>Live:</b> ${quote.source}${stateText} · ${new Date().toLocaleTimeString()}</span><em>${nearEntry ? "Precio entrando en zona de entrada Roxy." : nearStop ? "Atencion: precio cerca del stop." : "Precio sincronizado sobre la vela actual sin salir de la pagina."}</em>`;
-	        }
+		          statusEl.innerHTML = `<span><span class="rpc-dot"></span><b>${isClosed ? "Ultimo precio:" : "Live:"}</b> ${quote.source}${stateText} · ${quote.updatedAt || new Date().toLocaleTimeString()}</span><em>${nearEntry ? "Precio entrando en zona de entrada Roxy." : nearStop ? "Atencion: precio cerca del stop." : "Precio sincronizado sobre la vela actual sin salir de la pagina."}</em>`;
+		        }
       };
       syncLiveQuote();
       window.setInterval(syncLiveQuote, 2500);
