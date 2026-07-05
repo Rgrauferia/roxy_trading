@@ -36209,18 +36209,36 @@ def render_roxy_stock_live_runtime() -> None:
             });
             return map;
           };
+          const setTickArrow = (symbol, direction, price, source = "live") => {
+            const arrow = direction > 0 ? "↗" : direction < 0 ? "↘" : "●";
+            const tone = direction > 0 ? "tick-up" : direction < 0 ? "tick-down" : "tick-watch";
+            doc.querySelectorAll("[data-roxy-stock-tick-arrow]").forEach((node) => {
+              const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
+              if (statusSymbol && statusSymbol !== symbol) return;
+              node.textContent = `${arrow} ${source}`;
+              node.title = `Ultimo movimiento ${symbol}: ${fmt(price)}`;
+              node.classList.remove("tick-up", "tick-down", "tick-watch", "tick-pulse");
+              node.classList.add(tone, "tick-pulse");
+              window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
+            });
+          };
           const setTone = (node, price) => {
             const previous = Number(node.dataset.roxyPrice || 0);
             node.dataset.roxyPrice = String(price);
             node.textContent = fmt(price);
+            node.title = `Precio live: ${fmt(price)}`;
+            node.setAttribute("aria-label", `Precio live ${fmt(price)}`);
             node.classList.remove("tick-up", "tick-down", "tick-pulse");
+            let direction = 0;
             if (previous && Number.isFinite(previous) && Number.isFinite(price)) {
-              node.classList.add(Number(price) >= previous ? "tick-up" : "tick-down");
+              direction = Number(price) - previous;
+              node.classList.add(direction >= 0 ? "tick-up" : "tick-down");
             }
             window.requestAnimationFrame(() => {
               node.classList.add("tick-pulse");
               window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
             });
+            return direction;
           };
           const setStatus = (symbol, text, tone = "watch") => {
             doc.querySelectorAll("[data-roxy-stock-live-status]").forEach((node) => {
@@ -36260,9 +36278,15 @@ def render_roxy_stock_live_runtime() -> None:
               : Number.isFinite(previous) && previous > 0
                 ? (price - previous) / previous
                 : null;
+            let firstDirection = 0;
+            let directionSet = false;
             (nodesBySymbol("[data-roxy-stock-live-price]").get(symbol) || []).forEach((node) => {
               node.dataset.roxyServerPrice = String(price);
-              setTone(node, price);
+              const direction = setTone(node, price);
+              if (!directionSet) {
+                firstDirection = direction;
+                directionSet = true;
+              }
             });
             (nodesBySymbol("[data-roxy-stock-change]").get(symbol) || []).forEach((node) => {
               node.textContent = pctFmt(pct);
@@ -36275,6 +36299,7 @@ def render_roxy_stock_live_runtime() -> None:
             const sessionText = quote.marketOpen === false ? " · mercado cerrado" : quote.marketOpen === true ? " · mercado abierto" : "";
             const prefix = quote.marketOpen === false ? "Ultimo precio" : quote.mode === "stream" ? "Stream real" : "Feed real";
             setStatus(symbol, `${prefix} · ${source} · ${stamp}${freshness}${sessionText}`, Number.isFinite(pct) ? (pct >= 0 ? "up" : "down") : "watch");
+            setTickArrow(symbol, firstDirection, price, quote.marketOpen === false ? "LAST" : "LIVE");
             return true;
           };
           const fetchYahoo = async (symbol) => {
@@ -36982,7 +37007,7 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
               <span class="rank">{idx}</span>
               {roxy_stock_icon_html(symbol)}
               <span class="asset"><strong>{html.escape(symbol)}</strong><small>{html.escape(strategy_family_for_row(row)[:34])}</small></span>
-              <span class="price"><strong data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(live_stock_symbol)}" data-roxy-price="{html.escape(str(safe_float(row.get("current_price") or row.get("price") or row.get("last_price") or row_plan.get("entry")) or ""))}">{html.escape(row_price)}</strong><small data-roxy-stock-change data-roxy-stock-symbol="{html.escape(live_stock_symbol)}">{html.escape(row_change_text)}</small><small class="live-source" data-roxy-stock-live-status data-roxy-stock-symbol="{html.escape(live_stock_symbol)}">feed live...</small></span>
+              <span class="price"><strong data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(live_stock_symbol)}" data-roxy-price="{html.escape(str(safe_float(row.get("current_price") or row.get("price") or row.get("last_price") or row_plan.get("entry")) or ""))}">{html.escape(row_price)}</strong><small data-roxy-stock-change data-roxy-stock-symbol="{html.escape(live_stock_symbol)}">{html.escape(row_change_text)}</small><small class="tick-motion tick-watch" data-roxy-stock-tick-arrow data-roxy-stock-symbol="{html.escape(live_stock_symbol)}">LIVE</small><small class="live-source" data-roxy-stock-live-status data-roxy-stock-symbol="{html.escape(live_stock_symbol)}">feed live...</small></span>
               <span class="trend">{roxy_actions_sparkline_svg(symbol, row_market)}</span>
               <span class="score"><b>{row_score}</b><small>{'Excelente' if row_score >= 88 else 'Muy buena' if row_score >= 80 else 'Buena'}</small></span>
               <span class="signal"><strong>{html.escape(row_action)}</strong><small>Entrada: {html.escape(row_entry)}<br>Stop: {html.escape(row_stop)}<br>Target: {html.escape(row_target)}</small></span>
@@ -37060,6 +37085,53 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
               animation: roxy-stock-server-heartbeat 1.85s ease-in-out infinite;
               text-shadow: 0 0 14px rgba(34,197,94,.34);
             }}
+            .roxy-actions-row .price strong.tick-up,
+            .roxy-actions-signal b.tick-up,
+            .roxy-actions-chart-wrap header b.tick-up,
+            .roxy-actions-chart-wrap header [data-roxy-stock-change].tick-up,
+            .roxy-actions-row .price [data-roxy-stock-change].tick-up,
+            .roxy-actions-row .price .tick-motion.tick-up,
+            .roxy-actions-row .price .live-source.tick-up,
+            .roxy-actions-signal [data-roxy-stock-live-status].tick-up {{
+              color: #35f59d !important;
+              text-shadow: 0 0 16px rgba(34,197,94,.64);
+            }}
+            .roxy-actions-row .price strong.tick-down,
+            .roxy-actions-signal b.tick-down,
+            .roxy-actions-chart-wrap header b.tick-down,
+            .roxy-actions-chart-wrap header [data-roxy-stock-change].tick-down,
+            .roxy-actions-row .price [data-roxy-stock-change].tick-down,
+            .roxy-actions-row .price .tick-motion.tick-down,
+            .roxy-actions-row .price .live-source.tick-down,
+            .roxy-actions-signal [data-roxy-stock-live-status].tick-down {{
+              color: #ff5b72 !important;
+              text-shadow: 0 0 16px rgba(248,113,113,.56);
+            }}
+            .roxy-actions-row .price .tick-motion {{
+              display: inline-grid;
+              place-items: center;
+              width: fit-content;
+              min-width: 42px;
+              margin-top: 3px;
+              padding: 2px 6px;
+              border: 1px solid rgba(125,211,252,.20);
+              border-radius: 999px;
+              background: rgba(8,47,73,.44);
+              color: #7dd3fc;
+              font-size: 8px;
+              font-weight: 1000;
+              letter-spacing: .08em;
+              line-height: 1;
+            }}
+            .roxy-actions-row .price .tick-motion.tick-pulse,
+            [data-roxy-stock-live-price].tick-pulse {{
+              animation: roxy-stock-live-visible-pulse .86s ease-out 1, roxy-stock-server-heartbeat 1.85s ease-in-out infinite;
+            }}
+            .roxy-actions-row .price .live-source.tick-watch,
+            .roxy-actions-signal [data-roxy-stock-live-status].tick-watch,
+            .roxy-actions-chart-wrap [data-roxy-stock-live-status].tick-watch {{
+              color: rgba(250,204,21,.92) !important;
+            }}
             .roxy-stock-tick-up {{
               color: #35f59d !important;
               animation: roxy-stock-tick-up-flash .62s ease-out 1;
@@ -37078,6 +37150,11 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
             @keyframes roxy-stock-server-heartbeat {{
               0%,100% {{ filter: brightness(1); }}
               45% {{ filter: brightness(1.42) drop-shadow(0 0 8px rgba(56,189,248,.44)); }}
+            }}
+            @keyframes roxy-stock-live-visible-pulse {{
+              0% {{ transform: scale(1); filter: brightness(1); }}
+              38% {{ transform: scale(1.075); filter: brightness(1.55) drop-shadow(0 0 14px rgba(56,189,248,.72)); }}
+              100% {{ transform: scale(1); filter: brightness(1); }}
             }}
             @keyframes roxy-stock-tick-up-flash {{
               0% {{ transform: scale(1); text-shadow: 0 0 0 rgba(34,197,94,0); }}
@@ -38157,11 +38234,9 @@ def roxy_actions_plotly_chart_panel(
         fig,
         use_container_width=True,
         config={
-            "displayModeBar": "hover",
+            "displayModeBar": False,
             "scrollZoom": True,
             "responsive": True,
-            "modeBarButtonsToAdd": ["drawline", "eraseshape"],
-            "modeBarButtonsToRemove": ["lasso2d", "select2d", "autoScale2d", "toggleSpikelines"],
             "displaylogo": False,
         },
     )
@@ -38327,13 +38402,13 @@ def render_roxy_actions_pro_chart_panel(
         </div>
         <aside data-rpc-last></aside>
       </header>
-      <section class="rpc-toolbar">
-        <button data-range="60">60 velas</button>
-        <button data-range="80" class="active">80 velas</button>
-        <button data-range="110">110 velas</button>
-        <button data-range="all">Todo</button>
-        <span>Zoom con rueda · arrastra para mover · cursor para leer precio</span>
-      </section>
+	      <section class="rpc-toolbar">
+	        <button data-range="60">60 velas</button>
+	        <button data-range="90" class="active">90 velas</button>
+	        <button data-range="140">140 velas</button>
+	        <button data-range="all">Todo</button>
+	        <span>Zoom · pan · cursor · precio live sincronizado</span>
+	      </section>
       <section class="rpc-tradebar" data-rpc-tradebar></section>
       <main class="rpc-stage">
         <div class="rpc-chart"></div>
@@ -38374,24 +38449,27 @@ def render_roxy_actions_pro_chart_panel(
       .rpc-tradebar b{display:block;margin-top:2px;color:#f8fafc;font-size:12px;font-weight:1000;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .rpc-tradebar .danger small,.rpc-tradebar .danger b{color:#fb7185}.rpc-tradebar .good small,.rpc-tradebar .good b{color:#86efac}.rpc-tradebar .blue small,.rpc-tradebar .blue b{color:#7dd3fc}
       .rpc-stage{position:relative;flex:1 1 auto;min-height:0;padding:6px 7px 0}
-      .rpc-stage:before{content:"";position:absolute;inset:6px 7px 0;border-radius:12px;background:linear-gradient(90deg,transparent,rgba(56,189,248,.06),transparent),radial-gradient(circle at 70% 16%,rgba(34,197,94,.08),transparent 22%);pointer-events:none}
-      .rpc-chart{position:absolute;inset:6px 7px 0 7px}
+	      .rpc-stage:before{content:"";position:absolute;inset:6px 7px 0;border-radius:12px;background:linear-gradient(90deg,transparent,rgba(56,189,248,.06),transparent),radial-gradient(circle at 70% 16%,rgba(34,197,94,.08),transparent 22%);pointer-events:none}
+	      .rpc-stage:after{content:"";position:absolute;inset:6px 7px 0;border-radius:12px;background-image:linear-gradient(rgba(148,163,184,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.045) 1px,transparent 1px);background-size:44px 44px;opacity:.7;pointer-events:none}
+	      .rpc-chart{position:absolute;inset:6px 7px 0 7px}
       .rpc-crosscard{position:absolute;left:16px;top:16px;z-index:5;display:none;min-width:190px;padding:8px 10px;border:1px solid rgba(125,211,252,.32);border-left:3px solid #38bdf8;border-radius:10px;background:rgba(2,6,23,.78);backdrop-filter:blur(10px);box-shadow:0 14px 28px rgba(0,0,0,.34);font-size:11px;font-weight:850;line-height:1.35;color:#dbeafe}
       .rpc-crosscard b{color:#f8fafc}
       .rpc-plan{position:absolute;right:14px;top:14px;z-index:4;max-width:214px;padding:8px 10px;border:1px solid rgba(34,197,94,.30);border-left:3px solid #22c55e;border-radius:12px;background:rgba(2,6,23,.64);backdrop-filter:blur(10px);box-shadow:0 14px 28px rgba(0,0,0,.26);font-size:10px;font-weight:850;line-height:1.34;color:#dbeafe;pointer-events:none}
       .rpc-plan strong{display:block;color:#fff;font-size:12px;margin-bottom:4px}
       .rpc-plan span{display:grid;grid-template-columns:78px 1fr;gap:8px;color:#a7bce0}
       .rpc-plan b{color:#f8fafc;text-align:right}
-      .rpc-statusbar{position:absolute;left:16px;right:16px;bottom:12px;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid rgba(125,211,252,.18);border-radius:10px;background:rgba(2,6,23,.62);backdrop-filter:blur(10px);padding:6px 9px;color:#9fb8da;font-size:10px;font-weight:900;pointer-events:none}
-      .rpc-statusbar b{color:#e0f2fe}.rpc-statusbar em{font-style:normal;color:#22c55e}.rpc-statusbar .rpc-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px;background:#22c55e;box-shadow:0 0 12px rgba(34,197,94,.9);animation:rpcLiveDot 1.2s ease-in-out infinite}
-      .rpc-legend{display:flex;gap:9px;align-items:center;overflow-x:auto;padding:8px 10px 10px;border-top:1px solid rgba(96,165,250,.14);white-space:nowrap}
+	      .rpc-statusbar{position:absolute;left:16px;right:16px;bottom:12px;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid rgba(125,211,252,.18);border-radius:10px;background:rgba(2,6,23,.62);backdrop-filter:blur(10px);padding:6px 9px;color:#9fb8da;font-size:10px;font-weight:900;pointer-events:none}
+	      .rpc-statusbar b{color:#e0f2fe}.rpc-statusbar em{font-style:normal;color:#22c55e}.rpc-statusbar .rpc-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px;background:#22c55e;box-shadow:0 0 12px rgba(34,197,94,.9);animation:rpcLiveDot 1.2s ease-in-out infinite}
+	      .rpc-statusbar.rpc-near-entry{border-color:rgba(34,197,94,.42);box-shadow:0 0 24px rgba(34,197,94,.16)}
+	      .rpc-statusbar.rpc-danger{border-color:rgba(248,113,113,.46);box-shadow:0 0 24px rgba(248,113,113,.14)}
+	      .rpc-legend{display:flex;gap:9px;align-items:center;overflow-x:auto;padding:8px 10px 10px;border-top:1px solid rgba(96,165,250,.14);white-space:nowrap}
       .rpc-legend b{display:inline-flex;align-items:center;gap:5px;color:#bfd7ff;font-size:10px;font-weight:900}
       .rpc-legend i{display:block;width:18px;height:3px;border-radius:99px;box-shadow:0 0 10px currentColor}
       @keyframes rpcLiveDot{0%,100%{opacity:.45;transform:scale(.9)}50%{opacity:1;transform:scale(1.18)}}
       @keyframes rpcPriceFlashUp{0%{transform:translateY(0) scale(1)}45%{transform:translateY(-2px) scale(1.045)}100%{transform:translateY(0) scale(1)}}
       @keyframes rpcPriceFlashDown{0%{transform:translateY(0) scale(1)}45%{transform:translateY(2px) scale(1.045)}100%{transform:translateY(0) scale(1)}}
       @keyframes rpcPriceFlashFlat{0%{transform:scale(1)}45%{transform:scale(1.035)}100%{transform:scale(1)}}
-      @media(max-width:720px){.rpc-head{padding:9px 10px 6px}.rpc-head strong{font-size:15px}.rpc-head aside{font-size:15px}.rpc-toolbar span{display:none}.rpc-tradebar{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.rpc-tradebar span{padding:6px 7px}.rpc-tradebar b{font-size:11px}.rpc-plan{display:none}.rpc-crosscard{max-width:calc(100% - 32px)}.rpc-statusbar{left:12px;right:12px;bottom:8px;font-size:8px;display:block}.rpc-statusbar em{display:block;margin-top:2px}}
+	      @media(max-width:720px){.rpc-head{padding:9px 10px 6px}.rpc-head strong{font-size:15px}.rpc-head aside{font-size:15px}.rpc-toolbar span{display:none}.rpc-tradebar{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.rpc-tradebar span{padding:6px 7px}.rpc-tradebar b{font-size:11px}.rpc-plan{display:none}.rpc-crosscard{max-width:calc(100% - 32px)}.rpc-statusbar{left:12px;right:12px;bottom:8px;font-size:8px;display:block}.rpc-statusbar em{display:block;margin-top:2px}.rpc-legend{padding-bottom:8px}.rpc-legend b{font-size:9px}}
     </style>
     <script>
     (() => {
@@ -38451,20 +38529,23 @@ def render_roxy_actions_pro_chart_panel(
         void lastEl.offsetWidth;
         lastEl.classList.add(tickMove > 0 ? "rpc-flash-up" : tickMove < 0 ? "rpc-flash-down" : "rpc-flash-flat");
       };
-      const renderTradebar = (price, source = "historial") => {
-        if (!tradebarEl) return;
-        const summary = payload.roxySummary || {};
-        const entry = Number(summary.entry);
-        const stop = Number(summary.stop);
-        const target = Number(summary.target);
-        const rr = Number(summary.rr);
-        tradebarEl.innerHTML = `
-          <span class="blue"><small>Precio live</small><b>${Number.isFinite(Number(price)) ? fmt(price) : "--"}</b></span>
-          <span class="good"><small>Entrada</small><b>${Number.isFinite(entry) ? fmt(entry) : "--"}</b></span>
-          <span class="danger"><small>Stop</small><b>${Number.isFinite(stop) ? fmt(stop) : "--"}</b></span>
-          <span class="blue"><small>Target</small><b>${Number.isFinite(target) ? fmt(target) : "--"}</b></span>
-          <span><small>Feed</small><b>${String(source || "historial").slice(0, 26)}</b></span>
-        `;
+	      const renderTradebar = (price, source = "historial") => {
+	        if (!tradebarEl) return;
+	        const summary = payload.roxySummary || {};
+	        const entry = Number(summary.entry);
+	        const stop = Number(summary.stop);
+	        const target = Number(summary.target);
+	        const rr = Number(summary.rr);
+	        const live = Number(price);
+	        const nearEntry = Number.isFinite(live) && Number.isFinite(entry) && Math.abs(live - entry) <= Math.max(Math.abs(entry) * .0035, .02);
+	        const nearStop = Number.isFinite(live) && Number.isFinite(stop) && Math.abs(live - stop) <= Math.max(Math.abs(stop) * .0035, .02);
+	        tradebarEl.innerHTML = `
+	          <span class="blue"><small>Precio live</small><b>${Number.isFinite(live) ? fmt(live) : "--"}</b></span>
+	          <span class="good"><small>${nearEntry ? "En zona entrada" : "Entrada"}</small><b>${Number.isFinite(entry) ? fmt(entry) : "--"}</b></span>
+	          <span class="danger"><small>${nearStop ? "Cerca del stop" : "Stop"}</small><b>${Number.isFinite(stop) ? fmt(stop) : "--"}</b></span>
+	          <span class="blue"><small>Target</small><b>${Number.isFinite(target) ? fmt(target) : "--"}</b></span>
+	          <span><small>Feed</small><b>${String(source || "historial").slice(0, 26)}</b></span>
+	        `;
         if (Number.isFinite(rr)) {
           const last = tradebarEl.lastElementChild;
           if (last) last.innerHTML = `<small>R/R · Feed</small><b>1:${rr.toFixed(1)} · ${String(source || "historial").slice(0, 18)}</b>`;
@@ -38534,15 +38615,23 @@ def render_roxy_actions_pro_chart_panel(
         handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
         handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
       });
-      const candleSeries = chart.addCandlestickSeries({
+	      const candleSeries = chart.addCandlestickSeries({
         upColor: "#22c55e", downColor: "#ef4444",
         borderUpColor: "#86efac", borderDownColor: "#fca5a5",
         wickUpColor: "#86efac", wickDownColor: "#fca5a5",
         priceLineVisible: true, lastValueVisible: true,
         priceFormat: { type: "price", precision: latest.close >= 1 ? 2 : 5, minMove: latest.close >= 1 ? .01 : .00001 },
-      });
-      candleSeries.setData(candles);
-      let liveCandle = { ...latest };
+	      });
+	      candleSeries.setData(candles);
+	      let liveCandle = { ...latest };
+	      const liveLine = candleSeries.createPriceLine({
+	        price: latest.close,
+	        color: "#22c55e",
+	        lineWidth: 2,
+	        lineStyle: LightweightCharts.LineStyle.Solid,
+	        axisLabelVisible: true,
+	        title: "LIVE",
+	      });
       const levelPrices = (payload.levels || []).map((level) => Number(level.value)).filter(Number.isFinite);
       const quantile = (values, q) => {
         const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
@@ -38595,25 +38684,34 @@ def render_roxy_actions_pro_chart_panel(
       const volume = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "volume", lastValueVisible: false, priceLineVisible: false });
       volume.setData(candles.map((c) => ({ time: c.time, value: c.volume || 0, color: c.close >= c.open ? "rgba(34,197,94,.38)" : "rgba(239,68,68,.38)" })));
       chart.priceScale("volume").applyOptions({ scaleMargins: { top: .82, bottom: 0 }, borderVisible: false });
-      (payload.levels || []).forEach((level) => {
+	      (payload.levels || []).forEach((level) => {
         const value = Number(level.value);
         if (!Number.isFinite(value)) return;
         candleSeries.createPriceLine({ price: value, color: level.color, lineWidth: 2, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: `${level.label} ${fmt(value)}` });
-      });
-      if (statusEl) {
+	      });
+	      candleSeries.setMarkers([
+	        {
+	          time: latest.time,
+	          position: "aboveBar",
+	          color: "#38bdf8",
+	          shape: "arrowDown",
+	          text: "Roxy live",
+	        }
+	      ]);
+	      if (statusEl) {
         const lastTime = latest.time ? new Date(Number(latest.time) * 1000).toLocaleString() : "sin hora";
         const levelText = (payload.levels || []).map((level) => `${level.label}: ${fmt(Number(level.value))}`).join(" · ");
         const quality = payload.chartQuality || {};
         const cleanedText = Number(quality.removedAnomalies || 0) > 0 ? ` · ${Number(quality.removedAnomalies || 0)} velas filtradas` : "";
         statusEl.innerHTML = `<span><span class="rpc-dot"></span><b>Velas:</b> ${candles.length}${cleanedText} · <b>Ultima:</b> ${lastTime}</span><em>${levelText || "Roxy monitorea niveles"}</em>`;
       }
-      const plan = payload.roxySummary || {};
+	      const plan = payload.roxySummary || {};
       planEl.innerHTML = `<strong>Plan Roxy: ${plan.action || "Esperar confirmacion"}</strong>
         <span>Entrada <b>${plan.entry ? fmt(plan.entry) : "--"}</b></span>
         <span>Stop <b>${plan.stop ? fmt(plan.stop) : "--"}</b></span>
         <span>Target <b>${plan.target ? fmt(plan.target) : "--"}</b></span>
         <span>R/R <b>${plan.rr ? "1R : " + Number(plan.rr).toFixed(1) + "R" : "--"}</b></span>`;
-      const setVisible = (count) => {
+	      const setVisible = (count) => {
         if (count === "all" || candles.length <= Number(count)) {
           chart.timeScale().fitContent();
           return;
@@ -38621,7 +38719,7 @@ def render_roxy_actions_pro_chart_panel(
         const to = candles.length + 5;
         chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, candles.length - Number(count)), to });
       };
-      setVisible(80);
+	      setVisible(90);
       root.querySelectorAll("[data-range]").forEach((button) => {
         button.addEventListener("click", () => {
           root.querySelectorAll("[data-range]").forEach((b) => b.classList.remove("active"));
@@ -38663,14 +38761,26 @@ def render_roxy_actions_pro_chart_panel(
           high: Math.max(Number(liveCandle.high || price), price),
           low: Math.min(Number(liveCandle.low || price), price)
         };
-        candleSeries.update(liveCandle);
-        setLastBadge(price, previous.close, quote.source);
-        renderTradebar(price, quote.source);
-        applySmartScale(price);
-        if (statusEl) {
-          const stateText = quote.state && !["REGULAR", "PRE", "POST"].includes(quote.state) ? " · mercado cerrado" : "";
-          statusEl.innerHTML = `<span><span class="rpc-dot"></span><b>Live:</b> ${quote.source}${stateText} · ${new Date().toLocaleTimeString()}</span><em>Precio sincronizado sobre la vela actual sin salir de la pagina.</em>`;
-        }
+	        candleSeries.update(liveCandle);
+	        liveLine.applyOptions({
+	          price,
+	          color: price >= previous.close ? "#22c55e" : "#fb7185",
+	          title: `LIVE ${fmt(price)}`,
+	        });
+	        setLastBadge(price, previous.close, quote.source);
+	        renderTradebar(price, quote.source);
+	        applySmartScale(price);
+	        if (statusEl) {
+	          const stateText = quote.state && !["REGULAR", "PRE", "POST"].includes(quote.state) ? " · mercado cerrado" : "";
+	          const summary = payload.roxySummary || {};
+	          const entry = Number(summary.entry);
+	          const stop = Number(summary.stop);
+	          const nearEntry = Number.isFinite(entry) && Math.abs(price - entry) <= Math.max(Math.abs(entry) * .0035, .02);
+	          const nearStop = Number.isFinite(stop) && Math.abs(price - stop) <= Math.max(Math.abs(stop) * .0035, .02);
+	          statusEl.classList.toggle("rpc-near-entry", nearEntry);
+	          statusEl.classList.toggle("rpc-danger", nearStop);
+	          statusEl.innerHTML = `<span><span class="rpc-dot"></span><b>Live:</b> ${quote.source}${stateText} · ${new Date().toLocaleTimeString()}</span><em>${nearEntry ? "Precio entrando en zona de entrada Roxy." : nearStop ? "Atencion: precio cerca del stop." : "Precio sincronizado sobre la vela actual sin salir de la pagina."}</em>`;
+	        }
       };
       syncLiveQuote();
       window.setInterval(syncLiveQuote, 2500);
