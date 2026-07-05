@@ -12,6 +12,8 @@ RUN python -m pip install --upgrade pip \
     && pip install -r requirements.stock-bridge.txt
 
 COPY tools ./tools
+COPY scripts ./scripts
+RUN chmod +x ./scripts/stock_bridge_entrypoint.sh ./scripts/render_start.sh
 
 EXPOSE 8765
 

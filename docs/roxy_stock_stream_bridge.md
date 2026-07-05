@@ -82,6 +82,11 @@ Health Check Path: /health
 Start Command: leave blank
 ```
 
+The stock bridge image also includes `scripts/stock_bridge_entrypoint.sh` and
+`scripts/render_start.sh`, so the service still boots if Render has an older
+manual Start Command pointing to either script. Leaving Start Command blank is
+still preferred because the Dockerfile `CMD` is the canonical startup path.
+
 If the manual service accidentally uses the main `Dockerfile`, set this env var on `roxy-stock-stream`:
 
 ```text
