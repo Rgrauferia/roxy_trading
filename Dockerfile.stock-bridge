@@ -12,7 +12,8 @@ RUN python -m pip install --upgrade pip \
     && pip install -r requirements.stock-bridge.txt
 
 COPY tools ./tools
+COPY scripts/stock_bridge_entrypoint.sh ./scripts/stock_bridge_entrypoint.sh
 
 EXPOSE 8765
 
-CMD ["sh", "-c", "uvicorn tools.roxy_stock_stream_bridge:app --host 0.0.0.0 --port ${PORT:-8765}"]
+ENTRYPOINT ["sh", "/app/scripts/stock_bridge_entrypoint.sh"]
