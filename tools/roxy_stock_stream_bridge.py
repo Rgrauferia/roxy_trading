@@ -9,11 +9,16 @@ not available.
 from __future__ import annotations
 
 import asyncio
+import csv
 import json
 import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 from typing import Any, AsyncIterator
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo
 
 try:
     from fastapi import FastAPI, Query
@@ -24,12 +29,11 @@ except ImportError:  # pragma: no cover - service runtime installs requirements.
     JSONResponse = None  # type: ignore[assignment]
     StreamingResponse = None  # type: ignore[assignment]
 
-from living_market import build_live_price_snapshot, safe_float, stock_market_open_state
-
-
 ALPACA_STREAM_BASE = "wss://stream.data.alpaca.markets/v2"
+ALPACA_REST_BASE = "https://data.alpaca.markets/v2"
 DEFAULT_SYMBOLS = ("AAPL", "MSFT", "NVDA", "TSLA", "AMD")
 MAX_SYMBOLS = 24
+HTTP_TIMEOUT_SECONDS = 6
 
 app = FastAPI(title="Roxy Stock Stream Bridge", version="1.0.0") if FastAPI is not None else None
 
@@ -58,6 +62,26 @@ def sse_event(event: str, data: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {json.dumps(data, separators=(',', ':'), ensure_ascii=False)}\n\n"
 
 
+def safe_float(value: Any) -> float | None:
+    try:
+        if value is None or value == "":
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def stock_market_open_state() -> dict[str, Any]:
+    now = datetime.now(ZoneInfo("America/New_York"))
+    is_weekday = now.weekday() < 5
+    is_open = is_weekday and time(9, 30) <= now.time() <= time(16, 0)
+    return {
+        "open": is_open,
+        "label": "mercado abierto" if is_open else "mercado cerrado",
+        "updatedAt": now.strftime("%I:%M:%S %p").lstrip("0"),
+    }
+
+
 def _feed_name() -> str:
     feed = re.sub(r"[^a-z]", "", os.getenv("ALPACA_DATA_FEED", "iex").lower())
     return feed if feed in {"iex", "sip"} else "iex"
@@ -71,23 +95,101 @@ def _alpaca_credentials() -> tuple[str, str]:
     return os.getenv("ALPACA_API_KEY", "").strip(), os.getenv("ALPACA_API_SECRET", "").strip()
 
 
-def _quote_from_snapshot(symbol: str) -> dict[str, Any] | None:
-    snapshot = build_live_price_snapshot(symbol, "stock")
-    price = safe_float(snapshot.get("price"))
+def _http_json(url: str, headers: dict[str, str] | None = None) -> dict[str, Any] | list[Any] | None:
+    request = Request(url, headers=headers or {})
+    try:
+        with urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
+            body = response.read().decode("utf-8", errors="replace")
+    except (HTTPError, URLError, TimeoutError, OSError):
+        return None
+    try:
+        parsed = json.loads(body)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, (dict, list)) else None
+
+
+def _alpaca_rest_quote(symbol: str) -> dict[str, Any] | None:
+    key, secret = _alpaca_credentials()
+    if not key or not secret:
+        return None
+
+    headers = {
+        "APCA-API-KEY-ID": key,
+        "APCA-API-SECRET-KEY": secret,
+    }
+    feed = _feed_name()
+    query = urlencode({"feed": feed})
+    trade_url = f"{ALPACA_REST_BASE}/stocks/{symbol}/trades/latest?{query}"
+    quote_url = f"{ALPACA_REST_BASE}/stocks/{symbol}/quotes/latest?{query}"
+
+    trade_payload = _http_json(trade_url, headers=headers)
+    quote_payload = _http_json(quote_url, headers=headers)
+    trade = trade_payload.get("trade") if isinstance(trade_payload, dict) else None
+    quote = quote_payload.get("quote") if isinstance(quote_payload, dict) else None
+
+    price = safe_float(trade.get("p") if isinstance(trade, dict) else None)
+    if price is None and isinstance(quote, dict):
+        bid = safe_float(quote.get("bp"))
+        ask = safe_float(quote.get("ap"))
+        if bid is not None and ask is not None and bid > 0 and ask > 0:
+            price = (bid + ask) / 2
+        else:
+            price = bid or ask
+
     if price is None or price <= 0:
         return None
-    change_pct = safe_float(snapshot.get("change_pct"))
-    previous = safe_float(snapshot.get("previous_close"))
+
+    market_state = stock_market_open_state()
     return {
         "symbol": symbol,
         "price": round(price, 6),
-        "changePct": round(change_pct * 100, 4) if change_pct is not None else None,
-        "previous": round(previous, 6) if previous is not None else None,
-        "source": str(snapshot.get("source") or "snapshot")[:64],
-        "marketOpen": snapshot.get("market_open"),
-        "freshness": str(snapshot.get("freshness") or snapshot.get("latency_note") or "")[:96],
-        "updatedAt": datetime.now().strftime("%I:%M:%S %p").lstrip("0"),
+        "changePct": None,
+        "previous": None,
+        "source": f"Alpaca {feed.upper()} REST",
+        "marketOpen": bool(market_state.get("open")),
+        "freshness": "latest trade/quote",
+        "updatedAt": str(market_state.get("updatedAt")),
     }
+
+
+def _stooq_quote(symbol: str) -> dict[str, Any] | None:
+    # Public delayed fallback used only when Alpaca is unavailable.
+    stooq_symbol = f"{symbol.lower()}.us"
+    url = f"https://stooq.com/q/l/?s={stooq_symbol}&f=sd2t2ohlcv&h&e=csv"
+    request = Request(url, headers={"User-Agent": "RoxyTrading/1.0"})
+    try:
+        with urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
+            body = response.read().decode("utf-8", errors="replace")
+    except (HTTPError, URLError, TimeoutError, OSError):
+        return None
+
+    rows = list(csv.DictReader(body.splitlines()))
+    if not rows:
+        return None
+    row = rows[0]
+    close = safe_float(row.get("Close"))
+    open_price = safe_float(row.get("Open"))
+    if close is None or close <= 0:
+        return None
+    change_pct = None
+    if open_price is not None and open_price > 0:
+        change_pct = ((close - open_price) / open_price) * 100
+    market_state = stock_market_open_state()
+    return {
+        "symbol": symbol,
+        "price": round(close, 6),
+        "changePct": round(change_pct, 4) if change_pct is not None else None,
+        "previous": round(open_price, 6) if open_price is not None else None,
+        "source": "Stooq delayed fallback",
+        "marketOpen": bool(market_state.get("open")),
+        "freshness": "delayed fallback",
+        "updatedAt": str(market_state.get("updatedAt")),
+    }
+
+
+def _quote_from_snapshot(symbol: str) -> dict[str, Any] | None:
+    return _alpaca_rest_quote(symbol) or _stooq_quote(symbol)
 
 
 async def _polling_quotes(symbols: list[str], delay_seconds: float = 2.0) -> AsyncIterator[dict[str, Any]]:

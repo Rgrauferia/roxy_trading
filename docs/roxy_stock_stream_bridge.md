@@ -7,7 +7,7 @@ Roxy can show moving stock prices without exposing market-data keys in the brows
 - Reads `ALPACA_API_KEY` and `ALPACA_API_SECRET` only on the server.
 - Connects to Alpaca market-data WebSocket when available.
 - Emits sanitized Server-Sent Events from `/v1/market/stock-stream`.
-- Falls back to Roxy's existing quote snapshot path if Alpaca streaming is unavailable.
+- Falls back to Alpaca REST latest trade/quote, then a public delayed quote fallback if streaming is unavailable.
 - Keeps the Streamlit UI working even when the bridge is offline.
 
 ## Local run
@@ -72,6 +72,15 @@ ALPACA_DATA_FEED=iex
 The main `roxy-trading` service only receives `ROXY_STOCK_STREAM_URL`; it never sends API keys to frontend code.
 
 If you manage Render from a Blueprint, sync/redeploy the blueprint after pushing the repo. If the service is created manually, create a Docker web service named `roxy-stock-stream`, point it to this repo, and use `Dockerfile.stock-bridge`.
+
+For a manually created Render Docker service, verify these exact settings:
+
+```text
+Dockerfile Path: ./Dockerfile.stock-bridge
+Docker Context Directory: .
+Health Check Path: /health
+Start Command: leave blank
+```
 
 ## Market-hours behavior
 
