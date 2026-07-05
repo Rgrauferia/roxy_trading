@@ -92,6 +92,8 @@ services:
         value: 8765
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: ROXY_SERVICE_MODE
+        value: stock-stream
       - key: ALPACA_DATA_FEED
         value: iex
       - key: ROXY_STOCK_ALPACA_STREAM

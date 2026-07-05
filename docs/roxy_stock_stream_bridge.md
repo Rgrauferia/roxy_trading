@@ -82,6 +82,14 @@ Health Check Path: /health
 Start Command: leave blank
 ```
 
+If the manual service accidentally uses the main `Dockerfile`, set this env var on `roxy-stock-stream`:
+
+```text
+ROXY_SERVICE_MODE=stock-stream
+```
+
+The main Docker image will then start the stock stream bridge instead of Streamlit.
+
 ## Market-hours behavior
 
 Stock trades only move quickly when the selected data feed has active market prints. During closed market hours, Roxy should show the last available price and label it as closed/stale instead of simulating fake movement.
