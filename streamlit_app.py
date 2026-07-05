@@ -36456,15 +36456,18 @@ def render_roxy_stock_live_runtime() -> None:
           };
           const setTone = (node, price) => {
             const previous = Number(node.dataset.roxyPrice || 0);
+            const refreshCount = Number(node.dataset.roxyRefreshCount || 0) + 1;
             node.dataset.roxyPrice = String(price);
+            node.dataset.roxyRefreshCount = String(refreshCount);
+            node.dataset.roxyUpdatedAt = new Date().toLocaleTimeString();
             node.textContent = fmt(price);
-            node.title = `Precio live: ${fmt(price)}`;
-            node.setAttribute("aria-label", `Precio live ${fmt(price)}`);
-            node.classList.remove("tick-up", "tick-down", "tick-pulse");
+            node.title = `Precio actualizado: ${fmt(price)} · tick ${refreshCount}`;
+            node.setAttribute("aria-label", `Precio actualizado ${fmt(price)}`);
+            node.classList.remove("tick-up", "tick-down", "tick-watch", "tick-pulse");
             let direction = 0;
             if (previous && Number.isFinite(previous) && Number.isFinite(price)) {
               direction = Number(price) - previous;
-              node.classList.add(direction >= 0 ? "tick-up" : "tick-down");
+              node.classList.add(direction > 0 ? "tick-up" : direction < 0 ? "tick-down" : "tick-watch");
             }
             window.requestAnimationFrame(() => {
               node.classList.add("tick-pulse");
@@ -36530,7 +36533,8 @@ def render_roxy_stock_live_runtime() -> None:
             const freshness = quote.freshness ? ` · ${quote.freshness}` : "";
             const sessionText = quote.marketOpen === false ? " · mercado cerrado" : quote.marketOpen === true ? " · mercado abierto" : "";
             const prefix = quote.marketOpen === false ? "Ultimo precio" : quote.mode === "stream" ? "Stream real" : "Feed real";
-            setStatus(symbol, `${prefix} · ${source} · ${stamp}${freshness}${sessionText}`, Number.isFinite(pct) ? (pct >= 0 ? "up" : "down") : "watch");
+            const refreshText = directionSet && firstDirection === 0 ? " · refrescado sin cambio" : "";
+            setStatus(symbol, `${prefix} · ${source} · ${stamp}${freshness}${sessionText}${refreshText}`, Number.isFinite(pct) ? (pct >= 0 ? "up" : "down") : "watch");
             setTickArrow(symbol, firstDirection, price, quote.marketOpen === false ? "LAST" : "LIVE");
             return true;
           };
@@ -36729,15 +36733,17 @@ def render_roxy_stock_server_refresh(interval_ms: int = 3500, symbols: list[str]
                 node.dataset.roxyFreshness = quote.freshness || "";
                 node.dataset.roxyMarketOpen = quote.marketOpen === true ? "true" : quote.marketOpen === false ? "false" : "";
                 node.dataset.roxyUpdatedAt = quote.updatedAt || "";
+                node.dataset.roxyRefreshCount = String(Number(node.dataset.roxyRefreshCount || 0) + 1);
                 node.textContent = formatPrice(price);
                 const direction = price - previousPrice;
                 if (!directionSet) {
                   firstDirection = direction;
                   directionSet = true;
                 }
-                node.classList.toggle("positive", direction >= 0);
+                node.classList.toggle("positive", direction > 0);
                 node.classList.toggle("negative", direction < 0);
-                node.title = `${symbol} ${sessionLabel(quote)} ${formatPrice(price)} · ${quote.source || "server quote"}`;
+                node.classList.toggle("tick-watch", direction === 0);
+                node.title = `${symbol} ${sessionLabel(quote)} ${formatPrice(price)} · ${quote.source || "server quote"} · tick ${node.dataset.roxyRefreshCount}`;
                 pulse(node, direction);
                 hits += 1;
               });
@@ -36754,7 +36760,8 @@ def render_roxy_stock_server_refresh(interval_ms: int = 3500, symbols: list[str]
                 const freshness = quote.updatedAt ? `actualizado ${quote.updatedAt}` : "actualizado ahora";
                 const sessionText = quote.marketOpen === false ? "mercado cerrado" : quote.marketOpen === true ? "mercado abierto" : "";
                 const prefix = quote.marketOpen === false ? "Ultimo precio" : "Feed real";
-                const detail = [quote.source || "quote", freshness, quote.freshness || "", sessionText].filter(Boolean).join(" · ");
+                const flatText = firstDirection === 0 ? "refrescado sin cambio" : "";
+                const detail = [quote.source || "quote", freshness, quote.freshness || "", sessionText, flatText].filter(Boolean).join(" · ");
                 node.textContent = `${prefix} · ${detail}`;
                 node.classList.add("roxy-stock-server-ok");
                 hits += 1;
@@ -37365,6 +37372,13 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
             .roxy-actions-signal [data-roxy-stock-live-status].tick-down {{
               color: #ff5b72 !important;
               text-shadow: 0 0 16px rgba(248,113,113,.56);
+            }}
+            .roxy-actions-row .price strong.tick-watch,
+            .roxy-actions-signal b.tick-watch,
+            .roxy-actions-chart-wrap header b.tick-watch,
+            [data-roxy-stock-live-price].tick-watch {{
+              color: #7dd3fc !important;
+              text-shadow: 0 0 14px rgba(56,189,248,.42);
             }}
             .roxy-actions-row .price .tick-motion {{
               display: inline-grid;
@@ -38616,6 +38630,7 @@ def roxy_actions_pro_chart_payload(
         cleaned_lines[text_display(name)] = trim_line(points)
     payload["candles"] = candles
     payload["lines"] = cleaned_lines
+    payload["displayRange"] = {"minValue": line_low, "maxValue": line_high} if line_low is not None and line_high is not None and line_high > line_low else None
     payload["panelLabel"] = panel_label
     payload["levels"] = [
         {"key": "entry", "label": "Entrada", "value": safe_float(trade_plan.get("entry")), "color": "#22c55e"},
@@ -38740,8 +38755,9 @@ def render_roxy_actions_pro_chart_panel(
       .rpc-plan b{color:#f8fafc;text-align:right}
 	      .rpc-statusbar{position:absolute;left:16px;right:16px;bottom:12px;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid rgba(125,211,252,.18);border-radius:10px;background:rgba(2,6,23,.62);backdrop-filter:blur(10px);padding:6px 9px;color:#9fb8da;font-size:10px;font-weight:900;pointer-events:none}
 	      .rpc-statusbar b{color:#e0f2fe}.rpc-statusbar em{font-style:normal;color:#22c55e}.rpc-statusbar .rpc-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px;background:#22c55e;box-shadow:0 0 12px rgba(34,197,94,.9);animation:rpcLiveDot 1.2s ease-in-out infinite}
-	      .rpc-statusbar.rpc-near-entry{border-color:rgba(34,197,94,.42);box-shadow:0 0 24px rgba(34,197,94,.16)}
-	      .rpc-statusbar.rpc-danger{border-color:rgba(248,113,113,.46);box-shadow:0 0 24px rgba(248,113,113,.14)}
+      .rpc-statusbar.rpc-near-entry{border-color:rgba(34,197,94,.42);box-shadow:0 0 24px rgba(34,197,94,.16)}
+      .rpc-statusbar.rpc-danger{border-color:rgba(248,113,113,.46);box-shadow:0 0 24px rgba(248,113,113,.14)}
+      .rpc-statusbar.rpc-closed{border-color:rgba(250,204,21,.36);box-shadow:0 0 24px rgba(250,204,21,.10)}
 	      .rpc-legend{display:flex;gap:9px;align-items:center;overflow-x:auto;padding:8px 10px 10px;border-top:1px solid rgba(96,165,250,.14);white-space:nowrap}
       .rpc-legend b{display:inline-flex;align-items:center;gap:5px;color:#bfd7ff;font-size:10px;font-weight:900}
       .rpc-legend i{display:block;width:18px;height:3px;border-radius:99px;box-shadow:0 0 10px currentColor}
@@ -38931,6 +38947,14 @@ def render_roxy_actions_pro_chart_panel(
         return sorted[base + 1] !== undefined ? sorted[base] + rest * (sorted[base + 1] - sorted[base]) : sorted[base];
       };
       const smartRangeFor = (livePrice = null) => {
+        const fixedRange = payload.displayRange || null;
+        if (fixedRange && Number.isFinite(Number(fixedRange.minValue)) && Number.isFinite(Number(fixedRange.maxValue)) && Number(fixedRange.maxValue) > Number(fixedRange.minValue)) {
+          const anchors = levelPrices.concat(Number(livePrice)).filter(Number.isFinite);
+          const low = Math.min(Number(fixedRange.minValue), ...anchors).valueOf();
+          const high = Math.max(Number(fixedRange.maxValue), ...anchors).valueOf();
+          const span = Math.max(high - low, Math.abs(high) * .006, .01);
+          return { minValue: low - span * .18, maxValue: high + span * .18 };
+        }
         const recent = candles.slice(-135);
         const bodyVals = recent.flatMap((c) => [Number(c.open), Number(c.close)]).filter(Number.isFinite);
         const wickVals = recent.flatMap((c) => [Number(c.high), Number(c.low)]).filter(Number.isFinite);
@@ -39071,6 +39095,7 @@ def render_roxy_actions_pro_chart_panel(
 	          const nearStop = Number.isFinite(stop) && Math.abs(price - stop) <= Math.max(Math.abs(stop) * .0035, .02);
 	          statusEl.classList.toggle("rpc-near-entry", nearEntry);
 	          statusEl.classList.toggle("rpc-danger", nearStop);
+	          statusEl.classList.toggle("rpc-closed", Boolean(isClosed));
 		          statusEl.innerHTML = `<span><span class="rpc-dot"></span><b>${isClosed ? "Ultimo precio:" : "Live:"}</b> ${quote.source}${stateText} · ${quote.updatedAt || new Date().toLocaleTimeString()}</span><em>${nearEntry ? "Precio entrando en zona de entrada Roxy." : nearStop ? "Atencion: precio cerca del stop." : "Precio sincronizado sobre la vela actual sin salir de la pagina."}</em>`;
 		        }
       };
@@ -46500,7 +46525,7 @@ def main() -> None:
         .roxy-crypto20-hero{display:grid;grid-template-columns:178px minmax(0,1fr);gap:14px;align-items:center;min-height:188px;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.44);padding:12px 16px;overflow:hidden}.roxy-crypto20-roxy{display:grid;place-items:center;height:164px}.roxy-crypto20-roxy .roxy-hologram-avatar{width:154px;aspect-ratio:.72/1}.roxy-crypto20-roxy .roxy-avatar-core{border:0;border-radius:0;background:transparent;box-shadow:none;filter:drop-shadow(0 0 28px rgba(56,189,248,.50));-webkit-mask-image:radial-gradient(ellipse 52% 64% at 50% 42%,#000 0 68%,rgba(0,0,0,.72) 82%,transparent 100%);mask-image:radial-gradient(ellipse 52% 64% at 50% 42%,#000 0 68%,rgba(0,0,0,.72) 82%,transparent 100%)}.roxy-crypto20-roxy .roxy-hologram-name,.roxy-crypto20-roxy .roxy-audio-wave{display:none}.roxy-crypto20-hero .copy strong{display:block;color:#e0f2fe;font-size:18px;line-height:1.22}.roxy-crypto20-hero .copy p{margin:10px 0 0;color:#cbd5e1;font-size:12px;line-height:1.45;max-width:520px}.roxy-crypto20-hero .chips{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.roxy-crypto20-hero .chips span{display:flex;align-items:center;gap:5px;border:1px solid rgba(56,189,248,.14);border-radius:7px;background:rgba(2,6,23,.40);padding:7px;color:#9cc9e6;font-size:9px;font-weight:850}.roxy-crypto20-hero .chips i{font-size:15px!important;color:#34d399}
         .roxy-crypto20-alertbar{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.48);padding:10px 12px}.roxy-crypto20-alertbar>i{display:grid;place-items:center;width:28px;height:28px;border:1px solid rgba(125,211,252,.22);border-radius:50%;color:#7dd3fc}.roxy-crypto20-alertbar span{color:#cbd5e1;font-size:11px;font-weight:800}.roxy-crypto20-alertbar em{display:flex;align-items:center;gap:9px;color:#9cc9e6;font-size:10px;font-style:normal}.roxy-crypto20-alertbar em b{position:relative;width:38px;height:20px;border-radius:999px;background:#2563eb;box-shadow:0 0 16px rgba(37,99,235,.52)}.roxy-crypto20-alertbar em b:after{content:"";position:absolute;right:3px;top:3px;width:14px;height:14px;border-radius:50%;background:white}
         .roxy-crypto20-opps{min-width:0;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.48);overflow:hidden}.roxy-crypto20-opps header{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;padding:0 12px;border-bottom:1px solid rgba(125,211,252,.12)}.roxy-crypto20-opps header strong{color:#dbeafe;font-size:12px;text-transform:uppercase;letter-spacing:.04em}.roxy-crypto20-opps header small{color:#7f93ad;font-size:8px}.roxy-crypto20-opps header span{display:flex;align-items:center;gap:5px}.roxy-crypto20-opps header b{display:grid;place-items:center;min-width:32px;height:20px;border:1px solid rgba(125,211,252,.14);border-radius:5px;color:#8fb6d1;font-size:8px}.roxy-crypto20-opps header b.active{background:#2563eb;color:#fff}.roxy-crypto20-row{display:grid;grid-template-columns:34px minmax(86px,1fr) 78px 92px minmax(112px,1.1fr) 58px 22px;gap:8px;align-items:center;min-height:67px;padding:6px 10px;border-bottom:1px solid rgba(125,211,252,.10);text-decoration:none!important;color:#e5f6ff!important}.roxy-crypto20-row.selected,.roxy-crypto20-row:hover{background:rgba(37,99,235,.13)}.roxy-crypto20-head{min-height:30px;color:#7da8c9!important;font-size:8px;text-transform:uppercase;font-weight:950}.roxy-crypto20-head b{font-size:8px;color:#8fb6d1}.roxy-crypto-logo{display:grid!important;place-items:center!important;width:30px;height:30px;border-radius:50%;background:var(--logo-bg,#111827);box-shadow:0 0 18px rgba(56,189,248,.22);overflow:hidden}.roxy-crypto-logo img{width:19px;height:19px;object-fit:contain;filter:drop-shadow(0 0 6px rgba(255,255,255,.32))}.roxy-crypto20-row .asset strong,.roxy-crypto20-row .price strong{display:block;color:#f8fafc;font-size:12px;line-height:1;font-weight:950}.roxy-crypto20-row .asset small,.roxy-crypto20-row .price small{display:block;color:#22c55e;font-size:8px;line-height:1.12;margin-top:4px}.roxy-crypto20-row .price small{color:#8ba2bd}.roxy-crypto20-row .signal strong{display:block;color:#22c55e;font-size:10px;text-transform:uppercase}.roxy-crypto20-row .signal small{display:block;color:#cbd5e1;font-size:7px;line-height:1.22;margin-top:3px}.roxy-crypto20-row .score b{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:conic-gradient(#22c55e 0 72%,rgba(30,58,138,.55) 72%);color:#fff;font-size:11px;box-shadow:0 0 16px rgba(34,197,94,.20)}.roxy-crypto20-row .score small{display:block;margin-top:3px;color:#cbd5e1;font-size:6.5px;text-align:center}.roxy-crypto20-row .fav{color:#d4af60;font-size:17px!important}.roxy-crypto20-opps .more{display:grid!important;place-items:center;width:190px;height:28px;margin:8px auto 10px;border-radius:6px;background:rgba(37,99,235,.32);color:#dbeafe!important;text-decoration:none!important;font-size:9px;font-weight:950;text-transform:uppercase}
-        .roxy-crypto20-row:not(.roxy-crypto20-head){display:block;min-height:0;padding:0}.roxy-crypto20-row .row-main{display:grid;grid-template-columns:34px minmax(88px,1fr) 82px 92px minmax(150px,1.25fr) 62px 58px;gap:8px;align-items:center;min-height:72px;padding:7px 10px;color:#e5f6ff!important;text-decoration:none!important}.roxy-crypto20-row.is-loading .row-main{box-shadow:inset 3px 0 0 #38bdf8}.roxy-crypto20-row .contract{display:grid;gap:2px;text-align:center}.roxy-crypto20-row .contract b{display:grid;place-items:center;min-height:24px;border-radius:6px;background:rgba(37,99,235,.22);border:1px solid rgba(125,211,252,.18);color:#e0f2fe;font-size:10px;font-weight:950}.roxy-crypto20-row .contract small{color:#93c5fd;font-size:7px;line-height:1.1}.roxy-crypto20-row-buy .signal strong,.roxy-crypto20-row-buy .asset small{color:#22c55e}.roxy-crypto20-row-watch .signal strong,.roxy-crypto20-row-watch .asset small{color:#facc15}.roxy-crypto20-row-avoid .signal strong,.roxy-crypto20-row-avoid .asset small{color:#fb7185}.roxy-why{border-top:1px solid rgba(125,211,252,.08);padding:0 10px 7px 52px}.roxy-why summary{cursor:pointer;width:max-content;color:#7dd3fc;font-size:8px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.roxy-why ul,.roxy-why-panel ul{margin:6px 0 0;padding-left:14px;color:#cbd5e1;font-size:8px;line-height:1.35}.roxy-why li+li,.roxy-why-panel li+li{margin-top:3px}[data-roxy-live-price]{font-variant-numeric:tabular-nums;transition:color .15s ease,text-shadow .15s ease,transform .15s ease,filter .15s ease}[data-roxy-live-price].tick-up{color:#22c55e!important;text-shadow:0 0 14px rgba(34,197,94,.45);transform:translateY(-1px)}[data-roxy-live-price].tick-down{color:#fb7185!important;text-shadow:0 0 14px rgba(251,113,133,.38);transform:translateY(1px)}[data-roxy-live-price].tick-pulse{filter:brightness(1.35) drop-shadow(0 0 9px rgba(56,189,248,.72));animation:roxy-live-pulse .9s ease-out 1}@keyframes roxy-live-pulse{0%{transform:scale(1)}35%{transform:scale(1.055)}100%{transform:scale(1)}}.roxy-crypto20-signal em.state-buy{background:rgba(34,197,94,.14)!important;color:#86efac!important}.roxy-crypto20-signal em.state-watch{background:rgba(250,204,21,.14)!important;color:#fde68a!important}.roxy-crypto20-signal em.state-avoid{background:rgba(244,63,94,.14)!important;color:#fda4af!important}.roxy-why-panel{grid-column:1/-1;margin-top:7px}.roxy-why-panel summary{cursor:pointer;color:#7dd3fc;font-size:9px;font-weight:950;text-transform:uppercase}.roxy-crypto20-countdown.is-refreshing{filter:brightness(1.25);box-shadow:0 0 24px rgba(56,189,248,.28)}
+        .roxy-crypto20-row:not(.roxy-crypto20-head){display:block;min-height:0;padding:0}.roxy-crypto20-row .row-main{display:grid;grid-template-columns:34px minmax(88px,1fr) 82px 92px minmax(150px,1.25fr) 62px 58px;gap:8px;align-items:center;min-height:72px;padding:7px 10px;color:#e5f6ff!important;text-decoration:none!important}.roxy-crypto20-row.is-loading .row-main{box-shadow:inset 3px 0 0 #38bdf8}.roxy-crypto20-row .contract{display:grid;gap:2px;text-align:center}.roxy-crypto20-row .contract b{display:grid;place-items:center;min-height:24px;border-radius:6px;background:rgba(37,99,235,.22);border:1px solid rgba(125,211,252,.18);color:#e0f2fe;font-size:10px;font-weight:950}.roxy-crypto20-row .contract small{color:#93c5fd;font-size:7px;line-height:1.1}.roxy-crypto20-row-buy .signal strong,.roxy-crypto20-row-buy .asset small{color:#22c55e}.roxy-crypto20-row-watch .signal strong,.roxy-crypto20-row-watch .asset small{color:#facc15}.roxy-crypto20-row-avoid .signal strong,.roxy-crypto20-row-avoid .asset small{color:#fb7185}.roxy-why{border-top:1px solid rgba(125,211,252,.08);padding:0 10px 7px 52px}.roxy-why summary{cursor:pointer;width:max-content;color:#7dd3fc;font-size:8px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.roxy-why ul,.roxy-why-panel ul{margin:6px 0 0;padding-left:14px;color:#cbd5e1;font-size:8px;line-height:1.35}.roxy-why li+li,.roxy-why-panel li+li{margin-top:3px}[data-roxy-live-price]{font-variant-numeric:tabular-nums;transition:color .15s ease,text-shadow .15s ease,transform .15s ease,filter .15s ease}[data-roxy-live-price].tick-up{color:#22c55e!important;text-shadow:0 0 14px rgba(34,197,94,.45);transform:translateY(-1px)}[data-roxy-live-price].tick-down{color:#fb7185!important;text-shadow:0 0 14px rgba(251,113,133,.38);transform:translateY(1px)}[data-roxy-live-price].tick-watch{color:#7dd3fc!important;text-shadow:0 0 14px rgba(56,189,248,.42)}[data-roxy-live-price].tick-pulse{filter:brightness(1.35) drop-shadow(0 0 9px rgba(56,189,248,.72));animation:roxy-live-pulse .9s ease-out 1}@keyframes roxy-live-pulse{0%{transform:scale(1)}35%{transform:scale(1.055)}100%{transform:scale(1)}}.roxy-crypto20-signal em.state-buy{background:rgba(34,197,94,.14)!important;color:#86efac!important}.roxy-crypto20-signal em.state-watch{background:rgba(250,204,21,.14)!important;color:#fde68a!important}.roxy-crypto20-signal em.state-avoid{background:rgba(244,63,94,.14)!important;color:#fda4af!important}.roxy-why-panel{grid-column:1/-1;margin-top:7px}.roxy-why-panel summary{cursor:pointer;color:#7dd3fc;font-size:9px;font-weight:950;text-transform:uppercase}.roxy-crypto20-countdown.is-refreshing{filter:brightness(1.25);box-shadow:0 0 24px rgba(56,189,248,.28)}
         .roxy-crypto-detail-panel{margin-top:10px;border:1px solid rgba(125,211,252,.18);border-radius:8px;background:linear-gradient(135deg,rgba(2,6,23,.72),rgba(30,64,175,.16));box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 0 28px rgba(37,99,235,.10);overflow:hidden}.roxy-crypto-detail-panel header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-bottom:1px solid rgba(125,211,252,.12)}.roxy-crypto-detail-panel header strong{color:#e0f2fe;font-size:12px;text-transform:uppercase;letter-spacing:.06em}.roxy-crypto-detail-panel header a{display:grid;place-items:center;min-width:62px;height:24px;border-radius:6px;background:rgba(37,99,235,.26);border:1px solid rgba(96,165,250,.22);color:#dbeafe!important;text-decoration:none!important;font-size:9px;font-weight:950;text-transform:uppercase}.roxy-crypto-detail-list{display:grid;gap:1px;background:rgba(125,211,252,.08)}.roxy-crypto-detail-list p{display:grid;grid-template-columns:32px minmax(0,1fr) auto;align-items:center;gap:9px;margin:0;padding:9px 12px;background:rgba(2,6,23,.58);color:#cbd5e1;font-size:10px;line-height:1.28}.roxy-crypto-detail-list p span{min-width:0}.roxy-crypto-detail-list p b{color:#93c5fd}.roxy-crypto-detail-list p em{color:#86efac;font-style:normal;font-weight:950}.roxy-crypto-detail-list p .material-symbols-outlined{display:grid;place-items:center;width:28px;height:28px;border-radius:8px;background:rgba(34,197,94,.12);color:#86efac;font-size:18px!important}.roxy-crypto-detail-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(125,211,252,.08)}.roxy-crypto-detail-metrics p{display:grid;place-items:center;gap:5px;margin:0;min-height:78px;background:rgba(2,6,23,.58);text-align:center}.roxy-crypto-detail-metrics b{color:#f8fafc;font-size:25px;line-height:1}.roxy-crypto-detail-metrics span{color:#93c5fd;font-size:9px;text-transform:uppercase;letter-spacing:.04em}
         .roxy-crypto20-head{grid-template-columns:minmax(130px,1fr) 82px 92px minmax(150px,1.25fr) 62px 58px}
         .roxy-crypto20-right{display:grid;gap:10px;align-content:start;min-width:0}.roxy-crypto20-right section,.roxy-crypto20-bottom article{border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.52);padding:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}.roxy-crypto20-right strong,.roxy-crypto20-bottom strong{display:block;color:#dbeafe;font-size:11px;text-transform:uppercase;letter-spacing:.06em}.roxy-crypto20-countdown{--roxy-countdown-progress:0%;border-color:rgba(212,175,96,.38)!important}.roxy-crypto20-countdown div{position:relative;display:grid;place-items:center;width:116px;height:116px;margin:14px auto;border-radius:50%;background:conic-gradient(#34d399 0 var(--roxy-countdown-progress),rgba(30,58,138,.55) var(--roxy-countdown-progress) 100%);box-shadow:0 0 25px rgba(20,184,166,.22)}.roxy-crypto20-countdown div:after{content:"";position:absolute;inset:-3px;border-radius:50%;border:1px solid rgba(125,211,252,.34);filter:drop-shadow(0 0 10px rgba(52,211,153,.38));animation:roxy-countdown-orbit 6s linear infinite}.roxy-crypto20-countdown div:before{content:"";position:absolute;inset:12px;border-radius:50%;background:#07111f}.roxy-crypto20-countdown div b,.roxy-crypto20-countdown div span{position:relative;z-index:1}.roxy-crypto20-countdown div b{color:#fff;font-size:25px;line-height:1;font-variant-numeric:tabular-nums;text-shadow:0 0 16px rgba(52,211,153,.40)}.roxy-crypto20-countdown.is-hot div b{animation:roxy-timer-hot 1s steps(2,end) infinite;color:#fef3c7}.roxy-crypto20-countdown div span{color:#cbd5e1;font-size:8px;text-transform:uppercase}.roxy-crypto20-countdown p{display:grid;gap:7px;margin:0}.roxy-crypto20-countdown p span{display:flex;justify-content:space-between;color:#93c5fd;font-size:10px}.roxy-crypto20-countdown p b{color:#e5f6ff}.roxy-crypto20-countdown i{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:13px}.roxy-crypto20-countdown i:after{content:"";position:absolute;left:0;top:0;height:7px;width:var(--roxy-countdown-progress);border-radius:999px;background:linear-gradient(90deg,#34d399,#38bdf8,#2563eb);box-shadow:0 0 14px rgba(56,189,248,.42);transition:width .45s linear}.roxy-crypto20-countdown u{height:7px;border-radius:999px;background:rgba(30,58,138,.38);text-decoration:none}@keyframes roxy-countdown-orbit{to{transform:rotate(360deg)}}@keyframes roxy-timer-hot{50%{filter:brightness(1.35)}}

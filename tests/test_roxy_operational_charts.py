@@ -90,6 +90,8 @@ def test_roxy_actions_pro_chart_payload_uses_cleaned_candles():
     assert max(highs) < 120
     assert min(lows) > 80
     assert {level["key"] for level in payload["levels"]} == {"entry", "stop", "target"}
+    assert payload["displayRange"]["minValue"] > 80
+    assert payload["displayRange"]["maxValue"] < 130
 
 
 def test_roxy_actions_pro_chart_payload_filters_indicator_values_outside_price_regime():
@@ -151,6 +153,8 @@ def test_actions_folder_pushes_server_side_live_stock_quotes():
     assert "data-roxy-stock-tick-arrow" in refresh_source
     assert "node.dataset.roxySource" in refresh_source
     assert "node.dataset.roxyMarketOpen" in refresh_source
+    assert "node.dataset.roxyRefreshCount" in refresh_source
+    assert "refrescado sin cambio" in refresh_source
     assert "setTickArrow(symbol, firstDirection, quote)" in refresh_source
     assert "sessionLabel(quote)" in refresh_source
     assert "streamlit_autorefresh" not in refresh_source
@@ -201,4 +205,6 @@ def test_professional_actions_chart_syncs_from_parent_live_stock_quote():
     assert "parentQuote() || await yahooQuote(payload.symbol)" in pro_panel
     assert "renderTradebar(price, feedLabel)" in pro_panel
     assert "applySmartScale(price)" in pro_panel
+    assert "payload.displayRange" in pro_panel
+    assert "rpc-closed" in pro_panel
     assert "Precio sincronizado sobre la vela actual sin salir de la pagina" in pro_panel
