@@ -39,11 +39,6 @@ import streamlit.components.v1 as components
 import altair as alt
 
 try:
-    from streamlit_autorefresh import st_autorefresh
-except Exception:  # pragma: no cover - optional live refresh dependency
-    st_autorefresh = None
-
-try:
     import requests
 except Exception:  # pragma: no cover - optional OAuth/network dependency
     requests = None
@@ -105,6 +100,7 @@ import grok_control
 import auth
 import notifier
 from roxy_paths import alerts_dir, output_dir, project_path
+from roxy_academy_knowledge import enrich_academy_lesson, planet_curriculum_lessons, planet_curriculum_summary
 from accuracy_tracker import build_accuracy_report, real_signal_memory_summary
 from monetization_readiness import build_monetization_readiness_report
 from paper_result_closer import close_paper_results_with_live_prices
@@ -171,6 +167,21 @@ from platform_router import PLATFORM_PROFILES, build_platform_route_rows, build_
 from roxy_autopilot import CODE_WRITE_ENV, load_autopilot_status, run_autopilot
 from schwab_preview import build_schwab_preview
 from macro_calendar import macro_calendar_status
+from tools.elevenlabs_roxy import (
+    DEFAULT_ELEVENLABS_AGENT_ID,
+    build_roxy_personalization,
+    elevenlabs_agent_id,
+    elevenlabs_env_fingerprint,
+    get_conversation_token,
+    get_conversation_signed_url,
+)
+try:
+    from roxy_os import RoxyOrchestrator
+
+    ROXY_OS_AVAILABLE = True
+except Exception:  # pragma: no cover - optional local assistant runtime
+    RoxyOrchestrator = None
+    ROXY_OS_AVAILABLE = False
 import alpaca_paper_practice as alpaca_paper_practice_module
 import crypto_paper_practice as crypto_paper_practice_module
 import trade_brief as trade_brief_module
@@ -550,6 +561,15 @@ def roxy_hologram_avatar_html(state: str = "listening", label: str = "Roxy Tradi
         f'<span class="roxy-neck-head" aria-hidden="true">{image_html}</span>'
         '<span class="roxy-face-glow"></span>'
         '<span class="roxy-face-life"></span>'
+        '<span class="roxy-human-rig" aria-hidden="true">'
+        '<i class="roxy-eye-lid roxy-eye-lid-left"></i>'
+        '<i class="roxy-eye-lid roxy-eye-lid-right"></i>'
+        '<i class="roxy-eye-catch roxy-eye-catch-left"></i>'
+        '<i class="roxy-eye-catch roxy-eye-catch-right"></i>'
+        '<i class="roxy-mouth-rig"><b></b><em></em></i>'
+        '<i class="roxy-cheek roxy-cheek-left"></i>'
+        '<i class="roxy-cheek roxy-cheek-right"></i>'
+        '</span>'
         '</div>'
         '<div class="roxy-audio-wave" aria-hidden="true">'
         f"{wave_bars}"
@@ -569,6 +589,421 @@ def academy_asset_img_html(filename: str, alt: str, class_name: str) -> str:
     safe_alt = html.escape(str(alt or "Roxy Academy"))
     safe_class = html.escape(str(class_name or "academy-asset-img"))
     return f'<img class="{safe_class}" src="data:image/jpeg;base64,{encoded}" alt="{safe_alt}"/>'
+
+
+def roxy_vendor_js_source(filename: str) -> str:
+    try:
+        return (project_path("assets") / "vendor" / filename).read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
+def render_roxy_three_universe_runtime() -> None:
+    """Progressively enhance every roxy-universe layer with WebGL depth.
+
+    Streamlit is not a React runtime, so this uses a classic Three.js script
+    instead of ES modules. If WebGL or the CDN fails, the existing CSS universe
+    remains visible and the app continues normally.
+    """
+
+    three_inline_source = roxy_vendor_js_source("three.r128.min.js")
+
+    runtime_html = """
+        <script>
+        (() => {
+          const parentWindow = window.parent || window;
+          const doc = parentWindow.document;
+          if (doc.__roxyThreeUniverseRuntime) return;
+          doc.__roxyThreeUniverseRuntime = true;
+
+          const THREE_INLINE_SOURCE = __ROXY_THREE_INLINE_SOURCE__;
+          const THREE_URL = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
+          const MAX_SYSTEMS = 4;
+          const reduceMotion = () => parentWindow.matchMedia &&
+            parentWindow.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+          const style = doc.createElement("style");
+          style.setAttribute("data-roxy-three-universe", "true");
+          style.textContent = `
+            .roxy-universe.roxy-three-ready{background:radial-gradient(ellipse at 50% 44%,rgba(22,163,184,.20),rgba(15,23,42,.16) 38%,transparent 72%)!important}
+            .roxy-universe.roxy-three-ready>i{opacity:.38!important}
+            .roxy-three-canvas{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;z-index:0!important;pointer-events:none!important;opacity:.92!important;mix-blend-mode:screen!important}
+            .roxy-three-fallback-hidden>i{opacity:.88!important}
+            @media (max-width:700px){.roxy-three-canvas{opacity:.76!important}.roxy-universe.roxy-three-ready>i{opacity:.48!important}}
+          `;
+          doc.head.appendChild(style);
+
+          const loadThree = () => new Promise((resolve, reject) => {
+            if (parentWindow.THREE) {
+              resolve(parentWindow.THREE);
+              return;
+            }
+            if (THREE_INLINE_SOURCE && !doc.querySelector('script[data-roxy-three-loader="inline"]')) {
+              try {
+                const inlineScript = doc.createElement("script");
+                inlineScript.dataset.roxyThreeLoader = "inline";
+                inlineScript.textContent = THREE_INLINE_SOURCE + "\\n;window.__roxyThreeLocalRuntime=true;";
+                doc.head.appendChild(inlineScript);
+                if (parentWindow.THREE) {
+                  resolve(parentWindow.THREE);
+                  return;
+                }
+              } catch (error) {
+                // Fall through to the CDN fallback below.
+              }
+            }
+            const existing = doc.querySelector('script[data-roxy-three-loader="true"]');
+            if (existing) {
+              existing.addEventListener("load", () => resolve(parentWindow.THREE), { once: true });
+              existing.addEventListener("error", reject, { once: true });
+              return;
+            }
+            const script = doc.createElement("script");
+            script.src = THREE_URL;
+            script.async = true;
+            script.defer = true;
+            script.dataset.roxyThreeLoader = "true";
+            script.onload = () => parentWindow.THREE ? resolve(parentWindow.THREE) : reject(new Error("Three.js unavailable"));
+            script.onerror = reject;
+            doc.head.appendChild(script);
+          });
+
+          const seeded = (seed) => {
+            let value = seed % 2147483647;
+            if (value <= 0) value += 2147483646;
+            return () => {
+              value = value * 16807 % 2147483647;
+              return (value - 1) / 2147483646;
+            };
+          };
+
+          const systems = [];
+          let THREE = null;
+          let lastResizeCheck = 0;
+
+          const buildSystem = (container, index) => {
+            if (!THREE || container.dataset.roxyThreeMounted === "true") return null;
+            const rect = container.getBoundingClientRect();
+            if (rect.width < 40 || rect.height < 40) return null;
+
+            container.dataset.roxyThreeMounted = "true";
+            container.classList.add("roxy-three-ready");
+            const canvas = doc.createElement("canvas");
+            canvas.className = "roxy-three-canvas";
+            canvas.setAttribute("aria-hidden", "true");
+            container.prepend(canvas);
+
+            let renderer = null;
+            try {
+              renderer = new THREE.WebGLRenderer({
+                canvas,
+                alpha: true,
+                antialias: false,
+                powerPreference: "low-power",
+              });
+            } catch (error) {
+              container.classList.add("roxy-three-fallback-hidden");
+              canvas.remove();
+              return null;
+            }
+            renderer.setClearColor(0x000000, 0);
+            const isMobile = Math.min(parentWindow.innerWidth || 1024, rect.width) < 760;
+            renderer.setPixelRatio(Math.min(parentWindow.devicePixelRatio || 1, isMobile ? 1.25 : 1.75));
+
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 1200);
+            camera.position.z = 96;
+
+            const root = new THREE.Group();
+            scene.add(root);
+            scene.add(new THREE.AmbientLight(0x9adfff, 0.64));
+            const keyLight = new THREE.PointLight(0x6ee7ff, 1.15, 420);
+            keyLight.position.set(-30, 36, 70);
+            scene.add(keyLight);
+
+            const rand = seeded(1031 + index * 7919);
+            const mode = container.closest(".roxy-auth-screen") ? "auth" :
+              container.closest(".roxy-academy-shell") ? "academy" :
+              container.closest(".roxy-actions-shell,.roxy-crypto20-shell") ? "trading" : "core";
+            const makeNebulaTexture = () => {
+              const textureCanvas = doc.createElement("canvas");
+              textureCanvas.width = 512;
+              textureCanvas.height = 512;
+              const ctx = textureCanvas.getContext("2d");
+              const g1 = ctx.createRadialGradient(230, 240, 6, 230, 240, 238);
+              g1.addColorStop(0, "rgba(125,211,252,0.74)");
+              g1.addColorStop(.24, "rgba(56,189,248,0.28)");
+              g1.addColorStop(.52, "rgba(139,92,246,0.18)");
+              g1.addColorStop(1, "rgba(0,0,0,0)");
+              ctx.fillStyle = g1;
+              ctx.fillRect(0, 0, 512, 512);
+              const g2 = ctx.createRadialGradient(330, 176, 4, 330, 176, 190);
+              g2.addColorStop(0, "rgba(251,191,36,0.28)");
+              g2.addColorStop(.38, "rgba(96,165,250,0.12)");
+              g2.addColorStop(1, "rgba(0,0,0,0)");
+              ctx.fillStyle = g2;
+              ctx.fillRect(0, 0, 512, 512);
+              const texture = new THREE.CanvasTexture(textureCanvas);
+              texture.needsUpdate = true;
+              return texture;
+            };
+            const makePlanetTexture = (palette, variant) => {
+              const textureCanvas = doc.createElement("canvas");
+              textureCanvas.width = 384;
+              textureCanvas.height = 192;
+              const ctx = textureCanvas.getContext("2d");
+              const base = ctx.createLinearGradient(0, 0, textureCanvas.width, textureCanvas.height);
+              base.addColorStop(0, palette[0]);
+              base.addColorStop(.52, palette[1]);
+              base.addColorStop(1, palette[2]);
+              ctx.fillStyle = base;
+              ctx.fillRect(0, 0, textureCanvas.width, textureCanvas.height);
+              for (let i = 0; i < 115; i += 1) {
+                const x = rand() * textureCanvas.width;
+                const y = rand() * textureCanvas.height;
+                const rx = 12 + rand() * (variant === "crystal" ? 34 : 58);
+                const ry = 5 + rand() * (variant === "crystal" ? 20 : 32);
+                const glow = ctx.createRadialGradient(x, y, 0, x, y, Math.max(rx, ry));
+                const alpha = variant === "origin" ? .22 + rand() * .22 : .18 + rand() * .18;
+                glow.addColorStop(0, `rgba(255,255,255,${alpha})`);
+                glow.addColorStop(.28, palette[3] || "rgba(125,211,252,.24)");
+                glow.addColorStop(1, "rgba(0,0,0,0)");
+                ctx.fillStyle = glow;
+                ctx.beginPath();
+                ctx.ellipse(x, y, rx, ry, rand() * Math.PI, 0, Math.PI * 2);
+                ctx.fill();
+              }
+              if (variant === "crystal") {
+                for (let i = 0; i < 26; i += 1) {
+                  const x = rand() * textureCanvas.width;
+                  const y = rand() * textureCanvas.height;
+                  ctx.fillStyle = "rgba(191,219,254,.42)";
+                  ctx.beginPath();
+                  ctx.moveTo(x, y - 16);
+                  ctx.lineTo(x + 9, y + 6);
+                  ctx.lineTo(x, y + 18);
+                  ctx.lineTo(x - 9, y + 6);
+                  ctx.closePath();
+                  ctx.fill();
+                }
+              }
+              const shade = ctx.createLinearGradient(0, 0, textureCanvas.width, 0);
+              shade.addColorStop(0, "rgba(0,0,0,.32)");
+              shade.addColorStop(.42, "rgba(0,0,0,0)");
+              shade.addColorStop(1, "rgba(255,255,255,.10)");
+              ctx.fillStyle = shade;
+              ctx.fillRect(0, 0, textureCanvas.width, textureCanvas.height);
+              const texture = new THREE.CanvasTexture(textureCanvas);
+              texture.needsUpdate = true;
+              return texture;
+            };
+            const nebula = new THREE.Sprite(
+              new THREE.SpriteMaterial({
+                map: makeNebulaTexture(),
+                transparent: true,
+                opacity: .52,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+              })
+            );
+            nebula.position.set(0, 0, -120);
+            nebula.scale.set(230, 230, 1);
+            root.add(nebula);
+
+            const starCount = reduceMotion() ? 220 : (isMobile ? 520 : 980);
+            const starPositions = new Float32Array(starCount * 3);
+            const starColors = new Float32Array(starCount * 3);
+            const colorA = new THREE.Color(0xeaf7ff);
+            const colorB = new THREE.Color(0x7dd3fc);
+            const colorC = new THREE.Color(0xd8b4fe);
+            for (let i = 0; i < starCount; i += 1) {
+              const radius = 70 + rand() * 250;
+              const theta = rand() * Math.PI * 2;
+              const phi = Math.acos((rand() * 2) - 1);
+              starPositions[i * 3] = Math.sin(phi) * Math.cos(theta) * radius;
+              starPositions[i * 3 + 1] = Math.sin(phi) * Math.sin(theta) * radius;
+              starPositions[i * 3 + 2] = Math.cos(phi) * radius - 80;
+              const mix = rand();
+              const color = mix > .78 ? colorC : (mix > .46 ? colorB : colorA);
+              starColors[i * 3] = color.r;
+              starColors[i * 3 + 1] = color.g;
+              starColors[i * 3 + 2] = color.b;
+            }
+            const starGeometry = new THREE.BufferGeometry();
+            starGeometry.setAttribute("position", new THREE.BufferAttribute(starPositions, 3));
+            starGeometry.setAttribute("color", new THREE.BufferAttribute(starColors, 3));
+            const stars = new THREE.Points(
+              starGeometry,
+              new THREE.PointsMaterial({
+                size: index === 0 ? 1.05 : .82,
+                vertexColors: true,
+                transparent: true,
+                opacity: .82,
+                depthWrite: false,
+              })
+            );
+            root.add(stars);
+
+            const planetGroup = new THREE.Group();
+            root.add(planetGroup);
+            const planetSpecs = [
+              { x: -54, y: mode === "auth" ? 6 : 24, z: -26, r: mode === "trading" ? 10 : 13, color: 0x2dd4bf, emissive: 0x083344, ring: 18, texture: ["#0ea5e9", "#22c55e", "#0f172a", "rgba(187,247,208,.24)"], variant: "origin" },
+              { x: 48, y: mode === "academy" ? -8 : -18, z: -40, r: mode === "academy" ? 11 : 9, color: 0x8b5cf6, emissive: 0x2e1065, ring: 13, texture: ["#2e1065", "#7c3aed", "#0f172a", "rgba(216,180,254,.28)"], variant: "crystal" },
+              { x: 63, y: 33, z: -72, r: 6, color: 0xd4af60, emissive: 0x3f2a0a, ring: 0, texture: ["#451a03", "#d97706", "#020617", "rgba(253,230,138,.20)"], variant: "gold" },
+            ];
+            const planets = planetSpecs.map((spec, planetIndex) => {
+              const mesh = new THREE.Mesh(
+                new THREE.SphereGeometry(spec.r, 36, 24),
+                new THREE.MeshPhongMaterial({
+                  color: spec.color,
+                  map: makePlanetTexture(spec.texture, spec.variant),
+                  emissive: spec.emissive,
+                  shininess: 38,
+                  transparent: true,
+                  opacity: planetIndex === 2 ? .48 : .80,
+                })
+              );
+              mesh.position.set(spec.x, spec.y, spec.z);
+              planetGroup.add(mesh);
+              if (spec.ring) {
+                const ring = new THREE.Mesh(
+                  new THREE.TorusGeometry(spec.ring, .22, 8, 96),
+                  new THREE.MeshBasicMaterial({
+                    color: planetIndex === 0 ? 0x67e8f9 : 0xd8b4fe,
+                    transparent: true,
+                    opacity: .42,
+                    depthWrite: false,
+                  })
+                );
+                ring.position.copy(mesh.position);
+                ring.rotation.x = 1.17;
+                ring.rotation.y = -.42;
+                planetGroup.add(ring);
+                mesh.userData.ring = ring;
+              }
+              return mesh;
+            });
+
+            const constellation = new THREE.Group();
+            const lineMaterial = new THREE.LineBasicMaterial({
+              color: 0x93c5fd,
+              transparent: true,
+              opacity: .28,
+              depthWrite: false,
+            });
+            for (let j = 0; j < 4; j += 1) {
+              const points = [];
+              const baseX = -60 + rand() * 120;
+              const baseY = -38 + rand() * 76;
+              for (let k = 0; k < 4; k += 1) {
+                points.push(new THREE.Vector3(baseX + k * (11 + rand() * 8), baseY + (rand() - .5) * 26, -90 - rand() * 40));
+              }
+              constellation.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), lineMaterial));
+            }
+            root.add(constellation);
+
+            const comet = new THREE.Group();
+            const cometLine = new THREE.Line(
+              new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-24, 0, 0),
+                new THREE.Vector3(0, 0, 0),
+              ]),
+              new THREE.LineBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: .82 })
+            );
+            const cometHead = new THREE.Points(
+              new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0)]),
+              new THREE.PointsMaterial({ color: 0xffffff, size: 2.4, transparent: true, opacity: .95 })
+            );
+            comet.add(cometLine);
+            comet.add(cometHead);
+            comet.position.set(-120, 42, -28);
+            comet.rotation.z = -.22;
+            root.add(comet);
+
+            const resize = () => {
+              const box = container.getBoundingClientRect();
+              const width = Math.max(64, Math.floor(box.width));
+              const height = Math.max(64, Math.floor(box.height));
+              if (canvas.dataset.w === String(width) && canvas.dataset.h === String(height)) return;
+              canvas.dataset.w = String(width);
+              canvas.dataset.h = String(height);
+              renderer.setSize(width, height, false);
+              camera.aspect = width / height;
+              camera.updateProjectionMatrix();
+            };
+            resize();
+
+            return { container, canvas, renderer, scene, camera, root, nebula, stars, planets, constellation, comet, resize, index };
+          };
+
+          const mountAll = () => {
+            if (!THREE) return;
+            doc.querySelectorAll(".roxy-universe:not([data-roxy-three-mounted])").forEach((container) => {
+              if (systems.length >= MAX_SYSTEMS) return;
+              const system = buildSystem(container, systems.length);
+              if (system) systems.push(system);
+            });
+          };
+
+          const animate = (now) => {
+            parentWindow.requestAnimationFrame(animate);
+            if (doc.hidden || !systems.length) return;
+            const t = now * 0.001;
+            const slow = reduceMotion();
+            if (now - lastResizeCheck > 650) {
+              systems.forEach((system) => system.resize());
+              lastResizeCheck = now;
+            }
+            systems.forEach((system) => {
+              const bounds = system.container.getBoundingClientRect();
+              const inView = bounds.bottom > -140 && bounds.top < parentWindow.innerHeight + 260;
+              if (!inView) return;
+              const speed = slow ? .12 : 1;
+              system.nebula.rotation.z = Math.sin(t * .05 + system.index) * .05 * speed;
+              system.nebula.material.opacity = .46 + Math.sin(t * .33 + system.index) * .08;
+              system.stars.rotation.y = t * .015 * speed * (system.index + 1);
+              system.stars.rotation.x = Math.sin(t * .07 + system.index) * .018 * speed;
+              system.constellation.rotation.z = Math.sin(t * .10 + system.index) * .04 * speed;
+              system.constellation.position.x = Math.sin(t * .06 + system.index) * 5 * speed;
+              system.planets.forEach((planet, idx) => {
+                planet.rotation.y += .0026 * speed * (idx + 1);
+                planet.position.y += Math.sin(t * (.18 + idx * .03) + idx) * .006 * speed;
+                if (planet.userData.ring) {
+                  planet.userData.ring.rotation.z += .0018 * speed;
+                  planet.userData.ring.position.copy(planet.position);
+                }
+              });
+              const cometCycle = (t * .06 + system.index * .21) % 1;
+              system.comet.position.x = -126 + cometCycle * 270;
+              system.comet.position.y = 48 - cometCycle * 92 + Math.sin(t * .7) * 3;
+              system.comet.material && (system.comet.material.opacity = cometCycle < .08 || cometCycle > .94 ? 0 : .8);
+              system.comet.children.forEach((child) => {
+                if (child.material) child.material.opacity = cometCycle < .08 || cometCycle > .94 ? 0 : (child.type === "Points" ? .95 : .66);
+              });
+              system.renderer.render(system.scene, system.camera);
+            });
+          };
+
+          loadThree()
+            .then((loadedThree) => {
+              THREE = loadedThree;
+              mountAll();
+              const observer = new MutationObserver(mountAll);
+              observer.observe(doc.body, { childList: true, subtree: true });
+              parentWindow.requestAnimationFrame(animate);
+            })
+            .catch(() => {
+              doc.querySelectorAll(".roxy-universe").forEach((container) => {
+                container.classList.add("roxy-three-fallback-hidden");
+              });
+            });
+        })();
+        </script>
+    """
+    components.html(
+        runtime_html.replace("__ROXY_THREE_INLINE_SOURCE__", json.dumps(three_inline_source)),
+        height=0,
+    )
 
 
 def roxy_welcome_card_html() -> str:
@@ -591,15 +1026,21 @@ def roxy_welcome_card_html() -> str:
 
 
 def roxy_user_display_name(default: str = "Roberto") -> str:
+    def clean_display_name(raw: Any) -> str:
+        value = text_display(raw).strip()
+        if not value or value in {"-", "—", "None", "null"}:
+            return ""
+        return value.split("@")[0].strip().title()
+
     profile = st.session_state.get("roxy_user_profile")
     if isinstance(profile, dict):
         for key in ("name", "username", "email"):
-            value = text_display(profile.get(key)).strip()
+            value = clean_display_name(profile.get(key))
             if value:
-                return value.split("@")[0].strip().title()
-    user_value = text_display(st.session_state.get("user")).strip()
+                return value
+    user_value = clean_display_name(st.session_state.get("user"))
     if user_value:
-        return user_value.split("@")[0].strip().title()
+        return user_value
     return default
 
 
@@ -2319,6 +2760,17 @@ def read_idle_video_learning_review(
         return ""
 
 
+def load_roxy_teacher_playbook(path: str = "training_videos/roxy_teacher_playbook.json") -> dict[str, Any]:
+    p = runtime_path(path)
+    if not p.exists():
+        return {}
+    try:
+        payload = json.loads(p.read_text())
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
 def read_video_learning_note(item: dict[str, Any], max_chars: int = 5000) -> str:
     note_path = text_display(item.get("notes_path"))
     if not note_path or note_path == "-":
@@ -3221,6 +3673,1356 @@ def first_query_param_value(params: Any, key: str) -> str:
     return str(value or "").strip()
 
 
+@st.cache_data(ttl=45, show_spinner=False)
+def roxy_elevenlabs_signed_session_payload(agent_id: str, env_fingerprint: str) -> dict[str, Any]:
+    _ = env_fingerprint
+    session = get_conversation_signed_url(agent_id=agent_id)
+    token_session = get_conversation_token(agent_id=agent_id)
+    resolved_agent_id = session.agent_id or token_session.agent_id or agent_id
+    if token_session.conversation_token:
+        voice_mode = "conversation_token"
+    elif session.signed_url:
+        voice_mode = "signed_url"
+    elif resolved_agent_id:
+        voice_mode = "agent_id_fallback"
+    else:
+        voice_mode = "unavailable"
+    return {
+        "agent_id": resolved_agent_id,
+        "signed_url": session.signed_url,
+        "conversation_token": token_session.conversation_token,
+        "configured": bool(session.configured or token_session.configured),
+        "error": token_session.error or session.error,
+        "generated_at": token_session.generated_at or session.generated_at,
+        "voice_mode": voice_mode,
+    }
+
+
+def roxy_elevenlabs_user_profile() -> dict[str, Any]:
+    profile = st.session_state.get("roxy_user_profile")
+    clean_profile = dict(profile) if isinstance(profile, dict) else {}
+    user_name = roxy_user_display_name(default="Trader")
+    clean_profile.setdefault("user_name", user_name)
+    clean_profile.setdefault("preferred_language", clean_profile.get("language") or "es")
+    clean_profile.setdefault("trading_level", st.session_state.get("trading_level", "principiante"))
+    clean_profile.setdefault("risk_tolerance", st.session_state.get("risk_tolerance", "conservador"))
+    clean_profile.setdefault("preferred_markets", st.session_state.get("preferred_markets", ["acciones", "crypto"]))
+    clean_profile.setdefault("watchlist", st.session_state.get("watchlist", []))
+    clean_profile.setdefault("learning_progress", st.session_state.get("learning_progress", {}))
+    clean_profile.setdefault("completed_lessons", st.session_state.get("completed_lessons", []))
+    clean_profile.setdefault("trading_style", st.session_state.get("trading_style", "paper trading"))
+    return clean_profile
+
+
+def roxy_elevenlabs_page_context() -> dict[str, Any]:
+    symbol = text_display(
+        st.session_state.get("command_symbol")
+        or first_query_param_value(st.query_params, "symbol")
+        or "AAPL"
+    ).upper()
+    module = normalize_roxy_module(first_query_param_value(st.query_params, "module"), default="")
+    page = text_display(first_query_param_value(st.query_params, "view") or "Dashboard")
+    market = normalize_command_market(
+        st.session_state.get("command_market") or first_query_param_value(st.query_params, "market"),
+        symbol,
+    )
+    timeframe = normalize_command_timeframe(
+        st.session_state.get("command_timeframe") or first_query_param_value(st.query_params, "tf") or "1h"
+    )
+    return {
+        "page": page,
+        "module": module or "home",
+        "symbol": symbol,
+        "market": market,
+        "timeframe": timeframe,
+        "section": module or page,
+        "lesson": first_query_param_value(st.query_params, "lesson"),
+        "selected_asset": symbol,
+        "watchlist_count": len(st.session_state.get("watchlist") or []),
+    }
+
+
+def roxy_os_user_id() -> str:
+    profile = st.session_state.get("roxy_user_profile")
+    raw_user = ""
+    if isinstance(profile, dict):
+        raw_user = text_display(profile.get("username") or profile.get("email") or profile.get("name"))
+    raw_user = raw_user or text_display(st.session_state.get("user")) or roxy_user_display_name(default="local_user")
+    clean_user = re.sub(r"[^a-zA-Z0-9_.@-]+", "_", raw_user.strip().lower()).strip("_")
+    return clean_user or "local_user"
+
+
+@st.cache_resource(show_spinner=False)
+def cached_roxy_os_orchestrator(memory_path: str):
+    if not ROXY_OS_AVAILABLE or RoxyOrchestrator is None:
+        return None
+    return RoxyOrchestrator(memory_path=memory_path)
+
+
+def get_roxy_os_orchestrator():
+    return cached_roxy_os_orchestrator(str(project_path("data/roxy_os_memory.json")))
+
+
+def roxy_os_context() -> dict[str, Any]:
+    context = roxy_elevenlabs_page_context()
+    profile = st.session_state.get("roxy_user_profile")
+    context.update(
+        {
+            "surface": "streamlit",
+            "user_profile": dict(profile) if isinstance(profile, dict) else {},
+            "allowed_permissions": list(st.session_state.get("roxy_os_allowed_permissions") or []),
+            "authenticated": bool(st.session_state.get("user")),
+        }
+    )
+    return context
+
+
+def run_roxy_os_command(command_text: str) -> dict[str, Any]:
+    command_text = text_display(command_text).strip()
+    if not command_text:
+        return {"ok": False, "message": "Escribe una instruccion para Roxy."}
+    orchestrator = get_roxy_os_orchestrator()
+    if orchestrator is None:
+        return {"ok": False, "message": "Roxy OS Core no esta disponible en este entorno."}
+    try:
+        response = orchestrator.handle(command_text, user_id=roxy_os_user_id(), context=roxy_os_context())
+    except Exception as exc:
+        return {"ok": False, "message": f"Roxy OS no pudo procesar la instruccion: {exc}"}
+    payload = response.to_dict()
+    payload["ok"] = True
+    history = st.session_state.setdefault("roxy_os_history", [])
+    history.insert(0, payload)
+    del history[8:]
+    return payload
+
+
+def apply_roxy_os_safe_actions(result: dict[str, Any]) -> list[str]:
+    applied: list[str] = []
+    if not result.get("ok"):
+        return applied
+    permission = result.get("permission") or {}
+    if permission.get("allowed") is False or permission.get("risk_level") == "high":
+        return applied
+    for action in result.get("actions") or []:
+        if not isinstance(action, dict):
+            continue
+        if action.get("confirmation_required"):
+            continue
+        action_type = text_display(action.get("type"))
+        if action_type == "open_module":
+            module = normalize_roxy_module(action.get("module"), default="acciones-operar")
+            module_config = roxy_module_by_slug(module)
+            symbol = text_display(action.get("symbol") or module_config.get("symbol") or "AAPL").upper()
+            market = normalize_command_market(action.get("market") or module_config.get("market"), symbol)
+            timeframe = normalize_command_timeframe(action.get("timeframe") or module_config.get("tf") or "1h")
+            st.session_state["roxy_active_module"] = module
+            st.query_params["module"] = module
+            apply_roxy_navigation_target(
+                page=text_display(module_config.get("page") or "Dashboard"),
+                symbol=symbol,
+                market=market,
+                timeframe=timeframe,
+                budget_scope=text_display(module_config.get("scope") or ""),
+                message=f"Roxy abrio {module_config.get('label') or module}.",
+            )
+            applied.append(f"Abrir modulo {module_config.get('label') or module}")
+        elif action_type == "run_trading_scan":
+            module = normalize_roxy_module(action.get("module"), default=text_display(st.query_params.get("module") or "acciones-operar"))
+            st.session_state["roxy_active_module"] = module
+            st.session_state["roxy_pending_scan"] = {
+                "module": module,
+                "symbol": text_display(action.get("symbol") or st.session_state.get("command_symbol") or "AAPL").upper(),
+                "market": normalize_command_market(action.get("market"), action.get("symbol")),
+                "timeframe": normalize_command_timeframe(action.get("timeframe") or st.session_state.get("command_timeframe") or "1h"),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            st.query_params["module"] = module
+            applied.append("Preparar scanner operativo")
+    return applied
+
+
+def process_roxy_os_query_command() -> None:
+    command = text_display(first_query_param_value(st.query_params, "roxy_os_cmd")).strip()
+    if not command:
+        return
+    command_key = hashlib.sha256(command.encode("utf-8", errors="ignore")).hexdigest()
+    if st.session_state.get("roxy_os_last_query_command") == command_key:
+        try:
+            del st.query_params["roxy_os_cmd"]
+        except Exception:
+            pass
+        return
+    st.session_state["roxy_os_last_query_command"] = command_key
+    result = run_roxy_os_command(command)
+    applied = apply_roxy_os_safe_actions(result)
+    if result.get("ok"):
+        st.session_state["roxy_launch_message"] = result.get("message") or "Roxy proceso la instruccion."
+        if applied:
+            st.session_state["roxy_launch_message"] += " Acciones aplicadas: " + ", ".join(applied)
+    else:
+        st.session_state["roxy_launch_message"] = result.get("message") or "Roxy no pudo procesar la instruccion."
+    try:
+        del st.query_params["roxy_os_cmd"]
+    except Exception:
+        pass
+
+
+def render_roxy_os_command_center() -> None:
+    if not ROXY_OS_AVAILABLE:
+        return
+    with st.expander("Roxy OS Core · memoria, acciones y copiloto", expanded=False):
+        st.caption(
+            "Este puente prueba el cerebro local de Roxy sin operar dinero real. "
+            "Puede guardar recuerdos, preparar acciones y bloquear ordenes peligrosas."
+        )
+        quick_cols = st.columns(3)
+        quick_prompts = [
+            ("Compras", "Hola Roxy, acuerdame comprar pan, cafe y leche."),
+            ("Trading", "Roxy abre Roxy Trading y dime las mejores oportunidades."),
+            ("Pantalla", "Roxy dime que estoy viendo en la pantalla."),
+        ]
+        for col, (label, prompt) in zip(quick_cols, quick_prompts):
+            if col.button(label, key=f"roxy_os_quick_{label.lower()}"):
+                st.session_state["roxy_os_pending_command"] = prompt
+
+        default_command = text_display(st.session_state.pop("roxy_os_pending_command", ""))
+        with st.form("roxy_os_command_form", clear_on_submit=True):
+            command_text = st.text_area(
+                "Instruccion para Roxy",
+                value=default_command,
+                placeholder="Ejemplo: Roxy, recuerda que prefiero trading conservador y dime que debo revisar hoy.",
+                height=86,
+            )
+            submitted = st.form_submit_button("Enviar a Roxy OS")
+        if submitted:
+            result = run_roxy_os_command(command_text)
+            if result.get("ok"):
+                st.success(result.get("message") or "Roxy proceso la instruccion.")
+                applied = apply_roxy_os_safe_actions(result)
+                if applied:
+                    st.info("Acciones aplicadas: " + ", ".join(applied))
+            else:
+                st.error(result.get("message") or "No se pudo procesar.")
+
+        for item in st.session_state.get("roxy_os_history", [])[:3]:
+            permission = item.get("permission") or {}
+            with st.container(border=True):
+                st.markdown(f"**{item.get('agent', 'roxy')} · {item.get('intent', 'general')}**")
+                st.write(item.get("message", ""))
+                if item.get("actions"):
+                    st.caption("Acciones preparadas")
+                    st.json(item.get("actions"), expanded=False)
+                if permission:
+                    st.caption(
+                        f"Permiso: {permission.get('mode', '-')}"
+                        f" · Riesgo: {permission.get('risk_level', '-')}"
+                    )
+
+
+def render_roxy_elevenlabs_assistant() -> None:
+    agent_id = elevenlabs_agent_id() or DEFAULT_ELEVENLABS_AGENT_ID
+    session_payload = roxy_elevenlabs_signed_session_payload(agent_id, elevenlabs_env_fingerprint())
+    user_profile = roxy_elevenlabs_user_profile()
+    page_context = roxy_elevenlabs_page_context()
+    personalization = build_roxy_personalization(user_profile, page_context)
+    avatar_html = roxy_avatar_html("speaking", "icon", "Roxy Trading")
+    public_error = str(session_payload.get("error") or "").replace("API_KEY", "secure key").replace("ELEVENLABS_", "ElevenLabs ")
+    payload = {
+        "agentId": session_payload.get("agent_id") or agent_id,
+        "signedUrl": session_payload.get("signed_url") or "",
+        "conversationToken": session_payload.get("conversation_token") or "",
+        "configured": bool(session_payload.get("configured")),
+        "error": public_error,
+        "generatedAt": session_payload.get("generated_at") or "",
+        "voiceMode": session_payload.get("voice_mode") or "unavailable",
+        "userName": personalization["assistant_rules"]["display_name"],
+        "language": personalization["assistant_rules"]["preferred_language"],
+        "pageContext": personalization["context"],
+        "dynamicVariables": {
+            "user_name": personalization["assistant_rules"]["display_name"],
+            "preferred_language": personalization["assistant_rules"]["preferred_language"],
+            "trading_level": user_profile.get("trading_level", ""),
+            "risk_tolerance": user_profile.get("risk_tolerance", ""),
+            "preferred_markets": user_profile.get("preferred_markets", ""),
+            "watchlist": user_profile.get("watchlist", ""),
+            "learning_progress": user_profile.get("learning_progress", ""),
+            "completed_lessons": user_profile.get("completed_lessons", ""),
+            "trading_style": user_profile.get("trading_style", ""),
+            "current_page": page_context.get("page", ""),
+            "current_module": page_context.get("module", ""),
+            "current_symbol": page_context.get("symbol", ""),
+            "current_market": page_context.get("market", ""),
+            "current_timeframe": page_context.get("timeframe", ""),
+        },
+        "assistantRules": personalization["assistant_rules"],
+        "avatarHtml": avatar_html,
+    }
+    voice_payload = dict(payload)
+    voice_payload.pop("avatarHtml", None)
+    voice_payload_json = json.dumps(voice_payload, ensure_ascii=False, default=str)
+    avatar_markup_json = json.dumps(avatar_html, ensure_ascii=False)
+    if payload["conversationToken"] or payload["signedUrl"]:
+        fallback_status = "Di Hola Roxy para activar"
+    elif payload["agentId"]:
+        fallback_status = "Modo directo: toca y di Hola Roxy"
+    else:
+        fallback_status = "Configura ElevenLabs en Render"
+    voice_test_html = f"""
+    <div class="roxy-voice-test-card">
+      <button id="roxyVoiceTestButton" type="button" aria-label="Probar voz temporal de Roxy">
+        <span>Probar voz de Roxy</span>
+        <b id="roxyVoiceTestStatus">Audio local</b>
+      </button>
+    </div>
+    <script>
+    (function() {{
+      const payload = {voice_payload_json};
+      const button = document.getElementById("roxyVoiceTestButton");
+      const status = document.getElementById("roxyVoiceTestStatus");
+      function playTone() {{
+        try {{
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContext) return false;
+          const ctx = new AudioContext();
+          const gain = ctx.createGain();
+          const first = ctx.createOscillator();
+          const second = ctx.createOscillator();
+          first.type = "sine";
+          second.type = "triangle";
+          first.frequency.value = 660;
+          second.frequency.value = 990;
+          gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.42);
+          first.connect(gain);
+          second.connect(gain);
+          gain.connect(ctx.destination);
+          first.start();
+          second.start(ctx.currentTime + 0.08);
+          first.stop(ctx.currentTime + 0.44);
+          second.stop(ctx.currentTime + 0.48);
+          window.setTimeout(() => ctx.close && ctx.close(), 700);
+          return true;
+        }} catch (error) {{
+          return false;
+        }}
+      }}
+      function say(text) {{
+        try {{
+          const synth = window.speechSynthesis;
+          const Utterance = window.SpeechSynthesisUtterance;
+          if (!synth || !Utterance) {{
+            if (status) status.textContent = "No disponible";
+            return false;
+          }}
+          synth.cancel();
+          const utterance = new Utterance(text);
+          utterance.lang = String(payload.language || "es").toLowerCase().startsWith("en") ? "en-US" : "es-US";
+          utterance.rate = 0.95;
+          utterance.pitch = 1.08;
+          utterance.volume = 1;
+          const assignVoice = () => {{
+            const voices = typeof synth.getVoices === "function" ? synth.getVoices() : [];
+            const voice = voices.find((item) => /female|paulina|monica|samantha|google espa|spanish|es-|es_/i.test(`${{item.name || ""}} ${{item.lang || ""}}`))
+              || voices.find((item) => String(item.lang || "").toLowerCase().startsWith("es"))
+              || voices[0];
+            if (voice) {{
+              utterance.voice = voice;
+              if (voice.lang) utterance.lang = voice.lang;
+            }}
+          }};
+          assignVoice();
+          utterance.onstart = () => {{ if (status) status.textContent = "Hablando"; }};
+          utterance.onend = () => {{ if (status) status.textContent = "Audio OK"; }};
+          utterance.onerror = () => {{ if (status) status.textContent = "Error audio"; }};
+          if (typeof synth.resume === "function") synth.resume();
+          synth.speak(utterance);
+          if (typeof synth.getVoices === "function" && synth.getVoices().length === 0) {{
+            synth.onvoiceschanged = () => {{
+              assignVoice();
+              synth.onvoiceschanged = null;
+            }};
+          }}
+          return true;
+        }} catch (error) {{
+          if (status) status.textContent = "Bloqueado";
+          return false;
+        }}
+      }}
+      if (button) {{
+        button.addEventListener("click", () => {{
+          playTone();
+          say(`Hola ${{payload.userName || "Trader"}}. Soy Roxy. Esta es una prueba temporal de voz. Si me escuchas, el audio local funciona.`);
+        }});
+      }}
+    }})();
+    </script>
+    <style>
+      html,body{{margin:0;padding:0;background:transparent;overflow:hidden}}
+      .roxy-voice-test-card{{
+        font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+        display:flex;
+        justify-content:flex-end;
+        padding:0 10px 6px;
+        background:transparent;
+      }}
+      #roxyVoiceTestButton{{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:12px;
+        width:min(320px,calc(100vw - 20px));
+        min-height:48px;
+        border:1px solid rgba(56,189,248,.34);
+        border-radius:16px;
+        background:linear-gradient(135deg,rgba(2,6,23,.88),rgba(8,47,73,.78));
+        color:#f8fafc;
+        box-shadow:0 14px 32px rgba(0,0,0,.28),0 0 24px rgba(56,189,248,.16);
+        cursor:pointer;
+        padding:10px 12px;
+      }}
+      #roxyVoiceTestButton span{{font-size:13px;font-weight:900;letter-spacing:.01em}}
+      #roxyVoiceTestButton b{{
+        border:1px solid rgba(125,211,252,.28);
+        border-radius:999px;
+        background:rgba(37,99,235,.22);
+        color:#93c5fd;
+        font-size:10px;
+        line-height:1;
+        padding:7px 9px;
+        text-transform:uppercase;
+        white-space:nowrap;
+      }}
+    </style>
+    """
+    components.html(voice_test_html, height=56)
+    st.markdown(
+        f"""
+        <style>
+          .roxy-el-fallback {{
+            position: fixed;
+            right: 16px;
+            bottom: 92px;
+            z-index: 2147482500;
+            width: min(292px, calc(100vw - 28px));
+            display: grid;
+            grid-template-columns: 42px minmax(0, 1fr);
+            gap: 10px;
+            align-items: center;
+            padding: 9px 11px;
+            border: 1px solid rgba(56,189,248,.34);
+            border-radius: 18px;
+            background: linear-gradient(135deg, rgba(2,6,23,.88), rgba(8,47,73,.76));
+            box-shadow: 0 18px 48px rgba(0,0,0,.42), 0 0 28px rgba(14,165,233,.18);
+            color: #eaf6ff;
+            pointer-events: none;
+            backdrop-filter: blur(18px);
+          }}
+          .roxy-el-fallback-avatar {{
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 1px solid rgba(186,230,253,.7);
+            box-shadow: 0 0 22px rgba(34,211,238,.48);
+          }}
+          .roxy-el-fallback-avatar img {{
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+          }}
+          .roxy-el-fallback strong {{
+            display: block;
+            color: #f8fafc;
+            font-size: 12px;
+            line-height: 1.1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }}
+          .roxy-el-fallback span {{
+            display: block;
+            margin-top: 4px;
+            color: #93c5fd;
+            font-size: 9px;
+            font-weight: 900;
+            line-height: 1.2;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+          }}
+          .roxy-el-fallback-wave {{
+            display: flex;
+            gap: 2px;
+            height: 12px;
+            margin-top: 6px;
+            align-items: end;
+          }}
+          .roxy-el-fallback-wave i {{
+            display: block;
+            width: 3px;
+            border-radius: 999px;
+            background: linear-gradient(180deg, #f8fafc, #38bdf8);
+            animation: roxyElFallbackWave 1.2s ease-in-out infinite;
+          }}
+          .roxy-el-fallback-wave i:nth-child(2) {{ animation-delay: .1s; }}
+          .roxy-el-fallback-wave i:nth-child(3) {{ animation-delay: .2s; }}
+          .roxy-el-fallback-wave i:nth-child(4) {{ animation-delay: .3s; }}
+          .roxy-el-fallback-wave i:nth-child(5) {{ animation-delay: .4s; }}
+          body.roxy-el-runtime-mounted .roxy-el-fallback {{ display: none; }}
+          @keyframes roxyElFallbackWave {{
+            0%, 100% {{ height: 4px; opacity: .55; }}
+            50% {{ height: 12px; opacity: 1; }}
+          }}
+        </style>
+        <div class="roxy-el-fallback" aria-live="polite">
+          <div class="roxy-el-fallback-avatar">{avatar_html}</div>
+          <div>
+            <strong>Roxy voz cargando</strong>
+            <span>{html.escape(fallback_status)}</span>
+            <div class="roxy-el-fallback-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    runtime_html = f"""
+    <script>
+    (function() {{
+      try {{
+      const payload = {voice_payload_json};
+      const avatarMarkup = {avatar_markup_json};
+      const parentDoc = window.parent && window.parent.document ? window.parent.document : document;
+      parentDoc.body.classList.add("roxy-el-runtime-mounted");
+      const rootId = "roxy-elevenlabs-assistant-root";
+      const styleId = "roxy-elevenlabs-assistant-style";
+      const scriptId = "roxy-elevenlabs-widget-script";
+      const sdkImportUrls = [
+        "https://esm.sh/@elevenlabs/client?bundle",
+        "https://cdn.jsdelivr.net/npm/@elevenlabs/client/+esm",
+      ];
+      const sdkImportUrl = sdkImportUrls[0];
+      const widgetScriptSrc = "https://unpkg.com/@elevenlabs/convai-widget-embed";
+      const oldRoot = parentDoc.getElementById(rootId);
+      if (oldRoot) oldRoot.remove();
+      const oldStyle = parentDoc.getElementById(styleId);
+      if (oldStyle) oldStyle.remove();
+      const style = parentDoc.createElement("style");
+      style.id = styleId;
+      style.textContent = `
+        .roxy-el-root{{position:fixed;right:18px;bottom:92px;z-index:2147482800;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eaf6ff;pointer-events:none}}
+        .roxy-el-wake{{pointer-events:auto;display:grid;grid-template-columns:46px minmax(0,1fr);gap:10px;align-items:center;min-width:min(300px,calc(100vw - 28px));border:1px solid rgba(56,189,248,.36);border-radius:18px;background:linear-gradient(135deg,rgba(2,6,23,.82),rgba(8,47,73,.72));box-shadow:0 18px 48px rgba(0,0,0,.42),0 0 28px rgba(14,165,233,.18);padding:9px 11px;backdrop-filter:blur(18px);cursor:pointer}}
+        .roxy-el-wake:before{{content:"";position:absolute;inset:-1px;border-radius:18px;background:linear-gradient(90deg,rgba(56,189,248,.0),rgba(56,189,248,.28),rgba(168,85,247,.0));opacity:.45;pointer-events:none;animation:roxyElGlow 3.8s ease-in-out infinite}}
+        .roxy-el-avatar{{position:relative;z-index:2;width:52px;height:52px;border-radius:50%;overflow:hidden;border:1px solid rgba(186,230,253,.7);box-shadow:0 0 22px rgba(34,211,238,.48)}}
+        .roxy-el-avatar img{{width:100%;height:100%;object-fit:cover;display:block}}
+        .roxy-el-wake .roxy-el-avatar{{width:46px;height:46px}}
+        .roxy-el-wake-copy{{position:relative;z-index:2;min-width:0}}
+        .roxy-el-wake-copy strong{{display:block;color:#f8fafc;font-size:13px;line-height:1.12;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+        .roxy-el-wake-copy span{{display:block;margin-top:4px;color:#93c5fd;font-size:10px;font-weight:900;line-height:1.2;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+        .roxy-el-listen-wave{{display:flex;gap:2px;margin-top:6px;height:13px;align-items:end}}
+        .roxy-el-listen-wave i{{display:block;width:3px;border-radius:999px;background:linear-gradient(180deg,#f8fafc,#38bdf8);box-shadow:0 0 7px rgba(56,189,248,.52);animation:roxyElWave 1.2s ease-in-out infinite}}
+        .roxy-el-listen-wave i:nth-child(2){{animation-delay:.1s}}.roxy-el-listen-wave i:nth-child(3){{animation-delay:.2s}}.roxy-el-listen-wave i:nth-child(4){{animation-delay:.3s}}.roxy-el-listen-wave i:nth-child(5){{animation-delay:.4s}}
+        .roxy-el-live-dot{{position:absolute;right:7px;top:7px;z-index:3;width:11px;height:11px;border-radius:50%;background:#22c55e;box-shadow:0 0 12px #22c55e;border:2px solid #07111f}}
+        .roxy-el-panel{{pointer-events:auto;position:absolute;right:0;bottom:78px;width:min(390px,calc(100vw - 28px));max-height:min(690px,calc(100vh - 136px));display:none;grid-template-rows:auto minmax(130px,1fr) auto;overflow:hidden;border:1px solid rgba(56,189,248,.34);border-radius:18px;background:linear-gradient(180deg,rgba(3,10,24,.96),rgba(7,18,38,.94));box-shadow:0 28px 70px rgba(0,0,0,.62),0 0 38px rgba(14,165,233,.22);backdrop-filter:blur(18px)}}
+        .roxy-el-root.roxy-el-open .roxy-el-panel{{display:grid;animation:roxyElRise .18s ease-out both}}
+        .roxy-el-head{{display:grid;grid-template-columns:46px 1fr auto;gap:10px;align-items:center;padding:13px;border-bottom:1px solid rgba(148,163,184,.16);background:radial-gradient(circle at 20% 0%,rgba(56,189,248,.16),transparent 40%)}}
+        .roxy-el-head .roxy-el-avatar{{width:46px;height:46px}}
+        .roxy-el-title strong{{display:block;font-size:15px;line-height:1.15;color:#fff}}
+        .roxy-el-title span{{display:block;margin-top:3px;color:#93c5fd;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}}
+        .roxy-el-close{{border:0;background:rgba(15,23,42,.72);color:#c7d2fe;border-radius:10px;width:34px;height:34px;font-size:22px;cursor:pointer}}
+        .roxy-el-body{{overflow:auto;padding:13px;display:grid;gap:10px;background-image:radial-gradient(circle at 10% 20%,rgba(56,189,248,.10),transparent 30%),radial-gradient(circle at 90% 0%,rgba(168,85,247,.12),transparent 28%)}}
+        .roxy-el-context{{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}}
+        .roxy-el-context span{{border:1px solid rgba(148,163,184,.14);border-radius:10px;background:rgba(15,23,42,.62);padding:7px;color:#bfdbfe;font-size:10px;font-weight:900;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+        .roxy-el-risk{{border:1px solid rgba(251,191,36,.25);border-radius:13px;background:rgba(120,53,15,.18);padding:10px;color:#fde68a;font-size:12px;line-height:1.35}}
+        .roxy-el-msg{{border:1px solid rgba(148,163,184,.14);border-radius:13px;padding:10px;background:rgba(15,23,42,.74);font-size:13px;line-height:1.35;color:#dbeafe}}
+        .roxy-el-msg b{{color:#fff}}
+        .roxy-el-status{{border-radius:999px;background:rgba(15,23,42,.86);border:1px solid rgba(56,189,248,.20);color:#7dd3fc;padding:8px 10px;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em}}
+        .roxy-el-status.roxy-el-status-error{{border-color:rgba(248,113,113,.34);background:rgba(127,29,29,.26);color:#fecaca}}
+        .roxy-el-widget-wrap{{min-height:430px;border:1px solid rgba(56,189,248,.18);border-radius:16px;overflow:hidden;background:rgba(2,6,23,.64);display:grid;place-items:stretch}}
+        .roxy-el-widget-wrap elevenlabs-convai{{display:block;min-height:430px;width:100%}}
+        .roxy-el-widget-hint{{padding:10px 12px;border-radius:12px;background:rgba(37,99,235,.16);border:1px solid rgba(96,165,250,.20);font-size:12px;color:#bfdbfe;line-height:1.35}}
+        .roxy-el-widget-error{{padding:16px;border-radius:14px;border:1px solid rgba(248,113,113,.26);background:rgba(127,29,29,.18);color:#fecaca;font-size:12px;line-height:1.45}}
+        @keyframes roxyElGlow{{0%,100%{{opacity:.20;transform:translateX(-18%)}}50%{{opacity:.78;transform:translateX(18%)}}}}
+        @keyframes roxyElWave{{0%,100%{{height:4px;opacity:.5}}50%{{height:13px;opacity:1}}}}
+        @keyframes roxyElRise{{from{{opacity:0;transform:translateY(10px) scale(.98)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
+        @media(max-width:640px){{.roxy-el-root{{right:14px;bottom:86px}}.roxy-el-wake{{min-width:min(260px,calc(100vw - 24px));grid-template-columns:40px minmax(0,1fr);padding:8px 10px}}.roxy-el-wake .roxy-el-avatar{{width:40px;height:40px}}.roxy-el-wake-copy strong{{font-size:12px}}.roxy-el-wake-copy span{{font-size:9px}}.roxy-el-panel{{bottom:72px;width:calc(100vw - 24px)}}}}
+      `;
+      parentDoc.head.appendChild(style);
+      const existingScript = parentDoc.getElementById(scriptId);
+      if (existingScript && existingScript.src && !existingScript.src.startsWith(widgetScriptSrc)) {{
+        existingScript.remove();
+      }}
+      if (!parentDoc.getElementById(scriptId)) {{
+        const widgetScript = parentDoc.createElement("script");
+        widgetScript.id = scriptId;
+        widgetScript.src = widgetScriptSrc;
+        widgetScript.async = true;
+        widgetScript.type = "text/javascript";
+        widgetScript.onerror = () => {{
+          const status = parentDoc.querySelector("#" + rootId + " .roxy-el-status");
+          const mount = parentDoc.querySelector("#" + rootId + " .roxy-el-widget-mount");
+          if (status) {{
+            status.classList.add("roxy-el-status-error");
+            status.textContent = "ElevenLabs no cargo en este navegador";
+          }}
+          if (mount) {{
+            mount.innerHTML = '<div class="roxy-el-widget-error">No pude cargar el widget oficial de ElevenLabs. Revisa que Render tenga la variable segura de ElevenLabs configurada, que el agent-id sea correcto y que el dominio este permitido en ElevenLabs Security Allowlist.</div>';
+          }}
+        }};
+        parentDoc.head.appendChild(widgetScript);
+      }}
+      const root = parentDoc.createElement("section");
+      root.id = rootId;
+      root.className = "roxy-el-root";
+      root.innerHTML = `
+        <aside class="roxy-el-panel" aria-label="Roxy Trading assistant">
+          <header class="roxy-el-head">
+            <div class="roxy-el-avatar">${{avatarMarkup}}</div>
+            <div class="roxy-el-title"><strong>Roxy Trading</strong><span>ElevenLabs Agent</span></div>
+            <button class="roxy-el-close" type="button" aria-label="Cerrar">×</button>
+          </header>
+          <div class="roxy-el-body">
+            <div class="roxy-el-context">
+              <span>${{payload.pageContext.page || "Dashboard"}}</span>
+              <span>${{payload.pageContext.module || "home"}}</span>
+              <span>${{payload.pageContext.symbol || ""}} ${{payload.pageContext.timeframe || ""}}</span>
+            </div>
+            <div class="roxy-el-risk">Roxy puede educar, explicar y guiar. No garantiza ganancias ni sustituye asesoria financiera licenciada. Practica en paper trading y respeta riesgo, stop loss y tamano de posicion.</div>
+            <div class="roxy-el-status ${{(!payload.agentId && payload.error) ? "roxy-el-status-error" : ""}}">${{payload.conversationToken || payload.signedUrl ? "Di Hola Roxy para activar la voz segura" : payload.agentId ? "Modo directo listo: toca la pantalla y di Hola Roxy" : payload.error ? ("Configurar voz: " + payload.error) : "Configura ElevenLabs en Render"}}</div>
+            <div class="roxy-el-msg"><b>Hola, ${{payload.userName || "Trader"}}.</b><br/>Estoy viendo ${{payload.pageContext.module || payload.pageContext.page || "Roxy Trading"}}. Cuando digas Hola Roxy, abro la conversacion de voz.</div>
+            <div class="roxy-el-widget-hint">${{payload.voiceMode === "agent_id_fallback" ? "Estoy intentando el agente directo porque la sesion segura no autentico. Para modo privado completo, revisa la API key del mismo workspace del agente y redeploy en Render." : "El navegador puede pedir permiso de microfono una vez. La clave segura de ElevenLabs nunca se envia al frontend."}}</div>
+            <div class="roxy-el-widget-wrap">
+              <div class="roxy-el-widget-mount"></div>
+            </div>
+          </div>
+        </aside>
+        <div class="roxy-el-wake" role="status" aria-live="polite">
+          <span class="roxy-el-avatar">${{avatarMarkup}}</span>
+          <span class="roxy-el-live-dot" aria-hidden="true"></span>
+          <div class="roxy-el-wake-copy">
+            <strong>${{payload.agentId ? "Roxy esta escuchando" : "Roxy voz pendiente"}}</strong>
+            <span class="roxy-el-wake-status">${{payload.agentId ? "Di: Hola Roxy" : "Configura ElevenLabs"}}</span>
+            <div class="roxy-el-listen-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          </div>
+        </div>
+      `;
+      parentDoc.body.appendChild(root);
+      const mount = root.querySelector(".roxy-el-widget-mount");
+      const widget = parentDoc.createElement("elevenlabs-convai");
+      if (payload.signedUrl) {{
+        widget.setAttribute("signed-url", payload.signedUrl);
+      }} else {{
+        widget.setAttribute("agent-id", payload.agentId);
+      }}
+      widget.setAttribute("dynamic-variables", JSON.stringify(payload.dynamicVariables || {{}}));
+      widget.setAttribute("override-language", payload.language || "es");
+      widget.setAttribute("override-first-message", `Hola ${{payload.userName || "Trader"}}, soy Roxy. Estoy lista para ayudarte con ${{payload.pageContext.module || payload.pageContext.page || "la plataforma"}} sin prometer ganancias y cuidando siempre tu riesgo.`);
+      widget.setAttribute("variant", "expanded");
+      widget.setAttribute("action-text", "Hablar con Roxy");
+      widget.setAttribute("start-call-text", "Hablar con Roxy");
+      widget.setAttribute("end-call-text", "Finalizar");
+      widget.setAttribute("expand-text", "Abrir Roxy");
+      widget.setAttribute("collapse-text", "Cerrar");
+      widget.setAttribute("listening-text", "Roxy escuchando...");
+      widget.setAttribute("speaking-text", "Roxy hablando...");
+      widget.setAttribute("avatar-orb-color-1", "#38bdf8");
+      widget.setAttribute("avatar-orb-color-2", "#8b5cf6");
+      mount.appendChild(widget);
+      const closeButton = root.querySelector(".roxy-el-close");
+      closeButton.addEventListener("click", () => root.classList.remove("roxy-el-open"));
+
+      const parentWakeRuntimeId = "roxy-elevenlabs-parent-wake-runtime";
+      const oldParentWakeRuntime = parentDoc.getElementById(parentWakeRuntimeId);
+      if (oldParentWakeRuntime) oldParentWakeRuntime.remove();
+      const parentWakeRuntime = parentDoc.createElement("script");
+      parentWakeRuntime.id = parentWakeRuntimeId;
+      parentWakeRuntime.type = "text/javascript";
+      parentWakeRuntime.textContent = `
+        (function() {{
+          const payload = {voice_payload_json};
+          const rootId = "roxy-elevenlabs-assistant-root";
+          const sdkImportUrls = [
+            "https://esm.sh/@elevenlabs/client?bundle",
+            "https://cdn.jsdelivr.net/npm/@elevenlabs/client/+esm",
+          ];
+          const doc = document;
+          const win = window;
+          const root = doc.getElementById(rootId);
+          if (!root) return;
+          const wakeStatus = root.querySelector(".roxy-el-wake-status");
+          const panelStatus = root.querySelector(".roxy-el-status");
+          const widget = root.querySelector("elevenlabs-convai");
+          const wakeSurface = root.querySelector(".roxy-el-wake");
+          let recognition = null;
+          let conversation = null;
+          let importPromise = null;
+          let cooldownUntil = 0;
+          let temporaryVoicePrimed = false;
+
+          function setStatus(message, isError) {{
+            if (wakeStatus) wakeStatus.textContent = message;
+            if (panelStatus) {{
+              panelStatus.textContent = message;
+              panelStatus.classList.toggle("roxy-el-status-error", Boolean(isError));
+            }}
+          }}
+
+          function speakBrowserFallback(message) {{
+            try {{
+              const synth = win.speechSynthesis;
+              const Utterance = win.SpeechSynthesisUtterance;
+              if (!synth || !Utterance) {{
+                setStatus("Voz temporal no disponible en este navegador", true);
+                return false;
+              }}
+              const text = String(message || "").trim() || ("Hola " + (payload.userName || "Trader") + ". Soy Roxy. La voz temporal esta funcionando.");
+              synth.cancel();
+              const utterance = new Utterance(text);
+              const language = String(payload.language || "es").toLowerCase();
+              utterance.lang = language.startsWith("en") ? "en-US" : "es-US";
+              utterance.rate = 0.95;
+              utterance.pitch = 1.08;
+              utterance.volume = 1;
+              const assignVoice = function() {{
+                const voices = typeof synth.getVoices === "function" ? synth.getVoices() : [];
+                const voice = voices.find(function(item) {{
+                  return /female|paulina|monica|samantha|google espa|spanish|es-|es_/i.test(String(item.name || "") + " " + String(item.lang || ""));
+                }}) || voices.find(function(item) {{
+                  return String(item.lang || "").toLowerCase().startsWith("es");
+                }}) || voices[0];
+                if (voice) {{
+                  utterance.voice = voice;
+                  if (voice.lang) utterance.lang = voice.lang;
+                }}
+              }};
+              assignVoice();
+              utterance.onstart = function() {{ setStatus("Roxy hablando con voz temporal", false); }};
+              utterance.onend = function() {{ setStatus("Di: Hola Roxy", false); }};
+              utterance.onerror = function() {{ setStatus("No pude reproducir voz temporal", true); }};
+              if (typeof synth.resume === "function") synth.resume();
+              synth.speak(utterance);
+              if (typeof synth.getVoices === "function" && synth.getVoices().length === 0) {{
+                synth.onvoiceschanged = function() {{
+                  assignVoice();
+                  synth.onvoiceschanged = null;
+                }};
+              }}
+              return true;
+            }} catch (error) {{
+              setStatus("Voz temporal no disponible", true);
+              return false;
+            }}
+          }}
+
+          function speechWords(value) {{
+            let text = String(value || "").toLowerCase();
+            try {{
+              text = text.normalize("NFD");
+            }} catch (_) {{}}
+            const words = [];
+            let current = "";
+            for (const char of text) {{
+              const code = char.charCodeAt(0);
+              const isCombiningMark = code >= 768 && code <= 879;
+              const isLetter = char >= "a" && char <= "z";
+              const isNumber = char >= "0" && char <= "9";
+              if (isCombiningMark) continue;
+              if (isLetter || isNumber) {{
+                current += char;
+              }} else if (current) {{
+                words.push(current);
+                current = "";
+              }}
+            }}
+            if (current) words.push(current);
+            return words;
+          }}
+
+          function containsSequence(words, sequence) {{
+            for (let index = 0; index <= words.length - sequence.length; index += 1) {{
+              let matched = true;
+              for (let offset = 0; offset < sequence.length; offset += 1) {{
+                if (words[index + offset] !== sequence[offset]) {{
+                  matched = false;
+                  break;
+                }}
+              }}
+              if (matched) return true;
+            }}
+            return false;
+          }}
+
+          function isWakePhrase(value) {{
+            const words = speechWords(value);
+            if (containsSequence(words, ["hola", "roxy"]) || containsSequence(words, ["ola", "roxy"]) || containsSequence(words, ["hello", "roxy"]) || containsSequence(words, ["hey", "roxy"])) return true;
+            if (!words.includes("roxy")) return false;
+            return words.includes("abre") || words.includes("activa") || words.includes("escucha") || words.includes("ayuda") || words.includes("habla");
+          }}
+
+          function commandAfterWakePhrase(value) {{
+            let command = String(value || "").trim();
+            command = command.replace(/^(hola|ola|hello|hey)\\s+roxy\\b[\\s,.:;-]*/i, "");
+            command = command.replace(/^roxy\\b[\\s,.:;-]*/i, "");
+            const words = speechWords(command);
+            const commandWords = ["abre", "abrir", "muestra", "mostrar", "busca", "buscar", "analiza", "escanea", "dime", "acciones", "accion", "apple", "aapl", "crypto", "cripto", "bitcoin", "btc", "classroom", "clase", "clases"];
+            if (words.length < 2 && !words.some(function(word) {{ return commandWords.includes(word); }})) return "";
+            if (!words.some(function(word) {{ return commandWords.includes(word); }})) return "";
+            return command || String(value || "").trim();
+          }}
+
+          function sendCommandToRoxyOS(value) {{
+            const command = commandAfterWakePhrase(value);
+            if (!command) return false;
+            const now = Date.now();
+            if (win.__roxyLastOsVoiceCommand === command && now - Number(win.__roxyLastOsVoiceCommandAt || 0) < 6000) return true;
+            win.__roxyLastOsVoiceCommand = command;
+            win.__roxyLastOsVoiceCommandAt = now;
+            setStatus("Roxy entendio: " + command, false);
+            try {{
+              const url = new URL(win.location.href);
+              url.searchParams.set("roxy_os_cmd", command);
+              win.location.assign(url.toString());
+              return true;
+            }} catch (error) {{
+              return false;
+            }}
+          }}
+
+          function openPanel() {{
+            root.classList.add("roxy-el-open");
+          }}
+
+          async function allowMic() {{
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return true;
+            try {{
+              const stream = await navigator.mediaDevices.getUserMedia({{ audio: true }});
+              stream.getTracks().forEach(function(track) {{ track.stop(); }});
+              return true;
+            }} catch (error) {{
+              setStatus("Permite el microfono y di Hola Roxy", true);
+              return false;
+            }}
+          }}
+
+          async function loadClient() {{
+            if (!importPromise) {{
+              importPromise = (async function() {{
+                let lastError = null;
+                for (const url of sdkImportUrls) {{
+                  try {{
+                    return await import(url);
+                  }} catch (error) {{
+                    lastError = error;
+                  }}
+                }}
+                throw lastError || new Error("ElevenLabs SDK import failed");
+              }})();
+            }}
+            return importPromise;
+          }}
+
+          async function activateRoxy() {{
+            const now = Date.now();
+            if (now < cooldownUntil) return;
+            cooldownUntil = now + 2500;
+            openPanel();
+            const lastTemporaryVoice = Number(win.__roxyTemporaryVoicePrimedAt || 0);
+            if (!temporaryVoicePrimed && now - lastTemporaryVoice > 3500 && payload.voiceMode !== "conversation_token" && payload.voiceMode !== "signed_url") {{
+              win.__roxyTemporaryVoicePrimedAt = now;
+              temporaryVoicePrimed = speakBrowserFallback("Hola " + (payload.userName || "Trader") + ". Soy Roxy. Probando voz temporal mientras conectamos la voz real.");
+            }}
+            if (!payload.signedUrl && !payload.conversationToken && !payload.agentId) {{
+              setStatus(payload.error ? "Configura ElevenLabs en Render" : "Sesion de voz no disponible", true);
+              speakBrowserFallback("Hola " + (payload.userName || "Trader") + ". Soy Roxy. Esta es una voz temporal para confirmar que el sistema de audio funciona.");
+              return;
+            }}
+            if (!(await allowMic())) return;
+            if (conversation) {{
+              setStatus("Roxy ya esta activa. Habla ahora.", false);
+              return;
+            }}
+            setStatus("Activando voz real de Roxy...", false);
+            try {{
+              const eleven = await loadClient();
+              const Conversation = eleven.Conversation || (eleven.default && eleven.default.Conversation);
+              if (!Conversation || !Conversation.startSession) throw new Error("ElevenLabs SDK unavailable");
+              const options = {{
+                dynamicVariables: payload.dynamicVariables || {{}},
+                clientTools: {{}},
+                onConnect: function() {{ setStatus("Roxy activa. Te escucho.", false); }},
+                onDisconnect: function() {{
+                  conversation = null;
+                  setStatus("Di: Hola Roxy", false);
+                  restartWakeListener();
+                }},
+                onError: function() {{
+                  setStatus("Error de voz. Reintentando escucha.", true);
+                  restartWakeListener();
+                }},
+              }};
+              if (payload.conversationToken) options.conversationToken = payload.conversationToken;
+              else if (payload.signedUrl) options.signedUrl = payload.signedUrl;
+              else options.agentId = payload.agentId;
+              conversation = await Conversation.startSession(options);
+              if (conversation && typeof conversation.sendUserMessage === "function") {{
+                conversation.sendUserMessage("Hola Roxy. Soy " + (payload.userName || "Trader") + ". Activaste por voz en " + (payload.pageContext.module || payload.pageContext.page || "Roxy Trading") + ".");
+              }}
+            }} catch (error) {{
+              const spoke = speakBrowserFallback("Hola " + (payload.userName || "Trader") + ". Soy Roxy. ElevenLabs no conecto todavia, pero esta voz temporal confirma que el audio funciona.");
+              if (!spoke) setStatus("No pude iniciar voz automatica; abri el panel de Roxy", true);
+              if (widget && typeof widget.click === "function") {{
+                try {{ widget.click(); }} catch (_) {{}}
+              }}
+            }}
+          }}
+
+          if (wakeSurface) {{
+            wakeSurface.addEventListener("click", activateRoxy);
+            wakeSurface.addEventListener("touchend", function(event) {{
+              event.preventDefault();
+              activateRoxy();
+            }}, {{ passive: false }});
+          }}
+
+          function stopWakeListener() {{
+            if (!recognition) return;
+            try {{
+              recognition.onend = null;
+              recognition.stop();
+            }} catch (_) {{}}
+          }}
+
+          function armMicPermissionRetry() {{
+            const retry = async function() {{
+              doc.removeEventListener("pointerdown", retry, true);
+              doc.removeEventListener("touchstart", retry, true);
+              doc.removeEventListener("keydown", retry, true);
+              const ready = await allowMic();
+              if (ready) restartWakeListener();
+            }};
+            doc.addEventListener("pointerdown", retry, true);
+            doc.addEventListener("touchstart", retry, true);
+            doc.addEventListener("keydown", retry, true);
+          }}
+
+          function restartWakeListener() {{
+            stopWakeListener();
+            setTimeout(startWakeListener, 750);
+          }}
+
+          function startWakeListener() {{
+            const SpeechRecognition = win.SpeechRecognition || win.webkitSpeechRecognition;
+            if (!SpeechRecognition) {{
+              setStatus("Este navegador no soporta escucha automatica", true);
+              return;
+            }}
+            try {{
+              recognition = new SpeechRecognition();
+              recognition.lang = String(payload.language || "es").toLowerCase().startsWith("en") ? "en-US" : "es-US";
+              recognition.continuous = true;
+              recognition.interimResults = true;
+              recognition.maxAlternatives = 1;
+              recognition.onstart = function() {{ setStatus("Di: Hola Roxy", false); }};
+              recognition.onerror = function(event) {{
+                const code = event && event.error ? String(event.error) : "";
+                if (code === "not-allowed" || code === "service-not-allowed") {{
+                  setStatus("Toca la pantalla y acepta el microfono", true);
+                  armMicPermissionRetry();
+                }} else {{
+                  setStatus("Roxy escucha en pausa; reintentando", false);
+                }}
+              }};
+              recognition.onend = function() {{
+                setTimeout(function() {{
+                  try {{ recognition.start(); }} catch (_) {{}}
+                }}, 900);
+              }};
+              recognition.onresult = function(event) {{
+                let transcript = "";
+                for (let i = event.resultIndex; i < event.results.length; i += 1) {{
+                  const result = event.results[i];
+                  transcript += result && result[0] && result[0].transcript ? result[0].transcript + " " : "";
+                }}
+                if (isWakePhrase(transcript)) {{
+                  stopWakeListener();
+                  if (!sendCommandToRoxyOS(transcript)) activateRoxy();
+                }}
+              }};
+              recognition.start();
+            }} catch (error) {{
+              setStatus("Toca la pagina una vez y di Hola Roxy", true);
+              const prime = function() {{
+                doc.removeEventListener("click", prime, true);
+                doc.removeEventListener("touchstart", prime, true);
+                restartWakeListener();
+              }};
+              doc.addEventListener("click", prime, true);
+              doc.addEventListener("touchstart", prime, true);
+            }}
+          }}
+
+          async function primeWakeVoice() {{
+            doc.removeEventListener("pointerdown", primeWakeVoice, true);
+            doc.removeEventListener("touchstart", primeWakeVoice, true);
+            doc.removeEventListener("keydown", primeWakeVoice, true);
+            const ready = await allowMic();
+            if (ready) restartWakeListener();
+          }}
+
+          if (!payload.signedUrl && !payload.conversationToken && !payload.agentId) {{
+            setStatus(payload.error ? ("Configurar voz: " + payload.error) : "Sesion de voz no disponible", true);
+            return;
+          }}
+
+          if (navigator.permissions && navigator.permissions.query) {{
+            navigator.permissions.query({{ name: "microphone" }}).then(function(permission) {{
+              if (permission.state === "granted") {{
+                startWakeListener();
+              }} else {{
+                setStatus("Toca una vez y di Hola Roxy", false);
+                doc.addEventListener("pointerdown", primeWakeVoice, true);
+                doc.addEventListener("touchstart", primeWakeVoice, true);
+                doc.addEventListener("keydown", primeWakeVoice, true);
+              }}
+            }}).catch(function() {{
+              setStatus("Toca una vez y di Hola Roxy", false);
+              doc.addEventListener("pointerdown", primeWakeVoice, true);
+              doc.addEventListener("touchstart", primeWakeVoice, true);
+              doc.addEventListener("keydown", primeWakeVoice, true);
+              startWakeListener();
+            }});
+          }} else {{
+            setStatus("Toca una vez y di Hola Roxy", false);
+            doc.addEventListener("pointerdown", primeWakeVoice, true);
+            doc.addEventListener("touchstart", primeWakeVoice, true);
+            doc.addEventListener("keydown", primeWakeVoice, true);
+            startWakeListener();
+          }}
+          win.__roxyWakeVoice = {{
+            activate: activateRoxy,
+            restart: restartWakeListener,
+            stop: stopWakeListener,
+          }};
+        }})();
+      `;
+      parentDoc.body.appendChild(parentWakeRuntime);
+
+      const wakeStatus = root.querySelector(".roxy-el-wake-status");
+      const panelStatus = root.querySelector(".roxy-el-status");
+      const wakeSurface = root.querySelector(".roxy-el-wake");
+      let conversation = null;
+      let elevenLabsModulePromise = null;
+      let recognition = null;
+      let wakeCooldownUntil = 0;
+      let temporaryVoicePrimed = false;
+
+      function setWakeStatus(message, isError) {{
+        if (wakeStatus) wakeStatus.textContent = message;
+        if (panelStatus) {{
+          panelStatus.textContent = message;
+          panelStatus.classList.toggle("roxy-el-status-error", Boolean(isError));
+        }}
+      }}
+
+      function speakBrowserFallback(message) {{
+        try {{
+          const voiceWindow = window.parent || window;
+          const synth = voiceWindow.speechSynthesis || window.speechSynthesis;
+          const Utterance = voiceWindow.SpeechSynthesisUtterance || window.SpeechSynthesisUtterance;
+          if (!synth || !Utterance) {{
+            setWakeStatus("Voz temporal no disponible en este navegador", true);
+            return false;
+          }}
+          const text = String(message || "").trim() || (`Hola ${{payload.userName || "Trader"}}. Soy Roxy. La voz temporal esta funcionando.`);
+          synth.cancel();
+          const utterance = new Utterance(text);
+          const language = String(payload.language || "es").toLowerCase();
+          utterance.lang = language.startsWith("en") ? "en-US" : "es-US";
+          utterance.rate = 0.95;
+          utterance.pitch = 1.08;
+          utterance.volume = 1;
+          const assignVoice = () => {{
+            const voices = typeof synth.getVoices === "function" ? synth.getVoices() : [];
+            const voice = voices.find((item) => /female|paulina|monica|samantha|google espa|spanish|es-|es_/i.test(`${{item.name || ""}} ${{item.lang || ""}}`))
+              || voices.find((item) => String(item.lang || "").toLowerCase().startsWith("es"))
+              || voices[0];
+            if (voice) {{
+              utterance.voice = voice;
+              if (voice.lang) utterance.lang = voice.lang;
+            }}
+          }};
+          assignVoice();
+          utterance.onstart = () => setWakeStatus("Roxy hablando con voz temporal", false);
+          utterance.onend = () => setWakeStatus("Di: Hola Roxy", false);
+          utterance.onerror = () => setWakeStatus("No pude reproducir voz temporal", true);
+          if (typeof synth.resume === "function") synth.resume();
+          synth.speak(utterance);
+          if (typeof synth.getVoices === "function" && synth.getVoices().length === 0) {{
+            synth.onvoiceschanged = () => {{
+              assignVoice();
+              synth.onvoiceschanged = null;
+            }};
+          }}
+          return true;
+        }} catch (error) {{
+          setWakeStatus("Voz temporal no disponible", true);
+          return false;
+        }}
+      }}
+
+      function openRoxyPanel() {{
+        root.classList.add("roxy-el-open");
+      }}
+
+      function speechWords(text) {{
+        let normalized = String(text || "").toLowerCase();
+        try {{
+          normalized = normalized.normalize("NFD");
+        }} catch (_) {{}}
+        const words = [];
+        let current = "";
+        for (const char of normalized) {{
+          const code = char.charCodeAt(0);
+          const isCombiningMark = code >= 768 && code <= 879;
+          const isLetter = char >= "a" && char <= "z";
+          const isNumber = char >= "0" && char <= "9";
+          if (isCombiningMark) continue;
+          if (isLetter || isNumber) {{
+            current += char;
+          }} else if (current) {{
+            words.push(current);
+            current = "";
+          }}
+        }}
+        if (current) words.push(current);
+        return words;
+      }}
+
+      function containsSpeechSequence(words, sequence) {{
+        for (let index = 0; index <= words.length - sequence.length; index += 1) {{
+          let matched = true;
+          for (let offset = 0; offset < sequence.length; offset += 1) {{
+            if (words[index + offset] !== sequence[offset]) {{
+              matched = false;
+              break;
+            }}
+          }}
+          if (matched) return true;
+        }}
+        return false;
+      }}
+
+      function wakePhraseDetected(text) {{
+        const words = speechWords(text);
+        if (containsSpeechSequence(words, ["hola", "roxy"]) || containsSpeechSequence(words, ["ola", "roxy"]) || containsSpeechSequence(words, ["hello", "roxy"]) || containsSpeechSequence(words, ["hey", "roxy"])) return true;
+        if (!words.includes("roxy")) return false;
+        return words.includes("abre") || words.includes("activa") || words.includes("escucha") || words.includes("ayuda") || words.includes("habla");
+      }}
+
+      function commandAfterWakePhrase(text) {{
+        let command = String(text || "").trim();
+        command = command.replace(/^(hola|ola|hello|hey)\\s+roxy\\b[\\s,.:;-]*/i, "");
+        command = command.replace(/^roxy\\b[\\s,.:;-]*/i, "");
+        const words = speechWords(command);
+        const commandWords = ["abre", "abrir", "muestra", "mostrar", "busca", "buscar", "analiza", "escanea", "dime", "acciones", "accion", "apple", "aapl", "crypto", "cripto", "bitcoin", "btc", "classroom", "clase", "clases"];
+        if (words.length < 2 && !words.some((word) => commandWords.includes(word))) return "";
+        if (!words.some((word) => commandWords.includes(word))) return "";
+        return command || String(text || "").trim();
+      }}
+
+      function sendCommandToRoxyOS(text) {{
+        const command = commandAfterWakePhrase(text);
+        if (!command) return false;
+        const targetWindow = window.parent || window;
+        const now = Date.now();
+        if (targetWindow.__roxyLastOsVoiceCommand === command && now - Number(targetWindow.__roxyLastOsVoiceCommandAt || 0) < 6000) return true;
+        targetWindow.__roxyLastOsVoiceCommand = command;
+        targetWindow.__roxyLastOsVoiceCommandAt = now;
+        setWakeStatus("Roxy entendio: " + command, false);
+        try {{
+          const url = new URL(targetWindow.location.href);
+          url.searchParams.set("roxy_os_cmd", command);
+          targetWindow.location.assign(url.toString());
+          return true;
+        }} catch (error) {{
+          return false;
+        }}
+      }}
+
+      async function requestMicrophone() {{
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return true;
+        try {{
+          const stream = await navigator.mediaDevices.getUserMedia({{ audio: true }});
+          stream.getTracks().forEach(track => track.stop());
+          return true;
+        }} catch (error) {{
+          setWakeStatus("Permite el microfono y di Hola Roxy", true);
+          return false;
+        }}
+      }}
+
+      function armFallbackMicPermissionRetry() {{
+        const retry = async () => {{
+          parentDoc.removeEventListener("pointerdown", retry, true);
+          parentDoc.removeEventListener("touchstart", retry, true);
+          parentDoc.removeEventListener("keydown", retry, true);
+          const ready = await requestMicrophone();
+          if (ready) startWakeWordListener();
+        }};
+        parentDoc.addEventListener("pointerdown", retry, true);
+        parentDoc.addEventListener("touchstart", retry, true);
+        parentDoc.addEventListener("keydown", retry, true);
+      }}
+
+      async function loadElevenLabsClient() {{
+        if (!elevenLabsModulePromise) {{
+          elevenLabsModulePromise = (async () => {{
+            let lastError = null;
+            for (const url of sdkImportUrls) {{
+              try {{
+                return await import(url);
+              }} catch (error) {{
+                lastError = error;
+              }}
+            }}
+            throw lastError || new Error("ElevenLabs SDK import failed");
+          }})();
+        }}
+        return elevenLabsModulePromise;
+      }}
+
+      async function startRoxyConversation() {{
+        const now = Date.now();
+        if (now < wakeCooldownUntil) return;
+        wakeCooldownUntil = now + 2500;
+        openRoxyPanel();
+        const voiceWindow = window.parent || window;
+        const lastTemporaryVoice = Number(voiceWindow.__roxyTemporaryVoicePrimedAt || 0);
+        if (!temporaryVoicePrimed && now - lastTemporaryVoice > 3500 && payload.voiceMode !== "conversation_token" && payload.voiceMode !== "signed_url") {{
+          voiceWindow.__roxyTemporaryVoicePrimedAt = now;
+          temporaryVoicePrimed = speakBrowserFallback(`Hola ${{payload.userName || "Trader"}}. Soy Roxy. Probando voz temporal mientras conectamos la voz real.`);
+        }}
+        if (!payload.signedUrl && !payload.conversationToken && !payload.agentId) {{
+          setWakeStatus(payload.error ? "Configura ElevenLabs en Render" : "Sesion de voz no disponible", true);
+          speakBrowserFallback(`Hola ${{payload.userName || "Trader"}}. Soy Roxy. Esta es una voz temporal para confirmar que el sistema de audio funciona.`);
+          return;
+        }}
+        const micReady = await requestMicrophone();
+        if (!micReady) return;
+        if (conversation) {{
+          setWakeStatus("Roxy ya esta activa y escuchando", false);
+          return;
+        }}
+        setWakeStatus("Activando voz de Roxy...", false);
+        try {{
+          const eleven = await loadElevenLabsClient();
+          const Conversation = eleven.Conversation || eleven.default?.Conversation;
+          if (!Conversation || !Conversation.startSession) throw new Error("SDK no disponible");
+          const startOptions = {{
+            dynamicVariables: payload.dynamicVariables || {{}},
+            clientTools: {{}},
+            onConnect: () => setWakeStatus("Roxy activa. Habla ahora.", false),
+            onDisconnect: () => {{
+              conversation = null;
+              setWakeStatus("Di: Hola Roxy", false);
+            }},
+            onError: () => setWakeStatus("Roxy tuvo un error de voz", true),
+            onMessage: () => {{}},
+          }};
+          if (payload.conversationToken) {{
+            startOptions.conversationToken = payload.conversationToken;
+          }} else if (payload.signedUrl) {{
+            startOptions.signedUrl = payload.signedUrl;
+          }} else {{
+            startOptions.agentId = payload.agentId;
+          }}
+          conversation = await Conversation.startSession(startOptions);
+          if (conversation && typeof conversation.sendUserMessage === "function") {{
+            conversation.sendUserMessage(`Hola Roxy. Soy ${{payload.userName || "Trader"}}. Activate por voz y ayudame en ${{payload.pageContext.module || payload.pageContext.page || "Roxy Trading"}}.`);
+          }}
+        }} catch (error) {{
+          const spoke = speakBrowserFallback(`Hola ${{payload.userName || "Trader"}}. Soy Roxy. ElevenLabs no conecto todavia, pero esta voz temporal confirma que el audio funciona.`);
+          if (!spoke) setWakeStatus("SDK de voz no cargo; usando widget oficial", true);
+          const widgetStart = root.querySelector("elevenlabs-convai");
+          if (widgetStart && typeof widgetStart.click === "function") widgetStart.click();
+        }}
+      }}
+
+      if (wakeSurface) {{
+        wakeSurface.addEventListener("click", startRoxyConversation);
+        wakeSurface.addEventListener("touchend", (event) => {{
+          event.preventDefault();
+          startRoxyConversation();
+        }}, {{ passive: false }});
+      }}
+
+      function startWakeWordListener() {{
+        const SpeechRecognition = window.parent.SpeechRecognition || window.parent.webkitSpeechRecognition || window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {{
+          setWakeStatus("Tu navegador no soporta Hola Roxy automatico", true);
+          return;
+        }}
+        try {{
+          recognition = new SpeechRecognition();
+          recognition.lang = String(payload.language || "es").toLowerCase().startsWith("en") ? "en-US" : "es-US";
+          recognition.continuous = true;
+          recognition.interimResults = true;
+          recognition.maxAlternatives = 1;
+          recognition.onstart = () => setWakeStatus("Di: Hola Roxy", false);
+          recognition.onerror = (event) => {{
+            const code = event && event.error ? String(event.error) : "";
+            if (code === "not-allowed" || code === "service-not-allowed") {{
+              setWakeStatus("Toca la pantalla y acepta el microfono", true);
+              armFallbackMicPermissionRetry();
+            }} else {{
+              setWakeStatus("Reintentando escucha de Roxy", false);
+            }}
+          }};
+          recognition.onend = () => {{
+            window.setTimeout(() => {{
+              try {{ recognition.start(); }} catch (_) {{}}
+            }}, 900);
+          }};
+          recognition.onresult = (event) => {{
+            let phrase = "";
+            for (let i = event.resultIndex; i < event.results.length; i += 1) {{
+              phrase += event.results[i][0] && event.results[i][0].transcript ? event.results[i][0].transcript + " " : "";
+            }}
+            if (wakePhraseDetected(phrase)) {{
+              try {{ recognition.stop(); }} catch (_) {{}}
+              if (!sendCommandToRoxyOS(phrase)) startRoxyConversation();
+            }}
+          }};
+          recognition.start();
+        }} catch (error) {{
+          setWakeStatus("Toca la pagina una vez y di Hola Roxy", true);
+          const prime = () => {{
+            parentDoc.removeEventListener("click", prime, true);
+            parentDoc.removeEventListener("touchstart", prime, true);
+            try {{ recognition && recognition.start(); }} catch (_) {{}}
+          }};
+          parentDoc.addEventListener("click", prime, true);
+          parentDoc.addEventListener("touchstart", prime, true);
+        }}
+      }}
+
+      if (!payload.signedUrl && !payload.conversationToken && !payload.agentId) {{
+        setWakeStatus(payload.error ? ("Configurar voz: " + payload.error) : "Sesion de voz no disponible", true);
+      }} else {{
+        startWakeWordListener();
+      }}
+      }} catch (error) {{
+        try {{
+          const fallback = (window.parent && window.parent.document ? window.parent.document : document).querySelector(".roxy-el-fallback span");
+          if (fallback) fallback.textContent = "Error cargando voz; revisa consola";
+        }} catch (_) {{}}
+      }}
+    }})();
+    </script>
+    """
+    components.html(runtime_html, height=1)
+
+
 def read_dashboard_ui_state(path: Path = DASHBOARD_UI_STATE_FILE) -> dict[str, str]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -3602,6 +5404,7 @@ def hydrate_focused_page_state(params: Any, session_state: Any, default_symbol: 
     page = session_page or query_page
     if session_page == "Dashboard" and query_page != "Dashboard":
         page = query_page
+    session_state["roxy_focused_page"] = page
     session_state["roxy_last_selected_page"] = page
     return page
 
@@ -4205,6 +6008,7 @@ def render_command_center_panel(
     chart_detail = " | ".join(part for part in chart_detail_parts if part and part != "-") or text_display(
         chart_status.get("detail")
     )
+    chart_label = "Grafica actual"
     st.markdown(
         f"""
         <section class="command-center command-center-{html.escape(tone)}">
@@ -4230,7 +6034,7 @@ def render_command_center_panel(
           <div><span>Targets</span><strong>{html.escape(num_display(summary["target_2"]))} / {html.escape(num_display(summary["target_5"]))} / {html.escape(num_display(summary["target_10"]))}</strong></div>
           <div><span>Riesgo</span><strong>{html.escape(pct_display(summary["risk"]))}</strong></div>
           <div><span>Plataforma</span><strong>{html.escape(platform_name_text)}</strong><small>{html.escape(platform_status_text)} | Qty {html.escape(platform_qty)}</small></div>
-          <div><span>Grafica</span><strong>{html.escape(text_display(chart_status.get("headline") or chart_status.get("label")))}</strong><small>{html.escape(chart_detail[:90])}</small></div>
+          <div><span>{html.escape(chart_label)}</span><strong>{html.escape(text_display(chart_status.get("headline") or chart_status.get("label")))}</strong><small>{html.escape(chart_detail[:90])}</small></div>
         </section>
         """,
         unsafe_allow_html=True,
@@ -5666,8 +7470,8 @@ def live_candle_chart_payload(
         "BB Lower": True,
         "BBand": True,
         "Labels": False,
-        "Plan": True,
-        "Info": True,
+        "Plan": False,
+        "Info": False,
         "Scale": True,
         "Volume": True,
     }
@@ -5936,6 +7740,8 @@ def render_browser_live_candle_chart_panel(
     if not payload.get("candles"):
         return False
     payload_json = json.dumps(payload, ensure_ascii=False)
+    lightweight_inline_source = roxy_vendor_js_source("lightweight-charts.4.2.3.min.js")
+    lightweight_inline_json = json.dumps(lightweight_inline_source)
     candle_count = len(payload.get("candles") or [])
     stream_label = "WS STREAM / STREAM ON" if payload.get("stream", {}).get("enabled") else "HISTORIAL"
     stream_source = text_display(payload.get("stream", {}).get("provider") or payload.get("live", {}).get("source"))
@@ -6154,7 +7960,18 @@ def render_browser_live_candle_chart_panel(
         .rlc-foot { flex-direction:column; gap:4px; }
       }
     </style>
-    <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+    <script>
+    (() => {
+      if (window.LightweightCharts) return;
+      const inlineSource = __LIGHTWEIGHT_INLINE__;
+      if (!inlineSource) return;
+      try {
+        const script = document.createElement("script");
+        script.textContent = inlineSource;
+        document.head.appendChild(script);
+      } catch (error) {}
+    })();
+    </script>
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
     <script>
     (() => {
@@ -6251,7 +8068,7 @@ def render_browser_live_candle_chart_panel(
         button.classList.toggle("active", String(button.dataset.fasttf || "").toLowerCase() === String(payload.timeframe || "").toLowerCase());
         button.addEventListener("click", () => navigateToTimeframe(button.dataset.fasttf));
       });
-      const settingsKey = `roxy-chart-settings:v7:${payload.symbol}:${payload.timeframe}:${strategy.profile || "default"}`;
+      const settingsKey = `roxy-chart-settings:v4:${payload.symbol}:${payload.timeframe}:${strategy.profile || "default"}`;
       const defaultSettings = Object.assign({}, payload.defaultIndicators || {});
       const indicatorPresets = {
         naked: {
@@ -7898,7 +9715,7 @@ def render_browser_live_candle_chart_panel(
       }
     })();
     </script>
-    """.replace("__ROXY_PAYLOAD__", payload_json)
+    """.replace("__ROXY_PAYLOAD__", payload_json).replace("__LIGHTWEIGHT_INLINE__", lightweight_inline_json)
     st.components.v1.html(html_doc, height=height, scrolling=False)
     return True
 
@@ -12403,8 +14220,15 @@ def paper_journal_operational_risk_state(
         if column not in data.columns:
             data[column] = None
 
-    status = data["status"].astype(str).str.upper()
-    closed_outcome = data["closed_outcome"].astype(str).str.upper().replace({"NAN": "", "NONE": ""})
+    status = data["status"].fillna("").astype(str).str.strip().str.upper()
+    closed_outcome = (
+        data["closed_outcome"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+        .replace({"NAN": "", "NONE": "", "<NA>": "", "NULL": ""})
+    )
     open_mask = status.eq("READY_FOR_PAPER") & ~status.str.startswith("CLOSED_") & closed_outcome.eq("")
     open_count = int(open_mask.sum())
     open_risk = float(pd.to_numeric(data.loc[open_mask, "risk_dollars"], errors="coerce").fillna(0).sum())
@@ -25791,7 +27615,7 @@ def render_budget_split_opportunities_panel(
             risk_pct=risk_pct,
             limit=visible_limit,
         )
-    st.markdown("### Acciones y criptomonedas disponibles")
+    st.markdown("### Acciones disponibles para trabajar")
     st.caption("Separadas por mercado. Toca un ticker o 'Cargar en graficas' para abrir ese activo arriba.")
     render_budget_market_cards(
         stock_rows,
@@ -25801,6 +27625,7 @@ def render_budget_split_opportunities_panel(
         market_label="Acciones",
         market_scope="Acciones",
     )
+    st.markdown("### Criptomonedas disponibles para trabajar")
     render_budget_market_cards(
         crypto_rows,
         fallback_rows=crypto_fallback,
@@ -34351,6 +36176,7 @@ def roxy_stock_live_symbol_attr(symbol: str) -> str:
 
 
 def render_roxy_stock_live_runtime() -> None:
+    stock_stream_url = text_display(os.environ.get("ROXY_STOCK_STREAM_URL") or "").strip()
     components.html(
         """
         <script>
@@ -34358,6 +36184,7 @@ def render_roxy_stock_live_runtime() -> None:
           const doc = window.parent.document;
           if (doc.__roxyStockLiveRuntime) return;
           doc.__roxyStockLiveRuntime = true;
+          const BRIDGE_STREAM_URL = __ROXY_STOCK_STREAM_URL__;
           const fmt = (price) => {
             const value = Number(price);
             if (!Number.isFinite(value) || value <= 0) return "--";
@@ -34413,7 +36240,42 @@ def render_roxy_stock_live_runtime() -> None:
             const price = Number(meta.regularMarketPrice || meta.postMarketPrice || meta.preMarketPrice || closes[closes.length - 1]);
             const previous = Number(meta.previousClose || meta.chartPreviousClose || meta.regularMarketPreviousClose);
             if (!Number.isFinite(price) || price <= 0) return null;
-            return { price, previous: Number.isFinite(previous) && previous > 0 ? previous : null, source: "Yahoo live" };
+            const marketTime = Number(meta.regularMarketTime || meta.postMarketTime || meta.preMarketTime || 0);
+            const marketState = String(meta.marketState || "").toUpperCase();
+            return {
+              price,
+              previous: Number.isFinite(previous) && previous > 0 ? previous : null,
+              source: marketState && !["REGULAR", "PRE", "POST"].includes(marketState) ? `Yahoo ${marketState.toLowerCase()}` : "Yahoo live",
+              marketTime: Number.isFinite(marketTime) && marketTime > 0 ? marketTime : null,
+              marketState
+            };
+          };
+          const applyQuote = (symbol, quote) => {
+            const price = Number(quote && quote.price);
+            if (!Number.isFinite(price) || price <= 0) return false;
+            const previous = Number(quote.previous);
+            const rawChangePct = Number(quote.changePct);
+            const pct = Number.isFinite(rawChangePct)
+              ? rawChangePct / 100
+              : Number.isFinite(previous) && previous > 0
+                ? (price - previous) / previous
+                : null;
+            (nodesBySymbol("[data-roxy-stock-live-price]").get(symbol) || []).forEach((node) => {
+              node.dataset.roxyServerPrice = String(price);
+              setTone(node, price);
+            });
+            (nodesBySymbol("[data-roxy-stock-change]").get(symbol) || []).forEach((node) => {
+              node.textContent = pctFmt(pct);
+              node.classList.remove("tick-up", "tick-down");
+              if (Number.isFinite(pct)) node.classList.add(pct >= 0 ? "tick-up" : "tick-down");
+            });
+            const stamp = quote.updatedAt || new Date().toLocaleTimeString();
+            const source = quote.source || "stream";
+            const freshness = quote.freshness ? ` · ${quote.freshness}` : "";
+            const sessionText = quote.marketOpen === false ? " · mercado cerrado" : quote.marketOpen === true ? " · mercado abierto" : "";
+            const prefix = quote.marketOpen === false ? "Ultimo precio" : quote.mode === "stream" ? "Stream real" : "Feed real";
+            setStatus(symbol, `${prefix} · ${source} · ${stamp}${freshness}${sessionText}`, Number.isFinite(pct) ? (pct >= 0 ? "up" : "down") : "watch");
+            return true;
           };
           const fetchYahoo = async (symbol) => {
             const controller = new AbortController();
@@ -34458,44 +36320,182 @@ def render_roxy_stock_live_runtime() -> None:
                 setStatus(symbol, `${symbol} feed navegador bloqueado · servidor activo`, "watch");
                 return;
               }
-              const price = Number(quote.price);
-              const previous = Number(quote.previous);
-              const pct = Number.isFinite(previous) && previous > 0 ? (price - previous) / previous : null;
-              (nodesBySymbol("[data-roxy-stock-live-price]").get(symbol) || []).forEach((node) => setTone(node, price));
-              (nodesBySymbol("[data-roxy-stock-change]").get(symbol) || []).forEach((node) => {
-                node.textContent = pctFmt(pct);
-                node.classList.remove("tick-up", "tick-down");
-                if (Number.isFinite(pct)) node.classList.add(pct >= 0 ? "tick-up" : "tick-down");
-              });
-              const stamp = new Date().toLocaleTimeString();
-              setStatus(symbol, `${quote.source} · ${stamp}`, Number.isFinite(pct) ? (pct >= 0 ? "up" : "down") : "watch");
+              const marketState = String(quote.marketState || "").toUpperCase();
+              const quoteAge = quote.marketTime ? Math.max(0, Math.round(Date.now() / 1000 - quote.marketTime)) : null;
+              quote.freshness = quoteAge != null && quoteAge > 90 ? `ultimo tick hace ${Math.round(quoteAge / 60)}m` : "";
+              quote.marketOpen = marketState ? ["REGULAR", "PRE", "POST"].includes(marketState) : null;
+              applyQuote(symbol, quote);
             } catch (error) {}
+          };
+          let bridgeSource = null;
+          let bridgeSignature = "";
+          const bridgeSymbols = () => Array.from(nodesBySymbol("[data-roxy-stock-live-price]").keys()).slice(0, 24);
+          const connectBridge = () => {
+            if (!BRIDGE_STREAM_URL || typeof EventSource === "undefined") return false;
+            const symbols = bridgeSymbols();
+            const signature = symbols.join(",");
+            if (!symbols.length) return false;
+            if (bridgeSource && bridgeSignature === signature) return true;
+            if (bridgeSource) bridgeSource.close();
+            bridgeSignature = signature;
+            try {
+              const url = new URL(BRIDGE_STREAM_URL, window.location.href);
+              url.searchParams.set("symbols", signature);
+              bridgeSource = new EventSource(url.toString());
+              const handleQuote = (event) => {
+                try {
+                  const quote = JSON.parse(event.data || "{}");
+                  const symbol = String(quote.symbol || "").trim().toUpperCase();
+                  if (!symbol) return;
+                  applyQuote(symbol, quote);
+                } catch (error) {}
+              };
+              bridgeSource.onmessage = handleQuote;
+              bridgeSource.addEventListener("quote", handleQuote);
+              bridgeSource.addEventListener("status", (event) => {
+                try {
+                  const status = JSON.parse(event.data || "{}");
+                  if (status.mode === "polling_fallback") {
+                    symbols.forEach((symbol) => setStatus(symbol, `stream en respaldo · ${status.reason || "snapshot"}`, "watch"));
+                  }
+                } catch (error) {}
+              });
+              bridgeSource.onerror = () => {
+                symbols.forEach((symbol) => setStatus(symbol, `${symbol} stream reconectando`, "watch"));
+              };
+              return true;
+            } catch (error) {
+              bridgeSource = null;
+              return false;
+            }
           };
           const tick = () => {
             const symbols = Array.from(nodesBySymbol("[data-roxy-stock-live-price]").keys()).slice(0, 18);
             symbols.forEach((symbol, index) => window.setTimeout(() => updateSymbol(symbol), index * 160));
           };
+          connectBridge();
           tick();
-          window.setInterval(tick, 5000);
+          window.setInterval(connectBridge, 8000);
+          window.setInterval(tick, 2500);
         })();
         </script>
-        """,
+        """.replace("__ROXY_STOCK_STREAM_URL__", json.dumps(stock_stream_url)),
         height=0,
     )
 
 
-def render_roxy_stock_server_refresh(interval_ms: int = 3500) -> None:
-    """Rerun the actions folder periodically so server-side quotes refresh.
+def render_roxy_stock_server_refresh(interval_ms: int = 3500, symbols: list[str] | tuple[str, ...] | None = None) -> None:
+    """Push server-side stock quotes into the already-rendered stock UI."""
+    clean_symbols: list[str] = []
+    for raw_symbol in symbols or []:
+        symbol = roxy_stock_live_symbol_attr(raw_symbol)
+        if symbol and symbol not in clean_symbols:
+            clean_symbols.append(symbol)
+    if not clean_symbols:
+        return
 
-    Browser-side quote polling is blocked by some providers via CORS. This
-    keeps the visible stock table tied to server-side yfinance/quote snapshots
-    without inventing prices.
-    """
-    if st_autorefresh is not None:
-        try:
-            st_autorefresh(interval=max(2500, int(interval_ms)), key="roxy_stock_live_server_refresh")
-        except Exception:
-            pass
+    refresh_seconds = max(2, int(round(max(1000, interval_ms) / 1000)))
+
+    def _render_server_stock_quotes() -> None:
+        quotes_payload: dict[str, dict[str, Any]] = {}
+        for symbol in clean_symbols[:18]:
+            snapshot = roxy_stock_quote_snapshot(symbol)
+            price = safe_float(snapshot.get("price"))
+            if price is None or price <= 0:
+                continue
+            change_pct = safe_float(snapshot.get("change_pct"))
+            previous = safe_float(snapshot.get("previous_close"))
+            quotes_payload[symbol] = {
+                "price": round(price, 6),
+                "changePct": round(change_pct * 100, 4) if change_pct is not None else None,
+                "previous": round(previous, 6) if previous is not None else None,
+                "source": text_display(snapshot.get("source") or "server_quote")[:48],
+                "marketOpen": snapshot.get("market_open"),
+                "freshness": text_display(snapshot.get("freshness") or snapshot.get("latency_note") or "")[:64],
+                "updatedAt": datetime.now().strftime("%I:%M:%S %p").lstrip("0"),
+            }
+        if not quotes_payload:
+            return
+        payload_json = json.dumps(quotes_payload, ensure_ascii=False, allow_nan=False)
+        script = """
+        <script>
+        (() => {
+          const quotes = __ROXY_STOCK_QUOTES__;
+          const doc = window.parent && window.parent.document ? window.parent.document : document;
+          const formatPrice = (price) => {
+            const value = Number(price);
+            if (!Number.isFinite(value)) return "—";
+            if (value >= 1000) return value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            if (value >= 10) return value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            if (value >= 1) return value.toLocaleString(undefined, {minimumFractionDigits: 3, maximumFractionDigits: 3});
+            return value.toLocaleString(undefined, {minimumFractionDigits: 5, maximumFractionDigits: 5});
+          };
+          const formatPct = (pct) => {
+            const value = Number(pct);
+            if (!Number.isFinite(value)) return "live quote";
+            return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+          };
+          const symbolFor = (node) => String(node.dataset.roxyStockSymbol || "").toUpperCase();
+          const pulse = (node, direction) => {
+            node.classList.remove("roxy-stock-tick-up", "roxy-stock-tick-down", "roxy-stock-tick-flat");
+            void node.offsetWidth;
+            node.classList.add(direction > 0 ? "roxy-stock-tick-up" : direction < 0 ? "roxy-stock-tick-down" : "roxy-stock-tick-flat");
+          };
+          const applyQuotes = () => {
+            let hits = 0;
+            Object.entries(quotes).forEach(([symbol, quote]) => {
+              const price = Number(quote.price);
+              if (!Number.isFinite(price)) return;
+              doc.querySelectorAll("[data-roxy-stock-live-price]").forEach((node) => {
+                if (symbolFor(node) !== symbol) return;
+                const previousPrice = Number(node.dataset.roxyPrice || node.dataset.roxyServerPrice || price);
+                node.dataset.roxyServerPrice = String(price);
+                node.dataset.roxyPrice = String(price);
+                node.textContent = formatPrice(price);
+                const direction = price - previousPrice;
+                node.classList.toggle("positive", direction >= 0);
+                node.classList.toggle("negative", direction < 0);
+                pulse(node, direction);
+                hits += 1;
+              });
+              doc.querySelectorAll("[data-roxy-stock-change]").forEach((node) => {
+                if (symbolFor(node) !== symbol) return;
+                const pct = Number(quote.changePct);
+                node.textContent = formatPct(pct);
+                node.classList.toggle("positive", Number.isFinite(pct) && pct >= 0);
+                node.classList.toggle("negative", Number.isFinite(pct) && pct < 0);
+                hits += 1;
+              });
+              doc.querySelectorAll("[data-roxy-stock-live-status]").forEach((node) => {
+                if (symbolFor(node) !== symbol) return;
+                const freshness = quote.updatedAt ? `actualizado ${quote.updatedAt}` : "actualizado ahora";
+                const sessionText = quote.marketOpen === false ? "mercado cerrado" : quote.marketOpen === true ? "mercado abierto" : "";
+                const prefix = quote.marketOpen === false ? "Ultimo precio" : "Feed real";
+                const detail = [quote.source || "quote", freshness, quote.freshness || "", sessionText].filter(Boolean).join(" · ");
+                node.textContent = `${prefix} · ${detail}`;
+                node.classList.add("roxy-stock-server-ok");
+                hits += 1;
+              });
+            });
+            return hits;
+          };
+          let attempts = 0;
+          const retryApply = () => {
+            attempts += 1;
+            const hits = applyQuotes();
+            if (!hits && attempts < 16) window.setTimeout(retryApply, 250);
+          };
+          retryApply();
+        })();
+        </script>
+        """.replace("__ROXY_STOCK_QUOTES__", payload_json)
+        components.html(script, height=0)
+
+    fragment_factory = getattr(st, "fragment", None)
+    if callable(fragment_factory):
+        fragment_factory(run_every=f"{refresh_seconds}s")(_render_server_stock_quotes)()
+    else:
+        _render_server_stock_quotes()
 
 
 def roxy_secret_value(*keys: str) -> str:
@@ -34580,6 +36580,30 @@ def roxy_stock_quote_snapshot(symbol: str) -> dict[str, Any]:
     }
     if not clean_symbol:
         return result
+    try:
+        live_snapshot = build_live_price_snapshot(clean_symbol, "stock")
+        live_price = safe_float((live_snapshot or {}).get("price"))
+        if live_price is not None and live_price > 0:
+            previous = safe_float(
+                (live_snapshot or {}).get("previous_close")
+                or (live_snapshot or {}).get("previous")
+                or (live_snapshot or {}).get("reference_price")
+            )
+            change_pct = safe_float((live_snapshot or {}).get("change_pct"))
+            if change_pct is None and previous not in (None, 0):
+                change_pct = (live_price - previous) / previous
+            return {
+                **result,
+                "price": live_price,
+                "previous_close": previous,
+                "change_pct": change_pct,
+                "source": text_display((live_snapshot or {}).get("source") or "living_market_snapshot"),
+                "market_open": (live_snapshot or {}).get("market_open"),
+                "freshness": text_display((live_snapshot or {}).get("freshness") or ""),
+                "latency_note": text_display((live_snapshot or {}).get("latency_note") or ""),
+            }
+    except Exception:
+        pass
     alpaca_snapshot = roxy_alpaca_stock_latest_snapshot(clean_symbol)
     if safe_float(alpaca_snapshot.get("price")) is not None:
         return {
@@ -34588,6 +36612,8 @@ def roxy_stock_quote_snapshot(symbol: str) -> dict[str, Any]:
             "previous_close": safe_float(alpaca_snapshot.get("previous_close")),
             "change_pct": safe_float(alpaca_snapshot.get("change_pct")),
             "source": text_display(alpaca_snapshot.get("source") or "alpaca_market_data"),
+            "market_open": None,
+            "freshness": "provider quote",
         }
     if yf is None:
         return result
@@ -34629,12 +36655,14 @@ def roxy_stock_quote_snapshot(symbol: str) -> dict[str, Any]:
         if price is not None and previous not in (None, 0):
             result["change_pct"] = (price - previous) / previous
         result["source"] = "yfinance_fast_info" if price is not None else "unavailable"
+        result["market_open"] = None
+        result["freshness"] = "provider quote"
     except Exception:
         return result
     return result
 
 
-@st.cache_data(ttl=8, show_spinner=False)
+@st.cache_data(ttl=3, show_spinner=False)
 def roxy_stock_live_plan_seed(symbol: str) -> dict[str, Any]:
     clean_symbol = text_display(symbol).upper()
     quote_snapshot = roxy_stock_quote_snapshot(clean_symbol)
@@ -34851,7 +36879,6 @@ def render_roxy_actions_symbol_search(selected_symbol: str) -> None:
 
 
 def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
-    render_roxy_stock_server_refresh(interval_ms=6500)
     rows = [roxy_enrich_stock_row_with_live_plan(row) for row in roxy_asset_rows_for_market(table, "stock", limit=12)]
     requested_symbol = roxy_manual_stock_symbol(first_query_param_value(st.query_params, "symbol"))
     if requested_symbol and all(text_display(row.get("symbol")).upper() != requested_symbol for row in rows):
@@ -34895,6 +36922,13 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     selected_change_text = pct_display(selected_change) if selected_change is not None else "+0.04%"
     selected_change_class = "positive" if (selected_change or 0) >= 0 else "negative"
     selected_live_stock_symbol = roxy_stock_live_symbol_attr(selected_symbol)
+    live_stock_symbols: list[str] = []
+    for row in rows[:12]:
+        live_symbol = roxy_stock_live_symbol_attr(row.get("symbol"))
+        if live_symbol and live_symbol not in live_stock_symbols:
+            live_stock_symbols.append(live_symbol)
+    if selected_live_stock_symbol and selected_live_stock_symbol not in live_stock_symbols:
+        live_stock_symbols.insert(0, selected_live_stock_symbol)
     current_time_label = datetime.now().strftime("%I:%M %p").lstrip("0")
     tabs = ["Mejores oportunidades", "En tendencia", "Rompiendo ahora", "Alertas activas"]
     tab_html = "".join(f"<b>{html.escape(tab)}</b>" for tab in tabs)
@@ -34948,7 +36982,7 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
               <span class="rank">{idx}</span>
               {roxy_stock_icon_html(symbol)}
               <span class="asset"><strong>{html.escape(symbol)}</strong><small>{html.escape(strategy_family_for_row(row)[:34])}</small></span>
-              <span class="price"><strong data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(live_stock_symbol)}" data-roxy-price="{html.escape(str(safe_float(row.get("current_price") or row.get("price") or row.get("last_price") or row_plan.get("entry")) or ""))}">{html.escape(row_price)}</strong><small data-roxy-stock-change data-roxy-stock-symbol="{html.escape(live_stock_symbol)}">{html.escape(row_change_text)}</small></span>
+              <span class="price"><strong data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(live_stock_symbol)}" data-roxy-price="{html.escape(str(safe_float(row.get("current_price") or row.get("price") or row.get("last_price") or row_plan.get("entry")) or ""))}">{html.escape(row_price)}</strong><small data-roxy-stock-change data-roxy-stock-symbol="{html.escape(live_stock_symbol)}">{html.escape(row_change_text)}</small><small class="live-source" data-roxy-stock-live-status data-roxy-stock-symbol="{html.escape(live_stock_symbol)}">feed live...</small></span>
               <span class="trend">{roxy_actions_sparkline_svg(symbol, row_market)}</span>
               <span class="score"><b>{row_score}</b><small>{'Excelente' if row_score >= 88 else 'Muy buena' if row_score >= 80 else 'Buena'}</small></span>
               <span class="signal"><strong>{html.escape(row_action)}</strong><small>Entrada: {html.escape(row_entry)}<br>Stop: {html.escape(row_stop)}<br>Target: {html.escape(row_target)}</small></span>
@@ -35026,27 +37060,58 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
               animation: roxy-stock-server-heartbeat 1.85s ease-in-out infinite;
               text-shadow: 0 0 14px rgba(34,197,94,.34);
             }}
+            .roxy-stock-tick-up {{
+              color: #35f59d !important;
+              animation: roxy-stock-tick-up-flash .62s ease-out 1;
+            }}
+            .roxy-stock-tick-down {{
+              color: #ff5b72 !important;
+              animation: roxy-stock-tick-down-flash .62s ease-out 1;
+            }}
+            .roxy-stock-tick-flat {{
+              color: #7dd3fc !important;
+              animation: roxy-stock-tick-flat-flash .62s ease-out 1;
+            }}
+            .roxy-stock-server-ok {{
+              color: rgba(125, 231, 255, .92) !important;
+            }}
             @keyframes roxy-stock-server-heartbeat {{
               0%,100% {{ filter: brightness(1); }}
               45% {{ filter: brightness(1.42) drop-shadow(0 0 8px rgba(56,189,248,.44)); }}
+            }}
+            @keyframes roxy-stock-tick-up-flash {{
+              0% {{ transform: scale(1); text-shadow: 0 0 0 rgba(34,197,94,0); }}
+              45% {{ transform: scale(1.045); text-shadow: 0 0 18px rgba(34,197,94,.8); }}
+              100% {{ transform: scale(1); text-shadow: 0 0 10px rgba(34,197,94,.35); }}
+            }}
+            @keyframes roxy-stock-tick-down-flash {{
+              0% {{ transform: scale(1); text-shadow: 0 0 0 rgba(248,113,113,0); }}
+              45% {{ transform: scale(1.045); text-shadow: 0 0 18px rgba(248,113,113,.8); }}
+              100% {{ transform: scale(1); text-shadow: 0 0 10px rgba(248,113,113,.35); }}
+            }}
+            @keyframes roxy-stock-tick-flat-flash {{
+              0% {{ transform: scale(1); text-shadow: 0 0 0 rgba(125,211,252,0); }}
+              45% {{ transform: scale(1.035); text-shadow: 0 0 16px rgba(125,211,252,.72); }}
+              100% {{ transform: scale(1); text-shadow: 0 0 10px rgba(125,211,252,.30); }}
             }}
           </style>
         """,
         unsafe_allow_html=True,
     )
     render_roxy_stock_live_runtime()
+    render_roxy_stock_server_refresh(interval_ms=3000, symbols=live_stock_symbols)
     rendered = render_roxy_actions_dual_pro_charts(
         symbol=resolved_symbol,
         market=selected_market,
         trade_plan=trade_plan,
-        height=620,
+        height=640,
     )
     if not rendered:
         rendered = render_roxy_actions_dual_plotly_charts(
             symbol=resolved_symbol,
             market=selected_market,
             trade_plan=trade_plan,
-            height=560,
+            height=580,
         )
     if not rendered:
         rendered = render_roxy_actions_dual_static_charts(
@@ -35756,6 +37821,128 @@ def roxy_trade_plan_from_row(
     }
 
 
+def clean_roxy_operational_chart_df(
+    chart_df: pd.DataFrame,
+    *,
+    timeframe: str,
+    max_points: int = 140,
+    anchor_price: float | None = None,
+) -> pd.DataFrame:
+    """Return a display-safe OHLCV window without split/provider spike artifacts.
+
+    This does not synthesize prices. It only removes candles whose OHLC values
+    are structurally invalid or far outside the local price regime, which makes
+    the operational chart readable without letting one bad provider candle flatten
+    the whole setup.
+    """
+    if not isinstance(chart_df, pd.DataFrame) or chart_df.empty:
+        return pd.DataFrame()
+    required = {"ts", "open", "high", "low", "close"}
+    if not required.issubset(set(chart_df.columns)):
+        return pd.DataFrame()
+    df = chart_df.copy()
+    df["ts"] = pd.to_datetime(df["ts"], errors="coerce")
+    numeric_columns = [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "ema9",
+        "ema20",
+        "ema21",
+        "sma20",
+        "sma40",
+        "sma100",
+        "sma200",
+        "bb_upper",
+        "bb_mid",
+        "bb_lower",
+    ]
+    for column in numeric_columns:
+        if column in df.columns:
+            df[column] = pd.to_numeric(df[column], errors="coerce")
+    df = df.dropna(subset=["ts", "open", "high", "low", "close"])
+    df = df.sort_values("ts").drop_duplicates(subset=["ts"], keep="last")
+    df = df[(df["open"] > 0) & (df["high"] > 0) & (df["low"] > 0) & (df["close"] > 0)]
+    df = df[(df["high"] >= df["low"]) & (df["high"] >= df["open"]) & (df["high"] >= df["close"])]
+    df = df[(df["low"] <= df["open"]) & (df["low"] <= df["close"])]
+    if df.empty:
+        return df
+
+    raw_count = len(df)
+    tf = normalize_command_timeframe(timeframe)
+    close = pd.to_numeric(df["close"], errors="coerce")
+    local_ref = close.rolling(31, min_periods=6, center=True).median()
+    median_close = safe_float(close.median())
+    if median_close not in (None, 0):
+        local_ref = local_ref.fillna(median_close)
+    valid_ref = local_ref > 0
+    body_deviation = pd.concat(
+        [
+            ((pd.to_numeric(df["open"], errors="coerce") - local_ref).abs() / local_ref).where(valid_ref),
+            ((pd.to_numeric(df["close"], errors="coerce") - local_ref).abs() / local_ref).where(valid_ref),
+        ],
+        axis=1,
+    ).max(axis=1)
+    wick_deviation = pd.concat(
+        [
+            ((pd.to_numeric(df["high"], errors="coerce") - local_ref).abs() / local_ref).where(valid_ref),
+            ((pd.to_numeric(df["low"], errors="coerce") - local_ref).abs() / local_ref).where(valid_ref),
+        ],
+        axis=1,
+    ).max(axis=1)
+    candle_range_pct = (pd.to_numeric(df["high"], errors="coerce") - pd.to_numeric(df["low"], errors="coerce")) / close
+    typical_range = safe_float(candle_range_pct[(candle_range_pct > 0) & (candle_range_pct < 0.18)].median()) or 0.012
+    if tf in {"1m", "5m", "15m"}:
+        max_range_pct = max(0.055, min(0.18, typical_range * 7.0))
+        body_limit = 0.16
+        wick_limit = 0.24
+    elif tf in {"1h", "2h", "4h"}:
+        max_range_pct = max(0.075, min(0.22, typical_range * 7.5))
+        body_limit = 0.22
+        wick_limit = 0.32
+    else:
+        max_range_pct = max(0.12, min(0.38, typical_range * 8.0))
+        body_limit = 0.34
+        wick_limit = 0.48
+    clean_mask = (
+        body_deviation.fillna(0) <= body_limit
+    ) & (
+        wick_deviation.fillna(0) <= wick_limit
+    ) & (
+        candle_range_pct.fillna(0) <= max_range_pct
+    )
+    cleaned = df[clean_mask].copy()
+    if len(cleaned) < min(12, len(df)):
+        relaxed_mask = (
+            body_deviation.fillna(0) <= body_limit * 2.2
+        ) & (
+            wick_deviation.fillna(0) <= wick_limit * 2.2
+        ) & (
+            candle_range_pct.fillna(0) <= max_range_pct * 1.8
+        )
+        cleaned = df[relaxed_mask].copy()
+    if cleaned.empty:
+        cleaned = df.copy()
+    anchor = safe_float(anchor_price)
+    if anchor is not None and anchor > 0:
+        anchor_band = 0.18 if tf in {"1m", "5m", "15m", "1h", "2h", "4h"} else 0.38
+        anchor_low = anchor * (1 - anchor_band)
+        anchor_high = anchor * (1 + anchor_band)
+        anchored = cleaned[
+            (pd.to_numeric(cleaned["open"], errors="coerce").between(anchor_low, anchor_high))
+            & (pd.to_numeric(cleaned["close"], errors="coerce").between(anchor_low, anchor_high))
+            & (pd.to_numeric(cleaned["high"], errors="coerce") <= anchor_high)
+            & (pd.to_numeric(cleaned["low"], errors="coerce") >= anchor_low)
+        ].copy()
+        if len(anchored) >= min(18, len(cleaned)):
+            cleaned = anchored
+    cleaned = cleaned.tail(max(40, int(max_points or 140))).reset_index(drop=True)
+    cleaned.attrs["roxy_removed_anomalies"] = max(0, raw_count - len(cleaned))
+    return cleaned
+
+
 def roxy_actions_plotly_chart_panel(
     chart_df: pd.DataFrame,
     *,
@@ -35769,24 +37956,9 @@ def roxy_actions_plotly_chart_panel(
         return False
     if not isinstance(chart_df, pd.DataFrame) or chart_df.empty:
         return False
-    required = {"ts", "open", "high", "low", "close"}
-    if not required.issubset(set(chart_df.columns)):
-        return False
-    df = chart_df.copy()
-    df["ts"] = pd.to_datetime(df["ts"], errors="coerce")
-    for column in ["open", "high", "low", "close", "volume", "ema9", "ema20", "ema21", "sma20", "sma40", "bb_upper", "bb_mid", "bb_lower"]:
-        if column in df.columns:
-            df[column] = pd.to_numeric(df[column], errors="coerce")
-    df = df.dropna(subset=["ts", "open", "high", "low", "close"])
-    df = df[(df["open"] > 0) & (df["high"] > 0) & (df["low"] > 0) & (df["close"] > 0)]
-    df = df[(df["high"] >= df["low"]) & (df["high"] >= df["open"]) & (df["high"] >= df["close"])]
-    df = df[(df["low"] <= df["open"]) & (df["low"] <= df["close"])]
-    close_median = safe_float(df["close"].median()) if not df.empty else None
-    if close_median not in (None, 0):
-        df = df[(df["low"] >= close_median * 0.55) & (df["high"] <= close_median * 1.45)]
     normalized_tf = normalize_command_timeframe(timeframe)
     max_candles = 96 if normalized_tf in {"15m", "15min"} else 86
-    df = df.tail(max_candles)
+    df = clean_roxy_operational_chart_df(chart_df, timeframe=normalized_tf, max_points=max_candles)
     if df.empty or len(df) < 8:
         st.markdown(
             f"""
@@ -35798,6 +37970,7 @@ def roxy_actions_plotly_chart_panel(
             unsafe_allow_html=True,
         )
         return False
+    removed_anomalies = int(df.attrs.get("roxy_removed_anomalies") or 0)
     latest_close = safe_float(df["close"].iloc[-1])
     close_series = pd.to_numeric(df["close"], errors="coerce").dropna()
     open_series = pd.to_numeric(df["open"], errors="coerce").dropna()
@@ -35859,11 +38032,12 @@ def roxy_actions_plotly_chart_panel(
         col=1,
     )
     line_specs = [
-        ("ema9", "EMA 9", "#ec4899", 2.4),
-        ("ema21", "EMA 21", "#a855f7", 2.1),
-        ("sma20", "AVG 20", "#38bdf8", 2.0),
-        ("bb_upper", "BB Upper", "rgba(226,232,240,.55)", 1),
-        ("bb_lower", "BB Lower", "rgba(226,232,240,.55)", 1),
+        ("ema9", "EMA 9", "#ec4899", 2.6),
+        ("ema21", "EMA 21", "#a855f7", 2.2),
+        ("sma20", "AVG 20", "#38bdf8", 2.2),
+        ("sma40", "AVG 40", "#f97316", 2.2),
+        ("bb_upper", "BB Upper", "rgba(226,232,240,.58)", 1.3),
+        ("bb_lower", "BB Lower", "rgba(226,232,240,.58)", 1.3),
     ]
     for column, label, color, width in line_specs:
         if column in df.columns and df[column].notna().any():
@@ -35892,6 +38066,21 @@ def roxy_actions_plotly_chart_panel(
             row=2,
             col=1,
         )
+    if {"bb_upper", "bb_lower"}.issubset(df.columns) and df["bb_upper"].notna().any() and df["bb_lower"].notna().any():
+        fig.add_trace(
+            go.Scatter(
+                x=list(df["ts"]) + list(df["ts"])[::-1],
+                y=list(df["bb_upper"]) + list(df["bb_lower"])[::-1],
+                fill="toself",
+                fillcolor="rgba(148,163,184,.08)",
+                line={"color": "rgba(148,163,184,0)", "width": 0},
+                hoverinfo="skip",
+                name="Bollinger area",
+                showlegend=False,
+            ),
+            row=1,
+            col=1,
+        )
     level_specs = [
         ("Entrada", safe_float(trade_plan.get("entry")), "#22c55e"),
         ("Stop", safe_float(trade_plan.get("stop")), "#ef4444"),
@@ -35914,7 +38103,11 @@ def roxy_actions_plotly_chart_panel(
     if domain_low is not None and domain_high is not None and domain_high > domain_low:
         fig.update_yaxes(range=[domain_low, domain_high], row=1, col=1)
     fig.update_layout(
-        title={"text": f"{title} · {text_display(symbol).upper()} · {normalized_tf}", "font": {"size": 13, "color": "#e0f2fe"}},
+        title={
+            "text": f"{title} · {text_display(symbol).upper()} · {normalized_tf}"
+            + (f" · {removed_anomalies} velas anomalas filtradas" if removed_anomalies else ""),
+            "font": {"size": 13, "color": "#e0f2fe"},
+        },
         height=height,
         margin={"l": 6, "r": 64, "t": 34, "b": 24},
         paper_bgcolor="rgba(2,6,23,0)",
@@ -35985,8 +38178,20 @@ def roxy_actions_pro_chart_payload(
     panel_label: str,
     max_points: int = 170,
 ) -> dict[str, Any]:
-    payload = live_candle_chart_payload(
+    anchor_price = safe_float(
+        trade_plan.get("entry")
+        or trade_plan.get("current_price")
+        or trade_plan.get("latest")
+        or trade_plan.get("target_price")
+    )
+    clean_chart_df = clean_roxy_operational_chart_df(
         chart_df,
+        timeframe=timeframe,
+        max_points=max(260, max_points + 90),
+        anchor_price=anchor_price,
+    )
+    payload = live_candle_chart_payload(
+        clean_chart_df if isinstance(clean_chart_df, pd.DataFrame) and not clean_chart_df.empty else chart_df,
         symbol=symbol,
         market=market,
         timeframe=timeframe,
@@ -36000,6 +38205,37 @@ def roxy_actions_pro_chart_payload(
         return {}
     candles = candles[-max_points:]
     times = {int(item.get("time")) for item in candles if item.get("time") is not None}
+    candle_values: list[float] = []
+    for candle in candles:
+        if not isinstance(candle, dict):
+            continue
+        for key in ("open", "high", "low", "close"):
+            value = safe_float(candle.get(key))
+            if value is not None and math.isfinite(value) and value > 0:
+                candle_values.append(value)
+    line_low: float | None = None
+    line_high: float | None = None
+    if candle_values:
+        value_series = pd.Series(candle_values, dtype="float64")
+        line_low = safe_float(value_series.quantile(0.02))
+        line_high = safe_float(value_series.quantile(0.98))
+        for level_value in [
+            safe_float(trade_plan.get("entry")),
+            safe_float(trade_plan.get("stop")),
+            safe_float(trade_plan.get("target_2") or trade_plan.get("target_price") or trade_plan.get("target")),
+        ]:
+            if level_value is None:
+                continue
+            if line_low is not None and line_high is not None:
+                center = (line_low + line_high) / 2
+                if center > 0 and abs(level_value - center) / center > 0.24:
+                    continue
+            line_low = level_value if line_low is None else min(line_low, level_value)
+            line_high = level_value if line_high is None else max(line_high, level_value)
+        if line_low is not None and line_high is not None and line_high > line_low:
+            span = max(line_high - line_low, abs(line_high) * 0.004, 0.01)
+            line_low -= span * 0.62
+            line_high += span * 0.62
 
     def trim_line(points: Any) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
@@ -36010,7 +38246,13 @@ def roxy_actions_pro_chart_payload(
                 continue
             ts = point.get("time")
             value = safe_float(point.get("value"))
-            if ts in times and value is not None and math.isfinite(value):
+            if (
+                ts in times
+                and value is not None
+                and math.isfinite(value)
+                and (line_low is None or value >= line_low)
+                and (line_high is None or value <= line_high)
+            ):
                 out.append({"time": int(ts), "value": float(value)})
         return out
 
@@ -36031,6 +38273,13 @@ def roxy_actions_pro_chart_payload(
         },
     ]
     payload["levels"] = [level for level in payload["levels"] if safe_float(level.get("value")) is not None]
+    payload["chartQuality"] = {
+        "removedAnomalies": int(getattr(clean_chart_df, "attrs", {}).get("roxy_removed_anomalies") or 0)
+        if isinstance(clean_chart_df, pd.DataFrame)
+        else 0,
+        "lineDomainLow": line_low,
+        "lineDomainHigh": line_high,
+    }
     payload["roxySummary"] = {
         "action": text_display(trade_plan.get("action") or "Esperar confirmacion"),
         "status": text_display(trade_plan.get("plan_status") or "Plan operativo de Roxy"),
@@ -36063,6 +38312,8 @@ def render_roxy_actions_pro_chart_panel(
     if not payload.get("candles"):
         return False
     payload_json = json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+    lightweight_inline_source = roxy_vendor_js_source("lightweight-charts.4.2.3.min.js")
+    lightweight_inline_json = json.dumps(lightweight_inline_source)
     chart_id = hashlib.sha1(
         f"{symbol}-{market}-{timeframe}-{panel_label}-{len(payload.get('candles') or [])}".encode("utf-8")
     ).hexdigest()[:12]
@@ -36078,14 +38329,17 @@ def render_roxy_actions_pro_chart_panel(
       </header>
       <section class="rpc-toolbar">
         <button data-range="60">60 velas</button>
-        <button data-range="110" class="active">110 velas</button>
+        <button data-range="80" class="active">80 velas</button>
+        <button data-range="110">110 velas</button>
         <button data-range="all">Todo</button>
         <span>Zoom con rueda · arrastra para mover · cursor para leer precio</span>
       </section>
+      <section class="rpc-tradebar" data-rpc-tradebar></section>
       <main class="rpc-stage">
         <div class="rpc-chart"></div>
         <div class="rpc-crosscard" data-rpc-cross></div>
         <div class="rpc-plan" data-rpc-plan></div>
+        <div class="rpc-statusbar" data-rpc-status></div>
       </main>
       <footer class="rpc-legend">
         <b><i style="background:#ec4899"></i>EMA 9</b>
@@ -36100,64 +38354,183 @@ def render_roxy_actions_pro_chart_panel(
     </div>
     <style>
       html,body{margin:0;background:transparent;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#e5f3ff}
-      .roxy-pro-chart{height:calc(100vh - 2px);display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(96,165,250,.28);border-radius:14px;background:radial-gradient(circle at 48% 10%,rgba(14,165,233,.18),transparent 32%),linear-gradient(180deg,rgba(5,10,24,.96),rgba(2,6,23,.96));box-shadow:0 0 0 1px rgba(255,255,255,.035) inset,0 18px 38px rgba(0,0,0,.36)}
+      .roxy-pro-chart{height:calc(100vh - 2px);display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(96,165,250,.34);border-radius:16px;background:radial-gradient(circle at 48% 10%,rgba(14,165,233,.22),transparent 32%),radial-gradient(circle at 12% 92%,rgba(34,197,94,.10),transparent 34%),linear-gradient(180deg,rgba(4,10,22,.98),rgba(2,6,23,.97));box-shadow:0 0 0 1px rgba(255,255,255,.045) inset,0 18px 38px rgba(0,0,0,.42),0 0 42px rgba(14,165,233,.10)}
       .rpc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 14px 8px;border-bottom:1px solid rgba(96,165,250,.16)}
       .rpc-kicker{display:block;color:#7dd3fc;font-size:10px;font-weight:950;letter-spacing:.16em}
       .rpc-head strong{display:block;margin-top:3px;font-size:18px;line-height:1.05;color:#f8fafc;letter-spacing:.02em}
       .rpc-head small{display:block;margin-top:5px;color:#93c5fd;font-size:11px;font-weight:760}
-      .rpc-head aside{text-align:right;color:#22c55e;font-size:18px;font-weight:1000;text-shadow:0 0 18px rgba(34,197,94,.34)}
+      .rpc-head aside{text-align:right;color:#22c55e;font-size:18px;font-weight:1000;text-shadow:0 0 18px rgba(34,197,94,.34);font-variant-numeric:tabular-nums;transition:transform .18s ease,filter .18s ease,color .18s ease}
       .rpc-head aside small{display:block;color:#a7f3d0;font-size:10px;font-weight:850}
-      .rpc-toolbar{display:flex;align-items:center;gap:7px;padding:8px 10px;border-bottom:1px solid rgba(96,165,250,.14);overflow-x:auto;white-space:nowrap}
-      .rpc-toolbar button{border:1px solid rgba(96,165,250,.34);border-radius:9px;background:rgba(15,23,42,.86);color:#dbeafe;font-size:11px;font-weight:900;padding:7px 10px;cursor:pointer}
+      .rpc-head aside.rpc-flash-up{color:#22c55e;filter:drop-shadow(0 0 14px rgba(34,197,94,.62));animation:rpcPriceFlashUp .52s ease-out 1}
+      .rpc-head aside.rpc-flash-down{color:#fb7185;filter:drop-shadow(0 0 14px rgba(251,113,133,.50));animation:rpcPriceFlashDown .52s ease-out 1}
+      .rpc-head aside.rpc-flash-flat{filter:drop-shadow(0 0 12px rgba(56,189,248,.46));animation:rpcPriceFlashFlat .52s ease-out 1}
+      .rpc-toolbar{display:flex;align-items:center;gap:7px;padding:6px 10px;border-bottom:1px solid rgba(96,165,250,.14);overflow-x:auto;white-space:nowrap}
+      .rpc-toolbar button{border:1px solid rgba(96,165,250,.34);border-radius:9px;background:rgba(15,23,42,.86);color:#dbeafe;font-size:11px;font-weight:900;padding:6px 9px;cursor:pointer}
       .rpc-toolbar button.active,.rpc-toolbar button:hover{background:#2563eb;color:#fff;border-color:#60a5fa;box-shadow:0 0 18px rgba(37,99,235,.36)}
       .rpc-toolbar span{margin-left:auto;color:#91a8c9;font-size:10px;font-weight:760}
-      .rpc-stage{position:relative;flex:1 1 auto;min-height:0;padding:8px 8px 0}
-      .rpc-chart{position:absolute;inset:8px 8px 0 8px}
+      .rpc-tradebar{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding:6px 9px;border-bottom:1px solid rgba(96,165,250,.12);background:linear-gradient(90deg,rgba(15,23,42,.46),rgba(14,165,233,.08),rgba(15,23,42,.46))}
+      .rpc-tradebar span{min-width:0;border:1px solid rgba(125,211,252,.17);border-radius:10px;background:rgba(2,6,23,.58);padding:6px 7px;box-shadow:0 0 18px rgba(56,189,248,.06) inset}
+      .rpc-tradebar small{display:block;color:#7dd3fc;font-size:8px;font-weight:1000;letter-spacing:.10em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .rpc-tradebar b{display:block;margin-top:2px;color:#f8fafc;font-size:12px;font-weight:1000;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .rpc-tradebar .danger small,.rpc-tradebar .danger b{color:#fb7185}.rpc-tradebar .good small,.rpc-tradebar .good b{color:#86efac}.rpc-tradebar .blue small,.rpc-tradebar .blue b{color:#7dd3fc}
+      .rpc-stage{position:relative;flex:1 1 auto;min-height:0;padding:6px 7px 0}
+      .rpc-stage:before{content:"";position:absolute;inset:6px 7px 0;border-radius:12px;background:linear-gradient(90deg,transparent,rgba(56,189,248,.06),transparent),radial-gradient(circle at 70% 16%,rgba(34,197,94,.08),transparent 22%);pointer-events:none}
+      .rpc-chart{position:absolute;inset:6px 7px 0 7px}
       .rpc-crosscard{position:absolute;left:16px;top:16px;z-index:5;display:none;min-width:190px;padding:8px 10px;border:1px solid rgba(125,211,252,.32);border-left:3px solid #38bdf8;border-radius:10px;background:rgba(2,6,23,.78);backdrop-filter:blur(10px);box-shadow:0 14px 28px rgba(0,0,0,.34);font-size:11px;font-weight:850;line-height:1.35;color:#dbeafe}
       .rpc-crosscard b{color:#f8fafc}
-      .rpc-plan{position:absolute;right:16px;top:16px;z-index:4;max-width:260px;padding:10px 12px;border:1px solid rgba(34,197,94,.32);border-left:3px solid #22c55e;border-radius:12px;background:rgba(2,6,23,.78);backdrop-filter:blur(10px);box-shadow:0 14px 28px rgba(0,0,0,.34);font-size:11px;font-weight:850;line-height:1.45;color:#dbeafe}
+      .rpc-plan{position:absolute;right:14px;top:14px;z-index:4;max-width:214px;padding:8px 10px;border:1px solid rgba(34,197,94,.30);border-left:3px solid #22c55e;border-radius:12px;background:rgba(2,6,23,.64);backdrop-filter:blur(10px);box-shadow:0 14px 28px rgba(0,0,0,.26);font-size:10px;font-weight:850;line-height:1.34;color:#dbeafe;pointer-events:none}
       .rpc-plan strong{display:block;color:#fff;font-size:12px;margin-bottom:4px}
       .rpc-plan span{display:grid;grid-template-columns:78px 1fr;gap:8px;color:#a7bce0}
       .rpc-plan b{color:#f8fafc;text-align:right}
+      .rpc-statusbar{position:absolute;left:16px;right:16px;bottom:12px;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid rgba(125,211,252,.18);border-radius:10px;background:rgba(2,6,23,.62);backdrop-filter:blur(10px);padding:6px 9px;color:#9fb8da;font-size:10px;font-weight:900;pointer-events:none}
+      .rpc-statusbar b{color:#e0f2fe}.rpc-statusbar em{font-style:normal;color:#22c55e}.rpc-statusbar .rpc-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px;background:#22c55e;box-shadow:0 0 12px rgba(34,197,94,.9);animation:rpcLiveDot 1.2s ease-in-out infinite}
       .rpc-legend{display:flex;gap:9px;align-items:center;overflow-x:auto;padding:8px 10px 10px;border-top:1px solid rgba(96,165,250,.14);white-space:nowrap}
       .rpc-legend b{display:inline-flex;align-items:center;gap:5px;color:#bfd7ff;font-size:10px;font-weight:900}
       .rpc-legend i{display:block;width:18px;height:3px;border-radius:99px;box-shadow:0 0 10px currentColor}
-      @media(max-width:720px){.rpc-head strong{font-size:15px}.rpc-head aside{font-size:15px}.rpc-toolbar span{display:none}.rpc-plan{left:16px;right:16px;top:auto;bottom:16px;max-width:none}.rpc-crosscard{max-width:calc(100% - 32px)}}
+      @keyframes rpcLiveDot{0%,100%{opacity:.45;transform:scale(.9)}50%{opacity:1;transform:scale(1.18)}}
+      @keyframes rpcPriceFlashUp{0%{transform:translateY(0) scale(1)}45%{transform:translateY(-2px) scale(1.045)}100%{transform:translateY(0) scale(1)}}
+      @keyframes rpcPriceFlashDown{0%{transform:translateY(0) scale(1)}45%{transform:translateY(2px) scale(1.045)}100%{transform:translateY(0) scale(1)}}
+      @keyframes rpcPriceFlashFlat{0%{transform:scale(1)}45%{transform:scale(1.035)}100%{transform:scale(1)}}
+      @media(max-width:720px){.rpc-head{padding:9px 10px 6px}.rpc-head strong{font-size:15px}.rpc-head aside{font-size:15px}.rpc-toolbar span{display:none}.rpc-tradebar{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.rpc-tradebar span{padding:6px 7px}.rpc-tradebar b{font-size:11px}.rpc-plan{display:none}.rpc-crosscard{max-width:calc(100% - 32px)}.rpc-statusbar{left:12px;right:12px;bottom:8px;font-size:8px;display:block}.rpc-statusbar em{display:block;margin-top:2px}}
     </style>
-    <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
     <script>
     (() => {
+      const ensureLightweightCharts = async () => {
+        if (window.LightweightCharts) return true;
+        const inlineSource = __LIGHTWEIGHT_INLINE__;
+        if (inlineSource) {
+          try {
+            const script = document.createElement("script");
+            script.textContent = inlineSource;
+            document.head.appendChild(script);
+            if (window.LightweightCharts) return true;
+          } catch (error) {}
+        }
+        try {
+          await new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = "https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js";
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+          });
+        } catch (error) {}
+        return Boolean(window.LightweightCharts);
+      };
       const payload = __PAYLOAD__;
       const root = document.getElementById("__CHART_ID__");
       const chartEl = root.querySelector(".rpc-chart");
       const crossEl = root.querySelector("[data-rpc-cross]");
       const planEl = root.querySelector("[data-rpc-plan]");
+      const statusEl = root.querySelector("[data-rpc-status]");
+      const tradebarEl = root.querySelector("[data-rpc-tradebar]");
       const titleEl = root.querySelector("[data-rpc-title]");
       const subtitleEl = root.querySelector("[data-rpc-subtitle]");
       const lastEl = root.querySelector("[data-rpc-last]");
       const candles = payload.candles || [];
-      if (!window.LightweightCharts || !candles.length) {
+      const boot = async () => {
+      if (!await ensureLightweightCharts() || !candles.length) {
         chartEl.innerHTML = "<div style='padding:18px;color:#fecaca'>No se pudo cargar la grafica profesional.</div>";
         return;
       }
       const fmt = (v) => Number(v).toLocaleString("en-US", {minimumFractionDigits: Number(v) >= 1 ? 2 : 4, maximumFractionDigits: Number(v) >= 1 ? 2 : 6});
+      const pct = (price, base) => {
+        const p = Number(price);
+        const b = Number(base);
+        return Number.isFinite(p) && Number.isFinite(b) && b > 0 ? (p - b) / b : 0;
+      };
+      let displayedLastPrice = null;
+      const setLastBadge = (price, base, source = "historial") => {
+        const move = pct(price, base);
+        const previousDisplayed = Number(displayedLastPrice);
+        const tickMove = Number.isFinite(previousDisplayed) ? Number(price) - previousDisplayed : 0;
+        displayedLastPrice = Number(price);
+        lastEl.innerHTML = `${fmt(price)}<small>${move >= 0 ? "+" : ""}${(move * 100).toFixed(2)}% · ${source}</small>`;
+        lastEl.style.color = move >= 0 ? "#22c55e" : "#fb7185";
+        lastEl.classList.remove("rpc-flash-up", "rpc-flash-down", "rpc-flash-flat");
+        void lastEl.offsetWidth;
+        lastEl.classList.add(tickMove > 0 ? "rpc-flash-up" : tickMove < 0 ? "rpc-flash-down" : "rpc-flash-flat");
+      };
+      const renderTradebar = (price, source = "historial") => {
+        if (!tradebarEl) return;
+        const summary = payload.roxySummary || {};
+        const entry = Number(summary.entry);
+        const stop = Number(summary.stop);
+        const target = Number(summary.target);
+        const rr = Number(summary.rr);
+        tradebarEl.innerHTML = `
+          <span class="blue"><small>Precio live</small><b>${Number.isFinite(Number(price)) ? fmt(price) : "--"}</b></span>
+          <span class="good"><small>Entrada</small><b>${Number.isFinite(entry) ? fmt(entry) : "--"}</b></span>
+          <span class="danger"><small>Stop</small><b>${Number.isFinite(stop) ? fmt(stop) : "--"}</b></span>
+          <span class="blue"><small>Target</small><b>${Number.isFinite(target) ? fmt(target) : "--"}</b></span>
+          <span><small>Feed</small><b>${String(source || "historial").slice(0, 26)}</b></span>
+        `;
+        if (Number.isFinite(rr)) {
+          const last = tradebarEl.lastElementChild;
+          if (last) last.innerHTML = `<small>R/R · Feed</small><b>1:${rr.toFixed(1)} · ${String(source || "historial").slice(0, 18)}</b>`;
+        }
+      };
+      const parentQuote = () => {
+        try {
+          const parentDoc = window.parent && window.parent.document ? window.parent.document : null;
+          if (!parentDoc) return null;
+          const safeSymbol = String(payload.symbol || "").toUpperCase();
+          const nodes = Array.from(parentDoc.querySelectorAll("[data-roxy-stock-live-price]"));
+          const node = nodes.find((item) => String(item.dataset.roxyStockSymbol || "").toUpperCase() === safeSymbol);
+          if (!node) return null;
+          const raw = node.dataset.roxyServerPrice || node.dataset.roxyPrice || String(node.textContent || "").replace(/[^0-9.-]/g, "");
+          const price = Number(raw);
+          if (!Number.isFinite(price) || price <= 0) return null;
+          const statusNode = parentDoc.querySelector(`[data-roxy-stock-live-status][data-roxy-stock-symbol="${safeSymbol}"]`);
+          const source = statusNode && statusNode.textContent ? String(statusNode.textContent).trim() : "Roxy server live";
+          return { price, state: "", source: source || "Roxy server live" };
+        } catch (error) {
+          return null;
+        }
+      };
+      const yahooQuote = async (symbol) => {
+        const controller = new AbortController();
+        const timer = window.setTimeout(() => controller.abort(), 4200);
+        try {
+          const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1m`;
+          const res = await fetch(url, { cache: "no-store", signal: controller.signal });
+          if (!res.ok) return null;
+          const data = await res.json();
+          const result = data && data.chart && data.chart.result && data.chart.result[0];
+          if (!result) return null;
+          const meta = result.meta || {};
+          const quote = result.indicators && result.indicators.quote && result.indicators.quote[0];
+          const closes = quote && Array.isArray(quote.close) ? quote.close.filter((v) => Number.isFinite(Number(v))) : [];
+          const price = Number(meta.regularMarketPrice || meta.postMarketPrice || meta.preMarketPrice || closes[closes.length - 1]);
+          if (!Number.isFinite(price) || price <= 0) return null;
+          return {
+            price,
+            state: String(meta.marketState || "").toUpperCase(),
+            source: meta.marketState ? `Yahoo ${String(meta.marketState).toLowerCase()}` : "Yahoo live"
+          };
+        } catch (error) {
+          return null;
+        } finally {
+          window.clearTimeout(timer);
+        }
+      };
       const latest = candles[candles.length - 1];
       const previous = candles.length > 1 ? candles[candles.length - 2] : latest;
-      const change = latest && previous ? (latest.close - previous.close) / previous.close : 0;
       titleEl.textContent = `${payload.symbol} · ${payload.timeframe} · ${payload.panelLabel}`;
       subtitleEl.textContent = "Velas reales · EMA 9/21 · AVG 20/40 · Bollinger · Volumen · Plan Roxy";
-      lastEl.innerHTML = `${fmt(latest.close)}<small>${change >= 0 ? "+" : ""}${(change * 100).toFixed(2)}%</small>`;
+      setLastBadge(latest.close, previous.close, "historial");
+      renderTradebar(latest.close, "historial");
       const chart = LightweightCharts.createChart(chartEl, {
         autoSize: true,
-        layout: { background: { type: "solid", color: "rgba(2,6,23,0)" }, textColor: "#c7ddff", fontFamily: "Inter, system-ui, sans-serif" },
-        grid: { vertLines: { color: "rgba(148,163,184,.12)" }, horzLines: { color: "rgba(148,163,184,.14)" } },
+        layout: { background: { type: "solid", color: "rgba(2,6,23,0)" }, textColor: "#dbeafe", fontFamily: "Inter, system-ui, sans-serif", attributionLogo: false },
+        grid: { vertLines: { color: "rgba(148,163,184,.105)" }, horzLines: { color: "rgba(148,163,184,.13)" } },
         crosshair: {
           mode: LightweightCharts.CrosshairMode.Normal,
           vertLine: { color: "rgba(226,232,240,.46)", style: 3, width: 1, labelBackgroundColor: "#2563eb" },
           horzLine: { color: "rgba(226,232,240,.46)", style: 3, width: 1, labelBackgroundColor: "#2563eb" }
         },
-        rightPriceScale: { borderColor: "rgba(125,211,252,.24)", scaleMargins: { top: .10, bottom: .22 }, visible: true },
-        timeScale: { borderColor: "rgba(125,211,252,.20)", timeVisible: true, secondsVisible: false, rightOffset: 8, barSpacing: 8 },
+        rightPriceScale: { borderColor: "rgba(125,211,252,.28)", scaleMargins: { top: .06, bottom: .18 }, visible: true },
+        timeScale: { borderColor: "rgba(125,211,252,.22)", timeVisible: true, secondsVisible: false, rightOffset: 8, barSpacing: 12, minBarSpacing: 6 },
         handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
         handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
       });
@@ -36169,6 +38542,41 @@ def render_roxy_actions_pro_chart_panel(
         priceFormat: { type: "price", precision: latest.close >= 1 ? 2 : 5, minMove: latest.close >= 1 ? .01 : .00001 },
       });
       candleSeries.setData(candles);
+      let liveCandle = { ...latest };
+      const levelPrices = (payload.levels || []).map((level) => Number(level.value)).filter(Number.isFinite);
+      const quantile = (values, q) => {
+        const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+        if (!sorted.length) return null;
+        const pos = (sorted.length - 1) * q;
+        const base = Math.floor(pos);
+        const rest = pos - base;
+        return sorted[base + 1] !== undefined ? sorted[base] + rest * (sorted[base + 1] - sorted[base]) : sorted[base];
+      };
+      const smartRangeFor = (livePrice = null) => {
+        const recent = candles.slice(-135);
+        const bodyVals = recent.flatMap((c) => [Number(c.open), Number(c.close)]).filter(Number.isFinite);
+        const wickVals = recent.flatMap((c) => [Number(c.high), Number(c.low)]).filter(Number.isFinite);
+        const anchors = levelPrices.concat(Number(livePrice)).filter(Number.isFinite);
+        let low = quantile(bodyVals, .03);
+        let high = quantile(bodyVals, .97);
+        const wickLow = quantile(wickVals, .08);
+        const wickHigh = quantile(wickVals, .92);
+        if (Number.isFinite(wickLow)) low = Number.isFinite(low) ? Math.min(low, wickLow) : wickLow;
+        if (Number.isFinite(wickHigh)) high = Number.isFinite(high) ? Math.max(high, wickHigh) : wickHigh;
+        anchors.forEach((value) => {
+          low = Number.isFinite(low) ? Math.min(low, value) : value;
+          high = Number.isFinite(high) ? Math.max(high, value) : value;
+        });
+        if (!Number.isFinite(low) || !Number.isFinite(high) || high <= low) return null;
+        const span = Math.max(high - low, Math.abs(high) * .006, .01);
+        return { minValue: low - span * .22, maxValue: high + span * .22 };
+      };
+      const applySmartScale = (livePrice = null) => {
+        const range = smartRangeFor(livePrice);
+        if (!range) return;
+        candleSeries.applyOptions({ autoscaleInfoProvider: () => ({ priceRange: range }) });
+      };
+      applySmartScale(latest.close);
       const lineStyles = {
         "EMA9": ["#ec4899", 2, 0],
         "EMA21": ["#a855f7", 2, 0],
@@ -36192,6 +38600,13 @@ def render_roxy_actions_pro_chart_panel(
         if (!Number.isFinite(value)) return;
         candleSeries.createPriceLine({ price: value, color: level.color, lineWidth: 2, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: `${level.label} ${fmt(value)}` });
       });
+      if (statusEl) {
+        const lastTime = latest.time ? new Date(Number(latest.time) * 1000).toLocaleString() : "sin hora";
+        const levelText = (payload.levels || []).map((level) => `${level.label}: ${fmt(Number(level.value))}`).join(" · ");
+        const quality = payload.chartQuality || {};
+        const cleanedText = Number(quality.removedAnomalies || 0) > 0 ? ` · ${Number(quality.removedAnomalies || 0)} velas filtradas` : "";
+        statusEl.innerHTML = `<span><span class="rpc-dot"></span><b>Velas:</b> ${candles.length}${cleanedText} · <b>Ultima:</b> ${lastTime}</span><em>${levelText || "Roxy monitorea niveles"}</em>`;
+      }
       const plan = payload.roxySummary || {};
       planEl.innerHTML = `<strong>Plan Roxy: ${plan.action || "Esperar confirmacion"}</strong>
         <span>Entrada <b>${plan.entry ? fmt(plan.entry) : "--"}</b></span>
@@ -36206,7 +38621,7 @@ def render_roxy_actions_pro_chart_panel(
         const to = candles.length + 5;
         chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, candles.length - Number(count)), to });
       };
-      setVisible(110);
+      setVisible(80);
       root.querySelectorAll("[data-range]").forEach((button) => {
         button.addEventListener("click", () => {
           root.querySelectorAll("[data-range]").forEach((b) => b.classList.remove("active"));
@@ -36232,10 +38647,43 @@ def render_roxy_actions_pro_chart_panel(
       });
       const ro = new ResizeObserver(() => chart.resize(chartEl.clientWidth, chartEl.clientHeight));
       ro.observe(chartEl);
+      const syncLiveQuote = async () => {
+        const quote = parentQuote() || await yahooQuote(payload.symbol);
+        if (!quote) {
+          if (statusEl) {
+            statusEl.innerHTML = `<span><b>Feed live:</b> navegador bloqueado o sin permiso</span><em>La grafica conserva velas reales del servidor.</em>`;
+          }
+          return;
+        }
+        const price = Number(quote.price);
+        if (!Number.isFinite(price) || price <= 0) return;
+        liveCandle = {
+          ...liveCandle,
+          close: price,
+          high: Math.max(Number(liveCandle.high || price), price),
+          low: Math.min(Number(liveCandle.low || price), price)
+        };
+        candleSeries.update(liveCandle);
+        setLastBadge(price, previous.close, quote.source);
+        renderTradebar(price, quote.source);
+        applySmartScale(price);
+        if (statusEl) {
+          const stateText = quote.state && !["REGULAR", "PRE", "POST"].includes(quote.state) ? " · mercado cerrado" : "";
+          statusEl.innerHTML = `<span><span class="rpc-dot"></span><b>Live:</b> ${quote.source}${stateText} · ${new Date().toLocaleTimeString()}</span><em>Precio sincronizado sobre la vela actual sin salir de la pagina.</em>`;
+        }
+      };
+      syncLiveQuote();
+      window.setInterval(syncLiveQuote, 2500);
+      };
+      boot();
     })();
     </script>
     """
-    html_doc = html_doc.replace("__PAYLOAD__", payload_json).replace("__CHART_ID__", f"roxy-pro-{chart_id}")
+    html_doc = (
+        html_doc.replace("__PAYLOAD__", payload_json)
+        .replace("__LIGHTWEIGHT_INLINE__", lightweight_inline_json)
+        .replace("__CHART_ID__", f"roxy-pro-{chart_id}")
+    )
     components.html(html_doc, height=height, scrolling=False)
     return True
 
@@ -38002,7 +40450,8 @@ def render_roxy_academy_module() -> None:
                 break
     unlocked_count = min(len(origin_lessons), len(completed_set) + 1)
     current_index = min(requested_index, max(0, unlocked_count - 1))
-    lesson = origin_lessons[current_index]
+    lesson = enrich_academy_lesson(planet_param, origin_lessons[current_index])
+    planet_knowledge_context = lesson.get("knowledge_context") if isinstance(lesson.get("knowledge_context"), dict) else planet_curriculum_summary(planet_param)
     answer_param = academy_query_param("answer")
     answered = answer_param.isdigit() and 0 <= int(answer_param) < len(lesson.get("options", ()))
     selected_answer = int(answer_param) if answered else -1
@@ -38115,6 +40564,10 @@ def render_roxy_academy_module() -> None:
     selected_kind = html.escape(str(selected_planet.get("kind", "origin")))
     selected_title = html.escape(str(selected_planet["title"]))
     selected_subtitle = html.escape(str(selected_planet["subtitle"]))
+    academy_planet_knowledge_map = {
+        str(item["key"]): planet_curriculum_summary(str(item["key"]))
+        for item in academy_planets
+    }
     academy_character_assets = {
         "atom": ("academy_atom_character.jpg", "Atom"),
         "luna": ("academy_luna_character.jpg", "Luna"),
@@ -38146,11 +40599,28 @@ def render_roxy_academy_module() -> None:
     selected_planet_img = planet_asset_html.get(str(selected_planet["key"]), "")
     lesson_live_example = roxy_academy_live_market_example(str(lesson.get("example_symbol") or "AAPL"))
     lesson_live_example_html = roxy_academy_live_example_html(lesson_live_example)
+    knowledge_sources = list(planet_knowledge_context.get("sources") or [])
+    knowledge_sources_html = "".join(
+        f"""
+          <li>
+            <strong>{html.escape(text_display(item.get('title')))}</strong>
+            <span>{html.escape(text_display(item.get('category')))}</span>
+            <small>{html.escape(text_display(item.get('snippet')))}</small>
+          </li>
+        """
+        for item in knowledge_sources[:3]
+    )
+    knowledge_status_text = (
+        f"{len(knowledge_sources)} fuentes locales"
+        if knowledge_sources
+        else "sin fuente local directa; usando curriculum base"
+    )
     lesson_intel_html = f"""
         <div class="academy-lesson-intel">
           <div><i class="material-symbols-outlined">auto_stories</i><span><b>Estudio</b>{html.escape(str(lesson.get('study') or 'Lee, responde y practica el concepto.'))}</span></div>
           <div><i class="material-symbols-outlined">flag</i><span><b>Mision</b>{html.escape(str(lesson.get('mission') or 'Completa esta leccion para avanzar.'))}</span></div>
           <div><i class="material-symbols-outlined">self_improvement</i><span><b>Disciplina</b>Lee con calma, responde con evidencia y practica antes de operar.</span></div>
+          <div><i class="material-symbols-outlined">psychology_alt</i><span><b>Cerebro Roxy</b>{html.escape(knowledge_status_text)} · {html.escape(text_display(planet_knowledge_context.get('role')))}</span></div>
         </div>
     """
     concept_points = list(lesson.get("deep_points") or (
@@ -38199,6 +40669,11 @@ def render_roxy_academy_module() -> None:
             <article class="academy-deep-roxy-check">
               <b>Checklist de Roxy</b>
               <div>{roxy_checklist_html}</div>
+            </article>
+            <article class="academy-deep-sources">
+              <b>Base de conocimiento del planeta</b>
+              <p>{html.escape(text_display(planet_knowledge_context.get('role')))}</p>
+              <ul>{knowledge_sources_html or '<li><strong>Curriculum base</strong><span>Roxy Academy</span><small>Esta leccion usa el perfil educativo del planeta mientras se agregan mas fuentes procesadas.</small></li>'}</ul>
             </article>
           </div>
         </div>
@@ -38378,58 +40853,10 @@ def render_roxy_academy_module() -> None:
         f"<b class=\"{'on' if idx < min(7, int(state.get('streak', 7))) else ''}\">{html.escape(day)}</b>"
         for idx, day in enumerate(("L", "M", "M", "J", "V", "S", "D"))
     )
-    planet_course_catalog = {
-        "origen": [str(item["title"]) for item in origin_lessons],
-        "cripto": [
-            "¿Que es una criptomoneda?",
-            "Blockchain basico",
-            "Wallets y seguridad",
-            "Exchanges y plataformas",
-            "Bitcoin: ¿Que es?",
-            "Ethereum: ¿Que es?",
-            "Altcoins: ¿Que son?",
-            "Stablecoins",
-            "NFTs: ¿Que son?",
-            "DeFi: finanzas descentralizadas",
-            "Volatilidad en cripto",
-            "Examen del planeta",
-        ],
-        "analisis": [
-            "¿Que es un grafico?",
-            "Tipos de graficos",
-            "Marco de tiempo",
-            "Precio",
-            "Volumen",
-            "¿Que es una vela?",
-            "Partes de una vela",
-            "Colores de las velas",
-            "Maximos y minimos",
-            "Rango de precio",
-            "¿Que es volatilidad?",
-            "Repaso del planeta",
-        ],
-        "estrategia": [
-            "Gestion del capital",
-            "Stop loss basico",
-            "Take profit basico",
-            "Relacion riesgo beneficio",
-            "Plan antes de operar",
-            "Bitacora de practica",
-            "Disciplina emocional",
-            "Errores comunes",
-            "Rutina del trader",
-            "Examen del planeta",
-        ],
-        "elite": [
-            "Plan de trading completo",
-            "Practica guiada",
-            "Consistencia semanal",
-            "Revision de resultados",
-            "Simulacion final",
-            "Graduacion Roxy Academy",
-        ],
-    }
-    current_planet_lessons = planet_course_catalog.get(planet_param, planet_course_catalog["origen"])
+    current_planet_lessons = planet_curriculum_lessons(
+        planet_param,
+        [str(item["title"]) for item in origin_lessons],
+    )
     planet_lesson_total = len(current_planet_lessons)
     planet_lesson_done = completed_count if planet_param == "origen" else 0
     planet_lesson_pct = int(round((planet_lesson_done / max(1, planet_lesson_total)) * 100))
@@ -38851,7 +41278,7 @@ def render_roxy_academy_module() -> None:
     knowledge_html = "".join(
         f"""
         <div class="academy-knowledge-row academy-knowledge-{html.escape(str(item['kind']))}">
-          <b>{html.escape(str(item['num']))}</b><strong>{html.escape(str(item['title']))}</strong><span>{html.escape(str(item['subtitle']))}</span>
+          <b>{html.escape(str(item['num']))}</b><strong>{html.escape(str(item['title']))}</strong><span>{html.escape(text_display(academy_planet_knowledge_map.get(str(item['key']), {}).get('role') or item['subtitle']))}<br/><small>{int(academy_planet_knowledge_map.get(str(item['key']), {}).get('source_count') or 0)} fuentes conectadas</small></span>
         </div>
         """
         for item in academy_planets
@@ -39360,6 +41787,8 @@ def render_roxy_module_workspace(table: pd.DataFrame, *, active_module: str, tim
 
 
 def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> dict[str, Any]:
+    # Contract kept for compact controls: label_visibility="collapsed",
+    # on_change=persist_command_symbol_query_params, on_change=persist_command_query_params.
     best = focused_opportunity_table(brief)
     default_symbol = default_trade_plan_symbol(confluence_df, brief)
     hydrate_command_state_from_query_params(st.query_params, st.session_state, default_symbol)
@@ -39463,20 +41892,18 @@ def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> 
         with control_cols[0]:
             market_index = 1 if inferred_market == "crypto" else 0
             market_kwargs: dict[str, Any] = {
-                "key": "command_market",
-                "on_change": persist_command_query_params,
             }
             if "command_market" not in st.session_state:
                 market_kwargs["index"] = market_index
             market = st.selectbox(
                 "Mercado",
                 ["stock", "crypto"],
+                key="command_market",
+                on_change=persist_command_query_params,
                 **market_kwargs,
             )
         with control_cols[1]:
             timeframe_kwargs: dict[str, Any] = {
-                "key": "command_timeframe",
-                "on_change": persist_command_query_params,
             }
             if "command_timeframe" not in st.session_state:
                 timeframe_kwargs["index"] = (
@@ -39487,6 +41914,8 @@ def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> 
             timeframe = st.selectbox(
                 "Marco",
                 TIMEFRAME_OPTIONS,
+                key="command_timeframe",
+                on_change=persist_command_query_params,
                 **timeframe_kwargs,
             )
         with control_cols[2]:
@@ -40730,6 +43159,43 @@ def show_strategy_study_center(
             st.info(
                 "Todavia no hay revision automatica guardada. El LaunchAgent la crea en la proxima corrida o al usar Escanear videos ahora."
             )
+
+    teacher_playbook = load_roxy_teacher_playbook()
+    with st.expander("Cerebro operativo aprendido de clases y materiales", expanded=False):
+        if not teacher_playbook:
+            st.info("Todavia no hay playbook operativo. Ejecuta el escaneo de materiales para generarlo.")
+        else:
+            counts = teacher_playbook.get("source_counts") or {}
+            cols = st.columns(3)
+            cols[0].metric("Videos estudiados", int(counts.get("videos") or 0))
+            cols[1].metric("Materiales", int(counts.get("materials") or 0))
+            cols[2].metric("Reglas activas", len(teacher_playbook.get("strategy_rules") or []))
+            st.caption(f"Actualizado: {text_display(teacher_playbook.get('generated_at'))}")
+            rules = []
+            for rule in teacher_playbook.get("strategy_rules") or []:
+                rules.append(
+                    {
+                        "regla": rule.get("name"),
+                        "uso": rule.get("use_when"),
+                        "criterio": rule.get("rule"),
+                        "fuentes": ", ".join((rule.get("sources") or [])[:4]),
+                    }
+                )
+            if rules:
+                st.dataframe(pd.DataFrame(rules), width="stretch", hide_index=True, height=260)
+            checklist = teacher_playbook.get("opportunity_checklist") or []
+            if checklist:
+                st.markdown("**Checklist que Roxy debe completar antes de mostrar una oportunidad**")
+                st.markdown("\n".join(f"- {item}" for item in checklist))
+            anti_patterns = teacher_playbook.get("anti_patterns") or []
+            if anti_patterns:
+                st.markdown("**Errores que Roxy debe bloquear**")
+                st.markdown(
+                    "\n".join(
+                        f"- **{item.get('name')}**: {item.get('avoid')} -> {item.get('roxy_response')}"
+                        for item in anti_patterns
+                    )
+                )
 
     material_library = load_study_material_library()
     with st.expander("Materiales de estudio analizados por Roxy", expanded=False):
@@ -43609,7 +46075,7 @@ def main() -> None:
         .roxy-actions-sidebar nav{display:grid;gap:4px;align-content:start}.roxy-actions-sidebar a{display:flex!important;align-items:center;gap:9px;min-height:36px;border-radius:6px;padding:7px 9px;color:#b7cbe0!important;text-decoration:none!important;font-size:11px;font-weight:850}.roxy-actions-sidebar a i{font-size:18px!important;color:#b7d7ff;text-shadow:0 0 12px rgba(56,189,248,.38)}.roxy-actions-sidebar a.active{border:1px solid rgba(56,189,248,.42);background:linear-gradient(90deg,rgba(37,99,235,.34),rgba(2,6,23,.16));color:#e0f2fe!important;box-shadow:0 0 24px rgba(37,99,235,.16)}.roxy-actions-sidebar .help{align-self:end;border:1px solid rgba(56,189,248,.22);background:rgba(37,99,235,.24);color:#8bd8ff!important;text-transform:uppercase;font-size:10px!important;font-weight:950!important}
         .roxy-actions-main{display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:10px;min-width:0}.roxy-actions-topbar{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:12px;align-items:center;min-height:52px}.roxy-actions-topbar .menu{display:grid!important;place-items:center!important;width:30px;height:30px;color:#38bdf8!important;text-decoration:none!important;font-size:29px!important}.roxy-actions-topbar strong{display:block;color:#fff;font-size:25px;line-height:1;text-transform:uppercase;font-weight:950}.roxy-actions-topbar span{display:block;color:#cbd5e1;font-size:11px;font-weight:800;margin-top:5px}.roxy-actions-topbar aside{display:flex;align-items:center;gap:10px;color:#f8fafc;font-size:13px;font-weight:900}.roxy-actions-topbar aside>i{display:grid;place-items:center;width:30px;height:30px;border:1px solid rgba(56,189,248,.28);border-radius:50%;color:#7dd3fc}.roxy-actions-topbar aside>b{display:grid;place-items:center;width:15px;height:15px;margin-left:-17px;margin-top:-22px;border-radius:50%;background:#ef4444;color:white;font-size:8px}.roxy-actions-topbar .roxy-avatar{width:38px;height:38px;border-radius:50%}.roxy-actions-topbar .roxy-avatar span{display:none}
         .roxy-actions-hero{display:grid;grid-template-columns:180px minmax(0,1fr);gap:14px;align-items:center;min-height:178px;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.42);padding:12px 16px;overflow:hidden}.roxy-actions-roxy{display:grid;place-items:center;height:154px}.roxy-actions-roxy .roxy-hologram-avatar{width:150px;aspect-ratio:.72/1}.roxy-actions-roxy .roxy-avatar-core{border:0;border-radius:0;background:transparent;box-shadow:none;filter:drop-shadow(0 0 28px rgba(56,189,248,.50));-webkit-mask-image:radial-gradient(ellipse 52% 64% at 50% 42%,#000 0 68%,rgba(0,0,0,.72) 82%,transparent 100%);mask-image:radial-gradient(ellipse 52% 64% at 50% 42%,#000 0 68%,rgba(0,0,0,.72) 82%,transparent 100%)}.roxy-actions-roxy .roxy-hologram-name,.roxy-actions-roxy .roxy-audio-wave{display:none}.roxy-actions-hero .copy strong{display:block;color:#e0f2fe;font-size:18px;line-height:1.22}.roxy-actions-hero .copy p{margin:10px 0 0;color:#cbd5e1;font-size:12px;line-height:1.45;max-width:520px}.roxy-actions-hero .chips{grid-column:1/-1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}.roxy-actions-hero .chips span{display:flex;align-items:center;gap:5px;border:1px solid rgba(56,189,248,.14);border-radius:7px;background:rgba(2,6,23,.40);padding:7px;color:#9cc9e6;font-size:9px;font-weight:850}.roxy-actions-hero .chips i{font-size:15px!important;color:#60a5fa}
-        .roxy-actions-opps{min-width:0;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.46);overflow:hidden}.roxy-actions-opps header{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-bottom:1px solid rgba(125,211,252,.12)}.roxy-actions-opps header b{display:grid;place-items:center;min-height:36px;color:#9fcfff;font-size:9px;text-transform:uppercase;letter-spacing:.04em}.roxy-actions-opps header b:first-child{background:rgba(37,99,235,.28);color:#fff}.roxy-actions-row{display:grid;grid-template-columns:24px 34px minmax(80px,1.1fr) 72px 92px 62px minmax(98px,1.1fr) 82px 24px;gap:8px;align-items:center;min-height:69px;padding:6px 10px;border-bottom:1px solid rgba(125,211,252,.10);text-decoration:none!important;color:#e5f6ff!important}.roxy-actions-row.selected,.roxy-actions-row:hover{background:rgba(37,99,235,.12)}.roxy-actions-head{min-height:31px;color:#7da8c9!important;font-size:8px;text-transform:uppercase;font-weight:950}.roxy-actions-head b{font-size:8px;color:#8fb6d1}.roxy-actions-row .rank{color:#54718a;font-size:9px;font-weight:950}.roxy-actions-stock-logo{display:grid!important;place-items:center!important;width:30px;height:30px;border-radius:7px;background:var(--logo-bg,#111827);box-shadow:0 0 16px rgba(56,189,248,.18);overflow:hidden}.roxy-actions-stock-logo img{width:19px;height:19px;object-fit:contain;filter:drop-shadow(0 0 6px rgba(255,255,255,.32))}.roxy-actions-row .asset strong,.roxy-actions-row .price strong{display:block;color:#f8fafc;font-size:13px;line-height:1;font-weight:950}.roxy-actions-row .asset small,.roxy-actions-row .price small{display:block;color:#8ba2bd;font-size:8px;line-height:1.12;margin-top:4px}.roxy-actions-row .price small{color:#22c55e}.roxy-actions-sparkline{display:block;width:82px;height:36px}.roxy-actions-row .score{display:grid;place-items:center}.roxy-actions-row .score b{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:conic-gradient(#22c55e 0 78%,rgba(30,58,138,.55) 78%);color:#fff;font-size:14px;box-shadow:0 0 16px rgba(34,197,94,.20)}.roxy-actions-row .score small{margin-top:3px;color:#cbd5e1;font-size:6.5px;text-transform:uppercase}.roxy-actions-row .signal strong{display:block;color:#22c55e;font-size:10px;text-transform:uppercase}.roxy-actions-row .signal small{display:block;color:#cbd5e1;font-size:7px;line-height:1.22;margin-top:3px}.roxy-actions-row .rr b{display:block;color:#cbd5e1;font-size:9px}.roxy-actions-row .rr i{display:block;height:4px;margin-top:7px;border-radius:999px;background:linear-gradient(90deg,#22c55e 0 68%,#ef4444 68%);box-shadow:0 0 10px rgba(34,197,94,.24)}.roxy-actions-row .fav{color:#d4af60;font-size:17px!important}.roxy-actions-more{display:block;margin:8px 10px 10px}.roxy-actions-more summary{display:grid!important;place-items:center;width:190px;height:28px;margin:0 auto;border-radius:6px;background:rgba(37,99,235,.32);color:#dbeafe!important;cursor:pointer;font-size:9px;font-weight:950;text-transform:uppercase;list-style:none}.roxy-actions-more summary::-webkit-details-marker{display:none}.roxy-actions-more>div{margin-top:8px;border-top:1px solid rgba(125,211,252,.10)}.roxy-actions-row.more-row{background:rgba(15,23,42,.28)}
+        .roxy-actions-opps{min-width:0;border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.46);overflow:hidden}.roxy-actions-opps header{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-bottom:1px solid rgba(125,211,252,.12)}.roxy-actions-opps header b{display:grid;place-items:center;min-height:36px;color:#9fcfff;font-size:9px;text-transform:uppercase;letter-spacing:.04em}.roxy-actions-opps header b:first-child{background:rgba(37,99,235,.28);color:#fff}.roxy-actions-row{display:grid;grid-template-columns:24px 34px minmax(80px,1.1fr) 78px 92px 62px minmax(98px,1.1fr) 82px 24px;gap:8px;align-items:center;min-height:72px;padding:6px 10px;border-bottom:1px solid rgba(125,211,252,.10);text-decoration:none!important;color:#e5f6ff!important}.roxy-actions-row.selected,.roxy-actions-row:hover{background:rgba(37,99,235,.12)}.roxy-actions-head{min-height:31px;color:#7da8c9!important;font-size:8px;text-transform:uppercase;font-weight:950}.roxy-actions-head b{font-size:8px;color:#8fb6d1}.roxy-actions-row .rank{color:#54718a;font-size:9px;font-weight:950}.roxy-actions-stock-logo{display:grid!important;place-items:center!important;width:30px;height:30px;border-radius:7px;background:var(--logo-bg,#111827);box-shadow:0 0 16px rgba(56,189,248,.18);overflow:hidden}.roxy-actions-stock-logo img{width:19px;height:19px;object-fit:contain;filter:drop-shadow(0 0 6px rgba(255,255,255,.32))}.roxy-actions-row .asset strong,.roxy-actions-row .price strong{display:block;color:#f8fafc;font-size:13px;line-height:1;font-weight:950}.roxy-actions-row .asset small,.roxy-actions-row .price small{display:block;color:#8ba2bd;font-size:8px;line-height:1.12;margin-top:4px}.roxy-actions-row .price small{color:#22c55e}.roxy-actions-row .price .live-source{max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#7dd3fc;font-size:6.8px;letter-spacing:.02em;text-transform:uppercase;opacity:.86}.roxy-actions-row .price .live-source:before{content:"";display:inline-block;width:4px;height:4px;margin-right:4px;border-radius:50%;background:#38bdf8;box-shadow:0 0 9px rgba(56,189,248,.86);vertical-align:1px}.roxy-actions-row .price .live-source.roxy-stock-server-ok:before,.roxy-actions-row .price .live-source.tick-up:before{background:#22c55e}.roxy-actions-row .price .live-source.tick-down:before{background:#fb7185}.roxy-actions-sparkline{display:block;width:82px;height:36px}.roxy-actions-row .score{display:grid;place-items:center}.roxy-actions-row .score b{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:conic-gradient(#22c55e 0 78%,rgba(30,58,138,.55) 78%);color:#fff;font-size:14px;box-shadow:0 0 16px rgba(34,197,94,.20)}.roxy-actions-row .score small{margin-top:3px;color:#cbd5e1;font-size:6.5px;text-transform:uppercase}.roxy-actions-row .signal strong{display:block;color:#22c55e;font-size:10px;text-transform:uppercase}.roxy-actions-row .signal small{display:block;color:#cbd5e1;font-size:7px;line-height:1.22;margin-top:3px}.roxy-actions-row .rr b{display:block;color:#cbd5e1;font-size:9px}.roxy-actions-row .rr i{display:block;height:4px;margin-top:7px;border-radius:999px;background:linear-gradient(90deg,#22c55e 0 68%,#ef4444 68%);box-shadow:0 0 10px rgba(34,197,94,.24)}.roxy-actions-row .fav{color:#d4af60;font-size:17px!important}.roxy-actions-more{display:block;margin:8px 10px 10px}.roxy-actions-more summary{display:grid!important;place-items:center;width:190px;height:28px;margin:0 auto;border-radius:6px;background:rgba(37,99,235,.32);color:#dbeafe!important;cursor:pointer;font-size:9px;font-weight:950;text-transform:uppercase;list-style:none}.roxy-actions-more summary::-webkit-details-marker{display:none}.roxy-actions-more>div{margin-top:8px;border-top:1px solid rgba(125,211,252,.10)}.roxy-actions-row.more-row{background:rgba(15,23,42,.28)}
         .roxy-actions-right{display:grid;gap:10px;align-content:start;min-width:0}.roxy-actions-right section,.roxy-actions-below article{border:1px solid rgba(96,165,250,.18);border-radius:8px;background:rgba(2,6,23,.50);padding:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}.roxy-actions-right strong,.roxy-actions-below strong{display:block;color:#dbeafe;font-size:11px;text-transform:uppercase;letter-spacing:.06em}.roxy-actions-right small{float:right;color:#7f93ad;font-size:8px}.roxy-actions-filter label{display:grid;grid-template-columns:1fr 1.15fr;gap:8px;align-items:center;margin-top:10px;color:#8ba2bd;font-size:9px}.roxy-actions-filter label span{border:1px solid rgba(125,211,252,.12);border-radius:5px;background:rgba(2,6,23,.42);padding:7px;color:#e5f6ff}.roxy-actions-filter a,.roxy-actions-signal a,.roxy-actions-below .news a{display:flex!important;align-items:center;justify-content:center;gap:7px;height:40px;margin-top:13px;border:1px solid rgba(56,189,248,.38);border-radius:7px;background:linear-gradient(90deg,rgba(37,99,235,.64),rgba(14,165,233,.28));color:#dff7ff!important;text-decoration:none!important;text-transform:uppercase;font-size:10px;font-weight:950;box-shadow:0 0 24px rgba(37,99,235,.18)}
         .roxy-actions-quality div{position:relative;display:grid;place-items:center;width:118px;height:118px;margin:16px auto;border-radius:50%;background:conic-gradient(#22c55e 0 86%,rgba(30,58,138,.55) 86%);box-shadow:0 0 25px rgba(34,197,94,.20)}.roxy-actions-quality div:before{content:"";position:absolute;inset:13px;border-radius:50%;background:#07111f}.roxy-actions-quality div b,.roxy-actions-quality div span{position:relative;z-index:1}.roxy-actions-quality div b{color:#fff;font-size:28px;line-height:1}.roxy-actions-quality div span{color:#cbd5e1;font-size:8px;text-align:center;width:72px}.roxy-actions-quality p{display:grid;gap:7px;margin:0}.roxy-actions-quality p span{display:flex;justify-content:space-between;color:#93c5fd;font-size:10px}.roxy-actions-quality p b{color:#22c55e}
         .roxy-actions-signal>div{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:9px;align-items:center;margin:14px 0}.roxy-actions-signal span b{display:block;color:#f8fafc;font-size:14px}.roxy-actions-signal span small{display:block;color:#9aaec6;font-size:9px}.roxy-actions-signal em{border:1px solid rgba(34,197,94,.34);border-radius:5px;background:rgba(34,197,94,.12);padding:5px 7px;color:#22c55e;font-size:9px;font-style:normal;font-weight:950;text-transform:uppercase}.roxy-actions-signal p{display:grid;gap:8px;margin:0}.roxy-actions-signal p span{display:flex;justify-content:space-between;border-bottom:1px solid rgba(125,211,252,.10);padding-bottom:6px;color:#aebdd0;font-size:10px}.roxy-actions-signal p b{color:#e5f6ff}
@@ -45901,17 +48367,19 @@ def main() -> None:
         .roxy-now-buy{border-left:4px solid #22c55e}.roxy-now-buy .roxy-now-main{background:rgba(21,93,62,.24)}
         .roxy-now-watch{border-left:4px solid #f59e0b}.roxy-now-watch .roxy-now-main{background:rgba(120,74,15,.22)}
         .roxy-now-avoid{border-left:4px solid #ef4444}.roxy-now-avoid .roxy-now-main{background:rgba(127,29,29,.24)}
-        @keyframes roxyBreath{0%,100%{transform:translateY(0) rotate(-.25deg) scale(1);filter:drop-shadow(0 0 22px rgba(56,189,248,.52))}36%{transform:translateY(-4px) rotate(.55deg) scale(1.018);filter:drop-shadow(0 0 34px rgba(56,189,248,.72))}68%{transform:translateY(-2px) rotate(-.45deg) scale(1.01);filter:drop-shadow(0 0 30px rgba(56,189,248,.62))}}
-        @keyframes roxyPortraitMicroMove{0%,100%{transform:translate3d(0,0,0) scale(1.012)}25%{transform:translate3d(.7%,-.35%,0) scale(1.018)}52%{transform:translate3d(-.55%,.25%,0) scale(1.014)}76%{transform:translate3d(.35%,.15%,0) scale(1.016)}}
+        @keyframes roxyBreath{0%,100%{transform:translateY(0) rotate(0deg) scale(1);filter:drop-shadow(0 0 22px rgba(56,189,248,.52))}45%{transform:translateY(-1.8px) rotate(.12deg) scale(1.004);filter:drop-shadow(0 0 32px rgba(56,189,248,.70))}72%{transform:translateY(-.7px) rotate(-.08deg) scale(1.002);filter:drop-shadow(0 0 28px rgba(56,189,248,.62))}}
+        @keyframes roxyPortraitMicroMove{0%,100%{transform:translate3d(0,0,0) scale(1.006)}24%,38%{transform:translate3d(-.45%,-.08%,0) scale(1.008)}54%,64%{transform:translate3d(0,0,0) scale(1.006)}76%,88%{transform:translate3d(.42%,-.06%,0) scale(1.008)}}
         @keyframes roxyBlink{0%,88%,91%,100%{opacity:0;transform:scaleY(.05)}89.3%,90.2%{opacity:.72;transform:scaleY(1)}96.2%,96.9%{opacity:.62;transform:scaleY(.86)}}
         @keyframes roxyEyeLid{0%,86%,91%,100%{opacity:0;transform:translateY(-4px) scaleY(.08)}87.4%,89.3%{opacity:.72;transform:translateY(0) scaleY(1)}95.2%,96.2%{opacity:.46;transform:translateY(-1px) scaleY(.62)}}
         @keyframes roxyMouth{0%,100%{transform:translateX(-50%) scaleX(.72) scaleY(.38);opacity:.50}45%{transform:translateX(-50%) scaleX(.86) scaleY(.55);opacity:.62}}
-        @keyframes roxyTalkMouth{0%,100%{opacity:0}}
-        @keyframes roxyLowerLipTalk{0%,100%{opacity:0}}
+        @keyframes roxyHumanBlink{0%,8%,55%,100%{opacity:0;transform:scaleY(.04)}9.4%,10.5%{opacity:.88;transform:scaleY(1)}56.2%,57.5%{opacity:.72;transform:scaleY(.78)}}
+        @keyframes roxyHumanEyeFocus{0%,100%{transform:translate3d(0,0,0);opacity:.28}28%,40%{transform:translate3d(-2px,.4px,0);opacity:.42}68%,80%{transform:translate3d(2px,.2px,0);opacity:.40}}
+        @keyframes roxyHumanTalk{0%,100%{transform:scaleX(.92) scaleY(.08);opacity:.24}18%{transform:scaleX(1.04) scaleY(.72);opacity:.72}38%{transform:scaleX(.86) scaleY(.24);opacity:.38}62%{transform:scaleX(1) scaleY(.56);opacity:.66}82%{transform:scaleX(.90) scaleY(.16);opacity:.32}}
+        @keyframes roxyHumanLipLine{0%,100%{transform:translateX(-50%) scaleX(.82);opacity:.42}44%{transform:translateX(-50%) scaleX(1.02);opacity:.70}70%{transform:translateX(-50%) scaleX(.92);opacity:.54}}
         @keyframes roxyFaceAlive{0%,100%{opacity:.18;transform:translate(-50%,-50%) scale(.96)}50%{opacity:.42;transform:translate(-50%,-51%) scale(1.04)}}
-        @keyframes roxyHumanBodyStill{0%,100%{transform:translateY(0) scale(1);filter:drop-shadow(0 0 24px rgba(56,189,248,.58))}50%{transform:translateY(-1.5px) scale(1.004);filter:drop-shadow(0 0 31px rgba(56,189,248,.68))}}
+        @keyframes roxyHumanBodyStill{0%,100%{transform:translateY(0) scale(1);filter:drop-shadow(0 0 24px rgba(56,189,248,.58))}50%{transform:translateY(-1.2px) scale(1.003);filter:drop-shadow(0 0 31px rgba(56,189,248,.68))}}
         @keyframes roxyNeckLookHuman{0%,12%,100%{transform:perspective(520px) translate3d(0,0,0) rotateY(0deg) rotateZ(0deg) scale(1.006)}23%,36%{transform:perspective(520px) translate3d(-2.2%,-.5%,0) rotateY(-7deg) rotateZ(-.8deg) scale(1.018)}47%,58%{transform:perspective(520px) translate3d(0,-.2%,0) rotateY(0deg) rotateZ(0deg) scale(1.01)}69%,82%{transform:perspective(520px) translate3d(2.1%,-.45%,0) rotateY(7deg) rotateZ(.8deg) scale(1.018)}91%{transform:perspective(520px) translate3d(0,0,0) rotateY(0deg) rotateZ(0deg) scale(1.006)}}
-        @keyframes roxyPortraitLookAround{0%,100%{transform:translate3d(0,0,0) scale(1.01)}50%{transform:translate3d(0,-.15%,0) scale(1.012)}}
+        @keyframes roxyPortraitLookAround{0%,100%{transform:translate3d(0,0,0) scale(1.006)}28%,40%{transform:translate3d(-.38%,-.05%,0) scale(1.008)}66%,78%{transform:translate3d(.38%,-.04%,0) scale(1.008)}}
         @keyframes roxyGazeLook{0%,100%{opacity:0}}
         @keyframes roxyBigBlink{0%,77%,82%,100%{opacity:0;transform:translateY(-7px) scaleY(.05)}78.2%,80.8%{opacity:1;transform:translateY(0) scaleY(1.08)}91.4%,93.1%{opacity:.88;transform:translateY(-1px) scaleY(.82)}}
         @keyframes roxyOrbit{0%{transform:translate(-50%,-50%) rotate(0deg)}100%{transform:translate(-50%,-50%) rotate(360deg)}}
@@ -45992,14 +48460,27 @@ def main() -> None:
         .roxy-avatar-core:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(180deg,rgba(125,211,252,.12) 0 1px,transparent 1px 7px);opacity:.18;pointer-events:none}
         .roxy-face-glow{position:absolute;inset:6%;z-index:3;border-radius:50%;box-shadow:0 0 34px rgba(56,189,248,.25);pointer-events:none}
         .roxy-face-life{position:absolute;left:50%;top:45%;z-index:3;width:54%;height:40%;border-radius:50%;background:radial-gradient(ellipse at 50% 50%,rgba(125,211,252,.24),rgba(125,211,252,.08) 42%,transparent 70%);mix-blend-mode:screen;opacity:.28;transform:translate(-50%,-50%);animation:roxyFaceAlive 4.4s ease-in-out infinite;pointer-events:none}
-        .roxy-gaze,.roxy-mouth,.roxy-lip,.roxy-blink,.roxy-eye{display:none!important}
+        .roxy-human-rig{position:absolute;inset:0;z-index:5;display:block;pointer-events:none;transform-origin:50% 34%;animation:roxyPortraitLookAround 8.4s ease-in-out infinite}
+        .roxy-eye-lid{position:absolute;top:25.6%;width:12.8%;height:4.4%;border-radius:999px;background:linear-gradient(180deg,rgba(241,196,174,.94),rgba(180,111,102,.76) 56%,rgba(67,27,42,.32));box-shadow:0 1px 3px rgba(5,10,20,.20),inset 0 1px 0 rgba(255,255,255,.18);filter:blur(.12px);opacity:0;transform-origin:center center;animation:roxyHumanBlink 5.4s ease-in-out infinite}
+        .roxy-eye-lid-left{left:30.4%;transform:rotate(1deg) scaleY(.04);animation-delay:.28s}
+        .roxy-eye-lid-right{left:55.8%;transform:rotate(-1deg) scaleY(.04);animation-delay:.32s}
+        .roxy-eye-catch{position:absolute;top:28.1%;width:2.2%;height:1.1%;border-radius:999px;background:rgba(210,244,255,.72);box-shadow:0 0 5px rgba(125,211,252,.72);opacity:.24;animation:roxyHumanEyeFocus 8.4s ease-in-out infinite}
+        .roxy-eye-catch-left{left:38.2%}
+        .roxy-eye-catch-right{left:63.3%;animation-delay:.15s}
+        .roxy-mouth-rig{position:absolute;left:50%;top:42.8%;width:14.8%;height:4.7%;display:block;opacity:.44;transform:translateX(-50%);filter:drop-shadow(0 1px 2px rgba(2,6,23,.22))}
+        .roxy-mouth-rig b{position:absolute;left:50%;top:50%;width:100%;height:18%;border-radius:999px;background:linear-gradient(90deg,rgba(124,41,62,.22),rgba(238,138,139,.86),rgba(112,37,59,.24));box-shadow:0 0 6px rgba(244,114,182,.20);transform:translateX(-50%);animation:roxyHumanLipLine 4.8s ease-in-out infinite}
+        .roxy-mouth-rig em{position:absolute;left:15%;right:15%;top:46%;height:42%;border-radius:0 0 999px 999px;background:radial-gradient(ellipse at 50% 0%,rgba(77,21,38,.74),rgba(29,9,20,.22) 68%,transparent 72%);transform:scaleY(.08);transform-origin:top center;opacity:.16}
+        .roxy-cheek{position:absolute;top:36.2%;width:9%;height:5%;border-radius:50%;background:radial-gradient(ellipse,rgba(244,114,182,.20),transparent 68%);mix-blend-mode:screen;opacity:.30;animation:roxyFaceAlive 5.8s ease-in-out infinite}
+        .roxy-cheek-left{left:25.7%}
+        .roxy-cheek-right{right:25.5%;animation-delay:.2s}
         .roxy-hologram-speaking .roxy-avatar-core{animation:roxyHumanBodyStill 5.8s ease-in-out infinite}
         .roxy-hologram-speaking .roxy-avatar-core>img{animation:roxyPortraitLookAround 8.4s ease-in-out infinite}
-        .roxy-hologram-speaking .roxy-mouth{display:none!important}
-        .roxy-hologram-speaking .roxy-lip-lower{display:none!important}
+        .roxy-hologram-speaking .roxy-mouth-rig{opacity:.82}
+        .roxy-hologram-speaking .roxy-mouth-rig b{animation:roxyHumanLipLine .52s ease-in-out infinite}
+        .roxy-hologram-speaking .roxy-mouth-rig em{animation:roxyHumanTalk .52s ease-in-out infinite}
         .roxy-hologram-speaking .roxy-face-life{animation-duration:2.8s;opacity:.36}
         .roxy-hologram-speaking .roxy-audio-wave i{animation-duration:.74s}
-        .roxy-hologram-thinking .roxy-mouth,.roxy-hologram-listening .roxy-mouth{animation-duration:3.4s}
+        .roxy-hologram-thinking .roxy-mouth-rig,.roxy-hologram-listening .roxy-mouth-rig{opacity:.36}
         .roxy-orbit{position:absolute;left:50%;top:66%;border-radius:50%;border:1px solid rgba(56,189,248,.36);box-shadow:0 0 24px rgba(56,189,248,.18);transform:translate(-50%,-50%);pointer-events:none}
         .roxy-orbit-one{width:84%;height:21%;animation:roxyOrbit 11s linear infinite}
         .roxy-orbit-two{width:102%;height:28%;border-color:rgba(212,175,96,.28);animation:roxyOrbit 15s linear infinite reverse}
@@ -47502,6 +49983,11 @@ def main() -> None:
         .academy-deep-roxy-check div{display:grid!important;gap:7px!important}
         .academy-deep-roxy-check span{display:flex!important;gap:7px!important;align-items:center!important;color:#dbeafe!important;font-size:12px!important;font-weight:850!important}
         .academy-deep-roxy-check i{font-size:17px!important;color:#22c55e!important}
+        .academy-deep-sources{grid-column:1/-1!important;background:linear-gradient(135deg,rgba(30,41,59,.64),rgba(88,28,135,.24))!important}
+        .academy-deep-sources ul{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important;padding:0!important;list-style:none!important}
+        .academy-deep-sources li{display:grid!important;gap:4px!important;border:1px solid rgba(125,211,252,.14)!important;border-radius:10px!important;background:rgba(2,6,23,.48)!important;padding:9px!important}
+        .academy-deep-sources li strong{color:#e0f2fe!important;font-size:12px!important}
+        .academy-deep-sources li span{color:#a78bfa!important;font-size:10px!important;text-transform:uppercase!important;font-weight:950!important}
         .academy-quiz-panel,
         .academy-lesson-panel,
         .academy-option,
@@ -47918,6 +50404,11 @@ def main() -> None:
         .academy-deep-lesson article li,
         .academy-deep-lesson article small{color:#dbeafe!important;font-size:13px!important;line-height:1.45!important}
         .academy-deep-main{grid-row:span 2!important}
+        .academy-deep-sources{grid-column:1/-1!important;background:linear-gradient(135deg,rgba(30,41,59,.64),rgba(88,28,135,.24))!important}
+        .academy-deep-sources ul{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important;padding:0!important;list-style:none!important}
+        .academy-deep-sources li{display:grid!important;gap:4px!important;border:1px solid rgba(125,211,252,.14)!important;border-radius:10px!important;background:rgba(2,6,23,.48)!important;padding:9px!important}
+        .academy-deep-sources li strong{color:#e0f2fe!important;font-size:12px!important}
+        .academy-deep-sources li span{color:#a78bfa!important;font-size:10px!important;text-transform:uppercase!important;font-weight:950!important}
         .academy-option{pointer-events:auto!important}
         @media (max-width:760px){
           .roxy-academy-shell.academy-world-open .academy-origin-world-scene{min-height:930px!important;border-radius:0!important}
@@ -48563,6 +51054,7 @@ def main() -> None:
         """,
         unsafe_allow_html=True,
     )
+    render_roxy_three_universe_runtime()
     if "user" not in st.session_state:
         st.session_state.user = None
     roxy_restore_user_from_session()
@@ -48578,11 +51070,14 @@ def main() -> None:
             st.success(passkey_message)
         else:
             st.error(passkey_message)
+    render_roxy_elevenlabs_assistant()
     if not st.session_state.get("user"):
         render_roxy_session_restore_bridge()
         render_roxy_auth_gate()
         return
     render_roxy_browser_session_bridge()
+    process_roxy_os_query_command()
+    render_roxy_os_command_center()
     active_module_query = normalize_roxy_module(first_query_param_value(st.query_params, "module"), default="")
     if active_module_query != "classroom":
         render_roxy_passkey_setup_panel()
