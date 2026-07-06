@@ -214,6 +214,9 @@ def test_stock_live_runtime_can_consume_secure_stream_bridge():
     assert "Snapshot real" in runtime_source
     assert "data-roxy-stock-live-price" in runtime_source
     assert "Stream real" in runtime_source
+    assert "markBridgeDegraded" in runtime_source
+    assert "Bridge stock no disponible" in runtime_source
+    assert "respuesta no JSON" in runtime_source
     assert "ALPACA_API_KEY" not in runtime_source
     assert "ALPACA_API_SECRET" not in runtime_source
 
@@ -307,6 +310,52 @@ def test_professional_actions_chart_explains_roxy_entry_stop_target_reading():
     assert 'button data-range="56" class="active"' in pro_panel
     assert "Zoom operativo" in pro_panel
     assert "setVisible(window.innerWidth < 720 ? 38 : (payload.suggestedVisibleCandles || 56))" in pro_panel
+
+
+def test_professional_actions_chart_has_operational_layer_controls():
+    pro_panel = SOURCE[
+        SOURCE.index("def render_roxy_actions_pro_chart_panel") : SOURCE.index("def render_roxy_actions_dual_pro_charts")
+    ]
+
+    assert 'button data-layer="clean"' in pro_panel
+    assert 'button data-layer="strategy" class="layer-active"' in pro_panel
+    assert 'button data-layer="all"' in pro_panel
+    assert "const applyLayerMode = (mode) =>" in pro_panel
+    assert "const emaSeries = []" in pro_panel
+    assert "const trendSeries = []" in pro_panel
+    assert "emaSeries.forEach((series) => series.applyOptions({ visible: !clean }))" in pro_panel
+    assert "trendSeries.forEach((series) => series.applyOptions({ visible: all }))" in pro_panel
+    assert "bollingerSeries.forEach((series) => series.applyOptions({ visible: all }))" in pro_panel
+    assert "volume.applyOptions({ visible: all })" in pro_panel
+    assert 'applyLayerMode("strategy")' in pro_panel
+
+
+def test_actions_folder_shows_real_quote_mode_badges():
+    folder = SOURCE[
+        SOURCE.index("def render_roxy_actions_folder") : SOURCE.index("def render_roxy_crypto20_folder")
+    ]
+
+    assert "data-roxy-stock-quote-mode" in folder
+    assert 'class="quote-mode mode-quote"' in folder
+    assert 'class="chart-mode mode-quote"' in folder
+    assert ".mode-live" in folder
+    assert ".mode-last" in folder
+    assert ".mode-degraded" in folder
+    assert "BRIDGE CAIDO" in SOURCE
+    assert "respuesta no JSON" in SOURCE
+    assert "HTTP ${res.status}" in SOURCE
+
+
+def test_professional_actions_chart_keeps_operational_space_clear():
+    pro_panel = SOURCE[
+        SOURCE.index("def render_roxy_actions_pro_chart_panel") : SOURCE.index("def render_roxy_actions_dual_pro_charts")
+    ]
+
+    assert ".rpc-stage{position:relative;flex:1 1 auto;min-height:560px" in pro_panel
+    assert ".rpc-chart{position:absolute;inset:6px 7px 56px 7px}" in pro_panel
+    assert ".rpc-level-bands{position:absolute;inset:6px 7px 56px" in pro_panel
+    assert "barSpacing: window.innerWidth < 720 ? 12 : 18" in pro_panel
+    assert 'chart.priceScale("volume").applyOptions({ scaleMargins: { top: .84, bottom: 0 }, visible: false' in pro_panel
 
 
 def test_professional_actions_chart_uses_operational_body_range_not_extreme_wicks():

@@ -110,7 +110,9 @@ def test_stock_bridge_dockerfile_uses_render_safe_startup_and_port():
     dockerfile = Path("Dockerfile.stock-bridge").read_text(encoding="utf-8")
     render_config = Path("render.yaml").read_text(encoding="utf-8")
 
-    assert 'CMD ["python", "-u", "-m", "tools.roxy_stock_stream_bridge"]' in dockerfile
+    assert '"python", "-m", "uvicorn", "tools.roxy_stock_stream_bridge:app"' in dockerfile
+    assert '"--host", "0.0.0.0"' in dockerfile
+    assert '"--port", "10000"' in dockerfile
     assert "EXPOSE 10000" in dockerfile
     assert "port ${PORT:-10000}" in Path("scripts/stock_bridge_entrypoint.sh").read_text(encoding="utf-8")
     assert "name: roxy-stock-stream" in render_config
