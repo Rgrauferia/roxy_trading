@@ -285,6 +285,17 @@ async def stock_stream_events(symbols: list[str]) -> AsyncIterator[str]:
 
 if app is not None:
 
+    @app.get("/")
+    def root() -> JSONResponse:
+        return JSONResponse(
+            {
+                "ok": True,
+                "service": "roxy-stock-stream-bridge",
+                "health": "/health",
+                "stream": "/v1/market/stock-stream",
+            }
+        )
+
     @app.get("/health")
     def health() -> JSONResponse:
         key, secret = _alpaca_credentials()

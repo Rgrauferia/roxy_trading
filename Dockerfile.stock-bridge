@@ -17,4 +17,4 @@ RUN chmod +x ./scripts/stock_bridge_entrypoint.sh ./scripts/render_start.sh
 
 EXPOSE 8765
 
-CMD ["sh", "-c", "echo \"Roxy stock bridge booting on PORT=${PORT:-8765}\" && exec python -u -m tools.roxy_stock_stream_bridge"]
+CMD ["python", "-u", "-m", "tools.roxy_stock_stream_bridge"]
