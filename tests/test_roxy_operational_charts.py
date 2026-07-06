@@ -233,6 +233,25 @@ def test_stock_live_runtime_updates_refresh_count_and_market_state_badges():
     assert "server quote" in refresh_source
 
 
+def test_actions_folder_updates_trade_state_from_live_stock_prices():
+    runtime_source = SOURCE[
+        SOURCE.index("def render_roxy_stock_live_runtime") : SOURCE.index("def render_roxy_stock_server_refresh")
+    ]
+    refresh_source = SOURCE[
+        SOURCE.index("def render_roxy_stock_server_refresh") : SOURCE.index("def roxy_secret_value")
+    ]
+    folder_source = SOURCE[
+        SOURCE.index("def render_roxy_actions_folder") : SOURCE.index("def render_roxy_crypto20_folder")
+    ]
+
+    assert "data-roxy-trade-state" in folder_source
+    assert "data-entry=" in folder_source
+    assert "En zona entrada" in runtime_source
+    assert "Target en juego" in runtime_source
+    assert "Cerca del stop" in refresh_source
+    assert "setTradeState(symbol, quote)" in refresh_source
+
+
 def test_professional_actions_chart_syncs_from_parent_live_stock_quote():
     pro_panel = SOURCE[
         SOURCE.index("def render_roxy_actions_pro_chart_panel") : SOURCE.index("def render_roxy_actions_dual_pro_charts")
