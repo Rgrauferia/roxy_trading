@@ -106,11 +106,11 @@ def test_stock_bridge_yahoo_fallback_parses_chart_quote(monkeypatch):
     assert quote["source"] == "Yahoo chart fallback"
 
 
-def test_stock_bridge_dockerfile_uses_render_safe_entrypoint_and_port():
+def test_stock_bridge_dockerfile_uses_render_safe_startup_and_port():
     dockerfile = Path("Dockerfile.stock-bridge").read_text(encoding="utf-8")
     render_config = Path("render.yaml").read_text(encoding="utf-8")
 
-    assert 'ENTRYPOINT ["./scripts/stock_bridge_entrypoint.sh"]' in dockerfile
+    assert 'CMD ["python", "-u", "-m", "tools.roxy_stock_stream_bridge"]' in dockerfile
     assert "EXPOSE 10000" in dockerfile
     assert "port ${PORT:-10000}" in Path("scripts/stock_bridge_entrypoint.sh").read_text(encoding="utf-8")
     assert "name: roxy-stock-stream" in render_config

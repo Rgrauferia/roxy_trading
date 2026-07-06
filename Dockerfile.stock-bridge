@@ -17,4 +17,4 @@ RUN chmod +x ./scripts/stock_bridge_entrypoint.sh ./scripts/render_start.sh
 
 EXPOSE 10000
 
-ENTRYPOINT ["./scripts/stock_bridge_entrypoint.sh"]
+CMD ["python", "-u", "-m", "tools.roxy_stock_stream_bridge"]
