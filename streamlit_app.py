@@ -38786,7 +38786,7 @@ def roxy_actions_pro_chart_payload(
     timeframe: str,
     trade_plan: dict[str, Any],
     panel_label: str,
-    max_points: int = 170,
+    max_points: int = 132,
 ) -> dict[str, Any]:
     anchor_price = safe_float(
         trade_plan.get("entry")
@@ -38816,6 +38816,8 @@ def roxy_actions_pro_chart_payload(
     candles = candles[-max_points:]
     times = {int(item.get("time")) for item in candles if item.get("time") is not None}
     candle_values: list[float] = []
+    candle_body_values: list[float] = []
+    candle_wick_values: list[float] = []
     for candle in candles:
         if not isinstance(candle, dict):
             continue
@@ -38823,12 +38825,42 @@ def roxy_actions_pro_chart_payload(
             value = safe_float(candle.get(key))
             if value is not None and math.isfinite(value) and value > 0:
                 candle_values.append(value)
+                if key in {"open", "close"}:
+                    candle_body_values.append(value)
+                else:
+                    candle_wick_values.append(value)
     line_low: float | None = None
     line_high: float | None = None
-    if candle_values:
-        value_series = pd.Series(candle_values, dtype="float64")
-        line_low = safe_float(value_series.quantile(0.02))
-        line_high = safe_float(value_series.quantile(0.98))
+    operative_window = candles[-min(len(candles), 86):]
+    operative_body_values: list[float] = []
+    operative_wick_values: list[float] = []
+    for candle in operative_window:
+        if not isinstance(candle, dict):
+            continue
+        for key in ("open", "close"):
+            value = safe_float(candle.get(key))
+            if value is not None and math.isfinite(value) and value > 0:
+                operative_body_values.append(value)
+        for key in ("high", "low"):
+            value = safe_float(candle.get(key))
+            if value is not None and math.isfinite(value) and value > 0:
+                operative_wick_values.append(value)
+    if operative_body_values or candle_body_values or candle_values:
+        body_series = pd.Series(operative_body_values or candle_body_values or candle_values, dtype="float64")
+        line_low = safe_float(body_series.quantile(0.03))
+        line_high = safe_float(body_series.quantile(0.97))
+        if operative_wick_values or candle_wick_values:
+            wick_series = pd.Series(operative_wick_values or candle_wick_values, dtype="float64")
+            wick_low = safe_float(wick_series.quantile(0.08))
+            wick_high = safe_float(wick_series.quantile(0.92))
+            if wick_low is not None:
+                line_low = wick_low if line_low is None else min(line_low, wick_low)
+            if wick_high is not None:
+                line_high = wick_high if line_high is None else max(line_high, wick_high)
+        latest_close = safe_float((candles[-1] or {}).get("close")) if candles else None
+        if latest_close is not None:
+            line_low = latest_close if line_low is None else min(line_low, latest_close)
+            line_high = latest_close if line_high is None else max(line_high, latest_close)
         for level_value in [
             safe_float(trade_plan.get("entry")),
             safe_float(trade_plan.get("stop")),
@@ -38838,14 +38870,14 @@ def roxy_actions_pro_chart_payload(
                 continue
             if line_low is not None and line_high is not None:
                 center = (line_low + line_high) / 2
-                if center > 0 and abs(level_value - center) / center > 0.24:
+                if center > 0 and abs(level_value - center) / center > 0.18:
                     continue
             line_low = level_value if line_low is None else min(line_low, level_value)
             line_high = level_value if line_high is None else max(line_high, level_value)
         if line_low is not None and line_high is not None and line_high > line_low:
             span = max(line_high - line_low, abs(line_high) * 0.004, 0.01)
-            line_low -= span * 0.62
-            line_high += span * 0.62
+            line_low -= span * 0.38
+            line_high += span * 0.38
 
     def trim_line(points: Any) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
@@ -38872,6 +38904,7 @@ def roxy_actions_pro_chart_payload(
     payload["candles"] = candles
     payload["lines"] = cleaned_lines
     payload["displayRange"] = {"minValue": line_low, "maxValue": line_high} if line_low is not None and line_high is not None and line_high > line_low else None
+    payload["suggestedVisibleCandles"] = 56
     payload["panelLabel"] = panel_label
     payload["levels"] = [
         {"key": "entry", "label": "Entrada", "value": safe_float(trade_plan.get("entry")), "color": "#22c55e"},
@@ -38941,11 +38974,11 @@ def render_roxy_actions_pro_chart_panel(
         <aside data-rpc-last></aside>
       </header>
 	      <section class="rpc-toolbar">
-	        <button data-range="42" class="active">42 velas</button>
-	        <button data-range="72">72 velas</button>
-	        <button data-range="110">110 velas</button>
+	        <button data-range="38">38 velas</button>
+	        <button data-range="56" class="active">56 velas</button>
+	        <button data-range="96">96 velas</button>
 	        <button data-range="all">Todo</button>
-	        <span>Zoom · pan · cursor · precio live sincronizado</span>
+	        <span>Zoom operativo · pan · cursor · precio live sincronizado</span>
 	      </section>
       <section class="rpc-tradebar" data-rpc-tradebar></section>
       <section class="rpc-reading" data-rpc-reading></section>
@@ -39261,9 +39294,9 @@ def render_roxy_actions_pro_chart_panel(
           const low = Math.min(Number(fixedRange.minValue), ...anchors).valueOf();
           const high = Math.max(Number(fixedRange.maxValue), ...anchors).valueOf();
           const span = Math.max(high - low, Math.abs(high) * .006, .01);
-          return { minValue: low - span * .18, maxValue: high + span * .18 };
+          return { minValue: low - span * .14, maxValue: high + span * .14 };
         }
-        const recent = candles.slice(-135);
+        const recent = candles.slice(-96);
         const bodyVals = recent.flatMap((c) => [Number(c.open), Number(c.close)]).filter(Number.isFinite);
         const wickVals = recent.flatMap((c) => [Number(c.high), Number(c.low)]).filter(Number.isFinite);
         const anchors = levelPrices.concat(Number(livePrice)).filter(Number.isFinite);
@@ -39279,7 +39312,7 @@ def render_roxy_actions_pro_chart_panel(
         });
         if (!Number.isFinite(low) || !Number.isFinite(high) || high <= low) return null;
         const span = Math.max(high - low, Math.abs(high) * .006, .01);
-        return { minValue: low - span * .22, maxValue: high + span * .22 };
+        return { minValue: low - span * .16, maxValue: high + span * .16 };
       };
       const applySmartScale = (livePrice = null) => {
         const range = smartRangeFor(livePrice);
@@ -39392,7 +39425,7 @@ def render_roxy_actions_pro_chart_panel(
         chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, candles.length - Number(count)), to });
         window.setTimeout(updateLevelBands, 80);
       };
-	      setVisible(window.innerWidth < 720 ? 42 : 72);
+	      setVisible(window.innerWidth < 720 ? 38 : (payload.suggestedVisibleCandles || 56));
       root.querySelectorAll("[data-range]").forEach((button) => {
         button.addEventListener("click", () => {
           root.querySelectorAll("[data-range]").forEach((b) => b.classList.remove("active"));

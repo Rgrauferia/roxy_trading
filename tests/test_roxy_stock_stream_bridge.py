@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -33,3 +34,13 @@ def test_stock_bridge_root_and_health_endpoints_are_render_friendly():
     assert root.json()["service"] == "roxy-stock-stream-bridge"
     assert health.status_code == 200
     assert health.json()["ok"] is True
+
+
+def test_stock_bridge_dockerfile_uses_render_safe_entrypoint_and_port():
+    dockerfile = Path("Dockerfile.stock-bridge").read_text(encoding="utf-8")
+    render_config = Path("render.yaml").read_text(encoding="utf-8")
+
+    assert 'ENTRYPOINT ["./scripts/stock_bridge_entrypoint.sh"]' in dockerfile
+    assert "EXPOSE 10000" in dockerfile
+    assert "name: roxy-stock-stream" in render_config
+    assert "value: 10000" in render_config

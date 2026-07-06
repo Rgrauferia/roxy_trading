@@ -92,6 +92,7 @@ def test_roxy_actions_pro_chart_payload_uses_cleaned_candles():
     assert {level["key"] for level in payload["levels"]} == {"entry", "stop", "target"}
     assert payload["displayRange"]["minValue"] > 80
     assert payload["displayRange"]["maxValue"] < 130
+    assert payload["suggestedVisibleCandles"] == 56
 
 
 def test_roxy_actions_pro_chart_payload_preserves_entry_zone_for_visual_bands():
@@ -273,6 +274,7 @@ def test_professional_actions_chart_syncs_from_parent_live_stock_quote():
     assert "const renderTradebar = (price, source = \"historial\") =>" in pro_panel
     assert "const applySmartScale = (livePrice = null) =>" in pro_panel
     assert "const smartRangeFor = (livePrice = null) =>" in pro_panel
+    assert "const recent = candles.slice(-96)" in pro_panel
     assert "const parentQuote = () =>" in pro_panel
     assert 'parentDoc.querySelectorAll("[data-roxy-stock-live-price]")' in pro_panel
     assert "node.dataset.roxyServerPrice || node.dataset.roxyPrice" in pro_panel
@@ -299,4 +301,24 @@ def test_professional_actions_chart_explains_roxy_entry_stop_target_reading():
     assert "Entrada exacta" in pro_panel
     assert "Invalidacion" in pro_panel
     assert "Stop no se negocia" in pro_panel
-    assert "setVisible(window.innerWidth < 720 ? 42 : 72)" in pro_panel
+    assert 'button data-range="56" class="active"' in pro_panel
+    assert "Zoom operativo" in pro_panel
+    assert "setVisible(window.innerWidth < 720 ? 38 : (payload.suggestedVisibleCandles || 56))" in pro_panel
+
+
+def test_professional_actions_chart_uses_operational_body_range_not_extreme_wicks():
+    frame = _sample_chart_frame().tail(36).copy()
+    frame.loc[frame.index[-1], "high"] = frame["close"].iloc[-1] * 1.35
+    frame.loc[frame.index[-1], "low"] = frame["close"].iloc[-1] * 0.65
+
+    payload = roxy_actions_pro_chart_payload(
+        frame,
+        symbol="TEST",
+        market="stock",
+        timeframe="15m",
+        trade_plan={"entry": 103.0, "stop": 101.0, "target_2": 107.0},
+        panel_label="Entrada",
+    )
+
+    assert payload["displayRange"]["minValue"] > 85
+    assert payload["displayRange"]["maxValue"] < 125

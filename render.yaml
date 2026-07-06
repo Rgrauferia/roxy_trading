@@ -89,7 +89,7 @@ services:
     autoDeployTrigger: commit
     envVars:
       - key: PORT
-        value: 8765
+        value: 10000
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: ROXY_SERVICE_MODE
