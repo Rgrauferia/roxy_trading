@@ -208,7 +208,10 @@ def test_stock_live_runtime_can_consume_secure_stream_bridge():
     ]
 
     assert "ROXY_STOCK_STREAM_URL" in runtime_source
+    assert "ROXY_STOCK_SNAPSHOT_URL" in runtime_source
     assert "EventSource" in runtime_source
+    assert "fetchBridgeSnapshot" in runtime_source
+    assert "Snapshot real" in runtime_source
     assert "data-roxy-stock-live-price" in runtime_source
     assert "Stream real" in runtime_source
     assert "ALPACA_API_KEY" not in runtime_source

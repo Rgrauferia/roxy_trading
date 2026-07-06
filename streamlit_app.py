@@ -36372,7 +36372,15 @@ def roxy_stock_live_symbol_attr(symbol: str) -> str:
 
 
 def render_roxy_stock_live_runtime() -> None:
-    stock_stream_url = text_display(os.environ.get("ROXY_STOCK_STREAM_URL") or "").strip()
+    public_stock_bridge_base = text_display(
+        os.environ.get("ROXY_STOCK_BRIDGE_URL") or "https://roxy-stock-stream.onrender.com"
+    ).strip().rstrip("/")
+    stock_stream_url = text_display(
+        os.environ.get("ROXY_STOCK_STREAM_URL") or f"{public_stock_bridge_base}/v1/market/stock-stream"
+    ).strip()
+    stock_snapshot_url = text_display(
+        os.environ.get("ROXY_STOCK_SNAPSHOT_URL") or f"{public_stock_bridge_base}/v1/market/stock-snapshot"
+    ).strip()
     components.html(
         """
         <script>
@@ -36381,6 +36389,7 @@ def render_roxy_stock_live_runtime() -> None:
           if (doc.__roxyStockLiveRuntime) return;
           doc.__roxyStockLiveRuntime = true;
           const BRIDGE_STREAM_URL = __ROXY_STOCK_STREAM_URL__;
+          const BRIDGE_SNAPSHOT_URL = __ROXY_STOCK_SNAPSHOT_URL__;
           const fmt = (price) => {
             const value = Number(price);
             if (!Number.isFinite(value) || value <= 0) return "--";
@@ -36554,7 +36563,11 @@ def render_roxy_stock_live_runtime() -> None:
             const source = quote.source || "stream";
             const freshness = quote.freshness ? ` · ${quote.freshness}` : "";
             const sessionText = quote.marketOpen === false ? " · mercado cerrado" : quote.marketOpen === true ? " · mercado abierto" : "";
-            const prefix = quote.marketOpen === false ? "Ultimo precio" : quote.mode === "stream" ? "Stream real" : "Feed real";
+            const modeLabel = quote.mode === "stream" ? "Stream real"
+              : quote.mode === "snapshot" ? "Snapshot real"
+              : quote.mode === "polling" ? "Polling real"
+              : "Feed real";
+            const prefix = quote.marketOpen === false ? "Ultimo precio" : modeLabel;
             const refreshText = directionSet && firstDirection === 0 ? " · refrescado sin cambio" : "";
             setStatus(symbol, `${prefix} · ${source} · ${stamp}${freshness}${sessionText}${refreshText}`, Number.isFinite(pct) ? (pct >= 0 ? "up" : "down") : "watch");
             setTickArrow(symbol, firstDirection, price, quote.marketOpen === false ? "LAST" : "LIVE");
@@ -36614,6 +36627,8 @@ def render_roxy_stock_live_runtime() -> None:
           };
           let bridgeSource = null;
           let bridgeSignature = "";
+          let bridgeSnapshotBusy = false;
+          let bridgeSnapshotOkAt = 0;
           const bridgeSymbols = () => Array.from(nodesBySymbol("[data-roxy-stock-live-price]").keys()).slice(0, 24);
           const connectBridge = () => {
             if (!BRIDGE_STREAM_URL || typeof EventSource === "undefined") return false;
@@ -36654,17 +36669,54 @@ def render_roxy_stock_live_runtime() -> None:
               return false;
             }
           };
+          const fetchBridgeSnapshot = async () => {
+            if (!BRIDGE_SNAPSHOT_URL || bridgeSnapshotBusy) return false;
+            const symbols = bridgeSymbols();
+            if (!symbols.length) return false;
+            bridgeSnapshotBusy = true;
+            const controller = new AbortController();
+            const timer = window.setTimeout(() => controller.abort(), 5200);
+            try {
+              const url = new URL(BRIDGE_SNAPSHOT_URL, window.parent.location.href);
+              url.searchParams.set("symbols", symbols.join(","));
+              symbols.forEach((symbol) => setStatus(symbol, `snapshot real consultando ${symbol}...`, "watch"));
+              const res = await fetch(url.toString(), { cache: "no-store", signal: controller.signal });
+              if (!res.ok) return false;
+              const payload = await res.json();
+              const quotes = payload && payload.quotes ? payload.quotes : {};
+              let hits = 0;
+              Object.entries(quotes).forEach(([rawSymbol, quote]) => {
+                const symbol = String(rawSymbol || quote.symbol || "").trim().toUpperCase();
+                if (!symbol || !quote) return;
+                quote.mode = quote.mode || "snapshot";
+                if (applyQuote(symbol, quote)) hits += 1;
+              });
+              if (hits) bridgeSnapshotOkAt = Date.now();
+              return hits > 0;
+            } catch (error) {
+              return false;
+            } finally {
+              window.clearTimeout(timer);
+              bridgeSnapshotBusy = false;
+            }
+          };
           const tick = () => {
             const symbols = Array.from(nodesBySymbol("[data-roxy-stock-live-price]").keys()).slice(0, 18);
-            symbols.forEach((symbol, index) => window.setTimeout(() => updateSymbol(symbol), index * 160));
+            fetchBridgeSnapshot().then((ok) => {
+              const recentlyOk = Date.now() - bridgeSnapshotOkAt < 7500;
+              if (ok || recentlyOk) return;
+              symbols.forEach((symbol, index) => window.setTimeout(() => updateSymbol(symbol), index * 160));
+            });
           };
           connectBridge();
           tick();
           window.setInterval(connectBridge, 8000);
-          window.setInterval(tick, 1800);
+          window.setInterval(tick, 2200);
         })();
         </script>
-        """.replace("__ROXY_STOCK_STREAM_URL__", json.dumps(stock_stream_url)),
+        """.replace("__ROXY_STOCK_STREAM_URL__", json.dumps(stock_stream_url)).replace(
+            "__ROXY_STOCK_SNAPSHOT_URL__", json.dumps(stock_snapshot_url)
+        ),
         height=0,
     )
 

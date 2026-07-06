@@ -13,6 +13,7 @@ import csv
 import json
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, time, timezone
 from typing import Any, AsyncIterator
 from urllib.error import HTTPError, URLError
@@ -22,10 +23,12 @@ from zoneinfo import ZoneInfo
 
 try:
     from fastapi import FastAPI, Query
+    from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import JSONResponse, StreamingResponse
 except ImportError:  # pragma: no cover - service runtime installs requirements.txt
     FastAPI = None  # type: ignore[assignment]
     Query = None  # type: ignore[assignment]
+    CORSMiddleware = None  # type: ignore[assignment]
     JSONResponse = None  # type: ignore[assignment]
     StreamingResponse = None  # type: ignore[assignment]
 
@@ -36,6 +39,14 @@ MAX_SYMBOLS = 24
 HTTP_TIMEOUT_SECONDS = 6
 
 app = FastAPI(title="Roxy Stock Stream Bridge", version="1.0.0") if FastAPI is not None else None
+if app is not None and CORSMiddleware is not None:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[os.getenv("ROXY_STOCK_STREAM_ALLOWED_ORIGIN", "*")],
+        allow_credentials=False,
+        allow_methods=["GET", "OPTIONS"],
+        allow_headers=["*"],
+    )
 
 
 def normalize_stock_symbols(raw_symbols: str | list[str] | tuple[str, ...] | None) -> list[str]:
@@ -188,8 +199,57 @@ def _stooq_quote(symbol: str) -> dict[str, Any] | None:
     }
 
 
+def _yahoo_quote(symbol: str) -> dict[str, Any] | None:
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1d&interval=1m"
+    payload = _http_json(url, headers={"User-Agent": "RoxyTrading/1.0"})
+    if not isinstance(payload, dict):
+        return None
+    result_items = (((payload.get("chart") or {}).get("result") or []) if isinstance(payload.get("chart"), dict) else [])
+    if not result_items or not isinstance(result_items[0], dict):
+        return None
+    result = result_items[0]
+    meta = result.get("meta") if isinstance(result.get("meta"), dict) else {}
+    quote_block = ((result.get("indicators") or {}).get("quote") or []) if isinstance(result.get("indicators"), dict) else []
+    quote = quote_block[0] if quote_block and isinstance(quote_block[0], dict) else {}
+    closes = quote.get("close") if isinstance(quote, dict) else []
+    close_values = [safe_float(value) for value in closes] if isinstance(closes, list) else []
+    close_values = [value for value in close_values if value is not None and value > 0]
+
+    price = safe_float(
+        meta.get("regularMarketPrice")
+        or meta.get("postMarketPrice")
+        or meta.get("preMarketPrice")
+        or (close_values[-1] if close_values else None)
+    )
+    previous = safe_float(
+        meta.get("previousClose")
+        or meta.get("chartPreviousClose")
+        or meta.get("regularMarketPreviousClose")
+    )
+    if price is None or price <= 0:
+        return None
+
+    market_state = str(meta.get("marketState") or "").upper()
+    market_open = market_state in {"REGULAR", "PRE", "POST"}
+    market_time = safe_float(meta.get("regularMarketTime") or meta.get("postMarketTime") or meta.get("preMarketTime"))
+    quote_age_minutes = None
+    if market_time is not None and market_time > 0:
+        quote_age_minutes = max(0, int((datetime.now(timezone.utc).timestamp() - market_time) // 60))
+    change_pct = ((price - previous) / previous) * 100 if previous not in (None, 0) else None
+    return {
+        "symbol": symbol,
+        "price": round(price, 6),
+        "changePct": round(change_pct, 4) if change_pct is not None else None,
+        "previous": round(previous, 6) if previous is not None else None,
+        "source": "Yahoo chart fallback",
+        "marketOpen": market_open,
+        "freshness": f"quote age {quote_age_minutes}m" if quote_age_minutes is not None else "chart quote",
+        "updatedAt": datetime.now().strftime("%I:%M:%S %p").lstrip("0"),
+    }
+
+
 def _quote_from_snapshot(symbol: str) -> dict[str, Any] | None:
-    return _alpaca_rest_quote(symbol) or _stooq_quote(symbol)
+    return _alpaca_rest_quote(symbol) or _yahoo_quote(symbol) or _stooq_quote(symbol)
 
 
 async def _polling_quotes(symbols: list[str], delay_seconds: float = 2.0) -> AsyncIterator[dict[str, Any]]:
@@ -283,6 +343,32 @@ async def stock_stream_events(symbols: list[str]) -> AsyncIterator[str]:
             yield sse_event("quote", quote)
 
 
+def stock_snapshot_payload(symbols: list[str]) -> dict[str, Any]:
+    """Return the latest sanitized quotes for UI polling fallbacks."""
+    quotes: dict[str, dict[str, Any]] = {}
+    clean_symbols = normalize_stock_symbols(symbols)
+    with ThreadPoolExecutor(max_workers=min(8, max(1, len(clean_symbols)))) as executor:
+        future_to_symbol = {executor.submit(_quote_from_snapshot, symbol): symbol for symbol in clean_symbols}
+        for future in as_completed(future_to_symbol):
+            symbol = future_to_symbol[future]
+            try:
+                quote = future.result()
+            except Exception:
+                quote = None
+            if not quote:
+                continue
+            quote["mode"] = "snapshot"
+            quotes[symbol] = quote
+    return {
+        "ok": True,
+        "service": "roxy-stock-stream-bridge",
+        "symbols": list(quotes.keys()),
+        "quotes": quotes,
+        "market": stock_market_open_state(),
+        "serverTime": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 if app is not None:
 
     @app.get("/")
@@ -322,6 +408,16 @@ if app is not None:
             },
         )
 
+    @app.get("/v1/market/stock-snapshot")
+    def snapshot_stock_quotes(symbols: str = Query(default="")) -> JSONResponse:
+        return JSONResponse(
+            stock_snapshot_payload(normalize_stock_symbols(symbols)),
+            headers={
+                "Cache-Control": "no-store",
+                "Access-Control-Allow-Origin": os.getenv("ROXY_STOCK_STREAM_ALLOWED_ORIGIN", "*"),
+            },
+        )
+
 
 def main() -> None:
     if app is None:
@@ -332,7 +428,7 @@ def main() -> None:
     except ImportError as exc:
         raise RuntimeError("uvicorn is not installed. Install requirements.stock-bridge.txt.") from exc
 
-    port = int(os.getenv("PORT", "8765"))
+    port = int(os.getenv("PORT", "10000"))
     print(f"Starting Roxy stock stream bridge on port {port}", flush=True)
     uvicorn.run(app, host="0.0.0.0", port=port)
 
