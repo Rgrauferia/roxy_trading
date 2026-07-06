@@ -336,8 +336,10 @@ def test_professional_actions_chart_has_operational_layer_controls():
     assert "const trendSeries = []" in pro_panel
     assert "emaSeries.forEach((series) => series.applyOptions({ visible: !clean }))" in pro_panel
     assert "trendSeries.forEach((series) => series.applyOptions({ visible: all }))" in pro_panel
-    assert "bollingerSeries.forEach((series) => series.applyOptions({ visible: all }))" in pro_panel
-    assert "volume.applyOptions({ visible: all })" in pro_panel
+    assert 'const strategy = mode === "strategy";' in pro_panel
+    assert "bollingerSeries.forEach((series) => series.applyOptions({ visible: all || strategy }))" in pro_panel
+    assert "volume.applyOptions({ visible: all || strategy })" in pro_panel
+    assert "if (stageEl) stageEl.dataset.layerMode = mode;" in pro_panel
     assert 'applyLayerMode("strategy")' in pro_panel
 
 
@@ -363,10 +365,13 @@ def test_professional_actions_chart_keeps_operational_space_clear():
     ]
 
     assert ".rpc-stage{position:relative;flex:1 1 auto;min-height:560px" in pro_panel
+    assert 'data-rpc-stage data-layer-mode="strategy"' in pro_panel
     assert ".rpc-chart{position:absolute;inset:6px 7px 56px 7px}" in pro_panel
     assert ".rpc-level-bands{position:absolute;inset:6px 7px 56px" in pro_panel
     assert "barSpacing: window.innerWidth < 720 ? 12 : 18" in pro_panel
     assert 'chart.priceScale("volume").applyOptions({ scaleMargins: { top: .84, bottom: 0 }, visible: false' in pro_panel
+    assert "Lectura Roxy · modo trading limpio" in pro_panel
+    assert "Objetivo · distancia" in pro_panel
 
 
 def test_professional_actions_chart_uses_operational_body_range_not_extreme_wicks():

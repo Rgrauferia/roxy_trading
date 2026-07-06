@@ -39157,7 +39157,7 @@ def render_roxy_actions_pro_chart_panel(
 	      </section>
       <section class="rpc-tradebar" data-rpc-tradebar></section>
       <section class="rpc-reading" data-rpc-reading></section>
-      <main class="rpc-stage">
+      <main class="rpc-stage" data-rpc-stage data-layer-mode="strategy">
         <div class="rpc-chart"></div>
         <div class="rpc-level-bands" data-rpc-level-bands></div>
         <div class="rpc-crosscard" data-rpc-cross></div>
@@ -39200,7 +39200,7 @@ def render_roxy_actions_pro_chart_panel(
       .rpc-tradebar small{display:block;color:#7dd3fc;font-size:8px;font-weight:1000;letter-spacing:.10em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .rpc-tradebar b{display:block;margin-top:2px;color:#f8fafc;font-size:12px;font-weight:1000;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .rpc-tradebar .danger small,.rpc-tradebar .danger b{color:#fb7185}.rpc-tradebar .good small,.rpc-tradebar .good b{color:#86efac}.rpc-tradebar .blue small,.rpc-tradebar .blue b{color:#7dd3fc}
-      .rpc-reading{display:grid;grid-template-columns:1.25fr repeat(3,minmax(0,1fr));gap:7px;padding:7px 9px;border-bottom:1px solid rgba(96,165,250,.12);background:linear-gradient(90deg,rgba(2,6,23,.46),rgba(34,197,94,.08),rgba(2,6,23,.46))}
+      .rpc-reading{display:grid;grid-template-columns:1.45fr repeat(3,minmax(0,1fr));gap:7px;padding:7px 9px;border-bottom:1px solid rgba(96,165,250,.12);background:linear-gradient(90deg,rgba(2,6,23,.46),rgba(34,197,94,.08),rgba(2,6,23,.46))}
       .rpc-reading span{min-width:0;border:1px solid rgba(125,211,252,.16);border-radius:10px;background:rgba(2,6,23,.56);padding:7px 8px;color:#dbeafe}
       .rpc-reading small{display:block;color:#7dd3fc;font-size:8px;font-weight:1000;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .rpc-reading b{display:block;margin-top:2px;color:#f8fafc;font-size:12px;font-weight:1000;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -39212,7 +39212,13 @@ def render_roxy_actions_pro_chart_panel(
 	      .rpc-stage:before{content:"";position:absolute;inset:6px 7px 56px;border-radius:12px;background:linear-gradient(90deg,transparent,rgba(56,189,248,.06),transparent),radial-gradient(circle at 70% 16%,rgba(34,197,94,.08),transparent 22%);pointer-events:none}
 	      .rpc-stage:after{content:"";position:absolute;inset:6px 7px 56px;border-radius:12px;background-image:linear-gradient(rgba(148,163,184,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.045) 1px,transparent 1px);background-size:44px 44px;opacity:.7;pointer-events:none}
 	      .rpc-chart{position:absolute;inset:6px 7px 56px 7px}
-      .rpc-level-bands{position:absolute;inset:6px 7px 56px;border-radius:12px;z-index:2;overflow:hidden;pointer-events:none}
+      .rpc-stage[data-layer-mode="strategy"]:before{background:radial-gradient(circle at 70% 16%,rgba(34,197,94,.08),transparent 24%)}
+      .rpc-stage[data-layer-mode="clean"]:before,.rpc-stage[data-layer-mode="clean"]:after{opacity:.38}
+      .rpc-stage[data-layer-mode="all"]:after{opacity:.82}
+      .rpc-level-bands{position:absolute;inset:6px 7px 56px;border-radius:12px;z-index:2;overflow:hidden;pointer-events:none;opacity:.78;transition:opacity .18s ease}
+      .rpc-stage[data-layer-mode="clean"] .rpc-level-bands{opacity:0}
+      .rpc-stage[data-layer-mode="strategy"] .rpc-level-bands{opacity:.64}
+      .rpc-stage[data-layer-mode="all"] .rpc-level-bands{opacity:.88}
       .rpc-level-band{position:absolute;left:0;right:0;min-height:18px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;border-top:1px solid rgba(255,255,255,.28);border-bottom:1px solid rgba(255,255,255,.16);font-size:9px;font-weight:1000;letter-spacing:.08em;text-transform:uppercase;text-shadow:0 1px 4px rgba(0,0,0,.82);box-shadow:0 0 18px rgba(255,255,255,.06) inset}
       .rpc-level-band b{border-radius:999px;padding:3px 7px;background:rgba(2,6,23,.76);box-shadow:0 0 18px rgba(0,0,0,.24);font-variant-numeric:tabular-nums}
       .rpc-level-entry{background:linear-gradient(90deg,rgba(34,197,94,.05),rgba(34,197,94,.20),rgba(34,197,94,.06));border-color:rgba(34,197,94,.54);color:#bbf7d0}
@@ -39220,7 +39226,9 @@ def render_roxy_actions_pro_chart_panel(
       .rpc-level-target{background:linear-gradient(90deg,rgba(56,189,248,.04),rgba(56,189,248,.18),rgba(56,189,248,.05));border-color:rgba(125,211,252,.58);color:#bae6fd}
       .rpc-crosscard{position:absolute;left:16px;top:16px;z-index:5;display:none;min-width:190px;padding:8px 10px;border:1px solid rgba(125,211,252,.32);border-left:3px solid #38bdf8;border-radius:10px;background:rgba(2,6,23,.78);backdrop-filter:blur(10px);box-shadow:0 14px 28px rgba(0,0,0,.34);font-size:11px;font-weight:850;line-height:1.35;color:#dbeafe}
       .rpc-crosscard b{color:#f8fafc}
-      .rpc-plan{position:absolute;right:14px;top:14px;z-index:4;max-width:246px;padding:8px 10px;border:1px solid rgba(34,197,94,.30);border-left:3px solid #22c55e;border-radius:12px;background:rgba(2,6,23,.58);backdrop-filter:blur(10px);box-shadow:0 14px 28px rgba(0,0,0,.26);font-size:10px;font-weight:850;line-height:1.34;color:#dbeafe;pointer-events:none}
+      .rpc-plan{position:absolute;right:14px;bottom:58px;z-index:4;max-width:246px;padding:8px 10px;border:1px solid rgba(34,197,94,.30);border-left:3px solid #22c55e;border-radius:12px;background:rgba(2,6,23,.66);backdrop-filter:blur(10px);box-shadow:0 14px 28px rgba(0,0,0,.26);font-size:10px;font-weight:850;line-height:1.34;color:#dbeafe;pointer-events:none;opacity:.92;transition:opacity .18s ease,transform .18s ease}
+      .rpc-stage[data-layer-mode="clean"] .rpc-plan{opacity:0;transform:translateY(8px)}
+      .rpc-stage[data-layer-mode="all"] .rpc-plan{opacity:.82}
       .rpc-plan strong{display:block;color:#fff;font-size:12px;margin-bottom:4px}
       .rpc-plan span{display:grid;grid-template-columns:78px 1fr;gap:8px;color:#a7bce0}
       .rpc-plan b{color:#f8fafc;text-align:right}
@@ -39239,7 +39247,7 @@ def render_roxy_actions_pro_chart_panel(
       @keyframes rpcPriceFlashUp{0%{transform:translateY(0) scale(1)}45%{transform:translateY(-2px) scale(1.045)}100%{transform:translateY(0) scale(1)}}
       @keyframes rpcPriceFlashDown{0%{transform:translateY(0) scale(1)}45%{transform:translateY(2px) scale(1.045)}100%{transform:translateY(0) scale(1)}}
       @keyframes rpcPriceFlashFlat{0%{transform:scale(1)}45%{transform:scale(1.035)}100%{transform:scale(1)}}
-	      @media(max-width:720px){.rpc-head{padding:9px 10px 6px}.rpc-head strong{font-size:15px}.rpc-head aside{font-size:15px}.rpc-toolbar span{display:none}.rpc-tradebar{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.rpc-tradebar span{padding:6px 7px}.rpc-tradebar b{font-size:11px}.rpc-reading{grid-template-columns:1fr 1fr;gap:6px}.rpc-reading b{font-size:11px}.rpc-stage{min-height:530px}.rpc-plan{display:none}.rpc-crosscard{max-width:calc(100% - 32px)}.rpc-chart{inset:6px 7px 64px 7px}.rpc-level-bands{inset:6px 7px 64px}.rpc-stage:before,.rpc-stage:after{inset:6px 7px 64px}.rpc-statusbar{left:12px;right:12px;bottom:8px;font-size:8px;display:block}.rpc-statusbar em{display:block;margin-top:2px}.rpc-legend{padding-bottom:8px}.rpc-legend b{font-size:9px}}
+	      @media(max-width:720px){.rpc-head{padding:9px 10px 6px}.rpc-head strong{font-size:15px}.rpc-head aside{font-size:15px}.rpc-toolbar span{display:none}.rpc-tradebar{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.rpc-tradebar span{padding:6px 7px}.rpc-tradebar b{font-size:11px}.rpc-reading{grid-template-columns:1fr 1fr;gap:6px}.rpc-reading b{font-size:11px}.rpc-stage{min-height:560px}.rpc-plan{display:none}.rpc-crosscard{max-width:calc(100% - 32px)}.rpc-chart{inset:6px 7px 64px 7px}.rpc-level-bands{inset:6px 7px 64px}.rpc-stage:before,.rpc-stage:after{inset:6px 7px 64px}.rpc-statusbar{left:12px;right:12px;bottom:8px;font-size:8px;display:block}.rpc-statusbar em{display:block;margin-top:2px}.rpc-legend{padding-bottom:8px}.rpc-legend b{font-size:9px}}
     </style>
     <script>
     (() => {
@@ -39268,6 +39276,7 @@ def render_roxy_actions_pro_chart_panel(
       const payload = __PAYLOAD__;
       const root = document.getElementById("__CHART_ID__");
       const chartEl = root.querySelector(".rpc-chart");
+      const stageEl = root.querySelector("[data-rpc-stage]");
       const crossEl = root.querySelector("[data-rpc-cross]");
       const planEl = root.querySelector("[data-rpc-plan]");
       const statusEl = root.querySelector("[data-rpc-status]");
@@ -39365,11 +39374,13 @@ def render_roxy_actions_pro_chart_panel(
           tone = "ready";
           detail = "Precio sobre entrada; vigilar stop y target.";
         }
+        const distanceToEntry = Number.isFinite(live) && Number.isFinite(entry) ? live - entry : NaN;
+        const distanceLabel = Number.isFinite(distanceToEntry) ? `${distanceToEntry >= 0 ? "+" : ""}${fmt(distanceToEntry)}` : "--";
         readingEl.innerHTML = `
-          <span class="${tone}"><small>Lectura Roxy</small><b>${state}</b><em>${detail}</em></span>
+          <span class="${tone}"><small>Lectura Roxy · modo trading limpio</small><b>${state}</b><em>${detail}</em></span>
           <span><small>Entrada exacta</small><b>${Number.isFinite(entry) ? fmt(entry) : "--"}</b><em>${hasZone ? `${fmt(zoneLow)} - ${fmt(zoneHigh)}` : "Nivel principal"}</em></span>
           <span class="danger"><small>Invalidacion</small><b>${Number.isFinite(stop) ? fmt(stop) : "--"}</b><em>Stop no se negocia</em></span>
-          <span class="ready"><small>Objetivo</small><b>${Number.isFinite(target) ? fmt(target) : "--"}</b><em>${String(source || "feed").slice(0, 28)}</em></span>
+          <span class="ready"><small>Objetivo · distancia</small><b>${Number.isFinite(target) ? fmt(target) : "--"}</b><em>${distanceLabel} desde entrada · ${String(source || "feed").slice(0, 16)}</em></span>
         `;
       };
       const parentQuote = () => {
@@ -39628,14 +39639,16 @@ def render_roxy_actions_pro_chart_panel(
       });
       const applyLayerMode = (mode) => {
         const clean = mode === "clean";
+        const strategy = mode === "strategy";
         const all = mode === "all";
         indicatorSeries.forEach((series) => series.applyOptions({ visible: false }));
         emaSeries.forEach((series) => series.applyOptions({ visible: !clean }));
         trendSeries.forEach((series) => series.applyOptions({ visible: all }));
-        bollingerSeries.forEach((series) => series.applyOptions({ visible: all }));
-        volume.applyOptions({ visible: all });
+        bollingerSeries.forEach((series) => series.applyOptions({ visible: all || strategy }));
+        volume.applyOptions({ visible: all || strategy });
         if (levelBandsEl) levelBandsEl.style.display = clean ? "none" : "";
         if (planEl) planEl.style.display = clean ? "none" : "";
+        if (stageEl) stageEl.dataset.layerMode = mode;
         if (statusEl) {
           statusEl.dataset.layerMode = mode;
         }
