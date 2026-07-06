@@ -183,8 +183,28 @@ def test_actions_folder_exposes_visible_live_feed_status_per_stock_row():
 
     assert 'class="live-source"' in folder_source
     assert "data-roxy-stock-live-status" in folder_source
+    assert "data-roxy-stock-refresh-count" in folder_source
+    assert "data-roxy-stock-market-state" in folder_source
     assert "feed live..." in folder_source
+    assert "validando mercado" in folder_source
     assert "stock live inicializando" in folder_source
+
+
+def test_stock_live_runtime_updates_refresh_count_and_market_state_badges():
+    runtime_source = SOURCE[
+        SOURCE.index("def render_roxy_stock_live_runtime") : SOURCE.index("def render_roxy_stock_server_refresh")
+    ]
+    refresh_source = SOURCE[
+        SOURCE.index("def render_roxy_stock_server_refresh") : SOURCE.index("def roxy_secret_value")
+    ]
+
+    assert "const setRefreshMeta = (symbol, direction, quote = {}) =>" in runtime_source
+    assert "data-roxy-stock-refresh-count" in runtime_source
+    assert "data-roxy-stock-market-state" in runtime_source
+    assert "Mercado cerrado · ultimo precio real" in runtime_source
+    assert "const setRefreshMeta = (symbol, direction, quote) =>" in refresh_source
+    assert "setRefreshMeta(symbol, firstDirection, quote)" in refresh_source
+    assert "server quote" in refresh_source
 
 
 def test_professional_actions_chart_syncs_from_parent_live_stock_quote():

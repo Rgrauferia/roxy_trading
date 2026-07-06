@@ -36454,6 +36454,29 @@ def render_roxy_stock_live_runtime() -> None:
               window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
             });
           };
+          const setRefreshMeta = (symbol, direction, quote = {}) => {
+            const tone = direction > 0 ? "tick-up" : direction < 0 ? "tick-down" : "tick-watch";
+            const stamp = quote.updatedAt || new Date().toLocaleTimeString();
+            const session = quote.marketOpen === false ? "cerrado" : quote.marketOpen === true ? "abierto" : "quote";
+            doc.querySelectorAll("[data-roxy-stock-refresh-count]").forEach((node) => {
+              const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
+              if (statusSymbol && statusSymbol !== symbol) return;
+              const count = Number(node.dataset.roxyRefreshCount || 0) + 1;
+              node.dataset.roxyRefreshCount = String(count);
+              node.textContent = `tick ${count} · ${stamp}`;
+              node.title = `${symbol}: ${session} · ${quote.source || "feed"} · ${stamp}`;
+              node.classList.remove("tick-up", "tick-down", "tick-watch", "tick-pulse");
+              node.classList.add(tone, "tick-pulse");
+              window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
+            });
+            doc.querySelectorAll("[data-roxy-stock-market-state]").forEach((node) => {
+              const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
+              if (statusSymbol && statusSymbol !== symbol) return;
+              node.textContent = quote.marketOpen === false ? "Mercado cerrado · ultimo precio real" : quote.marketOpen === true ? "Mercado abierto · live" : "Feed consultando";
+              node.classList.remove("tick-up", "tick-down", "tick-watch");
+              node.classList.add(quote.marketOpen === true ? "tick-up" : "tick-watch");
+            });
+          };
           const setTone = (node, price) => {
             const previous = Number(node.dataset.roxyPrice || 0);
             const refreshCount = Number(node.dataset.roxyRefreshCount || 0) + 1;
@@ -36536,6 +36559,7 @@ def render_roxy_stock_live_runtime() -> None:
             const refreshText = directionSet && firstDirection === 0 ? " · refrescado sin cambio" : "";
             setStatus(symbol, `${prefix} · ${source} · ${stamp}${freshness}${sessionText}${refreshText}`, Number.isFinite(pct) ? (pct >= 0 ? "up" : "down") : "watch");
             setTickArrow(symbol, firstDirection, price, quote.marketOpen === false ? "LAST" : "LIVE");
+            setRefreshMeta(symbol, firstDirection, quote);
             return true;
           };
           const fetchYahoo = async (symbol) => {
@@ -36717,6 +36741,26 @@ def render_roxy_stock_server_refresh(interval_ms: int = 3500, symbols: list[str]
               window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
             });
           };
+          const setRefreshMeta = (symbol, direction, quote) => {
+            const tone = direction > 0 ? "tick-up" : direction < 0 ? "tick-down" : "tick-watch";
+            const label = sessionLabel(quote);
+            doc.querySelectorAll("[data-roxy-stock-refresh-count]").forEach((node) => {
+              if (symbolFor(node) !== symbol) return;
+              const count = Number(node.dataset.roxyRefreshCount || 0) + 1;
+              node.dataset.roxyRefreshCount = String(count);
+              node.textContent = `${label} tick ${count} · ${quote.updatedAt || "ahora"}`;
+              node.title = `${symbol} ${label}: ${quote.source || "server quote"} · ${quote.freshness || "sin retraso reportado"}`;
+              node.classList.remove("tick-up", "tick-down", "tick-watch", "tick-pulse");
+              node.classList.add(tone, "tick-pulse");
+              window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
+            });
+            doc.querySelectorAll("[data-roxy-stock-market-state]").forEach((node) => {
+              if (symbolFor(node) !== symbol) return;
+              node.textContent = quote.marketOpen === false ? "Mercado cerrado · ultimo precio real" : quote.marketOpen === true ? "Mercado abierto · feed live" : "Servidor consultando quote";
+              node.classList.remove("tick-up", "tick-down", "tick-watch");
+              node.classList.add(quote.marketOpen === true ? "tick-up" : "tick-watch");
+            });
+          };
           const applyQuotes = () => {
             let hits = 0;
             Object.entries(quotes).forEach(([symbol, quote]) => {
@@ -36767,6 +36811,7 @@ def render_roxy_stock_server_refresh(interval_ms: int = 3500, symbols: list[str]
                 hits += 1;
               });
               setTickArrow(symbol, firstDirection, quote);
+              setRefreshMeta(symbol, firstDirection, quote);
             });
             return hits;
           };
@@ -37273,7 +37318,7 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
               <span class="rank">{idx}</span>
               {roxy_stock_icon_html(symbol)}
               <span class="asset"><strong>{html.escape(symbol)}</strong><small>{html.escape(strategy_family_for_row(row)[:34])}</small></span>
-              <span class="price"><strong data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(live_stock_symbol)}" data-roxy-price="{html.escape(str(safe_float(row.get("current_price") or row.get("price") or row.get("last_price") or row_plan.get("entry")) or ""))}">{html.escape(row_price)}</strong><small data-roxy-stock-change data-roxy-stock-symbol="{html.escape(live_stock_symbol)}">{html.escape(row_change_text)}</small><small class="tick-motion tick-watch" data-roxy-stock-tick-arrow data-roxy-stock-symbol="{html.escape(live_stock_symbol)}">LIVE</small><small class="live-source" data-roxy-stock-live-status data-roxy-stock-symbol="{html.escape(live_stock_symbol)}">feed live...</small></span>
+              <span class="price"><strong data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(live_stock_symbol)}" data-roxy-price="{html.escape(str(safe_float(row.get("current_price") or row.get("price") or row.get("last_price") or row_plan.get("entry")) or ""))}">{html.escape(row_price)}</strong><small data-roxy-stock-change data-roxy-stock-symbol="{html.escape(live_stock_symbol)}">{html.escape(row_change_text)}</small><small class="tick-motion tick-watch" data-roxy-stock-tick-arrow data-roxy-stock-symbol="{html.escape(live_stock_symbol)}">LIVE</small><small class="refresh-count tick-watch" data-roxy-stock-refresh-count data-roxy-stock-symbol="{html.escape(live_stock_symbol)}">tick 0</small><small class="market-state tick-watch" data-roxy-stock-market-state data-roxy-stock-symbol="{html.escape(live_stock_symbol)}">validando mercado</small><small class="live-source" data-roxy-stock-live-status data-roxy-stock-symbol="{html.escape(live_stock_symbol)}">feed live...</small></span>
               <span class="trend">{roxy_actions_sparkline_svg(symbol, row_market)}</span>
               <span class="score"><b>{row_score}</b><small>{'Excelente' if row_score >= 88 else 'Muy buena' if row_score >= 80 else 'Buena'}</small></span>
               <span class="signal"><strong>{html.escape(row_action)}</strong><small>Entrada: {html.escape(row_entry)}<br>Stop: {html.escape(row_stop)}<br>Target: {html.escape(row_target)}</small></span>
@@ -37338,12 +37383,12 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
           <aside class="roxy-actions-right">
             <section class="roxy-actions-filter"><strong>Filtros inteligentes</strong><label>Mercado<span>S&P 500</span></label><label>Filtro RTH<span>Alto-riesgo</span></label><label>Precio entre<span>$5 - $500</span></label><label>Ordenar por<span>Mejor oportunidad</span></label><a href="?view=Dashboard&module=acciones-operar&scan=1" target="_self"><i class="material-symbols-outlined">auto_awesome</i> Escanear ahora</a></section>
             <section class="roxy-actions-quality"><strong>Resumen de oportunidades <small>Actualizado {html.escape(current_time_label)}</small></strong><div><b>{avg_readiness:.0f}%</b><span>Calidad promedio de oportunidades</span></div><p><span>Excelentes <b>{sum(1 for v in readiness_values if v >= 88) or 8}</b></span><span>Muy buenas <b>{sum(1 for v in readiness_values if 78 <= v < 88) or 12}</b></span><span>Buenas <b>15</b></span><span>Regulares <b>5</b></span></p></section>
-            <section class="roxy-actions-signal"><strong>Senal principal de Roxy</strong><div>{roxy_stock_icon_html(selected_symbol)}<span><b>{html.escape(selected_symbol)}</b><small>{html.escape(strategy_family_for_row(selected_row)[:32])}</small></span><em>{html.escape(action)}</em></div><p><span>Precio live <b data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}" data-roxy-price="{html.escape(str(latest_value or trade_plan.get("entry") or ""))}">{html.escape(price)}</b></span><span>Entrada <b>{html.escape(entry)}</b></span><span>Stop Loss <b>{html.escape(stop)}</b></span><span>Target 1 <b>{html.escape(target)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>R/R <b>{html.escape(rr_text)}</b></span><span>Fuente <b>{html.escape(source_label[:26])}</b></span></p><a href="?view=Dashboard&symbol={quote(selected_symbol, safe='')}&market=stock&tf=1h&module=acciones-operar" target="_self">Abrir analisis completo</a></section>
+            <section class="roxy-actions-signal"><strong>Senal principal de Roxy</strong><div>{roxy_stock_icon_html(selected_symbol)}<span><b>{html.escape(selected_symbol)}</b><small>{html.escape(strategy_family_for_row(selected_row)[:32])}</small></span><em>{html.escape(action)}</em></div><p><span>Precio live <b data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}" data-roxy-price="{html.escape(str(latest_value or trade_plan.get("entry") or ""))}">{html.escape(price)}</b></span><span>Estado <b class="tick-watch" data-roxy-stock-market-state data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">validando mercado</b></span><span>Refresh <b class="tick-watch" data-roxy-stock-refresh-count data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">tick 0</b></span><span>Entrada <b>{html.escape(entry)}</b></span><span>Stop Loss <b>{html.escape(stop)}</b></span><span>Target 1 <b>{html.escape(target)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>R/R <b>{html.escape(rr_text)}</b></span><span>Fuente <b>{html.escape(source_label[:26])}</b></span></p><a href="?view=Dashboard&symbol={quote(selected_symbol, safe='')}&market=stock&tf=1h&module=acciones-operar" target="_self">Abrir analisis completo</a></section>
           </aside>
         </section>
         <section class="roxy-actions-chart-wrap">
           <div class="roxy-universe" aria-hidden="true"><i class="roxy-space-nebula"></i><i class="roxy-space-stars roxy-space-stars-mid"></i><i class="roxy-space-stars roxy-space-stars-near"></i></div>
-          <header><strong>Graficas operativas</strong><span>{html.escape(selected_symbol)} <b class="{selected_change_class}" data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}" data-roxy-price="{html.escape(str(latest_value or trade_plan.get("entry") or ""))}">{html.escape(price)}</b> · <b class="{selected_change_class}" data-roxy-stock-change data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">{html.escape(selected_change_text)}</b><small data-roxy-stock-live-status data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">stock live inicializando...</small></span></header>
+          <header><strong>Graficas operativas</strong><span>{html.escape(selected_symbol)} <b class="{selected_change_class}" data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}" data-roxy-price="{html.escape(str(latest_value or trade_plan.get("entry") or ""))}">{html.escape(price)}</b> · <b class="{selected_change_class}" data-roxy-stock-change data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">{html.escape(selected_change_text)}</b><small data-roxy-stock-live-status data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">stock live inicializando...</small><small class="chart-refresh tick-watch" data-roxy-stock-refresh-count data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">tick 0</small><small class="chart-market tick-watch" data-roxy-stock-market-state data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">validando mercado</small></span></header>
           <style>
             .roxy-actions-row .price strong[data-roxy-stock-live-price],
             .roxy-actions-signal b[data-roxy-stock-live-price],
@@ -37396,11 +37441,45 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
               letter-spacing: .08em;
               line-height: 1;
             }}
+            .roxy-actions-row .price .refresh-count,
+            .roxy-actions-row .price .market-state,
+            .roxy-actions-chart-wrap header .chart-refresh,
+            .roxy-actions-chart-wrap header .chart-market {{
+              display: inline-grid;
+              place-items: center;
+              width: fit-content;
+              max-width: 132px;
+              margin-top: 3px;
+              padding: 2px 6px;
+              border-radius: 999px;
+              border: 1px solid rgba(125,211,252,.16);
+              background: rgba(2,6,23,.48);
+              color: rgba(186,230,253,.94);
+              font-size: 7.5px;
+              font-weight: 950;
+              letter-spacing: .035em;
+              line-height: 1.05;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }}
+            .roxy-actions-row .price .market-state,
+            .roxy-actions-chart-wrap header .chart-market {{
+              color: #fde68a;
+              border-color: rgba(250,204,21,.18);
+              background: rgba(113,63,18,.16);
+            }}
             .roxy-actions-row .price .tick-motion.tick-pulse,
+            .roxy-actions-row .price .refresh-count.tick-pulse,
+            .roxy-actions-chart-wrap header .chart-refresh.tick-pulse,
             [data-roxy-stock-live-price].tick-pulse {{
               animation: roxy-stock-live-visible-pulse .86s ease-out 1, roxy-stock-server-heartbeat 1.85s ease-in-out infinite;
             }}
             .roxy-actions-row .price .live-source.tick-watch,
+            .roxy-actions-row .price .refresh-count.tick-watch,
+            .roxy-actions-row .price .market-state.tick-watch,
+            .roxy-actions-chart-wrap header .chart-refresh.tick-watch,
+            .roxy-actions-chart-wrap header .chart-market.tick-watch,
             .roxy-actions-signal [data-roxy-stock-live-status].tick-watch,
             .roxy-actions-chart-wrap [data-roxy-stock-live-status].tick-watch {{
               color: rgba(250,204,21,.92) !important;
