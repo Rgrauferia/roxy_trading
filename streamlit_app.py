@@ -38733,6 +38733,8 @@ def roxy_actions_pro_chart_payload(
         "action": text_display(trade_plan.get("action") or "Esperar confirmacion"),
         "status": text_display(trade_plan.get("plan_status") or "Plan operativo de Roxy"),
         "entry": safe_float(trade_plan.get("entry")),
+        "entryZoneLow": safe_float(trade_plan.get("entry_zone_low")),
+        "entryZoneHigh": safe_float(trade_plan.get("entry_zone_high")),
         "stop": safe_float(trade_plan.get("stop")),
         "target": safe_float(trade_plan.get("target_2") or trade_plan.get("target_price") or trade_plan.get("target")),
         "rr": safe_float(trade_plan.get("rr_to_2")),
@@ -38786,6 +38788,7 @@ def render_roxy_actions_pro_chart_panel(
       <section class="rpc-tradebar" data-rpc-tradebar></section>
       <main class="rpc-stage">
         <div class="rpc-chart"></div>
+        <div class="rpc-level-bands" data-rpc-level-bands></div>
         <div class="rpc-crosscard" data-rpc-cross></div>
         <div class="rpc-plan" data-rpc-plan></div>
         <div class="rpc-statusbar" data-rpc-status></div>
@@ -38826,6 +38829,12 @@ def render_roxy_actions_pro_chart_panel(
 	      .rpc-stage:before{content:"";position:absolute;inset:6px 7px 0;border-radius:12px;background:linear-gradient(90deg,transparent,rgba(56,189,248,.06),transparent),radial-gradient(circle at 70% 16%,rgba(34,197,94,.08),transparent 22%);pointer-events:none}
 	      .rpc-stage:after{content:"";position:absolute;inset:6px 7px 0;border-radius:12px;background-image:linear-gradient(rgba(148,163,184,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.045) 1px,transparent 1px);background-size:44px 44px;opacity:.7;pointer-events:none}
 	      .rpc-chart{position:absolute;inset:6px 7px 0 7px}
+      .rpc-level-bands{position:absolute;inset:6px 7px 0;border-radius:12px;z-index:2;overflow:hidden;pointer-events:none}
+      .rpc-level-band{position:absolute;left:0;right:0;min-height:18px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;border-top:1px solid rgba(255,255,255,.28);border-bottom:1px solid rgba(255,255,255,.16);font-size:9px;font-weight:1000;letter-spacing:.08em;text-transform:uppercase;text-shadow:0 1px 4px rgba(0,0,0,.82);box-shadow:0 0 18px rgba(255,255,255,.06) inset}
+      .rpc-level-band b{border-radius:999px;padding:3px 7px;background:rgba(2,6,23,.76);box-shadow:0 0 18px rgba(0,0,0,.24);font-variant-numeric:tabular-nums}
+      .rpc-level-entry{background:linear-gradient(90deg,rgba(34,197,94,.05),rgba(34,197,94,.20),rgba(34,197,94,.06));border-color:rgba(34,197,94,.54);color:#bbf7d0}
+      .rpc-level-stop{background:linear-gradient(90deg,rgba(239,68,68,.04),rgba(239,68,68,.18),rgba(239,68,68,.05));border-color:rgba(248,113,113,.58);color:#fecaca}
+      .rpc-level-target{background:linear-gradient(90deg,rgba(56,189,248,.04),rgba(56,189,248,.18),rgba(56,189,248,.05));border-color:rgba(125,211,252,.58);color:#bae6fd}
       .rpc-crosscard{position:absolute;left:16px;top:16px;z-index:5;display:none;min-width:190px;padding:8px 10px;border:1px solid rgba(125,211,252,.32);border-left:3px solid #38bdf8;border-radius:10px;background:rgba(2,6,23,.78);backdrop-filter:blur(10px);box-shadow:0 14px 28px rgba(0,0,0,.34);font-size:11px;font-weight:850;line-height:1.35;color:#dbeafe}
       .rpc-crosscard b{color:#f8fafc}
       .rpc-plan{position:absolute;right:14px;top:14px;z-index:4;max-width:214px;padding:8px 10px;border:1px solid rgba(34,197,94,.30);border-left:3px solid #22c55e;border-radius:12px;background:rgba(2,6,23,.64);backdrop-filter:blur(10px);box-shadow:0 14px 28px rgba(0,0,0,.26);font-size:10px;font-weight:850;line-height:1.34;color:#dbeafe;pointer-events:none}
@@ -38877,6 +38886,7 @@ def render_roxy_actions_pro_chart_panel(
       const planEl = root.querySelector("[data-rpc-plan]");
       const statusEl = root.querySelector("[data-rpc-status]");
       const tradebarEl = root.querySelector("[data-rpc-tradebar]");
+      const levelBandsEl = root.querySelector("[data-rpc-level-bands]");
       const titleEl = root.querySelector("[data-rpc-title]");
       const subtitleEl = root.querySelector("[data-rpc-subtitle]");
       const lastEl = root.querySelector("[data-rpc-last]");
@@ -39076,7 +39086,7 @@ def render_roxy_actions_pro_chart_panel(
       const volume = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "volume", lastValueVisible: false, priceLineVisible: false });
       volume.setData(candles.map((c) => ({ time: c.time, value: c.volume || 0, color: c.close >= c.open ? "rgba(34,197,94,.38)" : "rgba(239,68,68,.38)" })));
       chart.priceScale("volume").applyOptions({ scaleMargins: { top: .82, bottom: 0 }, borderVisible: false });
-	      (payload.levels || []).forEach((level) => {
+      (payload.levels || []).forEach((level) => {
         const value = Number(level.value);
         if (!Number.isFinite(value)) return;
         candleSeries.createPriceLine({ price: value, color: level.color, lineWidth: 2, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: `${level.label} ${fmt(value)}` });
@@ -39090,12 +39100,62 @@ def render_roxy_actions_pro_chart_panel(
 	          text: "Roxy live",
 	        }
 	      ]);
-	      if (statusEl) {
+      if (statusEl) {
         const lastTime = latest.time ? new Date(Number(latest.time) * 1000).toLocaleString() : "sin hora";
         const levelText = (payload.levels || []).map((level) => `${level.label}: ${fmt(Number(level.value))}`).join(" · ");
         const quality = payload.chartQuality || {};
         const cleanedText = Number(quality.removedAnomalies || 0) > 0 ? ` · ${Number(quality.removedAnomalies || 0)} velas filtradas` : "";
         statusEl.innerHTML = `<span><span class="rpc-dot"></span><b>Velas:</b> ${candles.length}${cleanedText} · <b>Ultima:</b> ${lastTime}</span><em>${levelText || "Roxy monitorea niveles"}</em>`;
+      }
+      const updateLevelBands = () => {
+        if (!levelBandsEl || !candleSeries || !chartEl.clientHeight) return;
+        const summary = payload.roxySummary || {};
+        const specs = [
+          {
+            key: "target",
+            cls: "target",
+            label: "Target",
+            price: Number(summary.target),
+          },
+          {
+            key: "entry",
+            cls: "entry",
+            label: Number.isFinite(Number(summary.entryZoneLow)) && Number.isFinite(Number(summary.entryZoneHigh)) ? "Zona entrada" : "Entrada Roxy",
+            price: Number(summary.entry),
+            low: Number(summary.entryZoneLow),
+            high: Number(summary.entryZoneHigh),
+          },
+          {
+            key: "stop",
+            cls: "stop",
+            label: "Stop invalida",
+            price: Number(summary.stop),
+          },
+        ];
+        const bands = [];
+        specs.forEach((spec) => {
+          const price = Number(spec.price);
+          if (!Number.isFinite(price) || price <= 0) return;
+          let y = candleSeries.priceToCoordinate(price);
+          if (!Number.isFinite(Number(y))) return;
+          let top = Number(y) - 11;
+          let height = 22;
+          if (spec.key === "entry" && Number.isFinite(spec.low) && Number.isFinite(spec.high) && spec.high > spec.low) {
+            const topCoord = candleSeries.priceToCoordinate(spec.high);
+            const bottomCoord = candleSeries.priceToCoordinate(spec.low);
+            if (Number.isFinite(Number(topCoord)) && Number.isFinite(Number(bottomCoord))) {
+              top = Math.min(Number(topCoord), Number(bottomCoord));
+              height = Math.max(22, Math.abs(Number(bottomCoord) - Number(topCoord)));
+            }
+          }
+          top = Math.max(0, Math.min(chartEl.clientHeight - height, top));
+          bands.push(`<div class="rpc-level-band rpc-level-${spec.cls}" style="top:${top.toFixed(1)}px;height:${height.toFixed(1)}px"><b>${spec.label} · ${fmt(price)}</b></div>`);
+        });
+        levelBandsEl.innerHTML = bands.join("");
+      };
+      window.setTimeout(updateLevelBands, 80);
+      if (chart.timeScale && chart.timeScale().subscribeVisibleLogicalRangeChange) {
+        chart.timeScale().subscribeVisibleLogicalRangeChange(updateLevelBands);
       }
 	      const plan = payload.roxySummary || {};
       planEl.innerHTML = `<strong>Plan Roxy: ${plan.action || "Esperar confirmacion"}</strong>
@@ -39106,10 +39166,12 @@ def render_roxy_actions_pro_chart_panel(
 	      const setVisible = (count) => {
         if (count === "all" || candles.length <= Number(count)) {
           chart.timeScale().fitContent();
+          window.setTimeout(updateLevelBands, 80);
           return;
         }
         const to = candles.length + 5;
         chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, candles.length - Number(count)), to });
+        window.setTimeout(updateLevelBands, 80);
       };
 	      setVisible(60);
       root.querySelectorAll("[data-range]").forEach((button) => {
@@ -39137,6 +39199,8 @@ def render_roxy_actions_pro_chart_panel(
       });
       const ro = new ResizeObserver(() => chart.resize(chartEl.clientWidth, chartEl.clientHeight));
       ro.observe(chartEl);
+      const roxyResizeBands = new ResizeObserver(updateLevelBands);
+      roxyResizeBands.observe(chartEl);
       const syncLiveQuote = async () => {
         const quote = parentQuote() || await yahooQuote(payload.symbol);
         if (!quote) {
@@ -39165,6 +39229,7 @@ def render_roxy_actions_pro_chart_panel(
 		        setLastBadge(price, previous.close, feedLabel);
 		        renderTradebar(price, feedLabel);
 	        applySmartScale(price);
+          window.setTimeout(updateLevelBands, 40);
 	        if (statusEl) {
 		          const stateText = isClosed ? " · mercado cerrado" : "";
 	          const summary = payload.roxySummary || {};

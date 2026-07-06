@@ -94,6 +94,20 @@ def test_roxy_actions_pro_chart_payload_uses_cleaned_candles():
     assert payload["displayRange"]["maxValue"] < 130
 
 
+def test_roxy_actions_pro_chart_payload_preserves_entry_zone_for_visual_bands():
+    payload = roxy_actions_pro_chart_payload(
+        _sample_chart_frame(),
+        symbol="TEST",
+        market="stock",
+        timeframe="15m",
+        trade_plan={"entry": 101.0, "entry_zone_low": 100.4, "entry_zone_high": 101.3, "stop": 99.0, "target_2": 106.0},
+        panel_label="Entrada",
+    )
+
+    assert payload["roxySummary"]["entryZoneLow"] == 100.4
+    assert payload["roxySummary"]["entryZoneHigh"] == 101.3
+
+
 def test_roxy_actions_pro_chart_payload_filters_indicator_values_outside_price_regime():
     frame = _sample_chart_frame()
     frame["ema9"] = 999.0
@@ -126,6 +140,18 @@ def test_operational_charts_load_lightweight_charts_from_local_vendor():
     assert "__LIGHTWEIGHT_INLINE__" in pro_panel
     assert 'type="module"' not in browser_panel
     assert 'type="module"' not in pro_panel
+
+
+def test_professional_actions_chart_renders_operational_level_bands():
+    pro_panel = SOURCE[
+        SOURCE.index("def render_roxy_actions_pro_chart_panel") : SOURCE.index("def render_roxy_actions_dual_pro_charts")
+    ]
+
+    assert "data-rpc-level-bands" in pro_panel
+    assert "const updateLevelBands = () =>" in pro_panel
+    assert "Zona entrada" in pro_panel
+    assert "Stop invalida" in pro_panel
+    assert "candleSeries.priceToCoordinate" in pro_panel
 
 
 def test_actions_folder_prioritizes_professional_charts_before_plotly_fallback():
