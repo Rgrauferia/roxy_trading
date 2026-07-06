@@ -186,7 +186,19 @@ def test_actions_folder_pushes_server_side_live_stock_quotes():
     assert "streamlit_autorefresh" not in refresh_source
     assert "st_autorefresh" not in refresh_source
     assert "live_stock_symbols" in folder_source
-    assert "render_roxy_stock_server_refresh(interval_ms=3000, symbols=live_stock_symbols)" in folder_source
+    assert "render_roxy_stock_server_refresh(interval_ms=1500, symbols=live_stock_symbols)" in folder_source
+
+
+def test_actions_folder_exposes_visible_stock_live_tape():
+    folder_source = SOURCE[
+        SOURCE.index("def render_roxy_actions_folder") : SOURCE.index("def render_roxy_crypto20_folder")
+    ]
+
+    assert "roxy-stock-live-tape" in folder_source
+    assert 'aria-label="Precios live de acciones"' in folder_source
+    assert "live_tape_items" in folder_source
+    assert "data-roxy-stock-live-price" in folder_source
+    assert "data-roxy-stock-tick-arrow" in folder_source
 
 
 def test_stock_live_runtime_can_consume_secure_stream_bridge():
@@ -269,7 +281,22 @@ def test_professional_actions_chart_syncs_from_parent_live_stock_quote():
     assert "LAST ${fmt(price)}" in pro_panel
     assert "parentQuote() || await yahooQuote(payload.symbol)" in pro_panel
     assert "renderTradebar(price, feedLabel)" in pro_panel
+    assert "renderReading(price, feedLabel)" in pro_panel
     assert "applySmartScale(price)" in pro_panel
     assert "payload.displayRange" in pro_panel
     assert "rpc-closed" in pro_panel
     assert "Precio sincronizado sobre la vela actual sin salir de la pagina" in pro_panel
+
+
+def test_professional_actions_chart_explains_roxy_entry_stop_target_reading():
+    pro_panel = SOURCE[
+        SOURCE.index("def render_roxy_actions_pro_chart_panel") : SOURCE.index("def render_roxy_actions_dual_pro_charts")
+    ]
+
+    assert 'class="rpc-reading"' in pro_panel
+    assert "const renderReading = (price, source = \"historial\") =>" in pro_panel
+    assert "Lectura Roxy" in pro_panel
+    assert "Entrada exacta" in pro_panel
+    assert "Invalidacion" in pro_panel
+    assert "Stop no se negocia" in pro_panel
+    assert "setVisible(window.innerWidth < 720 ? 42 : 72)" in pro_panel
