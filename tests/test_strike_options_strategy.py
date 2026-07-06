@@ -6,6 +6,7 @@ from roxy_trader.strike_options_strategy import (
     SIGNAL_NO_TRADE,
     SIGNAL_YES,
     analyze_strike_option,
+    compare_deriv_strike_contracts,
     format_roxy_strike_response,
     log_strike_signal,
     score_signal_result,
@@ -161,3 +162,68 @@ def test_summarize_strike_signal_history_groups_results():
     assert summary["wins"] == 2
     assert summary["win_rate"] == 0.6667
     assert summary["by_expiration"]["20 minutos"]["signals"] == 2
+
+
+def test_compare_deriv_contracts_selects_best_yes_contract():
+    comparison = compare_deriv_strike_contracts(
+        asset="BTC",
+        current_price=60480,
+        time_remaining_seconds=540,
+        expiration_label="9 min",
+        candles=_candles(step=13.0),
+        target_price=60580,
+        contracts=[
+            {"strike": 60340, "yes_cost": 0.76, "no_cost": 0.24, "payout": 1.0},
+            {"strike": 60390, "yes_cost": 0.32, "no_cost": 0.68, "payout": 1.0},
+            {"strike": 60680, "yes_cost": 0.50, "no_cost": 0.50, "payout": 1.0},
+        ],
+    )
+
+    assert comparison.status == "ready"
+    assert comparison.signal == SIGNAL_YES
+    assert comparison.best_contract is not None
+    assert comparison.best_contract["strike"] == 60390
+    assert comparison.best_contract["rank"] == 1
+    assert len(comparison.contracts_ranked) == 3
+    assert comparison.data_quality == "live_costs"
+
+
+def test_compare_deriv_contracts_selects_best_no_contract():
+    comparison = compare_deriv_strike_contracts(
+        asset="BTC",
+        current_price=59620,
+        time_remaining_seconds=600,
+        expiration_label="10 min",
+        candles=_candles(start=60100, step=-12.0),
+        target_price=59540,
+        contracts=[
+            {"strike": 59450, "yes_cost": 0.30, "no_cost": 0.70, "payout": 1.0},
+            {"strike": 59730, "yes_cost": 0.62, "no_cost": 0.38, "payout": 1.0},
+            {"strike": 59950, "yes_cost": 0.88, "no_cost": 0.12, "payout": 1.0},
+        ],
+    )
+
+    assert comparison.status == "ready"
+    assert comparison.signal == SIGNAL_NO
+    assert comparison.best_contract is not None
+    assert comparison.best_contract["strike"] == 59730
+    assert comparison.best_contract["roxy_signal"]["deriv_contract"]["direction"] == SIGNAL_NO
+
+
+def test_compare_deriv_contracts_blocks_when_costs_are_missing():
+    comparison = compare_deriv_strike_contracts(
+        asset="BTC",
+        current_price=60480,
+        time_remaining_seconds=540,
+        expiration_label="9 min",
+        candles=_candles(step=13.0),
+        contracts=[
+            {"strike": 60390},
+            {"strike": 60680},
+        ],
+    )
+
+    assert comparison.status == "blocked"
+    assert comparison.signal == SIGNAL_NO_TRADE
+    assert comparison.data_quality == "missing_costs_estimated"
+    assert "costos" in comparison.reason

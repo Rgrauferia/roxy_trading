@@ -122,6 +122,7 @@ from roxy_trader.strike_options_strategy import (
     SIGNAL_NO_TRADE,
     SIGNAL_YES,
     analyze_strike_option,
+    compare_deriv_strike_contracts,
     load_strike_signal_history,
     summarize_strike_signal_history,
 )
@@ -36133,69 +36134,32 @@ def roxy_deriv_best_contract(symbol: str, signal: dict[str, Any], *, period_labe
     target = safe_float(signal.get("target_price") or signal.get("expected_price"))
     side = text_display(signal.get("contract_side") or "WAIT").upper()
     candles, remaining = roxy_strike_engine_candles_for_period(symbol, period_label)
-    best: dict[str, Any] | None = None
-    for contract in deriv.get("strike_contracts", []):
-        contract_type = text_display(contract.get("contract_type")).upper()
-        sentiment = text_display(contract.get("sentiment")).lower()
-        strikes = roxy_deriv_candidate_strikes_from_contract(contract)
-        if not strikes and target is not None:
-            strikes = [target]
-        costs = roxy_deriv_contract_costs(contract)
-        for strike in strikes:
-            if price is None:
-                continue
-            try:
-                strike_signal = analyze_strike_option(
-                    asset=roxy_crypto_base_symbol(symbol),
-                    current_price=price,
-                    strike=strike,
-                    time_remaining_seconds=remaining,
-                    expiration_label=period_label,
-                    candles=candles,
-                    yes_cost=costs.get("yes_cost"),
-                    no_cost=costs.get("no_cost"),
-                    payout=costs.get("payout"),
-                    stake=1.0,
-                ).to_dict()
-            except Exception:
-                continue
-            strike_decision = text_display(strike_signal.get("signal")).upper()
-            if strike_decision == SIGNAL_NO_TRADE:
-                decision_bonus = -18.0
-            else:
-                decision_bonus = 12.0
-            if side in {SIGNAL_YES, SIGNAL_NO} and strike_decision == side:
-                decision_bonus += 8.0
-            if contract_type.startswith("CALL") or sentiment == "up":
-                contract_bias = SIGNAL_YES
-            elif contract_type.startswith("PUT") or sentiment == "down":
-                contract_bias = SIGNAL_NO
-            else:
-                contract_bias = strike_decision
-            if contract_bias in {SIGNAL_YES, SIGNAL_NO} and strike_decision in {SIGNAL_YES, SIGNAL_NO} and contract_bias != strike_decision:
-                decision_bonus -= 16.0
-            distance_target = abs((strike or 0) - (target or strike or 0)) if target is not None else abs((strike or 0) - price)
-            distance_score = max(0.0, 12.0 - (distance_target / max(abs(target or price or strike or 1), 1) * 8000))
-            edge_score = max(-12.0, min(16.0, (safe_float(strike_signal.get("edge")) or 0.0) * 100.0))
-            score = (
-                safe_float(strike_signal.get("confidence")) or 0.0
-            ) + decision_bonus + distance_score + edge_score
-            candidate = {
-                "contract": contract,
-                "strike": strike,
-                "side": strike_decision,
-                "score": score,
-                "period": period_label,
-                "roxy_signal": strike_signal,
-                "contract_bias": contract_bias,
+    if price is not None:
+        try:
+            comparison = compare_deriv_strike_contracts(
+                asset=roxy_crypto_base_symbol(symbol),
+                current_price=price,
+                contracts=deriv.get("strike_contracts", []),
+                time_remaining_seconds=remaining,
+                expiration_label=period_label,
+                candles=candles,
+                target_price=target,
+                preferred_signal=side,
+                stake=1.0,
+            ).to_dict()
+        except Exception as exc:
+            comparison = {
+                "status": "not_ready",
+                "reason": f"error_motor_comparacion: {exc}",
+                "contracts_ranked": [],
+                "best_contract": None,
             }
-            if best is None or candidate["score"] > safe_float(best.get("score")):
-                best = candidate
-    if best:
-        best_signal = best.get("roxy_signal") if isinstance(best.get("roxy_signal"), dict) else {}
-        best["status"] = "ready" if text_display(best_signal.get("signal")).upper() in {SIGNAL_YES, SIGNAL_NO} else "blocked"
-        best["deriv"] = deriv
-        return best
+        best = comparison.get("best_contract") if isinstance(comparison.get("best_contract"), dict) else None
+        if best:
+            best["status"] = "ready" if comparison.get("status") == "ready" else "blocked"
+            best["deriv"] = deriv
+            best["comparison"] = comparison
+            return best
     return {
         "status": "not_ready",
         "deriv": deriv,

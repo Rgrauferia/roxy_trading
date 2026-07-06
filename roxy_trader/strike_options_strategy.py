@@ -62,6 +62,24 @@ class StrikeOptionSignal:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class StrikeContractComparison:
+    timestamp: str
+    asset: str
+    expiration: str
+    status: str
+    signal: str
+    color: str
+    confidence: int
+    best_contract: dict[str, Any] | None
+    contracts_ranked: list[dict[str, Any]]
+    reason: str
+    data_quality: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 def _safe_float(value: Any, default: float | None = None) -> float | None:
     try:
         if value is None:
@@ -219,6 +237,57 @@ def _risk_reward(side: str, yes_cost: float | None, no_cost: float | None, payou
     if reward is None or reward <= 0:
         return None, cost
     return reward / cost, cost
+
+
+def _candidate_strikes_from_contract(contract: Mapping[str, Any]) -> list[float]:
+    values: list[float] = []
+    for key in ("strike", "barrier", "barrier1", "barrier2", "barrier_value", "target"):
+        value = _safe_float(contract.get(key))
+        if value is not None:
+            values.append(value)
+    for key in ("strikes", "barrier_range", "barriers_range", "strike_range"):
+        value = contract.get(key)
+        if isinstance(value, Mapping):
+            iterable = value.values()
+        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+            iterable = value
+        else:
+            continue
+        for item in iterable:
+            numeric = _safe_float(item)
+            if numeric is not None:
+                values.append(numeric)
+    return list(dict.fromkeys(values))
+
+
+def _contract_costs(contract: Mapping[str, Any]) -> dict[str, float | None]:
+    yes_cost = _safe_float(
+        contract.get("yes_cost")
+        or contract.get("yes_price")
+        or contract.get("yes")
+        or contract.get("ask_price")
+        or contract.get("buy_price")
+        or contract.get("display_value")
+    )
+    no_cost = _safe_float(
+        contract.get("no_cost")
+        or contract.get("no_price")
+        or contract.get("no")
+        or contract.get("bid_price")
+        or contract.get("sell_price")
+    )
+    payout = _safe_float(contract.get("payout") or contract.get("max_payout") or contract.get("barrier_payout"))
+    return {"yes_cost": yes_cost, "no_cost": no_cost, "payout": payout}
+
+
+def _contract_bias(contract: Mapping[str, Any], fallback: str) -> str:
+    contract_type = str(contract.get("contract_type") or contract.get("type") or "").upper()
+    sentiment = str(contract.get("sentiment") or contract.get("direction") or "").lower()
+    if contract_type.startswith("CALL") or sentiment in {"up", "above", "yes", "bullish"}:
+        return SIGNAL_YES
+    if contract_type.startswith("PUT") or sentiment in {"down", "below", "no", "bearish"}:
+        return SIGNAL_NO
+    return fallback
 
 
 def _normalize_option_input(option: StrikeOptionInput | Mapping[str, Any] | None, kwargs: dict[str, Any]) -> StrikeOptionInput:
@@ -470,6 +539,178 @@ def analyze_strike_option(
         warning_flags=warning_flags,
         deriv_contract=deriv_contract,
         indicators=indicators,
+    )
+
+
+def compare_deriv_strike_contracts(
+    *,
+    asset: str,
+    current_price: float,
+    contracts: Sequence[Mapping[str, Any]],
+    time_remaining_seconds: int,
+    expiration_label: str,
+    candles: Sequence[Mapping[str, Any]] = (),
+    target_price: float | None = None,
+    preferred_signal: str | None = None,
+    stake: float = 1.0,
+    timestamp: str | None = None,
+    log_path: str | Path | None = None,
+) -> StrikeContractComparison:
+    """Rank Deriv-style strike contracts and select the best actionable one.
+
+    The function evaluates every visible strike with the same signal engine used
+    by the UI. It does not trade and it refuses to mark a "best" contract when
+    data is missing, the payout has no edge, or signals are mixed.
+    """
+    now = timestamp or datetime.now(timezone.utc).isoformat()
+    normalized_preference = str(preferred_signal or "").upper()
+    ranked: list[dict[str, Any]] = []
+    has_live_costs = False
+
+    for index, contract in enumerate(contracts or []):
+        if not isinstance(contract, Mapping):
+            continue
+        strikes = _candidate_strikes_from_contract(contract)
+        costs = _contract_costs(contract)
+        if costs.get("yes_cost") is not None or costs.get("no_cost") is not None:
+            has_live_costs = True
+        if not strikes and target_price is not None:
+            strikes = [target_price]
+        for strike in strikes:
+            signal = analyze_strike_option(
+                asset=asset,
+                current_price=current_price,
+                strike=strike,
+                time_remaining_seconds=time_remaining_seconds,
+                expiration_label=expiration_label,
+                candles=candles,
+                yes_cost=costs.get("yes_cost"),
+                no_cost=costs.get("no_cost"),
+                payout=costs.get("payout"),
+                stake=stake,
+                timestamp=now,
+            )
+            signal_dict = signal.to_dict()
+            decision = signal.signal
+            bias = _contract_bias(contract, decision)
+            if decision == SIGNAL_NO_TRADE:
+                action_bonus = -24.0
+            else:
+                action_bonus = 12.0
+            if normalized_preference in {SIGNAL_YES, SIGNAL_NO} and decision == normalized_preference:
+                action_bonus += 8.0
+            if bias in {SIGNAL_YES, SIGNAL_NO} and decision in {SIGNAL_YES, SIGNAL_NO} and bias != decision:
+                action_bonus -= 18.0
+
+            distance_basis = target_price if target_price is not None else current_price
+            distance = abs(strike - distance_basis)
+            distance_pct = distance / max(abs(distance_basis), 1.0)
+            distance_score = max(0.0, 14.0 - (distance_pct * 9000.0))
+            edge = signal.edge if signal.edge is not None else 0.0
+            edge_score = _clamp(edge * 120.0, -18.0, 22.0)
+            risk_reward = signal.risk_reward or 0.0
+            rr_score = _clamp((risk_reward - 0.65) * 18.0, -10.0, 12.0) if signal.risk_reward is not None else 0.0
+            warning_penalty = min(18.0, len(signal.warning_flags) * 4.0)
+            score = _clamp(signal.confidence + action_bonus + distance_score + edge_score + rr_score - warning_penalty, 0.0, 100.0)
+            ranked.append(
+                {
+                    "rank": 0,
+                    "contract_index": index,
+                    "contract": dict(contract),
+                    "asset": signal.asset,
+                    "strike": signal.strike,
+                    "side": decision,
+                    "contract_bias": bias,
+                    "score": round(score, 4),
+                    "confidence": signal.confidence,
+                    "probability_roxy": signal.probability_roxy,
+                    "edge": signal.edge,
+                    "risk_reward": signal.risk_reward,
+                    "color": signal.color,
+                    "risk": signal.risk,
+                    "recommended_entry": signal.recommended_entry,
+                    "reasons": signal.reasons,
+                    "warning_flags": signal.warning_flags,
+                    "roxy_signal": signal_dict,
+                }
+            )
+
+    ranked.sort(key=lambda row: (_safe_float(row.get("score"), 0.0) or 0.0), reverse=True)
+    for index, row in enumerate(ranked, start=1):
+        row["rank"] = index
+
+    if not ranked:
+        return StrikeContractComparison(
+            timestamp=now,
+            asset=asset.upper(),
+            expiration=expiration_label,
+            status="not_ready",
+            signal=SIGNAL_NO_TRADE,
+            color=COLOR_RED,
+            confidence=0,
+            best_contract=None,
+            contracts_ranked=[],
+            reason="No hay contratos/strikes reales para comparar.",
+            data_quality="missing_contracts",
+        )
+
+    best = ranked[0]
+    best_signal = best.get("roxy_signal") if isinstance(best.get("roxy_signal"), Mapping) else {}
+    best_side = str(best.get("side") or SIGNAL_NO_TRADE)
+    best_score = _safe_float(best.get("score"), 0.0) or 0.0
+    best_confidence = int(_safe_float(best.get("confidence"), 0.0) or 0)
+    best_edge = _safe_float(best.get("edge"))
+    data_quality = "live_costs" if has_live_costs else "missing_costs_estimated"
+    actionable = (
+        best_side in {SIGNAL_YES, SIGNAL_NO}
+        and best_score >= 68
+        and best_confidence >= 64
+        and (best_edge is None or best_edge >= 0.03)
+        and not (time_remaining_seconds < 60 and best_confidence < 88)
+        and data_quality == "live_costs"
+    )
+
+    if actionable:
+        comparison = StrikeContractComparison(
+            timestamp=now,
+            asset=asset.upper(),
+            expiration=expiration_label,
+            status="ready",
+            signal=best_side,
+            color=str(best.get("color") or COLOR_GREEN),
+            confidence=best_confidence,
+            best_contract=best,
+            contracts_ranked=ranked,
+            reason=f"Roxy comparo {len(ranked)} strikes y encontro mayor edge/riesgo en {best_side} {best.get('strike')}.",
+            data_quality=data_quality,
+        )
+        if log_path is not None and isinstance(best_signal, Mapping):
+            log_strike_signal(StrikeOptionSignal(**best_signal), log_path)
+        return comparison
+
+    reason_parts = []
+    if data_quality != "live_costs":
+        reason_parts.append("faltan costos/payout reales")
+    if best_side == SIGNAL_NO_TRADE:
+        reason_parts.append("la mejor opcion sigue siendo NO TRADE")
+    if best_score < 68 or best_confidence < 64:
+        reason_parts.append("score o confianza insuficiente")
+    if best_edge is not None and best_edge < 0.03:
+        reason_parts.append("edge insuficiente")
+    if time_remaining_seconds < 60 and best_confidence < 88:
+        reason_parts.append("queda muy poco tiempo")
+    return StrikeContractComparison(
+        timestamp=now,
+        asset=asset.upper(),
+        expiration=expiration_label,
+        status="blocked",
+        signal=SIGNAL_NO_TRADE,
+        color=COLOR_YELLOW,
+        confidence=best_confidence,
+        best_contract=best,
+        contracts_ranked=ranked,
+        reason="; ".join(reason_parts) or "Roxy no encontro ventaja suficiente.",
+        data_quality=data_quality,
     )
 
 
