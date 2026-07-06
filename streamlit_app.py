@@ -36536,6 +36536,13 @@ def render_roxy_stock_live_runtime() -> None:
             symbols.forEach((symbol) => {
               setStatus(symbol, `Bridge stock no disponible · ${detail} · servidor verificando`, "watch");
               setQuoteMode(symbol, "BRIDGE CAIDO", `${symbol}: ${detail}`);
+              (nodesBySymbol("[data-roxy-stock-live-price]").get(symbol) || []).forEach((node) => {
+                node.dataset.roxySource = `Bridge stock no disponible · ${detail}`;
+                node.dataset.roxyFreshness = "bridge degradado";
+                node.dataset.roxyMarketOpen = "";
+                node.dataset.roxyUpdatedAt = new Date().toLocaleTimeString();
+                node.title = `${symbol}: bridge stock no disponible; se conserva el ultimo precio real disponible.`;
+              });
               doc.querySelectorAll("[data-roxy-stock-tick-arrow]").forEach((node) => {
                 const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
                 if (statusSymbol && statusSymbol !== symbol) return;
@@ -36576,10 +36583,20 @@ def render_roxy_stock_live_runtime() -> None:
               : Number.isFinite(previous) && previous > 0
                 ? (price - previous) / previous
                 : null;
+            const stamp = quote.updatedAt || new Date().toLocaleTimeString();
+            const source = quote.source || "stream";
+            const rawFreshness = quote.freshness || "";
+            const marketOpenText = quote.marketOpen === true ? "true" : quote.marketOpen === false ? "false" : "";
             let firstDirection = 0;
             let directionSet = false;
             (nodesBySymbol("[data-roxy-stock-live-price]").get(symbol) || []).forEach((node) => {
               node.dataset.roxyServerPrice = String(price);
+              node.dataset.roxyPrice = String(price);
+              node.dataset.roxySource = source;
+              node.dataset.roxyFreshness = rawFreshness;
+              node.dataset.roxyMarketOpen = marketOpenText;
+              node.dataset.roxyUpdatedAt = stamp;
+              node.dataset.roxyRefreshCount = String(Number(node.dataset.roxyRefreshCount || 0) + 1);
               const direction = setTone(node, price);
               if (!directionSet) {
                 firstDirection = direction;
@@ -36591,9 +36608,7 @@ def render_roxy_stock_live_runtime() -> None:
               node.classList.remove("tick-up", "tick-down");
               if (Number.isFinite(pct)) node.classList.add(pct >= 0 ? "tick-up" : "tick-down");
             });
-            const stamp = quote.updatedAt || new Date().toLocaleTimeString();
-            const source = quote.source || "stream";
-            const freshness = quote.freshness ? ` · ${quote.freshness}` : "";
+            const freshness = rawFreshness ? ` · ${rawFreshness}` : "";
             const sessionText = quote.marketOpen === false ? " · mercado cerrado" : quote.marketOpen === true ? " · mercado abierto" : "";
             const modeLabel = quote.mode === "stream" ? "Stream real"
               : quote.mode === "snapshot" ? "Snapshot real"
@@ -39172,6 +39187,8 @@ def render_roxy_actions_pro_chart_panel(
       .rpc-head aside.rpc-flash-up{color:#22c55e;filter:drop-shadow(0 0 14px rgba(34,197,94,.62));animation:rpcPriceFlashUp .52s ease-out 1}
       .rpc-head aside.rpc-flash-down{color:#fb7185;filter:drop-shadow(0 0 14px rgba(251,113,133,.50));animation:rpcPriceFlashDown .52s ease-out 1}
       .rpc-head aside.rpc-flash-flat{filter:drop-shadow(0 0 12px rgba(56,189,248,.46));animation:rpcPriceFlashFlat .52s ease-out 1}
+      .rpc-head aside.rpc-closed{color:#facc15;text-shadow:0 0 18px rgba(250,204,21,.34)}
+      .rpc-head aside.rpc-degraded{color:#fb7185;text-shadow:0 0 18px rgba(251,113,133,.34)}
       .rpc-toolbar{display:flex;align-items:center;gap:7px;padding:6px 10px;border-bottom:1px solid rgba(96,165,250,.14);overflow-x:auto;white-space:nowrap}
       .rpc-toolbar button{border:1px solid rgba(96,165,250,.34);border-radius:9px;background:rgba(15,23,42,.86);color:#dbeafe;font-size:11px;font-weight:900;padding:6px 9px;cursor:pointer}
       .rpc-toolbar button.active,.rpc-toolbar button:hover{background:#2563eb;color:#fff;border-color:#60a5fa;box-shadow:0 0 18px rgba(37,99,235,.36)}
@@ -39212,6 +39229,9 @@ def render_roxy_actions_pro_chart_panel(
       .rpc-statusbar.rpc-near-entry{border-color:rgba(34,197,94,.42);box-shadow:0 0 24px rgba(34,197,94,.16)}
       .rpc-statusbar.rpc-danger{border-color:rgba(248,113,113,.46);box-shadow:0 0 24px rgba(248,113,113,.14)}
       .rpc-statusbar.rpc-closed{border-color:rgba(250,204,21,.36);box-shadow:0 0 24px rgba(250,204,21,.10)}
+      .rpc-statusbar.rpc-degraded{border-color:rgba(248,113,113,.42);box-shadow:0 0 24px rgba(248,113,113,.12)}
+      .rpc-statusbar.rpc-closed .rpc-dot{background:#facc15;box-shadow:0 0 12px rgba(250,204,21,.9)}
+      .rpc-statusbar.rpc-degraded .rpc-dot{background:#fb7185;box-shadow:0 0 12px rgba(251,113,133,.9)}
 	      .rpc-legend{display:flex;gap:9px;align-items:center;overflow-x:auto;padding:8px 10px 10px;border-top:1px solid rgba(96,165,250,.14);white-space:nowrap}
       .rpc-legend b{display:inline-flex;align-items:center;gap:5px;color:#bfd7ff;font-size:10px;font-weight:900}
       .rpc-legend i{display:block;width:18px;height:3px;border-radius:99px;box-shadow:0 0 10px currentColor}
@@ -39270,14 +39290,17 @@ def render_roxy_actions_pro_chart_panel(
         return Number.isFinite(p) && Number.isFinite(b) && b > 0 ? (p - b) / b : 0;
       };
       let displayedLastPrice = null;
-      const setLastBadge = (price, base, source = "historial") => {
+      const setLastBadge = (price, base, source = "historial", options = {}) => {
         const move = pct(price, base);
         const previousDisplayed = Number(displayedLastPrice);
         const tickMove = Number.isFinite(previousDisplayed) ? Number(price) - previousDisplayed : 0;
         displayedLastPrice = Number(price);
-        lastEl.innerHTML = `${fmt(price)}<small>${move >= 0 ? "+" : ""}${(move * 100).toFixed(2)}% · ${source}</small>`;
-        lastEl.style.color = move >= 0 ? "#22c55e" : "#fb7185";
-        lastEl.classList.remove("rpc-flash-up", "rpc-flash-down", "rpc-flash-flat");
+        const badge = options.degraded ? "BRIDGE CAIDO" : options.closed ? "LAST" : options.live ? "LIVE" : "QUOTE";
+        lastEl.innerHTML = `${badge} ${fmt(price)}<small>${move >= 0 ? "+" : ""}${(move * 100).toFixed(2)}% · ${source}</small>`;
+        lastEl.style.color = options.degraded ? "#fb7185" : options.closed ? "#facc15" : move >= 0 ? "#22c55e" : "#fb7185";
+        lastEl.classList.remove("rpc-flash-up", "rpc-flash-down", "rpc-flash-flat", "rpc-closed", "rpc-degraded");
+        if (options.closed) lastEl.classList.add("rpc-closed");
+        if (options.degraded) lastEl.classList.add("rpc-degraded");
         void lastEl.offsetWidth;
         lastEl.classList.add(tickMove > 0 ? "rpc-flash-up" : tickMove < 0 ? "rpc-flash-down" : "rpc-flash-flat");
       };
@@ -39406,7 +39429,7 @@ def render_roxy_actions_pro_chart_panel(
       const previous = candles.length > 1 ? candles[candles.length - 2] : latest;
       titleEl.textContent = `${payload.symbol} · ${payload.timeframe} · ${payload.panelLabel}`;
       subtitleEl.textContent = "Velas reales · EMA 9/21 · AVG 20/40 · Bollinger · Volumen · Plan Roxy";
-      setLastBadge(latest.close, previous.close, "historial");
+      setLastBadge(latest.close, previous.close, "historial", { live: false });
       renderTradebar(latest.close, "historial");
       renderReading(latest.close, "historial");
       const chart = LightweightCharts.createChart(chartEl, {
@@ -39663,15 +39686,17 @@ def render_roxy_actions_pro_chart_panel(
           low: Math.min(Number(liveCandle.low || price), price)
         };
 	        candleSeries.update(liveCandle);
+		        const sourceText = String(quote.source || "");
+		        const isDegraded = sourceText.toLowerCase().includes("bridge stock no disponible") || sourceText.toLowerCase().includes("bridge caido") || sourceText.toLowerCase().includes("bridge caído");
 		        const isClosed = quote.marketOpen === false || (quote.state && !["REGULAR", "PRE", "POST"].includes(String(quote.state).toUpperCase()));
 		        const liveTitle = isClosed ? `LAST ${fmt(price)}` : `LIVE ${fmt(price)}`;
 		        liveLine.applyOptions({
 		          price,
-		          color: price >= previous.close ? "#22c55e" : "#fb7185",
+		          color: isDegraded ? "#fb7185" : isClosed ? "#facc15" : price >= previous.close ? "#22c55e" : "#fb7185",
 		          title: liveTitle,
 		        });
-		        const feedLabel = isClosed ? `${quote.source} · ultimo precio` : quote.source;
-		        setLastBadge(price, previous.close, feedLabel);
+		        const feedLabel = isDegraded ? "bridge caido · ultimo real conservado" : isClosed ? `${quote.source} · ultimo precio real` : quote.source;
+		        setLastBadge(price, previous.close, feedLabel, { live: !isClosed && !isDegraded, closed: isClosed, degraded: isDegraded });
 		        renderTradebar(price, feedLabel);
 		        renderReading(price, feedLabel);
 	        applySmartScale(price);
@@ -39686,7 +39711,18 @@ def render_roxy_actions_pro_chart_panel(
 	          statusEl.classList.toggle("rpc-near-entry", nearEntry);
 	          statusEl.classList.toggle("rpc-danger", nearStop);
 	          statusEl.classList.toggle("rpc-closed", Boolean(isClosed));
-		          statusEl.innerHTML = `<span><span class="rpc-dot"></span><b>${isClosed ? "Ultimo precio:" : "Live:"}</b> ${quote.source}${stateText} · ${quote.updatedAt || new Date().toLocaleTimeString()}</span><em>${nearEntry ? "Precio entrando en zona de entrada Roxy." : nearStop ? "Atencion: precio cerca del stop." : "Precio sincronizado sobre la vela actual sin salir de la pagina."}</em>`;
+	          statusEl.classList.toggle("rpc-degraded", Boolean(isDegraded));
+	          const feedStatus = isDegraded ? "Bridge stock caido" : isClosed ? "Ultimo precio real" : "Live real";
+	          const feedExplain = isDegraded
+	            ? "Roxy conserva la ultima vela/precio real y no simula movimiento hasta que vuelva el bridge."
+	            : isClosed
+	              ? "Mercado cerrado: Roxy no simula ticks; el movimiento live vuelve cuando abra la sesion."
+	              : nearEntry
+	                ? "Precio entrando en zona de entrada Roxy."
+	                : nearStop
+	                  ? "Atencion: precio cerca del stop."
+	                  : "Precio sincronizado sobre la vela actual sin salir de la pagina.";
+		          statusEl.innerHTML = `<span><span class="rpc-dot"></span><b>${feedStatus}:</b> ${quote.source}${stateText} · ${quote.updatedAt || new Date().toLocaleTimeString()}</span><em>${feedExplain}</em>`;
 		        }
       };
       syncLiveQuote();

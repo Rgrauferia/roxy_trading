@@ -213,6 +213,11 @@ def test_stock_live_runtime_can_consume_secure_stream_bridge():
     assert "fetchBridgeSnapshot" in runtime_source
     assert "Snapshot real" in runtime_source
     assert "data-roxy-stock-live-price" in runtime_source
+    assert "node.dataset.roxySource = source" in runtime_source
+    assert "node.dataset.roxyMarketOpen = marketOpenText" in runtime_source
+    assert "node.dataset.roxyFreshness = rawFreshness" in runtime_source
+    assert "node.dataset.roxyRefreshCount" in runtime_source
+    assert "Bridge stock no disponible · ${detail}" in runtime_source
     assert "Stream real" in runtime_source
     assert "markBridgeDegraded" in runtime_source
     assert "Bridge stock no disponible" in runtime_source
@@ -293,6 +298,12 @@ def test_professional_actions_chart_syncs_from_parent_live_stock_quote():
     assert "applySmartScale(price)" in pro_panel
     assert "payload.displayRange" in pro_panel
     assert "rpc-closed" in pro_panel
+    assert "rpc-degraded" in pro_panel
+    assert "Bridge stock caido" in pro_panel
+    assert "Roxy conserva la ultima vela/precio real y no simula movimiento" in pro_panel
+    assert "Mercado cerrado: Roxy no simula ticks" in pro_panel
+    assert "lastEl.classList.add(\"rpc-closed\")" in pro_panel
+    assert "lastEl.classList.add(\"rpc-degraded\")" in pro_panel
     assert "Precio sincronizado sobre la vela actual sin salir de la pagina" in pro_panel
 
 
