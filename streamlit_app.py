@@ -3751,6 +3751,143 @@ def roxy_elevenlabs_page_context() -> dict[str, Any]:
     }
 
 
+def _roxy_voice_field(value: Any, default: str = "-") -> str:
+    text = text_display(value)
+    if text in {"", "None", "nan"}:
+        return default
+    return text
+
+
+def _roxy_voice_price(value: Any) -> str:
+    number = safe_float(value)
+    if number is None:
+        return "-"
+    if abs(number) >= 100:
+        return f"{number:,.2f}"
+    if abs(number) >= 1:
+        return f"{number:,.4f}"
+    return f"{number:,.6f}"
+
+
+def _roxy_voice_opportunity_summary(row: dict[str, Any], index: int) -> str:
+    symbol = _roxy_voice_field(row.get("symbol")).upper()
+    market = _roxy_voice_field(row.get("market"))
+    action = _roxy_voice_field(row.get("action") or row.get("signal") or row.get("decision"), "VIGILAR")
+    decision = _roxy_voice_field(row.get("decision") or row.get("trade_decision"), action)
+    price = _roxy_voice_price(
+        row.get("current_price") or row.get("price") or row.get("latest_price") or row.get("entry")
+    )
+    entry = _roxy_voice_price(row.get("entry"))
+    stop = _roxy_voice_price(row.get("stop") or row.get("stop_loss"))
+    target = _roxy_voice_price(row.get("target_price") or row.get("take_profit") or row.get("target"))
+    confidence = _roxy_voice_field(row.get("readiness") or row.get("ai_score") or row.get("confidence"))
+    reason = _roxy_voice_field(row.get("por_que") or row.get("reason") or row.get("raw_reason"))
+    waiting_for = _roxy_voice_field(row.get("waiting_for") or row.get("cambia_si"))
+    return (
+        f"{index}. {symbol} ({market}) | decision: {decision} | accion: {action} | "
+        f"precio: {price} | entrada: {entry} | stop: {stop} | target: {target} | "
+        f"confianza/checklist: {confidence} | razon: {reason} | siguiente condicion: {waiting_for}"
+    )[:760]
+
+
+def roxy_voice_trading_context(page_context: dict[str, Any]) -> dict[str, Any]:
+    """Build a safe, compact trading brain snapshot for the voice agent."""
+    module = _roxy_voice_field(page_context.get("module"), "home").lower()
+    active_symbol = _roxy_voice_field(page_context.get("symbol"), "AAPL").upper()
+    active_market = _roxy_voice_field(page_context.get("market"), "stock")
+    brief = read_summary_json("alerts/roxy_ai_brief.json")
+    opportunities: list[dict[str, Any]] = []
+    source = "alerts/roxy_ai_brief.json"
+    try:
+        table = focused_opportunity_table(brief)
+        if isinstance(table, pd.DataFrame) and not table.empty:
+            records = table.to_dict("records")
+            if "crypto" in module or active_market == "crypto":
+                crypto_rows = [row for row in records if normalize_command_market(row.get("market"), row.get("symbol")) == "crypto"]
+                other_rows = [row for row in records if row not in crypto_rows]
+                records = crypto_rows + other_rows
+            elif "acciones" in module or active_market == "stock":
+                stock_rows = [row for row in records if normalize_command_market(row.get("market"), row.get("symbol")) == "stock"]
+                other_rows = [row for row in records if row not in stock_rows]
+                records = stock_rows + other_rows
+            active_rows = [row for row in records if _roxy_voice_field(row.get("symbol")).upper() == active_symbol]
+            remaining = [row for row in records if _roxy_voice_field(row.get("symbol")).upper() != active_symbol]
+            opportunities = (active_rows + remaining)[:6]
+    except Exception as exc:
+        source = f"brief no disponible: {type(exc).__name__}"
+
+    opportunity_lines = [
+        _roxy_voice_opportunity_summary(row, index)
+        for index, row in enumerate(opportunities, start=1)
+    ]
+    if not opportunity_lines:
+        opportunity_lines = [
+            (
+                "No hay oportunidades cargadas en el brief operativo de esta pantalla. "
+                "Si el usuario pide oportunidades, explica que debe abrir la carpeta correspondiente "
+                "o refrescar el scanner live antes de tomar decisiones."
+            )
+        ]
+
+    module_guides = {
+        "home": "Dashboard principal: resume estado del mercado, grafica principal, eventos y accesos a carpetas.",
+        "acciones-operar": "Carpeta Acciones: oportunidades de acciones, entrada, stop, target, riesgo y graficas operativas.",
+        "crypto-20m": "Carpeta Crypto 20min: senales cortas tipo YES/NO o paper arriba/abajo con temporizador.",
+        "crypto-2h": "Carpeta Crypto 2H: oportunidades de confirmacion media, tendencia y gestion de riesgo.",
+        "crypto-daily": "Carpeta Crypto Daily: analisis macro diario, niveles clave y eventos importantes.",
+        "classroom": "Classroom: ensenar paso a paso, responder como profesora y adaptar la explicacion al nivel del usuario.",
+    }
+    module_help = module_guides.get(module, module_guides.get(module.replace("_", "-"), "Modulo activo de Roxy Trading."))
+    return {
+        "mission": (
+            "Eres Roxy Trading dentro de la plataforma Roxy Trading. No eres asistente de taxes, notaria, DMV, "
+            "insurance ni accounting en esta sesion. Tu trabajo es guiar al usuario en trading, classroom, "
+            "graficas, watchlist, oportunidades, riesgo y uso de la plataforma."
+        ),
+        "module_help": module_help,
+        "source": source,
+        "active_symbol": active_symbol,
+        "active_market": active_market,
+        "opportunities": opportunity_lines,
+        "opportunities_text": "\n".join(opportunity_lines),
+        "guardrails": (
+            "No garantices ganancias. No digas que una operacion es segura. No ejecutes trades reales. "
+            "Da planes para paper/manual con entrada, stop, target, riesgo, razon y condicion de invalidez cuando existan datos."
+        ),
+    }
+
+
+def roxy_voice_session_brief(
+    *,
+    user_name: str,
+    user_profile: dict[str, Any],
+    page_context: dict[str, Any],
+    voice_context: dict[str, Any],
+) -> str:
+    preferred_markets = _roxy_voice_field(user_profile.get("preferred_markets"), "acciones y crypto")
+    watchlist = _roxy_voice_field(user_profile.get("watchlist"), "sin watchlist cargada")
+    return (
+        "INSTRUCCION INTERNA DE SESION PARA ROXY TRADING.\n"
+        f"Usuario: {user_name}.\n"
+        f"Idioma preferido: {_roxy_voice_field(user_profile.get('preferred_language'), 'es')}.\n"
+        f"Nivel: {_roxy_voice_field(user_profile.get('trading_level'), 'principiante')}.\n"
+        f"Riesgo: {_roxy_voice_field(user_profile.get('risk_tolerance'), 'conservador')}.\n"
+        f"Mercados preferidos: {preferred_markets}. Watchlist: {watchlist}.\n"
+        f"Pagina visible: {_roxy_voice_field(page_context.get('page'))}. "
+        f"Modulo/carpeta visible: {_roxy_voice_field(page_context.get('module'))}. "
+        f"Activo visible: {_roxy_voice_field(page_context.get('symbol'))} "
+        f"{_roxy_voice_field(page_context.get('timeframe'))}.\n"
+        f"Mision obligatoria: {voice_context['mission']}\n"
+        f"Contexto del modulo: {voice_context['module_help']}\n"
+        f"Mejores oportunidades visibles o cargadas:\n{voice_context['opportunities_text']}\n"
+        f"Reglas de riesgo: {voice_context['guardrails']}\n"
+        "Cuando el usuario pregunte por mejores oportunidades, responde usando la lista anterior y aclara si hay que esperar confirmacion. "
+        "Si pregunta como usar una carpeta, guia paso a paso desde la pantalla actual. "
+        "Si el usuario pregunta por taxes, notaria u otro servicio externo, dile brevemente que ahora estas en modo Roxy Trading y vuelve a la plataforma. "
+        "Saluda en una frase corta y espera la pregunta del usuario."
+    )[:5200]
+
+
 def roxy_os_user_id() -> str:
     profile = st.session_state.get("roxy_user_profile")
     raw_user = ""
@@ -3934,6 +4071,13 @@ def render_roxy_elevenlabs_assistant() -> None:
     user_profile = roxy_elevenlabs_user_profile()
     page_context = roxy_elevenlabs_page_context()
     personalization = build_roxy_personalization(user_profile, page_context)
+    voice_context = roxy_voice_trading_context(page_context)
+    session_brief = roxy_voice_session_brief(
+        user_name=personalization["assistant_rules"]["display_name"],
+        user_profile=user_profile,
+        page_context=page_context,
+        voice_context=voice_context,
+    )
     avatar_html = roxy_avatar_html("speaking", "icon", "Roxy Trading")
     public_error = str(session_payload.get("error") or "").replace("API_KEY", "secure key").replace("ELEVENLABS_", "ElevenLabs ")
     payload = {
@@ -3962,8 +4106,17 @@ def render_roxy_elevenlabs_assistant() -> None:
             "current_symbol": page_context.get("symbol", ""),
             "current_market": page_context.get("market", ""),
             "current_timeframe": page_context.get("timeframe", ""),
+            "roxy_mode": "Roxy Trading platform copilot",
+            "roxy_mission": voice_context["mission"],
+            "roxy_platform_context": voice_context["module_help"],
+            "roxy_current_opportunities": voice_context["opportunities_text"],
+            "roxy_active_asset": voice_context["active_symbol"],
+            "roxy_active_market": voice_context["active_market"],
+            "roxy_guardrails": voice_context["guardrails"],
         },
         "assistantRules": personalization["assistant_rules"],
+        "tradingVoiceContext": voice_context,
+        "sessionBrief": session_brief,
         "avatarHtml": avatar_html,
     }
     voice_payload = dict(payload)
@@ -4327,7 +4480,7 @@ def render_roxy_elevenlabs_assistant() -> None:
       }}
       widget.setAttribute("dynamic-variables", JSON.stringify(payload.dynamicVariables || {{}}));
       widget.setAttribute("override-language", payload.language || "es");
-      widget.setAttribute("override-first-message", `Hola ${{payload.userName || "Trader"}}, soy Roxy. Estoy lista para ayudarte con ${{payload.pageContext.module || payload.pageContext.page || "la plataforma"}} sin prometer ganancias y cuidando siempre tu riesgo.`);
+      widget.setAttribute("override-first-message", `Hola ${{payload.userName || "Trader"}}, soy Roxy Trading. Estoy viendo ${{payload.pageContext.module || payload.pageContext.page || "la plataforma"}} y puedo ayudarte con oportunidades, graficas, classroom y riesgo.`);
       widget.setAttribute("variant", "expanded");
       widget.setAttribute("action-text", "Hablar con Roxy");
       widget.setAttribute("start-call-text", "Hablar con Roxy");
@@ -4555,7 +4708,7 @@ def render_roxy_elevenlabs_assistant() -> None:
               const options = {{
                 dynamicVariables: payload.dynamicVariables || {{}},
                 clientTools: {{}},
-                onConnect: function() {{ setStatus("Roxy activa. Te escucho.", false); }},
+                onConnect: function() {{ setStatus("Roxy activa. Haz tu pregunta.", false); }},
                 onDisconnect: function() {{
                   conversation = null;
                   setStatus("Toca Roxy para hablar", false);
@@ -4569,7 +4722,7 @@ def render_roxy_elevenlabs_assistant() -> None:
               else options.agentId = payload.agentId;
               conversation = await Conversation.startSession(options);
               if (conversation && typeof conversation.sendUserMessage === "function") {{
-                conversation.sendUserMessage("Hola Roxy. Soy " + (payload.userName || "Trader") + ". Activaste por voz en " + (payload.pageContext.module || payload.pageContext.page || "Roxy Trading") + ".");
+                conversation.sendUserMessage(payload.sessionBrief || ("Hola Roxy. Soy " + (payload.userName || "Trader") + ". Estas dentro de Roxy Trading, en " + (payload.pageContext.module || payload.pageContext.page || "la plataforma") + ". Responde solo sobre trading, classroom, graficas, oportunidades y riesgo."));
               }}
             }} catch (error) {{
               const spoke = speakBrowserFallback("Hola " + (payload.userName || "Trader") + ". Soy Roxy. ElevenLabs no conecto todavia, pero esta voz temporal confirma que el audio funciona.");
@@ -4888,10 +5041,10 @@ def render_roxy_elevenlabs_assistant() -> None:
         }}
         const micReady = await requestMicrophone();
         if (!micReady) return;
-        if (conversation) {{
-          setWakeStatus("Roxy ya esta activa y escuchando", false);
-          return;
-        }}
+          if (conversation) {{
+            setWakeStatus("Roxy ya esta activa. Haz tu pregunta", false);
+            return;
+          }}
         setWakeStatus("Activando voz de Roxy...", false);
         try {{
           const eleven = await loadElevenLabsClient();
@@ -4900,7 +5053,7 @@ def render_roxy_elevenlabs_assistant() -> None:
           const startOptions = {{
             dynamicVariables: payload.dynamicVariables || {{}},
             clientTools: {{}},
-            onConnect: () => setWakeStatus("Roxy activa. Habla ahora.", false),
+            onConnect: () => setWakeStatus("Roxy activa. Haz tu pregunta.", false),
             onDisconnect: () => {{
               conversation = null;
               setWakeStatus("Di: Hola Roxy", false);
@@ -4917,7 +5070,7 @@ def render_roxy_elevenlabs_assistant() -> None:
           }}
           conversation = await Conversation.startSession(startOptions);
           if (conversation && typeof conversation.sendUserMessage === "function") {{
-            conversation.sendUserMessage(`Hola Roxy. Soy ${{payload.userName || "Trader"}}. Activate por voz y ayudame en ${{payload.pageContext.module || payload.pageContext.page || "Roxy Trading"}}.`);
+            conversation.sendUserMessage(payload.sessionBrief || `Hola Roxy. Soy ${{payload.userName || "Trader"}}. Estas dentro de Roxy Trading, en ${{payload.pageContext.module || payload.pageContext.page || "la plataforma"}}. Responde solo sobre trading, classroom, graficas, oportunidades y riesgo.`);
           }}
         }} catch (error) {{
           const spoke = speakBrowserFallback(`Hola ${{payload.userName || "Trader"}}. Soy Roxy. ElevenLabs no conecto todavia, pero esta voz temporal confirma que el audio funciona.`);

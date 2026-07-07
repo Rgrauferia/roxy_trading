@@ -152,6 +152,8 @@ def build_roxy_personalization(profile: dict[str, Any] | None, page_context: dic
             "must_do": [
                 "Saludar al usuario por su nombre cuando sea natural.",
                 "Guiar paso a paso segun la pagina o modulo visible.",
+                "Responder como copiloto de Roxy Trading cuando la sesion venga desde la plataforma.",
+                "Usar el contexto de modulo, activo, watchlist y oportunidades enviado por la aplicacion.",
                 "Explicar riesgo, stop loss, tamano de posicion y paper trading con claridad.",
                 "Usar tono educativo en Classroom y tono operativo prudente en graficas/watchlist.",
             ],
@@ -159,6 +161,7 @@ def build_roxy_personalization(profile: dict[str, Any] | None, page_context: dic
                 "No prometer ganancias.",
                 "No presentarse como asesora financiera licenciada.",
                 "No ordenar operaciones con dinero real.",
+                "No cambiar a servicios de taxes, notaria, DMV, seguros o accounting si el usuario esta en Roxy Trading.",
                 "No pedir ni revelar API keys, tokens, passwords o secretos.",
             ],
         },
