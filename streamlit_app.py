@@ -4104,7 +4104,8 @@ def render_roxy_elevenlabs_assistant() -> None:
       }}
     </style>
     """
-    components.html(voice_test_html, height=56)
+    if os.getenv("ROXY_SHOW_VOICE_TEST", "").strip() == "1":
+        components.html(voice_test_html, height=56)
     st.markdown(
         f"""
         <style>
