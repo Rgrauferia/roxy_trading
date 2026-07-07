@@ -4374,12 +4374,12 @@ def render_roxy_elevenlabs_assistant() -> None:
       style.id = styleId;
       style.textContent = `
         .roxy-el-root{{position:fixed;right:18px;bottom:92px;z-index:2147482800;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eaf6ff;pointer-events:none}}
-        .roxy-el-wake{{pointer-events:auto;display:grid;grid-template-columns:46px minmax(0,1fr);gap:10px;align-items:center;min-width:min(300px,calc(100vw - 28px));border:1px solid rgba(56,189,248,.36);border-radius:18px;background:linear-gradient(135deg,rgba(2,6,23,.82),rgba(8,47,73,.72));box-shadow:0 18px 48px rgba(0,0,0,.42),0 0 28px rgba(14,165,233,.18);padding:9px 11px;backdrop-filter:blur(18px);cursor:pointer}}
+        .roxy-el-wake{{pointer-events:auto;display:grid;grid-template-columns:46px;gap:0;align-items:center;justify-items:center;width:66px;height:66px;border:1px solid rgba(56,189,248,.36);border-radius:999px;background:radial-gradient(circle at 35% 25%,rgba(56,189,248,.28),rgba(2,6,23,.86) 58%,rgba(30,41,59,.70));box-shadow:0 18px 48px rgba(0,0,0,.42),0 0 28px rgba(14,165,233,.18);padding:9px;backdrop-filter:blur(18px);cursor:pointer}}
         .roxy-el-wake:before{{content:"";position:absolute;inset:-1px;border-radius:18px;background:linear-gradient(90deg,rgba(56,189,248,.0),rgba(56,189,248,.28),rgba(168,85,247,.0));opacity:.45;pointer-events:none;animation:roxyElGlow 3.8s ease-in-out infinite}}
         .roxy-el-avatar{{position:relative;z-index:2;width:52px;height:52px;border-radius:50%;overflow:hidden;border:1px solid rgba(186,230,253,.7);box-shadow:0 0 22px rgba(34,211,238,.48)}}
         .roxy-el-avatar img{{width:100%;height:100%;object-fit:cover;display:block}}
         .roxy-el-wake .roxy-el-avatar{{width:46px;height:46px}}
-        .roxy-el-wake-copy{{position:relative;z-index:2;min-width:0}}
+        .roxy-el-wake-copy{{position:relative;z-index:2;min-width:0;display:none}}
         .roxy-el-wake-copy strong{{display:block;color:#f8fafc;font-size:13px;line-height:1.12;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
         .roxy-el-wake-copy span{{display:block;margin-top:4px;color:#93c5fd;font-size:10px;font-weight:900;line-height:1.2;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
         .roxy-el-listen-wave{{display:none;gap:2px;margin-top:6px;height:13px;align-items:end}}
@@ -4409,7 +4409,7 @@ def render_roxy_elevenlabs_assistant() -> None:
         @keyframes roxyElGlow{{0%,100%{{opacity:.20;transform:translateX(-18%)}}50%{{opacity:.78;transform:translateX(18%)}}}}
         @keyframes roxyElWave{{0%,100%{{height:4px;opacity:.5}}50%{{height:13px;opacity:1}}}}
         @keyframes roxyElRise{{from{{opacity:0;transform:translateY(10px) scale(.98)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
-        @media(max-width:640px){{.roxy-el-root{{right:14px;bottom:86px}}.roxy-el-wake{{min-width:min(260px,calc(100vw - 24px));grid-template-columns:40px minmax(0,1fr);padding:8px 10px}}.roxy-el-wake .roxy-el-avatar{{width:40px;height:40px}}.roxy-el-wake-copy strong{{font-size:12px}}.roxy-el-wake-copy span{{font-size:9px}}.roxy-el-panel{{bottom:72px;width:calc(100vw - 24px)}}}}
+        @media(max-width:640px){{.roxy-el-root{{right:14px;bottom:86px}}.roxy-el-wake{{width:58px;height:58px;grid-template-columns:40px;padding:8px}}.roxy-el-wake .roxy-el-avatar{{width:40px;height:40px}}.roxy-el-panel{{bottom:72px;width:calc(100vw - 24px)}}}}
       `;
       parentDoc.head.appendChild(style);
       const existingScript = parentDoc.getElementById(scriptId);
@@ -4452,8 +4452,8 @@ def render_roxy_elevenlabs_assistant() -> None:
               <span>${{payload.pageContext.symbol || ""}} ${{payload.pageContext.timeframe || ""}}</span>
             </div>
             <div class="roxy-el-risk">Roxy puede educar, explicar y guiar. No garantiza ganancias ni sustituye asesoria financiera licenciada. Practica en paper trading y respeta riesgo, stop loss y tamano de posicion.</div>
-            <div class="roxy-el-status ${{(!payload.agentId && payload.error) ? "roxy-el-status-error" : ""}}">${{payload.conversationToken || payload.signedUrl ? "Di Hola Roxy para activar la voz segura" : payload.agentId ? "Modo directo listo: toca la pantalla y di Hola Roxy" : payload.error ? ("Configurar voz: " + payload.error) : "Configura ElevenLabs en Render"}}</div>
-            <div class="roxy-el-msg"><b>Hola, ${{payload.userName || "Trader"}}.</b><br/>Estoy viendo ${{payload.pageContext.module || payload.pageContext.page || "Roxy Trading"}}. Cuando digas Hola Roxy, abro la conversacion de voz.</div>
+            <div class="roxy-el-status ${{(!payload.agentId && payload.error) ? "roxy-el-status-error" : ""}}">${{payload.conversationToken || payload.signedUrl || payload.agentId ? "Di Hola Roxy para activar la voz." : payload.error ? ("Configurar voz: " + payload.error) : "Configura ElevenLabs en Render"}}</div>
+            <div class="roxy-el-msg"><b>Hola, ${{payload.userName || "Trader"}}.</b><br/>Estoy viendo ${{payload.pageContext.module || payload.pageContext.page || "Roxy Trading"}}. Di Hola Roxy y abre la conversacion de voz.</div>
             <div class="roxy-el-widget-hint">${{payload.voiceMode === "agent_id_fallback" ? "Estoy intentando el agente directo porque la sesion segura no autentico. Para modo privado completo, revisa la API key del mismo workspace del agente y redeploy en Render." : "El navegador puede pedir permiso de microfono una vez. La clave segura de ElevenLabs nunca se envia al frontend."}}</div>
             <div class="roxy-el-widget-wrap">
               <div class="roxy-el-widget-mount"></div>
@@ -4464,8 +4464,8 @@ def render_roxy_elevenlabs_assistant() -> None:
           <span class="roxy-el-avatar">${{avatarMarkup}}</span>
           <span class="roxy-el-live-dot" aria-hidden="true"></span>
           <div class="roxy-el-wake-copy">
-            <strong>${{payload.agentId ? "Roxy lista" : "Roxy voz pendiente"}}</strong>
-            <span class="roxy-el-wake-status">${{payload.agentId ? "Toca para hablar" : "Configura ElevenLabs"}}</span>
+            <strong>${{payload.agentId ? "Roxy" : "Roxy"}}</strong>
+            <span class="roxy-el-wake-status"></span>
             <div class="roxy-el-listen-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
           </div>
         </div>
@@ -4561,7 +4561,7 @@ def render_roxy_elevenlabs_assistant() -> None:
               }};
               assignVoice();
               utterance.onstart = function() {{ setStatus("Roxy hablando con voz temporal", false); }};
-              utterance.onend = function() {{ setStatus("Di: Hola Roxy", false); }};
+              utterance.onend = function() {{ setStatus("Di Hola Roxy", false); }};
               utterance.onerror = function() {{ setStatus("No pude reproducir voz temporal", true); }};
               if (typeof synth.resume === "function") synth.resume();
               synth.speak(utterance);
@@ -4663,7 +4663,7 @@ def render_roxy_elevenlabs_assistant() -> None:
               stream.getTracks().forEach(function(track) {{ track.stop(); }});
               return true;
             }} catch (error) {{
-              setStatus("Permite el microfono y di Hola Roxy", true);
+              setStatus("Permite el microfono para activar Hola Roxy", true);
               return false;
             }}
           }}
@@ -4697,7 +4697,7 @@ def render_roxy_elevenlabs_assistant() -> None:
             }}
             if (!(await allowMic())) return;
             if (conversation) {{
-              setStatus("Roxy ya esta activa. Habla ahora.", false);
+              setStatus("Roxy activa. Haz tu pregunta.", false);
               return;
             }}
             setStatus("Activando voz real de Roxy...", false);
@@ -4711,10 +4711,10 @@ def render_roxy_elevenlabs_assistant() -> None:
                 onConnect: function() {{ setStatus("Roxy activa. Haz tu pregunta.", false); }},
                 onDisconnect: function() {{
                   conversation = null;
-                  setStatus("Toca Roxy para hablar", false);
+                  setStatus("Di Hola Roxy", false);
                 }},
                 onError: function() {{
-                  setStatus("Error de voz. Toca para intentar otra vez.", true);
+                  setStatus("Error de voz. Di Hola Roxy para intentar otra vez.", true);
                 }},
               }};
               if (payload.conversationToken) options.conversationToken = payload.conversationToken;
@@ -4776,11 +4776,11 @@ def render_roxy_elevenlabs_assistant() -> None:
               recognition.continuous = true;
               recognition.interimResults = true;
               recognition.maxAlternatives = 1;
-              recognition.onstart = function() {{ setStatus("Di: Hola Roxy", false); }};
+              recognition.onstart = function() {{ setStatus("Di Hola Roxy", false); }};
               recognition.onerror = function(event) {{
                 const code = event && event.error ? String(event.error) : "";
                 if (code === "not-allowed" || code === "service-not-allowed") {{
-                  setStatus("Toca la pantalla y acepta el microfono", true);
+                  setStatus("Acepta el microfono para activar Hola Roxy", true);
                   armMicPermissionRetry();
                 }} else {{
                   setStatus("Roxy escucha en pausa; reintentando", false);
@@ -4804,7 +4804,7 @@ def render_roxy_elevenlabs_assistant() -> None:
               }};
               recognition.start();
             }} catch (error) {{
-              setStatus("Toca la pagina una vez y di Hola Roxy", true);
+              setStatus("Activa el permiso del microfono y di Hola Roxy", true);
               const prime = function() {{
                 doc.removeEventListener("click", prime, true);
                 doc.removeEventListener("touchstart", prime, true);
@@ -4828,12 +4828,17 @@ def render_roxy_elevenlabs_assistant() -> None:
             return;
           }}
 
-          setStatus("Toca Roxy para hablar", false);
           win.__roxyWakeVoice = {{
             activate: activateRoxy,
             restart: restartWakeListener,
             stop: stopWakeListener,
           }};
+          setStatus("", false);
+          setTimeout(function() {{
+            try {{
+              startWakeListener();
+            }} catch (_) {{}}
+          }}, 900);
         }})();
       `;
       parentDoc.body.appendChild(parentWakeRuntime);
