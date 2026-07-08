@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,31 @@ from options_strategy import best_option_contract
 from daily_opportunity_plan import build_daily_opportunity_plan, daily_plan_text_lines
 from macro_calendar import apply_macro_context, macro_calendar_status
 from market_newsletter import newsletter_context
+try:
+    from roxy_decision_engine import process_opportunities_with_decisions
+except ModuleNotFoundError as exc:  # pragma: no cover - production deploy safety net
+    if exc.name not in {"roxy_decision_engine", "roxy_knowledge_brain"}:
+        raise
+
+    def process_opportunities_with_decisions(
+        opportunities: Any,
+        *,
+        enrich_knowledge: bool = True,
+    ) -> list[dict[str, Any]]:
+        return [dict(item) for item in opportunities or [] if isinstance(item, dict)]
+
+try:
+    from roxy_knowledge_brain import enrich_opportunities_with_knowledge
+except ModuleNotFoundError as exc:  # pragma: no cover - production deploy safety net
+    if exc.name != "roxy_knowledge_brain":
+        raise
+
+    def enrich_opportunities_with_knowledge(opportunities: Any, *, limit: int = 6) -> list[dict[str, Any]]:
+        return [dict(item) for item in opportunities or [] if isinstance(item, dict)]
+try:
+    from tools.external_market_sources import build_external_market_snapshot
+except Exception:  # pragma: no cover - optional external integrations.
+    build_external_market_snapshot = None  # type: ignore[assignment]
 from smart_alerts import evaluate_smart_alert
 from strategy_overrides import apply_strategy_overrides_to_rows, load_strategy_overrides
 from trade_brief import CORE_STRATEGIES, strategy_family_from_setup
@@ -51,6 +77,7 @@ PREFERRED_CRYPTO_RESCUE_SYMBOLS = (
     "AVAX/USD",
     "LTC/USD",
 )
+_EXTERNAL_MARKET_CACHE: dict[str, Any] = {"expires_at": 0.0, "rows": []}
 
 ALERT_GATE_LABELS = {
     "ALERT_READY": "Listo para operar manual",
@@ -1483,6 +1510,21 @@ def explain_opportunity(row: dict[str, Any], memory: dict[str, Any]) -> str:
     if rel_vol is not None:
         parts.append(f"Volumen relativo {rel_vol:.2f}x.")
     parts.append(profile["lesson"])
+    roxy_decision = row.get("roxy_decision") if isinstance(row.get("roxy_decision"), dict) else {}
+    decision_label = safe_text(roxy_decision.get("label"))
+    next_action = safe_text(roxy_decision.get("next_action"))
+    priority = safe_float(roxy_decision.get("priority_score"))
+    if decision_label:
+        decision_part = f"Decision operativa: {decision_label}"
+        if priority is not None:
+            decision_part += f" ({priority:.0f}/100)"
+        if next_action:
+            decision_part += f". Siguiente paso: {next_action}"
+        parts.append(decision_part)
+    knowledge = row.get("knowledge_enrichment") if isinstance(row.get("knowledge_enrichment"), dict) else {}
+    knowledge_reasoning = safe_text(knowledge.get("roxy_reasoning"))
+    if knowledge_reasoning:
+        parts.append(f"Base de estudio: {knowledge_reasoning}")
     return " ".join(parts)
 
 
@@ -1522,7 +1564,18 @@ def apply_memory_lessons(opportunities: list[dict[str, Any]], memory: dict[str, 
         item["alert_primary_blocker"] = smart_alert["primary_blocker"]
         item["alert_next_action"] = smart_alert["next_action"]
         adjusted.append(item)
-    adjusted.sort(key=lambda value: (value.get("ai_action") == "ALERT", value.get("ai_score", 0)), reverse=True)
+    try:
+        adjusted = process_opportunities_with_decisions(adjusted, enrich_knowledge="knowledge_enrichment" not in adjusted[0] if adjusted else True)
+    except Exception:
+        pass
+    adjusted.sort(
+        key=lambda value: (
+            value.get("roxy_decision_status") == "OPERATE_NOW",
+            value.get("ai_action") == "ALERT",
+            value.get("roxy_priority_score", value.get("ai_score", 0)),
+        ),
+        reverse=True,
+    )
     return adjusted
 
 
@@ -1596,6 +1649,53 @@ def normalize_opportunity_row(row: dict[str, Any]) -> dict[str, Any]:
     return item
 
 
+def external_market_rows_for_decisions(*, ttl_seconds: int = 45) -> list[dict[str, Any]]:
+    """Fetch a short-lived external snapshot only when credentials/config exist.
+
+    This keeps tests and unconfigured local runs offline, while Render can use
+    Finviz/Crypto.com when the corresponding environment variables are present.
+    """
+    if build_external_market_snapshot is None:
+        return []
+    enabled = str(os.getenv("ROXY_EXTERNAL_CONFIRMATION_ENABLED", "true") or "true").strip().lower()
+    if enabled in {"0", "false", "no", "off"}:
+        return []
+    remote_requested = str(os.getenv("ROXY_EXTERNAL_CONFIRMATION_REMOTE", "") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    configured = any(
+        str(os.getenv(key) or "").strip()
+        for key in (
+            "ROXY_FINVIZ_EXPORT_URL",
+            "FINVIZ_EXPORT_URL",
+            "ROXY_FINVIZ_AUTH_TOKEN",
+            "FINVIZ_AUTH_TOKEN",
+            "FINVIZ_API_KEY",
+            "ROXY_CRYPTOCOM_API_KEY",
+            "CRYPTO_COM_API_KEY",
+            "ROXY_CRYPTOCOM_API_SECRET",
+            "CRYPTO_COM_API_SECRET",
+        )
+    )
+    if not configured and not remote_requested:
+        return []
+    now = time.time()
+    if now < float(_EXTERNAL_MARKET_CACHE.get("expires_at") or 0):
+        return [dict(row) for row in _EXTERNAL_MARKET_CACHE.get("rows", []) if isinstance(row, dict)]
+    try:
+        snapshot = build_external_market_snapshot(include_remote=True)
+    except Exception:
+        return []
+    rows = snapshot.get("rows") if isinstance(snapshot, dict) else []
+    clean_rows = [dict(row) for row in rows if isinstance(row, dict)]
+    _EXTERNAL_MARKET_CACHE["rows"] = clean_rows
+    _EXTERNAL_MARKET_CACHE["expires_at"] = now + max(10, ttl_seconds)
+    return [dict(row) for row in clean_rows]
+
+
 def extract_opportunities(confluence_df: pd.DataFrame, *, limit: int = 8) -> list[dict[str, Any]]:
     if confluence_df.empty:
         return []
@@ -1627,7 +1727,17 @@ def extract_opportunities(confluence_df: pd.DataFrame, *, limit: int = 8) -> lis
         deduped.append(row)
         if len(deduped) >= limit:
             break
-    return deduped
+    try:
+        enriched = enrich_opportunities_with_knowledge(deduped)
+    except Exception:
+        enriched = deduped
+    external_rows = external_market_rows_for_decisions()
+    if external_rows:
+        enriched = [dict(item, _external_market_rows=external_rows) for item in enriched]
+    try:
+        return process_opportunities_with_decisions(enriched, enrich_knowledge=False)
+    except Exception:
+        return enriched
 
 
 
@@ -2090,6 +2200,11 @@ def build_brief(
     strategy_overrides = load_strategy_overrides()
     opportunities = apply_strategy_overrides_to_rows(opportunities, strategy_overrides)
     crypto_scan_candidates = crypto_scan_candidate_rows(scan_df)
+    try:
+        opportunities = enrich_opportunities_with_knowledge(opportunities)
+        crypto_scan_candidates = enrich_opportunities_with_knowledge(crypto_scan_candidates)
+    except Exception:
+        pass
     for row in opportunities:
         row["option"] = summarize_options(options_df, safe_text(row.get("symbol")))
     memory = update_memory_from_opportunities(opportunities, memory=memory)

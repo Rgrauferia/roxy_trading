@@ -2961,7 +2961,11 @@ def test_crypto_twenty_min_strike_rows_builds_paper_decision(monkeypatch):
     assert rows.iloc[0]["strike"] > rows.iloc[0]["price"]
     assert rows.iloc[0]["risk_dollars"] == 1.0
     assert rows.iloc[0]["confidence"] >= 58
-    assert rows.iloc[0]["action"] == "Vigilar 20m"
+    assert rows.iloc[0]["signal"] == "YES"
+    assert rows.iloc[0]["contract_side"] == "YES"
+    assert rows.iloc[0]["action"] == "Vigilar YES 20m"
+    assert rows.iloc[0]["probability_roxy"] > 0
+    assert rows.iloc[0]["decision_state"] in {"OPERAR AHORA", "ESPERAR CONFIRMACION"}
     assert rows.iloc[0]["expires_at"] == "12:20 UTC"
     assert "market=crypto" in rows.iloc[0]["href"]
 
@@ -3004,6 +3008,7 @@ def test_crypto_twenty_min_strike_rows_blocks_unaligned_reversal(monkeypatch):
     )
 
     assert rows.iloc[0]["direction"] == "Esperar"
+    assert rows.iloc[0]["signal"] == "NO TRADE"
     assert rows.iloc[0]["action"] != "Paper SI 20m"
     assert "no estan alineados" in rows.iloc[0]["next_step"]
 

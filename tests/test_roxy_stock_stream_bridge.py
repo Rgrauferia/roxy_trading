@@ -131,6 +131,10 @@ def test_stock_bridge_dockerfile_uses_render_safe_startup_and_port():
     assert 'export PYTHONPATH="${PYTHONPATH:-${app_dir}}"' in entrypoint
     assert 'port="${PORT:-10000}"' in entrypoint
     assert "uvicorn tools.roxy_stock_stream_bridge:app" in entrypoint
+    launcher = Path("tools/stock_bridge_start.py").read_text(encoding="utf-8")
+    assert 'os.getenv("PORT", "10000")' in launcher
+    assert '"tools.roxy_stock_stream_bridge:app"' in launcher
+    assert "proxy_headers=True" in launcher
     assert "name: roxy-stock-stream" in render_config
     assert "dockerCommand: ./scripts/stock_bridge_entrypoint.sh" in render_config
     assert "ROXY_STOCK_BRIDGE_URL" in render_config

@@ -1048,6 +1048,14 @@ def fetch_yfinance_quote_price(symbol: str) -> dict[str, Any]:
     ]
     bid = safe_float(info.get("bid") or fast_info.get("bid"))
     ask = safe_float(info.get("ask") or fast_info.get("ask"))
+    previous_close = safe_float(
+        info.get("previousClose")
+        or info.get("regularMarketPreviousClose")
+        or fast_info.get("previousClose")
+        or fast_info.get("previous_close")
+        or fast_info.get("regularMarketPreviousClose")
+        or fast_info.get("regular_market_previous_close")
+    )
     if bid and ask and ask >= bid:
         price_candidates.append(("bidAskMid", (bid + ask) / 2, info.get("regularMarketTime"), "bid/ask midpoint"))
 
@@ -1071,6 +1079,10 @@ def fetch_yfinance_quote_price(symbol: str) -> dict[str, Any]:
             "pre_market_price": pre_price,
             "bid": bid,
             "ask": ask,
+            "previous_close": previous_close,
+            "change_pct": ((price - previous_close) / previous_close)
+            if previous_close not in (None, 0)
+            else None,
         }
     raise RuntimeError("yfinance quote sin precio utilizable")
 
@@ -1100,6 +1112,8 @@ def build_live_price_snapshot(symbol: str, market: str, *, now: datetime | None 
             alpaca_snapshot = fetch_alpaca_latest_trade(normalized_symbol)
             provider_issue = ""
             provider_action = ""
+            previous_close = None
+            change_pct = None
             if alpaca_snapshot.get("ok"):
                 price = safe_float(alpaca_snapshot.get("price"))
                 price_time = alpaca_snapshot.get("price_time") or current
@@ -1108,6 +1122,16 @@ def build_live_price_snapshot(symbol: str, market: str, *, now: datetime | None 
                 provider = "Alpaca"
                 market_open = bool(stock_session.get("open"))
                 latency_note = str(alpaca_snapshot.get("detail") or "Dato broker Alpaca.")
+                try:
+                    quote_context = fetch_yfinance_quote_price(normalized_symbol)
+                    previous_close = safe_float(quote_context.get("previous_close"))
+                    regular_price = safe_float(quote_context.get("regular_market_price"))
+                    post_price = safe_float(quote_context.get("post_market_price"))
+                    pre_price = safe_float(quote_context.get("pre_market_price"))
+                    if price is not None and previous_close not in (None, 0):
+                        change_pct = (price - previous_close) / previous_close
+                except Exception:
+                    pass
             else:
                 provider_issue = str(alpaca_snapshot.get("reason") or "")
                 provider_action = str(alpaca_snapshot.get("action") or alpaca_snapshot.get("detail") or "")
@@ -1124,6 +1148,10 @@ def build_live_price_snapshot(symbol: str, market: str, *, now: datetime | None 
                 regular_price = safe_float(fallback.get("regular_market_price"))
                 post_price = safe_float(fallback.get("post_market_price"))
                 pre_price = safe_float(fallback.get("pre_market_price"))
+                previous_close = safe_float(fallback.get("previous_close"))
+                change_pct = safe_float(fallback.get("change_pct"))
+                if price is not None and change_pct is None and previous_close not in (None, 0):
+                    change_pct = (price - previous_close) / previous_close
                 session_prices = []
                 if regular_price is not None:
                     session_prices.append(f"regular/current {regular_price:.2f}")
@@ -1162,6 +1190,8 @@ def build_live_price_snapshot(symbol: str, market: str, *, now: datetime | None 
             "regular_market_price": locals().get("regular_price", None),
             "post_market_price": locals().get("post_price", None),
             "pre_market_price": locals().get("pre_price", None),
+            "previous_close": locals().get("previous_close", None),
+            "change_pct": locals().get("change_pct", None),
             "error": "",
         }
     except Exception as exc:

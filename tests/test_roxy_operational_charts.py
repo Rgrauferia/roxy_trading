@@ -5,6 +5,7 @@ from streamlit_app import clean_roxy_operational_chart_df, roxy_actions_pro_char
 
 
 SOURCE = Path("streamlit_app.py").read_text(encoding="utf-8")
+LIVING_SOURCE = Path("living_market.py").read_text(encoding="utf-8")
 
 
 def _sample_chart_frame() -> pd.DataFrame:
@@ -92,7 +93,7 @@ def test_roxy_actions_pro_chart_payload_uses_cleaned_candles():
     assert {level["key"] for level in payload["levels"]} == {"entry", "stop", "target"}
     assert payload["displayRange"]["minValue"] > 80
     assert payload["displayRange"]["maxValue"] < 130
-    assert payload["suggestedVisibleCandles"] == 56
+    assert payload["suggestedVisibleCandles"] == 48
 
 
 def test_roxy_actions_pro_chart_payload_preserves_entry_zone_for_visual_bands():
@@ -187,7 +188,7 @@ def test_actions_folder_pushes_server_side_live_stock_quotes():
     assert "streamlit_autorefresh" not in refresh_source
     assert "st_autorefresh" not in refresh_source
     assert "live_stock_symbols" in folder_source
-    assert "render_roxy_stock_server_refresh(interval_ms=1500, symbols=live_stock_symbols)" in folder_source
+    assert "render_roxy_stock_server_refresh(interval_ms=1500, symbols=live_stock_symbols[:10])" in folder_source
 
 
 def test_actions_folder_exposes_visible_stock_live_tape():
@@ -200,6 +201,9 @@ def test_actions_folder_exposes_visible_stock_live_tape():
     assert "live_tape_items" in folder_source
     assert "data-roxy-stock-live-price" in folder_source
     assert "data-roxy-stock-tick-arrow" in folder_source
+    assert "data-roxy-stock-refresh-count" in folder_source
+    assert "data-roxy-stock-live-status" in folder_source
+    assert "validando..." in folder_source
 
 
 def test_stock_live_runtime_can_consume_secure_stream_bridge():
@@ -221,6 +225,9 @@ def test_stock_live_runtime_can_consume_secure_stream_bridge():
     assert "Stream real" in runtime_source
     assert "markBridgeDegraded" in runtime_source
     assert "Bridge stock no disponible" in runtime_source
+    assert "hasRecentServerQuote" in runtime_source
+    assert "node.dataset.roxyServerOkAt" in runtime_source
+    assert "RESPALDO" in runtime_source
     assert "respuesta no JSON" in runtime_source
     assert "ALPACA_API_KEY" not in runtime_source
     assert "ALPACA_API_SECRET" not in runtime_source
@@ -235,9 +242,51 @@ def test_actions_folder_exposes_visible_live_feed_status_per_stock_row():
     assert "data-roxy-stock-live-status" in folder_source
     assert "data-roxy-stock-refresh-count" in folder_source
     assert "data-roxy-stock-market-state" in folder_source
+    assert "roxy-stock-feed-diagnostic" in folder_source
+    assert "data-roxy-stock-feed-diagnostic" in folder_source
+    assert "Roxy no simula ticks" in folder_source
     assert "feed live..." in folder_source
     assert "validando mercado" in folder_source
     assert "stock live inicializando" in folder_source
+
+
+def test_actions_folder_does_not_show_fake_stock_change_percentages():
+    folder_source = SOURCE[
+        SOURCE.index("def render_roxy_actions_folder") : SOURCE.index("def render_roxy_crypto20_folder")
+    ]
+
+    assert 'else "live quote"' in folder_source
+    assert '"+0.04%"' not in folder_source
+    assert "4.0 - idx * .45" not in folder_source
+
+
+def test_live_stock_snapshot_keeps_previous_close_and_change_context():
+    quote_source = SOURCE[
+        SOURCE.index("def roxy_stock_quote_snapshot") : SOURCE.index("def roxy_stock_live_plan_seed")
+    ]
+
+    assert "alpaca_context = roxy_alpaca_stock_latest_snapshot(clean_symbol)" in quote_source
+    assert "context_previous = safe_float(alpaca_context.get(\"previous_close\"))" in quote_source
+    assert "context_change = safe_float(alpaca_context.get(\"change_pct\"))" in quote_source
+    assert "source_label = f\"{source_label} + {context_source}\"" in quote_source
+    assert "\"previous_close\": previous" in quote_source
+    assert "\"change_pct\": change_pct" in quote_source
+
+
+def test_living_market_stock_quote_exports_previous_close_and_change_pct():
+    yf_source = LIVING_SOURCE[
+        LIVING_SOURCE.index("def fetch_yfinance_quote_price") : LIVING_SOURCE.index("def build_live_price_snapshot")
+    ]
+    snapshot_source = LIVING_SOURCE[
+        LIVING_SOURCE.index("def build_live_price_snapshot") : LIVING_SOURCE.index("def fetch_asset_history")
+    ]
+
+    assert "previous_close = safe_float(" in yf_source
+    assert "\"previous_close\": previous_close" in yf_source
+    assert "\"change_pct\": ((price - previous_close) / previous_close)" in yf_source
+    assert "quote_context = fetch_yfinance_quote_price(normalized_symbol)" in snapshot_source
+    assert "\"previous_close\": locals().get(\"previous_close\", None)" in snapshot_source
+    assert "\"change_pct\": locals().get(\"change_pct\", None)" in snapshot_source
 
 
 def test_stock_live_runtime_updates_refresh_count_and_market_state_badges():
@@ -251,7 +300,9 @@ def test_stock_live_runtime_updates_refresh_count_and_market_state_badges():
     assert "const setRefreshMeta = (symbol, direction, quote = {}) =>" in runtime_source
     assert "data-roxy-stock-refresh-count" in runtime_source
     assert "data-roxy-stock-market-state" in runtime_source
+    assert "data-roxy-stock-feed-diagnostic" in runtime_source
     assert "Mercado cerrado · ultimo precio real" in runtime_source
+    assert "Mercado cerrado: Roxy muestra ultimo precio real y no simula ticks" in runtime_source
     assert "const setRefreshMeta = (symbol, direction, quote) =>" in refresh_source
     assert "setRefreshMeta(symbol, firstDirection, quote)" in refresh_source
     assert "server quote" in refresh_source
@@ -285,26 +336,61 @@ def test_professional_actions_chart_syncs_from_parent_live_stock_quote():
     assert "const renderTradebar = (price, source = \"historial\") =>" in pro_panel
     assert "const applySmartScale = (livePrice = null) =>" in pro_panel
     assert "const smartRangeFor = (livePrice = null) =>" in pro_panel
-    assert "const recent = candles.slice(-96)" in pro_panel
+    assert "const recent = candles.slice(-Math.max(34, Math.min(96, visibleHint + 22)))" in pro_panel
     assert "const parentQuote = () =>" in pro_panel
     assert 'parentDoc.querySelectorAll("[data-roxy-stock-live-price]")' in pro_panel
     assert "node.dataset.roxyServerPrice || node.dataset.roxyPrice" in pro_panel
     assert "node.dataset.roxyMarketOpen" in pro_panel
     assert "const isClosed =" in pro_panel
     assert "LAST ${fmt(price)}" in pro_panel
-    assert "parentQuote() || await yahooQuote(payload.symbol)" in pro_panel
+    assert "RESPALDO ${fmt(price)}" in pro_panel
+    assert "const isBackupQuote = hasRealQuote" in pro_panel
+    assert "const syncLiveQuote = async (overrideQuote = null) =>" in pro_panel
+    assert "overrideQuote || parentQuote() || await yahooQuote(payload.symbol)" in pro_panel
+    assert "parentDoc.addEventListener(\"roxy-stock-quote\"" in pro_panel
+    assert "syncLiveQuote(detail.quote || detail)" in pro_panel
     assert "renderTradebar(price, feedLabel)" in pro_panel
     assert "renderReading(price, feedLabel)" in pro_panel
     assert "applySmartScale(price)" in pro_panel
     assert "payload.displayRange" in pro_panel
     assert "rpc-closed" in pro_panel
     assert "rpc-degraded" in pro_panel
-    assert "Bridge stock caido" in pro_panel
-    assert "Roxy conserva la ultima vela/precio real y no simula movimiento" in pro_panel
+    assert "Feed respaldo" in pro_panel
+    assert "Feed respaldo real" in pro_panel
+    assert "Roxy usa un quote real de respaldo" in pro_panel
+    assert "Roxy conserva la ultima vela/precio real y espera un quote nuevo" in pro_panel
     assert "Mercado cerrado: Roxy no simula ticks" in pro_panel
     assert "lastEl.classList.add(\"rpc-closed\")" in pro_panel
     assert "lastEl.classList.add(\"rpc-degraded\")" in pro_panel
     assert "Precio sincronizado sobre la vela actual sin salir de la pagina" in pro_panel
+
+
+def test_professional_actions_charts_render_full_width_operational_stack():
+    dual_source = SOURCE[
+        SOURCE.index("def render_roxy_actions_dual_pro_charts") : SOURCE.index("def render_roxy_actions_dual_plotly_charts")
+    ]
+    folder_source = SOURCE[
+        SOURCE.index("def render_roxy_actions_folder") : SOURCE.index("def render_roxy_crypto20_folder")
+    ]
+
+    assert "height: int = 760" in dual_source
+    assert "roxy-actions-pro-chart-stack" in dual_source
+    assert "roxy-actions-pro-chart-title" in dual_source
+    assert "ancho completo operativo" in dual_source
+    assert "st.columns([1, 1]" not in dual_source
+    assert "height=760" in folder_source
+
+
+def test_plotly_actions_fallback_also_renders_full_width_stack():
+    plotly_source = SOURCE[
+        SOURCE.index("def render_roxy_actions_dual_plotly_charts") : SOURCE.index("def render_roxy_actions_dual_static_charts")
+    ]
+
+    assert "roxy-actions-plotly-stack" in plotly_source
+    assert "roxy-actions-plotly-title" in plotly_source
+    assert "fallback ancho completo" in plotly_source
+    assert "height=max(height, 680)" in plotly_source
+    assert "st.columns([1, 1]" not in plotly_source
 
 
 def test_professional_actions_chart_explains_roxy_entry_stop_target_reading():
@@ -318,9 +404,9 @@ def test_professional_actions_chart_explains_roxy_entry_stop_target_reading():
     assert "Entrada exacta" in pro_panel
     assert "Invalidacion" in pro_panel
     assert "Stop no se negocia" in pro_panel
-    assert 'button data-range="56" class="active"' in pro_panel
+    assert 'button data-range="32" class="active"' in pro_panel
     assert "Zoom operativo" in pro_panel
-    assert "setVisible(window.innerWidth < 720 ? 38 : (payload.suggestedVisibleCandles || 56))" in pro_panel
+    assert "setVisible(window.innerWidth < 720 ? 32 : (payload.suggestedVisibleCandles || 48))" in pro_panel
 
 
 def test_professional_actions_chart_has_operational_layer_controls():
@@ -354,7 +440,7 @@ def test_actions_folder_shows_real_quote_mode_badges():
     assert ".mode-live" in folder
     assert ".mode-last" in folder
     assert ".mode-degraded" in folder
-    assert "BRIDGE CAIDO" in SOURCE
+    assert "RESPALDO" in SOURCE
     assert "respuesta no JSON" in SOURCE
     assert "HTTP ${res.status}" in SOURCE
 
@@ -368,7 +454,7 @@ def test_professional_actions_chart_keeps_operational_space_clear():
     assert 'data-rpc-stage data-layer-mode="strategy"' in pro_panel
     assert ".rpc-chart{position:absolute;inset:6px 7px 56px 7px}" in pro_panel
     assert ".rpc-level-bands{position:absolute;inset:6px 7px 56px" in pro_panel
-    assert "barSpacing: window.innerWidth < 720 ? 12 : 18" in pro_panel
+    assert "barSpacing: window.innerWidth < 720 ? 15 : 20" in pro_panel
     assert 'chart.priceScale("volume").applyOptions({ scaleMargins: { top: .84, bottom: 0 }, visible: false' in pro_panel
     assert "Lectura Roxy · modo trading limpio" in pro_panel
     assert "Objetivo · distancia" in pro_panel

@@ -374,6 +374,9 @@ def evaluate_smart_alert(row: dict[str, Any], memory: dict[str, Any] | None = No
     if notification_ok:
         gate = "ALERT_READY"
         movement = "Operar solo con entrada, stop y targets planificados."
+    elif not macro_ok:
+        gate = "WAIT_MACRO_CONFIRMATION"
+        movement = "Evento FED/macro activo: esperar post-noticia o una confirmacion mas fuerte antes de alertar."
     elif not context_ok or not chart_contract_ok:
         gate = "BLOCKED_REALTIME_DATA"
         movement = "No alertar hasta que la fuente live, confluencia, health realtime y grafica operable vuelvan a estar confirmados."
@@ -402,9 +405,6 @@ def evaluate_smart_alert(row: dict[str, Any], memory: dict[str, Any] | None = No
     elif not execution_timing_ok:
         gate = "WAIT_PARENT_TIMEFRAME"
         movement = "Usar 1m/5m solo para precision; esperar confirmacion 15m/1h/2h/4h antes de alertar."
-    elif not macro_ok:
-        gate = "WAIT_MACRO_CONFIRMATION"
-        movement = "Evento FED/macro activo: esperar post-noticia o una confirmacion mas fuerte antes de alertar."
     elif not volume_ok and structure_ok:
         gate = "WAIT_VOLUME"
         movement = f"Esperar volumen relativo >= {MIN_VOLUME:.1f}x; ideal >= {IDEAL_VOLUME:.1f}x."

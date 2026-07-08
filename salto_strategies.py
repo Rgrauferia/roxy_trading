@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
-from typing import Any
+from pathlib import Path
+from typing import Any, Iterable, Mapping
 
 import pandas as pd
 
@@ -177,6 +179,33 @@ SALTO_BY_KEY = {item.key: item for item in SALTO_STRATEGIES}
 SALTO_BY_FAMILY = {item.family: item for item in SALTO_STRATEGIES}
 SALTO_KEY_TO_FAMILY = {item.key: item.family for item in SALTO_STRATEGIES}
 
+EXTERNAL_STRATEGY_ALIASES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Finviz: Triangulo ascendente", ("triangle asc", "triangulo asc", "triangle ascending")),
+    ("Finviz: Triangulo descendente", ("triangle desc", "triangulo desc", "triangle descending")),
+    ("Finviz: Triangulo", ("triangle", "triangulo")),
+    ("Finviz: Cuna alcista", ("wedge up", "wedge asc", "cuna alcista")),
+    ("Finviz: Cuna bajista", ("wedge down", "cuna bajista")),
+    ("Finviz: Canal alcista", ("channel up", "canal alcista")),
+    ("Finviz: Canal bajista", ("channel down", "canal bajista")),
+    ("Finviz: Canal", ("channel", "canal")),
+    ("Finviz: Doble piso", ("double bottom", "doble piso")),
+    ("Finviz: Doble techo", ("double top", "doble techo")),
+    ("Finviz: Multiples pisos", ("multiple bottom", "multiples pisos")),
+    ("Finviz: Multiples techos", ("multiple top", "multiples techos")),
+    ("Finviz: Cabeza y hombros", ("head&shoulders", "head and shoulders", "cabeza y hombros")),
+    ("Finviz: Soporte de tendencia", ("tl supp", "trendline support", "soporte tendencia")),
+    ("Finviz: Resistencia de tendencia", ("tl resist", "trendline resistance", "resistencia tendencia")),
+    ("Finviz: Soporte/Resistencia horizontal", ("horizontal s/r", "horizontal sr")),
+    ("Estrategia: Cruce EMA 9/21", ("ema 9/21", "ema9/21", "cruce ema", "ema cross")),
+    ("Estrategia: Momentum", ("momentum", "fuerza relativa")),
+    ("Estrategia: Volumen", ("volumen", "volume", "unusual volume")),
+    ("Estrategia: Breakout", ("breakout", "ruptura", "rompiendo")),
+    ("Estrategia: Pullback", ("pullback", "retroceso", "rebote")),
+    ("Estrategia: Reversal", ("reversal", "reversion")),
+    ("Estrategia: Soporte/Resistencia", ("soporte/resistencia", "support/resistance", "resistance", "support")),
+    ("Estrategia: Riesgo 1R", ("riesgo 1r", "1r", "risk 1r")),
+)
+
 
 def safe_float(value: Any) -> float | None:
     if value is None:
@@ -199,6 +228,19 @@ def safe_text(value: Any) -> str:
     except Exception:
         pass
     return str(value or "").strip()
+
+
+def load_teacher_playbook(path: str | Path = "training_videos/roxy_teacher_playbook.json") -> dict[str, Any]:
+    p = Path(path)
+    if not p.is_absolute():
+        p = Path(__file__).resolve().parent / p
+    if not p.exists():
+        return {}
+    try:
+        payload = json.loads(p.read_text())
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def normalize_salto_family(value: Any) -> str | None:
@@ -228,6 +270,125 @@ def normalize_salto_family(value: Any) -> str | None:
     if "EMA9" in upper:
         return SALTO_KEY_TO_FAMILY["PATRON_IMPARABLE_EMA9"]
     return None
+
+
+def normalize_external_strategy_family(value: Any) -> str | None:
+    normalized = safe_text(value).lower()
+    if not normalized:
+        return None
+    salto_family = normalize_salto_family(value)
+    if salto_family:
+        return salto_family
+    for family, needles in EXTERNAL_STRATEGY_ALIASES:
+        if any(needle in normalized for needle in needles):
+            return family
+    return None
+
+
+def strategy_family_for_opportunity(row: Mapping[str, Any] | dict[str, Any]) -> str:
+    """Classify one opportunity without merging unrelated strategies."""
+    if not isinstance(row, Mapping):
+        return "Sin estrategia definida"
+    direct_fields = (
+        "strategy_family",
+        "salto_family",
+        "learned_strategy",
+        "pattern_strategy",
+        "canonical_pattern",
+        "finviz_signal",
+        "source_signal",
+        "trigger_setup",
+        "trend_setup",
+        "setup",
+        "strategy",
+        "signal",
+        "trade_decision",
+    )
+    for field in direct_fields:
+        family = normalize_external_strategy_family(row.get(field))
+        if family:
+            return family
+    joined = " ".join(safe_text(row.get(field)) for field in direct_fields if safe_text(row.get(field)))
+    return normalize_external_strategy_family(joined) or "Sin estrategia definida"
+
+
+def strategy_score_for_opportunity(row: Mapping[str, Any] | dict[str, Any]) -> float:
+    if not isinstance(row, Mapping):
+        return 0.0
+    for field in (
+        "roxy_priority_score",
+        "alert_readiness_score",
+        "readiness",
+        "confidence",
+        "strategy_score",
+        "confluence_score",
+        "ai_score",
+        "score",
+        "trend_score",
+    ):
+        value = safe_float(row.get(field))
+        if value is not None:
+            return max(0.0, min(100.0, value))
+    return 0.0
+
+
+def _opportunity_records(opportunities: Any) -> list[dict[str, Any]]:
+    if isinstance(opportunities, pd.DataFrame):
+        return opportunities.to_dict("records")
+    if isinstance(opportunities, Mapping):
+        return [dict(opportunities)]
+    if isinstance(opportunities, Iterable) and not isinstance(opportunities, (str, bytes)):
+        return [dict(item) for item in opportunities if isinstance(item, Mapping)]
+    return []
+
+
+def separate_opportunities_by_strategy(
+    opportunities: Any,
+    *,
+    limit_per_strategy: int = 5,
+) -> list[dict[str, Any]]:
+    """Group opportunities by setup family and keep each strategy independent."""
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in _opportunity_records(opportunities):
+        family = strategy_family_for_opportunity(row)
+        row["_strategy_family"] = family
+        row["_strategy_score"] = strategy_score_for_opportunity(row)
+        grouped.setdefault(family, []).append(row)
+
+    groups: list[dict[str, Any]] = []
+    for family, rows in grouped.items():
+        ranked = sorted(
+            rows,
+            key=lambda item: (
+                -float(item.get("_strategy_score") or 0.0),
+                safe_text(item.get("symbol") or item.get("ticker")),
+            ),
+        )
+        best = ranked[0] if ranked else {}
+        scores = [float(item.get("_strategy_score") or 0.0) for item in ranked]
+        groups.append(
+            {
+                "strategy_family": family,
+                "count": len(ranked),
+                "best": best,
+                "best_score": float(best.get("_strategy_score") or 0.0),
+                "avg_score": (sum(scores) / len(scores)) if scores else 0.0,
+                "opportunities": ranked[: max(1, int(limit_per_strategy))],
+            }
+        )
+    return sorted(groups, key=lambda group: (-float(group["best_score"]), safe_text(group["strategy_family"])))
+
+
+def best_opportunities_by_strategy(opportunities: Any, *, limit: int = 12) -> list[dict[str, Any]]:
+    best_rows: list[dict[str, Any]] = []
+    for rank, group in enumerate(separate_opportunities_by_strategy(opportunities, limit_per_strategy=1), start=1):
+        row = dict(group.get("best") or {})
+        row["_strategy_rank"] = rank
+        row["_strategy_family"] = group.get("strategy_family")
+        row["_strategy_best_score"] = group.get("best_score")
+        row["_strategy_group_count"] = group.get("count")
+        best_rows.append(row)
+    return best_rows[: max(1, int(limit))]
 
 
 def _pct_distance(value: float | None, reference: float | None) -> float | None:
@@ -518,6 +679,23 @@ def apply_learned_strategy_brain(chart_df: pd.DataFrame, setup: dict[str, Any] |
     best matching setup, blockers, and teaching explanation.
     """
     enriched = dict(setup or {})
+    teacher_playbook = load_teacher_playbook()
+    if teacher_playbook:
+        enriched.setdefault("teacher_playbook_generated_at", teacher_playbook.get("generated_at"))
+        enriched.setdefault("teacher_opportunity_checklist", teacher_playbook.get("opportunity_checklist") or [])
+        enriched.setdefault(
+            "teacher_strategy_rules",
+            [
+                {
+                    "id": rule.get("id"),
+                    "name": rule.get("name"),
+                    "rule": rule.get("rule"),
+                    "sources": (rule.get("sources") or [])[:4],
+                }
+                for rule in (teacher_playbook.get("strategy_rules") or [])[:6]
+                if isinstance(rule, dict)
+            ],
+        )
     detections = detect_salto_setups(chart_df, enriched)
     if not detections:
         enriched.setdefault("learned_strategy_status", "NO_MATCH")
