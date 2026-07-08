@@ -4855,7 +4855,7 @@ def render_roxy_elevenlabs_assistant() -> None:
       style.id = styleId;
       style.textContent = `
         .roxy-el-root{{position:fixed;right:18px;bottom:92px;z-index:2147482800;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eaf6ff;pointer-events:none}}
-        .roxy-el-wake{{pointer-events:auto;position:relative;display:grid;grid-template-columns:46px;place-items:center;width:66px;height:66px;border:1px solid rgba(56,189,248,.36);border-radius:999px;background:radial-gradient(circle at 36% 24%,rgba(125,211,252,.34),rgba(37,99,235,.20) 38%,rgba(2,6,23,.86) 72%);box-shadow:0 18px 48px rgba(0,0,0,.42),0 0 28px rgba(14,165,233,.22);padding:9px;backdrop-filter:blur(18px);cursor:default}}
+        .roxy-el-wake{{display:none!important;visibility:hidden!important;pointer-events:none!important}}
         .roxy-el-wake:before{{content:"";position:absolute;inset:-1px;border-radius:18px;background:linear-gradient(90deg,rgba(56,189,248,.0),rgba(56,189,248,.28),rgba(168,85,247,.0));opacity:.45;pointer-events:none;animation:roxyElGlow 3.8s ease-in-out infinite}}
         .roxy-el-avatar{{position:relative;z-index:2;width:52px;height:52px;border-radius:50%;overflow:hidden;border:1px solid rgba(186,230,253,.7);box-shadow:0 0 22px rgba(34,211,238,.48)}}
         .roxy-el-avatar img{{width:100%;height:100%;object-fit:cover;display:block}}
@@ -4900,7 +4900,7 @@ def render_roxy_elevenlabs_assistant() -> None:
         @keyframes roxyElRise{{from{{opacity:0;transform:translateY(10px) scale(.98)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
         @keyframes roxyElAvatarTalk{{0%,100%{{transform:translateY(0) scale(1)}}50%{{transform:translateY(-1px) scale(1.035)}}}}
         @keyframes roxyElMiniMouth{{0%,100%{{transform:translateX(-50%) scaleX(.72) scaleY(.12);opacity:.36}}24%{{transform:translateX(-50%) scaleX(1.02) scaleY(.86);opacity:.86}}52%{{transform:translateX(-50%) scaleX(.88) scaleY(.38);opacity:.56}}76%{{transform:translateX(-50%) scaleX(.96) scaleY(.68);opacity:.76}}}}
-        @media(max-width:640px){{.roxy-el-root{{right:14px;bottom:86px}}.roxy-el-wake{{width:58px;height:58px;grid-template-columns:40px;padding:8px}}.roxy-el-wake .roxy-el-avatar{{width:40px;height:40px}}.roxy-el-panel{{bottom:72px;width:calc(100vw - 24px)}}}}
+        @media(max-width:640px){{.roxy-el-root{{right:14px;bottom:86px}}.roxy-el-panel{{bottom:72px;width:calc(100vw - 24px)}}}}
       `;
       parentDoc.head.appendChild(style);
       const root = parentDoc.createElement("section");
@@ -4926,10 +4926,6 @@ def render_roxy_elevenlabs_assistant() -> None:
             <div class="roxy-el-widget-hint">${{payload.voiceMode === "unavailable" ? "La voz segura de ElevenLabs no esta disponible. Roxy usara el cerebro local visible de la plataforma hasta que la sesion segura autentique." : "El navegador puede pedir permiso de microfono una vez. La clave segura de ElevenLabs nunca se envia al frontend."}}</div>
           </div>
         </aside>
-        <div class="roxy-el-wake" role="button" aria-label="Roxy voice assistant">
-          <span class="roxy-el-avatar">${{avatarMarkup}}</span>
-          <span class="roxy-el-live-dot" aria-hidden="true"></span>
-        </div>
       `;
       parentDoc.body.appendChild(root);
       const closeButton = root.querySelector(".roxy-el-close");
