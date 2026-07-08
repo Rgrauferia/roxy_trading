@@ -1,7 +1,12 @@
 from pathlib import Path
 
 import streamlit_app
-from streamlit_app import brand_logo_html, roxy_avatar_html, roxy_welcome_card_html
+from streamlit_app import (
+    brand_logo_html,
+    roxy_avatar_html,
+    roxy_hologram_avatar_html,
+    roxy_welcome_card_html,
+)
 
 
 def test_brand_logo_html_embeds_grau_service_logo_asset():
@@ -28,6 +33,24 @@ def test_roxy_avatar_html_embeds_avatar_asset():
     assert "roxy-avatar-speaking" in html
     assert "data:image/jpeg;base64," in html
     assert "Roxy AI" in html
+
+
+def test_roxy_hologram_avatar_embeds_human_face_rig():
+    html = roxy_hologram_avatar_html("speaking", "Roxy Trading AI")
+
+    assert "roxy-human-rig" in html
+    assert "roxy-eye-lid-left" in html
+    assert "roxy-eye-lid-right" in html
+    assert "roxy-mouth-rig" in html
+    assert "roxy-cheek-left" in html
+
+
+def test_roxy_hologram_face_layers_are_not_disabled():
+    source = Path(streamlit_app.__file__).read_text(encoding="utf-8")
+
+    assert ".roxy-gaze,.roxy-mouth,.roxy-lip,.roxy-blink,.roxy-eye{display:none" not in source
+    assert "@keyframes roxyHumanBlink" in source
+    assert "@keyframes roxyHumanTalk" in source
 
 
 def test_roxy_avatar_html_falls_back_to_svg_when_asset_missing(monkeypatch):

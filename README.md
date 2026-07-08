@@ -341,6 +341,18 @@ make tradingview-tunnel-check
 
 The dashboard shows `Tunnel publico`, `URL TradingView`, and `Comando tunnel` inside `TradingView Webhooks`. This is diagnostic only; Roxy still records analysis confirmations and live broker orders remain OFF.
 
+External market integrations
+----------------------------
+
+Roxy can also read external market sources through a safe connector layer:
+
+- Finviz Elite screener export: `ROXY_FINVIZ_EXPORT_URL`
+- Crypto.com Exchange public market data: `ROXY_CRYPTOCOM_BASE_URL`, optional `ROXY_CRYPTOCOM_API_KEY` and `ROXY_CRYPTOCOM_API_SECRET`
+- TradingView chart/webhook layer: `TRADINGVIEW_WEBHOOK_SECRET`, `TRADINGVIEW_PUBLIC_WEBHOOK_URL`, `ROXY_TRADINGVIEW_WIDGET_ENABLED`
+- External confirmation scoring: `ROXY_EXTERNAL_CONFIRMATION_ENABLED`, optional `ROXY_EXTERNAL_CONFIRMATION_REMOTE`
+
+These sources enrich scans and confirmations. The decision engine stores the result in `roxy_decision.external_confirmation` and uses it as a bounded priority adjustment. They do not execute live trades. See `docs/external_market_integrations.md` for setup and security notes.
+
 The Streamlit dashboard includes a Snapshot Service section in the sidebar with:
 - a button to run a snapshot now (user-level or all users),
 - a Docker Compose hint to run the background service,

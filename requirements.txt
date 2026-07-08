@@ -35,6 +35,7 @@ pypdf
 redis>=4.0.0
 
 # LLM providers
+elevenlabs>=2.0.0
 anthropic
 keyring
 cryptography>=40.0

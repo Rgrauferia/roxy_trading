@@ -57,6 +57,30 @@ def test_live_provider_rows_keeps_finviz_and_tc2000_as_reference_only():
     assert row_for(rows, "TC2000")["mode"] == "MANUAL_LINK"
 
 
+def test_live_provider_rows_marks_new_external_sources_without_leaking_values():
+    rows = live_provider_rows(
+        env={
+            "ROXY_FINVIZ_EXPORT_URL": "https://elite.finviz.com/export/screener?auth=secret-token",
+            "ROXY_CRYPTOCOM_API_KEY": "crypto-key",
+            "ROXY_CRYPTOCOM_API_SECRET": "crypto-secret",
+            "TRADINGVIEW_WEBHOOK_SECRET": "tv-secret",
+        }
+    )
+
+    finviz = row_for(rows, "Finviz")
+    crypto = row_for(rows, "Crypto.com")
+    tradingview = row_for(rows, "TradingView")
+
+    assert finviz["status"] == "Listo screener"
+    assert finviz["present_keys"] == "ROXY_FINVIZ_EXPORT_URL"
+    assert crypto["status"] == "Listo datos publicos"
+    assert tradingview["status"] == "Listo visual/webhook"
+    assert "secret-token" not in str(rows)
+    assert "crypto-key" not in str(rows)
+    assert "crypto-secret" not in str(rows)
+    assert "tv-secret" not in str(rows)
+
+
 def test_live_provider_rows_marks_polygon_as_stock_data_provider():
     rows = live_provider_rows(env={"POLYGON_API_KEY": "polygon-key-value"})
     polygon = row_for(rows, "Polygon")

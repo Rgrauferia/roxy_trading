@@ -23,6 +23,7 @@ import subprocess
 import sys
 import textwrap
 import time
+import traceback
 import unicodedata
 import warnings
 from contextlib import nullcontext
@@ -100,7 +101,151 @@ import grok_control
 import auth
 import notifier
 from roxy_paths import alerts_dir, output_dir, project_path
-from roxy_academy_knowledge import enrich_academy_lesson, planet_curriculum_lessons, planet_curriculum_summary
+try:
+    from roxy_academy_knowledge import enrich_academy_lesson, planet_curriculum_lessons, planet_curriculum_summary
+except ModuleNotFoundError as exc:  # pragma: no cover - production deploy safety net
+    if exc.name not in {"roxy_academy_knowledge", "roxy_knowledge_brain"}:
+        raise
+
+    ROXY_ACADEMY_FALLBACK_PROFILES: dict[str, dict[str, Any]] = {
+        "origen": {
+            "title": "Planeta Origen",
+            "role": "Fundamentos para aprender el idioma basico del trading.",
+            "points": (
+                "Primero se aprende vocabulario: activo, precio, comprar, vender, ganancia, perdida y riesgo.",
+                "Antes de mirar una estrategia, el usuario debe entender entrada, salida, riesgo y tamano.",
+                "Los ejemplos usan datos vivos solo como practica de lectura, no como senales para operar.",
+            ),
+            "practice": (
+                "Explica el concepto con tus propias palabras.",
+                "Busca un ejemplo real en una accion conocida y describe que dato estas mirando.",
+                "Escribe una regla simple para evitar operar por impulso.",
+            ),
+            "lessons": (),
+        },
+        "cripto": {
+            "title": "Planeta Cripto",
+            "role": "Conceptos clave del mercado digital.",
+            "points": (
+                "Crypto opera 24/7 y por eso la liquidez y la volatilidad cambian durante el dia.",
+                "El usuario debe distinguir moneda, token, wallet, exchange, stablecoin y red blockchain.",
+                "La gestion del riesgo es mas estricta porque los movimientos pueden ser rapidos.",
+            ),
+            "practice": (
+                "Compara BTC, ETH y SOL por precio, cambio y volatilidad.",
+                "Identifica si el movimiento parece tranquilo, impulsivo o lateral.",
+                "Describe que riesgo especial tiene operar un activo 24/7.",
+            ),
+            "lessons": (
+                "Que es una criptomoneda?",
+                "Que es blockchain?",
+                "Bitcoin y oferta limitada",
+                "Ethereum y contratos inteligentes",
+                "Wallets: custodial vs self-custody",
+                "Examen Planeta Cripto",
+            ),
+        },
+        "analisis": {
+            "title": "Planeta Analisis",
+            "role": "Lectura de graficas, velas, volumen e indicadores.",
+            "points": (
+                "La grafica se lee por precio, tiempo, volumen y contexto antes de hablar de prediccion.",
+                "Las velas muestran apertura, maximo, minimo y cierre; no son una garantia por si solas.",
+                "Los indicadores deben confirmar contexto, no reemplazar el plan.",
+            ),
+            "practice": (
+                "Marca apertura, cierre, maximo y minimo en una vela.",
+                "Compara un timeframe corto con uno mas grande.",
+                "Explica que confirma el volumen antes de usar un indicador.",
+            ),
+            "lessons": (
+                "Que es un grafico?",
+                "Tipos de graficos",
+                "Velas: apertura, maximo, minimo y cierre",
+                "Volumen basico",
+                "Examen Planeta Analisis",
+            ),
+        },
+        "estrategia": {
+            "title": "Planeta Estrategia",
+            "role": "Reglas, riesgo, ejecucion, bitacora y backtesting.",
+            "points": (
+                "Una estrategia debe tener condicion de entrada, invalidacion, salida y tamano.",
+                "El backtesting ayuda a separar una idea repetible de una impresion visual.",
+                "Una buena estrategia tambien dice cuando no operar.",
+            ),
+            "practice": (
+                "Define entrada, stop, target y razon de invalidacion.",
+                "Registra si la operacion cumplio el checklist.",
+                "Compara resultado contra el plan, no contra la emocion.",
+            ),
+            "lessons": (
+                "Que es una estrategia?",
+                "Entrada, invalidacion y salida",
+                "Stop loss operativo",
+                "Backtesting basico",
+                "Examen Planeta Estrategia",
+            ),
+        },
+        "elite": {
+            "title": "Planeta Elite",
+            "role": "Consistencia, revision y mejora continua.",
+            "points": (
+                "El objetivo es ejecutar un proceso repetible, no perseguir una operacion perfecta.",
+                "La revision semanal identifica errores de entrada, riesgo, salida y emocion.",
+                "La consistencia exige reglas, descanso, bitacora y control de tamano.",
+            ),
+            "practice": (
+                "Resume tres decisiones buenas y tres errores de la semana.",
+                "Propone una regla nueva y pruebala en demo o backtest.",
+                "Mide si la mejora reduce riesgo o solo aumenta complejidad.",
+            ),
+            "lessons": (
+                "Rutina profesional",
+                "Revision de estadisticas",
+                "Control de drawdown",
+                "Graduacion Roxy Academy",
+            ),
+        },
+    }
+
+    def planet_curriculum_summary(planet_key: str) -> dict[str, Any]:
+        key = str(planet_key or "origen").strip().lower()
+        profile = ROXY_ACADEMY_FALLBACK_PROFILES.get(key, ROXY_ACADEMY_FALLBACK_PROFILES["origen"])
+        return {
+            "planet": key,
+            "title": profile["title"],
+            "role": profile["role"],
+            "query": "",
+            "points": list(profile["points"]),
+            "practice": list(profile["practice"]),
+            "sources": [],
+            "source_count": 0,
+            "status": "FALLBACK",
+        }
+
+    def enrich_academy_lesson(planet_key: str, lesson: dict[str, Any]) -> dict[str, Any]:
+        enriched = dict(lesson)
+        knowledge = planet_curriculum_summary(planet_key)
+        deep_points = list(enriched.get("deep_points") or [])
+        for point in knowledge["points"]:
+            if point not in deep_points:
+                deep_points.append(point)
+        practice_steps = list(enriched.get("practice_steps") or [])
+        for step in knowledge["practice"]:
+            if step not in practice_steps:
+                practice_steps.append(step)
+        enriched["deep_points"] = tuple(deep_points)
+        enriched["practice_steps"] = tuple(practice_steps)
+        enriched["knowledge_context"] = knowledge
+        return enriched
+
+    def planet_curriculum_lessons(planet_key: str, origin_lessons: tuple[str, ...] | list[str] | None = None) -> list[str]:
+        key = str(planet_key or "origen").strip().lower()
+        if key == "origen" and origin_lessons:
+            return [str(item) for item in origin_lessons]
+        profile = ROXY_ACADEMY_FALLBACK_PROFILES.get(key, ROXY_ACADEMY_FALLBACK_PROFILES["cripto"])
+        return [str(item) for item in profile.get("lessons") or ()]
 from accuracy_tracker import build_accuracy_report, real_signal_memory_summary
 from monetization_readiness import build_monetization_readiness_report
 from paper_result_closer import close_paper_results_with_live_prices
@@ -122,11 +267,19 @@ from roxy_trader.strike_options_strategy import (
     SIGNAL_NO_TRADE,
     SIGNAL_YES,
     analyze_strike_option,
+    build_strike_dashboard_model,
+    build_strike_learning_report,
     compare_deriv_strike_contracts,
     load_strike_signal_history,
+    settle_expired_strike_signal_rows,
     summarize_strike_signal_history,
 )
-from salto_strategies import SALTO_STRATEGIES, SALTO_STRATEGY_FAMILIES, apply_learned_strategy_brain
+from salto_strategies import (
+    SALTO_STRATEGIES,
+    SALTO_STRATEGY_FAMILIES,
+    apply_learned_strategy_brain,
+    separate_opportunities_by_strategy,
+)
 from symbol_detail import (
     ALPACA_KEY_ENV_KEYS,
     ALPACA_SECRET_ENV_KEYS,
@@ -151,6 +304,7 @@ from roxy_ai import (
     build_notification_lines,
     build_strategy_lab,
     experiment_status_label,
+    external_market_rows_for_decisions,
     human_alert_reason,
     human_trade_action,
     learning_research_queue,
@@ -185,10 +339,17 @@ from tools.elevenlabs_roxy import (
     get_conversation_signed_url,
 )
 try:
+    from tools.external_market_sources import build_finviz_news_feed, build_finviz_pattern_strategies
+except Exception:  # pragma: no cover - optional external data module
+    build_finviz_news_feed = None  # type: ignore[assignment]
+    build_finviz_pattern_strategies = None  # type: ignore[assignment]
+try:
     from roxy_os import RoxyOrchestrator
 
     ROXY_OS_AVAILABLE = True
+    ROXY_OS_IMPORT_ERROR = ""
 except Exception:  # pragma: no cover - optional local assistant runtime
+    ROXY_OS_IMPORT_ERROR = traceback.format_exc(limit=1)
     RoxyOrchestrator = None
     ROXY_OS_AVAILABLE = False
 import alpaca_paper_practice as alpaca_paper_practice_module
@@ -499,13 +660,23 @@ ROXY_AVATAR_VARIANT_PATHS = {
     "card": project_path("assets/roxy_avatar_card.jpg"),
 }
 
-ROXY_RENDER_DATA_DIR = Path("/var/data")
-ROXY_USERS_PATH = Path(
-    os.environ.get(
-        "ROXY_USERS_PATH",
-        str(ROXY_RENDER_DATA_DIR / "roxy_users.json") if ROXY_RENDER_DATA_DIR.exists() else str(project_path("data/roxy_users.json")),
-    )
-)
+ROXY_RENDER_DATA_DIR = Path(os.environ.get("ROXY_RENDER_DATA_DIR", "/var/data"))
+
+
+def roxy_default_users_path() -> Path:
+    configured = os.environ.get("ROXY_USERS_PATH")
+    if configured:
+        return Path(configured)
+    if os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"):
+        try:
+            ROXY_RENDER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+            return ROXY_RENDER_DATA_DIR / "roxy_users.json"
+        except OSError:
+            return project_path("data/roxy_users.json")
+    return ROXY_RENDER_DATA_DIR / "roxy_users.json" if ROXY_RENDER_DATA_DIR.exists() else project_path("data/roxy_users.json")
+
+
+ROXY_USERS_PATH = roxy_default_users_path()
 ROXY_USERS_FALLBACK_PATH = project_path("data/roxy_users.json")
 ROXY_SESSION_PARAM = "rx_session"
 ROXY_PROFILE_PARAM = "rx_profile"
@@ -539,9 +710,9 @@ def roxy_avatar_html(state: str = "ready", variant: str = "mini", label: str = "
     safe_state = html.escape(str(state or "ready"))
     safe_label = html.escape(str(label or "Roxy AI"))
     return (
-        f'<div class="roxy-avatar roxy-avatar-{safe_state}" title="{safe_label}">'
+        f'<div class="roxy-avatar roxy-avatar-{safe_state}" data-state="{safe_state}" title="{safe_label}">'
         f'<img src="data:image/jpeg;base64,{encoded}" alt="{safe_label}"/>'
-        f'<span>{safe_state}</span>'
+        f'<span aria-hidden="true"></span>'
         f"</div>"
     )
 
@@ -1917,6 +2088,40 @@ def roxy_register_user(*, name: str, username: str, email: str, password: str, l
 def roxy_login_user(identifier: str, password: str) -> tuple[bool, str]:
     username, profile = roxy_find_user(identifier)
     if not username or not profile:
+        browser_profile = roxy_profile_from_query()
+        browser_identifier = text_display(identifier).strip().lower()
+        browser_username = text_display(browser_profile.get("username")).strip().lower()
+        browser_email = text_display(browser_profile.get("email")).strip().lower()
+        browser_token = text_display(browser_profile.get("session_token") or roxy_session_token_from_query()).strip()
+        if len(browser_token) >= 24 and browser_identifier in {browser_username, browser_email}:
+            if roxy_restore_user_from_browser_profile(browser_token):
+                recovered_name = text_display(st.session_state.get("roxy_user_profile", {}).get("name") or browser_username or browser_email)
+                return True, f"Sesion recuperada. Bienvenido, {recovered_name}."
+        if len(password or "") >= 6 and browser_identifier:
+            recovered_email = browser_identifier if "@" in browser_identifier else ""
+            recovered_username = re.sub(
+                r"[^a-zA-Z0-9_.-]+",
+                "",
+                (browser_identifier.split("@", 1)[0] if "@" in browser_identifier else browser_identifier),
+            ).lower()
+            if len(recovered_username) >= 3:
+                data = roxy_load_users()
+                users = data.setdefault("users", {})
+                salt = secrets.token_hex(16)
+                recovered_profile = {
+                    "username": recovered_username,
+                    "name": text_display((browser_profile or {}).get("name") or recovered_username).strip() or recovered_username,
+                    "email": recovered_email or text_display((browser_profile or {}).get("email")).strip().lower(),
+                    "language": text_display((browser_profile or {}).get("language") or "es").strip() or "es",
+                    "password_salt": salt,
+                    "password_hash": roxy_hash_password(password or "", salt),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "recovered_from_login": True,
+                }
+                users[recovered_username] = recovered_profile
+                roxy_save_users(data)
+                roxy_remember_authenticated_user(recovered_username, recovered_profile)
+                return True, f"Perfil recuperado. Bienvenido, {recovered_profile['name']}."
         return False, "No encontre esa cuenta. Registrate primero."
     salt = text_display(profile.get("password_salt"))
     expected = text_display(profile.get("password_hash"))
@@ -2827,6 +3032,8 @@ def read_latest_alert_text(path: str) -> str:
 
 
 def speak_in_browser(text: str, *, key: str, lang: str = "es-US") -> None:
+    if os.environ.get("ELEVENLABS_API_KEY"):
+        return
     spoken = " ".join(str(text or "").split())[:1400]
     if not spoken:
         return
@@ -3570,6 +3777,12 @@ def text_display(value) -> str:
     return value if value else "-"
 
 
+def strip_accents(value: Any) -> str:
+    text = text_display(value)
+    text = unicodedata.normalize("NFKD", text)
+    return "".join(ch for ch in text if not unicodedata.combining(ch))
+
+
 def first_present(*values: Any) -> Any:
     for value in values:
         if value is None:
@@ -3692,10 +3905,9 @@ def roxy_elevenlabs_signed_session_payload(agent_id: str, env_fingerprint: str) 
         voice_mode = "conversation_token"
     elif session.signed_url:
         voice_mode = "signed_url"
-    elif resolved_agent_id:
-        voice_mode = "agent_id_fallback"
     else:
         voice_mode = "unavailable"
+        resolved_agent_id = ""
     return {
         "agent_id": resolved_agent_id,
         "signed_url": session.signed_url,
@@ -3751,6 +3963,177 @@ def roxy_elevenlabs_page_context() -> dict[str, Any]:
     }
 
 
+def roxy_voice_table_rows(table: pd.DataFrame, *, limit: int = 5) -> list[dict[str, str]]:
+    if not isinstance(table, pd.DataFrame) or table.empty:
+        return []
+    rows: list[dict[str, str]] = []
+    for item in table.head(limit).to_dict("records"):
+        if not isinstance(item, dict):
+            continue
+        symbol = text_display(item.get("symbol") or item.get("ticker")).upper()
+        if not symbol:
+            continue
+        current_price = (
+            item.get("current_price")
+            or item.get("latest_price")
+            or item.get("last_price")
+            or item.get("last")
+            or item.get("price")
+        )
+        target = item.get("target_price") or item.get("target") or item.get("recommended_target_price")
+        decision = text_display(
+            item.get("action")
+            or item.get("signal")
+            or item.get("decision")
+            or item.get("trade_decision")
+            or "Esperar confirmacion"
+        )
+        rows.append(
+            {
+                "symbol": symbol,
+                "market": text_display(item.get("market") or ""),
+                "price": price_display(current_price),
+                "entry": price_display(item.get("entry")),
+                "stop": price_display(item.get("stop") or item.get("stop_loss")),
+                "target": price_display(target),
+                "timeframe": text_display(item.get("timeframe") or item.get("tf") or ""),
+                "decision": decision,
+                "confidence": text_display(item.get("confidence") or item.get("ai_score") or item.get("readiness") or ""),
+                "risk": text_display(item.get("risk_pct") or item.get("risk") or ""),
+                "reason": text_display(item.get("por_que") or item.get("raw_reason") or item.get("reason") or ""),
+                "next_step": text_display(item.get("waiting_for") or item.get("cambia_si") or item.get("next_step") or ""),
+                "data_state": text_display(item.get("data_state") or item.get("data_bucket") or ""),
+            }
+        )
+    return rows
+
+
+def remember_roxy_voice_opportunities(
+    table: pd.DataFrame,
+    *,
+    source: str,
+    module: str = "",
+    symbol: str = "",
+    market: str = "",
+    timeframe: str = "",
+    limit: int = 5,
+) -> None:
+    rows = roxy_voice_table_rows(table, limit=limit)
+    if not rows:
+        return
+    st.session_state["roxy_voice_opportunity_snapshot"] = {
+        "source": text_display(source),
+        "module": normalize_roxy_module(module, default="")
+        or normalize_roxy_module(first_query_param_value(st.query_params, "module"), default="")
+        or "home",
+        "symbol": text_display(symbol or st.session_state.get("command_symbol") or first_query_param_value(st.query_params, "symbol") or "").upper(),
+        "market": text_display(market or st.session_state.get("command_market") or first_query_param_value(st.query_params, "market") or ""),
+        "timeframe": text_display(timeframe or st.session_state.get("command_timeframe") or first_query_param_value(st.query_params, "tf") or ""),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "rows": rows,
+    }
+
+
+def roxy_voice_snapshot_text(snapshot: dict[str, Any] | None) -> str:
+    if not isinstance(snapshot, dict):
+        return "No hay tabla de oportunidades visible todavia."
+    rows = snapshot.get("rows") if isinstance(snapshot.get("rows"), list) else []
+    if not rows:
+        return "No hay oportunidades visibles cargadas en esta pantalla."
+    parts: list[str] = []
+    for idx, row in enumerate(rows[:5], start=1):
+        if not isinstance(row, dict):
+            continue
+        parts.append(
+            (
+                f"{idx}. {row.get('symbol')}: {row.get('decision')}; "
+                f"precio {row.get('price')}; entrada {row.get('entry')}; "
+                f"stop {row.get('stop')}; target {row.get('target')}; "
+                f"confianza {row.get('confidence')}; razon {row.get('reason') or 'sin razon visible'}"
+            )
+        )
+    return " | ".join(parts) if parts else "No hay oportunidades visibles cargadas en esta pantalla."
+
+
+def roxy_voice_response_contract(page_context: dict[str, Any], snapshot: dict[str, Any] | None) -> str:
+    module = normalize_roxy_module(page_context.get("module"), default="home")
+    rows_text = roxy_voice_snapshot_text(snapshot)
+    base = (
+        "Contrato operativo obligatorio para la voz de Roxy: "
+        "responde como copiloto de Roxy Trading, no como asistente de taxes/notaria/DMV. "
+        "Si el usuario pide mejores oportunidades, usa primero la tabla visible y resume 3 a 5 activos con decision, precio, entrada, stop, target, riesgo/confianza y razon. "
+        "No inventes precios live, strikes, entradas ni targets; si no estan visibles o el feed esta caido, dilo claramente y pide sincronizar el mercado. "
+        "No garantices ganancias, no ejecutes operaciones y recomienda paper trading, stop loss y tamano de posicion. "
+    )
+    if module in {"crypto-20m", "crypto-2h", "crypto-daily"}:
+        base += (
+            "En carpetas crypto responde en formato YES / NO / NO TRADE: activo, precio actual, strike/objetivo, periodo, tiempo restante, confianza, razon, riesgo y contrato Deriv sugerido si esta visible. "
+        )
+    elif module == "acciones-operar":
+        base += (
+            "En acciones responde con ticker, precio live, entrada, stop, target, R/R, estado OPERAR AHORA / ESPERAR CONFIRMACION / NO OPERAR y por que Roxy lo ve. "
+        )
+    elif module == "classroom":
+        base += (
+            "En classroom actua como profesora: explica el concepto actual, da ejemplos simples y guia la siguiente leccion sin dar senales para operar. "
+        )
+    else:
+        base += (
+            "En home guia al usuario a abrir Acciones, Crypto 20min, Crypto 2H, Crypto Daily o Classroom segun lo que pida. "
+        )
+    return base + f"Oportunidades visibles ahora: {rows_text}"
+
+
+def roxy_voice_local_context_reply(command_text: str) -> str:
+    command = strip_accents(text_display(command_text).lower())
+    opportunity_terms = ["oportunidad", "oportunidades", "mejores", "senal", "senales", "lista", "scanner"]
+    screen_terms = ["pantalla", "viendo", "donde estoy", "donde estoy", "que veo", "carpeta"]
+    wants_opportunities = any(term in command for term in opportunity_terms)
+    wants_screen = any(term in command for term in screen_terms)
+    if not wants_opportunities and not wants_screen:
+        return ""
+
+    context = roxy_elevenlabs_page_context()
+    snapshot = st.session_state.get("roxy_voice_opportunity_snapshot")
+    module = text_display(context.get("module") or "home")
+    symbol = text_display(context.get("symbol") or "").upper()
+    timeframe = text_display(context.get("timeframe") or "")
+
+    if wants_screen and not wants_opportunities:
+        return (
+            f"Estas en Roxy Trading, carpeta {module}. "
+            f"Activo actual {symbol or 'sin activo seleccionado'} en {timeframe or 'timeframe no definido'}. "
+            "Puedo abrir acciones, crypto 20 minutos, crypto 2 horas, crypto daily o classroom."
+        )
+
+    if not isinstance(snapshot, dict) or not snapshot.get("rows"):
+        return (
+            f"Ahora mismo no tengo una tabla de oportunidades visible en {module}. "
+            "Abre Acciones, Crypto 20min, Crypto 2H o Crypto Daily y Roxy cargara la lista operativa con precio, entrada, stop, target, riesgo y razon. "
+            "No voy a inventar precios si el feed no esta cargado."
+        )
+
+    rows = [row for row in snapshot.get("rows", []) if isinstance(row, dict)][:5]
+    if not rows:
+        return "No hay oportunidades visibles cargadas todavia. Abre una carpeta operativa para que Roxy analice el mercado."
+
+    spoken: list[str] = [f"En {text_display(snapshot.get('module') or module)}, estas son las mejores oportunidades visibles ahora:"]
+    for row in rows[:3]:
+        symbol_text = text_display(row.get("symbol") or "").upper()
+        decision = text_display(row.get("decision") or "Esperar confirmacion")
+        price = text_display(row.get("price") or "sin precio visible")
+        entry = text_display(row.get("entry") or "sin entrada visible")
+        stop = text_display(row.get("stop") or "sin stop visible")
+        target = text_display(row.get("target") or "sin target visible")
+        confidence = text_display(row.get("confidence") or "sin confianza visible")
+        reason = text_display(row.get("reason") or row.get("next_step") or "sin razon visible")
+        spoken.append(
+            f"{symbol_text}: {decision}. Precio {price}. Entrada {entry}. Stop {stop}. Target {target}. Confianza {confidence}. Razon: {reason}."
+        )
+    spoken.append("Usa esto como apoyo educativo y paper trading; confirma el feed live, el stop y el tamano de posicion antes de operar dinero real.")
+    return " ".join(spoken)
+
+
 def roxy_os_user_id() -> str:
     profile = st.session_state.get("roxy_user_profile")
     raw_user = ""
@@ -3786,13 +4169,61 @@ def roxy_os_context() -> dict[str, Any]:
     return context
 
 
+def roxy_desktop_helper_url() -> str:
+    configured = text_display(os.environ.get("ROXY_DESKTOP_HELPER_URL") or "").strip()
+    return configured or "http://127.0.0.1:8765"
+
+
+def roxy_desktop_helper_is_local(url_value: str) -> bool:
+    try:
+        parsed = urlparse(url_value)
+    except Exception:
+        return False
+    return parsed.scheme == "http" and (parsed.hostname or "") in {"127.0.0.1", "localhost"}
+
+
+@st.cache_data(show_spinner=False, ttl=6)
+def roxy_desktop_helper_status(helper_url: str) -> dict[str, Any]:
+    if requests is None:
+        return {"ok": False, "available": False, "reason": "requests_unavailable"}
+    if not roxy_desktop_helper_is_local(helper_url):
+        return {"ok": False, "available": False, "reason": "helper_must_be_localhost"}
+    try:
+        response = requests.get(f"{helper_url.rstrip('/')}/health", timeout=0.35)
+        response.raise_for_status()
+        payload = response.json()
+    except Exception as exc:
+        return {"ok": False, "available": False, "reason": text_display(exc)[:120]}
+    return {"ok": True, "available": True, "payload": payload}
+
+
 def run_roxy_os_command(command_text: str) -> dict[str, Any]:
     command_text = text_display(command_text).strip()
     if not command_text:
         return {"ok": False, "message": "Escribe una instruccion para Roxy."}
+    local_reply = roxy_voice_local_context_reply(command_text)
+    if local_reply:
+        return {
+            "ok": True,
+            "intent": "platform_context_query",
+            "agent": "platform_context",
+            "message": local_reply,
+            "data": {
+                "source": "visible_platform_context",
+                "context": roxy_elevenlabs_page_context(),
+                "snapshot_available": bool(st.session_state.get("roxy_voice_opportunity_snapshot")),
+            },
+            "actions": [],
+        }
     orchestrator = get_roxy_os_orchestrator()
     if orchestrator is None:
-        return {"ok": False, "message": "Roxy OS Core no esta disponible en este entorno."}
+        return {
+            "ok": False,
+            "message": "",
+            "silent": True,
+            "reason": "roxy_os_unavailable",
+            "diagnostic": ROXY_OS_IMPORT_ERROR,
+        }
     try:
         response = orchestrator.handle(command_text, user_id=roxy_os_user_id(), context=roxy_os_context())
     except Exception as exc:
@@ -3847,6 +4278,31 @@ def apply_roxy_os_safe_actions(result: dict[str, Any]) -> list[str]:
             }
             st.query_params["module"] = module
             applied.append("Preparar scanner operativo")
+        elif action_type == "weather_lookup":
+            st.session_state["roxy_last_weather_request"] = {
+                "location": text_display(action.get("location") or ""),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            applied.append("Consultar clima")
+        elif action_type == "file_read_request":
+            st.session_state["roxy_pending_file_read"] = {
+                "path": text_display(action.get("path") or ""),
+                "requires_confirmation": bool(action.get("confirmation_required")),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            applied.append("Preparar lectura de archivo")
+        elif action_type == "screen_capture_summary":
+            st.session_state["roxy_pending_screen_summary"] = {
+                "requires_confirmation": bool(action.get("confirmation_required")),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            applied.append("Preparar lectura de pantalla")
+        elif action_type == "browser_search_or_open":
+            st.session_state["roxy_pending_browser_action"] = {
+                "query": text_display(action.get("query") or ""),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            applied.append("Preparar navegador")
     return applied
 
 
@@ -3865,11 +4321,34 @@ def process_roxy_os_query_command() -> None:
     result = run_roxy_os_command(command)
     applied = apply_roxy_os_safe_actions(result)
     if result.get("ok"):
-        st.session_state["roxy_launch_message"] = result.get("message") or "Roxy proceso la instruccion."
+        spoken_message = text_display(result.get("message") or "Roxy proceso la instruccion.")
+        st.session_state["roxy_launch_message"] = spoken_message
         if applied:
             st.session_state["roxy_launch_message"] += " Acciones aplicadas: " + ", ".join(applied)
-    else:
-        st.session_state["roxy_launch_message"] = result.get("message") or "Roxy no pudo procesar la instruccion."
+            spoken_message += " Acciones aplicadas: " + ", ".join(applied)
+        st.session_state["roxy_voice_pending_reply"] = {
+            "id": hashlib.sha256(
+                f"{command}|{spoken_message}|{datetime.now(timezone.utc).isoformat()}".encode(
+                    "utf-8", errors="ignore"
+                )
+            ).hexdigest()[:16],
+            "command": command,
+            "text": spoken_message,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+    elif not result.get("silent"):
+        spoken_message = text_display(result.get("message") or "Roxy no pudo procesar la instruccion.")
+        st.session_state["roxy_launch_message"] = spoken_message
+        st.session_state["roxy_voice_pending_reply"] = {
+            "id": hashlib.sha256(
+                f"{command}|{spoken_message}|{datetime.now(timezone.utc).isoformat()}".encode(
+                    "utf-8", errors="ignore"
+                )
+            ).hexdigest()[:16],
+            "command": command,
+            "text": spoken_message,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
     try:
         del st.query_params["roxy_os_cmd"]
     except Exception:
@@ -3884,6 +4363,26 @@ def render_roxy_os_command_center() -> None:
             "Este puente prueba el cerebro local de Roxy sin operar dinero real. "
             "Puede guardar recuerdos, preparar acciones y bloquear ordenes peligrosas."
         )
+        helper_url = roxy_desktop_helper_url()
+        helper_status = roxy_desktop_helper_status(helper_url)
+        if helper_status.get("available"):
+            st.success("Roxy Desktop Helper conectado en localhost. Roxy puede preparar acciones fuera del navegador con permisos seguros.")
+            capabilities = (helper_status.get("payload") or {}).get("capabilities") or {}
+            if isinstance(capabilities, dict) and capabilities:
+                active_caps = [name for name, enabled in capabilities.items() if enabled]
+                blocked_caps = [name for name, enabled in capabilities.items() if not enabled]
+                st.caption(
+                    "Permisos activos: "
+                    + (", ".join(active_caps) if active_caps else "ninguno")
+                    + ". Protegidos/apagados: "
+                    + (", ".join(blocked_caps) if blocked_caps else "ninguno")
+                    + "."
+                )
+        else:
+            st.caption(
+                "Roxy Desktop Helper local no esta activo. Para pruebas fuera del navegador: "
+                "`PYTHONPATH=. python3 -m roxy_desktop_helper.server`"
+            )
         quick_cols = st.columns(3)
         quick_prompts = [
             ("Compras", "Hola Roxy, acuerdame comprar pan, cafe y leche."),
@@ -3928,16 +4427,143 @@ def render_roxy_os_command_center() -> None:
                     )
 
 
+def render_roxy_os_action_inbox() -> None:
+    pending_weather = st.session_state.get("roxy_last_weather_request")
+    pending_file = st.session_state.get("roxy_pending_file_read")
+    pending_screen = st.session_state.get("roxy_pending_screen_summary")
+    pending_browser = st.session_state.get("roxy_pending_browser_action")
+    has_pending = any(isinstance(item, dict) and item for item in (pending_weather, pending_file, pending_screen, pending_browser))
+    if not has_pending:
+        return
+
+    with st.expander("Acciones preparadas por Roxy", expanded=True):
+        st.caption(
+            "Roxy puede preparar acciones seguras desde voz. Las acciones fuera del navegador "
+            "requieren permisos del sistema o el helper local de Roxy Desktop."
+        )
+
+        if isinstance(pending_weather, dict) and pending_weather:
+            location = text_display(pending_weather.get("location") or "").strip() or "tu ubicacion configurada"
+            with st.container(border=True):
+                st.markdown(f"**Clima** · {location}")
+                try:
+                    from tools import weather_service as roxy_weather_service
+
+                    snapshot = roxy_weather_service.fetch_current_weather(location)
+                    if snapshot.status == "ok":
+                        temp = f"{snapshot.temperature_c:.1f} C" if snapshot.temperature_c is not None else "-"
+                        description = snapshot.description or "condicion no disponible"
+                        st.success(f"{snapshot.location}: {temp} · {description}")
+                    elif snapshot.status == "missing_key":
+                        st.info("Falta OPENWEATHER_API_KEY o ROXY_OPENWEATHER_API_KEY para clima en vivo.")
+                    else:
+                        st.warning(snapshot.message or snapshot.status)
+                except Exception as exc:
+                    st.warning(f"No pude consultar clima ahora: {exc}")
+                if st.button("Limpiar clima", key="roxy_clear_weather_action"):
+                    st.session_state.pop("roxy_last_weather_request", None)
+                    st.rerun()
+
+        if isinstance(pending_browser, dict) and pending_browser:
+            query = text_display(pending_browser.get("query") or "").strip()
+            if query:
+                target_url = query if query.lower().startswith(("http://", "https://")) else f"https://www.google.com/search?{urlencode({'q': query})}"
+                with st.container(border=True):
+                    st.markdown(f"**Navegador** · {html.escape(query)}")
+                    st.caption("Abre la busqueda en una pestana nueva; Roxy no llena formularios ni compra sin permiso.")
+                    st.link_button("Abrir busqueda preparada", target_url, use_container_width=True)
+                    if st.button("Limpiar busqueda", key="roxy_clear_browser_action"):
+                        st.session_state.pop("roxy_pending_browser_action", None)
+                        st.rerun()
+
+        if isinstance(pending_file, dict) and pending_file:
+            requested_path = text_display(pending_file.get("path") or "").strip()
+            with st.container(border=True):
+                st.markdown("**Lectura de archivo**")
+                if requested_path:
+                    st.code(requested_path, language="text")
+                else:
+                    st.caption("Dile a Roxy la ruta del archivo o carpeta que quieres resumir.")
+                st.caption("Roxy bloquea .env, llaves privadas y archivos sensibles.")
+                cols = st.columns(2)
+                if cols[0].button("Autorizar lectura segura", key="roxy_authorize_file_read"):
+                    if requested_path:
+                        st.session_state["roxy_os_allowed_permissions"] = sorted(
+                            set(list(st.session_state.get("roxy_os_allowed_permissions") or []) + ["file_read"])
+                        )
+                        result = run_roxy_os_command(f"Roxy lee este archivo {requested_path}")
+                        st.session_state["roxy_authorized_file_read_result"] = result
+                    else:
+                        st.session_state["roxy_authorized_file_read_result"] = {
+                            "ok": False,
+                            "message": "Falta la ruta del archivo."
+                        }
+                    st.rerun()
+                if cols[1].button("Cancelar lectura", key="roxy_cancel_file_read"):
+                    st.session_state.pop("roxy_pending_file_read", None)
+                    st.session_state.pop("roxy_authorized_file_read_result", None)
+                    st.rerun()
+                read_result = st.session_state.get("roxy_authorized_file_read_result")
+                if isinstance(read_result, dict) and read_result:
+                    if read_result.get("ok"):
+                        st.success(text_display(read_result.get("message") or "Archivo procesado."))
+                    else:
+                        st.warning(text_display(read_result.get("message") or "No se pudo leer el archivo."))
+
+        if isinstance(pending_screen, dict) and pending_screen:
+            with st.container(border=True):
+                context = roxy_elevenlabs_page_context()
+                st.markdown("**Pantalla / computadora**")
+                st.info(
+                    "En esta app web Roxy puede leer el contexto visible de Roxy Trading. "
+                    "Para ver toda tu Mac, abrir carpetas y hacer clic fuera del navegador hace falta Roxy Desktop Helper "
+                    "con permisos de Screen Recording y Accessibility."
+                )
+                st.json(
+                    {
+                        "page": context.get("page"),
+                        "module": context.get("module"),
+                        "symbol": context.get("symbol"),
+                        "market": context.get("market"),
+                        "timeframe": context.get("timeframe"),
+                    },
+                    expanded=False,
+                )
+                if st.button("Limpiar solicitud de pantalla", key="roxy_clear_screen_action"):
+                    st.session_state.pop("roxy_pending_screen_summary", None)
+                    st.rerun()
+
+
 def render_roxy_elevenlabs_assistant() -> None:
     agent_id = elevenlabs_agent_id() or DEFAULT_ELEVENLABS_AGENT_ID
     session_payload = roxy_elevenlabs_signed_session_payload(agent_id, elevenlabs_env_fingerprint())
     user_profile = roxy_elevenlabs_user_profile()
     page_context = roxy_elevenlabs_page_context()
+    voice_snapshot = st.session_state.get("roxy_voice_opportunity_snapshot")
+    if not isinstance(voice_snapshot, dict):
+        voice_snapshot = {}
+    pending_voice_reply = st.session_state.get("roxy_voice_pending_reply")
+    if not isinstance(pending_voice_reply, dict):
+        pending_voice_reply = {}
+    voice_operational_contract = roxy_voice_response_contract(page_context, voice_snapshot)
+    voice_visible_opportunities = roxy_voice_snapshot_text(voice_snapshot)
     personalization = build_roxy_personalization(user_profile, page_context)
     avatar_html = roxy_avatar_html("speaking", "icon", "Roxy Trading")
     public_error = str(session_payload.get("error") or "").replace("API_KEY", "secure key").replace("ELEVENLABS_", "ElevenLabs ")
+    voice_context_brief = (
+        "Eres Roxy Trading dentro de la plataforma Roxy. "
+        f"Usuario: {personalization['assistant_rules']['display_name']}. "
+        f"Pagina: {page_context.get('page') or 'Dashboard'}. "
+        f"Carpeta/modulo: {page_context.get('module') or 'home'}. "
+        f"Activo visible: {page_context.get('symbol') or 'AAPL'} "
+        f"{page_context.get('market') or ''} {page_context.get('timeframe') or ''}. "
+        "Tu trabajo es ayudar con oportunidades, graficas, classroom, watchlist y riesgo. "
+        "No hables de taxes, notaria, seguros, DMV ni servicios externos salvo que el usuario lo pida explicitamente. "
+        "No prometas ganancias ni operes dinero real. Responde con pasos concretos, entrada, stop, target, riesgo y razon cuando haya contexto de trading. "
+        f"{voice_operational_contract}"
+    )
     payload = {
-        "agentId": session_payload.get("agent_id") or agent_id,
+        "agentId": session_payload.get("agent_id") or "",
         "signedUrl": session_payload.get("signed_url") or "",
         "conversationToken": session_payload.get("conversation_token") or "",
         "configured": bool(session_payload.get("configured")),
@@ -3962,18 +4588,28 @@ def render_roxy_elevenlabs_assistant() -> None:
             "current_symbol": page_context.get("symbol", ""),
             "current_market": page_context.get("market", ""),
             "current_timeframe": page_context.get("timeframe", ""),
+            "roxy_platform_role": "Roxy Trading voice copilot",
+            "roxy_current_context": voice_context_brief,
+            "roxy_visible_opportunities": voice_visible_opportunities,
+            "roxy_voice_response_contract": voice_operational_contract,
+            "roxy_operational_rules": "No profit guarantees. No licensed financial advice. Explain risk, paper trading, stop loss and position sizing. Focus only on Roxy Trading unless the user explicitly asks otherwise.",
         },
         "assistantRules": personalization["assistant_rules"],
+        "voiceContextBrief": voice_context_brief,
+        "pendingVoiceReply": pending_voice_reply,
+        "desktopHelperUrl": roxy_desktop_helper_url(),
+        "userProfile": user_profile,
+        "opportunitySnapshot": voice_snapshot,
+        "visibleOpportunitiesText": voice_visible_opportunities,
+        "operationalResponseContract": voice_operational_contract,
         "avatarHtml": avatar_html,
     }
     voice_payload = dict(payload)
     voice_payload.pop("avatarHtml", None)
     voice_payload_json = json.dumps(voice_payload, ensure_ascii=False, default=str)
     avatar_markup_json = json.dumps(avatar_html, ensure_ascii=False)
-    if payload["conversationToken"] or payload["signedUrl"]:
-        fallback_status = "Di Hola Roxy para activar"
-    elif payload["agentId"]:
-        fallback_status = "Modo directo: toca y di Hola Roxy"
+    if payload["conversationToken"] or payload["signedUrl"] or payload["agentId"]:
+        fallback_status = "Roxy voz preparada"
     else:
         fallback_status = "Configura ElevenLabs en Render"
     voice_test_html = f"""
@@ -4104,7 +4740,7 @@ def render_roxy_elevenlabs_assistant() -> None:
       }}
     </style>
     """
-    components.html(voice_test_html, height=56)
+    # Keep the temporary audio diagnostic available in code, but do not render a manual voice button.
     st.markdown(
         f"""
         <style>
@@ -4113,14 +4749,13 @@ def render_roxy_elevenlabs_assistant() -> None:
             right: 16px;
             bottom: 92px;
             z-index: 2147482500;
-            width: min(292px, calc(100vw - 28px));
+            width: 58px;
+            height: 58px;
             display: grid;
-            grid-template-columns: 42px minmax(0, 1fr);
-            gap: 10px;
-            align-items: center;
-            padding: 9px 11px;
+            place-items: center;
+            padding: 7px;
             border: 1px solid rgba(56,189,248,.34);
-            border-radius: 18px;
+            border-radius: 999px;
             background: linear-gradient(135deg, rgba(2,6,23,.88), rgba(8,47,73,.76));
             box-shadow: 0 18px 48px rgba(0,0,0,.42), 0 0 28px rgba(14,165,233,.18);
             color: #eaf6ff;
@@ -4178,6 +4813,7 @@ def render_roxy_elevenlabs_assistant() -> None:
           .roxy-el-fallback-wave i:nth-child(3) {{ animation-delay: .2s; }}
           .roxy-el-fallback-wave i:nth-child(4) {{ animation-delay: .3s; }}
           .roxy-el-fallback-wave i:nth-child(5) {{ animation-delay: .4s; }}
+          .roxy-el-fallback > div:not(.roxy-el-fallback-avatar) {{ display: none; }}
           body.roxy-el-runtime-mounted .roxy-el-fallback {{ display: none; }}
           @keyframes roxyElFallbackWave {{
             0%, 100% {{ height: 4px; opacity: .55; }}
@@ -4205,13 +4841,12 @@ def render_roxy_elevenlabs_assistant() -> None:
       parentDoc.body.classList.add("roxy-el-runtime-mounted");
       const rootId = "roxy-elevenlabs-assistant-root";
       const styleId = "roxy-elevenlabs-assistant-style";
-      const scriptId = "roxy-elevenlabs-widget-script";
       const sdkImportUrls = [
         "https://esm.sh/@elevenlabs/client?bundle",
         "https://cdn.jsdelivr.net/npm/@elevenlabs/client/+esm",
+        "https://esm.run/@elevenlabs/client",
       ];
       const sdkImportUrl = sdkImportUrls[0];
-      const widgetScriptSrc = "https://unpkg.com/@elevenlabs/convai-widget-embed";
       const oldRoot = parentDoc.getElementById(rootId);
       if (oldRoot) oldRoot.remove();
       const oldStyle = parentDoc.getElementById(styleId);
@@ -4220,20 +4855,20 @@ def render_roxy_elevenlabs_assistant() -> None:
       style.id = styleId;
       style.textContent = `
         .roxy-el-root{{position:fixed;right:18px;bottom:92px;z-index:2147482800;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eaf6ff;pointer-events:none}}
-        .roxy-el-wake{{pointer-events:auto;display:grid;grid-template-columns:46px minmax(0,1fr);gap:10px;align-items:center;min-width:min(300px,calc(100vw - 28px));border:1px solid rgba(56,189,248,.36);border-radius:18px;background:linear-gradient(135deg,rgba(2,6,23,.82),rgba(8,47,73,.72));box-shadow:0 18px 48px rgba(0,0,0,.42),0 0 28px rgba(14,165,233,.18);padding:9px 11px;backdrop-filter:blur(18px);cursor:pointer}}
+        .roxy-el-wake{{pointer-events:auto;position:relative;display:grid;grid-template-columns:46px;place-items:center;width:66px;height:66px;border:1px solid rgba(56,189,248,.36);border-radius:999px;background:radial-gradient(circle at 36% 24%,rgba(125,211,252,.34),rgba(37,99,235,.20) 38%,rgba(2,6,23,.86) 72%);box-shadow:0 18px 48px rgba(0,0,0,.42),0 0 28px rgba(14,165,233,.22);padding:9px;backdrop-filter:blur(18px);cursor:default}}
         .roxy-el-wake:before{{content:"";position:absolute;inset:-1px;border-radius:18px;background:linear-gradient(90deg,rgba(56,189,248,.0),rgba(56,189,248,.28),rgba(168,85,247,.0));opacity:.45;pointer-events:none;animation:roxyElGlow 3.8s ease-in-out infinite}}
         .roxy-el-avatar{{position:relative;z-index:2;width:52px;height:52px;border-radius:50%;overflow:hidden;border:1px solid rgba(186,230,253,.7);box-shadow:0 0 22px rgba(34,211,238,.48)}}
         .roxy-el-avatar img{{width:100%;height:100%;object-fit:cover;display:block}}
         .roxy-el-wake .roxy-el-avatar{{width:46px;height:46px}}
-        .roxy-el-wake-copy{{position:relative;z-index:2;min-width:0}}
-        .roxy-el-wake-copy strong{{display:block;color:#f8fafc;font-size:13px;line-height:1.12;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
-        .roxy-el-wake-copy span{{display:block;margin-top:4px;color:#93c5fd;font-size:10px;font-weight:900;line-height:1.2;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
         .roxy-el-listen-wave{{display:flex;gap:2px;margin-top:6px;height:13px;align-items:end}}
         .roxy-el-listen-wave i{{display:block;width:3px;border-radius:999px;background:linear-gradient(180deg,#f8fafc,#38bdf8);box-shadow:0 0 7px rgba(56,189,248,.52);animation:roxyElWave 1.2s ease-in-out infinite}}
         .roxy-el-listen-wave i:nth-child(2){{animation-delay:.1s}}.roxy-el-listen-wave i:nth-child(3){{animation-delay:.2s}}.roxy-el-listen-wave i:nth-child(4){{animation-delay:.3s}}.roxy-el-listen-wave i:nth-child(5){{animation-delay:.4s}}
         .roxy-el-live-dot{{position:absolute;right:7px;top:7px;z-index:3;width:11px;height:11px;border-radius:50%;background:#22c55e;box-shadow:0 0 12px #22c55e;border:2px solid #07111f}}
-        .roxy-el-panel{{pointer-events:auto;position:absolute;right:0;bottom:78px;width:min(390px,calc(100vw - 28px));max-height:min(690px,calc(100vh - 136px));display:none;grid-template-rows:auto minmax(130px,1fr) auto;overflow:hidden;border:1px solid rgba(56,189,248,.34);border-radius:18px;background:linear-gradient(180deg,rgba(3,10,24,.96),rgba(7,18,38,.94));box-shadow:0 28px 70px rgba(0,0,0,.62),0 0 38px rgba(14,165,233,.22);backdrop-filter:blur(18px)}}
-        .roxy-el-root.roxy-el-open .roxy-el-panel{{display:grid;animation:roxyElRise .18s ease-out both}}
+        .roxy-voice-speaking .roxy-el-live-dot{{background:#38bdf8;box-shadow:0 0 18px #38bdf8}}
+        .roxy-el-root.roxy-el-speaking .roxy-el-avatar{{box-shadow:0 0 30px rgba(56,189,248,.72),0 0 62px rgba(168,85,247,.26);animation:roxyElAvatarTalk 1.1s ease-in-out infinite}}
+        .roxy-el-root.roxy-el-speaking .roxy-el-avatar:after{{content:"";position:absolute;left:50%;top:56%;z-index:8;width:19%;height:8%;border-radius:0 0 999px 999px;background:radial-gradient(ellipse at 50% 0%,rgba(88,18,36,.92),rgba(244,114,182,.38) 62%,transparent 74%);transform:translateX(-50%) scaleY(.18);transform-origin:top center;animation:roxyElMiniMouth .42s ease-in-out infinite;filter:drop-shadow(0 0 6px rgba(244,114,182,.34))}}
+        .roxy-el-panel{{display:none!important;pointer-events:none!important;position:absolute;right:0;bottom:78px;width:min(390px,calc(100vw - 28px));max-height:min(690px,calc(100vh - 136px));grid-template-rows:auto minmax(130px,1fr) auto;overflow:hidden;border:1px solid rgba(56,189,248,.34);border-radius:18px;background:linear-gradient(180deg,rgba(3,10,24,.96),rgba(7,18,38,.94));box-shadow:0 28px 70px rgba(0,0,0,.62),0 0 38px rgba(14,165,233,.22);backdrop-filter:blur(18px)}}
+        .roxy-el-root.roxy-el-open .roxy-el-panel{{display:none!important}}
         .roxy-el-head{{display:grid;grid-template-columns:46px 1fr auto;gap:10px;align-items:center;padding:13px;border-bottom:1px solid rgba(148,163,184,.16);background:radial-gradient(circle at 20% 0%,rgba(56,189,248,.16),transparent 40%)}}
         .roxy-el-head .roxy-el-avatar{{width:46px;height:46px}}
         .roxy-el-title strong{{display:block;font-size:15px;line-height:1.15;color:#fff}}
@@ -4247,42 +4882,31 @@ def render_roxy_elevenlabs_assistant() -> None:
         .roxy-el-msg b{{color:#fff}}
         .roxy-el-status{{border-radius:999px;background:rgba(15,23,42,.86);border:1px solid rgba(56,189,248,.20);color:#7dd3fc;padding:8px 10px;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em}}
         .roxy-el-status.roxy-el-status-error{{border-color:rgba(248,113,113,.34);background:rgba(127,29,29,.26);color:#fecaca}}
-        .roxy-el-widget-wrap{{min-height:430px;border:1px solid rgba(56,189,248,.18);border-radius:16px;overflow:hidden;background:rgba(2,6,23,.64);display:grid;place-items:stretch}}
-        .roxy-el-widget-wrap elevenlabs-convai{{display:block;min-height:430px;width:100%}}
         .roxy-el-widget-hint{{padding:10px 12px;border-radius:12px;background:rgba(37,99,235,.16);border:1px solid rgba(96,165,250,.20);font-size:12px;color:#bfdbfe;line-height:1.35}}
-        .roxy-el-widget-error{{padding:16px;border-radius:14px;border:1px solid rgba(248,113,113,.26);background:rgba(127,29,29,.18);color:#fecaca;font-size:12px;line-height:1.45}}
+        body.roxy-el-runtime-mounted [data-roxy-legacy-voice],
+        body.roxy-el-runtime-mounted #roxy-start,
+        body.roxy-el-runtime-mounted .roxy-voice-test-card,
+        body.roxy-el-runtime-mounted .roxy-voice-trigger,
+        body.roxy-el-runtime-mounted .roxy-presence-card,
+        body.roxy-el-runtime-mounted [class*="roxy"][class*="voice"][class*="float"],
+        body.roxy-el-runtime-mounted [class*="roxy"][class*="assistant"][class*="float"],
+        body.roxy-el-runtime-mounted [class*="roxy"][class*="presence"]{{display:none!important;visibility:hidden!important;pointer-events:none!important}}
+        [class*="roxy"][class*="voice"][class*="float"],[class*="roxy"][class*="assistant"][class*="float"],[class*="roxy"][class*="presence"]{{font-size:0!important}}
+        [class*="roxy"][class*="voice"][class*="float"] *:not(img):not(svg):not(path):not(canvas),[class*="roxy"][class*="assistant"][class*="float"] *:not(img):not(svg):not(path):not(canvas),[class*="roxy"][class*="presence"] *:not(img):not(svg):not(path):not(canvas){{font-size:0!important;line-height:0!important;color:transparent!important;text-shadow:none!important}}
+        .roxy-floating-avatar strong,.roxy-floating-avatar span,.roxy-floating-avatar small,.roxy-floating-avatar b,.roxy-floating-avatar em{{display:none!important;font-size:0!important;line-height:0!important;color:transparent!important}}
+        body.roxy-el-runtime-mounted .roxy-floating-avatar,.roxy-floating-avatar{{display:none!important}}
         @keyframes roxyElGlow{{0%,100%{{opacity:.20;transform:translateX(-18%)}}50%{{opacity:.78;transform:translateX(18%)}}}}
         @keyframes roxyElWave{{0%,100%{{height:4px;opacity:.5}}50%{{height:13px;opacity:1}}}}
         @keyframes roxyElRise{{from{{opacity:0;transform:translateY(10px) scale(.98)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
-        @media(max-width:640px){{.roxy-el-root{{right:14px;bottom:86px}}.roxy-el-wake{{min-width:min(260px,calc(100vw - 24px));grid-template-columns:40px minmax(0,1fr);padding:8px 10px}}.roxy-el-wake .roxy-el-avatar{{width:40px;height:40px}}.roxy-el-wake-copy strong{{font-size:12px}}.roxy-el-wake-copy span{{font-size:9px}}.roxy-el-panel{{bottom:72px;width:calc(100vw - 24px)}}}}
+        @keyframes roxyElAvatarTalk{{0%,100%{{transform:translateY(0) scale(1)}}50%{{transform:translateY(-1px) scale(1.035)}}}}
+        @keyframes roxyElMiniMouth{{0%,100%{{transform:translateX(-50%) scaleX(.72) scaleY(.12);opacity:.36}}24%{{transform:translateX(-50%) scaleX(1.02) scaleY(.86);opacity:.86}}52%{{transform:translateX(-50%) scaleX(.88) scaleY(.38);opacity:.56}}76%{{transform:translateX(-50%) scaleX(.96) scaleY(.68);opacity:.76}}}}
+        @media(max-width:640px){{.roxy-el-root{{right:14px;bottom:86px}}.roxy-el-wake{{width:58px;height:58px;grid-template-columns:40px;padding:8px}}.roxy-el-wake .roxy-el-avatar{{width:40px;height:40px}}.roxy-el-panel{{bottom:72px;width:calc(100vw - 24px)}}}}
       `;
       parentDoc.head.appendChild(style);
-      const existingScript = parentDoc.getElementById(scriptId);
-      if (existingScript && existingScript.src && !existingScript.src.startsWith(widgetScriptSrc)) {{
-        existingScript.remove();
-      }}
-      if (!parentDoc.getElementById(scriptId)) {{
-        const widgetScript = parentDoc.createElement("script");
-        widgetScript.id = scriptId;
-        widgetScript.src = widgetScriptSrc;
-        widgetScript.async = true;
-        widgetScript.type = "text/javascript";
-        widgetScript.onerror = () => {{
-          const status = parentDoc.querySelector("#" + rootId + " .roxy-el-status");
-          const mount = parentDoc.querySelector("#" + rootId + " .roxy-el-widget-mount");
-          if (status) {{
-            status.classList.add("roxy-el-status-error");
-            status.textContent = "ElevenLabs no cargo en este navegador";
-          }}
-          if (mount) {{
-            mount.innerHTML = '<div class="roxy-el-widget-error">No pude cargar el widget oficial de ElevenLabs. Revisa que Render tenga la variable segura de ElevenLabs configurada, que el agent-id sea correcto y que el dominio este permitido en ElevenLabs Security Allowlist.</div>';
-          }}
-        }};
-        parentDoc.head.appendChild(widgetScript);
-      }}
       const root = parentDoc.createElement("section");
       root.id = rootId;
       root.className = "roxy-el-root";
+      parentDoc.body.classList.add("roxy-el-runtime-mounted");
       root.innerHTML = `
         <aside class="roxy-el-panel" aria-label="Roxy Trading assistant">
           <header class="roxy-el-head">
@@ -4297,46 +4921,17 @@ def render_roxy_elevenlabs_assistant() -> None:
               <span>${{payload.pageContext.symbol || ""}} ${{payload.pageContext.timeframe || ""}}</span>
             </div>
             <div class="roxy-el-risk">Roxy puede educar, explicar y guiar. No garantiza ganancias ni sustituye asesoria financiera licenciada. Practica en paper trading y respeta riesgo, stop loss y tamano de posicion.</div>
-            <div class="roxy-el-status ${{(!payload.agentId && payload.error) ? "roxy-el-status-error" : ""}}">${{payload.conversationToken || payload.signedUrl ? "Di Hola Roxy para activar la voz segura" : payload.agentId ? "Modo directo listo: toca la pantalla y di Hola Roxy" : payload.error ? ("Configurar voz: " + payload.error) : "Configura ElevenLabs en Render"}}</div>
+            <div class="roxy-el-status ${{(!payload.agentId && payload.error) ? "roxy-el-status-error" : ""}}">${{payload.conversationToken || payload.signedUrl || payload.agentId ? "Roxy voz preparada" : payload.error ? ("Configurar voz: " + payload.error) : "Configura ElevenLabs en Render"}}</div>
             <div class="roxy-el-msg"><b>Hola, ${{payload.userName || "Trader"}}.</b><br/>Estoy viendo ${{payload.pageContext.module || payload.pageContext.page || "Roxy Trading"}}. Cuando digas Hola Roxy, abro la conversacion de voz.</div>
-            <div class="roxy-el-widget-hint">${{payload.voiceMode === "agent_id_fallback" ? "Estoy intentando el agente directo porque la sesion segura no autentico. Para modo privado completo, revisa la API key del mismo workspace del agente y redeploy en Render." : "El navegador puede pedir permiso de microfono una vez. La clave segura de ElevenLabs nunca se envia al frontend."}}</div>
-            <div class="roxy-el-widget-wrap">
-              <div class="roxy-el-widget-mount"></div>
-            </div>
+            <div class="roxy-el-widget-hint">${{payload.voiceMode === "unavailable" ? "La voz segura de ElevenLabs no esta disponible. Roxy usara el cerebro local visible de la plataforma hasta que la sesion segura autentique." : "El navegador puede pedir permiso de microfono una vez. La clave segura de ElevenLabs nunca se envia al frontend."}}</div>
           </div>
         </aside>
-        <div class="roxy-el-wake" role="status" aria-live="polite">
+        <div class="roxy-el-wake" role="button" aria-label="Roxy voice assistant">
           <span class="roxy-el-avatar">${{avatarMarkup}}</span>
           <span class="roxy-el-live-dot" aria-hidden="true"></span>
-          <div class="roxy-el-wake-copy">
-            <strong>${{payload.agentId ? "Roxy esta escuchando" : "Roxy voz pendiente"}}</strong>
-            <span class="roxy-el-wake-status">${{payload.agentId ? "Di: Hola Roxy" : "Configura ElevenLabs"}}</span>
-            <div class="roxy-el-listen-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
-          </div>
         </div>
       `;
       parentDoc.body.appendChild(root);
-      const mount = root.querySelector(".roxy-el-widget-mount");
-      const widget = parentDoc.createElement("elevenlabs-convai");
-      if (payload.signedUrl) {{
-        widget.setAttribute("signed-url", payload.signedUrl);
-      }} else {{
-        widget.setAttribute("agent-id", payload.agentId);
-      }}
-      widget.setAttribute("dynamic-variables", JSON.stringify(payload.dynamicVariables || {{}}));
-      widget.setAttribute("override-language", payload.language || "es");
-      widget.setAttribute("override-first-message", `Hola ${{payload.userName || "Trader"}}, soy Roxy. Estoy lista para ayudarte con ${{payload.pageContext.module || payload.pageContext.page || "la plataforma"}} sin prometer ganancias y cuidando siempre tu riesgo.`);
-      widget.setAttribute("variant", "expanded");
-      widget.setAttribute("action-text", "Hablar con Roxy");
-      widget.setAttribute("start-call-text", "Hablar con Roxy");
-      widget.setAttribute("end-call-text", "Finalizar");
-      widget.setAttribute("expand-text", "Abrir Roxy");
-      widget.setAttribute("collapse-text", "Cerrar");
-      widget.setAttribute("listening-text", "Roxy escuchando...");
-      widget.setAttribute("speaking-text", "Roxy hablando...");
-      widget.setAttribute("avatar-orb-color-1", "#38bdf8");
-      widget.setAttribute("avatar-orb-color-2", "#8b5cf6");
-      mount.appendChild(widget);
       const closeButton = root.querySelector(".roxy-el-close");
       closeButton.addEventListener("click", () => root.classList.remove("roxy-el-open"));
 
@@ -4353,6 +4948,7 @@ def render_roxy_elevenlabs_assistant() -> None:
           const sdkImportUrls = [
             "https://esm.sh/@elevenlabs/client?bundle",
             "https://cdn.jsdelivr.net/npm/@elevenlabs/client/+esm",
+            "https://esm.run/@elevenlabs/client",
           ];
           const doc = document;
           const win = window;
@@ -4360,31 +4956,102 @@ def render_roxy_elevenlabs_assistant() -> None:
           if (!root) return;
           const wakeStatus = root.querySelector(".roxy-el-wake-status");
           const panelStatus = root.querySelector(".roxy-el-status");
-          const widget = root.querySelector("elevenlabs-convai");
           const wakeSurface = root.querySelector(".roxy-el-wake");
           let recognition = null;
           let conversation = null;
           let importPromise = null;
           let cooldownUntil = 0;
-          let temporaryVoicePrimed = false;
+          let speakingResetTimer = null;
+          const canUseSecureVoice = Boolean(payload.signedUrl || payload.conversationToken);
+
+          function secureVoiceConnected() {{
+            return Boolean(conversation || win.__roxyVoiceConversation);
+          }}
+
+          function removeLegacyVoiceBadges() {{
+            const legacyText = /toca\\s+para\\s+hablar|roxy\\s+lista|roxy\\s+esta\\s+escuchando|roxy\\s+activa/i;
+            doc.querySelectorAll("body *").forEach((node) => {{
+              if (!node || node.id === rootId || (node.closest && node.closest("#" + rootId))) return;
+              const rect = node.getBoundingClientRect ? node.getBoundingClientRect() : null;
+              if (!rect || rect.width < 120 || rect.height < 34 || rect.width > 520 || rect.height > 180) return;
+              const style = win.getComputedStyle ? win.getComputedStyle(node) : null;
+              const fixedLike = style && (style.position === "fixed" || style.position === "sticky" || Number(style.zIndex || 0) > 20);
+              const bottomRight = rect.left > win.innerWidth * 0.28 && rect.top > win.innerHeight * 0.45;
+              const text = String(node.textContent || "");
+              if ((fixedLike || bottomRight) && legacyText.test(text)) {{
+                node.setAttribute("data-roxy-legacy-voice", "true");
+                node.style.setProperty("display", "none", "important");
+                node.style.setProperty("visibility", "hidden", "important");
+                node.style.setProperty("pointer-events", "none", "important");
+              }}
+            }});
+          }}
+          removeLegacyVoiceBadges();
+          win.setInterval(removeLegacyVoiceBadges, 1400);
+
+          if (win.__roxyWakeVoice && typeof win.__roxyWakeVoice.stop === "function") {{
+            try {{ win.__roxyWakeVoice.stop(); }} catch (_) {{}}
+          }}
+          if (win.__roxyVoiceConversation && typeof win.__roxyVoiceConversation.endSession === "function") {{
+            try {{ win.__roxyVoiceConversation.endSession(); }} catch (_) {{}}
+          }}
+
+          function setRoxyVisualState(state) {{
+            const normalized = String(state || "ready").toLowerCase();
+            doc.body.classList.toggle("roxy-voice-listening", normalized === "listening");
+            doc.body.classList.toggle("roxy-voice-speaking", normalized === "speaking");
+            doc.body.classList.toggle("roxy-voice-thinking", normalized === "thinking");
+            root.classList.toggle("roxy-el-listening", normalized === "listening");
+            root.classList.toggle("roxy-el-speaking", normalized === "speaking");
+            root.classList.toggle("roxy-el-thinking", normalized === "thinking");
+            doc.querySelectorAll(".roxy-hologram-avatar").forEach(function(avatar) {{
+              avatar.classList.remove("roxy-hologram-ready", "roxy-hologram-listening", "roxy-hologram-speaking", "roxy-hologram-thinking");
+              avatar.classList.add("roxy-hologram-" + normalized);
+            }});
+          }}
+
+          function normalizeMode(value) {{
+            const raw = typeof value === "string" ? value : String((value && (value.mode || value.status || value.type)) || "");
+            const mode = raw.toLowerCase();
+            if (mode.includes("speak") || mode.includes("talk") || mode.includes("agent_response")) return "speaking";
+            if (mode.includes("listen") || mode.includes("user") || mode.includes("record")) return "listening";
+            if (mode.includes("think") || mode.includes("processing")) return "thinking";
+            return "";
+          }}
+
+          function holdSpeakingFor(message) {{
+            if (speakingResetTimer) clearTimeout(speakingResetTimer);
+            setRoxyVisualState("speaking");
+            const text = typeof message === "string" ? message : JSON.stringify(message || "");
+            const duration = Math.min(9000, Math.max(1800, text.length * 45));
+            speakingResetTimer = setTimeout(function() {{
+              setRoxyVisualState(conversation ? "listening" : "ready");
+            }}, duration);
+          }}
 
           function setStatus(message, isError) {{
             if (wakeStatus) wakeStatus.textContent = message;
             if (panelStatus) {{
-              panelStatus.textContent = message;
+              panelStatus.dataset.roxyLastStatus = message;
+              panelStatus.textContent = isError ? message : "Roxy voz preparada";
               panelStatus.classList.toggle("roxy-el-status-error", Boolean(isError));
             }}
           }}
 
-          function speakBrowserFallback(message) {{
+          function speakBrowserFallback(message, force) {{
             try {{
+              if (!force && secureVoiceConnected()) {{
+                setStatus("Roxy voz preparada", false);
+                setRoxyVisualState("listening");
+                return false;
+              }}
               const synth = win.speechSynthesis;
               const Utterance = win.SpeechSynthesisUtterance;
               if (!synth || !Utterance) {{
                 setStatus("Voz temporal no disponible en este navegador", true);
                 return false;
               }}
-              const text = String(message || "").trim() || ("Hola " + (payload.userName || "Trader") + ". Soy Roxy. La voz temporal esta funcionando.");
+              const text = String(message || "").trim() || ("Hola " + (payload.userName || "Trader") + ". Soy Roxy Trading. Estoy conectada al contexto visible de la plataforma.");
               synth.cancel();
               const utterance = new Utterance(text);
               const language = String(payload.language || "es").toLowerCase();
@@ -4405,9 +5072,9 @@ def render_roxy_elevenlabs_assistant() -> None:
                 }}
               }};
               assignVoice();
-              utterance.onstart = function() {{ setStatus("Roxy hablando con voz temporal", false); }};
-              utterance.onend = function() {{ setStatus("Di: Hola Roxy", false); }};
-              utterance.onerror = function() {{ setStatus("No pude reproducir voz temporal", true); }};
+              utterance.onstart = function() {{ setStatus("Roxy hablando", false); holdSpeakingFor(text); }};
+              utterance.onend = function() {{ setStatus("Roxy voz preparada", false); setRoxyVisualState("ready"); }};
+              utterance.onerror = function() {{ setStatus("No pude reproducir voz temporal", true); setRoxyVisualState("ready"); }};
               if (typeof synth.resume === "function") synth.resume();
               synth.speak(utterance);
               if (typeof synth.getVoices === "function" && synth.getVoices().length === 0) {{
@@ -4473,13 +5140,13 @@ def render_roxy_elevenlabs_assistant() -> None:
             command = command.replace(/^(hola|ola|hello|hey)\\s+roxy\\b[\\s,.:;-]*/i, "");
             command = command.replace(/^roxy\\b[\\s,.:;-]*/i, "");
             const words = speechWords(command);
-            const commandWords = ["abre", "abrir", "muestra", "mostrar", "busca", "buscar", "analiza", "escanea", "dime", "acciones", "accion", "apple", "aapl", "crypto", "cripto", "bitcoin", "btc", "classroom", "clase", "clases"];
+            const commandWords = ["abre", "abrir", "muestra", "mostrar", "busca", "buscar", "analiza", "analisis", "análisis", "escanea", "scanner", "dime", "oportunidad", "oportunidades", "mejores", "senal", "señal", "senales", "señales", "acciones", "accion", "apple", "aapl", "microsoft", "msft", "nvidia", "nvda", "tesla", "tsla", "crypto", "cripto", "bitcoin", "btc", "ethereum", "eth", "solana", "sol", "strike", "deriv", "yes", "no", "trade", "classroom", "academy", "clase", "clases", "leccion", "lección", "clima", "lluvia", "weather", "temperatura", "pantalla", "viendo", "lee", "leer", "leeme", "léeme", "resumen", "resume", "archivo", "carpeta", "articulo", "artículo", "pagina", "página", "google", "eventos", "calendario", "cita", "citas", "comprar", "compra", "lista", "recordatorio", "recordatorios", "recordarme", "acuerdame", "acuérdame", "watchlist", "portfolio", "portafolio", "alerta", "alertas"];
             if (words.length < 2 && !words.some(function(word) {{ return commandWords.includes(word); }})) return "";
             if (!words.some(function(word) {{ return commandWords.includes(word); }})) return "";
             return command || String(value || "").trim();
           }}
 
-          function sendCommandToRoxyOS(value) {{
+          function sendCommandToRoxyOSNavigation(value) {{
             const command = commandAfterWakePhrase(value);
             if (!command) return false;
             const now = Date.now();
@@ -4497,8 +5164,362 @@ def render_roxy_elevenlabs_assistant() -> None:
             }}
           }}
 
+          function localPlatformVoiceReply(command) {{
+            const text = String(command || "").toLowerCase();
+            const snapshot = payload.opportunitySnapshot || {{}};
+            const rows = Array.isArray(snapshot.rows) ? snapshot.rows.filter(function(row) {{ return row && typeof row === "object"; }}).slice(0, 5) : [];
+            const page = payload.pageContext || {{}};
+            const moduleName = String(snapshot.module || page.module || "home");
+            const wantsOpportunities = /oportunidad|oportunidades|mejores|senal|señal|senales|señales|scanner|lista|operar|trade|acciones|crypto|cripto|bitcoin|btc|apple|aapl/i.test(text);
+            const wantsScreen = /pantalla|viendo|donde estoy|qué veo|que veo|carpeta|modulo|módulo/i.test(text);
+            if (!wantsOpportunities && !wantsScreen) return "";
+            if (wantsScreen && !wantsOpportunities) {{
+              return "Estas en Roxy Trading, carpeta " + moduleName + ". Activo visible " + String(page.symbol || snapshot.symbol || "sin activo seleccionado") + ", timeframe " + String(page.timeframe || snapshot.timeframe || "no definido") + ". Puedo guiarte por Acciones, Crypto 20min, Crypto 2H, Crypto Daily o Classroom.";
+            }}
+            if (!rows.length) {{
+              return "Ahora mismo no tengo oportunidades visibles en esta pantalla. Abre Acciones, Crypto 20min, Crypto 2H o Crypto Daily para que Roxy use datos live y no invente precios.";
+            }}
+            const summary = rows.slice(0, 3).map(function(row, index) {{
+              const symbol = String(row.symbol || row.ticker || "activo " + (index + 1)).toUpperCase();
+              const decision = String(row.decision || row.signal || "esperar confirmacion");
+              const price = String(row.price || row.current_price || "sin precio visible");
+              const entry = String(row.entry || "sin entrada visible");
+              const stop = String(row.stop || row.stop_loss || "sin stop visible");
+              const target = String(row.target || "sin target visible");
+              const confidence = String(row.confidence || "sin confianza visible");
+              const reason = String(row.reason || row.next_step || "sin razon visible");
+              return symbol + ": " + decision + ". Precio " + price + ". Entrada " + entry + ". Stop " + stop + ". Target " + target + ". Confianza " + confidence + ". Razon: " + reason + ".";
+            }}).join(" ");
+            return "En " + moduleName + ", estas son las mejores oportunidades visibles ahora. " + summary + " Usa esto como apoyo educativo y paper trading; confirma feed live, stop loss y tamano de posicion antes de operar dinero real.";
+          }}
+
+          async function processWakeCommand(value) {{
+            const command = commandAfterWakePhrase(value);
+            if (!command) return false;
+            const now = Date.now();
+            if (win.__roxyLastDirectWakeCommand === command && now - Number(win.__roxyLastDirectWakeCommandAt || 0) < 6000) return true;
+            win.__roxyLastDirectWakeCommand = command;
+            win.__roxyLastDirectWakeCommandAt = now;
+            setStatus("Roxy entendio: " + command, false);
+            const helperResult = await callRoxyDesktopHelper({{
+              command: command,
+              context: {{
+                ...(payload.pageContext || {{}}),
+                source: "hola_roxy_wake_word",
+                opportunity_snapshot: payload.opportunitySnapshot || null,
+                visible_opportunities_text: payload.visibleOpportunitiesText || "",
+                voiceWake: true,
+              }}
+            }});
+            if (helperResult && helperResult.ok) {{
+              const reply = String(helperResult.message || (helperResult.response && helperResult.response.message) || "").trim();
+              win.__roxyPendingHelperVoiceReply = {{
+                id: "wake-" + now,
+                command: command,
+                text: reply || "Listo. Ya procese tu instruccion con el cerebro local de Roxy.",
+                result: helperResult,
+              }};
+              setStatus("Roxy OS local proceso la instruccion", false);
+              if (canUseSecureVoice) {{
+                const activated = await activateRoxy();
+                if (conversation) sendRoxyContextToConversation();
+                if (!activated) speakBrowserFallback(win.__roxyPendingHelperVoiceReply.text, true);
+                return true;
+              }}
+              if (speakBrowserFallback(win.__roxyPendingHelperVoiceReply.text)) return true;
+              await activateRoxy();
+              if (conversation) sendRoxyContextToConversation();
+              return true;
+            }}
+            const localReply = localPlatformVoiceReply(command);
+            if (localReply) {{
+              win.__roxyPendingHelperVoiceReply = {{
+                id: "browser-visible-" + now,
+                command: command,
+                text: localReply,
+                result: {{ ok: true, source: "browser_visible_context", command: command }},
+              }};
+              setStatus("Roxy preparo respuesta local", false);
+              if (canUseSecureVoice) {{
+                const activated = await activateRoxy();
+                if (conversation) sendRoxyContextToConversation();
+                if (!activated) speakBrowserFallback(localReply, true);
+                return true;
+              }}
+              if (speakBrowserFallback(localReply)) return true;
+              await activateRoxy();
+              if (conversation) sendRoxyContextToConversation();
+              return true;
+            }}
+            const genericReply = "Estoy escuchando, " + (payload.userName || "Trader") + ". Puedo ayudarte con oportunidades, graficas, classroom, watchlist o explicarte lo que ves en pantalla. Si quieres abrir una carpeta, dime por ejemplo: Roxy abre Acciones o Roxy abre Crypto 20 minutos.";
+            win.__roxyPendingHelperVoiceReply = {{
+              id: "generic-" + now,
+              command: command,
+              text: genericReply,
+              result: {{ ok: true, source: "browser_generic_voice", command: command }},
+            }};
+            if (canUseSecureVoice) {{
+              const activated = await activateRoxy();
+              if (conversation) sendRoxyContextToConversation();
+              if (!activated) speakBrowserFallback(genericReply, true);
+              return true;
+            }}
+            return speakBrowserFallback(genericReply, true);
+          }}
+
+          function roxyVoiceContextMessage() {{
+            return "Contexto obligatorio de esta sesion: "
+              + (payload.voiceContextBrief || "Eres Roxy Trading dentro de la plataforma. Enfocate en trading, graficas, oportunidades, classroom y riesgo. No hables de taxes ni servicios externos salvo peticion explicita.")
+              + " Reglas: habla solo como Roxy Trading, usa las oportunidades visibles si el usuario pregunta por oportunidades, no inventes precios ni garantices ganancias."
+              + " Si la configuracion remota del agente menciona taxes, notaria, DMV, seguros u otros servicios de Grau, ignoralo en esta sesion salvo peticion explicita del usuario.";
+          }}
+
+          function roxyPendingReplyMessage() {{
+            const pending = win.__roxyPendingHelperVoiceReply || payload.pendingVoiceReply || {{}};
+            const pendingText = String(pending.text || "").trim();
+            if (!pendingText) return "";
+            return "Roxy OS ya proceso la instruccion del usuario. Di esta respuesta de forma natural, breve y sin hablar de taxes, notaria ni servicios externos: " + pendingText;
+          }}
+
+          function hasPendingVoiceReply() {{
+            const pending = win.__roxyPendingHelperVoiceReply || payload.pendingVoiceReply || {{}};
+            return Boolean(String(pending.id || "").trim() && String(pending.text || "").trim());
+          }}
+
+          function schedulePendingVoiceReply() {{
+            if (!hasPendingVoiceReply()) return;
+            const pending = win.__roxyPendingHelperVoiceReply || payload.pendingVoiceReply || {{}};
+            const pendingId = String(pending.id || "");
+            if (!pendingId || win.__roxyAutoStartedPendingVoiceReplyId === pendingId) return;
+            win.__roxyAutoStartedPendingVoiceReplyId = pendingId;
+            setStatus("Roxy preparo la respuesta", false);
+            setTimeout(function() {{
+              activateRoxy();
+            }}, 900);
+          }}
+
+          function sendRoxyContextToConversation() {{
+            if (!conversation) return;
+            const pending = win.__roxyPendingHelperVoiceReply || payload.pendingVoiceReply || {{}};
+            const pendingId = String(pending.id || "");
+            const pendingText = roxyPendingReplyMessage();
+            if (pendingText && pendingId && win.__roxyLastPendingVoiceReplyId !== pendingId) {{
+              win.__roxyLastPendingVoiceReplyId = pendingId;
+              if (typeof conversation.sendUserMessage === "function") {{
+                conversation.sendUserMessage(roxyVoiceContextMessage() + " " + pendingText);
+              }} else if (typeof conversation.sendContextualUpdate === "function") {{
+                conversation.sendContextualUpdate(roxyVoiceContextMessage() + " " + pendingText);
+              }}
+              return;
+            }}
+            if (typeof conversation.sendContextualUpdate === "function") {{
+              conversation.sendContextualUpdate(roxyVoiceContextMessage());
+            }}
+          }}
+
+          function roxyConversationOverrides() {{
+            const language = String(payload.language || "es").toLowerCase().startsWith("en") ? "en" : "es";
+            const prompt = [
+              roxyVoiceContextMessage(),
+              "Identidad fija: eres Roxy Trading, copiloto operativo y profesora dentro de Roxy Trading.",
+              "Nunca digas que ayudas con taxes, notaria, DMV o seguros salvo que el usuario lo pida explicitamente.",
+              "Si el usuario pide oportunidades, usa solo los datos visibles enviados en el contexto y responde ticker, direccion, entrada, stop, target, riesgo, confianza y razon.",
+              "Si tienes herramientas cliente disponibles, usa getRoxyTradingDecision para oportunidades/acciones/crypto/strike, getVisibleOpportunities para leer datos visibles, summarizeCurrentScreen para pantalla, openBrowserTarget para navegador, readLocalPath para archivos, openRoxyModule para carpetas y sendCommandToRoxyOS para clima, calendario, compras o acciones fuera del chat.",
+              "Si faltan datos en vivo, dilo claramente y pide abrir la carpeta o activo correcto. No inventes precios.",
+              "No garantices ganancias ni ejecutes dinero real."
+            ].join(" ");
+            return {{
+              agent: {{
+                prompt: {{ prompt: prompt }},
+                firstMessage: "Hola " + (payload.userName || "Trader") + ", soy Roxy Trading. Estoy conectada a esta pantalla y lista para ayudarte con oportunidades, graficas, riesgo y classroom.",
+                language: language,
+              }},
+            }};
+          }}
+
+          function roxyClientTools() {{
+            return {{
+              getCurrentScreenContext: async function() {{
+                return {{
+                  ok: true,
+                  pageContext: payload.pageContext || {{}},
+                  userProfile: payload.userProfile || {{}},
+                  visibleModule: (payload.pageContext && payload.pageContext.module) || "home",
+                  activeSymbol: (payload.pageContext && payload.pageContext.symbol) || "",
+                  timeframe: (payload.pageContext && payload.pageContext.timeframe) || "",
+                  instruction: "Usa este contexto para guiar al usuario dentro de Roxy Trading sin hablar de taxes/notaria/DMV."
+                }};
+              }},
+              getVisibleOpportunities: async function() {{
+                return {{
+                  ok: true,
+                  pageContext: payload.pageContext || {{}},
+                  opportunitySnapshot: payload.opportunitySnapshot || null,
+                  responseContract: roxyVoiceContextMessage(),
+                  instruction: "Resume solo oportunidades visibles. Si no hay snapshot o faltan entrada/stop/target, dilo claramente y no inventes datos."
+                }};
+              }},
+              getRoxyTradingDecision: async function(parameters) {{
+                const params = parameters || {{}};
+                const command = String(params.command || params.text || params.request || "dame las mejores oportunidades de Roxy Trading").trim();
+                const visible = await this.getVisibleOpportunities();
+                const helperResult = await callRoxyDesktopHelper({{
+                  command: command,
+                  context: {{
+                    ...(payload.pageContext || {{}}),
+                    opportunity_snapshot: payload.opportunitySnapshot || null,
+                    visible_opportunities_text: payload.visibleOpportunitiesText || "",
+                    tool: "getRoxyTradingDecision"
+                  }}
+                }});
+                const snapshot = payload.opportunitySnapshot || {{}};
+                return {{
+                  ok: true,
+                  command: command,
+                  pageContext: payload.pageContext || {{}},
+                  visibleOpportunities: visible,
+                  roxyBrain: helperResult && helperResult.ok ? helperResult : null,
+                  bestVisibleRows: snapshot.rows || [],
+                  responseContract: payload.operationalResponseContract || roxyVoiceContextMessage(),
+                  instruction: "Contesta como Roxy Trading usando primero roxyBrain.message si existe y luego bestVisibleRows. Si faltan entrada, stop, target o precio live, dilo claramente; no inventes precios ni garantices ganancias."
+                }};
+              }},
+              openRoxyModule: async function(parameters) {{
+                const params = parameters || {{}};
+                const moduleMap = {{
+                  actions: "acciones-operar",
+                  acciones: "acciones-operar",
+                  stocks: "acciones-operar",
+                  crypto20: "crypto-20m",
+                  "crypto-20m": "crypto-20m",
+                  "crypto 20min": "crypto-20m",
+                  crypto2h: "crypto-2h",
+                  "crypto-2h": "crypto-2h",
+                  daily: "crypto-daily",
+                  "crypto-daily": "crypto-daily",
+                  classroom: "classroom",
+                  academy: "classroom"
+                }};
+                const requested = String(params.module || params.folder || params.section || "").toLowerCase();
+                const module = moduleMap[requested] || requested || "acciones-operar";
+                const symbol = String(params.symbol || (payload.pageContext && payload.pageContext.symbol) || "").toUpperCase();
+                const url = new URL(win.location.href);
+                url.searchParams.set("view", "Dashboard");
+                url.searchParams.set("module", module);
+                if (symbol) url.searchParams.set("symbol", symbol);
+                win.location.href = url.toString();
+                return {{ ok: true, openedModule: module, symbol: symbol }};
+              }},
+              sendCommandToRoxyOS: async function(parameters) {{
+                const params = parameters || {{}};
+                const command = String(params.command || params.text || params.request || "").trim();
+                if (!command) {{
+                  return {{ ok: false, error: "missing_command" }};
+                }}
+                const helperResult = await callRoxyDesktopHelper({{
+                  command: command,
+                  context: {{
+                    ...(payload.pageContext || {{}}),
+                    opportunity_snapshot: payload.opportunitySnapshot || null,
+                    visible_opportunities_text: payload.visibleOpportunitiesText || "",
+                    user_profile: payload.userProfile || {{}},
+                    tool: "sendCommandToRoxyOS"
+                  }}
+                }});
+                if (helperResult && helperResult.ok) {{
+                  return helperResult;
+                }}
+                const sent = sendCommandToRoxyOSNavigation("Hola Roxy " + command);
+                return {{
+                  ok: Boolean(sent),
+                  command: command,
+                  instruction: sent ? "Roxy OS procesara esta instruccion y la voz leera la respuesta." : "No se pudo enviar la instruccion a Roxy OS."
+                }};
+              }},
+              callRoxyDesktopHelper: async function(parameters) {{
+                return await callRoxyDesktopHelper(parameters || {{}});
+              }},
+              summarizeCurrentScreen: async function(parameters) {{
+                const params = parameters || {{}};
+                return await postDesktopHelper("/screen/summary", {{ context: {{ ...(payload.pageContext || {{}}), ...(params.context || {{}}) }} }});
+              }},
+              openBrowserTarget: async function(parameters) {{
+                const params = parameters || {{}};
+                return await postDesktopHelper("/browser/open", {{ query: String(params.url || params.query || params.text || "") }});
+              }},
+              readLocalPath: async function(parameters) {{
+                const params = parameters || {{}};
+                return await postDesktopHelper("/file/read", {{ path: String(params.path || params.file || params.folder || "") }});
+              }},
+            }};
+          }}
+
+          async function postDesktopHelper(endpoint, body) {{
+            const helperUrl = String(payload.desktopHelperUrl || "http://127.0.0.1:8765").replace(/\\/$/, "");
+            if (!/^http:\\/\\/(127\\.0\\.0\\.1|localhost)(:\\d+)?$/i.test(helperUrl)) {{
+              return {{ ok: false, error: "desktop_helper_must_be_localhost" }};
+            }}
+            try {{
+              const response = await fetch(helperUrl + endpoint, {{
+                method: "POST",
+                headers: {{ "Content-Type": "application/json" }},
+                body: JSON.stringify(body || {{}})
+              }});
+              if (!response.ok) return {{ ok: false, error: "desktop_helper_http_" + response.status }};
+              return await response.json();
+            }} catch (error) {{
+              return {{ ok: false, error: "desktop_helper_unreachable" }};
+            }}
+          }}
+
+          async function callRoxyDesktopHelper(parameters) {{
+            const params = parameters || {{}};
+            const helperUrl = String(payload.desktopHelperUrl || "http://127.0.0.1:8765").replace(/\\/$/, "");
+            if (!/^http:\\/\\/(127\\.0\\.0\\.1|localhost)(:\\d+)?$/i.test(helperUrl)) {{
+              return {{ ok: false, error: "desktop_helper_must_be_localhost" }};
+            }}
+            const command = String(params.command || params.text || params.request || "").trim();
+            if (!command) return {{ ok: false, error: "missing_command" }};
+            try {{
+              const response = await fetch(helperUrl + "/command", {{
+                method: "POST",
+                headers: {{ "Content-Type": "application/json" }},
+                body: JSON.stringify({{
+                  user_id: String(payload.userName || "local_user"),
+                  text: command,
+                  context: {{
+                    ...(payload.pageContext || {{}}),
+                    ...(params.context || {{}}),
+                    source: "elevenlabs_voice_client"
+                  }}
+                }})
+              }});
+              if (!response.ok) return {{ ok: false, error: "desktop_helper_http_" + response.status }};
+              const data = await response.json();
+              if (data && data.ok && data.response) {{
+                return {{
+                  ok: true,
+                  source: "roxy_desktop_helper",
+                  command: command,
+                  response: data.response,
+                  message: data.response.message || "",
+                  intent: data.response.intent || "",
+                  agent: data.response.agent || "",
+                  permission: data.response.permission || null,
+                  actions: data.response.actions || [],
+                  desktopActions: data.response.desktop_actions || [],
+                  instruction: "Usa esta respuesta del cerebro local de Roxy. Si incluye acciones sensibles, explica que requieren permiso."
+                }};
+              }}
+              return {{ ok: false, error: "desktop_helper_unavailable" }};
+            }} catch (error) {{
+              return {{ ok: false, error: "desktop_helper_unreachable" }};
+            }}
+          }}
+
           function openPanel() {{
-            root.classList.add("roxy-el-open");
+            root.classList.remove("roxy-el-open");
+            setRoxyVisualState("listening");
           }}
 
           async function allowMic() {{
@@ -4522,9 +5543,11 @@ def render_roxy_elevenlabs_assistant() -> None:
                     return await import(url);
                   }} catch (error) {{
                     lastError = error;
+                    console.warn("Roxy ElevenLabs SDK import failed from", url, error);
                   }}
                 }}
-                throw lastError || new Error("ElevenLabs SDK import failed");
+                console.warn("Roxy ElevenLabs SDK unavailable; using fallback voice/widget", lastError);
+                return null;
               }})();
             }}
             return importPromise;
@@ -4532,64 +5555,86 @@ def render_roxy_elevenlabs_assistant() -> None:
 
           async function activateRoxy() {{
             const now = Date.now();
-            if (now < cooldownUntil) return;
+            const pending = win.__roxyPendingHelperVoiceReply || payload.pendingVoiceReply || {{}};
+            const pendingText = String(pending.text || "").trim();
+            if (now < cooldownUntil) {{
+              if (!secureVoiceConnected() && pendingText) return speakBrowserFallback(pendingText, true);
+              return secureVoiceConnected();
+            }}
             cooldownUntil = now + 2500;
             openPanel();
-            const lastTemporaryVoice = Number(win.__roxyTemporaryVoicePrimedAt || 0);
-            if (!temporaryVoicePrimed && now - lastTemporaryVoice > 3500 && payload.voiceMode !== "conversation_token" && payload.voiceMode !== "signed_url") {{
-              win.__roxyTemporaryVoicePrimedAt = now;
-              temporaryVoicePrimed = speakBrowserFallback("Hola " + (payload.userName || "Trader") + ". Soy Roxy. Probando voz temporal mientras conectamos la voz real.");
-            }}
-            if (!payload.signedUrl && !payload.conversationToken && !payload.agentId) {{
+            if (!canUseSecureVoice) {{
               setStatus(payload.error ? "Configura ElevenLabs en Render" : "Sesion de voz no disponible", true);
-              speakBrowserFallback("Hola " + (payload.userName || "Trader") + ". Soy Roxy. Esta es una voz temporal para confirmar que el sistema de audio funciona.");
-              return;
+              return speakBrowserFallback(pendingText || ("Hola " + (payload.userName || "Trader") + ". Soy Roxy Trading. La voz segura de ElevenLabs no esta conectada, pero puedo responder con el contexto visible de la plataforma."), true);
             }}
-            if (!(await allowMic())) return;
+            if (!(await allowMic())) {{
+              return speakBrowserFallback(pendingText || ("Hola " + (payload.userName || "Trader") + ". Necesito permiso del microfono para escuchar Hola Roxy, pero puedo hablar con voz temporal."), true);
+            }}
             if (conversation) {{
-              setStatus("Roxy ya esta activa. Habla ahora.", false);
-              return;
+              setStatus("Roxy activa", false);
+              return true;
             }}
             setStatus("Activando voz real de Roxy...", false);
             try {{
               const eleven = await loadClient();
+              if (!eleven) {{
+                const spoke = speakBrowserFallback(pendingText || ("Hola " + (payload.userName || "Trader") + ". Soy Roxy. El modulo de voz real no cargo en este navegador, pero puedo mantener la voz temporal mientras revisamos ElevenLabs."), true);
+                setStatus(spoke ? "Voz temporal activa; SDK no cargo" : "SDK no cargo; abre el widget de Roxy", !spoke);
+                return spoke;
+              }}
               const Conversation = eleven.Conversation || (eleven.default && eleven.default.Conversation);
               if (!Conversation || !Conversation.startSession) throw new Error("ElevenLabs SDK unavailable");
               const options = {{
                 dynamicVariables: payload.dynamicVariables || {{}},
-                clientTools: {{}},
-                onConnect: function() {{ setStatus("Roxy activa. Te escucho.", false); }},
+                overrides: roxyConversationOverrides(),
+                clientTools: roxyClientTools(),
+                onConnect: function() {{ setStatus("Roxy activa", false); setRoxyVisualState("listening"); }},
                 onDisconnect: function() {{
                   conversation = null;
-                  setStatus("Di: Hola Roxy", false);
+                  win.__roxyVoiceConversation = null;
+                  setStatus("Roxy voz preparada", false);
+                  setRoxyVisualState("ready");
                   restartWakeListener();
                 }},
                 onError: function() {{
                   setStatus("Error de voz. Reintentando escucha.", true);
+                  setRoxyVisualState("ready");
                   restartWakeListener();
+                }},
+                onModeChange: function(mode) {{
+                  const visualMode = normalizeMode(mode);
+                  if (visualMode) setRoxyVisualState(visualMode);
+                }},
+                onMessage: function(message) {{
+                  const source = String((message && (message.source || message.role || message.type)) || "").toLowerCase();
+                  if (!source || source.includes("agent") || source.includes("ai") || source.includes("assistant")) holdSpeakingFor(message);
                 }},
               }};
               if (payload.conversationToken) options.conversationToken = payload.conversationToken;
               else if (payload.signedUrl) options.signedUrl = payload.signedUrl;
-              else options.agentId = payload.agentId;
+              else throw new Error("Secure ElevenLabs session unavailable");
               conversation = await Conversation.startSession(options);
-              if (conversation && typeof conversation.sendUserMessage === "function") {{
-                conversation.sendUserMessage("Hola Roxy. Soy " + (payload.userName || "Trader") + ". Activaste por voz en " + (payload.pageContext.module || payload.pageContext.page || "Roxy Trading") + ".");
-              }}
+              win.__roxyVoiceConversation = conversation;
+              sendRoxyContextToConversation();
+              return true;
             }} catch (error) {{
-              const spoke = speakBrowserFallback("Hola " + (payload.userName || "Trader") + ". Soy Roxy. ElevenLabs no conecto todavia, pero esta voz temporal confirma que el audio funciona.");
-              if (!spoke) setStatus("No pude iniciar voz automatica; abri el panel de Roxy", true);
-              if (widget && typeof widget.click === "function") {{
-                try {{ widget.click(); }} catch (_) {{}}
-              }}
+              const spoke = speakBrowserFallback(pendingText || ("Hola " + (payload.userName || "Trader") + ". Soy Roxy. ElevenLabs no conecto todavia, pero esta voz temporal confirma que el audio funciona."), true);
+              if (!spoke) setStatus("No pude iniciar voz de ElevenLabs con el cerebro de Roxy. Revisa la API key y el agente en Render.", true);
+              return spoke;
             }}
           }}
 
           if (wakeSurface) {{
-            wakeSurface.addEventListener("click", activateRoxy);
+            wakeSurface.addEventListener("click", function() {{
+              allowMic().then(function(ok) {{
+                if (ok) restartWakeListener();
+              }});
+            }});
             wakeSurface.addEventListener("touchend", function(event) {{
               event.preventDefault();
-              activateRoxy();
+              allowMic().then(function(ok) {{
+                if (ok) restartWakeListener();
+              }});
             }}, {{ passive: false }});
           }}
 
@@ -4622,7 +5667,7 @@ def render_roxy_elevenlabs_assistant() -> None:
           function startWakeListener() {{
             const SpeechRecognition = win.SpeechRecognition || win.webkitSpeechRecognition;
             if (!SpeechRecognition) {{
-              setStatus("Este navegador no soporta escucha automatica", true);
+              setStatus("Escucha automatica no disponible", true);
               return;
             }}
             try {{
@@ -4631,14 +5676,14 @@ def render_roxy_elevenlabs_assistant() -> None:
               recognition.continuous = true;
               recognition.interimResults = true;
               recognition.maxAlternatives = 1;
-              recognition.onstart = function() {{ setStatus("Di: Hola Roxy", false); }};
+              recognition.onstart = function() {{ setStatus("Roxy voz preparada", false); setRoxyVisualState("ready"); }};
               recognition.onerror = function(event) {{
                 const code = event && event.error ? String(event.error) : "";
                 if (code === "not-allowed" || code === "service-not-allowed") {{
-                  setStatus("Toca la pantalla y acepta el microfono", true);
+                  setStatus("Permite el microfono para activar Hola Roxy", true);
                   armMicPermissionRetry();
                 }} else {{
-                  setStatus("Roxy escucha en pausa; reintentando", false);
+                  setStatus("Roxy voz preparada", false);
                 }}
               }};
               recognition.onend = function() {{
@@ -4654,12 +5699,14 @@ def render_roxy_elevenlabs_assistant() -> None:
                 }}
                 if (isWakePhrase(transcript)) {{
                   stopWakeListener();
-                  if (!sendCommandToRoxyOS(transcript)) activateRoxy();
+                  processWakeCommand(transcript).then(function(sent) {{
+                    if (!sent) activateRoxy();
+                  }});
                 }}
               }};
               recognition.start();
             }} catch (error) {{
-              setStatus("Toca la pagina una vez y di Hola Roxy", true);
+              setStatus("Permite el microfono para activar Hola Roxy", true);
               const prime = function() {{
                 doc.removeEventListener("click", prime, true);
                 doc.removeEventListener("touchstart", prime, true);
@@ -4678,35 +5725,37 @@ def render_roxy_elevenlabs_assistant() -> None:
             if (ready) restartWakeListener();
           }}
 
-          if (!payload.signedUrl && !payload.conversationToken && !payload.agentId) {{
-            setStatus(payload.error ? ("Configurar voz: " + payload.error) : "Sesion de voz no disponible", true);
-            return;
+          if (!canUseSecureVoice) {{
+            setStatus(payload.error ? "Roxy voz local preparada" : "Roxy voz local preparada", false);
+            setRoxyVisualState("ready");
           }}
+          setRoxyVisualState("ready");
 
           if (navigator.permissions && navigator.permissions.query) {{
             navigator.permissions.query({{ name: "microphone" }}).then(function(permission) {{
               if (permission.state === "granted") {{
                 startWakeListener();
               }} else {{
-                setStatus("Toca una vez y di Hola Roxy", false);
+                setStatus("Permite el microfono", false);
                 doc.addEventListener("pointerdown", primeWakeVoice, true);
                 doc.addEventListener("touchstart", primeWakeVoice, true);
                 doc.addEventListener("keydown", primeWakeVoice, true);
               }}
             }}).catch(function() {{
-              setStatus("Toca una vez y di Hola Roxy", false);
+              setStatus("Permite el microfono", false);
               doc.addEventListener("pointerdown", primeWakeVoice, true);
               doc.addEventListener("touchstart", primeWakeVoice, true);
               doc.addEventListener("keydown", primeWakeVoice, true);
               startWakeListener();
             }});
           }} else {{
-            setStatus("Toca una vez y di Hola Roxy", false);
+            setStatus("Permite el microfono", false);
             doc.addEventListener("pointerdown", primeWakeVoice, true);
             doc.addEventListener("touchstart", primeWakeVoice, true);
             doc.addEventListener("keydown", primeWakeVoice, true);
             startWakeListener();
           }}
+          schedulePendingVoiceReply();
           win.__roxyWakeVoice = {{
             activate: activateRoxy,
             restart: restartWakeListener,
@@ -4715,311 +5764,7 @@ def render_roxy_elevenlabs_assistant() -> None:
         }})();
       `;
       parentDoc.body.appendChild(parentWakeRuntime);
-
-      const wakeStatus = root.querySelector(".roxy-el-wake-status");
-      const panelStatus = root.querySelector(".roxy-el-status");
-      const wakeSurface = root.querySelector(".roxy-el-wake");
-      let conversation = null;
-      let elevenLabsModulePromise = null;
-      let recognition = null;
-      let wakeCooldownUntil = 0;
-      let temporaryVoicePrimed = false;
-
-      function setWakeStatus(message, isError) {{
-        if (wakeStatus) wakeStatus.textContent = message;
-        if (panelStatus) {{
-          panelStatus.textContent = message;
-          panelStatus.classList.toggle("roxy-el-status-error", Boolean(isError));
-        }}
-      }}
-
-      function speakBrowserFallback(message) {{
-        try {{
-          const voiceWindow = window.parent || window;
-          const synth = voiceWindow.speechSynthesis || window.speechSynthesis;
-          const Utterance = voiceWindow.SpeechSynthesisUtterance || window.SpeechSynthesisUtterance;
-          if (!synth || !Utterance) {{
-            setWakeStatus("Voz temporal no disponible en este navegador", true);
-            return false;
-          }}
-          const text = String(message || "").trim() || (`Hola ${{payload.userName || "Trader"}}. Soy Roxy. La voz temporal esta funcionando.`);
-          synth.cancel();
-          const utterance = new Utterance(text);
-          const language = String(payload.language || "es").toLowerCase();
-          utterance.lang = language.startsWith("en") ? "en-US" : "es-US";
-          utterance.rate = 0.95;
-          utterance.pitch = 1.08;
-          utterance.volume = 1;
-          const assignVoice = () => {{
-            const voices = typeof synth.getVoices === "function" ? synth.getVoices() : [];
-            const voice = voices.find((item) => /female|paulina|monica|samantha|google espa|spanish|es-|es_/i.test(`${{item.name || ""}} ${{item.lang || ""}}`))
-              || voices.find((item) => String(item.lang || "").toLowerCase().startsWith("es"))
-              || voices[0];
-            if (voice) {{
-              utterance.voice = voice;
-              if (voice.lang) utterance.lang = voice.lang;
-            }}
-          }};
-          assignVoice();
-          utterance.onstart = () => setWakeStatus("Roxy hablando con voz temporal", false);
-          utterance.onend = () => setWakeStatus("Di: Hola Roxy", false);
-          utterance.onerror = () => setWakeStatus("No pude reproducir voz temporal", true);
-          if (typeof synth.resume === "function") synth.resume();
-          synth.speak(utterance);
-          if (typeof synth.getVoices === "function" && synth.getVoices().length === 0) {{
-            synth.onvoiceschanged = () => {{
-              assignVoice();
-              synth.onvoiceschanged = null;
-            }};
-          }}
-          return true;
-        }} catch (error) {{
-          setWakeStatus("Voz temporal no disponible", true);
-          return false;
-        }}
-      }}
-
-      function openRoxyPanel() {{
-        root.classList.add("roxy-el-open");
-      }}
-
-      function speechWords(text) {{
-        let normalized = String(text || "").toLowerCase();
-        try {{
-          normalized = normalized.normalize("NFD");
-        }} catch (_) {{}}
-        const words = [];
-        let current = "";
-        for (const char of normalized) {{
-          const code = char.charCodeAt(0);
-          const isCombiningMark = code >= 768 && code <= 879;
-          const isLetter = char >= "a" && char <= "z";
-          const isNumber = char >= "0" && char <= "9";
-          if (isCombiningMark) continue;
-          if (isLetter || isNumber) {{
-            current += char;
-          }} else if (current) {{
-            words.push(current);
-            current = "";
-          }}
-        }}
-        if (current) words.push(current);
-        return words;
-      }}
-
-      function containsSpeechSequence(words, sequence) {{
-        for (let index = 0; index <= words.length - sequence.length; index += 1) {{
-          let matched = true;
-          for (let offset = 0; offset < sequence.length; offset += 1) {{
-            if (words[index + offset] !== sequence[offset]) {{
-              matched = false;
-              break;
-            }}
-          }}
-          if (matched) return true;
-        }}
-        return false;
-      }}
-
-      function wakePhraseDetected(text) {{
-        const words = speechWords(text);
-        if (containsSpeechSequence(words, ["hola", "roxy"]) || containsSpeechSequence(words, ["ola", "roxy"]) || containsSpeechSequence(words, ["hello", "roxy"]) || containsSpeechSequence(words, ["hey", "roxy"])) return true;
-        if (!words.includes("roxy")) return false;
-        return words.includes("abre") || words.includes("activa") || words.includes("escucha") || words.includes("ayuda") || words.includes("habla");
-      }}
-
-      function commandAfterWakePhrase(text) {{
-        let command = String(text || "").trim();
-        command = command.replace(/^(hola|ola|hello|hey)\\s+roxy\\b[\\s,.:;-]*/i, "");
-        command = command.replace(/^roxy\\b[\\s,.:;-]*/i, "");
-        const words = speechWords(command);
-        const commandWords = ["abre", "abrir", "muestra", "mostrar", "busca", "buscar", "analiza", "escanea", "dime", "acciones", "accion", "apple", "aapl", "crypto", "cripto", "bitcoin", "btc", "classroom", "clase", "clases"];
-        if (words.length < 2 && !words.some((word) => commandWords.includes(word))) return "";
-        if (!words.some((word) => commandWords.includes(word))) return "";
-        return command || String(text || "").trim();
-      }}
-
-      function sendCommandToRoxyOS(text) {{
-        const command = commandAfterWakePhrase(text);
-        if (!command) return false;
-        const targetWindow = window.parent || window;
-        const now = Date.now();
-        if (targetWindow.__roxyLastOsVoiceCommand === command && now - Number(targetWindow.__roxyLastOsVoiceCommandAt || 0) < 6000) return true;
-        targetWindow.__roxyLastOsVoiceCommand = command;
-        targetWindow.__roxyLastOsVoiceCommandAt = now;
-        setWakeStatus("Roxy entendio: " + command, false);
-        try {{
-          const url = new URL(targetWindow.location.href);
-          url.searchParams.set("roxy_os_cmd", command);
-          targetWindow.location.assign(url.toString());
-          return true;
-        }} catch (error) {{
-          return false;
-        }}
-      }}
-
-      async function requestMicrophone() {{
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return true;
-        try {{
-          const stream = await navigator.mediaDevices.getUserMedia({{ audio: true }});
-          stream.getTracks().forEach(track => track.stop());
-          return true;
-        }} catch (error) {{
-          setWakeStatus("Permite el microfono y di Hola Roxy", true);
-          return false;
-        }}
-      }}
-
-      function armFallbackMicPermissionRetry() {{
-        const retry = async () => {{
-          parentDoc.removeEventListener("pointerdown", retry, true);
-          parentDoc.removeEventListener("touchstart", retry, true);
-          parentDoc.removeEventListener("keydown", retry, true);
-          const ready = await requestMicrophone();
-          if (ready) startWakeWordListener();
-        }};
-        parentDoc.addEventListener("pointerdown", retry, true);
-        parentDoc.addEventListener("touchstart", retry, true);
-        parentDoc.addEventListener("keydown", retry, true);
-      }}
-
-      async function loadElevenLabsClient() {{
-        if (!elevenLabsModulePromise) {{
-          elevenLabsModulePromise = (async () => {{
-            let lastError = null;
-            for (const url of sdkImportUrls) {{
-              try {{
-                return await import(url);
-              }} catch (error) {{
-                lastError = error;
-              }}
-            }}
-            throw lastError || new Error("ElevenLabs SDK import failed");
-          }})();
-        }}
-        return elevenLabsModulePromise;
-      }}
-
-      async function startRoxyConversation() {{
-        const now = Date.now();
-        if (now < wakeCooldownUntil) return;
-        wakeCooldownUntil = now + 2500;
-        openRoxyPanel();
-        const voiceWindow = window.parent || window;
-        const lastTemporaryVoice = Number(voiceWindow.__roxyTemporaryVoicePrimedAt || 0);
-        if (!temporaryVoicePrimed && now - lastTemporaryVoice > 3500 && payload.voiceMode !== "conversation_token" && payload.voiceMode !== "signed_url") {{
-          voiceWindow.__roxyTemporaryVoicePrimedAt = now;
-          temporaryVoicePrimed = speakBrowserFallback(`Hola ${{payload.userName || "Trader"}}. Soy Roxy. Probando voz temporal mientras conectamos la voz real.`);
-        }}
-        if (!payload.signedUrl && !payload.conversationToken && !payload.agentId) {{
-          setWakeStatus(payload.error ? "Configura ElevenLabs en Render" : "Sesion de voz no disponible", true);
-          speakBrowserFallback(`Hola ${{payload.userName || "Trader"}}. Soy Roxy. Esta es una voz temporal para confirmar que el sistema de audio funciona.`);
-          return;
-        }}
-        const micReady = await requestMicrophone();
-        if (!micReady) return;
-        if (conversation) {{
-          setWakeStatus("Roxy ya esta activa y escuchando", false);
-          return;
-        }}
-        setWakeStatus("Activando voz de Roxy...", false);
-        try {{
-          const eleven = await loadElevenLabsClient();
-          const Conversation = eleven.Conversation || eleven.default?.Conversation;
-          if (!Conversation || !Conversation.startSession) throw new Error("SDK no disponible");
-          const startOptions = {{
-            dynamicVariables: payload.dynamicVariables || {{}},
-            clientTools: {{}},
-            onConnect: () => setWakeStatus("Roxy activa. Habla ahora.", false),
-            onDisconnect: () => {{
-              conversation = null;
-              setWakeStatus("Di: Hola Roxy", false);
-            }},
-            onError: () => setWakeStatus("Roxy tuvo un error de voz", true),
-            onMessage: () => {{}},
-          }};
-          if (payload.conversationToken) {{
-            startOptions.conversationToken = payload.conversationToken;
-          }} else if (payload.signedUrl) {{
-            startOptions.signedUrl = payload.signedUrl;
-          }} else {{
-            startOptions.agentId = payload.agentId;
-          }}
-          conversation = await Conversation.startSession(startOptions);
-          if (conversation && typeof conversation.sendUserMessage === "function") {{
-            conversation.sendUserMessage(`Hola Roxy. Soy ${{payload.userName || "Trader"}}. Activate por voz y ayudame en ${{payload.pageContext.module || payload.pageContext.page || "Roxy Trading"}}.`);
-          }}
-        }} catch (error) {{
-          const spoke = speakBrowserFallback(`Hola ${{payload.userName || "Trader"}}. Soy Roxy. ElevenLabs no conecto todavia, pero esta voz temporal confirma que el audio funciona.`);
-          if (!spoke) setWakeStatus("SDK de voz no cargo; usando widget oficial", true);
-          const widgetStart = root.querySelector("elevenlabs-convai");
-          if (widgetStart && typeof widgetStart.click === "function") widgetStart.click();
-        }}
-      }}
-
-      if (wakeSurface) {{
-        wakeSurface.addEventListener("click", startRoxyConversation);
-        wakeSurface.addEventListener("touchend", (event) => {{
-          event.preventDefault();
-          startRoxyConversation();
-        }}, {{ passive: false }});
-      }}
-
-      function startWakeWordListener() {{
-        const SpeechRecognition = window.parent.SpeechRecognition || window.parent.webkitSpeechRecognition || window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {{
-          setWakeStatus("Tu navegador no soporta Hola Roxy automatico", true);
-          return;
-        }}
-        try {{
-          recognition = new SpeechRecognition();
-          recognition.lang = String(payload.language || "es").toLowerCase().startsWith("en") ? "en-US" : "es-US";
-          recognition.continuous = true;
-          recognition.interimResults = true;
-          recognition.maxAlternatives = 1;
-          recognition.onstart = () => setWakeStatus("Di: Hola Roxy", false);
-          recognition.onerror = (event) => {{
-            const code = event && event.error ? String(event.error) : "";
-            if (code === "not-allowed" || code === "service-not-allowed") {{
-              setWakeStatus("Toca la pantalla y acepta el microfono", true);
-              armFallbackMicPermissionRetry();
-            }} else {{
-              setWakeStatus("Reintentando escucha de Roxy", false);
-            }}
-          }};
-          recognition.onend = () => {{
-            window.setTimeout(() => {{
-              try {{ recognition.start(); }} catch (_) {{}}
-            }}, 900);
-          }};
-          recognition.onresult = (event) => {{
-            let phrase = "";
-            for (let i = event.resultIndex; i < event.results.length; i += 1) {{
-              phrase += event.results[i][0] && event.results[i][0].transcript ? event.results[i][0].transcript + " " : "";
-            }}
-            if (wakePhraseDetected(phrase)) {{
-              try {{ recognition.stop(); }} catch (_) {{}}
-              if (!sendCommandToRoxyOS(phrase)) startRoxyConversation();
-            }}
-          }};
-          recognition.start();
-        }} catch (error) {{
-          setWakeStatus("Toca la pagina una vez y di Hola Roxy", true);
-          const prime = () => {{
-            parentDoc.removeEventListener("click", prime, true);
-            parentDoc.removeEventListener("touchstart", prime, true);
-            try {{ recognition && recognition.start(); }} catch (_) {{}}
-          }};
-          parentDoc.addEventListener("click", prime, true);
-          parentDoc.addEventListener("touchstart", prime, true);
-        }}
-      }}
-
-      if (!payload.signedUrl && !payload.conversationToken && !payload.agentId) {{
-        setWakeStatus(payload.error ? ("Configurar voz: " + payload.error) : "Sesion de voz no disponible", true);
-      }} else {{
-        startWakeWordListener();
-      }}
+      return;
       }} catch (error) {{
         try {{
           const fallback = (window.parent && window.parent.document ? window.parent.document : document).querySelector(".roxy-el-fallback span");
@@ -10029,13 +10774,31 @@ def live_provider_rows(env: dict[str, str] | None = None) -> list[dict[str, Any]
             "next": "Completar OAuth; mantener envio real apagado.",
         },
         {
+            "provider": "Crypto.com",
+            "role": "Crypto exchange data",
+            "key_groups": (),
+            "mode": "CRYPTO_EXCHANGE_DATA",
+            "tone": "buy",
+            "latency": "REST publico",
+            "next": "Usar tickers/candles publicos; no ejecutar ordenes reales desde Roxy.",
+        },
+        {
             "provider": "Finviz",
-            "role": "Screener visual",
+            "role": "Screener Elite/export",
             "key_groups": (),
             "mode": "REFERENCE",
             "tone": "watch",
-            "latency": "No broker",
-            "next": "Usar como benchmark visual, no fuente principal live.",
+            "latency": "CSV/API export",
+            "next": "Usar como filtro de oportunidades; confirmar con fuente live antes de operar.",
+        },
+        {
+            "provider": "TradingView",
+            "role": "Charts + webhooks",
+            "key_groups": (),
+            "mode": "CHART_CONFIRMATION",
+            "tone": "watch",
+            "latency": "Webhook/chart",
+            "next": "Usar para confirmacion visual y alertas; no ejecutar ordenes desde webhook.",
         },
         {
             "provider": "TC2000",
@@ -10058,6 +10821,55 @@ def live_provider_rows(env: dict[str, str] | None = None) -> list[dict[str, Any]
         elif spec["provider"] == "yfinance":
             status = "Activo fallback"
             tone = spec["tone"]
+        elif spec["provider"] == "Crypto.com":
+            configured = True
+            present = [
+                key
+                for key in (
+                    "ROXY_CRYPTOCOM_BASE_URL",
+                    "ROXY_CRYPTOCOM_API_KEY",
+                    "CRYPTO_COM_API_KEY",
+                    "ROXY_CRYPTOCOM_API_SECRET",
+                    "CRYPTO_COM_API_SECRET",
+                )
+                if str(source.get(key) or "").strip()
+            ]
+            status = "Listo datos publicos"
+            tone = spec["tone"]
+        elif spec["provider"] == "Finviz":
+            present = [
+                key
+                for key in (
+                    "ROXY_FINVIZ_EXPORT_URL",
+                    "FINVIZ_EXPORT_URL",
+                    "ROXY_FINVIZ_AUTH_TOKEN",
+                    "FINVIZ_AUTH_TOKEN",
+                    "FINVIZ_API_KEY",
+                )
+                if str(source.get(key) or "").strip()
+            ]
+            configured = bool(present)
+            status = "Listo screener" if configured else "Referencia"
+            tone = "buy" if configured else spec["tone"]
+        elif spec["provider"] == "TradingView":
+            present = [
+                key
+                for key in (
+                    "TRADINGVIEW_WEBHOOK_SECRET",
+                    "TRADINGVIEW_PUBLIC_WEBHOOK_URL",
+                    "ROXY_TRADINGVIEW_WIDGET_ENABLED",
+                    "ROXY_TRADINGVIEW_LIBRARY_URL",
+                )
+                if str(source.get(key) or "").strip()
+            ]
+            configured = bool(present) or str(source.get("ROXY_TRADINGVIEW_WIDGET_ENABLED") or "true").lower() not in {
+                "0",
+                "false",
+                "no",
+                "off",
+            }
+            status = "Listo visual/webhook" if configured else "Referencia"
+            tone = "buy" if any(key.startswith("TRADINGVIEW_") for key in present) else spec["tone"]
         elif not key_groups:
             status = "Referencia"
             tone = spec["tone"]
@@ -26904,6 +27716,15 @@ def crypto_twenty_min_strike_rows(
         "timer_state",
         "next_step",
         "tone",
+        "signal",
+        "contract_side",
+        "decision_state",
+        "probability_roxy",
+        "edge",
+        "risk_reward",
+        "recommended_entry",
+        "reasons",
+        "warning_flags",
         "href",
     ]
     risk_budget = max(1.0, safe_float(account_equity) or 100.0) * max(0.001, safe_float(risk_pct) or 0.01)
@@ -26941,6 +27762,15 @@ def crypto_twenty_min_strike_rows(
                     "timer_state": timer_state,
                     "next_step": "No operar 20m hasta recibir velas 1m frescas.",
                     "tone": "avoid",
+                    "signal": SIGNAL_NO_TRADE,
+                    "contract_side": "WAIT",
+                    "decision_state": "NO OPERAR",
+                    "probability_roxy": 0,
+                    "edge": None,
+                    "risk_reward": None,
+                    "recommended_entry": "Sin datos live.",
+                    "reasons": ["No hay velas 1m frescas para validar BTC/crypto tipo strike."],
+                    "warning_flags": ["data_unavailable"],
                     "href": href,
                 }
             )
@@ -26964,6 +27794,15 @@ def crypto_twenty_min_strike_rows(
                     "timer_state": timer_state,
                     "next_step": "No operar 20m hasta tener precio y velas 1m.",
                     "tone": "avoid",
+                    "signal": SIGNAL_NO_TRADE,
+                    "contract_side": "WAIT",
+                    "decision_state": "NO OPERAR",
+                    "probability_roxy": 0,
+                    "edge": None,
+                    "risk_reward": None,
+                    "recommended_entry": "Sin precio/velas live.",
+                    "reasons": ["La fuente no devolvio velas 1m legibles."],
+                    "warning_flags": ["empty_candles"],
                     "href": href,
                 }
             )
@@ -26994,6 +27833,15 @@ def crypto_twenty_min_strike_rows(
                     "timer_state": timer_state,
                     "next_step": "Esperar mas velas 1m antes de decidir arriba/abajo.",
                     "tone": "watch",
+                    "signal": SIGNAL_NO_TRADE,
+                    "contract_side": "WAIT",
+                    "decision_state": "ESPERAR CONFIRMACION",
+                    "probability_roxy": 0,
+                    "edge": None,
+                    "risk_reward": None,
+                    "recommended_entry": "Esperar mas historial 1m.",
+                    "reasons": ["Historial insuficiente para validar momentum, EMAs y rechazo cerca del strike."],
+                    "warning_flags": ["short_history"],
                     "href": href,
                 }
             )
@@ -27018,6 +27866,7 @@ def crypto_twenty_min_strike_rows(
             direction = "Abajo"
         else:
             direction = "Esperar"
+        preliminary_direction = direction
         if direction == "Arriba":
             strike = price * (1.0 + strike_gap)
             trend_ok = bullish_confirmed
@@ -27038,30 +27887,72 @@ def crypto_twenty_min_strike_rows(
         confidence += 6 if 8.0 <= minutes_to_expiry <= 18.5 else -18
         confidence = int(min(92, max(0, round(confidence))))
         timer_ok = timer_state == "Ventana valida"
-        ready = direction != "Esperar" and trend_ok and momentum_aligned and edge_ratio >= 1.1 and timer_ok
-        tone = "buy" if ready and confidence >= 78 else ("watch" if confidence >= 58 else "avoid")
-        action = "Paper SI 20m" if tone == "buy" else ("Vigilar 20m" if tone == "watch" else "No operar 20m")
+        strike_engine_signal = analyze_strike_option(
+            asset=roxy_crypto_base_symbol(str(symbol)),
+            current_price=price,
+            strike=strike,
+            time_remaining_seconds=int(max(0, round(minutes_to_expiry * 60.0))),
+            expiration_label="20 minutos",
+            candles=roxy_candles_for_strike_engine(data, limit=80),
+            stake=risk_budget,
+        )
+        engine_signal = strike_engine_signal.signal
+        display_signal = engine_signal
+        if engine_signal == SIGNAL_YES:
+            direction = "Arriba"
+            contract_side = "YES"
+        elif engine_signal == SIGNAL_NO:
+            direction = "Abajo"
+            contract_side = "NO"
+        else:
+            direction = "Esperar"
+            contract_side = "WAIT"
+        confidence = int(strike_engine_signal.confidence)
+        edge = strike_engine_signal.edge
+        risk_reward = strike_engine_signal.risk_reward
         if not timer_ok:
+            confidence = min(confidence, 57)
             action = "Esperar timer"
             tone = "watch"
+            decision_state = "ESPERAR CONFIRMACION"
+            display_signal = SIGNAL_NO_TRADE
+            direction = "Esperar"
+            contract_side = "WAIT"
             next_step = (
                 f"No entrar ahora: quedan {num_display(minutes_to_expiry, 1)} min para el cierre. "
                 "Evaluar al inicio de la proxima ronda :00/:20/:40."
             )
-        elif direction == "Esperar":
+        elif preliminary_direction == "Esperar":
+            confidence = min(confidence, 57)
+            tone = "watch"
+            action = "NO TRADE 20m"
+            decision_state = "ESPERAR CONFIRMACION"
+            display_signal = SIGNAL_NO_TRADE
+            direction = "Esperar"
+            contract_side = "WAIT"
             next_step = "No operar 20m: 20m y 5m no estan alineados con medias; esperar confirmacion clara."
+        elif engine_signal == SIGNAL_NO_TRADE:
+            tone = "avoid" if strike_engine_signal.color == "red" else "watch"
+            action = "NO TRADE 20m"
+            decision_state = "NO OPERAR" if tone == "avoid" else "ESPERAR CONFIRMACION"
+            next_step = strike_engine_signal.recommended_entry
+        elif strike_engine_signal.color == "green" and confidence >= 76:
+            tone = "buy"
+            action = f"{engine_signal} 20m"
+            decision_state = "OPERAR AHORA"
+            next_step = strike_engine_signal.recommended_entry
         else:
-            next_step = (
-                f"Solo paper/manual: {direction.lower()} de {price_display(strike)} antes de {expires_at.strftime('%H:%M UTC')}; "
-                "confirmar spread y liquidez antes de arriesgar."
-            )
+            tone = "watch"
+            action = f"Vigilar {engine_signal} 20m"
+            decision_state = "ESPERAR CONFIRMACION"
+            next_step = strike_engine_signal.recommended_entry
         rows.append(
             {
                 "symbol": str(symbol).upper(),
                 "price": price,
                 "direction": direction,
-                "strike": strike,
-                "distance_pct": distance_pct,
+                "strike": strike_engine_signal.strike,
+                "distance_pct": abs(strike_engine_signal.strike - price) / price if price else distance_pct,
                 "momentum_20m": momentum_20m,
                 "momentum_5m": momentum_5m,
                 "confidence": confidence,
@@ -27073,6 +27964,15 @@ def crypto_twenty_min_strike_rows(
                 "timer_state": timer_state,
                 "next_step": next_step,
                 "tone": tone,
+                "signal": display_signal,
+                "contract_side": contract_side,
+                "decision_state": decision_state,
+                "probability_roxy": strike_engine_signal.probability_roxy,
+                "edge": edge,
+                "risk_reward": risk_reward,
+                "recommended_entry": strike_engine_signal.recommended_entry,
+                "reasons": strike_engine_signal.reasons,
+                "warning_flags": strike_engine_signal.warning_flags,
                 "href": href,
             }
         )
@@ -27098,22 +27998,50 @@ def render_crypto_twenty_min_strike_panel(
         tone = text_display(row.get("tone"))
         if tone not in {"buy", "watch", "avoid"}:
             tone = "watch"
+        reasons_value = row.get("reasons")
+        reasons = reasons_value if isinstance(reasons_value, list) else []
+        warning_value = row.get("warning_flags")
+        warnings = warning_value if isinstance(warning_value, list) else []
+        why_html = "".join(
+            f"<li>{html.escape(text_display(reason))}</li>"
+            for reason in reasons[:4]
+            if text_display(reason)
+        )
+        warning_html = "".join(
+            f"<li>{html.escape(text_display(flag).replace('_', ' '))}</li>"
+            for flag in warnings[:3]
+            if text_display(flag)
+        )
+        why_block = (
+            f'<details><summary>Por que?</summary><ul>{why_html}</ul></details>'
+            if why_html
+            else ""
+        )
+        warning_block = (
+            f'<details class="strike20-warnings"><summary>Riesgo</summary><ul>{warning_html}</ul></details>'
+            if warning_html
+            else ""
+        )
+        signal_label = text_display(row.get("signal") or SIGNAL_NO_TRADE)
+        decision_state = text_display(row.get("decision_state") or "ESPERAR CONFIRMACION")
         cards.append(
             f'<article class="strike20-card strike20-{html.escape(tone)}">'
             f'<header><a href="{html.escape(text_display(row.get("href")))}">{html.escape(text_display(row.get("symbol")))}</a>'
             f'<span>{html.escape(text_display(row.get("expires_at")))}</span></header>'
-            f'<strong>{html.escape(text_display(row.get("action")))}</strong>'
-            f'<p>{html.escape(text_display(row.get("direction")))} de <b>{html.escape(price_display(row.get("strike")))}</b> en 20 min</p>'
+            f'<strong>{html.escape(signal_label)} · {html.escape(decision_state)}</strong>'
+            f'<p>{html.escape(text_display(row.get("action")))} · {html.escape(text_display(row.get("direction")))} de <b>{html.escape(price_display(row.get("strike")))}</b></p>'
             '<div class="strike20-metrics">'
             f'<b><small>Ahora</small>{html.escape(price_display(row.get("price")))}</b>'
+            f'<b><small>Roxy</small>{html.escape(pct_display(row.get("probability_roxy")))}</b>'
             f'<b><small>Distancia</small>{html.escape(pct_display(row.get("distance_pct")))}</b>'
-            f'<b><small>Mom. 20m</small>{html.escape(pct_display(row.get("momentum_20m")))}</b>'
-            f'<b><small>Mom. 5m</small>{html.escape(pct_display(row.get("momentum_5m")))}</b>'
+            f'<b><small>Edge</small>{html.escape(pct_display(row.get("edge")))}</b>'
+            f'<b><small>R/R</small>{html.escape(num_display(row.get("risk_reward"), 2))}</b>'
             f'<b><small>Timer</small>{html.escape(num_display(row.get("minutes_to_expiry"), 1))}m</b>'
             f'<b><small>Conf.</small>{html.escape(num_display(row.get("confidence"), 0))}/100</b>'
             "</div>"
             f'<small>{html.escape(text_display(row.get("timer_state")))}</small>'
             f'<em>{html.escape(text_display(row.get("next_step"))[:160])}</em>'
+            f"{why_block}{warning_block}"
             f'<a class="budget-chart-link" href="{html.escape(text_display(row.get("href")))}">Cargar en graficas</a>'
             "</article>"
         )
@@ -29158,6 +30086,278 @@ def render_finviz_style_wallboard(table: pd.DataFrame, confluence_df: pd.DataFra
         </section>
         """,
         unsafe_allow_html=True,
+    )
+
+
+@st.cache_data(ttl=45, show_spinner=False)
+def load_finviz_pattern_strategy_rows(limit: int = 24) -> list[dict[str, Any]]:
+    if build_finviz_pattern_strategies is None:
+        return []
+    try:
+        external_rows = external_market_rows_for_decisions(ttl_seconds=45)
+    except Exception:
+        external_rows = []
+    if not external_rows:
+        return []
+    try:
+        return build_finviz_pattern_strategies(external_rows, limit=limit)
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=45, show_spinner=False)
+def load_finviz_news_feed_rows(limit: int = 24) -> list[dict[str, Any]]:
+    if build_finviz_news_feed is None:
+        return []
+    try:
+        external_rows = external_market_rows_for_decisions(ttl_seconds=45)
+    except Exception:
+        external_rows = []
+    if not external_rows:
+        return []
+    try:
+        return build_finviz_news_feed(external_rows, limit=limit)
+    except Exception:
+        return []
+
+
+def render_finviz_pattern_strategy_board(limit: int = 14) -> None:
+    strategies = load_finviz_pattern_strategy_rows(limit=limit)
+    if not strategies:
+        return
+    action_counts: dict[str, int] = {}
+    family_counts: dict[str, int] = {}
+    cards: list[str] = []
+    for item in strategies:
+        action = text_display(item.get("action") or "VIGILAR").upper()
+        if action in {"COMPRAR", "YES"}:
+            tone = "buy"
+            action_label = "Comprar zona baja"
+        elif action in {"VENDER", "NO"}:
+            tone = "avoid"
+            action_label = "Vender / short zona alta"
+        else:
+            tone = "watch"
+            action_label = "Esperar confirmacion"
+        family = text_display(item.get("strategy_family") or "-")
+        pattern = text_display(item.get("canonical_pattern") or item.get("finviz_signal") or "-")
+        action_counts[action_label] = action_counts.get(action_label, 0) + 1
+        family_counts[family] = family_counts.get(family, 0) + 1
+        confidence = safe_float(item.get("confidence")) or 0
+        score_width = max(8, min(100, confidence))
+        cards.append(
+            f'<article class="finviz-pattern-card finviz-pattern-{tone}">'
+            f"<header><div><span>{html.escape(pattern)}</span><strong>{html.escape(text_display(item.get('symbol')))}</strong></div>"
+            f"<em>{html.escape(action_label)}</em></header>"
+            f'<div class="finviz-pattern-score"><span style="width:{score_width:.0f}%"></span><em>{html.escape(num_display(confidence, 0))}%</em></div>'
+            f"<p>{html.escape(text_display(item.get('roxy_instruction')))}</p>"
+            f"<dl>"
+            f"<div><dt>Entrada</dt><dd>{html.escape(text_display(item.get('entry_zone')))}</dd></div>"
+            f"<div><dt>Objetivo</dt><dd>{html.escape(text_display(item.get('target_zone')))}</dd></div>"
+            f"<div><dt>Stop</dt><dd>{html.escape(text_display(item.get('stop_zone')))}</dd></div>"
+            f"</dl>"
+            f"<small>{html.escape(family)} · Finviz: {html.escape(text_display(item.get('finviz_signal')))} · {html.escape(text_display(item.get('source')))}</small>"
+            "</article>"
+        )
+    top_family = max(family_counts.items(), key=lambda pair: pair[1])[0] if family_counts else "-"
+    summary_html = "".join(
+        f"<b><span>{html.escape(label)}</span><strong>{count}</strong></b>"
+        for label, count in list(action_counts.items())[:4]
+    )
+    st.markdown(
+        f"""
+        <section class="finviz-pattern-board">
+            <header>
+                <div>
+                    <strong>Estrategias Finviz detectadas</strong>
+                    <span>Roxy convierte patrones como Channel, Triangle, Wedge, Double Bottom y S/R en planes operativos. La entrada final exige confirmacion en grafica live.</span>
+                </div>
+                <aside><b>{len(strategies)}</b><small>{html.escape(top_family)}</small></aside>
+            </header>
+            <div class="finviz-pattern-summary">{summary_html}</div>
+            <div class="finviz-pattern-grid">{''.join(cards)}</div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_roxy_strategy_split_board(rows: list[dict[str, Any]], *, limit: int = 10) -> None:
+    strategy_records: list[dict[str, Any]] = []
+    for row in rows or []:
+        if isinstance(row, dict):
+            strategy_records.append(dict(row))
+    try:
+        finviz_rows = load_finviz_pattern_strategy_rows(limit=48)
+        strategy_records.extend(dict(row) for row in finviz_rows if isinstance(row, dict))
+    except Exception:
+        pass
+    groups = separate_opportunities_by_strategy(strategy_records, limit_per_strategy=3)[: max(1, int(limit))]
+    if not groups:
+        return
+
+    cards: list[str] = []
+    for group in groups:
+        best = dict(group.get("best") or {})
+        family = text_display(group.get("strategy_family") or best.get("_strategy_family") or "Estrategia")
+        symbol = text_display(best.get("symbol") or best.get("ticker") or "-").upper()
+        score = safe_float(group.get("best_score") or best.get("_strategy_score")) or 0.0
+        count = int(safe_float(group.get("count")) or 1)
+        action = text_display(best.get("action") or best.get("signal") or best.get("trade_decision") or "VIGILAR").upper()
+        plan = roxy_trade_plan_from_row(
+            best,
+            symbol=resolve_symbol_query(symbol, normalize_command_market(best.get("market") or "stock", symbol)),
+            market=normalize_command_market(best.get("market") or "stock", symbol),
+            timeframe="1h",
+            action=action,
+        )
+        entry = text_display(best.get("entry_zone") or price_display(plan.get("entry")))
+        stop = text_display(best.get("stop_zone") or price_display(plan.get("stop")))
+        target = text_display(best.get("target_zone") or price_display(plan.get("target_2") or plan.get("target")))
+        reason = text_display(
+            best.get("roxy_instruction")
+            or best.get("learned_strategy_reason")
+            or best.get("why")
+            or best.get("reason")
+            or "Roxy mantiene esta estrategia separada para evitar mezclar senales."
+        )
+        tone = "buy" if action in {"BUY", "COMPRAR", "YES"} else "avoid" if action in {"SELL", "VENDER", "NO", "AVOID"} else "watch"
+        width = max(8, min(100, score))
+        cards.append(
+            f'<article class="roxy-strategy-split-card roxy-strategy-split-{tone}">'
+            f"<header><span>{html.escape(family)}</span><strong>{html.escape(symbol)}</strong><em>{html.escape(action)}</em></header>"
+            f'<div class="roxy-strategy-split-score"><span style="width:{width:.0f}%"></span><b>{html.escape(num_display(score, 0))}</b></div>'
+            f"<p>{html.escape(reason[:170])}</p>"
+            f"<dl>"
+            f"<div><dt>Entrada</dt><dd>{html.escape(entry)}</dd></div>"
+            f"<div><dt>Stop</dt><dd>{html.escape(stop)}</dd></div>"
+            f"<div><dt>Target</dt><dd>{html.escape(target)}</dd></div>"
+            f"</dl>"
+            f"<small>{count} oportunidad{'es' if count != 1 else ''} dentro de esta estrategia</small>"
+            "</article>"
+        )
+
+    st.markdown(
+        f"""
+        <style>
+          .roxy-strategy-split-board {{
+            margin: 18px 0 22px;
+            padding: 16px;
+            border: 1px solid rgba(125,211,252,.28);
+            border-radius: 20px;
+            background: linear-gradient(135deg, rgba(5,12,28,.92), rgba(8,28,52,.72));
+            box-shadow: 0 0 34px rgba(14,165,233,.12), inset 0 0 22px rgba(125,211,252,.06);
+          }}
+          .roxy-strategy-split-board > header {{
+            display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:12px;
+          }}
+          .roxy-strategy-split-board > header strong {{
+            display:block; color:#e0f2fe; letter-spacing:.08em; text-transform:uppercase; font-size:.96rem;
+          }}
+          .roxy-strategy-split-board > header span {{
+            color:rgba(191,219,254,.76); font-size:.78rem; line-height:1.35;
+          }}
+          .roxy-strategy-split-board > header aside {{
+            min-width:72px; text-align:center; border-radius:16px; padding:8px 10px;
+            border:1px solid rgba(59,130,246,.35); color:#7dd3fc; background:rgba(15,23,42,.72);
+          }}
+          .roxy-strategy-split-grid {{
+            display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;
+          }}
+          .roxy-strategy-split-card {{
+            border:1px solid rgba(148,163,184,.22); border-radius:16px; padding:12px;
+            background:rgba(2,8,23,.68); min-height:185px;
+          }}
+          .roxy-strategy-split-card header {{
+            display:grid; grid-template-columns:1fr auto; gap:4px 10px; align-items:center;
+          }}
+          .roxy-strategy-split-card header span {{
+            grid-column:1 / 3; color:#93c5fd; font-size:.68rem; text-transform:uppercase; letter-spacing:.08em;
+          }}
+          .roxy-strategy-split-card header strong {{ color:#f8fafc; font-size:1.24rem; }}
+          .roxy-strategy-split-card header em {{
+            font-style:normal; border-radius:999px; padding:4px 8px; font-size:.64rem; text-transform:uppercase;
+            background:rgba(59,130,246,.16); color:#bfdbfe; border:1px solid rgba(96,165,250,.26);
+          }}
+          .roxy-strategy-split-buy header em {{ color:#86efac; border-color:rgba(34,197,94,.34); background:rgba(22,163,74,.16); }}
+          .roxy-strategy-split-avoid header em {{ color:#fecaca; border-color:rgba(248,113,113,.34); background:rgba(127,29,29,.20); }}
+          .roxy-strategy-split-score {{
+            margin:10px 0 9px; height:9px; border-radius:999px; background:rgba(15,23,42,.95); overflow:hidden; position:relative;
+          }}
+          .roxy-strategy-split-score span {{
+            display:block; height:100%; border-radius:inherit;
+            background:linear-gradient(90deg, #0ea5e9, #22c55e);
+            box-shadow:0 0 14px rgba(34,197,94,.38);
+          }}
+          .roxy-strategy-split-score b {{
+            position:absolute; right:6px; top:-5px; color:#e0f2fe; font-size:.62rem;
+          }}
+          .roxy-strategy-split-card p {{
+            min-height:48px; color:rgba(226,232,240,.82); font-size:.76rem; line-height:1.35; margin:0 0 10px;
+          }}
+          .roxy-strategy-split-card dl {{
+            display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin:0 0 8px;
+          }}
+          .roxy-strategy-split-card dl div {{
+            border-radius:10px; padding:7px; background:rgba(15,23,42,.68); border:1px solid rgba(59,130,246,.16);
+          }}
+          .roxy-strategy-split-card dt {{ color:#7dd3fc; font-size:.58rem; text-transform:uppercase; }}
+          .roxy-strategy-split-card dd {{ margin:2px 0 0; color:#f8fafc; font-size:.68rem; }}
+          .roxy-strategy-split-card small {{ color:rgba(191,219,254,.70); font-size:.66rem; }}
+        </style>
+        <section class="roxy-strategy-split-board">
+          <header>
+            <div>
+              <strong>Mejor oportunidad por estrategia</strong>
+              <span>Roxy evalua cada setup por separado. No mezcla EMA, ruptura, triangulo, canal, soporte/resistencia, momentum ni volumen.</span>
+            </div>
+            <aside><b>{len(groups)}</b><small>estrategias</small></aside>
+          </header>
+          <div class="roxy-strategy-split-grid">{''.join(cards)}</div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def roxy_actions_finviz_news_article(selected_symbol: str, *, limit: int = 5) -> str:
+    selected = str(selected_symbol or "").strip().upper()
+    rows = load_finviz_news_feed_rows(limit=24)
+    if rows:
+        selected_rows = [row for row in rows if str(row.get("symbol") or "").upper() == selected]
+        other_rows = [row for row in rows if str(row.get("symbol") or "").upper() != selected]
+        ordered = (selected_rows + other_rows)[: max(1, int(limit))]
+        items: list[str] = []
+        for row in ordered:
+            symbol = text_display(row.get("symbol")).upper()
+            category = text_display(row.get("category") or row.get("finviz_signal") or "Finviz")
+            headline = text_display(row.get("headline") or f"{symbol} en Finviz")
+            detail = text_display(row.get("detail") or "Senal detectada por Finviz")
+            change_value = safe_float(row.get("change_pct"))
+            change = pct_display(change_value) if change_value is not None else "cambio pendiente"
+            tone = text_display(row.get("tone") or "neutral")
+            icon = "trending_up" if tone == "positive" else "trending_down" if tone == "negative" else "newspaper"
+            impact = text_display(row.get("impact") or "medio")
+            items.append(
+                f'<p class="finviz-news-{html.escape(tone)}">'
+                f'<i class="material-symbols-outlined">{icon}</i>'
+                f'<span><b>{html.escape(symbol)} · {html.escape(category)}</b>'
+                f'<small>{html.escape(headline)} · {html.escape(change)} · impacto {html.escape(impact)}</small>'
+                f'<em>{html.escape(detail)}</em></span></p>'
+            )
+        return (
+            '<article class="news roxy-actions-finviz-news"><strong>Noticias relevantes '
+            '<small>Finviz Elite</small></strong>'
+            f"{''.join(items)}"
+            '<a href="?view=Dashboard&module=acciones-operar&news=1" target="_self">Ver todas las noticias</a></article>'
+        )
+    return (
+        '<article class="news roxy-actions-finviz-news"><strong>Noticias relevantes '
+        '<small>Finviz pendiente</small></strong>'
+        '<p><i class="material-symbols-outlined">hub</i><span><b>Conecta Finviz Elite</b>'
+        '<small>Cuando ROXY_FINVIZ_EXPORT_URL tenga datos, aqui apareceran Major News, Upgrades, Downgrades, Unusual Volume y mas.</small>'
+        '<em>Roxy no inventa noticias si el feed externo no esta disponible.</em></span></p>'
+        '<a href="?view=Dashboard&module=acciones-operar&news=1" target="_self">Ver configuracion</a></article>'
     )
 
 
@@ -34683,7 +35883,7 @@ def render_roxy_opening_stage(
               <span>Roxy Trading · {safe_symbol} · {safe_timeframe}</span>
             </div>
             <div class="roxy-ref-alert" aria-hidden="true"><b>3</b></div>
-            <div class="roxy-ref-mini-avatar">{roxy_avatar_html("ready", "mini", "Roxy lista")}</div>
+            <div class="roxy-ref-mini-avatar">{roxy_avatar_html("ready", "mini", "Roxy")}</div>
           </div>
           <div class="roxy-stage-left">
             <div class="roxy-stage-bubble">
@@ -35553,6 +36753,7 @@ def roxy_crypto_horizon_signal(symbol: str, horizon: str) -> dict[str, Any]:
             time_remaining_seconds=int(safe_float(cycle_state.get("remaining")) or horizon_bars * 60),
             expiration_label=horizon_label,
             candles=roxy_candles_for_strike_engine(data),
+            timeframe_profile=profile,
             stake=1.0,
         ).to_dict()
     except Exception as exc:
@@ -36126,6 +37327,36 @@ def roxy_strike_history_summary() -> dict[str, Any]:
         }
 
 
+def roxy_auto_settle_expired_strike_history(final_prices_by_asset: dict[str, float | None]) -> dict[str, Any] | None:
+    clean_prices = {
+        text_display(symbol).upper(): float(price)
+        for symbol, price in final_prices_by_asset.items()
+        if text_display(symbol) and safe_float(price) is not None and float(safe_float(price) or 0) > 0
+    }
+    if not clean_prices:
+        return None
+    try:
+        log_path = Path("logs/strike_options_signals.jsonl")
+        rows = load_strike_signal_history(log_path, limit=0)
+        if not rows:
+            return None
+        result = settle_expired_strike_signal_rows(rows, clean_prices)
+        if int(safe_float(result.get("settled")) or 0) <= 0 and int(safe_float(result.get("no_trade_marked")) or 0) <= 0:
+            return result
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path = log_path.with_suffix(log_path.suffix + ".bak")
+        if log_path.exists():
+            backup_path.write_text(log_path.read_text(encoding="utf-8"), encoding="utf-8")
+            result["backup_path"] = str(backup_path)
+        with log_path.open("w", encoding="utf-8") as handle:
+            for row in result.get("rows", []):
+                handle.write(json.dumps(row, ensure_ascii=True, sort_keys=True) + "\n")
+        result["path"] = str(log_path)
+        return result
+    except Exception as exc:
+        return {"error": text_display(exc), "settled": 0, "pending": 0}
+
+
 def roxy_deriv_best_contract(symbol: str, signal: dict[str, Any], *, period_label: str) -> dict[str, Any]:
     deriv = roxy_deriv_contracts_for_crypto(symbol)
     price = safe_float(signal.get("price") or signal.get("entry_price"))
@@ -36134,6 +37365,7 @@ def roxy_deriv_best_contract(symbol: str, signal: dict[str, Any], *, period_labe
     target = safe_float(signal.get("target_price") or signal.get("expected_price"))
     side = text_display(signal.get("contract_side") or "WAIT").upper()
     candles, remaining = roxy_strike_engine_candles_for_period(symbol, period_label)
+    period_profile = roxy_strike_profile_from_period(period_label)
     if price is not None:
         try:
             comparison = compare_deriv_strike_contracts(
@@ -36145,6 +37377,7 @@ def roxy_deriv_best_contract(symbol: str, signal: dict[str, Any], *, period_labe
                 candles=candles,
                 target_price=target,
                 preferred_signal=side,
+                timeframe_profile=text_display(period_profile.get("horizon") or period_label),
                 stake=1.0,
             ).to_dict()
         except Exception as exc:
@@ -36170,6 +37403,73 @@ def roxy_deriv_best_contract(symbol: str, signal: dict[str, Any], *, period_labe
     }
 
 
+def roxy_strike_checklist_strip_html(dashboard_model: dict[str, Any] | None) -> str:
+    if not isinstance(dashboard_model, dict):
+        return ""
+    checklist = dashboard_model.get("checklist")
+    if not isinstance(checklist, list) or not checklist:
+        return ""
+    cards: list[str] = []
+    for item in checklist[:6]:
+        if not isinstance(item, dict):
+            continue
+        status = text_display(item.get("status") or "watch").lower()
+        if status not in {"pass", "watch", "blocked"}:
+            status = "watch"
+        label = text_display(item.get("label") or item.get("id") or "Check")
+        detail = text_display(item.get("detail") or "")
+        cards.append(
+            '<span class="strike-check '
+            + html.escape(status)
+            + '"><b>'
+            + html.escape(label)
+            + '</b><small>'
+            + html.escape(detail)
+            + "</small></span>"
+        )
+    if not cards:
+        return ""
+    market_regime = text_display(dashboard_model.get("market_regime") or "regimen pendiente").replace("_", " ")
+    data_quality = text_display(dashboard_model.get("data_quality") or "datos pendientes").replace("_", " ")
+    entry_window = text_display(dashboard_model.get("entry_window") or "")
+    meta = (
+        '<div class="strike-engine-meta">'
+        f'<span>Regimen <b>{html.escape(market_regime)}</b></span>'
+        f'<span>Datos <b>{html.escape(data_quality)}</b></span>'
+        f'<span>{html.escape(entry_window)}</span>'
+        "</div>"
+    )
+    return '<div class="strike-check-strip">' + "".join(cards) + "</div>" + meta
+
+
+def roxy_strike_learning_memory_html(history_rows: list[dict[str, Any]]) -> str:
+    try:
+        report = build_strike_learning_report(history_rows)
+    except Exception:
+        return ""
+    policy = report.get("operational_policy") if isinstance(report.get("operational_policy"), dict) else {}
+    strongest = report.get("strongest_conditions") if isinstance(report.get("strongest_conditions"), list) else []
+    timeframes = report.get("best_timeframes") if isinstance(report.get("best_timeframes"), list) else []
+    recommendations = report.get("recommendations") if isinstance(report.get("recommendations"), list) else []
+    closed = int(safe_float(report.get("closed_signals")) or 0)
+    risk_mode = text_display(policy.get("risk_mode") or "paper").upper()
+    allow_green = "SI" if policy.get("allow_green_signals") else "NO"
+    best_condition = strongest[0].get("key") if strongest and isinstance(strongest[0], dict) else "Sin muestra suficiente"
+    best_timeframe = timeframes[0].get("key") if timeframes and isinstance(timeframes[0], dict) else "Sin timeframe validado"
+    first_recommendation = text_display(recommendations[0] if recommendations else "Roxy seguira registrando senales antes de subir riesgo.")
+    return (
+        '<div class="strike-memory-card">'
+        '<b>Memoria operativa de Roxy</b>'
+        f'<span>Cerradas <strong>{closed}</strong></span>'
+        f'<span>Modo <strong>{html.escape(risk_mode)}</strong></span>'
+        f'<span>Verdes reales <strong>{html.escape(allow_green)}</strong></span>'
+        f'<small>Condicion: {html.escape(text_display(best_condition))}</small>'
+        f'<small>Timeframe: {html.escape(text_display(best_timeframe))}</small>'
+        f'<em>{html.escape(first_recommendation)}</em>'
+        "</div>"
+    )
+
+
 def roxy_deriv_comparison_panel_html(
     *,
     selected_symbol: str,
@@ -36182,23 +37482,51 @@ def roxy_deriv_comparison_panel_html(
     comparison = roxy_deriv_best_contract(selected_symbol, signal, period_label=period_label)
     base = roxy_crypto_base_symbol(selected_symbol)
     side = text_display(comparison.get("side") or signal.get("contract_side") or "WAIT")
-    history = roxy_strike_history_summary()
+    settlement_price = safe_float(signal.get("price") or signal.get("entry_price"))
+    if settlement_price is None and isinstance(signal.get("strike_options_signal"), dict):
+        settlement_price = safe_float((signal.get("strike_options_signal") or {}).get("price"))
+    if settlement_price is not None:
+        roxy_auto_settle_expired_strike_history({base: settlement_price})
+    try:
+        history_rows = load_strike_signal_history(limit=500)
+    except Exception:
+        history_rows = []
+    history = summarize_strike_signal_history(history_rows)
+    learning_memory_html = roxy_strike_learning_memory_html(history_rows)
     win_rate = safe_float(history.get("win_rate"))
     history_label = f"Win rate {win_rate * 100:.0f}% · {int(safe_float(history.get('closed')) or 0)} cerradas" if win_rate is not None else "Historial pendiente de backtesting"
+    comparison_payload = comparison.get("comparison") if isinstance(comparison.get("comparison"), dict) else None
+    signal_payload = signal.get("strike_options_signal") if isinstance(signal.get("strike_options_signal"), dict) else signal
+    dashboard_model = build_strike_dashboard_model(
+        signal=signal_payload,
+        comparison=comparison_payload,
+        history=history_rows,
+    )
+    expectancy_value = safe_float(dashboard_model.get("expectancy") if dashboard_model else None)
+    expectancy_label = f"EV {expectancy_value:+.2f}" if expectancy_value is not None else "EV pendiente"
+    history_fit = dashboard_model.get("history_fit") if isinstance(dashboard_model.get("history_fit"), dict) else {}
+    history_verdict = text_display(history_fit.get("verdict")).replace("_", " ").upper() if history_fit else "SIN MUESTRA"
+    recent_perf = dashboard_model.get("recent_performance") if isinstance(dashboard_model.get("recent_performance"), dict) else {}
+    recent_verdict = text_display(recent_perf.get("verdict")).replace("_", " ").upper() if recent_perf else "SIN MUESTRA"
+    recent_samples = int(safe_float(recent_perf.get("signals")) or 0) if recent_perf else 0
+    recent_win_rate = safe_float(recent_perf.get("win_rate")) if recent_perf else None
+    recent_label = f"Ultimas {recent_samples} · {recent_win_rate * 100:.0f}%" if recent_win_rate is not None else f"Ultimas {recent_samples}"
+    checklist_html = roxy_strike_checklist_strip_html(dashboard_model)
     if comparison.get("status") == "ready":
         strike_signal = comparison.get("roxy_signal") if isinstance(comparison.get("roxy_signal"), dict) else {}
         strike = price_display(comparison.get("strike"))
-        score = int(max(0, min(99, safe_float(strike_signal.get("confidence")) or safe_float(signal.get("probability")) or safe_float(comparison.get("score")) or 0)))
+        score = int(max(0, min(99, safe_float(dashboard_model.get("confidence")) or safe_float(strike_signal.get("confidence")) or safe_float(signal.get("probability")) or safe_float(comparison.get("score")) or 0)))
         risk = text_display(strike_signal.get("risk") or signal.get("strike_risk") or "Pendiente")
-        edge_value = safe_float(strike_signal.get("edge"))
+        edge_value = safe_float(dashboard_model.get("edge") if dashboard_model else strike_signal.get("edge"))
         edge_label = f"Edge {edge_value * 100:+.1f}%" if edge_value is not None else "Edge sin payout real"
-        entry = text_display(strike_signal.get("recommended_entry") or signal.get("strike_recommended_entry") or "Confirmar contrato en Deriv antes de entrar.")
-        color = text_display(strike_signal.get("color") or signal.get("strike_color") or "yellow")
+        entry = text_display(dashboard_model.get("recommended_entry") or strike_signal.get("recommended_entry") or signal.get("strike_recommended_entry") or "Confirmar contrato en Deriv antes de entrar.")
+        color = text_display(dashboard_model.get("color") or strike_signal.get("color") or signal.get("strike_color") or "yellow")
         reasons = [text_display(item) for item in strike_signal.get("reasons", []) if text_display(item)]
         warnings = [text_display(item) for item in strike_signal.get("warning_flags", []) if text_display(item)]
         reason_text = " · ".join((reasons + warnings)[:3]) or "Roxy esta validando momentum, medias y distancia al strike."
-        status_label = "OPERAR AHORA" if color == "green" and side in {SIGNAL_YES, SIGNAL_NO} else ("ESPERAR" if color == "yellow" else "NO OPERAR")
-        probability_label = str(int(round(safe_float(strike_signal.get("probability_roxy")) or score)))
+        status_label = text_display(dashboard_model.get("decision") or ("OPERAR AHORA" if color == "green" and side in {SIGNAL_YES, SIGNAL_NO} else ("ESPERAR" if color == "yellow" else "NO OPERAR")))
+        probability_label = str(int(round(safe_float(dashboard_model.get("probability_roxy")) or safe_float(strike_signal.get("probability_roxy")) or score)))
+        condition_label = text_display(dashboard_model.get("best_condition") or "Condicion en validacion")
         return (
             f'<section class="roxy-crypto20-platform roxy-deriv-compare deriv-ready deriv-{html.escape(color)}">'
             '<strong>Comparacion automatica con Deriv</strong>'
@@ -36206,6 +37534,11 @@ def roxy_deriv_comparison_panel_html(
             f'<div class="deriv-best"><b>⭐ ESTA ES LA MEJOR</b><span>{html.escape(side)} · {html.escape(strike)}</span><em>Confianza {score}%</em></div>'
             f'<p><span>Estado Roxy <b>{html.escape(status_label)}</b></span><em class="yes">{html.escape(risk)}</em></p>'
             f'<p><span>Ventaja calculada <b>{html.escape(edge_label)}</b></span><em class="yes">{html.escape(probability_label)}%</em></p>'
+            f'<p><span>Condicion dominante <b>{html.escape(condition_label)}</b></span><em class="yes">Motor</em></p>'
+            f'<p><span>Backtesting <b>{html.escape(expectancy_label)}</b></span><em class="yes">{html.escape(history_verdict)}</em></p>'
+            f'<p><span>Memoria reciente <b>{html.escape(recent_label)}</b></span><em class="yes">{html.escape(recent_verdict)}</em></p>'
+            f'{checklist_html}'
+            f'{learning_memory_html}'
             f'<p><span>{html.escape(base)} will be above <b>{html.escape(above_price)}</b></span><em class="yes">Yes</em></p>'
             f'<p><span>{html.escape(base)} will be below <b>{html.escape(below_price)}</b></span><em class="no">No</em></p>'
             f'<small>{html.escape(entry)} · {html.escape(reason_text)}</small>'
@@ -36217,7 +37550,8 @@ def roxy_deriv_comparison_panel_html(
         reasons = [text_display(item) for item in strike_signal.get("warning_flags", []) if text_display(item)]
         reasons.extend([text_display(item) for item in strike_signal.get("reasons", []) if text_display(item)])
         reason_text = " · ".join(reasons[:4]) or "Senales mezcladas; Roxy no encuentra ventaja suficiente."
-        score = int(max(0, min(99, safe_float(strike_signal.get("confidence")) or safe_float(comparison.get("score")) or 0)))
+        score = int(max(0, min(99, safe_float(dashboard_model.get("confidence")) or safe_float(strike_signal.get("confidence")) or safe_float(comparison.get("score")) or 0)))
+        condition_label = text_display(dashboard_model.get("best_condition") or "Condicion en validacion")
         return (
             '<section class="roxy-crypto20-platform roxy-deriv-compare deriv-not-ready">'
             '<strong>Comparacion automatica con Deriv</strong>'
@@ -36225,6 +37559,11 @@ def roxy_deriv_comparison_panel_html(
             '<div class="deriv-best blocked"><b>NO TRADE</b>'
             f'<span>Strike evaluado {html.escape(strike)} sin ventaja clara</span><em>Confianza {score}%</em></div>'
             f'<p><span>Decision Roxy <b>ESPERAR</b></span><em class="no">No operar</em></p>'
+            f'<p><span>Condicion dominante <b>{html.escape(condition_label)}</b></span><em class="no">Motor</em></p>'
+            f'<p><span>Backtesting <b>{html.escape(expectancy_label)}</b></span><em class="no">{html.escape(history_verdict)}</em></p>'
+            f'<p><span>Memoria reciente <b>{html.escape(recent_label)}</b></span><em class="no">{html.escape(recent_verdict)}</em></p>'
+            f'{checklist_html}'
+            f'{learning_memory_html}'
             f'<p><span>Motivo <b>{html.escape(reason_text)}</b></span><em class="no">Riesgo</em></p>'
             '<small>Roxy vio contratos, pero no marco entrada porque la estrategia no cumple edge/riesgo/timer.</small>'
             '</section>'
@@ -36250,6 +37589,7 @@ def roxy_deriv_comparison_panel_html(
         f'<small>{html.escape(status_text)} · {html.escape(history_label)}</small>'
         '<div class="deriv-best blocked"><b>NO MARCAR MEJOR STRIKE</b>'
         f'<span>Falta lista real de Strike Options de Deriv</span><em>{html.escape(deriv.get("endpoint") or "Deriv")}</em></div>'
+        f'{learning_memory_html}'
         f'<p><span>Contratos reales disponibles <b>{html.escape(available_labels or "ninguno")}</b></span><em class="no">Live</em></p>'
         f'<p><span>Roxy target interno <b>{html.escape(internal_target)}</b></span><em class="yes">{html.escape(side)}</em></p>'
         '<small>Para elegir “⭐ ESTA ES LA MEJOR” sin inventar, conecta Options API/OAuth de Deriv con acceso a Strike Options.</small>'
@@ -36431,6 +37771,7 @@ def render_roxy_stock_live_runtime() -> None:
             const tone = direction > 0 ? "tick-up" : direction < 0 ? "tick-down" : "tick-watch";
             const stamp = quote.updatedAt || new Date().toLocaleTimeString();
             const session = quote.marketOpen === false ? "cerrado" : quote.marketOpen === true ? "abierto" : "quote";
+            const sessionLabel = quote.marketOpen === false ? "LAST" : quote.marketOpen === true ? "LIVE" : "QUOTE";
             doc.querySelectorAll("[data-roxy-stock-refresh-count]").forEach((node) => {
               const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
               if (statusSymbol && statusSymbol !== symbol) return;
@@ -36448,6 +37789,19 @@ def render_roxy_stock_live_runtime() -> None:
               node.textContent = quote.marketOpen === false ? "Mercado cerrado · ultimo precio real" : quote.marketOpen === true ? "Mercado abierto · live" : "Feed consultando";
               node.classList.remove("tick-up", "tick-down", "tick-watch");
               node.classList.add(quote.marketOpen === true ? "tick-up" : "tick-watch");
+            });
+            doc.querySelectorAll("[data-roxy-stock-feed-diagnostic]").forEach((node) => {
+              const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
+              if (statusSymbol && statusSymbol !== symbol) return;
+              node.textContent = `${symbol} ${sessionLabel} · ${quote.source || "feed"} · ${stamp} · ${session}`;
+              node.title = quote.marketOpen === false
+                ? "Mercado cerrado: Roxy muestra ultimo precio real y no simula ticks."
+                : quote.marketOpen === true
+                  ? "Feed live conectado: la tabla y la vela actual se sincronizan sin refrescar la pagina."
+                  : "Quote real consultado; conecta Alpaca/bridge para ticks continuos.";
+              node.classList.remove("mode-live", "mode-last", "mode-degraded", "mode-quote", "tick-pulse");
+              node.classList.add(quote.marketOpen === true ? "mode-live" : quote.marketOpen === false ? "mode-last" : "mode-quote", "tick-pulse");
+              window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
             });
           };
           const setTradeState = (symbol, price) => {
@@ -36484,6 +37838,21 @@ def render_roxy_stock_live_runtime() -> None:
               node.classList.add(tone, "tick-pulse");
               window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
             });
+          };
+          const emitQuoteEvent = (symbol, quote) => {
+            try {
+              doc.dispatchEvent(new CustomEvent("roxy-stock-quote", {
+                detail: {
+                  symbol,
+                  quote: {
+                    ...quote,
+                    symbol,
+                    price: Number(quote && quote.price),
+                    updatedAt: quote && quote.updatedAt ? quote.updatedAt : new Date().toLocaleTimeString()
+                  }
+                }
+              }));
+            } catch (error) {}
           };
           const setTone = (node, price) => {
             const previous = Number(node.dataset.roxyPrice || 0);
@@ -36531,25 +37900,53 @@ def render_roxy_stock_live_runtime() -> None:
               window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
             });
           };
+          const hasRecentServerQuote = (symbol) => {
+            const now = Date.now();
+            return (nodesBySymbol("[data-roxy-stock-live-price]").get(symbol) || []).some((node) => {
+              const stamp = Number(node.dataset.roxyServerOkAt || 0);
+              return stamp && now - stamp < 9000;
+            });
+          };
           const markBridgeDegraded = (symbols, reason = "puente stock no disponible") => {
             const detail = String(reason || "sin respuesta").slice(0, 72);
             symbols.forEach((symbol) => {
-              setStatus(symbol, `Bridge stock no disponible · ${detail} · servidor verificando`, "watch");
-              setQuoteMode(symbol, "BRIDGE CAIDO", `${symbol}: ${detail}`);
+              const hasBackup = hasRecentServerQuote(symbol);
+              const statusText = hasBackup
+                ? `Feed respaldo activo · bridge reconectando · ${detail}`
+                : `Bridge stock no disponible · ${detail} · servidor verificando`;
+              setStatus(symbol, statusText, "watch");
+              setQuoteMode(symbol, hasBackup ? "RESPALDO" : "LAST", `${symbol}: ${statusText}`);
               (nodesBySymbol("[data-roxy-stock-live-price]").get(symbol) || []).forEach((node) => {
-                node.dataset.roxySource = `Bridge stock no disponible · ${detail}`;
-                node.dataset.roxyFreshness = "bridge degradado";
-                node.dataset.roxyMarketOpen = "";
+                if (!hasBackup) {
+                  node.dataset.roxySource = `Bridge stock no disponible · ${detail}`;
+                  node.dataset.roxyFreshness = "bridge degradado";
+                  node.dataset.roxyMarketOpen = "";
+                }
                 node.dataset.roxyUpdatedAt = new Date().toLocaleTimeString();
-                node.title = `${symbol}: bridge stock no disponible; se conserva el ultimo precio real disponible.`;
+                node.title = hasBackup
+                  ? `${symbol}: feed respaldo real activo mientras el bridge reconecta.`
+                  : `${symbol}: bridge stock no disponible; se conserva el ultimo precio real disponible.`;
               });
               doc.querySelectorAll("[data-roxy-stock-tick-arrow]").forEach((node) => {
                 const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
                 if (statusSymbol && statusSymbol !== symbol) return;
-                node.textContent = "LAST";
-                node.title = `${symbol}: puente stock no disponible; usando ultimo quote real disponible.`;
+                node.textContent = hasBackup ? "↻ RESPALDO" : "LAST";
+                node.title = hasBackup
+                  ? `${symbol}: servidor respaldo entregando quotes reales.`
+                  : `${symbol}: puente stock no disponible; usando ultimo quote real disponible.`;
                 node.classList.remove("tick-up", "tick-down", "tick-pulse");
                 node.classList.add("tick-watch", "tick-pulse");
+                window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
+              });
+              doc.querySelectorAll("[data-roxy-stock-feed-diagnostic]").forEach((node) => {
+                const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
+                if (statusSymbol && statusSymbol !== symbol) return;
+                node.textContent = hasBackup ? `${symbol} RESPALDO · bridge reconectando · ${detail}` : `${symbol} LAST · bridge reconectando · ${detail}`;
+                node.title = hasBackup
+                  ? "Feed de respaldo real activo; Roxy mantiene tabla y grafica sincronizadas mientras reconecta el stream."
+                  : "El puente live no respondio; Roxy conserva el ultimo precio real y no simula movimiento.";
+                node.classList.remove("mode-live", "mode-last", "mode-degraded", "mode-quote", "tick-pulse");
+                node.classList.add(hasBackup ? "mode-quote" : "mode-last", "tick-pulse");
                 window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
               });
             });
@@ -36591,12 +37988,12 @@ def render_roxy_stock_live_runtime() -> None:
             let directionSet = false;
             (nodesBySymbol("[data-roxy-stock-live-price]").get(symbol) || []).forEach((node) => {
               node.dataset.roxyServerPrice = String(price);
-              node.dataset.roxyPrice = String(price);
               node.dataset.roxySource = source;
               node.dataset.roxyFreshness = rawFreshness;
               node.dataset.roxyMarketOpen = marketOpenText;
               node.dataset.roxyUpdatedAt = stamp;
-              node.dataset.roxyRefreshCount = String(Number(node.dataset.roxyRefreshCount || 0) + 1);
+              node.dataset.roxyServerOkAt = String(Date.now());
+              node.classList.add("roxy-stock-server-ok");
               const direction = setTone(node, price);
               if (!directionSet) {
                 firstDirection = direction;
@@ -36621,11 +38018,12 @@ def render_roxy_stock_live_runtime() -> None:
             setTickArrow(symbol, firstDirection, price, quote.marketOpen === false ? "LAST" : "LIVE");
             setRefreshMeta(symbol, firstDirection, quote);
             setTradeState(symbol, price);
+            emitQuoteEvent(symbol, { ...quote, price, previous, changePct: rawChangePct });
             return true;
           };
           const fetchYahoo = async (symbol) => {
             const controller = new AbortController();
-            const timer = window.setTimeout(() => controller.abort(), 4200);
+            const timer = window.setTimeout(() => controller.abort(), 1800);
             const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1m`;
             try {
               const res = await fetch(url, { cache: "no-store", signal: controller.signal });
@@ -36639,7 +38037,7 @@ def render_roxy_stock_live_runtime() -> None:
           };
           const fetchStooq = async (symbol) => {
             const controller = new AbortController();
-            const timer = window.setTimeout(() => controller.abort(), 4200);
+            const timer = window.setTimeout(() => controller.abort(), 1800);
             const stooqSymbol = `${String(symbol).toLowerCase().replace(/[^a-z0-9.\\-]/g, "")}.us`;
             const url = `https://stooq.com/q/l/?s=${encodeURIComponent(stooqSymbol)}&f=sd2t2ohlcv&h&e=csv`;
             try {
@@ -36677,7 +38075,7 @@ def render_roxy_stock_live_runtime() -> None:
           let bridgeSignature = "";
           let bridgeSnapshotBusy = false;
           let bridgeSnapshotOkAt = 0;
-          const bridgeSymbols = () => Array.from(nodesBySymbol("[data-roxy-stock-live-price]").keys()).slice(0, 24);
+          const bridgeSymbols = () => Array.from(nodesBySymbol("[data-roxy-stock-live-price]").keys()).slice(0, 10);
           const connectBridge = () => {
             if (!BRIDGE_STREAM_URL || typeof EventSource === "undefined") return false;
             const symbols = bridgeSymbols();
@@ -36723,7 +38121,7 @@ def render_roxy_stock_live_runtime() -> None:
             if (!symbols.length) return false;
             bridgeSnapshotBusy = true;
             const controller = new AbortController();
-            const timer = window.setTimeout(() => controller.abort(), 5200);
+            const timer = window.setTimeout(() => controller.abort(), 2400);
             try {
               const url = new URL(BRIDGE_SNAPSHOT_URL, window.parent.location.href);
               url.searchParams.set("symbols", symbols.join(","));
@@ -36758,7 +38156,7 @@ def render_roxy_stock_live_runtime() -> None:
             }
           };
           const tick = () => {
-            const symbols = Array.from(nodesBySymbol("[data-roxy-stock-live-price]").keys()).slice(0, 18);
+            const symbols = Array.from(nodesBySymbol("[data-roxy-stock-live-price]").keys()).slice(0, 10);
             fetchBridgeSnapshot().then((ok) => {
               const recentlyOk = Date.now() - bridgeSnapshotOkAt < 7500;
               if (ok || recentlyOk) return;
@@ -36793,7 +38191,7 @@ def render_roxy_stock_server_refresh(interval_ms: int = 3500, symbols: list[str]
 
     def _render_server_stock_quotes() -> None:
         quotes_payload: dict[str, dict[str, Any]] = {}
-        for symbol in clean_symbols[:18]:
+        for symbol in clean_symbols[:10]:
             snapshot = roxy_stock_quote_snapshot(symbol)
             price = safe_float(snapshot.get("price"))
             if price is None or price <= 0:
@@ -36870,6 +38268,19 @@ def render_roxy_stock_server_refresh(interval_ms: int = 3500, symbols: list[str]
               node.classList.remove("tick-up", "tick-down", "tick-watch");
               node.classList.add(quote.marketOpen === true ? "tick-up" : "tick-watch");
             });
+            doc.querySelectorAll("[data-roxy-stock-feed-diagnostic]").forEach((node) => {
+              if (symbolFor(node) !== symbol) return;
+              const session = quote.marketOpen === false ? "cerrado" : quote.marketOpen === true ? "abierto" : "quote";
+              node.textContent = `${symbol} ${label} · ${quote.source || "server quote"} · ${quote.updatedAt || "ahora"} · ${session}`;
+              node.title = quote.marketOpen === false
+                ? "Mercado cerrado: Roxy muestra ultimo precio real y no simula ticks."
+                : quote.marketOpen === true
+                  ? "Feed live conectado: tabla y grafica reciben el mismo quote."
+                  : "Quote real consultado por servidor; para movimiento continuo usa Alpaca/bridge.";
+              node.classList.remove("mode-live", "mode-last", "mode-degraded", "mode-quote", "tick-pulse");
+              node.classList.add(label === "LIVE" ? "mode-live" : label === "LAST" ? "mode-last" : "mode-quote", "tick-pulse");
+              window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
+            });
           };
           const setQuoteMode = (symbol, quote) => {
             const label = sessionLabel(quote);
@@ -36917,6 +38328,21 @@ def render_roxy_stock_server_refresh(interval_ms: int = 3500, symbols: list[str]
               window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
             });
           };
+          const emitQuoteEvent = (symbol, quote) => {
+            try {
+              doc.dispatchEvent(new CustomEvent("roxy-stock-quote", {
+                detail: {
+                  symbol,
+                  quote: {
+                    ...quote,
+                    symbol,
+                    price: Number(quote && quote.price),
+                    updatedAt: quote && quote.updatedAt ? quote.updatedAt : new Date().toLocaleTimeString()
+                  }
+                }
+              }));
+            } catch (error) {}
+          };
           const applyQuotes = () => {
             let hits = 0;
             Object.entries(quotes).forEach(([symbol, quote]) => {
@@ -36933,7 +38359,9 @@ def render_roxy_stock_server_refresh(interval_ms: int = 3500, symbols: list[str]
                 node.dataset.roxyFreshness = quote.freshness || "";
                 node.dataset.roxyMarketOpen = quote.marketOpen === true ? "true" : quote.marketOpen === false ? "false" : "";
                 node.dataset.roxyUpdatedAt = quote.updatedAt || "";
+                node.dataset.roxyServerOkAt = String(Date.now());
                 node.dataset.roxyRefreshCount = String(Number(node.dataset.roxyRefreshCount || 0) + 1);
+                node.classList.add("roxy-stock-server-ok");
                 node.textContent = formatPrice(price);
                 const direction = price - previousPrice;
                 if (!directionSet) {
@@ -36970,6 +38398,7 @@ def render_roxy_stock_server_refresh(interval_ms: int = 3500, symbols: list[str]
               setRefreshMeta(symbol, firstDirection, quote);
               setQuoteMode(symbol, quote);
               setTradeState(symbol, quote);
+              emitQuoteEvent(symbol, quote);
             });
             return hits;
           };
@@ -37003,6 +38432,15 @@ def roxy_secret_value(*keys: str) -> str:
     return ""
 
 
+def roxy_market_http_timeout(default: float = 1.8) -> float:
+    raw_value = text_display(os.environ.get("ROXY_MARKET_HTTP_TIMEOUT") or "").strip()
+    try:
+        value = float(raw_value) if raw_value else float(default)
+    except (TypeError, ValueError):
+        value = float(default)
+    return max(0.7, min(value, 4.0))
+
+
 def roxy_alpaca_stock_latest_snapshot(symbol: str) -> dict[str, Any]:
     result: dict[str, Any] = {"price": None, "previous_close": None, "change_pct": None, "source": "alpaca_unavailable"}
     if requests is None:
@@ -37019,9 +38457,10 @@ def roxy_alpaca_stock_latest_snapshot(symbol: str) -> dict[str, Any]:
         return result
     headers = {"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret}
     base = "https://data.alpaca.markets/v2/stocks"
+    request_timeout = roxy_market_http_timeout()
     try:
         trade_url = f"{base}/{quote(clean_symbol, safe='')}/trades/latest?feed={quote(feed, safe='')}"
-        response = requests.get(trade_url, headers=headers, timeout=4)
+        response = requests.get(trade_url, headers=headers, timeout=request_timeout)
         if response.ok:
             payload = response.json() if callable(getattr(response, "json", None)) else {}
             trade = payload.get("trade") if isinstance(payload, dict) else {}
@@ -37031,7 +38470,7 @@ def roxy_alpaca_stock_latest_snapshot(symbol: str) -> dict[str, Any]:
                 result["source"] = f"alpaca_{feed}_latest_trade"
         if result.get("price") is None:
             quote_url = f"{base}/{quote(clean_symbol, safe='')}/quotes/latest?feed={quote(feed, safe='')}"
-            response = requests.get(quote_url, headers=headers, timeout=4)
+            response = requests.get(quote_url, headers=headers, timeout=request_timeout)
             if response.ok:
                 payload = response.json() if callable(getattr(response, "json", None)) else {}
                 quote_data = payload.get("quote") if isinstance(payload, dict) else {}
@@ -37042,7 +38481,7 @@ def roxy_alpaca_stock_latest_snapshot(symbol: str) -> dict[str, Any]:
                     result["source"] = f"alpaca_{feed}_mid_quote"
         try:
             bars_url = f"{base}/{quote(clean_symbol, safe='')}/bars?timeframe=1Day&limit=2&feed={quote(feed, safe='')}"
-            response = requests.get(bars_url, headers=headers, timeout=4)
+            response = requests.get(bars_url, headers=headers, timeout=request_timeout)
             if response.ok:
                 payload = response.json() if callable(getattr(response, "json", None)) else {}
                 bars = payload.get("bars") if isinstance(payload, dict) else []
@@ -37084,6 +38523,25 @@ def roxy_stock_quote_snapshot(symbol: str) -> dict[str, Any]:
                 or (live_snapshot or {}).get("reference_price")
             )
             change_pct = safe_float((live_snapshot or {}).get("change_pct"))
+            source_label = text_display((live_snapshot or {}).get("source") or "living_market_snapshot")
+            if previous is None or change_pct is None:
+                alpaca_context = roxy_alpaca_stock_latest_snapshot(clean_symbol)
+                context_price = safe_float(alpaca_context.get("price"))
+                context_previous = safe_float(alpaca_context.get("previous_close"))
+                context_change = safe_float(alpaca_context.get("change_pct"))
+                if previous is None and context_previous is not None:
+                    previous = context_previous
+                if change_pct is None and context_change is not None:
+                    change_pct = context_change
+                if (
+                    change_pct is None
+                    and context_price is not None
+                    and context_previous not in (None, 0)
+                ):
+                    change_pct = (context_price - context_previous) / context_previous
+                context_source = text_display(alpaca_context.get("source") or "")
+                if context_source and context_source != "unavailable":
+                    source_label = f"{source_label} + {context_source}"
             if change_pct is None and previous not in (None, 0):
                 change_pct = (live_price - previous) / previous
             return {
@@ -37091,7 +38549,7 @@ def roxy_stock_quote_snapshot(symbol: str) -> dict[str, Any]:
                 "price": live_price,
                 "previous_close": previous,
                 "change_pct": change_pct,
-                "source": text_display((live_snapshot or {}).get("source") or "living_market_snapshot"),
+                "source": source_label,
                 "market_open": (live_snapshot or {}).get("market_open"),
                 "freshness": text_display((live_snapshot or {}).get("freshness") or ""),
                 "latency_note": text_display((live_snapshot or {}).get("latency_note") or ""),
@@ -37413,8 +38871,8 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     avg_readiness = sum(readiness_values) / len(readiness_values) if readiness_values else 86.0
     opportunity_count = len(rows)
     selected_change = roxy_actions_change_pct(selected_row)
-    selected_change_text = pct_display(selected_change) if selected_change is not None else "+0.04%"
-    selected_change_class = "positive" if (selected_change or 0) >= 0 else "negative"
+    selected_change_text = pct_display(selected_change) if selected_change is not None else "live quote"
+    selected_change_class = "positive" if selected_change is None or selected_change >= 0 else "negative"
     selected_live_stock_symbol = roxy_stock_live_symbol_attr(selected_symbol)
     live_stock_symbols: list[str] = []
     for row in rows[:12]:
@@ -37465,7 +38923,7 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         row_target_value = safe_float(row_plan.get("target_2") or row_plan.get("target_price") or row_plan.get("target"))
         row_score = int(max(0, min(99, safe_float(row.get("readiness") or row.get("alert_readiness_score")) or (94 - idx * 5))))
         row_change = roxy_actions_change_pct(row)
-        row_change_text = pct_display(row_change) if row_change is not None else f"+{max(0.7, 4.0 - idx * .45):.2f}%"
+        row_change_text = pct_display(row_change) if row_change is not None else "live quote"
         selected_class = " selected" if symbol == selected_symbol else ""
         live_stock_symbol = roxy_stock_live_symbol_attr(symbol)
         row_rr_value = safe_float(row_plan.get("rr_to_2") or row.get("roxy_rr"))
@@ -37519,6 +38977,8 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
                 f'<small data-roxy-stock-change data-roxy-stock-symbol="{html.escape(live_symbol)}">{html.escape(pct_display(row_change) if row_change is not None else "live")}</small>'
                 f'<i data-roxy-stock-quote-mode data-roxy-stock-symbol="{html.escape(live_symbol)}">QUOTE</i>'
                 f'<em data-roxy-stock-tick-arrow data-roxy-stock-symbol="{html.escape(live_symbol)}">LIVE</em>'
+                f'<u data-roxy-stock-refresh-count data-roxy-stock-symbol="{html.escape(live_symbol)}">tick 0</u>'
+                f'<u data-roxy-stock-live-status data-roxy-stock-symbol="{html.escape(live_symbol)}">validando...</u>'
                 "</span>"
             )
         )
@@ -37535,6 +38995,7 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         f'<div><i class="material-symbols-outlined">{icon}</i><strong>{title}</strong><span>{detail}</span></div>'
         for icon, title, detail in reason_items
     )
+    finviz_news_article = roxy_actions_finviz_news_article(selected_symbol)
     st.markdown(
         f"""
         <section class="roxy-actions-shell">
@@ -37578,6 +39039,10 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
           <div class="roxy-universe" aria-hidden="true"><i class="roxy-space-nebula"></i><i class="roxy-space-stars roxy-space-stars-mid"></i><i class="roxy-space-stars roxy-space-stars-near"></i></div>
           <header><strong>Graficas operativas</strong><span>{html.escape(selected_symbol)} <b class="{selected_change_class}" data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}" data-roxy-price="{html.escape(str(latest_value or trade_plan.get("entry") or ""))}">{html.escape(price)}</b> · <b class="{selected_change_class}" data-roxy-stock-change data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">{html.escape(selected_change_text)}</b><small class="chart-mode mode-quote" data-roxy-stock-quote-mode data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">QUOTE</small><small data-roxy-stock-live-status data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">stock live inicializando...</small><small class="chart-refresh tick-watch" data-roxy-stock-refresh-count data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">tick 0</small><small class="chart-market tick-watch" data-roxy-stock-market-state data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">validando mercado</small></span></header>
           <div class="roxy-stock-live-tape" aria-label="Precios live de acciones">{live_tape_html}</div>
+          <div class="roxy-stock-feed-diagnostic">
+            <b data-roxy-stock-feed-diagnostic data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">Validando feed live de {html.escape(selected_symbol)}</b>
+            <span>LIVE mueve la vela actual con Alpaca/bridge. LAST muestra ultimo precio real cuando el mercado esta cerrado. Roxy no simula ticks.</span>
+          </div>
           <style>
             .roxy-stock-live-tape {{
               position: relative;
@@ -37618,16 +39083,19 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
             }}
             .roxy-stock-live-tape-item small,
             .roxy-stock-live-tape-item em,
-            .roxy-stock-live-tape-item i {{
+            .roxy-stock-live-tape-item i,
+            .roxy-stock-live-tape-item u {{
               color: #7dd3fc;
               font-size: 8px;
               font-weight: 950;
               letter-spacing: .08em;
               text-transform: uppercase;
               font-style: normal;
+              text-decoration: none;
             }}
             .roxy-stock-live-tape-item em,
-            .roxy-stock-live-tape-item i {{
+            .roxy-stock-live-tape-item i,
+            .roxy-stock-live-tape-item u {{
               justify-self: end;
               padding: 2px 6px;
               border-radius: 999px;
@@ -37639,6 +39107,56 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
               color: #bae6fd;
               border-color: rgba(148,163,184,.18);
               background: rgba(15,23,42,.64);
+            }}
+            .roxy-stock-live-tape-item u {{
+              max-width: 84px;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+            }}
+            .roxy-stock-feed-diagnostic {{
+              position: relative;
+              z-index: 2;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 12px;
+              margin: 0 12px 10px;
+              padding: 9px 11px;
+              border: 1px solid rgba(125,211,252,.22);
+              border-radius: 14px;
+              background: linear-gradient(90deg, rgba(2,6,23,.78), rgba(8,47,73,.48), rgba(2,6,23,.78));
+              box-shadow: 0 0 24px rgba(14,165,233,.08) inset;
+            }}
+            .roxy-stock-feed-diagnostic b {{
+              color: #7dd3fc;
+              font-size: 10px;
+              font-weight: 1000;
+              letter-spacing: .10em;
+              text-transform: uppercase;
+              white-space: nowrap;
+            }}
+            .roxy-stock-feed-diagnostic span {{
+              color: rgba(203,213,225,.90);
+              font-size: 10px;
+              font-weight: 780;
+              line-height: 1.35;
+              text-align: right;
+            }}
+            .roxy-stock-feed-diagnostic .mode-live {{
+              color: #86efac !important;
+              text-shadow: 0 0 14px rgba(34,197,94,.44);
+            }}
+            .roxy-stock-feed-diagnostic .mode-last {{
+              color: #fde68a !important;
+              text-shadow: 0 0 14px rgba(250,204,21,.30);
+            }}
+            .roxy-stock-feed-diagnostic .mode-degraded {{
+              color: #fecaca !important;
+              text-shadow: 0 0 14px rgba(248,113,113,.30);
+            }}
+            .roxy-stock-feed-diagnostic .mode-quote {{
+              color: #bae6fd !important;
             }}
             .roxy-actions-row .price strong[data-roxy-stock-live-price],
             .roxy-actions-signal b[data-roxy-stock-live-price],
@@ -37862,12 +39380,14 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         unsafe_allow_html=True,
     )
     render_roxy_stock_live_runtime()
-    render_roxy_stock_server_refresh(interval_ms=1500, symbols=live_stock_symbols)
+    render_roxy_stock_server_refresh(interval_ms=1500, symbols=live_stock_symbols[:10])
+    render_finviz_pattern_strategy_board(limit=12)
+    render_roxy_strategy_split_board(rows, limit=10)
     rendered = render_roxy_actions_dual_pro_charts(
         symbol=resolved_symbol,
         market=selected_market,
         trade_plan=trade_plan,
-        height=640,
+        height=760,
     )
     if not rendered:
         rendered = render_roxy_actions_dual_plotly_charts(
@@ -37896,7 +39416,7 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         f"""
           <section class="roxy-actions-below">
             <article class="why"><strong>Por que Roxy recomienda esta accion?</strong><div>{reason_html}</div></article>
-            <article class="news"><strong>Noticias relevantes</strong><p>{roxy_stock_icon_html(selected_symbol)} Apple lanza nuevas funciones de IA en iOS 18</p><p><i class="material-symbols-outlined">finance_mode</i> Analistas aumentan precio objetivo de {html.escape(selected_symbol)}</p><p><i class="material-symbols-outlined">newspaper</i> Demanda supera expectativas</p><a href="?view=Dashboard&module=acciones-operar&news=1" target="_self">Ver todas las noticias</a></article>
+            {finviz_news_article}
           </section>
           <nav class="roxy-actions-bottomnav"><a href="?view=Dashboard" target="_self"><i class="material-symbols-outlined">home</i>Inicio</a><a class="active" href="?view=Dashboard&module=acciones-operar" target="_self"><i class="material-symbols-outlined">candlestick_chart</i>Mercados</a><a class="roxy-r" href="?view=Dashboard" target="_self">R</a><a href="?view=Dashboard&module=classroom" target="_self"><i class="material-symbols-outlined">school</i>Classes Room</a><a href="?view=Dashboard&module=progreso" target="_self"><i class="material-symbols-outlined">person</i>Mi Progreso</a></nav>
         </section>
@@ -38786,8 +40306,8 @@ def roxy_actions_plotly_chart_panel(
             domain_high = float(highs.quantile(0.92))
     if domain_low is not None and domain_high is not None and domain_high > domain_low:
         span = max(domain_high - domain_low, abs(domain_high) * 0.004, 0.01)
-        domain_low -= span * 0.38
-        domain_high += span * 0.38
+        domain_low -= span * 0.22
+        domain_high += span * 0.22
         df["high"] = pd.to_numeric(df["high"], errors="coerce").clip(upper=domain_high)
         df["low"] = pd.to_numeric(df["low"], errors="coerce").clip(lower=domain_low)
 
@@ -39048,8 +40568,8 @@ def roxy_actions_pro_chart_payload(
             line_high = level_value if line_high is None else max(line_high, level_value)
         if line_low is not None and line_high is not None and line_high > line_low:
             span = max(line_high - line_low, abs(line_high) * 0.004, 0.01)
-            line_low -= span * 0.38
-            line_high += span * 0.38
+            line_low -= span * 0.22
+            line_high += span * 0.22
 
     def trim_line(points: Any) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
@@ -39076,7 +40596,7 @@ def roxy_actions_pro_chart_payload(
     payload["candles"] = candles
     payload["lines"] = cleaned_lines
     payload["displayRange"] = {"minValue": line_low, "maxValue": line_high} if line_low is not None and line_high is not None and line_high > line_low else None
-    payload["suggestedVisibleCandles"] = 56
+    payload["suggestedVisibleCandles"] = 48
     payload["panelLabel"] = panel_label
     payload["levels"] = [
         {"key": "entry", "label": "Entrada", "value": safe_float(trade_plan.get("entry")), "color": "#22c55e"},
@@ -39146,8 +40666,8 @@ def render_roxy_actions_pro_chart_panel(
         <aside data-rpc-last></aside>
       </header>
 	      <section class="rpc-toolbar">
-	        <button data-range="38">38 velas</button>
-	        <button data-range="56" class="active">56 velas</button>
+	        <button data-range="32" class="active">32 velas</button>
+	        <button data-range="48">48 velas</button>
 	        <button data-range="96">96 velas</button>
 	        <button data-range="all">Todo</button>
 	        <button data-layer="clean">Solo velas</button>
@@ -39210,23 +40730,23 @@ def render_roxy_actions_pro_chart_panel(
       .rpc-reading .danger{border-color:rgba(248,113,113,.32);box-shadow:0 0 22px rgba(248,113,113,.08) inset}.rpc-reading .danger small,.rpc-reading .danger b{color:#fecaca}
       .rpc-stage{position:relative;flex:1 1 auto;min-height:560px;padding:6px 7px 0}
 	      .rpc-stage:before{content:"";position:absolute;inset:6px 7px 56px;border-radius:12px;background:linear-gradient(90deg,transparent,rgba(56,189,248,.06),transparent),radial-gradient(circle at 70% 16%,rgba(34,197,94,.08),transparent 22%);pointer-events:none}
-	      .rpc-stage:after{content:"";position:absolute;inset:6px 7px 56px;border-radius:12px;background-image:linear-gradient(rgba(148,163,184,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.045) 1px,transparent 1px);background-size:44px 44px;opacity:.7;pointer-events:none}
+	      .rpc-stage:after{content:"";position:absolute;inset:6px 7px 56px;border-radius:12px;background-image:linear-gradient(rgba(148,163,184,.038) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.038) 1px,transparent 1px);background-size:48px 48px;opacity:.52;pointer-events:none}
 	      .rpc-chart{position:absolute;inset:6px 7px 56px 7px}
       .rpc-stage[data-layer-mode="strategy"]:before{background:radial-gradient(circle at 70% 16%,rgba(34,197,94,.08),transparent 24%)}
-      .rpc-stage[data-layer-mode="clean"]:before,.rpc-stage[data-layer-mode="clean"]:after{opacity:.38}
-      .rpc-stage[data-layer-mode="all"]:after{opacity:.82}
-      .rpc-level-bands{position:absolute;inset:6px 7px 56px;border-radius:12px;z-index:2;overflow:hidden;pointer-events:none;opacity:.78;transition:opacity .18s ease}
+      .rpc-stage[data-layer-mode="clean"]:before,.rpc-stage[data-layer-mode="clean"]:after{opacity:.30}
+      .rpc-stage[data-layer-mode="all"]:after{opacity:.64}
+      .rpc-level-bands{position:absolute;inset:6px 7px 56px;border-radius:12px;z-index:2;overflow:hidden;pointer-events:none;opacity:.34;transition:opacity .18s ease}
       .rpc-stage[data-layer-mode="clean"] .rpc-level-bands{opacity:0}
-      .rpc-stage[data-layer-mode="strategy"] .rpc-level-bands{opacity:.64}
-      .rpc-stage[data-layer-mode="all"] .rpc-level-bands{opacity:.88}
-      .rpc-level-band{position:absolute;left:0;right:0;min-height:18px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;border-top:1px solid rgba(255,255,255,.28);border-bottom:1px solid rgba(255,255,255,.16);font-size:9px;font-weight:1000;letter-spacing:.08em;text-transform:uppercase;text-shadow:0 1px 4px rgba(0,0,0,.82);box-shadow:0 0 18px rgba(255,255,255,.06) inset}
+      .rpc-stage[data-layer-mode="strategy"] .rpc-level-bands{opacity:.28}
+      .rpc-stage[data-layer-mode="all"] .rpc-level-bands{opacity:.52}
+      .rpc-level-band{position:absolute;left:0;right:0;min-height:14px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;border-top:1px solid rgba(255,255,255,.20);border-bottom:1px solid rgba(255,255,255,.10);font-size:8px;font-weight:1000;letter-spacing:.06em;text-transform:uppercase;text-shadow:0 1px 4px rgba(0,0,0,.82);box-shadow:0 0 12px rgba(255,255,255,.04) inset}
       .rpc-level-band b{border-radius:999px;padding:3px 7px;background:rgba(2,6,23,.76);box-shadow:0 0 18px rgba(0,0,0,.24);font-variant-numeric:tabular-nums}
-      .rpc-level-entry{background:linear-gradient(90deg,rgba(34,197,94,.05),rgba(34,197,94,.20),rgba(34,197,94,.06));border-color:rgba(34,197,94,.54);color:#bbf7d0}
-      .rpc-level-stop{background:linear-gradient(90deg,rgba(239,68,68,.04),rgba(239,68,68,.18),rgba(239,68,68,.05));border-color:rgba(248,113,113,.58);color:#fecaca}
-      .rpc-level-target{background:linear-gradient(90deg,rgba(56,189,248,.04),rgba(56,189,248,.18),rgba(56,189,248,.05));border-color:rgba(125,211,252,.58);color:#bae6fd}
+      .rpc-level-entry{background:linear-gradient(90deg,rgba(34,197,94,.025),rgba(34,197,94,.11),rgba(34,197,94,.03));border-color:rgba(34,197,94,.42);color:#bbf7d0}
+      .rpc-level-stop{background:linear-gradient(90deg,rgba(239,68,68,.02),rgba(239,68,68,.10),rgba(239,68,68,.025));border-color:rgba(248,113,113,.44);color:#fecaca}
+      .rpc-level-target{background:linear-gradient(90deg,rgba(56,189,248,.02),rgba(56,189,248,.10),rgba(56,189,248,.025));border-color:rgba(125,211,252,.44);color:#bae6fd}
       .rpc-crosscard{position:absolute;left:16px;top:16px;z-index:5;display:none;min-width:190px;padding:8px 10px;border:1px solid rgba(125,211,252,.32);border-left:3px solid #38bdf8;border-radius:10px;background:rgba(2,6,23,.78);backdrop-filter:blur(10px);box-shadow:0 14px 28px rgba(0,0,0,.34);font-size:11px;font-weight:850;line-height:1.35;color:#dbeafe}
       .rpc-crosscard b{color:#f8fafc}
-      .rpc-plan{position:absolute;right:14px;bottom:58px;z-index:4;max-width:246px;padding:8px 10px;border:1px solid rgba(34,197,94,.30);border-left:3px solid #22c55e;border-radius:12px;background:rgba(2,6,23,.66);backdrop-filter:blur(10px);box-shadow:0 14px 28px rgba(0,0,0,.26);font-size:10px;font-weight:850;line-height:1.34;color:#dbeafe;pointer-events:none;opacity:.92;transition:opacity .18s ease,transform .18s ease}
+      .rpc-plan{position:absolute;right:14px;bottom:58px;z-index:4;max-width:236px;padding:8px 10px;border:1px solid rgba(34,197,94,.25);border-left:3px solid #22c55e;border-radius:12px;background:rgba(2,6,23,.58);backdrop-filter:blur(10px);box-shadow:0 14px 28px rgba(0,0,0,.22);font-size:10px;font-weight:850;line-height:1.34;color:#dbeafe;pointer-events:none;opacity:.76;transition:opacity .18s ease,transform .18s ease}
       .rpc-stage[data-layer-mode="clean"] .rpc-plan{opacity:0;transform:translateY(8px)}
       .rpc-stage[data-layer-mode="all"] .rpc-plan{opacity:.82}
       .rpc-plan strong{display:block;color:#fff;font-size:12px;margin-bottom:4px}
@@ -39304,9 +40824,9 @@ def render_roxy_actions_pro_chart_panel(
         const previousDisplayed = Number(displayedLastPrice);
         const tickMove = Number.isFinite(previousDisplayed) ? Number(price) - previousDisplayed : 0;
         displayedLastPrice = Number(price);
-        const badge = options.degraded ? "BRIDGE CAIDO" : options.closed ? "LAST" : options.live ? "LIVE" : "QUOTE";
+        const badge = options.degraded ? "RESPALDO" : options.closed ? "LAST" : options.live ? "LIVE" : "QUOTE";
         lastEl.innerHTML = `${badge} ${fmt(price)}<small>${move >= 0 ? "+" : ""}${(move * 100).toFixed(2)}% · ${source}</small>`;
-        lastEl.style.color = options.degraded ? "#fb7185" : options.closed ? "#facc15" : move >= 0 ? "#22c55e" : "#fb7185";
+        lastEl.style.color = options.degraded ? "#38bdf8" : options.closed ? "#facc15" : move >= 0 ? "#22c55e" : "#fb7185";
         lastEl.classList.remove("rpc-flash-up", "rpc-flash-down", "rpc-flash-flat", "rpc-closed", "rpc-degraded");
         if (options.closed) lastEl.classList.add("rpc-closed");
         if (options.degraded) lastEl.classList.add("rpc-degraded");
@@ -39453,7 +40973,7 @@ def render_roxy_actions_pro_chart_panel(
           horzLine: { color: "rgba(226,232,240,.46)", style: 3, width: 1, labelBackgroundColor: "#2563eb" }
         },
         rightPriceScale: { borderColor: "rgba(125,211,252,.28)", scaleMargins: { top: .04, bottom: .16 }, visible: true },
-        timeScale: { borderColor: "rgba(125,211,252,.22)", timeVisible: true, secondsVisible: false, rightOffset: 12, barSpacing: window.innerWidth < 720 ? 12 : 18, minBarSpacing: 7 },
+        timeScale: { borderColor: "rgba(125,211,252,.22)", timeVisible: true, secondsVisible: false, rightOffset: 9, barSpacing: window.innerWidth < 720 ? 15 : 20, minBarSpacing: 8 },
         handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
         handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
       });
@@ -39486,29 +41006,41 @@ def render_roxy_actions_pro_chart_panel(
       const smartRangeFor = (livePrice = null) => {
         const fixedRange = payload.displayRange || null;
         if (fixedRange && Number.isFinite(Number(fixedRange.minValue)) && Number.isFinite(Number(fixedRange.maxValue)) && Number(fixedRange.maxValue) > Number(fixedRange.minValue)) {
-          const anchors = levelPrices.concat(Number(livePrice)).filter(Number.isFinite);
-          const low = Math.min(Number(fixedRange.minValue), ...anchors).valueOf();
-          const high = Math.max(Number(fixedRange.maxValue), ...anchors).valueOf();
+          const fixedLow = Number(fixedRange.minValue);
+          const fixedHigh = Number(fixedRange.maxValue);
+          const fixedCenter = (fixedLow + fixedHigh) / 2;
+          const fixedSpan = Math.max(fixedHigh - fixedLow, Math.abs(fixedCenter) * .006, .01);
+          const anchors = levelPrices
+            .concat(Number(livePrice))
+            .filter((value) => Number.isFinite(value) && (!Number.isFinite(fixedCenter) || Math.abs(value - fixedCenter) <= fixedSpan * 1.45));
+          const low = Math.min(fixedLow, ...anchors).valueOf();
+          const high = Math.max(fixedHigh, ...anchors).valueOf();
           const span = Math.max(high - low, Math.abs(high) * .006, .01);
-          return { minValue: low - span * .14, maxValue: high + span * .14 };
+          return { minValue: low - span * .09, maxValue: high + span * .09 };
         }
-        const recent = candles.slice(-96);
+        const visibleHint = window.innerWidth < 720 ? 32 : Number(payload.suggestedVisibleCandles || 48);
+        const recent = candles.slice(-Math.max(34, Math.min(96, visibleHint + 22)));
         const bodyVals = recent.flatMap((c) => [Number(c.open), Number(c.close)]).filter(Number.isFinite);
         const wickVals = recent.flatMap((c) => [Number(c.high), Number(c.low)]).filter(Number.isFinite);
-        const anchors = levelPrices.concat(Number(livePrice)).filter(Number.isFinite);
-        let low = quantile(bodyVals, .03);
-        let high = quantile(bodyVals, .97);
-        const wickLow = quantile(wickVals, .08);
-        const wickHigh = quantile(wickVals, .92);
+        let low = quantile(bodyVals, .06);
+        let high = quantile(bodyVals, .94);
+        const wickLow = quantile(wickVals, .12);
+        const wickHigh = quantile(wickVals, .88);
         if (Number.isFinite(wickLow)) low = Number.isFinite(low) ? Math.min(low, wickLow) : wickLow;
         if (Number.isFinite(wickHigh)) high = Number.isFinite(high) ? Math.max(high, wickHigh) : wickHigh;
+        const center = Number.isFinite(low) && Number.isFinite(high) ? (low + high) / 2 : Number(livePrice);
+        const bodySpan = Number.isFinite(low) && Number.isFinite(high) ? Math.max(high - low, Math.abs(center) * .006, .01) : Math.abs(center) * .01;
+        const anchorLimit = Math.max(bodySpan * 1.85, Math.abs(center) * .018, .08);
+        const anchors = levelPrices
+          .concat(Number(livePrice))
+          .filter((value) => Number.isFinite(value) && (!Number.isFinite(center) || Math.abs(value - center) <= anchorLimit));
         anchors.forEach((value) => {
           low = Number.isFinite(low) ? Math.min(low, value) : value;
           high = Number.isFinite(high) ? Math.max(high, value) : value;
         });
         if (!Number.isFinite(low) || !Number.isFinite(high) || high <= low) return null;
         const span = Math.max(high - low, Math.abs(high) * .006, .01);
-        return { minValue: low - span * .16, maxValue: high + span * .16 };
+        return { minValue: low - span * .10, maxValue: high + span * .10 };
       };
       const applySmartScale = (livePrice = null) => {
         const range = smartRangeFor(livePrice);
@@ -39521,9 +41053,9 @@ def render_roxy_actions_pro_chart_panel(
         "EMA21": ["#a855f7", 2, 0],
         "SMA20": ["#38bdf8", 2, 0],
         "SMA40": ["#f59e0b", 2, 0],
-        "BB Upper": ["rgba(203,213,225,.62)", 1, 2],
-        "BB Mid": ["rgba(148,163,184,.46)", 1, 2],
-        "BB Lower": ["rgba(203,213,225,.62)", 1, 2],
+        "BB Upper": ["rgba(203,213,225,.36)", 1, 2],
+        "BB Mid": ["rgba(148,163,184,.26)", 1, 2],
+        "BB Lower": ["rgba(203,213,225,.36)", 1, 2],
       };
       const indicatorSeries = [];
       const emaSeries = [];
@@ -39629,7 +41161,7 @@ def render_roxy_actions_pro_chart_panel(
         chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, candles.length - Number(count)), to });
         window.setTimeout(updateLevelBands, 80);
       };
-	      setVisible(window.innerWidth < 720 ? 38 : (payload.suggestedVisibleCandles || 56));
+	      setVisible(window.innerWidth < 720 ? 32 : (payload.suggestedVisibleCandles || 48));
       root.querySelectorAll("[data-range]").forEach((button) => {
         button.addEventListener("click", () => {
           root.querySelectorAll("[data-range]").forEach((b) => b.classList.remove("active"));
@@ -39682,8 +41214,8 @@ def render_roxy_actions_pro_chart_panel(
       ro.observe(chartEl);
       const roxyResizeBands = new ResizeObserver(updateLevelBands);
       roxyResizeBands.observe(chartEl);
-      const syncLiveQuote = async () => {
-        const quote = parentQuote() || await yahooQuote(payload.symbol);
+      const syncLiveQuote = async (overrideQuote = null) => {
+        const quote = overrideQuote || parentQuote() || await yahooQuote(payload.symbol);
         if (!quote) {
           if (statusEl) {
             statusEl.innerHTML = `<span><b>Feed live:</b> navegador bloqueado o sin permiso</span><em>La grafica conserva velas reales del servidor.</em>`;
@@ -39699,19 +41231,45 @@ def render_roxy_actions_pro_chart_panel(
           low: Math.min(Number(liveCandle.low || price), price)
         };
 	        candleSeries.update(liveCandle);
-		        const sourceText = String(quote.source || "");
-		        const isDegraded = sourceText.toLowerCase().includes("bridge stock no disponible") || sourceText.toLowerCase().includes("bridge caido") || sourceText.toLowerCase().includes("bridge caído");
-		        const isClosed = quote.marketOpen === false || (quote.state && !["REGULAR", "PRE", "POST"].includes(String(quote.state).toUpperCase()));
-		        const liveTitle = isClosed ? `LAST ${fmt(price)}` : `LIVE ${fmt(price)}`;
-		        liveLine.applyOptions({
-		          price,
-		          color: isDegraded ? "#fb7185" : isClosed ? "#facc15" : price >= previous.close ? "#22c55e" : "#fb7185",
-		          title: liveTitle,
-		        });
-		        const feedLabel = isDegraded ? "bridge caido · ultimo real conservado" : isClosed ? `${quote.source} · ultimo precio real` : quote.source;
-		        setLastBadge(price, previous.close, feedLabel, { live: !isClosed && !isDegraded, closed: isClosed, degraded: isDegraded });
-		        renderTradebar(price, feedLabel);
-		        renderReading(price, feedLabel);
+	        const sourceText = String(quote.source || "");
+	        const freshnessText = String(quote.freshness || "");
+	        const sourceLower = `${sourceText} ${freshnessText} ${quote.mode || ""}`.toLowerCase();
+	        const hasRealQuote = Number.isFinite(price) && price > 0;
+	        const hasBridgeProblem = sourceLower.includes("bridge stock no disponible")
+	          || sourceLower.includes("bridge caido")
+	          || sourceLower.includes("bridge caído")
+	          || sourceLower.includes("conexion fallida")
+	          || sourceLower.includes("conexión fallida")
+	          || sourceLower.includes("timeout");
+	        const isBackupQuote = hasRealQuote && (
+	          sourceLower.includes("respaldo")
+	          || sourceLower.includes("fallback")
+	          || sourceLower.includes("yahoo")
+	          || sourceLower.includes("stooq")
+	          || sourceLower.includes("alpaca")
+	          || sourceLower.includes("snapshot")
+	          || sourceLower.includes("polling")
+	          || sourceLower.includes("stream")
+	        );
+	        const isDegraded = hasBridgeProblem && !isBackupQuote;
+	        const isBackup = hasBridgeProblem && isBackupQuote;
+	        const isClosed = quote.marketOpen === false || (quote.state && !["REGULAR", "PRE", "POST"].includes(String(quote.state).toUpperCase()));
+	        const liveTitle = isClosed ? `LAST ${fmt(price)}` : isBackup ? `RESPALDO ${fmt(price)}` : `LIVE ${fmt(price)}`;
+	        liveLine.applyOptions({
+	          price,
+	          color: isDegraded ? "#fb7185" : isBackup ? "#38bdf8" : isClosed ? "#facc15" : price >= previous.close ? "#22c55e" : "#fb7185",
+	          title: liveTitle,
+	        });
+	        const feedLabel = isDegraded
+	          ? "feed pendiente · ultimo real conservado"
+	          : isBackup
+	            ? `${quote.source} · feed respaldo real`
+	            : isClosed
+	              ? `${quote.source} · ultimo precio real`
+	              : quote.source;
+	        setLastBadge(price, previous.close, feedLabel, { live: !isClosed && !isDegraded, closed: isClosed, degraded: isDegraded });
+	        renderTradebar(price, feedLabel);
+	        renderReading(price, feedLabel);
 	        applySmartScale(price);
           window.setTimeout(updateLevelBands, 40);
 	        if (statusEl) {
@@ -39725,9 +41283,11 @@ def render_roxy_actions_pro_chart_panel(
 	          statusEl.classList.toggle("rpc-danger", nearStop);
 	          statusEl.classList.toggle("rpc-closed", Boolean(isClosed));
 	          statusEl.classList.toggle("rpc-degraded", Boolean(isDegraded));
-	          const feedStatus = isDegraded ? "Bridge stock caido" : isClosed ? "Ultimo precio real" : "Live real";
+	          const feedStatus = isDegraded ? "Feed pendiente" : isBackup ? "Feed respaldo real" : isClosed ? "Ultimo precio real" : "Live real";
 	          const feedExplain = isDegraded
-	            ? "Roxy conserva la ultima vela/precio real y no simula movimiento hasta que vuelva el bridge."
+	            ? "Roxy conserva la ultima vela/precio real y espera un quote nuevo; no simula ticks."
+	            : isBackup
+	              ? "Roxy usa un quote real de respaldo y mantiene la grafica sincronizada mientras reconecta el stream."
 	            : isClosed
 	              ? "Mercado cerrado: Roxy no simula ticks; el movimiento live vuelve cuando abra la sesion."
 	              : nearEntry
@@ -39738,6 +41298,17 @@ def render_roxy_actions_pro_chart_panel(
 		          statusEl.innerHTML = `<span><span class="rpc-dot"></span><b>${feedStatus}:</b> ${quote.source}${stateText} · ${quote.updatedAt || new Date().toLocaleTimeString()}</span><em>${feedExplain}</em>`;
 		        }
       };
+      try {
+        const parentDoc = window.parent && window.parent.document ? window.parent.document : null;
+        if (parentDoc) {
+          parentDoc.addEventListener("roxy-stock-quote", (event) => {
+            const detail = event && event.detail ? event.detail : {};
+            const eventSymbol = String(detail.symbol || (detail.quote && detail.quote.symbol) || "").toUpperCase();
+            if (eventSymbol !== String(payload.symbol || "").toUpperCase()) return;
+            syncLiveQuote(detail.quote || detail);
+          });
+        }
+      } catch (error) {}
       syncLiveQuote();
       window.setInterval(syncLiveQuote, 2500);
       };
@@ -39759,7 +41330,7 @@ def render_roxy_actions_dual_pro_charts(
     symbol: str,
     market: str,
     trade_plan: dict[str, Any],
-    height: int = 620,
+    height: int = 760,
 ) -> bool:
     panes = [("15m", "Entrada 15m"), ("1h", "Tendencia 1h")]
     pane_data: list[tuple[str, str, pd.DataFrame]] = []
@@ -39781,23 +41352,68 @@ def render_roxy_actions_dual_pro_charts(
         ),
         unsafe_allow_html=True,
     )
-    columns = st.columns([1, 1], gap="small")
     rendered = False
     fallback_df = next((pane_df for _, _, pane_df in pane_data if not pane_df.empty), pd.DataFrame())
-    for col, (pane_tf, label, pane_df) in zip(columns, pane_data):
-        with col:
-            rendered = (
-                render_roxy_actions_pro_chart_panel(
-                    pane_df if not pane_df.empty else fallback_df,
-                    symbol=symbol,
-                    market=market,
-                    timeframe=pane_tf,
-                    trade_plan=trade_plan,
-                    panel_label=label,
-                    height=height,
-                )
-                or rendered
+    st.markdown(
+        """
+        <style>
+          .roxy-actions-pro-chart-stack {
+            display: grid;
+            gap: 16px;
+            margin: 10px 0 18px;
+          }
+          .roxy-actions-pro-chart-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 10px 13px;
+            margin: 10px 0 8px;
+            border: 1px solid rgba(125,211,252,.20);
+            border-radius: 14px;
+            background: linear-gradient(90deg, rgba(15,23,42,.84), rgba(14,165,233,.12), rgba(15,23,42,.84));
+            box-shadow: 0 0 24px rgba(14,165,233,.08) inset;
+          }
+          .roxy-actions-pro-chart-title strong {
+            color: #e0f2fe;
+            font-size: 13px;
+            font-weight: 1000;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+          }
+          .roxy-actions-pro-chart-title span {
+            color: #93c5fd;
+            font-size: 11px;
+            font-weight: 850;
+          }
+        </style>
+        <div class="roxy-actions-pro-chart-stack">
+        """,
+        unsafe_allow_html=True,
+    )
+    for pane_tf, label, pane_df in pane_data:
+        st.markdown(
+            (
+                '<div class="roxy-actions-pro-chart-title">'
+                f"<strong>{html.escape(label)}</strong>"
+                f"<span>{html.escape(text_display(symbol).upper())} · {html.escape(pane_tf)} · ancho completo operativo</span>"
+                "</div>"
+            ),
+            unsafe_allow_html=True,
+        )
+        rendered = (
+            render_roxy_actions_pro_chart_panel(
+                pane_df if not pane_df.empty else fallback_df,
+                symbol=symbol,
+                market=market,
+                timeframe=pane_tf,
+                trade_plan=trade_plan,
+                panel_label=label,
+                height=height,
             )
+            or rendered
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
     return rendered
 
 
@@ -39828,22 +41444,67 @@ def render_roxy_actions_dual_plotly_charts(
         ),
         unsafe_allow_html=True,
     )
-    columns = st.columns([1, 1], gap="small")
     rendered = False
     fallback_df = next((pane_df for _, _, pane_df in pane_data if not pane_df.empty), pd.DataFrame())
-    for col, (pane_tf, label, pane_df) in zip(columns, pane_data):
-        with col:
-            rendered = (
-                roxy_actions_plotly_chart_panel(
-                    pane_df if not pane_df.empty else fallback_df,
-                    symbol=symbol,
-                    timeframe=pane_tf,
-                    trade_plan=trade_plan,
-                    title=label,
-                    height=height,
-                )
-                or rendered
+    st.markdown(
+        """
+        <style>
+          .roxy-actions-plotly-stack {
+            display: grid;
+            gap: 16px;
+            margin: 10px 0 18px;
+          }
+          .roxy-actions-plotly-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 10px 13px;
+            margin: 10px 0 8px;
+            border: 1px solid rgba(125,211,252,.20);
+            border-radius: 14px;
+            background: linear-gradient(90deg, rgba(15,23,42,.84), rgba(14,165,233,.12), rgba(15,23,42,.84));
+            box-shadow: 0 0 24px rgba(14,165,233,.08) inset;
+          }
+          .roxy-actions-plotly-title strong {
+            color: #e0f2fe;
+            font-size: 13px;
+            font-weight: 1000;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+          }
+          .roxy-actions-plotly-title span {
+            color: #93c5fd;
+            font-size: 11px;
+            font-weight: 850;
+          }
+        </style>
+        <div class="roxy-actions-plotly-stack">
+        """,
+        unsafe_allow_html=True,
+    )
+    for pane_tf, label, pane_df in pane_data:
+        st.markdown(
+            (
+                '<div class="roxy-actions-plotly-title">'
+                f"<strong>{html.escape(label)}</strong>"
+                f"<span>{html.escape(text_display(symbol).upper())} · {html.escape(pane_tf)} · fallback ancho completo</span>"
+                "</div>"
+            ),
+            unsafe_allow_html=True,
+        )
+        rendered = (
+            roxy_actions_plotly_chart_panel(
+                pane_df if not pane_df.empty else fallback_df,
+                symbol=symbol,
+                timeframe=pane_tf,
+                trade_plan=trade_plan,
+                title=label,
+                height=max(height, 680),
             )
+            or rendered
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
     return rendered
 
 
@@ -42821,6 +44482,12 @@ def render_roxy_classroom_module() -> None:
 
 def render_roxy_module_workspace(table: pd.DataFrame, *, active_module: str, timeframe: str) -> None:
     active_module = normalize_roxy_module(active_module)
+    remember_roxy_voice_opportunities(
+        table,
+        source=f"module:{active_module}",
+        module=active_module,
+        timeframe=timeframe,
+    )
     if active_module == "acciones-operar":
         render_roxy_actions_folder(table, timeframe="1h")
         return
@@ -42857,6 +44524,14 @@ def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> 
     # on_change=persist_command_symbol_query_params, on_change=persist_command_query_params.
     best = focused_opportunity_table(brief)
     default_symbol = default_trade_plan_symbol(confluence_df, brief)
+    remember_roxy_voice_opportunities(
+        best,
+        source="command_center",
+        module=first_query_param_value(st.query_params, "module") or "home",
+        symbol=st.session_state.get("command_symbol") or default_symbol,
+        market=st.session_state.get("command_market") or first_query_param_value(st.query_params, "market") or "",
+        timeframe=st.session_state.get("command_timeframe") or first_query_param_value(st.query_params, "tf") or "",
+    )
     hydrate_command_state_from_query_params(st.query_params, st.session_state, default_symbol)
     apply_pending_command_state()
 
@@ -45165,10 +46840,6 @@ def render_roxy_compact_trade_header(brief: dict, *, selected_page: str, realtim
             <a href="?view=Dashboard&symbol={quote(symbol, safe='')}&market={quote(market, safe='')}&tf={quote(timeframe, safe='')}&module={quote(normalize_roxy_module(st.session_state.get('roxy_active_module') or 'acciones'), safe='')}">Command Center</a>
           </div>
         </section>
-        <section class="roxy-floating-avatar">
-          {roxy_avatar_html("online", "icon", "Roxy minimizada")}
-          <div><strong>Roxy</strong><span>{html.escape(action[:70])}</span></div>
-        </section>
         """,
         unsafe_allow_html=True,
     )
@@ -46764,11 +48435,15 @@ def main() -> None:
         .strike20-card strong{color:#e2e8f0;font-size:13px;line-height:1.05}
         .strike20-card p{margin:0;color:#cbd5e1;font-size:11px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .strike20-card p b{color:#f8fafc}
-        .strike20-metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border:1px solid rgba(148,163,184,.14);border-radius:6px;overflow:hidden}
+        .strike20-metrics{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14);border:1px solid rgba(148,163,184,.14);border-radius:6px;overflow:hidden}
         .strike20-metrics b{display:block;min-width:0;background:#0f172a;color:#f8fafc;font-size:10px;line-height:1.05;padding:6px 6px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .strike20-metrics small{display:block;color:#94a3b8;font-size:7px;line-height:1;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
         .strike20-card>small{display:block;color:#93c5fd;font-size:10px;line-height:1;font-weight:900;text-transform:uppercase;letter-spacing:.04em}
         .strike20-card em{display:block;margin:0;color:#94a3b8;font-size:10px;line-height:1.25;font-style:normal;min-height:24px}
+        .strike20-card details{border:1px solid rgba(125,211,252,.18);border-radius:6px;background:rgba(15,23,42,.72);padding:5px 6px}
+        .strike20-card summary{cursor:pointer;color:#7dd3fc;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}
+        .strike20-card ul{margin:5px 0 0 14px;padding:0;color:#cbd5e1;font-size:10px;line-height:1.25}
+        .strike20-warnings summary{color:#fbbf24}
         .strike20-buy{border-top-color:#22c55e;background:linear-gradient(180deg,rgba(20,83,45,.26),#0b1220)}
         .strike20-watch{border-top-color:#f59e0b;background:linear-gradient(180deg,rgba(120,53,15,.24),#0b1220)}
         .strike20-avoid{border-top-color:#ef4444;background:linear-gradient(180deg,rgba(127,29,29,.22),#0b1220)}
@@ -47156,7 +48831,7 @@ def main() -> None:
         .roxy-actions-static-chart div{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#93c5fd;font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.03em}
         .roxy-actions-static-chart div b{color:#bfdbfe;font-size:8px;text-align:right}
         @media (max-width:1180px){.roxy-actions-shell{grid-template-columns:118px minmax(0,1fr);grid-template-areas:"side main" "right right"}.roxy-actions-sidebar{grid-area:side}.roxy-actions-main{grid-area:main}.roxy-actions-right{grid-area:right;grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-actions-hero{grid-template-columns:142px minmax(0,1fr)}.roxy-actions-row{grid-template-columns:20px 30px minmax(74px,1fr) 68px 78px 52px minmax(88px,1fr) 72px 20px;gap:6px}.roxy-actions-below{grid-template-columns:1fr}}
-        @media (max-width:760px){.roxy-actions-shell{grid-template-columns:minmax(0,1fr);grid-template-areas:"side" "main" "right";gap:8px;padding:8px;min-height:0}.roxy-actions-shell>*{max-width:100%;min-width:0}.roxy-actions-sidebar{grid-area:side;display:block;border-right:0;border-bottom:1px solid rgba(125,211,252,.14);padding:0 0 8px;overflow:hidden}.roxy-actions-main{grid-area:main;width:100%;min-width:0;max-width:100%;overflow:hidden}.roxy-actions-right{grid-area:right;width:100%;min-width:0;max-width:100%;overflow:hidden}.roxy-actions-brand{display:none}.roxy-actions-sidebar nav{display:flex;overflow-x:auto;gap:4px;padding-bottom:2px}.roxy-actions-sidebar nav a{flex:0 0 auto;min-height:32px;padding:6px 8px;font-size:9px}.roxy-actions-sidebar .help{display:none!important}.roxy-actions-topbar{grid-template-columns:28px minmax(0,1fr) auto}.roxy-actions-topbar strong{font-size:21px}.roxy-actions-topbar aside span{display:none}.roxy-actions-hero{grid-template-columns:96px minmax(0,1fr);min-height:134px;padding:10px}.roxy-actions-roxy{height:116px}.roxy-actions-roxy .roxy-hologram-avatar{width:104px}.roxy-actions-hero .copy strong{font-size:13px}.roxy-actions-hero .copy p{font-size:9px;line-height:1.28}.roxy-actions-hero .chips{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.roxy-actions-hero .chips span{padding:5px;font-size:7px}.roxy-actions-opps{overflow-x:auto;width:100%;min-width:0;max-width:100%}.roxy-actions-opps header,.roxy-actions-row{min-width:690px}.roxy-actions-right{grid-template-columns:1fr}.roxy-actions-chart-wrap{padding:8px}.roxy-actions-chart-wrap>header{display:block}.roxy-actions-chart-wrap>header span{display:block;margin-top:4px}.roxy-actions-below{grid-template-columns:1fr}.roxy-actions-below .why>div{grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-actions-bottomnav{grid-template-columns:1fr 1fr 64px 1fr 1fr;padding:7px 8px}.roxy-actions-bottomnav a{font-size:7px}.roxy-actions-bottomnav .roxy-r{width:50px;height:50px;font-size:24px}}
+        @media (max-width:760px){.roxy-actions-shell{grid-template-columns:minmax(0,1fr);grid-template-areas:"side" "main" "right";gap:8px;padding:8px;min-height:0}.roxy-actions-shell>*{max-width:100%;min-width:0}.roxy-actions-sidebar{grid-area:side;display:block;border-right:0;border-bottom:1px solid rgba(125,211,252,.14);padding:0 0 8px;overflow:hidden}.roxy-actions-main{grid-area:main;width:100%;min-width:0;max-width:100%;overflow:hidden}.roxy-actions-right{grid-area:right;width:100%;min-width:0;max-width:100%;overflow:hidden}.roxy-actions-brand{display:none}.roxy-actions-sidebar nav{display:flex;overflow-x:auto;gap:4px;padding-bottom:2px}.roxy-actions-sidebar nav a{flex:0 0 auto;min-height:32px;padding:6px 8px;font-size:9px}.roxy-actions-sidebar .help{display:none!important}.roxy-actions-topbar{grid-template-columns:28px minmax(0,1fr) auto}.roxy-actions-topbar strong{font-size:21px}.roxy-actions-topbar aside span{display:none}.roxy-actions-hero{grid-template-columns:96px minmax(0,1fr);min-height:134px;padding:10px}.roxy-actions-roxy{height:116px}.roxy-actions-roxy .roxy-hologram-avatar{width:104px}.roxy-actions-hero .copy strong{font-size:13px}.roxy-actions-hero .copy p{font-size:9px;line-height:1.28}.roxy-actions-hero .chips{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.roxy-actions-hero .chips span{padding:5px;font-size:7px}.roxy-actions-opps{overflow-x:auto;width:100%;min-width:0;max-width:100%}.roxy-actions-opps header,.roxy-actions-row{min-width:690px}.roxy-actions-right{grid-template-columns:1fr}.roxy-actions-chart-wrap{padding:8px}.roxy-actions-chart-wrap>header{display:block}.roxy-actions-chart-wrap>header span{display:block;margin-top:4px}.roxy-stock-feed-diagnostic{display:block;margin:0 8px 8px}.roxy-stock-feed-diagnostic span{display:block;margin-top:5px;text-align:left}.roxy-actions-below{grid-template-columns:1fr}.roxy-actions-below .why>div{grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-actions-bottomnav{grid-template-columns:1fr 1fr 64px 1fr 1fr;padding:7px 8px}.roxy-actions-bottomnav a{font-size:7px}.roxy-actions-bottomnav .roxy-r{width:50px;height:50px;font-size:24px}}
         .roxy-crypto20-shell,.roxy-crypto20-chart-wrap{position:relative;isolation:isolate;overflow:hidden;border:1px solid rgba(56,189,248,.20);border-radius:8px;background:linear-gradient(135deg,rgba(2,6,23,.90),rgba(8,47,73,.30) 50%,rgba(2,6,23,.94));box-shadow:0 26px 80px rgba(0,0,0,.45),0 0 48px rgba(56,189,248,.10);color:#e5f6ff}
         .roxy-crypto20-shell{display:grid;grid-template-columns:150px minmax(0,1fr) 310px;gap:12px;padding:12px;margin:0 0 10px;min-height:770px}.roxy-crypto20-shell>*:not(.roxy-universe),.roxy-crypto20-chart-wrap>*:not(.roxy-universe){position:relative;z-index:1}
         .roxy-crypto20-sidebar{display:grid;grid-template-rows:auto 1fr auto;gap:12px;border-right:1px solid rgba(125,211,252,.14);padding:2px 10px 2px 0}.roxy-crypto20-brand{display:grid;gap:4px}.roxy-crypto20-brand .brand-logo-img{width:92px;max-width:92px;border-radius:7px}.roxy-crypto20-brand strong{color:#f8fafc;font-size:22px;line-height:1;font-weight:950;letter-spacing:.08em}.roxy-crypto20-brand span{color:#8bd8ff;font-size:8px;text-transform:uppercase;font-weight:950;letter-spacing:.08em}.roxy-crypto20-sidebar nav{display:grid;gap:4px;align-content:start}.roxy-crypto20-sidebar a{display:flex!important;align-items:center;gap:9px;min-height:36px;border-radius:6px;padding:7px 9px;color:#b7cbe0!important;text-decoration:none!important;font-size:11px;font-weight:850}.roxy-crypto20-sidebar a i{font-size:18px!important;color:#b7d7ff;text-shadow:0 0 12px rgba(56,189,248,.38)}.roxy-crypto20-sidebar a.active{border:1px solid rgba(56,189,248,.42);background:linear-gradient(90deg,rgba(37,99,235,.34),rgba(2,6,23,.16));color:#e0f2fe!important;box-shadow:0 0 24px rgba(37,99,235,.16)}.roxy-crypto20-help{display:grid;justify-items:center;gap:4px;border:1px solid rgba(56,189,248,.18);border-radius:8px;background:rgba(2,6,23,.42);padding:7px}.roxy-crypto20-help span{color:#8bd8ff;font-size:9px}.roxy-crypto20-help .roxy-hologram-avatar{width:72px}.roxy-crypto20-help .roxy-hologram-name{display:none}
@@ -47172,6 +48847,8 @@ def main() -> None:
         .roxy-crypto20-signal>div{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:9px;align-items:center;margin:14px 0}.roxy-crypto20-signal span b{display:block;color:#f8fafc;font-size:14px}.roxy-crypto20-signal span small{display:block;color:#9aaec6;font-size:9px}.roxy-crypto20-signal em{border:1px solid rgba(34,197,94,.34);border-radius:5px;background:rgba(34,197,94,.12);padding:5px 7px;color:#22c55e;font-size:9px;font-style:normal;font-weight:950;text-transform:uppercase}.roxy-crypto20-signal p{display:grid;gap:8px;margin:0}.roxy-crypto20-signal p span{display:flex;justify-content:space-between;border-bottom:1px solid rgba(125,211,252,.10);padding-bottom:6px;color:#aebdd0;font-size:10px}.roxy-crypto20-signal p b{color:#e5f6ff}.roxy-crypto20-signal a,.roxy-crypto20-platform a,.roxy-crypto20-bottom a{display:flex!important;align-items:center;justify-content:center;gap:7px;height:40px;margin-top:13px;border:1px solid rgba(56,189,248,.38);border-radius:7px;background:linear-gradient(90deg,rgba(37,99,235,.64),rgba(14,165,233,.28));color:#dff7ff!important;text-decoration:none!important;text-transform:uppercase;font-size:10px;font-weight:950;box-shadow:0 0 24px rgba(37,99,235,.18)}
         .roxy-crypto20-platform small{display:block;color:#9aaec6;font-size:9px;margin-top:4px}.roxy-crypto20-platform .selects{display:grid;grid-template-columns:1fr 1.2fr;gap:7px;margin:12px 0}.roxy-crypto20-platform .selects span{display:flex;align-items:center;gap:5px;border:1px solid rgba(125,211,252,.14);border-radius:6px;background:rgba(2,6,23,.48);padding:8px;color:#e5f6ff;font-size:10px;font-weight:900}.roxy-crypto20-platform .selects .roxy-crypto-logo{width:20px;height:20px}.roxy-crypto20-platform p{display:grid;grid-template-columns:minmax(0,1fr) 54px;gap:7px;align-items:center;margin:8px 0}.roxy-crypto20-platform p span{color:#cbd5e1;font-size:10px}.roxy-crypto20-platform p b{display:block;color:#f8fafc;margin-top:4px}.roxy-crypto20-platform em{display:grid;place-items:center;min-height:38px;border-radius:5px;color:#fff;font-style:normal;font-size:11px;font-weight:950}.roxy-crypto20-platform .yes{background:#22c55e}.roxy-crypto20-platform .no{background:#e11d48}
         .roxy-deriv-compare .deriv-best{display:grid;gap:5px;margin:12px 0;padding:12px;border-radius:8px;border:1px solid rgba(34,197,94,.32);background:linear-gradient(135deg,rgba(20,83,45,.34),rgba(2,6,23,.55));box-shadow:0 0 22px rgba(34,197,94,.12)}.roxy-deriv-compare .deriv-best b{color:#fef3c7;font-size:12px;line-height:1;text-transform:uppercase;letter-spacing:.05em}.roxy-deriv-compare .deriv-best span{color:#f8fafc;font-size:18px;font-weight:950}.roxy-deriv-compare .deriv-best em{min-height:26px;background:rgba(34,197,94,.18);color:#86efac}.roxy-deriv-compare .deriv-best.blocked{border-color:rgba(244,63,94,.30);background:linear-gradient(135deg,rgba(127,29,29,.24),rgba(2,6,23,.58));box-shadow:0 0 22px rgba(244,63,94,.10)}.roxy-deriv-compare .deriv-best.blocked b{color:#fda4af}.roxy-deriv-compare .deriv-best.blocked span{font-size:12px;color:#e5e7eb}.roxy-deriv-compare .deriv-best.blocked em{background:rgba(59,130,246,.16);color:#bfdbfe}
+        .strike-check-strip{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:10px 0}.strike-check{display:block;border:1px solid rgba(125,211,252,.14);border-radius:7px;background:rgba(2,6,23,.46);padding:7px 8px}.strike-check b{display:block;color:#e5f6ff;font-size:9px;text-transform:uppercase;letter-spacing:.05em}.strike-check small{display:block;color:#9aaec6;font-size:8px;line-height:1.25;margin-top:3px}.strike-check.pass{border-color:rgba(34,197,94,.35);box-shadow:inset 3px 0 0 rgba(34,197,94,.82)}.strike-check.watch{border-color:rgba(250,204,21,.30);box-shadow:inset 3px 0 0 rgba(250,204,21,.72)}.strike-check.blocked{border-color:rgba(244,63,94,.34);box-shadow:inset 3px 0 0 rgba(244,63,94,.78)}.strike-engine-meta{display:grid;gap:4px;margin:8px 0 10px;padding:8px;border-radius:7px;border:1px solid rgba(59,130,246,.18);background:rgba(15,23,42,.42)}.strike-engine-meta span{display:block;color:#9aaec6;font-size:9px}.strike-engine-meta b{color:#dff7ff;text-transform:uppercase}
+        .strike-memory-card{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:10px 0;padding:9px;border-radius:8px;border:1px solid rgba(168,85,247,.26);background:linear-gradient(135deg,rgba(76,29,149,.26),rgba(2,6,23,.58));box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 0 22px rgba(168,85,247,.10)}.strike-memory-card>b{grid-column:1/-1;color:#f0abfc;font-size:10px;text-transform:uppercase;letter-spacing:.07em}.strike-memory-card span{display:grid;gap:2px;border:1px solid rgba(125,211,252,.12);border-radius:6px;background:rgba(2,6,23,.38);padding:6px;color:#8fb6d1;font-size:8px;text-transform:uppercase}.strike-memory-card strong{color:#f8fafc;font-size:11px}.strike-memory-card small{grid-column:1/-1;color:#cbd5e1;font-size:8px;line-height:1.25}.strike-memory-card em{grid-column:1/-1;color:#fde68a;font-size:8px;line-height:1.25;font-style:normal}
         .roxy-crypto20-chart-wrap{padding:12px;margin:0 0 10px}.roxy-crypto20-chart-wrap>header{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}.roxy-crypto20-chart-wrap>header strong{color:#8bd8ff;font-size:14px;text-transform:uppercase;letter-spacing:.07em}.roxy-crypto20-chart-wrap>header span{color:#f8fafc;font-size:14px;font-weight:950}.roxy-crypto20-chart-wrap>header b{color:#22c55e}.roxy-crypto20-chart-wrap>header b.negative{color:#ef4444}.roxy-crypto20-chart-strip{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:3px 0 5px;padding:4px 8px;border:1px solid rgba(34,197,94,.24);border-radius:6px;background:rgba(15,23,42,.62);color:#cbd5e1;font-size:11px}.roxy-crypto20-chart-strip strong{color:#8bd8ff}
         .roxy-crypto20-bottom{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-top:10px}.roxy-crypto20-bottom article p{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;align-items:center;margin:10px 0 0;color:#cbd5e1;font-size:10px;line-height:1.25}.roxy-crypto20-bottom article p .roxy-crypto-logo{width:22px;height:22px}.roxy-crypto20-bottom article p b{color:#22c55e}.roxy-crypto20-bottom .sentiment div{position:relative;display:grid;place-items:center;width:112px;height:112px;margin:12px auto;border-radius:50%;background:conic-gradient(#22c55e 0 78%,rgba(30,58,138,.55) 78%)}.roxy-crypto20-bottom .sentiment div:before{content:"";position:absolute;inset:13px;border-radius:50%;background:#07111f}.roxy-crypto20-bottom .sentiment div b,.roxy-crypto20-bottom .sentiment div span{position:relative;z-index:1}.roxy-crypto20-bottom .sentiment div b{color:#fff;font-size:27px}.roxy-crypto20-bottom .sentiment div span{color:#22c55e;font-size:10px;font-weight:950}.roxy-crypto20-bottom .sentiment p{display:grid;grid-template-columns:1fr;margin:0}.roxy-crypto20-bottom .sentiment p span{display:flex;justify-content:space-between}.roxy-crypto20-bottom .tips p{grid-template-columns:22px 1fr}.roxy-crypto20-bottom .tips i{color:#22c55e;font-size:18px!important}.roxy-crypto20-bottomnav{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr 76px 1fr 1fr;align-items:center;gap:6px;margin-top:10px;border:1px solid rgba(125,211,252,.14);border-radius:28px;background:rgba(2,6,23,.68);padding:8px 12px}.roxy-crypto20-bottomnav a{display:grid;place-items:center;gap:4px;color:#94a3b8!important;text-decoration:none!important;font-size:9px;text-transform:uppercase;font-weight:900}.roxy-crypto20-bottomnav i{font-size:22px!important}.roxy-crypto20-bottomnav .active{color:#60a5fa!important}.roxy-crypto20-bottomnav .roxy-r{width:58px;height:58px;margin:-25px auto -8px;border-radius:50%;background:radial-gradient(circle,#2563eb,#082f49);border:1px solid rgba(96,165,250,.72);color:#fff!important;font-size:28px;box-shadow:0 0 38px rgba(37,99,235,.72)}
         .roxy-crypto2h-countdown div b{font-size:20px}.roxy-crypto2h-shell .roxy-crypto20-alertbar em{min-width:210px;justify-content:flex-end}.roxy-crypto2h-row .score b{background:conic-gradient(#22c55e 0 78%,rgba(30,58,138,.55) 78%)}.roxy-crypto2h-bottom .distribution div{position:relative;display:grid;place-items:center;width:118px;height:118px;margin:12px auto;border-radius:50%;background:conic-gradient(#22c55e 0 75%,#facc15 75% 89%,#ef4444 89%);box-shadow:0 0 24px rgba(34,197,94,.16)}.roxy-crypto2h-bottom .distribution div:before{content:"";position:absolute;inset:18px;border-radius:50%;background:#07111f}.roxy-crypto2h-bottom .distribution div b{position:relative;z-index:1;color:#f8fafc;font-size:15px;line-height:1.2;text-align:center;text-transform:uppercase}.roxy-crypto2h-bottom .distribution p,.roxy-crypto2h-bottom .performance p{display:grid;grid-template-columns:1fr;margin:0}.roxy-crypto2h-bottom .distribution p span,.roxy-crypto2h-bottom .performance p span{display:flex;justify-content:space-between}.roxy-crypto2h-bottom .performance div{min-height:80px;margin-top:12px;border-radius:7px;background:radial-gradient(circle at 82% 35%,rgba(34,197,94,.20),transparent 36%),linear-gradient(135deg,rgba(2,6,23,.78),rgba(8,47,73,.36));padding:12px}.roxy-crypto2h-bottom .performance div b{display:block;color:#22c55e;font-size:28px;line-height:1}.roxy-crypto2h-bottom .performance div span{display:block;color:#94a3b8;font-size:9px;margin-top:5px}
@@ -49352,11 +51029,10 @@ def main() -> None:
         .roxy-asset-decision strong{display:block;color:#f8fafc;font-size:18px;line-height:1.08;margin-top:5px}
         .roxy-asset-live{text-align:right;display:grid;gap:5px;justify-items:end}
         .roxy-asset-live a{color:#f8fafc!important;text-decoration:none!important;border:1px solid rgba(125,211,252,.34);border-radius:6px;padding:6px 9px;background:rgba(15,23,42,.60);font-size:11px;font-weight:900}
-        .roxy-floating-avatar{position:fixed;right:14px;bottom:72px;z-index:999;display:flex;align-items:center;gap:8px;max-width:260px;border:1px solid rgba(56,189,248,.32);border-radius:8px;background:rgba(2,6,23,.82);padding:7px 9px;box-shadow:0 18px 44px rgba(2,6,23,.42),0 0 26px rgba(56,189,248,.18);backdrop-filter:blur(14px)}
-        .roxy-floating-avatar .roxy-avatar{width:44px;min-width:44px}
+        .roxy-floating-avatar{position:fixed;right:14px;bottom:72px;z-index:999;display:grid;place-items:center;width:58px;height:58px;border:1px solid rgba(56,189,248,.38);border-radius:50%;background:radial-gradient(circle at 50% 30%,rgba(56,189,248,.22),rgba(2,6,23,.84) 66%);padding:7px;box-shadow:0 18px 44px rgba(2,6,23,.42),0 0 30px rgba(56,189,248,.30);backdrop-filter:blur(14px)}
+        .roxy-floating-avatar .roxy-avatar{width:44px;height:44px;min-width:44px;border-radius:50%}
         .roxy-floating-avatar .roxy-avatar span{display:none}
-        .roxy-floating-avatar strong{display:block;color:#f8fafc;font-size:12px;line-height:1}
-        .roxy-floating-avatar div>span{display:block;color:#cbd5e1;font-size:10px;line-height:1.2;margin-top:3px}
+        .roxy-floating-avatar strong,.roxy-floating-avatar div>span{display:none!important}
         @media (max-width:760px){.roxy-folder-head{grid-template-columns:1fr}.roxy-folder-head small{text-align:left}.roxy-folder-chart-head{display:grid;gap:8px}.roxy-folder-chart-head strong{font-size:31px}.roxy-folder-chart-head em{justify-self:start}.roxy-folder-chart-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.roxy-folder-chart-metrics div:last-child{grid-column:1 / -1}}
         @media (max-width:1080px){.roxy-opening-stage{grid-template-columns:minmax(0,1fr) minmax(250px,360px);grid-template-areas:"left center" "right center" "modules modules";min-height:390px}.roxy-stage-right{grid-template-columns:1fr 1fr}.roxy-stage-brand{align-content:center}.roxy-stage-values{gap:6px}.roxy-stage-modules{grid-template-columns:repeat(3,minmax(0,1fr))}.roxy-stage-title strong{font-size:50px}}
         @media (max-width:1080px){.roxy-reference-stage{grid-template-columns:minmax(0,1fr) minmax(260px,420px);grid-template-areas:"top top" "left center" "right center" "modules modules" "live live";min-height:760px;padding:18px}.roxy-reference-stage .roxy-stage-modules{grid-template-columns:repeat(5,minmax(0,1fr));row-gap:10px;background:linear-gradient(180deg,rgba(2,6,23,.10),rgba(2,6,23,.74));padding-top:12px}.roxy-reference-stage .roxy-stage-module{border-right:0}.roxy-reference-stage .roxy-stage-module b{width:44px;height:44px}.roxy-ref-live-grid{grid-template-columns:1fr 1.35fr;grid-template-areas:"movers chart" "events chart" "assistant assistant"}}
@@ -49496,7 +51172,7 @@ def main() -> None:
         .roxy-ai-mark span{display:grid;place-items:center;width:34px;height:34px;border-radius:8px;background:rgba(15,23,42,.88);color:#bfdbfe;font-size:13px;font-weight:950;letter-spacing:.04em;border:1px solid rgba(147,197,253,.28)}
         .roxy-avatar{position:relative;width:78px;height:78px;flex:0 0 auto;border-radius:8px;overflow:hidden;border:1px solid rgba(96,165,250,.42);background:#06111f;box-shadow:0 16px 34px rgba(0,0,0,.34)}
         .roxy-avatar img{width:100%;height:100%;object-fit:cover;object-position:center 30%;display:block}
-        .roxy-avatar span{position:absolute;left:6px;bottom:6px;padding:2px 6px;border-radius:999px;background:rgba(2,6,23,.72);color:#dbeafe;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0}
+        .roxy-avatar span{display:none!important}
         .roxy-avatar-ready{box-shadow:0 0 0 2px rgba(59,130,246,.18),0 16px 34px rgba(0,0,0,.34)}
         .roxy-avatar-listening{box-shadow:0 0 0 3px rgba(96,165,250,.34),0 16px 34px rgba(0,0,0,.34)}
         .roxy-avatar-thinking{box-shadow:0 0 0 3px rgba(251,191,36,.32),0 16px 34px rgba(0,0,0,.34)}
@@ -49629,6 +51305,11 @@ def main() -> None:
         .wall-tile{border:1px solid rgba(148,163,184,.18);border-radius:4px;padding:7px;min-width:0;display:grid;grid-template-columns:1fr auto;grid-template-rows:auto 1fr auto;gap:2px;background:#172033;overflow:hidden}.wall-tile strong{color:#f8fafc;font-size:16px;line-height:1;font-weight:950}.wall-tile span{font-size:13px;color:#e2e8f0;font-weight:900;text-align:right}.wall-tile small{grid-column:1/3;color:#e2e8f0;font-size:11px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wall-tile em{grid-column:1/3;color:#cbd5e1;font-size:10px;font-style:normal;line-height:1.1}
         .wall-tile-buy{background:rgba(21,128,61,var(--tile-alpha))}.wall-tile-watch{background:rgba(180,83,9,var(--tile-alpha))}.wall-tile-avoid{background:rgba(153,27,27,var(--tile-alpha))}
         .wall-tables{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.wall-table{border:1px solid rgba(148,163,184,.18);border-radius:6px;overflow:hidden;background:#0b1220}.wall-table header{padding:6px 8px;color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;background:#111827;border-bottom:1px solid rgba(148,163,184,.14)}.wall-table table{width:100%;border-collapse:collapse}.wall-table th,.wall-table td{padding:5px 6px;border-bottom:1px solid rgba(148,163,184,.10);font-size:10px;line-height:1.15;text-align:left;color:#cbd5e1}.wall-table th{color:#94a3b8;font-weight:900;text-transform:uppercase}.wall-table td:first-child{color:#f8fafc;font-weight:950}.wall-table tr:last-child td{border-bottom:0}
+        .finviz-pattern-board{border:1px solid rgba(56,189,248,.24);border-radius:8px;background:linear-gradient(135deg,rgba(7,12,22,.98),rgba(8,47,73,.52));margin:4px 0 12px;overflow:hidden;box-shadow:0 18px 46px rgba(0,0,0,.24)}
+        .finviz-pattern-board>header{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:9px 11px;background:rgba(15,23,42,.88);border-bottom:1px solid rgba(56,189,248,.18)}.finviz-pattern-board>header strong{display:block;color:#e0f2fe;font-size:12px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.finviz-pattern-board>header span{display:block;color:#cbd5e1;font-size:11px;line-height:1.25;margin-top:3px}.finviz-pattern-board>header aside{text-align:right}.finviz-pattern-board>header aside b{display:block;color:#f8fafc;font-size:24px;line-height:1;font-weight:950}.finviz-pattern-board>header aside small{display:block;color:#7dd3fc;font-size:10px;text-transform:uppercase;font-weight:950;margin-top:4px}
+        .roxy-actions-finviz-news strong small{float:right;color:#7dd3fc;font-size:8px;font-weight:950;letter-spacing:.08em}.roxy-actions-finviz-news p span{display:grid;gap:2px;min-width:0}.roxy-actions-finviz-news p b{color:#f8fafc;font-size:10px;font-weight:950;letter-spacing:.02em}.roxy-actions-finviz-news p small{color:#cbd5e1;font-size:9px;line-height:1.25}.roxy-actions-finviz-news p em{color:#8bd8ff;font-size:8px;font-style:normal;line-height:1.2}.roxy-actions-finviz-news .finviz-news-positive i{color:#35f59d!important;text-shadow:0 0 12px rgba(34,197,94,.46)}.roxy-actions-finviz-news .finviz-news-negative i{color:#fb7185!important;text-shadow:0 0 12px rgba(248,113,113,.44)}.roxy-actions-finviz-news .finviz-news-neutral i{color:#7dd3fc!important;text-shadow:0 0 12px rgba(56,189,248,.40)}
+        .finviz-pattern-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.finviz-pattern-summary b{display:block;background:#0b1220;padding:7px 9px}.finviz-pattern-summary span{display:block;color:#94a3b8;font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.finviz-pattern-summary strong{display:block;color:#f8fafc;font-size:17px;line-height:1;margin-top:4px}
+        .finviz-pattern-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}.finviz-pattern-card{background:#0b1220;border-top:3px solid rgba(148,163,184,.30);padding:9px 10px;min-width:0}.finviz-pattern-card header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.finviz-pattern-card header span{display:block;color:#93c5fd;font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.finviz-pattern-card header strong{display:block;color:#f8fafc;font-size:18px;line-height:1;margin-top:3px;font-weight:950}.finviz-pattern-card header em{color:#e2e8f0;font-size:10px;line-height:1.1;text-align:right;font-style:normal;font-weight:950;text-transform:uppercase;max-width:92px}.finviz-pattern-score{position:relative;height:14px;border:1px solid rgba(148,163,184,.20);border-radius:999px;background:rgba(15,23,42,.75);overflow:hidden;margin:7px 0}.finviz-pattern-score span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#f59e0b,#38bdf8,#22c55e)}.finviz-pattern-score em{position:absolute;inset:0;display:grid;place-items:center;color:#f8fafc;font-size:8px;font-style:normal;font-weight:950;text-shadow:0 1px 4px rgba(0,0,0,.65)}.finviz-pattern-card p{margin:6px 0;color:#f8fafc;font-size:11px;line-height:1.18;font-weight:900;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.finviz-pattern-card dl{display:grid;grid-template-columns:1fr;gap:1px;margin:0;border-radius:6px;overflow:hidden;background:rgba(148,163,184,.12)}.finviz-pattern-card dl div{display:grid;grid-template-columns:52px 1fr;background:#0f172a}.finviz-pattern-card dt{color:#94a3b8;font-size:8px;font-weight:950;text-transform:uppercase;padding:5px 6px}.finviz-pattern-card dd{margin:0;color:#e2e8f0;font-size:9px;line-height:1.12;padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.finviz-pattern-card small{display:block;color:#94a3b8;font-size:9px;line-height:1.15;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.finviz-pattern-buy{border-top-color:#22c55e;background:rgba(21,93,62,.26)}.finviz-pattern-watch{border-top-color:#f59e0b;background:rgba(120,74,15,.22)}.finviz-pattern-avoid{border-top-color:#ef4444;background:rgba(127,29,29,.22)}
         .top-opps-header{display:flex;justify-content:space-between;gap:12px;align-items:center;border:1px solid rgba(148,163,184,.20);border-radius:8px;background:#111827;padding:8px 10px;margin:4px 0 8px}.top-opps-header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.top-opps-header span{color:#94a3b8;font-size:11px;text-align:right}
         .top-opp-card{border:1px solid rgba(148,163,184,.22);border-radius:8px 8px 0 0;background:#0b1220;padding:9px 10px;min-height:110px;border-bottom:0}.top-opp-card div{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.top-opp-card span{color:#94a3b8;font-size:10px;text-transform:uppercase;font-weight:950}.top-opp-card strong{color:#f8fafc;font-size:20px;line-height:1;font-weight:950}.top-opp-route{display:inline-flex;margin-top:7px;border:1px solid rgba(148,163,184,.24);border-radius:999px;background:rgba(15,23,42,.56);padding:3px 7px;color:#cbd5e1;font-size:9px;font-style:normal;font-weight:950;text-transform:uppercase;letter-spacing:.03em}.top-opp-card .top-opp-meter{display:block;position:relative;height:15px;border:1px solid rgba(148,163,184,.18);border-radius:999px;background:rgba(15,23,42,.70);overflow:hidden;margin:7px 0 0}.top-opp-meter span{display:block;height:100%;background:linear-gradient(90deg,#38bdf8,#22c55e);opacity:.92}.top-opp-meter em{position:absolute;inset:0;display:grid;place-items:center;color:#f8fafc;font-size:9px;font-style:normal;font-weight:950;text-shadow:0 1px 6px rgba(0,0,0,.55)}.top-opp-card p{margin:8px 0 6px;color:#e2e8f0;font-size:12px;line-height:1.2;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top-opp-card small{display:block;color:#94a3b8;font-size:10px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top-opp-card .top-opp-next{color:#f8fafc;margin-top:4px;font-weight:850}.top-opp-card .top-opp-mini-status{color:#7dd3fc;margin-top:4px;font-weight:900}.top-opp-buy{border-color:rgba(34,197,94,.42);background:rgba(21,93,62,.24)}.top-opp-watch{border-color:rgba(245,158,11,.42);background:rgba(120,74,15,.22)}.top-opp-avoid{border-color:rgba(239,68,68,.42);background:rgba(127,29,29,.22)}
         .market-movers-tape{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#080d18;margin:4px 0 12px;overflow:hidden}.market-movers-tape>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 10px;background:#111827;border-bottom:1px solid rgba(148,163,184,.15)}.market-movers-tape>header strong{color:#f8fafc;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.market-movers-tape>header span{color:#94a3b8;font-size:11px;text-align:right}.market-mover-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:rgba(148,163,184,.14)}
@@ -52136,14 +53817,15 @@ def main() -> None:
             st.success(passkey_message)
         else:
             st.error(passkey_message)
-    render_roxy_elevenlabs_assistant()
     if not st.session_state.get("user"):
         render_roxy_session_restore_bridge()
         render_roxy_auth_gate()
         return
     render_roxy_browser_session_bridge()
+    render_roxy_elevenlabs_assistant()
     process_roxy_os_query_command()
     render_roxy_os_command_center()
+    render_roxy_os_action_inbox()
     active_module_query = normalize_roxy_module(first_query_param_value(st.query_params, "module"), default="")
     if active_module_query != "classroom":
         render_roxy_passkey_setup_panel()

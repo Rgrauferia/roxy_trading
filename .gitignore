@@ -11,6 +11,9 @@ __pycache__/
 .venv/
 
 # Runtime secrets and process files
+.env.local
+.env.*.local
+.streamlit/secrets.toml
 run/*.key
 run/*.pid
 run/secrets_scan.txt
@@ -18,7 +21,9 @@ run/secrets_scan.txt
 # Generated realtime artifacts
 alerts/
 output/
+output-*.png
 logs/
+.playwright-cli/
 
 # Local training/media captures; keep large files outside Git.
 training_videos/
@@ -26,6 +31,8 @@ data/video_ingest_staging/
 
 # Local runtime databases/state
 db/
+data/*.json
+data/*.bak.*
 *.db
 *.sqlite
 *.sqlite3
