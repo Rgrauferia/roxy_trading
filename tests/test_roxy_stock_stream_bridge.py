@@ -22,17 +22,18 @@ def test_sse_event_contains_named_event_and_json_payload():
     assert json.loads(data_line.replace("data: ", "")) == {"symbol": "AAPL", "price": 100.25}
 
 
-def test_stock_bridge_root_and_health_endpoints_are_render_friendly():
+def test_stock_bridge_root_redirects_to_app_and_health_is_render_friendly(monkeypatch):
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
 
-    client = TestClient(app)
+    monkeypatch.setenv("ROXY_TRADING_APP_URL", "https://example-roxy.local")
+    client = TestClient(app, follow_redirects=False)
 
     root = client.get("/")
     health = client.get("/health")
 
-    assert root.status_code == 200
-    assert root.json()["service"] == "roxy-stock-stream-bridge"
+    assert root.status_code == 307
+    assert root.headers["location"] == "https://example-roxy.local"
     assert health.status_code == 200
     assert health.json()["ok"] is True
 
