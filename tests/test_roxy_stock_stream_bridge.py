@@ -37,6 +37,17 @@ def test_stock_bridge_root_and_health_endpoints_are_render_friendly():
     assert health.json()["ok"] is True
 
 
+def test_stock_bridge_accepts_alpaca_secret_key_alias(monkeypatch):
+    monkeypatch.setenv("ALPACA_API_KEY", "paper-key")
+    monkeypatch.delenv("ALPACA_API_SECRET", raising=False)
+    monkeypatch.setenv("ALPACA_SECRET_KEY", "paper-secret")
+
+    key, secret = roxy_stock_stream_bridge._alpaca_credentials()
+
+    assert key == "paper-key"
+    assert secret == "paper-secret"
+
+
 def test_stock_bridge_snapshot_endpoint_returns_sanitized_quotes(monkeypatch):
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
@@ -111,10 +122,17 @@ def test_stock_bridge_dockerfile_uses_render_safe_startup_and_port():
     render_config = Path("render.yaml").read_text(encoding="utf-8")
 
     assert 'CMD ["./scripts/stock_bridge_entrypoint.sh"]' in dockerfile
+    assert "PYTHONPATH=/app" in dockerfile
+    assert "COPY tools ./tools" in dockerfile
     assert "EXPOSE 10000" in dockerfile
+    assert "FastAPI app was not created" in dockerfile
     entrypoint = Path("scripts/stock_bridge_entrypoint.sh").read_text(encoding="utf-8")
+    assert 'export PYTHONPATH="${PYTHONPATH:-${app_dir}}"' in entrypoint
     assert 'port="${PORT:-10000}"' in entrypoint
     assert "uvicorn tools.roxy_stock_stream_bridge:app" in entrypoint
     assert "name: roxy-stock-stream" in render_config
     assert "dockerCommand: ./scripts/stock_bridge_entrypoint.sh" in render_config
+    assert "ROXY_STOCK_BRIDGE_URL" in render_config
+    assert "https://roxy-stock-stream.onrender.com/v1/market/stock-snapshot" in render_config
+    assert "ALPACA_SECRET_KEY" in render_config
     assert "value: 10000" in render_config

@@ -103,7 +103,10 @@ def _stream_enabled() -> bool:
 
 
 def _alpaca_credentials() -> tuple[str, str]:
-    return os.getenv("ALPACA_API_KEY", "").strip(), os.getenv("ALPACA_API_SECRET", "").strip()
+    return (
+        os.getenv("ALPACA_API_KEY", "").strip(),
+        (os.getenv("ALPACA_API_SECRET") or os.getenv("ALPACA_SECRET_KEY") or "").strip(),
+    )
 
 
 def _http_json(url: str, headers: dict[str, str] | None = None) -> dict[str, Any] | list[Any] | None:

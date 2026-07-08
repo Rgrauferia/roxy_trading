@@ -5,6 +5,7 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app \
     PORT=10000 \
     ROXY_STOCK_ALPACA_STREAM=1
 
@@ -15,6 +16,11 @@ RUN python -m pip install --upgrade pip \
 COPY tools ./tools
 COPY scripts ./scripts
 RUN chmod +x ./scripts/stock_bridge_entrypoint.sh ./scripts/render_start.sh
+RUN python - <<'PY'
+from tools.roxy_stock_stream_bridge import app
+assert app is not None, "FastAPI app was not created"
+print("Roxy stock stream bridge import OK")
+PY
 
 EXPOSE 10000
 
