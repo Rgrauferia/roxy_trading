@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from salto_strategies import (
     SALTO_KEY_TO_FAMILY,
     best_opportunities_by_strategy,
@@ -52,3 +54,28 @@ def test_best_opportunities_by_strategy_returns_one_per_strategy():
     assert "Estrategia: Cruce EMA 9/21" in families
     assert "Finviz: Doble piso" in families
     assert len(best) == 2
+
+
+def test_actions_folder_keeps_finviz_patterns_as_separate_lanes():
+    source = Path("streamlit_app.py").read_text()
+
+    assert "def render_finviz_strategy_lanes" in source
+    assert "render_finviz_strategy_lanes(limit_per_strategy=5)" in source
+    assert "load_finviz_pattern_strategy_rows(limit=600)" in source
+    assert "Sin candidatos live ahora" in source
+
+    for label in [
+        "TL Support",
+        "Horizontal S/R",
+        "Wedge",
+        "Wedge Down",
+        "Triangle Asc.",
+        "Channel Up",
+        "Double Bottom",
+        "Multiple Top",
+        "Head & Shoulders",
+    ]:
+        assert label in source
+
+    for plan_label in ["Entrada", "Salida", "Stop"]:
+        assert plan_label in source

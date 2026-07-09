@@ -339,8 +339,13 @@ from tools.elevenlabs_roxy import (
     get_conversation_signed_url,
 )
 try:
-    from tools.external_market_sources import build_finviz_news_feed, build_finviz_pattern_strategies
+    from tools.external_market_sources import (
+        FINVIZ_PATTERN_STRATEGIES,
+        build_finviz_news_feed,
+        build_finviz_pattern_strategies,
+    )
 except Exception:  # pragma: no cover - optional external data module
+    FINVIZ_PATTERN_STRATEGIES = {}  # type: ignore[assignment]
     build_finviz_news_feed = None  # type: ignore[assignment]
     build_finviz_pattern_strategies = None  # type: ignore[assignment]
 try:
@@ -30178,6 +30183,453 @@ def render_finviz_pattern_strategy_board(limit: int = 14) -> None:
     )
 
 
+def render_finviz_strategy_lanes(*, limit_per_strategy: int = 5) -> None:
+    """Render Finviz pattern opportunities as independent strategy lanes.
+
+    The user-facing goal is not to merge every signal into one scanner score.
+    Each Finviz chart pattern has its own rules, timing, and invalidation.
+    """
+    if not FINVIZ_PATTERN_STRATEGIES:
+        return
+
+    pattern_order = [
+        "TL SUPP",
+        "TL RESIST",
+        "HORIZONTAL S/R",
+        "WEDGE UP",
+        "WEDGE",
+        "WEDGE DOWN",
+        "TRIANGLE ASC",
+        "TRIANGLE DESC",
+        "CHANNEL UP",
+        "CHANNEL",
+        "CHANNEL DOWN",
+        "DOUBLE BOTTOM",
+        "DOUBLE TOP",
+        "MULTIPLE BOTTOM",
+        "MULTIPLE TOP",
+        "HEAD&SHOULDERS",
+    ]
+    pattern_labels = {
+        "TL SUPP": "TL Support",
+        "TL RESIST": "TL Resistance",
+        "HORIZONTAL S/R": "Horizontal S/R",
+        "WEDGE UP": "Wedge Up",
+        "WEDGE": "Wedge",
+        "WEDGE DOWN": "Wedge Down",
+        "TRIANGLE ASC": "Triangle Asc.",
+        "TRIANGLE DESC": "Triangle Desc.",
+        "CHANNEL UP": "Channel Up",
+        "CHANNEL": "Channel",
+        "CHANNEL DOWN": "Channel Down",
+        "DOUBLE BOTTOM": "Double Bottom",
+        "DOUBLE TOP": "Double Top",
+        "MULTIPLE BOTTOM": "Multiple Bottom",
+        "MULTIPLE TOP": "Multiple Top",
+        "HEAD&SHOULDERS": "Head & Shoulders",
+    }
+    pattern_icons = {
+        "TL SUPP": "trending_up",
+        "TL RESIST": "trending_down",
+        "HORIZONTAL S/R": "horizontal_rule",
+        "WEDGE UP": "change_history",
+        "WEDGE": "architecture",
+        "WEDGE DOWN": "change_history",
+        "TRIANGLE ASC": "signal_cellular_alt",
+        "TRIANGLE DESC": "signal_cellular_connected_no_internet_0_bar",
+        "CHANNEL UP": "stacked_line_chart",
+        "CHANNEL": "ssid_chart",
+        "CHANNEL DOWN": "show_chart",
+        "DOUBLE BOTTOM": "keyboard_double_arrow_up",
+        "DOUBLE TOP": "keyboard_double_arrow_down",
+        "MULTIPLE BOTTOM": "vertical_align_bottom",
+        "MULTIPLE TOP": "vertical_align_top",
+        "HEAD&SHOULDERS": "account_tree",
+    }
+
+    strategies = load_finviz_pattern_strategy_rows(limit=600)
+    by_pattern: dict[str, list[dict[str, Any]]] = {key: [] for key in pattern_order}
+    for item in strategies:
+        pattern = text_display(item.get("canonical_pattern") or item.get("finviz_signal")).upper()
+        if pattern in by_pattern:
+            by_pattern[pattern].append(item)
+    for rows in by_pattern.values():
+        rows.sort(
+            key=lambda row: (
+                safe_float(row.get("confidence")) or 0,
+                abs(safe_float(row.get("change_pct")) or 0),
+            ),
+            reverse=True,
+        )
+
+    total_candidates = sum(len(rows) for rows in by_pattern.values())
+    active_patterns = sum(1 for rows in by_pattern.values() if rows)
+    lane_html: list[str] = []
+    for pattern in pattern_order:
+        playbook = FINVIZ_PATTERN_STRATEGIES.get(pattern, {})
+        rows = by_pattern.get(pattern, [])[: max(1, int(limit_per_strategy))]
+        bias = text_display(playbook.get("bias") or "ESPERAR").upper()
+        if bias == "ARRIBA":
+            lane_tone = "buy"
+            bias_label = "Compra / Continuacion"
+        elif bias == "ABAJO":
+            lane_tone = "avoid"
+            bias_label = "Venta / Defensa"
+        elif bias == "RANGO":
+            lane_tone = "range"
+            bias_label = "Comprar abajo, vender arriba"
+        else:
+            lane_tone = "watch"
+            bias_label = "Esperar extremo o ruptura"
+
+        if rows:
+            row_html: list[str] = []
+            for index, row in enumerate(rows):
+                symbol = text_display(row.get("symbol")).upper()
+                confidence = safe_float(row.get("confidence")) or 0
+                price_value = safe_float(row.get("price") or row.get("current_price"))
+                change_value = safe_float(row.get("change_pct"))
+                action = text_display(row.get("action") or "ESPERAR")
+                change_class = "up" if (change_value or 0) >= 0 else "down"
+                rank_badge = "MEJOR" if index == 0 else f"#{index + 1}"
+                row_html.append(
+                    f'<a class="finviz-strategy-row" href="?view=Dashboard&module=acciones-operar&symbol={quote(symbol, safe="")}&market=stock&tf=1h" target="_self">'
+                    f"<b>{html.escape(rank_badge)}</b>"
+                    f"<strong>{html.escape(symbol)}</strong>"
+                    f"<span>{html.escape(price_display(price_value))}<small class=\"{change_class}\">{html.escape(pct_display(change_value) if change_value is not None else 'live')}</small></span>"
+                    f"<em>{html.escape(action.replace('_', ' ').title())}</em>"
+                    f"<i>{html.escape(num_display(confidence, 0))}%</i>"
+                    f"<small>Entrada: {html.escape(text_display(row.get('entry_zone')))} · Salida: {html.escape(text_display(row.get('target_zone')))} · Stop: {html.escape(text_display(row.get('stop_zone')))}</small>"
+                    "</a>"
+                )
+            rows_block = "".join(row_html)
+        else:
+            rows_block = (
+                '<div class="finviz-strategy-empty">'
+                "<strong>Sin candidatos live ahora</strong>"
+                "<span>Roxy mantiene esta estrategia separada y espera que Finviz/market feed detecte un ticker con este patron.</span>"
+                "</div>"
+            )
+
+        lane_html.append(
+            f'<article class="finviz-strategy-lane finviz-strategy-{lane_tone}">'
+            f"<header>"
+            f'<i class="material-symbols-outlined">{html.escape(pattern_icons.get(pattern, "hub"))}</i>'
+            f"<div><strong>{html.escape(pattern_labels.get(pattern, pattern))}</strong>"
+            f"<span>{html.escape(text_display(playbook.get('family') or pattern))}</span></div>"
+            f"<aside><b>{len(rows)}</b><small>{html.escape(bias_label)}</small></aside>"
+            f"</header>"
+            f"<p>{html.escape(text_display(playbook.get('playbook') or 'Esperar confirmacion en grafica live.'))}</p>"
+            f'<div class="finviz-strategy-plan">'
+            f"<span><b>Entrada</b>{html.escape(text_display(playbook.get('entry_zone') or '-'))}</span>"
+            f"<span><b>Salida</b>{html.escape(text_display(playbook.get('target_zone') or '-'))}</span>"
+            f"<span><b>Stop</b>{html.escape(text_display(playbook.get('stop_zone') or '-'))}</span>"
+            f"</div>"
+            f'<div class="finviz-strategy-rows">{rows_block}</div>'
+            "</article>"
+        )
+
+    status_copy = (
+        "Finviz Elite conectado: Roxy separa cada patron para que trabajes la estrategia correcta."
+        if total_candidates
+        else "Esperando candidatos de Finviz Elite. Roxy no inventa tickers si el feed no entrega patrones."
+    )
+    st.markdown(
+        f"""
+        <style>
+          .finviz-strategy-lanes {{
+            position: relative;
+            z-index: 2;
+            margin: 14px 0 18px;
+            border: 1px solid rgba(56,189,248,.28);
+            border-radius: 16px;
+            background: linear-gradient(135deg, rgba(2,6,23,.94), rgba(8,47,73,.50));
+            box-shadow: 0 18px 46px rgba(0,0,0,.22), inset 0 0 30px rgba(14,165,233,.06);
+            overflow: hidden;
+          }}
+          .finviz-strategy-lanes > header {{
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            align-items: center;
+            padding: 12px 14px;
+            background: rgba(15,23,42,.88);
+            border-bottom: 1px solid rgba(56,189,248,.18);
+          }}
+          .finviz-strategy-lanes > header strong {{
+            display: block;
+            color: #e0f2fe;
+            font-size: 13px;
+            font-weight: 1000;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+          }}
+          .finviz-strategy-lanes > header span {{
+            display: block;
+            color: rgba(203,213,225,.92);
+            font-size: 11px;
+            line-height: 1.28;
+            margin-top: 3px;
+          }}
+          .finviz-strategy-lanes > header aside {{
+            text-align: right;
+            min-width: 108px;
+          }}
+          .finviz-strategy-lanes > header aside b {{
+            display: block;
+            color: #f8fafc;
+            font-size: 23px;
+            line-height: 1;
+            font-weight: 1000;
+          }}
+          .finviz-strategy-lanes > header aside small {{
+            display: block;
+            color: #7dd3fc;
+            font-size: 10px;
+            font-weight: 950;
+            text-transform: uppercase;
+            margin-top: 4px;
+          }}
+          .finviz-strategy-lanes-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 1px;
+            background: rgba(148,163,184,.14);
+          }}
+          .finviz-strategy-lane {{
+            min-width: 0;
+            background: #071120;
+            border-top: 3px solid rgba(148,163,184,.34);
+            padding: 10px;
+          }}
+          .finviz-strategy-lane header {{
+            display: grid;
+            grid-template-columns: 34px minmax(0,1fr) auto;
+            gap: 8px;
+            align-items: center;
+          }}
+          .finviz-strategy-lane header i {{
+            width: 32px;
+            height: 32px;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            color: #7dd3fc;
+            background: radial-gradient(circle, rgba(14,165,233,.24), rgba(15,23,42,.82));
+            border: 1px solid rgba(125,211,252,.24);
+            font-size: 19px !important;
+          }}
+          .finviz-strategy-lane header strong {{
+            display: block;
+            color: #f8fafc;
+            font-size: 12px;
+            line-height: 1;
+            font-weight: 1000;
+            letter-spacing: .035em;
+            text-transform: uppercase;
+          }}
+          .finviz-strategy-lane header span {{
+            display: block;
+            color: #93c5fd;
+            font-size: 9px;
+            line-height: 1.12;
+            margin-top: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }}
+          .finviz-strategy-lane header aside {{
+            text-align: right;
+            min-width: 46px;
+          }}
+          .finviz-strategy-lane header aside b {{
+            display: block;
+            color: #f8fafc;
+            font-size: 18px;
+            line-height: 1;
+            font-weight: 1000;
+          }}
+          .finviz-strategy-lane header aside small {{
+            display: block;
+            color: rgba(203,213,225,.82);
+            font-size: 7.5px;
+            line-height: 1.05;
+            margin-top: 3px;
+            max-width: 78px;
+          }}
+          .finviz-strategy-lane > p {{
+            min-height: 40px;
+            margin: 9px 0 8px;
+            color: rgba(226,232,240,.92);
+            font-size: 10px;
+            line-height: 1.28;
+            font-weight: 780;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+          }}
+          .finviz-strategy-plan {{
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1px;
+            border: 1px solid rgba(148,163,184,.12);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 8px;
+            background: rgba(148,163,184,.12);
+          }}
+          .finviz-strategy-plan span {{
+            display: grid;
+            grid-template-columns: 48px minmax(0,1fr);
+            gap: 6px;
+            align-items: center;
+            padding: 5px 7px;
+            background: rgba(15,23,42,.82);
+            color: rgba(226,232,240,.90);
+            font-size: 9px;
+            line-height: 1.1;
+          }}
+          .finviz-strategy-plan b {{
+            color: #7dd3fc;
+            font-size: 8px;
+            font-weight: 1000;
+            text-transform: uppercase;
+          }}
+          .finviz-strategy-rows {{
+            display: grid;
+            gap: 6px;
+          }}
+          .finviz-strategy-row {{
+            display: grid;
+            grid-template-columns: 42px 64px 78px 1fr 42px;
+            gap: 6px;
+            align-items: center;
+            color: inherit !important;
+            text-decoration: none !important;
+            border: 1px solid rgba(125,211,252,.16);
+            border-radius: 10px;
+            background: rgba(15,23,42,.70);
+            padding: 7px;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+          }}
+          .finviz-strategy-row:hover {{
+            border-color: rgba(56,189,248,.52);
+            background: rgba(8,47,73,.58);
+          }}
+          .finviz-strategy-row > b {{
+            color: #bae6fd;
+            font-size: 8px;
+            font-weight: 1000;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+          }}
+          .finviz-strategy-row > strong {{
+            color: #f8fafc;
+            font-size: 14px;
+            line-height: 1;
+            font-weight: 1000;
+          }}
+          .finviz-strategy-row > span {{
+            display: grid;
+            color: #f8fafc;
+            font-size: 11px;
+            font-weight: 950;
+            line-height: 1.05;
+            text-align: right;
+          }}
+          .finviz-strategy-row > span small {{
+            display: block;
+            margin-top: 3px;
+            font-size: 8px;
+            font-weight: 1000;
+          }}
+          .finviz-strategy-row > span small.up {{ color: #35f59d; }}
+          .finviz-strategy-row > span small.down {{ color: #ff6b7d; }}
+          .finviz-strategy-row > em {{
+            color: #e0f2fe;
+            font-size: 8px;
+            line-height: 1.1;
+            font-style: normal;
+            font-weight: 1000;
+            text-transform: uppercase;
+          }}
+          .finviz-strategy-row > i {{
+            color: #bbf7d0;
+            font-size: 11px;
+            font-style: normal;
+            font-weight: 1000;
+            text-align: right;
+          }}
+          .finviz-strategy-row > small {{
+            grid-column: 1 / -1;
+            color: rgba(203,213,225,.82);
+            font-size: 8.5px;
+            line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }}
+          .finviz-strategy-empty {{
+            border: 1px dashed rgba(148,163,184,.26);
+            border-radius: 10px;
+            background: rgba(15,23,42,.54);
+            padding: 10px;
+            min-height: 74px;
+          }}
+          .finviz-strategy-empty strong {{
+            display: block;
+            color: #cbd5e1;
+            font-size: 11px;
+            font-weight: 950;
+          }}
+          .finviz-strategy-empty span {{
+            display: block;
+            color: rgba(148,163,184,.90);
+            font-size: 9px;
+            line-height: 1.24;
+            margin-top: 5px;
+          }}
+          .finviz-strategy-buy {{
+            border-top-color: #22c55e;
+            background: linear-gradient(180deg, rgba(20,83,45,.28), rgba(7,17,32,.96));
+          }}
+          .finviz-strategy-avoid {{
+            border-top-color: #ef4444;
+            background: linear-gradient(180deg, rgba(127,29,29,.24), rgba(7,17,32,.96));
+          }}
+          .finviz-strategy-range {{
+            border-top-color: #38bdf8;
+            background: linear-gradient(180deg, rgba(8,47,73,.34), rgba(7,17,32,.96));
+          }}
+          .finviz-strategy-watch {{
+            border-top-color: #f59e0b;
+            background: linear-gradient(180deg, rgba(120,74,15,.24), rgba(7,17,32,.96));
+          }}
+          @media (max-width: 920px) {{
+            .finviz-strategy-lanes-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+            .finviz-strategy-row {{ grid-template-columns: 34px 54px 70px 1fr 36px; }}
+          }}
+          @media (max-width: 620px) {{
+            .finviz-strategy-lanes > header {{ align-items: flex-start; }}
+            .finviz-strategy-lanes-grid {{ grid-template-columns: 1fr; }}
+          }}
+        </style>
+        <section class="finviz-strategy-lanes">
+          <header>
+            <div>
+              <strong>Estrategias Finviz por separado</strong>
+              <span>{html.escape(status_copy)}</span>
+            </div>
+            <aside><b>{active_patterns}/{len(pattern_order)}</b><small>{total_candidates} oportunidades</small></aside>
+          </header>
+          <div class="finviz-strategy-lanes-grid">{''.join(lane_html)}</div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_roxy_strategy_split_board(rows: list[dict[str, Any]], *, limit: int = 10) -> None:
     strategy_records: list[dict[str, Any]] = []
     for row in rows or []:
@@ -39377,6 +39829,7 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     )
     render_roxy_stock_live_runtime()
     render_roxy_stock_server_refresh(interval_ms=1500, symbols=live_stock_symbols[:10])
+    render_finviz_strategy_lanes(limit_per_strategy=5)
     render_finviz_pattern_strategy_board(limit=12)
     render_roxy_strategy_split_board(rows, limit=10)
     rendered = render_roxy_actions_dual_pro_charts(
