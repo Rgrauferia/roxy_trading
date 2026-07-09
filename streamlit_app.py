@@ -39435,13 +39435,16 @@ def render_roxy_actions_market_overview(
         f"""
         <style>
           .roxy-actions-shell {{ display:none !important; }}
+          .main .block-container {{ max-width:1220px; padding-left:1rem; padding-right:1rem; }}
           .actions-pro-desk {{
             position:relative; isolation:isolate; overflow:hidden;
-            display:grid; grid-template-columns:170px minmax(0,1fr); gap:14px;
-            min-height:780px; margin:0 0 16px; padding:14px;
-            border:1px solid rgba(56,189,248,.24); border-radius:14px;
-            background:linear-gradient(135deg,rgba(2,6,23,.96),rgba(8,47,73,.46) 46%,rgba(2,6,23,.94));
-            box-shadow:0 26px 90px rgba(0,0,0,.44), inset 0 0 60px rgba(14,165,233,.05);
+            display:grid; grid-template-columns:188px minmax(0,1fr); gap:0;
+            width:min(1186px, calc(100vw - 22px)); min-height:826px; margin:2px auto 18px; padding:0;
+            border:1px solid rgba(56,189,248,.22); border-radius:16px;
+            background:
+              radial-gradient(circle at 54% 18%, rgba(14,165,233,.13), transparent 27%),
+              linear-gradient(180deg,rgba(2,6,23,.98),rgba(5,18,35,.98));
+            box-shadow:0 28px 96px rgba(0,0,0,.50), inset 0 0 74px rgba(14,165,233,.045);
             color:#e5f6ff;
           }}
           .actions-pro-desk:before {{
@@ -39455,27 +39458,30 @@ def render_roxy_actions_market_overview(
             animation:actionsProStars 28s linear infinite;
           }}
           @keyframes actionsProStars {{ from{{background-position:0 0,0 0,0 0,0 0}} to{{background-position:0 0,0 0,0 0,120px 180px}} }}
-          .actions-pro-side {{ display:grid; grid-template-rows:auto 1fr auto; gap:14px; border-right:1px solid rgba(125,211,252,.13); padding-right:12px; }}
-          .actions-pro-brand strong {{ display:block; color:#7dd3fc; font-size:23px; font-weight:1000; letter-spacing:.08em; }}
+          .actions-pro-side {{ display:grid; grid-template-rows:auto auto 1fr auto; gap:14px; border-right:1px solid rgba(125,211,252,.16); padding:20px 13px 16px; background:linear-gradient(180deg,rgba(2,6,23,.86),rgba(8,19,39,.68)); }}
+          .actions-pro-brand strong {{ display:block; color:#7dd3fc; font-size:26px; line-height:.95; font-weight:1000; letter-spacing:.06em; text-shadow:0 0 18px rgba(56,189,248,.46); }}
           .actions-pro-brand span {{ color:#b6e4ff; font-size:9px; text-transform:uppercase; letter-spacing:.1em; }}
-          .actions-pro-profile {{ border:1px solid rgba(125,211,252,.18); border-radius:12px; padding:12px; background:rgba(2,6,23,.48); text-align:center; }}
-          .actions-pro-profile .roxy-avatar {{ margin:auto; width:68px; height:68px; border-radius:50%; }}
+          .actions-pro-profile {{ border:1px solid rgba(125,211,252,.18); border-radius:14px; padding:11px; background:rgba(15,23,42,.46); text-align:center; }}
+          .actions-pro-profile .roxy-avatar {{ margin:auto; width:76px; height:76px; border-radius:50%; }}
           .actions-pro-profile b {{ display:block; margin-top:8px; font-size:13px; }}
           .actions-pro-profile small {{ display:block; color:#93c5fd; margin-top:3px; }}
           .actions-pro-nav {{ display:grid; gap:5px; align-content:start; }}
-          .actions-pro-nav a {{ display:flex; align-items:center; gap:9px; min-height:36px; padding:7px 10px; border-radius:8px; color:#cbd5e1!important; text-decoration:none!important; font-size:11px; font-weight:900; }}
-          .actions-pro-nav a.active {{ background:rgba(37,99,235,.28); border:1px solid rgba(56,189,248,.35); color:#fff!important; }}
+          .actions-pro-nav a {{ display:flex; align-items:center; gap:10px; min-height:37px; padding:8px 10px; border-radius:9px; color:#cbd5e1!important; text-decoration:none!important; font-size:12px; font-weight:900; }}
+          .actions-pro-nav a.active {{ background:linear-gradient(90deg,rgba(30,64,175,.74),rgba(14,165,233,.17)); border:1px solid rgba(56,189,248,.30); color:#fff!important; box-shadow:0 0 18px rgba(59,130,246,.24); }}
           .actions-pro-nav i {{ font-size:18px!important; color:#7dd3fc; }}
-          .actions-pro-main {{ display:grid; grid-template-rows:auto auto 1fr; gap:12px; min-width:0; }}
+          .actions-pro-main {{ display:grid; grid-template-rows:auto auto 1fr; gap:12px; min-width:0; padding:20px 16px 14px; }}
           .actions-pro-head {{ display:flex; justify-content:space-between; align-items:center; gap:12px; }}
-          .actions-pro-head h2 {{ margin:0; color:#fff; font-size:26px; text-transform:uppercase; letter-spacing:.03em; }}
+          .actions-pro-head h2 {{ margin:0; color:#fff; font-size:29px; line-height:1; text-transform:uppercase; letter-spacing:.035em; }}
           .actions-pro-head p {{ margin:3px 0 0; color:#bcd5ef; font-size:12px; }}
-          .actions-pro-search {{ display:flex; gap:8px; align-items:center; min-width:300px; border:1px solid rgba(125,211,252,.17); border-radius:10px; background:rgba(2,6,23,.56); padding:9px 11px; color:#8fb6d1; font-size:11px; }}
+          .actions-pro-search {{ display:flex; gap:10px; align-items:center; justify-content:space-between; min-width:350px; border:1px solid rgba(125,211,252,.17); border-radius:11px; background:rgba(2,6,23,.64); padding:10px 12px; color:#8fb6d1; font-size:11px; }}
+          .actions-pro-search span {{ flex:1; color:#7da8c9; }}
+          .actions-pro-search b {{ display:grid; place-items:center; width:24px; height:24px; border-radius:50%; background:#1d4ed8; color:#fff; font-size:11px; }}
+          .actions-pro-search i {{ color:#8bd7ff; font-size:17px!important; }}
           .actions-pro-tabs {{ display:flex; gap:6px; overflow:auto; }}
-          .actions-pro-tabs span {{ flex:0 0 auto; padding:9px 17px; border-radius:8px; color:#a9c6e4; background:rgba(15,23,42,.52); font-size:11px; font-weight:950; }}
+          .actions-pro-tabs span {{ flex:0 0 auto; padding:10px 17px; border-radius:9px 9px 0 0; color:#a9c6e4; background:rgba(15,23,42,.48); font-size:11px; font-weight:950; }}
           .actions-pro-tabs span.active {{ color:#fff; background:rgba(37,99,235,.34); border:1px solid rgba(96,165,250,.32); }}
-          .actions-pro-grid {{ display:grid; grid-template-columns:1.05fr 1.35fr 1fr; gap:12px; align-items:start; }}
-          .actions-pro-card {{ border:1px solid rgba(125,211,252,.18); border-radius:12px; background:rgba(2,6,23,.58); box-shadow:inset 0 0 28px rgba(14,165,233,.04); overflow:hidden; }}
+          .actions-pro-grid {{ display:grid; grid-template-columns:1.05fr 1.42fr 1.03fr; gap:12px; align-items:start; }}
+          .actions-pro-card {{ border:1px solid rgba(125,211,252,.18); border-radius:12px; background:linear-gradient(180deg,rgba(8,19,39,.90),rgba(2,6,23,.70)); box-shadow:inset 0 0 28px rgba(14,165,233,.04),0 14px 32px rgba(0,0,0,.20); overflow:hidden; min-height:160px; }}
           .actions-pro-card header {{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:12px 14px 8px; }}
           .actions-pro-card header strong {{ color:#dff6ff; font-size:12px; text-transform:uppercase; letter-spacing:.08em; font-weight:1000; }}
           .actions-pro-card header a,.actions-pro-card header span {{ color:#7dd3fc!important; font-size:10px; font-weight:950; text-decoration:none!important; }}
@@ -39483,9 +39489,9 @@ def render_roxy_actions_market_overview(
           .actions-pro-scanner p,.actions-pro-table p,.actions-pro-news p,.actions-pro-alerts p,.actions-pro-watch p {{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:9px; align-items:center; min-height:25px; margin:0; border-bottom:1px solid rgba(125,211,252,.08); color:#cbd5e1; font-size:11px; }}
           .actions-pro-scanner p span {{ color:#58bdfb; font-weight:900; }}
           .actions-pro-scanner p b {{ color:#c6e7ff; font-weight:900; }}
-          .actions-pro-heatmap {{ display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); grid-auto-rows:36px; gap:2px; padding:0 12px 12px; }}
+          .actions-pro-heatmap {{ display:grid; grid-template-columns:repeat(9,minmax(0,1fr)); grid-auto-rows:34px; gap:2px; padding:0 12px 12px; min-height:148px; }}
           .actions-pro-tile {{ display:grid; place-items:center; border-radius:4px; text-decoration:none!important; color:#fff!important; font-weight:1000; box-shadow:inset 0 0 18px rgba(0,0,0,.22); }}
-          .actions-pro-tile.large {{ grid-column:span 2; grid-row:span 2; }}
+          .actions-pro-tile.large {{ grid-column:span 3; grid-row:span 2; }}
           .actions-pro-tile.mid {{ grid-column:span 2; }}
           .actions-pro-tile.up {{ background:linear-gradient(135deg,#14532d,#16a34a); }}
           .actions-pro-tile.down {{ background:linear-gradient(135deg,#7f1d1d,#dc2626); }}
@@ -39513,8 +39519,9 @@ def render_roxy_actions_market_overview(
           .actions-pro-strategy a {{ display:grid; grid-template-columns:54px 1fr 38px; gap:6px; padding:7px 0; border-top:1px solid rgba(125,211,252,.09); color:#e5f6ff!important; text-decoration:none!important; }}
           .actions-pro-strategy a b {{ color:#7dd3fc; }} .actions-pro-strategy a span {{ color:#35f59d; font-size:9px; font-weight:1000; text-transform:uppercase; }}
           .actions-pro-strategy a em {{ color:#fff; font-size:10px; font-style:normal; text-align:right; }} .actions-pro-strategy a small {{ grid-column:1/-1; color:#94a3b8; font-size:9px; }}
-          .actions-pro-featurebar {{ grid-column:1/-1; display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }}
-          .actions-pro-featurebar span {{ display:flex; align-items:center; gap:8px; border:1px solid rgba(125,211,252,.15); border-radius:10px; background:rgba(15,23,42,.56); padding:9px; color:#cbd5e1; font-size:10px; font-weight:900; }}
+          .actions-pro-featurebar {{ grid-column:1/-1; display:grid; grid-template-columns:repeat(5,1fr); gap:8px; padding:10px; border:1px solid rgba(125,211,252,.14); border-radius:13px; background:rgba(2,6,23,.54); }}
+          .actions-pro-featurebar span {{ display:flex; align-items:center; gap:8px; border-right:1px solid rgba(125,211,252,.12); padding:5px 8px; color:#cbd5e1; font-size:10px; font-weight:900; }}
+          .actions-pro-featurebar span:last-child {{ border-right:0; }}
           .actions-pro-featurebar i {{ color:#7dd3fc; font-size:20px!important; }}
           @media(max-width:1050px){{.actions-pro-desk{{grid-template-columns:1fr}}.actions-pro-side{{display:none}}.actions-pro-grid{{grid-template-columns:1fr 1fr}}.actions-pro-strategies{{grid-template-columns:1fr 1fr}}}}
           @media(max-width:720px){{.actions-pro-desk{{padding:10px;border-radius:10px}}.actions-pro-head{{display:block}}.actions-pro-search{{min-width:0;margin-top:10px}}.actions-pro-grid{{grid-template-columns:1fr}}.actions-pro-strategies,.actions-pro-featurebar{{grid-template-columns:1fr}}.actions-pro-heatmap{{grid-template-columns:repeat(4,1fr)}}.actions-pro-tabs span{{padding:8px 12px}}}}
@@ -39536,7 +39543,7 @@ def render_roxy_actions_market_overview(
           <main class="actions-pro-main">
             <header class="actions-pro-head">
               <div><h2>Acciones</h2><p>Analisis completo del mercado accionario separado por estrategia</p></div>
-              <div class="actions-pro-search"><i class="material-symbols-outlined">search</i>Buscar accion, sector, industria...</div>
+              <div class="actions-pro-search"><i class="material-symbols-outlined">search</i><span>Buscar accion, sector, industria...</span><i class="material-symbols-outlined">star</i><i class="material-symbols-outlined">notifications</i><b>R</b></div>
             </header>
             <nav class="actions-pro-tabs">
               <span>Resumen</span><span class="active">Escaner</span><span>Destacadas</span><span>Movers</span><span>Analisis</span><span>Dividendos</span><span>Reportes</span><span>Mas</span>
