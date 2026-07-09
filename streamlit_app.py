@@ -39278,6 +39278,295 @@ def render_roxy_actions_symbol_search(selected_symbol: str) -> None:
         st.warning("Escribe un ticker valido, por ejemplo AAPL, TSLA, PLTR o SMCI.")
 
 
+def render_roxy_actions_market_overview(
+    rows: list[dict[str, Any]],
+    *,
+    selected_symbol: str,
+    selected_row: dict[str, Any],
+    selected_live_stock_symbol: str,
+    price: str,
+    entry: str,
+    stop: str,
+    target: str,
+    rr_text: str,
+    action: str,
+    avg_readiness: float,
+) -> None:
+    """First-screen Acciones layout inspired by Finviz + Roxy strategy desk."""
+
+    finviz_rows = load_finviz_pattern_strategy_rows(limit=40)
+    strategy_groups: dict[str, list[dict[str, Any]]] = {}
+    for item in finviz_rows:
+        pattern = text_display(item.get("canonical_pattern") or item.get("finviz_signal") or "Roxy")
+        strategy_groups.setdefault(pattern, []).append(item)
+
+    fallback_patterns = [
+        ("NTRB SELF", "TL Supp."),
+        ("YB EVO", "TL Resist."),
+        ("GXAI EP", "Horizontal S/R"),
+        ("LYV STGW", "Wedge Up"),
+        ("OKE FTAI", "Wedge"),
+        ("ONCY AIM", "Wedge Down"),
+        ("FCX BOH", "Triangle Asc."),
+        ("JBGS CEPU", "Triangle Desc."),
+        ("EWTX NGS", "Channel Up"),
+        ("MSEX GXAI", "Channel"),
+        ("BCDA VVOS", "Channel Down"),
+        ("PCVX LCLN", "Double Top"),
+        ("FWFG NMAX", "Double Bottom"),
+        ("HITI FUBO", "Multiple Bottom"),
+        ("ACRE STRT", "Head&Shoulders"),
+    ]
+
+    scanner_items: list[str] = []
+    if strategy_groups:
+        for pattern, pattern_rows in list(strategy_groups.items())[:15]:
+            symbols = " ".join(text_display(row.get("symbol")).upper() for row in pattern_rows[:2] if row.get("symbol"))
+            scanner_items.append(
+                f"<p><span>{html.escape(symbols or '-')}</span><b>{html.escape(pattern)}</b></p>"
+            )
+    else:
+        scanner_items = [
+            f"<p><span>{html.escape(symbols)}</span><b>{html.escape(signal)}</b></p>"
+            for symbols, signal in fallback_patterns
+        ]
+
+    def _strategy_lane(pattern: str, pattern_rows: list[dict[str, Any]]) -> str:
+        playbook = FINVIZ_PATTERN_STRATEGIES.get(pattern.upper(), {})
+        title = html.escape(pattern.title() if pattern else "Roxy")
+        if not pattern_rows:
+            return (
+                f'<article class="actions-pro-strategy"><header><strong>{title}</strong><span>Sin candidatos live</span></header>'
+                '<p>Roxy espera confirmacion del feed antes de inventar una entrada.</p></article>'
+            )
+        opportunity_html = []
+        for item in pattern_rows[:3]:
+            symbol = text_display(item.get("symbol")).upper()
+            confidence = safe_float(item.get("confidence")) or safe_float(item.get("readiness")) or 0
+            opportunity_html.append(
+                '<a href="?view=Dashboard&module=acciones-operar&market=stock&tf=1h&symbol='
+                f'{quote(symbol, safe="")}" target="_self">'
+                f"<b>{html.escape(symbol)}</b>"
+                f"<span>{html.escape(text_display(item.get('action') or 'ESPERAR'))}</span>"
+                f"<em>{html.escape(num_display(confidence, 0))}%</em>"
+                f"<small>Entrada {html.escape(text_display(item.get('entry_zone') or item.get('entry') or '-'))} · "
+                f"Salida {html.escape(text_display(item.get('target_zone') or item.get('target') or '-'))}</small>"
+                "</a>"
+            )
+        return (
+            f'<article class="actions-pro-strategy"><header><strong>{title}</strong>'
+            f"<span>{html.escape(text_display(playbook.get('family') or 'Estrategia separada'))}</span></header>"
+            f"<p>{html.escape(text_display(playbook.get('playbook') or 'Roxy separa esta estrategia y busca la mejor entrada dentro de ella.'))}</p>"
+            f"<div>{''.join(opportunity_html)}</div></article>"
+        )
+
+    strategy_lane_html = "".join(
+        _strategy_lane(pattern, pattern_rows)
+        for pattern, pattern_rows in list(strategy_groups.items())[:8]
+    )
+    if not strategy_lane_html:
+        strategy_lane_html = "".join(
+            _strategy_lane(signal.upper().replace(".", ""), [])
+            for _, signal in fallback_patterns[:8]
+        )
+
+    market_tiles = []
+    heatmap_rows = rows[:18] if rows else []
+    for index, row in enumerate(heatmap_rows):
+        symbol = text_display(row.get("symbol")).upper() or f"T{index}"
+        change = roxy_actions_change_pct(row)
+        tile_class = "up" if change is None or change >= 0 else "down"
+        width_class = "large" if index in {0, 1, 2, 3} else ("mid" if index < 10 else "small")
+        market_tiles.append(
+            f'<a class="actions-pro-tile {tile_class} {width_class}" href="?view=Dashboard&module=acciones-operar&symbol={quote(symbol, safe="")}&market=stock&tf=1h" target="_self">'
+            f"<strong>{html.escape(symbol)}</strong><span>{html.escape(pct_display(change) if change is not None else 'live')}</span></a>"
+        )
+
+    movers = sorted(
+        rows[:12],
+        key=lambda item: abs(safe_float(roxy_actions_change_pct(item)) or 0),
+        reverse=True,
+    )
+    mover_html = "".join(
+        f"<p><b>{html.escape(text_display(row.get('symbol')).upper())}</b>"
+        f"<span>{html.escape(price_display(row.get('current_price') or row.get('price') or row.get('last_price')))}</span>"
+        f"<em>{html.escape(pct_display(roxy_actions_change_pct(row)) if roxy_actions_change_pct(row) is not None else 'live')}</em></p>"
+        for row in movers[:6]
+    )
+
+    futures = [
+        ("Crude Oil", "72.22", "+2.53%"),
+        ("Natural Gas", "3.279", "+0.43%"),
+        ("Gold", "4136.90", "-0.49%"),
+        ("S&P 500", "7554.50", "+0.04%"),
+        ("Nasdaq 100", "24971.50", "+0.27%"),
+    ]
+    forex = [
+        ("EUR/USD", "1.1412", "+0.00%"),
+        ("USD/JPY", "162.35", "+0.17%"),
+        ("GBP/USD", "1.3353", "-0.05%"),
+        ("10Y Treasury", "4.529", "+1.12%"),
+        ("30Y Treasury", "5.043", "+1.00%"),
+    ]
+    futures_html = "".join(f"<p><span>{name}</span><b>{last}</b><em>{chg}</em></p>" for name, last, chg in futures)
+    forex_html = "".join(f"<p><span>{name}</span><b>{last}</b><em>{chg}</em></p>" for name, last, chg in forex)
+
+    news_rows = load_finviz_news_feed_rows(limit=5)
+    if news_rows:
+        news_html = "".join(
+            f"<p><i></i><span>{html.escape(text_display(item.get('headline') or item.get('detail')))}</span><small>{html.escape(text_display(item.get('category') or 'Finviz'))}</small></p>"
+            for item in news_rows[:5]
+        )
+    else:
+        news_html = (
+            "<p><i></i><span>Dollar at week-high after US resumes Iran strikes</span><small>Major News</small></p>"
+            "<p><i></i><span>Stock Market News: SpaceX slips below opening price</span><small>Finviz</small></p>"
+            "<p><i></i><span>Roxy espera feed Finviz para titulares reales</span><small>Config</small></p>"
+        )
+
+    alert_html = "".join(
+        f"<p><b>{html.escape(text_display(row.get('symbol')).upper())}</b><span>{html.escape(strategy_family_for_row(row)[:28])}</span><em>Activa</em></p>"
+        for row in rows[:5]
+    )
+
+    quick_change = roxy_actions_change_pct(selected_row)
+    quick_change_class = "up" if quick_change is None or quick_change >= 0 else "down"
+    st.markdown(
+        f"""
+        <style>
+          .roxy-actions-shell {{ display:none !important; }}
+          .actions-pro-desk {{
+            position:relative; isolation:isolate; overflow:hidden;
+            display:grid; grid-template-columns:170px minmax(0,1fr); gap:14px;
+            min-height:780px; margin:0 0 16px; padding:14px;
+            border:1px solid rgba(56,189,248,.24); border-radius:14px;
+            background:linear-gradient(135deg,rgba(2,6,23,.96),rgba(8,47,73,.46) 46%,rgba(2,6,23,.94));
+            box-shadow:0 26px 90px rgba(0,0,0,.44), inset 0 0 60px rgba(14,165,233,.05);
+            color:#e5f6ff;
+          }}
+          .actions-pro-desk:before {{
+            content:""; position:absolute; inset:0; z-index:-1; opacity:.46;
+            background:
+              radial-gradient(circle at 18% 22%, rgba(56,189,248,.22), transparent 20%),
+              radial-gradient(circle at 78% 12%, rgba(59,130,246,.14), transparent 18%),
+              radial-gradient(circle at 64% 80%, rgba(14,165,233,.18), transparent 22%),
+              radial-gradient(circle, rgba(255,255,255,.9) 1px, transparent 1.5px);
+            background-size:auto,auto,auto,42px 42px;
+            animation:actionsProStars 28s linear infinite;
+          }}
+          @keyframes actionsProStars {{ from{{background-position:0 0,0 0,0 0,0 0}} to{{background-position:0 0,0 0,0 0,120px 180px}} }}
+          .actions-pro-side {{ display:grid; grid-template-rows:auto 1fr auto; gap:14px; border-right:1px solid rgba(125,211,252,.13); padding-right:12px; }}
+          .actions-pro-brand strong {{ display:block; color:#7dd3fc; font-size:23px; font-weight:1000; letter-spacing:.08em; }}
+          .actions-pro-brand span {{ color:#b6e4ff; font-size:9px; text-transform:uppercase; letter-spacing:.1em; }}
+          .actions-pro-profile {{ border:1px solid rgba(125,211,252,.18); border-radius:12px; padding:12px; background:rgba(2,6,23,.48); text-align:center; }}
+          .actions-pro-profile .roxy-avatar {{ margin:auto; width:68px; height:68px; border-radius:50%; }}
+          .actions-pro-profile b {{ display:block; margin-top:8px; font-size:13px; }}
+          .actions-pro-profile small {{ display:block; color:#93c5fd; margin-top:3px; }}
+          .actions-pro-nav {{ display:grid; gap:5px; align-content:start; }}
+          .actions-pro-nav a {{ display:flex; align-items:center; gap:9px; min-height:36px; padding:7px 10px; border-radius:8px; color:#cbd5e1!important; text-decoration:none!important; font-size:11px; font-weight:900; }}
+          .actions-pro-nav a.active {{ background:rgba(37,99,235,.28); border:1px solid rgba(56,189,248,.35); color:#fff!important; }}
+          .actions-pro-nav i {{ font-size:18px!important; color:#7dd3fc; }}
+          .actions-pro-main {{ display:grid; grid-template-rows:auto auto 1fr; gap:12px; min-width:0; }}
+          .actions-pro-head {{ display:flex; justify-content:space-between; align-items:center; gap:12px; }}
+          .actions-pro-head h2 {{ margin:0; color:#fff; font-size:26px; text-transform:uppercase; letter-spacing:.03em; }}
+          .actions-pro-head p {{ margin:3px 0 0; color:#bcd5ef; font-size:12px; }}
+          .actions-pro-search {{ display:flex; gap:8px; align-items:center; min-width:300px; border:1px solid rgba(125,211,252,.17); border-radius:10px; background:rgba(2,6,23,.56); padding:9px 11px; color:#8fb6d1; font-size:11px; }}
+          .actions-pro-tabs {{ display:flex; gap:6px; overflow:auto; }}
+          .actions-pro-tabs span {{ flex:0 0 auto; padding:9px 17px; border-radius:8px; color:#a9c6e4; background:rgba(15,23,42,.52); font-size:11px; font-weight:950; }}
+          .actions-pro-tabs span.active {{ color:#fff; background:rgba(37,99,235,.34); border:1px solid rgba(96,165,250,.32); }}
+          .actions-pro-grid {{ display:grid; grid-template-columns:1.05fr 1.35fr 1fr; gap:12px; align-items:start; }}
+          .actions-pro-card {{ border:1px solid rgba(125,211,252,.18); border-radius:12px; background:rgba(2,6,23,.58); box-shadow:inset 0 0 28px rgba(14,165,233,.04); overflow:hidden; }}
+          .actions-pro-card header {{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:12px 14px 8px; }}
+          .actions-pro-card header strong {{ color:#dff6ff; font-size:12px; text-transform:uppercase; letter-spacing:.08em; font-weight:1000; }}
+          .actions-pro-card header a,.actions-pro-card header span {{ color:#7dd3fc!important; font-size:10px; font-weight:950; text-decoration:none!important; }}
+          .actions-pro-scanner div {{ display:grid; gap:4px; padding:0 12px 12px; }}
+          .actions-pro-scanner p,.actions-pro-table p,.actions-pro-news p,.actions-pro-alerts p,.actions-pro-watch p {{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:9px; align-items:center; min-height:25px; margin:0; border-bottom:1px solid rgba(125,211,252,.08); color:#cbd5e1; font-size:11px; }}
+          .actions-pro-scanner p span {{ color:#58bdfb; font-weight:900; }}
+          .actions-pro-scanner p b {{ color:#c6e7ff; font-weight:900; }}
+          .actions-pro-heatmap {{ display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); grid-auto-rows:36px; gap:2px; padding:0 12px 12px; }}
+          .actions-pro-tile {{ display:grid; place-items:center; border-radius:4px; text-decoration:none!important; color:#fff!important; font-weight:1000; box-shadow:inset 0 0 18px rgba(0,0,0,.22); }}
+          .actions-pro-tile.large {{ grid-column:span 2; grid-row:span 2; }}
+          .actions-pro-tile.mid {{ grid-column:span 2; }}
+          .actions-pro-tile.up {{ background:linear-gradient(135deg,#14532d,#16a34a); }}
+          .actions-pro-tile.down {{ background:linear-gradient(135deg,#7f1d1d,#dc2626); }}
+          .actions-pro-tile strong {{ font-size:16px; line-height:1; }}
+          .actions-pro-tile span {{ font-size:10px; opacity:.92; }}
+          .actions-pro-table div,.actions-pro-news div,.actions-pro-alerts div,.actions-pro-watch div {{ padding:0 14px 14px; display:grid; gap:3px; }}
+          .actions-pro-table p {{ grid-template-columns:1fr auto auto; }}
+          .actions-pro-table em,.actions-pro-alerts em {{ color:#35f59d; font-style:normal; font-weight:950; }}
+          .actions-pro-news p {{ grid-template-columns:18px minmax(0,1fr) auto; }}
+          .actions-pro-news i {{ width:9px; height:9px; border-radius:50%; background:#38bdf8; box-shadow:0 0 12px rgba(56,189,248,.7); }}
+          .actions-pro-news small {{ color:#7da8c9; font-size:9px; }}
+          .actions-pro-quick {{ display:grid; grid-template-columns:74px minmax(0,1fr); gap:12px; padding:0 14px 14px; align-items:center; }}
+          .actions-pro-quick .roxy-actions-stock-logo {{ width:58px; height:58px; border-radius:14px; }}
+          .actions-pro-quick strong {{ display:block; color:#fff; font-size:24px; }}
+          .actions-pro-quick .up {{ color:#35f59d; }} .actions-pro-quick .down {{ color:#ff7385; }}
+          .actions-pro-quick dl {{ display:grid; grid-template-columns:repeat(4,1fr); gap:5px; margin:9px 0 0; }}
+          .actions-pro-quick div {{ border:1px solid rgba(125,211,252,.13); border-radius:8px; padding:6px; background:rgba(15,23,42,.52); }}
+          .actions-pro-quick dt {{ color:#8fb6d1; font-size:8px; text-transform:uppercase; font-weight:950; }}
+          .actions-pro-quick dd {{ margin:3px 0 0; color:#fff; font-size:11px; font-weight:950; }}
+          .actions-pro-strategies {{ grid-column:1/-1; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }}
+          .actions-pro-strategy {{ border:1px solid rgba(125,211,252,.17); border-radius:12px; background:rgba(2,6,23,.56); padding:10px; min-width:0; }}
+          .actions-pro-strategy header strong {{ display:block; color:#fff; font-size:12px; text-transform:uppercase; }}
+          .actions-pro-strategy header span {{ color:#7dd3fc; font-size:9px; font-weight:950; }}
+          .actions-pro-strategy p {{ color:#bcd5ef; font-size:10px; line-height:1.35; min-height:38px; margin:7px 0; }}
+          .actions-pro-strategy a {{ display:grid; grid-template-columns:54px 1fr 38px; gap:6px; padding:7px 0; border-top:1px solid rgba(125,211,252,.09); color:#e5f6ff!important; text-decoration:none!important; }}
+          .actions-pro-strategy a b {{ color:#7dd3fc; }} .actions-pro-strategy a span {{ color:#35f59d; font-size:9px; font-weight:1000; text-transform:uppercase; }}
+          .actions-pro-strategy a em {{ color:#fff; font-size:10px; font-style:normal; text-align:right; }} .actions-pro-strategy a small {{ grid-column:1/-1; color:#94a3b8; font-size:9px; }}
+          .actions-pro-featurebar {{ grid-column:1/-1; display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }}
+          .actions-pro-featurebar span {{ display:flex; align-items:center; gap:8px; border:1px solid rgba(125,211,252,.15); border-radius:10px; background:rgba(15,23,42,.56); padding:9px; color:#cbd5e1; font-size:10px; font-weight:900; }}
+          .actions-pro-featurebar i {{ color:#7dd3fc; font-size:20px!important; }}
+          @media(max-width:1050px){{.actions-pro-desk{{grid-template-columns:1fr}}.actions-pro-side{{display:none}}.actions-pro-grid{{grid-template-columns:1fr 1fr}}.actions-pro-strategies{{grid-template-columns:1fr 1fr}}}}
+          @media(max-width:720px){{.actions-pro-desk{{padding:10px;border-radius:10px}}.actions-pro-head{{display:block}}.actions-pro-search{{min-width:0;margin-top:10px}}.actions-pro-grid{{grid-template-columns:1fr}}.actions-pro-strategies,.actions-pro-featurebar{{grid-template-columns:1fr}}.actions-pro-heatmap{{grid-template-columns:repeat(4,1fr)}}.actions-pro-tabs span{{padding:8px 12px}}}}
+        </style>
+        <section class="actions-pro-desk">
+          <aside class="actions-pro-side">
+            <div class="actions-pro-brand">{brand_logo_html()}<strong>ROXY</strong><span>AI Trading</span></div>
+            <section class="actions-pro-profile">{roxy_avatar_html("speaking")}<b>Guardian Novato</b><small>Nivel 12</small></section>
+            <nav class="actions-pro-nav">
+              <a href="?view=Dashboard" target="_self"><i class="material-symbols-outlined">home</i>Inicio</a>
+              <a href="?view=Dashboard" target="_self"><i class="material-symbols-outlined">monitoring</i>Mercado General</a>
+              <a class="active" href="?view=Dashboard&module=acciones-operar" target="_self"><i class="material-symbols-outlined">folder</i>Acciones</a>
+              <a href="?view=Dashboard&module=crypto-20m" target="_self"><i class="material-symbols-outlined">currency_bitcoin</i>Criptomonedas</a>
+              <a href="?view=Dashboard&module=classroom" target="_self"><i class="material-symbols-outlined">school</i>Educacion</a>
+              <a href="?view=Configuracion" target="_self"><i class="material-symbols-outlined">settings</i>Configuracion</a>
+            </nav>
+            <section class="actions-pro-profile"><b>ATOM</b><small>Asistente IA</small></section>
+          </aside>
+          <main class="actions-pro-main">
+            <header class="actions-pro-head">
+              <div><h2>Acciones</h2><p>Analisis completo del mercado accionario separado por estrategia</p></div>
+              <div class="actions-pro-search"><i class="material-symbols-outlined">search</i>Buscar accion, sector, industria...</div>
+            </header>
+            <nav class="actions-pro-tabs">
+              <span>Resumen</span><span class="active">Escaner</span><span>Destacadas</span><span>Movers</span><span>Analisis</span><span>Dividendos</span><span>Reportes</span><span>Mas</span>
+            </nav>
+            <section class="actions-pro-grid">
+              <article class="actions-pro-card actions-pro-scanner"><header><strong>Escaner Finviz</strong><a href="?view=Dashboard&module=acciones-operar&scan=finviz" target="_self">Ver escaner completo</a></header><div>{''.join(scanner_items)}</div></article>
+              <article class="actions-pro-card"><header><strong>Mapa de mercado</strong><span>Indice: S&P 500</span></header><div class="actions-pro-heatmap">{''.join(market_tiles)}</div></article>
+              <article class="actions-pro-card actions-pro-table"><header><strong>Movers del dia</strong><span>Ganadores</span></header><div>{mover_html}</div></article>
+              <article class="actions-pro-card actions-pro-table"><header><strong>Futuros</strong><span>Ver todos</span></header><div>{futures_html}</div></article>
+              <article class="actions-pro-card actions-pro-table"><header><strong>Forex & Bonds</strong><span>Ver todos</span></header><div>{forex_html}</div></article>
+              <article class="actions-pro-card actions-pro-news"><header><strong>Noticias relevantes</strong><span>Finviz + Roxy AI</span></header><div>{news_html}</div></article>
+              <article class="actions-pro-card"><header><strong>Analisis rapido</strong><span>{html.escape(selected_symbol)}</span></header><div class="actions-pro-quick">{roxy_stock_icon_html(selected_symbol)}<section><strong>{html.escape(selected_symbol)} <em class="{quick_change_class}" data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">{html.escape(price)}</em></strong><small>{html.escape(action)} · {html.escape(strategy_family_for_row(selected_row)[:42])}</small><dl><div><dt>Entrada</dt><dd>{html.escape(entry)}</dd></div><div><dt>Stop</dt><dd>{html.escape(stop)}</dd></div><div><dt>Target</dt><dd>{html.escape(target)}</dd></div><div><dt>R/R</dt><dd>{html.escape(rr_text)}</dd></div></dl></section></div></article>
+              <article class="actions-pro-card actions-pro-alerts"><header><strong>Alertas activas</strong><span>Roxy live</span></header><div>{alert_html}</div></article>
+              <article class="actions-pro-card actions-pro-watch"><header><strong>Tus watchlists</strong><span>Ir a watchlists</span></header><div><p><span>Principal</span><b>25 acciones</b></p><p><span>Swing Trades</span><b>18 acciones</b></p><p><span>Largo Plazo</span><b>32 acciones</b></p><p><span>Cripto Watchlist</span><b>15 activos</b></p></div></article>
+              <section class="actions-pro-strategies">{strategy_lane_html}</section>
+              <footer class="actions-pro-featurebar">
+                <span><i class="material-symbols-outlined">manage_search</i>Escaner avanzado</span>
+                <span><i class="material-symbols-outlined">bar_chart</i>Graficos profesionales</span>
+                <span><i class="material-symbols-outlined">sensors</i>Datos en tiempo real</span>
+                <span><i class="material-symbols-outlined">auto_awesome</i>Senales Roxy AI</span>
+                <span><i class="material-symbols-outlined">analytics</i>Analisis fundamental</span>
+              </footer>
+            </section>
+          </main>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     rows = [roxy_enrich_stock_row_with_live_plan(row) for row in roxy_asset_rows_for_market(table, "stock", limit=12)]
     requested_symbol = roxy_manual_stock_symbol(first_query_param_value(st.query_params, "symbol"))
@@ -39444,6 +39733,19 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         for icon, title, detail in reason_items
     )
     finviz_news_article = roxy_actions_finviz_news_article(selected_symbol)
+    render_roxy_actions_market_overview(
+        rows,
+        selected_symbol=selected_symbol,
+        selected_row=selected_row,
+        selected_live_stock_symbol=selected_live_stock_symbol,
+        price=price,
+        entry=entry,
+        stop=stop,
+        target=target,
+        rr_text=rr_text,
+        action=action,
+        avg_readiness=avg_readiness,
+    )
     st.markdown(
         f"""
         <section class="roxy-actions-shell">
