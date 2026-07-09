@@ -52,3 +52,18 @@ def test_best_opportunities_by_strategy_returns_one_per_strategy():
     assert "Estrategia: Cruce EMA 9/21" in families
     assert "Finviz: Doble piso" in families
     assert len(best) == 2
+
+
+def test_actions_folder_has_reference_command_center_and_operational_charts():
+    source = open("streamlit_app.py", encoding="utf-8").read()
+
+    assert "def render_roxy_actions_command_center" in source
+    assert "ACCIONES" in source
+    assert "Escaner Finviz" in source
+    assert "Mapa de mercado" in source
+    assert "Movers del dia" in source
+    assert "Noticias relevantes" in source
+    assert "Mejores oportunidades por estrategia" in source
+    assert "Graficos Profesionales" in source
+    assert "render_roxy_actions_dual_pro_charts" in source
+    assert "render_roxy_actions_command_center(" in source
