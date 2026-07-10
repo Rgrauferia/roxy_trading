@@ -4594,10 +4594,23 @@ def render_roxy_elevenlabs_assistant() -> None:
             "current_market": page_context.get("market", ""),
             "current_timeframe": page_context.get("timeframe", ""),
             "roxy_platform_role": "Roxy Trading voice copilot",
+            "roxy_identity_override": (
+                "Eres Roxy Trading, la asistente IA de esta plataforma de trading y aprendizaje. "
+                "Tu trabajo es guiar al usuario dentro de Roxy Trading, explicar graficas, carpetas, "
+                "watchlists, classroom, estrategias, riesgo, paper trading y oportunidades visibles. "
+                "No eres una asistente de taxes, notaria, DMV, seguros ni servicios externos de Grau."
+            ),
             "roxy_current_context": voice_context_brief,
             "roxy_visible_opportunities": voice_visible_opportunities,
             "roxy_voice_response_contract": voice_operational_contract,
-            "roxy_operational_rules": "No profit guarantees. No licensed financial advice. Explain risk, paper trading, stop loss and position sizing. Focus only on Roxy Trading unless the user explicitly asks otherwise.",
+            "roxy_operational_rules": (
+                "No garantices ganancias ni digas que eres asesora financiera licenciada. "
+                "Cuando el usuario pida oportunidades, usa primero roxy_visible_opportunities, current_module, "
+                "current_symbol y current_timeframe. Responde con activo, direccion, entrada, stop, target, "
+                "riesgo, confianza y razon cuando esos datos esten disponibles. Si faltan datos reales, dilo claro "
+                "y pide confirmar en grafica live. No hables de taxes, notaria, DMV, seguros o servicios externos "
+                "salvo que el usuario lo pida explicitamente."
+            ),
         },
         "assistantRules": personalization["assistant_rules"],
         "voiceContextBrief": voice_context_brief,
@@ -4888,6 +4901,11 @@ def render_roxy_elevenlabs_assistant() -> None:
         .roxy-el-status{{border-radius:999px;background:rgba(15,23,42,.86);border:1px solid rgba(56,189,248,.20);color:#7dd3fc;padding:8px 10px;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em}}
         .roxy-el-status.roxy-el-status-error{{border-color:rgba(248,113,113,.34);background:rgba(127,29,29,.26);color:#fecaca}}
         .roxy-el-widget-hint{{padding:10px 12px;border-radius:12px;background:rgba(37,99,235,.16);border:1px solid rgba(96,165,250,.20);font-size:12px;color:#bfdbfe;line-height:1.35}}
+        [data-roxy-legacy-voice],
+        .roxy-voice-test-card,
+        .roxy-voice-trigger,
+        .roxy-presence-card,
+        .roxy-floating-avatar{{display:none!important;visibility:hidden!important;pointer-events:none!important}}
         body.roxy-el-runtime-mounted [data-roxy-legacy-voice],
         body.roxy-el-runtime-mounted #roxy-start,
         body.roxy-el-runtime-mounted .roxy-voice-test-card,
@@ -39300,24 +39318,6 @@ def render_roxy_actions_market_overview(
         pattern = text_display(item.get("canonical_pattern") or item.get("finviz_signal") or "Roxy")
         strategy_groups.setdefault(pattern, []).append(item)
 
-    fallback_patterns = [
-        ("NTRB SELF", "TL Supp."),
-        ("YB EVO", "TL Resist."),
-        ("GXAI EP", "Horizontal S/R"),
-        ("LYV STGW", "Wedge Up"),
-        ("OKE FTAI", "Wedge"),
-        ("ONCY AIM", "Wedge Down"),
-        ("FCX BOH", "Triangle Asc."),
-        ("JBGS CEPU", "Triangle Desc."),
-        ("EWTX NGS", "Channel Up"),
-        ("MSEX GXAI", "Channel"),
-        ("BCDA VVOS", "Channel Down"),
-        ("PCVX LCLN", "Double Top"),
-        ("FWFG NMAX", "Double Bottom"),
-        ("HITI FUBO", "Multiple Bottom"),
-        ("ACRE STRT", "Head&Shoulders"),
-    ]
-
     scanner_items: list[str] = []
     if strategy_groups:
         for pattern, pattern_rows in list(strategy_groups.items())[:15]:
@@ -39327,8 +39327,9 @@ def render_roxy_actions_market_overview(
             )
     else:
         scanner_items = [
-            f"<p><span>{html.escape(symbols)}</span><b>{html.escape(signal)}</b></p>"
-            for symbols, signal in fallback_patterns
+            "<p><span>Finviz</span><b>Esperando candidatos live</b></p>",
+            "<p><span>Roxy</span><b>No inventa tickers sin feed</b></p>",
+            "<p><span>Estado</span><b>Configura/espera Finviz Elite</b></p>",
         ]
 
     def _strategy_lane(pattern: str, pattern_rows: list[dict[str, Any]]) -> str:
@@ -39365,9 +39366,19 @@ def render_roxy_actions_market_overview(
         for pattern, pattern_rows in list(strategy_groups.items())[:8]
     )
     if not strategy_lane_html:
+        visible_patterns = [
+            "TL SUPP",
+            "TL RESIST",
+            "HORIZONTAL S/R",
+            "WEDGE UP",
+            "WEDGE",
+            "WEDGE DOWN",
+            "TRIANGLE ASC",
+            "TRIANGLE DESC",
+        ]
         strategy_lane_html = "".join(
-            _strategy_lane(signal.upper().replace(".", ""), [])
-            for _, signal in fallback_patterns[:8]
+            _strategy_lane(pattern, [])
+            for pattern in visible_patterns
         )
 
     market_tiles = []
@@ -39419,9 +39430,8 @@ def render_roxy_actions_market_overview(
         )
     else:
         news_html = (
-            "<p><i></i><span>Dollar at week-high after US resumes Iran strikes</span><small>Major News</small></p>"
-            "<p><i></i><span>Stock Market News: SpaceX slips below opening price</span><small>Finviz</small></p>"
-            "<p><i></i><span>Roxy espera feed Finviz para titulares reales</span><small>Config</small></p>"
+            "<p><i></i><span>Roxy espera titulares reales desde Finviz Elite/API configurada</span><small>Finviz pendiente</small></p>"
+            "<p><i></i><span>No se muestran noticias de ejemplo para evitar senales falsas</span><small>Dato real requerido</small></p>"
         )
 
     alert_html = "".join(
@@ -51787,7 +51797,7 @@ def main() -> None:
         .roxy-asset-decision strong{display:block;color:#f8fafc;font-size:18px;line-height:1.08;margin-top:5px}
         .roxy-asset-live{text-align:right;display:grid;gap:5px;justify-items:end}
         .roxy-asset-live a{color:#f8fafc!important;text-decoration:none!important;border:1px solid rgba(125,211,252,.34);border-radius:6px;padding:6px 9px;background:rgba(15,23,42,.60);font-size:11px;font-weight:900}
-        .roxy-floating-avatar{position:fixed;right:14px;bottom:72px;z-index:999;display:grid;place-items:center;width:58px;height:58px;border:1px solid rgba(56,189,248,.38);border-radius:50%;background:radial-gradient(circle at 50% 30%,rgba(56,189,248,.22),rgba(2,6,23,.84) 66%);padding:7px;box-shadow:0 18px 44px rgba(2,6,23,.42),0 0 30px rgba(56,189,248,.30);backdrop-filter:blur(14px)}
+        .roxy-floating-avatar{position:fixed;right:14px;bottom:72px;z-index:999;display:none!important;place-items:center;width:58px;height:58px;border:1px solid rgba(56,189,248,.38);border-radius:50%;background:radial-gradient(circle at 50% 30%,rgba(56,189,248,.22),rgba(2,6,23,.84) 66%);padding:7px;box-shadow:0 18px 44px rgba(2,6,23,.42),0 0 30px rgba(56,189,248,.30);backdrop-filter:blur(14px)}
         .roxy-floating-avatar .roxy-avatar{width:44px;height:44px;min-width:44px;border-radius:50%}
         .roxy-floating-avatar .roxy-avatar span{display:none}
         .roxy-floating-avatar strong,.roxy-floating-avatar div>span{display:none!important}
