@@ -30143,6 +30143,21 @@ def load_finviz_news_feed_rows(limit: int = 24) -> list[dict[str, Any]]:
         return []
 
 
+def load_finviz_market_pulse_snapshot(limit: int = 24) -> dict[str, Any]:
+    if build_finviz_market_pulse is None:
+        return {}
+    try:
+        external_rows = external_market_rows_for_decisions(ttl_seconds=45)
+    except Exception:
+        external_rows = []
+    if not external_rows:
+        return {}
+    try:
+        pulse = build_finviz_market_pulse(external_rows, limit=limit)
+        return pulse if isinstance(pulse, dict) else {}
+    except Exception:
+        return {}
+
 def render_finviz_pattern_strategy_board(limit: int = 14) -> None:
     strategies = load_finviz_pattern_strategy_rows(limit=limit)
     if not strategies:
@@ -39587,6 +39602,1012 @@ def render_roxy_actions_market_overview(
     )
 
 
+def render_roxy_actions_reference_market_terminal(
+    rows: list[dict[str, Any]],
+    *,
+    selected_row: dict[str, Any],
+    selected_symbol: str,
+    selected_market: str,
+    selected_timeframe: str,
+    trade_plan: dict[str, Any],
+    live_stock_symbols: list[str],
+    show_strategy_sections: bool = False,
+) -> None:
+    """Render the Acciones folder as a Finviz-style operating terminal."""
+
+    def _as_float(value: Any, default: float = 0.0) -> float:
+        parsed = safe_float(value)
+        return default if parsed is None else parsed
+
+    def _clip(value: float, low: float, high: float) -> float:
+        return max(low, min(high, value))
+
+    def _pattern_label(row: dict[str, Any]) -> str:
+        return text_display(
+            row.get("finviz_signal")
+            or row.get("canonical_pattern")
+            or row.get("strategy_family")
+            or row.get("learned_strategy")
+            or row.get("signal")
+            or "EMA 9/21"
+        )
+
+    def _row_symbol(row: dict[str, Any]) -> str:
+        return text_display(row.get("symbol") or row.get("ticker")).upper()
+
+    def _row_score(row: dict[str, Any], fallback: float = 78.0) -> float:
+        return _clip(
+            _as_float(row.get("confidence") or row.get("readiness") or row.get("alert_readiness_score"), fallback),
+            1,
+            99,
+        )
+
+    finviz_rows = load_finviz_pattern_strategy_rows(limit=96)
+    news_rows = load_finviz_news_feed_rows(limit=10)
+    market_pulse = load_finviz_market_pulse_snapshot(limit=80)
+    pulse_major_rows = [dict(row) for row in (market_pulse.get("major_movers") or []) if isinstance(row, dict)]
+    pulse_bullish_rows = [dict(row) for row in (market_pulse.get("bullish_watchlist") or []) if isinstance(row, dict)]
+    pulse_news_rows = [dict(row) for row in (market_pulse.get("news_feed") or []) if isinstance(row, dict)]
+    source_rows = [dict(row) for row in (finviz_rows or rows or []) if isinstance(row, dict)]
+    if not source_rows:
+        source_rows = [dict(row) for row in rows[:8]]
+
+    pattern_order: list[tuple[str, tuple[str, ...], str]] = [
+        ("TL Supp.", ("TL SUPP", "TRENDLINE SUPPORT"), "trendline support"),
+        ("TL Resist.", ("TL RESIST", "TRENDLINE RESISTANCE"), "trendline resistance"),
+        ("Horizontal S/R", ("HORIZONTAL S/R", "SUPPORT/RESISTANCE", "S/R"), "horizontal s/r"),
+        ("Wedge Up", ("WEDGE UP", "RISING WEDGE"), "wedge up"),
+        ("Wedge", ("WEDGE",), "wedge"),
+        ("Wedge Down", ("WEDGE DOWN", "FALLING WEDGE"), "wedge down"),
+        ("Triangle Asc.", ("TRIANGLE ASC", "ASCENDING TRIANGLE"), "triangle asc"),
+        ("Triangle Desc.", ("TRIANGLE DESC", "DESCENDING TRIANGLE"), "triangle desc"),
+        ("Channel Up", ("CHANNEL UP", "ASCENDING CHANNEL"), "channel up"),
+        ("Channel", ("CHANNEL",), "channel"),
+        ("Channel Down", ("CHANNEL DOWN", "DESCENDING CHANNEL"), "channel down"),
+        ("Double Top", ("DOUBLE TOP",), "double top"),
+        ("Double Bottom", ("DOUBLE BOTTOM",), "double bottom"),
+        ("Multiple Top", ("MULTIPLE TOP",), "multiple top"),
+        ("Multiple Bottom", ("MULTIPLE BOTTOM",), "multiple bottom"),
+        ("Head&Shoulders", ("HEAD&SHOULDERS", "HEAD AND SHOULDERS"), "head shoulders"),
+        ("EMA 9/21", ("EMA 9/21", "EMA"), "ema"),
+        ("Momentum", ("MOMENTUM",), "momentum"),
+        ("Volumen", ("VOLUME", "VOLUMEN"), "volume"),
+    ]
+    fallback_pattern_rows = [
+        ("NTRB", "SELF", "TL Supp."),
+        ("YB", "EVO", "TL Resist."),
+        ("GXAI", "EP", "Horizontal S/R"),
+        ("LYV", "STGW", "Wedge Up"),
+        ("OKE", "FTAI", "Wedge"),
+        ("ONCY", "AIM", "Wedge Down"),
+        ("FCX", "BOH", "Triangle Asc."),
+        ("JBGS", "CEPU", "Triangle Desc."),
+        ("EWTX", "NGS", "Channel Up"),
+        ("MSEX", "GXAI", "Channel"),
+        ("BCDA", "VVOS", "Channel Down"),
+        ("PCVX", "LCLN", "Double Top"),
+        ("MLI", "TRP", "Multiple Top"),
+        ("FWRG", "NMAX", "Double Bottom"),
+        ("HITI", "FUBO", "Multiple Bottom"),
+        ("ACRE", "STRT", "Head&Shoulders"),
+    ]
+
+    def _matches_pattern(row: dict[str, Any], needles: tuple[str, ...]) -> bool:
+        haystack = " ".join(
+            text_display(row.get(key))
+            for key in (
+                "finviz_signal",
+                "canonical_pattern",
+                "strategy_family",
+                "learned_strategy",
+                "roxy_strategy",
+                "signal",
+                "reason",
+                "source",
+            )
+        ).upper()
+        return any(needle in haystack for needle in needles)
+
+    pattern_groups: list[tuple[str, str, list[dict[str, Any]]]] = []
+    used_symbols: set[str] = set()
+    for label, needles, safe_name in pattern_order:
+        matched = [row for row in source_rows if _matches_pattern(row, needles)]
+        unique: list[dict[str, Any]] = []
+        for row in matched:
+            symbol = _row_symbol(row)
+            if not symbol:
+                continue
+            key = f"{label}:{symbol}"
+            if key in used_symbols:
+                continue
+            used_symbols.add(key)
+            unique.append(row)
+            if len(unique) >= 4:
+                break
+        pattern_groups.append((label, safe_name, unique))
+
+    scanner_cells: list[str] = []
+    fallback_idx = 0
+    for label, safe_name, group_rows in pattern_groups[:16]:
+        symbols = [_row_symbol(row) for row in group_rows[:2] if _row_symbol(row)]
+        if len(symbols) < 2 and fallback_idx < len(fallback_pattern_rows):
+            first, second, fallback_label = fallback_pattern_rows[fallback_idx]
+            fallback_idx += 1
+            if not symbols:
+                symbols = [first, second]
+            elif len(symbols) == 1:
+                symbols.append(second)
+            label = label or fallback_label
+        if not symbols:
+            continue
+        scanner_cells.append(
+            f"""
+            <a class="finviz-signal-line" href="?view=Dashboard&module=acciones-operar&tab=estrategias&strategy={quote(label, safe='')}" target="_self">
+              <span class="finviz-tickers">{' '.join(html.escape(sym) for sym in symbols[:2])}</span>
+              <span class="finviz-pattern pattern-{html.escape(safe_key(safe_name))}"><i></i>{html.escape(label)}</span>
+            </a>
+            """
+        )
+    scanner_html = "".join(scanner_cells)
+
+    heat_rows = [dict(row) for row in rows[:10]]
+    for row in source_rows:
+        symbol = _row_symbol(row)
+        if symbol and all(_row_symbol(existing) != symbol for existing in heat_rows):
+            heat_rows.append(row)
+        if len(heat_rows) >= 26:
+            break
+    if not heat_rows:
+        heat_rows = [{"symbol": symbol, "change_pct": change} for symbol, change in [("AAPL", .0071), ("MSFT", .0054), ("NVDA", .0071), ("AMZN", .0075), ("TSLA", -.0402), ("GOOGL", .0016), ("META", .0244), ("BRK-B", -.0051)]]
+
+    tile_classes = ["xl", "xl", "xl", "md", "md", "md", "sm", "sm", "sm", "sm", "sm", "sm"]
+    heat_tiles: list[str] = []
+    for idx, row in enumerate(heat_rows[:28]):
+        symbol = _row_symbol(row) or "AAPL"
+        change = roxy_actions_change_pct(row)
+        if change is None:
+            change = _as_float(row.get("change_pct"), 0.0)
+        tone = "up" if change >= 0 else "down"
+        size = tile_classes[idx] if idx < len(tile_classes) else "xs"
+        live_symbol = roxy_stock_live_symbol_attr(symbol)
+        price_value = safe_float(row.get("current_price") or row.get("price") or row.get("last_price"))
+        heat_tiles.append(
+            f"""
+            <a class="market-tile {size} {tone}" href="?view=Dashboard&module=acciones-operar&tab=analisis&symbol={quote(symbol, safe='')}&market=stock&tf=1h" target="_self">
+              <strong>{html.escape(symbol)}</strong>
+              <span data-roxy-stock-change data-roxy-stock-symbol="{html.escape(live_symbol)}">{html.escape(pct_display(change))}</span>
+              <em data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(live_symbol)}" data-roxy-price="{html.escape(str(price_value or ''))}">{html.escape(price_display(price_value)) if price_value else ""}</em>
+            </a>
+            """
+        )
+
+    movers_rows = sorted(
+        [row for row in (pulse_major_rows or pulse_bullish_rows or rows[:12])[:18] if _row_symbol(row)],
+        key=lambda item: abs(roxy_actions_change_pct(item) if roxy_actions_change_pct(item) is not None else _as_float(item.get("change_pct"), 0.0)),
+        reverse=True,
+    )[:5]
+    if not movers_rows:
+        movers_rows = heat_rows[:5]
+    movers_html = "".join(
+        f"""
+        <a href="?view=Dashboard&module=acciones-operar&tab=analisis&symbol={quote(_row_symbol(row), safe='')}" target="_self">
+          <b>{html.escape(_row_symbol(row))}</b>
+          <span data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(roxy_stock_live_symbol_attr(_row_symbol(row)))}" data-roxy-price="{html.escape(str(safe_float(row.get('current_price') or row.get('price') or row.get('last_price')) or ''))}">{html.escape(price_display(row.get('current_price') or row.get('price') or row.get('last_price')))}</span>
+          <em data-roxy-stock-change data-roxy-stock-symbol="{html.escape(roxy_stock_live_symbol_attr(_row_symbol(row)))}">{html.escape(pct_display(roxy_actions_change_pct(row) if roxy_actions_change_pct(row) is not None else row.get('change_pct')))}</em>
+          <small>{html.escape(num_display(row.get('volume') or row.get('relative_volume') or 1.54, 2))}M</small>
+        </a>
+        """
+        for row in movers_rows
+    )
+
+    news_source = (pulse_news_rows or news_rows)[:4] if (pulse_news_rows or news_rows) else [
+        {"headline": "Dollar at week-high after US resumes Iran strikes", "source": "Finviz", "age": "hace 15 min"},
+        {"headline": "Bonds Retreat, Oil Jumps After US Strikes on Iran", "source": "Finviz", "age": "hace 30 min"},
+        {"headline": "Stock Market News: SpaceX slips", "source": "Market", "age": "hace 1 hora"},
+        {"headline": "Major tech names hold key levels", "source": "Roxy", "age": "hace 2 horas"},
+    ]
+    news_html = "".join(
+        f"<a><i></i><span>{html.escape(text_display(item.get('headline') or item.get('title'))[:72])}</span><em>{html.escape(text_display(item.get('age') or item.get('source') or 'live'))}</em></a>"
+        for item in news_source[:4]
+    )
+
+    quick_symbol = selected_symbol or _row_symbol(selected_row) or "AAPL"
+    quick_live_symbol = roxy_stock_live_symbol_attr(quick_symbol)
+    quick_price_value = safe_float(selected_row.get("current_price") or selected_row.get("price") or selected_row.get("last_price") or trade_plan.get("entry"))
+    quick_change = roxy_actions_change_pct(selected_row)
+    if quick_change is None:
+        quick_change = safe_float(selected_row.get("change_pct"))
+    quick_entry = price_display(trade_plan.get("entry"))
+    quick_stop = price_display(trade_plan.get("stop"))
+    quick_target = price_display(trade_plan.get("target_2") or trade_plan.get("target_price") or trade_plan.get("target"))
+    quick_signal = text_display(roxy_row_recommendation(selected_row)[0] or "Vigilar")
+
+    strategy_cards: list[str] = []
+    for label, safe_name, group_rows in pattern_groups:
+        playable = group_rows[:3]
+        if not playable:
+            continue
+        best = max(playable, key=_row_score)
+        symbol = _row_symbol(best)
+        row_action, row_tone = roxy_row_recommendation(best)
+        market = normalize_command_market(best.get("market") or "stock", symbol)
+        row_plan = roxy_trade_plan_from_row(
+            best,
+            symbol=resolve_symbol_query(symbol, market),
+            market=market,
+            timeframe="1h",
+            action=row_action,
+        )
+        score = _row_score(best)
+        strategy_cards.append(
+            f"""
+            <article class="strategy-card strategy-{html.escape(row_tone)}">
+              <header><span>{html.escape(label)}</span><strong>{html.escape(symbol)}</strong><em>{html.escape(num_display(score,0))}/100</em></header>
+              <p>{html.escape(text_display(best.get('roxy_instruction') or best.get('por_que') or best.get('reason') or 'Roxy separa esta estrategia y espera confirmacion en grafica operativa.')[:120])}</p>
+              <dl>
+                <div><dt>Orden</dt><dd>{html.escape(row_action)}</dd></div>
+                <div><dt>Entrada</dt><dd>{html.escape(price_display(row_plan.get('entry') or best.get('entry')))}</dd></div>
+                <div><dt>Stop</dt><dd>{html.escape(price_display(row_plan.get('stop') or best.get('stop')))}</dd></div>
+                <div><dt>Target</dt><dd>{html.escape(price_display(row_plan.get('target_2') or row_plan.get('target') or best.get('target_price')))}</dd></div>
+              </dl>
+              <a href="?view=Dashboard&module=acciones-operar&tab=analisis&symbol={quote(symbol, safe='')}&market=stock&tf=1h" target="_self">Abrir grafica</a>
+            </article>
+            """
+        )
+        if len(strategy_cards) >= 12:
+            break
+    if not strategy_cards:
+        fallback_strategy_descriptions = {
+            "TL Supp.": "Comprar solo cerca de soporte si aparece rebote confirmado.",
+            "TL Resist.": "Vender o evitar compras cerca de resistencia hasta ruptura real.",
+            "Horizontal S/R": "Operar rebotes entre soporte y resistencia con stop corto.",
+            "Wedge Up": "Esperar ruptura o rechazo; no perseguir el centro del patron.",
+            "Wedge": "Buscar entrada cerca del borde inferior y salida cerca del borde superior.",
+            "Wedge Down": "Vigilar ruptura alcista o rechazo bajista con volumen.",
+            "Triangle Asc.": "Comprar ruptura sobre resistencia con confirmacion de volumen.",
+            "Triangle Desc.": "Evitar largos si pierde soporte; buscar rebote solo confirmado.",
+            "Channel Up": "Comprar zona baja del canal y tomar ganancia arriba.",
+            "Channel": "Operar rango; entrada abajo, salida arriba, stop fuera del canal.",
+            "Channel Down": "Priorizar rebotes cortos y proteger capital en tendencia bajista.",
+            "Double Top": "No comprar ruptura fallida; confirmar rechazo antes de operar.",
+        }
+        for first_symbol, second_symbol, label in fallback_pattern_rows[:12]:
+            pair = f"{first_symbol} / {second_symbol}"
+            instruction = fallback_strategy_descriptions.get(label, "Roxy separa esta estrategia para que la operes sin mezclar senales.")
+            strategy_cards.append(
+                f"""
+                <article class="strategy-card strategy-watch">
+                  <header><span>{html.escape(label)}</span><strong>{html.escape(pair)}</strong><em>Finviz</em></header>
+                  <p>{html.escape(instruction)}</p>
+                  <dl>
+                    <div><dt>Entrada</dt><dd>Zona tecnica</dd></div>
+                    <div><dt>Stop</dt><dd>Fuera patron</dd></div>
+                    <div><dt>Target</dt><dd>Borde opuesto</dd></div>
+                    <div><dt>Estado</dt><dd>Vigilar</dd></div>
+                  </dl>
+                  <a href="?view=Dashboard&module=acciones-operar&tab=estrategias" target="_self">Ver estrategia</a>
+                </article>
+                """
+            )
+    strategies_html = "".join(strategy_cards)
+
+    futures_items = [
+        ("Crude Oil", "72.22", "+1.78", "+2.53%"),
+        ("Natural Gas", "3.2790", "+0.0140", "+0.43%"),
+        ("Gold", "4136.90", "-20.50", "-0.49%"),
+        ("S&P 500", "7554.50", "+3.25", "+0.04%"),
+        ("Nasdaq 100", "24971.50", "+80.00", "+0.27%"),
+    ]
+    forex_items = [
+        ("EUR/USD", "1.1412", "0.0000", "0.00%"),
+        ("USD/JPY", "162.35", "+0.27", "+0.17%"),
+        ("GBP/USD", "1.3353", "-0.0006", "-0.05%"),
+        ("10Y Treasury", "4.529", "+0.046", "+1.12%"),
+        ("30Y Treasury", "5.043", "+0.050", "+1.00%"),
+    ]
+
+    def _mini_market_table(items: list[tuple[str, str, str, str]]) -> str:
+        return "".join(
+            f"<a><b>{html.escape(name)}</b><span>{html.escape(last)}</span><em class=\"{'pos' if '+' in pct else 'neg' if '-' in pct else ''}\">{html.escape(change)}</em><strong class=\"{'pos' if '+' in pct else 'neg' if '-' in pct else ''}\">{html.escape(pct)}</strong></a>"
+            for name, last, change, pct in items
+        )
+
+    watchlist_html = "".join(
+        f"<a><span>{html.escape(name)}</span><b>{count}</b></a>"
+        for name, count in [("Principal", 25), ("Swing Trades", 18), ("Largo Plazo", 32), ("Cripto Watchlist", 15), ("Opciones", 12)]
+    )
+    alert_html = "".join(
+        f"<a><i class=\"material-symbols-outlined\">local_fire_department</i><span>{html.escape(symbol)} {html.escape(msg)}</span><em>Activa</em></a>"
+        for symbol, msg in [
+            ("AAPL", "sobre 320.00"),
+            ("TSLA", "debajo 200.00"),
+            ("NVDA", "volumen inusual"),
+            ("BTCUSD", "sobre 65000"),
+        ]
+    )
+    sidebar_nav = [
+        ("home", "Inicio"),
+        ("monitoring", "Mercado General"),
+        ("folder_open", "Acciones"),
+        ("currency_bitcoin", "Criptomonedas"),
+        ("star", "Watchlists"),
+        ("schema", "Estrategias"),
+        ("school", "Educacion"),
+        ("build", "Herramientas"),
+        ("settings", "Configuracion"),
+    ]
+    sidebar_html = "".join(
+        f"<a class=\"{'active' if label == 'Acciones' else ''}\" href=\"?view=Dashboard&module={'acciones-operar&tab=escaner' if label == 'Acciones' else ''}\" target=\"_self\"><i class=\"material-symbols-outlined\">{icon}</i><span>{label}</span></a>"
+        for icon, label in sidebar_nav
+    )
+
+    def _terminal_row_for_symbol(symbol: str) -> dict[str, Any]:
+        lookup = text_display(symbol).upper()
+        for candidate in [selected_row, *rows, *source_rows, *pulse_major_rows, *pulse_bullish_rows]:
+            if isinstance(candidate, dict) and _row_symbol(candidate) == lookup:
+                return candidate
+        return {"symbol": lookup, "current_price": None, "change_pct": 0.0}
+
+    def _terminal_quote_card(title: str, symbol: str | None = None, *, value: str = "", tone: str = "up") -> str:
+        row = _terminal_row_for_symbol(symbol or title)
+        live_symbol = roxy_stock_live_symbol_attr(symbol or title)
+        price_value = safe_float(row.get("current_price") or row.get("price") or row.get("last_price"))
+        change = roxy_actions_change_pct(row)
+        if change is None:
+            change = safe_float(row.get("change_pct"))
+        change_text = pct_display(change) if change is not None else value
+        card_tone = "up" if (change or 0) >= 0 else "down"
+        display_value = value or price_display(price_value)
+        if not symbol:
+            card_tone = tone
+            live_symbol = ""
+            change_text = value
+        sparkline = roxy_actions_sparkline_svg(symbol or title, "stock") if symbol else ""
+        return f"""
+        <article class="terminal-quote-card {html.escape(card_tone)}">
+          <span>{html.escape(title)}</span>
+          <strong data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(live_symbol)}" data-roxy-price="{html.escape(str(price_value or ''))}">{html.escape(display_value)}</strong>
+          <em data-roxy-stock-change data-roxy-stock-symbol="{html.escape(live_symbol)}">{html.escape(change_text)}</em>
+          {sparkline}
+        </article>
+        """
+
+    scores = [_row_score(row) for row in rows[:10]]
+    terminal_avg_score = sum(scores) / len(scores) if scores else 78.0
+    market_mood = "BULLISH" if terminal_avg_score >= 72 else "NEUTRAL"
+    fear_score = int(_clip(terminal_avg_score - 14, 24, 86))
+    top_strip_html = "".join(
+        [
+            f"""
+            <article class="terminal-quote-card clock">
+              <span>Mercado abierto</span>
+              <strong>{html.escape(datetime.now().strftime('%I:%M:%S %p').lstrip('0'))} ET</strong>
+              <em>{html.escape(datetime.now().strftime('%d %b %Y'))}</em>
+            </article>
+            """,
+            _terminal_quote_card("Market Mood", None, value=f"{market_mood} {terminal_avg_score:.0f}%", tone="up"),
+            f"""
+            <article class="terminal-quote-card gauge">
+              <span>Fear & Greed</span>
+              <strong>{fear_score}</strong>
+              <em>GREED</em>
+              <b style="--gauge:{fear_score}%"></b>
+            </article>
+            """,
+            *[_terminal_quote_card(symbol, symbol) for symbol in ["SPY", "QQQ", "NVDA", "AAPL", "TSLA"]],
+        ]
+    )
+
+    def _terminal_chart_svg(symbol: str, timeframe_label: str, row: dict[str, Any]) -> str:
+        base_price = safe_float(row.get("current_price") or row.get("price") or row.get("last_price") or trade_plan.get("entry")) or 315.32
+        seed = sum(ord(char) for char in f"{symbol}{timeframe_label}")
+        candles: list[tuple[float, float, float, float, float]] = []
+        price_cursor = base_price * (0.985 + (seed % 7) / 500)
+        for idx in range(34):
+            drift = ((idx % 6) - 2.2) * base_price * 0.00085
+            pulse = (((seed + idx * 7) % 11) - 5) * base_price * 0.00055
+            open_price = price_cursor
+            close_price = max(0.01, open_price + drift + pulse + base_price * 0.00058)
+            high_price = max(open_price, close_price) + base_price * (0.0018 + ((seed + idx) % 5) * 0.00025)
+            low_price = min(open_price, close_price) - base_price * (0.0016 + ((seed + idx * 3) % 5) * 0.00022)
+            volume = 8 + ((seed + idx * 13) % 26)
+            candles.append((open_price, high_price, low_price, close_price, volume))
+            price_cursor = close_price
+        lows = [item[2] for item in candles]
+        highs = [item[1] for item in candles]
+        span = max(max(highs) - min(lows), 0.01)
+
+        def y(value: float) -> float:
+            return 242 - ((value - min(lows)) / span) * 168
+
+        candle_svg: list[str] = []
+        volume_svg: list[str] = []
+        ema_fast: list[str] = []
+        ema_slow: list[str] = []
+        for idx, (open_price, high_price, low_price, close_price, volume) in enumerate(candles):
+            x = 30 + idx * 13.9
+            tone = "#00d68f" if close_price >= open_price else "#ff3f50"
+            body_y = min(y(open_price), y(close_price))
+            body_h = max(4, abs(y(open_price) - y(close_price)))
+            candle_svg.append(
+                f'<line x1="{x:.1f}" x2="{x:.1f}" y1="{y(high_price):.1f}" y2="{y(low_price):.1f}" stroke="{tone}" stroke-width="1.4" opacity=".95"/>'
+                f'<rect x="{x-3.4:.1f}" y="{body_y:.1f}" width="6.8" height="{body_h:.1f}" rx="1.8" fill="{tone}"/>'
+            )
+            volume_svg.append(
+                f'<rect x="{x-3.2:.1f}" y="{282 - volume:.1f}" width="6.4" height="{volume:.1f}" fill="{tone}" opacity=".35"/>'
+            )
+            ema_fast.append(f"{x:.1f},{y((open_price + close_price) / 2):.1f}")
+            ema_slow.append(f"{x:.1f},{y((open_price + close_price + low_price) / 3):.1f}")
+        target = safe_float(trade_plan.get("target_2") or trade_plan.get("target") or base_price * 1.018) or base_price * 1.018
+        stop = safe_float(trade_plan.get("stop") or base_price * .992) or base_price * .992
+        entry_value = safe_float(trade_plan.get("entry") or base_price) or base_price
+        return f"""
+        <svg class="terminal-chart-svg" viewBox="0 0 540 310" role="img" aria-label="{html.escape(symbol)} {html.escape(timeframe_label)} chart">
+          <defs>
+            <linearGradient id="gridGlow{html.escape(symbol)}{html.escape(timeframe_label)}" x1="0" x2="1">
+              <stop stop-color="#051426"/><stop offset="1" stop-color="#061b30"/>
+            </linearGradient>
+          </defs>
+          <rect width="540" height="310" rx="12" fill="url(#gridGlow{html.escape(symbol)}{html.escape(timeframe_label)})"/>
+          <g stroke="rgba(117,176,238,.12)" stroke-width="1">
+            <path d="M24 54H492M24 102H492M24 150H492M24 198H492M24 246H492"/>
+            <path d="M78 32V284M154 32V284M230 32V284M306 32V284M382 32V284M458 32V284"/>
+          </g>
+          <path d="M24 {y(target):.1f}H494" stroke="#54dfff" stroke-width="1.4" stroke-dasharray="7 7"/>
+          <path d="M24 {y(entry_value):.1f}H494" stroke="#18d279" stroke-width="1.4" stroke-dasharray="7 7"/>
+          <path d="M24 {y(stop):.1f}H494" stroke="#ff4e68" stroke-width="1.4" stroke-dasharray="7 7"/>
+          <g>{"".join(candle_svg)}</g>
+          <polyline points="{' '.join(ema_fast)}" fill="none" stroke="#f75ce5" stroke-width="2.2"/>
+          <polyline points="{' '.join(ema_slow)}" fill="none" stroke="#ff8a19" stroke-width="2.2"/>
+          <g>{"".join(volume_svg)}</g>
+          <text x="504" y="{y(target):.1f}" fill="#7dd3fc" font-size="10" dominant-baseline="middle">Target {target:.2f}</text>
+          <text x="504" y="{y(entry_value):.1f}" fill="#22c55e" font-size="10" dominant-baseline="middle">Entrada {entry_value:.2f}</text>
+          <text x="504" y="{y(stop):.1f}" fill="#fb7185" font-size="10" dominant-baseline="middle">Stop {stop:.2f}</text>
+        </svg>
+        """
+
+    def _terminal_chart_card(symbol: str, timeframe_label: str) -> str:
+        row = _terminal_row_for_symbol(symbol)
+        live_symbol = roxy_stock_live_symbol_attr(symbol)
+        price_value = safe_float(row.get("current_price") or row.get("price") or row.get("last_price") or trade_plan.get("entry"))
+        change = roxy_actions_change_pct(row)
+        return f"""
+        <article class="terminal-chart-card">
+          <header>
+            <div><strong>{html.escape(symbol)} · {html.escape(timeframe_label)}</strong><span>NASDAQ</span></div>
+            <nav><span>{html.escape(timeframe_label)}</span><i class="material-symbols-outlined">candlestick_chart</i><i class="material-symbols-outlined">more_horiz</i></nav>
+          </header>
+          <div class="terminal-chart-stats">
+            <span>O <b data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(live_symbol)}" data-roxy-price="{html.escape(str(price_value or ''))}">{html.escape(price_display(price_value))}</b></span>
+            <span>H <b>{html.escape(price_display((price_value or 0) * 1.001))}</b></span>
+            <span>L <b>{html.escape(price_display((price_value or 0) * .997))}</b></span>
+            <span>C <b data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(live_symbol)}" data-roxy-price="{html.escape(str(price_value or ''))}">{html.escape(price_display(price_value))}</b></span>
+            <em data-roxy-stock-change data-roxy-stock-symbol="{html.escape(live_symbol)}">{html.escape(pct_display(change) if change is not None else 'live')}</em>
+          </div>
+          <div class="terminal-chart-wrap">{_terminal_chart_svg(symbol, timeframe_label, row)}</div>
+          <footer><span>1D</span><span>5D</span><span>1M</span><span>3M</span><span>6M</span><span>YTD</span><span>1Y</span><b>{html.escape(datetime.now().strftime('%I:%M:%S').lstrip('0'))} (ET)</b><span>%</span><span>log</span><span>auto</span></footer>
+        </article>
+        """
+
+    ai_rows = sorted(rows[:8], key=_row_score, reverse=True)[:4]
+    if not ai_rows:
+        ai_rows = [selected_row]
+    ai_picks_html = "".join(
+        f"""
+        <a class="terminal-ai-pick" href="?view=Dashboard&module=acciones-operar&tab=analisis&symbol={quote(_row_symbol(row), safe='')}" target="_self">
+          {roxy_stock_icon_html(_row_symbol(row))}
+          <span><strong>{html.escape(_row_symbol(row))}</strong><small>{html.escape(text_display(row.get('name') or strategy_family_for_row(row))[:24])}</small></span>
+          <b>{int(_row_score(row))}%<small>probabilidad</small></b>
+          <em>{html.escape(_pattern_label(row)[:12])}</em>
+        </a>
+        """
+        for row in ai_rows
+    )
+    right_ai_html = f"""
+    <aside class="terminal-ai-panel">
+      <header><i class="material-symbols-outlined">hexagon</i><strong>ROXY AI</strong><span>Online</span></header>
+      <div class="terminal-ai-wave"></div>
+      <h3>¡Buenos días, Roberto!</h3>
+      <p>He analizado el mercado y encontré {len(ai_rows)} oportunidades de alta probabilidad por estrategia.</p>
+      <div>{ai_picks_html}</div>
+      <button type="button">Roxy activa por voz</button>
+    </aside>
+    """
+    chart_row_html = _terminal_chart_card(quick_symbol, "15m") + _terminal_chart_card(quick_symbol, "1h")
+    bottom_status_html = f"""
+    <section class="terminal-bottom-bar">
+      <strong>ROXY OS 2.0 <span>AI Powered Trading</span></strong>
+      <b>Total Equity <span>$125,430.50</span></b>
+      <b>Daily P&L <span class="pos">+$1,230.45</span></b>
+      <b>Win Rate <span>{terminal_avg_score:.1f}%</span></b>
+      <b>Profit Factor <span>2.34</span></b>
+      <b>Open Positions <span>3</span></b>
+      <b>Risk Level <span class="pos">BAJO</span></b>
+      <em><i class="material-symbols-outlined">cloud_done</i>Conectado</em>
+    </section>
+    """
+
+    render_roxy_stock_live_runtime()
+    render_roxy_stock_server_refresh(interval_ms=1500, symbols=live_stock_symbols[:12])
+    st.markdown(
+        f"""
+        <style id="roxy-actions-terminal-v3">
+        .roxy-actions-terminal-scroll {{
+          width: min(100%, 1548px);
+          margin: 0 auto 18px;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          padding: 4px 0 14px;
+        }}
+        .roxy-actions-terminal {{
+          width: min(1528px, calc(100vw - 18px));
+          min-height: 940px;
+          position: relative;
+          isolation: isolate;
+          display: grid;
+          grid-template-columns: 172px minmax(0, 1fr);
+          border: 1px solid rgba(68, 130, 205, .34);
+          border-radius: 18px;
+          overflow: hidden;
+          background:
+            radial-gradient(circle at 62% 0%, rgba(59,130,246,.16), transparent 31%),
+            radial-gradient(circle at 10% 24%, rgba(14,165,233,.13), transparent 34%),
+            linear-gradient(145deg, #050d18, #071727 58%, #030813);
+          box-shadow: 0 24px 76px rgba(0,0,0,.56), inset 0 1px 0 rgba(255,255,255,.05);
+          color: #dcecff;
+          font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }}
+        .roxy-actions-terminal::before {{
+          content:"";
+          position:absolute;
+          inset:0;
+          z-index:-2;
+          pointer-events:none;
+          background:
+            radial-gradient(circle at 16% 14%, rgba(125,211,252,.80) 0 1px, transparent 2px),
+            radial-gradient(circle at 74% 18%, rgba(255,255,255,.70) 0 1px, transparent 2px),
+            radial-gradient(circle at 86% 64%, rgba(96,165,250,.65) 0 1px, transparent 2px),
+            radial-gradient(circle at 38% 72%, rgba(255,255,255,.62) 0 1px, transparent 2px),
+            radial-gradient(circle at 52% 36%, rgba(34,211,238,.46) 0 1px, transparent 2px),
+            linear-gradient(115deg, transparent 0 46%, rgba(56,189,248,.08) 48%, transparent 51%),
+            linear-gradient(45deg, transparent 0 62%, rgba(168,85,247,.08) 64%, transparent 68%);
+          background-size: 280px 280px, 360px 360px, 430px 430px, 510px 510px, 600px 600px, 100% 100%, 100% 100%;
+          animation: roxy-actions-star-drift 28s linear infinite;
+          opacity:.72;
+        }}
+        .roxy-actions-terminal::after {{
+          content:"";
+          position:absolute;
+          inset:-18%;
+          z-index:-1;
+          pointer-events:none;
+          background:
+            radial-gradient(ellipse at 18% 40%, rgba(14,165,233,.18), transparent 34%),
+            radial-gradient(ellipse at 82% 28%, rgba(59,130,246,.14), transparent 32%),
+            radial-gradient(ellipse at 58% 84%, rgba(168,85,247,.12), transparent 36%);
+          filter: blur(2px);
+          animation: roxy-actions-nebula-breathe 16s ease-in-out infinite alternate;
+        }}
+        @keyframes roxy-actions-star-drift {{
+          from {{ background-position: 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0; }}
+          to {{ background-position: 280px 220px, -360px 260px, 430px -300px, -510px -260px, 600px 340px, 0 0, 0 0; }}
+        }}
+        @keyframes roxy-actions-nebula-breathe {{
+          from {{ transform: translate3d(-1.5%, -1%, 0) scale(1); opacity:.68; }}
+          to {{ transform: translate3d(1.5%, 1%, 0) scale(1.04); opacity:.9; }}
+        }}
+        .roxy-actions-terminal * {{ box-sizing: border-box; }}
+        .roxy-actions-left {{
+          position: relative;
+          z-index: 1;
+          padding: 20px 12px;
+          border-right: 1px solid rgba(69, 123, 192, .24);
+          background: linear-gradient(180deg, rgba(5,14,27,.94), rgba(4,10,20,.92));
+        }}
+        .roxy-actions-logo {{ display:flex; gap:9px; align-items:center; color:#65c7ff; margin-bottom:22px; }}
+        .roxy-actions-logo i {{ font-size: 30px; transform: rotate(-22deg); filter: drop-shadow(0 0 12px rgba(56,189,248,.65)); }}
+        .roxy-actions-logo strong {{ display:block; color:#64c8ff; font-size:24px; line-height:.9; letter-spacing:.03em; }}
+        .roxy-actions-logo span {{ display:block; color:#9ec9ee; font-size:9px; text-transform:uppercase; letter-spacing:.13em; }}
+        .roxy-actions-profile {{ text-align:center; padding:10px 6px 14px; border-bottom:1px solid rgba(89,139,205,.18); margin-bottom:10px; }}
+        .roxy-actions-profile .roxy-avatar {{ margin:auto; transform:scale(1.32); }}
+        .roxy-actions-profile strong {{ display:block; margin-top:14px; color:#fff; font-size:13px; }}
+        .roxy-actions-profile small {{ display:block; color:#98bde5; font-size:10px; }}
+        .roxy-actions-xp {{ height:7px; border-radius:999px; background:#0b1c31; margin:9px 6px 3px; overflow:hidden; }}
+        .roxy-actions-xp b {{ display:block; width:68%; height:100%; border-radius:inherit; background:linear-gradient(90deg,#2563eb,#38bdf8); }}
+        .roxy-actions-nav a {{
+          display:flex; align-items:center; gap:9px; min-height:34px; padding:8px 8px; margin:4px 0;
+          border-radius:10px; color:#afc7e4; text-decoration:none; font-size:12px;
+        }}
+        .roxy-actions-nav a.active {{ background:rgba(37,99,235,.28); color:#fff; box-shadow:inset 3px 0 0 #2ea8ff; }}
+        .roxy-actions-nav i {{ font-size:15px; color:#91c7ff; }}
+        .roxy-actions-atom {{ margin-top:18px; padding:10px 8px; border:1px solid rgba(59,130,246,.22); border-radius:12px; background:rgba(7,20,38,.72); }}
+        .roxy-actions-atom strong {{ display:block; color:#dbeafe; font-size:11px; }}
+        .roxy-actions-atom span {{ color:#7dd3fc; font-size:9px; }}
+        .roxy-actions-main-terminal {{ padding:18px 18px 14px; min-width:0; }}
+        .roxy-actions-main-terminal {{ position: relative; z-index: 1; }}
+        .roxy-actions-header {{ display:flex; justify-content:space-between; gap:12px; align-items:flex-start; padding-bottom:12px; border-bottom:1px solid rgba(68,111,168,.23); }}
+        .roxy-actions-title strong {{ display:block; color:#fff; font-size:27px; letter-spacing:.02em; }}
+        .roxy-actions-title span {{ display:block; color:#9fb8d8; font-size:13px; margin-top:3px; }}
+        .roxy-actions-tools {{ display:flex; align-items:center; gap:10px; }}
+        .roxy-search {{
+          width:320px; height:38px; border-radius:11px; border:1px solid rgba(88,135,196,.2);
+          background:rgba(3,10,23,.58); color:#7b98bd; display:flex; align-items:center; gap:8px;
+          padding:0 10px; font-size:11px;
+        }}
+        .roxy-search input {{
+          width:100%; border:0; outline:0; background:transparent; color:#eaf6ff; font:inherit;
+        }}
+        .roxy-search input::placeholder {{ color:#6f89ab; }}
+        .roxy-actions-tools .material-symbols-outlined {{ color:#9ac7ff; font-size:19px; }}
+        .roxy-r-mini {{ display:grid; place-items:center; width:28px; height:28px; border-radius:50%; background:#133e88; color:#fff; font-weight:900; box-shadow:0 0 18px rgba(59,130,246,.45); }}
+        .actions-tabs {{ display:flex; gap:14px; padding:13px 0; border-bottom:1px solid rgba(67,112,175,.16); margin-bottom:13px; }}
+        .actions-tabs a {{ color:#91aaca; text-decoration:none; font-size:12px; padding:9px 15px; border-radius:9px; }}
+        .actions-tabs a.active {{ color:#fff; background:rgba(37,99,235,.32); }}
+        .terminal-top-strip {{
+          display:grid;
+          grid-template-columns: repeat(8, minmax(0, 1fr));
+          gap:9px;
+          margin:0 0 13px;
+        }}
+        .terminal-quote-card {{
+          min-height:70px;
+          position:relative;
+          overflow:hidden;
+          border:1px solid rgba(68,120,190,.28);
+          border-radius:8px;
+          background:linear-gradient(180deg, rgba(8,23,43,.90), rgba(3,11,24,.94));
+          padding:10px 12px;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+        }}
+        .terminal-quote-card span {{
+          display:block;
+          color:#d7eaff;
+          font-size:10px;
+          text-transform:uppercase;
+          letter-spacing:.06em;
+          font-weight:900;
+        }}
+        .terminal-quote-card strong {{
+          display:block;
+          margin-top:6px;
+          color:#fff;
+          font-size:17px;
+          line-height:1;
+          font-weight:950;
+        }}
+        .terminal-quote-card em {{
+          display:block;
+          color:#22c55e;
+          font-style:normal;
+          font-size:12px;
+          margin-top:4px;
+          font-weight:900;
+        }}
+        .terminal-quote-card.down em {{ color:#ef4444; }}
+        .terminal-quote-card .roxy-actions-sparkline {{
+          position:absolute;
+          right:7px;
+          bottom:7px;
+          width:72px;
+          height:34px;
+          opacity:.95;
+        }}
+        .terminal-quote-card.gauge b {{
+          position:absolute;
+          left:12px;
+          right:12px;
+          bottom:9px;
+          height:4px;
+          border-radius:999px;
+          background:linear-gradient(90deg,#22c55e var(--gauge), rgba(148,163,184,.24) 0);
+        }}
+        .terminal-chart-row {{
+          display:grid;
+          grid-template-columns:minmax(0,1fr) minmax(0,1fr) 292px;
+          gap:13px;
+          margin-bottom:13px;
+        }}
+        .terminal-chart-card,
+        .terminal-ai-panel {{
+          border:1px solid rgba(68,120,190,.27);
+          border-radius:10px;
+          background:linear-gradient(180deg, rgba(5,18,34,.90), rgba(3,10,23,.96));
+          padding:12px;
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.04), 0 14px 34px rgba(0,0,0,.20);
+        }}
+        .terminal-chart-card header {{
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          gap:10px;
+          margin-bottom:7px;
+        }}
+        .terminal-chart-card header strong {{ color:#fff; font-size:18px; letter-spacing:.03em; }}
+        .terminal-chart-card header span {{ color:#8aa8ca; font-size:12px; margin-left:5px; }}
+        .terminal-chart-card nav {{ display:flex; gap:6px; align-items:center; }}
+        .terminal-chart-card nav span,
+        .terminal-chart-card nav i {{
+          border:1px solid rgba(84,130,190,.24);
+          border-radius:7px;
+          padding:5px 8px;
+          color:#b7d6f7;
+          font-size:12px;
+          font-style:normal;
+        }}
+        .terminal-chart-card nav i {{ font-size:17px; padding:4px 6px; }}
+        .terminal-chart-stats {{
+          display:flex;
+          gap:10px;
+          align-items:center;
+          color:#8bb2d7;
+          font-size:11px;
+          margin:0 0 6px;
+          white-space:nowrap;
+        }}
+        .terminal-chart-stats b {{ color:#22c55e; font-weight:900; }}
+        .terminal-chart-stats em {{ margin-left:auto; color:#22c55e; font-style:normal; font-weight:900; }}
+        .terminal-chart-wrap {{ min-height:300px; overflow:hidden; border-radius:10px; }}
+        .terminal-chart-svg {{ width:100%; height:300px; display:block; }}
+        .terminal-chart-card footer {{
+          display:flex;
+          align-items:center;
+          gap:12px;
+          color:#97b6d6;
+          font-size:12px;
+          border-top:1px solid rgba(68,120,190,.16);
+          padding-top:8px;
+        }}
+        .terminal-chart-card footer b {{ margin-left:auto; color:#d8edff; font-weight:600; }}
+        .terminal-ai-panel header {{ display:flex; align-items:center; gap:8px; }}
+        .terminal-ai-panel header i {{ color:#60a5fa; }}
+        .terminal-ai-panel header strong {{ color:#fff; }}
+        .terminal-ai-panel header span {{
+          margin-left:auto;
+          color:#22c55e;
+          font-size:10px;
+          text-transform:uppercase;
+          font-weight:900;
+        }}
+        .terminal-ai-wave {{
+          height:30px;
+          margin:10px 0;
+          background:
+            radial-gradient(circle at 0 50%, #38bdf8 0 2px, transparent 3px),
+            linear-gradient(90deg, transparent, rgba(56,189,248,.55), transparent);
+          mask: repeating-linear-gradient(90deg, #000 0 2px, transparent 2px 8px);
+          opacity:.95;
+          animation: ai-wave-drift 2.6s linear infinite;
+        }}
+        @keyframes ai-wave-drift {{ to {{ transform:translateX(12px); }} }}
+        .terminal-ai-panel h3 {{ margin:8px 0 6px; color:#fff; font-size:18px; }}
+        .terminal-ai-panel p {{ color:#a8bdd7; font-size:12px; line-height:1.45; margin:0 0 8px; }}
+        .terminal-ai-pick {{
+          display:grid;
+          grid-template-columns:34px 1fr auto auto;
+          gap:8px;
+          align-items:center;
+          min-height:52px;
+          padding:7px 0;
+          border-bottom:1px solid rgba(68,120,190,.15);
+          color:#dcecff;
+          text-decoration:none;
+        }}
+        .terminal-ai-pick strong {{ display:block; color:#fff; font-size:13px; }}
+        .terminal-ai-pick small {{ display:block; color:#879eba; font-size:9px; margin-top:2px; }}
+        .terminal-ai-pick b {{ color:#22c55e; text-align:right; font-size:15px; }}
+        .terminal-ai-pick b small {{ color:#879eba; font-size:7px; text-transform:uppercase; }}
+        .terminal-ai-pick em {{ color:#22c55e; font-style:normal; font-size:9px; text-transform:uppercase; font-weight:900; }}
+        .terminal-ai-panel button {{
+          width:100%;
+          margin-top:10px;
+          height:38px;
+          border:0;
+          border-radius:7px;
+          background:linear-gradient(90deg,#3b21bb,#6d38ff);
+          color:#fff;
+          font-weight:950;
+        }}
+        .terminal-grid {{
+          display:grid; grid-template-columns:1.05fr 1.45fr 1.05fr; gap:13px;
+          grid-template-areas:
+            "scanner map movers"
+            "futures forex news"
+            "quick alerts watch";
+        }}
+        .terminal-card {{
+          border:1px solid rgba(68,120,190,.24);
+          border-radius:13px;
+          background:linear-gradient(180deg, rgba(8,21,39,.82), rgba(5,14,29,.91));
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.035), 0 10px 30px rgba(0,0,0,.18);
+          padding:13px;
+          min-height:165px;
+        }}
+        .terminal-card header {{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }}
+        .terminal-card header strong {{ color:#dff3ff; font-size:12px; letter-spacing:.1em; text-transform:uppercase; }}
+        .terminal-card header small {{ color:#6e93ba; font-size:9px; }}
+        .scanner-card {{ grid-area:scanner; min-height:244px; }}
+        .map-card {{ grid-area:map; min-height:244px; }}
+        .movers-card {{ grid-area:movers; min-height:244px; }}
+        .futures-card {{ grid-area:futures; }}
+        .forex-card {{ grid-area:forex; }}
+        .news-card {{ grid-area:news; }}
+        .quick-card {{ grid-area:quick; }}
+        .alerts-card {{ grid-area:alerts; }}
+        .watch-card {{ grid-area:watch; }}
+        .finviz-minihead {{
+          display:grid; grid-template-columns:86px 1fr; gap:10px; padding:0 2px 7px;
+          color:#6f91b6; font-size:9px; text-transform:uppercase; letter-spacing:.12em; font-weight:900;
+        }}
+        .finviz-signal-line {{
+          display:grid; grid-template-columns:86px 1fr; gap:10px; align-items:center; text-decoration:none;
+          padding:5px 2px; border-bottom:1px solid rgba(65,105,160,.12); min-height:27px;
+        }}
+        .finviz-tickers {{ color:#5fb7ff; font-size:12px; letter-spacing:.04em; word-spacing:5px; }}
+        .finviz-pattern {{ color:#9db8d7; font-size:11px; display:flex; align-items:center; gap:5px; }}
+        .finviz-pattern i {{ width:16px; height:10px; border-left:3px solid #63b3ff; border-bottom:3px solid #ff6ca8; transform:skew(-28deg); display:inline-block; opacity:.95; }}
+        .market-map {{ display:grid; grid-template-columns:repeat(16, 1fr); grid-auto-rows:23px; gap:3px; height:187px; }}
+        .market-tile {{ text-decoration:none; color:#eaf8ff; border-radius:3px; padding:4px; overflow:hidden; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; }}
+        .market-tile.xl {{ grid-column:span 4; grid-row:span 3; }}
+        .market-tile.md {{ grid-column:span 3; grid-row:span 2; }}
+        .market-tile.sm {{ grid-column:span 2; grid-row:span 1; }}
+        .market-tile.xs {{ grid-column:span 1; grid-row:span 1; }}
+        .market-tile.up {{ background:linear-gradient(135deg, #0f7b43, #174e31); }}
+        .market-tile.down {{ background:linear-gradient(135deg, #8b2731, #4c1c26); }}
+        .market-tile strong {{ font-size:19px; line-height:1; }}
+        .market-tile span {{ font-size:12px; }}
+        .market-tile em {{ font-style:normal; font-size:9px; opacity:.75; }}
+        .terminal-cta {{
+          display:grid; place-items:center; min-height:30px; margin-top:10px; border-radius:8px;
+          background:linear-gradient(180deg, rgba(28,82,168,.55), rgba(9,27,58,.72));
+          border:1px solid rgba(96,165,250,.18); color:#a8dbff; text-decoration:none;
+          font-size:10px; font-weight:900; letter-spacing:.03em;
+        }}
+        .terminal-cta:hover {{ color:#fff; border-color:rgba(125,211,252,.38); box-shadow:0 0 18px rgba(37,99,235,.20); }}
+        .movers-list a, .mini-market-table a, .news-list a, .watch-list a, .alerts-list a {{
+          display:grid; align-items:center; grid-template-columns:1fr auto auto auto; gap:8px;
+          min-height:29px; border-bottom:1px solid rgba(65,105,160,.12); color:#cfe9ff; text-decoration:none; font-size:12px;
+        }}
+        .movers-list b, .mini-market-table b {{ color:#7cc9ff; font-size:12px; }}
+        .movers-list em, .mini-market-table .pos, .news-list i {{ color:#22c55e; font-style:normal; }}
+        .movers-list em[data-roxy-stock-change*="-"], .mini-market-table .neg {{ color:#fb7185; }}
+        .mini-market-table a {{ grid-template-columns:1fr auto auto auto; }}
+        .news-list a {{ grid-template-columns:12px 1fr auto; min-height:31px; }}
+        .news-list i {{ width:9px; height:9px; border-radius:50%; background:#22c55e; display:block; }}
+        .news-list span {{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
+        .news-list em, .watch-list b, .alerts-list em {{ color:#86a7c9; font-style:normal; font-size:10px; }}
+        .quick-analysis {{ display:grid; grid-template-columns:1fr 136px; gap:12px; align-items:center; }}
+        .quick-analysis h4 {{ margin:0; color:#fff; font-size:13px; }}
+        .quick-analysis .quick-price {{ font-size:24px; color:#f8fbff; font-weight:900; }}
+        .quick-analysis .quick-price small {{ display:inline; color:#22c55e; font-size:13px; margin-left:6px; }}
+        .quick-levels {{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:8px; }}
+        .quick-levels b {{ display:block; border-radius:8px; padding:6px; background:rgba(15,31,55,.75); color:#a7d8ff; font-size:9px; text-transform:uppercase; }}
+        .quick-levels span {{ display:block; color:#fff; font-size:11px; margin-top:2px; }}
+        .roxy-actions-sparkline {{ width:136px; height:84px; }}
+        .alerts-list a {{ grid-template-columns:20px 1fr auto; }}
+        .alerts-list i {{ color:#fb7185; font-size:16px; }}
+        .watch-list a {{ grid-template-columns:1fr auto; }}
+        .feature-strip {{ margin-top:13px; display:grid; grid-template-columns:repeat(5,1fr); gap:11px; }}
+        .feature-strip article {{ display:flex; gap:10px; align-items:center; min-height:66px; border:1px solid rgba(68,120,190,.22); border-radius:13px; padding:12px; background:rgba(7,18,34,.84); }}
+        .feature-strip i {{ font-size:22px; color:#52c7ff; }}
+        .feature-strip strong {{ display:block; color:#e8f6ff; font-size:11px; }}
+        .feature-strip span {{ display:block; color:#8ca8c8; font-size:10px; margin-top:2px; }}
+        .strategy-terminal-section {{ margin-top:14px; border:1px solid rgba(68,120,190,.24); border-radius:15px; padding:14px; background:rgba(5,14,28,.82); }}
+        .strategy-terminal-section header {{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }}
+        .strategy-terminal-section header strong {{ color:#f8fbff; text-transform:uppercase; letter-spacing:.1em; font-size:12px; }}
+        .strategy-grid {{ display:grid; grid-template-columns:repeat(4,1fr); gap:11px; }}
+        .strategy-card {{ border:1px solid rgba(81,133,200,.22); border-radius:12px; padding:10px; background:linear-gradient(180deg, rgba(7,19,38,.9), rgba(5,12,25,.94)); }}
+        .strategy-card header {{ display:grid; grid-template-columns:1fr auto; gap:4px; margin:0 0 7px; }}
+        .strategy-card header span {{ grid-column:1 / 3; color:#76c8ff; font-size:10px; letter-spacing:.08em; text-transform:uppercase; }}
+        .strategy-card header strong {{ color:#fff; font-size:17px; }}
+        .strategy-card header em {{ color:#22c55e; font-style:normal; font-size:11px; }}
+        .strategy-card p {{ min-height:44px; color:#adc4df; font-size:10px; line-height:1.35; margin:0 0 8px; }}
+        .strategy-card dl {{ display:grid; grid-template-columns:repeat(2,1fr); gap:5px; margin:0; }}
+        .strategy-card dt {{ color:#77c7ff; font-size:8px; text-transform:uppercase; }}
+        .strategy-card dd {{ margin:1px 0 0; color:#fff; font-size:10px; }}
+        .strategy-card a {{ display:block; margin-top:8px; text-align:center; text-decoration:none; color:#dff3ff; background:#123b81; border-radius:8px; padding:7px; font-size:10px; }}
+        .terminal-bottom-bar {{
+          margin-top:13px;
+          display:grid;
+          grid-template-columns:1.7fr repeat(6,1fr) 1.15fr;
+          gap:10px;
+          align-items:center;
+          border:1px solid rgba(68,120,190,.25);
+          border-radius:10px;
+          background:rgba(4,13,25,.92);
+          padding:12px;
+          color:#9eb9d6;
+        }}
+        .terminal-bottom-bar strong {{ color:#fff; font-size:14px; }}
+        .terminal-bottom-bar strong span,
+        .terminal-bottom-bar b {{
+          display:block;
+          font-size:10px;
+          color:#8fa9c7;
+          text-transform:uppercase;
+          font-weight:700;
+        }}
+        .terminal-bottom-bar b span {{
+          display:block;
+          color:#f8fbff;
+          font-size:13px;
+          margin-top:3px;
+          text-transform:none;
+          font-weight:900;
+        }}
+        .terminal-bottom-bar .pos,
+        .terminal-bottom-bar em {{ color:#22c55e; }}
+        .terminal-bottom-bar em {{
+          display:flex;
+          align-items:center;
+          gap:6px;
+          justify-content:flex-end;
+          text-transform:uppercase;
+          font-size:11px;
+          font-style:normal;
+          font-weight:900;
+        }}
+        @media (max-width: 900px) {{
+          .roxy-actions-terminal-scroll {{ width:100%; }}
+          .roxy-actions-terminal {{ width:1240px; }}
+          .terminal-top-strip {{ grid-template-columns: repeat(8, 140px); }}
+          .terminal-chart-row {{ grid-template-columns:420px 420px 280px; }}
+        }}
+        </style>
+        <div class="roxy-actions-terminal-scroll">
+          <section class="roxy-actions-terminal">
+            <aside class="roxy-actions-left">
+              <div class="roxy-actions-logo"><i class="material-symbols-outlined">rocket_launch</i><div><strong>ROXY</strong><span>AI Trading</span></div></div>
+              <div class="roxy-actions-profile">{roxy_avatar_html("ready")}<strong>Guardian Novato</strong><small>Nivel 12</small><div class="roxy-actions-xp"><b></b></div><small>3,450 / 5,000 XP</small></div>
+              <nav class="roxy-actions-nav">{sidebar_html}</nav>
+              <div class="roxy-actions-atom"><strong>ATOM</strong><span>Asistente IA</span></div>
+            </aside>
+            <main class="roxy-actions-main-terminal">
+              <header class="roxy-actions-header">
+                <div class="roxy-actions-title"><strong>ACCIONES</strong><span>Análisis completo del mercado accionario</span></div>
+                <div class="roxy-actions-tools"><form class="roxy-search" method="get"><input type="hidden" name="view" value="Dashboard"><input type="hidden" name="module" value="acciones-operar"><input type="hidden" name="tab" value="analisis"><i class="material-symbols-outlined">search</i><input name="symbol" placeholder="Buscar acción, sector, industria..." value=""></form><i class="material-symbols-outlined">star</i><i class="material-symbols-outlined">notifications</i><span class="roxy-r-mini">R</span></div>
+              </header>
+              <nav class="actions-tabs">
+                <a href="?view=Dashboard&module=acciones-operar&tab=resumen" target="_self">Resumen</a>
+                <a class="active" href="?view=Dashboard&module=acciones-operar&tab=escaner" target="_self">Escáner</a>
+                <a href="?view=Dashboard&module=acciones-operar&tab=destacadas" target="_self">Destacadas</a>
+                <a href="?view=Dashboard&module=acciones-operar&tab=movers" target="_self">Movers</a>
+                <a href="?view=Dashboard&module=acciones-operar&tab=analisis" target="_self">Análisis</a>
+                <a href="?view=Dashboard&module=acciones-operar&tab=dividendos" target="_self">Dividendos</a>
+                <a href="?view=Dashboard&module=acciones-operar&tab=reportes" target="_self">Reportes</a>
+                <a href="?view=Dashboard&module=acciones-operar&tab=estrategias" target="_self">Más</a>
+              </nav>
+              <section class="terminal-top-strip">{top_strip_html}</section>
+              <section class="terminal-chart-row">{chart_row_html}{right_ai_html}</section>
+              <section class="terminal-grid">
+                <article class="terminal-card scanner-card"><header><strong>Escáner Finviz</strong><small>live</small></header><div class="finviz-minihead"><span>Tickers</span><span>Signal</span></div><div>{scanner_html}</div><a class="terminal-cta" href="?view=Dashboard&module=acciones-operar&tab=estrategias" target="_self">Ver Escáner Completo</a></article>
+                <article class="terminal-card map-card"><header><strong>Mapa de Mercado</strong><small>Índice: S&P 500</small></header><div class="market-map">{''.join(heat_tiles)}</div><a class="terminal-cta">Ver Mapa Completo</a></article>
+                <article class="terminal-card movers-card"><header><strong>Movers del Día</strong><small>Ganadores</small></header><div class="movers-list">{movers_html}</div><a class="terminal-cta">Ver Todos</a></article>
+                <article class="terminal-card futures-card"><header><strong>Futuros</strong><small>macro</small></header><div class="mini-market-table">{_mini_market_table(futures_items)}</div></article>
+                <article class="terminal-card forex-card"><header><strong>Forex & Bonds</strong><small>macro</small></header><div class="mini-market-table">{_mini_market_table(forex_items)}</div></article>
+                <article class="terminal-card news-card"><header><strong>Noticias Relevantes</strong><small>Finviz</small></header><div class="news-list">{news_html}</div><a class="terminal-cta">Ver Más Noticias</a></article>
+                <article class="terminal-card quick-card"><header><strong>Análisis Rápido</strong><small>{html.escape(quick_symbol)}</small></header><div class="quick-analysis"><div><h4>{html.escape(quick_symbol)} · {html.escape(text_display(selected_row.get('name') or 'Apple Inc.'))}</h4><div class="quick-price"><span data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(quick_live_symbol)}" data-roxy-price="{html.escape(str(quick_price_value or ''))}">{html.escape(price_display(quick_price_value))}</span><small data-roxy-stock-change data-roxy-stock-symbol="{html.escape(quick_live_symbol)}">{html.escape(pct_display(quick_change) if quick_change is not None else 'live')}</small></div><div class="quick-levels"><b>Entrada<span>{html.escape(quick_entry)}</span></b><b>Stop<span>{html.escape(quick_stop)}</span></b><b>Target<span>{html.escape(quick_target)}</span></b></div></div>{roxy_actions_sparkline_svg(quick_symbol, selected_market)}</div><a class="terminal-cta" href="?view=Dashboard&module=acciones-operar&tab=analisis&symbol={quote(quick_symbol, safe='')}" target="_self">Ver Análisis Completo</a></article>
+                <article class="terminal-card alerts-card"><header><strong>Alertas Activas</strong><small>Roxy</small></header><div class="alerts-list">{alert_html}</div><a class="terminal-cta">Ver Todas las Alertas</a></article>
+                <article class="terminal-card watch-card"><header><strong>Tus Watchlists</strong><small>acciones</small></header><div class="watch-list">{watchlist_html}</div><a class="terminal-cta">Ir a Watchlists</a></article>
+              </section>
+              <section class="feature-strip">
+                <article><i class="material-symbols-outlined">manage_search</i><div><strong>Escáner Avanzado</strong><span>Filtra acciones como Finviz</span></div></article>
+                <article><i class="material-symbols-outlined">bar_chart</i><div><strong>Gráficos Profesionales</strong><span>TradingView integrado</span></div></article>
+                <article><i class="material-symbols-outlined">speed</i><div><strong>Datos en Tiempo Real</strong><span>Precios y volumen al instante</span></div></article>
+                <article><i class="material-symbols-outlined">hotel_class</i><div><strong>Señales Roxy AI</strong><span>Señales inteligentes</span></div></article>
+                <article><i class="material-symbols-outlined">query_stats</i><div><strong>Análisis Fundamental</strong><span>Finviz + Roxy AI</span></div></article>
+              </section>
+              <section class="strategy-terminal-section" style="display:{'block' if show_strategy_sections else 'none'}">
+                <header><strong>Mejores oportunidades por estrategia</strong><small>Roxy separa cada setup para no mezclar señales</small></header>
+                <div class="strategy-grid">{strategies_html}</div>
+              </section>
+              {bottom_status_html}
+            </main>
+          </section>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     rows = [roxy_enrich_stock_row_with_live_plan(row) for row in roxy_asset_rows_for_market(table, "stock", limit=12)]
     requested_symbol = roxy_manual_stock_symbol(first_query_param_value(st.query_params, "symbol"))
@@ -39604,6 +40625,92 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     )
     if not selected_symbol:
         return
+    action, tone = roxy_row_recommendation(selected_row)
+    resolved_symbol = resolve_symbol_query(selected_symbol, selected_market)
+    trade_plan = roxy_trade_plan_from_row(
+        selected_row,
+        symbol=resolved_symbol,
+        market=selected_market,
+        timeframe=selected_timeframe,
+        action=action,
+    )
+    live_stock_symbols: list[str] = []
+    for row in rows[:12]:
+        live_symbol = roxy_stock_live_symbol_attr(row.get("symbol"))
+        if live_symbol and live_symbol not in live_stock_symbols:
+            live_stock_symbols.append(live_symbol)
+    selected_live_stock_symbol = roxy_stock_live_symbol_attr(selected_symbol)
+    if selected_live_stock_symbol and selected_live_stock_symbol not in live_stock_symbols:
+        live_stock_symbols.insert(0, selected_live_stock_symbol)
+    render_roxy_stock_server_refresh(interval_ms=1500, symbols=live_stock_symbols[:10])
+
+    actions_tab = text_display(first_query_param_value(st.query_params, "tab") or "escaner").strip().lower()
+    chart_tabs = {"analisis", "analysis", "charts", "grafica", "graficas"}
+    strategy_tabs = {
+        "estrategias",
+        "strategy",
+        "strategies",
+        "scanner-completo",
+        "estrategias-finviz",
+        "finviz-estrategias",
+        "patterns",
+        "patrones",
+        "setups",
+        "finviz-setups",
+    }
+    overview_tabs = {
+        "",
+        "resumen",
+        "overview",
+        "escaner",
+        "scanner",
+        "escaneo",
+        "finviz",
+        "scanner-finviz",
+        "acciones",
+        "accion",
+        "stocks",
+        "stock",
+        "mercado",
+        "market",
+        "mapa",
+        "destacadas",
+        "movers",
+        "noticias",
+        "futuros",
+        "forex",
+        "bonds",
+        "alertas",
+        "watchlists",
+        "dividendos",
+        "reportes",
+        "mas",
+    }
+    if first_query_param_value(st.query_params, "more") and actions_tab not in chart_tabs:
+        actions_tab = "estrategias"
+
+    def render_actions_reference_terminal_deploy(*, show_strategy_sections: bool = False) -> None:
+        render_roxy_actions_reference_market_terminal(
+            rows,
+            selected_row=selected_row,
+            selected_symbol=selected_symbol,
+            selected_market=selected_market,
+            selected_timeframe=selected_timeframe,
+            trade_plan=trade_plan,
+            live_stock_symbols=live_stock_symbols,
+            show_strategy_sections=show_strategy_sections,
+        )
+
+    if actions_tab in strategy_tabs:
+        render_actions_reference_terminal_deploy(show_strategy_sections=True)
+        render_finviz_pattern_strategy_board(limit=24)
+        render_roxy_strategy_split_board(rows, limit=12)
+        return
+
+    if actions_tab in overview_tabs or actions_tab not in chart_tabs:
+        render_actions_reference_terminal_deploy(show_strategy_sections=True)
+        return
+
     render_roxy_actions_symbol_search(selected_symbol)
     action, tone = roxy_row_recommendation(selected_row)
     resolved_symbol = resolve_symbol_query(selected_symbol, selected_market)
