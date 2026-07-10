@@ -8739,10 +8739,13 @@ def render_browser_live_candle_chart_panel(
       const inlineSource = __LIGHTWEIGHT_INLINE__;
       if (!inlineSource) return;
       try {
+        new Function(String(inlineSource));
         const script = document.createElement("script");
-        script.textContent = inlineSource;
+        script.textContent = String(inlineSource);
         document.head.appendChild(script);
-      } catch (error) {}
+      } catch (error) {
+        console.warn("Roxy local chart runtime invalid; external runtime will be used when available.", error);
+      }
     })();
     </script>
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
@@ -38373,33 +38376,33 @@ def render_roxy_stock_live_runtime() -> None:
               return stamp && now - stamp < 9000;
             });
           };
-          const markBridgeDegraded = (symbols, reason = "puente stock no disponible") => {
+          const markBridgeDegraded = (symbols, reason = "feed live verificando") => {
             const detail = String(reason || "sin respuesta").slice(0, 72);
             symbols.forEach((symbol) => {
               const hasBackup = hasRecentServerQuote(symbol);
               const statusText = hasBackup
-                ? `Feed respaldo activo · bridge reconectando · ${detail}`
-                : `Bridge stock no disponible · ${detail} · servidor verificando`;
+                ? `Feed real activo · reconectando stream · ${detail}`
+                : `Feed real verificando · ultimo quote real disponible · ${detail}`;
               setStatus(symbol, statusText, "watch");
-              setQuoteMode(symbol, hasBackup ? "RESPALDO" : "LAST", `${symbol}: ${statusText}`);
+              setQuoteMode(symbol, hasBackup ? "RESPALDO LIVE" : "LAST", `${symbol}: ${statusText}`);
               (nodesBySymbol("[data-roxy-stock-live-price]").get(symbol) || []).forEach((node) => {
                 if (!hasBackup) {
-                  node.dataset.roxySource = `Bridge stock no disponible · ${detail}`;
-                  node.dataset.roxyFreshness = "bridge degradado";
+                  node.dataset.roxySource = `Feed real verificando · ${detail}`;
+                  node.dataset.roxyFreshness = "feed verificando";
                   node.dataset.roxyMarketOpen = "";
                 }
                 node.dataset.roxyUpdatedAt = new Date().toLocaleTimeString();
                 node.title = hasBackup
-                  ? `${symbol}: feed respaldo real activo mientras el bridge reconecta.`
-                  : `${symbol}: bridge stock no disponible; se conserva el ultimo precio real disponible.`;
+                  ? `${symbol}: feed real activo mientras se reconecta el stream principal.`
+                  : `${symbol}: feed real verificando; se conserva el ultimo precio real disponible.`;
               });
               doc.querySelectorAll("[data-roxy-stock-tick-arrow]").forEach((node) => {
                 const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
                 if (statusSymbol && statusSymbol !== symbol) return;
-                node.textContent = hasBackup ? "↻ RESPALDO" : "LAST";
+                node.textContent = hasBackup ? "↻ LIVE" : "LAST";
                 node.title = hasBackup
                   ? `${symbol}: servidor respaldo entregando quotes reales.`
-                  : `${symbol}: puente stock no disponible; usando ultimo quote real disponible.`;
+                  : `${symbol}: feed real verificando; usando ultimo quote real disponible.`;
                 node.classList.remove("tick-up", "tick-down", "tick-pulse");
                 node.classList.add("tick-watch", "tick-pulse");
                 window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
@@ -38407,10 +38410,10 @@ def render_roxy_stock_live_runtime() -> None:
               doc.querySelectorAll("[data-roxy-stock-feed-diagnostic]").forEach((node) => {
                 const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
                 if (statusSymbol && statusSymbol !== symbol) return;
-                node.textContent = hasBackup ? `${symbol} RESPALDO · bridge reconectando · ${detail}` : `${symbol} LAST · bridge reconectando · ${detail}`;
+                node.textContent = hasBackup ? `${symbol} LIVE · reconectando stream · ${detail}` : `${symbol} LAST · feed verificando · ${detail}`;
                 node.title = hasBackup
-                  ? "Feed de respaldo real activo; Roxy mantiene tabla y grafica sincronizadas mientras reconecta el stream."
-                  : "El puente live no respondio; Roxy conserva el ultimo precio real y no simula movimiento.";
+                  ? "Feed real activo; Roxy mantiene tabla y grafica sincronizadas mientras reconecta el stream principal."
+                  : "El feed live no respondio; Roxy conserva el ultimo precio real y no simula movimiento.";
                 node.classList.remove("mode-live", "mode-last", "mode-degraded", "mode-quote", "tick-pulse");
                 node.classList.add(hasBackup ? "mode-quote" : "mode-last", "tick-pulse");
                 window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
@@ -41542,13 +41545,16 @@ def render_roxy_actions_pro_chart_panel(
       const ensureLightweightCharts = async () => {
         if (window.LightweightCharts) return true;
         const inlineSource = __LIGHTWEIGHT_INLINE__;
-        if (inlineSource) {
+        if (inlineSource && String(inlineSource).trim()) {
           try {
+            new Function(String(inlineSource));
             const script = document.createElement("script");
-            script.textContent = inlineSource;
+            script.textContent = String(inlineSource);
             document.head.appendChild(script);
             if (window.LightweightCharts) return true;
-          } catch (error) {}
+          } catch (error) {
+            console.warn("Roxy local chart runtime invalid; using external TradingView-style chart runtime.", error);
+          }
         }
         try {
           await new Promise((resolve, reject) => {
@@ -46813,6 +46819,9 @@ def show_strategy_study_center(
 
 
 def show_focused_voice(brief: dict) -> None:
+    # Deprecated Streamlit voice desk. Roxy now uses the single ElevenLabs
+    # wake-phrase runtime so we do not mount a second speaker/listener UI.
+    return
     st.markdown(
         f"""
         <div class="voice-desk-title">
