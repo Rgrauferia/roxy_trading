@@ -341,11 +341,13 @@ from tools.elevenlabs_roxy import (
 try:
     from tools.external_market_sources import (
         FINVIZ_PATTERN_STRATEGIES,
+        build_finviz_market_pulse,
         build_finviz_news_feed,
         build_finviz_pattern_strategies,
     )
 except Exception:  # pragma: no cover - optional external data module
     FINVIZ_PATTERN_STRATEGIES = {}  # type: ignore[assignment]
+    build_finviz_market_pulse = None  # type: ignore[assignment]
     build_finviz_news_feed = None  # type: ignore[assignment]
     build_finviz_pattern_strategies = None  # type: ignore[assignment]
 try:
