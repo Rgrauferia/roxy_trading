@@ -30143,6 +30143,7 @@ def load_finviz_news_feed_rows(limit: int = 24) -> list[dict[str, Any]]:
         return []
 
 
+@st.cache_data(ttl=45, show_spinner=False)
 def load_finviz_market_pulse_snapshot(limit: int = 24) -> dict[str, Any]:
     if build_finviz_market_pulse is None:
         return {}
@@ -39642,9 +39643,9 @@ def render_roxy_actions_reference_market_terminal(
             99,
         )
 
-    finviz_rows = load_finviz_pattern_strategy_rows(limit=96)
+    finviz_rows = load_finviz_pattern_strategy_rows(limit=72)
     news_rows = load_finviz_news_feed_rows(limit=10)
-    market_pulse = load_finviz_market_pulse_snapshot(limit=80)
+    market_pulse = load_finviz_market_pulse_snapshot(limit=48)
     pulse_major_rows = [dict(row) for row in (market_pulse.get("major_movers") or []) if isinstance(row, dict)]
     pulse_bullish_rows = [dict(row) for row in (market_pulse.get("bullish_watchlist") or []) if isinstance(row, dict)]
     pulse_news_rows = [dict(row) for row in (market_pulse.get("news_feed") or []) if isinstance(row, dict)]
@@ -40642,8 +40643,6 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     selected_live_stock_symbol = roxy_stock_live_symbol_attr(selected_symbol)
     if selected_live_stock_symbol and selected_live_stock_symbol not in live_stock_symbols:
         live_stock_symbols.insert(0, selected_live_stock_symbol)
-    render_roxy_stock_server_refresh(interval_ms=1500, symbols=live_stock_symbols[:10])
-
     actions_tab = text_display(first_query_param_value(st.query_params, "tab") or "escaner").strip().lower()
     chart_tabs = {"analisis", "analysis", "charts", "grafica", "graficas"}
     strategy_tabs = {
@@ -40690,16 +40689,27 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         actions_tab = "estrategias"
 
     def render_actions_reference_terminal_deploy(*, show_strategy_sections: bool = False) -> None:
-        render_roxy_actions_reference_market_terminal(
-            rows,
-            selected_row=selected_row,
-            selected_symbol=selected_symbol,
-            selected_market=selected_market,
-            selected_timeframe=selected_timeframe,
-            trade_plan=trade_plan,
-            live_stock_symbols=live_stock_symbols,
-            show_strategy_sections=show_strategy_sections,
-        )
+        try:
+            render_roxy_actions_reference_market_terminal(
+                rows,
+                selected_row=selected_row,
+                selected_symbol=selected_symbol,
+                selected_market=selected_market,
+                selected_timeframe=selected_timeframe,
+                trade_plan=trade_plan,
+                live_stock_symbols=live_stock_symbols,
+                show_strategy_sections=show_strategy_sections,
+            )
+        except Exception as exc:
+            st.warning(
+                "Roxy esta recuperando el terminal de acciones. Mientras tanto te muestro las estrategias separadas y las graficas operativas."
+            )
+            st.caption(f"Detalle tecnico: {type(exc).__name__}")
+            render_roxy_stock_live_runtime()
+            render_roxy_stock_server_refresh(interval_ms=2200, symbols=live_stock_symbols[:8])
+            render_finviz_strategy_lanes(limit_per_strategy=4)
+            render_finviz_pattern_strategy_board(limit=12)
+            render_roxy_strategy_split_board(rows, limit=8)
 
     if actions_tab in strategy_tabs:
         render_actions_reference_terminal_deploy(show_strategy_sections=True)
