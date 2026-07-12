@@ -41010,30 +41010,12 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
             )
 
     if actions_tab in strategy_tabs:
-        render_roxy_actions_folder_fast(
-            rows,
-            selected_row=selected_row,
-            selected_symbol=selected_symbol,
-            selected_market=selected_market,
-            selected_timeframe=selected_timeframe,
-            trade_plan=trade_plan,
-            live_stock_symbols=live_stock_symbols,
-            show_strategy_sections=True,
-        )
+        render_actions_reference_terminal_deploy(show_strategy_sections=True)
         render_roxy_strategy_split_board(rows, limit=12)
         return
 
     if actions_tab in overview_tabs or actions_tab not in chart_tabs:
-        render_roxy_actions_folder_fast(
-            rows,
-            selected_row=selected_row,
-            selected_symbol=selected_symbol,
-            selected_market=selected_market,
-            selected_timeframe=selected_timeframe,
-            trade_plan=trade_plan,
-            live_stock_symbols=live_stock_symbols,
-            show_strategy_sections=True,
-        )
+        render_actions_reference_terminal_deploy(show_strategy_sections=True)
         return
 
     render_roxy_actions_symbol_search(selected_symbol)
