@@ -1966,6 +1966,12 @@ def render_roxy_browser_session_bridge(active: bool = True) -> None:
           const parentWindow = window.parent || window;
           const parentDocument = parentWindow.document;
           const currentUrl = new URL(parentWindow.location.href);
+          const rememberCookie = (name, value) => {{
+            try {{
+              if (!value) return;
+              parentDocument.cookie = `${{name}}=${{encodeURIComponent(value)}}; path=/; max-age=2592000; SameSite=Lax`;
+            }} catch (error) {{}}
+          }};
           const storedToken = parentWindow.localStorage.getItem(storageKey) || "";
           const storedProfile = parentWindow.localStorage.getItem(profileStorageKey) || "";
           const parseProfile = (value) => {{
@@ -1973,9 +1979,16 @@ def render_roxy_browser_session_bridge(active: bool = True) -> None:
           }};
           const token = explicitToken || currentUrl.searchParams.get(paramKey) || storedToken;
           if (!token) return;
-          if ({active_js}) parentWindow.localStorage.setItem(storageKey, token);
+          if ({active_js}) {{
+            parentWindow.localStorage.setItem(storageKey, token);
+            rememberCookie("roxy_session", token);
+          }}
           const profile = Object.assign({{}}, parseProfile(storedProfile), explicitProfile || {{}}, {{ session_token: token }});
-          if ({active_js} && profile && (profile.username || profile.email)) parentWindow.localStorage.setItem(profileStorageKey, JSON.stringify(profile));
+          if ({active_js} && profile && (profile.username || profile.email)) {{
+            const profileJson = JSON.stringify(profile);
+            parentWindow.localStorage.setItem(profileStorageKey, profileJson);
+            rememberCookie("roxy_profile", profileJson);
+          }}
           const encodeProfile = (payload) => {{
             try {{
               const json = JSON.stringify(payload || {{}});
@@ -2029,8 +2042,17 @@ def render_roxy_session_restore_bridge() -> None:
         (() => {{
           const parentWindow = window.parent || window;
           const url = new URL(parentWindow.location.href);
-          const token = parentWindow.localStorage.getItem("{storage_key}");
-          const profile = parentWindow.localStorage.getItem("{profile_storage_key}");
+          const readCookie = (name) => {{
+            try {{
+              const escaped = name.replace(/[.*+?^${{}}()|[\\]\\\\]/g, "\\\\$&");
+              const match = parentWindow.document.cookie.match(new RegExp("(?:^|; )" + escaped + "=([^;]*)"));
+              return match ? decodeURIComponent(match[1]) : "";
+            }} catch (error) {{
+              return "";
+            }}
+          }};
+          const token = parentWindow.localStorage.getItem("{storage_key}") || readCookie("roxy_session");
+          const profile = parentWindow.localStorage.getItem("{profile_storage_key}") || readCookie("roxy_profile");
           if (!token) return;
           let changed = false;
           if (!url.searchParams.get("{param_key}")) {{
@@ -40688,18 +40710,20 @@ def render_roxy_actions_folder_fast(
         price_value = _fast_price(row)
         change_value = roxy_actions_change_pct(row)
         change_class = "up" if (change_value or 0) >= 0 else "down"
+        symbol_param = quote(symbol, safe="")
+        live_symbol = html.escape(roxy_stock_live_symbol_attr(symbol))
+        price_attr = html.escape(str(price_value or ""))
+        change_text = pct_display(change_value) if change_value is not None else "live"
         scanner_rows.append(
-            f"""
-            <a class="rx-fast-row" href="?view=Dashboard&module=acciones-operar&tab=analisis&symbol={quote(symbol, safe='')}" target="_self">
-              <span class="rx-fast-rank">{len(scanner_rows) + 1}</span>
-              <span class="rx-fast-logo">{roxy_stock_icon_html(symbol)}</span>
-              <span class="rx-fast-name"><b>{html.escape(symbol)}</b><small>{html.escape(_fast_name(row))}</small></span>
-              <span class="rx-fast-price" data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(roxy_stock_live_symbol_attr(symbol))}" data-roxy-price="{html.escape(str(price_value or ''))}">{html.escape(price_display(price_value))}</span>
-              <span class="rx-fast-change {change_class}" data-roxy-stock-change data-roxy-stock-symbol="{html.escape(roxy_stock_live_symbol_attr(symbol))}">{html.escape(pct_display(change_value) if change_value is not None else 'live')}</span>
-              <span class="rx-fast-signal">{html.escape(_fast_signal(row))}</span>
-              <span class="rx-fast-score">{_fast_score(row)}%</span>
-            </a>
-            """
+            f'<a class="rx-fast-row" href="?view=Dashboard&module=acciones-operar&tab=analisis&symbol={symbol_param}" target="_self">'
+            f'<span class="rx-fast-rank">{len(scanner_rows) + 1}</span>'
+            f'<span class="rx-fast-logo">{roxy_stock_icon_html(symbol)}</span>'
+            f'<span class="rx-fast-name"><b>{html.escape(symbol)}</b><small>{html.escape(_fast_name(row))}</small></span>'
+            f'<span class="rx-fast-price" data-roxy-stock-live-price data-roxy-stock-symbol="{live_symbol}" data-roxy-price="{price_attr}">{html.escape(price_display(price_value))}</span>'
+            f'<span class="rx-fast-change {change_class}" data-roxy-stock-change data-roxy-stock-symbol="{live_symbol}">{html.escape(change_text)}</span>'
+            f'<span class="rx-fast-signal">{html.escape(_fast_signal(row))}</span>'
+            f'<span class="rx-fast-score">{_fast_score(row)}%</span>'
+            '</a>'
         )
     scanner_html = "".join(scanner_rows)
 
@@ -40717,24 +40741,28 @@ def render_roxy_actions_folder_fast(
         ("Wedge Down", "wedge bajista", "81"),
         ("Triangle Asc.", "triangulo ascendente", "87"),
     ]
-    strategy_cards = "".join(
-        f"""
-        <a class="rx-strategy-card" href="?view=Dashboard&module=acciones-operar&tab=estrategias&strategy={quote(key, safe='')}" target="_self">
-          <strong>{html.escape(label)}</strong>
-          <small>{len(top_rows)} oportunidades</small>
-          {roxy_actions_sparkline_svg(top_rows[idx % len(top_rows)].get('symbol') if top_rows else 'AAPL', 'stock')}
-          <span>{win}% <em>win rate</em></span>
-        </a>
-        """
-        for idx, (label, key, win) in enumerate(strategy_names)
-    )
+    strategy_card_parts = []
+    for idx, (label, key, win) in enumerate(strategy_names):
+        spark_symbol = text_display(top_rows[idx % len(top_rows)].get("symbol") if top_rows else "AAPL")
+        strategy_card_parts.append(
+            f'<a class="rx-strategy-card" href="?view=Dashboard&module=acciones-operar&tab=estrategias&strategy={quote(key, safe="")}" target="_self">'
+            f'<strong>{html.escape(label)}</strong>'
+            f'<small>{len(top_rows)} oportunidades</small>'
+            f'{roxy_actions_sparkline_svg(spark_symbol, "stock")}'
+            f'<span>{html.escape(win)}% <em>win rate</em></span>'
+            '</a>'
+        )
+    strategy_cards = "".join(strategy_card_parts)
 
-    movers_html = "".join(
-        f"""
-        <div><b>{html.escape(_fast_symbol(row))}</b><span>{html.escape(price_display(_fast_price(row)))}</span><em class="{'up' if (roxy_actions_change_pct(row) or 0) >= 0 else 'down'}">{html.escape(pct_display(roxy_actions_change_pct(row)) if roxy_actions_change_pct(row) is not None else 'live')}</em></div>
-        """
-        for row in top_rows[:5]
-    )
+    movers_parts = []
+    for row in top_rows[:5]:
+        change_value = roxy_actions_change_pct(row)
+        movers_parts.append(
+            f'<div><b>{html.escape(_fast_symbol(row))}</b>'
+            f'<span>{html.escape(price_display(_fast_price(row)))}</span>'
+            f'<em class="{"up" if (change_value or 0) >= 0 else "down"}">{html.escape(pct_display(change_value) if change_value is not None else "live")}</em></div>'
+        )
+    movers_html = "".join(movers_parts)
 
     st.markdown(
         f"""
