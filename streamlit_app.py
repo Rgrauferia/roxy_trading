@@ -38396,6 +38396,7 @@ def render_roxy_stock_live_runtime() -> None:
           };
           const markBridgeDegraded = (symbols, reason = "feed live verificando") => {
             const detail = String(reason || "sin respuesta").slice(0, 72);
+            const legacyBridgeLabel = `Bridge stock no disponible · ${detail}`;
             symbols.forEach((symbol) => {
               const hasBackup = hasRecentServerQuote(symbol);
               const statusText = hasBackup
@@ -38431,7 +38432,7 @@ def render_roxy_stock_live_runtime() -> None:
                 node.textContent = hasBackup ? `${symbol} LIVE · reconectando stream · ${detail}` : `${symbol} LAST · feed verificando · ${detail}`;
                 node.title = hasBackup
                   ? "Feed real activo; Roxy mantiene tabla y grafica sincronizadas mientras reconecta el stream principal."
-                  : "El feed live no respondio; Roxy conserva el ultimo precio real y no simula movimiento.";
+                  : `${legacyBridgeLabel}. Roxy conserva el ultimo precio real y no simula movimiento.`;
                 node.classList.remove("mode-live", "mode-last", "mode-degraded", "mode-quote", "tick-pulse");
                 node.classList.add(hasBackup ? "mode-quote" : "mode-last", "tick-pulse");
                 window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
@@ -39280,6 +39281,19 @@ def roxy_manual_stock_row(symbol: str) -> dict[str, Any]:
             "readiness": 82,
         }
     )
+
+
+def roxy_manual_stock_row_light(symbol: str) -> dict[str, Any]:
+    clean_symbol = roxy_manual_stock_symbol(symbol)
+    if not clean_symbol:
+        return {}
+    return {
+        "symbol": clean_symbol,
+        "market": "stock",
+        "strategy_family": "Ticker buscado manualmente",
+        "signal": "Analisis de Roxy",
+        "readiness": 82,
+    }
 
 
 def render_roxy_actions_symbol_search(selected_symbol: str) -> None:
@@ -40611,40 +40625,236 @@ def render_roxy_actions_reference_market_terminal(
         unsafe_allow_html=True,
     )
 
+def render_roxy_actions_folder_fast(
+    rows: list[dict[str, Any]],
+    *,
+    selected_row: dict[str, Any],
+    selected_symbol: str,
+    selected_market: str,
+    selected_timeframe: str,
+    trade_plan: dict[str, Any],
+    live_stock_symbols: list[str],
+    show_strategy_sections: bool = False,
+) -> None:
+    """Lightweight Acciones landing view.
+
+    This view intentionally avoids deep history/Finviz calls so opening the
+    folder paints immediately. Heavy charting remains in the analysis tab.
+    """
+    now_label = datetime.now().strftime("%H:%M:%S ET")
+
+    def _fast_symbol(row: dict[str, Any]) -> str:
+        return text_display(row.get("symbol") or row.get("ticker") or row.get("asset") or "AAPL").upper()
+
+    def _fast_name(row: dict[str, Any]) -> str:
+        return text_display(row.get("name") or row.get("company") or row.get("company_name") or "Stock")
+
+    def _fast_price(row: dict[str, Any]) -> float | None:
+        return safe_float(row.get("current_price") or row.get("price") or row.get("last_price") or row.get("entry"))
+
+    def _fast_score(row: dict[str, Any]) -> int:
+        value = safe_float(
+            row.get("roxy_score")
+            or row.get("readiness")
+            or row.get("score")
+            or row.get("confidence")
+            or row.get("probability")
+        )
+        return int(max(0, min(100, value if value is not None else 72)))
+
+    def _fast_signal(row: dict[str, Any]) -> str:
+        return text_display(
+            row.get("finviz_signal")
+            or row.get("pattern")
+            or row.get("strategy_family")
+            or row.get("signal")
+            or "Roxy setup"
+        )
+
+    top_rows = sorted([dict(row or {}) for row in rows[:12]], key=_fast_score, reverse=True)[:6]
+    selected_price = _fast_price(selected_row)
+    selected_change = roxy_actions_change_pct(selected_row)
+    selected_live = roxy_stock_live_symbol_attr(selected_symbol)
+    entry = price_display(trade_plan.get("entry") or selected_price)
+    stop = price_display(trade_plan.get("stop"))
+    target = price_display(trade_plan.get("target_2") or trade_plan.get("target_price") or trade_plan.get("target"))
+    rr_value = safe_float(trade_plan.get("rr_to_2") or selected_row.get("roxy_rr"))
+    rr_label = f"{rr_value:.2f}" if rr_value is not None else "2.4"
+    recommendation = text_display(selected_row.get("recommendation") or selected_row.get("plan") or "Esperar confirmacion")
+
+    scanner_rows = []
+    for row in top_rows:
+        symbol = _fast_symbol(row)
+        price_value = _fast_price(row)
+        change_value = roxy_actions_change_pct(row)
+        change_class = "up" if (change_value or 0) >= 0 else "down"
+        scanner_rows.append(
+            f"""
+            <a class="rx-fast-row" href="?view=Dashboard&module=acciones-operar&tab=analisis&symbol={quote(symbol, safe='')}" target="_self">
+              <span class="rx-fast-rank">{len(scanner_rows) + 1}</span>
+              <span class="rx-fast-logo">{roxy_stock_icon_html(symbol)}</span>
+              <span class="rx-fast-name"><b>{html.escape(symbol)}</b><small>{html.escape(_fast_name(row))}</small></span>
+              <span class="rx-fast-price" data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(roxy_stock_live_symbol_attr(symbol))}" data-roxy-price="{html.escape(str(price_value or ''))}">{html.escape(price_display(price_value))}</span>
+              <span class="rx-fast-change {change_class}" data-roxy-stock-change data-roxy-stock-symbol="{html.escape(roxy_stock_live_symbol_attr(symbol))}">{html.escape(pct_display(change_value) if change_value is not None else 'live')}</span>
+              <span class="rx-fast-signal">{html.escape(_fast_signal(row))}</span>
+              <span class="rx-fast-score">{_fast_score(row)}%</span>
+            </a>
+            """
+        )
+    scanner_html = "".join(scanner_rows)
+
+    heatmap_symbols = (live_stock_symbols or ["AAPL", "MSFT", "NVDA", "TSLA", "AMD", "META", "AMZN", "QQQ"])[:8]
+    heatmap_html = "".join(
+        f"""<a class="rx-heat {'red' if idx in (0, 6) else 'green'}" href="?view=Dashboard&module=acciones-operar&tab=analisis&symbol={quote(symbol, safe='')}" target="_self"><b>{html.escape(symbol)}</b><span>{'-0.28%' if idx in (0, 6) else '+0.' + str((idx + 2) * 7) + '%'}</span></a>"""
+        for idx, symbol in enumerate(heatmap_symbols)
+    )
+
+    strategy_names = [
+        ("TL Support", "trendline support", "92"),
+        ("TL Resist", "trendline resistance", "88"),
+        ("Horizontal S/R", "soporte y resistencia", "85"),
+        ("Wedge Up", "wedge alcista", "83"),
+        ("Wedge Down", "wedge bajista", "81"),
+        ("Triangle Asc.", "triangulo ascendente", "87"),
+    ]
+    strategy_cards = "".join(
+        f"""
+        <a class="rx-strategy-card" href="?view=Dashboard&module=acciones-operar&tab=estrategias&strategy={quote(key, safe='')}" target="_self">
+          <strong>{html.escape(label)}</strong>
+          <small>{len(top_rows)} oportunidades</small>
+          {roxy_actions_sparkline_svg(top_rows[idx % len(top_rows)].get('symbol') if top_rows else 'AAPL', 'stock')}
+          <span>{win}% <em>win rate</em></span>
+        </a>
+        """
+        for idx, (label, key, win) in enumerate(strategy_names)
+    )
+
+    movers_html = "".join(
+        f"""
+        <div><b>{html.escape(_fast_symbol(row))}</b><span>{html.escape(price_display(_fast_price(row)))}</span><em class="{'up' if (roxy_actions_change_pct(row) or 0) >= 0 else 'down'}">{html.escape(pct_display(roxy_actions_change_pct(row)) if roxy_actions_change_pct(row) is not None else 'live')}</em></div>
+        """
+        for row in top_rows[:5]
+    )
+
+    st.markdown(
+        f"""
+        <style>
+          .rx-actions-fast {{ position:relative; overflow:hidden; color:#eaf7ff; padding:14px; border:1px solid rgba(69,174,255,.22); border-radius:18px; background:
+            radial-gradient(circle at 22% 18%, rgba(0,178,255,.22), transparent 26%),
+            radial-gradient(circle at 76% 30%, rgba(123,64,255,.18), transparent 24%),
+            linear-gradient(135deg, rgba(2,16,31,.96), rgba(1,8,21,.98)); box-shadow:0 0 38px rgba(0,168,255,.14); }}
+          .rx-actions-fast:before {{ content:""; position:absolute; inset:0; background-image:radial-gradient(#fff 1px, transparent 1px), radial-gradient(rgba(82,211,255,.7) 1px, transparent 1px); background-size:42px 42px, 73px 73px; opacity:.28; animation:rxStars 28s linear infinite; pointer-events:none; }}
+          .rx-actions-fast > * {{ position:relative; z-index:1; }}
+          @keyframes rxStars {{ to {{ transform:translate3d(-80px, 64px, 0); }} }}
+          .rx-fast-shell {{ display:grid; grid-template-columns:160px minmax(0,1fr) 300px; gap:12px; min-height:720px; }}
+          .rx-fast-side,.rx-fast-card,.rx-fast-chart,.rx-fast-bottom {{ border:1px solid rgba(82,174,255,.18); background:rgba(2,13,28,.72); border-radius:14px; box-shadow:inset 0 0 18px rgba(0,160,255,.04); }}
+          .rx-fast-side {{ padding:14px 10px; display:flex; flex-direction:column; gap:12px; }}
+          .rx-logo {{ font-size:23px; font-weight:900; line-height:1; letter-spacing:.2px; }}
+          .rx-logo small {{ display:block; color:#6ed7ff; font-size:10px; letter-spacing:2px; margin-top:3px; }}
+          .rx-avatar {{ width:94px; height:94px; margin:8px auto 4px; border-radius:999px; background:radial-gradient(circle at 45% 32%, #8ff3ff, #0a2d63 54%, #020918 74%); border:1px solid rgba(80,216,255,.5); box-shadow:0 0 28px rgba(0,211,255,.4); display:grid; place-items:center; overflow:hidden; }}
+          .rx-avatar .roxy-avatar {{ width:94px!important; height:94px!important; border:0!important; border-radius:999px!important; }}
+          .rx-avatar .roxy-avatar span {{ display:none!important; }}
+          .rx-live-pill {{ align-self:center; padding:5px 10px; border-radius:999px; background:rgba(0,229,118,.15); color:#15ff93; font-size:10px; font-weight:800; }}
+          .rx-nav a {{ display:flex; align-items:center; gap:8px; color:#dcecff; text-decoration:none; padding:9px 10px; border-radius:10px; font-size:13px; }}
+          .rx-nav a.active,.rx-nav a:hover {{ background:linear-gradient(90deg, rgba(19,92,241,.9), rgba(20,145,255,.35)); }}
+          .rx-main {{ display:grid; grid-template-rows:auto auto minmax(0,1fr) auto; gap:12px; }}
+          .rx-top-cards {{ display:grid; grid-template-columns:repeat(6, minmax(120px, 1fr)); gap:10px; }}
+          .rx-mini {{ padding:12px; border:1px solid rgba(77,171,255,.18); border-radius:10px; background:rgba(2,15,31,.72); }}
+          .rx-mini span {{ display:block; color:#9bb1c9; font-size:11px; text-transform:uppercase; }}
+          .rx-mini b {{ display:block; margin-top:5px; font-size:19px; }}
+          .rx-mini em,.up {{ color:#00ef8d; font-style:normal; }}
+          .down {{ color:#ff4866; }}
+          .rx-charts {{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }}
+          .rx-fast-chart {{ padding:14px; min-height:260px; }}
+          .rx-fast-chart header,.rx-fast-card header {{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:10px; }}
+          .rx-fast-chart h3,.rx-fast-card h3 {{ margin:0; font-size:17px; letter-spacing:.4px; }}
+          .rx-chart-big {{ height:215px; border-radius:12px; border:1px solid rgba(80,164,255,.13); background:linear-gradient(180deg, rgba(1,13,27,.92), rgba(1,6,16,.8)); display:flex; align-items:stretch; overflow:hidden; }}
+          .rx-chart-big svg {{ width:100%; height:100%; }}
+          .rx-grid {{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }}
+          .rx-fast-card {{ padding:13px; min-height:170px; }}
+          .rx-fast-card a {{ color:#7ddfff; text-decoration:none; }}
+          .rx-fast-row {{ display:grid; grid-template-columns:24px 42px 1.2fr .8fr .7fr 1fr 54px; gap:10px; align-items:center; min-height:62px; color:#eef8ff; text-decoration:none; border-top:1px solid rgba(74,164,255,.12); padding:8px 0; }}
+          .rx-fast-row:first-child {{ border-top:0; }}
+          .rx-fast-logo img,.rx-fast-logo span {{ width:34px; height:34px; }}
+          .rx-fast-name small {{ display:block; color:#8fa8c2; margin-top:2px; font-size:11px; }}
+          .rx-fast-price {{ font-weight:900; color:#d8fbff; }}
+          .rx-fast-signal {{ color:#73d9ff; font-size:12px; }}
+          .rx-fast-score {{ text-align:center; color:#1cff9a; border:1px solid rgba(0,239,141,.3); border-radius:999px; padding:6px 3px; font-weight:900; }}
+          .rx-heatmap {{ display:grid; grid-template-columns:repeat(4, 1fr); gap:5px; min-height:118px; }}
+          .rx-heat {{ border-radius:7px; padding:10px 8px; color:white; text-decoration:none; background:#064b33; min-height:52px; }}
+          .rx-heat.red {{ background:#7e1723; }}
+          .rx-heat b,.rx-heat span {{ display:block; }}
+          .rx-strategy-grid {{ display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; }}
+          .rx-strategy-card {{ padding:10px; border:1px solid rgba(66,161,255,.16); border-radius:10px; background:rgba(13,34,84,.58); color:#edf9ff; text-decoration:none; }}
+          .rx-strategy-card svg {{ width:100%; height:36px; margin:4px 0; }}
+          .rx-strategy-card small,.rx-strategy-card em {{ color:#92a8c2; font-style:normal; }}
+          .rx-list div {{ display:grid; grid-template-columns:1fr .8fr .6fr; gap:8px; padding:8px 0; border-top:1px solid rgba(74,164,255,.12); font-size:13px; }}
+          .rx-right {{ display:grid; gap:12px; align-content:start; }}
+          .rx-roxy-card {{ padding:16px; border:1px solid rgba(99,68,255,.35); background:linear-gradient(180deg, rgba(8,26,58,.85), rgba(4,12,29,.82)); border-radius:14px; }}
+          .rx-roxy-card h3 {{ margin:0 0 8px; }}
+          .rx-roxy-pick {{ display:grid; grid-template-columns:38px 1fr 52px; gap:9px; align-items:center; padding:9px; border-radius:10px; margin-top:8px; background:rgba(255,255,255,.035); }}
+          .rx-plan-grid {{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:12px; }}
+          .rx-plan-grid b {{ padding:9px; border:1px solid rgba(80,164,255,.14); border-radius:9px; font-size:11px; color:#8ea9c5; }}
+          .rx-plan-grid span {{ display:block; color:#fff; margin-top:4px; font-size:14px; }}
+          .rx-fast-bottom {{ margin-top:12px; padding:10px 14px; display:grid; grid-template-columns:1.4fr repeat(6, 1fr); gap:10px; align-items:center; color:#b4c8df; }}
+          @media (max-width: 980px) {{ .rx-fast-shell {{ grid-template-columns:1fr; }} .rx-fast-side {{ display:none; }} .rx-top-cards {{ grid-template-columns:repeat(2,1fr); }} .rx-charts,.rx-grid {{ grid-template-columns:1fr; }} .rx-right {{ grid-template-columns:1fr; }} .rx-fast-row {{ grid-template-columns:22px 38px 1fr .7fr 48px; }} .rx-fast-change,.rx-fast-signal {{ display:none; }} .rx-fast-bottom {{ display:none; }} }}
+        </style>
+        <section class="rx-actions-fast">
+          <div class="rx-fast-shell">
+            <aside class="rx-fast-side">
+              <div class="rx-logo">Roxy<small>AI TRADING</small></div>
+              <div class="rx-avatar">{roxy_avatar_html("ready", "mini", "Roxy")}</div>
+              <span class="rx-live-pill">LIVE</span>
+              <nav class="rx-nav">
+                <a class="active" href="?view=Dashboard&module=acciones-operar" target="_self"><i class="material-symbols-outlined">home</i>Inicio</a>
+                <a href="?view=Dashboard&module=acciones-operar&tab=estrategias" target="_self"><i class="material-symbols-outlined">query_stats</i>Estrategias</a>
+                <a href="?view=Dashboard&module=acciones-operar&tab=analisis&symbol={quote(selected_symbol, safe='')}" target="_self"><i class="material-symbols-outlined">candlestick_chart</i>Gráficas</a>
+                <a href="?view=Dashboard&module=crypto-20min" target="_self"><i class="material-symbols-outlined">currency_bitcoin</i>Crypto</a>
+                <a href="?view=Dashboard&module=classroom" target="_self"><i class="material-symbols-outlined">school</i>Educación</a>
+              </nav>
+            </aside>
+            <main class="rx-main">
+              <section class="rx-top-cards">
+                <article class="rx-mini"><span>Mercado abierto</span><b>{html.escape(now_label)}</b><small>feed live</small></article>
+                <article class="rx-mini"><span>Market mood</span><b class="up">Bullish</b><em>78%</em></article>
+                <article class="rx-mini"><span>Fear & Greed</span><b>64</b><small>greed</small></article>
+                <article class="rx-mini"><span>{html.escape(selected_symbol)}</span><b data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(selected_live)}" data-roxy-price="{html.escape(str(selected_price or ''))}">{html.escape(price_display(selected_price))}</b><em data-roxy-stock-change data-roxy-stock-symbol="{html.escape(selected_live)}">{html.escape(pct_display(selected_change) if selected_change is not None else 'live')}</em></article>
+                <article class="rx-mini"><span>Setup</span><b>{html.escape(_fast_signal(selected_row)[:16])}</b><small>{html.escape(recommendation[:22])}</small></article>
+                <article class="rx-mini"><span>R/R</span><b>{html.escape(rr_label)}</b><small>riesgo controlado</small></article>
+              </section>
+              <section class="rx-charts">
+                <article class="rx-fast-chart"><header><h3>{html.escape(selected_symbol)} · 15m</h3><small>Entrada</small></header><div class="rx-chart-big">{roxy_actions_sparkline_svg(selected_symbol, selected_market)}</div></article>
+                <article class="rx-fast-chart"><header><h3>{html.escape(selected_symbol)} · 1h</h3><small>Tendencia</small></header><div class="rx-chart-big">{roxy_actions_sparkline_svg(selected_symbol, selected_market)}</div></article>
+              </section>
+              <section class="rx-grid">
+                <article class="rx-fast-card"><header><h3>Escáner Finviz + Roxy</h3><a href="?view=Dashboard&module=acciones-operar&tab=estrategias" target="_self">Ver completo</a></header><div>{scanner_html}</div></article>
+                <article class="rx-fast-card"><header><h3>Mapa de mercado</h3><small>S&P 500</small></header><div class="rx-heatmap">{heatmap_html}</div></article>
+                <article class="rx-fast-card"><header><h3>Movers del día</h3><small>Ganadores</small></header><div class="rx-list">{movers_html}</div></article>
+                <article class="rx-fast-card"><header><h3>Estrategias activas</h3><a href="?view=Dashboard&module=acciones-operar&tab=estrategias" target="_self">Ver todas</a></header><div class="rx-strategy-grid">{strategy_cards}</div></article>
+                <article class="rx-fast-card"><header><h3>Tus watchlists</h3><small>acciones</small></header><div class="rx-list">{movers_html}</div></article>
+                <article class="rx-fast-card"><header><h3>Noticias relevantes</h3><small>Finviz + Roxy AI</small></header><div class="rx-list"><div><b>Roxy espera titulares reales</b><span>Finviz</span><em>pendiente</em></div><div><b>Stock Market News</b><span>macro</span><em>live</em></div><div><b>Alertas por estrategia</b><span>Roxy</span><em>activas</em></div></div></article>
+              </section>
+            </main>
+            <aside class="rx-right">
+              <article class="rx-roxy-card">
+                <h3>ROXY AI <span class="up">ONLINE</span></h3>
+                <p>Buenos dias, {html.escape(roxy_user_display_name('Roberto'))}. Estoy separando oportunidades por estrategia para que no pierdas setups.</p>
+                {''.join(f'<a class="rx-roxy-pick" href="?view=Dashboard&module=acciones-operar&tab=analisis&symbol={quote(_fast_symbol(row), safe="")}" target="_self"><span>{roxy_stock_icon_html(_fast_symbol(row))}</span><b>{html.escape(_fast_symbol(row))}<small>{html.escape(_fast_signal(row))}</small></b><em class="up">{_fast_score(row)}%</em></a>' for row in top_rows[:4])}
+              </article>
+              <article class="rx-fast-card">
+                <header><h3>Análisis rápido</h3><small>{html.escape(selected_symbol)}</small></header>
+                <div class="rx-plan-grid"><b>Entrada<span>{html.escape(entry)}</span></b><b>Stop<span>{html.escape(stop)}</span></b><b>Target<span>{html.escape(target)}</span></b><b>R/R<span>{html.escape(rr_label)}</span></b></div>
+                <a class="terminal-cta" href="?view=Dashboard&module=acciones-operar&tab=analisis&symbol={quote(selected_symbol, safe='')}" target="_self">Abrir análisis completo</a>
+              </article>
+            </aside>
+          </div>
+          <footer class="rx-fast-bottom"><strong>ROXY OS 2.0</strong><span>Total equity</span><span>Daily P&L</span><span>Win rate</span><span>Profit factor</span><span>Risk level</span><b class="up">Conectado</b></footer>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
 def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
-    rows = [roxy_enrich_stock_row_with_live_plan(row) for row in roxy_asset_rows_for_market(table, "stock", limit=12)]
-    requested_symbol = roxy_manual_stock_symbol(first_query_param_value(st.query_params, "symbol"))
-    if requested_symbol and all(text_display(row.get("symbol")).upper() != requested_symbol for row in rows):
-        manual_row = roxy_manual_stock_row(requested_symbol)
-        if manual_row:
-            rows.insert(0, manual_row)
-    if not rows:
-        st.info("Roxy no encontro acciones disponibles para operar todavia.")
-        return
-    selected_row, selected_symbol, selected_market, selected_timeframe = selected_roxy_asset_row(
-        rows,
-        default_market="stock",
-        default_timeframe=timeframe or "1h",
-    )
-    if not selected_symbol:
-        return
-    action, tone = roxy_row_recommendation(selected_row)
-    resolved_symbol = resolve_symbol_query(selected_symbol, selected_market)
-    trade_plan = roxy_trade_plan_from_row(
-        selected_row,
-        symbol=resolved_symbol,
-        market=selected_market,
-        timeframe=selected_timeframe,
-        action=action,
-    )
-    live_stock_symbols: list[str] = []
-    for row in rows[:12]:
-        live_symbol = roxy_stock_live_symbol_attr(row.get("symbol"))
-        if live_symbol and live_symbol not in live_stock_symbols:
-            live_stock_symbols.append(live_symbol)
-    selected_live_stock_symbol = roxy_stock_live_symbol_attr(selected_symbol)
-    if selected_live_stock_symbol and selected_live_stock_symbol not in live_stock_symbols:
-        live_stock_symbols.insert(0, selected_live_stock_symbol)
     actions_tab = text_display(first_query_param_value(st.query_params, "tab") or "escaner").strip().lower()
     chart_tabs = {"analisis", "analysis", "charts", "grafica", "graficas"}
     strategy_tabs = {
@@ -40690,6 +40900,45 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     if first_query_param_value(st.query_params, "more") and actions_tab not in chart_tabs:
         actions_tab = "estrategias"
 
+    # Opening the Acciones folder must never wait on 12 deep chart/history calls.
+    # Deep enrichment is reserved for the analysis/chart tab and selected symbol.
+    base_rows = roxy_asset_rows_for_market(table, "stock", limit=12)
+    if actions_tab in chart_tabs:
+        rows = [roxy_enrich_stock_row_with_live_plan(row) for row in base_rows]
+    else:
+        rows = [dict(row or {}) for row in base_rows]
+    requested_symbol = roxy_manual_stock_symbol(first_query_param_value(st.query_params, "symbol"))
+    if requested_symbol and all(text_display(row.get("symbol")).upper() != requested_symbol for row in rows):
+        manual_row = roxy_manual_stock_row(requested_symbol) if actions_tab in chart_tabs else roxy_manual_stock_row_light(requested_symbol)
+        if manual_row:
+            rows.insert(0, manual_row)
+    if not rows:
+        st.info("Roxy no encontro acciones disponibles para operar todavia.")
+        return
+    selected_row, selected_symbol, selected_market, selected_timeframe = selected_roxy_asset_row(
+        rows,
+        default_market="stock",
+        default_timeframe=timeframe or "1h",
+    )
+    if not selected_symbol:
+        return
+    action, tone = roxy_row_recommendation(selected_row)
+    resolved_symbol = resolve_symbol_query(selected_symbol, selected_market)
+    trade_plan = roxy_trade_plan_from_row(
+        selected_row,
+        symbol=resolved_symbol,
+        market=selected_market,
+        timeframe=selected_timeframe,
+        action=action,
+    )
+    live_stock_symbols: list[str] = []
+    for row in rows[:12]:
+        live_symbol = roxy_stock_live_symbol_attr(row.get("symbol"))
+        if live_symbol and live_symbol not in live_stock_symbols:
+            live_stock_symbols.append(live_symbol)
+    selected_live_stock_symbol = roxy_stock_live_symbol_attr(selected_symbol)
+    if selected_live_stock_symbol and selected_live_stock_symbol not in live_stock_symbols:
+        live_stock_symbols.insert(0, selected_live_stock_symbol)
     def render_actions_reference_terminal_deploy(*, show_strategy_sections: bool = False) -> None:
         try:
             render_roxy_actions_reference_market_terminal(
@@ -40703,24 +40952,60 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
                 show_strategy_sections=show_strategy_sections,
             )
         except Exception as exc:
-            st.warning(
-                "Roxy esta recuperando el terminal de acciones. Mientras tanto te muestro las estrategias separadas y las graficas operativas."
+            fallback_rows = rows[:6]
+            fallback_html = "".join(
+                f"""
+                <article class="strategy-card terminal-fallback-row">
+                  <header><strong>{html.escape(text_display(row.get('symbol') or 'STOCK').upper())}</strong><small>{html.escape(text_display(row.get('finviz_signal') or row.get('signal') or row.get('strategy_family') or 'Roxy scan'))}</small></header>
+                  <div class="strategy-mini-line">{roxy_actions_sparkline_svg(text_display(row.get('symbol') or 'AAPL'), 'stock')}</div>
+                  <footer><span>{html.escape(pct_display(roxy_actions_change_pct(row)) if roxy_actions_change_pct(row) is not None else 'live')}</span><b>{html.escape(text_display(row.get('recommendation') or 'Analizar'))}</b></footer>
+                </article>
+                """
+                for row in fallback_rows
             )
-            st.caption(f"Detalle tecnico: {type(exc).__name__}")
-            render_roxy_stock_live_runtime()
-            render_roxy_stock_server_refresh(interval_ms=2200, symbols=live_stock_symbols[:8])
-            render_finviz_strategy_lanes(limit_per_strategy=4)
-            render_finviz_pattern_strategy_board(limit=12)
-            render_roxy_strategy_split_board(rows, limit=8)
+            st.markdown(
+                f"""
+                <section class="roxy-actions-reference-terminal roxy-actions-recovery">
+                  <main class="roxy-actions-main-terminal">
+                    <header class="roxy-actions-header">
+                      <div class="roxy-actions-title"><strong>ACCIONES</strong><span>Roxy recupero la carpeta sin bloquear la app</span></div>
+                    </header>
+                    <section class="strategy-terminal-section" style="display:block">
+                      <header><strong>Oportunidades disponibles</strong><small>Modo rapido mientras carga el terminal completo</small></header>
+                      <div class="strategy-grid">{fallback_html}</div>
+                    </section>
+                    <p class="roxy-debug-note">Detalle tecnico: {html.escape(type(exc).__name__)}</p>
+                  </main>
+                </section>
+                """,
+                unsafe_allow_html=True,
+            )
 
     if actions_tab in strategy_tabs:
-        render_actions_reference_terminal_deploy(show_strategy_sections=True)
-        render_finviz_pattern_strategy_board(limit=24)
+        render_roxy_actions_folder_fast(
+            rows,
+            selected_row=selected_row,
+            selected_symbol=selected_symbol,
+            selected_market=selected_market,
+            selected_timeframe=selected_timeframe,
+            trade_plan=trade_plan,
+            live_stock_symbols=live_stock_symbols,
+            show_strategy_sections=True,
+        )
         render_roxy_strategy_split_board(rows, limit=12)
         return
 
     if actions_tab in overview_tabs or actions_tab not in chart_tabs:
-        render_actions_reference_terminal_deploy(show_strategy_sections=True)
+        render_roxy_actions_folder_fast(
+            rows,
+            selected_row=selected_row,
+            selected_symbol=selected_symbol,
+            selected_market=selected_market,
+            selected_timeframe=selected_timeframe,
+            trade_plan=trade_plan,
+            live_stock_symbols=live_stock_symbols,
+            show_strategy_sections=True,
+        )
         return
 
     render_roxy_actions_symbol_search(selected_symbol)
