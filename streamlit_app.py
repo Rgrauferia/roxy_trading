@@ -40168,8 +40168,7 @@ def render_roxy_actions_reference_market_terminal(
 
     render_roxy_stock_live_runtime()
     render_roxy_stock_server_refresh(interval_ms=1500, symbols=live_stock_symbols[:12])
-    st.markdown(
-        f"""
+    terminal_html = f"""
         <style id="roxy-actions-terminal-v3">
         .roxy-actions-terminal-scroll {{
           width: min(100%, 1548px);
@@ -40643,9 +40642,8 @@ def render_roxy_actions_reference_market_terminal(
             </main>
           </section>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """
+    components.html(terminal_html, height=1030, scrolling=True)
 
 def render_roxy_actions_folder_fast(
     rows: list[dict[str, Any]],
