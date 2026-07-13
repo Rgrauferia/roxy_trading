@@ -56090,12 +56090,15 @@ def main() -> None:
         """,
         unsafe_allow_html=True,
     )
+    raw_requested_module_for_shell = first_query_param_value(st.query_params, "module")
     requested_module_for_shell = normalize_roxy_module(
-        first_query_param_value(st.query_params, "module")
+        raw_requested_module_for_shell
         or st.session_state.get("roxy_active_module")
         or "",
         default="",
     )
+    if raw_requested_module_for_shell and raw_requested_module_for_shell != requested_module_for_shell:
+        st.query_params["module"] = requested_module_for_shell
     if requested_module_for_shell != "acciones-operar":
         render_roxy_three_universe_runtime()
     if "user" not in st.session_state:
