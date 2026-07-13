@@ -40169,7 +40169,52 @@ def render_roxy_actions_reference_market_terminal(
     render_roxy_stock_live_runtime()
     render_roxy_stock_server_refresh(interval_ms=1500, symbols=live_stock_symbols[:12])
     terminal_html = f"""
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400..700,0..1,-50..200" rel="stylesheet">
         <style id="roxy-actions-terminal-v3">
+        .material-symbols-outlined {{
+          font-family: "Material Symbols Outlined";
+          font-weight: normal;
+          font-style: normal;
+          font-size: 20px;
+          line-height: 1;
+          letter-spacing: normal;
+          text-transform: none;
+          display: inline-block;
+          white-space: nowrap;
+          word-wrap: normal;
+          direction: ltr;
+          -webkit-font-feature-settings: "liga";
+          -webkit-font-smoothing: antialiased;
+          font-feature-settings: "liga";
+        }}
+        .roxy-avatar {{
+          position: relative;
+          width: 86px;
+          height: 86px;
+          border-radius: 50%;
+          overflow: hidden;
+          display: inline-grid;
+          place-items: center;
+          background: radial-gradient(circle at 50% 30%, rgba(56,189,248,.35), rgba(8,47,73,.88));
+          box-shadow: 0 0 0 1px rgba(125,211,252,.46), 0 0 28px rgba(14,165,233,.44);
+        }}
+        .roxy-avatar img,
+        .roxy-avatar picture,
+        .roxy-avatar canvas,
+        .roxy-avatar svg {{
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }}
+        .roxy-avatar [class*="mouth"],
+        .roxy-avatar [class*="blink"],
+        .roxy-avatar [class*="eye"],
+        .roxy-avatar [class*="halo"] {{
+          pointer-events: none;
+        }}
         .roxy-actions-terminal-scroll {{
           width: min(100%, 1548px);
           margin: 0 auto 18px;
