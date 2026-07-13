@@ -40167,7 +40167,11 @@ def render_roxy_actions_reference_market_terminal(
       <h3>¡Buenos días, Roberto!</h3>
       <p>He analizado el mercado y encontré {len(ai_rows)} oportunidades de alta probabilidad por estrategia.</p>
       <div>{ai_picks_html}</div>
-      <button type="button">Roxy activa por voz</button>
+      <div class="terminal-ai-wake" aria-label="Roxy wake word listo">
+        <i class="material-symbols-outlined">graphic_eq</i>
+        <span>Hola Roxy</span>
+        <em>contexto conectado</em>
+      </div>
     </aside>
     """
     chart_row_html = _terminal_chart_card(quick_symbol, "15m") + _terminal_chart_card(quick_symbol, "1h")
@@ -40190,7 +40194,7 @@ def render_roxy_actions_reference_market_terminal(
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400..700,0..1,-50..200" rel="stylesheet">
-        <style id="roxy-actions-terminal-v4">
+        <style id="roxy-actions-terminal-v5">
         html, body, [data-testid="stAppViewContainer"] {{
           background:
             radial-gradient(circle at 18% 10%, rgba(56,189,248,.22), transparent 26%),
@@ -40377,6 +40381,51 @@ def render_roxy_actions_reference_market_terminal(
           gap:9px;
           margin:0 0 13px;
         }}
+        .terminal-live-flow {{
+          display:grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap:10px;
+          margin:0 0 13px;
+        }}
+        .terminal-live-flow span {{
+          position:relative;
+          overflow:hidden;
+          display:flex;
+          align-items:center;
+          gap:8px;
+          min-height:36px;
+          padding:8px 12px;
+          border:1px solid rgba(56,189,248,.24);
+          border-radius:12px;
+          background:linear-gradient(90deg, rgba(2,20,42,.86), rgba(14,39,83,.72));
+          color:#bdf3ff;
+          font-size:11px;
+          font-weight:950;
+          letter-spacing:.12em;
+          text-transform:uppercase;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 0 18px rgba(14,165,233,.08);
+        }}
+        .terminal-live-flow span::after {{
+          content:"";
+          position:absolute;
+          inset:0;
+          background:linear-gradient(90deg, transparent, rgba(56,189,248,.20), transparent);
+          transform:translateX(-100%);
+          animation: terminal-live-sweep 2.6s linear infinite;
+        }}
+        .terminal-live-flow i {{
+          width:7px;
+          height:7px;
+          border-radius:999px;
+          background:#22c55e;
+          box-shadow:0 0 14px rgba(34,197,94,.86);
+          animation:terminal-live-pulse 1.15s ease-in-out infinite alternate;
+        }}
+        @keyframes terminal-live-sweep {{ to {{ transform:translateX(100%); }} }}
+        @keyframes terminal-live-pulse {{
+          from {{ opacity:.45; transform:scale(.7); }}
+          to {{ opacity:1; transform:scale(1.18); }}
+        }}
         .terminal-quote-card {{
           min-height:70px;
           position:relative;
@@ -40535,6 +40584,49 @@ def render_roxy_actions_reference_market_terminal(
           color:#fff;
           font-weight:950;
         }}
+        .terminal-ai-wake {{
+          width:100%;
+          min-height:44px;
+          margin-top:10px;
+          border:1px solid rgba(56,189,248,.34);
+          border-radius:10px;
+          background:linear-gradient(90deg, rgba(14,165,233,.16), rgba(88,28,135,.22));
+          color:#e0f7ff;
+          display:grid;
+          grid-template-columns:28px 1fr;
+          grid-template-areas:"icon word" "icon state";
+          align-items:center;
+          column-gap:10px;
+          padding:8px 10px;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 0 24px rgba(56,189,248,.12);
+        }}
+        .terminal-ai-wake i {{
+          grid-area:icon;
+          display:grid;
+          place-items:center;
+          width:28px;
+          height:28px;
+          border-radius:50%;
+          background:rgba(37,99,235,.28);
+          color:#7dd3fc;
+          box-shadow:0 0 16px rgba(56,189,248,.30);
+        }}
+        .terminal-ai-wake span {{
+          grid-area:word;
+          font-size:13px;
+          font-weight:950;
+          letter-spacing:.08em;
+          text-transform:uppercase;
+        }}
+        .terminal-ai-wake em {{
+          grid-area:state;
+          color:#6ee7b7;
+          font-style:normal;
+          font-size:10px;
+          font-weight:900;
+          letter-spacing:.08em;
+          text-transform:uppercase;
+        }}
         .terminal-grid {{
           display:grid; grid-template-columns:1.05fr 1.45fr 1.05fr; gap:13px;
           grid-template-areas:
@@ -40678,6 +40770,7 @@ def render_roxy_actions_reference_market_terminal(
           .roxy-actions-terminal-scroll {{ width:100%; }}
           .roxy-actions-terminal {{ width:1240px; }}
           .terminal-top-strip {{ grid-template-columns: repeat(8, 140px); }}
+          .terminal-live-flow {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
           .terminal-chart-row {{ grid-template-columns:420px 420px 280px; }}
         }}
         </style>
@@ -40705,6 +40798,12 @@ def render_roxy_actions_reference_market_terminal(
                 <a href="?view=Dashboard&module=acciones-operar&tab=estrategias" target="_self">Más</a>
               </nav>
               <section class="terminal-top-strip">{top_strip_html}</section>
+              <section class="terminal-live-flow" aria-label="Flujo vivo de informacion de Roxy">
+                <span><i></i>Alpaca live</span>
+                <span><i></i>Finviz scan</span>
+                <span><i></i>Roxy strategy engine</span>
+                <span><i></i>Voice context</span>
+              </section>
               <section class="terminal-chart-row">{chart_row_html}{right_ai_html}</section>
               <section class="terminal-grid">
                 <article class="terminal-card scanner-card"><header><strong>Escáner Finviz</strong><small>live</small></header><div class="finviz-minihead"><span>Tickers</span><span>Signal</span></div><div>{scanner_html}</div><a class="terminal-cta" href="?view=Dashboard&module=acciones-operar&tab=estrategias" target="_self">Ver Escáner Completo</a></article>
@@ -56152,11 +56251,11 @@ def main() -> None:
         active_module_query or st.session_state.get("roxy_active_module") or "",
         default="",
     )
+    render_roxy_browser_session_bridge()
+    render_roxy_elevenlabs_assistant()
     if active_module_for_shell == "acciones-operar":
         show_focused_roxy_app()
         st.stop()
-    render_roxy_browser_session_bridge()
-    render_roxy_elevenlabs_assistant()
     process_roxy_os_query_command()
     render_roxy_os_command_center()
     render_roxy_os_action_inbox()
