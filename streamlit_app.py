@@ -40190,7 +40190,34 @@ def render_roxy_actions_reference_market_terminal(
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400..700,0..1,-50..200" rel="stylesheet">
-        <style id="roxy-actions-terminal-v3">
+        <style id="roxy-actions-terminal-v4">
+        html, body, [data-testid="stAppViewContainer"] {{
+          background:
+            radial-gradient(circle at 18% 10%, rgba(56,189,248,.22), transparent 26%),
+            radial-gradient(circle at 82% 18%, rgba(37,99,235,.18), transparent 28%),
+            radial-gradient(circle at 50% 86%, rgba(168,85,247,.14), transparent 34%),
+            #020816 !important;
+        }}
+        [data-testid="stAppViewContainer"]::before {{
+          content:"";
+          position:fixed;
+          inset:0;
+          pointer-events:none;
+          z-index:0;
+          background:
+            radial-gradient(circle at 12% 18%, rgba(255,255,255,.90) 0 1px, transparent 2px),
+            radial-gradient(circle at 74% 12%, rgba(125,211,252,.82) 0 1px, transparent 2px),
+            radial-gradient(circle at 86% 62%, rgba(255,255,255,.72) 0 1px, transparent 2px),
+            radial-gradient(circle at 34% 78%, rgba(96,165,250,.70) 0 1px, transparent 2px),
+            radial-gradient(circle at 58% 42%, rgba(192,132,252,.65) 0 1px, transparent 2px);
+          background-size: 260px 260px, 360px 360px, 440px 440px, 520px 520px, 640px 640px;
+          animation: roxy-actions-page-stars 42s linear infinite;
+          opacity:.62;
+        }}
+        @keyframes roxy-actions-page-stars {{
+          from {{ background-position: 0 0, 0 0, 0 0, 0 0, 0 0; }}
+          to {{ background-position: 260px 180px, -360px 240px, 440px -300px, -520px -260px, 640px 380px; }}
+        }}
         .material-symbols-outlined {{
           font-family: "Material Symbols Outlined";
           font-weight: normal;
