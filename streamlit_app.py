@@ -41079,6 +41079,10 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         render_actions_reference_terminal_deploy(show_strategy_sections=True)
         return
 
+    if actions_tab in chart_tabs:
+        render_actions_reference_terminal_deploy(show_strategy_sections=True)
+        return
+
     render_roxy_actions_symbol_search(selected_symbol)
     action, tone = roxy_row_recommendation(selected_row)
     resolved_symbol = resolve_symbol_query(selected_symbol, selected_market)
