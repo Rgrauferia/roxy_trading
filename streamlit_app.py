@@ -1767,6 +1767,9 @@ def render_roxy_passkey_launcher(action: str, username: str, options: dict[str, 
 
 
 def render_roxy_passkey_setup_panel() -> None:
+    active_module = normalize_roxy_module(first_query_param_value(st.query_params, "module") or "")
+    if active_module == "acciones-operar":
+        return
     username = text_display(st.session_state.get("user")).strip().lower()
     if not username:
         return
@@ -36478,6 +36481,10 @@ def render_roxy_first_screen_launchpad(
     active_info = roxy_module_by_slug(active_module)
 
     if active_module == "classroom":
+        render_roxy_module_workspace(table, active_module=active_module, timeframe=timeframe)
+        return
+
+    if active_module == "acciones-operar":
         render_roxy_module_workspace(table, active_module=active_module, timeframe=timeframe)
         return
 
