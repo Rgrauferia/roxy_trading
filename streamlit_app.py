@@ -56090,7 +56090,14 @@ def main() -> None:
         """,
         unsafe_allow_html=True,
     )
-    render_roxy_three_universe_runtime()
+    requested_module_for_shell = normalize_roxy_module(
+        first_query_param_value(st.query_params, "module")
+        or st.session_state.get("roxy_active_module")
+        or "",
+        default="",
+    )
+    if requested_module_for_shell != "acciones-operar":
+        render_roxy_three_universe_runtime()
     if "user" not in st.session_state:
         st.session_state.user = None
     roxy_restore_user_from_session()
@@ -56110,12 +56117,19 @@ def main() -> None:
         render_roxy_session_restore_bridge()
         render_roxy_auth_gate()
         return
+    active_module_query = normalize_roxy_module(first_query_param_value(st.query_params, "module"), default="")
+    active_module_for_shell = normalize_roxy_module(
+        active_module_query or st.session_state.get("roxy_active_module") or "",
+        default="",
+    )
+    if active_module_for_shell == "acciones-operar":
+        show_focused_roxy_app()
+        st.stop()
     render_roxy_browser_session_bridge()
     render_roxy_elevenlabs_assistant()
     process_roxy_os_query_command()
     render_roxy_os_command_center()
     render_roxy_os_action_inbox()
-    active_module_query = normalize_roxy_module(first_query_param_value(st.query_params, "module"), default="")
     if active_module_query != "classroom":
         render_roxy_passkey_setup_panel()
     if text_display(first_query_param_value(st.query_params, "view")).strip().lower() == "academy":
