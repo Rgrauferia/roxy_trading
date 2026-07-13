@@ -36476,21 +36476,26 @@ def render_roxy_first_screen_launchpad(
     market: str,
     timeframe: str,
 ) -> None:
-    message = st.session_state.pop("roxy_launch_message", "")
-    if message:
-        st.success(message)
     module_from_query = first_query_param_value(st.query_params, "module")
     if not module_from_query:
+        message = st.session_state.pop("roxy_launch_message", "")
+        if message:
+            st.success(message)
         return
     st.session_state["roxy_active_module"] = normalize_roxy_module(module_from_query)
     active_module = normalize_roxy_module(module_from_query)
     active_info = roxy_module_by_slug(active_module)
 
-    if active_module == "classroom":
+    if active_module == "acciones-operar":
+        st.session_state.pop("roxy_launch_message", None)
         render_roxy_module_workspace(table, active_module=active_module, timeframe=timeframe)
         return
 
-    if active_module == "acciones-operar":
+    message = st.session_state.pop("roxy_launch_message", "")
+    if message:
+        st.success(message)
+
+    if active_module == "classroom":
         render_roxy_module_workspace(table, active_module=active_module, timeframe=timeframe)
         return
 
