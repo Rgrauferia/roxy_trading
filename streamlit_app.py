@@ -40944,6 +40944,39 @@ def render_roxy_actions_folder_fast(
     )
 
 def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
+    st.markdown(
+        """
+        <style>
+          [data-testid="stSidebar"],
+          [data-testid="collapsedControl"],
+          header[data-testid="stHeader"],
+          div[data-testid="stToolbar"],
+          div[data-testid="stDecoration"] {
+            display: none !important;
+          }
+          [data-testid="stAppViewContainer"] {
+            background: #020b16 !important;
+          }
+          [data-testid="stAppViewContainer"] > .main,
+          section.main {
+            margin-left: 0 !important;
+            padding-left: 0 !important;
+          }
+          section.main > div.block-container,
+          .block-container {
+            max-width: 100vw !important;
+            width: 100vw !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          iframe {
+            display: block !important;
+            width: 100vw !important;
+          }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     actions_tab = text_display(first_query_param_value(st.query_params, "tab") or "escaner").strip().lower()
     chart_tabs = {"analisis", "analysis", "charts", "grafica", "graficas"}
     strategy_tabs = {
