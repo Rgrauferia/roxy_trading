@@ -4388,6 +4388,9 @@ def process_roxy_os_query_command() -> None:
 
 
 def render_roxy_os_command_center() -> None:
+    active_module = normalize_roxy_module(first_query_param_value(st.query_params, "module") or "")
+    if active_module == "acciones-operar":
+        return
     if not ROXY_OS_AVAILABLE:
         return
     with st.expander("Roxy OS Core · memoria, acciones y copiloto", expanded=False):
@@ -4460,6 +4463,9 @@ def render_roxy_os_command_center() -> None:
 
 
 def render_roxy_os_action_inbox() -> None:
+    active_module = normalize_roxy_module(first_query_param_value(st.query_params, "module") or "")
+    if active_module == "acciones-operar":
+        return
     pending_weather = st.session_state.get("roxy_last_weather_request")
     pending_file = st.session_state.get("roxy_pending_file_read")
     pending_screen = st.session_state.get("roxy_pending_screen_summary")
