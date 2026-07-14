@@ -4802,7 +4802,7 @@ def render_roxy_elevenlabs_assistant() -> None:
             z-index: 2147482500;
             width: 58px;
             height: 58px;
-            display: grid;
+            display: none !important;
             place-items: center;
             padding: 7px;
             border: 1px solid rgba(56,189,248,.34);
@@ -4812,6 +4812,8 @@ def render_roxy_elevenlabs_assistant() -> None:
             color: #eaf6ff;
             pointer-events: none;
             backdrop-filter: blur(18px);
+            visibility: hidden !important;
+            opacity: 0 !important;
           }}
           .roxy-el-fallback-avatar {{
             width: 42px;
@@ -4865,7 +4867,13 @@ def render_roxy_elevenlabs_assistant() -> None:
           .roxy-el-fallback-wave i:nth-child(4) {{ animation-delay: .3s; }}
           .roxy-el-fallback-wave i:nth-child(5) {{ animation-delay: .4s; }}
           .roxy-el-fallback > div:not(.roxy-el-fallback-avatar) {{ display: none; }}
-          body.roxy-el-runtime-mounted .roxy-el-fallback {{ display: none; }}
+          body.roxy-el-runtime-mounted .roxy-el-fallback,
+          body.roxy-el-headless-voice .roxy-el-fallback {{
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+          }}
           @keyframes roxyElFallbackWave {{
             0%, 100% {{ height: 4px; opacity: .55; }}
             50% {{ height: 12px; opacity: 1; }}
@@ -4905,7 +4913,8 @@ def render_roxy_elevenlabs_assistant() -> None:
       const style = parentDoc.createElement("style");
       style.id = styleId;
       style.textContent = `
-        .roxy-el-root{{position:fixed;right:18px;bottom:92px;z-index:2147482800;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eaf6ff;pointer-events:none}}
+        .roxy-el-root{{position:fixed;right:18px;bottom:92px;z-index:2147482800;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eaf6ff;pointer-events:none;display:none!important;visibility:hidden!important;opacity:0!important}}
+        .roxy-el-root *{{pointer-events:none!important}}
         .roxy-el-wake{{display:none!important;visibility:hidden!important;pointer-events:none!important}}
         .roxy-el-wake:before{{content:"";position:absolute;inset:-1px;border-radius:18px;background:linear-gradient(90deg,rgba(56,189,248,.0),rgba(56,189,248,.28),rgba(168,85,247,.0));opacity:.45;pointer-events:none;animation:roxyElGlow 3.8s ease-in-out infinite}}
         .roxy-el-avatar{{position:relative;z-index:2;width:52px;height:52px;border-radius:50%;overflow:hidden;border:1px solid rgba(186,230,253,.7);box-shadow:0 0 22px rgba(34,211,238,.48)}}
@@ -4962,7 +4971,8 @@ def render_roxy_elevenlabs_assistant() -> None:
       const root = parentDoc.createElement("section");
       root.id = rootId;
       root.className = "roxy-el-root";
-      parentDoc.body.classList.add("roxy-el-runtime-mounted");
+      root.setAttribute("aria-hidden", "true");
+      parentDoc.body.classList.add("roxy-el-runtime-mounted", "roxy-el-headless-voice");
       root.innerHTML = `
         <aside class="roxy-el-panel" aria-label="Roxy Trading assistant">
           <header class="roxy-el-head">
@@ -46931,6 +46941,39 @@ def render_roxy_module_workspace(table: pd.DataFrame, *, active_module: str, tim
     )
 
 
+def render_roxy_actions_operating_route(*, timeframe: str = "1h") -> None:
+    """Open Acciones directly as the live operating terminal."""
+    context = load_focused_live_context()
+    brief = context.get("brief") if isinstance(context.get("brief"), dict) else {}
+    table = focused_opportunity_table(brief)
+    selected_symbol = text_display(
+        first_query_param_value(st.query_params, "symbol")
+        or st.session_state.get("command_symbol")
+        or "AAPL"
+    ).upper()
+    if not isinstance(table, pd.DataFrame) or table.empty:
+        table = deploy_watchlist_opportunity_seed(
+            selected_symbol=selected_symbol,
+            market_scope="Acciones",
+            limit=18,
+        )
+    elif selected_symbol and "symbol" in table.columns:
+        selected_rows = table[table["symbol"].astype(str).str.upper().eq(selected_symbol)]
+        if selected_rows.empty:
+            seed = deploy_watchlist_opportunity_seed(
+                selected_symbol=selected_symbol,
+                market_scope="Acciones",
+                limit=8,
+            )
+            if isinstance(seed, pd.DataFrame) and not seed.empty:
+                table = (
+                    pd.concat([seed, table], ignore_index=True)
+                    .drop_duplicates(subset=["symbol", "market", "timeframe"], keep="first")
+                    .reset_index(drop=True)
+                )
+    render_roxy_actions_folder(table, timeframe=timeframe)
+
+
 def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> dict[str, Any]:
     # Contract kept for compact controls: label_visibility="collapsed",
     # on_change=persist_command_symbol_query_params, on_change=persist_command_query_params.
@@ -56254,7 +56297,13 @@ def main() -> None:
     render_roxy_browser_session_bridge()
     render_roxy_elevenlabs_assistant()
     if active_module_for_shell == "acciones-operar":
-        show_focused_roxy_app()
+        render_roxy_actions_operating_route(
+            timeframe=text_display(
+                first_query_param_value(st.query_params, "tf")
+                or st.session_state.get("command_timeframe")
+                or "1h"
+            )
+        )
         st.stop()
     process_roxy_os_query_command()
     render_roxy_os_command_center()
