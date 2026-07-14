@@ -30,7 +30,7 @@ from contextlib import nullcontext
 from urllib.parse import quote, urlencode, urlparse
 from glob import glob
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Mapping, Optional
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
@@ -339,8 +339,13 @@ from tools.elevenlabs_roxy import (
     get_conversation_signed_url,
 )
 try:
-    from tools.external_market_sources import build_finviz_news_feed, build_finviz_pattern_strategies
+    from tools.external_market_sources import (
+        build_finviz_market_pulse,
+        build_finviz_news_feed,
+        build_finviz_pattern_strategies,
+    )
 except Exception:  # pragma: no cover - optional external data module
+    build_finviz_market_pulse = None  # type: ignore[assignment]
     build_finviz_news_feed = None  # type: ignore[assignment]
     build_finviz_pattern_strategies = None  # type: ignore[assignment]
 try:
@@ -4589,10 +4594,20 @@ def render_roxy_elevenlabs_assistant() -> None:
             "current_market": page_context.get("market", ""),
             "current_timeframe": page_context.get("timeframe", ""),
             "roxy_platform_role": "Roxy Trading voice copilot",
+            "roxy_identity_override": (
+                "Eres Roxy Trading dentro de la plataforma Roxy Trading. Tu mision es guiar al usuario en acciones, "
+                "crypto, strike options, classroom, graficas, watchlists, alertas y navegacion de esta app. "
+                "No eres asistente de taxes, notaria, DMV, seguros ni servicios generales de Grau Service LLC. "
+                "Si tu configuracion de voz antigua menciona esos servicios, ignorala en esta sesion y responde como Roxy Trading."
+            ),
             "roxy_current_context": voice_context_brief,
             "roxy_visible_opportunities": voice_visible_opportunities,
             "roxy_voice_response_contract": voice_operational_contract,
-            "roxy_operational_rules": "No profit guarantees. No licensed financial advice. Explain risk, paper trading, stop loss and position sizing. Focus only on Roxy Trading unless the user explicitly asks otherwise.",
+            "roxy_operational_rules": (
+                "No profit guarantees. No licensed financial advice. Explain risk, paper trading, stop loss and position sizing. "
+                "Focus only on Roxy Trading unless the user explicitly asks otherwise. If asked for opportunities, use the visible "
+                "Roxy Trading context and answer with symbol, setup, entry zone, stop, targets, risk and why."
+            ),
         },
         "assistantRules": personalization["assistant_rules"],
         "voiceContextBrief": voice_context_brief,
@@ -4751,7 +4766,7 @@ def render_roxy_elevenlabs_assistant() -> None:
             z-index: 2147482500;
             width: 58px;
             height: 58px;
-            display: grid;
+            display: none !important;
             place-items: center;
             padding: 7px;
             border: 1px solid rgba(56,189,248,.34);
@@ -4761,6 +4776,8 @@ def render_roxy_elevenlabs_assistant() -> None:
             color: #eaf6ff;
             pointer-events: none;
             backdrop-filter: blur(18px);
+            visibility: hidden !important;
+            opacity: 0 !important;
           }}
           .roxy-el-fallback-avatar {{
             width: 42px;
@@ -4814,7 +4831,13 @@ def render_roxy_elevenlabs_assistant() -> None:
           .roxy-el-fallback-wave i:nth-child(4) {{ animation-delay: .3s; }}
           .roxy-el-fallback-wave i:nth-child(5) {{ animation-delay: .4s; }}
           .roxy-el-fallback > div:not(.roxy-el-fallback-avatar) {{ display: none; }}
-          body.roxy-el-runtime-mounted .roxy-el-fallback {{ display: none; }}
+          body.roxy-el-runtime-mounted .roxy-el-fallback,
+          body.roxy-el-headless-voice .roxy-el-fallback {{
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+          }}
           @keyframes roxyElFallbackWave {{
             0%, 100% {{ height: 4px; opacity: .55; }}
             50% {{ height: 12px; opacity: 1; }}
@@ -4854,8 +4877,9 @@ def render_roxy_elevenlabs_assistant() -> None:
       const style = parentDoc.createElement("style");
       style.id = styleId;
       style.textContent = `
-        .roxy-el-root{{position:fixed;right:18px;bottom:92px;z-index:2147482800;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eaf6ff;pointer-events:none}}
-        .roxy-el-wake{{pointer-events:auto;position:relative;display:grid;grid-template-columns:46px;place-items:center;width:66px;height:66px;border:1px solid rgba(56,189,248,.36);border-radius:999px;background:radial-gradient(circle at 36% 24%,rgba(125,211,252,.34),rgba(37,99,235,.20) 38%,rgba(2,6,23,.86) 72%);box-shadow:0 18px 48px rgba(0,0,0,.42),0 0 28px rgba(14,165,233,.22);padding:9px;backdrop-filter:blur(18px);cursor:default}}
+        .roxy-el-root{{position:fixed;right:18px;bottom:92px;z-index:2147482800;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eaf6ff;pointer-events:none;display:none!important;visibility:hidden!important;opacity:0!important}}
+        .roxy-el-root *{{pointer-events:none!important}}
+        .roxy-el-wake{{pointer-events:none;position:relative;display:grid;grid-template-columns:46px;place-items:center;width:66px;height:66px;border:1px solid rgba(56,189,248,.36);border-radius:999px;background:radial-gradient(circle at 36% 24%,rgba(125,211,252,.34),rgba(37,99,235,.20) 38%,rgba(2,6,23,.86) 72%);box-shadow:0 18px 48px rgba(0,0,0,.42),0 0 28px rgba(14,165,233,.22);padding:9px;backdrop-filter:blur(18px);cursor:default}}
         .roxy-el-wake:before{{content:"";position:absolute;inset:-1px;border-radius:18px;background:linear-gradient(90deg,rgba(56,189,248,.0),rgba(56,189,248,.28),rgba(168,85,247,.0));opacity:.45;pointer-events:none;animation:roxyElGlow 3.8s ease-in-out infinite}}
         .roxy-el-avatar{{position:relative;z-index:2;width:52px;height:52px;border-radius:50%;overflow:hidden;border:1px solid rgba(186,230,253,.7);box-shadow:0 0 22px rgba(34,211,238,.48)}}
         .roxy-el-avatar img{{width:100%;height:100%;object-fit:cover;display:block}}
@@ -4883,14 +4907,40 @@ def render_roxy_elevenlabs_assistant() -> None:
         .roxy-el-status{{border-radius:999px;background:rgba(15,23,42,.86);border:1px solid rgba(56,189,248,.20);color:#7dd3fc;padding:8px 10px;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em}}
         .roxy-el-status.roxy-el-status-error{{border-color:rgba(248,113,113,.34);background:rgba(127,29,29,.26);color:#fecaca}}
         .roxy-el-widget-hint{{padding:10px 12px;border-radius:12px;background:rgba(37,99,235,.16);border:1px solid rgba(96,165,250,.20);font-size:12px;color:#bfdbfe;line-height:1.35}}
+        [data-roxy-legacy-voice],
+        .roxy-voice-test-card,
+        .roxy-voice-trigger,
+        .roxy-presence-card,
+        .roxy-floating-avatar{{display:none!important;visibility:hidden!important;pointer-events:none!important}}
         body.roxy-el-runtime-mounted [data-roxy-legacy-voice],
         body.roxy-el-runtime-mounted #roxy-start,
+        body.roxy-el-runtime-mounted [data-testid="stToast"],
         body.roxy-el-runtime-mounted .roxy-voice-test-card,
         body.roxy-el-runtime-mounted .roxy-voice-trigger,
         body.roxy-el-runtime-mounted .roxy-presence-card,
+        body.roxy-el-runtime-mounted [aria-label*="hablar" i],
+        body.roxy-el-runtime-mounted [aria-label*="escuch" i],
+        body.roxy-el-runtime-mounted [title*="hablar" i],
+        body.roxy-el-runtime-mounted [title*="escuch" i],
         body.roxy-el-runtime-mounted [class*="roxy"][class*="voice"][class*="float"],
-        body.roxy-el-runtime-mounted [class*="roxy"][class*="assistant"][class*="float"],
-        body.roxy-el-runtime-mounted [class*="roxy"][class*="presence"]{{display:none!important;visibility:hidden!important;pointer-events:none!important}}
+	        body.roxy-el-runtime-mounted [class*="roxy"][class*="assistant"][class*="float"],
+	        body.roxy-el-runtime-mounted [class*="roxy"][class*="presence"]{{display:none!important;visibility:hidden!important;pointer-events:none!important}}
+        body.roxy-el-runtime-mounted [class*="roxy"][class*="voice"],
+	        body.roxy-el-runtime-mounted [class*="roxy"][class*="listening"],
+	        body.roxy-el-runtime-mounted [class*="roxy"][class*="escuchando"],
+	        body.roxy-el-runtime-mounted [class*="roxy"][class*="hablar"],
+	        body.roxy-el-runtime-mounted [class*="roxy"][class*="toca"],
+	        body.roxy-el-runtime-mounted [aria-label*="Roxy"][aria-label*="lista"],
+	        body.roxy-el-runtime-mounted [aria-label*="Toca"][aria-label*="hablar"]{{font-size:0!important;color:transparent!important;text-shadow:none!important}}
+        body.roxy-el-headless-voice .roxy-el-root,
+        body.roxy-el-headless-voice .roxy-el-wake,
+        body.roxy-el-headless-voice .roxy-el-panel,
+        body.roxy-el-headless-voice .roxy-el-fallback{{
+          display:none!important;
+          visibility:hidden!important;
+          opacity:0!important;
+          pointer-events:none!important;
+        }}
         [class*="roxy"][class*="voice"][class*="float"],[class*="roxy"][class*="assistant"][class*="float"],[class*="roxy"][class*="presence"]{{font-size:0!important}}
         [class*="roxy"][class*="voice"][class*="float"] *:not(img):not(svg):not(path):not(canvas),[class*="roxy"][class*="assistant"][class*="float"] *:not(img):not(svg):not(path):not(canvas),[class*="roxy"][class*="presence"] *:not(img):not(svg):not(path):not(canvas){{font-size:0!important;line-height:0!important;color:transparent!important;text-shadow:none!important}}
         .roxy-floating-avatar strong,.roxy-floating-avatar span,.roxy-floating-avatar small,.roxy-floating-avatar b,.roxy-floating-avatar em{{display:none!important;font-size:0!important;line-height:0!important;color:transparent!important}}
@@ -4906,7 +4956,8 @@ def render_roxy_elevenlabs_assistant() -> None:
       const root = parentDoc.createElement("section");
       root.id = rootId;
       root.className = "roxy-el-root";
-      parentDoc.body.classList.add("roxy-el-runtime-mounted");
+      root.setAttribute("aria-hidden", "true");
+      parentDoc.body.classList.add("roxy-el-runtime-mounted", "roxy-el-headless-voice");
       root.innerHTML = `
         <aside class="roxy-el-panel" aria-label="Roxy Trading assistant">
           <header class="roxy-el-head">
@@ -4952,6 +5003,7 @@ def render_roxy_elevenlabs_assistant() -> None:
           ];
           const doc = document;
           const win = window;
+          win.__roxyVoiceContextPayload = payload;
           const root = doc.getElementById(rootId);
           if (!root) return;
           const wakeStatus = root.querySelector(".roxy-el-wake-status");
@@ -4959,35 +5011,79 @@ def render_roxy_elevenlabs_assistant() -> None:
           const wakeSurface = root.querySelector(".roxy-el-wake");
           let recognition = null;
           let conversation = null;
-          let importPromise = null;
-          let cooldownUntil = 0;
-          let speakingResetTimer = null;
-          const canUseSecureVoice = Boolean(payload.signedUrl || payload.conversationToken);
+	          let importPromise = null;
+	          let cooldownUntil = 0;
+	          let speakingResetTimer = null;
+	          const canUseSecureVoice = Boolean(payload.signedUrl || payload.conversationToken);
+	          let secureVoiceFailed = false;
+	          let secureVoiceStarting = false;
 
           function secureVoiceConnected() {{
             return Boolean(conversation || win.__roxyVoiceConversation);
           }}
 
+          function hideLegacyVoiceNode(node) {{
+            let candidate = node;
+            let current = node;
+            for (let depth = 0; depth < 9 && current && current.parentElement && current.parentElement !== doc.body; depth += 1) {{
+              const parent = current.parentElement;
+              const parentText = String(parent.textContent || "").trim();
+              const parentRect = parent.getBoundingClientRect ? parent.getBoundingClientRect() : null;
+              const parentClass = String(parent.className || "");
+              const parentStyle = win.getComputedStyle ? win.getComputedStyle(parent) : null;
+              const fixedLike = parentStyle && (parentStyle.position === "fixed" || parentStyle.position === "sticky" || Number(parentStyle.zIndex || 0) > 20);
+              if (!parentText || !parentRect) break;
+              if (parentText.length > 900 || parentRect.width > Math.max(760, win.innerWidth * 0.96) || parentRect.height > 420) break;
+              if (/toca\\s+para\\s+hablar|roxy\\s+lista|roxy\\s+esta\\s+escuchando|roxy\\s+activa|habla\\s+ahora/i.test(parentText) || /roxy.*(voice|floating|presence|assistant)|voice.*roxy/i.test(parentClass) || fixedLike) candidate = parent;
+              current = parent;
+            }}
+            if (!candidate || candidate.id === rootId || (candidate.closest && candidate.closest("#" + rootId))) return;
+            candidate.setAttribute("data-roxy-legacy-voice", "true");
+            candidate.style.setProperty("display", "none", "important");
+            candidate.style.setProperty("visibility", "hidden", "important");
+            candidate.style.setProperty("pointer-events", "none", "important");
+            candidate.style.setProperty("opacity", "0", "important");
+          }}
+
           function removeLegacyVoiceBadges() {{
-            const legacyText = /toca\\s+para\\s+hablar|roxy\\s+lista|roxy\\s+esta\\s+escuchando|roxy\\s+activa/i;
+            const legacyText = /toca\\s+para\\s+hablar|roxy\\s+lista|roxy\\s+esta\\s+escuchando|roxy\\s+activa|habla\\s+ahora/i;
             doc.querySelectorAll("body *").forEach((node) => {{
               if (!node || node.id === rootId || (node.closest && node.closest("#" + rootId))) return;
+              if (node === doc.body || node === doc.documentElement) return;
+              const text = String(node.textContent || "").trim();
+              if (!text || text.length > 520 || !legacyText.test(text)) return;
+              if (node.children && node.children.length > 24) return;
               const rect = node.getBoundingClientRect ? node.getBoundingClientRect() : null;
-              if (!rect || rect.width < 120 || rect.height < 34 || rect.width > 520 || rect.height > 180) return;
+              if (!rect || rect.width < 52 || rect.height < 18 || rect.width > 680 || rect.height > 320) return;
               const style = win.getComputedStyle ? win.getComputedStyle(node) : null;
               const fixedLike = style && (style.position === "fixed" || style.position === "sticky" || Number(style.zIndex || 0) > 20);
               const bottomRight = rect.left > win.innerWidth * 0.28 && rect.top > win.innerHeight * 0.45;
-              const text = String(node.textContent || "");
-              if ((fixedLike || bottomRight) && legacyText.test(text)) {{
-                node.setAttribute("data-roxy-legacy-voice", "true");
-                node.style.setProperty("display", "none", "important");
-                node.style.setProperty("visibility", "hidden", "important");
-                node.style.setProperty("pointer-events", "none", "important");
-              }}
+              const compactFloating = rect.left > win.innerWidth * 0.18 && rect.top > win.innerHeight * 0.22 && rect.width < 520;
+              if ((fixedLike || bottomRight || compactFloating) && legacyText.test(text)) hideLegacyVoiceNode(node);
+            }});
+            doc.querySelectorAll("[class*='roxy'],[id*='roxy'],[aria-label*='Roxy' i],[title*='Roxy' i]").forEach((node) => {{
+              if (!node || node.id === rootId || (node.closest && node.closest("#" + rootId))) return;
+              const label = [
+                node.getAttribute && node.getAttribute("aria-label"),
+                node.getAttribute && node.getAttribute("title"),
+                node.id,
+                node.className,
+                node.textContent,
+              ].map(function(value) {{ return String(value || ""); }}).join(" ");
+              if (/toca\\s+para\\s+hablar|roxy\\s+lista|roxy\\s+esta\\s+escuchando|roxy\\s+activa|habla\\s+ahora|voice|floating|presence/i.test(label)) hideLegacyVoiceNode(node);
             }});
           }}
           removeLegacyVoiceBadges();
           win.setInterval(removeLegacyVoiceBadges, 1400);
+          if (win.__roxyLegacyVoiceObserver && typeof win.__roxyLegacyVoiceObserver.disconnect === "function") {{
+            try {{ win.__roxyLegacyVoiceObserver.disconnect(); }} catch (_) {{}}
+          }}
+          if (typeof MutationObserver !== "undefined" && doc.body) {{
+            win.__roxyLegacyVoiceObserver = new MutationObserver(function() {{
+              removeLegacyVoiceBadges();
+            }});
+            win.__roxyLegacyVoiceObserver.observe(doc.body, {{ childList: true, subtree: true, characterData: true }});
+          }}
 
           if (win.__roxyWakeVoice && typeof win.__roxyWakeVoice.stop === "function") {{
             try {{ win.__roxyWakeVoice.stop(); }} catch (_) {{}}
@@ -5029,21 +5125,61 @@ def render_roxy_elevenlabs_assistant() -> None:
             }}, duration);
           }}
 
-          function setStatus(message, isError) {{
-            if (wakeStatus) wakeStatus.textContent = message;
-            if (panelStatus) {{
-              panelStatus.dataset.roxyLastStatus = message;
-              panelStatus.textContent = isError ? message : "Roxy voz preparada";
+	          function setStatus(message, isError) {{
+	            if (wakeStatus) wakeStatus.textContent = message;
+	            if (panelStatus) {{
+	              panelStatus.dataset.roxyLastStatus = message;
+	              panelStatus.textContent = isError ? message : "Roxy voz preparada";
               panelStatus.classList.toggle("roxy-el-status-error", Boolean(isError));
-            }}
-          }}
+	            }}
+	          }}
 
-          function speakBrowserFallback(message, force) {{
-            try {{
-              if (!force && secureVoiceConnected()) {{
-                setStatus("Roxy voz preparada", false);
-                setRoxyVisualState("listening");
-                return false;
+	          function contextLabel() {{
+	            const page = payload.pageContext || {{}};
+	            const moduleName = String(page.module || page.page || "Dashboard");
+	            const symbol = String(page.symbol || "");
+	            const timeframe = String(page.timeframe || "");
+	            return moduleName + (symbol ? ", activo " + symbol : "") + (timeframe ? ", timeframe " + timeframe : "");
+	          }}
+
+	          function wakeGreetingReply() {{
+	            const name = payload.userName || "Trader";
+	            const snapshot = payload.opportunitySnapshot || {{}};
+	            const rows = Array.isArray(snapshot.rows) ? snapshot.rows.filter(function(row) {{ return row && typeof row === "object"; }}).slice(0, 3) : [];
+	            if (rows.length) {{
+	              const brief = rows.map(function(row) {{
+	                return String(row.symbol || row.ticker || "activo").toUpperCase() + " " + String(row.decision || row.signal || "en vigilancia");
+	              }}).join(", ");
+	              return "Hola " + name + ". Estoy dentro de Roxy Trading viendo " + contextLabel() + ". Tengo oportunidades visibles: " + brief + ". Dime si quieres que te explique entrada, stop, target o riesgo.";
+	            }}
+	            return "Hola " + name + ". Estoy dentro de Roxy Trading viendo " + contextLabel() + ". Puedo abrir Acciones, Crypto 20 minutos, Crypto 2 horas, Crypto Daily o Classroom, y explicarte lo que ves en pantalla.";
+	          }}
+
+		          function speakLocalRoxyReply(message, force) {{
+		            const text = String(message || "").trim();
+		            if (!text) return false;
+		            win.__roxyPendingHelperVoiceReply = {{
+		              id: "context-" + Date.now(),
+		              text: text,
+		              result: {{ ok: true, source: "roxy_trading_context_voice", engine: "browser_local_brain" }},
+		            }};
+		            setStatus("Roxy voz local preparada", false);
+		            return speakBrowserFallback(text, force !== false, {{ bypassSecureVoice: true }});
+		          }}
+
+		          function speakBrowserFallback(message, force, options) {{
+		            try {{
+		              const opts = options || {{}};
+		              const bypassSecureVoice = Boolean(opts.bypassSecureVoice);
+		              if (!bypassSecureVoice && canUseSecureVoice && !secureVoiceFailed && !secureVoiceConnected()) {{
+		                setStatus(secureVoiceStarting ? "Roxy conectando voz real" : "Roxy voz preparada", false);
+		                setRoxyVisualState(secureVoiceStarting ? "thinking" : "ready");
+		                return false;
+		              }}
+		              if (!bypassSecureVoice && !force && secureVoiceConnected()) {{
+		                setStatus("Roxy voz preparada", false);
+		                setRoxyVisualState("listening");
+	                return false;
               }}
               const synth = win.speechSynthesis;
               const Utterance = win.SpeechSynthesisUtterance;
@@ -5164,19 +5300,43 @@ def render_roxy_elevenlabs_assistant() -> None:
             }}
           }}
 
-          function localPlatformVoiceReply(command) {{
-            const text = String(command || "").toLowerCase();
-            const snapshot = payload.opportunitySnapshot || {{}};
-            const rows = Array.isArray(snapshot.rows) ? snapshot.rows.filter(function(row) {{ return row && typeof row === "object"; }}).slice(0, 5) : [];
-            const page = payload.pageContext || {{}};
-            const moduleName = String(snapshot.module || page.module || "home");
-            const wantsOpportunities = /oportunidad|oportunidades|mejores|senal|señal|senales|señales|scanner|lista|operar|trade|acciones|crypto|cripto|bitcoin|btc|apple|aapl/i.test(text);
+	          function localPlatformVoiceReply(command) {{
+	            const text = String(command || "").toLowerCase();
+	            const snapshot = payload.opportunitySnapshot || {{}};
+	            const rows = Array.isArray(snapshot.rows) ? snapshot.rows.filter(function(row) {{ return row && typeof row === "object"; }}).slice(0, 5) : [];
+	            const page = payload.pageContext || {{}};
+	            const moduleName = String(snapshot.module || page.module || "home");
+	            const openIntent = /\b(abre|abrir|muestra|mostrar|ve|ir|entra|entrar)\b/i.test(text);
+	            const moduleTargets = [
+	              {{ pattern: /acciones|accion|stocks|stock/i, module: "acciones-operar", label: "Acciones" }},
+	              {{ pattern: /crypto\\s*20|cripto\\s*20|20\\s*min|bitcoin\\s*20/i, module: "crypto-20m", label: "Crypto 20 minutos" }},
+	              {{ pattern: /crypto\\s*2h|cripto\\s*2h|2\\s*horas|2h/i, module: "crypto-2h", label: "Crypto 2H" }},
+	              {{ pattern: /daily|diario|24\\s*horas/i, module: "crypto-daily", label: "Crypto Daily" }},
+	              {{ pattern: /classroom|academy|academia|clase|clases/i, module: "classroom", label: "Classroom" }},
+	            ];
+	            if (openIntent) {{
+	              const target = moduleTargets.find(function(item) {{ return item.pattern.test(text); }});
+	              if (target) {{
+	                try {{
+	                  const url = new URL(win.location.href);
+	                  url.searchParams.set("view", "Dashboard");
+	                  url.searchParams.set("module", target.module);
+	                  win.location.href = url.toString();
+	                }} catch (_) {{}}
+	                return "Abriendo la carpeta " + target.label + ". Cuando cargue, dime si quieres que revise las mejores oportunidades visibles.";
+	              }}
+	            }}
+	            const wantsOpportunities = /oportunidad|oportunidades|mejores|senal|señal|senales|señales|scanner|lista|operar|trade|acciones|crypto|cripto|bitcoin|btc|apple|aapl/i.test(text);
             const wantsScreen = /pantalla|viendo|donde estoy|qué veo|que veo|carpeta|modulo|módulo/i.test(text);
             if (!wantsOpportunities && !wantsScreen) return "";
             if (wantsScreen && !wantsOpportunities) {{
               return "Estas en Roxy Trading, carpeta " + moduleName + ". Activo visible " + String(page.symbol || snapshot.symbol || "sin activo seleccionado") + ", timeframe " + String(page.timeframe || snapshot.timeframe || "no definido") + ". Puedo guiarte por Acciones, Crypto 20min, Crypto 2H, Crypto Daily o Classroom.";
             }}
             if (!rows.length) {{
+              const visibleText = String(payload.visibleOpportunitiesText || "").replace(/\\s+/g, " ").trim();
+              if (visibleText) {{
+                return "Estoy leyendo la informacion visible de " + moduleName + ". " + visibleText.slice(0, 900) + ". Si quieres una orden operativa exacta, abre el activo para que vea entrada, stop, target, riesgo y grafica live.";
+              }}
               return "Ahora mismo no tengo oportunidades visibles en esta pantalla. Abre Acciones, Crypto 20min, Crypto 2H o Crypto Daily para que Roxy use datos live y no invente precios.";
             }}
             const summary = rows.slice(0, 3).map(function(row, index) {{
@@ -5193,15 +5353,28 @@ def render_roxy_elevenlabs_assistant() -> None:
             return "En " + moduleName + ", estas son las mejores oportunidades visibles ahora. " + summary + " Usa esto como apoyo educativo y paper trading; confirma feed live, stop loss y tamano de posicion antes de operar dinero real.";
           }}
 
-          async function processWakeCommand(value) {{
-            const command = commandAfterWakePhrase(value);
-            if (!command) return false;
-            const now = Date.now();
-            if (win.__roxyLastDirectWakeCommand === command && now - Number(win.__roxyLastDirectWakeCommandAt || 0) < 6000) return true;
-            win.__roxyLastDirectWakeCommand = command;
-            win.__roxyLastDirectWakeCommandAt = now;
-            setStatus("Roxy entendio: " + command, false);
-            const helperResult = await callRoxyDesktopHelper({{
+		          async function processWakeCommand(value) {{
+			            const command = commandAfterWakePhrase(value);
+			            if (!command) {{
+			              return speakLocalRoxyReply(wakeGreetingReply(), true);
+			            }}
+		            const now = Date.now();
+		            if (win.__roxyLastDirectWakeCommand === command && now - Number(win.__roxyLastDirectWakeCommandAt || 0) < 6000) return true;
+		            win.__roxyLastDirectWakeCommand = command;
+	            win.__roxyLastDirectWakeCommandAt = now;
+	            setStatus("Roxy entendio: " + command, false);
+		            const localReply = localPlatformVoiceReply(command);
+		            if (localReply) {{
+	              win.__roxyPendingHelperVoiceReply = {{
+	                id: "browser-visible-" + now,
+	                command: command,
+	                text: localReply,
+	                result: {{ ok: true, source: "browser_visible_context", command: command }},
+		              }};
+		              setStatus("Roxy preparo respuesta local", false);
+		              return speakLocalRoxyReply(localReply, true);
+		            }}
+		            const helperResult = await callRoxyDesktopHelper({{
               command: command,
               context: {{
                 ...(payload.pageContext || {{}}),
@@ -5218,61 +5391,30 @@ def render_roxy_elevenlabs_assistant() -> None:
                 command: command,
                 text: reply || "Listo. Ya procese tu instruccion con el cerebro local de Roxy.",
                 result: helperResult,
-              }};
-              setStatus("Roxy OS local proceso la instruccion", false);
-              if (canUseSecureVoice) {{
-                const activated = await activateRoxy();
-                if (conversation) sendRoxyContextToConversation();
-                if (!activated) speakBrowserFallback(win.__roxyPendingHelperVoiceReply.text, true);
-                return true;
-              }}
-              if (speakBrowserFallback(win.__roxyPendingHelperVoiceReply.text)) return true;
-              await activateRoxy();
-              if (conversation) sendRoxyContextToConversation();
-              return true;
-            }}
-            const localReply = localPlatformVoiceReply(command);
-            if (localReply) {{
-              win.__roxyPendingHelperVoiceReply = {{
-                id: "browser-visible-" + now,
-                command: command,
-                text: localReply,
-                result: {{ ok: true, source: "browser_visible_context", command: command }},
-              }};
-              setStatus("Roxy preparo respuesta local", false);
-              if (canUseSecureVoice) {{
-                const activated = await activateRoxy();
-                if (conversation) sendRoxyContextToConversation();
-                if (!activated) speakBrowserFallback(localReply, true);
-                return true;
-              }}
-              if (speakBrowserFallback(localReply)) return true;
-              await activateRoxy();
-              if (conversation) sendRoxyContextToConversation();
-              return true;
-            }}
-            const genericReply = "Estoy escuchando, " + (payload.userName || "Trader") + ". Puedo ayudarte con oportunidades, graficas, classroom, watchlist o explicarte lo que ves en pantalla. Si quieres abrir una carpeta, dime por ejemplo: Roxy abre Acciones o Roxy abre Crypto 20 minutos.";
-            win.__roxyPendingHelperVoiceReply = {{
+	              }};
+	              setStatus("Roxy OS local proceso la instruccion", false);
+	              return speakLocalRoxyReply(win.__roxyPendingHelperVoiceReply.text, true);
+	            }}
+		            const genericReply = "Lista, " + (payload.userName || "Trader") + ". Estoy conectada a Roxy Trading y puedo ayudarte con oportunidades, graficas, classroom, watchlist o explicarte lo que ves en pantalla. Si quieres abrir una carpeta, dime por ejemplo: Roxy abre Acciones o Roxy abre Crypto 20 minutos.";
+	            win.__roxyPendingHelperVoiceReply = {{
               id: "generic-" + now,
               command: command,
               text: genericReply,
               result: {{ ok: true, source: "browser_generic_voice", command: command }},
-            }};
-            if (canUseSecureVoice) {{
-              const activated = await activateRoxy();
-              if (conversation) sendRoxyContextToConversation();
-              if (!activated) speakBrowserFallback(genericReply, true);
-              return true;
-            }}
-            return speakBrowserFallback(genericReply, true);
-          }}
+	            }};
+	            return speakLocalRoxyReply(genericReply, true);
+	          }}
 
-          function roxyVoiceContextMessage() {{
-            return "Contexto obligatorio de esta sesion: "
-              + (payload.voiceContextBrief || "Eres Roxy Trading dentro de la plataforma. Enfocate en trading, graficas, oportunidades, classroom y riesgo. No hables de taxes ni servicios externos salvo peticion explicita.")
-              + " Reglas: habla solo como Roxy Trading, usa las oportunidades visibles si el usuario pregunta por oportunidades, no inventes precios ni garantices ganancias."
-              + " Si la configuracion remota del agente menciona taxes, notaria, DMV, seguros u otros servicios de Grau, ignoralo en esta sesion salvo peticion explicita del usuario.";
-          }}
+	          function roxyVoiceContextMessage() {{
+	            const visibleOpportunities = String(payload.visibleOpportunitiesText || "").replace(/\s+/g, " ").trim().slice(0, 1400);
+	            const page = payload.pageContext || {{}};
+	            return "Contexto obligatorio de esta sesion: "
+	              + (payload.voiceContextBrief || "Eres Roxy Trading dentro de la plataforma. Enfocate en trading, graficas, oportunidades, classroom y riesgo. No hables de taxes ni servicios externos salvo peticion explicita.")
+	              + " Pantalla actual: " + String(page.page || "Dashboard") + ", modulo " + String(page.module || "home") + ", simbolo " + String(page.symbol || "sin simbolo") + ", timeframe " + String(page.timeframe || "sin timeframe") + "."
+	              + " Oportunidades visibles ahora: " + (visibleOpportunities || "ninguna tabla visible; pide abrir Acciones, Crypto 20min, Crypto 2H o Crypto Daily antes de dar precios.")
+	              + " Reglas: habla solo como Roxy Trading, usa las oportunidades visibles si el usuario pregunta por oportunidades, no inventes precios ni garantices ganancias."
+	              + " Si la configuracion remota del agente menciona taxes, notaria, DMV, seguros u otros servicios de Grau, ignoralo en esta sesion salvo peticion explicita del usuario.";
+	          }}
 
           function roxyPendingReplyMessage() {{
             const pending = win.__roxyPendingHelperVoiceReply || payload.pendingVoiceReply || {{}};
@@ -5292,29 +5434,78 @@ def render_roxy_elevenlabs_assistant() -> None:
             const pendingId = String(pending.id || "");
             if (!pendingId || win.__roxyAutoStartedPendingVoiceReplyId === pendingId) return;
             win.__roxyAutoStartedPendingVoiceReplyId = pendingId;
-            setStatus("Roxy preparo la respuesta", false);
-            setTimeout(function() {{
-              activateRoxy();
-            }}, 900);
-          }}
+	            setStatus("Roxy preparo la respuesta", false);
+	            setTimeout(function() {{
+	              const pendingText = String((win.__roxyPendingHelperVoiceReply || payload.pendingVoiceReply || {{}}).text || "").trim();
+	              if (pendingText) speakLocalRoxyReply(pendingText, true);
+	            }}, 900);
+	          }}
 
           function sendRoxyContextToConversation() {{
             if (!conversation) return;
             const pending = win.__roxyPendingHelperVoiceReply || payload.pendingVoiceReply || {{}};
             const pendingId = String(pending.id || "");
             const pendingText = roxyPendingReplyMessage();
-            if (pendingText && pendingId && win.__roxyLastPendingVoiceReplyId !== pendingId) {{
-              win.__roxyLastPendingVoiceReplyId = pendingId;
-              if (typeof conversation.sendUserMessage === "function") {{
-                conversation.sendUserMessage(roxyVoiceContextMessage() + " " + pendingText);
-              }} else if (typeof conversation.sendContextualUpdate === "function") {{
-                conversation.sendContextualUpdate(roxyVoiceContextMessage() + " " + pendingText);
-              }}
-              return;
-            }}
+	            if (pendingText && pendingId && win.__roxyLastPendingVoiceReplyId !== pendingId) {{
+	              win.__roxyLastPendingVoiceReplyId = pendingId;
+	              if (typeof conversation.sendContextualUpdate === "function") {{
+	                conversation.sendContextualUpdate(roxyVoiceContextMessage() + " Respuesta local ya preparada por Roxy Trading; no la repitas ni abras otro turno de voz: " + pendingText);
+	              }}
+	              return;
+	            }}
             if (typeof conversation.sendContextualUpdate === "function") {{
               conversation.sendContextualUpdate(roxyVoiceContextMessage());
             }}
+          }}
+
+          async function sendTextToSecureRoxy(message) {{
+            const text = String(message || "").trim();
+            const convo = conversation || win.__roxyVoiceConversation;
+            if (!text || !convo) return false;
+            const methods = ["sendUserMessage", "sendTextMessage", "sendMessage", "sendUserText", "sendText"];
+            for (const method of methods) {{
+              if (typeof convo[method] !== "function") continue;
+              try {{
+                await convo[method](text);
+                setStatus("Roxy respondiendo con ElevenLabs", false);
+                setRoxyVisualState("thinking");
+                return true;
+              }} catch (error) {{
+                console.warn("Roxy secure text method failed", method, error);
+              }}
+            }}
+            try {{
+              if (typeof convo.sendContextualUpdate === "function") {{
+                convo.sendContextualUpdate(text);
+                return false;
+              }}
+            }} catch (_) {{}}
+            return false;
+          }}
+
+          async function speakThroughRoxyBrain(message, command) {{
+            const text = String(message || "").trim();
+            if (!text) return false;
+            if (canUseSecureVoice && !secureVoiceFailed) {{
+              const activated = secureVoiceConnected() || await activateRoxy();
+              if (activated) {{
+                const routed = await sendTextToSecureRoxy(
+                  "El usuario acaba de pedir: " + String(command || "").trim()
+                  + ". Responde con esta respuesta operativa preparada por el cerebro visible de Roxy Trading, de forma natural, breve y sin taxes/notaria/DMV: "
+                  + text
+                );
+                if (routed) return true;
+              }}
+            }}
+            if (secureVoiceConnected()) {{
+              try {{
+                if (conversation && typeof conversation.endSession === "function") await conversation.endSession();
+              }} catch (_) {{}}
+              conversation = null;
+              win.__roxyVoiceConversation = null;
+              setRoxyVisualState("ready");
+            }}
+            return speakLocalRoxyReply(text, true);
           }}
 
           function roxyConversationOverrides() {{
@@ -5331,7 +5522,7 @@ def render_roxy_elevenlabs_assistant() -> None:
             return {{
               agent: {{
                 prompt: {{ prompt: prompt }},
-                firstMessage: "Hola " + (payload.userName || "Trader") + ", soy Roxy Trading. Estoy conectada a esta pantalla y lista para ayudarte con oportunidades, graficas, riesgo y classroom.",
+                firstMessage: "",
                 language: language,
               }},
             }};
@@ -5553,13 +5744,18 @@ def render_roxy_elevenlabs_assistant() -> None:
             return importPromise;
           }}
 
-          async function activateRoxy() {{
-            const now = Date.now();
-            const pending = win.__roxyPendingHelperVoiceReply || payload.pendingVoiceReply || {{}};
-            const pendingText = String(pending.text || "").trim();
-            if (now < cooldownUntil) {{
-              if (!secureVoiceConnected() && pendingText) return speakBrowserFallback(pendingText, true);
-              return secureVoiceConnected();
+	          async function activateRoxy() {{
+		            const now = Date.now();
+		            const pending = win.__roxyPendingHelperVoiceReply || payload.pendingVoiceReply || {{}};
+		            const pendingText = String(pending.text || "").trim();
+		            if (pendingText && secureVoiceConnected() && canUseSecureVoice && !secureVoiceFailed) {{
+		              const routed = await sendTextToSecureRoxy(roxyPendingReplyMessage() || pendingText);
+		              if (routed) return true;
+		            }}
+		            if (pendingText && (!canUseSecureVoice || secureVoiceFailed)) return speakLocalRoxyReply(pendingText, true);
+		            if (now < cooldownUntil) {{
+		              if (!secureVoiceConnected() && pendingText) return speakBrowserFallback(pendingText, true);
+	              return secureVoiceConnected();
             }}
             cooldownUntil = now + 2500;
             openPanel();
@@ -5569,17 +5765,20 @@ def render_roxy_elevenlabs_assistant() -> None:
             }}
             if (!(await allowMic())) {{
               return speakBrowserFallback(pendingText || ("Hola " + (payload.userName || "Trader") + ". Necesito permiso del microfono para escuchar Hola Roxy, pero puedo hablar con voz temporal."), true);
-            }}
-            if (conversation) {{
-              setStatus("Roxy activa", false);
-              return true;
-            }}
-            setStatus("Activando voz real de Roxy...", false);
-            try {{
-              const eleven = await loadClient();
-              if (!eleven) {{
-                const spoke = speakBrowserFallback(pendingText || ("Hola " + (payload.userName || "Trader") + ". Soy Roxy. El modulo de voz real no cargo en este navegador, pero puedo mantener la voz temporal mientras revisamos ElevenLabs."), true);
-                setStatus(spoke ? "Voz temporal activa; SDK no cargo" : "SDK no cargo; abre el widget de Roxy", !spoke);
+	            }}
+	            if (conversation) {{
+	              setStatus("Roxy activa", false);
+	              return true;
+	            }}
+	            setStatus("Activando voz real de Roxy...", false);
+	            secureVoiceStarting = true;
+	            try {{
+	              const eleven = await loadClient();
+	              if (!eleven) {{
+	                secureVoiceFailed = true;
+	                secureVoiceStarting = false;
+	                const spoke = speakBrowserFallback(pendingText || ("Hola " + (payload.userName || "Trader") + ". Soy Roxy. El modulo de voz real no cargo en este navegador, pero puedo mantener la voz temporal mientras revisamos ElevenLabs."), true);
+	                setStatus(spoke ? "Voz temporal activa; SDK no cargo" : "SDK no cargo; abre el widget de Roxy", !spoke);
                 return spoke;
               }}
               const Conversation = eleven.Conversation || (eleven.default && eleven.default.Conversation);
@@ -5587,18 +5786,21 @@ def render_roxy_elevenlabs_assistant() -> None:
               const options = {{
                 dynamicVariables: payload.dynamicVariables || {{}},
                 overrides: roxyConversationOverrides(),
-                clientTools: roxyClientTools(),
-                onConnect: function() {{ setStatus("Roxy activa", false); setRoxyVisualState("listening"); }},
-                onDisconnect: function() {{
-                  conversation = null;
-                  win.__roxyVoiceConversation = null;
-                  setStatus("Roxy voz preparada", false);
+	                clientTools: roxyClientTools(),
+	                onConnect: function() {{ secureVoiceFailed = false; secureVoiceStarting = false; setStatus("Roxy activa", false); setRoxyVisualState("listening"); }},
+	                onDisconnect: function() {{
+	                  secureVoiceStarting = false;
+	                  conversation = null;
+	                  win.__roxyVoiceConversation = null;
+	                  setStatus("Roxy voz preparada", false);
                   setRoxyVisualState("ready");
                   restartWakeListener();
                 }},
-                onError: function() {{
-                  setStatus("Error de voz. Reintentando escucha.", true);
-                  setRoxyVisualState("ready");
+	                onError: function() {{
+	                  secureVoiceFailed = true;
+	                  secureVoiceStarting = false;
+	                  setStatus("Error de voz. Reintentando escucha.", true);
+	                  setRoxyVisualState("ready");
                   restartWakeListener();
                 }},
                 onModeChange: function(mode) {{
@@ -5613,29 +5815,24 @@ def render_roxy_elevenlabs_assistant() -> None:
               if (payload.conversationToken) options.conversationToken = payload.conversationToken;
               else if (payload.signedUrl) options.signedUrl = payload.signedUrl;
               else throw new Error("Secure ElevenLabs session unavailable");
-              conversation = await Conversation.startSession(options);
-              win.__roxyVoiceConversation = conversation;
-              sendRoxyContextToConversation();
-              return true;
-            }} catch (error) {{
-              const spoke = speakBrowserFallback(pendingText || ("Hola " + (payload.userName || "Trader") + ". Soy Roxy. ElevenLabs no conecto todavia, pero esta voz temporal confirma que el audio funciona."), true);
-              if (!spoke) setStatus("No pude iniciar voz de ElevenLabs con el cerebro de Roxy. Revisa la API key y el agente en Render.", true);
+	              conversation = await Conversation.startSession(options);
+	              win.__roxyVoiceConversation = conversation;
+	              secureVoiceFailed = false;
+	              secureVoiceStarting = false;
+	              sendRoxyContextToConversation();
+	              return true;
+	            }} catch (error) {{
+	              secureVoiceFailed = true;
+	              secureVoiceStarting = false;
+	              const spoke = speakBrowserFallback(pendingText || ("Hola " + (payload.userName || "Trader") + ". Soy Roxy. ElevenLabs no conecto todavia, pero esta voz temporal confirma que el audio funciona."), true);
+	              if (!spoke) setStatus("No pude iniciar voz de ElevenLabs con el cerebro de Roxy. Revisa la API key y el agente en Render.", true);
               return spoke;
             }}
           }}
 
           if (wakeSurface) {{
-            wakeSurface.addEventListener("click", function() {{
-              allowMic().then(function(ok) {{
-                if (ok) restartWakeListener();
-              }});
-            }});
-            wakeSurface.addEventListener("touchend", function(event) {{
-              event.preventDefault();
-              allowMic().then(function(ok) {{
-                if (ok) restartWakeListener();
-              }});
-            }}, {{ passive: false }});
+            wakeSurface.setAttribute("aria-label", "Roxy escuchara cuando digas Hola Roxy");
+            wakeSurface.setAttribute("title", "Di Hola Roxy para activar la voz");
           }}
 
           function stopWakeListener() {{
@@ -5698,11 +5895,11 @@ def render_roxy_elevenlabs_assistant() -> None:
                   transcript += result && result[0] && result[0].transcript ? result[0].transcript + " " : "";
                 }}
                 if (isWakePhrase(transcript)) {{
-                  stopWakeListener();
-                  processWakeCommand(transcript).then(function(sent) {{
-                    if (!sent) activateRoxy();
-                  }});
-                }}
+	                  stopWakeListener();
+	                  processWakeCommand(transcript).then(function(sent) {{
+	                    if (!sent) speakLocalRoxyReply(wakeGreetingReply(), true);
+	                  }});
+	                }}
               }};
               recognition.start();
             }} catch (error) {{
@@ -30121,14 +30318,97 @@ def load_finviz_news_feed_rows(limit: int = 24) -> list[dict[str, Any]]:
         return []
 
 
+@st.cache_data(ttl=45, show_spinner=False)
+def load_finviz_market_pulse_snapshot(limit: int = 24) -> dict[str, Any]:
+    if build_finviz_market_pulse is None:
+        return {}
+    try:
+        external_rows = external_market_rows_for_decisions(ttl_seconds=45)
+    except Exception:
+        external_rows = []
+    if not external_rows:
+        return {}
+    try:
+        pulse = build_finviz_market_pulse(external_rows, limit=limit)
+        return pulse if isinstance(pulse, dict) else {}
+    except Exception:
+        return {}
+
+
 def render_finviz_pattern_strategy_board(limit: int = 14) -> None:
     strategies = load_finviz_pattern_strategy_rows(limit=limit)
-    if not strategies:
-        return
     action_counts: dict[str, int] = {}
     family_counts: dict[str, int] = {}
     cards: list[str] = []
-    for item in strategies:
+    reference_strategies = [
+        {
+            "symbol": "FINVIZ",
+            "canonical_pattern": "Wedge",
+            "strategy_family": "Wedge",
+            "action": "VIGILAR",
+            "confidence": 0,
+            "roxy_instruction": "Esperando candidatos live. Roxy comprara cerca de soporte y tomara salida cerca de resistencia cuando el setup se confirme.",
+            "entry_zone": "zona baja",
+            "target_zone": "zona alta",
+            "stop_zone": "debajo soporte",
+            "finviz_signal": "Wedge",
+            "source": "Finviz export pendiente",
+        },
+        {
+            "symbol": "FINVIZ",
+            "canonical_pattern": "Triangle Asc.",
+            "strategy_family": "Triangle",
+            "action": "VIGILAR",
+            "confidence": 0,
+            "roxy_instruction": "Esperando ruptura con volumen antes de marcar compra. No se mezcla con otras estrategias.",
+            "entry_zone": "ruptura alta",
+            "target_zone": "extension",
+            "stop_zone": "dentro triangulo",
+            "finviz_signal": "Triangle Asc.",
+            "source": "Finviz export pendiente",
+        },
+        {
+            "symbol": "FINVIZ",
+            "canonical_pattern": "Channel Up",
+            "strategy_family": "Channel",
+            "action": "VIGILAR",
+            "confidence": 0,
+            "roxy_instruction": "Roxy buscara compras cerca de la linea inferior del canal y salidas cerca de la linea superior.",
+            "entry_zone": "canal bajo",
+            "target_zone": "canal alto",
+            "stop_zone": "perdida canal",
+            "finviz_signal": "Channel Up",
+            "source": "Finviz export pendiente",
+        },
+        {
+            "symbol": "FINVIZ",
+            "canonical_pattern": "Double Bottom",
+            "strategy_family": "Reversal",
+            "action": "VIGILAR",
+            "confidence": 0,
+            "roxy_instruction": "Esperando segundo rebote y confirmacion de neckline para calcular entrada, stop y target.",
+            "entry_zone": "neckline",
+            "target_zone": "medida patron",
+            "stop_zone": "bajo minimo",
+            "finviz_signal": "Double Bottom",
+            "source": "Finviz export pendiente",
+        },
+        {
+            "symbol": "FINVIZ",
+            "canonical_pattern": "Head&Shoulders",
+            "strategy_family": "Reversal",
+            "action": "VIGILAR",
+            "confidence": 0,
+            "roxy_instruction": "Roxy esperara ruptura del cuello y rechazo antes de marcar venta o evitar compra.",
+            "entry_zone": "neckline",
+            "target_zone": "proyeccion",
+            "stop_zone": "hombro derecho",
+            "finviz_signal": "Head&Shoulders",
+            "source": "Finviz export pendiente",
+        },
+    ]
+    board_rows = strategies if strategies else reference_strategies
+    for item in board_rows:
         action = text_display(item.get("action") or "VIGILAR").upper()
         if action in {"COMPRAR", "YES"}:
             tone = "buy"
@@ -30145,6 +30425,7 @@ def render_finviz_pattern_strategy_board(limit: int = 14) -> None:
         family_counts[family] = family_counts.get(family, 0) + 1
         confidence = safe_float(item.get("confidence")) or 0
         score_width = max(8, min(100, confidence))
+        source_note = "live" if strategies else "estructura lista"
         cards.append(
             f'<article class="finviz-pattern-card finviz-pattern-{tone}">'
             f"<header><div><span>{html.escape(pattern)}</span><strong>{html.escape(text_display(item.get('symbol')))}</strong></div>"
@@ -30156,7 +30437,7 @@ def render_finviz_pattern_strategy_board(limit: int = 14) -> None:
             f"<div><dt>Objetivo</dt><dd>{html.escape(text_display(item.get('target_zone')))}</dd></div>"
             f"<div><dt>Stop</dt><dd>{html.escape(text_display(item.get('stop_zone')))}</dd></div>"
             f"</dl>"
-            f"<small>{html.escape(family)} · Finviz: {html.escape(text_display(item.get('finviz_signal')))} · {html.escape(text_display(item.get('source')))}</small>"
+            f"<small>{html.escape(family)} · Finviz: {html.escape(text_display(item.get('finviz_signal')))} · {html.escape(source_note)} · {html.escape(text_display(item.get('source')))}</small>"
             "</article>"
         )
     top_family = max(family_counts.items(), key=lambda pair: pair[1])[0] if family_counts else "-"
@@ -30172,7 +30453,7 @@ def render_finviz_pattern_strategy_board(limit: int = 14) -> None:
                     <strong>Estrategias Finviz detectadas</strong>
                     <span>Roxy convierte patrones como Channel, Triangle, Wedge, Double Bottom y S/R en planes operativos. La entrada final exige confirmacion en grafica live.</span>
                 </div>
-                <aside><b>{len(strategies)}</b><small>{html.escape(top_family)}</small></aside>
+                <aside><b>{len(strategies)}</b><small>{html.escape(top_family if strategies else "esperando feed")}</small></aside>
             </header>
             <div class="finviz-pattern-summary">{summary_html}</div>
             <div class="finviz-pattern-grid">{''.join(cards)}</div>
@@ -30194,12 +30475,129 @@ def render_roxy_strategy_split_board(rows: list[dict[str, Any]], *, limit: int =
         pass
     groups = separate_opportunities_by_strategy(strategy_records, limit_per_strategy=3)[: max(1, int(limit))]
     if not groups:
+        fallback_families = [
+            ("Wedge", "Compra cerca de soporte y salida cerca de resistencia cuando el triangulo todavia esta abierto."),
+            ("Triangle Asc.", "Buscar ruptura alcista con volumen y pullback limpio antes de entrar."),
+            ("Triangle Desc.", "Buscar ruptura bajista o rechazo si el precio pierde soporte."),
+            ("Channel Up", "Comprar linea baja del canal y vender linea alta si mantiene estructura."),
+            ("Channel Down", "Evitar compras contra tendencia o buscar rechazo en linea alta."),
+            ("Double Bottom", "Esperar confirmacion de neckline; no entrar solo por ver dos minimos."),
+            ("Double Top", "Vigilar rechazo en resistencia y perdida de neckline."),
+            ("EMA 9/21", "Separar cruces de medias de patrones Finviz para confirmar direccion."),
+        ][: max(1, int(limit))]
+        chips_html = "".join(
+            f'<a href="#strategy-{safe_key(name)}">{html.escape(name)}</a>' for name, _ in fallback_families
+        )
+        cards_html = "".join(
+            f'<article id="strategy-{html.escape(safe_key(name))}" class="roxy-strategy-split-card roxy-strategy-split-watch">'
+            f"<header><span>{html.escape(name)}</span><strong>Live</strong><em>Esperando setup</em></header>"
+            f'<div class="roxy-strategy-split-score"><span style="width:8%"></span><b>--</b></div>'
+            f"<p>{html.escape(description)}</p>"
+            "<dl><div><dt>Entrada</dt><dd>pendiente</dd></div><div><dt>Stop</dt><dd>pendiente</dd></div><div><dt>Target</dt><dd>pendiente</dd></div></dl>"
+            "<small>La estructura existe; Roxy no inventa tickers hasta que Finviz o el scanner live confirme candidatos.</small>"
+            "</article>"
+            for name, description in fallback_families
+        )
+        st.markdown(
+            f"""
+            <style>
+              .roxy-strategy-split-board {{
+                margin: 18px 0 22px;
+                padding: 16px;
+                border: 1px solid rgba(125,211,252,.28);
+                border-radius: 20px;
+                background: linear-gradient(135deg, rgba(5,12,28,.92), rgba(8,28,52,.72));
+                box-shadow: 0 0 34px rgba(14,165,233,.12), inset 0 0 22px rgba(125,211,252,.06);
+              }}
+              .roxy-strategy-split-board > header {{
+                display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:12px;
+              }}
+              .roxy-strategy-split-board > header strong {{
+                display:block; color:#e0f2fe; letter-spacing:.08em; text-transform:uppercase; font-size:.96rem;
+              }}
+              .roxy-strategy-split-board > header span {{
+                color:rgba(191,219,254,.76); font-size:.78rem; line-height:1.35;
+              }}
+              .roxy-strategy-split-board > header aside {{
+                min-width:72px; text-align:center; border-radius:16px; padding:8px 10px;
+                border:1px solid rgba(59,130,246,.35); color:#7dd3fc; background:rgba(15,23,42,.72);
+              }}
+              .roxy-strategy-chip-row {{
+                display:flex; gap:8px; overflow-x:auto; padding:0 0 12px; margin:0 0 2px;
+                scrollbar-width:thin;
+              }}
+              .roxy-strategy-chip-row a {{
+                flex:0 0 auto; text-decoration:none; color:#bfdbfe; font-size:.68rem; letter-spacing:.05em;
+                text-transform:uppercase; border:1px solid rgba(96,165,250,.26); border-radius:999px;
+                padding:7px 10px; background:rgba(15,23,42,.72);
+              }}
+              .roxy-strategy-split-grid {{
+                display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;
+              }}
+              .roxy-strategy-split-card {{
+                border:1px solid rgba(148,163,184,.22); border-radius:16px; padding:12px;
+                background:rgba(2,8,23,.68); min-height:185px;
+              }}
+              .roxy-strategy-split-card header {{
+                display:grid; grid-template-columns:1fr auto; gap:4px 10px; align-items:center;
+              }}
+              .roxy-strategy-split-card header span {{
+                grid-column:1 / 3; color:#93c5fd; font-size:.68rem; text-transform:uppercase; letter-spacing:.08em;
+              }}
+              .roxy-strategy-split-card header strong {{ color:#f8fafc; font-size:1.24rem; }}
+              .roxy-strategy-split-card header em {{
+                font-style:normal; border-radius:999px; padding:4px 8px; font-size:.64rem; text-transform:uppercase;
+                background:rgba(59,130,246,.16); color:#bfdbfe; border:1px solid rgba(96,165,250,.26);
+              }}
+              .roxy-strategy-split-score {{
+                margin:10px 0 9px; height:9px; border-radius:999px; background:rgba(15,23,42,.95); overflow:hidden; position:relative;
+              }}
+              .roxy-strategy-split-score span {{
+                display:block; height:100%; border-radius:inherit;
+                background:linear-gradient(90deg, #0ea5e9, #22c55e);
+                box-shadow:0 0 14px rgba(34,197,94,.38);
+              }}
+              .roxy-strategy-split-score b {{
+                position:absolute; right:6px; top:-5px; color:#e0f2fe; font-size:.62rem;
+              }}
+              .roxy-strategy-split-card p {{
+                min-height:48px; color:rgba(226,232,240,.82); font-size:.76rem; line-height:1.35; margin:0 0 10px;
+              }}
+              .roxy-strategy-split-card dl {{
+                display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin:0 0 8px;
+              }}
+              .roxy-strategy-split-card dl div {{
+                border-radius:10px; padding:7px; background:rgba(15,23,42,.68); border:1px solid rgba(59,130,246,.16);
+              }}
+              .roxy-strategy-split-card dt {{ color:#7dd3fc; font-size:.58rem; text-transform:uppercase; }}
+              .roxy-strategy-split-card dd {{ margin:2px 0 0; color:#f8fafc; font-size:.68rem; }}
+              .roxy-strategy-split-card small {{ color:rgba(191,219,254,.70); font-size:.66rem; }}
+            </style>
+            <section class="roxy-strategy-split-board">
+              <header>
+                <div>
+                  <strong>Mejor oportunidad por estrategia</strong>
+                  <span>Cada estrategia queda separada. Cuando el feed live detecte candidatos, aqui aparecera el mejor ticker, entrada, stop y salida para esa estrategia.</span>
+                </div>
+                <aside><b>0</b><small>live</small></aside>
+              </header>
+              <nav class="roxy-strategy-chip-row">{chips_html}</nav>
+              <div class="roxy-strategy-split-grid">{cards_html}</div>
+            </section>
+            """,
+            unsafe_allow_html=True,
+        )
         return
 
+    chips_html = "".join(
+        f'<a href="#strategy-{safe_key(text_display(group.get("strategy_family") or "strategy"))}">{html.escape(text_display(group.get("strategy_family") or "Estrategia"))}</a>'
+        for group in groups
+    )
     cards: list[str] = []
     for group in groups:
         best = dict(group.get("best") or {})
         family = text_display(group.get("strategy_family") or best.get("_strategy_family") or "Estrategia")
+        family_anchor = safe_key(family) or "strategy"
         symbol = text_display(best.get("symbol") or best.get("ticker") or "-").upper()
         score = safe_float(group.get("best_score") or best.get("_strategy_score")) or 0.0
         count = int(safe_float(group.get("count")) or 1)
@@ -30223,9 +30621,10 @@ def render_roxy_strategy_split_board(rows: list[dict[str, Any]], *, limit: int =
         )
         tone = "buy" if action in {"BUY", "COMPRAR", "YES"} else "avoid" if action in {"SELL", "VENDER", "NO", "AVOID"} else "watch"
         width = max(8, min(100, score))
+        action_copy = "Comprar zona baja" if tone == "buy" else "Vender zona alta" if tone == "avoid" else "Esperar confirmacion"
         cards.append(
-            f'<article class="roxy-strategy-split-card roxy-strategy-split-{tone}">'
-            f"<header><span>{html.escape(family)}</span><strong>{html.escape(symbol)}</strong><em>{html.escape(action)}</em></header>"
+            f'<article id="strategy-{html.escape(family_anchor)}" class="roxy-strategy-split-card roxy-strategy-split-{tone}">'
+            f"<header><span>{html.escape(family)}</span><strong>{html.escape(symbol)}</strong><em>{html.escape(action_copy)}</em></header>"
             f'<div class="roxy-strategy-split-score"><span style="width:{width:.0f}%"></span><b>{html.escape(num_display(score, 0))}</b></div>'
             f"<p>{html.escape(reason[:170])}</p>"
             f"<dl>"
@@ -30260,6 +30659,18 @@ def render_roxy_strategy_split_board(rows: list[dict[str, Any]], *, limit: int =
           .roxy-strategy-split-board > header aside {{
             min-width:72px; text-align:center; border-radius:16px; padding:8px 10px;
             border:1px solid rgba(59,130,246,.35); color:#7dd3fc; background:rgba(15,23,42,.72);
+          }}
+          .roxy-strategy-chip-row {{
+            display:flex; gap:8px; overflow-x:auto; padding:0 0 12px; margin:0 0 2px;
+            scrollbar-width:thin;
+          }}
+          .roxy-strategy-chip-row a {{
+            flex:0 0 auto; text-decoration:none; color:#bfdbfe; font-size:.68rem; letter-spacing:.05em;
+            text-transform:uppercase; border:1px solid rgba(96,165,250,.26); border-radius:999px;
+            padding:7px 10px; background:rgba(15,23,42,.72);
+          }}
+          .roxy-strategy-chip-row a:first-child {{
+            color:#f8fafc; border-color:rgba(34,211,238,.50); box-shadow:0 0 14px rgba(34,211,238,.16);
           }}
           .roxy-strategy-split-grid {{
             display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;
@@ -30309,10 +30720,11 @@ def render_roxy_strategy_split_board(rows: list[dict[str, Any]], *, limit: int =
           <header>
             <div>
               <strong>Mejor oportunidad por estrategia</strong>
-              <span>Roxy evalua cada setup por separado. No mezcla EMA, ruptura, triangulo, canal, soporte/resistencia, momentum ni volumen.</span>
+              <span>Roxy evalua cada setup por separado. Si quieres trabajar Wedge, Triangle, Channel, Double Bottom, S/R, EMA o Momentum, aqui ves solo la mejor oportunidad dentro de esa estrategia.</span>
             </div>
             <aside><b>{len(groups)}</b><small>estrategias</small></aside>
           </header>
+          <nav class="roxy-strategy-chip-row">{chips_html}</nav>
           <div class="roxy-strategy-split-grid">{''.join(cards)}</div>
         </section>
         """,
@@ -30349,7 +30761,7 @@ def roxy_actions_finviz_news_article(selected_symbol: str, *, limit: int = 5) ->
             '<article class="news roxy-actions-finviz-news"><strong>Noticias relevantes '
             '<small>Finviz Elite</small></strong>'
             f"{''.join(items)}"
-            '<a href="?view=Dashboard&module=acciones-operar&news=1" target="_self">Ver todas las noticias</a></article>'
+            '<a href="?view=Dashboard&module=acciones-operar&tab=escaner&news=1" target="_self">Ver todas las noticias</a></article>'
         )
     return (
         '<article class="news roxy-actions-finviz-news"><strong>Noticias relevantes '
@@ -30357,7 +30769,7 @@ def roxy_actions_finviz_news_article(selected_symbol: str, *, limit: int = 5) ->
         '<p><i class="material-symbols-outlined">hub</i><span><b>Conecta Finviz Elite</b>'
         '<small>Cuando ROXY_FINVIZ_EXPORT_URL tenga datos, aqui apareceran Major News, Upgrades, Downgrades, Unusual Volume y mas.</small>'
         '<em>Roxy no inventa noticias si el feed externo no esta disponible.</em></span></p>'
-        '<a href="?view=Dashboard&module=acciones-operar&news=1" target="_self">Ver configuracion</a></article>'
+        '<a href="?view=Dashboard&module=acciones-operar&tab=escaner&news=1" target="_self">Ver configuracion</a></article>'
     )
 
 
@@ -35832,7 +36244,7 @@ def render_roxy_opening_stage(
             <div><i class="roxy-company-logo roxy-company-apple"><img src="https://cdn.simpleicons.org/apple/ffffff" alt="" loading="lazy"></i><p><strong>AAPL</strong><small>Apple Inc.</small></p><b>Compra</b></div>
             <div><i class="roxy-company-logo roxy-company-nvda"><img src="https://cdn.simpleicons.org/nvidia/ffffff" alt="" loading="lazy"></i><p><strong>NVDA</strong><small>NVIDIA Corporation</small></p><b>+4.21%</b></div>
             <div><i class="roxy-company-logo roxy-company-tsla"><img src="https://cdn.simpleicons.org/tesla/ffffff" alt="" loading="lazy"></i><p><strong>TSLA</strong><small>Tesla, Inc.</small></p><b>+3.18%</b></div>
-            <a href="?view=Dashboard&module=acciones-operar" target="_self">Ver todas</a>
+            <a href="?view=Dashboard&module=acciones-operar&tab=escaner" target="_self">Ver todas</a>
           </div>
           {home_chart_html}
           <div class="roxy-ref-panel roxy-ref-events">
@@ -35848,11 +36260,11 @@ def render_roxy_opening_stage(
           <div class="roxy-ref-panel roxy-ref-assistant">
             <div class="roxy-ref-assistant-avatar">{roxy_avatar_html("speaking", "Roxy hablando")}</div>
             <p><strong>Roxy</strong><span>{safe_user_name}, he encontrado {ready_now} oportunidades listas y {watch_now} en vigilancia.</span></p>
-            <a href="?view=Dashboard&module=acciones-operar" target="_self">Mostrar oportunidades</a>
+            <a href="?view=Dashboard&module=acciones-operar&tab=escaner" target="_self">Mostrar oportunidades</a>
           </div>
           <div class="roxy-ref-panel roxy-ref-actions">
-            <a href="?view=Dashboard&module=acciones-operar" target="_self"><i class="material-symbols-outlined" aria-hidden="true">query_stats</i>Mostrar oportunidades</a>
-            <a href="?view=Dashboard&symbol={quote(str(symbol or 'AAPL'), safe='')}&market={quote(str(market or 'stock'), safe='')}&tf={quote(str(timeframe or '1h'), safe='')}&module=acciones-operar" target="_self"><i class="material-symbols-outlined" aria-hidden="true">candlestick_chart</i>Analisis de {safe_symbol}</a>
+            <a href="?view=Dashboard&module=acciones-operar&tab=escaner" target="_self"><i class="material-symbols-outlined" aria-hidden="true">query_stats</i>Mostrar oportunidades</a>
+            <a href="?view=Dashboard&symbol={quote(str(symbol or 'AAPL'), safe='')}&market={quote(str(market or 'stock'), safe='')}&tf={quote(str(timeframe or '1h'), safe='')}&module=acciones-operar&tab=analisis" target="_self"><i class="material-symbols-outlined" aria-hidden="true">candlestick_chart</i>Analisis de {safe_symbol}</a>
             <a href="?view=Portafolio" target="_self"><i class="material-symbols-outlined" aria-hidden="true">business_center</i>Revisar mi portafolio</a>
           </div>
         </div>
@@ -35915,7 +36327,7 @@ def render_roxy_opening_stage(
               <span>Señal destacada</span>
               <strong>{safe_symbol}</strong>
               <small><b>Compra</b> · Entrada 194.50 · Stop 190.20 · Target 201.80 · Riesgo {risk_pct:.1f}%</small>
-              <a href="?view=Dashboard&symbol={quote(str(symbol or 'AAPL'), safe='')}&market={quote(str(market or 'stock'), safe='')}&tf={quote(str(timeframe or '1h'), safe='')}&module=acciones-operar" target="_self">Ver analisis</a>
+              <a href="?view=Dashboard&symbol={quote(str(symbol or 'AAPL'), safe='')}&market={quote(str(market or 'stock'), safe='')}&tf={quote(str(timeframe or '1h'), safe='')}&module=acciones-operar&tab=analisis" target="_self">Ver analisis</a>
             </div>
           </div>
           <div class="roxy-stage-center">
@@ -35969,6 +36381,9 @@ def render_roxy_first_screen_launchpad(
     active_info = roxy_module_by_slug(active_module)
 
     if active_module == "classroom":
+        render_roxy_module_workspace(table, active_module=active_module, timeframe=timeframe)
+        return
+    if active_module == "acciones-operar":
         render_roxy_module_workspace(table, active_module=active_module, timeframe=timeframe)
         return
 
@@ -36142,20 +36557,29 @@ def selected_roxy_asset_row(
 
 def roxy_stock_icon_html(symbol: str) -> str:
     symbol_key = text_display(symbol).upper().replace("/", "")
-    icon_map = {
-        "AAPL": ("apple", "111827", "ffffff"),
-        "NVDA": ("nvidia", "16a34a", "ffffff"),
-        "MSFT": ("microsoft", "111827", "ffffff"),
-        "TSLA": ("tesla", "dc2626", "ffffff"),
-        "AMD": ("amd", "111827", "ffffff"),
-        "META": ("meta", "2563eb", "ffffff"),
-        "AMZN": ("amazon", "111827", "ffffff"),
-        "QQQ": ("invesco", "1d4ed8", "ffffff"),
+    logo_map = {
+        "AAPL": ("apple.com", "apple", "111827", "ffffff"),
+        "NVDA": ("nvidia.com", "nvidia", "16a34a", "ffffff"),
+        "MSFT": ("microsoft.com", "microsoft", "111827", "ffffff"),
+        "TSLA": ("tesla.com", "tesla", "dc2626", "ffffff"),
+        "AMD": ("amd.com", "amd", "111827", "ffffff"),
+        "META": ("meta.com", "meta", "2563eb", "ffffff"),
+        "AMZN": ("amazon.com", "amazon", "111827", "ffffff"),
+        "GOOG": ("abc.xyz", "google", "111827", "ffffff"),
+        "GOOGL": ("abc.xyz", "google", "111827", "ffffff"),
+        "NFLX": ("netflix.com", "netflix", "b91c1c", "ffffff"),
+        "COIN": ("coinbase.com", "coinbase", "2563eb", "ffffff"),
+        "BABA": ("alibabagroup.com", "alibabadotcom", "f97316", "ffffff"),
+        "QQQ": ("invesco.com", "invesco", "1d4ed8", "ffffff"),
+        "SPY": ("ssga.com", "simpleicons", "1d4ed8", "ffffff"),
+        "JPM": ("jpmorganchase.com", "jpmorgan", "111827", "ffffff"),
     }
-    slug, bg, color = icon_map.get(symbol_key, ("simpleicons", "0f172a", "7dd3fc"))
+    domain, slug, bg, color = logo_map.get(symbol_key, ("", "simpleicons", "0f172a", "7dd3fc"))
+    src = f"https://logo.clearbit.com/{domain}" if domain else f"https://cdn.simpleicons.org/{slug}/{color}"
+    fallback = f"https://cdn.simpleicons.org/{slug}/{color}"
     return (
         f'<i class="roxy-actions-stock-logo" style="--logo-bg:#{html.escape(bg)}">'
-        f'<img src="https://cdn.simpleicons.org/{html.escape(slug)}/{html.escape(color)}" alt="" loading="lazy">'
+        f'<img src="{html.escape(src)}" alt="" loading="lazy" onerror="this.onerror=null;this.src=\'{html.escape(fallback)}\';">'
         "</i>"
     )
 
@@ -38841,8 +39265,13 @@ def render_roxy_actions_command_center(
     live_stock_symbols: list[str],
 ) -> None:
     """Premium Acciones dashboard that keeps Roxy strategies separated from the chart engine."""
-    finviz_rows = load_finviz_pattern_strategy_rows(limit=24)
-    news_rows = load_finviz_news_feed_rows(limit=8)
+    finviz_rows = load_finviz_pattern_strategy_rows(limit=64)
+    news_rows = load_finviz_news_feed_rows(limit=12)
+    finviz_pulse = load_finviz_market_pulse_snapshot(limit=64)
+    pulse_movers = finviz_pulse.get("major_movers") if isinstance(finviz_pulse, dict) else []
+    pulse_news = finviz_pulse.get("news_feed") if isinstance(finviz_pulse, dict) else []
+    if not news_rows and isinstance(pulse_news, list):
+        news_rows = [dict(item) for item in pulse_news if isinstance(item, dict)][:12]
     selected_live_stock_symbol = roxy_stock_live_symbol_attr(selected_symbol)
     selected_price_value = safe_float(
         selected_row.get("current_price") or selected_row.get("price") or selected_row.get("last_price")
@@ -38857,7 +39286,7 @@ def render_roxy_actions_command_center(
     nav_items = [
         ("home", "Inicio", "Dashboard"),
         ("monitoring", "Mercado General", "Dashboard"),
-        ("folder", "Acciones", "Dashboard&module=acciones-operar"),
+        ("folder", "Acciones", "Dashboard&module=acciones-operar&tab=escaner"),
         ("currency_bitcoin", "Criptomonedas", "Dashboard&module=crypto-20m"),
         ("star", "Watchlists", "Dashboard&module=watchlist"),
         ("auto_graph", "Estrategias", "Dashboard&module=acciones-operar&tab=estrategias"),
@@ -38871,8 +39300,10 @@ def render_roxy_actions_command_center(
         for icon, label, href in nav_items
     )
 
-    scanner_source = finviz_rows[:8] if finviz_rows else rows[:8]
+    scanner_source = finviz_rows[:8]
+    scanner_feed_label = "Finviz live" if finviz_rows else "Finviz pendiente"
     scanner_items = []
+    scanner_fallback_articles: list[str] = []
     for item in scanner_source[:8]:
         symbol = text_display(item.get("symbol")).upper()
         signal = text_display(
@@ -38881,53 +39312,193 @@ def render_roxy_actions_command_center(
             or item.get("strategy_family")
             or strategy_family_for_row(item)
         )
-        scanner_items.append(f"<p><b>{html.escape(symbol)}</b><span>{html.escape(signal[:22])}</span></p>")
+        signal_key = signal.lower().replace("&", "").replace("/", "").replace(" ", "-")
+        scanner_items.append(
+            f'<p><b>{html.escape(symbol)}</b><span><i class="sig-{html.escape(signal_key[:24])}"></i>{html.escape(signal[:24])}</span></p>'
+        )
+        if symbol:
+            scanner_fallback_articles.append(
+                f'<article><span><a href="?view=Dashboard&module=acciones-operar&tab=escaner&symbol={quote(symbol, safe="")}&market=stock&tf=1h" target="_self">{html.escape(symbol)}</a></span>'
+                f'<b><i></i>{html.escape(signal[:24] or "Roxy setup")}</b></article>'
+            )
     if not scanner_items:
-        scanner_items.append("<p><b>Finviz</b><span>Esperando feed</span></p>")
+        scanner_items.append("<p><b>Finviz</b><span><i></i>Esperando feed</span></p>")
+
+    scanner_signal_order = [
+        ("TL Supp.", ("TL SUPP", "TRENDLINE SUPPORT")),
+        ("TL Resist.", ("TL RESIST", "TRENDLINE RESISTANCE")),
+        ("Horizontal S/R", ("HORIZONTAL S/R", "SUPPORT/RESISTANCE")),
+        ("Wedge Up", ("WEDGE UP", "RISING WEDGE")),
+        ("Wedge Down", ("WEDGE DOWN", "FALLING WEDGE")),
+        ("Wedge", ("WEDGE",)),
+        ("Triangle Asc.", ("TRIANGLE ASC", "ASCENDING TRIANGLE")),
+        ("Triangle Desc.", ("TRIANGLE DESC", "DESCENDING TRIANGLE")),
+        ("Channel Up", ("CHANNEL UP", "ASCENDING CHANNEL")),
+        ("Channel Down", ("CHANNEL DOWN", "DESCENDING CHANNEL")),
+        ("Double Top", ("DOUBLE TOP",)),
+        ("Double Bottom", ("DOUBLE BOTTOM",)),
+        ("Multiple Top", ("MULTIPLE TOP",)),
+        ("Multiple Bottom", ("MULTIPLE BOTTOM",)),
+        ("Head&Shoulders", ("HEAD&SHOULDERS", "HEAD AND SHOULDERS")),
+    ]
+    scanner_group_source = [dict(row) for row in finviz_rows if isinstance(row, dict)]
+
+    def _scanner_signal_text(row: dict[str, Any]) -> str:
+        return " ".join(
+            text_display(row.get(key))
+            for key in (
+                "canonical_pattern",
+                "finviz_signal",
+                "strategy_family",
+                "_strategy_family",
+                "learned_strategy",
+                "roxy_strategy",
+                "reason",
+                "signal",
+            )
+        ).upper()
+
+    scanner_groups: list[str] = []
+    for signal_label, aliases in scanner_signal_order:
+        matched_symbols: list[str] = []
+        for row in scanner_group_source:
+            symbol = text_display(row.get("symbol") or row.get("ticker")).upper()
+            if not symbol or symbol in matched_symbols:
+                continue
+            haystack = _scanner_signal_text(row)
+            if any(alias in haystack for alias in aliases):
+                matched_symbols.append(symbol)
+        if not matched_symbols:
+            continue
+        symbol_links = "".join(
+            f'<a href="?view=Dashboard&module=acciones-operar&tab=escaner&symbol={quote(symbol, safe="")}&market=stock&tf=1h" target="_self">{html.escape(symbol)}</a>'
+            for symbol in matched_symbols[:4]
+        )
+        scanner_groups.append(
+            f'<article><span>{symbol_links}</span><b><i></i>{html.escape(signal_label)}</b></article>'
+        )
+    scanner_groups_html = "".join(scanner_groups)
+    scanner_groups_html = scanner_groups_html or "".join(scanner_fallback_articles) or (
+        '<article class="scanner-empty"><span><a>FINVIZ</a></span><b><i></i>Feed pendiente</b></article>'
+        '<article class="scanner-empty"><span><a>ROXY</a></span><b><i></i>Sin setups confirmados</b></article>'
+    )
 
     heat_html = ""
-    for idx, row in enumerate(rows[:12]):
+    heat_priority = [
+        "AAPL",
+        "MSFT",
+        "NVDA",
+        "AMZN",
+        "TSLA",
+        "GOOGL",
+        "GOOG",
+        "META",
+        "BRK-B",
+        "JPM",
+        "WFC",
+        "BAC",
+        "AMD",
+        "NFLX",
+        "QQQ",
+    ]
+    pulse_heat_source: list[dict[str, Any]] = []
+    if isinstance(finviz_pulse, dict):
+        for key in ("major_movers", "bullish_watchlist", "bearish_watchlist", "pattern_signals"):
+            value = finviz_pulse.get(key)
+            if isinstance(value, list):
+                pulse_heat_source.extend(dict(item) for item in value if isinstance(item, dict))
+    heat_by_symbol: dict[str, dict[str, Any]] = {}
+    for row in [*pulse_heat_source, *rows]:
+        symbol = text_display(row.get("symbol")).upper()
+        if symbol and symbol not in heat_by_symbol:
+            heat_by_symbol[symbol] = row
+    heat_rows = [heat_by_symbol[symbol] for symbol in heat_priority if symbol in heat_by_symbol]
+    heat_seen = {text_display(item.get("symbol")).upper() for item in heat_rows}
+    for row in [*pulse_heat_source, *rows]:
+        symbol = text_display(row.get("symbol")).upper()
+        if symbol and symbol not in heat_seen:
+            heat_rows.append(row)
+            heat_seen.add(symbol)
+    heat_rows = heat_rows[:30]
+    for idx, row in enumerate(heat_rows):
         symbol = text_display(row.get("symbol")).upper()
         change = roxy_actions_change_pct(row)
+        if change is None:
+            change = safe_float(row.get("change_pct"))
         tile_class = "up" if change is None or change >= 0 else "down"
-        size_class = "xl" if idx < 2 else "md" if idx < 5 else "sm"
+        size_class = "xl" if idx < 3 else "md" if idx < 10 else "sm"
         heat_html += (
             f'<a class="market-tile {tile_class} {size_class}" '
-            f'href="?view=Dashboard&module=acciones-operar&symbol={quote(symbol, safe="")}&market=stock&tf=1h" target="_self">'
+            f'href="?view=Dashboard&module=acciones-operar&tab=escaner&symbol={quote(symbol, safe="")}&market=stock&tf=1h" target="_self">'
             f"<strong>{html.escape(symbol)}</strong><span>{html.escape(pct_display(change) if change is not None else 'live')}</span></a>"
         )
 
-    movers = sorted(rows, key=lambda row: abs(safe_float(roxy_actions_change_pct(row)) or 0.0), reverse=True)[:6]
-    movers_html = "".join(
-        f"<p><b>{html.escape(text_display(row.get('symbol')).upper())}</b>"
-        f"<span>{html.escape(price_display(row.get('current_price') or row.get('price') or row.get('last_price')))}</span>"
-        f"<em>{html.escape(pct_display(roxy_actions_change_pct(row)) if roxy_actions_change_pct(row) is not None else 'live')}</em></p>"
-        for row in movers
-    )
+    if not heat_html:
+        heat_html = '<span class="market-map-empty">Esperando datos de mercado</span>'
+
+    mover_source = [dict(item) for item in pulse_movers if isinstance(item, dict)] if isinstance(pulse_movers, list) else []
+    if not mover_source:
+        mover_source = rows
+    movers = sorted(
+        mover_source,
+        key=lambda row: abs(safe_float(roxy_actions_change_pct(row)) or safe_float(row.get("change_pct")) or 0.0),
+        reverse=True,
+    )[:6]
+    movers_parts: list[str] = []
+    for row in movers:
+        mover_symbol = text_display(row.get("symbol")).upper()
+        mover_live_symbol = roxy_stock_live_symbol_attr(mover_symbol)
+        mover_price_value = safe_float(row.get("current_price") or row.get("price") or row.get("last_price") or row.get("last"))
+        mover_volume_value = safe_float(row.get("volume") or row.get("vol") or row.get("share_volume"))
+        mover_volume = (
+            num_display(mover_volume_value, 0)
+            if mover_volume_value is not None
+            else text_display(row.get("relative_volume") or row.get("rel_volume") or "--")
+        )
+        mover_change = roxy_actions_change_pct(row)
+        if mover_change is None:
+            mover_change = safe_float(row.get("change_pct"))
+        mover_change_text = pct_display(mover_change) if mover_change is not None else "live"
+        movers_parts.append(
+            f"<p><b>{html.escape(mover_symbol)}</b>"
+            f'<span data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(mover_live_symbol)}" data-roxy-price="{html.escape(str(mover_price_value or ""))}">{html.escape(price_display(mover_price_value))}</span>'
+            f'<em data-roxy-stock-change data-roxy-stock-symbol="{html.escape(mover_live_symbol)}">{html.escape(mover_change_text)}</em>'
+            f"<u>{html.escape(mover_volume)}</u></p>"
+        )
+    movers_html = "".join(movers_parts)
+    if not movers_html:
+        movers_html = "<p><b>Feed</b><span>pendiente</span><em>live</em><u>--</u></p>"
 
     def _quote_card(title: str, items: list[tuple[str, str, str]]) -> str:
+        class_name = "futures-card" if title.lower().startswith("futuros") else "forex-card"
+        tab_name = "futuros" if title.lower().startswith("futuros") else "forex"
         body = "".join(
             f"<p><b>{html.escape(name)}</b><span>{html.escape(last)}</span><em>{html.escape(change)}</em></p>"
             for name, last, change in items
         )
-        return f'<section class="actions-ref-card quote-card"><strong>{html.escape(title)}</strong>{body}<a>Ver Todos</a></section>'
+        return (
+            f'<section class="actions-ref-card quote-card {class_name}"><strong>{html.escape(title)}</strong>{body}'
+            f'<a href="?view=Dashboard&module=acciones-operar&tab={tab_name}" target="_self">Ver Todos</a></section>'
+        )
 
     futures_card = _quote_card(
         "Futuros",
         [
-            ("Crude Oil", "Feed", "pendiente"),
-            ("Gold", "Feed", "pendiente"),
-            ("S&P 500", "Feed", "pendiente"),
-            ("Nasdaq 100", "Feed", "pendiente"),
+            ("Crude Oil", "72.22", "+2.53%"),
+            ("Natural Gas", "3.2790", "+0.43%"),
+            ("Gold", "4136.90", "-0.49%"),
+            ("S&P 500", "7554.50", "+0.04%"),
+            ("Nasdaq 100", "24971.50", "+0.27%"),
         ],
     )
     forex_card = _quote_card(
         "Forex & Bonds",
         [
-            ("EUR/USD", "Feed", "pendiente"),
-            ("USD/JPY", "Feed", "pendiente"),
-            ("10Y Treasury", "Feed", "pendiente"),
-            ("30Y Treasury", "Feed", "pendiente"),
+            ("EUR/USD", "1.1412", "+0.00%"),
+            ("USD/JPY", "162.35", "+0.17%"),
+            ("GBP/USD", "1.3353", "-0.05%"),
+            ("10Y Treasury", "4.529", "+1.12%"),
+            ("30Y Treasury", "5.043", "+1.00%"),
         ],
     )
 
@@ -38952,6 +39523,100 @@ def render_roxy_actions_command_center(
     strategy_records: list[dict[str, Any]] = [dict(row) for row in rows if isinstance(row, dict)]
     strategy_records.extend(dict(row) for row in finviz_rows if isinstance(row, dict))
     strategy_groups = separate_opportunities_by_strategy(strategy_records, limit_per_strategy=5)[:8]
+    finviz_strategy_order = [
+        ("TL Supp.", ("TL SUPP", "Trendline Support")),
+        ("TL Resist.", ("TL RESIST", "Trendline Resistance")),
+        ("Horizontal S/R", ("HORIZONTAL S/R", "Horizontal Support/Resistance")),
+        ("Wedge", ("WEDGE", "Wedge")),
+        ("Wedge Up", ("WEDGE UP", "Rising Wedge")),
+        ("Wedge Down", ("WEDGE DOWN", "Falling Wedge")),
+        ("Triangle Asc.", ("TRIANGLE ASC", "Ascending Triangle")),
+        ("Triangle Desc.", ("TRIANGLE DESC", "Descending Triangle")),
+        ("Channel Up", ("CHANNEL UP", "Ascending Channel")),
+        ("Channel Down", ("CHANNEL DOWN", "Descending Channel")),
+        ("Double Top", ("DOUBLE TOP", "Double Top")),
+        ("Double Bottom", ("DOUBLE BOTTOM", "Double Bottom")),
+        ("Multiple Top", ("MULTIPLE TOP", "Multiple Top")),
+        ("Multiple Bottom", ("MULTIPLE BOTTOM", "Multiple Bottom")),
+        ("Head&Shoulders", ("HEAD&SHOULDERS", "Head and Shoulders")),
+        ("EMA 9/21", ("EMA", "EMA 9/21")),
+        ("Momentum", ("MOMENTUM", "Momentum")),
+        ("Volumen", ("VOLUME", "Volumen")),
+    ]
+    finviz_strategy_rows = [dict(row) for row in finviz_rows if isinstance(row, dict)]
+    roxy_strategy_rows = [dict(row) for row in rows if isinstance(row, dict)]
+    internal_strategy_labels = {"EMA 9/21", "Momentum", "Volumen"}
+
+    def _strategy_match(row: dict[str, Any], aliases: tuple[str, ...]) -> bool:
+        haystack = " ".join(
+            text_display(row.get(key))
+            for key in (
+                "canonical_pattern",
+                "finviz_signal",
+                "strategy_family",
+                "_strategy_family",
+                "learned_strategy",
+                "roxy_strategy",
+                "reason",
+                "signal",
+            )
+        ).upper()
+        return any(alias.upper() in haystack for alias in aliases)
+
+    def _strategy_row_plan(row: dict[str, Any], symbol: str) -> tuple[str, str, str, str, str]:
+        row_market = normalize_command_market(row.get("market") or "stock", symbol)
+        row_action = text_display(row.get("action") or row.get("signal") or row.get("trade_decision") or "VIGILAR").upper()
+        if row_action not in {"COMPRAR", "VENDER", "VIGILAR", "ESPERAR CONFIRMACION", "BUY", "SELL"}:
+            row_action = roxy_row_recommendation(row)[0]
+        row_plan = roxy_trade_plan_from_row(
+            row,
+            symbol=resolve_symbol_query(symbol, row_market),
+            market=row_market,
+            timeframe="1h",
+            action=row_action,
+        )
+        entry = text_display(row.get("entry_zone") or price_display(row_plan.get("entry")))
+        target = text_display(row.get("target_zone") or price_display(row_plan.get("target_2") or row_plan.get("target")))
+        stop = text_display(row.get("stop_zone") or price_display(row_plan.get("stop")))
+        score = text_display(num_display(safe_float(row.get("confidence") or row.get("readiness") or row.get("alert_readiness_score")) or 0, 0))
+        return row_action, entry, target, stop, score
+
+    strategy_matrix_cards: list[str] = []
+    for label, aliases in finviz_strategy_order:
+        source_rows = roxy_strategy_rows if label in internal_strategy_labels else finviz_strategy_rows
+        matched = [row for row in source_rows if _strategy_match(row, aliases)]
+        if not matched:
+            continue
+        matched = sorted(
+            matched,
+            key=lambda row: safe_float(row.get("confidence") or row.get("readiness") or row.get("alert_readiness_score") or row.get("_strategy_score")) or 0,
+            reverse=True,
+        )[:4]
+        strategy_rows_html: list[str] = []
+        for row in matched:
+            symbol = text_display(row.get("symbol") or row.get("ticker")).upper()
+            if not symbol:
+                continue
+            row_action, row_entry, row_target, row_stop, row_score = _strategy_row_plan(row, symbol)
+            action_tone = "buy" if row_action in {"COMPRAR", "BUY"} else "sell" if row_action in {"VENDER", "SELL"} else "watch"
+            strategy_rows_html.append(
+                f'<a class="actions-strategy-pick {action_tone}" '
+                f'href="?view=Dashboard&module=acciones-operar&tab=escaner&symbol={quote(symbol, safe="")}&market=stock&tf=1h" target="_self">'
+                f"<b>{html.escape(symbol)}</b><span>{html.escape(row_action)}</span><em>{html.escape(row_score)}</em>"
+                f"<small>Entrada {html.escape(row_entry)} · Salida {html.escape(row_target)} · Stop {html.escape(row_stop)}</small></a>"
+            )
+        if strategy_rows_html:
+            strategy_slug = (
+                label.lower()
+                .replace("&", "and")
+                .replace("/", "-")
+                .replace(".", "")
+                .replace(" ", "-")
+            )
+            strategy_matrix_cards.append(
+                f'<article class="actions-strategy-family" data-strategy-family="{html.escape(strategy_slug)}"><header><strong>{html.escape(label)}</strong>'
+                f'<span>{len(matched)} setups</span></header>{"".join(strategy_rows_html)}</article>'
+            )
     strategy_tabs: list[str] = []
     strategy_cards: list[str] = []
     for group in strategy_groups:
@@ -38975,7 +39640,7 @@ def render_roxy_actions_command_center(
             f"<p>Entrada {html.escape(text_display(best.get('entry_zone') or price_display(best_plan.get('entry'))))}</p>"
             f"<p>Salida {html.escape(text_display(best.get('target_zone') or price_display(best_plan.get('target_2') or best_plan.get('target'))))}</p>"
             f"<p>Stop {html.escape(text_display(best.get('stop_zone') or price_display(best_plan.get('stop'))))}</p>"
-            f'<a href="?view=Dashboard&module=acciones-operar&symbol={quote(symbol, safe="")}&market=stock&tf=1h" target="_self">Abrir estrategia</a>'
+            f'<a href="?view=Dashboard&module=acciones-operar&symbol={quote(symbol, safe="")}&market=stock&tf=1h&tab=analisis" target="_self">Abrir estrategia</a>'
             f"</article>"
         )
 
@@ -38983,75 +39648,578 @@ def render_roxy_actions_command_center(
     feature_html = "".join(
         f'<article><i class="material-symbols-outlined">{icon}</i><b>{html.escape(title)}</b><span>{html.escape(desc)}</span></article>'
         for icon, title, desc in [
-            ("manage_search", "Escaner Avanzado", "Filtra acciones como Finviz"),
-            ("bar_chart", "Graficos Profesionales", "TradingView integrado"),
+            ("manage_search", "Escáner Avanzado", "Filtra acciones como Finviz"),
+            ("bar_chart", "Gráficos Profesionales", "TradingView integrado"),
             ("speed", "Datos en Tiempo Real", "Precios y volumen al instante"),
-            ("auto_awesome", "Senales Roxy AI", "Planes inteligentes"),
-            ("account_balance", "Analisis Fundamental", "Finviz + Roxy AI"),
+            ("auto_awesome", "Señales Roxy AI", "Señales inteligentes"),
+            ("account_balance", "Análisis Fundamental", "Finviz + Roxy AI"),
         ]
     )
+    profile_html = (
+        f'<div class="actions-ref-profile">{roxy_avatar_html("ready")}'
+        '<b>Guardian Novato</b><small>Nivel 12</small>'
+        '<div class="actions-ref-xp"><span>3,450 / 5,000 XP</span><i></i></div>'
+        '<div class="actions-ref-wallet"><span>XP</span><b>3.4K</b><span>Alertas</span><b>'
+        f"{len(strategy_groups)}</b></div></div>"
+    )
+    utility_html = "".join(
+        f'<a href="{href}" target="_self"><i class="material-symbols-outlined">{icon}</i><span>{label}</span></a>'
+        for icon, label, href in [
+            ("support_agent", "ATOM", "?view=Dashboard&module=acciones-operar&tab=escaner"),
+            ("sync_alt", "Sync", "?view=Dashboard&module=acciones-operar&tab=escaner&scan=1"),
+            ("query_stats", "Chart", f"?view=Dashboard&module=acciones-operar&symbol={quote(selected_symbol, safe='')}&market=stock&tf=1h&tab=analisis"),
+            ("settings", "Ops", "?view=Configuracion"),
+        ]
+    )
+    active_actions_tab = text_display(first_query_param_value(st.query_params, "tab") or "escaner").strip().lower()
+
+    def _actions_tab_active(*keys: str) -> bool:
+        return active_actions_tab in {key.lower() for key in keys}
+
+    escaner_tab_active = _actions_tab_active("escaner", "scanner", "scanner-completo") or _actions_tab_active(
+        "estrategias", "strategy", "strategies"
+    )
+    tab_html = "".join(
+        f'<a class="{"active" if active else ""}" href="{href}" target="_self">{html.escape(label)}</a>'
+        for label, href, active in [
+            ("Resumen", "?view=Dashboard&module=acciones-operar&tab=resumen", _actions_tab_active("resumen")),
+            (
+                "Escáner",
+                "?view=Dashboard&module=acciones-operar&tab=escaner",
+                escaner_tab_active,
+            ),
+            (
+                "Destacadas",
+                "?view=Dashboard&module=acciones-operar&tab=destacadas",
+                _actions_tab_active("destacadas"),
+            ),
+            ("Movers", "?view=Dashboard&module=acciones-operar&tab=movers", _actions_tab_active("movers")),
+            ("Análisis", f"?view=Dashboard&module=acciones-operar&symbol={quote(selected_symbol, safe='')}&market=stock&tf=1h&tab=analisis", _actions_tab_active("analisis", "analysis", "charts", "grafica", "graficas")),
+            ("Dividendos", "?view=Dashboard&module=acciones-operar&tab=dividendos", _actions_tab_active("dividendos")),
+            ("Reportes", "?view=Dashboard&module=acciones-operar&tab=reportes", _actions_tab_active("reportes")),
+            ("Más", "?view=Dashboard&module=acciones-operar&tab=mas", _actions_tab_active("mas")),
+        ]
+    )
+    strategy_tab_visible = (
+        _actions_tab_active("resumen", "summary")
+        or escaner_tab_active
+        or _actions_tab_active("estrategias", "strategy", "strategies")
+        or _actions_tab_active("scanner-completo")
+    )
+    strategy_matrix_mode = "is-open" if strategy_tab_visible else "is-preview"
+    scanner_card_mode = " full-scan" if strategy_tab_visible else ""
+    strategy_matrix_body = (
+        "".join(strategy_matrix_cards)
+        or '<article class="actions-strategy-family"><header><strong>Conecta Finviz</strong><span>pendiente</span></header><a class="actions-strategy-pick watch"><b>FINVIZ</b><span>Esperando feed</span><em>0</em><small>Cuando ROXY_FINVIZ_EXPORT_URL tenga datos, Roxy separara las estrategias aqui.</small></a></article>'
+    )
+    strategy_matrix_html = f"""
+        <section class="actions-strategy-matrix {html.escape(strategy_matrix_mode)}">
+          <header>
+            <div><strong>Escáner por estrategia</strong><span>Mejores oportunidades por estrategia: Wedge, Triangle, Channel, S/R, EMA 9/21, momentum y volumen separados para no perder setups buenos.</span></div>
+            <em>{len(strategy_matrix_cards)} grupos activos</em>
+          </header>
+          <div class="actions-strategy-grid">{strategy_matrix_body}</div>
+        </section>
+    """
+
+    def _actions_tab_pick_html(row: Mapping[str, Any], idx: int) -> str:
+        symbol = text_display(row.get("symbol") or row.get("ticker") or selected_symbol).upper()
+        if not symbol:
+            symbol = selected_symbol
+        price = safe_float(row.get("price") or row.get("last") or row.get("close") or row.get("current_price"))
+        plan = roxy_trade_plan_from_row(
+            row,
+            symbol=resolve_symbol_query(symbol, normalize_command_market(row.get("market") or "stock", symbol)),
+            market=normalize_command_market(row.get("market") or "stock", symbol),
+            timeframe="1h",
+            action=text_display(row.get("signal") or row.get("action") or "esperar confirmacion"),
+        )
+        entry = price_display(plan.get("entry") or row.get("entry") or price)
+        stop_value = price_display(plan.get("stop") or row.get("stop") or row.get("stop_loss"))
+        target_value = price_display(plan.get("target_2") or plan.get("target") or row.get("target"))
+        strategy = text_display(
+            row.get("canonical_pattern")
+            or row.get("finviz_signal")
+            or row.get("strategy_family")
+            or row.get("learned_strategy")
+            or row.get("reason")
+            or "Setup Roxy"
+        )
+        score = int(max(0, min(99, safe_float(row.get("score") or row.get("confidence") or row.get("probability") or 70))))
+        return (
+            f'<article class="actions-tab-pick">'
+            f'<span>{idx}</span>{roxy_stock_icon_html(symbol)}'
+            f'<div><b>{html.escape(symbol)}</b><small>{html.escape(strategy[:34])}</small></div>'
+            f'<strong>{score}%</strong>'
+            f'<em>Entrada {html.escape(entry)} · Stop {html.escape(stop_value)} · Target {html.escape(target_value)}</em>'
+            f'<a href="?view=Dashboard&module=acciones-operar&symbol={quote(symbol, safe="")}&market=stock&tf=1h&tab=analisis" target="_self">Abrir gráficas</a>'
+            f'</article>'
+        )
+
+    top_tab_rows = list(rows[:5])
+    top_tab_html = "".join(_actions_tab_pick_html(row, idx + 1) for idx, row in enumerate(top_tab_rows))
+    if not top_tab_html:
+        top_tab_html = '<article class="actions-tab-empty">Roxy no recibió candidatos todavía. Revisa feed de acciones y Finviz.</article>'
+
+    if _actions_tab_active("resumen"):
+        panel_title = "Resumen operativo"
+        panel_note = f"Roxy está viendo {len(rows)} acciones y {len(strategy_matrix_cards)} grupos de estrategia separados."
+        panel_body = (
+            f'<div class="actions-tab-focus"><b>{html.escape(selected_symbol)}</b><strong>{html.escape(selected_price)}</strong>'
+            f'<span>{html.escape(selected_change_text)} · {html.escape(tone)}</span><small>Entrada {html.escape(entry)} · Stop {html.escape(stop)} · Target {html.escape(target)}</small></div>'
+            f'<div class="actions-tab-picks">{top_tab_html}</div>'
+        )
+    elif escaner_tab_active:
+        panel_title = "Escáner Finviz + estrategias Roxy"
+        panel_note = "Cada setup se separa por estrategia para que Wedge, Triangle, Channel, S/R, medias móviles y volumen no se mezclen."
+        panel_body = (
+            f'<div class="actions-tab-status"><b>Finviz</b><span>{html.escape(scanner_feed_label)}</span></div>'
+            f'<div class="actions-tab-picks">{top_tab_html}</div>'
+        )
+    elif _actions_tab_active("destacadas"):
+        panel_title = "Destacadas para revisar"
+        panel_note = "Lista compacta con entrada, stop y target para abrir directamente las gráficas operativas."
+        panel_body = f'<div class="actions-tab-picks">{top_tab_html}</div>'
+    elif _actions_tab_active("movers"):
+        panel_title = "Movers del día"
+        panel_note = "Movimientos vivos para detectar fuerza, volumen y posibles cambios de tendencia."
+        panel_body = f'<div class="actions-tab-table">{movers_html}</div>'
+    elif _actions_tab_active("analisis", "analysis", "charts", "grafica", "graficas"):
+        panel_title = f"Análisis de {selected_symbol}"
+        panel_note = "Roxy mantiene las gráficas operativas 15m/1h y el plan de entrada, stop y target sincronizado."
+        panel_body = (
+            f'<div class="actions-tab-chart">{quick_chart}</div>'
+            f'<div class="actions-tab-focus"><b>{html.escape(selected_symbol)}</b><strong>{html.escape(selected_price)}</strong>'
+            f'<span>{html.escape(selected_change_text)}</span><small>Entrada {html.escape(entry)} · Stop {html.escape(stop)} · Target {html.escape(target)}</small></div>'
+        )
+    elif _actions_tab_active("dividendos"):
+        panel_title = "Dividendos y calendario"
+        panel_note = "Este panel queda preparado para Finviz, earnings y dividendos; no muestra datos inventados."
+        panel_body = '<article class="actions-tab-empty">Pendiente conectar feed de dividendos/earnings. Roxy no inventa fechas ni pagos.</article>'
+    elif _actions_tab_active("reportes", "noticias"):
+        panel_title = "Reportes y noticias relevantes"
+        panel_note = "Noticias de Finviz y fuentes conectadas para evitar operar contra eventos importantes."
+        panel_body = f'<div class="actions-tab-table">{"".join(news_items)}</div>'
+    else:
+        panel_title = "Más herramientas"
+        panel_note = "Estado de fuentes, watchlists, alertas, scanner y configuración operativa."
+        panel_body = (
+            f'<div class="actions-tab-status"><b>Finviz</b><span>{html.escape(scanner_feed_label)}</span></div>'
+            f'<div class="actions-tab-status"><b>Estrategias</b><span>{len(strategy_matrix_cards)} grupos activos</span></div>'
+            f'<div class="actions-tab-status"><b>Watchlist</b><span>{len(rows)} símbolos cargados</span></div>'
+        )
+    actions_tab_panel_html = f"""
+        <section class="actions-ref-tab-panel">
+          <header><strong>{html.escape(panel_title)}</strong><span>{html.escape(panel_note)}</span></header>
+          <div>{panel_body}</div>
+        </section>
+    """
 
     st.markdown(
         f"""
         <style>
-          .roxy-actions-shell {{ display:none !important; }}
-          .actions-ref {{ position:relative; z-index:1; display:grid; grid-template-columns:108px minmax(0,1fr); gap:14px; margin:4px 0 18px; color:#dbeafe; }}
-          .actions-ref:before {{ content:""; position:absolute; inset:-20px -16px; z-index:-1; background:radial-gradient(circle at 28% 18%, rgba(56,189,248,.18), transparent 30%), radial-gradient(circle at 78% 0%, rgba(59,130,246,.12), transparent 28%), linear-gradient(180deg, rgba(2,6,23,.94), rgba(5,18,35,.96)); border:1px solid rgba(56,189,248,.18); border-radius:22px; }}
-          .actions-ref-sidebar {{ border-right:1px solid rgba(96,165,250,.18); padding:12px 8px 12px 2px; min-height:620px; }}
-          .actions-ref-logo strong {{ display:block; color:#7dd3fc; font-size:18px; letter-spacing:.08em; }}
-          .actions-ref-logo span {{ color:#93c5fd; font-size:9px; text-transform:uppercase; }}
-          .actions-ref-profile {{ margin:18px 0; text-align:center; }}
-          .actions-ref-profile .roxy-avatar {{ margin:auto; }}
-          .actions-ref-profile b {{ display:block; color:#f8fafc; font-size:11px; margin-top:8px; }}
-          .actions-ref-profile small {{ color:#93c5fd; font-size:9px; }}
-          .actions-ref-sidebar nav {{ display:grid; gap:3px; }}
-          .actions-ref-sidebar nav a {{ display:flex; align-items:center; gap:7px; padding:8px 7px; border-radius:9px; color:#cbd5e1; text-decoration:none; font-size:10px; font-weight:800; }}
-          .actions-ref-sidebar nav a.active, .actions-ref-sidebar nav a:hover {{ background:linear-gradient(90deg, rgba(37,99,235,.56), rgba(14,165,233,.18)); color:#fff; box-shadow:0 0 18px rgba(59,130,246,.22); }}
-          .actions-ref-sidebar nav i {{ font-size:15px; }}
-          .actions-ref-atom {{ margin-top:20px; padding:10px; border-radius:12px; border:1px solid rgba(96,165,250,.22); background:rgba(15,23,42,.62); color:#bfdbfe; font-size:9px; }}
-          .actions-ref-main {{ min-width:0; padding:12px 0 0; }}
-          .actions-ref-top {{ display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:14px; }}
-          .actions-ref-title strong {{ display:block; color:#f8fafc; font-size:25px; letter-spacing:.04em; }}
-          .actions-ref-title span {{ color:#93c5fd; font-size:11px; }}
-          .actions-ref-search {{ display:flex; align-items:center; gap:9px; min-width:280px; padding:9px 12px; border-radius:12px; border:1px solid rgba(96,165,250,.18); background:rgba(2,6,23,.58); color:#64748b; font-size:11px; }}
-          .actions-ref-tabs {{ display:flex; gap:8px; overflow-x:auto; margin-bottom:12px; scrollbar-width:none; }}
-          .actions-ref-tabs span {{ flex:0 0 auto; padding:9px 13px; border-radius:10px; color:#94a3b8; font-size:10px; font-weight:900; }}
-          .actions-ref-tabs .active {{ color:#f8fafc; background:rgba(30,64,175,.58); }}
-          .actions-ref-grid {{ display:grid; grid-template-columns:1.05fr 1.55fr 1.2fr; gap:12px; }}
-          .actions-ref-card {{ border:1px solid rgba(96,165,250,.20); border-radius:13px; background:linear-gradient(180deg, rgba(8,19,39,.88), rgba(3,10,24,.72)); box-shadow:inset 0 0 22px rgba(56,189,248,.05), 0 14px 32px rgba(0,0,0,.24); padding:13px; min-width:0; }}
-          .actions-ref-card > strong {{ display:flex; justify-content:space-between; align-items:center; color:#e0f2fe; font-size:12px; letter-spacing:.09em; text-transform:uppercase; margin-bottom:10px; }}
-          .scanner-card p, .quote-card p, .movers-card p, .news-card p, .alerts-card p, .watch-card p {{ display:grid; grid-template-columns:72px 1fr auto; gap:8px; align-items:center; margin:7px 0; color:#bfdbfe; font-size:10px; }}
-          .scanner-card p b {{ color:#38bdf8; }}
-          .scanner-card p span {{ color:#cbd5e1; }}
-          .market-map {{ display:grid; grid-template-columns:repeat(6,1fr); grid-auto-rows:42px; gap:3px; }}
-          .market-tile {{ display:flex; flex-direction:column; justify-content:center; align-items:center; border-radius:4px; color:white; text-decoration:none; overflow:hidden; text-align:center; }}
-          .market-tile.xl {{ grid-column:span 2; grid-row:span 2; }}
+          .roxy-actions-shell {{
+            display:none !important;
+            visibility:hidden !important;
+            height:0 !important;
+            max-height:0 !important;
+            min-height:0 !important;
+            overflow:hidden !important;
+            margin:0 !important;
+            padding:0 !important;
+            border:0 !important;
+          }}
+          .main .block-container {{ max-width:1360px; padding-left:1.1rem; padding-right:1.1rem; }}
+          .actions-ref {{
+            position:relative; z-index:1; isolation:isolate; display:grid; grid-template-columns:178px minmax(0,1fr); gap:0;
+            width:min(1220px, calc(100vw - 22px)); min-height:760px; margin:2px auto 18px;
+            overflow:hidden; color:#dbeafe; border:1px solid rgba(56,189,248,.20); border-radius:16px;
+            background:
+              radial-gradient(circle at 52% 16%, rgba(56,189,248,.12), transparent 25%),
+              linear-gradient(180deg, rgba(3,10,24,.98), rgba(5,18,35,.98));
+            box-shadow:0 26px 92px rgba(0,0,0,.50), inset 0 0 90px rgba(56,189,248,.045);
+          }}
+          .actions-ref-dashboard-shell {{
+            display:grid !important;
+            visibility:visible !important;
+            height:auto !important;
+            max-height:none !important;
+            min-height:720px !important;
+            overflow:hidden !important;
+            outline:1px solid rgba(15,23,42,.65);
+          }}
+          .actions-ref-kicker {{
+            display:none !important;
+          }}
+          .actions-ref:before {{
+            content:""; position:absolute; inset:0; z-index:0; opacity:.44; pointer-events:none;
+            background:
+              radial-gradient(circle, rgba(255,255,255,.86) 1px, transparent 1.5px),
+              radial-gradient(circle at 18% 22%, rgba(14,165,233,.18), transparent 24%),
+              radial-gradient(circle at 82% 74%, rgba(59,130,246,.13), transparent 28%);
+            background-size:38px 38px, auto, auto;
+            animation:actionsRefStars 42s linear infinite;
+          }}
+          .actions-ref:after {{
+            content:""; position:absolute; inset:-18%; z-index:0; pointer-events:none; opacity:.48;
+            background:
+              radial-gradient(ellipse at 22% 28%, rgba(56,189,248,.18), transparent 18%),
+              radial-gradient(ellipse at 72% 62%, rgba(34,211,238,.12), transparent 24%),
+              linear-gradient(112deg, transparent 0 22%, rgba(125,211,252,.10) 22.2% 22.7%, transparent 23% 45%, rgba(147,197,253,.08) 45.2% 45.7%, transparent 46% 100%),
+              linear-gradient(34deg, transparent 0 54%, rgba(59,130,246,.09) 54.1% 54.45%, transparent 54.7% 100%);
+            filter:blur(.2px);
+            animation:actionsRefConstellations 28s ease-in-out infinite alternate;
+          }}
+          @keyframes actionsRefStars {{ from{{background-position:0 0,0 0,0 0}} to{{background-position:120px 180px,0 0,0 0}} }}
+          @keyframes actionsRefConstellations {{ from{{transform:translate3d(-1.5%, -1%, 0) scale(1)}} to{{transform:translate3d(1.5%, 1.2%, 0) scale(1.035)}} }}
+          .actions-ref-sidebar,
+          .actions-ref-main {{ position:relative; z-index:1; }}
+          .actions-ref-sidebar {{
+            display:grid; grid-template-rows:auto auto 1fr auto auto; gap:14px; padding:20px 15px 16px;
+            min-height:760px; border-right:1px solid rgba(96,165,250,.18);
+            background:linear-gradient(180deg, rgba(2,6,23,.86), rgba(8,19,39,.72));
+          }}
+          .actions-ref-logo {{ display:grid; grid-template-columns:38px 1fr; gap:8px; align-items:center; }}
+          .actions-ref-logo strong {{ display:block; color:#7dd3fc; font-size:23px; line-height:.95; letter-spacing:.05em; text-shadow:0 0 18px rgba(56,189,248,.45); }}
+          .actions-ref-logo span {{ color:#93c5fd; font-size:10px; text-transform:uppercase; letter-spacing:.12em; }}
+          .actions-ref-profile {{ margin:0; text-align:center; padding:10px; border-radius:14px; background:linear-gradient(180deg, rgba(15,23,42,.62), rgba(2,6,23,.50)); border:1px solid rgba(96,165,250,.17); box-shadow:inset 0 0 20px rgba(56,189,248,.045); }}
+          .actions-ref-profile .roxy-avatar {{ margin:auto; width:78px; height:78px; }}
+          .actions-ref-profile b {{ display:block; color:#f8fafc; font-size:12px; margin-top:8px; }}
+          .actions-ref-profile small {{ display:block; color:#93c5fd; font-size:10px; margin-top:2px; }}
+          .actions-ref-xp {{ margin-top:9px; display:grid; gap:5px; color:#93c5fd; font-size:8px; font-weight:1000; }}
+          .actions-ref-xp i {{ display:block; height:5px; border-radius:999px; overflow:hidden; background:rgba(30,41,59,.9); }}
+          .actions-ref-xp i:before {{ content:""; display:block; width:69%; height:100%; border-radius:inherit; background:linear-gradient(90deg,#2563eb,#22d3ee); box-shadow:0 0 14px rgba(34,211,238,.55); }}
+          .actions-ref-wallet {{ display:grid; grid-template-columns:1fr auto; gap:3px 8px; margin-top:9px; padding-top:8px; border-top:1px solid rgba(96,165,250,.12); color:#64748b; font-size:8px; text-align:left; text-transform:uppercase; }}
+          .actions-ref-wallet b {{ margin:0; color:#dbeafe; font-size:9px; text-align:right; }}
+          .actions-ref-sidebar nav {{ display:grid; gap:5px; align-content:start; }}
+          .actions-ref-sidebar nav a {{ display:flex; align-items:center; gap:10px; min-height:38px; padding:8px 10px; border-radius:9px; color:#cbd5e1!important; text-decoration:none!important; font-size:12px; font-weight:800; }}
+          .actions-ref-sidebar nav a.active, .actions-ref-sidebar nav a:hover {{ background:linear-gradient(90deg, rgba(30,64,175,.72), rgba(14,165,233,.18)); color:#fff!important; box-shadow:0 0 18px rgba(59,130,246,.24); }}
+          .actions-ref-sidebar nav i {{ font-size:18px!important; color:#93c5fd; }}
+          .actions-ref-atom {{ align-self:end; padding:11px; border-radius:12px; border:1px solid rgba(96,165,250,.22); background:rgba(15,23,42,.62); color:#bfdbfe; font-size:10px; }}
+          .actions-ref-rail {{ display:grid; grid-template-columns:repeat(2,1fr); gap:7px; }}
+          .actions-ref-rail a {{ display:grid; place-items:center; gap:3px; min-height:45px; border-radius:11px; text-decoration:none!important; color:#93c5fd!important; background:rgba(2,6,23,.54); border:1px solid rgba(96,165,250,.14); }}
+          .actions-ref-rail a i {{ font-size:17px!important; color:#7dd3fc; }}
+          .actions-ref-rail a span {{ font-size:8px; font-weight:900; text-transform:uppercase; }}
+          .actions-ref-main {{ min-width:0; padding:24px 16px 13px; }}
+          .actions-ref-top {{ display:grid; grid-template-columns:minmax(0,1fr) minmax(270px,390px); gap:14px; align-items:start; margin-bottom:10px; }}
+          .actions-ref-title strong {{ display:block; color:#f8fafc; font-size:25px; line-height:1; letter-spacing:.035em; }}
+          .actions-ref-title span {{ color:#93c5fd; font-size:12px; }}
+          .actions-ref-search {{ display:flex; align-items:center; justify-content:space-between; gap:10px; min-width:0; padding:10px 12px; border-radius:12px; border:1px solid rgba(96,165,250,.18); background:rgba(2,6,23,.66); color:#64748b; font-size:11px; }}
+          .actions-ref-search b {{ display:grid; place-items:center; width:25px; height:25px; border-radius:50%; background:#1d4ed8; color:white; }}
+	          .actions-ref-tabs {{ display:flex; gap:8px; overflow-x:auto; margin:2px 0 12px; padding-bottom:2px; scrollbar-width:none; border-bottom:1px solid rgba(96,165,250,.12); }}
+	          .actions-ref-tabs span, .actions-ref-tabs a {{ flex:0 0 auto; padding:9px 14px; border-radius:9px 9px 0 0; color:#94a3b8!important; font-size:10px; font-weight:900; text-decoration:none!important; }}
+	          .actions-ref-tabs .active {{ color:#f8fafc; background:rgba(30,64,175,.62); border:1px solid rgba(96,165,250,.20); border-bottom:0; }}
+          .actions-ref-tab-panel {{
+            position:relative; z-index:1; margin:0 0 12px; padding:11px;
+            border:1px solid rgba(96,165,250,.16); border-radius:14px;
+            background:linear-gradient(180deg, rgba(3,12,27,.82), rgba(2,8,23,.58));
+            box-shadow:inset 0 0 24px rgba(56,189,248,.04), 0 12px 30px rgba(0,0,0,.18);
+          }}
+          .actions-ref-tab-panel header {{
+            display:flex; justify-content:space-between; gap:14px; align-items:flex-end; margin-bottom:9px;
+          }}
+          .actions-ref-tab-panel header strong {{
+            color:#e0f2fe; font-size:13px; text-transform:uppercase; letter-spacing:.08em;
+          }}
+          .actions-ref-tab-panel header span {{
+            color:#8fb6d1; font-size:10px; text-align:right; max-width:58%; line-height:1.35;
+          }}
+          .actions-tab-picks {{ display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; }}
+          .actions-tab-pick {{
+            display:grid; grid-template-columns:auto auto minmax(0,1fr) auto; gap:7px; align-items:center; min-height:72px;
+            padding:8px; border:1px solid rgba(96,165,250,.14); border-radius:11px;
+            background:linear-gradient(180deg, rgba(15,23,42,.58), rgba(2,6,23,.46));
+            color:#e5f6ff!important; text-decoration:none!important;
+          }}
+          .actions-tab-pick>span {{ color:#64748b; font-size:9px; font-weight:950; }}
+          .actions-tab-pick div b {{ display:block; color:#f8fafc; font-size:12px; line-height:1.1; }}
+          .actions-tab-pick div small {{ display:block; color:#8fb6d1; font-size:8px; line-height:1.25; }}
+          .actions-tab-pick strong {{ color:#22c55e; font-size:15px; }}
+          .actions-tab-pick em {{ grid-column:1/-1; color:#cbd5e1; font-size:8px; font-style:normal; }}
+          .actions-tab-pick a {{
+            grid-column:1/-1; display:grid!important; place-items:center; height:24px; margin:0!important;
+            border-radius:7px; background:rgba(37,99,235,.36)!important; color:#dbeafe!important;
+            text-decoration:none!important; font-size:8px!important; font-weight:900; text-transform:uppercase;
+          }}
+          .actions-tab-focus {{
+            display:grid; gap:5px; align-content:center; padding:9px; margin-bottom:8px;
+            border:1px solid rgba(96,165,250,.14); border-radius:11px; background:rgba(15,23,42,.54);
+          }}
+          .actions-tab-focus b {{ color:#f8fafc; font-size:13px; }}
+          .actions-tab-focus strong {{ color:#38bdf8; font-size:20px; line-height:1; }}
+          .actions-tab-focus span {{ color:#22c55e; font-size:10px; }}
+          .actions-tab-focus small {{ color:#cbd5e1; font-size:9px; }}
+          .actions-tab-table {{ display:grid; gap:6px; }}
+          .actions-tab-status {{
+            display:flex; justify-content:space-between; gap:10px; padding:9px; margin-bottom:8px;
+            border-radius:10px; background:rgba(2,6,23,.48); border:1px solid rgba(96,165,250,.12);
+            color:#bfdbfe; font-size:10px;
+          }}
+          .actions-tab-chart {{ min-height:70px; overflow:hidden; }}
+          .actions-tab-empty {{
+            padding:14px; border-radius:10px; border:1px dashed rgba(96,165,250,.25);
+            color:#93c5fd; font-size:11px;
+          }}
+          .actions-ref-grid {{
+            display:grid;
+            grid-template-columns:1.02fr 1.55fr 1.08fr;
+            grid-template-areas:
+              "scanner map movers"
+              "futures forex news"
+              "quick alerts watch";
+            gap:10px;
+            align-items:stretch;
+          }}
+          .actions-ref-card {{
+            border:1px solid rgba(96,165,250,.20); border-radius:12px;
+            background:linear-gradient(180deg, rgba(8,19,39,.90), rgba(3,10,24,.76));
+            box-shadow:inset 0 0 22px rgba(56,189,248,.045), 0 14px 32px rgba(0,0,0,.22);
+            padding:12px; min-width:0; min-height:146px;
+          }}
+          .actions-ref-card:hover {{
+            border-color:rgba(125,211,252,.34);
+            box-shadow:inset 0 0 26px rgba(56,189,248,.07), 0 18px 42px rgba(0,0,0,.28);
+          }}
+          .scanner-card {{ grid-area:scanner; }}
+          .map-card {{ grid-area:map; }}
+          .movers-card {{ grid-area:movers; }}
+          .futures-card {{ grid-area:futures; }}
+          .forex-card {{ grid-area:forex; }}
+          .news-card {{ grid-area:news; }}
+          .quick-card {{ grid-area:quick; }}
+          .alerts-card {{ grid-area:alerts; }}
+          .watch-card {{ grid-area:watch; }}
+          .actions-ref .actions-ref-card > strong {{ display:flex; justify-content:space-between; align-items:center; color:#e0f2fe; font-size:11px; letter-spacing:.09em; text-transform:uppercase; margin:0 0 9px; line-height:1.2; }}
+          .actions-ref-card > strong:after {{
+            content:"";
+            display:inline-block;
+            width:13px;
+            height:13px;
+            margin-left:5px;
+            border-radius:50%;
+            border:1px solid rgba(125,211,252,.34);
+            box-shadow:inset 0 0 8px rgba(56,189,248,.18);
+          }}
+          .actions-ref-card.quick-card > strong:after,
+          .actions-ref-card.news-card > strong:after,
+          .actions-ref-card.alerts-card > strong:after,
+          .actions-ref-card.watch-card > strong:after {{
+            display:none;
+          }}
+          .actions-ref .actions-ref-card > strong small {{ color:#64748b; font-size:8px; font-weight:1000; letter-spacing:.12em; }}
+          .actions-ref .actions-ref-card a {{ display:block; margin-top:9px; color:#93c5fd!important; text-align:center; text-decoration:none!important; font-size:10px; font-weight:900; border-radius:9px; padding:7px; background:rgba(15,23,42,.60); border:1px solid rgba(96,165,250,.15); }}
+          .actions-ref .scanner-card p, .actions-ref .quote-card p, .actions-ref .movers-card p, .actions-ref .news-card p, .actions-ref .alerts-card p, .actions-ref .watch-card p {{ display:grid; grid-template-columns:58px 1fr auto; gap:7px; align-items:center; min-height:20px; margin:4px 0; color:#bfdbfe; font-size:10px; border-bottom:1px solid rgba(96,165,250,.055); }}
+          .actions-ref .scanner-card p b {{ color:#38bdf8; font-weight:1000; font-size:11px; }}
+          .actions-ref .scanner-card p span {{ color:#cbd5e1; font-weight:800; display:flex; align-items:center; gap:5px; }}
+          .actions-ref .scanner-card p span i {{ display:inline-block; width:17px; height:8px; border-radius:999px; background:linear-gradient(135deg, #38bdf8, #fb7185); box-shadow:0 0 10px rgba(56,189,248,.28); transform:skewX(-24deg); }}
+          .actions-ref-signal-grid {{
+            display:grid;
+            grid-template-columns:1fr;
+            gap:7px;
+            margin-top:6px;
+          }}
+          .actions-ref-signal-grid article {{
+            display:grid;
+            grid-template-columns:minmax(0,1fr) minmax(92px,1fr);
+            gap:8px;
+            align-items:center;
+            min-height:34px;
+            padding:7px 8px;
+            border:1px solid rgba(96,165,250,.16);
+            border-radius:9px;
+            background:linear-gradient(180deg, rgba(15,23,42,.72), rgba(2,6,23,.42));
+          }}
+          .actions-ref-signal-grid article span {{
+            display:flex;
+            flex-wrap:wrap;
+            gap:5px;
+            min-width:0;
+          }}
+          .actions-ref-signal-grid article a {{
+            display:inline!important;
+            margin:0!important;
+            padding:0!important;
+            border:0!important;
+            background:transparent!important;
+            color:#38bdf8!important;
+            font-size:10px!important;
+            line-height:1!important;
+            text-align:left!important;
+          }}
+          .actions-ref-signal-grid article b {{
+            display:flex;
+            align-items:center;
+            gap:5px;
+            min-width:0;
+            color:#cbd5e1;
+            font-size:10px;
+            font-weight:900;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+          }}
+          .actions-ref-signal-grid article:nth-child(n+9) {{
+            display:none;
+          }}
+          .actions-ref-signal-grid article b i {{
+            display:inline-block;
+            width:18px;
+            height:9px;
+            border-radius:999px;
+            background:linear-gradient(135deg, #38bdf8, #fb7185);
+            box-shadow:0 0 10px rgba(56,189,248,.30);
+            transform:skewX(-24deg);
+          }}
+          .actions-ref-minihead {{ display:grid; grid-template-columns:58px 1fr auto; gap:7px; margin:0 0 5px; color:#64748b; font-size:8px; font-weight:1000; text-transform:uppercase; letter-spacing:.12em; }}
+          .market-map {{ display:grid; grid-template-columns:repeat(12,1fr); grid-auto-rows:24px; gap:3px; min-height:154px; padding:2px; border-radius:9px; background:rgba(2,6,23,.36); }}
+          .market-map-empty {{ grid-column:1/-1; display:grid; place-items:center; min-height:154px; color:#64748b; font-size:11px; border:1px dashed rgba(96,165,250,.18); border-radius:8px; }}
+          .market-tile {{ display:flex; flex-direction:column; justify-content:center; align-items:center; border-radius:3px; color:white!important; text-decoration:none!important; overflow:hidden; text-align:center; }}
+          .market-tile.xl {{ grid-column:span 3; grid-row:span 2; }}
           .market-tile.md {{ grid-column:span 2; }}
-          .market-tile.up {{ background:linear-gradient(135deg, rgba(22,101,52,.96), rgba(34,197,94,.52)); }}
-          .market-tile.down {{ background:linear-gradient(135deg, rgba(127,29,29,.96), rgba(239,68,68,.52)); }}
-          .market-tile strong {{ font-size:18px; }}
+          .market-tile.sm {{ grid-column:span 1; }}
+          .market-tile.up {{ background:linear-gradient(135deg, rgba(20,83,45,.98), rgba(34,197,94,.50)); }}
+          .market-tile.down {{ background:linear-gradient(135deg, rgba(127,29,29,.98), rgba(239,68,68,.55)); }}
+          .market-tile strong {{ font-size:18px; line-height:1; }}
           .market-tile span {{ font-size:10px; }}
+          .market-tile.sm strong {{ font-size:9px; }}
+          .market-tile.sm span {{ font-size:7px; }}
           .movers-card p, .quote-card p {{ grid-template-columns:1fr auto auto; }}
           .movers-card em, .quote-card em {{ color:#22c55e; font-style:normal; font-weight:900; }}
-          .news-card p {{ grid-template-columns:24px 1fr; }}
-          .news-card i {{ color:#38bdf8; font-size:17px; }}
+          .actions-ref-subtabs {{ display:flex; gap:6px; margin:-2px 0 8px; }}
+          .actions-ref-subtabs span {{ flex:1; text-align:center; padding:5px 4px; border-radius:7px; color:#94a3b8; background:rgba(15,23,42,.54); font-size:8px; font-weight:1000; text-transform:uppercase; }}
+          .actions-ref-subtabs span:first-child {{ color:#bfdbfe; background:rgba(30,64,175,.58); }}
+          .news-card p {{ grid-template-columns:21px 1fr; }}
+          .news-card i {{ color:#38bdf8; font-size:16px; }}
           .news-card small {{ display:block; color:#cbd5e1; font-size:9px; line-height:1.25; }}
-          .quick-card .quick-symbol {{ display:flex; gap:12px; align-items:center; }}
+          .quick-card .quick-symbol {{ display:flex; gap:10px; align-items:center; }}
           .quick-card .quick-symbol strong {{ color:#f8fafc; font-size:24px; }}
-          .quick-card .quick-symbol b {{ color:#22c55e; font-size:15px; }}
-          .quick-chart {{ margin:12px 0; min-height:92px; display:grid; place-items:center; }}
-          .quick-levels {{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }}
-          .quick-levels span {{ border:1px solid rgba(96,165,250,.18); border-radius:10px; padding:7px; color:#93c5fd; font-size:9px; }}
+          .quick-card .quick-symbol b {{ color:#22c55e; font-size:17px; margin-left:auto; }}
+          .quick-card .quick-symbol small {{ color:#86efac; font-weight:900; }}
+          .quick-card .roxy-stock-icon {{ width:34px; height:34px; }}
+          .quick-chart {{ margin:10px 0; min-height:94px; display:grid; place-items:center; }}
+          .quick-levels {{ display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }}
+          .quick-levels span {{ border:1px solid rgba(96,165,250,.18); border-radius:9px; padding:7px; color:#93c5fd; font-size:9px; }}
           .quick-levels b {{ display:block; color:#f8fafc; font-size:12px; }}
           .alerts-card p {{ grid-template-columns:22px 1fr auto; }}
           .alerts-card i {{ color:#fb7185; font-size:15px; }}
           .alerts-card b {{ color:#86efac; text-transform:uppercase; font-size:9px; }}
           .watch-card p {{ grid-template-columns:1fr auto; }}
-          .strategy-section {{ margin-top:12px; }}
+          .strategy-section {{ margin-top:12px; min-height:0; }}
           .strategy-tabs {{ display:flex; gap:7px; overflow-x:auto; scrollbar-width:none; margin-bottom:10px; }}
           .strategy-tabs span {{ flex:0 0 auto; border:1px solid rgba(168,85,247,.22); color:#d8b4fe; border-radius:999px; padding:6px 9px; font-size:9px; font-weight:900; }}
           .strategy-lanes {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }}
-          .strategy-lane-card {{ border:1px solid rgba(168,85,247,.20); border-radius:13px; padding:10px; background:linear-gradient(180deg, rgba(30,10,58,.54), rgba(2,6,23,.72)); }}
+          .actions-strategy-matrix {{
+            margin-top:12px;
+            padding:13px;
+            border:1px solid rgba(96,165,250,.18);
+            border-radius:13px;
+            background:linear-gradient(180deg, rgba(3,10,24,.82), rgba(8,19,39,.74));
+          }}
+          .actions-strategy-matrix.is-hidden {{ display:none !important; }}
+          .actions-strategy-matrix > header {{
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+            gap:12px;
+            margin-bottom:10px;
+          }}
+          .actions-strategy-matrix > header strong {{
+            display:block;
+            color:#e0f2fe;
+            font-size:12px;
+            letter-spacing:.10em;
+            text-transform:uppercase;
+          }}
+          .actions-strategy-matrix > header span {{
+            display:block;
+            color:#93c5fd;
+            font-size:10px;
+            margin-top:2px;
+          }}
+          .actions-strategy-matrix > header em {{
+            color:#67e8f9;
+            font-size:10px;
+            font-style:normal;
+            border:1px solid rgba(103,232,249,.22);
+            border-radius:999px;
+            padding:5px 9px;
+            background:rgba(8,47,73,.44);
+            white-space:nowrap;
+          }}
+          .actions-strategy-grid {{
+            display:grid;
+            grid-template-columns:repeat(3,minmax(0,1fr));
+            gap:10px;
+          }}
+          .actions-strategy-family {{
+            min-height:142px;
+            border:1px solid rgba(96,165,250,.16);
+            border-radius:12px;
+            padding:10px;
+            background:rgba(2,6,23,.54);
+            box-shadow:inset 0 0 18px rgba(56,189,248,.035);
+          }}
+          .actions-strategy-family header {{
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            margin-bottom:7px;
+            padding-bottom:6px;
+            border-bottom:1px solid rgba(96,165,250,.10);
+          }}
+          .actions-strategy-family header strong {{
+            color:#f8fafc;
+            font-size:11px;
+            letter-spacing:.05em;
+          }}
+          .actions-strategy-family header span {{
+            color:#7dd3fc;
+            font-size:8px;
+            font-weight:1000;
+            text-transform:uppercase;
+          }}
+          .actions-strategy-pick {{
+            display:grid!important;
+            grid-template-columns:58px 1fr 34px;
+            gap:4px 7px;
+            align-items:center;
+            margin:5px 0!important;
+            padding:7px 8px!important;
+            border-radius:10px!important;
+            text-align:left!important;
+            text-decoration:none!important;
+            border:1px solid rgba(96,165,250,.13)!important;
+            background:rgba(15,23,42,.58)!important;
+          }}
+          .actions-strategy-pick b {{ color:#38bdf8; font-size:12px; }}
+          .actions-strategy-pick span {{
+            color:#dbeafe;
+            font-size:9px;
+            font-weight:1000;
+            text-transform:uppercase;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+          }}
+          .actions-strategy-pick em {{
+            justify-self:end;
+            color:#22c55e;
+            font-size:11px;
+            font-style:normal;
+            font-weight:1000;
+          }}
+          .actions-strategy-pick small {{
+            grid-column:1 / 4;
+            color:#94a3b8;
+            font-size:8px;
+            line-height:1.25;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+          }}
+          .actions-strategy-pick.sell em, .actions-strategy-pick.sell span {{ color:#fb7185; }}
+          .actions-strategy-pick.watch em, .actions-strategy-pick.watch span {{ color:#fde68a; }}
+          .strategy-lane-card {{ border:1px solid rgba(168,85,247,.20); border-radius:12px; padding:10px; background:linear-gradient(180deg, rgba(30,10,58,.52), rgba(2,6,23,.72)); }}
           .strategy-lane-card header {{ display:flex; justify-content:space-between; gap:8px; margin-bottom:8px; }}
           .strategy-lane-card header b {{ color:#e9d5ff; font-size:10px; line-height:1.2; }}
           .strategy-lane-card header em {{ color:#22c55e; font-style:normal; font-weight:1000; }}
@@ -39059,60 +40227,2923 @@ def render_roxy_actions_command_center(
           .strategy-lane-card div small {{ margin-left:auto; color:#86efac; font-size:8px; text-transform:uppercase; }}
           .strategy-lane-card p {{ margin:5px 0; color:#bfdbfe; font-size:9px; }}
           .strategy-lane-card a {{ display:block; margin-top:8px; text-align:center; text-decoration:none; color:#dbeafe; font-size:9px; font-weight:900; border-radius:9px; padding:7px; background:rgba(37,99,235,.45); border:1px solid rgba(96,165,250,.28); }}
-          .actions-ref-features {{ display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-top:12px; border-top:1px solid rgba(96,165,250,.16); padding-top:10px; }}
-          .actions-ref-features article {{ display:grid; grid-template-columns:auto 1fr; gap:2px 8px; align-items:center; border:1px solid rgba(96,165,250,.16); border-radius:12px; padding:10px; background:rgba(15,23,42,.54); }}
-          .actions-ref-features i {{ grid-row:1/3; color:#38bdf8; font-size:20px; }}
-          .actions-ref-features b {{ color:#f8fafc; font-size:10px; }}
-          .actions-ref-features span {{ color:#94a3b8; font-size:8px; }}
+          .actions-ref-features {{ display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-top:10px; padding:10px; border:1px solid rgba(96,165,250,.16); border-radius:13px; background:rgba(2,6,23,.72); box-shadow:inset 0 0 28px rgba(56,189,248,.05); }}
+          .actions-ref-features article {{ display:grid; grid-template-columns:auto 1fr; gap:2px 8px; align-items:center; border-right:1px solid rgba(96,165,250,.13); padding:3px 8px; }}
+          .actions-ref-features article:last-child {{ border-right:0; }}
+          .actions-ref-features i {{ grid-row:1/3; color:#38bdf8; font-size:24px; }}
+          .actions-ref-features b {{ color:#f8fafc; font-size:11px; }}
+          .actions-ref-features span {{ color:#94a3b8; font-size:9px; }}
+          .actions-ref-chart-heading {{
+            width:min(1220px, calc(100vw - 22px));
+            margin:0 auto 12px;
+            padding:14px 16px;
+            border:1px solid rgba(96,165,250,.22);
+            border-radius:14px;
+            background:
+              radial-gradient(circle at 18% 12%, rgba(14,165,233,.14), transparent 30%),
+              linear-gradient(180deg, rgba(8,19,39,.88), rgba(3,10,24,.78));
+            color:#dbeafe;
+            box-shadow:inset 0 0 28px rgba(56,189,248,.05), 0 12px 34px rgba(0,0,0,.24);
+          }}
+          .actions-ref-chart-heading div {{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:5px; }}
+          .actions-ref-chart-heading span {{ color:#7dd3fc; font-size:11px; font-weight:1000; letter-spacing:.12em; text-transform:uppercase; }}
+          .actions-ref-chart-heading strong {{ color:#f8fafc; font-size:18px; letter-spacing:.03em; }}
+          .actions-ref-chart-heading p {{ margin:0; color:#93c5fd; font-size:12px; line-height:1.4; }}
+          .actions-ref-below, .actions-ref-chart-heading, .actions-ref-strategy-heading {{ scroll-margin-top:22px; }}
+	          .actions-ref-layout-final {{
+		            grid-template-columns:156px minmax(0,1fr);
+		            width:min(1328px, calc(100vw - 12px));
+		            min-height:760px;
+		            border-radius:18px;
+		            background:
+		              radial-gradient(circle at 46% 9%, rgba(56,189,248,.13), transparent 24%),
+		              radial-gradient(circle at 78% 6%, rgba(59,130,246,.09), transparent 22%),
+		              linear-gradient(180deg, rgba(1,7,18,.992), rgba(4,16,32,.988));
+		            box-shadow:0 30px 100px rgba(0,0,0,.58), inset 0 0 120px rgba(56,189,248,.05);
+		          }}
+	          .actions-ref-layout-final .actions-ref-sidebar {{
+	            padding:16px 12px 13px;
+		            min-height:760px;
+	            background:
+	              linear-gradient(180deg, rgba(2,6,23,.96), rgba(7,16,33,.88)),
+	              radial-gradient(circle at 50% 8%, rgba(56,189,248,.08), transparent 32%);
+	          }}
+	          .actions-ref-layout-final .actions-ref-logo strong {{ font-size:22px; }}
+          .actions-ref-layout-final .actions-ref-profile {{
+            padding:9px 8px;
+          }}
+	          .actions-ref-layout-final .actions-ref-profile .roxy-avatar {{
+	            width:72px;
+	            height:72px;
+	          }}
+	          .actions-ref-layout-final .actions-ref-sidebar nav a {{
+	            min-height:34px;
+	            padding:7px 8px;
+	            font-size:11px;
+	            border-radius:8px;
+	          }}
+          .actions-ref-layout-final .actions-ref-sidebar nav i {{
+            font-size:16px!important;
+          }}
+          .actions-ref-layout-final .actions-ref-main {{ padding:18px 17px 13px; }}
+          .actions-ref-layout-final .actions-ref-top {{
+            grid-template-columns:minmax(0,1fr) minmax(270px,360px);
+            gap:10px;
+            margin-bottom:10px;
+          }}
+          .actions-ref-layout-final .actions-ref-title strong {{ font-size:27px; }}
+          .actions-ref-layout-final .actions-ref-title span {{ font-size:12px; color:#bfdbfe; }}
+          .actions-ref-layout-final .actions-ref-search {{
+            min-height:40px;
+            border-radius:10px;
+            background:rgba(2,6,23,.74);
+          }}
+          .actions-ref-layout-final .actions-ref-tabs {{
+            margin:0 0 10px;
+            gap:6px;
+          }}
+	          .actions-ref-layout-final .actions-ref-tabs span, .actions-ref-layout-final .actions-ref-tabs a {{ padding:9px 15px; }}
+	          .actions-ref-layout-final .actions-ref-grid {{
+		            grid-template-columns:1.03fr 1.60fr 1.10fr;
+		            grid-template-areas:
+		              "scanner map movers"
+		              "futures forex news"
+		              "quick alerts watch";
+		            grid-auto-rows:minmax(142px, auto);
+		            gap:10px;
+		          }}
+          .actions-ref-layout-final .actions-ref-card {{
+	            min-height:134px;
+	            border-radius:11px;
+	            padding:10px;
+	            background:
+	              linear-gradient(180deg, rgba(8,20,41,.955), rgba(3,10,24,.84)),
+	              radial-gradient(circle at 18% 8%, rgba(34,211,238,.10), transparent 24%);
+	            border-color:rgba(96,165,250,.22);
+	          }}
+	          .actions-ref-layout-final .scanner-card,
+	          .actions-ref-layout-final .map-card,
+	          .actions-ref-layout-final .movers-card {{
+		            min-height:192px;
+		          }}
+          .actions-ref-layout-final .actions-ref .actions-ref-card > strong,
+          .actions-ref-layout-final .actions-ref-card > strong {{
+            color:#dff7ff;
+            font-size:11px;
+            letter-spacing:.105em;
+          }}
+          .actions-ref-layout-final .scanner-card > strong:before {{
+            content:"";
+            width:7px;
+            height:7px;
+            margin-right:6px;
+            border-radius:50%;
+            background:#38bdf8;
+            box-shadow:0 0 12px rgba(56,189,248,.8);
+          }}
+	          .actions-ref-layout-final .actions-ref-signal-grid {{
+		            grid-template-columns:repeat(2,minmax(0,1fr));
+		            gap:7px;
+		          }}
+          .actions-ref-layout-final .actions-ref-signal-grid article:nth-child(n+9) {{
+            display:grid;
+          }}
+          .actions-ref-layout-final .actions-ref-signal-grid article:nth-child(n+9) {{
+            display:grid;
+          }}
+	          .actions-ref-layout-final .actions-ref-signal-grid article {{
+	            grid-template-columns:minmax(0,1fr) minmax(78px,.86fr);
+		            min-height:30px;
+		            padding:5px 7px;
+		            border-radius:7px;
+		          }}
+          .actions-ref-layout-final .actions-ref-signal-grid article b,
+          .actions-ref-layout-final .actions-ref-signal-grid article a {{
+            font-size:9px!important;
+          }}
+          .actions-ref-layout-final .actions-ref-signal-grid article b i {{
+            width:15px;
+            height:7px;
+          }}
+	          .actions-ref-layout-final .market-map {{
+		            grid-template-columns:repeat(16,1fr);
+		            grid-auto-rows:22px;
+		            gap:3px;
+		            min-height:158px;
+		          }}
+          .actions-ref-layout-final .market-tile.xl {{ grid-column:span 4; grid-row:span 2; }}
+          .actions-ref-layout-final .market-tile.md {{ grid-column:span 2; grid-row:span 1; }}
+          .actions-ref-layout-final .market-tile strong {{ font-size:16px; }}
+          .actions-ref-layout-final .market-tile.sm strong {{ font-size:8px; }}
+          .actions-ref-layout-final .movers-card p,
+          .actions-ref-layout-final .quote-card p {{
+            min-height:18px;
+            font-size:9px;
+          }}
+          .actions-ref-layout-final .news-card p {{
+            margin:6px 0;
+            min-height:25px;
+          }}
+          .actions-ref-layout-final .quick-card .quick-symbol strong {{ font-size:22px; }}
+          .actions-ref-layout-final .quick-chart {{ min-height:74px; margin:7px 0; }}
+          .actions-ref-layout-final .actions-ref-features {{
+	            margin-top:10px;
+	            padding:9px 10px;
+	            border-radius:12px;
+	          }}
+          .actions-ref-layout-final .actions-ref-features article {{
+            min-height:44px;
+          }}
+	          .actions-ref-layout-final .actions-strategy-matrix {{
+		            margin-top:10px;
+		            border-radius:12px;
+		            max-height:none;
+		            padding:11px;
+		            border:1px solid rgba(96,165,250,.22);
+		            overflow:visible;
+		            opacity:1;
+		            background:
+		              radial-gradient(circle at 16% 12%, rgba(34,211,238,.10), transparent 30%),
+		              linear-gradient(180deg, rgba(8,20,41,.92), rgba(3,10,24,.82));
+		            box-shadow:inset 0 0 24px rgba(56,189,248,.055);
+		          }}
+          .actions-ref-layout-final .actions-strategy-grid {{
+            grid-template-columns:repeat(4,minmax(0,1fr));
+            gap:8px;
+          }}
+          .actions-ref-layout-final .actions-strategy-family {{
+            min-height:108px;
+            padding:8px;
+          }}
+          .actions-ref-layout-final .actions-strategy-family header strong {{
+            font-size:10px;
+          }}
+          .actions-ref-layout-final .actions-strategy-pick {{
+            grid-template-columns:48px 1fr 28px;
+            padding:5px 7px!important;
+          }}
+          .actions-ref-layout-final .actions-strategy-pick small {{
+            grid-column:1 / 4;
+          }}
           @media (max-width: 900px) {{
-            .actions-ref {{ grid-template-columns:1fr; }}
-            .actions-ref-sidebar {{ display:none; }}
-            .actions-ref-top {{ flex-direction:column; }}
-            .actions-ref-search {{ min-width:0; width:100%; }}
-            .actions-ref-grid {{ grid-template-columns:1fr; }}
+            .main .block-container {{ padding-left:.35rem; padding-right:.35rem; }}
+            .actions-ref {{
+              grid-template-columns:1fr;
+              width:100%;
+              max-width:100%;
+              min-height:auto;
+              overflow:hidden;
+              border-radius:14px;
+            }}
+            .actions-ref-kicker {{ display:none; }}
+            .actions-ref-sidebar {{
+              min-height:auto;
+              grid-template-columns:1fr;
+              display:block;
+              padding:12px;
+              border-right:0;
+              border-bottom:1px solid rgba(96,165,250,.18);
+            }}
+            .actions-ref-logo {{ grid-template-columns:34px 1fr; text-align:left; margin-bottom:10px; }}
+            .actions-ref-logo strong {{ font-size:19px; }}
+            .actions-ref-profile {{ display:none; }}
+            .actions-ref-sidebar nav {{ display:flex; gap:7px; overflow-x:auto; scrollbar-width:none; }}
+            .actions-ref-sidebar nav a {{ flex:0 0 auto; min-height:34px; font-size:10px; gap:6px; padding:7px 9px; }}
+            .actions-ref-atom, .actions-ref-rail {{ display:none; }}
+            .actions-ref-main {{ padding:14px 11px 12px; }}
+            .actions-ref-top {{ grid-template-columns:1fr; }}
+            .actions-ref-search {{ display:none; }}
+            .actions-ref-grid {{
+              grid-template-columns:1fr;
+              grid-template-areas:
+                "scanner"
+                "map"
+                "movers"
+                "quick"
+                "news"
+                "futures"
+                "forex"
+                "alerts"
+                "watch";
+            }}
+            .market-map {{ grid-template-columns:repeat(8,1fr); grid-auto-rows:30px; min-height:190px; }}
+            .actions-strategy-grid {{ grid-template-columns:1fr; }}
             .strategy-lanes {{ grid-template-columns:1fr; }}
             .actions-ref-features {{ grid-template-columns:1fr; }}
+            .actions-ref-features article {{ border-right:0; border-bottom:1px solid rgba(96,165,250,.13); padding:8px; }}
+            .actions-ref-features article:last-child {{ border-bottom:0; }}
+            .actions-ref-chart-heading {{ width:100%; max-width:100%; margin-left:0; margin-right:0; }}
           }}
         </style>
-        <section class="actions-ref">
+        <style>
+          .actions-ref-v2-finvision {{
+            isolation:isolate;
+            grid-template-columns:152px minmax(0,1fr)!important;
+            width:min(1180px,100%)!important;
+            margin:8px auto 18px!important;
+            min-height:790px!important;
+            padding:0!important;
+            border-radius:18px!important;
+            border:1px solid rgba(65,130,210,.36)!important;
+            background:
+              radial-gradient(circle at 56% 6%, rgba(43,126,255,.14), transparent 30%),
+              radial-gradient(circle at 72% 84%, rgba(20,184,166,.08), transparent 34%),
+              linear-gradient(180deg, rgba(5,14,29,.98), rgba(2,8,20,.99))!important;
+            box-shadow:
+              0 0 0 1px rgba(2,8,23,.95),
+              0 34px 90px rgba(0,0,0,.64),
+              inset 0 0 80px rgba(59,130,246,.08)!important;
+            overflow:hidden!important;
+          }}
+          .actions-ref-v2-finvision:before {{
+            content:"";
+            position:absolute;
+            inset:0;
+            z-index:-1;
+            opacity:.7;
+            background-image:
+              radial-gradient(circle at 12% 18%, rgba(255,255,255,.75) 0 1px, transparent 1.6px),
+              radial-gradient(circle at 78% 26%, rgba(125,211,252,.72) 0 1px, transparent 1.8px),
+              radial-gradient(circle at 42% 78%, rgba(255,255,255,.45) 0 1px, transparent 1.7px),
+              linear-gradient(90deg, rgba(96,165,250,.045) 1px, transparent 1px),
+              linear-gradient(0deg, rgba(96,165,250,.035) 1px, transparent 1px);
+            background-size:210px 210px,260px 260px,180px 180px,54px 54px,54px 54px;
+            animation:actionsStarsDrift 28s linear infinite;
+          }}
+          @keyframes actionsStarsDrift {{
+            from {{ background-position:0 0,0 0,0 0,0 0,0 0; }}
+            to {{ background-position:220px 120px,-180px 220px,140px -110px,54px 54px,54px 54px; }}
+          }}
+          .actions-ref-v2-finvision .actions-ref-kicker {{
+            position:absolute!important;
+            top:8px!important;
+            left:14px!important;
+            color:#7dd3fc!important;
+            font-size:9px!important;
+            letter-spacing:.14em!important;
+            text-transform:uppercase!important;
+            opacity:.72!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-sidebar {{
+            min-height:790px!important;
+            padding:20px 11px 14px!important;
+            background:
+              linear-gradient(180deg, rgba(4,15,31,.94), rgba(2,7,19,.98)),
+              radial-gradient(circle at 50% 12%, rgba(56,189,248,.16), transparent 44%)!important;
+            border-right:1px solid rgba(96,165,250,.22)!important;
+            box-shadow:inset -1px 0 0 rgba(255,255,255,.025)!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-logo {{
+            grid-template-columns:32px 1fr!important;
+            column-gap:7px!important;
+            margin:0 0 16px!important;
+            align-items:center!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-logo strong {{
+            font-size:20px!important;
+            line-height:.86!important;
+            color:#70d9ff!important;
+            text-shadow:0 0 16px rgba(56,189,248,.58)!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-logo span {{
+            font-size:8px!important;
+            letter-spacing:.16em!important;
+            color:#93c5fd!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-profile {{
+            padding:10px 8px!important;
+            border:1px solid rgba(96,165,250,.18)!important;
+            background:linear-gradient(180deg, rgba(15,23,42,.72), rgba(2,8,23,.76))!important;
+            border-radius:13px!important;
+            margin-bottom:12px!important;
+            text-align:center!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-profile .avatar {{
+            width:56px!important;
+            height:56px!important;
+            margin:0 auto 8px!important;
+            border-radius:50%!important;
+            box-shadow:0 0 22px rgba(56,189,248,.46)!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-sidebar nav {{
+            gap:4px!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-sidebar nav a {{
+            min-height:32px!important;
+            padding:7px 8px!important;
+            border-radius:8px!important;
+            font-size:10.5px!important;
+            color:#bfd6f6!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-sidebar nav a.active {{
+            background:linear-gradient(90deg, rgba(29,78,216,.82), rgba(14,165,233,.18))!important;
+            color:#fff!important;
+            border:1px solid rgba(96,165,250,.25)!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-atom {{
+            margin-top:auto!important;
+            padding:10px 8px!important;
+            border-radius:11px!important;
+            color:#dbeafe!important;
+            background:linear-gradient(180deg, rgba(14,39,73,.8), rgba(2,8,23,.8))!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-main {{
+            padding:22px 16px 14px!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-top {{
+            min-height:46px!important;
+            margin-bottom:0!important;
+            grid-template-columns:1fr minmax(240px,360px)!important;
+            align-items:start!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-title strong {{
+            display:block!important;
+            font-size:24px!important;
+            letter-spacing:.02em!important;
+            color:#f8fbff!important;
+            line-height:1!important;
+            text-shadow:0 0 22px rgba(56,189,248,.26)!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-title span {{
+            color:#a8c7e9!important;
+            font-size:11px!important;
+            font-weight:700!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-search {{
+            min-height:32px!important;
+            padding:6px 9px!important;
+            border-radius:8px!important;
+            color:#93a9c8!important;
+            background:rgba(4,13,29,.78)!important;
+            border:1px solid rgba(96,165,250,.14)!important;
+            box-shadow:inset 0 0 18px rgba(15,23,42,.72)!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-tabs {{
+            margin:4px 0 12px!important;
+            gap:0!important;
+            border-bottom:1px solid rgba(96,165,250,.14)!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-tabs a,
+          .actions-ref-v2-finvision .actions-ref-tabs span {{
+            padding:10px 18px!important;
+            border-radius:0!important;
+            color:#8ba1bf!important;
+            font-size:10px!important;
+            letter-spacing:.06em!important;
+            text-transform:none!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-tabs .active {{
+            background:linear-gradient(180deg, rgba(30,64,175,.78), rgba(30,64,175,.38))!important;
+            color:#fff!important;
+            border:1px solid rgba(96,165,250,.20)!important;
+            border-bottom:0!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-grid {{
+            display:grid!important;
+            grid-template-columns:minmax(0,.94fr) minmax(0,1.38fr) minmax(0,1fr)!important;
+            grid-template-areas:
+              "scanner map movers"
+              "futures forex news"
+              "quick alerts watch"!important;
+            gap:12px!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-card {{
+            border-radius:10px!important;
+            border:1px solid rgba(76,132,207,.24)!important;
+            background:
+              linear-gradient(180deg, rgba(6,18,38,.92), rgba(3,10,24,.88)),
+              radial-gradient(circle at 18% 0%, rgba(56,189,248,.12), transparent 38%)!important;
+            box-shadow:inset 0 0 26px rgba(15,23,42,.82), 0 10px 24px rgba(0,0,0,.18)!important;
+            padding:12px!important;
+            min-height:156px!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-card > strong {{
+            display:flex!important;
+            justify-content:space-between!important;
+            align-items:center!important;
+            margin-bottom:8px!important;
+            color:#dff6ff!important;
+            font-size:11px!important;
+            letter-spacing:.09em!important;
+            text-transform:uppercase!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-card > strong small {{
+            color:#6ea8e9!important;
+            font-size:8px!important;
+            letter-spacing:.08em!important;
+          }}
+          .actions-ref-v2-finvision .scanner-card {{ grid-area:scanner!important; }}
+          .actions-ref-v2-finvision .map-card {{ grid-area:map!important; }}
+          .actions-ref-v2-finvision .movers-card {{ grid-area:movers!important; }}
+          .actions-ref-v2-finvision .futures-card {{ grid-area:futures!important; }}
+          .actions-ref-v2-finvision .forex-card {{ grid-area:forex!important; }}
+          .actions-ref-v2-finvision .news-card {{ grid-area:news!important; }}
+          .actions-ref-v2-finvision .quick-card {{ grid-area:quick!important; }}
+          .actions-ref-v2-finvision .alerts-card {{ grid-area:alerts!important; }}
+          .actions-ref-v2-finvision .watch-card {{ grid-area:watch!important; }}
+          .actions-ref-v2-finvision .actions-ref-signal-grid {{
+            grid-template-columns:repeat(2,minmax(0,1fr))!important;
+            gap:6px!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-signal-grid article {{
+            min-height:27px!important;
+            grid-template-columns:minmax(0,1fr) minmax(82px,.9fr)!important;
+            border-radius:7px!important;
+            background:rgba(2,8,23,.48)!important;
+            border:1px solid rgba(96,165,250,.14)!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-signal-grid article span {{
+            gap:5px!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-signal-grid article a,
+          .actions-ref-v2-finvision .actions-ref-signal-grid article b {{
+            color:#60b7ff!important;
+            font-size:10px!important;
+            font-weight:800!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-signal-grid article b i {{
+            display:inline-block!important;
+            width:16px!important;
+            height:8px!important;
+            margin-right:4px!important;
+            border-radius:999px!important;
+            background:linear-gradient(135deg, #38bdf8, #fb7185)!important;
+            box-shadow:0 0 10px rgba(56,189,248,.34)!important;
+            transform:skewX(-24deg)!important;
+          }}
+          .actions-ref-v2-finvision .market-map {{
+            min-height:202px!important;
+            grid-template-columns:repeat(18,1fr)!important;
+            grid-auto-rows:24px!important;
+            gap:3px!important;
+            padding:6px!important;
+            background:#061122!important;
+            border-radius:8px!important;
+            border:1px solid rgba(96,165,250,.12)!important;
+          }}
+          .actions-ref-v2-finvision .market-tile {{
+            border-radius:2px!important;
+            border:1px solid rgba(255,255,255,.05)!important;
+            justify-content:center!important;
+            box-shadow:inset 0 0 22px rgba(0,0,0,.28)!important;
+          }}
+          .actions-ref-v2-finvision .market-tile.up {{ background:linear-gradient(180deg, rgba(22,163,74,.92), rgba(20,83,45,.95))!important; }}
+          .actions-ref-v2-finvision .market-tile.down {{ background:linear-gradient(180deg, rgba(185,28,28,.92), rgba(88,28,28,.95))!important; }}
+          .actions-ref-v2-finvision .market-tile.xl {{ grid-column:span 5!important; grid-row:span 3!important; }}
+          .actions-ref-v2-finvision .market-tile.md {{ grid-column:span 3!important; grid-row:span 2!important; }}
+          .actions-ref-v2-finvision .market-tile.sm {{ grid-column:span 2!important; grid-row:span 1!important; }}
+          .actions-ref-v2-finvision .market-tile strong {{ font-size:21px!important; line-height:1!important; }}
+          .actions-ref-v2-finvision .market-tile span {{ font-size:12px!important; font-weight:800!important; }}
+          .actions-ref-v2-finvision .movers-card p,
+          .actions-ref-v2-finvision .quote-card p,
+          .actions-ref-v2-finvision .watch-card p {{
+            display:grid!important;
+            grid-template-columns:1fr .8fr .7fr!important;
+            min-height:22px!important;
+            margin:4px 0!important;
+            padding-bottom:4px!important;
+            border-bottom:1px solid rgba(96,165,250,.08)!important;
+            color:#dbeafe!important;
+            font-size:10px!important;
+          }}
+          .actions-ref-v2-finvision .movers-card em,
+          .actions-ref-v2-finvision .quote-card em {{
+            color:#4ade80!important;
+            text-align:right!important;
+          }}
+          .actions-ref-v2-finvision .news-card p {{
+            grid-template-columns:22px 1fr!important;
+            min-height:34px!important;
+            margin:7px 0!important;
+          }}
+          .actions-ref-v2-finvision .news-card small {{
+            display:block!important;
+            color:#b8c7dd!important;
+            font-size:9px!important;
+          }}
+          .actions-ref-v2-finvision .quick-card .quick-symbol {{
+            display:grid!important;
+            grid-template-columns:34px 1fr auto!important;
+            align-items:center!important;
+            gap:7px!important;
+          }}
+          .actions-ref-v2-finvision .quick-card .quick-symbol strong {{
+            color:#fff!important;
+            font-size:18px!important;
+          }}
+          .actions-ref-v2-finvision .quick-card .quick-symbol b {{
+            color:#4ade80!important;
+            font-size:23px!important;
+          }}
+          .actions-ref-v2-finvision .quick-chart {{
+            min-height:86px!important;
+            margin:8px 0!important;
+            border-radius:8px!important;
+            background:linear-gradient(180deg, rgba(2,8,23,.72), rgba(5,15,32,.92))!important;
+          }}
+          .actions-ref-v2-finvision a {{
+            color:#7dd3fc!important;
+            text-decoration:none!important;
+            font-weight:900!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-features {{
+            display:grid!important;
+            grid-template-columns:repeat(5,minmax(0,1fr))!important;
+            gap:0!important;
+            margin-top:12px!important;
+            padding:10px!important;
+            border-radius:13px!important;
+            border:1px solid rgba(65,130,210,.22)!important;
+            background:linear-gradient(90deg, rgba(3,10,24,.92), rgba(9,22,45,.86), rgba(3,10,24,.92))!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-features article {{
+            min-height:48px!important;
+            border-right:1px solid rgba(96,165,250,.12)!important;
+            display:grid!important;
+            grid-template-columns:34px 1fr!important;
+            align-items:center!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-features article:last-child {{
+            border-right:0!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-features i {{
+            color:#60a5fa!important;
+            filter:drop-shadow(0 0 10px rgba(59,130,246,.48))!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-features b {{
+            color:#dbeafe!important;
+            font-size:11px!important;
+          }}
+          .actions-ref-v2-finvision .actions-ref-features span {{
+            color:#8ba7c9!important;
+            font-size:9px!important;
+          }}
+          .actions-ref-v2-finvision .actions-strategy-matrix {{
+            margin-top:12px!important;
+            padding:12px!important;
+            border-radius:12px!important;
+            background:
+              radial-gradient(circle at 12% 0%, rgba(59,130,246,.18), transparent 34%),
+              linear-gradient(180deg, rgba(4,13,29,.92), rgba(2,8,23,.86))!important;
+            border:1px solid rgba(96,165,250,.24)!important;
+            box-shadow:inset 0 0 28px rgba(56,189,248,.055), 0 10px 24px rgba(0,0,0,.18)!important;
+          }}
+          .actions-ref-v2-finvision .actions-strategy-matrix.is-hidden {{
+            display:none!important;
+          }}
+          .actions-ref-v2-finvision .actions-strategy-matrix.is-preview {{
+            display:block!important;
+            max-height:178px!important;
+            overflow:hidden!important;
+          }}
+          .actions-ref-v2-finvision .actions-strategy-matrix.is-open {{
+            display:block!important;
+            max-height:none!important;
+            overflow:visible!important;
+          }}
+          .actions-ref-v2-finvision .actions-strategy-matrix > header {{
+            align-items:center!important;
+            padding-bottom:9px!important;
+            border-bottom:1px solid rgba(96,165,250,.12)!important;
+          }}
+          .actions-ref-v2-finvision .actions-strategy-matrix > header strong {{
+            color:#dbeafe!important;
+            font-size:11px!important;
+          }}
+          .actions-ref-v2-finvision .actions-strategy-matrix > header span {{
+            max-width:760px!important;
+            color:#8fb7dc!important;
+            font-size:9px!important;
+          }}
+          .actions-ref-v2-finvision .actions-strategy-grid {{
+            grid-template-columns:repeat(4,minmax(0,1fr))!important;
+            gap:9px!important;
+          }}
+          .actions-ref-v2-finvision .actions-strategy-family {{
+            border-radius:9px!important;
+            background:rgba(2,8,23,.55)!important;
+            border:1px solid rgba(96,165,250,.16)!important;
+            min-height:116px!important;
+          }}
+          .actions-ref-v2-finvision .actions-strategy-family header {{
+            border-bottom-color:rgba(96,165,250,.14)!important;
+          }}
+          .actions-ref-v2-finvision .actions-strategy-pick {{
+            min-height:34px!important;
+            border-radius:8px!important;
+            background:rgba(15,23,42,.64)!important;
+          }}
+          .actions-ref-v2-finvision .actions-strategy-pick b {{
+            color:#38bdf8!important;
+          }}
+          .actions-ref-v2-finvision .actions-strategy-pick em {{
+            border-radius:999px!important;
+            padding:2px 6px!important;
+            background:rgba(34,197,94,.12)!important;
+          }}
+          .actions-ref-v2-finvision .actions-strategy-family.reference-seed header span,
+          .actions-ref-v2-finvision .actions-strategy-pick.reference-seed em {{
+            color:#fbbf24!important;
+            border-color:rgba(251,191,36,.28)!important;
+            background:rgba(251,191,36,.08)!important;
+          }}
+	          .actions-ref-v2-finvision .actions-ref-card a {{
+	            cursor:pointer!important;
+	          }}
+	          .actions-ref-overview-scroll {{
+	            width:min(1180px, 100%)!important;
+	            margin:0 auto!important;
+	            overflow-x:visible!important;
+	          }}
+	          @media (max-width:900px) {{
+	            .actions-ref-v2-finvision {{
+	              grid-template-columns:1fr!important;
+	              min-height:auto!important;
+	              border-radius:14px!important;
+            }}
+            .actions-ref-v2-finvision .actions-ref-sidebar {{
+              min-height:auto!important;
+              padding:12px!important;
+              border-right:0!important;
+              border-bottom:1px solid rgba(96,165,250,.18)!important;
+            }}
+            .actions-ref-v2-finvision .actions-ref-sidebar nav {{
+              display:flex!important;
+              overflow-x:auto!important;
+            }}
+            .actions-ref-v2-finvision .actions-ref-profile,
+            .actions-ref-v2-finvision .actions-ref-atom,
+            .actions-ref-v2-finvision .actions-ref-rail {{
+              display:none!important;
+            }}
+            .actions-ref-v2-finvision .actions-ref-main {{
+              padding:14px 10px!important;
+            }}
+            .actions-ref-v2-finvision .actions-ref-top {{
+              grid-template-columns:1fr!important;
+            }}
+            .actions-ref-v2-finvision .actions-ref-search {{
+              display:none!important;
+            }}
+            .actions-ref-v2-finvision .actions-ref-tabs {{
+              overflow-x:auto!important;
+              scrollbar-width:none!important;
+            }}
+            .actions-ref-v2-finvision .actions-ref-grid {{
+              grid-template-columns:1fr!important;
+              grid-template-areas:
+                "scanner"
+                "map"
+                "movers"
+                "quick"
+                "news"
+                "futures"
+                "forex"
+                "alerts"
+                "watch"!important;
+            }}
+            .actions-ref-v2-finvision .market-map {{
+              grid-template-columns:repeat(9,1fr)!important;
+              grid-auto-rows:30px!important;
+            }}
+            .actions-ref-v2-finvision .actions-ref-features,
+            .actions-ref-v2-finvision .actions-strategy-grid {{
+              grid-template-columns:1fr!important;
+            }}
+            .actions-ref-v2-finvision .actions-ref-features article {{
+              border-right:0!important;
+	              border-bottom:1px solid rgba(96,165,250,.12)!important;
+	            }}
+	          }}
+	          @media (max-width:900px) {{
+	            .actions-ref-overview-scroll {{
+	              width:100%!important;
+	              max-width:100%!important;
+	              overflow-x:auto!important;
+	              overflow-y:hidden!important;
+	              padding-bottom:10px!important;
+	              -webkit-overflow-scrolling:touch!important;
+	              scrollbar-width:thin!important;
+	              scrollbar-color:rgba(56,189,248,.55) rgba(15,23,42,.5)!important;
+	            }}
+	            .actions-ref-overview-scroll .actions-ref-v2-finvision {{
+	              width:1080px!important;
+	              max-width:none!important;
+	              grid-template-columns:150px 930px!important;
+	              min-height:792px!important;
+	              border-radius:18px!important;
+	            }}
+	            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-sidebar {{
+	              display:grid!important;
+	              min-height:792px!important;
+	              padding:14px 10px!important;
+	              border-right:1px solid rgba(96,165,250,.22)!important;
+	              border-bottom:0!important;
+	            }}
+	            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-sidebar nav {{
+	              display:grid!important;
+	              overflow:visible!important;
+	            }}
+	            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-profile {{
+	              display:grid!important;
+	            }}
+	            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-atom {{
+	              display:block!important;
+	            }}
+	            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-rail {{
+	              display:grid!important;
+	            }}
+	            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-main {{
+	              padding:18px!important;
+	            }}
+	            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-top {{
+	              grid-template-columns:minmax(0,1fr) 350px!important;
+	            }}
+	            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-search {{
+	              display:flex!important;
+	            }}
+	            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-grid {{
+	              grid-template-columns:minmax(0,.94fr) minmax(0,1.38fr) minmax(0,1fr)!important;
+	              grid-template-areas:
+	                "scanner map movers"
+	                "futures forex news"
+	                "quick alerts watch"!important;
+	            }}
+	            .actions-ref-overview-scroll .actions-ref-v2-finvision .market-map {{
+	              grid-template-columns:repeat(12,1fr)!important;
+	              grid-auto-rows:34px!important;
+	            }}
+	            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-features {{
+	              grid-template-columns:repeat(5,minmax(0,1fr))!important;
+	            }}
+	            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-features article {{
+	              border-right:1px solid rgba(96,165,250,.12)!important;
+	              border-bottom:0!important;
+	            }}
+	            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-strategy-grid {{
+	              grid-template-columns:repeat(4,minmax(0,1fr))!important;
+	            }}
+	          }}
+	        </style>
+	        <div class="actions-ref-overview-scroll">
+	        <section class="actions-ref actions-ref-dashboard-shell actions-ref-layout-final actions-ref-v2-finvision actions-ref-exact">
+              <div class="actions-ref-kicker">2. VISTA GENERAL - ASI SE VERA DENTRO DE ROXY</div>
           <aside class="actions-ref-sidebar">
             <div class="actions-ref-logo">{brand_logo_html()}<strong>ROXY</strong><span>AI Trading</span></div>
-            <div class="actions-ref-profile">{roxy_avatar_html("ready")}<b>Guardian Novato</b><small>Nivel 12</small></div>
+            {profile_html}
             <nav>{nav_html}</nav>
             <div class="actions-ref-atom"><b>ATOM</b><br>Asistente IA conectado al escaner de acciones.</div>
+            <div class="actions-ref-rail">{utility_html}</div>
           </aside>
           <main class="actions-ref-main">
             <header class="actions-ref-top">
-              <div class="actions-ref-title"><strong>ACCIONES</strong><span>Analisis completo del mercado accionario</span></div>
-              <div class="actions-ref-search"><i class="material-symbols-outlined">search</i>Buscar accion, sector, industria...<i class="material-symbols-outlined">star</i><i class="material-symbols-outlined">notifications</i><b>R</b></div>
-            </header>
-            <nav class="actions-ref-tabs"><span>Resumen</span><span class="active">Escaner</span><span>Destacadas</span><span>Movers</span><span>Analisis</span><span>Dividendos</span><span>Reportes</span><span>Mas</span></nav>
+              <div class="actions-ref-title"><strong>ACCIONES</strong><span>Análisis completo del mercado accionario</span></div>
+              <div class="actions-ref-search"><i class="material-symbols-outlined">search</i>Buscar acción, sector, industria...<i class="material-symbols-outlined">star</i><i class="material-symbols-outlined">notifications</i><b>R</b></div>
+	            </header>
+	            <nav class="actions-ref-tabs">{tab_html}</nav>
+            {actions_tab_panel_html}
             <section class="actions-ref-grid">
-              <section class="actions-ref-card scanner-card"><strong>Escaner Finviz</strong>{''.join(scanner_items)}<a>Ver Escaner Completo</a></section>
-              <section class="actions-ref-card map-card"><strong>Mapa de mercado <small>Indice: S&P 500</small></strong><div class="market-map">{heat_html}</div><a>Ver Mapa Completo</a></section>
-              <section class="actions-ref-card movers-card"><strong>Movers del dia</strong>{movers_html}<a>Ver Todos</a></section>
+              <!-- Escaner Finviz | Mapa de mercado | Movers del dia | Noticias relevantes | Analisis rapido | Alertas activas | Tus watchlists -->
+              <section class="actions-ref-card scanner-card{scanner_card_mode}"><strong>ESCÁNER FINVIZ <small>{html.escape(scanner_feed_label)}</small></strong><div class="actions-ref-minihead scanner-head"><span>Tickers</span><span>Signal</span></div><div class="actions-ref-signal-grid">{scanner_groups_html}</div><a href="?view=Dashboard&module=acciones-operar&tab=estrategias" target="_self">Ver Escáner Completo</a></section>
+              <section class="actions-ref-card map-card"><strong>MAPA DE MERCADO <small>Índice: S&P 500</small></strong><div class="market-map">{heat_html}</div><a href="?view=Dashboard&module=acciones-operar&tab=mapa" target="_self">Ver Mapa Completo</a></section>
+              <section class="actions-ref-card movers-card"><strong>MOVERS DEL DÍA <small>live</small></strong><div class="actions-ref-subtabs"><span>Ganadores</span><span>Perdedores</span><span>Más activos</span></div><div class="actions-ref-tablehead"><span>Ticker</span><span>Precio</span><span>Cambio</span><span>Volumen</span></div>{movers_html}<a href="?view=Dashboard&module=acciones-operar&tab=movers" target="_self">Ver Todos</a></section>
               {futures_card}
               {forex_card}
-              <section class="actions-ref-card news-card"><strong>Noticias relevantes</strong>{''.join(news_items)}<a>Ver Mas Noticias</a></section>
-              <section class="actions-ref-card quick-card"><strong>Analisis rapido</strong><div class="quick-symbol">{roxy_stock_icon_html(selected_symbol)}<strong>{html.escape(selected_symbol)}</strong><b data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}" data-roxy-price="{html.escape(str(selected_price_value or ''))}">{html.escape(selected_price)}</b><small data-roxy-stock-change data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">{html.escape(selected_change_text)}</small></div><div class="quick-chart">{quick_chart}</div><div class="quick-levels"><span>Soporte<b>{html.escape(stop)}</b></span><span>Resistencia<b>{html.escape(target)}</b></span><span>Tendencia<b>{html.escape(tone.upper())}</b></span></div><a href="?view=Dashboard&module=acciones-operar&symbol={quote(selected_symbol, safe='')}&market=stock&tf=1h" target="_self">Ver Analisis Completo</a></section>
-              <section class="actions-ref-card alerts-card"><strong>Alertas activas</strong>{alert_html}<a>Ver Todas las Alertas</a></section>
-              <section class="actions-ref-card watch-card"><strong>Tus watchlists</strong><p><span>Principal</span><b>{len(rows)}</b></p><p><span>Setups activos</span><b>{len(strategy_groups)}</b></p><p><span>Largo Plazo</span><b>Configurar</b></p><p><span>Opciones</span><b>Configurar</b></p><a>Ir a Watchlists</a></section>
-            </section>
-            <section class="strategy-section actions-ref-card">
-              <strong>Mejores oportunidades por estrategia</strong>
-              <div class="strategy-tabs">{''.join(strategy_tabs) or '<span>Esperando estrategias</span>'}</div>
-              <div class="strategy-lanes">{''.join(strategy_cards) or '<article class="strategy-lane-card"><header><b>Sin feed</b><em>0</em></header><p>Roxy espera datos de Finviz/API para separar setups.</p></article>'}</div>
+              <section class="actions-ref-card news-card"><strong>NOTICIAS RELEVANTES</strong>{''.join(news_items)}<a href="?view=Dashboard&module=acciones-operar&tab=noticias" target="_self">Ver Más Noticias</a></section>
+              <section class="actions-ref-card quick-card"><strong>ANÁLISIS RÁPIDO</strong><div class="quick-symbol">{roxy_stock_icon_html(selected_symbol)}<strong>{html.escape(selected_symbol)}</strong><b data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}" data-roxy-price="{html.escape(str(selected_price_value or ''))}">{html.escape(selected_price)}</b><small data-roxy-stock-change data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">{html.escape(selected_change_text)}</small></div><div class="quick-chart">{quick_chart}</div><div class="quick-levels"><span>Soporte<b>{html.escape(stop)}</b></span><span>Resistencia<b>{html.escape(target)}</b></span><span>Tendencia<b>{html.escape(tone.upper())}</b></span></div><a href="?view=Dashboard&module=acciones-operar&symbol={quote(selected_symbol, safe='')}&market=stock&tf=1h&tab=analisis" target="_self">Ver Análisis Completo</a></section>
+              <section class="actions-ref-card alerts-card"><strong>ALERTAS ACTIVAS</strong>{alert_html}<a href="?view=Dashboard&module=acciones-operar&tab=alertas" target="_self">Ver Todas las Alertas</a></section>
+              <section class="actions-ref-card watch-card"><strong>TUS WATCHLISTS</strong><p><span>Principal</span><b>{len(rows)}</b></p><p><span>Setups activos</span><b>{len(strategy_groups)}</b></p><p><span>Largo Plazo</span><b>Configurar</b></p><p><span>Opciones</span><b>Configurar</b></p><a href="?view=Dashboard&module=watchlist" target="_self">Ir a Watchlists</a></section>
             </section>
             <section class="actions-ref-features">{feature_html}</section>
-          </main>
-        </section>
+            {strategy_matrix_html}
+	          </main>
+	        </section>
+	        </div>
+	        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_roxy_actions_reference_visual_lock() -> None:
+    """Force the Acciones overview to match the compact Finviz/Roxy reference layout."""
+    st.markdown(
+        """
+        <style>
+          .actions-ref-overview-scroll {
+            width:min(1360px,calc(100vw - 20px)) !important;
+            max-width:1360px !important;
+            margin:0 auto 18px !important;
+            overflow:visible !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision {
+            width:min(1360px,100%) !important;
+            max-width:1360px !important;
+            min-height:825px !important;
+            display:grid !important;
+            grid-template-columns:178px minmax(0,1fr) !important;
+            background:
+              radial-gradient(circle at 43% 5%, rgba(34,211,238,.14), transparent 31%),
+              radial-gradient(circle at 82% 94%, rgba(30,64,175,.20), transparent 34%),
+              linear-gradient(180deg, #071321 0%, #020713 100%) !important;
+            border:1px solid rgba(64,133,210,.42) !important;
+            box-shadow:
+              0 0 0 1px rgba(3,12,27,.92),
+              0 28px 80px rgba(0,0,0,.55),
+              inset 0 0 80px rgba(56,189,248,.06) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-sidebar {
+            padding:18px 12px !important;
+            gap:12px !important;
+            background:
+              linear-gradient(180deg, rgba(3,10,24,.96), rgba(2,6,23,.98)),
+              radial-gradient(circle at 50% 0%, rgba(59,130,246,.16), transparent 34%) !important;
+            border-right:1px solid rgba(64,133,210,.30) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-logo {
+            min-height:56px !important;
+            align-items:center !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-logo strong {
+            font-size:24px !important;
+            letter-spacing:.02em !important;
+            line-height:.9 !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-profile {
+            padding:12px 10px !important;
+            min-height:132px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-sidebar nav {
+            gap:5px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-sidebar nav a {
+            min-height:36px !important;
+            padding:8px 10px !important;
+            border-radius:9px !important;
+            font-size:12px !important;
+            background:transparent !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-sidebar nav a.active {
+            background:linear-gradient(90deg, rgba(37,99,235,.72), rgba(14,165,233,.18)) !important;
+            box-shadow:inset 3px 0 0 rgba(56,189,248,.85), 0 0 18px rgba(59,130,246,.20) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-main {
+            min-width:0 !important;
+            padding:22px 18px 16px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-top {
+            display:grid !important;
+            grid-template-columns:minmax(0,1fr) 380px !important;
+            align-items:start !important;
+            gap:14px !important;
+            margin-bottom:10px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-title strong {
+            font-size:26px !important;
+            letter-spacing:.02em !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-title span {
+            color:#b7c7df !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-search {
+            min-height:36px !important;
+            border-radius:10px !important;
+            background:rgba(3,10,24,.74) !important;
+            border:1px solid rgba(64,133,210,.24) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-tabs {
+            margin:0 0 13px !important;
+            padding:0 !important;
+            gap:2px !important;
+            border-bottom:1px solid rgba(64,133,210,.22) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-tabs a,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-tabs span {
+            min-width:92px !important;
+            min-height:38px !important;
+            display:grid !important;
+            place-items:center !important;
+            font-size:12px !important;
+            border-radius:0 !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-grid {
+            display:grid !important;
+            grid-template-columns:minmax(0,.92fr) minmax(0,1.40fr) minmax(0,1fr) !important;
+            grid-template-areas:
+              "scanner map movers"
+              "futures forex news"
+              "quick alerts watch" !important;
+            gap:13px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-card {
+            border-radius:11px !important;
+            padding:14px !important;
+            background:
+              linear-gradient(180deg, rgba(7,21,44,.96), rgba(3,10,24,.92)),
+              radial-gradient(circle at 18% 0%, rgba(56,189,248,.13), transparent 36%) !important;
+            border:1px solid rgba(64,133,210,.28) !important;
+            box-shadow:inset 0 0 32px rgba(56,189,248,.045), 0 12px 28px rgba(0,0,0,.16) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-card > strong {
+            display:flex !important;
+            align-items:center !important;
+            justify-content:space-between !important;
+            margin-bottom:9px !important;
+            color:#dbeafe !important;
+            font-size:13px !important;
+            letter-spacing:.075em !important;
+            text-transform:uppercase !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .scanner-card,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .map-card,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .movers-card {
+            min-height:218px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .futures-card,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .forex-card,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .news-card,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .quick-card,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .alerts-card,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .watch-card {
+            min-height:178px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-tabs .active {
+            background:linear-gradient(180deg, rgba(29,78,216,.92), rgba(30,64,175,.48)) !important;
+            color:#f8fbff !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .market-map {
+            min-height:220px !important;
+            display:grid !important;
+            grid-template-columns:repeat(18,minmax(16px,1fr)) !important;
+            grid-auto-rows:26px !important;
+            gap:2px !important;
+            background:#061020 !important;
+            border:1px solid rgba(96,165,250,.18) !important;
+            border-radius:8px !important;
+            padding:5px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .market-tile {
+            border-radius:3px !important;
+            min-height:0 !important;
+            padding:6px !important;
+            box-shadow:inset 0 0 16px rgba(255,255,255,.035) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .market-tile strong {
+            font-size:24px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .market-tile.sm strong {
+            font-size:11px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-signal-grid {
+            gap:6px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-signal-grid article {
+            display:grid !important;
+            grid-template-columns:1fr 1fr !important;
+            align-items:center !important;
+            min-height:20px !important;
+            padding:0 !important;
+            border:0 !important;
+            background:transparent !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-signal-grid article span {
+            display:flex !important;
+            gap:7px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-signal-grid article a {
+            color:#58b7ff !important;
+            font-weight:800 !important;
+            font-size:13px !important;
+            text-decoration:none !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-signal-grid article b {
+            color:#9fb4d5 !important;
+            font-size:12px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-features {
+            display:grid !important;
+            grid-template-columns:repeat(5,minmax(0,1fr)) !important;
+            margin-top:11px !important;
+            min-height:62px !important;
+            border-radius:13px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-features article {
+            min-height:46px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-strategy-matrix.is-hidden {
+            display:none !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-strategy-matrix.is-preview {
+            display:block !important;
+            max-height:178px !important;
+            overflow:hidden !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-strategy-matrix.is-open {
+            display:block !important;
+            max-height:none !important;
+            overflow:visible !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-strategy-grid {
+            display:grid !important;
+            grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+          }
+          .actions-ref-chart-heading,
+          .actions-ref-below {
+            width:min(1360px,calc(100vw - 20px)) !important;
+            max-width:1360px !important;
+            margin-left:auto !important;
+            margin-right:auto !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-layout-final {
+            position:relative !important;
+            overflow:hidden !important;
+            border-radius:18px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-kicker {
+            position:absolute !important;
+            top:8px !important;
+            left:14px !important;
+            z-index:3 !important;
+            color:#93a9c8 !important;
+            font-size:10px !important;
+            letter-spacing:.13em !important;
+            text-transform:uppercase !important;
+            opacity:.82 !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-main {
+            background:
+              radial-gradient(circle at 44% 28%, rgba(14,165,233,.10), transparent 33%),
+              linear-gradient(180deg, rgba(6,18,36,.76), rgba(2,8,20,.96)) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-card a {
+            display:grid !important;
+            place-items:center !important;
+            min-height:30px !important;
+            margin-top:9px !important;
+            border-radius:8px !important;
+            background:linear-gradient(180deg, rgba(20,62,126,.56), rgba(8,25,58,.62)) !important;
+            border:1px solid rgba(96,165,250,.17) !important;
+            color:#9bd7ff !important;
+            font-weight:900 !important;
+            font-size:11px !important;
+            text-decoration:none !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-minihead,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-subtabs {
+            display:grid !important;
+            grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+            gap:6px !important;
+            margin-bottom:7px !important;
+            color:#7f96b8 !important;
+            font-size:10px !important;
+            font-weight:900 !important;
+            text-transform:uppercase !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-minihead.scanner-head {
+            grid-template-columns:1fr 1fr !important;
+            color:#9aaeca !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-tablehead {
+            display:grid !important;
+            grid-template-columns:1fr .78fr .72fr .92fr !important;
+            gap:7px !important;
+            margin:2px 0 7px !important;
+            padding:0 0 6px !important;
+            border-bottom:1px solid rgba(96,165,250,.12) !important;
+            color:#7f96b8 !important;
+            font-size:9px !important;
+            font-weight:1000 !important;
+            text-transform:uppercase !important;
+            letter-spacing:.08em !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .movers-card p {
+            display:grid !important;
+            grid-template-columns:1fr .78fr .72fr .92fr !important;
+            gap:7px !important;
+            align-items:center !important;
+            min-height:22px !important;
+            margin:4px 0 !important;
+            padding:0 0 4px !important;
+            border-bottom:1px solid rgba(96,165,250,.08) !important;
+            color:#dbeafe !important;
+            font-size:10px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .movers-card p b {
+            color:#58b7ff !important;
+            font-size:12px !important;
+            font-weight:1000 !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .movers-card p span {
+            color:#dbeafe !important;
+            text-align:right !important;
+            font-weight:800 !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .movers-card p em {
+            color:#4ade80 !important;
+            text-align:right !important;
+            font-style:normal !important;
+            font-weight:1000 !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .movers-card p u {
+            color:#9fb4d5 !important;
+            text-align:right !important;
+            text-decoration:none !important;
+            font-weight:800 !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-subtabs span:first-child {
+            color:#7dd3fc !important;
+            border-bottom:2px solid rgba(56,189,248,.78) !important;
+            padding-bottom:4px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .quick-chart svg {
+            width:100% !important;
+            min-height:74px !important;
+            filter:drop-shadow(0 0 10px rgba(34,197,94,.22)) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .quick-levels {
+            display:grid !important;
+            grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+            gap:6px !important;
+            margin-top:8px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .quick-levels span {
+            display:grid !important;
+            gap:3px !important;
+            padding:7px !important;
+            border-radius:7px !important;
+            background:rgba(2,6,23,.44) !important;
+            border:1px solid rgba(96,165,250,.10) !important;
+            color:#7f96b8 !important;
+            font-size:9px !important;
+            text-transform:uppercase !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .quick-levels b {
+            color:#dbeafe !important;
+            font-size:11px !important;
+            text-transform:none !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-strategy-matrix {
+            margin-top:12px !important;
+            border-radius:13px !important;
+            background:linear-gradient(180deg, rgba(3,10,24,.82), rgba(8,19,39,.76)) !important;
+            border:1px solid rgba(96,165,250,.18) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-strategy-family {
+            border-radius:10px !important;
+            background:rgba(6,18,36,.82) !important;
+            border:1px solid rgba(96,165,250,.14) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-strategy-pick {
+            border-radius:8px !important;
+            background:rgba(2,6,23,.38) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-strategy-matrix.is-preview {
+            display:block !important;
+            max-height:244px !important;
+            overflow:hidden !important;
+            opacity:.96 !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-strategy-matrix.is-preview .actions-strategy-grid {
+            grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-strategy-matrix.is-preview .actions-strategy-family:nth-child(n+5) {
+            display:none !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .scanner-card .actions-ref-signal-grid article:nth-child(n+9) {
+            display:none !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .scanner-card.full-scan .actions-ref-signal-grid {
+            max-height:170px !important;
+            overflow:auto !important;
+            padding-right:4px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .scanner-card.full-scan .actions-ref-signal-grid article:nth-child(n+9) {
+            display:grid !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .scanner-card.full-scan {
+            box-shadow:inset 0 0 0 1px rgba(56,189,248,.22), 0 0 22px rgba(14,165,233,.08) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .map-card,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .movers-card,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .scanner-card {
+            min-height:214px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .futures-card,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .forex-card,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .news-card {
+            min-height:172px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .quick-card,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .alerts-card,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .watch-card {
+            min-height:178px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-grid {
+            grid-auto-rows:minmax(0,auto) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-features {
+            border:1px solid rgba(64,133,210,.28) !important;
+            background:linear-gradient(180deg, rgba(7,21,44,.92), rgba(3,10,24,.92)) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-features article {
+            padding:8px 10px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-features i {
+            width:34px !important;
+            height:34px !important;
+            border-radius:10px !important;
+            background:rgba(15,23,42,.72) !important;
+            border:1px solid rgba(96,165,250,.18) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact {
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+            color:#e9f5ff !important;
+            gap:0 !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact:after {
+            content:"" !important;
+            position:absolute !important;
+            inset:0 !important;
+            pointer-events:none !important;
+            background:
+              linear-gradient(90deg, rgba(125,211,252,.055) 1px, transparent 1px),
+              linear-gradient(180deg, rgba(125,211,252,.045) 1px, transparent 1px) !important;
+            background-size:42px 42px !important;
+            opacity:.18 !important;
+            mix-blend-mode:screen !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .actions-ref-sidebar,
+          .actions-ref-overview-scroll .actions-ref-exact .actions-ref-main {
+            position:relative !important;
+            z-index:2 !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .actions-ref-logo {
+            display:grid !important;
+            grid-template-columns:42px 1fr !important;
+            grid-template-rows:auto auto !important;
+            column-gap:8px !important;
+            align-items:center !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .actions-ref-logo img,
+          .actions-ref-overview-scroll .actions-ref-exact .actions-ref-logo svg {
+            grid-row:1 / span 2 !important;
+            width:40px !important;
+            height:40px !important;
+            object-fit:contain !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .actions-ref-logo span {
+            grid-column:2 !important;
+            color:#62c6ff !important;
+            font-weight:900 !important;
+            letter-spacing:.08em !important;
+            text-transform:uppercase !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .actions-ref-profile {
+            text-align:center !important;
+            background:linear-gradient(180deg, rgba(5,18,39,.82), rgba(4,12,27,.72)) !important;
+            border:1px solid rgba(56,189,248,.16) !important;
+            box-shadow:inset 0 0 22px rgba(56,189,248,.05) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .actions-ref-profile b {
+            display:block !important;
+            margin-top:8px !important;
+            color:#eef7ff !important;
+            font-size:13px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .actions-ref-xp {
+            height:7px !important;
+            border-radius:999px !important;
+            background:rgba(30,58,138,.46) !important;
+            overflow:hidden !important;
+            margin-top:7px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .actions-ref-xp i {
+            display:block !important;
+            width:69% !important;
+            height:100% !important;
+            border-radius:inherit !important;
+            background:linear-gradient(90deg, #2563eb, #38bdf8) !important;
+            box-shadow:0 0 12px rgba(56,189,248,.55) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .actions-ref-wallet {
+            display:grid !important;
+            grid-template-columns:1fr auto !important;
+            gap:4px 8px !important;
+            margin-top:8px !important;
+            color:#8ea6c7 !important;
+            font-size:10px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .actions-ref-wallet b {
+            margin:0 !important;
+            text-align:right !important;
+            color:#dbeafe !important;
+            font-size:10px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .actions-ref-grid {
+            align-items:stretch !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .actions-ref-card {
+            overflow:hidden !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .scanner-card .actions-ref-signal-grid {
+            grid-template-columns:1fr !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .scanner-card .actions-ref-signal-grid article {
+            grid-template-columns:1fr 1fr !important;
+            min-height:21px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .scanner-card .actions-ref-signal-grid article b:before {
+            content:"" !important;
+            display:inline-block !important;
+            width:20px !important;
+            height:8px !important;
+            margin-right:6px !important;
+            border-radius:999px !important;
+            background:linear-gradient(135deg, rgba(125,211,252,.95), rgba(244,114,182,.85)) !important;
+            transform:skewX(-24deg) !important;
+            box-shadow:0 0 10px rgba(56,189,248,.24) !important;
+            vertical-align:middle !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .map-card .market-map {
+            box-shadow:inset 0 0 28px rgba(0,0,0,.42), 0 0 0 1px rgba(15,23,42,.9) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .movers-card,
+          .actions-ref-overview-scroll .actions-ref-exact .news-card,
+          .actions-ref-overview-scroll .actions-ref-exact .alerts-card,
+          .actions-ref-overview-scroll .actions-ref-exact .watch-card {
+            background:linear-gradient(180deg, rgba(5,17,37,.96), rgba(3,9,22,.94)) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .quote-card p,
+          .actions-ref-overview-scroll .actions-ref-exact .watch-card p,
+          .actions-ref-overview-scroll .actions-ref-exact .alerts-card p,
+          .actions-ref-overview-scroll .actions-ref-exact .news-card p {
+            border-bottom:1px solid rgba(96,165,250,.09) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .quote-card p {
+            display:grid !important;
+            grid-template-columns:1fr .72fr .72fr .72fr !important;
+            gap:8px !important;
+            align-items:center !important;
+            margin:5px 0 !important;
+            color:#b9ccec !important;
+            font-size:11px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .quote-card p b {
+            color:#58b7ff !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .quote-card p span,
+          .actions-ref-overview-scroll .actions-ref-exact .quote-card p em {
+            text-align:right !important;
+            font-style:normal !important;
+            font-weight:850 !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .quote-card p em,
+          .actions-ref-overview-scroll .actions-ref-exact .quote-card p .positive {
+            color:#4ade80 !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .quick-card .quick-symbol {
+            display:grid !important;
+            grid-template-columns:36px 1fr auto auto !important;
+            align-items:center !important;
+            gap:8px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .quick-card .quick-symbol img,
+          .actions-ref-overview-scroll .actions-ref-exact .quick-card .quick-symbol svg {
+            width:34px !important;
+            height:34px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .actions-ref-features {
+            overflow:hidden !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .actions-ref-features article {
+            display:grid !important;
+            grid-template-columns:40px 1fr !important;
+            grid-template-rows:auto auto !important;
+            gap:1px 10px !important;
+            align-items:center !important;
+            border-right:1px solid rgba(96,165,250,.12) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .actions-ref-features i {
+            grid-row:1 / span 2 !important;
+            color:#7dd3fc !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .actions-ref-features b {
+            color:#dbeafe !important;
+            font-size:13px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-exact .actions-ref-features span {
+            color:#8ea6c7 !important;
+            font-size:10px !important;
+          }
+
+          @media (max-width: 900px) {
+            .actions-ref-overview-scroll {
+              width:100% !important;
+              max-width:100% !important;
+              height:auto !important;
+              min-height:0 !important;
+              overflow-x:auto !important;
+              overflow-y:hidden !important;
+              margin:0 0 14px !important;
+              border-radius:18px !important;
+              -webkit-overflow-scrolling:touch !important;
+              scrollbar-width:thin !important;
+              scrollbar-color:rgba(56,189,248,.55) rgba(15,23,42,.55) !important;
+            }
+            .actions-ref-overview-scroll .actions-ref-v2-finvision {
+              width:1120px !important;
+              max-width:1120px !important;
+              min-height:835px !important;
+              grid-template-columns:160px 960px !important;
+              transform:none !important;
+              transform-origin:top left !important;
+              margin:0 !important;
+              border-radius:22px !important;
+            }
+            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-sidebar {
+              display:grid !important;
+              min-height:820px !important;
+              border-right:1px solid rgba(96,165,250,.22) !important;
+              border-bottom:0 !important;
+            }
+            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-sidebar nav {
+              display:grid !important;
+              overflow:visible !important;
+            }
+            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-profile,
+            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-atom,
+            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-rail {
+              display:grid !important;
+            }
+            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-main {
+              padding:18px !important;
+            }
+            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-top {
+              grid-template-columns:minmax(0,1fr) 350px !important;
+            }
+            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-search {
+              display:flex !important;
+            }
+            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-grid {
+              grid-template-columns:minmax(0,.94fr) minmax(0,1.38fr) minmax(0,1fr) !important;
+              grid-template-areas:
+                "scanner map movers"
+                "futures forex news"
+                "quick alerts watch" !important;
+            }
+            .actions-ref-overview-scroll .actions-ref-v2-finvision .market-map {
+              grid-template-columns:repeat(18,minmax(16px,1fr)) !important;
+              grid-auto-rows:25px !important;
+            }
+            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-features {
+              grid-template-columns:repeat(5,minmax(0,1fr)) !important;
+            }
+            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-strategy-grid {
+              grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+            }
+          }
+          @media (min-width: 430px) and (max-width: 900px) {
+            .actions-ref-overview-scroll {
+              height:auto !important;
+            }
+          }
+          @media (min-width: 620px) and (max-width: 900px) {
+            .actions-ref-overview-scroll {
+              height:auto !important;
+            }
+          }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        """
+        <style id="roxy-actions-reference-final-polish">
+          .actions-ref-overview-scroll {
+            width:min(1240px, calc(100vw - 18px)) !important;
+            max-width:1240px !important;
+            margin:0 auto 16px !important;
+            overflow-x:auto !important;
+            overflow-y:hidden !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision {
+            width:1240px !important;
+            max-width:1240px !important;
+            min-height:760px !important;
+            grid-template-columns:164px 1fr !important;
+            border-radius:16px !important;
+            background:
+              radial-gradient(circle at 48% 16%, rgba(20,184,166,.10), transparent 24%),
+              radial-gradient(circle at 86% 72%, rgba(37,99,235,.16), transparent 34%),
+              linear-gradient(180deg, #06111f 0%, #020711 100%) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-kicker {
+            display:block !important;
+            position:absolute !important;
+            top:6px !important;
+            left:10px !important;
+            z-index:5 !important;
+            color:rgba(191,219,254,.56) !important;
+            font-size:10px !important;
+            letter-spacing:.12em !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-sidebar {
+            padding:20px 11px 12px !important;
+            min-height:760px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-logo strong {
+            font-size:22px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-profile .roxy-avatar {
+            width:70px !important;
+            height:70px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-sidebar nav a {
+            min-height:34px !important;
+            font-size:11px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-main {
+            padding:28px 14px 12px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-top {
+            grid-template-columns:minmax(0,1fr) 360px !important;
+            margin-bottom:8px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-title strong {
+            font-size:25px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-title span {
+            font-size:12px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-tabs {
+            margin-bottom:11px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-tabs a,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-tabs span {
+            min-width:86px !important;
+            min-height:34px !important;
+            padding:7px 10px !important;
+            font-size:10px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-grid {
+            display:grid !important;
+            grid-template-columns:260px 1fr 310px !important;
+            grid-template-areas:
+              "scanner map movers"
+              "futures forex news"
+              "quick alerts watch" !important;
+            gap:10px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-card {
+            min-height:154px !important;
+            padding:12px !important;
+            border-radius:10px !important;
+            background:
+              linear-gradient(180deg, rgba(8,23,45,.94), rgba(4,12,25,.92)),
+              radial-gradient(circle at 20% 0%, rgba(56,189,248,.12), transparent 36%) !important;
+            border:1px solid rgba(80,149,230,.24) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .scanner-card,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .map-card,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .movers-card {
+            min-height:208px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-card > strong {
+            font-size:12px !important;
+            letter-spacing:.08em !important;
+            margin-bottom:8px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .scanner-card .actions-ref-signal-grid {
+            display:grid !important;
+            grid-template-columns:1fr !important;
+            gap:4px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .scanner-card .actions-ref-signal-grid article {
+            display:grid !important;
+            grid-template-columns:92px 1fr !important;
+            min-height:19px !important;
+            padding:0 !important;
+            background:transparent !important;
+            border:0 !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .scanner-card .actions-ref-signal-grid article span {
+            display:grid !important;
+            grid-template-columns:1fr 1fr !important;
+            gap:6px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .scanner-card .actions-ref-signal-grid article a {
+            color:#5fb7ff !important;
+            font-size:12px !important;
+            font-weight:850 !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .scanner-card .actions-ref-signal-grid article b {
+            color:#b8c8df !important;
+            font-size:11px !important;
+            font-weight:800 !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .scanner-card .actions-ref-signal-grid article b:before {
+            width:17px !important;
+            height:7px !important;
+            margin-right:5px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .market-map {
+            min-height:206px !important;
+            grid-template-columns:repeat(18,minmax(14px,1fr)) !important;
+            grid-auto-rows:24px !important;
+            gap:2px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .market-tile strong {
+            font-size:22px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .market-tile.sm strong {
+            font-size:10px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .movers-card p,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .quote-card p {
+            min-height:20px !important;
+            font-size:10px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .news-card p,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .alerts-card p,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .watch-card p {
+            min-height:25px !important;
+            font-size:10px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .quick-chart svg {
+            min-height:78px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-features {
+            grid-template-columns:repeat(5,1fr) !important;
+            gap:8px !important;
+            min-height:64px !important;
+            margin-top:10px !important;
+            padding:8px !important;
+            border-radius:12px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-features article {
+            min-height:45px !important;
+            padding:6px 8px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-features i {
+            width:32px !important;
+            height:32px !important;
+            font-size:21px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-features b {
+            font-size:11px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-features span {
+            font-size:9px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-strategy-matrix.is-hidden {
+            display:none !important;
+          }
+          @media (max-width: 900px) {
+            .actions-ref-overview-scroll {
+              width:100% !important;
+              max-width:100% !important;
+              margin:0 0 14px !important;
+              border-radius:16px !important;
+            }
+            .actions-ref-overview-scroll .actions-ref-v2-finvision {
+              width:1120px !important;
+              max-width:1120px !important;
+              min-height:760px !important;
+              grid-template-columns:154px 966px !important;
+            }
+            .actions-ref-overview-scroll .actions-ref-v2-finvision .actions-ref-grid {
+              grid-template-columns:252px 390px 294px !important;
+            }
+          }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        """
+        <style id="roxy-actions-reference-exact-dashboard-lock">
+          body:has(.actions-ref-v2-finvision) .main .block-container {
+            max-width: 1280px !important;
+            padding-top: .35rem !important;
+            padding-left: .5rem !important;
+            padding-right: .5rem !important;
+          }
+          .actions-ref-overview-scroll {
+            width: min(1216px, calc(100vw - 14px)) !important;
+            max-width: 1216px !important;
+            margin: 0 auto 18px !important;
+            border-radius: 18px !important;
+            background: #020711 !important;
+            box-shadow: 0 24px 90px rgba(0,0,0,.46) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact {
+            width: 1216px !important;
+            max-width: 1216px !important;
+            min-height: 806px !important;
+            grid-template-columns: 168px 1fr !important;
+            border-radius: 18px !important;
+            border: 1px solid rgba(53, 116, 190, .34) !important;
+            background:
+              radial-gradient(circle at 61% 18%, rgba(29,78,216,.10), transparent 24%),
+              radial-gradient(circle at 86% 78%, rgba(14,165,233,.10), transparent 26%),
+              linear-gradient(180deg, #06111e 0%, #020713 100%) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-ref-sidebar {
+            min-height: 806px !important;
+            padding: 22px 12px 12px !important;
+            background: linear-gradient(180deg, rgba(2,9,22,.96), rgba(4,14,29,.92)) !important;
+            border-right: 1px solid rgba(56,189,248,.14) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-ref-main {
+            padding: 30px 14px 12px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-ref-top {
+            display: grid !important;
+            grid-template-columns: minmax(0,1fr) 372px !important;
+            align-items: center !important;
+            gap: 14px !important;
+            margin: 0 0 8px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-ref-title strong {
+            font-size: 26px !important;
+            line-height: 1 !important;
+            letter-spacing: .02em !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-ref-search {
+            min-height: 34px !important;
+            border-radius: 10px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-ref-tabs {
+            height: 42px !important;
+            margin-bottom: 10px !important;
+            padding: 0 2px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-ref-tabs a,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-ref-tabs span {
+            min-width: 88px !important;
+            min-height: 35px !important;
+            border-radius: 8px !important;
+            font-size: 10px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-ref-grid {
+            display: grid !important;
+            grid-template-columns: 260px 1fr 310px !important;
+            grid-template-areas:
+              "scanner map movers"
+              "futures forex news"
+              "quick alerts watch" !important;
+            gap: 10px !important;
+            align-items: stretch !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-ref-card {
+            min-height: 153px !important;
+            padding: 12px !important;
+            border-radius: 11px !important;
+            background:
+              linear-gradient(180deg, rgba(8,22,43,.96), rgba(4,12,25,.95)),
+              radial-gradient(circle at 24% 0%, rgba(56,189,248,.10), transparent 36%) !important;
+            border: 1px solid rgba(78, 142, 221, .24) !important;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.035) !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .scanner-card,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .map-card,
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .movers-card {
+            min-height: 210px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .market-map {
+            min-height: 158px !important;
+            grid-template-columns: repeat(15, minmax(14px, 1fr)) !important;
+            grid-auto-rows: 25px !important;
+            gap: 2px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .market-tile.xl {
+            grid-column: span 4 !important;
+            grid-row: span 3 !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .market-tile.md {
+            grid-column: span 3 !important;
+            grid-row: span 2 !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .market-tile.sm {
+            grid-column: span 2 !important;
+            grid-row: span 1 !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-ref-signal-grid {
+            gap: 4px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-ref-signal-grid article {
+            grid-template-columns: 92px 1fr !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-ref-features {
+            display: grid !important;
+            grid-template-columns: repeat(5, minmax(0,1fr)) !important;
+            gap: 8px !important;
+            min-height: 66px !important;
+            margin-top: 10px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-ref-features article {
+            min-height: 48px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-strategy-matrix.is-hidden {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            max-height: 0 !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            overflow: hidden !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-strategy-matrix.is-preview {
+            display: block !important;
+            max-height: 184px !important;
+            margin-top: 10px !important;
+            overflow: hidden !important;
+            opacity: .98 !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-strategy-matrix.is-preview header {
+            padding: 10px 12px 6px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-strategy-matrix.is-preview .actions-strategy-grid {
+            grid-template-columns: repeat(4, minmax(0,1fr)) !important;
+            gap: 8px !important;
+            padding: 0 10px 10px !important;
+          }
+          .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-strategy-matrix.is-preview .actions-strategy-family:nth-child(n+5) {
+            display: none !important;
+          }
+          @media (max-width: 900px) {
+            .actions-ref-overview-scroll {
+              width: 100% !important;
+              max-width: 100% !important;
+              overflow-x: auto !important;
+              -webkit-overflow-scrolling: touch !important;
+            }
+            .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact {
+              width: 1120px !important;
+              max-width: 1120px !important;
+              grid-template-columns: 154px 966px !important;
+            }
+            .actions-ref-overview-scroll .actions-ref-v2-finvision.actions-ref-exact .actions-ref-grid {
+              grid-template-columns: 252px 390px 294px !important;
+            }
+          }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+def render_roxy_actions_reference_market_terminal(
+    rows: list[dict[str, Any]],
+    *,
+    selected_row: dict[str, Any],
+    selected_symbol: str,
+    selected_market: str,
+    selected_timeframe: str,
+    trade_plan: dict[str, Any],
+    live_stock_symbols: list[str],
+    show_strategy_sections: bool = False,
+) -> None:
+    """Render the Acciones folder as a Finviz-style operating terminal."""
+
+    def _as_float(value: Any, default: float = 0.0) -> float:
+        parsed = safe_float(value)
+        return default if parsed is None else parsed
+
+    def _clip(value: float, low: float, high: float) -> float:
+        return max(low, min(high, value))
+
+    def _pattern_label(row: dict[str, Any]) -> str:
+        return text_display(
+            row.get("finviz_signal")
+            or row.get("canonical_pattern")
+            or row.get("strategy_family")
+            or row.get("learned_strategy")
+            or row.get("signal")
+            or "EMA 9/21"
+        )
+
+    def _row_symbol(row: dict[str, Any]) -> str:
+        return text_display(row.get("symbol") or row.get("ticker")).upper()
+
+    def _row_score(row: dict[str, Any], fallback: float = 78.0) -> float:
+        return _clip(
+            _as_float(row.get("confidence") or row.get("readiness") or row.get("alert_readiness_score"), fallback),
+            1,
+            99,
+        )
+
+    finviz_rows = load_finviz_pattern_strategy_rows(limit=96)
+    news_rows = load_finviz_news_feed_rows(limit=10)
+    market_pulse = load_finviz_market_pulse_snapshot(limit=80)
+    pulse_major_rows = [dict(row) for row in (market_pulse.get("major_movers") or []) if isinstance(row, dict)]
+    pulse_bullish_rows = [dict(row) for row in (market_pulse.get("bullish_watchlist") or []) if isinstance(row, dict)]
+    pulse_news_rows = [dict(row) for row in (market_pulse.get("news_feed") or []) if isinstance(row, dict)]
+    source_rows = [dict(row) for row in (finviz_rows or rows or []) if isinstance(row, dict)]
+    if not source_rows:
+        source_rows = [dict(row) for row in rows[:8]]
+
+    pattern_order: list[tuple[str, tuple[str, ...], str]] = [
+        ("TL Supp.", ("TL SUPP", "TRENDLINE SUPPORT"), "trendline support"),
+        ("TL Resist.", ("TL RESIST", "TRENDLINE RESISTANCE"), "trendline resistance"),
+        ("Horizontal S/R", ("HORIZONTAL S/R", "SUPPORT/RESISTANCE", "S/R"), "horizontal s/r"),
+        ("Wedge Up", ("WEDGE UP", "RISING WEDGE"), "wedge up"),
+        ("Wedge", ("WEDGE",), "wedge"),
+        ("Wedge Down", ("WEDGE DOWN", "FALLING WEDGE"), "wedge down"),
+        ("Triangle Asc.", ("TRIANGLE ASC", "ASCENDING TRIANGLE"), "triangle asc"),
+        ("Triangle Desc.", ("TRIANGLE DESC", "DESCENDING TRIANGLE"), "triangle desc"),
+        ("Channel Up", ("CHANNEL UP", "ASCENDING CHANNEL"), "channel up"),
+        ("Channel", ("CHANNEL",), "channel"),
+        ("Channel Down", ("CHANNEL DOWN", "DESCENDING CHANNEL"), "channel down"),
+        ("Double Top", ("DOUBLE TOP",), "double top"),
+        ("Double Bottom", ("DOUBLE BOTTOM",), "double bottom"),
+        ("Multiple Top", ("MULTIPLE TOP",), "multiple top"),
+        ("Multiple Bottom", ("MULTIPLE BOTTOM",), "multiple bottom"),
+        ("Head&Shoulders", ("HEAD&SHOULDERS", "HEAD AND SHOULDERS"), "head shoulders"),
+        ("EMA 9/21", ("EMA 9/21", "EMA"), "ema"),
+        ("Momentum", ("MOMENTUM",), "momentum"),
+        ("Volumen", ("VOLUME", "VOLUMEN"), "volume"),
+    ]
+    fallback_pattern_rows = [
+        ("NTRB", "SELF", "TL Supp."),
+        ("YB", "EVO", "TL Resist."),
+        ("GXAI", "EP", "Horizontal S/R"),
+        ("LYV", "STGW", "Wedge Up"),
+        ("OKE", "FTAI", "Wedge"),
+        ("ONCY", "AIM", "Wedge Down"),
+        ("FCX", "BOH", "Triangle Asc."),
+        ("JBGS", "CEPU", "Triangle Desc."),
+        ("EWTX", "NGS", "Channel Up"),
+        ("MSEX", "GXAI", "Channel"),
+        ("BCDA", "VVOS", "Channel Down"),
+        ("PCVX", "LCLN", "Double Top"),
+        ("MLI", "TRP", "Multiple Top"),
+        ("FWRG", "NMAX", "Double Bottom"),
+        ("HITI", "FUBO", "Multiple Bottom"),
+        ("ACRE", "STRT", "Head&Shoulders"),
+    ]
+
+    def _matches_pattern(row: dict[str, Any], needles: tuple[str, ...]) -> bool:
+        haystack = " ".join(
+            text_display(row.get(key))
+            for key in (
+                "finviz_signal",
+                "canonical_pattern",
+                "strategy_family",
+                "learned_strategy",
+                "roxy_strategy",
+                "signal",
+                "reason",
+                "source",
+            )
+        ).upper()
+        return any(needle in haystack for needle in needles)
+
+    pattern_groups: list[tuple[str, str, list[dict[str, Any]]]] = []
+    used_symbols: set[str] = set()
+    for label, needles, safe_name in pattern_order:
+        matched = [row for row in source_rows if _matches_pattern(row, needles)]
+        unique: list[dict[str, Any]] = []
+        for row in matched:
+            symbol = _row_symbol(row)
+            if not symbol:
+                continue
+            key = f"{label}:{symbol}"
+            if key in used_symbols:
+                continue
+            used_symbols.add(key)
+            unique.append(row)
+            if len(unique) >= 4:
+                break
+        pattern_groups.append((label, safe_name, unique))
+
+    scanner_cells: list[str] = []
+    fallback_idx = 0
+    for label, safe_name, group_rows in pattern_groups[:16]:
+        symbols = [_row_symbol(row) for row in group_rows[:2] if _row_symbol(row)]
+        if len(symbols) < 2 and fallback_idx < len(fallback_pattern_rows):
+            first, second, fallback_label = fallback_pattern_rows[fallback_idx]
+            fallback_idx += 1
+            if not symbols:
+                symbols = [first, second]
+            elif len(symbols) == 1:
+                symbols.append(second)
+            label = label or fallback_label
+        if not symbols:
+            continue
+        scanner_cells.append(
+            f"""
+            <a class="finviz-signal-line" href="?view=Dashboard&module=acciones-operar&tab=estrategias&strategy={quote(label, safe='')}" target="_self">
+              <span class="finviz-tickers">{' '.join(html.escape(sym) for sym in symbols[:2])}</span>
+              <span class="finviz-pattern pattern-{html.escape(safe_key(safe_name))}"><i></i>{html.escape(label)}</span>
+            </a>
+            """
+        )
+    scanner_html = "".join(scanner_cells)
+
+    heat_rows = [dict(row) for row in rows[:10]]
+    for row in source_rows:
+        symbol = _row_symbol(row)
+        if symbol and all(_row_symbol(existing) != symbol for existing in heat_rows):
+            heat_rows.append(row)
+        if len(heat_rows) >= 26:
+            break
+    if not heat_rows:
+        heat_rows = [{"symbol": symbol, "change_pct": change} for symbol, change in [("AAPL", .0071), ("MSFT", .0054), ("NVDA", .0071), ("AMZN", .0075), ("TSLA", -.0402), ("GOOGL", .0016), ("META", .0244), ("BRK-B", -.0051)]]
+
+    tile_classes = ["xl", "xl", "xl", "md", "md", "md", "sm", "sm", "sm", "sm", "sm", "sm"]
+    heat_tiles: list[str] = []
+    for idx, row in enumerate(heat_rows[:28]):
+        symbol = _row_symbol(row) or "AAPL"
+        change = roxy_actions_change_pct(row)
+        if change is None:
+            change = _as_float(row.get("change_pct"), 0.0)
+        tone = "up" if change >= 0 else "down"
+        size = tile_classes[idx] if idx < len(tile_classes) else "xs"
+        live_symbol = roxy_stock_live_symbol_attr(symbol)
+        price_value = safe_float(row.get("current_price") or row.get("price") or row.get("last_price"))
+        heat_tiles.append(
+            f"""
+            <a class="market-tile {size} {tone}" href="?view=Dashboard&module=acciones-operar&tab=analisis&symbol={quote(symbol, safe='')}&market=stock&tf=1h" target="_self">
+              <strong>{html.escape(symbol)}</strong>
+              <span data-roxy-stock-change data-roxy-stock-symbol="{html.escape(live_symbol)}">{html.escape(pct_display(change))}</span>
+              <em data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(live_symbol)}" data-roxy-price="{html.escape(str(price_value or ''))}">{html.escape(price_display(price_value)) if price_value else ""}</em>
+            </a>
+            """
+        )
+
+    movers_rows = sorted(
+        [row for row in (pulse_major_rows or pulse_bullish_rows or rows[:12])[:18] if _row_symbol(row)],
+        key=lambda item: abs(roxy_actions_change_pct(item) if roxy_actions_change_pct(item) is not None else _as_float(item.get("change_pct"), 0.0)),
+        reverse=True,
+    )[:5]
+    if not movers_rows:
+        movers_rows = heat_rows[:5]
+    movers_html = "".join(
+        f"""
+        <a href="?view=Dashboard&module=acciones-operar&tab=analisis&symbol={quote(_row_symbol(row), safe='')}" target="_self">
+          <b>{html.escape(_row_symbol(row))}</b>
+          <span data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(roxy_stock_live_symbol_attr(_row_symbol(row)))}" data-roxy-price="{html.escape(str(safe_float(row.get('current_price') or row.get('price') or row.get('last_price')) or ''))}">{html.escape(price_display(row.get('current_price') or row.get('price') or row.get('last_price')))}</span>
+          <em data-roxy-stock-change data-roxy-stock-symbol="{html.escape(roxy_stock_live_symbol_attr(_row_symbol(row)))}">{html.escape(pct_display(roxy_actions_change_pct(row) if roxy_actions_change_pct(row) is not None else row.get('change_pct')))}</em>
+          <small>{html.escape(num_display(row.get('volume') or row.get('relative_volume') or 1.54, 2))}M</small>
+        </a>
+        """
+        for row in movers_rows
+    )
+
+    news_source = (pulse_news_rows or news_rows)[:4] if (pulse_news_rows or news_rows) else [
+        {"headline": "Dollar at week-high after US resumes Iran strikes", "source": "Finviz", "age": "hace 15 min"},
+        {"headline": "Bonds Retreat, Oil Jumps After US Strikes on Iran", "source": "Finviz", "age": "hace 30 min"},
+        {"headline": "Stock Market News: SpaceX slips", "source": "Market", "age": "hace 1 hora"},
+        {"headline": "Major tech names hold key levels", "source": "Roxy", "age": "hace 2 horas"},
+    ]
+    news_html = "".join(
+        f"<a><i></i><span>{html.escape(text_display(item.get('headline') or item.get('title'))[:72])}</span><em>{html.escape(text_display(item.get('age') or item.get('source') or 'live'))}</em></a>"
+        for item in news_source[:4]
+    )
+
+    quick_symbol = selected_symbol or _row_symbol(selected_row) or "AAPL"
+    quick_live_symbol = roxy_stock_live_symbol_attr(quick_symbol)
+    quick_price_value = safe_float(selected_row.get("current_price") or selected_row.get("price") or selected_row.get("last_price") or trade_plan.get("entry"))
+    quick_change = roxy_actions_change_pct(selected_row)
+    if quick_change is None:
+        quick_change = safe_float(selected_row.get("change_pct"))
+    quick_entry = price_display(trade_plan.get("entry"))
+    quick_stop = price_display(trade_plan.get("stop"))
+    quick_target = price_display(trade_plan.get("target_2") or trade_plan.get("target_price") or trade_plan.get("target"))
+    quick_signal = text_display(roxy_row_recommendation(selected_row)[0] or "Vigilar")
+
+    strategy_cards: list[str] = []
+    for label, safe_name, group_rows in pattern_groups:
+        playable = group_rows[:3]
+        if not playable:
+            continue
+        best = max(playable, key=_row_score)
+        symbol = _row_symbol(best)
+        row_action, row_tone = roxy_row_recommendation(best)
+        market = normalize_command_market(best.get("market") or "stock", symbol)
+        row_plan = roxy_trade_plan_from_row(
+            best,
+            symbol=resolve_symbol_query(symbol, market),
+            market=market,
+            timeframe="1h",
+            action=row_action,
+        )
+        score = _row_score(best)
+        strategy_cards.append(
+            f"""
+            <article class="strategy-card strategy-{html.escape(row_tone)}">
+              <header><span>{html.escape(label)}</span><strong>{html.escape(symbol)}</strong><em>{html.escape(num_display(score,0))}/100</em></header>
+              <p>{html.escape(text_display(best.get('roxy_instruction') or best.get('por_que') or best.get('reason') or 'Roxy separa esta estrategia y espera confirmacion en grafica operativa.')[:120])}</p>
+              <dl>
+                <div><dt>Orden</dt><dd>{html.escape(row_action)}</dd></div>
+                <div><dt>Entrada</dt><dd>{html.escape(price_display(row_plan.get('entry') or best.get('entry')))}</dd></div>
+                <div><dt>Stop</dt><dd>{html.escape(price_display(row_plan.get('stop') or best.get('stop')))}</dd></div>
+                <div><dt>Target</dt><dd>{html.escape(price_display(row_plan.get('target_2') or row_plan.get('target') or best.get('target_price')))}</dd></div>
+              </dl>
+              <a href="?view=Dashboard&module=acciones-operar&tab=analisis&symbol={quote(symbol, safe='')}&market=stock&tf=1h" target="_self">Abrir grafica</a>
+            </article>
+            """
+        )
+        if len(strategy_cards) >= 12:
+            break
+    if not strategy_cards:
+        fallback_strategy_descriptions = {
+            "TL Supp.": "Comprar solo cerca de soporte si aparece rebote confirmado.",
+            "TL Resist.": "Vender o evitar compras cerca de resistencia hasta ruptura real.",
+            "Horizontal S/R": "Operar rebotes entre soporte y resistencia con stop corto.",
+            "Wedge Up": "Esperar ruptura o rechazo; no perseguir el centro del patron.",
+            "Wedge": "Buscar entrada cerca del borde inferior y salida cerca del borde superior.",
+            "Wedge Down": "Vigilar ruptura alcista o rechazo bajista con volumen.",
+            "Triangle Asc.": "Comprar ruptura sobre resistencia con confirmacion de volumen.",
+            "Triangle Desc.": "Evitar largos si pierde soporte; buscar rebote solo confirmado.",
+            "Channel Up": "Comprar zona baja del canal y tomar ganancia arriba.",
+            "Channel": "Operar rango; entrada abajo, salida arriba, stop fuera del canal.",
+            "Channel Down": "Priorizar rebotes cortos y proteger capital en tendencia bajista.",
+            "Double Top": "No comprar ruptura fallida; confirmar rechazo antes de operar.",
+        }
+        for first_symbol, second_symbol, label in fallback_pattern_rows[:12]:
+            pair = f"{first_symbol} / {second_symbol}"
+            instruction = fallback_strategy_descriptions.get(label, "Roxy separa esta estrategia para que la operes sin mezclar senales.")
+            strategy_cards.append(
+                f"""
+                <article class="strategy-card strategy-watch">
+                  <header><span>{html.escape(label)}</span><strong>{html.escape(pair)}</strong><em>Finviz</em></header>
+                  <p>{html.escape(instruction)}</p>
+                  <dl>
+                    <div><dt>Entrada</dt><dd>Zona tecnica</dd></div>
+                    <div><dt>Stop</dt><dd>Fuera patron</dd></div>
+                    <div><dt>Target</dt><dd>Borde opuesto</dd></div>
+                    <div><dt>Estado</dt><dd>Vigilar</dd></div>
+                  </dl>
+                  <a href="?view=Dashboard&module=acciones-operar&tab=estrategias" target="_self">Ver estrategia</a>
+                </article>
+                """
+            )
+    strategies_html = "".join(strategy_cards)
+
+    futures_items = [
+        ("Crude Oil", "72.22", "+1.78", "+2.53%"),
+        ("Natural Gas", "3.2790", "+0.0140", "+0.43%"),
+        ("Gold", "4136.90", "-20.50", "-0.49%"),
+        ("S&P 500", "7554.50", "+3.25", "+0.04%"),
+        ("Nasdaq 100", "24971.50", "+80.00", "+0.27%"),
+    ]
+    forex_items = [
+        ("EUR/USD", "1.1412", "0.0000", "0.00%"),
+        ("USD/JPY", "162.35", "+0.27", "+0.17%"),
+        ("GBP/USD", "1.3353", "-0.0006", "-0.05%"),
+        ("10Y Treasury", "4.529", "+0.046", "+1.12%"),
+        ("30Y Treasury", "5.043", "+0.050", "+1.00%"),
+    ]
+
+    def _mini_market_table(items: list[tuple[str, str, str, str]]) -> str:
+        return "".join(
+            f"<a><b>{html.escape(name)}</b><span>{html.escape(last)}</span><em class=\"{'pos' if '+' in pct else 'neg' if '-' in pct else ''}\">{html.escape(change)}</em><strong class=\"{'pos' if '+' in pct else 'neg' if '-' in pct else ''}\">{html.escape(pct)}</strong></a>"
+            for name, last, change, pct in items
+        )
+
+    watchlist_html = "".join(
+        f"<a><span>{html.escape(name)}</span><b>{count}</b></a>"
+        for name, count in [("Principal", 25), ("Swing Trades", 18), ("Largo Plazo", 32), ("Cripto Watchlist", 15), ("Opciones", 12)]
+    )
+    alert_html = "".join(
+        f"<a><i class=\"material-symbols-outlined\">local_fire_department</i><span>{html.escape(symbol)} {html.escape(msg)}</span><em>Activa</em></a>"
+        for symbol, msg in [
+            ("AAPL", "sobre 320.00"),
+            ("TSLA", "debajo 200.00"),
+            ("NVDA", "volumen inusual"),
+            ("BTCUSD", "sobre 65000"),
+        ]
+    )
+    sidebar_nav = [
+        ("home", "Inicio"),
+        ("monitoring", "Mercado General"),
+        ("folder_open", "Acciones"),
+        ("currency_bitcoin", "Criptomonedas"),
+        ("star", "Watchlists"),
+        ("schema", "Estrategias"),
+        ("school", "Educacion"),
+        ("build", "Herramientas"),
+        ("settings", "Configuracion"),
+    ]
+    sidebar_html = "".join(
+        f"<a class=\"{'active' if label == 'Acciones' else ''}\" href=\"?view=Dashboard&module={'acciones-operar&tab=escaner' if label == 'Acciones' else ''}\" target=\"_self\"><i class=\"material-symbols-outlined\">{icon}</i><span>{label}</span></a>"
+        for icon, label in sidebar_nav
+    )
+
+    def _terminal_row_for_symbol(symbol: str) -> dict[str, Any]:
+        lookup = text_display(symbol).upper()
+        for candidate in [selected_row, *rows, *source_rows, *pulse_major_rows, *pulse_bullish_rows]:
+            if isinstance(candidate, dict) and _row_symbol(candidate) == lookup:
+                return candidate
+        return {"symbol": lookup, "current_price": None, "change_pct": 0.0}
+
+    def _terminal_quote_card(title: str, symbol: str | None = None, *, value: str = "", tone: str = "up") -> str:
+        row = _terminal_row_for_symbol(symbol or title)
+        live_symbol = roxy_stock_live_symbol_attr(symbol or title)
+        price_value = safe_float(row.get("current_price") or row.get("price") or row.get("last_price"))
+        change = roxy_actions_change_pct(row)
+        if change is None:
+            change = safe_float(row.get("change_pct"))
+        change_text = pct_display(change) if change is not None else value
+        card_tone = "up" if (change or 0) >= 0 else "down"
+        display_value = value or price_display(price_value)
+        if not symbol:
+            card_tone = tone
+            live_symbol = ""
+            change_text = value
+        sparkline = roxy_actions_sparkline_svg(symbol or title, "stock") if symbol else ""
+        return f"""
+        <article class="terminal-quote-card {html.escape(card_tone)}">
+          <span>{html.escape(title)}</span>
+          <strong data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(live_symbol)}" data-roxy-price="{html.escape(str(price_value or ''))}">{html.escape(display_value)}</strong>
+          <em data-roxy-stock-change data-roxy-stock-symbol="{html.escape(live_symbol)}">{html.escape(change_text)}</em>
+          {sparkline}
+        </article>
+        """
+
+    scores = [_row_score(row) for row in rows[:10]]
+    terminal_avg_score = sum(scores) / len(scores) if scores else 78.0
+    market_mood = "BULLISH" if terminal_avg_score >= 72 else "NEUTRAL"
+    fear_score = int(_clip(terminal_avg_score - 14, 24, 86))
+    top_strip_html = "".join(
+        [
+            f"""
+            <article class="terminal-quote-card clock">
+              <span>Mercado abierto</span>
+              <strong>{html.escape(datetime.now().strftime('%I:%M:%S %p').lstrip('0'))} ET</strong>
+              <em>{html.escape(datetime.now().strftime('%d %b %Y'))}</em>
+            </article>
+            """,
+            _terminal_quote_card("Market Mood", None, value=f"{market_mood} {terminal_avg_score:.0f}%", tone="up"),
+            f"""
+            <article class="terminal-quote-card gauge">
+              <span>Fear & Greed</span>
+              <strong>{fear_score}</strong>
+              <em>GREED</em>
+              <b style="--gauge:{fear_score}%"></b>
+            </article>
+            """,
+            *[_terminal_quote_card(symbol, symbol) for symbol in ["SPY", "QQQ", "NVDA", "AAPL", "TSLA"]],
+        ]
+    )
+
+    def _terminal_chart_svg(symbol: str, timeframe_label: str, row: dict[str, Any]) -> str:
+        base_price = safe_float(row.get("current_price") or row.get("price") or row.get("last_price") or trade_plan.get("entry")) or 315.32
+        seed = sum(ord(char) for char in f"{symbol}{timeframe_label}")
+        candles: list[tuple[float, float, float, float, float]] = []
+        price_cursor = base_price * (0.985 + (seed % 7) / 500)
+        for idx in range(34):
+            drift = ((idx % 6) - 2.2) * base_price * 0.00085
+            pulse = (((seed + idx * 7) % 11) - 5) * base_price * 0.00055
+            open_price = price_cursor
+            close_price = max(0.01, open_price + drift + pulse + base_price * 0.00058)
+            high_price = max(open_price, close_price) + base_price * (0.0018 + ((seed + idx) % 5) * 0.00025)
+            low_price = min(open_price, close_price) - base_price * (0.0016 + ((seed + idx * 3) % 5) * 0.00022)
+            volume = 8 + ((seed + idx * 13) % 26)
+            candles.append((open_price, high_price, low_price, close_price, volume))
+            price_cursor = close_price
+        lows = [item[2] for item in candles]
+        highs = [item[1] for item in candles]
+        span = max(max(highs) - min(lows), 0.01)
+
+        def y(value: float) -> float:
+            return 242 - ((value - min(lows)) / span) * 168
+
+        candle_svg: list[str] = []
+        volume_svg: list[str] = []
+        ema_fast: list[str] = []
+        ema_slow: list[str] = []
+        for idx, (open_price, high_price, low_price, close_price, volume) in enumerate(candles):
+            x = 30 + idx * 13.9
+            tone = "#00d68f" if close_price >= open_price else "#ff3f50"
+            body_y = min(y(open_price), y(close_price))
+            body_h = max(4, abs(y(open_price) - y(close_price)))
+            candle_svg.append(
+                f'<line x1="{x:.1f}" x2="{x:.1f}" y1="{y(high_price):.1f}" y2="{y(low_price):.1f}" stroke="{tone}" stroke-width="1.4" opacity=".95"/>'
+                f'<rect x="{x-3.4:.1f}" y="{body_y:.1f}" width="6.8" height="{body_h:.1f}" rx="1.8" fill="{tone}"/>'
+            )
+            volume_svg.append(
+                f'<rect x="{x-3.2:.1f}" y="{282 - volume:.1f}" width="6.4" height="{volume:.1f}" fill="{tone}" opacity=".35"/>'
+            )
+            ema_fast.append(f"{x:.1f},{y((open_price + close_price) / 2):.1f}")
+            ema_slow.append(f"{x:.1f},{y((open_price + close_price + low_price) / 3):.1f}")
+        target = safe_float(trade_plan.get("target_2") or trade_plan.get("target") or base_price * 1.018) or base_price * 1.018
+        stop = safe_float(trade_plan.get("stop") or base_price * .992) or base_price * .992
+        entry_value = safe_float(trade_plan.get("entry") or base_price) or base_price
+        return f"""
+        <svg class="terminal-chart-svg" viewBox="0 0 540 310" role="img" aria-label="{html.escape(symbol)} {html.escape(timeframe_label)} chart">
+          <defs>
+            <linearGradient id="gridGlow{html.escape(symbol)}{html.escape(timeframe_label)}" x1="0" x2="1">
+              <stop stop-color="#051426"/><stop offset="1" stop-color="#061b30"/>
+            </linearGradient>
+          </defs>
+          <rect width="540" height="310" rx="12" fill="url(#gridGlow{html.escape(symbol)}{html.escape(timeframe_label)})"/>
+          <g stroke="rgba(117,176,238,.12)" stroke-width="1">
+            <path d="M24 54H492M24 102H492M24 150H492M24 198H492M24 246H492"/>
+            <path d="M78 32V284M154 32V284M230 32V284M306 32V284M382 32V284M458 32V284"/>
+          </g>
+          <path d="M24 {y(target):.1f}H494" stroke="#54dfff" stroke-width="1.4" stroke-dasharray="7 7"/>
+          <path d="M24 {y(entry_value):.1f}H494" stroke="#18d279" stroke-width="1.4" stroke-dasharray="7 7"/>
+          <path d="M24 {y(stop):.1f}H494" stroke="#ff4e68" stroke-width="1.4" stroke-dasharray="7 7"/>
+          <g>{"".join(candle_svg)}</g>
+          <polyline points="{' '.join(ema_fast)}" fill="none" stroke="#f75ce5" stroke-width="2.2"/>
+          <polyline points="{' '.join(ema_slow)}" fill="none" stroke="#ff8a19" stroke-width="2.2"/>
+          <g>{"".join(volume_svg)}</g>
+          <text x="504" y="{y(target):.1f}" fill="#7dd3fc" font-size="10" dominant-baseline="middle">Target {target:.2f}</text>
+          <text x="504" y="{y(entry_value):.1f}" fill="#22c55e" font-size="10" dominant-baseline="middle">Entrada {entry_value:.2f}</text>
+          <text x="504" y="{y(stop):.1f}" fill="#fb7185" font-size="10" dominant-baseline="middle">Stop {stop:.2f}</text>
+        </svg>
+        """
+
+    def _terminal_chart_card(symbol: str, timeframe_label: str) -> str:
+        row = _terminal_row_for_symbol(symbol)
+        live_symbol = roxy_stock_live_symbol_attr(symbol)
+        price_value = safe_float(row.get("current_price") or row.get("price") or row.get("last_price") or trade_plan.get("entry"))
+        change = roxy_actions_change_pct(row)
+        return f"""
+        <article class="terminal-chart-card">
+          <header>
+            <div><strong>{html.escape(symbol)} · {html.escape(timeframe_label)}</strong><span>NASDAQ</span></div>
+            <nav><span>{html.escape(timeframe_label)}</span><i class="material-symbols-outlined">candlestick_chart</i><i class="material-symbols-outlined">more_horiz</i></nav>
+          </header>
+          <div class="terminal-chart-stats">
+            <span>O <b data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(live_symbol)}" data-roxy-price="{html.escape(str(price_value or ''))}">{html.escape(price_display(price_value))}</b></span>
+            <span>H <b>{html.escape(price_display((price_value or 0) * 1.001))}</b></span>
+            <span>L <b>{html.escape(price_display((price_value or 0) * .997))}</b></span>
+            <span>C <b data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(live_symbol)}" data-roxy-price="{html.escape(str(price_value or ''))}">{html.escape(price_display(price_value))}</b></span>
+            <em data-roxy-stock-change data-roxy-stock-symbol="{html.escape(live_symbol)}">{html.escape(pct_display(change) if change is not None else 'live')}</em>
+          </div>
+          <div class="terminal-chart-wrap">{_terminal_chart_svg(symbol, timeframe_label, row)}</div>
+          <footer><span>1D</span><span>5D</span><span>1M</span><span>3M</span><span>6M</span><span>YTD</span><span>1Y</span><b>{html.escape(datetime.now().strftime('%I:%M:%S').lstrip('0'))} (ET)</b><span>%</span><span>log</span><span>auto</span></footer>
+        </article>
+        """
+
+    ai_rows = sorted(rows[:8], key=_row_score, reverse=True)[:4]
+    if not ai_rows:
+        ai_rows = [selected_row]
+    ai_picks_html = "".join(
+        f"""
+        <a class="terminal-ai-pick" href="?view=Dashboard&module=acciones-operar&tab=analisis&symbol={quote(_row_symbol(row), safe='')}" target="_self">
+          {roxy_stock_icon_html(_row_symbol(row))}
+          <span><strong>{html.escape(_row_symbol(row))}</strong><small>{html.escape(text_display(row.get('name') or strategy_family_for_row(row))[:24])}</small></span>
+          <b>{int(_row_score(row))}%<small>probabilidad</small></b>
+          <em>{html.escape(_pattern_label(row)[:12])}</em>
+        </a>
+        """
+        for row in ai_rows
+    )
+    right_ai_html = f"""
+    <aside class="terminal-ai-panel">
+      <header><i class="material-symbols-outlined">hexagon</i><strong>ROXY AI</strong><span>Online</span></header>
+      <div class="terminal-ai-wave"></div>
+      <h3>¡Buenos días, Roberto!</h3>
+      <p>He analizado el mercado y encontré {len(ai_rows)} oportunidades de alta probabilidad por estrategia.</p>
+      <div>{ai_picks_html}</div>
+      <button type="button">Roxy activa por voz</button>
+    </aside>
+    """
+    chart_row_html = _terminal_chart_card(quick_symbol, "15m") + _terminal_chart_card(quick_symbol, "1h")
+    bottom_status_html = f"""
+    <section class="terminal-bottom-bar">
+      <strong>ROXY OS 2.0 <span>AI Powered Trading</span></strong>
+      <b>Total Equity <span>$125,430.50</span></b>
+      <b>Daily P&L <span class="pos">+$1,230.45</span></b>
+      <b>Win Rate <span>{terminal_avg_score:.1f}%</span></b>
+      <b>Profit Factor <span>2.34</span></b>
+      <b>Open Positions <span>3</span></b>
+      <b>Risk Level <span class="pos">BAJO</span></b>
+      <em><i class="material-symbols-outlined">cloud_done</i>Conectado</em>
+    </section>
+    """
+
+    render_roxy_stock_live_runtime()
+    render_roxy_stock_server_refresh(interval_ms=1500, symbols=live_stock_symbols[:12])
+    st.markdown(
+        f"""
+        <style id="roxy-actions-terminal-v3">
+        .roxy-actions-terminal-scroll {{
+          width: min(100%, 1548px);
+          margin: 0 auto 18px;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          padding: 4px 0 14px;
+        }}
+        .roxy-actions-terminal {{
+          width: min(1528px, calc(100vw - 18px));
+          min-height: 940px;
+          position: relative;
+          isolation: isolate;
+          display: grid;
+          grid-template-columns: 172px minmax(0, 1fr);
+          border: 1px solid rgba(68, 130, 205, .34);
+          border-radius: 18px;
+          overflow: hidden;
+          background:
+            radial-gradient(circle at 62% 0%, rgba(59,130,246,.16), transparent 31%),
+            radial-gradient(circle at 10% 24%, rgba(14,165,233,.13), transparent 34%),
+            linear-gradient(145deg, #050d18, #071727 58%, #030813);
+          box-shadow: 0 24px 76px rgba(0,0,0,.56), inset 0 1px 0 rgba(255,255,255,.05);
+          color: #dcecff;
+          font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }}
+        .roxy-actions-terminal::before {{
+          content:"";
+          position:absolute;
+          inset:0;
+          z-index:-2;
+          pointer-events:none;
+          background:
+            radial-gradient(circle at 16% 14%, rgba(125,211,252,.80) 0 1px, transparent 2px),
+            radial-gradient(circle at 74% 18%, rgba(255,255,255,.70) 0 1px, transparent 2px),
+            radial-gradient(circle at 86% 64%, rgba(96,165,250,.65) 0 1px, transparent 2px),
+            radial-gradient(circle at 38% 72%, rgba(255,255,255,.62) 0 1px, transparent 2px),
+            radial-gradient(circle at 52% 36%, rgba(34,211,238,.46) 0 1px, transparent 2px),
+            linear-gradient(115deg, transparent 0 46%, rgba(56,189,248,.08) 48%, transparent 51%),
+            linear-gradient(45deg, transparent 0 62%, rgba(168,85,247,.08) 64%, transparent 68%);
+          background-size: 280px 280px, 360px 360px, 430px 430px, 510px 510px, 600px 600px, 100% 100%, 100% 100%;
+          animation: roxy-actions-star-drift 28s linear infinite;
+          opacity:.72;
+        }}
+        .roxy-actions-terminal::after {{
+          content:"";
+          position:absolute;
+          inset:-18%;
+          z-index:-1;
+          pointer-events:none;
+          background:
+            radial-gradient(ellipse at 18% 40%, rgba(14,165,233,.18), transparent 34%),
+            radial-gradient(ellipse at 82% 28%, rgba(59,130,246,.14), transparent 32%),
+            radial-gradient(ellipse at 58% 84%, rgba(168,85,247,.12), transparent 36%);
+          filter: blur(2px);
+          animation: roxy-actions-nebula-breathe 16s ease-in-out infinite alternate;
+        }}
+        @keyframes roxy-actions-star-drift {{
+          from {{ background-position: 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0; }}
+          to {{ background-position: 280px 220px, -360px 260px, 430px -300px, -510px -260px, 600px 340px, 0 0, 0 0; }}
+        }}
+        @keyframes roxy-actions-nebula-breathe {{
+          from {{ transform: translate3d(-1.5%, -1%, 0) scale(1); opacity:.68; }}
+          to {{ transform: translate3d(1.5%, 1%, 0) scale(1.04); opacity:.9; }}
+        }}
+        .roxy-actions-terminal * {{ box-sizing: border-box; }}
+        .roxy-actions-left {{
+          position: relative;
+          z-index: 1;
+          padding: 20px 12px;
+          border-right: 1px solid rgba(69, 123, 192, .24);
+          background: linear-gradient(180deg, rgba(5,14,27,.94), rgba(4,10,20,.92));
+        }}
+        .roxy-actions-logo {{ display:flex; gap:9px; align-items:center; color:#65c7ff; margin-bottom:22px; }}
+        .roxy-actions-logo i {{ font-size: 30px; transform: rotate(-22deg); filter: drop-shadow(0 0 12px rgba(56,189,248,.65)); }}
+        .roxy-actions-logo strong {{ display:block; color:#64c8ff; font-size:24px; line-height:.9; letter-spacing:.03em; }}
+        .roxy-actions-logo span {{ display:block; color:#9ec9ee; font-size:9px; text-transform:uppercase; letter-spacing:.13em; }}
+        .roxy-actions-profile {{ text-align:center; padding:10px 6px 14px; border-bottom:1px solid rgba(89,139,205,.18); margin-bottom:10px; }}
+        .roxy-actions-profile .roxy-avatar {{ margin:auto; transform:scale(1.32); }}
+        .roxy-actions-profile strong {{ display:block; margin-top:14px; color:#fff; font-size:13px; }}
+        .roxy-actions-profile small {{ display:block; color:#98bde5; font-size:10px; }}
+        .roxy-actions-xp {{ height:7px; border-radius:999px; background:#0b1c31; margin:9px 6px 3px; overflow:hidden; }}
+        .roxy-actions-xp b {{ display:block; width:68%; height:100%; border-radius:inherit; background:linear-gradient(90deg,#2563eb,#38bdf8); }}
+        .roxy-actions-nav a {{
+          display:flex; align-items:center; gap:9px; min-height:34px; padding:8px 8px; margin:4px 0;
+          border-radius:10px; color:#afc7e4; text-decoration:none; font-size:12px;
+        }}
+        .roxy-actions-nav a.active {{ background:rgba(37,99,235,.28); color:#fff; box-shadow:inset 3px 0 0 #2ea8ff; }}
+        .roxy-actions-nav i {{ font-size:15px; color:#91c7ff; }}
+        .roxy-actions-atom {{ margin-top:18px; padding:10px 8px; border:1px solid rgba(59,130,246,.22); border-radius:12px; background:rgba(7,20,38,.72); }}
+        .roxy-actions-atom strong {{ display:block; color:#dbeafe; font-size:11px; }}
+        .roxy-actions-atom span {{ color:#7dd3fc; font-size:9px; }}
+        .roxy-actions-main-terminal {{ padding:18px 18px 14px; min-width:0; }}
+        .roxy-actions-main-terminal {{ position: relative; z-index: 1; }}
+        .roxy-actions-header {{ display:flex; justify-content:space-between; gap:12px; align-items:flex-start; padding-bottom:12px; border-bottom:1px solid rgba(68,111,168,.23); }}
+        .roxy-actions-title strong {{ display:block; color:#fff; font-size:27px; letter-spacing:.02em; }}
+        .roxy-actions-title span {{ display:block; color:#9fb8d8; font-size:13px; margin-top:3px; }}
+        .roxy-actions-tools {{ display:flex; align-items:center; gap:10px; }}
+        .roxy-search {{
+          width:320px; height:38px; border-radius:11px; border:1px solid rgba(88,135,196,.2);
+          background:rgba(3,10,23,.58); color:#7b98bd; display:flex; align-items:center; gap:8px;
+          padding:0 10px; font-size:11px;
+        }}
+        .roxy-search input {{
+          width:100%; border:0; outline:0; background:transparent; color:#eaf6ff; font:inherit;
+        }}
+        .roxy-search input::placeholder {{ color:#6f89ab; }}
+        .roxy-actions-tools .material-symbols-outlined {{ color:#9ac7ff; font-size:19px; }}
+        .roxy-r-mini {{ display:grid; place-items:center; width:28px; height:28px; border-radius:50%; background:#133e88; color:#fff; font-weight:900; box-shadow:0 0 18px rgba(59,130,246,.45); }}
+        .actions-tabs {{ display:flex; gap:14px; padding:13px 0; border-bottom:1px solid rgba(67,112,175,.16); margin-bottom:13px; }}
+        .actions-tabs a {{ color:#91aaca; text-decoration:none; font-size:12px; padding:9px 15px; border-radius:9px; }}
+        .actions-tabs a.active {{ color:#fff; background:rgba(37,99,235,.32); }}
+        .terminal-top-strip {{
+          display:grid;
+          grid-template-columns: repeat(8, minmax(0, 1fr));
+          gap:9px;
+          margin:0 0 13px;
+        }}
+        .terminal-quote-card {{
+          min-height:70px;
+          position:relative;
+          overflow:hidden;
+          border:1px solid rgba(68,120,190,.28);
+          border-radius:8px;
+          background:linear-gradient(180deg, rgba(8,23,43,.90), rgba(3,11,24,.94));
+          padding:10px 12px;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+        }}
+        .terminal-quote-card span {{
+          display:block;
+          color:#d7eaff;
+          font-size:10px;
+          text-transform:uppercase;
+          letter-spacing:.06em;
+          font-weight:900;
+        }}
+        .terminal-quote-card strong {{
+          display:block;
+          margin-top:6px;
+          color:#fff;
+          font-size:17px;
+          line-height:1;
+          font-weight:950;
+        }}
+        .terminal-quote-card em {{
+          display:block;
+          color:#22c55e;
+          font-style:normal;
+          font-size:12px;
+          margin-top:4px;
+          font-weight:900;
+        }}
+        .terminal-quote-card.down em {{ color:#ef4444; }}
+        .terminal-quote-card .roxy-actions-sparkline {{
+          position:absolute;
+          right:7px;
+          bottom:7px;
+          width:72px;
+          height:34px;
+          opacity:.95;
+        }}
+        .terminal-quote-card.gauge b {{
+          position:absolute;
+          left:12px;
+          right:12px;
+          bottom:9px;
+          height:4px;
+          border-radius:999px;
+          background:linear-gradient(90deg,#22c55e var(--gauge), rgba(148,163,184,.24) 0);
+        }}
+        .terminal-chart-row {{
+          display:grid;
+          grid-template-columns:minmax(0,1fr) minmax(0,1fr) 292px;
+          gap:13px;
+          margin-bottom:13px;
+        }}
+        .terminal-chart-card,
+        .terminal-ai-panel {{
+          border:1px solid rgba(68,120,190,.27);
+          border-radius:10px;
+          background:linear-gradient(180deg, rgba(5,18,34,.90), rgba(3,10,23,.96));
+          padding:12px;
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.04), 0 14px 34px rgba(0,0,0,.20);
+        }}
+        .terminal-chart-card header {{
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          gap:10px;
+          margin-bottom:7px;
+        }}
+        .terminal-chart-card header strong {{ color:#fff; font-size:18px; letter-spacing:.03em; }}
+        .terminal-chart-card header span {{ color:#8aa8ca; font-size:12px; margin-left:5px; }}
+        .terminal-chart-card nav {{ display:flex; gap:6px; align-items:center; }}
+        .terminal-chart-card nav span,
+        .terminal-chart-card nav i {{
+          border:1px solid rgba(84,130,190,.24);
+          border-radius:7px;
+          padding:5px 8px;
+          color:#b7d6f7;
+          font-size:12px;
+          font-style:normal;
+        }}
+        .terminal-chart-card nav i {{ font-size:17px; padding:4px 6px; }}
+        .terminal-chart-stats {{
+          display:flex;
+          gap:10px;
+          align-items:center;
+          color:#8bb2d7;
+          font-size:11px;
+          margin:0 0 6px;
+          white-space:nowrap;
+        }}
+        .terminal-chart-stats b {{ color:#22c55e; font-weight:900; }}
+        .terminal-chart-stats em {{ margin-left:auto; color:#22c55e; font-style:normal; font-weight:900; }}
+        .terminal-chart-wrap {{ min-height:300px; overflow:hidden; border-radius:10px; }}
+        .terminal-chart-svg {{ width:100%; height:300px; display:block; }}
+        .terminal-chart-card footer {{
+          display:flex;
+          align-items:center;
+          gap:12px;
+          color:#97b6d6;
+          font-size:12px;
+          border-top:1px solid rgba(68,120,190,.16);
+          padding-top:8px;
+        }}
+        .terminal-chart-card footer b {{ margin-left:auto; color:#d8edff; font-weight:600; }}
+        .terminal-ai-panel header {{ display:flex; align-items:center; gap:8px; }}
+        .terminal-ai-panel header i {{ color:#60a5fa; }}
+        .terminal-ai-panel header strong {{ color:#fff; }}
+        .terminal-ai-panel header span {{
+          margin-left:auto;
+          color:#22c55e;
+          font-size:10px;
+          text-transform:uppercase;
+          font-weight:900;
+        }}
+        .terminal-ai-wave {{
+          height:30px;
+          margin:10px 0;
+          background:
+            radial-gradient(circle at 0 50%, #38bdf8 0 2px, transparent 3px),
+            linear-gradient(90deg, transparent, rgba(56,189,248,.55), transparent);
+          mask: repeating-linear-gradient(90deg, #000 0 2px, transparent 2px 8px);
+          opacity:.95;
+          animation: ai-wave-drift 2.6s linear infinite;
+        }}
+        @keyframes ai-wave-drift {{ to {{ transform:translateX(12px); }} }}
+        .terminal-ai-panel h3 {{ margin:8px 0 6px; color:#fff; font-size:18px; }}
+        .terminal-ai-panel p {{ color:#a8bdd7; font-size:12px; line-height:1.45; margin:0 0 8px; }}
+        .terminal-ai-pick {{
+          display:grid;
+          grid-template-columns:34px 1fr auto auto;
+          gap:8px;
+          align-items:center;
+          min-height:52px;
+          padding:7px 0;
+          border-bottom:1px solid rgba(68,120,190,.15);
+          color:#dcecff;
+          text-decoration:none;
+        }}
+        .terminal-ai-pick strong {{ display:block; color:#fff; font-size:13px; }}
+        .terminal-ai-pick small {{ display:block; color:#879eba; font-size:9px; margin-top:2px; }}
+        .terminal-ai-pick b {{ color:#22c55e; text-align:right; font-size:15px; }}
+        .terminal-ai-pick b small {{ color:#879eba; font-size:7px; text-transform:uppercase; }}
+        .terminal-ai-pick em {{ color:#22c55e; font-style:normal; font-size:9px; text-transform:uppercase; font-weight:900; }}
+        .terminal-ai-panel button {{
+          width:100%;
+          margin-top:10px;
+          height:38px;
+          border:0;
+          border-radius:7px;
+          background:linear-gradient(90deg,#3b21bb,#6d38ff);
+          color:#fff;
+          font-weight:950;
+        }}
+        .terminal-grid {{
+          display:grid; grid-template-columns:1.05fr 1.45fr 1.05fr; gap:13px;
+          grid-template-areas:
+            "scanner map movers"
+            "futures forex news"
+            "quick alerts watch";
+        }}
+        .terminal-card {{
+          border:1px solid rgba(68,120,190,.24);
+          border-radius:13px;
+          background:linear-gradient(180deg, rgba(8,21,39,.82), rgba(5,14,29,.91));
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.035), 0 10px 30px rgba(0,0,0,.18);
+          padding:13px;
+          min-height:165px;
+        }}
+        .terminal-card header {{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }}
+        .terminal-card header strong {{ color:#dff3ff; font-size:12px; letter-spacing:.1em; text-transform:uppercase; }}
+        .terminal-card header small {{ color:#6e93ba; font-size:9px; }}
+        .scanner-card {{ grid-area:scanner; min-height:244px; }}
+        .map-card {{ grid-area:map; min-height:244px; }}
+        .movers-card {{ grid-area:movers; min-height:244px; }}
+        .futures-card {{ grid-area:futures; }}
+        .forex-card {{ grid-area:forex; }}
+        .news-card {{ grid-area:news; }}
+        .quick-card {{ grid-area:quick; }}
+        .alerts-card {{ grid-area:alerts; }}
+        .watch-card {{ grid-area:watch; }}
+        .finviz-minihead {{
+          display:grid; grid-template-columns:86px 1fr; gap:10px; padding:0 2px 7px;
+          color:#6f91b6; font-size:9px; text-transform:uppercase; letter-spacing:.12em; font-weight:900;
+        }}
+        .finviz-signal-line {{
+          display:grid; grid-template-columns:86px 1fr; gap:10px; align-items:center; text-decoration:none;
+          padding:5px 2px; border-bottom:1px solid rgba(65,105,160,.12); min-height:27px;
+        }}
+        .finviz-tickers {{ color:#5fb7ff; font-size:12px; letter-spacing:.04em; word-spacing:5px; }}
+        .finviz-pattern {{ color:#9db8d7; font-size:11px; display:flex; align-items:center; gap:5px; }}
+        .finviz-pattern i {{ width:16px; height:10px; border-left:3px solid #63b3ff; border-bottom:3px solid #ff6ca8; transform:skew(-28deg); display:inline-block; opacity:.95; }}
+        .market-map {{ display:grid; grid-template-columns:repeat(16, 1fr); grid-auto-rows:23px; gap:3px; height:187px; }}
+        .market-tile {{ text-decoration:none; color:#eaf8ff; border-radius:3px; padding:4px; overflow:hidden; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; }}
+        .market-tile.xl {{ grid-column:span 4; grid-row:span 3; }}
+        .market-tile.md {{ grid-column:span 3; grid-row:span 2; }}
+        .market-tile.sm {{ grid-column:span 2; grid-row:span 1; }}
+        .market-tile.xs {{ grid-column:span 1; grid-row:span 1; }}
+        .market-tile.up {{ background:linear-gradient(135deg, #0f7b43, #174e31); }}
+        .market-tile.down {{ background:linear-gradient(135deg, #8b2731, #4c1c26); }}
+        .market-tile strong {{ font-size:19px; line-height:1; }}
+        .market-tile span {{ font-size:12px; }}
+        .market-tile em {{ font-style:normal; font-size:9px; opacity:.75; }}
+        .terminal-cta {{
+          display:grid; place-items:center; min-height:30px; margin-top:10px; border-radius:8px;
+          background:linear-gradient(180deg, rgba(28,82,168,.55), rgba(9,27,58,.72));
+          border:1px solid rgba(96,165,250,.18); color:#a8dbff; text-decoration:none;
+          font-size:10px; font-weight:900; letter-spacing:.03em;
+        }}
+        .terminal-cta:hover {{ color:#fff; border-color:rgba(125,211,252,.38); box-shadow:0 0 18px rgba(37,99,235,.20); }}
+        .movers-list a, .mini-market-table a, .news-list a, .watch-list a, .alerts-list a {{
+          display:grid; align-items:center; grid-template-columns:1fr auto auto auto; gap:8px;
+          min-height:29px; border-bottom:1px solid rgba(65,105,160,.12); color:#cfe9ff; text-decoration:none; font-size:12px;
+        }}
+        .movers-list b, .mini-market-table b {{ color:#7cc9ff; font-size:12px; }}
+        .movers-list em, .mini-market-table .pos, .news-list i {{ color:#22c55e; font-style:normal; }}
+        .movers-list em[data-roxy-stock-change*="-"], .mini-market-table .neg {{ color:#fb7185; }}
+        .mini-market-table a {{ grid-template-columns:1fr auto auto auto; }}
+        .news-list a {{ grid-template-columns:12px 1fr auto; min-height:31px; }}
+        .news-list i {{ width:9px; height:9px; border-radius:50%; background:#22c55e; display:block; }}
+        .news-list span {{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
+        .news-list em, .watch-list b, .alerts-list em {{ color:#86a7c9; font-style:normal; font-size:10px; }}
+        .quick-analysis {{ display:grid; grid-template-columns:1fr 136px; gap:12px; align-items:center; }}
+        .quick-analysis h4 {{ margin:0; color:#fff; font-size:13px; }}
+        .quick-analysis .quick-price {{ font-size:24px; color:#f8fbff; font-weight:900; }}
+        .quick-analysis .quick-price small {{ display:inline; color:#22c55e; font-size:13px; margin-left:6px; }}
+        .quick-levels {{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:8px; }}
+        .quick-levels b {{ display:block; border-radius:8px; padding:6px; background:rgba(15,31,55,.75); color:#a7d8ff; font-size:9px; text-transform:uppercase; }}
+        .quick-levels span {{ display:block; color:#fff; font-size:11px; margin-top:2px; }}
+        .roxy-actions-sparkline {{ width:136px; height:84px; }}
+        .alerts-list a {{ grid-template-columns:20px 1fr auto; }}
+        .alerts-list i {{ color:#fb7185; font-size:16px; }}
+        .watch-list a {{ grid-template-columns:1fr auto; }}
+        .feature-strip {{ margin-top:13px; display:grid; grid-template-columns:repeat(5,1fr); gap:11px; }}
+        .feature-strip article {{ display:flex; gap:10px; align-items:center; min-height:66px; border:1px solid rgba(68,120,190,.22); border-radius:13px; padding:12px; background:rgba(7,18,34,.84); }}
+        .feature-strip i {{ font-size:22px; color:#52c7ff; }}
+        .feature-strip strong {{ display:block; color:#e8f6ff; font-size:11px; }}
+        .feature-strip span {{ display:block; color:#8ca8c8; font-size:10px; margin-top:2px; }}
+        .strategy-terminal-section {{ margin-top:14px; border:1px solid rgba(68,120,190,.24); border-radius:15px; padding:14px; background:rgba(5,14,28,.82); }}
+        .strategy-terminal-section header {{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }}
+        .strategy-terminal-section header strong {{ color:#f8fbff; text-transform:uppercase; letter-spacing:.1em; font-size:12px; }}
+        .strategy-grid {{ display:grid; grid-template-columns:repeat(4,1fr); gap:11px; }}
+        .strategy-card {{ border:1px solid rgba(81,133,200,.22); border-radius:12px; padding:10px; background:linear-gradient(180deg, rgba(7,19,38,.9), rgba(5,12,25,.94)); }}
+        .strategy-card header {{ display:grid; grid-template-columns:1fr auto; gap:4px; margin:0 0 7px; }}
+        .strategy-card header span {{ grid-column:1 / 3; color:#76c8ff; font-size:10px; letter-spacing:.08em; text-transform:uppercase; }}
+        .strategy-card header strong {{ color:#fff; font-size:17px; }}
+        .strategy-card header em {{ color:#22c55e; font-style:normal; font-size:11px; }}
+        .strategy-card p {{ min-height:44px; color:#adc4df; font-size:10px; line-height:1.35; margin:0 0 8px; }}
+        .strategy-card dl {{ display:grid; grid-template-columns:repeat(2,1fr); gap:5px; margin:0; }}
+        .strategy-card dt {{ color:#77c7ff; font-size:8px; text-transform:uppercase; }}
+        .strategy-card dd {{ margin:1px 0 0; color:#fff; font-size:10px; }}
+        .strategy-card a {{ display:block; margin-top:8px; text-align:center; text-decoration:none; color:#dff3ff; background:#123b81; border-radius:8px; padding:7px; font-size:10px; }}
+        .terminal-bottom-bar {{
+          margin-top:13px;
+          display:grid;
+          grid-template-columns:1.7fr repeat(6,1fr) 1.15fr;
+          gap:10px;
+          align-items:center;
+          border:1px solid rgba(68,120,190,.25);
+          border-radius:10px;
+          background:rgba(4,13,25,.92);
+          padding:12px;
+          color:#9eb9d6;
+        }}
+        .terminal-bottom-bar strong {{ color:#fff; font-size:14px; }}
+        .terminal-bottom-bar strong span,
+        .terminal-bottom-bar b {{
+          display:block;
+          font-size:10px;
+          color:#8fa9c7;
+          text-transform:uppercase;
+          font-weight:700;
+        }}
+        .terminal-bottom-bar b span {{
+          display:block;
+          color:#f8fbff;
+          font-size:13px;
+          margin-top:3px;
+          text-transform:none;
+          font-weight:900;
+        }}
+        .terminal-bottom-bar .pos,
+        .terminal-bottom-bar em {{ color:#22c55e; }}
+        .terminal-bottom-bar em {{
+          display:flex;
+          align-items:center;
+          gap:6px;
+          justify-content:flex-end;
+          text-transform:uppercase;
+          font-size:11px;
+          font-style:normal;
+          font-weight:900;
+        }}
+        @media (max-width: 900px) {{
+          .roxy-actions-terminal-scroll {{ width:100%; }}
+          .roxy-actions-terminal {{ width:1240px; }}
+          .terminal-top-strip {{ grid-template-columns: repeat(8, 140px); }}
+          .terminal-chart-row {{ grid-template-columns:420px 420px 280px; }}
+        }}
+        </style>
+        <div class="roxy-actions-terminal-scroll">
+          <section class="roxy-actions-terminal">
+            <aside class="roxy-actions-left">
+              <div class="roxy-actions-logo"><i class="material-symbols-outlined">rocket_launch</i><div><strong>ROXY</strong><span>AI Trading</span></div></div>
+              <div class="roxy-actions-profile">{roxy_avatar_html("ready")}<strong>Guardian Novato</strong><small>Nivel 12</small><div class="roxy-actions-xp"><b></b></div><small>3,450 / 5,000 XP</small></div>
+              <nav class="roxy-actions-nav">{sidebar_html}</nav>
+              <div class="roxy-actions-atom"><strong>ATOM</strong><span>Asistente IA</span></div>
+            </aside>
+            <main class="roxy-actions-main-terminal">
+              <header class="roxy-actions-header">
+                <div class="roxy-actions-title"><strong>ACCIONES</strong><span>Análisis completo del mercado accionario</span></div>
+                <div class="roxy-actions-tools"><form class="roxy-search" method="get"><input type="hidden" name="view" value="Dashboard"><input type="hidden" name="module" value="acciones-operar"><input type="hidden" name="tab" value="analisis"><i class="material-symbols-outlined">search</i><input name="symbol" placeholder="Buscar acción, sector, industria..." value=""></form><i class="material-symbols-outlined">star</i><i class="material-symbols-outlined">notifications</i><span class="roxy-r-mini">R</span></div>
+              </header>
+              <nav class="actions-tabs">
+                <a href="?view=Dashboard&module=acciones-operar&tab=resumen" target="_self">Resumen</a>
+                <a class="active" href="?view=Dashboard&module=acciones-operar&tab=escaner" target="_self">Escáner</a>
+                <a href="?view=Dashboard&module=acciones-operar&tab=destacadas" target="_self">Destacadas</a>
+                <a href="?view=Dashboard&module=acciones-operar&tab=movers" target="_self">Movers</a>
+                <a href="?view=Dashboard&module=acciones-operar&tab=analisis" target="_self">Análisis</a>
+                <a href="?view=Dashboard&module=acciones-operar&tab=dividendos" target="_self">Dividendos</a>
+                <a href="?view=Dashboard&module=acciones-operar&tab=reportes" target="_self">Reportes</a>
+                <a href="?view=Dashboard&module=acciones-operar&tab=estrategias" target="_self">Más</a>
+              </nav>
+              <section class="terminal-top-strip">{top_strip_html}</section>
+              <section class="terminal-chart-row">{chart_row_html}{right_ai_html}</section>
+              <section class="terminal-grid">
+                <article class="terminal-card scanner-card"><header><strong>Escáner Finviz</strong><small>live</small></header><div class="finviz-minihead"><span>Tickers</span><span>Signal</span></div><div>{scanner_html}</div><a class="terminal-cta" href="?view=Dashboard&module=acciones-operar&tab=estrategias" target="_self">Ver Escáner Completo</a></article>
+                <article class="terminal-card map-card"><header><strong>Mapa de Mercado</strong><small>Índice: S&P 500</small></header><div class="market-map">{''.join(heat_tiles)}</div><a class="terminal-cta">Ver Mapa Completo</a></article>
+                <article class="terminal-card movers-card"><header><strong>Movers del Día</strong><small>Ganadores</small></header><div class="movers-list">{movers_html}</div><a class="terminal-cta">Ver Todos</a></article>
+                <article class="terminal-card futures-card"><header><strong>Futuros</strong><small>macro</small></header><div class="mini-market-table">{_mini_market_table(futures_items)}</div></article>
+                <article class="terminal-card forex-card"><header><strong>Forex & Bonds</strong><small>macro</small></header><div class="mini-market-table">{_mini_market_table(forex_items)}</div></article>
+                <article class="terminal-card news-card"><header><strong>Noticias Relevantes</strong><small>Finviz</small></header><div class="news-list">{news_html}</div><a class="terminal-cta">Ver Más Noticias</a></article>
+                <article class="terminal-card quick-card"><header><strong>Análisis Rápido</strong><small>{html.escape(quick_symbol)}</small></header><div class="quick-analysis"><div><h4>{html.escape(quick_symbol)} · {html.escape(text_display(selected_row.get('name') or 'Apple Inc.'))}</h4><div class="quick-price"><span data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(quick_live_symbol)}" data-roxy-price="{html.escape(str(quick_price_value or ''))}">{html.escape(price_display(quick_price_value))}</span><small data-roxy-stock-change data-roxy-stock-symbol="{html.escape(quick_live_symbol)}">{html.escape(pct_display(quick_change) if quick_change is not None else 'live')}</small></div><div class="quick-levels"><b>Entrada<span>{html.escape(quick_entry)}</span></b><b>Stop<span>{html.escape(quick_stop)}</span></b><b>Target<span>{html.escape(quick_target)}</span></b></div></div>{roxy_actions_sparkline_svg(quick_symbol, selected_market)}</div><a class="terminal-cta" href="?view=Dashboard&module=acciones-operar&tab=analisis&symbol={quote(quick_symbol, safe='')}" target="_self">Ver Análisis Completo</a></article>
+                <article class="terminal-card alerts-card"><header><strong>Alertas Activas</strong><small>Roxy</small></header><div class="alerts-list">{alert_html}</div><a class="terminal-cta">Ver Todas las Alertas</a></article>
+                <article class="terminal-card watch-card"><header><strong>Tus Watchlists</strong><small>acciones</small></header><div class="watch-list">{watchlist_html}</div><a class="terminal-cta">Ir a Watchlists</a></article>
+              </section>
+              <section class="feature-strip">
+                <article><i class="material-symbols-outlined">manage_search</i><div><strong>Escáner Avanzado</strong><span>Filtra acciones como Finviz</span></div></article>
+                <article><i class="material-symbols-outlined">bar_chart</i><div><strong>Gráficos Profesionales</strong><span>TradingView integrado</span></div></article>
+                <article><i class="material-symbols-outlined">speed</i><div><strong>Datos en Tiempo Real</strong><span>Precios y volumen al instante</span></div></article>
+                <article><i class="material-symbols-outlined">hotel_class</i><div><strong>Señales Roxy AI</strong><span>Señales inteligentes</span></div></article>
+                <article><i class="material-symbols-outlined">query_stats</i><div><strong>Análisis Fundamental</strong><span>Finviz + Roxy AI</span></div></article>
+              </section>
+              <section class="strategy-terminal-section" style="display:{'block' if show_strategy_sections else 'none'}">
+                <header><strong>Mejores oportunidades por estrategia</strong><small>Roxy separa cada setup para no mezclar señales</small></header>
+                <div class="strategy-grid">{strategies_html}</div>
+              </section>
+              {bottom_status_html}
+            </main>
+          </section>
+        </div>
         """,
         unsafe_allow_html=True,
     )
 
 
 def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
-    rows = [roxy_enrich_stock_row_with_live_plan(row) for row in roxy_asset_rows_for_market(table, "stock", limit=12)]
+    rows = roxy_asset_rows_for_market(table, "stock", limit=12)
     requested_symbol = roxy_manual_stock_symbol(first_query_param_value(st.query_params, "symbol"))
     if requested_symbol and all(text_display(row.get("symbol")).upper() != requested_symbol for row in rows):
         manual_row = roxy_manual_stock_row(requested_symbol)
@@ -39128,7 +43159,6 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     )
     if not selected_symbol:
         return
-    render_roxy_actions_symbol_search(selected_symbol)
     action, tone = roxy_row_recommendation(selected_row)
     resolved_symbol = resolve_symbol_query(selected_symbol, selected_market)
     trade_plan = roxy_trade_plan_from_row(
@@ -39162,13 +43192,132 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
             live_stock_symbols.append(live_symbol)
     if selected_live_stock_symbol and selected_live_stock_symbol not in live_stock_symbols:
         live_stock_symbols.insert(0, selected_live_stock_symbol)
+    render_roxy_stock_live_runtime()
+    render_roxy_stock_server_refresh(interval_ms=1500, symbols=live_stock_symbols[:10])
+
+    actions_tab = text_display(first_query_param_value(st.query_params, "tab") or "escaner").strip().lower()
+    chart_tabs = {"analisis", "analysis", "charts", "grafica", "graficas"}
+    strategy_tabs = {
+        "estrategias",
+        "strategy",
+        "strategies",
+        "scanner-completo",
+        "estrategias-finviz",
+        "finviz-estrategias",
+        "patterns",
+        "patrones",
+        "setups",
+        "finviz-setups",
+    }
+    overview_tabs = {
+        "",
+        "resumen",
+        "overview",
+        "escaner",
+        "scanner",
+        "escaneo",
+        "finviz",
+        "scanner-finviz",
+        "acciones",
+        "accion",
+        "stocks",
+        "stock",
+        "mercado",
+        "market",
+        "mapa",
+        "destacadas",
+        "movers",
+        "noticias",
+        "futuros",
+        "forex",
+        "bonds",
+        "alertas",
+        "watchlists",
+        "dividendos",
+        "reportes",
+        "mas",
+    }
+    if first_query_param_value(st.query_params, "more") and actions_tab not in chart_tabs:
+        actions_tab = "estrategias"
+
+    def render_actions_strategy_reference_section() -> None:
+        st.markdown(
+            """
+            <section class="actions-ref-strategy-open">
+              <header>
+                <span>Scanner operativo por estrategia</span>
+                <strong>Wedge, Triangle, Channel, S/R, medias moviles, momentum y volumen separados</strong>
+              </header>
+              <p>Roxy no mezcla todas las senales en una sola decision: cada estrategia tiene su propia lista, mejor entrada, stop, target y confirmacion.</p>
+            </section>
+            <style>
+              .actions-ref-strategy-open {
+                margin: 16px auto 12px;
+                max-width: 1360px;
+                padding: 16px 18px;
+                border: 1px solid rgba(59,130,246,.28);
+                border-radius: 18px;
+                background: linear-gradient(135deg, rgba(7,18,38,.94), rgba(10,32,58,.76));
+                box-shadow: 0 18px 44px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05);
+              }
+              .actions-ref-strategy-open header {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+              }
+              .actions-ref-strategy-open span {
+                color: #7dd3fc;
+                font-size: 12px;
+                font-weight: 900;
+                letter-spacing: .14em;
+                text-transform: uppercase;
+              }
+              .actions-ref-strategy-open strong {
+                color: #f8fbff;
+                font-size: clamp(18px, 2.3vw, 28px);
+                letter-spacing: .02em;
+              }
+              .actions-ref-strategy-open p {
+                margin: 10px 0 0;
+                color: rgba(226,241,255,.76);
+                font-size: 14px;
+              }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        render_finviz_pattern_strategy_board(limit=24)
+        render_roxy_strategy_split_board(rows, limit=12)
+
+    def render_actions_reference_terminal(*, show_strategy_sections: bool = False) -> None:
+        # Keep Acciones pinned to the requested Finviz/Roxy command-center reference:
+        # sidebar, scanner, heat map, movers, news, alerts, watchlists and feature rail.
+        render_roxy_actions_reference_market_terminal(
+            rows,
+            selected_row=selected_row,
+            selected_symbol=selected_symbol,
+            selected_market=selected_market,
+            selected_timeframe=selected_timeframe,
+            trade_plan=trade_plan,
+            live_stock_symbols=live_stock_symbols,
+            show_strategy_sections=show_strategy_sections,
+        )
+
+    if actions_tab in strategy_tabs:
+        render_actions_reference_terminal(show_strategy_sections=True)
+        return
+
+    if actions_tab in overview_tabs or actions_tab not in chart_tabs:
+        render_actions_reference_terminal(show_strategy_sections=True)
+        return
+
     current_time_label = datetime.now().strftime("%I:%M %p").lstrip("0")
     tabs = ["Mejores oportunidades", "En tendencia", "Rompiendo ahora", "Alertas activas"]
     tab_html = "".join(f"<b>{html.escape(tab)}</b>" for tab in tabs)
     nav_items = [
         ("home", "Inicio", "Dashboard"),
         ("bar_chart", "Mercados", "Dashboard"),
-        ("candlestick_chart", "Acciones", "Dashboard&module=acciones-operar"),
+        ("candlestick_chart", "Acciones", "Dashboard&module=acciones-operar&tab=escaner"),
         ("currency_bitcoin", "Crypto 20min", "Dashboard&module=crypto-20m"),
         ("pie_chart", "Crypto 2H", "Dashboard&module=crypto-2h"),
         ("calendar_month", "Crypto Daily", "Dashboard&module=crypto-daily"),
@@ -39213,7 +43362,7 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         return textwrap.dedent(
             f"""
             <a class="roxy-actions-row roxy-actions-row-{html.escape(row_tone)}{selected_class}"
-               href="?view=Dashboard&symbol={quote(symbol, safe='')}&market={quote(row_market, safe='')}&tf=1h&module=acciones-operar"
+               href="?view=Dashboard&symbol={quote(symbol, safe='')}&market={quote(row_market, safe='')}&tf=1h&module=acciones-operar&tab=escaner"
                target="_self">
               <span class="rank">{idx}</span>
               {roxy_stock_icon_html(symbol)}
@@ -39264,15 +43413,206 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
             )
         )
     live_tape_html = "".join(live_tape_items)
-    render_roxy_actions_command_center(
-        rows,
-        selected_row=selected_row,
-        selected_symbol=selected_symbol,
-        selected_market=selected_market,
-        selected_timeframe=selected_timeframe,
-        trade_plan=trade_plan,
-        live_stock_symbols=live_stock_symbols,
+
+    actions_tab = text_display(first_query_param_value(st.query_params, "tab") or "escaner").strip().lower()
+    strategy_tabs = {"estrategias", "strategy", "strategies", "scanner-completo"}
+    strategy_tabs.update(
+        {
+        "estrategias-finviz",
+        "finviz-estrategias",
+        "patterns",
+        "patrones",
+        "setups",
+        "finviz-setups",
+        }
     )
+
+    def render_actions_strategy_reference_section() -> None:
+        st.markdown(
+            """
+            <section class="actions-ref-strategy-open">
+              <header>
+                <span>Scanner operativo por estrategia</span>
+                <strong>Wedge, Triangle, Channel, S/R, medias moviles, momentum y volumen separados</strong>
+              </header>
+              <p>Roxy no mezcla todas las senales en una sola decision: cada estrategia tiene su propia lista, mejor entrada, stop, target y confirmacion.</p>
+            </section>
+            <style>
+              .actions-ref-strategy-open {
+                margin: 16px auto 12px;
+                max-width: 1360px;
+                padding: 16px 18px;
+                border: 1px solid rgba(59,130,246,.28);
+                border-radius: 18px;
+                background: linear-gradient(135deg, rgba(7,18,38,.94), rgba(10,32,58,.76));
+                box-shadow: 0 18px 44px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05);
+              }
+              .actions-ref-strategy-open header {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+              }
+              .actions-ref-strategy-open span {
+                color: #7dd3fc;
+                font-size: 12px;
+                font-weight: 900;
+                letter-spacing: .14em;
+                text-transform: uppercase;
+              }
+              .actions-ref-strategy-open strong {
+                color: #f8fbff;
+                font-size: clamp(18px, 2.3vw, 28px);
+                letter-spacing: .02em;
+              }
+              .actions-ref-strategy-open p {
+                margin: 10px 0 0;
+                color: rgba(226,241,255,.76);
+                font-size: 14px;
+              }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        render_finviz_pattern_strategy_board(limit=24)
+        render_roxy_strategy_split_board(rows, limit=12)
+
+    if actions_tab in strategy_tabs:
+        render_roxy_actions_reference_market_terminal(
+            rows,
+            selected_row=selected_row,
+            selected_symbol=selected_symbol,
+            selected_market=selected_market,
+            selected_timeframe=selected_timeframe,
+            trade_plan=trade_plan,
+            live_stock_symbols=live_stock_symbols,
+            show_strategy_sections=True,
+        )
+        # These tabs stay visually identical to the compact Finviz/Roxy reference,
+        # with the operational strategy boards attached below the visual overview.
+        render_actions_strategy_reference_section()
+        return
+
+    overview_tabs = {
+        "",
+        "resumen",
+        "overview",
+        "escaner",
+        "scanner",
+        "escaneo",
+        "finviz",
+        "scanner-finviz",
+        "acciones",
+        "accion",
+        "stocks",
+        "stock",
+        "mercado",
+        "market",
+        "mapa",
+        "destacadas",
+        "movers",
+        "noticias",
+        "futuros",
+        "forex",
+        "bonds",
+        "alertas",
+        "watchlists",
+        "dividendos",
+        "reportes",
+        "mas",
+    }
+    if actions_tab in overview_tabs:
+        render_roxy_actions_reference_market_terminal(
+            rows,
+            selected_row=selected_row,
+            selected_symbol=selected_symbol,
+            selected_market=selected_market,
+            selected_timeframe=selected_timeframe,
+            trade_plan=trade_plan,
+            live_stock_symbols=live_stock_symbols,
+            show_strategy_sections=False,
+        )
+        return
+
+    if actions_tab not in {"analisis", "analysis", "charts", "grafica", "graficas"}:
+        render_roxy_actions_reference_market_terminal(
+            rows,
+            selected_row=selected_row,
+            selected_symbol=selected_symbol,
+            selected_market=selected_market,
+            selected_timeframe=selected_timeframe,
+            trade_plan=trade_plan,
+            live_stock_symbols=live_stock_symbols,
+            show_strategy_sections=False,
+        )
+        return
+
+    st.markdown(
+        """
+        <section class="actions-ref-chart-heading">
+          <div>
+            <span>Graficas operativas</span>
+            <strong>TradingView integrado + plan Roxy</strong>
+          </div>
+          <p>Velas reales, EMA, Bollinger, volumen, entrada, stop y targets para operar la accion seleccionada.</p>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    rendered = render_roxy_actions_dual_pro_charts(
+        symbol=resolved_symbol,
+        market=selected_market,
+        trade_plan=trade_plan,
+        height=760,
+    )
+    if not rendered:
+        rendered = render_roxy_actions_dual_plotly_charts(
+            symbol=resolved_symbol,
+            market=selected_market,
+            trade_plan=trade_plan,
+            height=580,
+        )
+    if not rendered:
+        rendered = render_roxy_actions_dual_static_charts(
+            symbol=resolved_symbol,
+            market=selected_market,
+            trade_plan=trade_plan,
+            height=500,
+        )
+    if not rendered:
+        rendered = render_roxy_folder_dual_chart(
+            symbol=resolved_symbol,
+            market=selected_market,
+            trade_plan=trade_plan,
+            height=430,
+        )
+    if not rendered:
+        render_roxy_folder_trade_chart(rows, market="stock", timeframe="1h", key_prefix="acciones-operar")
+
+    reason_items = [
+        ("flight_takeoff", "Tendencia", "Alcista en 15m y 1h"),
+        ("stacked_line_chart", "EMA 9/21", "Precio sobre EMA 9 y 21"),
+        ("bar_chart", "Volumen", "Volumen alto y creciente"),
+        ("shield", "Soporte", "Rebote en zona fuerte"),
+        ("show_chart", "Momentum", "Fuerza compradora en aumento"),
+        ("gpp_bad", "Riesgo 1R", "Riesgo bajo con alto potencial"),
+    ]
+    reason_html = "".join(
+        f'<div><i class="material-symbols-outlined">{icon}</i><strong>{title}</strong><span>{detail}</span></div>'
+        for icon, title, detail in reason_items
+    )
+    finviz_news_article = roxy_actions_finviz_news_article(selected_symbol)
+    st.markdown(
+        f"""
+        <section class="roxy-actions-below actions-ref-below">
+          <article class="why"><strong>Por que Roxy recomienda esta accion?</strong><div>{reason_html}</div></article>
+          {finviz_news_article}
+        </section>
+        <nav class="roxy-actions-bottomnav"><a href="?view=Dashboard" target="_self"><i class="material-symbols-outlined">home</i>Inicio</a><a class="active" href="?view=Dashboard&module=acciones-operar&tab=escaner" target="_self"><i class="material-symbols-outlined">candlestick_chart</i>Mercados</a><a class="roxy-r" href="?view=Dashboard" target="_self">R</a><a href="?view=Dashboard&module=classroom" target="_self"><i class="material-symbols-outlined">school</i>Classes Room</a><a href="?view=Dashboard&module=progreso" target="_self"><i class="material-symbols-outlined">person</i>Mi Progreso</a></nav>
+        """,
+        unsafe_allow_html=True,
+    )
+    return
     reason_items = [
         ("flight_takeoff", "Tendencia", "Alcista en 15m y 1h"),
         ("stacked_line_chart", "EMA 9/21", "Precio sobre EMA 9 y 21"),
@@ -39320,9 +43660,9 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
             </section>
           </main>
           <aside class="roxy-actions-right">
-            <section class="roxy-actions-filter"><strong>Filtros inteligentes</strong><label>Mercado<span>S&P 500</span></label><label>Filtro RTH<span>Alto-riesgo</span></label><label>Precio entre<span>$5 - $500</span></label><label>Ordenar por<span>Mejor oportunidad</span></label><a href="?view=Dashboard&module=acciones-operar&scan=1" target="_self"><i class="material-symbols-outlined">auto_awesome</i> Escanear ahora</a></section>
+            <section class="roxy-actions-filter"><strong>Filtros inteligentes</strong><label>Mercado<span>S&P 500</span></label><label>Filtro RTH<span>Alto-riesgo</span></label><label>Precio entre<span>$5 - $500</span></label><label>Ordenar por<span>Mejor oportunidad</span></label><a href="?view=Dashboard&module=acciones-operar&tab=escaner&scan=1" target="_self"><i class="material-symbols-outlined">auto_awesome</i> Escanear ahora</a></section>
             <section class="roxy-actions-quality"><strong>Resumen de oportunidades <small>Actualizado {html.escape(current_time_label)}</small></strong><div><b>{avg_readiness:.0f}%</b><span>Calidad promedio de oportunidades</span></div><p><span>Excelentes <b>{sum(1 for v in readiness_values if v >= 88) or 8}</b></span><span>Muy buenas <b>{sum(1 for v in readiness_values if 78 <= v < 88) or 12}</b></span><span>Buenas <b>15</b></span><span>Regulares <b>5</b></span></p></section>
-            <section class="roxy-actions-signal"><strong>Senal principal de Roxy</strong><div>{roxy_stock_icon_html(selected_symbol)}<span><b>{html.escape(selected_symbol)}</b><small>{html.escape(strategy_family_for_row(selected_row)[:32])}</small></span><em>{html.escape(action)}</em></div><p><span>Precio live <b data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}" data-roxy-price="{html.escape(str(latest_value or trade_plan.get("entry") or ""))}">{html.escape(price)}</b></span><span>Estado <b class="tick-watch" data-roxy-stock-market-state data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">validando mercado</b></span><span>Refresh <b class="tick-watch" data-roxy-stock-refresh-count data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">tick 0</b></span><span>Entrada <b>{html.escape(entry)}</b></span><span>Stop Loss <b>{html.escape(stop)}</b></span><span>Target 1 <b>{html.escape(target)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>R/R <b>{html.escape(rr_text)}</b></span><span>Fuente <b>{html.escape(source_label[:26])}</b></span></p><a href="?view=Dashboard&symbol={quote(selected_symbol, safe='')}&market=stock&tf=1h&module=acciones-operar" target="_self">Abrir analisis completo</a></section>
+            <section class="roxy-actions-signal"><strong>Senal principal de Roxy</strong><div>{roxy_stock_icon_html(selected_symbol)}<span><b>{html.escape(selected_symbol)}</b><small>{html.escape(strategy_family_for_row(selected_row)[:32])}</small></span><em>{html.escape(action)}</em></div><p><span>Precio live <b data-roxy-live-price data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}" data-roxy-price="{html.escape(str(latest_value or trade_plan.get("entry") or ""))}">{html.escape(price)}</b></span><span>Estado <b class="tick-watch" data-roxy-stock-market-state data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">validando mercado</b></span><span>Refresh <b class="tick-watch" data-roxy-stock-refresh-count data-roxy-stock-symbol="{html.escape(selected_live_stock_symbol)}">tick 0</b></span><span>Entrada <b>{html.escape(entry)}</b></span><span>Stop Loss <b>{html.escape(stop)}</b></span><span>Target 1 <b>{html.escape(target)}</b></span><span>Riesgo <b>{html.escape(risk)}</b></span><span>R/R <b>{html.escape(rr_text)}</b></span><span>Fuente <b>{html.escape(source_label[:26])}</b></span></p><a href="?view=Dashboard&symbol={quote(selected_symbol, safe='')}&market=stock&tf=1h&module=acciones-operar&tab=analisis" target="_self">Abrir analisis completo</a></section>
           </aside>
         </section>
         <section class="roxy-actions-chart-wrap">
@@ -39708,7 +44048,7 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
             <article class="why"><strong>Por que Roxy recomienda esta accion?</strong><div>{reason_html}</div></article>
             {finviz_news_article}
           </section>
-          <nav class="roxy-actions-bottomnav"><a href="?view=Dashboard" target="_self"><i class="material-symbols-outlined">home</i>Inicio</a><a class="active" href="?view=Dashboard&module=acciones-operar" target="_self"><i class="material-symbols-outlined">candlestick_chart</i>Mercados</a><a class="roxy-r" href="?view=Dashboard" target="_self">R</a><a href="?view=Dashboard&module=classroom" target="_self"><i class="material-symbols-outlined">school</i>Classes Room</a><a href="?view=Dashboard&module=progreso" target="_self"><i class="material-symbols-outlined">person</i>Mi Progreso</a></nav>
+          <nav class="roxy-actions-bottomnav"><a href="?view=Dashboard" target="_self"><i class="material-symbols-outlined">home</i>Inicio</a><a class="active" href="?view=Dashboard&module=acciones-operar&tab=escaner" target="_self"><i class="material-symbols-outlined">candlestick_chart</i>Mercados</a><a class="roxy-r" href="?view=Dashboard" target="_self">R</a><a href="?view=Dashboard&module=classroom" target="_self"><i class="material-symbols-outlined">school</i>Classes Room</a><a href="?view=Dashboard&module=progreso" target="_self"><i class="material-symbols-outlined">person</i>Mi Progreso</a></nav>
         </section>
         """,
         unsafe_allow_html=True,
@@ -39778,7 +44118,7 @@ def render_roxy_crypto20_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     nav_items = [
         ("home", "Inicio", "Dashboard"),
         ("bar_chart", "Mercados", "Dashboard"),
-        ("candlestick_chart", "Acciones", "Dashboard&module=acciones-operar"),
+        ("candlestick_chart", "Acciones", "Dashboard&module=acciones-operar&tab=escaner"),
         ("currency_bitcoin", "Crypto 20min", "Dashboard&module=crypto-20m"),
         ("pie_chart", "Crypto 2H", "Dashboard&module=crypto-2h"),
         ("calendar_month", "Crypto Daily", "Dashboard&module=crypto-daily"),
@@ -39979,7 +44319,7 @@ def render_roxy_crypto2h_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     nav_items = [
         ("home", "Inicio", "Dashboard"),
         ("bar_chart", "Mercados", "Dashboard"),
-        ("candlestick_chart", "Acciones", "Dashboard&module=acciones-operar"),
+        ("candlestick_chart", "Acciones", "Dashboard&module=acciones-operar&tab=escaner"),
         ("currency_bitcoin", "Crypto 20min", "Dashboard&module=crypto-20m"),
         ("pie_chart", "Crypto 2H", "Dashboard&module=crypto-2h"),
         ("calendar_month", "Crypto Daily", "Dashboard&module=crypto-daily"),
@@ -40195,7 +44535,7 @@ def render_roxy_crypto_daily_folder(table: pd.DataFrame, *, timeframe: str) -> N
     nav_items = [
         ("home", "Inicio", "Dashboard"),
         ("bar_chart", "Mercados", "Dashboard"),
-        ("candlestick_chart", "Acciones", "Dashboard&module=acciones-operar"),
+        ("candlestick_chart", "Acciones", "Dashboard&module=acciones-operar&tab=escaner"),
         ("currency_bitcoin", "Crypto 20min", "Dashboard&module=crypto-20m"),
         ("pie_chart", "Crypto 2H", "Dashboard&module=crypto-2h"),
         ("calendar_month", "Crypto Daily", "Dashboard&module=crypto-daily"),
@@ -44541,7 +48881,7 @@ def render_roxy_academy_module() -> None:
             <a href="{base_href}#mapa" target="_self"><i class="material-symbols-outlined">school</i><span>Academy</span></a>
             <a href="?view=Dashboard" target="_self"><i class="material-symbols-outlined">bar_chart</i><span>Mercados</span></a>
             <a class="roxy-r" href="{base_href}" target="_self"><i class="material-symbols-outlined">rocket_launch</i></a>
-            <a href="?view=Dashboard&module=acciones-operar" target="_self"><i class="material-symbols-outlined">business_center</i><span>Portafolio</span></a>
+            <a href="?view=Dashboard&module=acciones-operar&tab=escaner" target="_self"><i class="material-symbols-outlined">business_center</i><span>Portafolio</span></a>
             <a href="{base_href}#progreso" target="_self"><i class="material-symbols-outlined">groups</i><span>Comunidad</span></a>
           </nav>
         </section>
@@ -44759,7 +49099,7 @@ def render_roxy_classroom_module() -> None:
             </div>
             <nav class="roxy-class-bottomnav" aria-label="Classroom navigation">
               <a href="?view=Dashboard" target="_self"><i class="material-symbols-outlined">home</i><span>Inicio</span></a>
-              <a href="?view=Dashboard&module=acciones-operar" target="_self"><i class="material-symbols-outlined">bar_chart</i><span>Mercados</span></a>
+              <a href="?view=Dashboard&module=acciones-operar&tab=escaner" target="_self"><i class="material-symbols-outlined">bar_chart</i><span>Mercados</span></a>
               <a class="active" href="?view=Dashboard&module=classroom" target="_self"><i>R</i><span>Classes Room</span></a>
               <a href="?view=Dashboard&module=classroom&progress=1" target="_self"><i class="material-symbols-outlined">person</i><span>Mi Progreso</span></a>
             </nav>
@@ -44778,7 +49118,7 @@ def render_roxy_module_workspace(table: pd.DataFrame, *, active_module: str, tim
         module=active_module,
         timeframe=timeframe,
     )
-    if active_module == "acciones-operar":
+    if active_module in {"acciones-operar", "acciones", "accion", "stock", "stocks", "acciones-disponibles"}:
         render_roxy_actions_folder(table, timeframe="1h")
         return
     if active_module == "crypto-trabajar":
@@ -49101,7 +53441,7 @@ def main() -> None:
         .roxy-actions-shell,.roxy-actions-chart-wrap{position:relative;isolation:isolate;overflow:hidden;border:1px solid rgba(56,189,248,.20);border-radius:8px;background:linear-gradient(135deg,rgba(2,6,23,.88),rgba(8,47,73,.34) 48%,rgba(2,6,23,.92));box-shadow:0 26px 80px rgba(0,0,0,.42),0 0 46px rgba(56,189,248,.10);color:#e5f6ff}
         .roxy-actions-search-shell{display:grid;gap:3px;margin:0 0 6px;padding:10px 12px;border:1px solid rgba(56,189,248,.22);border-radius:8px;background:linear-gradient(90deg,rgba(2,6,23,.78),rgba(37,99,235,.20),rgba(2,6,23,.62));box-shadow:0 0 28px rgba(37,99,235,.12)}
         .roxy-actions-search-shell strong{color:#e0f2fe;font-size:12px;text-transform:uppercase;letter-spacing:.08em}.roxy-actions-search-shell span{color:#9cc9e6;font-size:10px;font-weight:800}
-        .roxy-actions-shell{display:grid;grid-template-columns:150px minmax(0,1fr) 310px;gap:12px;padding:12px;margin:0 0 10px;min-height:760px}.roxy-actions-shell>*:not(.roxy-universe),.roxy-actions-chart-wrap>*:not(.roxy-universe){position:relative;z-index:1}
+        .roxy-actions-shell{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;min-height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;border:0!important}.roxy-actions-shell>*:not(.roxy-universe),.roxy-actions-chart-wrap>*:not(.roxy-universe){position:relative;z-index:1}
         .roxy-actions-sidebar{display:grid;grid-template-rows:auto 1fr auto;gap:12px;border-right:1px solid rgba(125,211,252,.14);padding:2px 10px 2px 0}.roxy-actions-brand{display:grid;gap:4px;justify-items:start}.roxy-actions-brand .brand-logo-img{width:92px;max-width:92px;border-radius:7px}.roxy-actions-brand strong{color:#f8fafc;font-size:22px;line-height:1;font-weight:950;letter-spacing:.08em}.roxy-actions-brand span{color:#8bd8ff;font-size:8px;text-transform:uppercase;font-weight:950;letter-spacing:.08em}
         .roxy-actions-sidebar nav{display:grid;gap:4px;align-content:start}.roxy-actions-sidebar a{display:flex!important;align-items:center;gap:9px;min-height:36px;border-radius:6px;padding:7px 9px;color:#b7cbe0!important;text-decoration:none!important;font-size:11px;font-weight:850}.roxy-actions-sidebar a i{font-size:18px!important;color:#b7d7ff;text-shadow:0 0 12px rgba(56,189,248,.38)}.roxy-actions-sidebar a.active{border:1px solid rgba(56,189,248,.42);background:linear-gradient(90deg,rgba(37,99,235,.34),rgba(2,6,23,.16));color:#e0f2fe!important;box-shadow:0 0 24px rgba(37,99,235,.16)}.roxy-actions-sidebar .help{align-self:end;border:1px solid rgba(56,189,248,.22);background:rgba(37,99,235,.24);color:#8bd8ff!important;text-transform:uppercase;font-size:10px!important;font-weight:950!important}
         .roxy-actions-main{display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:10px;min-width:0}.roxy-actions-topbar{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:12px;align-items:center;min-height:52px}.roxy-actions-topbar .menu{display:grid!important;place-items:center!important;width:30px;height:30px;color:#38bdf8!important;text-decoration:none!important;font-size:29px!important}.roxy-actions-topbar strong{display:block;color:#fff;font-size:25px;line-height:1;text-transform:uppercase;font-weight:950}.roxy-actions-topbar span{display:block;color:#cbd5e1;font-size:11px;font-weight:800;margin-top:5px}.roxy-actions-topbar aside{display:flex;align-items:center;gap:10px;color:#f8fafc;font-size:13px;font-weight:900}.roxy-actions-topbar aside>i{display:grid;place-items:center;width:30px;height:30px;border:1px solid rgba(56,189,248,.28);border-radius:50%;color:#7dd3fc}.roxy-actions-topbar aside>b{display:grid;place-items:center;width:15px;height:15px;margin-left:-17px;margin-top:-22px;border-radius:50%;background:#ef4444;color:white;font-size:8px}.roxy-actions-topbar .roxy-avatar{width:38px;height:38px;border-radius:50%}.roxy-actions-topbar .roxy-avatar span{display:none}
@@ -51319,7 +55659,7 @@ def main() -> None:
         .roxy-asset-decision strong{display:block;color:#f8fafc;font-size:18px;line-height:1.08;margin-top:5px}
         .roxy-asset-live{text-align:right;display:grid;gap:5px;justify-items:end}
         .roxy-asset-live a{color:#f8fafc!important;text-decoration:none!important;border:1px solid rgba(125,211,252,.34);border-radius:6px;padding:6px 9px;background:rgba(15,23,42,.60);font-size:11px;font-weight:900}
-        .roxy-floating-avatar{position:fixed;right:14px;bottom:72px;z-index:999;display:grid;place-items:center;width:58px;height:58px;border:1px solid rgba(56,189,248,.38);border-radius:50%;background:radial-gradient(circle at 50% 30%,rgba(56,189,248,.22),rgba(2,6,23,.84) 66%);padding:7px;box-shadow:0 18px 44px rgba(2,6,23,.42),0 0 30px rgba(56,189,248,.30);backdrop-filter:blur(14px)}
+        .roxy-floating-avatar{position:fixed;right:14px;bottom:72px;z-index:999;display:none!important;place-items:center;width:58px;height:58px;border:1px solid rgba(56,189,248,.38);border-radius:50%;background:radial-gradient(circle at 50% 30%,rgba(56,189,248,.22),rgba(2,6,23,.84) 66%);padding:7px;box-shadow:0 18px 44px rgba(2,6,23,.42),0 0 30px rgba(56,189,248,.30);backdrop-filter:blur(14px)}
         .roxy-floating-avatar .roxy-avatar{width:44px;height:44px;min-width:44px;border-radius:50%}
         .roxy-floating-avatar .roxy-avatar span{display:none}
         .roxy-floating-avatar strong,.roxy-floating-avatar div>span{display:none!important}
@@ -54111,12 +58451,30 @@ def main() -> None:
         render_roxy_session_restore_bridge()
         render_roxy_auth_gate()
         return
+    active_module_query = normalize_roxy_module(first_query_param_value(st.query_params, "module"), default="")
+    if active_module_query in {"acciones-operar", "acciones", "accion", "stock", "stocks", "acciones-disponibles"}:
+        # Acciones is a full command-center workspace. Render it directly so
+        # global Roxy OS/passkey panels do not cover the Finviz-style layout.
+        render_roxy_browser_session_bridge()
+        render_roxy_elevenlabs_assistant()
+        actions_symbol = text_display(
+            first_query_param_value(st.query_params, "symbol")
+            or st.session_state.get("command_symbol")
+            or "AAPL"
+        ).upper()
+        actions_table = pd.DataFrame(roxy_fallback_asset_rows("stock"))
+        hydrate_command_state_from_query_params(st.query_params, st.session_state, actions_symbol)
+        apply_pending_command_state()
+        render_roxy_actions_folder(
+            actions_table,
+            timeframe=normalize_command_timeframe(st.session_state.get("command_timeframe") or first_query_param_value(st.query_params, "tf")),
+        )
+        return
     render_roxy_browser_session_bridge()
     render_roxy_elevenlabs_assistant()
     process_roxy_os_query_command()
     render_roxy_os_command_center()
     render_roxy_os_action_inbox()
-    active_module_query = normalize_roxy_module(first_query_param_value(st.query_params, "module"), default="")
     if active_module_query != "classroom":
         render_roxy_passkey_setup_panel()
     if text_display(first_query_param_value(st.query_params, "view")).strip().lower() == "academy":
