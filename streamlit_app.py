@@ -41162,16 +41162,27 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     if first_query_param_value(st.query_params, "more") and actions_tab not in chart_tabs:
         actions_tab = "estrategias"
 
-    # Opening the Acciones folder must never wait on 12 deep chart/history calls.
-    # Deep enrichment is reserved for the analysis/chart tab and selected symbol.
-    base_rows = roxy_asset_rows_for_market(table, "stock", limit=12)
-    if actions_tab in chart_tabs:
-        rows = [roxy_enrich_stock_row_with_live_plan(row) for row in base_rows]
-    else:
-        rows = [dict(row or {}) for row in base_rows]
+    # Opening the Acciones folder must stay fast, but the reference desk needs
+    # enough live plan context to show entrada, stop, target, R/R and setups.
+    base_rows = roxy_asset_rows_for_market(table, "stock", limit=18)
+    rows: list[dict[str, Any]] = []
+    for idx, row in enumerate(base_rows):
+        row_dict = dict(row or {})
+        should_enrich = idx < 8 or actions_tab in chart_tabs or actions_tab in strategy_tabs
+        if should_enrich:
+            try:
+                row_dict = roxy_enrich_stock_row_with_live_plan(row_dict)
+            except Exception:
+                pass
+        rows.append(row_dict)
     requested_symbol = roxy_manual_stock_symbol(first_query_param_value(st.query_params, "symbol"))
     if requested_symbol and all(text_display(row.get("symbol")).upper() != requested_symbol for row in rows):
-        manual_row = roxy_manual_stock_row(requested_symbol) if actions_tab in chart_tabs else roxy_manual_stock_row_light(requested_symbol)
+        try:
+            manual_row = roxy_manual_stock_row(requested_symbol)
+        except Exception:
+            manual_row = None
+        if not manual_row:
+            manual_row = roxy_manual_stock_row_light(requested_symbol)
         if manual_row:
             rows.insert(0, manual_row)
     if not rows:
@@ -41243,18 +41254,7 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
                 unsafe_allow_html=True,
             )
 
-    if actions_tab in strategy_tabs:
-        render_actions_reference_terminal_deploy(show_strategy_sections=True)
-        render_roxy_strategy_split_board(rows, limit=12)
-        return
-
-    if actions_tab in overview_tabs or actions_tab not in chart_tabs:
-        render_actions_reference_terminal_deploy(show_strategy_sections=True)
-        return
-
-    if actions_tab in chart_tabs:
-        render_actions_reference_terminal_deploy(show_strategy_sections=True)
-        return
+    show_extra_strategy_board = actions_tab in strategy_tabs
 
     render_roxy_actions_symbol_search(selected_symbol)
     action, tone = roxy_row_recommendation(selected_row)
@@ -41805,7 +41805,7 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     render_roxy_stock_server_refresh(interval_ms=1500, symbols=live_stock_symbols[:10])
     render_finviz_strategy_lanes(limit_per_strategy=5)
     render_finviz_pattern_strategy_board(limit=12)
-    render_roxy_strategy_split_board(rows, limit=10)
+    render_roxy_strategy_split_board(rows, limit=18 if show_extra_strategy_board else 10)
     rendered = render_roxy_actions_dual_pro_charts(
         symbol=resolved_symbol,
         market=selected_market,
