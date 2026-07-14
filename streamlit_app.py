@@ -5255,9 +5255,20 @@ def render_roxy_elevenlabs_assistant() -> None:
             return "En " + moduleName + ", estas son las mejores oportunidades visibles ahora. " + summary + " Usa esto como apoyo educativo y paper trading; confirma feed live, stop loss y tamano de posicion antes de operar dinero real.";
           }}
 
-          async function processWakeCommand(value) {{
-            const command = commandAfterWakePhrase(value);
-            if (!command) return false;
+	          async function processWakeCommand(value) {{
+	            const command = commandAfterWakePhrase(value);
+	            if (!command) {{
+	              if (!isWakePhrase(value)) return false;
+	              const greeting = localPlatformVoiceReply("pantalla") || ("Hola " + (payload.userName || "Trader") + ". Soy Roxy Trading. Estoy conectada a esta pantalla. Puedes pedirme oportunidades, Acciones, Crypto 20 minutos, Crypto 2H, Crypto Daily, Classroom o explicacion de las graficas.");
+	              win.__roxyPendingHelperVoiceReply = {{
+	                id: "wake-greeting-" + Date.now(),
+	                command: "hola roxy",
+	                text: greeting,
+	                result: {{ ok: true, source: "browser_wake_greeting" }},
+	              }};
+	              if (speakBrowserFallback(greeting, true)) return true;
+	              return activateRoxy();
+	            }}
             const now = Date.now();
             if (win.__roxyLastDirectWakeCommand === command && now - Number(win.__roxyLastDirectWakeCommandAt || 0) < 6000) return true;
             win.__roxyLastDirectWakeCommand = command;
@@ -5281,17 +5292,11 @@ def render_roxy_elevenlabs_assistant() -> None:
                 text: reply || "Listo. Ya procese tu instruccion con el cerebro local de Roxy.",
                 result: helperResult,
               }};
-              setStatus("Roxy OS local proceso la instruccion", false);
-              if (canUseSecureVoice) {{
-                const activated = await activateRoxy();
-                if (conversation) sendRoxyContextToConversation();
-                if (!activated) speakBrowserFallback(win.__roxyPendingHelperVoiceReply.text, true);
-                return true;
-              }}
-              if (speakBrowserFallback(win.__roxyPendingHelperVoiceReply.text)) return true;
-              await activateRoxy();
-              if (conversation) sendRoxyContextToConversation();
-              return true;
+	              setStatus("Roxy OS local proceso la instruccion", false);
+	              if (speakBrowserFallback(win.__roxyPendingHelperVoiceReply.text)) return true;
+	              await activateRoxy();
+	              if (conversation) sendRoxyContextToConversation();
+	              return true;
             }}
             const localReply = localPlatformVoiceReply(command);
             if (localReply) {{
@@ -5300,34 +5305,22 @@ def render_roxy_elevenlabs_assistant() -> None:
                 command: command,
                 text: localReply,
                 result: {{ ok: true, source: "browser_visible_context", command: command }},
-              }};
-              setStatus("Roxy preparo respuesta local", false);
-              if (canUseSecureVoice) {{
-                const activated = await activateRoxy();
-                if (conversation) sendRoxyContextToConversation();
-                if (!activated) speakBrowserFallback(localReply, true);
-                return true;
-              }}
-              if (speakBrowserFallback(localReply)) return true;
-              await activateRoxy();
-              if (conversation) sendRoxyContextToConversation();
-              return true;
+	              }};
+	              setStatus("Roxy preparo respuesta local", false);
+	              if (speakBrowserFallback(localReply)) return true;
+	              await activateRoxy();
+	              if (conversation) sendRoxyContextToConversation();
+	              return true;
             }}
             const genericReply = "Estoy escuchando, " + (payload.userName || "Trader") + ". Puedo ayudarte con oportunidades, graficas, classroom, watchlist o explicarte lo que ves en pantalla. Si quieres abrir una carpeta, dime por ejemplo: Roxy abre Acciones o Roxy abre Crypto 20 minutos.";
             win.__roxyPendingHelperVoiceReply = {{
               id: "generic-" + now,
               command: command,
-              text: genericReply,
-              result: {{ ok: true, source: "browser_generic_voice", command: command }},
-            }};
-            if (canUseSecureVoice) {{
-              const activated = await activateRoxy();
-              if (conversation) sendRoxyContextToConversation();
-              if (!activated) speakBrowserFallback(genericReply, true);
-              return true;
-            }}
-            return speakBrowserFallback(genericReply, true);
-          }}
+	              text: genericReply,
+	              result: {{ ok: true, source: "browser_generic_voice", command: command }},
+	            }};
+	            return speakBrowserFallback(genericReply, true);
+	          }}
 
           function roxyVoiceContextMessage() {{
             return "Contexto obligatorio de esta sesion: "
