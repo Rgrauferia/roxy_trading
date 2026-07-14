@@ -40276,7 +40276,7 @@ def render_roxy_actions_reference_market_terminal(
         }}
         .roxy-actions-terminal {{
           width: min(1528px, calc(100vw - 18px));
-          min-height: 940px;
+          min-height: 1040px;
           position: relative;
           isolation: isolate;
           display: grid;
@@ -40483,7 +40483,7 @@ def render_roxy_actions_reference_market_terminal(
         }}
         .terminal-chart-row {{
           display:grid;
-          grid-template-columns:minmax(0,1fr) minmax(0,1fr) 292px;
+          grid-template-columns:minmax(0,1.12fr) minmax(0,1.12fr) 292px;
           gap:13px;
           margin-bottom:13px;
         }}
@@ -40526,8 +40526,8 @@ def render_roxy_actions_reference_market_terminal(
         }}
         .terminal-chart-stats b {{ color:#22c55e; font-weight:900; }}
         .terminal-chart-stats em {{ margin-left:auto; color:#22c55e; font-style:normal; font-weight:900; }}
-        .terminal-chart-wrap {{ min-height:300px; overflow:hidden; border-radius:10px; }}
-        .terminal-chart-svg {{ width:100%; height:300px; display:block; }}
+        .terminal-chart-wrap {{ min-height:340px; overflow:hidden; border-radius:10px; }}
+        .terminal-chart-svg {{ width:100%; height:340px; display:block; }}
         .terminal-chart-card footer {{
           display:flex;
           align-items:center;
@@ -40774,7 +40774,7 @@ def render_roxy_actions_reference_market_terminal(
           .roxy-actions-terminal {{ width:1240px; }}
           .terminal-top-strip {{ grid-template-columns: repeat(8, 140px); }}
           .terminal-live-flow {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
-          .terminal-chart-row {{ grid-template-columns:420px 420px 280px; }}
+          .terminal-chart-row {{ grid-template-columns:500px 500px 280px; }}
         }}
         </style>
         <div class="roxy-actions-terminal-scroll">
@@ -46964,7 +46964,74 @@ def render_roxy_actions_operating_route(*, timeframe: str = "1h") -> None:
                     .drop_duplicates(subset=["symbol", "market", "timeframe"], keep="first")
                     .reset_index(drop=True)
                 )
-    render_roxy_actions_folder(table, timeframe=timeframe)
+    remember_roxy_voice_opportunities(
+        table if isinstance(table, pd.DataFrame) else pd.DataFrame(),
+        source="acciones_operar",
+        module="acciones-operar",
+        symbol=selected_symbol,
+        market="stock",
+        timeframe=timeframe or "1h",
+    )
+
+    base_rows = roxy_asset_rows_for_market(table, "stock", limit=16)
+    rows: list[dict[str, Any]] = []
+    for idx, row in enumerate(base_rows):
+        try:
+            rows.append(roxy_enrich_stock_row_with_live_plan(row) if idx < 10 else dict(row or {}))
+        except Exception:
+            rows.append(dict(row or {}))
+
+    requested_symbol = roxy_manual_stock_symbol(
+        first_query_param_value(st.query_params, "symbol") or selected_symbol
+    )
+    if requested_symbol and all(text_display(row.get("symbol")).upper() != requested_symbol for row in rows):
+        manual_row = roxy_manual_stock_row(requested_symbol) or roxy_manual_stock_row_light(requested_symbol)
+        if manual_row:
+            try:
+                manual_row = roxy_enrich_stock_row_with_live_plan(manual_row)
+            except Exception:
+                pass
+            rows.insert(0, manual_row)
+    if not rows:
+        fallback_row = roxy_manual_stock_row(selected_symbol) or roxy_manual_stock_row_light(selected_symbol)
+        rows = [fallback_row or {"symbol": selected_symbol, "market": "stock", "timeframe": timeframe or "1h"}]
+
+    selected_row, selected_symbol, selected_market, selected_timeframe = selected_roxy_asset_row(
+        rows,
+        default_market="stock",
+        default_timeframe=timeframe or "1h",
+    )
+    if not selected_symbol:
+        st.info("Roxy no encontro acciones disponibles para operar todavia.")
+        return
+    action, _tone = roxy_row_recommendation(selected_row)
+    resolved_symbol = resolve_symbol_query(selected_symbol, selected_market)
+    trade_plan = roxy_trade_plan_from_row(
+        selected_row,
+        symbol=resolved_symbol,
+        market=selected_market,
+        timeframe=selected_timeframe,
+        action=action,
+    )
+    live_stock_symbols: list[str] = []
+    for row in rows[:16]:
+        live_symbol = roxy_stock_live_symbol_attr(row.get("symbol"))
+        if live_symbol and live_symbol not in live_stock_symbols:
+            live_stock_symbols.append(live_symbol)
+    selected_live_stock_symbol = roxy_stock_live_symbol_attr(selected_symbol)
+    if selected_live_stock_symbol and selected_live_stock_symbol not in live_stock_symbols:
+        live_stock_symbols.insert(0, selected_live_stock_symbol)
+
+    render_roxy_actions_reference_market_terminal(
+        rows,
+        selected_row=selected_row,
+        selected_symbol=selected_symbol,
+        selected_market=selected_market,
+        selected_timeframe=selected_timeframe,
+        trade_plan=trade_plan,
+        live_stock_symbols=live_stock_symbols,
+        show_strategy_sections=True,
+    )
 
 
 def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> dict[str, Any]:
