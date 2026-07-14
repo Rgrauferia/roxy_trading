@@ -5041,10 +5041,21 @@ def render_roxy_elevenlabs_assistant() -> None:
               const bottomRight = rect.left > win.innerWidth * 0.28 && rect.top > win.innerHeight * 0.45;
               const text = String(node.textContent || "");
               if ((fixedLike || bottomRight) && legacyText.test(text)) {{
-                node.setAttribute("data-roxy-legacy-voice", "true");
-                node.style.setProperty("display", "none", "important");
-                node.style.setProperty("visibility", "hidden", "important");
-                node.style.setProperty("pointer-events", "none", "important");
+                let target = node;
+                for (let depth = 0; depth < 4; depth += 1) {{
+                  const parent = target.parentElement;
+                  if (!parent || parent === doc.body || parent.id === rootId || (parent.closest && parent.closest("#" + rootId))) break;
+                  const parentRect = parent.getBoundingClientRect ? parent.getBoundingClientRect() : null;
+                  if (!parentRect || parentRect.width > 620 || parentRect.height > 240) break;
+                  const parentStyle = win.getComputedStyle ? win.getComputedStyle(parent) : null;
+                  const parentFixed = parentStyle && (parentStyle.position === "fixed" || parentStyle.position === "sticky" || Number(parentStyle.zIndex || 0) > 20);
+                  if (!parentFixed && parentRect.top < win.innerHeight * 0.38) break;
+                  target = parent;
+                }}
+                target.setAttribute("data-roxy-legacy-voice", "true");
+                target.style.setProperty("display", "none", "important");
+                target.style.setProperty("visibility", "hidden", "important");
+                target.style.setProperty("pointer-events", "none", "important");
               }}
             }});
           }}
@@ -56357,13 +56368,16 @@ def main() -> None:
     render_roxy_browser_session_bridge()
     render_roxy_elevenlabs_assistant()
     if active_module_for_shell == "acciones-operar":
-        render_roxy_actions_operating_route(
-            timeframe=text_display(
-                first_query_param_value(st.query_params, "tf")
-                or st.session_state.get("command_timeframe")
-                or "1h"
-            )
+        actions_timeframe = text_display(
+            first_query_param_value(st.query_params, "tf")
+            or st.session_state.get("command_timeframe")
+            or "1h"
         )
+        try:
+            actions_table = table if isinstance(table, pd.DataFrame) else pd.DataFrame()
+        except NameError:
+            actions_table = pd.DataFrame()
+        render_roxy_actions_folder(actions_table, timeframe=actions_timeframe)
         st.stop()
     process_roxy_os_query_command()
     render_roxy_os_command_center()
