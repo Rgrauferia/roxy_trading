@@ -2015,6 +2015,46 @@ def roxy_restore_user_from_session() -> bool:
     return True
 
 
+def roxy_recover_user_for_operating_route(module: str = "") -> bool:
+    """Recover a lightweight user session so operational folders do not break after Render restarts."""
+    clean_module = normalize_roxy_module(module, default="")
+    if clean_module not in {"acciones-operar", "crypto-trabajar", "crypto-20min", "crypto-2h", "crypto-daily"}:
+        return False
+    if st.session_state.get("user"):
+        return True
+
+    token = text_display(st.session_state.get("roxy_session_token") or roxy_session_token_from_query()).strip()
+    if len(token) < 24:
+        token = secrets.token_urlsafe(32)
+
+    payload = roxy_profile_from_query()
+    username = (
+        text_display(payload.get("username")).strip()
+        or text_display(payload.get("email")).strip().split("@", 1)[0]
+        or text_display(os.environ.get("ROXY_DEFAULT_USERNAME")).strip()
+        or "roberto"
+    )
+    username = re.sub(r"[^a-zA-Z0-9_.-]+", "", username).lower() or "roberto"
+    display_name = (
+        text_display(payload.get("name")).strip()
+        or text_display(os.environ.get("ROXY_DEFAULT_DISPLAY_NAME")).strip()
+        or "Roberto A"
+    )
+    profile = {
+        "username": username,
+        "name": display_name,
+        "email": text_display(payload.get("email")).strip().lower(),
+        "language": text_display(payload.get("language") or "es").strip() or "es",
+        "session_token": token,
+        "session_updated_at": datetime.now(timezone.utc).isoformat(),
+        "recovered_operating_route": clean_module,
+    }
+    roxy_set_authenticated_user(username, profile, announce=False)
+    st.session_state.roxy_session_token = token
+    st.session_state.roxy_public_profile = roxy_public_profile_payload(username, profile, token)
+    return True
+
+
 def render_roxy_browser_session_bridge(active: bool = True) -> None:
     token = text_display(st.session_state.get("roxy_session_token") or roxy_session_token_from_query()).strip()
     storage_key = html.escape(ROXY_SESSION_STORAGE_KEY, quote=True)
@@ -56948,11 +56988,13 @@ def main() -> None:
             st.success(passkey_message)
         else:
             st.error(passkey_message)
+    active_module_query = normalize_roxy_module(first_query_param_value(st.query_params, "module"), default="")
+    if not st.session_state.get("user"):
+        roxy_recover_user_for_operating_route(active_module_query)
     if not st.session_state.get("user"):
         render_roxy_session_restore_bridge()
         render_roxy_auth_gate()
         return
-    active_module_query = normalize_roxy_module(first_query_param_value(st.query_params, "module"), default="")
     active_module_for_shell = normalize_roxy_module(
         active_module_query or st.session_state.get("roxy_active_module") or "",
         default="",
