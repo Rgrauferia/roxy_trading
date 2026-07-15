@@ -40154,7 +40154,7 @@ def render_roxy_actions_reference_market_terminal(
             </article>
             """
         )
-        if len(strategy_cards) >= 12:
+        if len(strategy_cards) >= 24:
             break
     if not strategy_cards:
         strategy_cards.append(
@@ -41579,6 +41579,8 @@ def render_roxy_actions_folder_fast(
     )
 
 def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
+    render_roxy_actions_operating_route(timeframe=timeframe or "1h")
+    return
     st.markdown(
         """
         <style>
