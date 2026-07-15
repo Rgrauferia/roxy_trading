@@ -40460,19 +40460,19 @@ def render_roxy_actions_reference_market_terminal(
         ]
     )
     sidebar_nav = [
-        ("home", "Inicio"),
-        ("monitoring", "Mercado General"),
-        ("folder_open", "Acciones"),
-        ("currency_bitcoin", "Criptomonedas"),
-        ("star", "Watchlists"),
-        ("schema", "Estrategias"),
-        ("school", "Educacion"),
-        ("build", "Herramientas"),
-        ("settings", "Configuracion"),
+        ("home", "Inicio", "?view=Dashboard"),
+        ("monitoring", "Mercado General", "?view=Dashboard"),
+        ("folder_open", "Acciones", "?view=Dashboard&module=acciones-operar&tab=escaner"),
+        ("currency_bitcoin", "Criptomonedas", "?view=Dashboard&module=crypto-20min"),
+        ("star", "Watchlists", "?view=Dashboard&module=acciones-operar&tab=watchlists"),
+        ("schema", "Estrategias", "?view=Dashboard&module=acciones-operar&tab=estrategias"),
+        ("school", "Educacion", "?view=Dashboard&module=classroom"),
+        ("build", "Herramientas", "?view=Dashboard&module=acciones-operar&tab=herramientas"),
+        ("settings", "Configuracion", "?view=Dashboard&module=configuracion"),
     ]
     sidebar_html = "".join(
-        f"<a class=\"{'active' if label == 'Acciones' else ''}\" href=\"?view=Dashboard&module={'acciones-operar&tab=escaner' if label == 'Acciones' else ''}\" target=\"_self\"><i class=\"material-symbols-outlined\">{icon}</i><span>{label}</span></a>"
-        for icon, label in sidebar_nav
+        f"<a class=\"{'active' if label == 'Acciones' else ''}\" href=\"{href}\" target=\"_self\"><i class=\"material-symbols-outlined\">{icon}</i><span>{label}</span></a>"
+        for icon, label, href in sidebar_nav
     )
 
     def _terminal_row_for_symbol(symbol: str) -> dict[str, Any]:
@@ -56993,13 +56993,46 @@ def main() -> None:
         unsafe_allow_html=True,
     )
     raw_requested_module_for_shell = first_query_param_value(st.query_params, "module")
+    raw_view_for_shell = first_query_param_value(st.query_params, "view")
+    raw_folder_for_shell = first_query_param_value(st.query_params, "folder")
+    raw_page_for_shell = first_query_param_value(st.query_params, "page")
     requested_module_for_shell = normalize_roxy_module(
         raw_requested_module_for_shell
         or st.session_state.get("roxy_active_module")
         or "",
         default="",
     )
-    if raw_requested_module_for_shell and raw_requested_module_for_shell != requested_module_for_shell:
+    actions_route_terms = {
+        "accion",
+        "acciones",
+        "acciones-operar",
+        "acciones operar",
+        "actions",
+        "stock",
+        "stocks",
+        "equities",
+    }
+    explicit_route_terms = [
+        text_display(raw_requested_module_for_shell).strip().lower(),
+        text_display(raw_folder_for_shell).strip().lower(),
+        text_display(raw_page_for_shell).strip().lower(),
+    ]
+    wants_actions_route = (
+        text_display(raw_requested_module_for_shell).strip().lower() in actions_route_terms
+        or any(term in actions_route_terms for term in explicit_route_terms if term)
+        or requested_module_for_shell == "acciones-operar"
+        and bool(raw_requested_module_for_shell)
+    )
+    if wants_actions_route:
+        requested_module_for_shell = "acciones-operar"
+        st.session_state["roxy_active_module"] = "acciones-operar"
+        if text_display(raw_view_for_shell).strip() != "Dashboard":
+            st.query_params["view"] = "Dashboard"
+        if raw_requested_module_for_shell != "acciones-operar":
+            st.query_params["module"] = "acciones-operar"
+        if not first_query_param_value(st.query_params, "tab"):
+            st.query_params["tab"] = "escaner"
+    elif raw_requested_module_for_shell and raw_requested_module_for_shell != requested_module_for_shell:
         st.query_params["module"] = requested_module_for_shell
     render_roxy_three_universe_runtime()
     if "user" not in st.session_state:
@@ -57018,6 +57051,10 @@ def main() -> None:
         else:
             st.error(passkey_message)
     active_module_query = normalize_roxy_module(first_query_param_value(st.query_params, "module"), default="")
+    if active_module_query == "acciones-operar":
+        st.session_state["roxy_active_module"] = "acciones-operar"
+        if not first_query_param_value(st.query_params, "tab"):
+            st.query_params["tab"] = "escaner"
     if not st.session_state.get("user"):
         roxy_recover_user_for_operating_route(active_module_query)
     if not st.session_state.get("user"):

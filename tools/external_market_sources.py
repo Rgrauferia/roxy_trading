@@ -837,18 +837,40 @@ class FinvizEliteClient:
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None, *, transport: Transport | None = None) -> "FinvizEliteClient":
         source = env if env is not None else os.environ
-        export_url = str(source.get("ROXY_FINVIZ_EXPORT_URL") or source.get("FINVIZ_EXPORT_URL") or "").strip()
-        if not export_url:
-            token = str(
-                source.get("ROXY_FINVIZ_AUTH_TOKEN")
-                or source.get("FINVIZ_AUTH_TOKEN")
-                or source.get("FINVIZ_API_KEY")
-                or ""
-            ).strip()
-            if token:
-                params = dict(DEFAULT_FINVIZ_EXPORT_PARAMS)
-                params["auth"] = token
-                export_url = f"{DEFAULT_FINVIZ_EXPORT_BASE_URL}?{urllib.parse.urlencode(params)}"
+        export_url = str(
+            source.get("ROXY_FINVIZ_EXPORT_URL")
+            or source.get("FINVIZ_EXPORT_URL")
+            or source.get("ROXY_FINVIZ_SCANNER_URL")
+            or source.get("FINVIZ_SCANNER_EXPORT_URL")
+            or ""
+        ).strip()
+        token = str(
+            source.get("ROXY_FINVIZ_AUTH_TOKEN")
+            or source.get("FINVIZ_AUTH_TOKEN")
+            or source.get("ROXY_FINVIZ_EXPORT_AUTH")
+            or source.get("FINVIZ_EXPORT_AUTH")
+            or source.get("ROXY_FINVIZ_TOKEN")
+            or source.get("FINVIZ_TOKEN")
+            or source.get("FINVIZ_ELITE_TOKEN")
+            or source.get("FINVIZ_EXPORT_TOKEN")
+            or source.get("FINVIZ_AUTH")
+            or source.get("FINVIZ_API_KEY")
+            or ""
+        ).strip()
+        if token.startswith("http://") or token.startswith("https://"):
+            export_url = export_url or token
+            token = ""
+        if token and "auth=" in token:
+            parsed_token = urllib.parse.parse_qs(token.lstrip("?"))
+            token = str((parsed_token.get("auth") or [""])[0]).strip() or token
+        if export_url and "auth=" in export_url and not token:
+            parsed_url = urllib.parse.urlparse(export_url)
+            parsed_query = urllib.parse.parse_qs(parsed_url.query)
+            token = str((parsed_query.get("auth") or [""])[0]).strip()
+        if not export_url and token:
+            params = dict(DEFAULT_FINVIZ_EXPORT_PARAMS)
+            params["auth"] = token
+            export_url = f"{DEFAULT_FINVIZ_EXPORT_BASE_URL}?{urllib.parse.urlencode(params)}"
         return cls(export_url, transport=transport)
 
     def status(self) -> ExternalSourceStatus:
@@ -859,8 +881,8 @@ class FinvizEliteClient:
                 mode="SCREENER_EXPORT",
                 status="No configurado",
                 detail="Falta el export URL o auth token de Finviz Elite.",
-                next_action="Pegar ROXY_FINVIZ_EXPORT_URL completo o ROXY_FINVIZ_AUTH_TOKEN en Render/local.",
-                missing_keys=("ROXY_FINVIZ_EXPORT_URL", "ROXY_FINVIZ_AUTH_TOKEN"),
+                next_action="Pegar ROXY_FINVIZ_EXPORT_URL completo o un token Finviz en Render/local.",
+                missing_keys=("ROXY_FINVIZ_EXPORT_URL", "ROXY_FINVIZ_AUTH_TOKEN", "FINVIZ_EXPORT_AUTH"),
             )
         return ExternalSourceStatus(
             provider="Finviz Elite",
@@ -869,7 +891,7 @@ class FinvizEliteClient:
             status="Listo",
             detail=f"Export URL configurado: {redact_url(self.export_url)}",
             next_action="Usar como screener de apoyo; confirmar entradas con proveedor live.",
-            present_keys=("ROXY_FINVIZ_EXPORT_URL", "ROXY_FINVIZ_AUTH_TOKEN"),
+            present_keys=("ROXY_FINVIZ_EXPORT_URL", "ROXY_FINVIZ_AUTH_TOKEN", "FINVIZ_EXPORT_AUTH"),
         )
 
     def fetch_screener(self, *, limit: int = 50) -> list[NormalizedMarketRow]:
