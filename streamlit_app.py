@@ -4725,7 +4725,10 @@ def render_roxy_headless_voice_runtime() -> None:
             "roxy esta escuchando",
             "roxy está escuchando",
             "roxy activa",
-            "contexto conectado"
+            "contexto conectado",
+            "roxy puede educar",
+            "roxy voz cargando",
+            "elevenlabs agent"
           ];
 
           function parentDoc() {{
@@ -4742,7 +4745,33 @@ def render_roxy_headless_voice_runtime() -> None:
 
           function hideLegacyVoiceControls() {{
             const doc = parentDoc();
-            const candidates = doc.querySelectorAll("button, [role='button'], a, [class*='voice'], [class*='eleven'], [data-testid], .roxy-el-fallback, .roxy-voice-test-card");
+            let style = doc.getElementById("roxy-headless-voice-hide-legacy-style");
+            if (!style) {{
+              style = doc.createElement("style");
+              style.id = "roxy-headless-voice-hide-legacy-style";
+              style.textContent = `
+                .roxy-el-fallback,
+                .roxy-el-root,
+                #roxy-elevenlabs-assistant-root,
+                #roxy-elevenlabs-root,
+                .roxy-elevenlabs-root,
+                .roxy-voice-test-card,
+                .roxy-voice-trigger,
+                .roxy-presence-card,
+                .roxy-floating-avatar,
+                [data-roxy-legacy-voice],
+                [class*="roxy"][class*="voice"][class*="float"],
+                [class*="roxy"][class*="assistant"][class*="float"],
+                [class*="roxy"][class*="presence"] {{
+                  display: none !important;
+                  visibility: hidden !important;
+                  opacity: 0 !important;
+                  pointer-events: none !important;
+                }}
+              `;
+              doc.head.appendChild(style);
+            }}
+            const candidates = doc.querySelectorAll("button, [role='button'], a, section, aside, div, [class*='voice'], [class*='eleven'], [data-testid], .roxy-el-fallback, .roxy-voice-test-card");
             candidates.forEach((el) => {{
               const text = normalize(el.innerText || el.textContent || el.getAttribute("aria-label") || "");
               if (hiddenLabels.some((label) => text.includes(normalize(label)))) {{
@@ -4790,9 +4819,9 @@ def render_roxy_headless_voice_runtime() -> None:
             if (command.includes("oportun") || command.includes("senal") || command.includes("señal") || command.includes("lista") || command.includes("operar") || command.includes("mejores")) {{
               const summary = topOpportunityText(3);
               if (summary) {{
-                return `Roberto, estas son las mejores oportunidades visibles en ${{context.module || "Roxy"}}. ${{summary}} Confirma en la gráfica live, usa stop loss, tamaño de posición pequeño y practica primero en paper trading.`;
+                return `${{name}}, estas son las mejores oportunidades visibles en ${{context.module || "Roxy"}}. ${{summary}} Confirma en la gráfica live, usa stop loss, tamaño de posición pequeño y practica primero en paper trading.`;
               }}
-              return `Roberto, ahora no tengo oportunidades visibles cargadas en esta carpeta. Abre Acciones o Crypto y espera que Roxy sincronice el feed live antes de operar.`;
+              return `${{name}}, ahora no tengo oportunidades visibles cargadas en esta carpeta. Abre Acciones o Crypto y espera que Roxy sincronice el feed live antes de operar.`;
             }}
             if (command.includes("donde estoy") || command.includes("pantalla") || command.includes("carpeta") || command.includes("modulo")) {{
               return `Estás en ${{context.page || "Roxy Trading"}}, carpeta ${{context.module || "home"}}, activo ${{context.symbol || "sin activo fijo"}}, timeframe ${{context.timeframe || "sin timeframe fijo"}}.`;
@@ -57013,7 +57042,8 @@ def main() -> None:
             actions_table = pd.DataFrame()
         render_roxy_actions_operating_route(timeframe=actions_timeframe)
         st.stop()
-    render_roxy_elevenlabs_assistant()
+    if str(os.environ.get("ROXY_RENDER_VISIBLE_VOICE_WIDGET") or "").strip().lower() in {"1", "true", "yes", "on"}:
+        render_roxy_elevenlabs_assistant()
     process_roxy_os_query_command()
     render_roxy_os_command_center()
     render_roxy_os_action_inbox()
