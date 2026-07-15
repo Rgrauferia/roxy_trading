@@ -47543,7 +47543,6 @@ def render_roxy_actions_operating_route(*, timeframe: str = "1h") -> None:
         market="stock",
         timeframe=timeframe or "1h",
     )
-    render_roxy_headless_voice_runtime()
 
     base_rows = roxy_asset_rows_for_market(table, "stock", limit=16)
     rows: list[dict[str, Any]] = []
@@ -47585,6 +47584,19 @@ def render_roxy_actions_operating_route(*, timeframe: str = "1h") -> None:
         timeframe=selected_timeframe,
         action=action,
     )
+    try:
+        voice_rows_df = pd.DataFrame(rows)
+    except Exception:
+        voice_rows_df = pd.DataFrame()
+    remember_roxy_voice_opportunities(
+        voice_rows_df,
+        source="acciones_operar_live_rows",
+        module="acciones-operar",
+        symbol=selected_symbol,
+        market=selected_market,
+        timeframe=selected_timeframe or timeframe or "1h",
+    )
+    render_roxy_headless_voice_runtime()
     live_stock_symbols: list[str] = []
     for row in rows[:16]:
         live_symbol = roxy_stock_live_symbol_attr(row.get("symbol"))
