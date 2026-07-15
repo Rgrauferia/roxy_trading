@@ -106,7 +106,7 @@ def test_streamlit_roxy_voice_uses_hola_roxy_wake_word_without_activation_button
     assert "roxy-el-button" not in assistant_source
     assert '[class*="roxy"][class*="voice"][class*="float"]' in assistant_source
     assert ".roxy-el-panel{{display:none!important" in assistant_source
-    assert ".roxy-el-root.roxy-el-open .roxy-el-panel{{display:none!important}}" in assistant_source
+    assert ".roxy-el-root.roxy-el-open .roxy-el-panel{{display:none!important;visibility:hidden!important;opacity:0!important}}" in assistant_source
     assert 'root.classList.remove("roxy-el-open");' in assistant_source
 
 
@@ -183,21 +183,20 @@ def test_streamlit_roxy_voice_speaks_local_brain_reply_before_remote_agent():
     assistant_source = source[source.index("def render_roxy_elevenlabs_assistant") :]
 
     assert "Roxy OS local proceso la instruccion" in assistant_source
-    assert "if (speakBrowserFallback(win.__roxyPendingHelperVoiceReply.text)) return true;" in assistant_source
-    assert "if (speakBrowserFallback(localReply)) return true;" in assistant_source
+    assert "if (speakBrowserFallback(win.__roxyPendingHelperVoiceReply.text, true)) return true;" in assistant_source
+    assert "if (speakBrowserFallback(localReply, true)) return true;" in assistant_source
     assert "Roxy voz local preparada" in assistant_source
 
 
-def test_streamlit_roxy_voice_has_direct_audio_test_button():
+def test_streamlit_roxy_voice_has_no_direct_audio_test_button():
     source = __import__("pathlib").Path("streamlit_app.py").read_text(encoding="utf-8")
     assistant_source = source[source.index("def render_roxy_elevenlabs_assistant") :]
 
-    assert "roxyVoiceTestButton" in assistant_source
+    assert "roxyVoiceTestButton" not in assistant_source
     assert "components.html(voice_test_html" not in assistant_source
-    assert "Probar voz de Roxy" in assistant_source
-    assert "Esta es una prueba temporal de voz" in assistant_source
-    assert "Audio OK" in assistant_source
-    assert "AudioContext" in assistant_source
+    assert "Probar voz de Roxy" not in assistant_source
+    assert "Esta es una prueba temporal de voz" not in assistant_source
+    assert "Audio OK" not in assistant_source
 
 
 def test_streamlit_roxy_voice_sends_platform_context_to_agent():

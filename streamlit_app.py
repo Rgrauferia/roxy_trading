@@ -4878,135 +4878,7 @@ def render_roxy_elevenlabs_assistant() -> None:
         fallback_status = "Roxy voz preparada"
     else:
         fallback_status = "Configura ElevenLabs en Render"
-    voice_test_html = f"""
-    <div class="roxy-voice-test-card">
-      <button id="roxyVoiceTestButton" type="button" aria-label="Probar voz temporal de Roxy">
-        <span>Probar voz de Roxy</span>
-        <b id="roxyVoiceTestStatus">Audio local</b>
-      </button>
-    </div>
-    <script>
-    (function() {{
-      const payload = {voice_payload_json};
-      const button = document.getElementById("roxyVoiceTestButton");
-      const status = document.getElementById("roxyVoiceTestStatus");
-      function playTone() {{
-        try {{
-          const AudioContext = window.AudioContext || window.webkitAudioContext;
-          if (!AudioContext) return false;
-          const ctx = new AudioContext();
-          const gain = ctx.createGain();
-          const first = ctx.createOscillator();
-          const second = ctx.createOscillator();
-          first.type = "sine";
-          second.type = "triangle";
-          first.frequency.value = 660;
-          second.frequency.value = 990;
-          gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.03);
-          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.42);
-          first.connect(gain);
-          second.connect(gain);
-          gain.connect(ctx.destination);
-          first.start();
-          second.start(ctx.currentTime + 0.08);
-          first.stop(ctx.currentTime + 0.44);
-          second.stop(ctx.currentTime + 0.48);
-          window.setTimeout(() => ctx.close && ctx.close(), 700);
-          return true;
-        }} catch (error) {{
-          return false;
-        }}
-      }}
-      function say(text) {{
-        try {{
-          const synth = window.speechSynthesis;
-          const Utterance = window.SpeechSynthesisUtterance;
-          if (!synth || !Utterance) {{
-            if (status) status.textContent = "No disponible";
-            return false;
-          }}
-          synth.cancel();
-          const utterance = new Utterance(text);
-          utterance.lang = String(payload.language || "es").toLowerCase().startsWith("en") ? "en-US" : "es-US";
-          utterance.rate = 0.95;
-          utterance.pitch = 1.08;
-          utterance.volume = 1;
-          const assignVoice = () => {{
-            const voices = typeof synth.getVoices === "function" ? synth.getVoices() : [];
-            const voice = voices.find((item) => /female|paulina|monica|samantha|google espa|spanish|es-|es_/i.test(`${{item.name || ""}} ${{item.lang || ""}}`))
-              || voices.find((item) => String(item.lang || "").toLowerCase().startsWith("es"))
-              || voices[0];
-            if (voice) {{
-              utterance.voice = voice;
-              if (voice.lang) utterance.lang = voice.lang;
-            }}
-          }};
-          assignVoice();
-          utterance.onstart = () => {{ if (status) status.textContent = "Hablando"; }};
-          utterance.onend = () => {{ if (status) status.textContent = "Audio OK"; }};
-          utterance.onerror = () => {{ if (status) status.textContent = "Error audio"; }};
-          if (typeof synth.resume === "function") synth.resume();
-          synth.speak(utterance);
-          if (typeof synth.getVoices === "function" && synth.getVoices().length === 0) {{
-            synth.onvoiceschanged = () => {{
-              assignVoice();
-              synth.onvoiceschanged = null;
-            }};
-          }}
-          return true;
-        }} catch (error) {{
-          if (status) status.textContent = "Bloqueado";
-          return false;
-        }}
-      }}
-      if (button) {{
-        button.addEventListener("click", () => {{
-          playTone();
-          say(`Hola ${{payload.userName || "Trader"}}. Soy Roxy. Esta es una prueba temporal de voz. Si me escuchas, el audio local funciona.`);
-        }});
-      }}
-    }})();
-    </script>
-    <style>
-      html,body{{margin:0;padding:0;background:transparent;overflow:hidden}}
-      .roxy-voice-test-card{{
-        font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-        display:flex;
-        justify-content:flex-end;
-        padding:0 10px 6px;
-        background:transparent;
-      }}
-      #roxyVoiceTestButton{{
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
-        gap:12px;
-        width:min(320px,calc(100vw - 20px));
-        min-height:48px;
-        border:1px solid rgba(56,189,248,.34);
-        border-radius:16px;
-        background:linear-gradient(135deg,rgba(2,6,23,.88),rgba(8,47,73,.78));
-        color:#f8fafc;
-        box-shadow:0 14px 32px rgba(0,0,0,.28),0 0 24px rgba(56,189,248,.16);
-        cursor:pointer;
-        padding:10px 12px;
-      }}
-      #roxyVoiceTestButton span{{font-size:13px;font-weight:900;letter-spacing:.01em}}
-      #roxyVoiceTestButton b{{
-        border:1px solid rgba(125,211,252,.28);
-        border-radius:999px;
-        background:rgba(37,99,235,.22);
-        color:#93c5fd;
-        font-size:10px;
-        line-height:1;
-        padding:7px 9px;
-        text-transform:uppercase;
-        white-space:nowrap;
-      }}
-    </style>
-    """
-    # Keep the temporary audio diagnostic available in code, but do not render a manual voice button.
+    # Voice is wake-word driven. Do not render manual audio test buttons in the product UI.
     st.markdown(
         f"""
         <style>
@@ -41835,6 +41707,15 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
     selected_live_stock_symbol = roxy_stock_live_symbol_attr(selected_symbol)
     if selected_live_stock_symbol and selected_live_stock_symbol not in live_stock_symbols:
         live_stock_symbols.insert(0, selected_live_stock_symbol)
+    remember_roxy_voice_opportunities(
+        pd.DataFrame(rows),
+        source="acciones-operar",
+        module="acciones-operar",
+        symbol=selected_symbol,
+        market=selected_market,
+        timeframe=selected_timeframe,
+        limit=8,
+    )
     def render_actions_reference_terminal_deploy(*, show_strategy_sections: bool = False) -> None:
         try:
             render_roxy_actions_reference_market_terminal(
