@@ -4588,6 +4588,205 @@ def render_roxy_os_action_inbox() -> None:
                     st.rerun()
 
 
+def render_roxy_headless_voice_runtime() -> None:
+    """Install a hidden wake-word voice runtime for routes that call st.stop()."""
+    user_profile = roxy_elevenlabs_user_profile()
+    page_context = roxy_elevenlabs_page_context()
+    voice_snapshot = st.session_state.get("roxy_voice_opportunity_snapshot")
+    if not isinstance(voice_snapshot, dict):
+        voice_snapshot = {}
+    payload = {
+        "userName": roxy_user_display_name(default="Trader"),
+        "language": user_profile.get("preferred_language") or "es",
+        "pageContext": page_context,
+        "opportunitySnapshot": voice_snapshot,
+        "visibleOpportunitiesText": roxy_voice_snapshot_text(voice_snapshot),
+        "contract": roxy_voice_response_contract(page_context, voice_snapshot),
+    }
+    payload_json = json.dumps(payload, ensure_ascii=False, default=str)
+    components.html(
+        f"""
+        <script>
+        (function() {{
+          if (window.parent && window.parent.__roxyHeadlessVoiceInstalled) return;
+          const root = window.parent || window;
+          root.__roxyHeadlessVoiceInstalled = true;
+          const payload = {payload_json};
+          const hiddenLabels = [
+            "toca para hablar",
+            "hablar con roxy",
+            "roxy lista",
+            "roxy esta escuchando",
+            "roxy está escuchando",
+            "roxy activa",
+            "contexto conectado"
+          ];
+
+          function parentDoc() {{
+            try {{ return root.document || document; }} catch (err) {{ return document; }}
+          }}
+
+          function normalize(value) {{
+            try {{
+              return String(value || "").toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g, "");
+            }} catch (err) {{
+              return String(value || "").toLowerCase();
+            }}
+          }}
+
+          function hideLegacyVoiceControls() {{
+            const doc = parentDoc();
+            const candidates = doc.querySelectorAll("button, [role='button'], a, [class*='voice'], [class*='eleven'], [data-testid], .roxy-el-fallback, .roxy-voice-test-card");
+            candidates.forEach((el) => {{
+              const text = normalize(el.innerText || el.textContent || el.getAttribute("aria-label") || "");
+              if (hiddenLabels.some((label) => text.includes(normalize(label)))) {{
+                el.style.display = "none";
+                el.setAttribute("aria-hidden", "true");
+              }}
+            }});
+          }}
+
+          function rows() {{
+            const snap = payload.opportunitySnapshot || {{}};
+            return Array.isArray(snap.rows) ? snap.rows : [];
+          }}
+
+          function rowValue(row, keys) {{
+            for (const key of keys) {{
+              const value = row && row[key];
+              if (value !== undefined && value !== null && String(value).trim() !== "") return String(value).trim();
+            }}
+            return "";
+          }}
+
+          function topOpportunityText(limit) {{
+            const list = rows().slice(0, limit || 3);
+            if (!list.length) return "";
+            return list.map((row, idx) => {{
+              const symbol = rowValue(row, ["symbol", "ticker"]) || "activo";
+              const decision = rowValue(row, ["decision", "signal", "action"]) || "esperar confirmación";
+              const price = rowValue(row, ["price", "current_price"]) || "precio no visible";
+              const entry = rowValue(row, ["entry", "entrada"]) || "sin entrada visible";
+              const stop = rowValue(row, ["stop", "stop_loss"]) || "sin stop visible";
+              const target = rowValue(row, ["target", "target_1"]) || "sin target visible";
+              const confidence = rowValue(row, ["confidence", "ai_score", "readiness"]) || "confianza no visible";
+              const reason = rowValue(row, ["reason", "por_que", "raw_reason"]) || "la tabla no muestra la razón completa";
+              return `${{idx + 1}}. ${{symbol}}: ${{decision}}. Precio ${{price}}. Entrada ${{entry}}. Stop ${{stop}}. Target ${{target}}. Confianza ${{confidence}}. Razón: ${{reason}}.`;
+            }}).join(" ");
+          }}
+
+          function answer(rawCommand) {{
+            const command = normalize(rawCommand || "");
+            const name = payload.userName || "Roberto";
+            const context = payload.pageContext || {{}};
+            if (command.includes("oportun") || command.includes("senal") || command.includes("señal") || command.includes("lista") || command.includes("operar") || command.includes("mejores")) {{
+              const summary = topOpportunityText(3);
+              if (summary) {{
+                return `Roberto, estas son las mejores oportunidades visibles en ${{context.module || "Roxy"}}. ${{summary}} Confirma en la gráfica live, usa stop loss, tamaño de posición pequeño y practica primero en paper trading.`;
+              }}
+              return `Roberto, ahora no tengo oportunidades visibles cargadas en esta carpeta. Abre Acciones o Crypto y espera que Roxy sincronice el feed live antes de operar.`;
+            }}
+            if (command.includes("donde estoy") || command.includes("pantalla") || command.includes("carpeta") || command.includes("modulo")) {{
+              return `Estás en ${{context.page || "Roxy Trading"}}, carpeta ${{context.module || "home"}}, activo ${{context.symbol || "sin activo fijo"}}, timeframe ${{context.timeframe || "sin timeframe fijo"}}.`;
+            }}
+            if (command.includes("grafica") || command.includes("gráfica") || command.includes("chart")) {{
+              return `Estoy revisando la gráfica operativa visible. Usa la de 15 minutos para entrada y la de 1 hora para confirmar tendencia. No operes si entrada, stop y target no están claros.`;
+            }}
+            return `Hola ${{name}}. Estoy activa dentro de Roxy Trading. Pídeme mejores oportunidades, analiza esta acción, dónde estoy, o explícame la gráfica.`;
+          }}
+
+          function speak(message) {{
+            const text = String(message || "").trim();
+            if (!text || !("speechSynthesis" in root)) return;
+            try {{ root.speechSynthesis.cancel(); }} catch (err) {{}}
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = "es-US";
+            utterance.rate = 0.96;
+            utterance.pitch = 1.02;
+            const pickVoice = () => {{
+              const voices = root.speechSynthesis.getVoices ? root.speechSynthesis.getVoices() : [];
+              const voice = voices.find((v) => /es|spanish|latino|mexico|estados unidos/i.test(`${{v.lang}} ${{v.name}}`)) || voices[0];
+              if (voice) utterance.voice = voice;
+            }};
+            pickVoice();
+            utterance.onstart = () => {{
+              try {{ parentDoc().body.classList.add("roxy-voice-speaking", "roxy-speaking"); }} catch (err) {{}}
+            }};
+            utterance.onend = utterance.onerror = () => {{
+              try {{ parentDoc().body.classList.remove("roxy-voice-speaking", "roxy-speaking"); }} catch (err) {{}}
+            }};
+            root.speechSynthesis.speak(utterance);
+          }}
+
+          function isWake(transcript) {{
+            const text = normalize(transcript);
+            return /\\b(hola|ola|hello|hey)\\s+roxy\\b/.test(text) || /\\broxy\\b/.test(text);
+          }}
+
+          function cleanCommand(transcript) {{
+            return normalize(transcript).replace(/^.*?\\b(?:hola|ola|hello|hey)?\\s*roxy\\b[\\s,.:;-]*/, "").trim();
+          }}
+
+          function handleTranscript(transcript) {{
+            if (!transcript) return;
+            const now = Date.now();
+            if (!isWake(transcript) && now > (root.__roxyAwakeUntil || 0)) return;
+            root.__roxyAwakeUntil = now + 25000;
+            speak(answer(cleanCommand(transcript)));
+          }}
+
+          function installRecognizer() {{
+            const SpeechRecognition = root.SpeechRecognition || root.webkitSpeechRecognition || window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition || root.__roxyRecognition) return;
+            const recognition = new SpeechRecognition();
+            recognition.lang = "es-US";
+            recognition.continuous = true;
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+            recognition.onresult = (event) => {{
+              const results = Array.from(event.results || []);
+              const last = results[results.length - 1];
+              const transcript = last && last[0] ? last[0].transcript : "";
+              handleTranscript(transcript);
+            }};
+            recognition.onend = () => {{
+              setTimeout(() => {{
+                try {{ recognition.start(); }} catch (err) {{}}
+              }}, 900);
+            }};
+            recognition.onerror = () => {{
+              setTimeout(() => {{
+                try {{ recognition.start(); }} catch (err) {{}}
+              }}, 1500);
+            }};
+            root.__roxyRecognition = recognition;
+            try {{
+              recognition.start();
+              root.__roxyVoiceNeedsGesture = false;
+            }} catch (err) {{
+              root.__roxyVoiceNeedsGesture = true;
+            }}
+          }}
+
+          hideLegacyVoiceControls();
+          setInterval(hideLegacyVoiceControls, 1200);
+          installRecognizer();
+          parentDoc().addEventListener("click", () => {{
+            if (root.__roxyVoiceNeedsGesture) installRecognizer();
+          }}, {{ passive: true }});
+          root.__roxyHeadlessAnswer = (command) => speak(answer(command));
+          root.__roxyHeadlessSpeak = speak;
+        }})();
+        </script>
+        <style>
+          html, body {{ margin: 0; width: 0; height: 0; overflow: hidden; background: transparent; }}
+        </style>
+        """,
+        height=0,
+        scrolling=False,
+    )
+
+
 def render_roxy_elevenlabs_assistant() -> None:
     agent_id = elevenlabs_agent_id() or DEFAULT_ELEVENLABS_AGENT_ID
     session_payload = roxy_elevenlabs_signed_session_payload(agent_id, elevenlabs_env_fingerprint())
@@ -47344,6 +47543,7 @@ def render_roxy_actions_operating_route(*, timeframe: str = "1h") -> None:
         market="stock",
         timeframe=timeframe or "1h",
     )
+    render_roxy_headless_voice_runtime()
 
     base_rows = roxy_asset_rows_for_market(table, "stock", limit=16)
     rows: list[dict[str, Any]] = []
