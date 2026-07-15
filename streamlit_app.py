@@ -40021,6 +40021,10 @@ def render_roxy_actions_reference_market_terminal(
         ("EMA 9/21", ("EMA 9/21", "EMA"), "ema"),
         ("Momentum", ("MOMENTUM",), "momentum"),
         ("Volumen", ("VOLUME", "VOLUMEN"), "volume"),
+        ("VWAP", ("VWAP",), "vwap"),
+        ("Breakout", ("BREAKOUT", "ROMPIENDO", "RUPTURA"), "breakout"),
+        ("Pullback", ("PULLBACK", "RETROCESO"), "pullback"),
+        ("Reversal", ("REVERSAL", "CAMBIO DE TENDENCIA"), "reversal"),
     ]
     def _matches_pattern(row: dict[str, Any], needles: tuple[str, ...]) -> bool:
         haystack = " ".join(
@@ -40038,6 +40042,86 @@ def render_roxy_actions_reference_market_terminal(
         ).upper()
         return any(needle in haystack for needle in needles)
 
+    def _change_for_strategy(row: dict[str, Any]) -> float:
+        change_value = roxy_actions_change_pct(row)
+        if change_value is None:
+            change_value = _as_float(row.get("change_pct"), 0.0)
+        return float(change_value or 0.0)
+
+    def _strategy_instruction(label: str, row: dict[str, Any]) -> str:
+        symbol = _row_symbol(row) or "este activo"
+        label_key = safe_key(label)
+        if "wedge" in label_key or "channel" in label_key or "horizontal" in label_key or "supp" in label_key:
+            return (
+                f"{symbol}: operar la estructura de {label}. Buscar entrada cerca del borde bajo/soporte, "
+                "tomar parcial cerca del borde alto/resistencia y cancelar si rompe la estructura."
+            )
+        if "resist" in label_key or "top" in label_key or "head" in label_key:
+            return (
+                f"{symbol}: setup de resistencia. Roxy espera rechazo o ruptura confirmada antes de entrar; "
+                "no persigue precio en mitad del rango."
+            )
+        if "breakout" in label_key or "triangle" in label_key:
+            return (
+                f"{symbol}: vigilar ruptura con volumen. Entrada solo si la vela confirma fuera de la figura "
+                "y el stop queda debajo del nivel roto."
+            )
+        if "pullback" in label_key:
+            return (
+                f"{symbol}: esperar retroceso controlado hacia media/soporte; entrada cuando recupere impulso "
+                "con riesgo definido."
+            )
+        if "reversal" in label_key:
+            return (
+                f"{symbol}: posible cambio de tendencia. Confirmar vela de giro y volumen antes de operar."
+            )
+        if "ema" in label_key or "momentum" in label_key or "volume" in label_key or "vwap" in label_key:
+            return (
+                f"{symbol}: confirmar tendencia con medias, volumen y VWAP. Operar solo si entrada, stop y target "
+                "mantienen R/R favorable."
+            )
+        return f"{symbol}: Roxy separa esta estrategia para no mezclar señales y validar entrada, stop y target."
+
+    def _internal_strategy_candidates(label: str, safe_name: str, limit: int = 4) -> list[dict[str, Any]]:
+        label_key = safe_key(label)
+        bearish_keys = ("down", "desc", "resist", "top", "head")
+        neutral_keys = ("horizontal", "channel", "wedge")
+        pool_rows: list[dict[str, Any]] = []
+        seen_pool: set[str] = set()
+        for candidate in [selected_row, *source_rows, *rows, *pulse_major_rows, *pulse_bullish_rows]:
+            if not isinstance(candidate, dict):
+                continue
+            symbol = _row_symbol(candidate)
+            if not symbol or symbol in seen_pool:
+                continue
+            seen_pool.add(symbol)
+            pool_rows.append(dict(candidate))
+        ranked: list[tuple[float, dict[str, Any]]] = []
+        for candidate in pool_rows:
+            change_value = _change_for_strategy(candidate)
+            score_value = _row_score(candidate, 68.0)
+            if any(key in label_key for key in bearish_keys):
+                rank = score_value + (abs(change_value) * 160 if change_value < 0 else -8)
+            elif any(key in label_key for key in neutral_keys):
+                rank = score_value - min(abs(change_value) * 90, 10) + 5
+            else:
+                rank = score_value + (change_value * 130 if change_value > 0 else -4)
+            ranked.append((rank, candidate))
+        ranked.sort(key=lambda item: item[0], reverse=True)
+        enriched: list[dict[str, Any]] = []
+        for rank, candidate in ranked[:limit]:
+            row = dict(candidate)
+            row.setdefault("finviz_signal", label)
+            row.setdefault("canonical_pattern", safe_name)
+            row.setdefault("strategy_family", label)
+            row.setdefault("learned_strategy", label)
+            row["source"] = text_display(row.get("source") or "Roxy scan interno")
+            row.setdefault("reason", f"Setup {label}: candidato interno con precio/volumen medibles; espera confirmacion Finviz o grafica operativa.")
+            row.setdefault("roxy_instruction", _strategy_instruction(label, row))
+            row.setdefault("confidence", _clip(rank, 52, 94))
+            enriched.append(row)
+        return enriched
+
     pattern_groups: list[tuple[str, str, list[dict[str, Any]]]] = []
     used_symbols: set[str] = set()
     for label, needles, safe_name in pattern_order:
@@ -40054,6 +40138,8 @@ def render_roxy_actions_reference_market_terminal(
             unique.append(row)
             if len(unique) >= 4:
                 break
+        if not unique:
+            unique = _internal_strategy_candidates(label, safe_name, limit=4)
         pattern_groups.append((label, safe_name, unique))
 
     if requested_strategy_key:
@@ -40087,8 +40173,8 @@ def render_roxy_actions_reference_market_terminal(
         )
     scanner_html = "".join(scanner_cells) or """
             <div class="finviz-empty-state compact">
-              <strong>Finviz live sin candidatos</strong>
-              <span>Roxy no inventa tickers. Configura el export/token de Finviz o espera el siguiente barrido real.</span>
+              <strong>Roxy preparando setups por estrategia</strong>
+              <span>Usando scan interno mientras Finviz confirma candidatos externos.</span>
             </div>
     """
 
@@ -40272,7 +40358,7 @@ def render_roxy_actions_reference_market_terminal(
           <section class="terminal-tab-panel">
             <header><strong>Resumen vivo de Acciones</strong><span>Roxy mantiene el dashboard principal y separa oportunidades reales por fuente.</span></header>
             <div class="terminal-summary-strip">
-              <div><span>Setups Finviz reales</span><strong>{sum(1 for _, _, group in pattern_groups if group)}</strong></div>
+              <div><span>Setups vivos por estrategia</span><strong>{sum(1 for _, _, group in pattern_groups if group)}</strong></div>
               <div><span>Oportunidades visibles</span><strong>{len(top_opportunity_rows)}</strong></div>
               <div><span>Score promedio</span><strong>{terminal_avg_score:.0f}%</strong></div>
               <div><span>Modo</span><strong>{html.escape(market_mood)}</strong></div>
@@ -40545,11 +40631,7 @@ def render_roxy_actions_reference_market_terminal(
       <h3>¡Buenos días, Roberto!</h3>
       <p>He analizado el mercado y encontré {len(ai_rows)} oportunidades de alta probabilidad por estrategia.</p>
       <div>{ai_picks_html}</div>
-      <div class="terminal-ai-context-live" aria-label="Roxy escucha por palabra clave">
-        <i class="material-symbols-outlined">graphic_eq</i>
-        <span>Di: Hola Roxy</span>
-        <em>contexto conectado</em>
-      </div>
+      <div class="terminal-ai-context-live" aria-hidden="true"></div>
     </aside>
     """
     chart_row_html = _terminal_chart_card(quick_symbol, "15m") + _terminal_chart_card(quick_symbol, "1h")
@@ -41126,20 +41208,7 @@ def render_roxy_actions_reference_market_terminal(
           font-weight:950;
         }}
         .terminal-ai-context-live {{
-          width:100%;
-          min-height:34px;
-          margin-top:10px;
-          border:1px solid rgba(56,189,248,.20);
-          border-radius:10px;
-          background:linear-gradient(90deg, rgba(14,165,233,.08), rgba(88,28,135,.12));
-          color:#e0f7ff;
-          display:grid;
-          grid-template-columns:22px 1fr;
-          grid-template-areas:"icon word" "icon state";
-          align-items:center;
-          column-gap:8px;
-          padding:6px 8px;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+          display:none !important;
         }}
         .terminal-ai-context-live i {{
           grid-area:icon;
