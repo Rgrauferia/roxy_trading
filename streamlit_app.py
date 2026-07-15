@@ -1236,8 +1236,12 @@ def roxy_auth_db_path() -> str:
     if configured:
         path = Path(configured).expanduser()
     else:
-        fallback = text_display(getattr(storage, "DB_PATH", project_path("db/roxy.db"))).strip()
-        path = Path(fallback or project_path("db/roxy.db"))
+        render_data_root = Path("/var/data")
+        if render_data_root.exists():
+            path = render_data_root / "db" / "roxy.db"
+        else:
+            fallback = text_display(getattr(storage, "DB_PATH", project_path("db/roxy.db"))).strip()
+            path = Path(fallback or project_path("db/roxy.db"))
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
     except Exception:
@@ -2563,6 +2567,7 @@ def render_roxy_social_auth_controls() -> None:
 
 
 def render_roxy_auth_gate() -> None:
+    render_roxy_session_restore_bridge()
     mode = first_query_param_value(st.query_params, "auth") or st.session_state.get("roxy_auth_mode") or "login"
     mode = "register" if str(mode).lower().startswith("reg") else "login"
     st.session_state["roxy_auth_mode"] = mode
