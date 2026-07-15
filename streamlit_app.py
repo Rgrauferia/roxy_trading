@@ -40441,6 +40441,91 @@ def render_roxy_actions_reference_market_terminal(
           color: #dcecff;
           font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }}
+        .roxy-actions-live-universe {{
+          position:absolute;
+          inset:0;
+          z-index:0;
+          pointer-events:none;
+          overflow:hidden;
+          background:
+            radial-gradient(circle at 78% 16%, rgba(59,130,246,.18), transparent 20%),
+            radial-gradient(circle at 24% 72%, rgba(168,85,247,.16), transparent 24%),
+            radial-gradient(circle at 48% 38%, rgba(14,165,233,.10), transparent 30%);
+        }}
+        .roxy-actions-live-universe span {{
+          position:absolute;
+          display:block;
+          pointer-events:none;
+        }}
+        .roxy-actions-live-universe .star-layer {{
+          inset:-10%;
+          border-radius:0;
+          background-image:
+            radial-gradient(circle, rgba(255,255,255,.96) 0 1px, transparent 1.8px),
+            radial-gradient(circle, rgba(96,165,250,.9) 0 1px, transparent 1.8px),
+            radial-gradient(circle, rgba(192,132,252,.82) 0 1px, transparent 1.8px);
+          background-size: 86px 86px, 143px 143px, 211px 211px;
+          opacity:.58;
+          animation: roxy-actions-space-drift 46s linear infinite;
+        }}
+        .roxy-actions-live-universe .star-b {{
+          opacity:.34;
+          filter:blur(.3px);
+          animation-duration:72s;
+          animation-direction:reverse;
+        }}
+        .roxy-actions-live-universe .planet-a {{
+          right:7%;
+          top:9%;
+          width:120px;
+          height:120px;
+          border-radius:50%;
+          background:
+            radial-gradient(circle at 35% 28%, #67e8f9, #2563eb 42%, #111827 70%);
+          opacity:.24;
+          box-shadow:0 0 55px rgba(56,189,248,.42);
+          animation: roxy-actions-orbit 28s ease-in-out infinite alternate;
+        }}
+        .roxy-actions-live-universe .planet-b {{
+          left:18%;
+          bottom:12%;
+          width:86px;
+          height:86px;
+          border-radius:50%;
+          background:
+            radial-gradient(circle at 35% 30%, #f0abfc, #7c3aed 45%, #020617 73%);
+          opacity:.18;
+          box-shadow:0 0 48px rgba(168,85,247,.36);
+          animation: roxy-actions-orbit 36s ease-in-out infinite alternate-reverse;
+        }}
+        .roxy-actions-live-universe .shooting-star {{
+          left:-12%;
+          top:22%;
+          width:160px;
+          height:2px;
+          border-radius:999px;
+          background:linear-gradient(90deg, transparent, rgba(125,211,252,.95), transparent);
+          transform:rotate(-18deg);
+          animation: roxy-actions-shoot 7s ease-in-out infinite;
+        }}
+        .roxy-actions-live-universe .shooting-star.two {{
+          top:68%;
+          animation-delay:3.3s;
+          animation-duration:9s;
+        }}
+        @keyframes roxy-actions-space-drift {{
+          from {{ transform:translate3d(0,0,0); }}
+          to {{ transform:translate3d(-120px,95px,0); }}
+        }}
+        @keyframes roxy-actions-orbit {{
+          from {{ transform:translate3d(0,0,0) scale(1); }}
+          to {{ transform:translate3d(18px,-12px,0) scale(1.06); }}
+        }}
+        @keyframes roxy-actions-shoot {{
+          0%,45% {{ transform:translate3d(-20%,0,0) rotate(-18deg); opacity:0; }}
+          52% {{ opacity:.85; }}
+          72%,100% {{ transform:translate3d(980%,120px,0) rotate(-18deg); opacity:0; }}
+        }}
         .roxy-actions-terminal::before {{
           content:"";
           position:absolute;
@@ -40483,7 +40568,7 @@ def render_roxy_actions_reference_market_terminal(
         .roxy-actions-terminal * {{ box-sizing: border-box; }}
         .roxy-actions-left {{
           position: relative;
-          z-index: 1;
+          z-index: 2;
           padding: 20px 12px;
           border-right: 1px solid rgba(69, 123, 192, .24);
           background: linear-gradient(180deg, rgba(5,14,27,.94), rgba(4,10,20,.92));
@@ -40537,7 +40622,7 @@ def render_roxy_actions_reference_market_terminal(
         .roxy-actions-atom strong {{ display:block; color:#dbeafe; font-size:11px; }}
         .roxy-actions-atom span {{ color:#7dd3fc; font-size:9px; }}
         .roxy-actions-main-terminal {{ padding:18px 18px 14px; min-width:0; }}
-        .roxy-actions-main-terminal {{ position: relative; z-index: 1; }}
+        .roxy-actions-main-terminal {{ position: relative; z-index: 2; }}
         .roxy-actions-header {{ display:flex; justify-content:space-between; gap:12px; align-items:flex-start; padding-bottom:12px; border-bottom:1px solid rgba(68,111,168,.23); }}
         .roxy-actions-title strong {{ display:block; color:#fff; font-size:27px; letter-spacing:.02em; }}
         .roxy-actions-title span {{ display:block; color:#9fb8d8; font-size:13px; margin-top:3px; }}
@@ -40978,6 +41063,14 @@ def render_roxy_actions_reference_market_terminal(
         </style>
         <div class="roxy-actions-terminal-scroll">
           <section class="roxy-actions-terminal">
+            <div class="roxy-actions-live-universe" aria-hidden="true">
+              <span class="star-layer star-a"></span>
+              <span class="star-layer star-b"></span>
+              <span class="planet-a"></span>
+              <span class="planet-b"></span>
+              <span class="shooting-star"></span>
+              <span class="shooting-star two"></span>
+            </div>
             <aside class="roxy-actions-left">
               <div class="roxy-actions-logo"><i class="material-symbols-outlined">rocket_launch</i><div><strong>ROXY</strong><span>AI Trading</span></div></div>
               <div class="roxy-actions-profile">{roxy_avatar_html("ready")}<strong>Guardian Novato</strong><small>Nivel 12</small><div class="roxy-actions-xp"><b></b></div><small>3,450 / 5,000 XP</small></div>
@@ -40996,6 +41089,10 @@ def render_roxy_actions_reference_market_terminal(
                 <span><i></i>Finviz scan</span>
                 <span><i></i>Roxy strategy engine</span>
                 <span><i></i>Voice context</span>
+              </section>
+              <section class="strategy-terminal-section strategy-terminal-section-top">
+                <header><strong>Mejores oportunidades por estrategia</strong><small>Wedge, Triangle, Channel, S/R y setups propios de Roxy separados para no mezclar señales</small></header>
+                <div class="strategy-grid">{strategies_html}</div>
               </section>
               {tab_panel_html}
               <section class="terminal-chart-row">{chart_row_html}{right_ai_html}</section>
@@ -41016,10 +41113,6 @@ def render_roxy_actions_reference_market_terminal(
                 <article><i class="material-symbols-outlined">speed</i><div><strong>Datos en Tiempo Real</strong><span>Precios y volumen al instante</span></div></article>
                 <article><i class="material-symbols-outlined">hotel_class</i><div><strong>Señales Roxy AI</strong><span>Señales inteligentes</span></div></article>
                 <article><i class="material-symbols-outlined">query_stats</i><div><strong>Análisis Fundamental</strong><span>Finviz + Roxy AI</span></div></article>
-              </section>
-              <section class="strategy-terminal-section" style="display:{'block' if (show_strategy_sections or active_tab_key == 'estrategias') else 'none'}">
-                <header><strong>Mejores oportunidades por estrategia</strong><small>Roxy separa cada setup para no mezclar señales</small></header>
-                <div class="strategy-grid">{strategies_html}</div>
               </section>
               {bottom_status_html}
             </main>
