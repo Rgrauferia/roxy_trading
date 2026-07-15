@@ -4925,6 +4925,20 @@ def render_roxy_elevenlabs_assistant() -> None:
       style.id = styleId;
       style.textContent = `
         .roxy-el-root{{position:fixed;right:18px;bottom:92px;z-index:2147482800;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eaf6ff;pointer-events:none;display:none!important;visibility:hidden!important;opacity:0!important}}
+        #roxy-elevenlabs-root,
+        .roxy-elevenlabs-root,
+        .roxy-el-root{{
+          position:fixed!important;
+          left:-99999px!important;
+          top:-99999px!important;
+          width:1px!important;
+          height:1px!important;
+          opacity:0!important;
+          overflow:hidden!important;
+          pointer-events:none!important;
+          visibility:hidden!important;
+          z-index:-1!important;
+        }}
         .roxy-el-root *{{pointer-events:none!important}}
         .roxy-el-wake{{display:none!important;visibility:hidden!important;pointer-events:none!important}}
         .roxy-el-wake:before{{content:"";position:absolute;inset:-1px;border-radius:18px;background:linear-gradient(90deg,rgba(56,189,248,.0),rgba(56,189,248,.28),rgba(168,85,247,.0));opacity:.45;pointer-events:none;animation:roxyElGlow 3.8s ease-in-out infinite}}
@@ -4939,7 +4953,7 @@ def render_roxy_elevenlabs_assistant() -> None:
         .roxy-el-root.roxy-el-speaking .roxy-el-avatar{{box-shadow:0 0 30px rgba(56,189,248,.72),0 0 62px rgba(168,85,247,.26);animation:roxyElAvatarTalk 1.1s ease-in-out infinite}}
         .roxy-el-root.roxy-el-speaking .roxy-el-avatar:after{{content:"";position:absolute;left:50%;top:56%;z-index:8;width:19%;height:8%;border-radius:0 0 999px 999px;background:radial-gradient(ellipse at 50% 0%,rgba(88,18,36,.92),rgba(244,114,182,.38) 62%,transparent 74%);transform:translateX(-50%) scaleY(.18);transform-origin:top center;animation:roxyElMiniMouth .42s ease-in-out infinite;filter:drop-shadow(0 0 6px rgba(244,114,182,.34))}}
         .roxy-el-panel{{display:none!important;pointer-events:none!important;position:absolute;right:0;bottom:78px;width:min(390px,calc(100vw - 28px));max-height:min(690px,calc(100vh - 136px));grid-template-rows:auto minmax(130px,1fr) auto;overflow:hidden;border:1px solid rgba(56,189,248,.34);border-radius:18px;background:linear-gradient(180deg,rgba(3,10,24,.96),rgba(7,18,38,.94));box-shadow:0 28px 70px rgba(0,0,0,.62),0 0 38px rgba(14,165,233,.22);backdrop-filter:blur(18px)}}
-        .roxy-el-root.roxy-el-open .roxy-el-panel{{display:none!important}}
+        .roxy-el-root.roxy-el-open .roxy-el-panel{{display:none!important;visibility:hidden!important;opacity:0!important}}
         .roxy-el-head{{display:grid;grid-template-columns:46px 1fr auto;gap:10px;align-items:center;padding:13px;border-bottom:1px solid rgba(148,163,184,.16);background:radial-gradient(circle at 20% 0%,rgba(56,189,248,.16),transparent 40%)}}
         .roxy-el-head .roxy-el-avatar{{width:46px;height:46px}}
         .roxy-el-title strong{{display:block;font-size:15px;line-height:1.15;color:#fff}}
@@ -4976,7 +4990,7 @@ def render_roxy_elevenlabs_assistant() -> None:
         @keyframes roxyElRise{{from{{opacity:0;transform:translateY(10px) scale(.98)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
         @keyframes roxyElAvatarTalk{{0%,100%{{transform:translateY(0) scale(1)}}50%{{transform:translateY(-1px) scale(1.035)}}}}
         @keyframes roxyElMiniMouth{{0%,100%{{transform:translateX(-50%) scaleX(.72) scaleY(.12);opacity:.36}}24%{{transform:translateX(-50%) scaleX(1.02) scaleY(.86);opacity:.86}}52%{{transform:translateX(-50%) scaleX(.88) scaleY(.38);opacity:.56}}76%{{transform:translateX(-50%) scaleX(.96) scaleY(.68);opacity:.76}}}}
-        @media(max-width:640px){{.roxy-el-root{{right:14px;bottom:86px}}.roxy-el-panel{{bottom:72px;width:calc(100vw - 24px)}}}}
+        @media(max-width:640px){{.roxy-el-root{{left:-99999px!important;top:-99999px!important;right:auto!important;bottom:auto!important}}.roxy-el-panel{{bottom:72px;width:calc(100vw - 24px)}}}}
       `;
       parentDoc.head.appendChild(style);
       const root = parentDoc.createElement("section");
@@ -5042,7 +5056,7 @@ def render_roxy_elevenlabs_assistant() -> None:
           }}
 
           function removeLegacyVoiceBadges() {{
-            const legacyText = /toca\\s+para\\s+hablar|roxy\\s+lista|roxy\\s+esta\\s+escuchando|roxy\\s+activa/i;
+            const legacyText = /toca\\s+para\\s+hablar|hablar\\s+con\\s+roxy|habla\\s+ahora|roxy\\s+lista|roxy\\s+esta\\s+escuchando|roxy\\s+activa|contexto\\s+conectado/i;
             doc.querySelectorAll("body *").forEach((node) => {{
               if (!node || node.id === rootId || (node.closest && node.closest("#" + rootId))) return;
               const rect = node.getBoundingClientRect ? node.getBoundingClientRect() : null;
@@ -5315,7 +5329,7 @@ def render_roxy_elevenlabs_assistant() -> None:
                 result: helperResult,
               }};
 	              setStatus("Roxy OS local proceso la instruccion", false);
-	              if (speakBrowserFallback(win.__roxyPendingHelperVoiceReply.text)) return true;
+	              if (speakBrowserFallback(win.__roxyPendingHelperVoiceReply.text, true)) return true;
 	              await activateRoxy();
 	              if (conversation) sendRoxyContextToConversation();
 	              return true;
@@ -5329,7 +5343,7 @@ def render_roxy_elevenlabs_assistant() -> None:
                 result: {{ ok: true, source: "browser_visible_context", command: command }},
 	              }};
 	              setStatus("Roxy preparo respuesta local", false);
-	              if (speakBrowserFallback(localReply)) return true;
+	              if (speakBrowserFallback(localReply, true)) return true;
 	              await activateRoxy();
 	              if (conversation) sendRoxyContextToConversation();
 	              return true;
@@ -40327,9 +40341,9 @@ def render_roxy_actions_reference_market_terminal(
       <h3>¡Buenos días, Roberto!</h3>
       <p>He analizado el mercado y encontré {len(ai_rows)} oportunidades de alta probabilidad por estrategia.</p>
       <div>{ai_picks_html}</div>
-      <div class="terminal-ai-wake" aria-label="Roxy wake word listo">
+      <div class="terminal-ai-context-live" aria-label="Roxy escucha por palabra clave">
         <i class="material-symbols-outlined">graphic_eq</i>
-        <span>Hola Roxy</span>
+        <span>Di: Hola Roxy</span>
         <em>contexto conectado</em>
       </div>
     </aside>
@@ -40907,45 +40921,45 @@ def render_roxy_actions_reference_market_terminal(
           color:#fff;
           font-weight:950;
         }}
-        .terminal-ai-wake {{
+        .terminal-ai-context-live {{
           width:100%;
-          min-height:44px;
+          min-height:34px;
           margin-top:10px;
-          border:1px solid rgba(56,189,248,.34);
+          border:1px solid rgba(56,189,248,.20);
           border-radius:10px;
-          background:linear-gradient(90deg, rgba(14,165,233,.16), rgba(88,28,135,.22));
+          background:linear-gradient(90deg, rgba(14,165,233,.08), rgba(88,28,135,.12));
           color:#e0f7ff;
           display:grid;
-          grid-template-columns:28px 1fr;
+          grid-template-columns:22px 1fr;
           grid-template-areas:"icon word" "icon state";
           align-items:center;
-          column-gap:10px;
-          padding:8px 10px;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 0 24px rgba(56,189,248,.12);
+          column-gap:8px;
+          padding:6px 8px;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
         }}
-        .terminal-ai-wake i {{
+        .terminal-ai-context-live i {{
           grid-area:icon;
           display:grid;
           place-items:center;
-          width:28px;
-          height:28px;
+          width:22px;
+          height:22px;
           border-radius:50%;
-          background:rgba(37,99,235,.28);
+          background:rgba(37,99,235,.18);
           color:#7dd3fc;
-          box-shadow:0 0 16px rgba(56,189,248,.30);
+          box-shadow:0 0 10px rgba(56,189,248,.22);
         }}
-        .terminal-ai-wake span {{
+        .terminal-ai-context-live span {{
           grid-area:word;
-          font-size:13px;
+          font-size:11px;
           font-weight:950;
           letter-spacing:.08em;
           text-transform:uppercase;
         }}
-        .terminal-ai-wake em {{
+        .terminal-ai-context-live em {{
           grid-area:state;
           color:#6ee7b7;
           font-style:normal;
-          font-size:10px;
+          font-size:9px;
           font-weight:900;
           letter-spacing:.08em;
           text-transform:uppercase;
@@ -41125,7 +41139,7 @@ def render_roxy_actions_reference_market_terminal(
         }}
         </style>
         <div class="roxy-actions-terminal-scroll">
-          <section class="roxy-actions-terminal">
+          <section class="roxy-actions-terminal" data-roxy-build="acciones-live-terminal-20260715-voice-headless">
             <div class="roxy-actions-live-universe" aria-hidden="true">
               <span class="star-layer star-a"></span>
               <span class="star-layer star-b"></span>
@@ -56728,7 +56742,6 @@ def main() -> None:
         default="",
     )
     render_roxy_browser_session_bridge()
-    render_roxy_elevenlabs_assistant()
     if active_module_for_shell == "acciones-operar":
         actions_timeframe = text_display(
             first_query_param_value(st.query_params, "tf")
@@ -56741,6 +56754,7 @@ def main() -> None:
             actions_table = pd.DataFrame()
         render_roxy_actions_operating_route(timeframe=actions_timeframe)
         st.stop()
+    render_roxy_elevenlabs_assistant()
     process_roxy_os_query_command()
     render_roxy_os_command_center()
     render_roxy_os_action_inbox()
