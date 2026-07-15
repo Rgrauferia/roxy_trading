@@ -30170,52 +30170,58 @@ def render_finviz_style_wallboard(table: pd.DataFrame, confluence_df: pd.DataFra
 
 
 @st.cache_data(ttl=45, show_spinner=False)
-def load_finviz_pattern_strategy_rows(limit: int = 24) -> list[dict[str, Any]]:
-    if build_finviz_pattern_strategies is None:
-        return []
+def load_finviz_actions_snapshot(strategy_limit: int = 72, news_limit: int = 10, pulse_limit: int = 48) -> dict[str, Any]:
+    """Fetch Finviz-derived rows once per refresh cycle for the acciones terminal."""
     try:
         external_rows = external_market_rows_for_decisions(ttl_seconds=45)
     except Exception:
         external_rows = []
-    if not external_rows:
-        return []
-    try:
-        return build_finviz_pattern_strategies(external_rows, limit=limit)
-    except Exception:
-        return []
+    normalized_external = [dict(row) for row in external_rows if isinstance(row, dict)]
+    strategies: list[dict[str, Any]] = []
+    news: list[dict[str, Any]] = []
+    pulse: dict[str, Any] = {}
+    if normalized_external:
+        if build_finviz_pattern_strategies is not None:
+            try:
+                strategies = build_finviz_pattern_strategies(normalized_external, limit=strategy_limit)
+            except Exception:
+                strategies = []
+        if build_finviz_news_feed is not None:
+            try:
+                news = build_finviz_news_feed(normalized_external, limit=news_limit)
+            except Exception:
+                news = []
+        if build_finviz_market_pulse is not None:
+            try:
+                maybe_pulse = build_finviz_market_pulse(normalized_external, limit=pulse_limit)
+                pulse = maybe_pulse if isinstance(maybe_pulse, dict) else {}
+            except Exception:
+                pulse = {}
+    return {
+        "external_rows": normalized_external,
+        "strategies": [dict(row) for row in strategies if isinstance(row, dict)],
+        "news": [dict(row) for row in news if isinstance(row, dict)],
+        "pulse": pulse,
+    }
+
+
+@st.cache_data(ttl=45, show_spinner=False)
+def load_finviz_pattern_strategy_rows(limit: int = 24) -> list[dict[str, Any]]:
+    snapshot = load_finviz_actions_snapshot(strategy_limit=limit, news_limit=10, pulse_limit=24)
+    return [dict(row) for row in (snapshot.get("strategies") or []) if isinstance(row, dict)]
 
 
 @st.cache_data(ttl=45, show_spinner=False)
 def load_finviz_news_feed_rows(limit: int = 24) -> list[dict[str, Any]]:
-    if build_finviz_news_feed is None:
-        return []
-    try:
-        external_rows = external_market_rows_for_decisions(ttl_seconds=45)
-    except Exception:
-        external_rows = []
-    if not external_rows:
-        return []
-    try:
-        return build_finviz_news_feed(external_rows, limit=limit)
-    except Exception:
-        return []
+    snapshot = load_finviz_actions_snapshot(strategy_limit=24, news_limit=limit, pulse_limit=24)
+    return [dict(row) for row in (snapshot.get("news") or []) if isinstance(row, dict)]
 
 
 @st.cache_data(ttl=45, show_spinner=False)
 def load_finviz_market_pulse_snapshot(limit: int = 24) -> dict[str, Any]:
-    if build_finviz_market_pulse is None:
-        return {}
-    try:
-        external_rows = external_market_rows_for_decisions(ttl_seconds=45)
-    except Exception:
-        external_rows = []
-    if not external_rows:
-        return {}
-    try:
-        pulse = build_finviz_market_pulse(external_rows, limit=limit)
-        return pulse if isinstance(pulse, dict) else {}
-    except Exception:
-        return {}
+    snapshot = load_finviz_actions_snapshot(strategy_limit=24, news_limit=10, pulse_limit=limit)
+    pulse = snapshot.get("pulse")
+    return pulse if isinstance(pulse, dict) else {}
 
 def render_finviz_pattern_strategy_board(limit: int = 14) -> None:
     strategies = load_finviz_pattern_strategy_rows(limit=limit)
@@ -39726,15 +39732,20 @@ def render_roxy_actions_reference_market_terminal(
             99,
         )
 
-    finviz_rows = load_finviz_pattern_strategy_rows(limit=72)
-    news_rows = load_finviz_news_feed_rows(limit=10)
-    market_pulse = load_finviz_market_pulse_snapshot(limit=48)
+    finviz_snapshot = load_finviz_actions_snapshot(strategy_limit=72, news_limit=10, pulse_limit=48)
+    finviz_rows = [dict(row) for row in (finviz_snapshot.get("strategies") or []) if isinstance(row, dict)]
+    news_rows = [dict(row) for row in (finviz_snapshot.get("news") or []) if isinstance(row, dict)]
+    market_pulse = finviz_snapshot.get("pulse") if isinstance(finviz_snapshot.get("pulse"), dict) else {}
     pulse_major_rows = [dict(row) for row in (market_pulse.get("major_movers") or []) if isinstance(row, dict)]
     pulse_bullish_rows = [dict(row) for row in (market_pulse.get("bullish_watchlist") or []) if isinstance(row, dict)]
     pulse_news_rows = [dict(row) for row in (market_pulse.get("news_feed") or []) if isinstance(row, dict)]
     source_rows = [dict(row) for row in (finviz_rows or rows or []) if isinstance(row, dict)]
     if not source_rows:
         source_rows = [dict(row) for row in rows[:8]]
+    scores = [_row_score(row) for row in source_rows[:16]]
+    terminal_avg_score = sum(scores) / len(scores) if scores else 78.0
+    market_mood = "BULLISH" if terminal_avg_score >= 72 else "NEUTRAL"
+    fear_score = int(_clip(terminal_avg_score - 14, 24, 86))
 
     active_tab_key = safe_key(active_tab or "escaner")
     active_tab_key = {
@@ -39754,6 +39765,8 @@ def render_roxy_actions_reference_market_terminal(
     valid_action_tabs = {"resumen", "escaner", "destacadas", "movers", "analisis", "dividendos", "reportes", "estrategias"}
     if active_tab_key not in valid_action_tabs:
         active_tab_key = "escaner"
+    requested_strategy_label = text_display(first_query_param_value(st.query_params, "strategy") or "").strip()
+    requested_strategy_key = safe_key(requested_strategy_label)
     actions_tab_items = [
         ("resumen", "Resumen"),
         ("escaner", "Escáner"),
@@ -39824,6 +39837,22 @@ def render_roxy_actions_reference_market_terminal(
             if len(unique) >= 4:
                 break
         pattern_groups.append((label, safe_name, unique))
+
+    if requested_strategy_key:
+        pattern_groups.sort(
+            key=lambda item: (
+                0
+                if requested_strategy_key in {safe_key(item[0]), safe_key(item[1])}
+                else 1
+            )
+        )
+    focused_pattern_groups = [
+        item
+        for item in pattern_groups
+        if requested_strategy_key and requested_strategy_key in {safe_key(item[0]), safe_key(item[1])}
+    ]
+    strategy_render_groups = focused_pattern_groups or pattern_groups
+    strategy_focus_title = focused_pattern_groups[0][0] if focused_pattern_groups else ""
 
     scanner_cells: list[str] = []
     for label, safe_name, group_rows in pattern_groups[:16]:
@@ -39918,7 +39947,7 @@ def render_roxy_actions_reference_market_terminal(
     quick_signal = text_display(roxy_row_recommendation(selected_row)[0] or "Vigilar")
 
     strategy_cards: list[str] = []
-    for label, safe_name, group_rows in pattern_groups:
+    for label, safe_name, group_rows in strategy_render_groups:
         playable = group_rows[:3]
         if not playable:
             continue
@@ -39968,6 +39997,17 @@ def render_roxy_actions_reference_market_terminal(
             """
         )
     strategies_html = "".join(strategy_cards)
+    strategy_focus_html = (
+        f"""
+        <div class="terminal-strategy-focus">
+          <span>Filtro activo</span>
+          <strong>{html.escape(strategy_focus_title)}</strong>
+          <a href="?view=Dashboard&module=acciones-operar&tab=estrategias" target="_self">Ver todas</a>
+        </div>
+        """
+        if strategy_focus_title
+        else ""
+    )
 
     def _opportunity_card(row: dict[str, Any]) -> str:
         symbol = _row_symbol(row)
@@ -40065,6 +40105,7 @@ def render_roxy_actions_reference_market_terminal(
         "estrategias": f"""
           <section class="terminal-tab-panel">
             <header><strong>Mejores oportunidades por estrategia</strong><span>Roxy separa cada setup para no mezclar señales.</span></header>
+            {strategy_focus_html}
             <div class="strategy-grid">{strategies_html}</div>
           </section>
         """,
@@ -40152,10 +40193,6 @@ def render_roxy_actions_reference_market_terminal(
         </article>
         """
 
-    scores = [_row_score(row) for row in rows[:10]]
-    terminal_avg_score = sum(scores) / len(scores) if scores else 78.0
-    market_mood = "BULLISH" if terminal_avg_score >= 72 else "NEUTRAL"
-    fear_score = int(_clip(terminal_avg_score - 14, 24, 86))
     top_strip_html = "".join(
         [
             f"""
@@ -41011,6 +41048,32 @@ def render_roxy_actions_reference_market_terminal(
         .strategy-card dt {{ color:#77c7ff; font-size:8px; text-transform:uppercase; }}
         .strategy-card dd {{ margin:1px 0 0; color:#fff; font-size:10px; }}
         .strategy-card a {{ display:block; margin-top:8px; text-align:center; text-decoration:none; color:#dff3ff; background:#123b81; border-radius:8px; padding:7px; font-size:10px; }}
+        .terminal-strategy-focus {{
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          gap:12px;
+          padding:10px 12px;
+          margin:0 0 12px;
+          border:1px solid rgba(24,144,255,.35);
+          border-radius:12px;
+          background:linear-gradient(90deg, rgba(14,95,255,.18), rgba(88,36,255,.12));
+          box-shadow:0 0 22px rgba(14,165,233,.12);
+        }}
+        .terminal-strategy-focus span {{
+          color:#7dd3fc;
+          text-transform:uppercase;
+          font-size:10px;
+          font-weight:900;
+          letter-spacing:.12em;
+        }}
+        .terminal-strategy-focus strong {{ color:white; font-size:18px; }}
+        .terminal-strategy-focus a {{
+          color:#38bdf8;
+          text-decoration:none;
+          font-size:12px;
+          font-weight:900;
+        }}
         .terminal-bottom-bar {{
           margin-top:13px;
           display:grid;
@@ -47194,7 +47257,7 @@ def render_roxy_module_workspace(table: pd.DataFrame, *, active_module: str, tim
         timeframe=timeframe,
     )
     if active_module == "acciones-operar":
-        render_roxy_actions_folder(table, timeframe="1h")
+        render_roxy_actions_operating_route(timeframe="1h")
         return
     if active_module == "crypto-trabajar":
         rows = roxy_asset_rows_for_market(table, "crypto")
@@ -47312,17 +47375,37 @@ def render_roxy_actions_operating_route(*, timeframe: str = "1h") -> None:
     if selected_live_stock_symbol and selected_live_stock_symbol not in live_stock_symbols:
         live_stock_symbols.insert(0, selected_live_stock_symbol)
 
-    render_roxy_actions_reference_market_terminal(
-        rows,
-        selected_row=selected_row,
-        selected_symbol=selected_symbol,
-        selected_market=selected_market,
-        selected_timeframe=selected_timeframe,
-        trade_plan=trade_plan,
-        live_stock_symbols=live_stock_symbols,
-        active_tab=text_display(first_query_param_value(st.query_params, "tab") or "escaner").strip().lower(),
-        show_strategy_sections=True,
-    )
+    try:
+        render_roxy_actions_reference_market_terminal(
+            rows,
+            selected_row=selected_row,
+            selected_symbol=selected_symbol,
+            selected_market=selected_market,
+            selected_timeframe=selected_timeframe,
+            trade_plan=trade_plan,
+            live_stock_symbols=live_stock_symbols,
+            active_tab=text_display(first_query_param_value(st.query_params, "tab") or "escaner").strip().lower(),
+            show_strategy_sections=True,
+        )
+    except Exception as exc:
+        st.warning(
+            "Roxy mantuvo abierta la carpeta de acciones, pero una pieza avanzada no cargo. "
+            "Mostrando modo operativo de respaldo mientras se recupera el modulo live."
+        )
+        st.caption(f"Detalle tecnico: {type(exc).__name__}")
+        try:
+            render_roxy_actions_folder_fast(
+                rows,
+                selected_row=selected_row,
+                selected_symbol=selected_symbol,
+                selected_market=selected_market,
+                selected_timeframe=selected_timeframe,
+                trade_plan=trade_plan,
+                live_stock_symbols=live_stock_symbols,
+                show_strategy_sections=True,
+            )
+        except Exception:
+            render_roxy_asset_cards(rows, market="stock", timeframe=selected_timeframe, key_prefix="acciones-operar-fallback")
 
 
 def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> dict[str, Any]:
@@ -56656,7 +56739,7 @@ def main() -> None:
             actions_table = table if isinstance(table, pd.DataFrame) else pd.DataFrame()
         except NameError:
             actions_table = pd.DataFrame()
-        render_roxy_actions_folder(actions_table, timeframe=actions_timeframe)
+        render_roxy_actions_operating_route(timeframe=actions_timeframe)
         st.stop()
     process_roxy_os_query_command()
     render_roxy_os_command_center()
