@@ -36696,6 +36696,7 @@ def roxy_stock_icon_html(symbol: str) -> str:
     slug, bg, color = icon_map.get(symbol_key, ("simpleicons", "0f172a", "7dd3fc"))
     return (
         f'<i class="roxy-actions-stock-logo" style="--logo-bg:#{html.escape(bg)}">'
+        f'<span>{html.escape(symbol_key[:1] or "R")}</span>'
         f'<img src="https://cdn.simpleicons.org/{html.escape(slug)}/{html.escape(color)}" alt="" loading="lazy">'
         "</i>"
     )
@@ -40380,12 +40381,41 @@ def render_roxy_actions_reference_market_terminal(
           margin: 0 auto 18px;
           overflow-x: auto;
           -webkit-overflow-scrolling: touch;
-          padding: 4px 0 14px;
+          padding: 10px 0 18px;
+          position: relative;
+          border-radius: 24px;
+          background:
+            radial-gradient(circle at 14% 8%, rgba(14,165,233,.16), transparent 30%),
+            radial-gradient(circle at 86% 18%, rgba(124,58,237,.15), transparent 32%),
+            radial-gradient(circle at 50% 100%, rgba(34,211,238,.10), transparent 34%),
+            linear-gradient(150deg, rgba(2,8,23,.78), rgba(5,15,32,.60));
+          box-shadow: inset 0 0 0 1px rgba(125,211,252,.10);
+        }}
+        .roxy-actions-terminal-scroll::before {{
+          content:"";
+          position:absolute;
+          inset:0;
+          pointer-events:none;
+          border-radius: inherit;
+          background:
+            radial-gradient(circle at 8% 18%, rgba(255,255,255,.84) 0 1px, transparent 2px),
+            radial-gradient(circle at 26% 76%, rgba(125,211,252,.72) 0 1px, transparent 2px),
+            radial-gradient(circle at 49% 34%, rgba(255,255,255,.66) 0 1px, transparent 2px),
+            radial-gradient(circle at 72% 62%, rgba(56,189,248,.65) 0 1px, transparent 2px),
+            radial-gradient(circle at 90% 24%, rgba(255,255,255,.78) 0 1px, transparent 2px);
+          background-size: 260px 260px, 340px 340px, 420px 420px, 520px 520px, 610px 610px;
+          animation: roxy-actions-scroll-stars 36s linear infinite;
+          opacity:.85;
+        }}
+        @keyframes roxy-actions-scroll-stars {{
+          from {{ background-position: 0 0, 0 0, 0 0, 0 0, 0 0; }}
+          to {{ background-position: 260px -210px, -340px 260px, 420px 300px, -520px -360px, 610px 420px; }}
         }}
         .roxy-actions-terminal {{
           width: min(1528px, calc(100vw - 18px));
           min-height: 1040px;
           position: relative;
+          z-index: 1;
           isolation: isolate;
           display: grid;
           grid-template-columns: 172px minmax(0, 1fr);
@@ -40451,6 +40481,35 @@ def render_roxy_actions_reference_market_terminal(
         .roxy-actions-logo i {{ font-size: 30px; transform: rotate(-22deg); filter: drop-shadow(0 0 12px rgba(56,189,248,.65)); }}
         .roxy-actions-logo strong {{ display:block; color:#64c8ff; font-size:24px; line-height:.9; letter-spacing:.03em; }}
         .roxy-actions-logo span {{ display:block; color:#9ec9ee; font-size:9px; text-transform:uppercase; letter-spacing:.13em; }}
+        .roxy-actions-stock-logo {{
+          position: relative;
+          display:grid !important;
+          place-items:center !important;
+          width:30px;
+          height:30px;
+          min-width:30px;
+          border-radius:8px;
+          overflow:hidden;
+          background:var(--logo-bg,#111827);
+          box-shadow:0 0 16px rgba(56,189,248,.20), inset 0 1px 0 rgba(255,255,255,.14);
+          font-style:normal;
+        }}
+        .roxy-actions-stock-logo span {{
+          color:#e0f2fe;
+          font-size:12px;
+          font-weight:950;
+          letter-spacing:.02em;
+        }}
+        .roxy-actions-stock-logo img {{
+          position:absolute;
+          left:50%;
+          top:50%;
+          width:19px;
+          height:19px;
+          object-fit:contain;
+          transform:translate(-50%,-50%);
+          filter:drop-shadow(0 0 6px rgba(255,255,255,.32));
+        }}
         .roxy-actions-profile {{ text-align:center; padding:10px 6px 14px; border-bottom:1px solid rgba(89,139,205,.18); margin-bottom:10px; }}
         .roxy-actions-profile .roxy-avatar {{ margin:auto; transform:scale(1.32); }}
         .roxy-actions-profile strong {{ display:block; margin-top:14px; color:#fff; font-size:13px; }}
@@ -40947,7 +41006,7 @@ def render_roxy_actions_reference_market_terminal(
                 <article><i class="material-symbols-outlined">hotel_class</i><div><strong>Señales Roxy AI</strong><span>Señales inteligentes</span></div></article>
                 <article><i class="material-symbols-outlined">query_stats</i><div><strong>Análisis Fundamental</strong><span>Finviz + Roxy AI</span></div></article>
               </section>
-              <section class="strategy-terminal-section" style="display:{'none' if active_tab_key == 'estrategias' else 'block' if show_strategy_sections else 'none'}">
+              <section class="strategy-terminal-section" style="display:{'block' if (show_strategy_sections or active_tab_key == 'estrategias') else 'none'}">
                 <header><strong>Mejores oportunidades por estrategia</strong><small>Roxy separa cada setup para no mezclar señales</small></header>
                 <div class="strategy-grid">{strategies_html}</div>
               </section>
@@ -40956,7 +41015,7 @@ def render_roxy_actions_reference_market_terminal(
           </section>
         </div>
         """
-    components.html(terminal_html, height=1030, scrolling=True)
+    components.html(terminal_html, height=1180, scrolling=True)
 
 def render_roxy_actions_folder_fast(
     rows: list[dict[str, Any]],
@@ -41366,6 +41425,11 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
             )
 
     show_extra_strategy_board = actions_tab in strategy_tabs
+
+    # Acciones now uses the reference terminal as the canonical folder view.
+    # The legacy Streamlit layout below is kept only as dormant fallback code.
+    render_actions_reference_terminal_deploy(show_strategy_sections=show_extra_strategy_board)
+    return
 
     render_roxy_actions_symbol_search(selected_symbol)
     action, tone = roxy_row_recommendation(selected_row)
