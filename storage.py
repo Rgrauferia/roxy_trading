@@ -10,10 +10,29 @@ import json
 import os
 import sqlite3
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
-DB_PATH = os.path.join("db", "roxy.db")
-os.makedirs("db", exist_ok=True)
+
+def _default_db_path() -> str:
+    configured = os.environ.get("ROXY_DB_PATH") or os.environ.get("ROXY_AUTH_DB_PATH")
+    if configured:
+        path = Path(configured).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return str(path)
+
+    render_data_dir = Path(os.environ.get("ROXY_RENDER_DATA_DIR", "/var/data"))
+    if os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID") or render_data_dir.exists():
+        db_dir = render_data_dir / "db"
+        db_dir.mkdir(parents=True, exist_ok=True)
+        return str(db_dir / "roxy.db")
+
+    db_dir = Path("db")
+    db_dir.mkdir(parents=True, exist_ok=True)
+    return str(db_dir / "roxy.db")
+
+
+DB_PATH = _default_db_path()
 
 
 def init_db(path: str = DB_PATH) -> None:

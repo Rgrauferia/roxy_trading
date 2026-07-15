@@ -1232,16 +1232,27 @@ def roxy_user_display_name(default: str = "Roberto") -> str:
 
 
 def roxy_auth_db_path() -> str:
-    return text_display(getattr(storage, "DB_PATH", project_path("db/roxy.db"))).strip() or str(project_path("db/roxy.db"))
+    configured = text_display(os.environ.get("ROXY_AUTH_DB_PATH") or os.environ.get("ROXY_DB_PATH")).strip()
+    if configured:
+        path = Path(configured).expanduser()
+    else:
+        fallback = text_display(getattr(storage, "DB_PATH", project_path("db/roxy.db"))).strip()
+        path = Path(fallback or project_path("db/roxy.db"))
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return str(path)
 
 
 def roxy_auth_db_init() -> None:
+    db_path = roxy_auth_db_path()
     try:
-        storage.init_db()
+        storage.init_db(db_path)
     except Exception:
         pass
     try:
-        conn = sqlite3.connect(roxy_auth_db_path())
+        conn = sqlite3.connect(db_path)
         cur = conn.cursor()
         cur.execute(
             """
@@ -56515,8 +56526,7 @@ def main() -> None:
     )
     if raw_requested_module_for_shell and raw_requested_module_for_shell != requested_module_for_shell:
         st.query_params["module"] = requested_module_for_shell
-    if requested_module_for_shell != "acciones-operar":
-        render_roxy_three_universe_runtime()
+    render_roxy_three_universe_runtime()
     if "user" not in st.session_state:
         st.session_state.user = None
     roxy_restore_user_from_session()
