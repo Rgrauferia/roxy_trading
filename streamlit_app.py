@@ -1943,6 +1943,63 @@ def roxy_restore_user_from_browser_profile(token: str = "") -> bool:
     return True
 
 
+def roxy_restore_user_from_route_token(token: str = "") -> bool:
+    """Recover a lightweight session when Render has lost the local user file.
+
+    The browser bridge stores a signed-looking random session token in the URL
+    and localStorage. If the service restarts without persistent storage, the
+    token may still exist while the user row does not. Recreate only a minimal
+    local profile so the user does not get forced through registration again.
+    """
+    clean_token = text_display(token or roxy_session_token_from_query()).strip()
+    if len(clean_token) < 24:
+        return False
+
+    payload = roxy_profile_from_query()
+    username_seed = (
+        text_display(payload.get("username")).strip()
+        or text_display(payload.get("email")).strip().split("@", 1)[0]
+        or text_display(os.environ.get("ROXY_DEFAULT_USERNAME")).strip()
+        or "roberto"
+    )
+    username = re.sub(r"[^a-zA-Z0-9_.-]+", "", username_seed).lower() or "roberto"
+    if len(username) < 3:
+        username = "roberto"
+
+    display_name = (
+        text_display(payload.get("name")).strip()
+        or text_display(os.environ.get("ROXY_DEFAULT_DISPLAY_NAME")).strip()
+        or "Roberto A"
+    )
+    email = text_display(payload.get("email")).strip().lower()
+    language = text_display(payload.get("language") or "es").strip() or "es"
+
+    data = roxy_load_users()
+    users = data.setdefault("users", {})
+    profile = users.get(username)
+    if not isinstance(profile, dict):
+        profile = {}
+    profile.update(
+        {
+            "username": username,
+            "name": display_name,
+            "email": email or text_display(profile.get("email")).strip().lower(),
+            "language": language,
+            "session_token": clean_token,
+            "session_updated_at": datetime.now(timezone.utc).isoformat(),
+            "last_route_restore_at": datetime.now(timezone.utc).isoformat(),
+            "recovered_from_route_token": True,
+        }
+    )
+    profile.setdefault("created_at", datetime.now(timezone.utc).isoformat())
+    users[username] = profile
+    roxy_save_users(data)
+    roxy_set_authenticated_user(username, profile, announce=False)
+    st.session_state.roxy_session_token = clean_token
+    st.session_state.roxy_public_profile = roxy_public_profile_payload(username, profile, clean_token)
+    return True
+
+
 def roxy_restore_user_from_session() -> bool:
     if st.session_state.get("user"):
         return True
@@ -1951,7 +2008,7 @@ def roxy_restore_user_from_session() -> bool:
         return roxy_restore_user_from_browser_profile("")
     username, profile = roxy_find_user_by_session_token(token)
     if not username or not isinstance(profile, dict):
-        return roxy_restore_user_from_browser_profile(token)
+        return roxy_restore_user_from_browser_profile(token) or roxy_restore_user_from_route_token(token)
     roxy_set_authenticated_user(username, profile, announce=False)
     st.session_state.roxy_session_token = token
     st.session_state.roxy_public_profile = roxy_public_profile_payload(username, profile, token)
@@ -4608,10 +4665,19 @@ def render_roxy_headless_voice_runtime() -> None:
         f"""
         <script>
         (function() {{
-          if (window.parent && window.parent.__roxyHeadlessVoiceInstalled) return;
           const root = window.parent || window;
+          const initialPayload = {payload_json};
+          root.__roxyHeadlessVoicePayload = initialPayload;
+          if (root.__roxyHeadlessVoiceInstalled) {{
+            try {{
+              if (root.__roxyHideLegacyVoiceControls) root.__roxyHideLegacyVoiceControls();
+            }} catch (err) {{}}
+            return;
+          }}
           root.__roxyHeadlessVoiceInstalled = true;
-          const payload = {payload_json};
+          function currentPayload() {{
+            return root.__roxyHeadlessVoicePayload || initialPayload;
+          }}
           const hiddenLabels = [
             "toca para hablar",
             "hablar con roxy",
@@ -4645,9 +4711,10 @@ def render_roxy_headless_voice_runtime() -> None:
               }}
             }});
           }}
+          root.__roxyHideLegacyVoiceControls = hideLegacyVoiceControls;
 
           function rows() {{
-            const snap = payload.opportunitySnapshot || {{}};
+            const snap = currentPayload().opportunitySnapshot || {{}};
             return Array.isArray(snap.rows) ? snap.rows : [];
           }}
 
@@ -4677,6 +4744,7 @@ def render_roxy_headless_voice_runtime() -> None:
 
           function answer(rawCommand) {{
             const command = normalize(rawCommand || "");
+            const payload = currentPayload();
             const name = payload.userName || "Roberto";
             const context = payload.pageContext || {{}};
             if (command.includes("oportun") || command.includes("senal") || command.includes("señal") || command.includes("lista") || command.includes("operar") || command.includes("mejores")) {{
@@ -56890,6 +56958,7 @@ def main() -> None:
         default="",
     )
     render_roxy_browser_session_bridge()
+    render_roxy_headless_voice_runtime()
     if active_module_for_shell == "acciones-operar":
         actions_timeframe = text_display(
             first_query_param_value(st.query_params, "tf")
