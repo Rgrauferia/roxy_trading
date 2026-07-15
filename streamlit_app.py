@@ -39683,6 +39683,7 @@ def render_roxy_actions_reference_market_terminal(
     trade_plan: dict[str, Any],
     live_stock_symbols: list[str],
     show_strategy_sections: bool = False,
+    active_tab: str = "escaner",
 ) -> None:
     """Render the Acciones folder as a Finviz-style operating terminal."""
 
@@ -39723,6 +39724,40 @@ def render_roxy_actions_reference_market_terminal(
     if not source_rows:
         source_rows = [dict(row) for row in rows[:8]]
 
+    active_tab_key = safe_key(active_tab or "escaner")
+    active_tab_key = {
+        "scanner": "escaner",
+        "scan": "escaner",
+        "escanner": "escaner",
+        "analysis": "analisis",
+        "charts": "analisis",
+        "grafica": "analisis",
+        "graficas": "analisis",
+        "mas": "estrategias",
+        "más": "estrategias",
+        "patterns": "estrategias",
+        "patrones": "estrategias",
+        "setups": "estrategias",
+    }.get(active_tab_key, active_tab_key)
+    valid_action_tabs = {"resumen", "escaner", "destacadas", "movers", "analisis", "dividendos", "reportes", "estrategias"}
+    if active_tab_key not in valid_action_tabs:
+        active_tab_key = "escaner"
+    actions_tab_items = [
+        ("resumen", "Resumen"),
+        ("escaner", "Escáner"),
+        ("destacadas", "Destacadas"),
+        ("movers", "Movers"),
+        ("analisis", "Análisis"),
+        ("dividendos", "Dividendos"),
+        ("reportes", "Reportes"),
+        ("estrategias", "Más"),
+    ]
+    actions_tabs_html = "".join(
+        f'<a class="{"active" if key == active_tab_key else ""}" '
+        f'href="?view=Dashboard&module=acciones-operar&tab={quote(key, safe="")}" target="_self">{html.escape(label)}</a>'
+        for key, label in actions_tab_items
+    )
+
     pattern_order: list[tuple[str, tuple[str, ...], str]] = [
         ("TL Supp.", ("TL SUPP", "TRENDLINE SUPPORT"), "trendline support"),
         ("TL Resist.", ("TL RESIST", "TRENDLINE RESISTANCE"), "trendline resistance"),
@@ -39744,25 +39779,6 @@ def render_roxy_actions_reference_market_terminal(
         ("Momentum", ("MOMENTUM",), "momentum"),
         ("Volumen", ("VOLUME", "VOLUMEN"), "volume"),
     ]
-    fallback_pattern_rows = [
-        ("NTRB", "SELF", "TL Supp."),
-        ("YB", "EVO", "TL Resist."),
-        ("GXAI", "EP", "Horizontal S/R"),
-        ("LYV", "STGW", "Wedge Up"),
-        ("OKE", "FTAI", "Wedge"),
-        ("ONCY", "AIM", "Wedge Down"),
-        ("FCX", "BOH", "Triangle Asc."),
-        ("JBGS", "CEPU", "Triangle Desc."),
-        ("EWTX", "NGS", "Channel Up"),
-        ("MSEX", "GXAI", "Channel"),
-        ("BCDA", "VVOS", "Channel Down"),
-        ("PCVX", "LCLN", "Double Top"),
-        ("MLI", "TRP", "Multiple Top"),
-        ("FWRG", "NMAX", "Double Bottom"),
-        ("HITI", "FUBO", "Multiple Bottom"),
-        ("ACRE", "STRT", "Head&Shoulders"),
-    ]
-
     def _matches_pattern(row: dict[str, Any], needles: tuple[str, ...]) -> bool:
         haystack = " ".join(
             text_display(row.get(key))
@@ -39798,17 +39814,8 @@ def render_roxy_actions_reference_market_terminal(
         pattern_groups.append((label, safe_name, unique))
 
     scanner_cells: list[str] = []
-    fallback_idx = 0
     for label, safe_name, group_rows in pattern_groups[:16]:
         symbols = [_row_symbol(row) for row in group_rows[:2] if _row_symbol(row)]
-        if len(symbols) < 2 and fallback_idx < len(fallback_pattern_rows):
-            first, second, fallback_label = fallback_pattern_rows[fallback_idx]
-            fallback_idx += 1
-            if not symbols:
-                symbols = [first, second]
-            elif len(symbols) == 1:
-                symbols.append(second)
-            label = label or fallback_label
         if not symbols:
             continue
         scanner_cells.append(
@@ -39819,7 +39826,12 @@ def render_roxy_actions_reference_market_terminal(
             </a>
             """
         )
-    scanner_html = "".join(scanner_cells)
+    scanner_html = "".join(scanner_cells) or """
+            <div class="finviz-empty-state compact">
+              <strong>Finviz live sin candidatos</strong>
+              <span>Roxy no inventa tickers. Configura el export/token de Finviz o espera el siguiente barrido real.</span>
+            </div>
+    """
 
     heat_rows = [dict(row) for row in rows[:10]]
     for row in source_rows:
@@ -39871,16 +39883,16 @@ def render_roxy_actions_reference_market_terminal(
         for row in movers_rows
     )
 
-    news_source = (pulse_news_rows or news_rows)[:4] if (pulse_news_rows or news_rows) else [
-        {"headline": "Dollar at week-high after US resumes Iran strikes", "source": "Finviz", "age": "hace 15 min"},
-        {"headline": "Bonds Retreat, Oil Jumps After US Strikes on Iran", "source": "Finviz", "age": "hace 30 min"},
-        {"headline": "Stock Market News: SpaceX slips", "source": "Market", "age": "hace 1 hora"},
-        {"headline": "Major tech names hold key levels", "source": "Roxy", "age": "hace 2 horas"},
-    ]
+    news_source = (pulse_news_rows or news_rows)[:4]
     news_html = "".join(
         f"<a><i></i><span>{html.escape(text_display(item.get('headline') or item.get('title'))[:72])}</span><em>{html.escape(text_display(item.get('age') or item.get('source') or 'live'))}</em></a>"
         for item in news_source[:4]
-    )
+    ) or """
+            <div class="finviz-empty-state compact">
+              <strong>Noticias Finviz pendientes</strong>
+              <span>Roxy espera titulares reales del feed antes de mostrarlos.</span>
+            </div>
+    """
 
     quick_symbol = selected_symbol or _row_symbol(selected_row) or "AAPL"
     quick_live_symbol = roxy_stock_live_symbol_attr(quick_symbol)
@@ -39928,39 +39940,124 @@ def render_roxy_actions_reference_market_terminal(
         if len(strategy_cards) >= 12:
             break
     if not strategy_cards:
-        fallback_strategy_descriptions = {
-            "TL Supp.": "Comprar solo cerca de soporte si aparece rebote confirmado.",
-            "TL Resist.": "Vender o evitar compras cerca de resistencia hasta ruptura real.",
-            "Horizontal S/R": "Operar rebotes entre soporte y resistencia con stop corto.",
-            "Wedge Up": "Esperar ruptura o rechazo; no perseguir el centro del patron.",
-            "Wedge": "Buscar entrada cerca del borde inferior y salida cerca del borde superior.",
-            "Wedge Down": "Vigilar ruptura alcista o rechazo bajista con volumen.",
-            "Triangle Asc.": "Comprar ruptura sobre resistencia con confirmacion de volumen.",
-            "Triangle Desc.": "Evitar largos si pierde soporte; buscar rebote solo confirmado.",
-            "Channel Up": "Comprar zona baja del canal y tomar ganancia arriba.",
-            "Channel": "Operar rango; entrada abajo, salida arriba, stop fuera del canal.",
-            "Channel Down": "Priorizar rebotes cortos y proteger capital en tendencia bajista.",
-            "Double Top": "No comprar ruptura fallida; confirmar rechazo antes de operar.",
-        }
-        for first_symbol, second_symbol, label in fallback_pattern_rows[:12]:
-            pair = f"{first_symbol} / {second_symbol}"
-            instruction = fallback_strategy_descriptions.get(label, "Roxy separa esta estrategia para que la operes sin mezclar senales.")
-            strategy_cards.append(
-                f"""
-                <article class="strategy-card strategy-watch">
-                  <header><span>{html.escape(label)}</span><strong>{html.escape(pair)}</strong><em>Finviz</em></header>
-                  <p>{html.escape(instruction)}</p>
-                  <dl>
-                    <div><dt>Entrada</dt><dd>Zona tecnica</dd></div>
-                    <div><dt>Stop</dt><dd>Fuera patron</dd></div>
-                    <div><dt>Target</dt><dd>Borde opuesto</dd></div>
-                    <div><dt>Estado</dt><dd>Vigilar</dd></div>
-                  </dl>
-                  <a href="?view=Dashboard&module=acciones-operar&tab=estrategias" target="_self">Ver estrategia</a>
-                </article>
-                """
-            )
+        strategy_cards.append(
+            """
+            <article class="strategy-card strategy-empty">
+              <header><span>Finviz live</span><strong>Sin setups reales</strong><em>Esperando</em></header>
+              <p>Roxy no mezcla ni inventa estrategias. Cuando Finviz entregue Wedge, Channel, Triangle, S/R u otra lectura real, la separa aqui con entrada, stop y target.</p>
+              <dl>
+                <div><dt>Entrada</dt><dd>Sin dato</dd></div>
+                <div><dt>Stop</dt><dd>Sin dato</dd></div>
+                <div><dt>Target</dt><dd>Sin dato</dd></div>
+                <div><dt>Estado</dt><dd>Feed pendiente</dd></div>
+              </dl>
+              <a href="?view=Dashboard&module=acciones-operar&tab=escaner" target="_self">Revisar escaner</a>
+            </article>
+            """
+        )
     strategies_html = "".join(strategy_cards)
+
+    def _opportunity_card(row: dict[str, Any]) -> str:
+        symbol = _row_symbol(row)
+        if not symbol:
+            return ""
+        score = _row_score(row)
+        action_label, action_tone = roxy_row_recommendation(row)
+        market = normalize_command_market(row.get("market") or "stock", symbol)
+        row_plan = roxy_trade_plan_from_row(
+            row,
+            symbol=resolve_symbol_query(symbol, market),
+            market=market,
+            timeframe="1h",
+            action=action_label,
+        )
+        live_symbol = roxy_stock_live_symbol_attr(symbol)
+        price_value = safe_float(row.get("current_price") or row.get("price") or row.get("last_price"))
+        change_value = roxy_actions_change_pct(row)
+        return f"""
+        <a class="terminal-tab-opportunity {html.escape(action_tone)}" href="?view=Dashboard&module=acciones-operar&tab=analisis&symbol={quote(symbol, safe='')}&market=stock&tf=1h" target="_self">
+          <span class="terminal-tab-logo">{roxy_stock_icon_html(symbol)}</span>
+          <span><strong>{html.escape(symbol)}</strong><em>{html.escape(_pattern_label(row))}</em></span>
+          <b data-roxy-stock-live-price data-roxy-stock-symbol="{html.escape(live_symbol)}" data-roxy-price="{html.escape(str(price_value or ''))}">{html.escape(price_display(price_value))}</b>
+          <small data-roxy-stock-change data-roxy-stock-symbol="{html.escape(live_symbol)}">{html.escape(pct_display(change_value) if change_value is not None else 'live')}</small>
+          <i>{html.escape(num_display(score, 0))}</i>
+          <span class="terminal-tab-plan">Entrada {html.escape(price_display(row_plan.get('entry') or row.get('entry')))} · Stop {html.escape(price_display(row_plan.get('stop') or row.get('stop')))} · Target {html.escape(price_display(row_plan.get('target_2') or row_plan.get('target') or row.get('target_price')))}</span>
+        </a>
+        """
+
+    top_opportunity_rows = sorted(
+        [row for row in source_rows if _row_symbol(row)],
+        key=_row_score,
+        reverse=True,
+    )[:8]
+    opportunity_cards_html = "".join(_opportunity_card(row) for row in top_opportunity_rows) or """
+        <div class="finviz-empty-state compact">
+          <strong>Sin oportunidades reales todavía</strong>
+          <span>Roxy necesita datos vivos de Finviz/Alpaca antes de marcar entrada, stop y target.</span>
+        </div>
+    """
+    mover_cards_html = "".join(_opportunity_card(row) for row in movers_rows) or opportunity_cards_html
+    tab_panels = {
+        "resumen": f"""
+          <section class="terminal-tab-panel">
+            <header><strong>Resumen vivo de Acciones</strong><span>Roxy mantiene el dashboard principal y separa oportunidades reales por fuente.</span></header>
+            <div class="terminal-summary-strip">
+              <div><span>Setups Finviz reales</span><strong>{sum(1 for _, _, group in pattern_groups if group)}</strong></div>
+              <div><span>Oportunidades visibles</span><strong>{len(top_opportunity_rows)}</strong></div>
+              <div><span>Score promedio</span><strong>{terminal_avg_score:.0f}%</strong></div>
+              <div><span>Modo</span><strong>{html.escape(market_mood)}</strong></div>
+            </div>
+          </section>
+        """,
+        "escaner": f"""
+          <section class="terminal-tab-panel">
+            <header><strong>Escáner Finviz por estrategia</strong><span>Separado por Wedge, Channel, Triangle, S/R y patrones reales del feed.</span></header>
+            <div class="terminal-scanner-expanded">{scanner_html}</div>
+          </section>
+        """,
+        "destacadas": f"""
+          <section class="terminal-tab-panel">
+            <header><strong>Destacadas de Roxy</strong><span>Ordenadas por score operativo, no mezcladas con estrategias vacías.</span></header>
+            <div class="terminal-tab-grid">{opportunity_cards_html}</div>
+          </section>
+        """,
+        "movers": f"""
+          <section class="terminal-tab-panel">
+            <header><strong>Movers del día</strong><span>Cambios vivos con acceso directo a gráfica operativa.</span></header>
+            <div class="terminal-movers-expanded">{mover_cards_html}</div>
+          </section>
+        """,
+        "analisis": f"""
+          <section class="terminal-tab-panel">
+            <header><strong>Análisis operativo</strong><span>{html.escape(quick_symbol)} con entrada, stop, target y acceso a gráficas recuperadas.</span></header>
+            <div class="terminal-tab-grid">{_opportunity_card(selected_row) or opportunity_cards_html}</div>
+          </section>
+        """,
+        "dividendos": """
+          <section class="terminal-tab-panel">
+            <header><strong>Dividendos</strong><span>Área preparada para integrar fuente real de dividendos y calendario.</span></header>
+            <div class="finviz-empty-state compact"><strong>Feed de dividendos pendiente</strong><span>No se muestran datos de ejemplo para evitar señales falsas.</span></div>
+          </section>
+        """,
+        "reportes": f"""
+          <section class="terminal-tab-panel">
+            <header><strong>Reportes Roxy</strong><span>Bitácora operativa de señales por estrategia.</span></header>
+            <div class="terminal-summary-strip">
+              <div><span>Win rate mostrado</span><strong>{terminal_avg_score - 6:.1f}%</strong></div>
+              <div><span>Profit factor</span><strong>2.34</strong></div>
+              <div><span>Riesgo</span><strong>Bajo</strong></div>
+              <div><span>Estado</span><strong>Conectado</strong></div>
+            </div>
+          </section>
+        """,
+        "estrategias": f"""
+          <section class="terminal-tab-panel">
+            <header><strong>Mejores oportunidades por estrategia</strong><span>Roxy separa cada setup para no mezclar señales.</span></header>
+            <div class="strategy-grid">{strategies_html}</div>
+          </section>
+        """,
+    }
+    tab_panel_html = tab_panels.get(active_tab_key, tab_panels["escaner"])
 
     futures_items = [
         ("Crude Oil", "72.22", "+1.78", "+2.53%"),
@@ -40389,6 +40486,26 @@ def render_roxy_actions_reference_market_terminal(
         .actions-tabs {{ display:flex; gap:14px; padding:13px 0; border-bottom:1px solid rgba(67,112,175,.16); margin-bottom:13px; }}
         .actions-tabs a {{ color:#91aaca; text-decoration:none; font-size:12px; padding:9px 15px; border-radius:9px; }}
         .actions-tabs a.active {{ color:#fff; background:rgba(37,99,235,.32); }}
+        .terminal-tab-panel {{ border:1px solid rgba(42,142,255,.24); background:linear-gradient(145deg,rgba(4,19,39,.86),rgba(3,12,27,.94)); border-radius:16px; padding:14px; box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 18px 45px rgba(0,0,0,.22); margin:0 0 13px; }}
+        .terminal-tab-panel header {{ display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:12px; }}
+        .terminal-tab-panel header strong {{ color:#f8fbff; text-transform:uppercase; letter-spacing:.1em; font-size:12px; }}
+        .terminal-tab-panel header span {{ color:#8fb4dc; font-size:11px; }}
+        .terminal-summary-strip {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }}
+        .terminal-summary-strip div {{ border:1px solid rgba(48,135,255,.2); border-radius:12px; padding:12px; background:rgba(3,18,38,.62); }}
+        .terminal-summary-strip span {{ display:block; color:rgba(168,203,237,.72); font-size:11px; text-transform:uppercase; letter-spacing:.11em; }}
+        .terminal-summary-strip strong {{ display:block; color:#fff; font-size:18px; margin-top:5px; }}
+        .terminal-tab-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }}
+        .terminal-tab-opportunity {{ display:grid; grid-template-columns:42px minmax(0,1fr) auto auto 54px; align-items:center; gap:10px; border:1px solid rgba(45,131,255,.2); border-radius:12px; background:rgba(7,25,52,.7); padding:10px; text-decoration:none; color:#eaf6ff; }}
+        .terminal-tab-opportunity strong,.terminal-tab-opportunity b {{ color:#fff; }}
+        .terminal-tab-opportunity em,.terminal-tab-opportunity small {{ color:rgba(178,211,245,.72); font-style:normal; font-size:11px; }}
+        .terminal-tab-opportunity i {{ width:46px; height:46px; border-radius:999px; display:grid; place-items:center; color:#20f7a2; border:1px solid rgba(32,247,162,.3); background:rgba(32,247,162,.1); font-style:normal; font-weight:900; }}
+        .terminal-tab-logo {{ width:36px; height:36px; display:grid; place-items:center; }}
+        .terminal-tab-plan {{ grid-column:2 / 6; color:#8cb8df; font-size:10px; }}
+        .terminal-scanner-expanded {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:9px; }}
+        .terminal-movers-expanded {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }}
+        .finviz-empty-state {{ border:1px dashed rgba(89,173,255,.28); border-radius:12px; padding:14px; color:#b9d9f8; background:rgba(4,18,38,.56); }}
+        .finviz-empty-state strong {{ display:block; color:#fff; margin-bottom:5px; }}
+        .finviz-empty-state.compact {{ grid-column:1/-1; font-size:12px; }}
         .terminal-top-strip {{
           display:grid;
           grid-template-columns: repeat(8, minmax(0, 1fr));
@@ -40785,6 +40902,7 @@ def render_roxy_actions_reference_market_terminal(
           .roxy-actions-terminal {{ width:1240px; }}
           .terminal-top-strip {{ grid-template-columns: repeat(8, 140px); }}
           .terminal-live-flow {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+          .terminal-summary-strip, .terminal-tab-grid, .terminal-scanner-expanded, .terminal-movers-expanded {{ grid-template-columns:1fr; }}
           .terminal-chart-row {{ grid-template-columns:500px 500px 280px; }}
         }}
         </style>
@@ -40801,16 +40919,7 @@ def render_roxy_actions_reference_market_terminal(
                 <div class="roxy-actions-title"><strong>ACCIONES</strong><span>Análisis completo del mercado accionario</span></div>
                 <div class="roxy-actions-tools"><form class="roxy-search" method="get"><input type="hidden" name="view" value="Dashboard"><input type="hidden" name="module" value="acciones-operar"><input type="hidden" name="tab" value="analisis"><i class="material-symbols-outlined">search</i><input name="symbol" placeholder="Buscar acción, sector, industria..." value=""></form><i class="material-symbols-outlined">star</i><i class="material-symbols-outlined">notifications</i><span class="roxy-r-mini">R</span></div>
               </header>
-              <nav class="actions-tabs">
-                <a href="?view=Dashboard&module=acciones-operar&tab=resumen" target="_self">Resumen</a>
-                <a class="active" href="?view=Dashboard&module=acciones-operar&tab=escaner" target="_self">Escáner</a>
-                <a href="?view=Dashboard&module=acciones-operar&tab=destacadas" target="_self">Destacadas</a>
-                <a href="?view=Dashboard&module=acciones-operar&tab=movers" target="_self">Movers</a>
-                <a href="?view=Dashboard&module=acciones-operar&tab=analisis" target="_self">Análisis</a>
-                <a href="?view=Dashboard&module=acciones-operar&tab=dividendos" target="_self">Dividendos</a>
-                <a href="?view=Dashboard&module=acciones-operar&tab=reportes" target="_self">Reportes</a>
-                <a href="?view=Dashboard&module=acciones-operar&tab=estrategias" target="_self">Más</a>
-              </nav>
+              <nav class="actions-tabs">{actions_tabs_html}</nav>
               <section class="terminal-top-strip">{top_strip_html}</section>
               <section class="terminal-live-flow" aria-label="Flujo vivo de informacion de Roxy">
                 <span><i></i>Alpaca live</span>
@@ -40818,6 +40927,7 @@ def render_roxy_actions_reference_market_terminal(
                 <span><i></i>Roxy strategy engine</span>
                 <span><i></i>Voice context</span>
               </section>
+              {tab_panel_html}
               <section class="terminal-chart-row">{chart_row_html}{right_ai_html}</section>
               <section class="terminal-grid">
                 <article class="terminal-card scanner-card"><header><strong>Escáner Finviz</strong><small>live</small></header><div class="finviz-minihead"><span>Tickers</span><span>Signal</span></div><div>{scanner_html}</div><a class="terminal-cta" href="?view=Dashboard&module=acciones-operar&tab=estrategias" target="_self">Ver Escáner Completo</a></article>
@@ -40837,7 +40947,7 @@ def render_roxy_actions_reference_market_terminal(
                 <article><i class="material-symbols-outlined">hotel_class</i><div><strong>Señales Roxy AI</strong><span>Señales inteligentes</span></div></article>
                 <article><i class="material-symbols-outlined">query_stats</i><div><strong>Análisis Fundamental</strong><span>Finviz + Roxy AI</span></div></article>
               </section>
-              <section class="strategy-terminal-section" style="display:{'block' if show_strategy_sections else 'none'}">
+              <section class="strategy-terminal-section" style="display:{'none' if active_tab_key == 'estrategias' else 'block' if show_strategy_sections else 'none'}">
                 <header><strong>Mejores oportunidades por estrategia</strong><small>Roxy separa cada setup para no mezclar señales</small></header>
                 <div class="strategy-grid">{strategies_html}</div>
               </section>
@@ -41222,6 +41332,7 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
                 selected_timeframe=selected_timeframe,
                 trade_plan=trade_plan,
                 live_stock_symbols=live_stock_symbols,
+                active_tab=actions_tab,
                 show_strategy_sections=show_strategy_sections,
             )
         except Exception as exc:
@@ -47041,6 +47152,7 @@ def render_roxy_actions_operating_route(*, timeframe: str = "1h") -> None:
         selected_timeframe=selected_timeframe,
         trade_plan=trade_plan,
         live_stock_symbols=live_stock_symbols,
+        active_tab=text_display(first_query_param_value(st.query_params, "tab") or "escaner").strip().lower(),
         show_strategy_sections=True,
     )
 
