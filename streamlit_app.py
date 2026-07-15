@@ -41759,11 +41759,10 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
                 unsafe_allow_html=True,
             )
 
-    show_extra_strategy_board = actions_tab in strategy_tabs
-
     # Acciones now uses the reference terminal as the canonical folder view.
     # The legacy Streamlit layout below is kept only as dormant fallback code.
-    render_actions_reference_terminal_deploy(show_strategy_sections=show_extra_strategy_board)
+    render_roxy_headless_voice_runtime()
+    render_actions_reference_terminal_deploy(show_strategy_sections=True)
     return
 
     render_roxy_actions_symbol_search(selected_symbol)
@@ -47556,37 +47555,17 @@ def render_roxy_actions_operating_route(*, timeframe: str = "1h") -> None:
     if selected_live_stock_symbol and selected_live_stock_symbol not in live_stock_symbols:
         live_stock_symbols.insert(0, selected_live_stock_symbol)
 
-    try:
-        render_roxy_actions_reference_market_terminal(
-            rows,
-            selected_row=selected_row,
-            selected_symbol=selected_symbol,
-            selected_market=selected_market,
-            selected_timeframe=selected_timeframe,
-            trade_plan=trade_plan,
-            live_stock_symbols=live_stock_symbols,
-            active_tab=text_display(first_query_param_value(st.query_params, "tab") or "escaner").strip().lower(),
-            show_strategy_sections=True,
-        )
-    except Exception as exc:
-        st.warning(
-            "Roxy mantuvo abierta la carpeta de acciones, pero una pieza avanzada no cargo. "
-            "Mostrando modo operativo de respaldo mientras se recupera el modulo live."
-        )
-        st.caption(f"Detalle tecnico: {type(exc).__name__}")
-        try:
-            render_roxy_actions_folder_fast(
-                rows,
-                selected_row=selected_row,
-                selected_symbol=selected_symbol,
-                selected_market=selected_market,
-                selected_timeframe=selected_timeframe,
-                trade_plan=trade_plan,
-                live_stock_symbols=live_stock_symbols,
-                show_strategy_sections=True,
-            )
-        except Exception:
-            render_roxy_asset_cards(rows, market="stock", timeframe=selected_timeframe, key_prefix="acciones-operar-fallback")
+    render_roxy_actions_reference_market_terminal(
+        rows,
+        selected_row=selected_row,
+        selected_symbol=selected_symbol,
+        selected_market=selected_market,
+        selected_timeframe=selected_timeframe,
+        trade_plan=trade_plan,
+        live_stock_symbols=live_stock_symbols,
+        active_tab=text_display(first_query_param_value(st.query_params, "tab") or "escaner").strip().lower(),
+        show_strategy_sections=True,
+    )
 
 
 def render_command_center_controls(confluence_df: pd.DataFrame, brief: dict) -> dict[str, Any]:
