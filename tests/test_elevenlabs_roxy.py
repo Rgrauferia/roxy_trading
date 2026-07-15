@@ -159,8 +159,10 @@ def test_streamlit_roxy_voice_avatar_surface_can_prime_microphone_without_button
     assistant_source = source[source.index("def render_roxy_elevenlabs_assistant") :]
 
     assert 'const wakeSurface = root.querySelector(".roxy-el-wake")' in assistant_source
-    assert 'wakeSurface.addEventListener("click", function()' in assistant_source
+    assert 'wakeSurface.addEventListener("click", function()' not in assistant_source
     assert 'wakeSurface.addEventListener("click", activateRoxy)' not in assistant_source
+    assert 'wakeSurface.setAttribute("title", "Di Hola Roxy para activar la voz")' in assistant_source
+    assert "pointer-events:none" in assistant_source
     assert "restartWakeListener();" in assistant_source
     assert 'wakeSurface.addEventListener("click", startRoxyConversation)' not in assistant_source
     assert "cursor:default" in assistant_source
@@ -178,26 +180,31 @@ def test_streamlit_roxy_voice_has_browser_speech_fallback():
     assert "conversation || win.__roxyVoiceConversation || payload.signedUrl" not in assistant_source
 
 
-def test_streamlit_roxy_voice_speaks_local_brain_reply_before_remote_agent():
+def test_streamlit_roxy_voice_routes_platform_context_through_local_roxy_brain_first():
     source = __import__("pathlib").Path("streamlit_app.py").read_text(encoding="utf-8")
     assistant_source = source[source.index("def render_roxy_elevenlabs_assistant") :]
 
     assert "Roxy OS local proceso la instruccion" in assistant_source
-    assert "if (speakBrowserFallback(win.__roxyPendingHelperVoiceReply.text)) return true;" in assistant_source
-    assert "if (speakBrowserFallback(localReply)) return true;" in assistant_source
+    assert "async function speakThroughRoxyBrain(message, command)" in assistant_source
+    assert "async function sendTextToSecureRoxy(message)" in assistant_source
+    assert "return speakLocalRoxyReply(win.__roxyPendingHelperVoiceReply.text, true);" in assistant_source
+    assert "return speakLocalRoxyReply(localReply, true);" in assistant_source
+    assert "return speakLocalRoxyReply(wakeGreetingReply(), true);" in assistant_source
+    assert "Roxy respondiendo con ElevenLabs" in assistant_source
+    assert "roxy_trading_context_voice" in assistant_source
     assert "Roxy voz local preparada" in assistant_source
 
 
-def test_streamlit_roxy_voice_has_direct_audio_test_button():
+def test_streamlit_roxy_voice_has_no_direct_audio_test_button():
     source = __import__("pathlib").Path("streamlit_app.py").read_text(encoding="utf-8")
     assistant_source = source[source.index("def render_roxy_elevenlabs_assistant") :]
 
-    assert "roxyVoiceTestButton" in assistant_source
+    assert "roxyVoiceTestButton" not in assistant_source
     assert "components.html(voice_test_html" not in assistant_source
-    assert "Probar voz de Roxy" in assistant_source
-    assert "Esta es una prueba temporal de voz" in assistant_source
-    assert "Audio OK" in assistant_source
-    assert "AudioContext" in assistant_source
+    assert "Probar voz de Roxy" not in assistant_source
+    assert "Esta es una prueba temporal de voz" not in assistant_source
+    assert "Audio OK" not in assistant_source
+    assert "Wake word" in assistant_source or "wake-word" in assistant_source
 
 
 def test_streamlit_roxy_voice_sends_platform_context_to_agent():
@@ -276,6 +283,7 @@ def test_streamlit_roxy_wake_word_routes_to_local_brain_before_url_reload():
     assert "function localPlatformVoiceReply(command)" in assistant_source
     assert 'source: "browser_visible_context"' in assistant_source
     assert "Roxy preparo respuesta local" in assistant_source
+    assert "speakLocalRoxyReply(wakeGreetingReply(), true)" in assistant_source
     assert "__roxyPendingHelperVoiceReply" in assistant_source
     assert "Roxy OS local proceso la instruccion" in assistant_source
     assert 'sendCommandToRoxyOSNavigation("Hola Roxy " + command)' in assistant_source
