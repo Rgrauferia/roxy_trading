@@ -4687,6 +4687,8 @@ def render_roxy_os_action_inbox() -> None:
 
 def render_roxy_headless_voice_runtime() -> None:
     """Install a hidden wake-word voice runtime for routes that call st.stop()."""
+    if os.environ.get("ELEVENLABS_API_KEY"):
+        return
     user_profile = roxy_elevenlabs_user_profile()
     page_context = roxy_elevenlabs_page_context()
     voice_snapshot = st.session_state.get("roxy_voice_opportunity_snapshot")
@@ -5262,10 +5264,21 @@ def render_roxy_elevenlabs_assistant() -> None:
           let importPromise = null;
           let cooldownUntil = 0;
           let speakingResetTimer = null;
+          let secureVoiceStarting = false;
           const canUseSecureVoice = Boolean(payload.signedUrl || payload.conversationToken);
 
           function secureVoiceConnected() {{
             return Boolean(conversation || win.__roxyVoiceConversation);
+          }}
+
+          function cancelBrowserSpeech() {{
+            try {{
+              if (win.speechSynthesis && typeof win.speechSynthesis.cancel === "function") win.speechSynthesis.cancel();
+            }} catch (_) {{}}
+          }}
+
+          function shouldUseBrowserFallbackAudio() {{
+            return !canUseSecureVoice && !secureVoiceStarting && !secureVoiceConnected();
           }}
 
           function removeLegacyVoiceBadges() {{
@@ -5351,9 +5364,10 @@ def render_roxy_elevenlabs_assistant() -> None:
 
           function speakBrowserFallback(message, force) {{
             try {{
-              if (!force && secureVoiceConnected()) {{
-                setStatus("Roxy voz preparada", false);
-                setRoxyVisualState("listening");
+              if (!shouldUseBrowserFallbackAudio()) {{
+                cancelBrowserSpeech();
+                setStatus("Roxy voz real preparada", false);
+                setRoxyVisualState(secureVoiceConnected() ? "listening" : "thinking");
                 return false;
               }}
               const synth = win.speechSynthesis;
@@ -5603,6 +5617,11 @@ def render_roxy_elevenlabs_assistant() -> None:
 	              text: genericReply,
 	              result: {{ ok: true, source: "browser_generic_voice", command: command }},
 	            }};
+	            if (canUseSecureVoice) {{
+	              await activateRoxy();
+	              if (conversation) sendRoxyContextToConversation();
+	              return true;
+	            }}
 	            return speakBrowserFallback(genericReply, true);
 	          }}
 
@@ -5897,11 +5916,12 @@ def render_roxy_elevenlabs_assistant() -> None:
             const pending = win.__roxyPendingHelperVoiceReply || payload.pendingVoiceReply || {{}};
             const pendingText = String(pending.text || "").trim();
             if (now < cooldownUntil) {{
-              if (!secureVoiceConnected() && pendingText) return speakBrowserFallback(pendingText, true);
+              if (!canUseSecureVoice && !secureVoiceConnected() && pendingText) return speakBrowserFallback(pendingText, true);
               return secureVoiceConnected();
             }}
             cooldownUntil = now + 2500;
             openPanel();
+            cancelBrowserSpeech();
             if (!canUseSecureVoice) {{
               setStatus(payload.error ? "Configura ElevenLabs en Render" : "Sesion de voz no disponible", true);
               return speakBrowserFallback(pendingText || ("Hola " + (payload.userName || "Trader") + ". Soy Roxy Trading. La voz segura de ElevenLabs no esta conectada, pero puedo responder con el contexto visible de la plataforma."), true);
@@ -5914,9 +5934,11 @@ def render_roxy_elevenlabs_assistant() -> None:
               return true;
             }}
             setStatus("Activando voz real de Roxy...", false);
+            secureVoiceStarting = true;
             try {{
               const eleven = await loadClient();
               if (!eleven) {{
+                secureVoiceStarting = false;
                 const spoke = speakBrowserFallback(pendingText || ("Hola " + (payload.userName || "Trader") + ". Soy Roxy. El modulo de voz real no cargo en este navegador, pero puedo mantener la voz temporal mientras revisamos ElevenLabs."), true);
                 setStatus(spoke ? "Voz temporal activa; SDK no cargo" : "SDK no cargo; abre el widget de Roxy", !spoke);
                 return spoke;
@@ -5927,8 +5949,9 @@ def render_roxy_elevenlabs_assistant() -> None:
                 dynamicVariables: payload.dynamicVariables || {{}},
                 overrides: roxyConversationOverrides(),
                 clientTools: roxyClientTools(),
-                onConnect: function() {{ setStatus("Roxy activa", false); setRoxyVisualState("listening"); }},
+                onConnect: function() {{ secureVoiceStarting = false; cancelBrowserSpeech(); setStatus("Roxy activa", false); setRoxyVisualState("listening"); }},
                 onDisconnect: function() {{
+                  secureVoiceStarting = false;
                   conversation = null;
                   win.__roxyVoiceConversation = null;
                   setStatus("Roxy voz preparada", false);
@@ -5936,6 +5959,7 @@ def render_roxy_elevenlabs_assistant() -> None:
                   restartWakeListener();
                 }},
                 onError: function() {{
+                  secureVoiceStarting = false;
                   setStatus("Error de voz. Reintentando escucha.", true);
                   setRoxyVisualState("ready");
                   restartWakeListener();
@@ -5953,10 +5977,13 @@ def render_roxy_elevenlabs_assistant() -> None:
               else if (payload.signedUrl) options.signedUrl = payload.signedUrl;
               else throw new Error("Secure ElevenLabs session unavailable");
               conversation = await Conversation.startSession(options);
+              secureVoiceStarting = false;
+              cancelBrowserSpeech();
               win.__roxyVoiceConversation = conversation;
               sendRoxyContextToConversation();
               return true;
             }} catch (error) {{
+              secureVoiceStarting = false;
               const spoke = speakBrowserFallback(pendingText || ("Hola " + (payload.userName || "Trader") + ". Soy Roxy. ElevenLabs no conecto todavia, pero esta voz temporal confirma que el audio funciona."), true);
               if (!spoke) setStatus("No pude iniciar voz de ElevenLabs con el cerebro de Roxy. Revisa la API key y el agente en Render.", true);
               return spoke;
@@ -57101,7 +57128,7 @@ def main() -> None:
         default="",
     )
     render_roxy_browser_session_bridge()
-    render_roxy_headless_voice_runtime()
+    render_roxy_elevenlabs_assistant()
     if active_module_for_shell == "acciones-operar":
         actions_timeframe = text_display(
             first_query_param_value(st.query_params, "tf")
@@ -57114,8 +57141,6 @@ def main() -> None:
             actions_table = pd.DataFrame()
         render_roxy_actions_operating_route(timeframe=actions_timeframe)
         st.stop()
-    if str(os.environ.get("ROXY_RENDER_VISIBLE_VOICE_WIDGET") or "").strip().lower() in {"1", "true", "yes", "on"}:
-        render_roxy_elevenlabs_assistant()
     process_roxy_os_query_command()
     render_roxy_os_command_center()
     render_roxy_os_action_inbox()
