@@ -3577,8 +3577,9 @@ def show_news_tab() -> None:
                         # speak the reply via client-side TTS using a tiny component
                         import json as _json
 
-                        js = f"<script>const msg={_json.dumps(reply)}; const u=new SpeechSynthesisUtterance(msg); window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);</script>"
-                        st.components.v1.html(js, height=0)
+                        if not os.environ.get("ELEVENLABS_API_KEY"):
+                            js = f"<script>const msg={_json.dumps(reply)}; const u=new SpeechSynthesisUtterance(msg); window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);</script>"
+                            st.components.v1.html(js, height=0)
                     except Exception as e:
                         st.error(f"Assistant error: {e}")
             with col2:
@@ -4959,6 +4960,7 @@ def render_roxy_elevenlabs_assistant() -> None:
         "signedUrl": session_payload.get("signed_url") or "",
         "conversationToken": session_payload.get("conversation_token") or "",
         "configured": bool(session_payload.get("configured")),
+        "secureVoiceConfigured": bool(os.environ.get("ELEVENLABS_API_KEY")),
         "error": public_error,
         "generatedAt": session_payload.get("generated_at") or "",
         "voiceMode": session_payload.get("voice_mode") or "unavailable",
@@ -5265,6 +5267,7 @@ def render_roxy_elevenlabs_assistant() -> None:
           let cooldownUntil = 0;
           let speakingResetTimer = null;
           let secureVoiceStarting = false;
+          const secureVoiceConfigured = Boolean(payload.secureVoiceConfigured);
           const canUseSecureVoice = Boolean(payload.signedUrl || payload.conversationToken);
 
           function secureVoiceConnected() {{
@@ -5278,6 +5281,7 @@ def render_roxy_elevenlabs_assistant() -> None:
           }}
 
           function shouldUseBrowserFallbackAudio() {{
+            if (secureVoiceConfigured) return false;
             return !canUseSecureVoice && !secureVoiceStarting && !secureVoiceConnected();
           }}
 
