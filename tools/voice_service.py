@@ -86,6 +86,7 @@ def setup_logger() -> logging.Logger:
     log = logging.getLogger("voice_service")
     if not log.handlers:
         log.setLevel(logging.INFO)
+        Path("logs").mkdir(parents=True, exist_ok=True)
         handler = TimedRotatingFileHandler("logs/voice_service.log", when="midnight", backupCount=7)
         fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
         handler.setFormatter(fmt)
@@ -3493,6 +3494,10 @@ def roxy_live_page():
 
     function speak(text, languageOverride) {
       if (!text || !("speechSynthesis" in window)) return false;
+      if (window.__roxyAllowBrowserVoiceFallback !== true) {
+        try { window.speechSynthesis.cancel(); } catch (_) {}
+        return false;
+      }
       setVoicePresenceActive(true);
       const run = () => {
         const lang = languageOverride || $("language").value || "es";

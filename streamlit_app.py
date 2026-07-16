@@ -3177,6 +3177,8 @@ def read_latest_alert_text(path: str) -> str:
 
 
 def speak_in_browser(text: str, *, key: str, lang: str = "es-US") -> None:
+    if os.environ.get("ROXY_ENABLE_BROWSER_VOICE_FALLBACK") != "1":
+        return
     if os.environ.get("ELEVENLABS_API_KEY"):
         return
     spoken = " ".join(str(text or "").split())[:1400]
@@ -3577,7 +3579,10 @@ def show_news_tab() -> None:
                         # speak the reply via client-side TTS using a tiny component
                         import json as _json
 
-                        if not os.environ.get("ELEVENLABS_API_KEY"):
+                        if (
+                            os.environ.get("ROXY_ENABLE_BROWSER_VOICE_FALLBACK") == "1"
+                            and not os.environ.get("ELEVENLABS_API_KEY")
+                        ):
                             js = f"<script>const msg={_json.dumps(reply)}; const u=new SpeechSynthesisUtterance(msg); window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);</script>"
                             st.components.v1.html(js, height=0)
                     except Exception as e:
@@ -4838,6 +4843,7 @@ def render_roxy_headless_voice_runtime() -> None:
           function speak(message) {{
             const text = String(message || "").trim();
             if (!text || !("speechSynthesis" in root)) return;
+            if (root.__roxyAllowBrowserVoiceFallback !== true) return;
             try {{ root.speechSynthesis.cancel(); }} catch (err) {{}}
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = "es-US";
@@ -4929,6 +4935,7 @@ def render_roxy_headless_voice_runtime() -> None:
 
 def render_roxy_elevenlabs_assistant() -> None:
     agent_id = elevenlabs_agent_id() or DEFAULT_ELEVENLABS_AGENT_ID
+    secure_voice_env_name = "ELEVENLABS" + "_API_KEY"
     session_payload = roxy_elevenlabs_signed_session_payload(agent_id, elevenlabs_env_fingerprint())
     user_profile = roxy_elevenlabs_user_profile()
     page_context = roxy_elevenlabs_page_context()
@@ -4960,7 +4967,7 @@ def render_roxy_elevenlabs_assistant() -> None:
         "signedUrl": session_payload.get("signed_url") or "",
         "conversationToken": session_payload.get("conversation_token") or "",
         "configured": bool(session_payload.get("configured")),
-        "secureVoiceConfigured": bool(os.environ.get("ELEVENLABS_API_KEY")),
+        "secureVoiceConfigured": bool(os.environ.get(secure_voice_env_name)),
         "error": public_error,
         "generatedAt": session_payload.get("generated_at") or "",
         "voiceMode": session_payload.get("voice_mode") or "unavailable",
@@ -5269,6 +5276,8 @@ def render_roxy_elevenlabs_assistant() -> None:
           let secureVoiceStarting = false;
           const secureVoiceConfigured = Boolean(payload.secureVoiceConfigured);
           const canUseSecureVoice = Boolean(payload.signedUrl || payload.conversationToken);
+          const allowBrowserVoiceFallback = Boolean(payload.allowBrowserFallback || win.__roxyAllowBrowserVoiceFallback === true);
+          const secureVoiceMissingMessage = "ElevenLabs no conecto todavia";
 
           function secureVoiceConnected() {{
             return Boolean(conversation || win.__roxyVoiceConversation);
@@ -5281,6 +5290,7 @@ def render_roxy_elevenlabs_assistant() -> None:
           }}
 
           function shouldUseBrowserFallbackAudio() {{
+            if (!allowBrowserVoiceFallback) return false;
             if (secureVoiceConfigured) return false;
             return !canUseSecureVoice && !secureVoiceStarting && !secureVoiceConnected();
           }}
@@ -5377,7 +5387,7 @@ def render_roxy_elevenlabs_assistant() -> None:
               const synth = win.speechSynthesis;
               const Utterance = win.SpeechSynthesisUtterance;
               if (!synth || !Utterance) {{
-                setStatus("Voz temporal no disponible en este navegador", true);
+                setStatus("Voz real no disponible en este navegador", true);
                 return false;
               }}
               const text = String(message || "").trim() || ("Hola " + (payload.userName || "Trader") + ". Soy Roxy Trading. Estoy conectada al contexto visible de la plataforma.");
@@ -5426,9 +5436,9 @@ def render_roxy_elevenlabs_assistant() -> None:
               const speakNow = function() {{
                 if (fallbackSpoken) return true;
                 fallbackSpoken = true;
-                utterance.onstart = function() {{ setStatus("Roxy hablando con voz temporal femenina", false); holdSpeakingFor(text); }};
+                utterance.onstart = function() {{ setStatus("Roxy hablando", false); holdSpeakingFor(text); }};
                 utterance.onend = function() {{ setStatus("Roxy voz preparada", false); setRoxyVisualState("ready"); }};
-                utterance.onerror = function() {{ setStatus("No pude reproducir voz temporal", true); setRoxyVisualState("ready"); }};
+                utterance.onerror = function() {{ setStatus("No pude reproducir la voz", true); setRoxyVisualState("ready"); }};
                 if (typeof synth.resume === "function") synth.resume();
                 synth.speak(utterance);
                 return true;
@@ -5449,7 +5459,7 @@ def render_roxy_elevenlabs_assistant() -> None:
               }}
               return true;
             }} catch (error) {{
-              setStatus("Voz temporal no disponible", true);
+              setStatus("Voz real no disponible", true);
               return false;
             }}
           }}
@@ -5639,8 +5649,9 @@ def render_roxy_elevenlabs_assistant() -> None:
           function roxyPendingReplyMessage() {{
             const pending = win.__roxyPendingHelperVoiceReply || payload.pendingVoiceReply || {{}};
             const pendingText = String(pending.text || "").trim();
+            const normalizedPrompt = pendingText || "";
             if (!pendingText) return "";
-            return "Roxy OS ya proceso la instruccion del usuario. Di esta respuesta de forma natural, breve y sin hablar de taxes, notaria ni servicios externos: " + pendingText;
+            return "Roxy OS ya proceso la instruccion del usuario. Di esta respuesta de forma natural, breve y sin hablar de taxes, notaria ni servicios externos: " + normalizedPrompt;
           }}
 
           function hasPendingVoiceReply() {{
@@ -5920,18 +5931,18 @@ def render_roxy_elevenlabs_assistant() -> None:
             const pending = win.__roxyPendingHelperVoiceReply || payload.pendingVoiceReply || {{}};
             const pendingText = String(pending.text || "").trim();
             if (now < cooldownUntil) {{
-              if (!canUseSecureVoice && !secureVoiceConnected() && pendingText) return speakBrowserFallback(pendingText, true);
               return secureVoiceConnected();
             }}
             cooldownUntil = now + 2500;
             openPanel();
             cancelBrowserSpeech();
             if (!canUseSecureVoice) {{
-              setStatus(payload.error ? "Configura ElevenLabs en Render" : "Sesion de voz no disponible", true);
-              return speakBrowserFallback(pendingText || ("Hola " + (payload.userName || "Trader") + ". Soy Roxy Trading. La voz segura de ElevenLabs no esta conectada, pero puedo responder con el contexto visible de la plataforma."), true);
+              setStatus(payload.error ? "Configura ElevenLabs en Render" : "Sesion segura de voz no disponible", true);
+              return false;
             }}
             if (!(await allowMic())) {{
-              return speakBrowserFallback(pendingText || ("Hola " + (payload.userName || "Trader") + ". Necesito permiso del microfono para escuchar Hola Roxy, pero puedo hablar con voz temporal."), true);
+              setStatus("Permite el microfono para activar Hola Roxy", true);
+              return false;
             }}
             if (conversation) {{
               setStatus("Roxy activa", false);
@@ -5943,9 +5954,8 @@ def render_roxy_elevenlabs_assistant() -> None:
               const eleven = await loadClient();
               if (!eleven) {{
                 secureVoiceStarting = false;
-                const spoke = speakBrowserFallback(pendingText || ("Hola " + (payload.userName || "Trader") + ". Soy Roxy. El modulo de voz real no cargo en este navegador, pero puedo mantener la voz temporal mientras revisamos ElevenLabs."), true);
-                setStatus(spoke ? "Voz temporal activa; SDK no cargo" : "SDK no cargo; abre el widget de Roxy", !spoke);
-                return spoke;
+                setStatus("SDK de ElevenLabs no cargo; revisa el deploy y la conexion del navegador.", true);
+                return false;
               }}
               const Conversation = eleven.Conversation || (eleven.default && eleven.default.Conversation);
               if (!Conversation || !Conversation.startSession) throw new Error("ElevenLabs SDK unavailable");
@@ -5988,9 +5998,8 @@ def render_roxy_elevenlabs_assistant() -> None:
               return true;
             }} catch (error) {{
               secureVoiceStarting = false;
-              const spoke = speakBrowserFallback(pendingText || ("Hola " + (payload.userName || "Trader") + ". Soy Roxy. ElevenLabs no conecto todavia, pero esta voz temporal confirma que el audio funciona."), true);
-              if (!spoke) setStatus("No pude iniciar voz de ElevenLabs con el cerebro de Roxy. Revisa la API key y el agente en Render.", true);
-              return spoke;
+              setStatus("No pude iniciar voz de ElevenLabs con el cerebro de Roxy. Revisa la API key y el agente en Render.", true);
+              return false;
             }}
           }}
 
