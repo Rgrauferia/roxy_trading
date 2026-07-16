@@ -5368,31 +5368,66 @@ def render_roxy_elevenlabs_assistant() -> None:
               const language = String(payload.language || "es").toLowerCase();
               utterance.lang = language.startsWith("en") ? "en-US" : "es-US";
               utterance.rate = 0.95;
-              utterance.pitch = 1.08;
+              utterance.pitch = 1.18;
               utterance.volume = 1;
-              const assignVoice = function() {{
+              let fallbackSpoken = false;
+              const voiceScore = function(item) {{
+                const name = String((item && item.name) || "").toLowerCase();
+                const lang = String((item && item.lang) || "").toLowerCase();
+                const text = name + " " + lang;
+                let score = 0;
+                if (language.startsWith("en")) {{
+                  if (lang === "en-us") score += 45;
+                  else if (lang.startsWith("en")) score += 30;
+                }} else {{
+                  if (lang === "es-us" || lang === "es-mx") score += 55;
+                  else if (lang === "es-es" || lang === "es-419") score += 45;
+                  else if (lang.startsWith("es")) score += 34;
+                }}
+                if (/paulina|lucia|lucía|monica|mónica|paloma|isabela|ximena|sabina|dalia|elvira|samantha|victoria|sofia|sofía|camila|valentina|maria|maría|zira|jenny|aria|female|mujer|femenina|natural/.test(text)) score += 80;
+                if (/jorge|diego|carlos|juan|miguel|pablo|pedro|daniel|jordi|thomas|david|mark|george|male|hombre|masculin/.test(text)) score -= 140;
+                if (/google|microsoft|apple|enhanced|premium/.test(text)) score += 8;
+                return score;
+              }};
+              const pickFallbackVoice = function() {{
                 const voices = typeof synth.getVoices === "function" ? synth.getVoices() : [];
-                const voice = voices.find(function(item) {{
-                  return /female|paulina|monica|samantha|google espa|spanish|es-|es_/i.test(String(item.name || "") + " " + String(item.lang || ""));
-                }}) || voices.find(function(item) {{
-                  return String(item.lang || "").toLowerCase().startsWith("es");
-                }}) || voices[0];
+                if (!voices.length) return null;
+                return voices.slice().sort(function(left, right) {{
+                  return voiceScore(right) - voiceScore(left);
+                }})[0] || null;
+              }};
+              const assignVoice = function() {{
+                const voice = pickFallbackVoice();
                 if (voice) {{
                   utterance.voice = voice;
                   if (voice.lang) utterance.lang = voice.lang;
+                  return true;
                 }}
+                return false;
               }};
-              assignVoice();
-              utterance.onstart = function() {{ setStatus("Roxy hablando", false); holdSpeakingFor(text); }};
-              utterance.onend = function() {{ setStatus("Roxy voz preparada", false); setRoxyVisualState("ready"); }};
-              utterance.onerror = function() {{ setStatus("No pude reproducir voz temporal", true); setRoxyVisualState("ready"); }};
-              if (typeof synth.resume === "function") synth.resume();
-              synth.speak(utterance);
-              if (typeof synth.getVoices === "function" && synth.getVoices().length === 0) {{
+              const speakNow = function() {{
+                if (fallbackSpoken) return true;
+                fallbackSpoken = true;
+                utterance.onstart = function() {{ setStatus("Roxy hablando con voz temporal femenina", false); holdSpeakingFor(text); }};
+                utterance.onend = function() {{ setStatus("Roxy voz preparada", false); setRoxyVisualState("ready"); }};
+                utterance.onerror = function() {{ setStatus("No pude reproducir voz temporal", true); setRoxyVisualState("ready"); }};
+                if (typeof synth.resume === "function") synth.resume();
+                synth.speak(utterance);
+                return true;
+              }};
+              if (!assignVoice() && typeof synth.getVoices === "function" && synth.getVoices().length === 0) {{
+                const previousVoicesChanged = synth.onvoiceschanged;
                 synth.onvoiceschanged = function() {{
                   assignVoice();
-                  synth.onvoiceschanged = null;
+                  synth.onvoiceschanged = previousVoicesChanged || null;
+                  speakNow();
                 }};
+                setTimeout(function() {{
+                  assignVoice();
+                  speakNow();
+                }}, 450);
+              }} else {{
+                speakNow();
               }}
               return true;
             }} catch (error) {{
