@@ -2481,7 +2481,7 @@ def test_validate_app_url_retries_once_after_timeout(tmp_path, monkeypatch):
 def test_evaluate_realtime_health_passes_with_good_artifacts(tmp_path, monkeypatch):
     class PsResult:
         returncode = 0
-        stdout = "101 /usr/bin/python /Users/robertograu/roxy_trading/tools/ma_live.py --market both\n"
+        stdout = f"101 /usr/bin/python {roxy_realtime_check.BASE_DIR}/tools/ma_live.py --market both\n"
         stderr = ""
 
     original_run = roxy_realtime_check.subprocess.run
@@ -2575,7 +2575,7 @@ def test_evaluate_realtime_health_fails_when_heartbeat_is_non_object(tmp_path):
 def test_evaluate_realtime_health_uses_latest_files_while_heartbeat_running(tmp_path, monkeypatch):
     class PsResult:
         returncode = 0
-        stdout = "101 /usr/bin/python /Users/robertograu/roxy_trading/tools/ma_live.py --market both\n"
+        stdout = f"101 /usr/bin/python {roxy_realtime_check.BASE_DIR}/tools/ma_live.py --market both\n"
         stderr = ""
 
     original_run = roxy_realtime_check.subprocess.run

@@ -1,5 +1,6 @@
 import plistlib
 
+from tools import streamlit_launchd
 from tools.streamlit_launchd import (
     build_plist,
     build_program_arguments,
@@ -24,10 +25,15 @@ def test_build_program_arguments_defaults_to_lan_binding():
     assert args[args.index("--server.fileWatcherType") + 1] == "auto"
 
 
-def test_launchd_python_path_prefers_project_venv():
+def test_launchd_python_path_prefers_project_venv(tmp_path, monkeypatch):
+    venv_python = tmp_path / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.touch()
+    monkeypatch.setattr(streamlit_launchd, "BASE_DIR", tmp_path)
+
     path = launchd_python_path()
 
-    assert str(path).endswith(".venv/bin/python")
+    assert path == venv_python
 
 
 def test_build_plist_reads_address_and_port():
