@@ -5361,7 +5361,7 @@ def test_realtime_check_status_maps_report_to_ui_tone():
 def test_normalize_realtime_refresh_interval_picks_supported_value():
     assert normalize_realtime_refresh_interval(60) == 60
     assert normalize_realtime_refresh_interval("75") == 60
-    assert normalize_realtime_refresh_interval("bad") == 5
+    assert normalize_realtime_refresh_interval("bad") == 30
     assert normalize_realtime_refresh_interval(280) == 300
 
 

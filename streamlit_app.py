@@ -2617,7 +2617,11 @@ PLATFORM_BADGE_BRANDS = {
 TIMEFRAME_OPTIONS = ["1m", "5m", "15m", "20m", "30m", "1h", "2h", "4h", "1d", "1w"]
 DEFAULT_TIMEFRAME_INDEX = TIMEFRAME_OPTIONS.index("1h")
 REALTIME_REFRESH_SECONDS = [5, 10, 15, 30, 60, 120, 300]
-DEFAULT_REALTIME_REFRESH_SECONDS = 5
+# Render's starter instance cannot safely sustain two expensive dashboard
+# fragments every five seconds, especially while a mobile client reconnects.
+# Thirty seconds keeps the market view fresh without overlapping scans and
+# exhausting the web process.
+DEFAULT_REALTIME_REFRESH_SECONDS = 30
 FOCUSED_PAGE_LABELS = [
     "Dashboard",
     "Noticias",
@@ -2998,8 +3002,6 @@ def run_video_learning_ingest(limit: int = 1, transcribe: bool = False) -> tuple
 
 def browser_voice_fallback_enabled(env: Mapping[str, str] | None = None) -> bool:
     values = env or os.environ
-    if values.get("ELEVENLABS_API_KEY"):
-        return False
     return str(values.get("ROXY_ENABLE_BROWSER_VOICE_FALLBACK", "1")).strip().lower() not in {
         "0",
         "false",
@@ -46245,7 +46247,10 @@ def show_focused_roxy_app() -> None:
             render_dashboard_compact_header(context, realtime)
     if selected_page != "Dashboard":
         render_focused_page_content(context, selected_page, home_controls=home_controls)
-    if realtime.get("enabled") and hasattr(st, "fragment"):
+    # Dashboard already owns one live fragment for its opportunity lanes.
+    # Starting a second fragment on the same cadence duplicated scan loading
+    # and could overlap indefinitely on a small Render instance.
+    if realtime.get("enabled") and hasattr(st, "fragment") and selected_page != "Dashboard":
         run_every = f"{normalize_realtime_refresh_interval(realtime.get('interval_seconds'))}s"
 
         @st.fragment(run_every=run_every)

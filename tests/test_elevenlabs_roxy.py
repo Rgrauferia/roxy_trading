@@ -206,7 +206,7 @@ def test_streamlit_frontend_payload_does_not_include_api_key_secret():
     assert "signedUrl" in assistant_source
 
 
-def test_streamlit_roxy_voice_uses_hola_roxy_wake_word_without_activation_button():
+def test_streamlit_roxy_voice_supports_hola_roxy_and_mobile_tap_activation():
     source = _streamlit_source()
     assistant_source = source[source.index("def render_roxy_elevenlabs_assistant") :]
 
@@ -217,9 +217,10 @@ def test_streamlit_roxy_voice_uses_hola_roxy_wake_word_without_activation_button
     assert "Conversation.startSession" in assistant_source
     assert "roxy-el-button" not in assistant_source
     assert '[class*="roxy"][class*="voice"][class*="float"]' in assistant_source
-    assert ".roxy-el-panel{display:none!important" in assistant_source
-    assert ".roxy-el-root.roxy-el-open .roxy-el-panel{display:none!important}" in assistant_source
-    assert 'root.classList.remove("roxy-el-open");' in assistant_source
+    assert ".roxy-el-root.roxy-el-open .roxy-el-panel{display:grid!important}" in assistant_source
+    assert 'root.classList.add("roxy-el-open");' in assistant_source
+    assert 'wakeSurface.addEventListener("click", async function()' in assistant_source
+    assert "Toca para hablar" in assistant_source
 
 
 def test_streamlit_roxy_voice_prefers_webrtc_conversation_token():
@@ -296,18 +297,17 @@ def test_streamlit_roxy_voice_retries_microphone_permission_from_page_tap():
     assert "armFallbackMicPermissionRetry" not in assistant_source
 
 
-def test_streamlit_roxy_voice_avatar_surface_can_prime_microphone_without_button():
+def test_streamlit_roxy_voice_avatar_surface_primes_microphone_from_mobile_tap():
     source = _streamlit_source()
     assistant_source = source[source.index("def render_roxy_elevenlabs_assistant") :]
 
     assert 'const wakeSurface = root.querySelector(".roxy-el-wake")' in assistant_source
-    assert 'wakeSurface.addEventListener("click", function()' not in assistant_source
-    assert 'wakeSurface.addEventListener("click", activateRoxy)' not in assistant_source
-    assert 'wakeSurface.setAttribute("title", "Di Hola Roxy para activar la voz")' in assistant_source
-    assert "pointer-events:none" in assistant_source
+    assert 'wakeSurface.addEventListener("click", async function()' in assistant_source
+    assert 'wakeSurface.setAttribute("title", "Toca para hablar o di Hola Roxy")' in assistant_source
+    assert "pointer-events:auto!important" in assistant_source
     assert "restartWakeListener();" in assistant_source
     assert 'wakeSurface.addEventListener("click", startRoxyConversation)' not in assistant_source
-    assert "cursor:default" in assistant_source
+    assert "cursor:pointer" in assistant_source
 
 
 def test_streamlit_roxy_voice_has_browser_speech_fallback():
@@ -458,12 +458,12 @@ def test_streamlit_roxy_voice_does_not_trigger_second_agent_reply_for_context_on
     assert "Responde breve y lista" not in context_only_block
 
 
-def test_streamlit_roxy_voice_hides_manual_tap_copy():
+def test_streamlit_roxy_voice_exposes_clear_mobile_tap_copy():
     source = _streamlit_source()
     assistant_source = source[source.index("def render_roxy_elevenlabs_assistant") :]
 
-    assert "TOCA PARA HABLAR" not in assistant_source
-    assert "Toca para hablar" not in assistant_source
+    assert "Toca para hablar" in assistant_source
+    assert "Toca para hablar con Roxy" in assistant_source
     assert "Roxy lista" not in assistant_source
 
 
@@ -504,10 +504,12 @@ def test_streamlit_roxy_os_context_passes_same_visible_snapshot_to_local_orchest
     assert '"operational_response_contract": roxy_voice_response_contract(context, opportunity_snapshot)' in context_source
 
 
-def test_browser_speech_fallback_is_disabled_when_elevenlabs_api_key_exists():
+def test_browser_speech_fallback_remains_available_when_secure_voice_fails():
+    assert streamlit_app.browser_voice_fallback_enabled({"ELEVENLABS_API_KEY": "configured"}) is True
+    assert streamlit_app.browser_voice_fallback_enabled(
+        {"ELEVENLABS_API_KEY": "configured", "ROXY_ENABLE_BROWSER_VOICE_FALLBACK": "0"}
+    ) is False
     source = _streamlit_source()
-
-    assert 'if os.environ.get("ELEVENLABS_API_KEY"):' in source
     assert "SpeechSynthesisUtterance" in source
 
 
