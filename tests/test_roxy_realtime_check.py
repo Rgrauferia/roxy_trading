@@ -20363,6 +20363,17 @@ def test_provider_recovery_summary_structures_premium_blocker():
     assert any("LaunchAgent" in step for step in summary["recovery_steps"])
 
 
+def test_provider_recovery_summary_blocks_unverified_stock_provider():
+    summary = provider_recovery_summary([])
+
+    assert summary["premium_blocked"] is True
+    assert summary["provider_unverified"] is True
+    assert summary["stock_alerts_allowed"] is False
+    assert summary["impacted_markets"] == ["stock", "options"]
+    assert summary["safe_mode"] == "NO_STOCK_OR_OPTIONS_ALERTS"
+    assert summary["confirmation_gate"] == "RUN_REALTIME_CHECK"
+
+
 def test_provider_recovery_summary_uses_stock_denominator_for_premium_blocker():
     summary = provider_recovery_summary(
         [

@@ -2227,7 +2227,8 @@ def provider_recovery_summary(checks: list[dict[str, Any]]) -> dict[str, Any]:
     else:
         credential_scope = "missing"
 
-    premium_blocked = auth_fallback_count > 0 or alpaca_account_blocks_premium
+    provider_unverified = checked_count <= 0 and fallback_count <= 0 and not alpaca_account_blocks_premium
+    premium_blocked = auth_fallback_count > 0 or alpaca_account_blocks_premium or provider_unverified
     primary_provider_issue = ""
     if auth_fallback_count:
         if int(fallback_reason_counts.get("alpaca_feed_permission") or 0):
@@ -2299,7 +2300,15 @@ def provider_recovery_summary(checks: list[dict[str, Any]]) -> dict[str, Any]:
         if polygon_missing_count:
             recovery_priority.append("configure_polygon_alternate")
         recovery_priority.append("rerun_realtime_health")
-    if premium_blocked:
+    if provider_unverified:
+        impacted_markets = ["stock", "options"]
+        safe_mode = "NO_STOCK_OR_OPTIONS_ALERTS"
+        confirmation_gate = "RUN_REALTIME_CHECK"
+        recovery_steps = [
+            "Ejecutar el check realtime con simbolos activos antes de habilitar acciones u opciones.",
+            "Confirmar que el proveedor efectivo entrega velas reales sin fallback de autenticacion.",
+        ]
+    elif premium_blocked:
         impacted_markets = ["stock", "options"]
         safe_mode = "NO_STOCK_OR_OPTIONS_ALERTS"
         confirmation_gate = "NO_TRADE_FROM_FALLBACK"
@@ -2334,6 +2343,7 @@ def provider_recovery_summary(checks: list[dict[str, Any]]) -> dict[str, Any]:
         "detail": detail,
         "action": recovery_action,
         "premium_blocked": premium_blocked,
+        "provider_unverified": provider_unverified,
         "stock_alerts_allowed": not premium_blocked,
         "impacted_markets": impacted_markets,
         "safe_mode": safe_mode,
