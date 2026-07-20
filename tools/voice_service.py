@@ -111,7 +111,9 @@ def setup_logger() -> logging.Logger:
     log = logging.getLogger("voice_service")
     if not log.handlers:
         log.setLevel(logging.INFO)
-        handler = TimedRotatingFileHandler("logs/voice_service.log", when="midnight", backupCount=7)
+        log_dir = Path(os.getenv("ROXY_LOG_DIR", "logs")).expanduser()
+        log_dir.mkdir(parents=True, exist_ok=True)
+        handler = TimedRotatingFileHandler(log_dir / "voice_service.log", when="midnight", backupCount=7)
         fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
         handler.setFormatter(fmt)
         log.addHandler(handler)
