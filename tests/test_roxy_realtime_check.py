@@ -2481,12 +2481,18 @@ def test_validate_app_url_retries_once_after_timeout(tmp_path, monkeypatch):
 def test_evaluate_realtime_health_passes_with_good_artifacts(tmp_path, monkeypatch):
     class PsResult:
         returncode = 0
-        stdout = f"101 /usr/bin/python {roxy_realtime_check.BASE_DIR}/tools/ma_live.py --market both\n"
         stderr = ""
+
+        def __init__(self, stdout=""):
+            self.stdout = stdout
 
     original_run = roxy_realtime_check.subprocess.run
 
     def fake_run(cmd, *args, **kwargs):
+        if cmd == ["ps", "axo", "pid=,ppid=,command="]:
+            return PsResult(
+                f"101 1 /usr/bin/python {roxy_realtime_check.BASE_DIR}/tools/ma_live.py --market both\n"
+            )
         if cmd == ["ps", "axo", "pid=,command="]:
             return PsResult()
         return original_run(cmd, *args, **kwargs)
@@ -2575,12 +2581,18 @@ def test_evaluate_realtime_health_fails_when_heartbeat_is_non_object(tmp_path):
 def test_evaluate_realtime_health_uses_latest_files_while_heartbeat_running(tmp_path, monkeypatch):
     class PsResult:
         returncode = 0
-        stdout = f"101 /usr/bin/python {roxy_realtime_check.BASE_DIR}/tools/ma_live.py --market both\n"
         stderr = ""
+
+        def __init__(self, stdout=""):
+            self.stdout = stdout
 
     original_run = roxy_realtime_check.subprocess.run
 
     def fake_run(cmd, *args, **kwargs):
+        if cmd == ["ps", "axo", "pid=,ppid=,command="]:
+            return PsResult(
+                f"101 1 /usr/bin/python {roxy_realtime_check.BASE_DIR}/tools/ma_live.py --market both\n"
+            )
         if cmd == ["ps", "axo", "pid=,command="]:
             return PsResult()
         return original_run(cmd, *args, **kwargs)
