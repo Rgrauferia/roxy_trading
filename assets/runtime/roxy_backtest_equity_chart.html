@@ -1,0 +1,91 @@
+<div id="roxy-backtest-equity-root" class="rbe-shell">
+  <header>
+    <div><span>CURVA DE EQUITY</span><strong data-title>Backtest reproducible</strong></div>
+    <aside data-change>—</aside>
+  </header>
+  <main data-chart></main>
+  <footer data-status>Preparando historial verificable…</footer>
+</div>
+<style>
+  html,body{margin:0;background:transparent;color:#dbeafe;font-family:Inter,system-ui,sans-serif}
+  .rbe-shell{height:298px;overflow:hidden;border:1px solid rgba(96,165,250,.28);border-radius:14px;background:linear-gradient(180deg,rgba(5,12,27,.98),rgba(2,6,23,.98));box-shadow:0 14px 34px rgba(0,0,0,.28)}
+  header{height:48px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 13px;border-bottom:1px solid rgba(96,165,250,.15)}
+  header span{display:block;color:#7dd3fc;font-size:9px;font-weight:950;letter-spacing:.14em}
+  header strong{display:block;margin-top:2px;color:#f8fafc;font-size:14px}
+  header aside{color:#86efac;font-size:14px;font-weight:950;font-variant-numeric:tabular-nums}
+  main{height:218px;position:relative}
+  footer{height:31px;display:flex;align-items:center;padding:0 13px;border-top:1px solid rgba(96,165,250,.12);color:#94a3b8;font-size:10px;font-weight:750}
+</style>
+<script>
+(() => {
+  const payload = __ROXY_BACKTEST_EQUITY_PAYLOAD__;
+  const vendorSource = __LIGHTWEIGHT_INLINE__;
+  const root = document.getElementById("roxy-backtest-equity-root");
+  const chartEl = root && root.querySelector("[data-chart]");
+  const statusEl = root && root.querySelector("[data-status]");
+  const titleEl = root && root.querySelector("[data-title]");
+  const changeEl = root && root.querySelector("[data-change]");
+  const fail = (message) => { if (statusEl) statusEl.textContent = message; };
+  if (!root || !chartEl) return;
+  if (!window.LightweightCharts && vendorSource) {
+    try {
+      const loader = document.createElement("script");
+      loader.textContent = vendorSource;
+      document.head.appendChild(loader);
+    } catch (error) {
+      fail("Bundle local de gráfica no disponible.");
+      return;
+    }
+  }
+  if (!window.LightweightCharts) {
+    fail("Lightweight Charts no está disponible.");
+    return;
+  }
+  const points = Array.isArray(payload.points) ? payload.points.filter((row) =>
+    row && Number.isFinite(Number(row.time)) && Number.isFinite(Number(row.value))
+  ).map((row) => ({ time: Number(row.time), value: Number(row.value) })) : [];
+  if (points.length < 2) {
+    fail("Sin puntos suficientes para dibujar equity.");
+    return;
+  }
+  const first = points[0].value;
+  const last = points[points.length - 1].value;
+  const changePct = first ? ((last - first) / first) * 100 : 0;
+  const tone = changePct >= 0 ? "#22c55e" : "#ef4444";
+  if (titleEl) titleEl.textContent = `${payload.symbol || "Activo"} · ${payload.timeframe || "-"} · ${points.length} puntos`;
+  if (changeEl) {
+    changeEl.textContent = `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}% · ${last.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+    changeEl.style.color = tone;
+  }
+  const chart = LightweightCharts.createChart(chartEl, {
+    autoSize: true,
+    layout: { background: { type: "solid", color: "rgba(2,6,23,0)" }, textColor: "#cbd5e1", fontFamily: "Inter, system-ui, sans-serif", attributionLogo: false },
+    grid: { vertLines: { color: "rgba(148,163,184,.08)" }, horzLines: { color: "rgba(148,163,184,.11)" } },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: "rgba(96,165,250,.22)", scaleMargins: { top: .10, bottom: .10 } },
+    timeScale: { borderColor: "rgba(96,165,250,.18)", timeVisible: true, secondsVisible: false, rightOffset: 3 },
+    handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true },
+    handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
+  });
+  const series = chart.addAreaSeries({
+    lineColor: tone,
+    topColor: changePct >= 0 ? "rgba(34,197,94,.30)" : "rgba(239,68,68,.28)",
+    bottomColor: "rgba(2,6,23,0)",
+    lineWidth: 2,
+    priceLineVisible: true,
+    lastValueVisible: true,
+    priceFormat: { type: "price", precision: 2, minMove: .01 },
+  });
+  series.setData(points);
+  chart.timeScale().fitContent();
+  chart.subscribeCrosshairMove((param) => {
+    const row = param && param.seriesData ? param.seriesData.get(series) : null;
+    if (!row || !statusEl) return;
+    const date = new Date(Number(param.time) * 1000).toLocaleString();
+    statusEl.textContent = `${date} · Equity ${Number(row.value).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  });
+  if (statusEl) statusEl.textContent = `Fuente: ${payload.source || "backtest guardado"} · motor ${payload.engine || "versionado"}`;
+  const resize = new ResizeObserver(() => chart.resize(chartEl.clientWidth, chartEl.clientHeight));
+  resize.observe(chartEl);
+})();
+</script>

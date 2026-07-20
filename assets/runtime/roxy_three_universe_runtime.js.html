@@ -1,0 +1,391 @@
+
+        <script>
+        (() => {
+          const parentWindow = window.parent || window;
+          const doc = parentWindow.document;
+          if (doc.__roxyThreeUniverseRuntime) return;
+          doc.__roxyThreeUniverseRuntime = true;
+
+          const THREE_INLINE_SOURCE = __ROXY_THREE_INLINE_SOURCE__;
+          const THREE_URL = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
+          const MAX_SYSTEMS = 4;
+          const reduceMotion = () => parentWindow.matchMedia &&
+            parentWindow.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+          const style = doc.createElement("style");
+          style.setAttribute("data-roxy-three-universe", "true");
+          style.textContent = `
+            .roxy-universe.roxy-three-ready{background:radial-gradient(ellipse at 50% 44%,rgba(22,163,184,.20),rgba(15,23,42,.16) 38%,transparent 72%)!important}
+            .roxy-universe.roxy-three-ready>i{opacity:.38!important}
+            .roxy-three-canvas{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;z-index:0!important;pointer-events:none!important;opacity:.92!important;mix-blend-mode:screen!important}
+            .roxy-three-fallback-hidden>i{opacity:.88!important}
+            @media (max-width:700px){.roxy-three-canvas{opacity:.76!important}.roxy-universe.roxy-three-ready>i{opacity:.48!important}}
+          `;
+          doc.head.appendChild(style);
+
+          const loadThree = () => new Promise((resolve, reject) => {
+            if (parentWindow.THREE) {
+              resolve(parentWindow.THREE);
+              return;
+            }
+            if (THREE_INLINE_SOURCE && !doc.querySelector('script[data-roxy-three-loader="inline"]')) {
+              try {
+                const inlineScript = doc.createElement("script");
+                inlineScript.dataset.roxyThreeLoader = "inline";
+                inlineScript.textContent = THREE_INLINE_SOURCE + "\n;window.__roxyThreeLocalRuntime=true;";
+                doc.head.appendChild(inlineScript);
+                if (parentWindow.THREE) {
+                  resolve(parentWindow.THREE);
+                  return;
+                }
+              } catch (error) {
+                // Fall through to the CDN fallback below.
+              }
+            }
+            const existing = doc.querySelector('script[data-roxy-three-loader="true"]');
+            if (existing) {
+              existing.addEventListener("load", () => resolve(parentWindow.THREE), { once: true });
+              existing.addEventListener("error", reject, { once: true });
+              return;
+            }
+            const script = doc.createElement("script");
+            script.src = THREE_URL;
+            script.async = true;
+            script.defer = true;
+            script.dataset.roxyThreeLoader = "true";
+            script.onload = () => parentWindow.THREE ? resolve(parentWindow.THREE) : reject(new Error("Three.js unavailable"));
+            script.onerror = reject;
+            doc.head.appendChild(script);
+          });
+
+          const seeded = (seed) => {
+            let value = seed % 2147483647;
+            if (value <= 0) value += 2147483646;
+            return () => {
+              value = value * 16807 % 2147483647;
+              return (value - 1) / 2147483646;
+            };
+          };
+
+          const systems = [];
+          let THREE = null;
+          let lastResizeCheck = 0;
+
+          const buildSystem = (container, index) => {
+            if (!THREE || container.dataset.roxyThreeMounted === "true") return null;
+            const rect = container.getBoundingClientRect();
+            if (rect.width < 40 || rect.height < 40) return null;
+
+            container.dataset.roxyThreeMounted = "true";
+            container.classList.add("roxy-three-ready");
+            const canvas = doc.createElement("canvas");
+            canvas.className = "roxy-three-canvas";
+            canvas.setAttribute("aria-hidden", "true");
+            container.prepend(canvas);
+
+            let renderer = null;
+            try {
+              renderer = new THREE.WebGLRenderer({
+                canvas,
+                alpha: true,
+                antialias: false,
+                powerPreference: "low-power",
+              });
+            } catch (error) {
+              container.classList.add("roxy-three-fallback-hidden");
+              canvas.remove();
+              return null;
+            }
+            renderer.setClearColor(0x000000, 0);
+            const isMobile = Math.min(parentWindow.innerWidth || 1024, rect.width) < 760;
+            renderer.setPixelRatio(Math.min(parentWindow.devicePixelRatio || 1, isMobile ? 1.25 : 1.75));
+
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 1200);
+            camera.position.z = 96;
+
+            const root = new THREE.Group();
+            scene.add(root);
+            scene.add(new THREE.AmbientLight(0x9adfff, 0.64));
+            const keyLight = new THREE.PointLight(0x6ee7ff, 1.15, 420);
+            keyLight.position.set(-30, 36, 70);
+            scene.add(keyLight);
+
+            const rand = seeded(1031 + index * 7919);
+            const mode = container.closest(".roxy-auth-screen") ? "auth" :
+              container.closest(".roxy-academy-shell") ? "academy" :
+              container.closest(".roxy-actions-shell,.roxy-crypto20-shell") ? "trading" : "core";
+            const makeNebulaTexture = () => {
+              const textureCanvas = doc.createElement("canvas");
+              textureCanvas.width = 512;
+              textureCanvas.height = 512;
+              const ctx = textureCanvas.getContext("2d");
+              const g1 = ctx.createRadialGradient(230, 240, 6, 230, 240, 238);
+              g1.addColorStop(0, "rgba(125,211,252,0.74)");
+              g1.addColorStop(.24, "rgba(56,189,248,0.28)");
+              g1.addColorStop(.52, "rgba(139,92,246,0.18)");
+              g1.addColorStop(1, "rgba(0,0,0,0)");
+              ctx.fillStyle = g1;
+              ctx.fillRect(0, 0, 512, 512);
+              const g2 = ctx.createRadialGradient(330, 176, 4, 330, 176, 190);
+              g2.addColorStop(0, "rgba(251,191,36,0.28)");
+              g2.addColorStop(.38, "rgba(96,165,250,0.12)");
+              g2.addColorStop(1, "rgba(0,0,0,0)");
+              ctx.fillStyle = g2;
+              ctx.fillRect(0, 0, 512, 512);
+              const texture = new THREE.CanvasTexture(textureCanvas);
+              texture.needsUpdate = true;
+              return texture;
+            };
+            const makePlanetTexture = (palette, variant) => {
+              const textureCanvas = doc.createElement("canvas");
+              textureCanvas.width = 384;
+              textureCanvas.height = 192;
+              const ctx = textureCanvas.getContext("2d");
+              const base = ctx.createLinearGradient(0, 0, textureCanvas.width, textureCanvas.height);
+              base.addColorStop(0, palette[0]);
+              base.addColorStop(.52, palette[1]);
+              base.addColorStop(1, palette[2]);
+              ctx.fillStyle = base;
+              ctx.fillRect(0, 0, textureCanvas.width, textureCanvas.height);
+              for (let i = 0; i < 115; i += 1) {
+                const x = rand() * textureCanvas.width;
+                const y = rand() * textureCanvas.height;
+                const rx = 12 + rand() * (variant === "crystal" ? 34 : 58);
+                const ry = 5 + rand() * (variant === "crystal" ? 20 : 32);
+                const glow = ctx.createRadialGradient(x, y, 0, x, y, Math.max(rx, ry));
+                const alpha = variant === "origin" ? .22 + rand() * .22 : .18 + rand() * .18;
+                glow.addColorStop(0, `rgba(255,255,255,${alpha})`);
+                glow.addColorStop(.28, palette[3] || "rgba(125,211,252,.24)");
+                glow.addColorStop(1, "rgba(0,0,0,0)");
+                ctx.fillStyle = glow;
+                ctx.beginPath();
+                ctx.ellipse(x, y, rx, ry, rand() * Math.PI, 0, Math.PI * 2);
+                ctx.fill();
+              }
+              if (variant === "crystal") {
+                for (let i = 0; i < 26; i += 1) {
+                  const x = rand() * textureCanvas.width;
+                  const y = rand() * textureCanvas.height;
+                  ctx.fillStyle = "rgba(191,219,254,.42)";
+                  ctx.beginPath();
+                  ctx.moveTo(x, y - 16);
+                  ctx.lineTo(x + 9, y + 6);
+                  ctx.lineTo(x, y + 18);
+                  ctx.lineTo(x - 9, y + 6);
+                  ctx.closePath();
+                  ctx.fill();
+                }
+              }
+              const shade = ctx.createLinearGradient(0, 0, textureCanvas.width, 0);
+              shade.addColorStop(0, "rgba(0,0,0,.32)");
+              shade.addColorStop(.42, "rgba(0,0,0,0)");
+              shade.addColorStop(1, "rgba(255,255,255,.10)");
+              ctx.fillStyle = shade;
+              ctx.fillRect(0, 0, textureCanvas.width, textureCanvas.height);
+              const texture = new THREE.CanvasTexture(textureCanvas);
+              texture.needsUpdate = true;
+              return texture;
+            };
+            const nebula = new THREE.Sprite(
+              new THREE.SpriteMaterial({
+                map: makeNebulaTexture(),
+                transparent: true,
+                opacity: .52,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+              })
+            );
+            nebula.position.set(0, 0, -120);
+            nebula.scale.set(230, 230, 1);
+            root.add(nebula);
+
+            const starCount = reduceMotion() ? 220 : (isMobile ? 520 : 980);
+            const starPositions = new Float32Array(starCount * 3);
+            const starColors = new Float32Array(starCount * 3);
+            const colorA = new THREE.Color(0xeaf7ff);
+            const colorB = new THREE.Color(0x7dd3fc);
+            const colorC = new THREE.Color(0xd8b4fe);
+            for (let i = 0; i < starCount; i += 1) {
+              const radius = 70 + rand() * 250;
+              const theta = rand() * Math.PI * 2;
+              const phi = Math.acos((rand() * 2) - 1);
+              starPositions[i * 3] = Math.sin(phi) * Math.cos(theta) * radius;
+              starPositions[i * 3 + 1] = Math.sin(phi) * Math.sin(theta) * radius;
+              starPositions[i * 3 + 2] = Math.cos(phi) * radius - 80;
+              const mix = rand();
+              const color = mix > .78 ? colorC : (mix > .46 ? colorB : colorA);
+              starColors[i * 3] = color.r;
+              starColors[i * 3 + 1] = color.g;
+              starColors[i * 3 + 2] = color.b;
+            }
+            const starGeometry = new THREE.BufferGeometry();
+            starGeometry.setAttribute("position", new THREE.BufferAttribute(starPositions, 3));
+            starGeometry.setAttribute("color", new THREE.BufferAttribute(starColors, 3));
+            const stars = new THREE.Points(
+              starGeometry,
+              new THREE.PointsMaterial({
+                size: index === 0 ? 1.05 : .82,
+                vertexColors: true,
+                transparent: true,
+                opacity: .82,
+                depthWrite: false,
+              })
+            );
+            root.add(stars);
+
+            const planetGroup = new THREE.Group();
+            root.add(planetGroup);
+            const planetSpecs = [
+              { x: -54, y: mode === "auth" ? 6 : 24, z: -26, r: mode === "trading" ? 10 : 13, color: 0x2dd4bf, emissive: 0x083344, ring: 18, texture: ["#0ea5e9", "#22c55e", "#0f172a", "rgba(187,247,208,.24)"], variant: "origin" },
+              { x: 48, y: mode === "academy" ? -8 : -18, z: -40, r: mode === "academy" ? 11 : 9, color: 0x8b5cf6, emissive: 0x2e1065, ring: 13, texture: ["#2e1065", "#7c3aed", "#0f172a", "rgba(216,180,254,.28)"], variant: "crystal" },
+              { x: 63, y: 33, z: -72, r: 6, color: 0xd4af60, emissive: 0x3f2a0a, ring: 0, texture: ["#451a03", "#d97706", "#020617", "rgba(253,230,138,.20)"], variant: "gold" },
+            ];
+            const planets = planetSpecs.map((spec, planetIndex) => {
+              const mesh = new THREE.Mesh(
+                new THREE.SphereGeometry(spec.r, 36, 24),
+                new THREE.MeshPhongMaterial({
+                  color: spec.color,
+                  map: makePlanetTexture(spec.texture, spec.variant),
+                  emissive: spec.emissive,
+                  shininess: 38,
+                  transparent: true,
+                  opacity: planetIndex === 2 ? .48 : .80,
+                })
+              );
+              mesh.position.set(spec.x, spec.y, spec.z);
+              planetGroup.add(mesh);
+              if (spec.ring) {
+                const ring = new THREE.Mesh(
+                  new THREE.TorusGeometry(spec.ring, .22, 8, 96),
+                  new THREE.MeshBasicMaterial({
+                    color: planetIndex === 0 ? 0x67e8f9 : 0xd8b4fe,
+                    transparent: true,
+                    opacity: .42,
+                    depthWrite: false,
+                  })
+                );
+                ring.position.copy(mesh.position);
+                ring.rotation.x = 1.17;
+                ring.rotation.y = -.42;
+                planetGroup.add(ring);
+                mesh.userData.ring = ring;
+              }
+              return mesh;
+            });
+
+            const constellation = new THREE.Group();
+            const lineMaterial = new THREE.LineBasicMaterial({
+              color: 0x93c5fd,
+              transparent: true,
+              opacity: .28,
+              depthWrite: false,
+            });
+            for (let j = 0; j < 4; j += 1) {
+              const points = [];
+              const baseX = -60 + rand() * 120;
+              const baseY = -38 + rand() * 76;
+              for (let k = 0; k < 4; k += 1) {
+                points.push(new THREE.Vector3(baseX + k * (11 + rand() * 8), baseY + (rand() - .5) * 26, -90 - rand() * 40));
+              }
+              constellation.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), lineMaterial));
+            }
+            root.add(constellation);
+
+            const comet = new THREE.Group();
+            const cometLine = new THREE.Line(
+              new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-24, 0, 0),
+                new THREE.Vector3(0, 0, 0),
+              ]),
+              new THREE.LineBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: .82 })
+            );
+            const cometHead = new THREE.Points(
+              new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0)]),
+              new THREE.PointsMaterial({ color: 0xffffff, size: 2.4, transparent: true, opacity: .95 })
+            );
+            comet.add(cometLine);
+            comet.add(cometHead);
+            comet.position.set(-120, 42, -28);
+            comet.rotation.z = -.22;
+            root.add(comet);
+
+            const resize = () => {
+              const box = container.getBoundingClientRect();
+              const width = Math.max(64, Math.floor(box.width));
+              const height = Math.max(64, Math.floor(box.height));
+              if (canvas.dataset.w === String(width) && canvas.dataset.h === String(height)) return;
+              canvas.dataset.w = String(width);
+              canvas.dataset.h = String(height);
+              renderer.setSize(width, height, false);
+              camera.aspect = width / height;
+              camera.updateProjectionMatrix();
+            };
+            resize();
+
+            return { container, canvas, renderer, scene, camera, root, nebula, stars, planets, constellation, comet, resize, index };
+          };
+
+          const mountAll = () => {
+            if (!THREE) return;
+            doc.querySelectorAll(".roxy-universe:not([data-roxy-three-mounted])").forEach((container) => {
+              if (systems.length >= MAX_SYSTEMS) return;
+              const system = buildSystem(container, systems.length);
+              if (system) systems.push(system);
+            });
+          };
+
+          const animate = (now) => {
+            parentWindow.requestAnimationFrame(animate);
+            if (doc.hidden || !systems.length) return;
+            const t = now * 0.001;
+            const slow = reduceMotion();
+            if (now - lastResizeCheck > 650) {
+              systems.forEach((system) => system.resize());
+              lastResizeCheck = now;
+            }
+            systems.forEach((system) => {
+              const bounds = system.container.getBoundingClientRect();
+              const inView = bounds.bottom > -140 && bounds.top < parentWindow.innerHeight + 260;
+              if (!inView) return;
+              const speed = slow ? .12 : 1;
+              system.nebula.rotation.z = Math.sin(t * .05 + system.index) * .05 * speed;
+              system.nebula.material.opacity = .46 + Math.sin(t * .33 + system.index) * .08;
+              system.stars.rotation.y = t * .015 * speed * (system.index + 1);
+              system.stars.rotation.x = Math.sin(t * .07 + system.index) * .018 * speed;
+              system.constellation.rotation.z = Math.sin(t * .10 + system.index) * .04 * speed;
+              system.constellation.position.x = Math.sin(t * .06 + system.index) * 5 * speed;
+              system.planets.forEach((planet, idx) => {
+                planet.rotation.y += .0026 * speed * (idx + 1);
+                planet.position.y += Math.sin(t * (.18 + idx * .03) + idx) * .006 * speed;
+                if (planet.userData.ring) {
+                  planet.userData.ring.rotation.z += .0018 * speed;
+                  planet.userData.ring.position.copy(planet.position);
+                }
+              });
+              const cometCycle = (t * .06 + system.index * .21) % 1;
+              system.comet.position.x = -126 + cometCycle * 270;
+              system.comet.position.y = 48 - cometCycle * 92 + Math.sin(t * .7) * 3;
+              system.comet.material && (system.comet.material.opacity = cometCycle < .08 || cometCycle > .94 ? 0 : .8);
+              system.comet.children.forEach((child) => {
+                if (child.material) child.material.opacity = cometCycle < .08 || cometCycle > .94 ? 0 : (child.type === "Points" ? .95 : .66);
+              });
+              system.renderer.render(system.scene, system.camera);
+            });
+          };
+
+          loadThree()
+            .then((loadedThree) => {
+              THREE = loadedThree;
+              mountAll();
+              const observer = new MutationObserver(mountAll);
+              observer.observe(doc.body, { childList: true, subtree: true });
+              parentWindow.requestAnimationFrame(animate);
+            })
+            .catch(() => {
+              doc.querySelectorAll(".roxy-universe").forEach((container) => {
+                container.classList.add("roxy-three-fallback-hidden");
+              });
+            });
+        })();
+        </script>

@@ -25,6 +25,7 @@ _CORE_SPEC.loader.exec_module(_CORE_MODULE)
 build_confluence = _CORE_MODULE.build_confluence
 write_confluence_report = _CORE_MODULE.write_confluence_report
 
+from durable_storage import atomic_write_csv
 from roxy_paths import alerts_dir, output_dir
 
 OUTPUT_DIR = output_dir()
@@ -120,7 +121,7 @@ def main() -> None:
         output_dir.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         saved_path = output_dir / f"ma_confluence_{ts}.csv"
-        confluence.to_csv(saved_path, index=False)
+        atomic_write_csv(confluence, saved_path)
         print(f"\nSaved: {saved_path}")
 
     summary = write_confluence_report(

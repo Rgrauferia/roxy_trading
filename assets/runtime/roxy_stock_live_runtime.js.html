@@ -1,0 +1,453 @@
+
+        <script>
+        (() => {
+          const doc = window.parent.document;
+          if (doc.__roxyStockLiveRuntime) return;
+          doc.__roxyStockLiveRuntime = true;
+          const BRIDGE_STREAM_URL = __ROXY_STOCK_STREAM_URL__;
+          const BRIDGE_SNAPSHOT_URL = __ROXY_STOCK_SNAPSHOT_URL__;
+          const fmt = (price) => {
+            const value = Number(price);
+            if (!Number.isFinite(value) || value <= 0) return "--";
+            const decimals = value >= 1000 ? 2 : value >= 1 ? 2 : 4;
+            return new Intl.NumberFormat("en-US", {
+              minimumFractionDigits: decimals,
+              maximumFractionDigits: decimals
+            }).format(value);
+          };
+          const pctFmt = (pct) => {
+            const value = Number(pct);
+            if (!Number.isFinite(value)) return "live";
+            return `${value >= 0 ? "+" : ""}${(value * 100).toFixed(2)}%`;
+          };
+          const nodesBySymbol = (selector) => {
+            const map = new Map();
+            doc.querySelectorAll(selector).forEach((node) => {
+              const symbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
+              if (!symbol) return;
+              if (!map.has(symbol)) map.set(symbol, []);
+              map.get(symbol).push(node);
+            });
+            return map;
+          };
+          const setTickArrow = (symbol, direction, price, source = "live") => {
+            const arrow = direction > 0 ? "↗" : direction < 0 ? "↘" : "●";
+            const tone = direction > 0 ? "tick-up" : direction < 0 ? "tick-down" : "tick-watch";
+            doc.querySelectorAll("[data-roxy-stock-tick-arrow]").forEach((node) => {
+              const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
+              if (statusSymbol && statusSymbol !== symbol) return;
+              node.textContent = `${arrow} ${source}`;
+              node.title = `Ultimo movimiento ${symbol}: ${fmt(price)}`;
+              node.classList.remove("tick-up", "tick-down", "tick-watch", "tick-pulse");
+              node.classList.add(tone, "tick-pulse");
+              window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
+            });
+          };
+          const setRefreshMeta = (symbol, direction, quote = {}) => {
+            const tone = direction > 0 ? "tick-up" : direction < 0 ? "tick-down" : "tick-watch";
+            const stamp = quote.updatedAt || new Date().toLocaleTimeString();
+            const session = quote.marketOpen === false ? "cerrado" : quote.marketOpen === true ? "abierto" : "quote";
+            const sessionLabel = quote.marketOpen === false ? "LAST" : quote.marketOpen === true ? "LIVE" : "QUOTE";
+            doc.querySelectorAll("[data-roxy-stock-refresh-count]").forEach((node) => {
+              const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
+              if (statusSymbol && statusSymbol !== symbol) return;
+              const count = Number(node.dataset.roxyRefreshCount || 0) + 1;
+              node.dataset.roxyRefreshCount = String(count);
+              node.textContent = `tick ${count} · ${stamp}`;
+              node.title = `${symbol}: ${session} · ${quote.source || "feed"} · ${stamp}`;
+              node.classList.remove("tick-up", "tick-down", "tick-watch", "tick-pulse");
+              node.classList.add(tone, "tick-pulse");
+              window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
+            });
+            doc.querySelectorAll("[data-roxy-stock-market-state]").forEach((node) => {
+              const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
+              if (statusSymbol && statusSymbol !== symbol) return;
+              node.textContent = quote.marketOpen === false ? "Mercado cerrado · ultimo precio real" : quote.marketOpen === true ? "Mercado abierto · live" : "Feed consultando";
+              node.classList.remove("tick-up", "tick-down", "tick-watch");
+              node.classList.add(quote.marketOpen === true ? "tick-up" : "tick-watch");
+            });
+            doc.querySelectorAll("[data-roxy-stock-provider-state]").forEach((node) => {
+              const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
+              if (statusSymbol && statusSymbol !== symbol) return;
+              node.textContent = quote.source || "Fuente de mercado";
+              node.title = `${symbol}: ${quote.source || "feed"} · ${quote.freshness || "sin retraso reportado"} · ${stamp}`;
+            });
+            doc.querySelectorAll("[data-roxy-stock-feed-diagnostic]").forEach((node) => {
+              const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
+              if (statusSymbol && statusSymbol !== symbol) return;
+              node.textContent = `${symbol} ${sessionLabel} · ${quote.source || "feed"} · ${stamp} · ${session}`;
+              node.title = quote.marketOpen === false
+                ? "Mercado cerrado: Roxy muestra ultimo precio real y no simula ticks."
+                : quote.marketOpen === true
+                  ? "Feed live conectado: la tabla y la vela actual se sincronizan sin refrescar la pagina."
+                  : "Quote real consultado; conecta Alpaca/bridge para ticks continuos.";
+              node.classList.remove("mode-live", "mode-last", "mode-degraded", "mode-quote", "tick-pulse");
+              node.classList.add(quote.marketOpen === true ? "mode-live" : quote.marketOpen === false ? "mode-last" : "mode-quote", "tick-pulse");
+              window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
+            });
+          };
+          const setTradeState = (symbol, price) => {
+            doc.querySelectorAll("[data-roxy-trade-state]").forEach((node) => {
+              const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
+              if (statusSymbol && statusSymbol !== symbol) return;
+              const entry = Number(node.dataset.entry);
+              const stop = Number(node.dataset.stop);
+              const target = Number(node.dataset.target);
+              const live = Number(price);
+              if (!Number.isFinite(live) || live <= 0) return;
+              const near = (value, ratio = 0.0035) => Number.isFinite(value) && Math.abs(live - value) <= Math.max(Math.abs(value) * ratio, 0.02);
+              let label = "Plan Roxy activo";
+              let tone = "state-watch";
+              if (near(stop, 0.0045)) {
+                label = "Cerca del stop";
+                tone = "state-stop";
+              } else if (Number.isFinite(target) && live >= target * 0.998) {
+                label = "Target en juego";
+                tone = "state-target";
+              } else if (near(entry, 0.004)) {
+                label = "En zona entrada";
+                tone = "state-entry";
+              } else if (Number.isFinite(entry) && live < entry) {
+                label = "Esperar entrada";
+                tone = "state-wait";
+              } else if (Number.isFinite(entry) && live > entry) {
+                label = "Gestionar trade";
+                tone = "state-manage";
+              }
+              node.textContent = label;
+              node.title = `${symbol}: ${label} · live ${price.toFixed(price >= 1 ? 2 : 5)}`;
+              node.classList.remove("state-watch", "state-stop", "state-target", "state-entry", "state-wait", "state-manage", "tick-pulse");
+              node.classList.add(tone, "tick-pulse");
+              window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
+            });
+          };
+          const emitQuoteEvent = (symbol, quote) => {
+            try {
+              doc.dispatchEvent(new CustomEvent("roxy-stock-quote", {
+                detail: {
+                  symbol,
+                  quote: {
+                    ...quote,
+                    symbol,
+                    price: Number(quote && quote.price),
+                    updatedAt: quote && quote.updatedAt ? quote.updatedAt : new Date().toLocaleTimeString()
+                  }
+                }
+              }));
+            } catch (error) {}
+          };
+          const setTone = (node, price) => {
+            const previous = Number(node.dataset.roxyPrice || 0);
+            const refreshCount = Number(node.dataset.roxyRefreshCount || 0) + 1;
+            node.dataset.roxyPrice = String(price);
+            node.dataset.roxyRefreshCount = String(refreshCount);
+            node.dataset.roxyUpdatedAt = new Date().toLocaleTimeString();
+            node.textContent = fmt(price);
+            node.title = `Precio actualizado: ${fmt(price)} · tick ${refreshCount}`;
+            node.setAttribute("aria-label", `Precio actualizado ${fmt(price)}`);
+            node.classList.remove("tick-up", "tick-down", "tick-watch", "tick-pulse");
+            let direction = 0;
+            if (previous && Number.isFinite(previous) && Number.isFinite(price)) {
+              direction = Number(price) - previous;
+              node.classList.add(direction > 0 ? "tick-up" : direction < 0 ? "tick-down" : "tick-watch");
+            }
+            window.requestAnimationFrame(() => {
+              node.classList.add("tick-pulse");
+              window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
+            });
+            return direction;
+          };
+          const setStatus = (symbol, text, tone = "watch") => {
+            doc.querySelectorAll("[data-roxy-stock-live-status]").forEach((node) => {
+              const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
+              if (statusSymbol && statusSymbol !== symbol) return;
+              node.textContent = text;
+              node.classList.remove("tick-up", "tick-down", "tick-watch");
+              node.classList.add(tone === "up" ? "tick-up" : tone === "down" ? "tick-down" : "tick-watch");
+            });
+          };
+          const setQuoteMode = (symbol, mode, detail = "") => {
+            const cleanMode = String(mode || "QUOTE").toUpperCase();
+            doc.querySelectorAll("[data-roxy-stock-quote-mode]").forEach((node) => {
+              const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
+              if (statusSymbol && statusSymbol !== symbol) return;
+              node.textContent = cleanMode;
+              node.title = detail || `${symbol}: ${cleanMode}`;
+              node.classList.remove("mode-live", "mode-last", "mode-degraded", "mode-quote", "tick-pulse");
+              const modeClass = cleanMode.includes("LIVE") ? "mode-live"
+                : cleanMode.includes("LAST") ? "mode-last"
+                : cleanMode.includes("BRIDGE") || cleanMode.includes("CAIDO") || cleanMode.includes("DOWN") ? "mode-degraded"
+                : "mode-quote";
+              node.classList.add(modeClass, "tick-pulse");
+              window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
+            });
+          };
+          const hasRecentServerQuote = (symbol) => {
+            const now = Date.now();
+            return (nodesBySymbol("[data-roxy-stock-live-price]").get(symbol) || []).some((node) => {
+              const stamp = Number(node.dataset.roxyServerOkAt || 0);
+              return stamp && now - stamp < 9000;
+            });
+          };
+          const markBridgeDegraded = (symbols, reason = "puente stock no disponible") => {
+            const detail = String(reason || "sin respuesta").slice(0, 72);
+            symbols.forEach((symbol) => {
+              const hasBackup = hasRecentServerQuote(symbol);
+              const statusText = hasBackup
+                ? `Feed respaldo activo · bridge reconectando · ${detail}`
+                : `Bridge stock no disponible · ${detail} · servidor verificando`;
+              setStatus(symbol, statusText, "watch");
+              setQuoteMode(symbol, hasBackup ? "RESPALDO" : "LAST", `${symbol}: ${statusText}`);
+              (nodesBySymbol("[data-roxy-stock-live-price]").get(symbol) || []).forEach((node) => {
+                if (!hasBackup) {
+                  node.dataset.roxySource = `Bridge stock no disponible · ${detail}`;
+                  node.dataset.roxyFreshness = "bridge degradado";
+                  node.dataset.roxyMarketOpen = "";
+                }
+                node.dataset.roxyUpdatedAt = new Date().toLocaleTimeString();
+                node.title = hasBackup
+                  ? `${symbol}: feed respaldo real activo mientras el bridge reconecta.`
+                  : `${symbol}: bridge stock no disponible; se conserva el ultimo precio real disponible.`;
+              });
+              doc.querySelectorAll("[data-roxy-stock-tick-arrow]").forEach((node) => {
+                const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
+                if (statusSymbol && statusSymbol !== symbol) return;
+                node.textContent = hasBackup ? "↻ RESPALDO" : "LAST";
+                node.title = hasBackup
+                  ? `${symbol}: servidor respaldo entregando quotes reales.`
+                  : `${symbol}: puente stock no disponible; usando ultimo quote real disponible.`;
+                node.classList.remove("tick-up", "tick-down", "tick-pulse");
+                node.classList.add("tick-watch", "tick-pulse");
+                window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
+              });
+              doc.querySelectorAll("[data-roxy-stock-feed-diagnostic]").forEach((node) => {
+                const statusSymbol = String(node.dataset.roxyStockSymbol || "").trim().toUpperCase();
+                if (statusSymbol && statusSymbol !== symbol) return;
+                node.textContent = hasBackup ? `${symbol} RESPALDO · bridge reconectando · ${detail}` : `${symbol} LAST · bridge reconectando · ${detail}`;
+                node.title = hasBackup
+                  ? "Feed de respaldo real activo; Roxy mantiene tabla y grafica sincronizadas mientras reconecta el stream."
+                  : "El puente live no respondio; Roxy conserva el ultimo precio real y no simula movimiento.";
+                node.classList.remove("mode-live", "mode-last", "mode-degraded", "mode-quote", "tick-pulse");
+                node.classList.add(hasBackup ? "mode-quote" : "mode-last", "tick-pulse");
+                window.setTimeout(() => node.classList.remove("tick-pulse"), 950);
+              });
+            });
+          };
+          const parseYahoo = (data) => {
+            const result = data && data.chart && data.chart.result && data.chart.result[0];
+            if (!result) return null;
+            const meta = result.meta || {};
+            const quote = result.indicators && result.indicators.quote && result.indicators.quote[0];
+            const closes = quote && Array.isArray(quote.close) ? quote.close.filter((v) => Number.isFinite(Number(v))) : [];
+            const price = Number(meta.regularMarketPrice || meta.postMarketPrice || meta.preMarketPrice || closes[closes.length - 1]);
+            const previous = Number(meta.previousClose || meta.chartPreviousClose || meta.regularMarketPreviousClose);
+            if (!Number.isFinite(price) || price <= 0) return null;
+            const marketTime = Number(meta.regularMarketTime || meta.postMarketTime || meta.preMarketTime || 0);
+            const marketState = String(meta.marketState || "").toUpperCase();
+            return {
+              price,
+              previous: Number.isFinite(previous) && previous > 0 ? previous : null,
+              source: marketState && !["REGULAR", "PRE", "POST"].includes(marketState) ? `Yahoo ${marketState.toLowerCase()}` : "Yahoo live",
+              marketTime: Number.isFinite(marketTime) && marketTime > 0 ? marketTime : null,
+              marketState
+            };
+          };
+          const applyQuote = (symbol, quote) => {
+            const price = Number(quote && quote.price);
+            if (!Number.isFinite(price) || price <= 0) return false;
+            const previous = Number(quote.previous);
+            const rawChangePct = Number(quote.changePct);
+            const pct = Number.isFinite(rawChangePct)
+              ? rawChangePct / 100
+              : Number.isFinite(previous) && previous > 0
+                ? (price - previous) / previous
+                : null;
+            const stamp = quote.updatedAt || new Date().toLocaleTimeString();
+            const source = quote.source || "stream";
+            const rawFreshness = quote.freshness || "";
+            const marketOpenText = quote.marketOpen === true ? "true" : quote.marketOpen === false ? "false" : "";
+            let firstDirection = 0;
+            let directionSet = false;
+            (nodesBySymbol("[data-roxy-stock-live-price]").get(symbol) || []).forEach((node) => {
+              node.dataset.roxyServerPrice = String(price);
+              node.dataset.roxySource = source;
+              node.dataset.roxyFreshness = rawFreshness;
+              node.dataset.roxyMarketOpen = marketOpenText;
+              node.dataset.roxyUpdatedAt = stamp;
+              node.dataset.roxyServerOkAt = String(Date.now());
+              node.classList.add("roxy-stock-server-ok");
+              const direction = setTone(node, price);
+              if (!directionSet) {
+                firstDirection = direction;
+                directionSet = true;
+              }
+            });
+            (nodesBySymbol("[data-roxy-stock-change]").get(symbol) || []).forEach((node) => {
+              node.textContent = pctFmt(pct);
+              node.classList.remove("tick-up", "tick-down");
+              if (Number.isFinite(pct)) node.classList.add(pct >= 0 ? "tick-up" : "tick-down");
+            });
+            const freshness = rawFreshness ? ` · ${rawFreshness}` : "";
+            const sessionText = quote.marketOpen === false ? " · mercado cerrado" : quote.marketOpen === true ? " · mercado abierto" : "";
+            const modeLabel = quote.mode === "stream" ? "Stream real"
+              : quote.mode === "snapshot" ? "Snapshot real"
+              : quote.mode === "polling" ? "Polling real"
+              : "Feed real";
+            const prefix = quote.marketOpen === false ? "Ultimo precio" : modeLabel;
+            const refreshText = directionSet && firstDirection === 0 ? " · refrescado sin cambio" : "";
+            setStatus(symbol, `${prefix} · ${source} · ${stamp}${freshness}${sessionText}${refreshText}`, Number.isFinite(pct) ? (pct >= 0 ? "up" : "down") : "watch");
+            setQuoteMode(symbol, quote.marketOpen === false ? "LAST" : quote.marketOpen === true ? "LIVE" : "QUOTE", `${symbol}: ${prefix} · ${source} · ${stamp}`);
+            setTickArrow(symbol, firstDirection, price, quote.marketOpen === false ? "LAST" : "LIVE");
+            setRefreshMeta(symbol, firstDirection, quote);
+            setTradeState(symbol, price);
+            emitQuoteEvent(symbol, { ...quote, price, previous, changePct: rawChangePct });
+            return true;
+          };
+          const fetchYahoo = async (symbol) => {
+            const controller = new AbortController();
+            const timer = window.setTimeout(() => controller.abort(), 1800);
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1m`;
+            try {
+              const res = await fetch(url, { cache: "no-store", signal: controller.signal });
+              if (!res.ok) return null;
+              return parseYahoo(await res.json());
+            } catch (error) {
+              return null;
+            } finally {
+              window.clearTimeout(timer);
+            }
+          };
+          const fetchStooq = async (symbol) => {
+            const controller = new AbortController();
+            const timer = window.setTimeout(() => controller.abort(), 1800);
+            const stooqSymbol = `${String(symbol).toLowerCase().replace(/[^a-z0-9.\-]/g, "")}.us`;
+            const url = `https://stooq.com/q/l/?s=${encodeURIComponent(stooqSymbol)}&f=sd2t2ohlcv&h&e=csv`;
+            try {
+              const res = await fetch(url, { cache: "no-store", signal: controller.signal });
+              if (!res.ok) return null;
+              const text = await res.text();
+              const lines = text.trim().split(/\r?\n/);
+              if (lines.length < 2) return null;
+              const cells = lines[1].split(",");
+              const close = Number(cells[6] || cells[3]);
+              if (!Number.isFinite(close) || close <= 0) return null;
+              return { price: close, previous: null, source: "Stooq quote" };
+            } catch (error) {
+              return null;
+            } finally {
+              window.clearTimeout(timer);
+            }
+          };
+          const updateSymbol = async (symbol) => {
+            try {
+              setStatus(symbol, `consultando ${symbol}...`, "watch");
+              const quote = await fetchYahoo(symbol) || await fetchStooq(symbol);
+              if (!quote) {
+                setStatus(symbol, `${symbol} feed navegador bloqueado · servidor activo`, "watch");
+                return;
+              }
+              const marketState = String(quote.marketState || "").toUpperCase();
+              const quoteAge = quote.marketTime ? Math.max(0, Math.round(Date.now() / 1000 - quote.marketTime)) : null;
+              quote.freshness = quoteAge != null && quoteAge > 90 ? `ultimo tick hace ${Math.round(quoteAge / 60)}m` : "";
+              quote.marketOpen = marketState ? ["REGULAR", "PRE", "POST"].includes(marketState) : null;
+              applyQuote(symbol, quote);
+            } catch (error) {}
+          };
+          let bridgeSource = null;
+          let bridgeSignature = "";
+          let bridgeSnapshotBusy = false;
+          let bridgeSnapshotOkAt = 0;
+          const bridgeSymbols = () => Array.from(nodesBySymbol("[data-roxy-stock-live-price]").keys()).slice(0, 10);
+          const connectBridge = () => {
+            if (!BRIDGE_STREAM_URL || typeof EventSource === "undefined") return false;
+            const symbols = bridgeSymbols();
+            const signature = symbols.join(",");
+            if (!symbols.length) return false;
+            if (bridgeSource && bridgeSignature === signature) return true;
+            if (bridgeSource) bridgeSource.close();
+            bridgeSignature = signature;
+            try {
+              const url = new URL(BRIDGE_STREAM_URL, window.location.href);
+              url.searchParams.set("symbols", signature);
+              bridgeSource = new EventSource(url.toString());
+              const handleQuote = (event) => {
+                try {
+                  const quote = JSON.parse(event.data || "{}");
+                  const symbol = String(quote.symbol || "").trim().toUpperCase();
+                  if (!symbol) return;
+                  applyQuote(symbol, quote);
+                } catch (error) {}
+              };
+              bridgeSource.onmessage = handleQuote;
+              bridgeSource.addEventListener("quote", handleQuote);
+              bridgeSource.addEventListener("status", (event) => {
+                try {
+                  const status = JSON.parse(event.data || "{}");
+                  if (status.mode === "polling_fallback") {
+                    symbols.forEach((symbol) => setStatus(symbol, `stream en respaldo · ${status.reason || "snapshot"}`, "watch"));
+                  }
+                } catch (error) {}
+              });
+              bridgeSource.onerror = () => {
+                symbols.forEach((symbol) => setStatus(symbol, `${symbol} stream reconectando`, "watch"));
+              };
+              return true;
+            } catch (error) {
+              bridgeSource = null;
+              return false;
+            }
+          };
+          const fetchBridgeSnapshot = async () => {
+            if (!BRIDGE_SNAPSHOT_URL || bridgeSnapshotBusy) return false;
+            const symbols = bridgeSymbols();
+            if (!symbols.length) return false;
+            bridgeSnapshotBusy = true;
+            const controller = new AbortController();
+            const timer = window.setTimeout(() => controller.abort(), 2400);
+            try {
+              const url = new URL(BRIDGE_SNAPSHOT_URL, window.parent.location.href);
+              url.searchParams.set("symbols", symbols.join(","));
+              symbols.forEach((symbol) => setStatus(symbol, `snapshot real consultando ${symbol}...`, "watch"));
+              const res = await fetch(url.toString(), { cache: "no-store", signal: controller.signal });
+              if (!res.ok) {
+                markBridgeDegraded(symbols, `HTTP ${res.status}`);
+                return false;
+              }
+              const contentType = String(res.headers.get("content-type") || "").toLowerCase();
+              if (contentType && !contentType.includes("application/json")) {
+                markBridgeDegraded(symbols, "respuesta no JSON");
+                return false;
+              }
+              const payload = await res.json();
+              const quotes = payload && payload.quotes ? payload.quotes : {};
+              let hits = 0;
+              Object.entries(quotes).forEach(([rawSymbol, quote]) => {
+                const symbol = String(rawSymbol || quote.symbol || "").trim().toUpperCase();
+                if (!symbol || !quote) return;
+                quote.mode = quote.mode || "snapshot";
+                if (applyQuote(symbol, quote)) hits += 1;
+              });
+              if (hits) bridgeSnapshotOkAt = Date.now();
+              return hits > 0;
+            } catch (error) {
+              markBridgeDegraded(symbols, error && error.name === "AbortError" ? "timeout" : "conexion fallida");
+              return false;
+            } finally {
+              window.clearTimeout(timer);
+              bridgeSnapshotBusy = false;
+            }
+          };
+          const tick = () => {
+            const symbols = Array.from(nodesBySymbol("[data-roxy-stock-live-price]").keys()).slice(0, 10);
+            fetchBridgeSnapshot().then((ok) => {
+              const recentlyOk = Date.now() - bridgeSnapshotOkAt < 7500;
+              if (ok || recentlyOk) return;
+              markBridgeDegraded(symbols, "servidor pendiente; sin consulta cross-origin");
+            });
+          };
+          connectBridge();
+          tick();
+          window.setInterval(connectBridge, 8000);
+          window.setInterval(tick, 2200);
+        })();
+        </script>

@@ -7,9 +7,11 @@ import os
 import json
 import sqlite3
 from typing import List, Optional
-from datetime import datetime
-from fastapi import APIRouter, Body, HTTPException
+
+from roxy_time import utc_now_naive_iso
+from fastapi import APIRouter, Body, HTTPException, Depends
 from pydantic import BaseModel
+from tools.api_auth import require_api_key
 
 logger = logging.getLogger("llm_agent")
 router = APIRouter(prefix="/api/ai")
@@ -47,7 +49,7 @@ def _insert_ai_run(run_id: str, user: Optional[str], prompt: str, response: str,
         cur = conn.cursor()
         cur.execute(
             "INSERT INTO ai_runs (run_id, user, prompt, response, parsed_json, model, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)" ,
-            (run_id, user, prompt, response, parsed_json, model, datetime.utcnow().isoformat()),
+            (run_id, user, prompt, response, parsed_json, model, utc_now_naive_iso()),
         )
         conn.commit()
     except Exception:
@@ -60,13 +62,18 @@ def _insert_ai_run(run_id: str, user: Optional[str], prompt: str, response: str,
 
 
 @router.post("/signal", response_model=List[Signal])
-def generate_signals(payload: SignalRequest = Body(...)):
+def generate_signals(payload: SignalRequest = Body(...), caller: dict = Depends(require_api_key)):
     """Generate signals via configured LLM provider.
 
     The agent formats a small prompt, attempts to call a streaming API (OpenAI) if available,
     falls back to `tools.llm_provider.generate_reply`, parses a JSON array of signals,
     and persists an audit row to `ai_runs`.
     """
+    caller_type = caller.get("type") if isinstance(caller, dict) else None
+    if caller_type == "api_key" and "ai:signal" not in (caller.get("scopes") or []):
+        raise HTTPException(status_code=403, detail="API key missing required scope: ai:signal")
+    if caller_type not in {"admin", "api_key"}:
+        raise HTTPException(status_code=403, detail="unauthorized caller")
     try:
         symbols = [s.strip().upper() for s in payload.symbols]
         # Attempt to include small feature snapshots for each symbol

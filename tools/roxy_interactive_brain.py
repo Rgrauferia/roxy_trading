@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -8,6 +9,7 @@ from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import quote
 
+from durable_storage import atomic_write_text, exclusive_file_lock
 from tools import weather_service
 
 
@@ -26,6 +28,9 @@ KNOWLEDGE_PATHS = (
     Path("README_UI.md"),
     Path("docs/ai_spec.md"),
     Path("docs/roxy_interactive_strategy.md"),
+    Path("training_videos/roxy_teacher_playbook.md"),
+    Path("training_videos/idle_learning_review.md"),
+    Path("training_videos/ROXY_LEARNING_SYNC.md"),
 )
 MAX_KNOWLEDGE_CHARS = 8000
 SYMBOL_INFERENCE_INTENTS = {
@@ -228,7 +233,7 @@ class RoxyConversationMemory:
             "recent_sessions": rows[: max(1, min(int(limit), 20))],
         }
 
-    def append(self, session_id: str | None, query: str, response: RoxyBrainReply) -> None:
+    def _append_unlocked(self, session_id: str | None, query: str, response: RoxyBrainReply) -> None:
         if not session_id:
             return
         session_key = _safe_session_id(session_id)
@@ -268,8 +273,13 @@ class RoxyConversationMemory:
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "sessions": sessions,
         }
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        atomic_write_text(json.dumps(payload, indent=2, sort_keys=True), self.path)
+
+    def append(self, session_id: str | None, query: str, response: RoxyBrainReply) -> None:
+        if not session_id:
+            return
+        with exclusive_file_lock(self.path):
+            self._append_unlocked(session_id, query, response)
 
     def _pruned_sessions(self, sessions: dict[str, Any]) -> dict[str, Any]:
         if len(sessions) <= self.max_sessions:
@@ -312,7 +322,7 @@ class RoxyUserProfile:
         profile = profiles.get(key) or {}
         return profile if isinstance(profile, dict) else {}
 
-    def update(self, user: str | None, updates: dict[str, Any]) -> dict[str, Any]:
+    def _update_unlocked(self, user: str | None, updates: dict[str, Any]) -> dict[str, Any]:
         key = _safe_session_id(user or "local")
         payload = _load_json(self.path)
         profiles = payload.get("profiles") if isinstance(payload, dict) else {}
@@ -326,9 +336,12 @@ class RoxyUserProfile:
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "profiles": profiles,
         }
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        atomic_write_text(json.dumps(payload, indent=2, sort_keys=True), self.path)
         return current
+
+    def update(self, user: str | None, updates: dict[str, Any]) -> dict[str, Any]:
+        with exclusive_file_lock(self.path):
+            return self._update_unlocked(user, updates)
 
     def _clean_updates(self, updates: dict[str, Any]) -> dict[str, Any]:
         clean: dict[str, Any] = {}
@@ -369,7 +382,7 @@ class RoxyFeedbackMemory:
         self.path = path
         self.max_items = max_items
 
-    def record(self, feedback: dict[str, Any]) -> dict[str, Any]:
+    def _record_unlocked(self, feedback: dict[str, Any]) -> dict[str, Any]:
         payload = _load_json(self.path)
         items = payload.get("items") if isinstance(payload, dict) else []
         if not isinstance(items, list):
@@ -393,9 +406,12 @@ class RoxyFeedbackMemory:
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "items": items[-self.max_items :],
         }
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        atomic_write_text(json.dumps(payload, indent=2, sort_keys=True), self.path)
         return item
+
+    def record(self, feedback: dict[str, Any]) -> dict[str, Any]:
+        with exclusive_file_lock(self.path):
+            return self._record_unlocked(feedback)
 
     def _items(self, user: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
         payload = _load_json(self.path)
@@ -514,9 +530,10 @@ def _redact_sensitive_text(value: str) -> str:
 
 def _safe_float(value: Any) -> float | None:
     try:
-        return float(value)
+        number = float(value)
     except (TypeError, ValueError):
         return None
+    return number if math.isfinite(number) else None
 
 
 def _price(value: Any) -> str:
@@ -524,6 +541,15 @@ def _price(value: Any) -> str:
     if number is None:
         return "-"
     return f"{number:.2f}"
+
+
+def _exact_price(value: Any) -> str:
+    number = _safe_float(value)
+    if number is None:
+        return "-"
+    absolute = abs(number)
+    precision = 2 if absolute >= 100 else 4 if absolute >= 1 else 6 if absolute >= 0.01 else 8
+    return f"{number:.{precision}f}"
 
 
 def _pct(value: Any) -> str:
@@ -1432,6 +1458,25 @@ def _extract_symbol(query: str) -> str | None:
         "ENTRA",
         "ENTRADA",
         "ESTADO",
+        "ESTA",
+        "ESTÁ",
+        "ESTE",
+        "ESA",
+        "ESE",
+        "ESTO",
+        "OPORTUNIDAD",
+        "OPPORTUNITY",
+        "EXPLICA",
+        "EXPLICAME",
+        "EXPLÍCAME",
+        "ACTIVO",
+        "ASSET",
+        "GRAFICA",
+        "GRÁFICA",
+        "CHART",
+        "SELECCIONADO",
+        "SELECCIONADA",
+        "SELECTED",
         "FALTA",
         "PORQUE",
         "SIGUE",
@@ -1671,8 +1716,15 @@ def _extract_symbol(query: str) -> str | None:
             return aliases[word]
         if base_word in aliases:
             return aliases[base_word]
-        if "/" in word and 1 <= len(base_word) <= 6 and base_word.isalpha() and base_word not in ignored:
-            return word
+        if "/" in word:
+            parts = word.split("/")
+            if (
+                len(parts) == 2
+                and 1 <= len(parts[0]) <= 10
+                and parts[0].isalnum()
+                and parts[1] in {"USD", "USDT", "USDC", "BTC", "ETH", "EUR"}
+            ):
+                return f"{parts[0]}/{parts[1]}"
         if 1 <= len(word) <= 6 and word.isalpha() and word not in ignored:
             return word
     return None
@@ -3171,9 +3223,30 @@ class RoxyInteractiveBrain:
     def _opportunity_rows(self) -> list[dict[str, Any]]:
         brief = _load_json(self.brief_path)
         plan = brief.get("daily_opportunity_plan") if isinstance(brief.get("daily_opportunity_plan"), dict) else {}
-        rows = plan.get("opportunities") if isinstance(plan.get("opportunities"), list) else []
+        brief_rows = brief.get("opportunities") if isinstance(brief.get("opportunities"), list) else []
+        plan_rows = plan.get("opportunities") if isinstance(plan.get("opportunities"), list) else []
+        rows: list[dict[str, Any]] = []
+        if plan_rows:
+            source_by_symbol = {
+                _safe_text(row.get("symbol")).upper().replace("-", "/"): row
+                for row in brief_rows
+                if isinstance(row, dict) and _safe_text(row.get("symbol"))
+            }
+            for plan_row in plan_rows:
+                if not isinstance(plan_row, dict):
+                    continue
+                symbol = _safe_text(plan_row.get("symbol")).upper().replace("-", "/")
+                merged = dict(source_by_symbol.get(symbol) or {})
+                merged.update(
+                    {
+                        key: value
+                        for key, value in plan_row.items()
+                        if value is not None and not (isinstance(value, str) and not value.strip())
+                    }
+                )
+                rows.append(merged)
         if not rows:
-            rows = brief.get("opportunities") if isinstance(brief.get("opportunities"), list) else []
+            rows = brief_rows
         if not rows:
             rows = brief.get("crypto_scan_candidates") if isinstance(brief.get("crypto_scan_candidates"), list) else []
         return [row for row in rows if isinstance(row, dict)]
@@ -4801,19 +4874,39 @@ class RoxyInteractiveBrain:
         family = _safe_text(row.get("strategy_family") or "-")
         decision = _safe_text(row.get("trade_decision") or row.get("decision") or "-")
         explanation = _safe_text(row.get("explanation") or row.get("memory_note") or row.get("alert_quality_reason"))
+        market = _safe_text(row.get("market") or "-")
+        timeframe = _safe_text(row.get("timeframe") or row.get("entry_tf") or "-")
+        target_price = next(
+            (
+                value
+                for value in (
+                    row.get("recommended_target_price"),
+                    row.get("target_price"),
+                    row.get("target_2pct_price"),
+                )
+                if _safe_float(value) is not None
+            ),
+            None,
+        )
+        target_text = _exact_price(target_price) if target_price is not None else _pct(
+            row.get("recommended_target_pct") or row.get("target_pct")
+        )
+        source = _safe_text(row.get("data_source") or row.get("chart_source_label") or "-")
+        data_gate = _safe_text(row.get("data_gate") or row.get("chart_data_gate") or "-")
+        alert_gate = _safe_text(row.get("alert_gate") or "-")
         signal_state = self._signal_state_text(language=language, symbol=symbol_text)
         if language == "en":
             reply = (
-                f"{symbol_text}: status {action}, strategy {family}, decision {decision}. "
-                f"Entry {_price(row.get('entry'))}, stop {_price(row.get('stop'))}, "
-                f"risk {_pct(row.get('risk_pct'))}, target {_pct(row.get('recommended_target_pct') or row.get('target_pct'))}. "
+                f"{symbol_text}: market {market}, timeframe {timeframe}, status {action}, strategy {family}, decision {decision}. "
+                f"Entry {_exact_price(row.get('entry'))}, stop {_exact_price(row.get('stop'))}, "
+                f"risk {_pct(row.get('risk_pct'))}, target {target_text}. Source {source}, data gate {data_gate}, alert gate {alert_gate}. "
                 f"{explanation} {signal_state}"
             ).strip()
         else:
             reply = (
-                f"{symbol_text}: estado {action}, estrategia {family}, decision {decision}. "
-                f"Entrada {_price(row.get('entry'))}, stop {_price(row.get('stop'))}, "
-                f"riesgo {_pct(row.get('risk_pct'))}, objetivo {_pct(row.get('recommended_target_pct') or row.get('target_pct'))}. "
+                f"{symbol_text}: mercado {market}, temporalidad {timeframe}, estado {action}, estrategia {family}, decision {decision}. "
+                f"Entrada {_exact_price(row.get('entry'))}, stop {_exact_price(row.get('stop'))}, "
+                f"riesgo {_pct(row.get('risk_pct'))}, objetivo {target_text}. Fuente {source}, gate de datos {data_gate}, gate de alerta {alert_gate}. "
                 f"{explanation} {signal_state}"
             ).strip()
         return RoxyBrainReply(

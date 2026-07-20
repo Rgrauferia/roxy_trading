@@ -1,0 +1,533 @@
+
+        <style id="roxy-actions-terminal-v3">
+        .roxy-actions-terminal-scroll {
+          width: min(100%, 1548px);
+          margin: 0 auto 18px;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          padding: 4px 0 14px;
+        }
+        .roxy-actions-terminal {
+          width: min(1528px, calc(100vw - 18px));
+          min-height: 940px;
+          position: relative;
+          isolation: isolate;
+          display: grid;
+          grid-template-columns: 172px minmax(0, 1fr);
+          border: 1px solid rgba(68, 130, 205, .34);
+          border-radius: 18px;
+          overflow: hidden;
+          background: linear-gradient(145deg, #050d18, #071727 58%, #030813);
+          box-shadow: 0 24px 76px rgba(0,0,0,.56), inset 0 1px 0 rgba(255,255,255,.05);
+          color: #dcecff;
+          font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .roxy-actions-terminal::before {
+          content:"";
+          position:absolute;
+          inset:0;
+          z-index:-2;
+          pointer-events:none;
+          background:linear-gradient(180deg,rgba(56,189,248,.045),transparent 24%);
+          opacity:1;
+        }
+        .roxy-actions-terminal::after {
+          content:"";
+          position:absolute;
+          inset:0;
+          z-index:-1;
+          pointer-events:none;
+          background:linear-gradient(90deg,transparent,rgba(148,163,184,.035),transparent);
+        }
+        .roxy-actions-terminal * { box-sizing: border-box; }
+        .roxy-actions-left {
+          position: relative;
+          z-index: 1;
+          padding: 20px 12px;
+          border-right: 1px solid rgba(69, 123, 192, .24);
+          background: linear-gradient(180deg, rgba(5,14,27,.94), rgba(4,10,20,.92));
+        }
+        .roxy-actions-logo { display:flex; gap:9px; align-items:center; color:#65c7ff; margin-bottom:22px; }
+        .roxy-actions-logo i { font-size: 30px; transform: rotate(-22deg); filter: drop-shadow(0 0 12px rgba(56,189,248,.65)); }
+        .roxy-actions-logo strong { display:block; color:#64c8ff; font-size:24px; line-height:.9; letter-spacing:.03em; }
+        .roxy-actions-logo span { display:block; color:#9ec9ee; font-size:9px; text-transform:uppercase; letter-spacing:.13em; }
+        .roxy-actions-profile { text-align:center; padding:10px 6px 14px; border-bottom:1px solid rgba(89,139,205,.18); margin-bottom:10px; }
+        .roxy-actions-profile .roxy-avatar { margin:auto; transform:scale(1.32); }
+        .roxy-actions-profile strong { display:block; margin-top:14px; color:#fff; font-size:13px; }
+        .roxy-actions-profile small { display:block; color:#98bde5; font-size:10px; }
+        .roxy-actions-xp { height:7px; border-radius:999px; background:#0b1c31; margin:9px 6px 3px; overflow:hidden; }
+        .roxy-actions-xp b { display:block; width:68%; height:100%; border-radius:inherit; background:linear-gradient(90deg,#2563eb,#38bdf8); }
+        .roxy-actions-nav a {
+          display:flex; align-items:center; gap:9px; min-height:34px; padding:8px 8px; margin:4px 0;
+          border-radius:10px; color:#afc7e4; text-decoration:none; font-size:12px;
+        }
+        .roxy-actions-nav a.active { background:rgba(37,99,235,.28); color:#fff; box-shadow:inset 3px 0 0 #2ea8ff; }
+        .roxy-actions-nav i { font-size:15px; color:#91c7ff; }
+        .roxy-actions-atom { margin-top:18px; padding:10px 8px; border:1px solid rgba(59,130,246,.22); border-radius:12px; background:rgba(7,20,38,.72); }
+        .roxy-actions-atom strong { display:block; color:#dbeafe; font-size:11px; }
+        .roxy-actions-atom span { color:#7dd3fc; font-size:9px; }
+        .roxy-actions-main-terminal { padding:18px 18px 14px; min-width:0; }
+        .roxy-actions-main-terminal { position: relative; z-index: 1; }
+        .roxy-actions-header { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; padding-bottom:12px; border-bottom:1px solid rgba(68,111,168,.23); }
+        .roxy-actions-title strong { display:block; color:#fff; font-size:27px; letter-spacing:.02em; }
+        .roxy-actions-title span { display:block; color:#9fb8d8; font-size:13px; margin-top:3px; }
+        .roxy-actions-tools { display:flex; align-items:center; gap:10px; }
+        .roxy-search {
+          width:320px; height:38px; border-radius:11px; border:1px solid rgba(88,135,196,.2);
+          background:rgba(3,10,23,.58); color:#7b98bd; display:flex; align-items:center; gap:8px;
+          padding:0 10px; font-size:11px;
+        }
+        .roxy-search input {
+          width:100%; border:0; outline:0; background:transparent; color:#eaf6ff; font:inherit;
+        }
+        .roxy-search input::placeholder { color:#6f89ab; }
+        .roxy-actions-tools .material-symbols-outlined { color:#9ac7ff; font-size:19px; }
+        .roxy-r-mini { display:grid; place-items:center; width:28px; height:28px; border-radius:50%; background:#133e88; color:#fff; font-weight:900; box-shadow:0 0 18px rgba(59,130,246,.45); }
+        .actions-tabs { display:flex; gap:14px; padding:13px 0; border-bottom:1px solid rgba(67,112,175,.16); margin-bottom:13px; }
+        .actions-tabs a { color:#91aaca; text-decoration:none; font-size:12px; padding:9px 15px; border-radius:9px; }
+        .actions-tabs a.active { color:#fff; background:rgba(37,99,235,.32); }
+        .terminal-tab-panel {
+          margin:0 0 13px;
+          border:1px solid rgba(68,120,190,.25);
+          border-radius:14px;
+          background:linear-gradient(135deg, rgba(5,17,32,.90), rgba(7,25,45,.72));
+          padding:13px;
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+        }
+        .terminal-tab-panel > header {
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          gap:12px;
+          margin-bottom:10px;
+        }
+        .terminal-tab-panel > header strong {
+          color:#f8fbff;
+          text-transform:uppercase;
+          letter-spacing:.1em;
+          font-size:12px;
+        }
+        .terminal-tab-panel > header small { color:#38bdf8; font-size:10px; }
+        .terminal-summary-strip {
+          display:grid;
+          grid-template-columns:repeat(4,1fr);
+          gap:10px;
+        }
+        .terminal-summary-strip article,
+        .terminal-tab-opportunity {
+          border:1px solid rgba(73,132,205,.22);
+          border-radius:12px;
+          background:rgba(3,12,24,.65);
+          padding:11px;
+        }
+        .terminal-summary-strip span {
+          display:block;
+          color:#8bb6df;
+          font-size:10px;
+          text-transform:uppercase;
+          letter-spacing:.08em;
+        }
+        .terminal-summary-strip strong {
+          display:block;
+          color:#fff;
+          font-size:22px;
+          margin-top:4px;
+        }
+        .terminal-summary-strip em { color:#24e6a6; font-size:10px; font-style:normal; }
+        .terminal-tab-grid {
+          display:grid;
+          grid-template-columns:repeat(4,minmax(0,1fr));
+          gap:10px;
+        }
+        .terminal-tab-opportunity {
+          display:grid;
+          grid-template-columns:34px 1fr auto;
+          grid-template-areas:"logo name score" "logo price score";
+          gap:4px 9px;
+          text-decoration:none;
+          color:#e8f4ff;
+          align-items:center;
+        }
+        .terminal-tab-opportunity .stock-logo { grid-area:logo; width:32px; height:32px; }
+        .terminal-tab-opportunity span { grid-area:name; display:flex; flex-direction:column; gap:2px; }
+        .terminal-tab-opportunity span strong { color:#fff; font-size:13px; }
+        .terminal-tab-opportunity span em { color:#8db8df; font-size:10px; font-style:normal; }
+        .terminal-tab-opportunity b { grid-area:price; color:#24e6a6; font-size:16px; }
+        .terminal-tab-opportunity small { grid-area:price; justify-self:end; align-self:end; color:#22c55e; font-size:10px; }
+        .terminal-tab-opportunity i {
+          grid-area:score;
+          width:42px;
+          height:42px;
+          border-radius:50%;
+          display:grid;
+          place-items:center;
+          background:conic-gradient(#22c55e 0 78%, rgba(45,74,113,.65) 0);
+          color:#fff;
+          font-style:normal;
+          font-weight:900;
+          font-size:11px;
+        }
+        .terminal-scanner-expanded { display:grid; gap:7px; }
+        .terminal-movers-expanded { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px 14px; }
+        .finviz-empty-state {
+          border:1px dashed rgba(96,165,250,.35);
+          border-radius:12px;
+          padding:14px;
+          background:rgba(8,21,38,.72);
+          color:#b8d4f1;
+        }
+        .finviz-empty-state strong { display:block; color:#f8fbff; margin-bottom:4px; }
+        .finviz-empty-state span { color:#9db9d9; font-size:12px; }
+        .finviz-empty-state.compact { padding:9px; font-size:11px; }
+        .terminal-top-strip {
+          display:grid;
+          grid-template-columns: repeat(8, minmax(0, 1fr));
+          gap:9px;
+          margin:0 0 13px;
+        }
+        .terminal-quote-card {
+          min-height:70px;
+          position:relative;
+          overflow:hidden;
+          border:1px solid rgba(68,120,190,.28);
+          border-radius:8px;
+          background:linear-gradient(180deg, rgba(8,23,43,.90), rgba(3,11,24,.94));
+          padding:10px 12px;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+        }
+        .terminal-quote-card span {
+          display:block;
+          color:#d7eaff;
+          font-size:10px;
+          text-transform:uppercase;
+          letter-spacing:.06em;
+          font-weight:900;
+        }
+        .terminal-quote-card strong {
+          display:block;
+          margin-top:6px;
+          color:#fff;
+          font-size:17px;
+          line-height:1;
+          font-weight:950;
+        }
+        .terminal-quote-card em {
+          display:block;
+          color:#22c55e;
+          font-style:normal;
+          font-size:12px;
+          margin-top:4px;
+          font-weight:900;
+        }
+        .terminal-quote-card.down em { color:#ef4444; }
+        .terminal-quote-card .roxy-actions-sparkline {
+          position:absolute;
+          right:7px;
+          bottom:7px;
+          width:72px;
+          height:34px;
+          opacity:.95;
+        }
+        .terminal-quote-card.gauge b {
+          position:absolute;
+          left:12px;
+          right:12px;
+          bottom:9px;
+          height:4px;
+          border-radius:999px;
+          background:linear-gradient(90deg,#22c55e var(--gauge), rgba(148,163,184,.24) 0);
+        }
+        .terminal-chart-row {
+          display:grid;
+          grid-template-columns:minmax(0,1fr) minmax(0,1fr) 292px;
+          gap:13px;
+          margin-bottom:13px;
+        }
+        .terminal-chart-card,
+        .terminal-ai-panel {
+          border:1px solid rgba(68,120,190,.27);
+          border-radius:10px;
+          background:linear-gradient(180deg, rgba(5,18,34,.90), rgba(3,10,23,.96));
+          padding:12px;
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.04), 0 14px 34px rgba(0,0,0,.20);
+        }
+        .terminal-chart-card header {
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          gap:10px;
+          margin-bottom:7px;
+        }
+        .terminal-chart-card header strong { color:#fff; font-size:18px; letter-spacing:.03em; }
+        .terminal-chart-card header span { color:#8aa8ca; font-size:12px; margin-left:5px; }
+        .terminal-chart-card nav { display:flex; gap:6px; align-items:center; }
+        .terminal-chart-card nav span,
+        .terminal-chart-card nav i {
+          border:1px solid rgba(84,130,190,.24);
+          border-radius:7px;
+          padding:5px 8px;
+          color:#b7d6f7;
+          font-size:12px;
+          font-style:normal;
+        }
+        .terminal-chart-card nav i { font-size:17px; padding:4px 6px; }
+        .terminal-chart-stats {
+          display:flex;
+          gap:10px;
+          align-items:center;
+          color:#8bb2d7;
+          font-size:11px;
+          margin:0 0 6px;
+          white-space:nowrap;
+        }
+        .terminal-chart-stats b { color:#22c55e; font-weight:900; }
+        .terminal-chart-stats em { margin-left:auto; color:#22c55e; font-style:normal; font-weight:900; }
+        .terminal-chart-wrap { min-height:300px; overflow:hidden; border-radius:10px; }
+        .terminal-chart-svg { width:100%; height:300px; display:block; }
+        .terminal-chart-card footer {
+          display:flex;
+          align-items:center;
+          gap:12px;
+          color:#97b6d6;
+          font-size:12px;
+          border-top:1px solid rgba(68,120,190,.16);
+          padding-top:8px;
+        }
+        .terminal-chart-card footer b { margin-left:auto; color:#d8edff; font-weight:600; }
+        .terminal-ai-panel header { display:flex; align-items:center; gap:8px; }
+        .terminal-ai-panel header i { color:#60a5fa; }
+        .terminal-ai-panel header strong { color:#fff; }
+        .terminal-ai-panel header span {
+          margin-left:auto;
+          color:#22c55e;
+          font-size:10px;
+          text-transform:uppercase;
+          font-weight:900;
+        }
+        .terminal-ai-wave {
+          height:30px;
+          margin:10px 0;
+          background:
+            radial-gradient(circle at 0 50%, #38bdf8 0 2px, transparent 3px),
+            linear-gradient(90deg, transparent, rgba(56,189,248,.55), transparent);
+          mask: repeating-linear-gradient(90deg, #000 0 2px, transparent 2px 8px);
+          opacity:.95;
+          animation: ai-wave-drift 2.6s linear infinite;
+        }
+        @keyframes ai-wave-drift { to { transform:translateX(12px); } }
+        .terminal-ai-panel h3 { margin:8px 0 6px; color:#fff; font-size:18px; }
+        .terminal-ai-panel p { color:#a8bdd7; font-size:12px; line-height:1.45; margin:0 0 8px; }
+        .terminal-ai-pick {
+          display:grid;
+          grid-template-columns:34px 1fr auto auto;
+          gap:8px;
+          align-items:center;
+          min-height:52px;
+          padding:7px 0;
+          border-bottom:1px solid rgba(68,120,190,.15);
+          color:#dcecff;
+          text-decoration:none;
+        }
+        .terminal-ai-pick strong { display:block; color:#fff; font-size:13px; }
+        .terminal-ai-pick small { display:block; color:#879eba; font-size:9px; margin-top:2px; }
+        .terminal-ai-pick b { color:#22c55e; text-align:right; font-size:15px; }
+        .terminal-ai-pick b small { color:#879eba; font-size:7px; text-transform:uppercase; }
+        .terminal-ai-pick em { color:#22c55e; font-style:normal; font-size:9px; text-transform:uppercase; font-weight:900; }
+        .terminal-ai-panel button {
+          width:100%;
+          margin-top:10px;
+          height:38px;
+          border:0;
+          border-radius:7px;
+          background:linear-gradient(90deg,#3b21bb,#6d38ff);
+          color:#fff;
+          font-weight:950;
+        }
+        .terminal-grid {
+          display:grid; grid-template-columns:1.05fr 1.45fr 1.05fr; gap:13px;
+          grid-template-areas:
+            "scanner map movers"
+            "futures forex news"
+            "quick alerts watch";
+        }
+        .terminal-card {
+          border:1px solid rgba(68,120,190,.24);
+          border-radius:13px;
+          background:linear-gradient(180deg, rgba(8,21,39,.82), rgba(5,14,29,.91));
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.035), 0 10px 30px rgba(0,0,0,.18);
+          padding:13px;
+          min-height:165px;
+        }
+        .terminal-card header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+        .terminal-card header strong { color:#dff3ff; font-size:12px; letter-spacing:.1em; text-transform:uppercase; }
+        .terminal-card header small { color:#6e93ba; font-size:9px; }
+        .scanner-card { grid-area:scanner; min-height:244px; }
+        .map-card { grid-area:map; min-height:244px; }
+        .movers-card { grid-area:movers; min-height:244px; }
+        .futures-card { grid-area:futures; }
+        .forex-card { grid-area:forex; }
+        .news-card { grid-area:news; }
+        .quick-card { grid-area:quick; }
+        .alerts-card { grid-area:alerts; }
+        .watch-card { grid-area:watch; }
+        .finviz-minihead {
+          display:grid; grid-template-columns:86px 1fr; gap:10px; padding:0 2px 7px;
+          color:#6f91b6; font-size:9px; text-transform:uppercase; letter-spacing:.12em; font-weight:900;
+        }
+        .finviz-signal-line {
+          display:grid; grid-template-columns:86px 1fr; gap:10px; align-items:center; text-decoration:none;
+          padding:5px 2px; border-bottom:1px solid rgba(65,105,160,.12); min-height:27px;
+        }
+        .finviz-tickers { color:#5fb7ff; font-size:12px; letter-spacing:.04em; word-spacing:5px; }
+        .finviz-pattern { color:#9db8d7; font-size:11px; display:flex; align-items:center; gap:5px; }
+        .finviz-pattern i { width:16px; height:10px; border-left:3px solid #63b3ff; border-bottom:3px solid #ff6ca8; transform:skew(-28deg); display:inline-block; opacity:.95; }
+        .market-map { display:grid; grid-template-columns:repeat(16, 1fr); grid-auto-rows:23px; gap:3px; height:187px; }
+        .market-tile { text-decoration:none; color:#eaf8ff; border-radius:3px; padding:4px; overflow:hidden; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; }
+        .market-tile.xl { grid-column:span 4; grid-row:span 3; }
+        .market-tile.md { grid-column:span 3; grid-row:span 2; }
+        .market-tile.sm { grid-column:span 2; grid-row:span 1; }
+        .market-tile.xs { grid-column:span 1; grid-row:span 1; }
+        .market-tile.up { background:linear-gradient(135deg, #0f7b43, #174e31); }
+        .market-tile.down { background:linear-gradient(135deg, #8b2731, #4c1c26); }
+        .market-tile strong { font-size:19px; line-height:1; }
+        .market-tile span { font-size:12px; }
+        .market-tile em { font-style:normal; font-size:9px; opacity:.75; }
+        .terminal-cta {
+          display:grid; place-items:center; min-height:30px; margin-top:10px; border-radius:8px;
+          background:linear-gradient(180deg, rgba(28,82,168,.55), rgba(9,27,58,.72));
+          border:1px solid rgba(96,165,250,.18); color:#a8dbff; text-decoration:none;
+          font-size:10px; font-weight:900; letter-spacing:.03em;
+        }
+        .terminal-cta:hover { color:#fff; border-color:rgba(125,211,252,.38); box-shadow:0 0 18px rgba(37,99,235,.20); }
+        .movers-list a, .mini-market-table a, .news-list a, .watch-list a, .alerts-list a {
+          display:grid; align-items:center; grid-template-columns:1fr auto auto auto; gap:8px;
+          min-height:29px; border-bottom:1px solid rgba(65,105,160,.12); color:#cfe9ff; text-decoration:none; font-size:12px;
+        }
+        .movers-list b, .mini-market-table b { color:#7cc9ff; font-size:12px; }
+        .movers-list em, .mini-market-table .pos, .news-list i { color:#22c55e; font-style:normal; }
+        .movers-list em[data-roxy-stock-change*="-"], .mini-market-table .neg { color:#fb7185; }
+        .mini-market-table a { grid-template-columns:1fr auto auto auto; }
+        .news-list a { grid-template-columns:12px 1fr auto; min-height:31px; }
+        .news-list i { width:9px; height:9px; border-radius:50%; background:#22c55e; display:block; }
+        .news-list span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .news-list em, .watch-list b, .alerts-list em { color:#86a7c9; font-style:normal; font-size:10px; }
+        .quick-analysis { display:grid; grid-template-columns:1fr 136px; gap:12px; align-items:center; }
+        .quick-analysis h4 { margin:0; color:#fff; font-size:13px; }
+        .quick-analysis .quick-price { font-size:24px; color:#f8fbff; font-weight:900; }
+        .quick-analysis .quick-price small { display:inline; color:#22c55e; font-size:13px; margin-left:6px; }
+        .quick-levels { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:8px; }
+        .quick-levels b { display:block; border-radius:8px; padding:6px; background:rgba(15,31,55,.75); color:#a7d8ff; font-size:9px; text-transform:uppercase; }
+        .quick-levels span { display:block; color:#fff; font-size:11px; margin-top:2px; }
+        .roxy-actions-sparkline { width:136px; height:84px; }
+        .alerts-list a { grid-template-columns:20px 1fr auto; }
+        .alerts-list i { color:#fb7185; font-size:16px; }
+        .watch-list a { grid-template-columns:1fr auto; }
+        .feature-strip { margin-top:13px; display:grid; grid-template-columns:repeat(5,1fr); gap:11px; }
+        .feature-strip article { display:flex; gap:10px; align-items:center; min-height:66px; border:1px solid rgba(68,120,190,.22); border-radius:13px; padding:12px; background:rgba(7,18,34,.84); }
+        .feature-strip i { font-size:22px; color:#52c7ff; }
+        .feature-strip strong { display:block; color:#e8f6ff; font-size:11px; }
+        .feature-strip span { display:block; color:#8ca8c8; font-size:10px; margin-top:2px; }
+        .strategy-terminal-section { margin-top:14px; border:1px solid rgba(68,120,190,.24); border-radius:15px; padding:14px; background:rgba(5,14,28,.82); }
+        .strategy-terminal-section header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+        .strategy-terminal-section header strong { color:#f8fbff; text-transform:uppercase; letter-spacing:.1em; font-size:12px; }
+        .strategy-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:11px; }
+        .strategy-card { border:1px solid rgba(81,133,200,.22); border-radius:12px; padding:10px; background:linear-gradient(180deg, rgba(7,19,38,.9), rgba(5,12,25,.94)); }
+        .strategy-card header { display:grid; grid-template-columns:1fr auto; gap:4px; margin:0 0 7px; }
+        .strategy-card header span { grid-column:1 / 3; color:#76c8ff; font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
+        .strategy-card header strong { color:#fff; font-size:17px; }
+        .strategy-card header em { color:#22c55e; font-style:normal; font-size:11px; }
+        .strategy-card p { min-height:44px; color:#adc4df; font-size:10px; line-height:1.35; margin:0 0 8px; }
+        .strategy-card dl { display:grid; grid-template-columns:repeat(2,1fr); gap:5px; margin:0; }
+        .strategy-card dt { color:#77c7ff; font-size:8px; text-transform:uppercase; }
+        .strategy-card dd { margin:1px 0 0; color:#fff; font-size:10px; }
+        .strategy-card a { display:block; margin-top:8px; text-align:center; text-decoration:none; color:#dff3ff; background:#123b81; border-radius:8px; padding:7px; font-size:10px; }
+        .terminal-bottom-bar {
+          margin-top:13px;
+          display:grid;
+          grid-template-columns:1.7fr repeat(6,1fr) 1.15fr;
+          gap:10px;
+          align-items:center;
+          border:1px solid rgba(68,120,190,.25);
+          border-radius:10px;
+          background:rgba(4,13,25,.92);
+          padding:12px;
+          color:#9eb9d6;
+        }
+        .terminal-bottom-bar strong { color:#fff; font-size:14px; }
+        .terminal-bottom-bar strong span,
+        .terminal-bottom-bar b {
+          display:block;
+          font-size:10px;
+          color:#8fa9c7;
+          text-transform:uppercase;
+          font-weight:700;
+        }
+        .terminal-bottom-bar b span {
+          display:block;
+          color:#f8fbff;
+          font-size:13px;
+          margin-top:3px;
+          text-transform:none;
+          font-weight:900;
+        }
+        .terminal-bottom-bar .pos,
+        .terminal-bottom-bar em { color:#22c55e; }
+        .terminal-bottom-bar em {
+          display:flex;
+          align-items:center;
+          gap:6px;
+          justify-content:flex-end;
+          text-transform:uppercase;
+          font-size:11px;
+          font-style:normal;
+          font-weight:900;
+        }
+        @media (max-width: 900px) {
+          .roxy-actions-terminal-scroll { width:100%; }
+          .roxy-actions-terminal { width:1240px; }
+          .terminal-top-strip { grid-template-columns: repeat(8, 140px); }
+          .terminal-chart-row { grid-template-columns:420px 420px 280px; }
+        }
+        </style>
+        <div class="roxy-actions-terminal-scroll">
+          <section class="roxy-actions-terminal">
+            <aside class="roxy-actions-left">
+              <div class="roxy-actions-logo"><i class="material-symbols-outlined">rocket_launch</i><div><strong>ROXY</strong><span>AI Trading</span></div></div>
+              <div class="roxy-actions-profile">__ROXY_ACTIONS_AVATAR__<strong>Sesion operativa</strong><small>Contexto compartido</small></div>
+              <nav class="roxy-actions-nav">__ROXY_ACTIONS_SIDEBAR__</nav>
+              <div class="roxy-actions-atom"><strong>ROXY</strong><span>Contexto compartido</span></div>
+            </aside>
+            <main class="roxy-actions-main-terminal">
+              <header class="roxy-actions-header">
+                <div class="roxy-actions-title"><strong>ACCIONES</strong><span>Análisis completo del mercado accionario</span></div>
+                <div class="roxy-actions-tools"><form class="roxy-search" method="get"><input type="hidden" name="view" value="Dashboard"><input type="hidden" name="module" value="acciones-operar"><input type="hidden" name="tab" value="analisis"><i class="material-symbols-outlined">search</i><input name="symbol" placeholder="Buscar acción, sector, industria..." value=""></form><i class="material-symbols-outlined">star</i><i class="material-symbols-outlined">notifications</i><span class="roxy-r-mini">R</span></div>
+              </header>
+              <nav class="actions-tabs">__ROXY_ACTIONS_TABS__</nav>
+              <section class="terminal-top-strip">__ROXY_ACTIONS_TOP_STRIP__</section>
+              __ROXY_ACTIONS_TAB_PANEL__
+              <section class="terminal-chart-row">__ROXY_ACTIONS_CHART_ROW____ROXY_ACTIONS_RIGHT_AI__</section>
+              <section class="terminal-grid">
+                <article class="terminal-card scanner-card"><header><strong>Escáner Finviz</strong><small>Fuente visible</small></header><div class="finviz-minihead"><span>Tickers</span><span>Signal</span></div><div>__ROXY_ACTIONS_SCANNER__</div><a class="terminal-cta" href="?view=Dashboard&module=acciones-operar&tab=estrategias" target="_self">Ver Escáner Completo</a></article>
+                <article class="terminal-card map-card"><header><strong>Mapa de Mercado</strong><small>Activos disponibles</small></header><div class="market-map">__ROXY_ACTIONS_HEAT_TILES__</div><a class="terminal-cta" href="?view=Dashboard&module=acciones-operar&tab=mapa" target="_self">Ver Mapa Completo</a></article>
+                <article class="terminal-card movers-card"><header><strong>Movers del Día</strong><small>Fuente declarada</small></header><div class="movers-list">__ROXY_ACTIONS_MOVERS__</div><a class="terminal-cta" href="?view=Dashboard&module=acciones-operar&tab=movers" target="_self">Ver Todos</a></article>
+                __ROXY_ACTIONS_MACRO_CARDS__
+                <article class="terminal-card news-card"><header><strong>Noticias Relevantes</strong><small>Fuente visible</small></header><div class="news-list">__ROXY_ACTIONS_NEWS__</div><a class="terminal-cta" href="__ROXY_ACTIONS_NEWS_HREF__" target="_self">Ver Más Noticias</a></article>
+                <article class="terminal-card quick-card"><header><strong>Análisis Rápido</strong><small>__ROXY_ACTIONS_QUICK_SYMBOL_CARD__</small></header><div class="quick-analysis"><div><h4>__ROXY_ACTIONS_QUICK_SYMBOL_HEADING__ · __ROXY_ACTIONS_QUICK_NAME__</h4><div class="quick-price"><span data-roxy-stock-live-price data-roxy-stock-symbol="__ROXY_ACTIONS_QUICK_PRICE_SYMBOL__" data-roxy-price="__ROXY_ACTIONS_QUICK_PRICE_SEED__">__ROXY_ACTIONS_QUICK_PRICE__</span><small data-roxy-stock-change data-roxy-stock-symbol="__ROXY_ACTIONS_QUICK_CHANGE_SYMBOL__">__ROXY_ACTIONS_QUICK_CHANGE__</small></div><div class="quick-levels"><b>Entrada<span>__ROXY_ACTIONS_QUICK_ENTRY__</span></b><b>Stop<span>__ROXY_ACTIONS_QUICK_STOP__</span></b><b>Target<span>__ROXY_ACTIONS_QUICK_TARGET__</span></b></div></div>__ROXY_ACTIONS_QUICK_SPARKLINE__</div><a class="terminal-cta" href="?view=Dashboard&module=acciones-operar&tab=analisis&symbol=__ROXY_ACTIONS_QUICK_HREF__" target="_self">Ver Análisis Completo</a></article>
+                <article class="terminal-card alerts-card"><header><strong>Alertas Activas</strong><small>Persistentes</small></header><div class="alerts-list">__ROXY_ACTIONS_ALERTS__</div><a class="terminal-cta" href="__ROXY_ACTIONS_ALERTS_HREF__" target="_self">Ver Todas las Alertas</a></article>
+                <article class="terminal-card watch-card"><header><strong>Tus Watchlists</strong><small>__ROXY_ACTIONS_WATCHLIST_NAME__</small></header><div class="watch-list">__ROXY_ACTIONS_WATCHLIST__</div><a class="terminal-cta" href="?view=Dashboard&module=acciones-operar&tab=watchlists" target="_self">Ir a Watchlists</a></article>
+              </section>
+              <section class="feature-strip">
+                <article><i class="material-symbols-outlined">manage_search</i><div><strong>Escáner Avanzado</strong><span>Filtra acciones como Finviz</span></div></article>
+                <article><i class="material-symbols-outlined">bar_chart</i><div><strong>Gráficos operativos</strong><span>Lightweight Charts local</span></div></article>
+                <article><i class="material-symbols-outlined">speed</i><div><strong>Estado de datos</strong><span>Fuente, retraso y conexión visibles</span></div></article>
+                <article><i class="material-symbols-outlined">hotel_class</i><div><strong>Señales Roxy</strong><span>Reglas y razones verificables</span></div></article>
+                <article><i class="material-symbols-outlined">query_stats</i><div><strong>Análisis contextual</strong><span>Fuente declarada + motor Roxy</span></div></article>
+              </section>
+              <section class="strategy-terminal-section" style="display:__ROXY_ACTIONS_STRATEGY_VISIBILITY__">
+                <header><strong>Mejores oportunidades por estrategia</strong><small>Roxy separa cada setup para no mezclar señales</small></header>
+                <div class="strategy-grid">__ROXY_ACTIONS_STRATEGIES__</div>
+              </section>
+              __ROXY_ACTIONS_BOTTOM_STATUS__
+            </main>
+          </section>
+        </div>

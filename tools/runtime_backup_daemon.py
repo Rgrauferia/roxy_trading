@@ -3,18 +3,24 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-try:
-    from runtime_backup import DEFAULT_TARGET_DIR, create_runtime_backup, json_safe
-except ImportError:
-    from tools.runtime_backup import DEFAULT_TARGET_DIR, create_runtime_backup, json_safe
-
-
 BASE_DIR = Path(__file__).resolve().parents[1]
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+from durable_storage import atomic_write_text
+
+try:
+    from runtime_backup import DEFAULT_REPORT_PATH, DEFAULT_TARGET_DIR, create_runtime_backup, json_safe
+except ImportError:
+    from tools.runtime_backup import DEFAULT_REPORT_PATH, DEFAULT_TARGET_DIR, create_runtime_backup, json_safe
+
+
 DEFAULT_HEARTBEAT_PATH = BASE_DIR / "alerts" / "runtime_backup_daemon_heartbeat.json"
 
 
@@ -23,8 +29,7 @@ def utc_now() -> datetime:
 
 
 def write_heartbeat(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(json_safe(payload), indent=2, sort_keys=True))
+    atomic_write_text(json.dumps(json_safe(payload), indent=2, sort_keys=True), path)
 
 
 def heartbeat_payload(
@@ -58,6 +63,16 @@ def run_backup_safely() -> tuple[dict[str, Any] | None, str]:
         return None, f"{type(exc).__name__}: {exc}"
 
 
+def previous_backup_result(path: Path = DEFAULT_REPORT_PATH) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict) or str(payload.get("status") or "").upper() not in {"OK", "DRY_RUN"}:
+        return None
+    return payload
+
+
 def run_daemon(
     *,
     heartbeat_path: Path = DEFAULT_HEARTBEAT_PATH,
@@ -66,7 +81,7 @@ def run_daemon(
     run_at_start: bool = True,
     once: bool = False,
 ) -> int:
-    last_backup: dict[str, Any] | None = None
+    last_backup: dict[str, Any] | None = previous_backup_result()
     next_backup_at = utc_now() if run_at_start else utc_now() + timedelta(hours=interval_hours)
     write_heartbeat(
         heartbeat_path,

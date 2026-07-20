@@ -40,6 +40,8 @@ SAFE_INTENTS = {
     "academy_query",
     "screen_summary",
     "weather_query",
+    "documents_query",
+    "email_query",
 }
 
 

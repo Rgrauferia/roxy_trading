@@ -1,4 +1,5 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 import pytest
@@ -30,6 +31,7 @@ from roxy_ai import (
     learning_action_label,
     macro_calendar_status,
     market_session_status,
+    normalize_opportunity_row,
     human_alert_reason,
     human_trade_action,
     realtime_health_status,
@@ -109,6 +111,7 @@ def test_extract_opportunities_uses_scanner_score_when_confluence_score_missing(
                 "setup": "PULLBACK",
                 "entry": 51.56,
                 "stop": 50.5,
+                "recommended_target_pct": 0.02,
                 "relative_volume": 1.25,
                 "backtest_eligible": True,
             }
@@ -123,6 +126,30 @@ def test_extract_opportunities_uses_scanner_score_when_confluence_score_missing(
     assert rows[0]["ai_score"] >= 70
     assert rows[0]["risk_pct"] == 0.020559
     assert rows[0]["recommended_target_pct"] == 0.02
+
+
+def test_opportunity_normalization_never_invents_a_two_percent_target():
+    watch = normalize_opportunity_row(
+        {"symbol": "BTC/USD", "signal": "BUY", "trade_decision": "WAIT_FOR_TRIGGER", "entry": 100, "stop": 97}
+    )
+    explicit = normalize_opportunity_row(
+        {"symbol": "AAPL", "signal": "BUY", "trade_decision": "TRADE_FOR_5PCT", "entry": 200, "stop": 195}
+    )
+
+    assert watch.get("recommended_target_pct") is None
+    assert watch.get("recommended_target_price") is None
+    assert watch["target_contract"] == "MISSING_EXPLICIT_TARGET"
+    assert not any(key.startswith("target_2pct") for key in watch)
+    assert explicit["recommended_target_pct"] == 0.05
+    assert explicit["recommended_target_price"] == 210
+    assert explicit["target_basis"] == "decision_operativa_explicita"
+    assert explicit["target_contract"] == "EXPLICIT_TARGET"
+    supplied = normalize_opportunity_row(
+        {"symbol": "LINK/USD", "signal": "WATCH", "entry": 8.389, "target_2pct_price": 8.55678}
+    )
+    assert supplied["recommended_target_price"] == 8.55678
+    assert supplied["target_basis"] == "explicit_price_field:target_2pct_price"
+    assert supplied["target_contract"] == "EXPLICIT_TARGET"
 
 
 def test_extract_opportunities_dedupes_scanner_rows_by_market_symbol():
@@ -174,6 +201,7 @@ def test_crypto_scan_candidate_rows_extracts_unique_high_score_crypto_watchlist(
                 "signal": "WATCH",
                 "setup": "TREND_CONTINUATION",
                 "entry": 100,
+                "close": 101,
                 "stop": 97,
                 "relative_volume": 1.4,
                 "backtest_eligible": False,
@@ -192,6 +220,12 @@ def test_crypto_scan_candidate_rows_extracts_unique_high_score_crypto_watchlist(
     assert rows[0]["ai_action"] == "WATCH"
     assert rows[0]["crypto_rescue_candidate"] is True
     assert rows[0]["risk_pct"] == 0.03
+    assert rows[0]["current_price"] == 101
+    assert rows[0]["price_basis"] == "ultimo cierre del scan normalizado"
+    assert rows[0]["recommended_target_pct"] is None
+    assert rows[0]["recommended_target_price"] is None
+    assert rows[0]["target_contract"] == "MISSING_EXPLICIT_TARGET"
+    assert rows[0]["levels_status"] == "WATCH_ONLY_INCOMPLETE"
     assert all(row["symbol"] != "MATIC/USD" for row in rows)
 
 
@@ -329,9 +363,67 @@ def test_macro_calendar_status_detects_active_fed_event(tmp_path):
     status = macro_calendar_status(path, now=now)
 
     assert status["configured"] is True
+    assert status["data_status"] == "CONNECTED"
+    assert status["valid_event_count"] == 1
     assert status["active"] is True
     assert status["label"] == "Macro activo"
     assert status["top_event"]["title"] == "FOMC Rate Decision"
+
+
+def test_macro_calendar_empty_file_is_no_data_not_connected(tmp_path):
+    path = tmp_path / "macro_events.csv"
+    path.write_text("date,time,event,severity,currency,notes\n", encoding="utf-8")
+
+    status = macro_calendar_status(path, now=datetime(2026, 7, 19, tzinfo=timezone.utc))
+
+    assert status["configured"] is True
+    assert status["data_status"] == "NO_DATA"
+    assert status["coverage"] == "UNKNOWN"
+    assert status["valid_event_count"] == 0
+    assert "no contiene eventos macro validos" in status["detail"]
+
+
+def test_macro_calendar_fresh_source_stays_connected_without_near_event(tmp_path):
+    path = tmp_path / "macro_events.csv"
+    path.write_text(
+        "date,time,event,severity,currency,notes,source,source_url,fetched_at\n"
+        "2026-08-30,08:30,GDP Estimate,MEDIUM,USD,official,BEA,https://www.bea.gov/news/schedule,"
+        "2026-07-19T12:00:00+00:00\n",
+        encoding="utf-8",
+    )
+
+    status = macro_calendar_status(
+        path,
+        now=datetime(2026, 7, 19, 13, tzinfo=timezone.utc),
+        upcoming_hours=24,
+    )
+
+    assert status["data_status"] == "CONNECTED"
+    assert status["coverage"] == "LOADED_NO_EVENT_IN_WINDOW"
+    assert status["upcoming_events"] == []
+    assert status["source_age_hours"] == 1.0
+    assert status["next_event_time"].startswith("2026-08-30T12:30:00")
+    assert "Proximo evento almacenado" in status["detail"]
+
+
+def test_macro_calendar_enforces_future_window_and_marks_stale_cache(tmp_path):
+    path = tmp_path / "macro_events.csv"
+    path.write_text(
+        "date,time,event,severity,currency,notes,source,source_url,fetched_at\n"
+        "2026-08-30,08:30,GDP Estimate,MEDIUM,USD,official,BEA,https://www.bea.gov/news/schedule,"
+        "2026-07-10T12:00:00+00:00\n",
+        encoding="utf-8",
+    )
+
+    status = macro_calendar_status(
+        path,
+        now=datetime(2026, 7, 19, 13, tzinfo=timezone.utc),
+        upcoming_hours=24,
+    )
+
+    assert status["data_status"] == "DELAYED"
+    assert status["coverage"] == "STALE_SOURCE_CACHE"
+    assert status["scheduled_events"] == []
 
 
 def test_apply_global_alert_context_demotes_alert_during_macro_event():
@@ -1553,6 +1645,78 @@ def test_learning_journal_compacts_repeated_fingerprints_on_duplicate_append(tmp
     assert journal["fingerprint"].nunique() == 1
 
 
+def test_learning_journal_appends_empty_top_metrics_without_future_warning(tmp_path):
+    import warnings
+
+    path = tmp_path / "journal.csv"
+    first = {
+        "generated_at": "2026-06-14T00:00:00+00:00",
+        "alert_count": 0,
+        "watch_count": 0,
+        "opportunities": [],
+        "daily_opportunity_plan": {},
+    }
+    second = dict(first)
+    second["generated_at"] = "2026-06-15T00:00:00+00:00"
+
+    append_learning_journal(first, path=path)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        append_learning_journal(second, path=path)
+
+    journal = pd.read_csv(path)
+    assert len(journal) == 2
+    assert list(journal["top_symbol"]) == ["-", "-"]
+    assert journal["top_readiness"].isna().all()
+
+
+def test_learning_journal_concurrent_appends_do_not_lose_rows(tmp_path):
+    path = tmp_path / "journal.csv"
+
+    def append(index):
+        return append_learning_journal(
+            {
+                "generated_at": f"2026-06-{index + 1:02d}T00:00:00+00:00",
+                "alert_count": index,
+                "watch_count": 1,
+                "opportunities": [],
+                "daily_opportunity_plan": {},
+            },
+            path=path,
+            max_rows=100,
+        )
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        list(executor.map(append, range(16)))
+
+    journal = pd.read_csv(path)
+    assert len(journal) == 16
+    assert set(journal["alert_count"]) == set(range(16))
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert (tmp_path / ".journal.csv.lock").stat().st_mode & 0o777 == 0o600
+    assert not list(tmp_path.glob(".journal.csv.*.tmp"))
+
+
+def test_learning_journal_preserves_unreadable_existing_file(tmp_path):
+    path = tmp_path / "journal.csv"
+    original = b'"unterminated\n'
+    path.write_bytes(original)
+
+    with pytest.raises(pd.errors.ParserError):
+        append_learning_journal(
+            {
+                "generated_at": "2026-06-15T00:00:00+00:00",
+                "alert_count": 0,
+                "watch_count": 0,
+                "opportunities": [],
+                "daily_opportunity_plan": {},
+            },
+            path=path,
+        )
+
+    assert path.read_bytes() == original
+
+
 def test_status_snapshot_summarizes_top_setup(tmp_path, monkeypatch):
     import roxy_ai
 
@@ -2041,6 +2205,152 @@ def test_status_snapshot_marks_daily_plan_focus_alignment():
     assert status["daily_plan_matches_top"] is False
     assert status["daily_plan_matches_focus"] is True
     assert status["daily_plan_alignment"] == "FOCUS_ALIGNED"
+
+
+def test_status_snapshot_keeps_discard_focus_alignment_fields_consistent():
+    brief = {
+        "generated_at": "2026-06-10T12:00:00+00:00",
+        "opportunities": [{"symbol": "LTC/USD", "market": "crypto", "ai_action": "WATCH"}],
+        "daily_opportunity_plan": {
+            "top_symbol": "LTC/USD",
+            "top_stage": "PROXIMA_ENTRADA",
+            "rows": [{"symbol": "LTC/USD", "stage": "PROXIMA_ENTRADA", "probability": 75}],
+        },
+    }
+    quality = {
+        "state": "WAITING",
+        "missed_trigger_plan_discard_guard_active": True,
+        "missed_trigger_plan_discard_symbol": "LTC/USD",
+        "missed_trigger_plan_decision_action": "Pausar candidato stale.",
+    }
+
+    status = build_status_snapshot(brief, alert_quality_report=quality)
+
+    assert status["operational_focus_source"] == "ALERT_QUALITY_DISCARD"
+    assert status["daily_plan_matches_focus"] is True
+    assert status["daily_plan_alignment"] == "FOCUS_ALIGNED"
+
+
+def test_alert_quality_discard_removes_active_opportunity_and_rebuilds_plan():
+    brief = {
+        "opportunities": [
+            {"symbol": "LTC/USD", "market": "crypto", "ai_action": "WATCH"},
+            {"symbol": "BTC/USD", "market": "crypto", "ai_action": "ALERT"},
+        ],
+        "alert_count": 1,
+        "watch_count": 1,
+    }
+    report = {
+        "generated_at": "2026-07-19T22:00:00+00:00",
+        "missed_trigger_plan_discard_guard_active": True,
+        "missed_trigger_plan_discard_symbol": "LTC/USD",
+        "missed_trigger_plan_discard_reason": "Stale sin gatillo.",
+        "missed_trigger_plan_discard_resume_condition": "Reactivar solo con confirmacion 15m.",
+    }
+
+    events = roxy_ai.apply_alert_quality_lifecycle(brief, report)
+
+    assert [row["symbol"] for row in brief["opportunities"]] == ["BTC/USD"]
+    assert brief["alert_count"] == 1
+    assert brief["watch_count"] == 0
+    assert brief["daily_opportunity_plan"]["top_symbol"] == "BTC/USD"
+    assert events[0]["status"] == "Invalidada"
+    assert events[0]["lifecycle_source"] == "ALERT_QUALITY_DISCARD"
+
+
+def test_alert_quality_discard_stays_archived_during_cooldown_when_diagnostic_changes():
+    discarded = {
+        "symbol": "LTC/USD",
+        "market": "crypto",
+        "status": "Invalidada",
+        "archived_at": "2026-07-19T22:00:00+00:00",
+        "cooldown_until": "2026-07-19T22:16:00+00:00",
+        "archive_reason": "Stale sin gatillo.",
+        "lifecycle_source": "ALERT_QUALITY_DISCARD",
+    }
+    brief = {
+        "opportunities": [
+            {
+                "symbol": "LTC/USD",
+                "market": "crypto",
+                "ai_action": "WATCH",
+                "alert_gate": "BLOCKED_REALTIME_DATA",
+            }
+        ],
+        "alert_count": 0,
+        "watch_count": 1,
+    }
+
+    events = roxy_ai.apply_alert_quality_lifecycle(
+        brief,
+        {"missed_trigger_plan_discard_guard_active": False},
+        prior_archived=[discarded],
+        now=datetime(2026, 7, 19, 22, 5, tzinfo=timezone.utc),
+    )
+
+    assert brief["opportunities"] == []
+    assert brief["watch_count"] == 0
+    assert events[0]["symbol"] == "LTC/USD"
+    assert events[0]["reactivation_policy"] == "FRESH_ALERT_READY"
+
+
+def test_alert_quality_discard_reactivates_on_fresh_ready_trigger_before_cooldown():
+    discarded = {
+        "symbol": "LTC/USD",
+        "market": "crypto",
+        "status": "Invalidada",
+        "cooldown_until": "2026-07-19T22:16:00+00:00",
+    }
+    ready = {
+        "symbol": "LTC/USD",
+        "market": "crypto",
+        "ai_action": "ALERT",
+        "alert_gate": "ALERT_READY",
+    }
+    brief = {"opportunities": [ready], "alert_count": 1, "watch_count": 0}
+
+    events = roxy_ai.apply_alert_quality_lifecycle(
+        brief,
+        {},
+        prior_archived=[discarded],
+        now=datetime(2026, 7, 19, 22, 5, tzinfo=timezone.utc),
+    )
+
+    assert brief["opportunities"] == [ready]
+    assert events == []
+
+
+def test_alert_quality_discard_does_not_reenter_after_cooldown_without_ready_trigger():
+    discarded = {
+        "symbol": "LTC/USD",
+        "market": "crypto",
+        "status": "Invalidada",
+        "cooldown_until": "2026-07-19T22:16:00+00:00",
+        "reactivation_policy": "FRESH_ALERT_READY",
+    }
+    brief = {
+        "opportunities": [
+            {
+                "symbol": "LTC/USD",
+                "market": "crypto",
+                "ai_action": "WATCH",
+                "alert_gate": "WAIT_15M_ENTRY",
+            }
+        ],
+        "alert_count": 0,
+        "watch_count": 1,
+    }
+
+    events = roxy_ai.apply_alert_quality_lifecycle(
+        brief,
+        {},
+        prior_archived=[discarded],
+        now=datetime(2026, 7, 20, 8, 0, tzinfo=timezone.utc),
+    )
+
+    assert brief["opportunities"] == []
+    assert brief["watch_count"] == 0
+    assert events == [discarded]
 
 
 def test_status_snapshot_marks_daily_plan_focus_supported_when_rotation_is_listed():

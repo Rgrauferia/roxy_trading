@@ -1,5 +1,7 @@
 import json
+import math
 
+from roxy_ai import normalize_opportunity_row
 from tools import voice_assistant
 
 
@@ -9,6 +11,7 @@ def test_voice_assistant_summarizes_latest_opportunity(tmp_path, monkeypatch):
         json.dumps(
             {
                 "opportunities": [
+                    {"symbol": "LTC/USD", "ai_action": "WATCH", "entry": 46.8},
                     {
                         "symbol": "AAPL",
                         "ai_action": "WATCH",
@@ -31,6 +34,74 @@ def test_voice_assistant_summarizes_latest_opportunity(tmp_path, monkeypatch):
     assert "AAPL" in reply
     assert "Canal alcista" in reply
     assert "SMA20" in reply
+
+
+def test_voice_assistant_never_substitutes_another_symbol_when_requested_one_is_absent(tmp_path, monkeypatch):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps({"opportunities": [{"symbol": "ETH/USD", "ai_action": "WATCH", "entry": 1900}]}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(voice_assistant, "BRIEF_PATH", brief_path)
+
+    reply = voice_assistant._summarize_opportunity(voice_assistant._latest_opportunity("AAPL"))
+
+    assert "AAPL no aparece" in reply
+    assert "ETH" not in reply
+    assert "No voy a sustituirlo" in reply
+
+
+def test_voice_opportunity_summary_exposes_exact_source_gate_and_target(tmp_path, monkeypatch):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "symbol": "LINK/USD",
+                        "market": "crypto",
+                        "entry_tf": "15m",
+                        "ai_action": "WATCH",
+                        "trade_decision": "WAIT",
+                        "entry": 8.4,
+                        "stop": 8.2,
+                        "target_2pct_price": 8.568,
+                        "data_source": "BinanceUS API",
+                        "chart_data_gate": "LIVE_DATA_OK",
+                        "alert_primary_blocker": "Esperando volumen.",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(voice_assistant, "BRIEF_PATH", brief_path)
+
+    reply = voice_assistant._summarize_opportunity(voice_assistant._latest_opportunity("LINK/USD"))
+
+    assert "temporalidad 15m" in reply
+    assert "objetivo 8.5680" in reply
+    assert "BinanceUS API" in reply
+    assert "LIVE_DATA_OK" in reply
+    assert "Esperando volumen" in reply
+
+
+def test_voice_symbol_extractor_accepts_explicit_crypto_pairs():
+    assert voice_assistant._extract_symbol("explicame LINK/USD") == "LINK/USD"
+    assert voice_assistant._extract_symbol("explicame LINK-USD") == "LINK/USD"
+
+
+def test_opportunity_normalization_replaces_nan_target_with_exact_price():
+    row = normalize_opportunity_row(
+        {
+            "symbol": "LINK/USD",
+            "signal": "WATCH",
+            "entry": 8.389,
+            "recommended_target_price": math.nan,
+            "target_2pct_price": 8.55678,
+        }
+    )
+    assert row["recommended_target_price"] == 8.55678
 
 
 def test_voice_assistant_summarizes_learning(tmp_path, monkeypatch):

@@ -1,4 +1,5 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 from alert_quality import (
@@ -21,6 +22,27 @@ from alert_quality import (
     waiting_diagnostic_category,
     write_alert_quality_report,
 )
+
+
+def test_alert_quality_history_concurrent_appends_preserve_all_entries(tmp_path):
+    path = tmp_path / "quality.jsonl"
+
+    def append(index):
+        return append_history(
+            path,
+            {"generated_at": f"2026-06-10T00:{index:02d}:00+00:00", "symbol": f"S{index:02d}"},
+            limit=100,
+            max_bytes=None,
+        )
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        list(executor.map(append, range(16)))
+
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    assert len(rows) == 16
+    assert {row["symbol"] for row in rows} == {f"S{index:02d}" for index in range(16)}
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert (tmp_path / ".quality.jsonl.lock").stat().st_mode & 0o777 == 0o600
 
 
 def test_alert_quality_entry_classifies_ready_and_waiting_states():

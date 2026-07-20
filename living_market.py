@@ -13,6 +13,10 @@ from zoneinfo import ZoneInfo
 import feedparser
 import pandas as pd
 
+from roxy_trader.indicators import IndicatorConfig, add_indicators as add_central_indicators
+from roxy_trader.cache_policy import cache_ttl
+from roxy_trader.api_budget import observe_api_call
+
 from symbol_detail import alpaca_env_credentials, alpaca_fallback_info, alpaca_placeholder_credential_keys
 
 
@@ -31,8 +35,8 @@ DEFAULT_STOCK_SYMBOLS = (
     "SPCX",
 )
 DEFAULT_CRYPTO_SYMBOLS = ("BTC/USD", "ETH/USD", "SOL/USD", "LINK/USD", "DOGE/USD")
-LIVE_PRICE_REFRESH_SECONDS = 5
-OPPORTUNITY_REFRESH_SECONDS = 10
+LIVE_PRICE_REFRESH_SECONDS = cache_ttl("live_price")
+OPPORTUNITY_REFRESH_SECONDS = cache_ttl("opportunity")
 DEFAULT_NEWS_FEEDS = (
     "https://finance.yahoo.com/news/rssindex",
     "https://www.nasdaq.com/feed/rssoutbound?category=IPOs",
@@ -167,21 +171,12 @@ def enrich_indicators(df: pd.DataFrame) -> pd.DataFrame:
     data = normalize_history_frame(df)
     if data.empty:
         return data
+    data = add_central_indicators(
+        data,
+        config=IndicatorConfig(sma_windows=(20, 50, 200), ema_windows=(9, 21, 50, 200)),
+    )
+    data["volume_avg20"] = data["volume_sma20"]
     close = data["close"]
-    data["sma20"] = close.rolling(20, min_periods=3).mean()
-    data["sma50"] = close.rolling(50, min_periods=5).mean()
-    data["sma200"] = close.rolling(200, min_periods=20).mean()
-    delta = close.diff()
-    gain = delta.clip(lower=0).rolling(14, min_periods=5).mean()
-    loss = (-delta.clip(upper=0)).rolling(14, min_periods=5).mean()
-    rs = gain / loss.replace(0, float("nan"))
-    data["rsi14"] = (100 - (100 / (1 + rs))).fillna(50.0)
-    ema12 = close.ewm(span=12, adjust=False, min_periods=3).mean()
-    ema26 = close.ewm(span=26, adjust=False, min_periods=5).mean()
-    data["macd"] = ema12 - ema26
-    data["macd_signal"] = data["macd"].ewm(span=9, adjust=False, min_periods=3).mean()
-    data["macd_hist"] = data["macd"] - data["macd_signal"]
-    data["volume_avg20"] = data["volume"].rolling(20, min_periods=3).mean()
     data["resistance40"] = data["high"].shift(1).rolling(40, min_periods=5).max()
     data["support40"] = data["low"].shift(1).rolling(40, min_periods=5).min()
     prev_close = close.shift(24) if len(data) >= 24 else close.shift(1)
@@ -425,8 +420,10 @@ def fetch_market_news(
     for feed_url in feeds:
         try:
             request = Request(feed_url, headers={"User-Agent": "Mozilla/5.0 RoxyTrading/1.0"})
-            with urlopen(request, timeout=timeout) as response:
-                payload = response.read()
+            with observe_api_call("rss_news", "market_feed") as observation:
+                with urlopen(request, timeout=timeout) as response:
+                    observation.set_http_status(getattr(response, "status", None))
+                    payload = response.read()
             parsed = feedparser.parse(payload)
             entries = list(parsed.entries or [])
             sources.append(source_row(f"news:{feed_url}", "OK" if entries else "WARN", f"{len(entries)} noticias RSS"))
@@ -476,8 +473,10 @@ def fetch_nasdaq_ipo_calendar(now: datetime | None = None, *, timeout: float = 8
         },
     )
     try:
-        with urlopen(request, timeout=timeout) as response:
-            payload = json.loads(response.read().decode("utf-8"))
+        with observe_api_call("nasdaq", "ipo_calendar") as observation:
+            with urlopen(request, timeout=timeout) as response:
+                observation.set_http_status(getattr(response, "status", None))
+                payload = json.loads(response.read().decode("utf-8"))
     except Exception as exc:
         return [], source_row("nasdaq_ipo_calendar", "FAIL", "Calendario IPO no disponible", last_response=exc)
 
@@ -553,10 +552,12 @@ def fetch_stock_history_fast(symbol: str, *, interval: str = "1h", period: str =
         "timeout": 8,
     }
     try:
-        data = yf.download(symbol, **kwargs)
+        with observe_api_call("yfinance", "stock_history"):
+            data = yf.download(symbol, **kwargs)
     except TypeError:
         kwargs.pop("timeout", None)
-        data = yf.download(symbol, **kwargs)
+        with observe_api_call("yfinance", "stock_history_compat"):
+            data = yf.download(symbol, **kwargs)
     if data is None or data.empty:
         return pd.DataFrame()
     if isinstance(data.columns, pd.MultiIndex):
@@ -576,7 +577,8 @@ def fetch_crypto_history_fast(symbol: str, *, timeframe: str = "1h", limit: int 
     import ccxt
 
     exchange = ccxt.binanceus({"enableRateLimit": True, "timeout": 8000})
-    ohlcv = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
+    with observe_api_call("binanceus", "ohlcv"):
+        ohlcv = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
     data = pd.DataFrame(ohlcv, columns=["ts", "open", "high", "low", "close", "volume"])
     data["ts"] = pd.to_datetime(data["ts"], unit="ms", utc=True)
     return data
@@ -684,7 +686,8 @@ def fetch_alpaca_latest_trade(symbol: str, *, env: dict[str, str] | None = None)
         feed = _alpaca_data_feed(source_env)
         client = _alpaca_stock_data_client(source_env)
         request = StockLatestTradeRequest(symbol_or_symbols=str(symbol).upper(), feed=feed)
-        response = client.get_stock_latest_trade(request)
+        with observe_api_call("alpaca", "latest_trade"):
+            response = client.get_stock_latest_trade(request)
         trade = _single_symbol_payload(response, symbol)
         price = safe_float(_object_value(trade, "price", "p"))
         timestamp = _object_value(trade, "timestamp", "t")
@@ -727,7 +730,8 @@ def fetch_alpaca_latest_quote(symbol: str, *, env: dict[str, str] | None = None)
         feed = _alpaca_data_feed(source_env)
         client = _alpaca_stock_data_client(source_env)
         request = StockLatestQuoteRequest(symbol_or_symbols=str(symbol).upper(), feed=feed)
-        response = client.get_stock_latest_quote(request)
+        with observe_api_call("alpaca", "latest_quote"):
+            response = client.get_stock_latest_quote(request)
         quote = _single_symbol_payload(response, symbol)
         bid = safe_float(_object_value(quote, "bid_price", "bp", "bid"))
         ask = safe_float(_object_value(quote, "ask_price", "ap", "ask"))
@@ -774,7 +778,8 @@ def fetch_alpaca_latest_bar(symbol: str, *, env: dict[str, str] | None = None) -
         feed = _alpaca_data_feed(source_env)
         client = _alpaca_stock_data_client(source_env)
         request = StockLatestBarRequest(symbol_or_symbols=str(symbol).upper(), feed=feed)
-        response = client.get_stock_latest_bar(request)
+        with observe_api_call("alpaca", "latest_bar"):
+            response = client.get_stock_latest_bar(request)
         bar = _single_symbol_payload(response, symbol)
         price = safe_float(_object_value(bar, "close", "c"))
         timestamp = _object_value(bar, "timestamp", "t")
@@ -986,16 +991,17 @@ def fetch_yfinance_live_price(symbol: str) -> dict[str, Any]:
         last_error = f"quote: {type(exc).__name__}: {exc}"
     for period, interval in attempts:
         try:
-            data = yf.download(
-                symbol,
-                period=period,
-                interval=interval,
-                auto_adjust=True,
-                progress=False,
-                prepost=True,
-                threads=False,
-                timeout=5,
-            )
+            with observe_api_call("yfinance", "live_price_history"):
+                data = yf.download(
+                    symbol,
+                    period=period,
+                    interval=interval,
+                    auto_adjust=True,
+                    progress=False,
+                    prepost=True,
+                    threads=False,
+                    timeout=5,
+                )
             data = normalize_history_frame(data.reset_index() if data is not None and not data.empty else pd.DataFrame())
             if data.empty:
                 last_error = f"sin velas {period}/{interval}"
@@ -1098,7 +1104,8 @@ def build_live_price_snapshot(symbol: str, market: str, *, now: datetime | None 
             import ccxt
 
             exchange = ccxt.binanceus({"enableRateLimit": True, "timeout": 5000})
-            ticker = exchange.fetch_ticker(normalized_symbol)
+            with observe_api_call("binanceus", "ticker"):
+                ticker = exchange.fetch_ticker(normalized_symbol)
             price = safe_float(ticker.get("last") or ticker.get("close") or ticker.get("bid") or ticker.get("ask"))
             ts = ticker.get("timestamp")
             price_time = datetime.fromtimestamp(ts / 1000, timezone.utc) if ts else current
@@ -1122,16 +1129,15 @@ def build_live_price_snapshot(symbol: str, market: str, *, now: datetime | None 
                 provider = "Alpaca"
                 market_open = bool(stock_session.get("open"))
                 latency_note = str(alpaca_snapshot.get("detail") or "Dato broker Alpaca.")
-                try:
-                    quote_context = fetch_yfinance_quote_price(normalized_symbol)
-                    previous_close = safe_float(quote_context.get("previous_close"))
-                    regular_price = safe_float(quote_context.get("regular_market_price"))
-                    post_price = safe_float(quote_context.get("post_market_price"))
-                    pre_price = safe_float(quote_context.get("pre_market_price"))
-                    if price is not None and previous_close not in (None, 0):
-                        change_pct = (price - previous_close) / previous_close
-                except Exception:
-                    pass
+                # Do not turn a confirmed broker quote into an unbounded public
+                # network dependency. Optional session context must arrive in
+                # the same Alpaca snapshot or remain explicitly unavailable.
+                previous_close = safe_float(alpaca_snapshot.get("previous_close"))
+                regular_price = safe_float(alpaca_snapshot.get("regular_market_price"))
+                post_price = safe_float(alpaca_snapshot.get("post_market_price"))
+                pre_price = safe_float(alpaca_snapshot.get("pre_market_price"))
+                if price is not None and previous_close not in (None, 0):
+                    change_pct = (price - previous_close) / previous_close
             else:
                 provider_issue = str(alpaca_snapshot.get("reason") or "")
                 provider_action = str(alpaca_snapshot.get("action") or alpaca_snapshot.get("detail") or "")

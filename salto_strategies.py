@@ -180,6 +180,17 @@ SALTO_BY_FAMILY = {item.family: item for item in SALTO_STRATEGIES}
 SALTO_KEY_TO_FAMILY = {item.key: item.family for item in SALTO_STRATEGIES}
 
 EXTERNAL_STRATEGY_ALIASES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "Roxy: Uptrend Pullback EMA21",
+        (
+            "uptrend pullback ema21",
+            "uptrend_pullback_ema21",
+            "pullback ema21",
+            "ema21 pullback",
+            "retroceso ema21",
+            "tendencia alcista ema21",
+        ),
+    ),
     ("Finviz: Triangulo ascendente", ("triangle asc", "triangulo asc", "triangle ascending")),
     ("Finviz: Triangulo descendente", ("triangle desc", "triangulo desc", "triangle descending")),
     ("Finviz: Triangulo", ("triangle", "triangulo")),

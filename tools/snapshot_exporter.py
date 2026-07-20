@@ -9,8 +9,17 @@ from __future__ import annotations
 import argparse
 from datetime import datetime
 from pathlib import Path
+import sys
+
+BASE_DIR = Path(__file__).resolve().parents[1]
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
 import storage
 import pandas as pd
+
+from durable_storage import atomic_write_csv
+from roxy_time import utc_now
 
 OUT = Path("output")
 OUT.mkdir(parents=True, exist_ok=True)
@@ -25,8 +34,8 @@ def export_all(db_path: str = storage.DB_PATH) -> list[Path]:
             continue
         df = pd.DataFrame(pts, columns=["user", "ts", "equity"])  # type: ignore
         df["ts"] = pd.to_datetime(df["ts"])
-        fn = OUT / f"snapshots_{user}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.csv"
-        df.to_csv(fn, index=False)
+        fn = OUT / f"snapshots_{user}_{utc_now().strftime('%Y%m%d%H%M%S')}.csv"
+        atomic_write_csv(df, fn)
         written.append(fn)
     return written
 

@@ -7,10 +7,10 @@ exported to observability pipelines.
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime
 from typing import Optional
 
 import storage
+from roxy_time import utc_now_naive_iso
 
 
 def _connect(path: Optional[str] = None):
@@ -62,7 +62,7 @@ def log_execution(
     ensure_table(path=path)
     conn = _connect(path)
     cur = conn.cursor()
-    ts = datetime.utcnow().isoformat()
+    ts = utc_now_naive_iso()
     cur.execute(
         """
         INSERT INTO execution_audit (

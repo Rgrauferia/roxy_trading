@@ -1,4 +1,7 @@
+from concurrent.futures import ThreadPoolExecutor
+
 import pandas as pd
+import pytest
 
 from alpaca_paper_practice import (
     build_alpaca_paper_practice_candidates,
@@ -111,6 +114,51 @@ def test_record_alpaca_paper_practice_candidates_dedupes_by_practice_id(tmp_path
     assert len(first) == 1
     assert len(second) == 1
     assert path.exists()
+
+
+def test_concurrent_alpaca_records_do_not_lose_candidates(tmp_path):
+    path = tmp_path / "practice.csv"
+
+    def record(index):
+        candidates = build_alpaca_paper_practice_candidates(
+            pd.DataFrame(
+                [{
+                    "action": "ALERT",
+                    "symbol": f"S{index:02d}",
+                    "market": "stock",
+                    "signal": "BUY",
+                    "decision": "TRADE_FOR_2PCT",
+                    "entry": 100.0 + index,
+                    "stop": 99.0 + index,
+                    "target_pct": 0.02,
+                    "risk_pct": 0.01,
+                }]
+            )
+        )
+        record_alpaca_paper_practice_candidates(candidates, path=path)
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        list(executor.map(record, range(16)))
+
+    stored = pd.read_csv(path)
+    assert set(stored["symbol"]) == {f"S{index:02d}" for index in range(16)}
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert (tmp_path / ".practice.csv.lock").stat().st_mode & 0o777 == 0o600
+    assert not list(tmp_path.glob(".practice.csv.*.tmp"))
+
+
+def test_alpaca_record_preserves_unreadable_journal(tmp_path):
+    path = tmp_path / "practice.csv"
+    original = b'"unterminated\n'
+    path.write_bytes(original)
+    candidates = build_alpaca_paper_practice_candidates(
+        pd.DataFrame([{"action": "ALERT", "symbol": "AAPL", "entry": 100, "stop": 99}])
+    )
+
+    with pytest.raises(pd.errors.ParserError):
+        record_alpaca_paper_practice_candidates(candidates, path=path)
+
+    assert path.read_bytes() == original
 
 
 def test_score_and_summarize_alpaca_paper_practice_targets_and_stop():

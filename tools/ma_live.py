@@ -19,6 +19,7 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 TOOLS_DIR = BASE_DIR / "tools"
 from roxy_paths import alerts_dir, output_dir
+from durable_storage import atomic_write_text
 
 ALERTS_DIR = alerts_dir()
 OUTPUT_DIR = output_dir()
@@ -38,10 +39,7 @@ def now_iso() -> str:
 
 def write_heartbeat(payload: dict[str, Any], path: str | Path | None = None) -> Path:
     heartbeat_path = Path(path) if path is not None else HEARTBEAT_PATH
-    heartbeat_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = heartbeat_path.with_suffix(heartbeat_path.suffix + ".tmp")
-    tmp_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
-    tmp_path.replace(heartbeat_path)
+    atomic_write_text(json.dumps(payload, indent=2, sort_keys=True), heartbeat_path)
     return heartbeat_path
 
 

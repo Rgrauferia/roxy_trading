@@ -6,12 +6,19 @@ secondaryBackgroundColor="#0F1A2E"
 textColor="#E8EEFF"
 font="sans serif"
 
+[theme.sidebar]
+primaryColor="#7C3AED"
+backgroundColor="#0F1A2E"
+secondaryBackgroundColor="#16233B"
+textColor="#E8EEFF"
+
 [server]
 address="0.0.0.0"
 port=3000
 headless=true
 runOnSave=true
 fileWatcherType="auto"
+maxUploadSize=10
 
 [browser]
 gatherUsageStats=false

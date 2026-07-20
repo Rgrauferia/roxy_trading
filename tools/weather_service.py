@@ -9,6 +9,8 @@ from typing import Any
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
+from durable_storage import atomic_write_text
+
 
 OPENWEATHER_CURRENT_URL = "https://api.openweathermap.org/data/2.5/weather"
 DEFAULT_WEATHER_CACHE_PATH = Path("alerts/roxy_weather_cache.json")
@@ -153,8 +155,7 @@ def _write_cached_weather(cache_path: Path, snapshot: WeatherSnapshot, query_loc
         return
     payload = snapshot.as_dict()
     payload["query_location"] = query_location
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    cache_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    atomic_write_text(json.dumps(payload, indent=2, sort_keys=True), cache_path)
 
 
 def _float_or_none(value: Any) -> float | None:

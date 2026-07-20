@@ -8,6 +8,8 @@ from __future__ import annotations
 from typing import Dict, Optional
 from datetime import datetime
 
+from roxy_time import utc_now_naive_iso
+
 import pandas as pd
 
 from execution import PaperTrader
@@ -180,7 +182,7 @@ def run_backtest(
         "cagr": cagr,
         "annual_vol": annual_vol,
         "equity_curve": equity_curve,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": utc_now_naive_iso(),
     }
 
     # persist backtest metadata if storage available

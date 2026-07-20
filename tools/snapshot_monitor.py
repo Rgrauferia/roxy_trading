@@ -12,12 +12,13 @@ from datetime import datetime, timedelta
 
 import storage
 import notifier
+from roxy_time import utc_now_naive
 
 
 def check_stale(db_path: str, threshold_minutes: int = 15):
     users = [r[0] for r in storage.list_accounts(path=db_path)]
     alerts = []
-    now = datetime.utcnow()
+    now = utc_now_naive()
     for u in users:
         last = storage.get_last_snapshot(u, path=db_path)
         if not last:

@@ -1,4 +1,5 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -24,6 +25,38 @@ def isolate_default_roxy_user_profile(tmp_path, monkeypatch):
     monkeypatch.setattr(roxy_brain_module, "RoxyUserProfile", IsolatedRoxyUserProfile)
 
 
+def test_brain_memory_profile_and_feedback_preserve_concurrent_sessions(tmp_path):
+    conversation_path = tmp_path / "conversation.json"
+    profile_path = tmp_path / "profiles.json"
+    feedback_path = tmp_path / "feedback.json"
+    memory = RoxyConversationMemory(path=conversation_path, max_sessions=100)
+    profiles = RoxyUserProfile(path=profile_path)
+    feedback = RoxyFeedbackMemory(path=feedback_path, max_items=100)
+
+    def update(index):
+        user = f"user-{index:02d}"
+        memory.append(
+            f"session-{index:02d}",
+            f"query {index}",
+            RoxyBrainReply(reply=f"reply {index}", intent="greeting"),
+        )
+        profiles.update(user, {"preferred_name": f"Name {index}"})
+        feedback.record({"rating": "up", "user": user, "intent": f"intent-{index:02d}"})
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        list(executor.map(update, range(16)))
+
+    conversations = json.loads(conversation_path.read_text())
+    saved_profiles = json.loads(profile_path.read_text())
+    saved_feedback = json.loads(feedback_path.read_text())
+    assert len(conversations["sessions"]) == 16
+    assert len(saved_profiles["profiles"]) == 16
+    assert len(saved_feedback["items"]) == 16
+    for path in (conversation_path, profile_path, feedback_path):
+        assert path.stat().st_mode & 0o777 == 0o600
+        assert path.with_name(f".{path.name}.lock").stat().st_mode & 0o777 == 0o600
+
+
 def test_roxy_brain_identity_defines_female_voice_and_guardrails(tmp_path):
     brain = RoxyInteractiveBrain(brief_path=tmp_path / "brief.json", memory_path=tmp_path / "memory.json")
 
@@ -46,6 +79,72 @@ def test_roxy_brain_does_not_invent_news_without_source(tmp_path):
     assert response.intent == "news_unavailable"
     assert response.needs_live_source is True
     assert "no voy a inventarlos" in response.reply
+
+
+def test_roxy_brain_opportunity_reply_keeps_exact_market_source_and_gates(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "daily_opportunity_plan": {
+                    "opportunities": [
+                        {"symbol": "LTC/USD", "stage": "PROXIMA_ENTRADA", "readiness": 80},
+                        {"symbol": "LINK/USD", "stage": "PROXIMA_ENTRADA", "readiness": 75},
+                    ]
+                },
+                "opportunities": [
+                    {
+                        "symbol": "LTC/USD",
+                        "market": "crypto",
+                        "entry_tf": "15m",
+                        "ai_action": "WATCH",
+                        "trade_decision": "WAIT",
+                        "entry": 46.8,
+                    },
+                    {
+                        "symbol": "LINK/USD",
+                        "market": "crypto",
+                        "entry_tf": "15m",
+                        "ai_action": "WATCH",
+                        "trade_decision": "WAIT",
+                        "entry": 8.4,
+                        "stop": 8.2,
+                        "target_2pct_price": 8.568,
+                        "data_source": "BinanceUS API",
+                        "data_gate": "LIVE_DATA_OK",
+                        "alert_gate": "WAIT_VOLUME",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("explicame la oportunidad LINK/USD")
+
+    assert response.intent == "opportunity"
+    assert response.active_symbol == "LINK/USD"
+    assert "temporalidad 15m" in response.reply
+    assert "objetivo 8.5680" in response.reply
+    assert "BinanceUS API" in response.reply
+    assert "LIVE_DATA_OK" in response.reply
+    assert "WAIT_VOLUME" in response.reply
+
+
+def test_roxy_brain_does_not_replace_missing_requested_opportunity(tmp_path):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps({"opportunities": [{"symbol": "ETH/USD", "ai_action": "WATCH", "entry": 1900}]}),
+        encoding="utf-8",
+    )
+    brain = RoxyInteractiveBrain(brief_path=brief_path, memory_path=tmp_path / "memory.json")
+
+    response = brain.generate_reply("explicame oportunidad AAPL")
+
+    assert response.intent == "opportunity"
+    assert "para AAPL" in response.reply
+    assert "ETH" not in response.reply
 
 
 def test_roxy_brain_lists_local_news_with_source_and_timestamp(tmp_path):
@@ -2040,6 +2139,8 @@ def test_roxy_symbol_extraction_ignores_support_resistance_words():
     assert roxy_brain_module._extract_symbol("portfolio status") is None
     assert roxy_brain_module._extract_symbol("posiciones abiertas") is None
     assert roxy_brain_module._extract_symbol("trade ticket") is None
+    assert roxy_brain_module._extract_symbol("explicame esta oportunidad") is None
+    assert roxy_brain_module._extract_symbol("explain this selected asset") is None
     assert roxy_brain_module._extract_symbol("bitcoin") == "BTC/USD"
 
 

@@ -131,7 +131,7 @@ DEFAULT_CRYPTO = [
     "SHIB/USD",
     "PEPE/USD",
     "BONK/USD",
-    "WIF/USD",
+    "WIF/USDT",
     "FLOKI/USD",
     "AVAX/USD",
     "XRP/USD",

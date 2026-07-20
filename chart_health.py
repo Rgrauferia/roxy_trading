@@ -7,6 +7,8 @@ from typing import Any
 
 import pandas as pd
 
+from durable_storage import atomic_write_text
+
 
 SYMBOL_KEYS = {"symbol", "top_symbol", "daily_plan_top_symbol"}
 BLOCKED_CHART_GATES = {
@@ -679,5 +681,5 @@ def write_chart_health_report(rows: list[dict[str, Any]], path: str | Path, *, g
         "summary": summary,
         "charts": rows,
     }
-    report_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+    atomic_write_text(json.dumps(payload, indent=2, sort_keys=True), report_path)
     return report_path

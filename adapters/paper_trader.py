@@ -5,9 +5,9 @@ used by UI and backtesting/execution layers.
 """
 from __future__ import annotations
 
-from typing import Dict, Optional
+from datetime import datetime, timezone
+from typing import Optional
 import storage
-import random
 from tools.risk import RiskManager
 from tools import audit
 
@@ -27,18 +27,50 @@ class SimplePaperTrader:
 
         - `slippage_pct`: expected slippage as fraction (e.g. 0.001 = 0.1%). Applied multiplicatively to price.
         - `fill_rate`: fraction of requested qty filled (0.0-1.0). 1.0 means full fill.
-        - `random_seed`: optional seed for deterministic behavior in tests.
+        - `random_seed`: retained for API compatibility; execution is deterministic.
         """
         self.user = user
         self.slippage_pct = float(slippage_pct)
         self.fill_rate = float(fill_rate)
-        if random_seed is not None:
-            random.seed(random_seed)
+        if self.slippage_pct < 0:
+            raise ValueError("slippage_pct must be non-negative")
+        if not 0 < self.fill_rate <= 1:
+            raise ValueError("fill_rate must be greater than 0 and at most 1")
         storage.create_account_if_missing(user, starting_equity, path=storage.DB_PATH)
         # instantiate default risk manager
         self.risk = RiskManager()
 
-    def buy(self, symbol: str, qty: float, price: float, confidence: Optional[float] = None, force: bool = False) -> int:
+    @staticmethod
+    def _validated_order(symbol: str, qty: float, price: float) -> tuple[str, float, float]:
+        clean_symbol = str(symbol or "").strip().upper()
+        clean_qty = float(qty)
+        clean_price = float(price)
+        if not clean_symbol:
+            raise ValueError("symbol is required")
+        if clean_qty <= 0:
+            raise ValueError("qty must be positive")
+        if clean_price <= 0:
+            raise ValueError("price must be positive")
+        return clean_symbol, clean_qty, clean_price
+
+    @staticmethod
+    def _execution_note(action: str, price_source: str, price_ts: str | None) -> str:
+        source = str(price_source or "caller_supplied_unverified").strip() or "caller_supplied_unverified"
+        timestamp = str(price_ts or datetime.now(timezone.utc).isoformat()).strip()
+        return f"paper_{action};price_source={source};price_ts={timestamp}"
+
+    def buy(
+        self,
+        symbol: str,
+        qty: float,
+        price: float,
+        confidence: Optional[float] = None,
+        force: bool = False,
+        *,
+        price_source: str = "caller_supplied_unverified",
+        price_ts: str | None = None,
+    ) -> int:
+        symbol, qty, price = self._validated_order(symbol, qty, price)
         # simulate execution with slippage and partial fill
         # perform pre-execution risk checks
         if not force:
@@ -55,14 +87,14 @@ class SimplePaperTrader:
                 except Exception:
                     pass
                 raise RuntimeError(f"Risk check failed: {reason}")
-        qty = float(qty)
         executed_qty = qty * float(self.fill_rate)
         # slippage positive for buys (worse price)
         exec_price = float(price) * (1.0 + float(self.slippage_pct))
 
         # record a simulated buy: open position and save trade audit
-        pid = storage.open_sim_position(self.user, symbol, executed_qty, exec_price, note="paper_buy", path=storage.DB_PATH)
-        storage.save_simulated_trade(self.user, symbol, "BUY", executed_qty, exec_price, note=f"paper_buy:pos={pid}", path=storage.DB_PATH)
+        provenance = self._execution_note("buy", price_source, price_ts)
+        pid = storage.open_sim_position(self.user, symbol, executed_qty, exec_price, note=provenance, path=storage.DB_PATH)
+        storage.save_simulated_trade(self.user, symbol, "BUY", executed_qty, exec_price, note=f"{provenance};pos={pid}", path=storage.DB_PATH)
         try:
             audit.log_execution(actor=self.user, strategy=None, action="executed", symbol=symbol, qty=executed_qty, price=exec_price, side="BUY", confidence=confidence, risk_allowed=True, note=f"pos={pid}")
         except Exception:
@@ -74,7 +106,24 @@ class SimplePaperTrader:
             pass
         return pid
 
-    def sell(self, symbol: str, qty: float, price: float, confidence: Optional[float] = None, force: bool = False) -> float:
+    def sell(
+        self,
+        symbol: str,
+        qty: float,
+        price: float,
+        confidence: Optional[float] = None,
+        force: bool = False,
+        *,
+        price_source: str = "caller_supplied_unverified",
+        price_ts: str | None = None,
+    ) -> float:
+        symbol, qty, price = self._validated_order(symbol, qty, price)
+        held_qty = self.get_position(symbol)
+        executed_qty = qty * float(self.fill_rate)
+        # `force` may bypass portfolio risk limits, but never creates a phantom
+        # close or an implicit short position in this long-only simulator.
+        if executed_qty > held_qty + 1e-9:
+            raise RuntimeError(f"sell qty {executed_qty} exceeds held qty {held_qty} (shorting not allowed)")
         # perform pre-execution risk checks
         if not force:
             ok, reason = self.risk.check_order(self.user, symbol, qty, price, side="SELL", confidence=confidence)
@@ -91,11 +140,10 @@ class SimplePaperTrader:
                 raise RuntimeError(f"Risk check failed: {reason}")
 
         # attempt to close `qty` using LIFO logic; simulate slippage worsening fills for sells
-        qty = float(qty)
-        executed_qty = qty * float(self.fill_rate)
         exec_price = float(price) * (1.0 - float(self.slippage_pct))
         pnl = storage.close_sim_position_by_symbol(self.user, symbol, executed_qty, exec_price, path=storage.DB_PATH)
-        storage.save_simulated_trade(self.user, symbol, "SELL", executed_qty, exec_price, note=f"paper_sell:pnl={pnl}", path=storage.DB_PATH)
+        provenance = self._execution_note("sell", price_source, price_ts)
+        storage.save_simulated_trade(self.user, symbol, "SELL", executed_qty, exec_price, note=f"{provenance};pnl={pnl}", path=storage.DB_PATH)
         try:
             storage.snapshot_account_point(self.user)
         except Exception:

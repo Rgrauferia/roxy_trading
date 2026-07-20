@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.roxy.knowledge-autopilot</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/robertograu/roxy_trading/scripts/knowledgeAutopilot.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/robertograu/roxy_trading</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>21600</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/robertograu/roxy_trading/knowledge/logs/launchd-knowledge-autopilot.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/robertograu/roxy_trading/knowledge/logs/launchd-knowledge-autopilot.err.log</string>
+</dict>
+</plist>

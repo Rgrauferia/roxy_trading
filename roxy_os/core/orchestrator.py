@@ -10,6 +10,9 @@ from roxy_os.events import EventBus
 from roxy_os.memory import RoxyMemoryManager
 from roxy_os.models import AgentResult, RoxyRequest, RoxyResponse
 from roxy_os.permissions import PermissionManager
+from roxy_os.personal_tasks import PersonalTaskStore
+from roxy_os.shopping_list import ShoppingListStore
+from roxy_os.document_vault import DocumentVault
 from roxy_os.planning import TaskPlanner
 
 
@@ -24,6 +27,12 @@ class RoxyOrchestrator:
         context_engine: ContextEngine | None = None,
         event_bus: EventBus | None = None,
         task_planner: TaskPlanner | None = None,
+        personal_task_path: str | Path | None = None,
+        personal_tasks: PersonalTaskStore | None = None,
+        shopping_list_path: str | Path | None = None,
+        shopping_list: ShoppingListStore | None = None,
+        document_vault_path: str | Path | None = None,
+        document_vault: DocumentVault | None = None,
     ) -> None:
         self.memory = memory or RoxyMemoryManager(memory_path)
         self.permission_manager = permission_manager or PermissionManager()
@@ -31,7 +40,25 @@ class RoxyOrchestrator:
         self.context_engine = context_engine or ContextEngine(self.memory)
         self.event_bus = event_bus or EventBus()
         self.task_planner = task_planner or TaskPlanner()
-        self.agents = build_default_agents(self.memory, self.router)
+        resolved_task_path = Path(personal_task_path) if personal_task_path else Path(memory_path).with_name(
+            "roxy_personal_tasks.json"
+        )
+        self.personal_tasks = personal_tasks or PersonalTaskStore(resolved_task_path)
+        resolved_shopping_path = Path(shopping_list_path) if shopping_list_path else Path(memory_path).with_name(
+            "roxy_shopping_list.json"
+        )
+        self.shopping_list = shopping_list or ShoppingListStore(resolved_shopping_path)
+        resolved_document_path = Path(document_vault_path) if document_vault_path else Path(memory_path).with_name(
+            "roxy_documents"
+        )
+        self.document_vault = document_vault or DocumentVault(resolved_document_path)
+        self.agents = build_default_agents(
+            self.memory,
+            self.router,
+            self.personal_tasks,
+            self.shopping_list,
+            self.document_vault,
+        )
 
     def handle(self, text: str, *, user_id: str = "local_user", context: dict[str, Any] | None = None) -> RoxyResponse:
         enriched_context = self.context_engine.build(user_id=user_id, raw_context=context or {})

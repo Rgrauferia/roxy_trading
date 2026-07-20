@@ -9,7 +9,9 @@ from urllib.request import urlopen
 
 import pandas as pd
 
-from moving_average_strategy import add_moving_averages
+from roxy_trader.indicators import IndicatorConfig, add_indicators as add_central_indicators
+from roxy_trader.market_data import normalize_candle_batch
+from roxy_trader.api_budget import observe_api_call
 from salto_strategies import detect_salto_setups
 from tools.ma_scan import is_intraday_stock_interval, stock_fetch_interval, stock_period_for_interval
 
@@ -34,6 +36,10 @@ SYMBOL_ALIASES = {
 }
 
 DERIVED_INTRADAY_TIMEFRAMES = {"2h": "2h", "4h": "4h"}
+DERIVED_LOWER_INTRADAY_TIMEFRAMES = {
+    "20m": ("5m", "20min"),
+    "30m": ("15m", "30min"),
+}
 STOCK_ALPACA_TIMEFRAMES = {"1m", "5m", "15m", "1h", "1d", "1w"}
 STOCK_POLYGON_TIMEFRAMES = {"1m", "5m", "15m", "1h", "1d", "1w"}
 ALPACA_KEY_ENV_KEYS = ("ALPACA_API_KEY",)
@@ -50,6 +56,24 @@ ALPACA_PLACEHOLDER_VALUES = {
     "PASTE_KEY_HERE",
     "PASTE_SECRET_HERE",
 }
+
+
+def _finalize_history_contract(
+    frame: pd.DataFrame,
+    metadata: dict[str, Any],
+    *,
+    symbol: str,
+    market: str,
+    timeframe: str,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    batch = normalize_candle_batch(
+        frame,
+        symbol=symbol,
+        market=market,
+        timeframe=timeframe,
+        metadata=metadata,
+    )
+    return batch.frame, batch.metadata
 
 
 def normalize_timeframe(timeframe: str) -> str:
@@ -422,7 +446,8 @@ def fetch_alpaca_stock_ohlcv(
         limit=limit,
         feed=data_feed,
     )
-    bars = client.get_stock_bars(request)
+    with observe_api_call("alpaca", "stock_bars"):
+        bars = client.get_stock_bars(request)
     return normalize_alpaca_bars_frame(bars, symbol)
 
 
@@ -456,8 +481,10 @@ def fetch_polygon_stock_ohlcv(
         f"https://api.polygon.io/v2/aggs/ticker/{str(symbol).upper()}/range/"
         f"{multiplier}/{timespan}/{start}/{end}?{query}"
     )
-    with urlopen(url, timeout=timeout) as response:
-        payload = json.loads(response.read().decode("utf-8"))
+    with observe_api_call("polygon", "aggregates") as observation:
+        with urlopen(url, timeout=timeout) as response:
+            observation.set_http_status(getattr(response, "status", None))
+            payload = json.loads(response.read().decode("utf-8"))
     if isinstance(payload, dict) and str(payload.get("status") or "").upper() in {"ERROR", "NOT_AUTHORIZED"}:
         raise RuntimeError(str(payload.get("error") or payload.get("message") or payload.get("status")))
     return normalize_polygon_aggs_payload(payload)
@@ -481,14 +508,14 @@ def _fetch_stock_history_with_source(
         try:
             alpaca_df = fetch_alpaca_stock_ohlcv(symbol, timeframe=timeframe, env=env)
             if not alpaca_df.empty:
-                return alpaca_df, {
+                return _finalize_history_contract(alpaca_df, {
                     "provider": "Alpaca",
                     "source": "alpaca_iex",
                     "mode": "BROKER_DATA",
                     "label": "Alpaca IEX",
                     "detail": "Velas de acciones desde Alpaca/IEX.",
                     "fallback": False,
-                }
+                }, symbol=symbol, market="stock", timeframe=timeframe)
         except Exception as exc:
             provider_fallback_meta.update(alpaca_fallback_info("alpaca_error", exc=exc))
         else:
@@ -504,7 +531,7 @@ def _fetch_stock_history_with_source(
         try:
             polygon_df = fetch_polygon_stock_ohlcv(symbol, timeframe=timeframe, env=env)
             if not polygon_df.empty:
-                return polygon_df, {
+                return _finalize_history_contract(polygon_df, {
                     "provider": "Polygon",
                     "source": "polygon_aggs",
                     "mode": "PREMIUM_DATA",
@@ -514,7 +541,7 @@ def _fetch_stock_history_with_source(
                     "upstream_fallback_reason": provider_fallback_meta.get("fallback_reason", ""),
                     "upstream_fallback_detail": provider_fallback_meta.get("fallback_detail", ""),
                     "upstream_fallback_action": provider_fallback_meta.get("fallback_action", ""),
-                }
+                }, symbol=symbol, market="stock", timeframe=timeframe)
         except Exception as exc:
             provider_fallback_meta.update(polygon_fallback_info("polygon_error", exc=exc))
         else:
@@ -529,7 +556,7 @@ def _fetch_stock_history_with_source(
         period=period,
         prepost=include_extended_hours and is_intraday_stock_interval(timeframe),
     )
-    return fallback_df, {
+    return _finalize_history_contract(fallback_df, {
         "provider": "yfinance",
         "source": "yfinance",
         "mode": "FALLBACK",
@@ -537,7 +564,7 @@ def _fetch_stock_history_with_source(
         "detail": "Velas de acciones desde yfinance fallback.",
         "fallback": True,
         **provider_fallback_meta,
-    }
+    }, symbol=symbol, market="stock", timeframe=timeframe)
 
 
 def fetch_symbol_history_with_source(
@@ -551,17 +578,43 @@ def fetch_symbol_history_with_source(
     import roxy_scanner as scanner
 
     timeframe = normalize_timeframe(timeframe)
+    if timeframe in DERIVED_LOWER_INTRADAY_TIMEFRAMES:
+        base_timeframe, resample_rule = DERIVED_LOWER_INTRADAY_TIMEFRAMES[timeframe]
+        if market == "crypto":
+            base = scanner.fetch_crypto_ohlcv(symbol, timeframe=base_timeframe, limit=1000)
+            return _finalize_history_contract(resample_ohlcv(base, resample_rule), {
+                "provider": "ccxt",
+                "source": "ccxt:binanceus",
+                "mode": "EXCHANGE_API",
+                "label": "BinanceUS API",
+                "detail": f"Velas cripto {timeframe} derivadas de {base_timeframe} via ccxt/binanceus.",
+                "fallback": False,
+                "derived_from": base_timeframe,
+                "timeframe": timeframe,
+            }, symbol=symbol, market="crypto", timeframe=timeframe)
+        base, meta = _fetch_stock_history_with_source(
+            symbol,
+            timeframe=base_timeframe,
+            include_extended_hours=include_extended_hours,
+            env=env,
+        )
+        meta = dict(meta)
+        meta["derived_from"] = base_timeframe
+        meta["timeframe"] = timeframe
+        return _finalize_history_contract(
+            resample_ohlcv(base, resample_rule), meta, symbol=symbol, market="stock", timeframe=timeframe
+        )
     if timeframe in DERIVED_INTRADAY_TIMEFRAMES:
         if market == "crypto":
             base = scanner.fetch_crypto_ohlcv(symbol, timeframe="1h", limit=1000)
-            return resample_ohlcv(base, DERIVED_INTRADAY_TIMEFRAMES[timeframe]), {
+            return _finalize_history_contract(resample_ohlcv(base, DERIVED_INTRADAY_TIMEFRAMES[timeframe]), {
                 "provider": "ccxt",
                 "source": "ccxt:binanceus",
                 "mode": "EXCHANGE_API",
                 "label": "BinanceUS API",
                 "detail": "Velas cripto via ccxt/binanceus.",
                 "fallback": False,
-            }
+            }, symbol=symbol, market="crypto", timeframe=timeframe)
         base, meta = _fetch_stock_history_with_source(
             symbol,
             timeframe="1h",
@@ -571,17 +624,23 @@ def fetch_symbol_history_with_source(
         meta = dict(meta)
         meta["derived_from"] = "1h"
         meta["timeframe"] = timeframe
-        return resample_ohlcv(base, DERIVED_INTRADAY_TIMEFRAMES[timeframe]), meta
+        return _finalize_history_contract(
+            resample_ohlcv(base, DERIVED_INTRADAY_TIMEFRAMES[timeframe]),
+            meta,
+            symbol=symbol,
+            market="stock",
+            timeframe=timeframe,
+        )
 
     if market == "crypto":
-        return scanner.fetch_crypto_ohlcv(symbol, timeframe=timeframe, limit=1000), {
+        return _finalize_history_contract(scanner.fetch_crypto_ohlcv(symbol, timeframe=timeframe, limit=1000), {
             "provider": "ccxt",
             "source": "ccxt:binanceus",
             "mode": "EXCHANGE_API",
             "label": "BinanceUS API",
             "detail": "Velas cripto via ccxt/binanceus.",
             "fallback": False,
-        }
+        }, symbol=symbol, market="crypto", timeframe=timeframe)
 
     return _fetch_stock_history_with_source(
         symbol,
@@ -610,26 +669,11 @@ def fetch_symbol_history(
 def prepare_symbol_chart_data(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame()
-    out = add_moving_averages(df)
-    out = out.copy()
+    out = add_central_indicators(
+        df,
+        config=IndicatorConfig(sma_windows=(20, 40, 100, 200), ema_windows=(9, 21, 50, 200)),
+    )
     out["ts"] = pd.to_datetime(out["ts"])
-    out["ema9"] = out["close"].ewm(span=9, adjust=False).mean()
-    delta = out["close"].diff()
-    gain = delta.clip(lower=0).ewm(alpha=1 / 14, adjust=False, min_periods=14).mean()
-    loss = (-delta.clip(upper=0)).ewm(alpha=1 / 14, adjust=False, min_periods=14).mean()
-    rs = gain / loss.replace(0, pd.NA)
-    out["rsi14"] = 100.0 - (100.0 / (1.0 + rs))
-    out.loc[(loss == 0) & (gain > 0), "rsi14"] = 100.0
-    out.loc[(loss == 0) & (gain == 0), "rsi14"] = 50.0
-    ema12 = out["close"].ewm(span=12, adjust=False).mean()
-    ema26 = out["close"].ewm(span=26, adjust=False).mean()
-    out["macd"] = ema12 - ema26
-    out["macd_signal"] = out["macd"].ewm(span=9, adjust=False).mean()
-    out["macd_hist"] = out["macd"] - out["macd_signal"]
-    out["bb_mid"] = out["close"].rolling(window=20, min_periods=20).mean()
-    bb_std = out["close"].rolling(window=20, min_periods=20).std()
-    out["bb_upper"] = out["bb_mid"] + (bb_std * 2.0)
-    out["bb_lower"] = out["bb_mid"] - (bb_std * 2.0)
     out["range_high_60"] = out["high"].rolling(window=60, min_periods=20).max() if "high" in out.columns else None
     out["range_low_60"] = out["low"].rolling(window=60, min_periods=20).min() if "low" in out.columns else None
     if {"range_high_60", "range_low_60", "close"}.issubset(out.columns):
@@ -641,6 +685,9 @@ def prepare_symbol_chart_data(df: pd.DataFrame) -> pd.DataFrame:
         "low",
         "close",
         "ema9",
+        "ema21",
+        "ema50",
+        "ema200",
         "sma20",
         "sma40",
         "sma100",
@@ -658,6 +705,8 @@ def prepare_symbol_chart_data(df: pd.DataFrame) -> pd.DataFrame:
         "volume",
         "volume_sma20",
         "relative_volume",
+        "vwap",
+        "atr14",
         "atr_pct",
     ]
     return out[[col for col in keep if col in out.columns]].dropna(subset=["close"]).reset_index(drop=True)

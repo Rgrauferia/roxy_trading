@@ -19,13 +19,18 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 from moving_average_strategy import MovingAverageConfig, scan_moving_average_strategy
-from roxy_paths import data_dir, output_dir
+from durable_storage import atomic_write_csv, atomic_write_text
+from roxy_paths import alerts_dir, data_dir, output_dir
 
 
 OUTPUT_DIR = output_dir()
 DATA_DIR = data_dir()
+ALERTS_DIR = alerts_dir()
+BINANCEUS_COVERAGE_PATH = ALERTS_DIR / "binanceus_symbol_coverage.json"
 INTRADAY_STOCK_INTERVALS = {"1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "2h", "4h"}
 DERIVED_STOCK_INTERVALS = {"2h": "2h", "4h": "4h"}
+DERIVED_CRYPTO_INTERVALS = {"2h": ("1h", "2h", 2), "4h": ("1h", "4h", 4)}
+MAX_BINANCEUS_OHLCV_LIMIT = 1_000
 
 
 def read_symbols(path: Path) -> list[str]:
@@ -91,6 +96,56 @@ def resample_ohlcv(df: pd.DataFrame, rule: str) -> pd.DataFrame:
     )
 
 
+def build_crypto_history_cache(
+    symbols: list[str],
+    timeframes: list[str],
+    limit: int,
+    *,
+    exchange: Any,
+    symbol_map: dict[str, str] | None = None,
+    fetcher=None,
+) -> tuple[dict[tuple[str, str], pd.DataFrame], dict[str, Any]]:
+    """Fetch one expanded 1h series and derive requested 2h/4h frames locally."""
+    requested = [str(value).strip().lower() for value in timeframes]
+    derived = [value for value in requested if value in DERIVED_CRYPTO_INTERVALS]
+    if not derived:
+        return {}, {"enabled": False, "base_request_count": 0, "saved_request_count": 0}
+    import roxy_scanner as scanner
+
+    load = fetcher or scanner.fetch_crypto_ohlcv
+    effective_map = dict(symbol_map or {})
+    largest_factor = max(DERIVED_CRYPTO_INTERVALS[value][2] for value in derived)
+    base_limit = min(MAX_BINANCEUS_OHLCV_LIMIT, max(int(limit), int(limit) * largest_factor))
+    cache: dict[tuple[str, str], pd.DataFrame] = {}
+    for symbol in symbols:
+        try:
+            base = load(
+                symbol,
+                timeframe="1h",
+                limit=base_limit,
+                exchange=exchange,
+                provider_symbol=effective_map.get(symbol, symbol),
+            )
+        except Exception:
+            base = pd.DataFrame()
+        cache[(symbol, "1h")] = base
+        for timeframe in derived:
+            _base_timeframe, rule, _factor = DERIVED_CRYPTO_INTERVALS[timeframe]
+            cache[(symbol, timeframe)] = resample_ohlcv(base, rule)
+    direct_request_count = len(symbols) * len(derived)
+    if "1h" in requested:
+        direct_request_count += len(symbols)
+    return cache, {
+        "enabled": True,
+        "base_timeframe": "1h",
+        "base_limit": base_limit,
+        "derived_timeframes": derived,
+        "base_request_count": len(symbols),
+        "direct_request_count": direct_request_count,
+        "saved_request_count": max(0, direct_request_count - len(symbols)),
+    }
+
+
 def stock_period_for_interval(interval: str, stock_period: str | None, intraday_stock_period: str) -> str:
     if stock_period:
         return stock_period
@@ -109,6 +164,12 @@ def parse_bool(value: Any) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "y"}
 
 
+def write_json_atomic(path: str | Path, payload: dict[str, Any]) -> Path:
+    target = Path(path)
+    atomic_write_text(json.dumps(payload, indent=2, sort_keys=True), target)
+    return target
+
+
 def write_timing_json(
     path: str | Path | None,
     *,
@@ -120,6 +181,8 @@ def write_timing_json(
     total_rows: int = 0,
     saved_path: str | None = None,
     status: str = "RUNNING",
+    crypto_symbol_coverage: dict[str, Any] | None = None,
+    crypto_fetch_optimization: dict[str, Any] | None = None,
 ) -> None:
     if not path:
         return
@@ -135,8 +198,10 @@ def write_timing_json(
         "total_rows": int(total_rows),
         "saved_path": saved_path,
         "steps": steps,
+        "crypto_symbol_coverage": dict(crypto_symbol_coverage or {}),
+        "crypto_fetch_optimization": dict(crypto_fetch_optimization or {}),
     }
-    timing_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+    write_json_atomic(timing_path, payload)
 
 
 def latest_backtest_summary_paths(market: str) -> list[Path]:
@@ -305,16 +370,45 @@ def run_stock_scan(
     )
 
 
-def run_crypto_scan(symbols: list[str], timeframe: str, limit: int, config: MovingAverageConfig) -> pd.DataFrame:
+def run_crypto_scan(
+    symbols: list[str],
+    timeframe: str,
+    limit: int,
+    config: MovingAverageConfig,
+    *,
+    exchange=None,
+    symbol_map: dict[str, str] | None = None,
+    history_by_symbol: dict[str, pd.DataFrame] | None = None,
+) -> pd.DataFrame:
     import roxy_scanner as scanner
 
-    return scan_moving_average_strategy(
+    effective_map = dict(symbol_map or {})
+    cached_history = history_by_symbol if isinstance(history_by_symbol, dict) else None
+    out = scan_moving_average_strategy(
         symbols,
-        lambda symbol: scanner.fetch_crypto_ohlcv(symbol, timeframe=timeframe, limit=limit),
+        (
+            lambda symbol: cached_history.get(symbol, pd.DataFrame()).copy()
+            if cached_history is not None
+            else scanner.fetch_crypto_ohlcv(
+                symbol,
+                timeframe=timeframe,
+                limit=limit,
+                exchange=exchange,
+                provider_symbol=effective_map.get(symbol, symbol),
+            )
+        ),
         market="crypto",
         timeframe=timeframe,
         config=config,
     )
+    if not out.empty:
+        out["provider_symbol"] = out["symbol"].map(lambda symbol: effective_map.get(str(symbol), str(symbol)))
+        out["symbol_resolution"] = out.apply(
+            lambda row: "EXACT" if str(row.get("symbol")) == str(row.get("provider_symbol")) else "QUOTE_FALLBACK",
+            axis=1,
+        )
+        out["data_source"] = "ccxt:binanceus"
+    return out
 
 
 def print_table(df: pd.DataFrame, limit: int) -> None:
@@ -359,6 +453,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--symbols", help="Comma-separated symbols. Overrides watchlist files.")
     parser.add_argument("--stock-watchlist", default=str(DATA_DIR / "watchlist_stocks.txt"))
     parser.add_argument("--crypto-watchlist", default=str(DATA_DIR / "watchlist_crypto.txt"))
+    parser.add_argument("--crypto-coverage-json", default=str(BINANCEUS_COVERAGE_PATH))
     parser.add_argument("--stock-interval", default="1d")
     parser.add_argument("--stock-intervals", help="Comma-separated stock intervals, e.g. 15m,1h.")
     parser.add_argument("--stock-period", help="Stock history period. Defaults to 2y for daily and 60d intraday.")
@@ -406,6 +501,8 @@ def main() -> None:
     timing_steps: list[dict[str, Any]] = []
     stock_intervals: list[str] = []
     crypto_timeframes: list[str] = []
+    crypto_symbol_coverage: dict[str, Any] = {}
+    crypto_fetch_optimization: dict[str, Any] = {}
     if args.market in {"stocks", "both"}:
         stocks = (
             parse_csv_list(args.symbols)
@@ -450,19 +547,66 @@ def main() -> None:
             if args.symbols
             else read_symbols(Path(args.crypto_watchlist))
         )
+        import roxy_scanner as scanner
+
+        crypto_exchange = scanner.create_binanceus_exchange()
+        crypto_symbol_coverage = scanner.binanceus_symbol_coverage(crypto, exchange=crypto_exchange)
+        write_json_atomic(args.crypto_coverage_json, crypto_symbol_coverage)
+        if crypto_symbol_coverage.get("status") == "CONNECTED":
+            crypto_scan_symbols = list(crypto_symbol_coverage.get("supported_symbols") or [])
+        else:
+            crypto_scan_symbols = list(crypto)
+        crypto_symbol_map = dict(crypto_symbol_coverage.get("symbol_map") or {})
         crypto_timeframes = parse_csv_list(args.crypto_timeframes, default=[args.crypto_timeframe])
+        crypto_history_cache, crypto_cache_meta = build_crypto_history_cache(
+            crypto_scan_symbols,
+            crypto_timeframes,
+            args.crypto_limit,
+            exchange=crypto_exchange,
+            symbol_map=crypto_symbol_map,
+        )
+        crypto_fetch_optimization = crypto_cache_meta
         for timeframe in crypto_timeframes:
             step_started = time.monotonic()
-            frame = run_crypto_scan(crypto, timeframe, args.crypto_limit, config)
+            history_by_symbol = (
+                {
+                    symbol: crypto_history_cache.get((symbol, timeframe), pd.DataFrame())
+                    for symbol in crypto_scan_symbols
+                }
+                if crypto_cache_meta.get("enabled")
+                and (timeframe == "1h" or timeframe in DERIVED_CRYPTO_INTERVALS)
+                else None
+            )
+            frame = run_crypto_scan(
+                crypto_scan_symbols,
+                timeframe,
+                args.crypto_limit,
+                config,
+                exchange=crypto_exchange,
+                symbol_map=crypto_symbol_map,
+                history_by_symbol=history_by_symbol,
+            )
             frames.append(frame)
             timing_steps.append(
                 {
                     "market": "crypto",
                     "timeframe": timeframe,
-                    "symbol_count": len(crypto),
+                    "symbol_count": len(crypto_scan_symbols),
+                    "requested_symbol_count": len(crypto),
+                    "unsupported_symbol_count": int(crypto_symbol_coverage.get("unsupported_count") or 0),
                     "rows": 0 if frame is None else int(len(frame)),
                     "duration_seconds": round(time.monotonic() - step_started, 2),
                     "limit": args.crypto_limit,
+                    "fetch_mode": (
+                        "DERIVED_FROM_1H"
+                        if timeframe in DERIVED_CRYPTO_INTERVALS and history_by_symbol is not None
+                        else "SHARED_1H"
+                        if timeframe == "1h" and history_by_symbol is not None
+                        else "DIRECT"
+                    ),
+                    "api_requests_saved": (
+                        len(crypto_scan_symbols) if timeframe in DERIVED_CRYPTO_INTERVALS else 0
+                    ),
                 }
             )
             write_timing_json(
@@ -473,6 +617,8 @@ def main() -> None:
                 started_monotonic=started_monotonic,
                 steps=timing_steps,
                 status="RUNNING",
+                crypto_symbol_coverage=crypto_symbol_coverage,
+                crypto_fetch_optimization=crypto_fetch_optimization,
             )
 
     frames = [frame for frame in frames if frame is not None and not frame.empty]
@@ -495,7 +641,7 @@ def main() -> None:
         path = OUTPUT_DIR / f"{args.output_prefix}_{args.market}_{ts}.csv"
         to_save = result.copy()
         to_save["reasons"] = to_save["reasons"].apply(compact_reasons)
-        to_save.to_csv(path, index=False)
+        atomic_write_csv(to_save, path)
         saved_path = str(path)
         print(f"\nSaved: {path}")
     if args.timing_json:
@@ -509,6 +655,8 @@ def main() -> None:
             total_rows=int(len(result)),
             saved_path=saved_path,
             status="SUCCESS",
+            crypto_symbol_coverage=crypto_symbol_coverage,
+            crypto_fetch_optimization=crypto_fetch_optimization,
         )
 
 

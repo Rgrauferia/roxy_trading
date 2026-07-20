@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
+from roxy_trader.indicators import IndicatorConfig, add_indicators
 
 logger = logging.getLogger("roxy.modeling")
 
@@ -54,12 +55,14 @@ def load_feature_window(symbol: str, lookback: int = 100) -> pd.DataFrame:
         df = pd.DataFrame(rows, columns=["ts", "close"])
         df["ts"] = pd.to_datetime(df["ts"])
         df = df.sort_values("ts").reset_index(drop=True)
-        # basic features: returns, 3/10/30 SMA
-        df["ret"] = df["close"].pct_change().fillna(0)
-        df["sma3"] = df["close"].rolling(3).mean().bfill()
-        df["sma10"] = df["close"].rolling(10).mean().bfill()
-        df["sma30"] = df["close"].rolling(30).mean().bfill()
+        # Central indicators avoid formula drift and future-looking bfill leakage.
+        df = add_indicators(
+            df,
+            config=IndicatorConfig(sma_windows=(3, 10, 30), ema_windows=()),
+        )
+        df["ret"] = df["close"].pct_change()
         df["momentum"] = df["close"] / df["sma10"] - 1.0
+        df = df.dropna(subset=["ret", "sma3", "sma10", "sma30", "momentum"])
         return df.tail(lookback).reset_index(drop=True)
     except Exception:
         logger.exception("failed to load feature window for %s", symbol)

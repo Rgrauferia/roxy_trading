@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "name": "Roxy Self Improvement Loop",
+  "mode": "autonomous_inside_project",
+  "projectRoot": "/Users/robertograu/roxy_trading",
+  "terminalAgent": "../roxy-terminal-agent/command-runner.ts",
+  "knowledgeRoot": "../knowledge/processed",
+  "autoApplyWithoutApproval": [
+    "code_quality",
+    "test_fixes",
+    "chart_reliability",
+    "indicator_math",
+    "strategy_research",
+    "backtesting",
+    "paper_trading",
+    "ui_performance",
+    "docs",
+    "internal_scripts"
+  ],
+  "humanApprovalRequired": [
+    "git_push",
+    "production_deploy",
+    "real_money_trading",
+    "secret_access",
+    "system_config_changes",
+    "destructive_git",
+    "outside_project"
+  ],
+  "scanTargets": [
+    "streamlit_app.py",
+    "roxy_ai.py",
+    "living_market.py",
+    "symbol_detail.py",
+    "trade_plan.py",
+    "trade_brief.py",
+    "daily_opportunity_plan.py",
+    "moving_average_strategy.py",
+    "multitimeframe_rules.py",
+    "options_strategy.py",
+    "crypto_paper_practice.py",
+    "alpaca_paper_practice.py",
+    "tests"
+  ],
+  "ignore": [
+    ".git",
+    ".venv",
+    ".pytest_cache",
+    ".playwright-cli",
+    "output",
+    "alerts",
+    "logs",
+    "training_videos",
+    "knowledge/inbox",
+    "knowledge/processed",
+    "roxy-terminal-agent/task-logs",
+    "roxy-terminal-agent/reports",
+    "roxy-self-improvement/reports",
+    "roxy-self-improvement/proposals"
+  ],
+  "qualityGates": {
+    "compilePython": true,
+    "runFocusedTests": true,
+    "requireReport": true,
+    "requireNoSecretReads": true
+  },
+  "focusedTests": [
+    "tests/test_top_opportunity_cards.py",
+    "tests/test_video_learning_ingest.py"
+  ],
+  "tradingRules": {
+    "neverRealMoney": true,
+    "paperTradingAllowed": true,
+    "backtestingAllowed": true,
+    "strategyChangesRequireBacktestReport": true,
+    "liveSignalsMustShowDataSource": true,
+    "chartsMustShowEntryStopTarget": true
+  }
+}

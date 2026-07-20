@@ -7,14 +7,23 @@ requests. Exported function `fetch_news()` returns a list of news dicts with
 from __future__ import annotations
 
 import json
+import calendar
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List
 
 import feedparser
 
+from roxy_trader.cache_policy import cache_age_status, cache_ttl as policy_cache_ttl
+from roxy_trader.api_budget import observe_api_call
+from durable_storage import atomic_write_text, exclusive_file_lock
+
 CACHE_PATH = Path(".cache/news.json")
+CACHE_SCHEMA_VERSION = 2
+NEWS_CACHE_TTL_SECONDS = policy_cache_ttl("news")
 CACHE_PATH.parent.mkdir(exist_ok=True)
 
 DEFAULT_FEEDS = [
@@ -85,16 +94,19 @@ def _load_cache() -> dict:
     if not CACHE_PATH.exists():
         return {"ts": 0, "items": []}
     try:
-        return json.loads(CACHE_PATH.read_text())
+        payload = json.loads(CACHE_PATH.read_text())
+        if payload.get("schema_version") != CACHE_SCHEMA_VERSION:
+            return {"ts": 0, "items": []}
+        return payload
     except Exception:
         return {"ts": 0, "items": []}
 
 
 def _save_cache(data: dict) -> None:
-    CACHE_PATH.write_text(json.dumps(data))
+    atomic_write_text(json.dumps({"schema_version": CACHE_SCHEMA_VERSION, **data}), CACHE_PATH)
 
 
-def fetch_news(feeds: List[str] = None, max_items: int = 25, cache_ttl: int = 300) -> List[dict]:
+def fetch_news(feeds: List[str] = None, max_items: int = 25, cache_ttl: int = NEWS_CACHE_TTL_SECONDS) -> List[dict]:
     """Fetch latest news items from feeds with caching.
 
     - `feeds`: optional list of feed URLs. If not provided uses `DEFAULT_FEEDS`.
@@ -107,12 +119,14 @@ def fetch_news(feeds: List[str] = None, max_items: int = 25, cache_ttl: int = 30
     if cache.get("ts", 0) + cache_ttl > now and cache.get("items"):
         return cache["items"][:max_items]
 
-    items: List[NewsItem] = []
-    for url in feeds:
+    def fetch_feed(url: str) -> List[NewsItem]:
+        feed_items: List[NewsItem] = []
         try:
-            f = feedparser.parse(url)
+            with observe_api_call("rss_news", "feed") as observation:
+                f = feedparser.parse(url)
+                observation.set_http_status(f.get("status"))
         except Exception:
-            continue
+            return feed_items
         source = f.get("feed", {}).get("title") or url
         for e in f.get("entries", [])[:50]:
             title = e.get("title", "")
@@ -120,10 +134,16 @@ def fetch_news(feeds: List[str] = None, max_items: int = 25, cache_ttl: int = 30
             summary = e.get("summary", e.get("description", ""))
             published_parsed = e.get("published_parsed") or e.get("updated_parsed")
             if published_parsed:
-                published = time.mktime(published_parsed)
+                published = calendar.timegm(published_parsed)
             else:
                 published = now
-            items.append(NewsItem(title=title, link=link, published=published, summary=summary, source=source))
+            feed_items.append(NewsItem(title=title, link=link, published=published, summary=summary, source=source))
+        return feed_items
+
+    items: List[NewsItem] = []
+    with ThreadPoolExecutor(max_workers=max(1, min(4, len(feeds)))) as executor:
+        for feed_items in executor.map(fetch_feed, feeds):
+            items.extend(feed_items)
 
     # sort by published desc and take top
     items.sort(key=lambda x: x.published, reverse=True)
@@ -143,24 +163,59 @@ def fetch_news(feeds: List[str] = None, max_items: int = 25, cache_ttl: int = 30
             }
         )
     out = out_items
-    _save_cache({"ts": now, "items": out})
-    return out
+    if out:
+        _save_cache({"ts": now, "items": out})
+        return out
+    cached_items = cache.get("items") if isinstance(cache.get("items"), list) else []
+    if cached_items:
+        return cached_items[:max_items]
+    _save_cache({"ts": now, "items": []})
+    return []
+
+
+def fetch_news_snapshot(max_items: int = 25, cache_ttl: int = NEWS_CACHE_TTL_SECONDS) -> dict:
+    items = fetch_news(max_items=max_items, cache_ttl=cache_ttl)
+    cache = _load_cache()
+    fetched_ts = float(cache.get("ts") or 0.0)
+    age_seconds = max(0.0, time.time() - fetched_ts) if fetched_ts else None
+    freshness = cache_age_status("news", age_seconds, {"ROXY_CACHE_TTL_NEWS": str(cache_ttl)})
+    if not items:
+        status = "NO_DATA"
+        detail = "Los RSS no devolvieron noticias y no existe un snapshot previo."
+    elif freshness == "FRESH":
+        status = "CONNECTED"
+        detail = f"{len(items)} noticias RSS; snapshot vigente."
+    else:
+        status = "DELAYED"
+        detail = f"{len(items)} noticias desde cache ({freshness.lower()}); los RSS no renovaron el snapshot."
+    sources = sorted({str(item.get("source") or "-") for item in items})
+    return {
+        "status": status,
+        "detail": detail,
+        "items": items,
+        "sources": sources,
+        "fetched_at": datetime.fromtimestamp(fetched_ts, timezone.utc).isoformat() if fetched_ts else "",
+        "age_seconds": age_seconds,
+        "cache_freshness": freshness,
+        "cache_policy": "news",
+        "cache_path": str(CACHE_PATH),
+    }
 
 
 def save_highlights(items: List[dict], path: str = "alerts/news_highlights.json") -> None:
     p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    existing = []
-    if p.exists():
-        try:
-            existing = json.loads(p.read_text())
-        except Exception:
-            existing = []
-    # append new items but avoid duplicates by link
-    links = {e.get("link") for e in existing}
-    new = [i for i in items if i.get("link") not in links]
-    combined = existing + new
-    p.write_text(json.dumps(combined, indent=2))
+    with exclusive_file_lock(p):
+        existing = []
+        if p.exists():
+            try:
+                existing = json.loads(p.read_text())
+            except Exception:
+                existing = []
+        # append new items but avoid duplicates by link
+        links = {e.get("link") for e in existing}
+        new = [i for i in items if i.get("link") not in links]
+        combined = existing + new
+        atomic_write_text(json.dumps(combined, indent=2), p)
     # also write a short latest alert and notify via notifier if available
     try:
         from notifier import notify_if_changed
@@ -175,6 +230,6 @@ def save_highlights(items: List[dict], path: str = "alerts/news_highlights.json"
         latest_path = Path("alerts/latest_alert.txt")
         if new:
             text = "\n".join([f"{i.get('source','')} {i.get('title','')}" for i in new])
-            latest_path.write_text(text)
+            atomic_write_text(text, latest_path)
     except Exception:
         pass

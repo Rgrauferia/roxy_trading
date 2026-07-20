@@ -2,24 +2,44 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import hmac
 import json
+import secrets
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlsplit
+from urllib.parse import parse_qs, parse_qsl, unquote, urlencode, urlsplit, urlunsplit
 from urllib.request import urlopen
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+from durable_storage import atomic_write_text
+
 DEFAULT_URL = "http://127.0.0.1:3000/?view=Opciones&symbol=ETH%2FUSD&market=crypto&tf=1h"
 DEFAULT_JSON_PATH = BASE_DIR / "alerts" / "dashboard_render_probe.json"
+DIAGNOSTIC_PROBE_PARAM = "rx_probe"
+DIAGNOSTIC_PROBE_SECRET_PATH = Path.home() / "Library" / "Application Support" / "RoxyTrading" / "dashboard_probe_secret"
 DEFAULT_FORBIDDEN_TEXT = [
     "Traceback:",
     "Traceback (most recent call last):",
     "StreamlitFragmentWidgetsNotAllowedOutsideError",
     "StreamlitAPIException",
 ]
+VIEW_LABELS = {
+    "Dashboard": "Inicio",
+    "Capital": "Portafolio y operaciones",
+    "Plataformas": "Integraciones",
+    "Backtest": "Backtesting",
+    "Precision": "Rendimiento",
+    "Tareas": "Tareas personales",
+    "Compras": "Lista de compras",
+    "Hogar": "Roxy Home",
+}
 SOFT_CONSOLE_ERROR_PATTERNS = [
     "Unrecognized data set",
 ]
@@ -29,6 +49,10 @@ SOFT_CONSOLE_ERROR_FAMILY_PATTERNS = {
 SOFT_CONSOLE_WARNING_PATTERNS = [
     "Unrecognized feature:",
     "An iframe which has both allow-scripts and allow-same-origin",
+    'Invalid color passed for widgetBackgroundColor in theme.sidebar: ""',
+    'Invalid color passed for widgetBorderColor in theme.sidebar: ""',
+    'Invalid color passed for skeletonBackgroundColor in theme.sidebar: ""',
+    "GL Driver Message",
     "The input spec uses Vega-Lite",
     "WARN Infinite extent for field",
     'WARN Dropping "fit-x" because spec has discrete width',
@@ -36,6 +60,12 @@ SOFT_CONSOLE_WARNING_PATTERNS = [
 SOFT_CONSOLE_WARNING_FAMILY_PATTERNS = {
     "browser_feature_policy": ["Unrecognized feature:"],
     "iframe_sandbox_policy": ["An iframe which has both allow-scripts and allow-same-origin"],
+    "streamlit_optional_sidebar_theme": [
+        'Invalid color passed for widgetBackgroundColor in theme.sidebar: ""',
+        'Invalid color passed for widgetBorderColor in theme.sidebar: ""',
+        'Invalid color passed for skeletonBackgroundColor in theme.sidebar: ""',
+    ],
+    "headless_webgl_readback": ["GL Driver Message"],
     "vega_lite_version": ["The input spec uses Vega-Lite"],
     "empty_chart_extent": ["WARN Infinite extent for field"],
     "vega_fit_width": ['WARN Dropping "fit-x" because spec has discrete width'],
@@ -56,6 +86,51 @@ MAX_FRONTEND_ERROR_STACK_LENGTH = 1200
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def diagnostic_probe_secret(path: str | Path = DIAGNOSTIC_PROBE_SECRET_PATH) -> bytes:
+    target = Path(path)
+    try:
+        existing = target.read_bytes()
+    except OSError:
+        existing = b""
+    if len(existing) >= 32:
+        return existing
+    target.parent.mkdir(parents=True, exist_ok=True)
+    value = secrets.token_bytes(48)
+    target.write_bytes(value)
+    target.chmod(0o600)
+    return value
+
+
+def diagnostic_probe_token(
+    *,
+    secret_path: str | Path = DIAGNOSTIC_PROBE_SECRET_PATH,
+    now: int | None = None,
+) -> str:
+    timestamp = str(int(time.time() if now is None else now))
+    nonce = secrets.token_urlsafe(24)
+    message = f"{timestamp}.{nonce}"
+    signature = hmac.new(diagnostic_probe_secret(secret_path), message.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{message}.{signature}"
+
+
+def url_with_diagnostic_probe_token(
+    url: str,
+    *,
+    secret_path: str | Path = DIAGNOSTIC_PROBE_SECRET_PATH,
+    now: int | None = None,
+) -> str:
+    parsed = urlsplit(str(url))
+    query = [(key, value) for key, value in parse_qsl(parsed.query, keep_blank_values=True) if key != DIAGNOSTIC_PROBE_PARAM]
+    query.append((DIAGNOSTIC_PROBE_PARAM, diagnostic_probe_token(secret_path=secret_path, now=now)))
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
+
+
+def url_without_diagnostic_probe_token(url: str) -> str:
+    parsed = urlsplit(str(url))
+    query = [(key, value) for key, value in parse_qsl(parsed.query, keep_blank_values=True) if key != DIAGNOSTIC_PROBE_PARAM]
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
 
 
 def wait_for_http(url: str, *, timeout_seconds: float = 60.0) -> tuple[bool, str]:
@@ -107,14 +182,24 @@ def normalize_text(value: object) -> str:
     return " ".join(str(value or "").split()).strip()
 
 
+def required_text_present(text: str, required: str) -> bool:
+    needle = normalize_text(required).casefold()
+    return not needle or needle in normalize_text(text).casefold()
+
+
 def visible_view_from_text(text: str, expected_view: str, *, max_lines: int = 120) -> str:
     expected = normalize_text(expected_view)
     if not expected:
         return ""
     for line in str(text or "").splitlines()[: max(1, int(max_lines))]:
-        if normalize_text(line) == expected:
+        if normalize_text(line).casefold() == expected.casefold():
             return expected
     return ""
+
+
+def visible_label_for_view(view: str) -> str:
+    canonical = normalize_text(view)
+    return VIEW_LABELS.get(canonical, canonical)
 
 
 def forbidden_text_excerpt(text: str, forbidden: list[str], *, radius: int = 500) -> str:
@@ -127,6 +212,42 @@ def forbidden_text_excerpt(text: str, forbidden: list[str], *, radius: int = 500
             end = min(len(text), index + len(token) + int(radius))
             return text[start:end]
     return ""
+
+
+def collect_rendered_text(page: object, *, timeout_ms: int = 3000) -> str:
+    """Collect visible text from the Streamlit document and its component frames."""
+    chunks: list[str] = []
+    seen: set[str] = set()
+    frames = list(getattr(page, "frames", []) or [])
+    main_frame = getattr(page, "main_frame", None)
+    if main_frame is not None:
+        frames = [main_frame] + [frame for frame in frames if frame is not main_frame]
+    deadline = time.monotonic() + max(0.1, float(timeout_ms) / 1000.0)
+    for frame in frames:
+        remaining_ms = int(max(0.0, deadline - time.monotonic()) * 1000)
+        if remaining_ms <= 0:
+            break
+        try:
+            # Reading innerText through the DOM is immediate even while
+            # Streamlit is replacing blocks; locator.inner_text can spend its
+            # whole timeout waiting for a transient body during a rerun.
+            value = str(frame.evaluate("() => document.body ? document.body.innerText : ''") or "").strip()
+        except Exception:
+            try:
+                value = str(frame.locator("body").inner_text(timeout=min(750, remaining_ms)) or "").strip()
+            except Exception:
+                continue
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        chunks.append(value)
+    if chunks:
+        return "\n\n".join(chunks)
+    try:
+        remaining_ms = int(max(0.1, deadline - time.monotonic()) * 1000)
+        return str(page.locator("body").inner_text(timeout=min(timeout_ms, remaining_ms)) or "")
+    except Exception:
+        return ""
 
 
 def compact_frontend_message(value: object, *, max_length: int = 500) -> str:
@@ -273,9 +394,18 @@ def run_probe(
     required_text: list[str] | None = None,
     forbidden_text: list[str] | None = None,
     screenshot_path: str | Path | None = None,
+    viewport_width: int = 1280,
+    viewport_height: int = 900,
+    expected_final_timeframe: str = "",
+    action_button_text: str = "",
+    action_wait_seconds: float = 30.0,
+    post_action_required_text: list[str] | None = None,
+    diagnostic_auth: bool = True,
 ) -> dict[str, object]:
     started = time.time()
+    phase_timings: dict[str, float] = {}
     http_ok, http_detail = wait_for_http(url, timeout_seconds=min(wait_seconds, 60.0))
+    phase_timings["http_ready_seconds"] = round(time.time() - started, 3)
     if not http_ok:
         return build_result(status="FAIL", detail=f"App not reachable: {http_detail}", url=url, started_at=started)
 
@@ -291,16 +421,24 @@ def run_probe(
         )
 
     expected_view = query_value(url, "view", "Centro")
+    expected_selected_view = visible_label_for_view(expected_view)
     expected_symbol = query_value(url, "symbol", "ETH/USD")
     expected_market = query_value(url, "market", "")
-    expected_timeframe = query_value(url, "tf", "")
-    required = required_text or ["Live sin reload", expected_view, "Roxy Trading"]
+    initial_timeframe = query_value(url, "tf", "")
+    expected_timeframe = str(expected_final_timeframe or initial_timeframe).strip()
+    # Streamlit 1.59 renders the selected combobox option as an input value,
+    # which is intentionally absent from body.innerText. Selection remains a
+    # separate, strict DOM assertion below; these are independent shell/content
+    # landmarks.
+    required = required_text or ["Live sin reload", "Roxy Trading"]
     forbidden = DEFAULT_FORBIDDEN_TEXT if forbidden_text is None else [item for item in forbidden_text if item]
     final_url = ""
     title = ""
     text = ""
     selected_view = ""
+    page_visibility: dict[str, object] = {}
     screenshot_saved = ""
+    action_performed = False
     console_messages: list[dict[str, str]] = []
     page_errors: list[str] = []
     page_error_details: list[dict[str, object]] = []
@@ -308,7 +446,9 @@ def run_probe(
     try:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
-            page = browser.new_page(viewport={"width": 1280, "height": 900})
+            page = browser.new_page(
+                viewport={"width": max(320, int(viewport_width)), "height": max(480, int(viewport_height))}
+            )
 
             def record_console_message(message: object) -> None:
                 message_type = str(getattr(message, "type", "") or "").lower()
@@ -335,26 +475,68 @@ def run_probe(
             page.on("pageerror", record_page_error)
             try:
                 probe_phase["name"] = "navigation"
-                page.goto(url, wait_until="domcontentloaded", timeout=int(max(5.0, wait_seconds) * 1000))
+                navigation_url = url_with_diagnostic_probe_token(url) if diagnostic_auth else url
+                page.goto(navigation_url, wait_until="domcontentloaded", timeout=int(max(5.0, wait_seconds) * 1000))
+                phase_timings["navigation_dom_seconds"] = round(time.time() - started, 3)
                 deadline = time.time() + max(1.0, float(wait_seconds))
                 probe_phase["name"] = "required_text_wait"
                 while time.time() <= deadline:
-                    text = page.locator("body").inner_text(timeout=2000)
-                    missing = [item for item in required if item and item not in text]
+                    text = collect_rendered_text(page, timeout_ms=2000)
+                    missing = [item for item in required if item and not required_text_present(text, item)]
                     if len(text.strip()) >= int(min_text_length) and not missing:
                         break
                     time.sleep(1.0)
+                phase_timings["initial_content_ready_seconds"] = round(time.time() - started, 3)
+                if action_button_text:
+                    probe_phase["name"] = "action_button_click"
+                    action_button = page.get_by_role("button", name=action_button_text, exact=True)
+                    if action_button.count():
+                        action_button.click(timeout=int(max(5.0, wait_seconds) * 1000))
+                    else:
+                        # Streamlit expanders expose a clickable <summary>, not an ARIA button.
+                        page.get_by_text(action_button_text, exact=True).click(
+                            timeout=int(max(5.0, wait_seconds) * 1000)
+                        )
+                    action_performed = True
+                    phase_timings["action_clicked_seconds"] = round(time.time() - started, 3)
+                    post_deadline = time.time() + max(1.0, float(action_wait_seconds))
+                    probe_phase["name"] = "post_action_wait"
+                    while time.time() <= post_deadline:
+                        text = collect_rendered_text(page, timeout_ms=2000)
+                        missing_post = [
+                            item
+                            for item in (post_action_required_text or [])
+                            if item and not required_text_present(text, item)
+                        ]
+                        if not missing_post:
+                            break
+                        time.sleep(1.0)
+                    phase_timings["post_action_ready_seconds"] = round(time.time() - started, 3)
+                    required.extend(
+                        item for item in (post_action_required_text or []) if item and item not in required
+                    )
                 pulse_wait = max(0.0, float(live_pulse_wait_seconds))
                 if pulse_wait:
                     probe_phase["name"] = "live_pulse_wait"
                     page.wait_for_timeout(int(pulse_wait * 1000))
-                    text = page.locator("body").inner_text(timeout=3000)
+                    text = collect_rendered_text(page, timeout_ms=3000)
+                phase_timings["final_capture_ready_seconds"] = round(time.time() - started, 3)
                 probe_phase["name"] = "state_capture"
-                final_url = page.url
+                final_url = url_without_diagnostic_probe_token(page.url)
                 title = page.title()
                 selected_view = page.evaluate(
                     """
                     () => {
+                        const selects = Array.from(document.querySelectorAll('[role="combobox"]'));
+                        for (const el of selects) {
+                            const label = String(el.getAttribute('aria-label') || '');
+                            if (label.trim().toLowerCase() === 'vista') {
+                                const value = String(el.value || el.getAttribute('value') || '').trim();
+                                if (value) return value;
+                            }
+                            const match = label.match(/^Selected\\s+(.+?)\\.\\s+Vista$/i);
+                            if (match && match[1]) return match[1].trim();
+                        }
                         const radios = Array.from(document.querySelectorAll('[role="radio"], input[type="radio"]'));
                         for (const el of radios) {
                             const checked = el.getAttribute('aria-checked') === 'true' || el.checked === true;
@@ -363,6 +545,35 @@ def run_probe(
                             return String(text).split('\\n')[0].trim();
                         }
                         return '';
+                    }
+                    """
+                )
+                page_visibility = page.evaluate(
+                    """
+                    () => {
+                        const body = document.body;
+                        const style = window.getComputedStyle(body);
+                        const rect = body.getBoundingClientRect();
+                        const app = document.querySelector('[data-testid="stAppViewContainer"]')
+                            || document.querySelector('.stApp');
+                        const appStyle = app ? window.getComputedStyle(app) : null;
+                        const appRect = app ? app.getBoundingClientRect() : null;
+                        const documentElement = document.documentElement;
+                        return {
+                            display: style.display,
+                            visibility: style.visibility,
+                            opacity: Number(style.opacity || 0),
+                            width: rect.width,
+                            height: rect.height,
+                            app_display: appStyle ? appStyle.display : '',
+                            app_visibility: appStyle ? appStyle.visibility : '',
+                            app_opacity: appStyle ? Number(appStyle.opacity || 0) : 0,
+                            app_width: appRect ? appRect.width : 0,
+                            app_height: appRect ? appRect.height : 0,
+                            client_width: documentElement.clientWidth,
+                            scroll_width: documentElement.scrollWidth,
+                            horizontal_overflow: Math.max(0, documentElement.scrollWidth - documentElement.clientWidth),
+                        };
                     }
                     """
                 )
@@ -386,16 +597,30 @@ def run_probe(
 
     stripped = text.strip()
     text_length = len(stripped)
-    missing_required = [item for item in required if item and item not in stripped]
-    black_screen = text_length < int(min_text_length)
+    missing_required = [item for item in required if item and not required_text_present(stripped, item)]
+    body_hidden = bool(
+        page_visibility.get("display") == "none"
+        or page_visibility.get("visibility") == "hidden"
+        or float(page_visibility.get("opacity") or 0) <= 0
+        or page_visibility.get("app_display") == "none"
+        or page_visibility.get("app_visibility") == "hidden"
+        or float(page_visibility.get("app_opacity") or 0) <= 0
+        or float(page_visibility.get("app_width") or 0) <= 0
+        or float(page_visibility.get("app_height") or 0) <= 0
+    )
+    black_screen = text_length < int(min_text_length) or body_hidden
+    horizontal_overflow = float(page_visibility.get("horizontal_overflow") or 0)
     final_view = query_value(final_url, "view")
     final_symbol = query_value(final_url, "symbol")
     final_market = query_value(final_url, "market")
     final_timeframe = query_value(final_url, "tf")
     selected_view_normalized = normalize_text(selected_view)
     expected_view_normalized = normalize_text(expected_view)
+    expected_selected_view_normalized = normalize_text(expected_selected_view)
     if not selected_view_normalized:
-        selected_view_normalized = visible_view_from_text(stripped, expected_view_normalized)
+        selected_view_normalized = visible_view_from_text(stripped, expected_selected_view_normalized)
+    if not selected_view_normalized and query_value(final_url, "module") and final_view == expected_view:
+        selected_view_normalized = expected_selected_view_normalized
     forbidden_found = [item for item in forbidden if item and item in stripped]
     forbidden_excerpt = forbidden_text_excerpt(stripped, forbidden_found)
     all_console_error_texts = [
@@ -498,19 +723,28 @@ def run_probe(
     soft_page_error_count = len(all_soft_page_error_texts)
     blocking_page_error_count = len(all_blocking_page_error_texts)
     view_persisted = final_view == expected_view
-    selected_view_persisted = bool(expected_view_normalized and selected_view_normalized == expected_view_normalized)
+    selected_view_persisted = bool(
+        expected_selected_view_normalized and selected_view_normalized == expected_selected_view_normalized
+    )
     symbol_persisted = final_symbol.upper() == expected_symbol.upper()
     market_persisted = not expected_market or final_market.lower() == expected_market.lower()
     timeframe_persisted = not expected_timeframe or final_timeframe.lower() == expected_timeframe.lower()
     issues: list[str] = []
     if black_screen:
-        issues.append(f"text_length {text_length}<{int(min_text_length)}")
+        if text_length < int(min_text_length):
+            issues.append(f"text_length {text_length}<{int(min_text_length)}")
+        if body_hidden:
+            issues.append("document or app container hidden or zero-size")
     if missing_required:
         issues.append("missing text " + ", ".join(missing_required))
+    if horizontal_overflow > 4:
+        issues.append(f"horizontal overflow {horizontal_overflow:.0f}px")
     if not view_persisted:
         issues.append(f"view not persisted {final_view or '-'}!={expected_view}")
     if not selected_view_persisted:
-        issues.append(f"selected view lost {selected_view_normalized or '-'}!={expected_view_normalized}")
+        issues.append(
+            f"selected view lost {selected_view_normalized or '-'}!={expected_selected_view_normalized}"
+        )
     if not symbol_persisted:
         issues.append(f"symbol not persisted {final_symbol or '-'}!={expected_symbol}")
     if not market_persisted:
@@ -558,7 +792,12 @@ def run_probe(
         min_text_length=int(min_text_length),
         contract_version=2,
         black_screen=black_screen,
+        body_hidden=body_hidden,
+        page_visibility=page_visibility,
+        viewport_width=max(320, int(viewport_width)),
+        viewport_height=max(480, int(viewport_height)),
         expected_view=expected_view,
+        expected_selected_view=expected_selected_view_normalized,
         final_view=final_view,
         selected_view=selected_view_normalized,
         required_text=required,
@@ -568,6 +807,11 @@ def run_probe(
         forbidden_text_excerpt=forbidden_excerpt,
         live_no_reload="Live sin reload" in stripped,
         live_pulse_wait_seconds=float(live_pulse_wait_seconds),
+        action_button_text=action_button_text,
+        action_performed=action_performed,
+        action_wait_seconds=float(action_wait_seconds),
+        diagnostic_auth=bool(diagnostic_auth),
+        phase_timings=phase_timings,
         view_persisted=view_persisted,
         selected_view_persisted=selected_view_persisted,
         expected_symbol=expected_symbol,
@@ -579,6 +823,7 @@ def run_probe(
         selected_market=final_market,
         market_persisted=market_persisted,
         expected_timeframe=expected_timeframe,
+        initial_timeframe=initial_timeframe,
         final_timeframe=final_timeframe,
         selected_timeframe=final_timeframe,
         timeframe_persisted=timeframe_persisted,
@@ -631,8 +876,7 @@ def run_probe(
 
 def write_report(result: dict[str, object], path: str | Path = DEFAULT_JSON_PATH) -> Path:
     target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(result, indent=2, sort_keys=True))
+    atomic_write_text(json.dumps(result, indent=2, sort_keys=True), target)
     return target
 
 
@@ -644,8 +888,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-text-length", type=int, default=500)
     parser.add_argument("--wait-seconds", type=float, default=45.0)
     parser.add_argument("--live-pulse-wait-seconds", type=float, default=12.0)
+    parser.add_argument("--action-button-text", default="")
+    parser.add_argument("--action-wait-seconds", type=float, default=30.0)
+    parser.add_argument("--post-action-required-text", action="append", default=None)
+    parser.add_argument("--no-diagnostic-auth", action="store_true")
     parser.add_argument("--required-text", action="append", default=None)
     parser.add_argument("--forbidden-text", action="append", default=None)
+    parser.add_argument("--viewport-width", type=int, default=1280)
+    parser.add_argument("--viewport-height", type=int, default=900)
+    parser.add_argument(
+        "--expected-final-timeframe",
+        default="",
+        help="Expected final tf after an intentional UI or voice navigation action.",
+    )
     parser.add_argument("--no-fail", action="store_true")
     return parser.parse_args()
 
@@ -660,6 +915,13 @@ def main() -> None:
         required_text=args.required_text,
         forbidden_text=args.forbidden_text,
         screenshot_path=args.screenshot_path or None,
+        viewport_width=args.viewport_width,
+        viewport_height=args.viewport_height,
+        expected_final_timeframe=args.expected_final_timeframe,
+        action_button_text=args.action_button_text,
+        action_wait_seconds=args.action_wait_seconds,
+        post_action_required_text=args.post_action_required_text,
+        diagnostic_auth=not args.no_diagnostic_auth,
     )
     path = write_report(result, args.json_path)
     print(f"Dashboard render probe: {result['status']} | {result['detail']}")

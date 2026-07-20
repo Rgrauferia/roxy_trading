@@ -81,3 +81,37 @@ def test_render_alpaca_operations_gate_hides_values_and_labels_live_as_locked():
     assert "ALPACA_SECRET_KEY" in html
     assert "live-key-value" not in html
     assert "live-secret-value" not in html
+
+
+def test_alpaca_operations_gate_blocks_paper_when_runtime_auth_is_invalid():
+    report = {
+        "checks": [
+            {
+                "name": "alpaca_account_probe",
+                "status": "WARN",
+                "auth_ok": False,
+                "error_category": "AUTH_INVALID",
+                "detail": "account authentication failed",
+            }
+        ]
+    }
+
+    gate = alpaca_operations_gate(
+        {
+            "ALPACA_API_KEY": "rejected-key-value",
+            "ALPACA_API_SECRET": "rejected-secret-value",
+            "ALPACA_PAPER": "true",
+        },
+        realtime_report=report,
+    )
+
+    assert gate["configured"] is True
+    assert gate["paper_ready"] is False
+    assert gate["paper_orders_allowed"] is False
+    assert gate["live_orders_allowed"] is False
+    assert gate["mode"] == "AUTH_INVALID"
+    assert gate["status"] == "Autenticacion invalida"
+    assert gate["runtime_checked"] is True
+    assert gate["runtime_auth_ok"] is False
+    assert "rejected-key-value" not in str(gate)
+    assert "rejected-secret-value" not in str(gate)

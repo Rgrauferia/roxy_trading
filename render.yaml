@@ -105,11 +105,15 @@ services:
         value: stock-stream
       - key: ROXY_STOCK_BRIDGE_LOG_LEVEL
         value: info
+      - key: ROXY_STOCK_BRIDGE_HOST
+        value: 0.0.0.0
+      - key: ROXY_STOCK_BRIDGE_TRUSTED_PROXIES
+        value: 127.0.0.1
       - key: ALPACA_DATA_FEED
         value: iex
       - key: ROXY_STOCK_ALPACA_STREAM
         value: "1"
-      - key: ROXY_STOCK_STREAM_ALLOWED_ORIGIN
+      - key: ROXY_STOCK_STREAM_ALLOWED_ORIGINS
         value: https://roxy-trading.onrender.com
       - key: ALPACA_API_KEY
         sync: false

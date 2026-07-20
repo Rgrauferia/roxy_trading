@@ -8,13 +8,14 @@ from typing import Any, Callable, Mapping
 import pandas as pd
 
 from alpaca_paper_practice import (
-    close_alpaca_paper_practice_journal,
+    close_and_save_alpaca_paper_practice_journal,
     load_alpaca_paper_practice_journal,
 )
 from crypto_paper_practice import (
-    close_crypto_paper_practice_journal,
+    close_and_save_crypto_paper_practice_journal,
     load_crypto_paper_practice_journal,
 )
+from durable_storage import atomic_write_text
 
 
 DEFAULT_REPORT_PATH = Path("alerts/paper_result_closer.json")
@@ -164,24 +165,19 @@ def close_paper_results_with_live_prices(
     )
 
     closed_alpaca = (
-        close_alpaca_paper_practice_journal(alpaca_journal, price_lookup=stock_lookup, now=current_time)
+        close_and_save_alpaca_paper_practice_journal(
+            path=alpaca_path, price_lookup=stock_lookup, now=current_time
+        )
         if not alpaca_journal.empty
         else alpaca_journal
     )
     closed_crypto = (
-        close_crypto_paper_practice_journal(crypto_journal, price_lookup=crypto_lookup, now=current_time)
+        close_and_save_crypto_paper_practice_journal(
+            path=crypto_path, price_lookup=crypto_lookup, now=current_time
+        )
         if not crypto_journal.empty
         else crypto_journal
     )
-
-    if not closed_alpaca.empty:
-        alpaca_output = Path(alpaca_path)
-        alpaca_output.parent.mkdir(parents=True, exist_ok=True)
-        closed_alpaca.to_csv(alpaca_output, index=False)
-    if not closed_crypto.empty:
-        crypto_output = Path(crypto_path)
-        crypto_output.parent.mkdir(parents=True, exist_ok=True)
-        closed_crypto.to_csv(crypto_output, index=False)
 
     after_alpaca = _closed_count(closed_alpaca)
     after_crypto = _closed_count(closed_crypto)
@@ -203,8 +199,7 @@ def close_paper_results_with_live_prices(
         "diagnostics": stock_diagnostics + crypto_diagnostics,
     }
     output = Path(report_path)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    atomic_write_text(json.dumps(report, indent=2), output)
     return report
 
 

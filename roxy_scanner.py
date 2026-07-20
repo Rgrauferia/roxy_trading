@@ -1,17 +1,20 @@
 # ===== ROXY TRADING SCANNER (PRO) =====
+from __future__ import annotations
+
 import os
 import time
+from datetime import datetime, timezone
 from typing import Optional
 
 import ccxt
 import numpy as np
 import pandas as pd
+
+from roxy_trader.api_budget import observe_api_call
 import yfinance as yf
-from ta.momentum import RSIIndicator
-from ta.trend import MACD, EMAIndicator
-from ta.volatility import AverageTrueRange
 
 from logging_config import get_logger
+from roxy_trader.indicators import IndicatorConfig, add_indicators as add_central_indicators
 
 # logger
 logger = get_logger("roxy.scanner")
@@ -35,21 +38,14 @@ def safe_read_list(path: str):
 
 
 def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-    df["ema50"] = EMAIndicator(df["close"], window=50).ema_indicator()
-    df["ema200"] = EMAIndicator(df["close"], window=200).ema_indicator()
-    df["rsi"] = RSIIndicator(df["close"], window=14).rsi()
-
-    macd = MACD(df["close"], window_slow=26, window_fast=12, window_sign=9)
-    df["macd"] = macd.macd()
-    df["macd_signal"] = macd.macd_signal()
-    df["macd_hist"] = macd.macd_diff()
-
-    atr = AverageTrueRange(df["high"], df["low"], df["close"], window=14)
-    df["atr"] = atr.average_true_range()
-
-    df["vol_ma20"] = df["volume"].rolling(20).mean()
-    return df
+    enriched = add_central_indicators(
+        df,
+        config=IndicatorConfig(sma_windows=(), ema_windows=(50, 200)),
+    )
+    enriched["rsi"] = enriched["rsi14"]
+    enriched["atr"] = enriched["atr14"]
+    enriched["vol_ma20"] = enriched["volume_sma20"]
+    return enriched
 
 
 def breakout_level(df: pd.DataFrame, lookback: int = 40) -> float:
@@ -133,9 +129,90 @@ def score_setup(df: pd.DataFrame, atr_mult_stop=2.0, atr_mult_tp1=2.0, atr_mult_
 # -------------------------
 
 
-def fetch_crypto_ohlcv(symbol: str, timeframe: str, limit: int = 500) -> pd.DataFrame:
-    ex = ccxt.binanceus({"enableRateLimit": True})
-    ohlcv = ex.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
+def create_binanceus_exchange():
+    return ccxt.binanceus({"enableRateLimit": True, "timeout": 8000})
+
+
+def binanceus_symbol_coverage(symbols, *, exchange=None) -> dict:
+    """Resolve requested crypto pairs against the provider's current market catalog."""
+
+    requested = list(dict.fromkeys(str(symbol or "").strip().upper() for symbol in symbols if str(symbol or "").strip()))
+    ex = exchange or create_binanceus_exchange()
+    try:
+        with observe_api_call("binanceus", "load_markets"):
+            markets = ex.load_markets()
+    except Exception as exc:
+        return {
+            "contract_version": "roxy-binanceus-symbol-coverage/1.0.0",
+            "status": "PROVIDER_UNAVAILABLE",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "source": "ccxt:binanceus",
+            "requested_count": len(requested),
+            "supported_count": 0,
+            "unsupported_count": 0,
+            "exact_count": 0,
+            "quote_fallback_count": 0,
+            "supported_symbols": requested,
+            "unsupported_symbols": [],
+            "symbol_map": {symbol: symbol for symbol in requested},
+            "resolution": [],
+            "error": type(exc).__name__,
+        }
+    available = {str(symbol).upper() for symbol in (markets or {})}
+    symbol_map: dict[str, str] = {}
+    resolution: list[dict[str, str]] = []
+    unsupported: list[str] = []
+    exact_count = 0
+    fallback_count = 0
+    for symbol in requested:
+        parts = symbol.split("/", 1)
+        base = parts[0]
+        quote = parts[1] if len(parts) == 2 else "USD"
+        candidates = [symbol]
+        if quote == "USD":
+            candidates.append(f"{base}/USDT")
+        elif quote == "USDT":
+            candidates.append(f"{base}/USD")
+        provider_symbol = next((candidate for candidate in candidates if candidate in available), "")
+        if not provider_symbol:
+            unsupported.append(symbol)
+            resolution.append({"symbol": symbol, "provider_symbol": "", "state": "UNSUPPORTED"})
+            continue
+        state = "EXACT" if provider_symbol == symbol else "QUOTE_FALLBACK"
+        exact_count += int(state == "EXACT")
+        fallback_count += int(state == "QUOTE_FALLBACK")
+        symbol_map[symbol] = provider_symbol
+        resolution.append({"symbol": symbol, "provider_symbol": provider_symbol, "state": state})
+    return {
+        "contract_version": "roxy-binanceus-symbol-coverage/1.0.0",
+        "status": "CONNECTED",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "source": "ccxt:binanceus",
+        "requested_count": len(requested),
+        "supported_count": len(symbol_map),
+        "unsupported_count": len(unsupported),
+        "exact_count": exact_count,
+        "quote_fallback_count": fallback_count,
+        "supported_symbols": list(symbol_map),
+        "unsupported_symbols": unsupported,
+        "symbol_map": symbol_map,
+        "resolution": resolution,
+        "error": "",
+    }
+
+
+def fetch_crypto_ohlcv(
+    symbol: str,
+    timeframe: str,
+    limit: int = 500,
+    *,
+    exchange=None,
+    provider_symbol: str | None = None,
+) -> pd.DataFrame:
+    ex = exchange or create_binanceus_exchange()
+    effective_symbol = str(provider_symbol or symbol).strip().upper()
+    with observe_api_call("binanceus", "scanner_ohlcv"):
+        ohlcv = ex.fetch_ohlcv(effective_symbol, timeframe=timeframe, limit=limit)
     df = pd.DataFrame(ohlcv, columns=["ts", "open", "high", "low", "close", "volume"])
     df["ts"] = pd.to_datetime(df["ts"], unit="ms")
     return df
@@ -147,15 +224,16 @@ def fetch_stock_ohlcv(
     period: str = "6mo",
     prepost: bool = False,
 ) -> pd.DataFrame:
-    data = yf.download(
-        symbol,
-        interval=interval,
-        period=period,
-        auto_adjust=True,
-        progress=False,
-        group_by="column",
-        prepost=prepost,
-    )
+    with observe_api_call("yfinance", "scanner_stock_history"):
+        data = yf.download(
+            symbol,
+            interval=interval,
+            period=period,
+            auto_adjust=True,
+            progress=False,
+            group_by="column",
+            prepost=prepost,
+        )
     if data is None or data.empty:
         return pd.DataFrame()
 

@@ -128,3 +128,6 @@ def test_close_paper_results_with_live_prices_updates_both_journals(tmp_path):
     assert alpaca.loc[alpaca["symbol"] == "MSFT", "status"].iloc[0] == "BLOCKED"
     assert crypto.iloc[0]["closed_outcome"] == "STOP"
     assert report_path.exists()
+    assert report_path.stat().st_mode & 0o777 == 0o600
+    assert alpaca_path.stat().st_mode & 0o777 == 0o600
+    assert crypto_path.stat().st_mode & 0o777 == 0o600

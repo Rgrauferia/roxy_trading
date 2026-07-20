@@ -12,6 +12,7 @@ except Exception:  # optional persistence
     storage = None
 from logging_config import get_logger
 from notifier import notify_if_changed
+from durable_storage import atomic_write_csv, atomic_write_text
 
 logger = get_logger("roxy")
 # ===============================
@@ -68,7 +69,7 @@ def export_csv(df, name):
         return None
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     path = OUTPUT_DIR_P / f"{name}_{ts}.csv"
-    df.to_csv(path, index=False)
+    atomic_write_csv(df, path)
     return str(path)
 
 
@@ -79,7 +80,7 @@ def md5_text(s: str) -> str:
 def write_if_changed(path: Path, text: str):
     old = path.read_text() if path.exists() else ""
     if text != old:
-        path.write_text(text)
+        atomic_write_text(text, path)
 
 
 def write_alerts_if_changed(lines):

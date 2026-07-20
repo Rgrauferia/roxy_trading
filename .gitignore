@@ -8,7 +8,10 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.cache/
 .venv/
+.venv39/
+.venv312/
 
 # Runtime secrets and process files
 .env.local
@@ -32,10 +35,29 @@ data/video_ingest_staging/
 # Local runtime databases/state
 db/
 data/*.json
+data/*.lock
 data/*.bak.*
+data/roxy_documents/
 *.db
 *.sqlite
 *.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Generated knowledge corpora and autonomous-run evidence. Keep the source
+# catalog, ingestion code and curated playbooks; rebuild downloads/indexes on
+# the target instead of versioning thousands of generated or third-party files.
+knowledge/logs/*
+!knowledge/logs/.gitkeep
+knowledge/processed/*
+!knowledge/processed/.gitkeep
+knowledge/inbox/documentos-publicos/*
+!knowledge/inbox/documentos-publicos/.gitkeep
+knowledge/inbox/economia/fred-*.md
+knowledge/sources/autonomous-update-status.json
+knowledge/sources/public-downloads-log.json
 
 # Local archives/backups
 _backup/

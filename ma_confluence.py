@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
+from durable_storage import atomic_write_text
 from trade_plan import build_trade_plan
+from roxy_time import utc_now_naive_iso
 
 
 ENTRY_SETUPS = {"TREND_CONTINUATION", "PULLBACK", "EARLY_UPTREND"}
@@ -309,7 +310,7 @@ def build_confluence(
 def build_confluence_summary(df: pd.DataFrame, limit: int = 10) -> dict[str, Any]:
     if df.empty:
         return {
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": utc_now_naive_iso(),
             "rows": 0,
             "signal_counts": {},
             "buy_count": 0,
@@ -321,7 +322,7 @@ def build_confluence_summary(df: pd.DataFrame, limit: int = 10) -> dict[str, Any
     buy = df[df["signal"].eq("BUY")].copy()
     watch = df[df["signal"].eq("WATCH")].copy()
     return {
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": utc_now_naive_iso(),
         "rows": int(len(df)),
         "signal_counts": {str(key): int(value) for key, value in df["signal"].value_counts().items()},
         "buy_count": int(len(buy)),
@@ -398,9 +399,7 @@ def write_confluence_report(
 ) -> dict[str, Any]:
     summary = build_confluence_summary(df, limit=limit)
     report = render_confluence_report(summary, scan_path=scan_path)
-    Path(report_path).parent.mkdir(parents=True, exist_ok=True)
-    Path(report_path).write_text(report, encoding="utf-8")
+    atomic_write_text(report, report_path)
     if json_path:
-        Path(json_path).parent.mkdir(parents=True, exist_ok=True)
-        Path(json_path).write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
+        atomic_write_text(json.dumps(summary, indent=2, default=str), json_path)
     return summary

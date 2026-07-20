@@ -17,6 +17,13 @@ if str(BASE_DIR) not in sys.path:
 
 import notifier
 from roxy_paths import alerts_dir, output_dir
+from roxy_paths import data_dir
+from roxy_trader.opportunity_sync import (
+    opportunity_source_contract,
+    sync_brief_opportunities,
+    write_opportunity_sync_report,
+)
+from roxy_trader.watchlists import WatchlistStore
 from roxy_ai import (
     apply_global_alert_context,
     build_brief,
@@ -91,13 +98,28 @@ def main() -> None:
     brief["market_session"] = market_session_status()
     brief["macro_calendar"] = macro_calendar_status()
     brief = apply_global_alert_context(brief)
+    realtime_health = brief.get("realtime_health") if isinstance(brief.get("realtime_health"), dict) else {}
+    brief["opportunities"] = [
+        opportunity_source_contract(row, realtime_health)
+        for row in brief.get("opportunities", [])
+        if isinstance(row, dict)
+    ]
     write_brief(brief)
+    opportunity_sync = sync_brief_opportunities(
+        brief,
+        store=WatchlistStore(data_dir() / "roxy_watchlists.json"),
+    )
+    write_opportunity_sync_report(ALERTS_DIR / "opportunity_sync.json", opportunity_sync)
 
     lines = build_notification_lines(brief)
     if args.notify and lines:
         notifier.notify_if_changed(lines)
 
     print(f"Roxy AI alerts: {brief.get('alert_count')} | watch: {brief.get('watch_count')}")
+    print(
+        "Opportunity sync: "
+        f"{opportunity_sync.get('status')} | users {len(opportunity_sync.get('users') or {})}"
+    )
     print(f"Brief: {ALERTS_DIR / 'roxy_ai_brief.txt'}")
 
 

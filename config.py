@@ -60,11 +60,6 @@ ALERTS_DIR = os.getenv("ROXY_ALERTS_DIR", "alerts")
 TOP_PICKS_FILE = f"{ALERTS_DIR}/top_picks.txt"
 LATEST_ALERT_FILE = f"{ALERTS_DIR}/latest_alert.txt"
 
-# ===============================
-# AI / Grok model toggles
-# ===============================
-# If set to '1' or 'true' (case-insensitive), enable Grok Code Fast 1 features
-ENABLE_GROK_CODE_FAST = os.getenv("ENABLE_GROK_CODE_FAST", os.getenv("GROK_CODE_FAST", "0")).lower() in ("1", "true", "yes")
 # Admin token for sensitive controls (start/stop snapshot). Set to a secure value in production.
 ADMIN_TOKEN = os.getenv("ROXY_ADMIN_TOKEN")
 

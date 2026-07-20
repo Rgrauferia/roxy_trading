@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from pathlib import Path
 from typing import Any, Optional
@@ -34,9 +35,10 @@ def _safe_float(value: Any) -> float | None:
     if value is None:
         return None
     try:
-        return float(value)
+        number = float(value)
     except (TypeError, ValueError):
         return None
+    return number if math.isfinite(number) else None
 
 
 def _pct(value: Any) -> str:
@@ -50,7 +52,9 @@ def _price(value: Any) -> str:
     number = _safe_float(value)
     if number is None:
         return "-"
-    return f"{number:.2f}"
+    absolute = abs(number)
+    precision = 2 if absolute >= 100 else 4 if absolute >= 1 else 6 if absolute >= 0.01 else 8
+    return f"{number:.{precision}f}"
 
 
 def speakable_timeframe(value: str, language: str = "es") -> str:
@@ -108,6 +112,7 @@ def _latest_opportunity(symbol: str | None = None) -> dict[str, Any]:
         for row in rows:
             if str(row.get("symbol") or "").upper() == target:
                 return row
+        return {"symbol": target, "opportunity_unavailable": True}
     return rows[0] if rows else {}
 
 
@@ -115,17 +120,46 @@ def _summarize_opportunity(row: dict[str, Any]) -> str:
     if not row:
         return "Ahora mismo Roxy no tiene una oportunidad clara en el brief."
     symbol = str(row.get("symbol") or "-").upper()
+    if row.get("opportunity_unavailable"):
+        return (
+            f"{symbol} no aparece como oportunidad en el brief fresco actual. "
+            "No voy a sustituirlo por otro activo ni inventar niveles; abre su grafica o espera el siguiente scan."
+        )
     action = str(row.get("ai_action") or row.get("signal") or "WATCH")
     family = str(row.get("strategy_family") or "-")
     decision = str(row.get("trade_decision") or "-")
+    market = str(row.get("market") or "-")
+    timeframe = str(row.get("timeframe") or row.get("entry_tf") or "-")
     entry = _price(row.get("entry"))
     stop = _price(row.get("stop"))
     risk = _pct(row.get("risk_pct"))
-    target = _pct(row.get("recommended_target_pct"))
-    explanation = str(row.get("explanation") or row.get("memory_note") or "")
+    target_price = next(
+        (
+            value
+            for value in (
+                row.get("recommended_target_price"),
+                row.get("target_price"),
+                row.get("target_2pct_price"),
+            )
+            if _safe_float(value) is not None
+        ),
+        None,
+    )
+    target = _price(target_price) if target_price is not None else _pct(row.get("recommended_target_pct"))
+    source = str(row.get("data_source") or row.get("chart_source_label") or "-")
+    gate = str(row.get("alert_gate") or row.get("data_gate") or row.get("chart_data_gate") or "-")
+    explanation = str(
+        row.get("explanation")
+        or row.get("reason")
+        or row.get("reasons")
+        or row.get("memory_note")
+        or row.get("alert_primary_blocker")
+        or ""
+    )
     return (
-        f"{symbol}: estado {action}, estrategia {family}, decision {decision}. "
-        f"Entrada {entry}, stop {stop}, riesgo {risk}, objetivo {target}. {explanation}"
+        f"{symbol}: mercado {market}, temporalidad {timeframe}, estado {action}, estrategia {family}, "
+        f"decision {decision}. Entrada {entry}, stop {stop}, riesgo {risk}, objetivo {target}. "
+        f"Fuente {source}, gate {gate}. {explanation}"
     ).strip()
 
 
@@ -184,11 +218,34 @@ def _summarize_research_queue() -> str:
 
 def _extract_symbol(query: str) -> str | None:
     words = [word.strip(".,:;!?()[]{}").upper() for word in query.split()]
-    aliases = {"APPLE": "AAPL", "APOL": "AAPL", "NVIDIA": "NVDA", "TESLA": "TSLA", "MICROSOFT": "MSFT"}
+    aliases = {
+        "APPLE": "AAPL",
+        "APOL": "AAPL",
+        "NVIDIA": "NVDA",
+        "TESLA": "TSLA",
+        "MICROSOFT": "MSFT",
+        "BITCOIN": "BTC/USD",
+        "BTC": "BTC/USD",
+        "ETHEREUM": "ETH/USD",
+        "ETH": "ETH/USD",
+        "SOLANA": "SOL/USD",
+        "SOL": "SOL/USD",
+    }
     for word in words:
         if word in aliases:
             return aliases[word]
-        if 1 <= len(word) <= 6 and word.isalpha() and word not in {"ROXY", "DIME", "QUE", "COMO", "POR"}:
+        pair = word.replace("-", "/").split("/")
+        if (
+            len(pair) == 2
+            and 1 <= len(pair[0]) <= 10
+            and pair[0].isalnum()
+            and pair[1] in {"USD", "USDT", "USDC", "BTC", "ETH", "EUR"}
+        ):
+            return f"{pair[0]}/{pair[1]}"
+        if 1 <= len(word) <= 6 and word.isalpha() and word not in {
+            "ROXY", "DIME", "QUE", "COMO", "POR", "ESTA", "ESTÁ", "ESTE", "ESA", "ESE", "ESTO",
+            "ACTIVO", "ASSET", "CHART",
+        }:
             return word
     return None
 

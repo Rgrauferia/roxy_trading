@@ -19,6 +19,7 @@ from ma_backtester import (
     evaluate_backtest_eligibility,
     run_ma_backtest,
 )
+from durable_storage import atomic_write_csv
 from moving_average_strategy import MovingAverageConfig
 
 
@@ -276,8 +277,8 @@ def main() -> None:
         summary_df = pd.DataFrame(summary_rows)
         if "eligibility_reasons" in summary_df.columns:
             summary_df["eligibility_reasons"] = summary_df["eligibility_reasons"].apply(compact_reasons)
-        summary_df.to_csv(summary_path, index=False)
-        pd.DataFrame(trade_rows).to_csv(trades_path, index=False)
+        atomic_write_csv(summary_df, summary_path)
+        atomic_write_csv(pd.DataFrame(trade_rows), trades_path)
         print(f"\nSaved summary: {summary_path}")
         print(f"Saved trades : {trades_path}")
 

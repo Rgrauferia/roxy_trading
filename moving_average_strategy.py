@@ -5,6 +5,8 @@ from typing import Iterable
 
 import pandas as pd
 
+from roxy_trader.indicators import IndicatorConfig, add_indicators as add_central_indicators
+
 
 MA_WINDOWS = (20, 40, 100, 200)
 
@@ -22,24 +24,18 @@ def add_moving_averages(df: pd.DataFrame, windows: Iterable[int] = MA_WINDOWS) -
     if "close" not in df.columns:
         raise ValueError("DataFrame must include a close column")
 
-    out = df.copy()
-    for window in windows:
-        out[f"sma{window}"] = out["close"].rolling(window=window, min_periods=window).mean()
-    if "volume" in out.columns:
-        out["volume_sma20"] = out["volume"].rolling(window=20, min_periods=20).mean()
-        out["relative_volume"] = out["volume"] / out["volume_sma20"]
-    if {"high", "low", "close"}.issubset(out.columns):
-        prev_close = out["close"].shift(1)
-        true_range = pd.concat(
-            [
-                out["high"] - out["low"],
-                (out["high"] - prev_close).abs(),
-                (out["low"] - prev_close).abs(),
-            ],
-            axis=1,
-        ).max(axis=1)
-        out["atr14"] = true_range.rolling(window=14, min_periods=14).mean()
-        out["atr_pct"] = out["atr14"] / out["close"]
+    requested_windows = tuple(dict.fromkeys(int(window) for window in windows))
+    enriched = add_central_indicators(
+        df,
+        config=IndicatorConfig(sma_windows=requested_windows, ema_windows=()),
+    )
+    derived = [f"sma{window}" for window in requested_windows]
+    if "volume" in df.columns:
+        derived += ["volume_sma20", "relative_volume"]
+    if {"high", "low", "close"}.issubset(df.columns):
+        derived += ["atr14", "atr_pct"]
+    out = enriched[[*df.columns, *[column for column in derived if column in enriched.columns and column not in df.columns]]]
+    out.attrs.update(enriched.attrs)
     return out
 
 
@@ -78,9 +74,17 @@ def analyze_moving_average_setup(
     df: pd.DataFrame,
     *,
     config: MovingAverageConfig | None = None,
+    precomputed_indicators: bool = False,
 ) -> dict:
     cfg = config or MovingAverageConfig()
-    data = add_moving_averages(df)
+    if precomputed_indicators:
+        required = {"close", *(f"sma{window}" for window in MA_WINDOWS)}
+        missing = required.difference(df.columns)
+        if missing:
+            raise ValueError(f"Missing precomputed columns: {', '.join(sorted(missing))}")
+        data = df
+    else:
+        data = add_moving_averages(df)
     complete = data.dropna(subset=[f"sma{window}" for window in MA_WINDOWS])
     if complete.empty:
         return {

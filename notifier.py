@@ -14,6 +14,8 @@ from typing import Iterable
 
 import requests
 
+from durable_storage import atomic_write_text, exclusive_file_lock
+
 ALERTS_DIR = Path("alerts")
 ALERTS_DIR.mkdir(exist_ok=True)
 
@@ -133,7 +135,7 @@ def _serialize_history_item(item: dict | str) -> str:
     return item
 
 
-def _append_history(
+def _append_history_unlocked(
     payload: dict,
     *,
     max_lines: int = NOTIFICATION_HISTORY_MAX_LINES,
@@ -168,7 +170,23 @@ def _append_history(
             kept.append(item)
             total_bytes += item_bytes
         lines = list(reversed(kept))
-    NOTIFICATION_HISTORY_FILE.write_text("\n".join(lines) + "\n")
+    atomic_write_text("\n".join(lines) + "\n", NOTIFICATION_HISTORY_FILE)
+
+
+def _append_history(
+    payload: dict,
+    *,
+    max_lines: int = NOTIFICATION_HISTORY_MAX_LINES,
+    max_bytes: int | None = NOTIFICATION_HISTORY_MAX_BYTES,
+    min_lines: int = NOTIFICATION_HISTORY_MIN_LINES,
+) -> None:
+    with exclusive_file_lock(NOTIFICATION_HISTORY_FILE):
+        _append_history_unlocked(
+            payload,
+            max_lines=max_lines,
+            max_bytes=max_bytes,
+            min_lines=min_lines,
+        )
 
 
 def _append_notification_result(result: dict) -> None:
@@ -189,8 +207,7 @@ def _read_cooldowns() -> dict:
 
 
 def _write_cooldowns(payload: dict) -> None:
-    NOTIFICATION_COOLDOWN_FILE.parent.mkdir(exist_ok=True)
-    NOTIFICATION_COOLDOWN_FILE.write_text(json.dumps(payload, indent=2, sort_keys=True))
+    atomic_write_text(json.dumps(payload, indent=2, sort_keys=True), NOTIFICATION_COOLDOWN_FILE)
 
 
 def notification_cooldown_key(alert: str) -> str:
@@ -200,7 +217,9 @@ def notification_cooldown_key(alert: str) -> str:
     return hashlib.sha256(str(alert or "").encode("utf-8")).hexdigest()[:16]
 
 
-def filter_alerts_by_cooldown(alerts: Iterable[str], *, cooldown_minutes: int | None = None) -> tuple[list[str], list[str]]:
+def _filter_alerts_by_cooldown_unlocked(
+    alerts: Iterable[str], *, cooldown_minutes: int | None = None
+) -> tuple[list[str], list[str]]:
     cooldown_minutes = ALERT_COOLDOWN_MINUTES if cooldown_minutes is None else int(cooldown_minutes)
     if cooldown_minutes <= 0:
         return list(alerts or []), []
@@ -234,6 +253,13 @@ def filter_alerts_by_cooldown(alerts: Iterable[str], *, cooldown_minutes: int | 
         cooldowns[key] = now.isoformat()
     _write_cooldowns(cooldowns)
     return sendable, skipped
+
+
+def filter_alerts_by_cooldown(
+    alerts: Iterable[str], *, cooldown_minutes: int | None = None
+) -> tuple[list[str], list[str]]:
+    with exclusive_file_lock(NOTIFICATION_COOLDOWN_FILE):
+        return _filter_alerts_by_cooldown_unlocked(alerts, cooldown_minutes=cooldown_minutes)
 
 
 def _read_notification_history_rows(limit: int = 50) -> tuple[list[dict], int]:

@@ -11,6 +11,8 @@ import sqlite3
 from datetime import datetime
 from fastapi import Request, HTTPException
 
+from roxy_time import utc_now_naive
+
 try:
     from tools import secrets_service
 except Exception:
@@ -54,7 +56,7 @@ def require_api_key(req: Request):
         if expires_at:
             try:
                 exp = datetime.fromisoformat(expires_at)
-                if exp < datetime.utcnow():
+                if exp < utc_now_naive():
                     raise HTTPException(status_code=403, detail="API key expired")
             except ValueError:
                 # not ISO format, ignore

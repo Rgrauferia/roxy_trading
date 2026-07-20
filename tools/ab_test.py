@@ -15,7 +15,8 @@ import hashlib
 import json
 import sqlite3
 import time
-from datetime import datetime
+
+from roxy_time import utc_now_naive_iso
 from typing import Dict, List, Optional, Tuple
 
 import storage
@@ -87,7 +88,7 @@ def ensure_tables(path: Optional[str] = None) -> None:
 
 
 def _now_iso() -> str:
-    return datetime.utcnow().isoformat()
+    return utc_now_naive_iso()
 
 
 def create_test(name: str, variants: Dict[str, float], description: Optional[str] = None, path: Optional[str] = None) -> int:

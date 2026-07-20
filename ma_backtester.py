@@ -9,6 +9,9 @@ import pandas as pd
 from moving_average_strategy import MovingAverageConfig, add_moving_averages, analyze_moving_average_setup
 
 
+BACKTEST_ENGINE_VERSION = "roxy-ma-backtest/2.2.0"
+
+
 @dataclass(frozen=True)
 class MovingAverageBacktestConfig:
     starting_capital: float = 10000.0
@@ -102,7 +105,26 @@ def _max_drawdown(values: list[float]) -> tuple[float, float]:
     return max_abs, max_pct
 
 
-def _sharpe_from_equity(values: list[float]) -> float:
+def _periods_per_year(*, market: str, timeframe: str) -> float:
+    normalized_market = str(market or "stock").strip().lower()
+    normalized_timeframe = str(timeframe or "1d").strip().lower()
+    daily_periods = 365.0 if normalized_market == "crypto" else 252.0
+    bars_per_day = {
+        "1m": 1440.0 if normalized_market == "crypto" else 390.0,
+        "5m": 288.0 if normalized_market == "crypto" else 78.0,
+        "15m": 96.0 if normalized_market == "crypto" else 26.0,
+        "20m": 72.0 if normalized_market == "crypto" else 19.5,
+        "30m": 48.0 if normalized_market == "crypto" else 13.0,
+        "1h": 24.0 if normalized_market == "crypto" else 6.5,
+        "2h": 12.0 if normalized_market == "crypto" else 3.25,
+        "4h": 6.0 if normalized_market == "crypto" else 1.625,
+        "1d": 1.0,
+        "1w": 1.0 / 5.0,
+    }.get(normalized_timeframe, 1.0)
+    return daily_periods * bars_per_day
+
+
+def _sharpe_from_equity(values: list[float], *, periods_per_year: float) -> float:
     if len(values) < 3:
         return 0.0
     returns = np.diff(np.array(values)) / np.array(values[:-1])
@@ -111,7 +133,20 @@ def _sharpe_from_equity(values: list[float]) -> float:
     std = float(returns.std(ddof=1))
     if std == 0:
         return 0.0
-    return float((returns.mean() / std) * np.sqrt(252))
+    return float((returns.mean() / std) * np.sqrt(max(1.0, periods_per_year)))
+
+
+def _sortino_from_equity(values: list[float], *, periods_per_year: float) -> float:
+    if len(values) < 3:
+        return 0.0
+    returns = np.diff(np.array(values)) / np.array(values[:-1])
+    downside = returns[returns < 0]
+    if returns.size < 2 or downside.size == 0:
+        return float("inf") if float(returns.mean()) > 0 else 0.0
+    downside_deviation = float(np.sqrt(np.mean(np.square(downside))))
+    if downside_deviation == 0:
+        return 0.0
+    return float((returns.mean() / downside_deviation) * np.sqrt(max(1.0, periods_per_year)))
 
 
 def _profit_factor(trades: list[dict[str, Any]]) -> float:
@@ -136,11 +171,19 @@ def run_ma_backtest(
     df: pd.DataFrame,
     *,
     symbol: str = "TEST",
+    market: str = "stock",
+    timeframe: str = "1d",
     ma_config: MovingAverageConfig | None = None,
     backtest_config: MovingAverageBacktestConfig | None = None,
 ) -> dict[str, Any]:
     strategy_cfg = ma_config or MovingAverageConfig()
     cfg = backtest_config or MovingAverageBacktestConfig()
+    if cfg.starting_capital <= 0:
+        raise ValueError("starting_capital must be positive")
+    if not 0 < cfg.position_size_pct <= 1:
+        raise ValueError("position_size_pct must be between 0 and 1")
+    if cfg.fee_pct < 0 or cfg.slippage_pct < 0:
+        raise ValueError("fee_pct and slippage_pct cannot be negative")
     raw = _normalize_ohlcv(df)
     data = add_moving_averages(raw)
     start_index = max(int(cfg.warmup), 200)
@@ -150,9 +193,13 @@ def run_ma_backtest(
     next_entry_allowed_index = start_index
     trades: list[dict[str, Any]] = []
     equity_curve: list[dict[str, Any]] = []
+    total_fees = 0.0
+    estimated_slippage_cost = 0.0
+    annualization_periods = _periods_per_year(market=market, timeframe=timeframe)
 
     if len(data) <= start_index:
         return {
+            "engine_version": BACKTEST_ENGINE_VERSION,
             "symbol": symbol,
             "trades": 0,
             "wins": 0,
@@ -174,15 +221,18 @@ def run_ma_backtest(
             "eligibility_reasons": ["insufficient_data"],
             "trades_detail": [],
             "equity_curve": [],
+            "annualization_periods": annualization_periods,
         }
 
     def close_position(index: int, row: pd.Series, exit_price: float, reason: str) -> None:
-        nonlocal cash, next_entry_allowed_index, position
+        nonlocal cash, next_entry_allowed_index, position, total_fees, estimated_slippage_cost
         if position is None:
             return
         exit_price_adj = exit_price * (1.0 - cfg.slippage_pct)
         exit_notional = position["qty"] * exit_price_adj
         exit_fee = exit_notional * cfg.fee_pct
+        total_fees += exit_fee
+        estimated_slippage_cost += max(0.0, position["qty"] * (exit_price - exit_price_adj))
         cash += exit_notional - exit_fee
         pnl = exit_notional - exit_fee - position["entry_notional"] - position["entry_fee"]
         return_pct = pnl / position["entry_notional"] if position["entry_notional"] else 0.0
@@ -210,16 +260,23 @@ def run_ma_backtest(
         row = data.iloc[index]
 
         if position is not None:
-            if pd.notna(row.get("sma40")) and pd.notna(row.get("sma100")):
-                trailing_anchor = min(float(row["sma40"]), float(row["sma100"]))
-                position["stop"] = max(position["stop"], trailing_anchor * (1.0 - strategy_cfg.stop_buffer_pct / 100.0))
-
+            # The stop active during this candle must be known before its
+            # OHLC values. Updating it with this candle's close/SMA and then
+            # testing this candle's low would introduce look-ahead bias.
             if float(row["low"]) <= position["stop"]:
-                close_position(index, row, float(position["stop"]), "STOP")
+                gap_through_stop = float(row["open"]) < float(position["stop"])
+                stop_fill = float(row["open"]) if gap_through_stop else float(position["stop"])
+                close_position(index, row, stop_fill, "STOP_GAP" if gap_through_stop else "STOP")
             else:
                 reason = _exit_reason(row)
                 if reason:
                     close_position(index, row, float(row["close"]), reason)
+            if position is not None and pd.notna(row.get("sma40")) and pd.notna(row.get("sma100")):
+                trailing_anchor = min(float(row["sma40"]), float(row["sma100"]))
+                position["stop"] = max(
+                    position["stop"],
+                    trailing_anchor * (1.0 - strategy_cfg.stop_buffer_pct / 100.0),
+                )
 
         mark_value = cash
         if position is not None:
@@ -229,7 +286,11 @@ def run_ma_backtest(
         if position is not None or index >= len(data) - 1 or index < next_entry_allowed_index:
             continue
 
-        signal = analyze_moving_average_setup(raw.iloc[: index + 1], config=strategy_cfg)
+        signal = analyze_moving_average_setup(
+            data.iloc[: index + 1],
+            config=strategy_cfg,
+            precomputed_indicators=True,
+        )
         if signal.get("signal") != "BUY":
             continue
 
@@ -250,6 +311,8 @@ def run_ma_backtest(
             stop = float(signal["sma100"]) * (1.0 - strategy_cfg.stop_buffer_pct / 100.0)
 
         cash -= entry_notional + entry_fee
+        total_fees += entry_fee
+        estimated_slippage_cost += max(0.0, qty * (entry_price - entry_raw))
         position = {
             "entry_index": index + 1,
             "entry_ts": _row_ts(next_row, index + 1),
@@ -282,6 +345,7 @@ def run_ma_backtest(
     buy_hold_account_return_pct = buy_hold_return_pct * cfg.position_size_pct
 
     metrics = {
+        "engine_version": BACKTEST_ENGINE_VERSION,
         "symbol": symbol,
         "trades": len(trades),
         "wins": len(wins),
@@ -295,13 +359,23 @@ def run_ma_backtest(
         "max_drawdown_abs": max_dd_abs,
         "max_drawdown_pct": max_dd_pct,
         "profit_factor": _profit_factor(trades),
-        "sharpe": _sharpe_from_equity(equity_values),
+        "sharpe": _sharpe_from_equity(equity_values, periods_per_year=annualization_periods),
+        "sortino": _sortino_from_equity(equity_values, periods_per_year=annualization_periods),
+        "annualization_periods": annualization_periods,
+        "annualized_return_pct": (
+            (final_equity / cfg.starting_capital) ** (annualization_periods / max(1, len(equity_values) - 1)) - 1.0
+            if cfg.starting_capital > 0 and final_equity > 0 and len(equity_values) > 1
+            else 0.0
+        ),
         "buy_hold_return_pct": buy_hold_return_pct,
         "buy_hold_account_return_pct": buy_hold_account_return_pct,
         "buy_hold_edge_pct": (
             (final_equity / cfg.starting_capital - 1.0) - buy_hold_account_return_pct if cfg.starting_capital else 0.0
         ),
         "exposure_pct": exposed_bars / total_bars,
+        "total_fees": total_fees,
+        "estimated_slippage_cost": estimated_slippage_cost,
+        "total_transaction_cost": total_fees + estimated_slippage_cost,
         "trades_detail": trades,
         "equity_curve": equity_curve,
     }

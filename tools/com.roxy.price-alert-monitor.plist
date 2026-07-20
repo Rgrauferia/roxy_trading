@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.roxy.price-alert-monitor</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-lc</string>
+    <string>cd /Users/robertograu/roxy_trading &amp;&amp; set -a &amp;&amp; if [ -f '/Users/robertograu/Library/Application Support/RoxyTrading/.env' ]; then source '/Users/robertograu/Library/Application Support/RoxyTrading/.env'; fi &amp;&amp; set +a &amp;&amp; export PYTHONPATH=/Users/robertograu/roxy_trading:/Users/robertograu/roxy_trading/.venv/lib/python3.9/site-packages${PYTHONPATH:+:$PYTHONPATH} &amp;&amp; exec /Users/robertograu/roxy_trading/.venv/bin/python /Users/robertograu/roxy_trading/tools/price_alert_monitor.py --no-fail</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>60</integer>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>WorkingDirectory</key>
+  <string>/Users/robertograu/roxy_trading</string>
+  <key>StandardOutPath</key>
+  <string>/Users/robertograu/Library/Logs/RoxyTrading/price_alert_monitor.out</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/robertograu/Library/Logs/RoxyTrading/price_alert_monitor.err</string>
+</dict>
+</plist>

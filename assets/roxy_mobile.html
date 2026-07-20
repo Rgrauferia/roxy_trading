@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0d1b2d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Roxy Operaciones</title>
+  <link rel="icon" href="/assets/roxy_avatar_icon.jpg" />
+  <link rel="manifest" href="/roxy-mobile-manifest.json" />
+  <link rel="apple-touch-icon" href="/assets/roxy_avatar_icon.jpg" />
+  <link rel="stylesheet" href="/assets/roxy_mobile.css" />
+  <script src="/assets/roxy_mobile.js" defer></script>
+</head>
+<body>
+  <header>
+    <div><strong>ROXY</strong><span>Operaciones</span></div>
+    <span id="connectionBadge" class="badge neutral">Sin conectar</span>
+  </header>
+  <main>
+    <section class="panel settings">
+      <h1>Estado compartido</h1>
+      <p id="transportDetail">El token se conserva solo en esta pestaña. Nunca se almacena en caché.</p>
+      <div class="form-grid">
+        <label>Usuario permitido<input id="userId" value="local_user" autocomplete="username" /></label>
+        <label>Bearer token<input id="apiToken" type="password" autocomplete="off" placeholder="Requerido fuera de loopback" /></label>
+      </div>
+      <div class="actions"><button id="connectButton" class="primary">Conectar y actualizar</button><button id="refreshButton">Actualizar</button></div>
+      <p id="statusMessage" role="status" aria-live="polite"></p>
+    </section>
+
+    <nav aria-label="Módulos móviles">
+      <button data-tab="summary" class="active">Resumen</button>
+      <button data-tab="tasks">Tareas</button>
+      <button data-tab="shopping">Compras</button>
+      <button data-tab="watchlists">Watchlists</button>
+    </nav>
+
+    <section id="tab-summary" class="panel tab active">
+      <h2>Sincronización</h2>
+      <div id="summaryGrid" class="metrics"></div>
+      <div class="form-grid compact">
+        <label>Símbolo visible<input id="visibleSymbol" maxlength="32" placeholder="AAPL o BTC/USD" /></label>
+        <label>Temporalidad<select id="visibleTimeframe"><option>1m</option><option>5m</option><option selected>15m</option><option>20m</option><option>30m</option><option>1h</option><option>2h</option><option>4h</option><option>1D</option><option>1W</option></select></label>
+      </div>
+      <button id="saveUiButton">Guardar contexto visible</button>
+    </section>
+
+    <section id="tab-tasks" class="panel tab">
+      <h2>Tareas</h2>
+      <div class="inline-form"><input id="newTask" maxlength="180" placeholder="Nueva tarea real" /><button id="addTaskButton" class="primary">Agregar</button></div>
+      <div id="taskList" class="records"></div>
+    </section>
+
+    <section id="tab-shopping" class="panel tab">
+      <h2>Compras</h2>
+      <div class="inline-form"><input id="newShopping" maxlength="120" placeholder="Artículo" /><input id="newQuantity" type="number" min="0.01" max="100000" step="0.01" value="1" /><button id="addShoppingButton" class="primary">Agregar</button></div>
+      <div id="shoppingList" class="records"></div>
+    </section>
+
+    <section id="tab-watchlists" class="panel tab">
+      <h2>Watchlists</h2>
+      <div class="inline-form"><input id="newSymbol" maxlength="32" placeholder="Símbolo" /><select id="newMarket"><option value="stock">Acción</option><option value="crypto">Cripto</option></select><button id="addSymbolButton" class="primary">Agregar</button></div>
+      <div id="watchlistList" class="records"></div>
+    </section>
+  </main>
+  <footer><a href="/roxy-live">Voz</a><a href="/health">Salud API</a><span>Sin datos de demostración</span></footer>
+</body>
+</html>

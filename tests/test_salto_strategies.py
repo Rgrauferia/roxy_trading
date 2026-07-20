@@ -17,7 +17,7 @@ def _sample_chart() -> pd.DataFrame:
         close = 50.0 + idx * 0.22
         rows.append(
             {
-                "ts": pd.Timestamp("2026-01-01") + pd.Timedelta(hours=idx),
+                "ts": pd.Timestamp("2026-01-01") + pd.to_timedelta(idx, unit="h"),
                 "open": close - 0.05,
                 "high": close + 0.15,
                 "low": close - 0.20,

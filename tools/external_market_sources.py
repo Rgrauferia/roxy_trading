@@ -19,6 +19,8 @@ from datetime import datetime, timezone
 from io import StringIO
 from typing import Any, Callable, Iterable, Optional
 
+from roxy_trader.api_budget import observe_api_call
+
 
 DEFAULT_CRYPTOCOM_BASE_URL = "https://api.crypto.com/exchange/v1"
 DEFAULT_CRYPTOCOM_INSTRUMENTS = ("BTC_USDT", "ETH_USDT", "SOL_USDT", "XRP_USDT", "BNB_USDT", "DOGE_USDT")
@@ -875,7 +877,8 @@ class FinvizEliteClient:
     def fetch_screener(self, *, limit: int = 50) -> list[NormalizedMarketRow]:
         if not self.export_url:
             return []
-        csv_text = self.transport(self.export_url, None, {"User-Agent": "RoxyTrading/1.0"})
+        with observe_api_call("finviz", "screener_export"):
+            csv_text = self.transport(self.export_url, None, {"User-Agent": "RoxyTrading/1.0"})
         reader = csv.DictReader(StringIO(csv_text))
         rows: list[NormalizedMarketRow] = []
         for raw in reader:
@@ -980,22 +983,27 @@ class CryptoComClient:
             return base
         return f"{base}/{method}"
 
-    def _post(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+    def _request(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         request_id = int(time.time() * 1000) % 1_000_000_000
         payload = {"id": request_id, "method": method, "params": params or {}, "nonce": int(time.time() * 1000)}
-        body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-        response = self.transport(
-            self._endpoint_url(method),
-            body,
-            {"Content-Type": "application/json", "User-Agent": "RoxyTrading/1.0"},
-        )
+        is_public = method.startswith("public/")
+        endpoint_url = self._endpoint_url(method)
+        if is_public and params:
+            endpoint_url = f"{endpoint_url}?{urllib.parse.urlencode(params)}"
+        body = None if is_public else json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        with observe_api_call("cryptocom", method):
+            response = self.transport(
+                endpoint_url,
+                body,
+                {"Content-Type": "application/json", "User-Agent": "RoxyTrading/1.0"},
+            )
         parsed = json.loads(response)
         if not isinstance(parsed, dict):
             raise ValueError("Crypto.com response is not a JSON object")
         return parsed
 
     def get_ticker(self, instrument_name: str) -> NormalizedMarketRow | None:
-        response = self._post("public/get-ticker", {"instrument_name": instrument_name})
+        response = self._request("public/get-tickers", {"instrument_name": instrument_name})
         result = response.get("result") if isinstance(response, dict) else {}
         data = result.get("data") if isinstance(result, dict) else None
         item = data[0] if isinstance(data, list) and data else (data if isinstance(data, dict) else {})

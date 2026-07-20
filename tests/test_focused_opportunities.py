@@ -1,5 +1,6 @@
 import ast
 import inspect
+import math
 from pathlib import Path
 
 import pandas as pd
@@ -91,6 +92,8 @@ from streamlit_app import (
     market_discovery_sector_tiles,
     market_discovery_asset_detail,
     market_news_card_rows,
+    roxy_actions_finviz_news_article,
+    selected_asset_news_items,
     market_realtime_route_summary,
     market_event_guard,
     merged_alert_quality_summary,
@@ -139,6 +142,7 @@ from streamlit_app import (
     opportunity_data_confidence_status,
     options_liquidity_chart_frame,
     options_quality_chart_frame,
+    options_symbol_filter_contract,
     paper_journal_operational_risk_state,
     opportunity_data_source_bucket,
     opportunity_data_source_status,
@@ -205,7 +209,10 @@ def function_source_from_file(path, function_name: str) -> str:
     tree = ast.parse(source)
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == function_name:
-            return ast.get_source_segment(source, node) or ""
+            function_source = ast.get_source_segment(source, node) or ""
+            if path == "streamlit_app.py" and function_name == "render_browser_live_candle_chart_panel":
+                function_source += "\n" + Path("assets/runtime/roxy_live_candle_chart.html").read_text()
+            return function_source
     return ""
 
 
@@ -3468,6 +3475,44 @@ def test_prepare_options_view_adds_human_percent_columns():
     assert options.loc[0, "breakeven_pct_display"] == 3.4000000000000004
 
 
+def test_options_symbol_filter_defaults_to_the_shared_stock_underlying():
+    contract = options_symbol_filter_contract(
+        pd.DataFrame([{"symbol": "MSFT"}, {"symbol": "AAPL"}]),
+        "AAPL",
+        "stock",
+    )
+
+    assert contract["applicable"] is True
+    assert contract["default"] == "AAPL"
+    assert contract["has_contracts"] is True
+    assert contract["values"] == ["Todos", "AAPL", "MSFT"]
+
+
+def test_options_symbol_filter_keeps_missing_underlying_instead_of_substituting_another():
+    contract = options_symbol_filter_contract(
+        pd.DataFrame([{"symbol": "MSFT"}]),
+        "NVDA",
+        "stock",
+    )
+
+    assert contract["default"] == "NVDA"
+    assert contract["has_contracts"] is False
+    assert contract["values"] == ["Todos", "NVDA", "MSFT"]
+
+
+def test_options_symbol_filter_blocks_equity_contracts_for_crypto_context():
+    contract = options_symbol_filter_contract(
+        pd.DataFrame([{"symbol": "AAPL"}]),
+        "BTC/USD",
+        "crypto",
+    )
+
+    assert contract["applicable"] is False
+    assert contract["default"] == "Todos"
+    assert contract["values"] == ["Todos"]
+    assert contract["has_contracts"] is False
+
+
 def test_options_quality_chart_frame_filters_non_numeric_or_zero_liquidity_rows():
     view = pd.DataFrame(
         [
@@ -3509,6 +3554,56 @@ def test_options_liquidity_chart_frame_skips_empty_value_bars():
 
     assert filtered["contractSymbol"].tolist() == ["AAPL260619C00210000", "AAPL260619C00210000"]
     assert filtered["value"].tolist() == [12.0, 30.0]
+
+
+def test_options_chart_frames_reject_infinite_domains():
+    view = pd.DataFrame(
+        [
+            {
+                "contractSymbol": "AAPL_INF",
+                "spread_pct_display": float("inf"),
+                "option_score": 80,
+                "liquidity": float("inf"),
+                "volume": float("inf"),
+                "openInterest": 10,
+            }
+        ]
+    )
+
+    assert options_quality_chart_frame(view).empty
+    liquidity = options_liquidity_chart_frame(view)
+    assert liquidity["value"].tolist() == [10.0]
+    assert all(math.isfinite(value) for value in liquidity["value"])
+
+
+def test_roxy_and_portfolio_chart_frames_drop_nonfinite_or_unparseable_rows():
+    lab = streamlit_app.roxy_lab_evidence_chart_frame(
+        pd.DataFrame(
+            [
+                {"strategy_family": "Bad", "lab_state": "Watch", "evidence_score": float("inf")},
+                {"strategy_family": "Good", "lab_state": "Promote", "evidence_score": 0.75},
+            ]
+        )
+    )
+    readiness = streamlit_app.roxy_learning_readiness_chart_frame(
+        pd.DataFrame(
+            [
+                {"generated_at": "invalid", "top_readiness": "pending"},
+                {"generated_at": "2026-07-19T09:00:00Z", "top_readiness": "82"},
+            ]
+        )
+    )
+    milestones = streamlit_app.portfolio_milestone_chart_frame(
+        pd.DataFrame([{"stage": 1, "target": float("inf")}, {"stage": 2, "target": 1000}])
+    )
+
+    assert lab[["strategy_family", "evidence_score_pct"]].to_dict("records") == [
+        {"strategy_family": "Good", "evidence_score_pct": 75.0}
+    ]
+    assert readiness["top_readiness"].tolist() == [82.0]
+    assert readiness["generated_epoch_ms"].map(math.isfinite).all()
+    assert readiness["generated_label"].tolist() == ["2026-07-19 09:00 UTC"]
+    assert milestones.to_dict("records") == [{"stage": 2, "target": 1000.0}]
 
 
 def test_annotate_options_risk_budget_marks_contracts_that_do_not_fit_1r():
@@ -3995,6 +4090,7 @@ def test_live_chart_panel_keeps_bollinger_cloud_brand_and_nonblocking_tools():
     assert "smartAutoScaleRange" in panel_source
     assert "autoscaleInfoProvider" in panel_source
     assert "if (!indicatorSettings.Scale) return original()" in panel_source
+    assert "Number.isFinite(number) && number > 0" in panel_source
     assert '[class*="tv-"]' not in panel_source
     assert '[class*="tradingview"]' not in panel_source
     assert "@media (max-width: 760px)" not in panel_source
@@ -4058,6 +4154,16 @@ def test_live_chart_panel_keeps_bollinger_cloud_brand_and_nonblocking_tools():
     assert '"data-measure-summary": "true"' in panel_source
     assert "`${summary.pctText} | ${summary.priceText} | ${summary.barsText}`" in panel_source
     assert 'shape.tool === "measure"' in panel_source
+    assert 'data-tool="triangle"' in panel_source
+    assert 'title="Triangulo simetrico"' in panel_source
+    assert 'data-tool="wedgeUp"' in panel_source
+    assert 'title="Wedge ascendente"' in panel_source
+    assert 'data-tool="wedgeDown"' in panel_source
+    assert 'title="Wedge descendente"' in panel_source
+    assert 'shape.tool === "triangle" || shape.tool === "wedgeUp" || shape.tool === "wedgeDown"' in panel_source
+    assert 'labelText = "Wedge ascendente"' in panel_source
+    assert 'labelText = "Wedge descendente"' in panel_source
+    assert 'makeNode("polygon"' in panel_source
     assert "Precio ${summary.priceText}" in panel_source
     assert "data-selection-handle" in panel_source
     assert "Editando punto" in panel_source
@@ -4086,6 +4192,11 @@ def test_live_chart_panel_keeps_bollinger_cloud_brand_and_nonblocking_tools():
     assert 'data-action="undo"' in panel_source
     assert 'data-action="redo"' in panel_source
     assert 'data-action="lock"' in panel_source
+    assert 'data-action="sync"' in panel_source
+    assert "syncChartStateToServer" in panel_source
+    assert 'url.searchParams.set("chart_sync", encoded)' in panel_source
+    assert "payload.persistedChartState" in panel_source
+    assert 'root.dataset.syncState = localValue === null && serverValue.length ? "restored" : "local"' in panel_source
     assert 'data-action="clear-plan"' in panel_source
     assert 'data-action="fit"' in panel_source
     assert 'data-action="fullscreen"' in panel_source
@@ -4108,7 +4219,7 @@ def test_live_chart_panel_keeps_bollinger_cloud_brand_and_nonblocking_tools():
     assert "shapeFromPriceLevel" in panel_source
     assert "planShapes" in panel_source
     assert "updatePlanBadge" in panel_source
-    assert "if (indicatorSettings.Plan)" in panel_source
+    assert "if (indicatorSettings.Plan && strategyAnnotations.length === 0)" in panel_source
     assert "referencePrice" in panel_source
     assert "marcado @ ${fmt(price)}" in panel_source
     assert "Plan Roxy aplicado" in panel_source
@@ -4138,6 +4249,8 @@ def test_trade_desk_timeframe_pair_prioritizes_trend_and_entry_views():
     assert trade_desk_timeframe_pair("5m") == ("15m", "5m")
     assert trade_desk_timeframe_pair("1h") == ("1h", "15m")
     assert trade_desk_timeframe_pair("15m") == ("1h", "15m")
+    assert trade_desk_timeframe_pair("20m") == ("1h", "20m")
+    assert trade_desk_timeframe_pair("30m") == ("1h", "30m")
     assert trade_desk_timeframe_pair("4h") == ("4h", "1h")
     assert trade_desk_timeframe_pair("1d") == ("1d", "1h")
     assert trade_desk_timeframe_pair("1w") == ("1w", "1d")
@@ -4179,6 +4292,24 @@ def test_live_candle_chart_payload_keeps_deep_history_and_crypto_stream_route():
     assert payload["lines"]["SMA20"]
     assert payload["lines"]["BB Upper"]
     assert payload["lines"]["BB Lower"]
+    assert payload["lines"]["EMA50"]
+    assert payload["lines"]["EMA200"]
+    assert payload["lines"]["VWAP"]
+    assert payload["oscillators"]["RSI14"]
+    assert payload["oscillators"]["MACD"]
+    assert payload["oscillators"]["MACD Signal"]
+    assert payload["oscillators"]["MACD Hist"]
+    assert payload["metrics"]["rsi14"] is not None
+    assert payload["metrics"]["macdHist"] is not None
+    assert payload["metrics"]["atr14"] is not None
+    assert payload["metrics"]["atrPct"] is not None
+    assert payload["metrics"]["vwap"] is not None
+    assert payload["metrics"]["relativeVolume"] is not None
+    assert payload["metrics"]["engine"] == "roxy-indicators/1.1.0"
+    assert payload["defaultIndicators"]["EMA50"] is False
+    assert payload["defaultIndicators"]["EMA200"] is False
+    assert payload["defaultIndicators"]["RSI"] is True
+    assert payload["defaultIndicators"]["MACD"] is True
     assert payload["defaultIndicators"]["Labels"] is False
     assert payload["defaultIndicators"]["Plan"] is False
     assert payload["defaultIndicators"]["Info"] is False
@@ -4194,6 +4325,135 @@ def test_live_candle_chart_payload_keeps_deep_history_and_crypto_stream_route():
 def test_binanceus_symbol_candidates_prefers_usd_and_usdt_pairs():
     assert binanceus_symbol_candidates("BTC/USD")[:2] == ["BTCUSD", "BTCUSDT"]
     assert binanceus_symbol_candidates("ETH/USDT")[:2] == ["ETHUSDT", "ETHUSD"]
+
+
+def test_crypto_stream_preserves_requested_twenty_and_thirty_minute_timeframes():
+    frame = pd.DataFrame(
+        {
+            "ts": pd.date_range("2026-07-18", periods=24, freq="20min", tz="UTC"),
+            "open": [100.0 + index for index in range(24)],
+            "high": [101.0 + index for index in range(24)],
+            "low": [99.0 + index for index in range(24)],
+            "close": [100.5 + index for index in range(24)],
+            "volume": [1000.0] * 24,
+        }
+    )
+
+    twenty = live_candle_chart_payload(
+        frame,
+        symbol="BTC/USD",
+        market="crypto",
+        timeframe="20m",
+    )
+    thirty = live_candle_chart_payload(
+        frame,
+        symbol="BTC/USD",
+        market="crypto",
+        timeframe="30m",
+    )
+
+    assert twenty["timeframe"] == "20m"
+    assert twenty["stream"]["interval"] == "5m"
+    assert twenty["stream"]["intervalSeconds"] == 1200
+    assert twenty["stream"]["sourceIntervalSeconds"] == 300
+    assert twenty["stream"]["aggregationSeconds"] == 1200
+    assert twenty["stream"]["derivedFrom"] == "5m"
+    assert twenty["stream"]["mode"] == "WEBSOCKET_DERIVED_MARKET_STREAM"
+    assert "5m→20m" in twenty["stream"]["provider"]
+
+    assert thirty["timeframe"] == "30m"
+    assert thirty["stream"]["interval"] == "30m"
+    assert thirty["stream"]["intervalSeconds"] == 1800
+    assert thirty["stream"]["sourceIntervalSeconds"] == 1800
+    assert thirty["stream"]["aggregationSeconds"] is None
+    assert thirty["stream"]["derivedFrom"] is None
+    assert thirty["stream"]["mode"] == "WEBSOCKET_MARKET_STREAM"
+
+
+def test_live_chart_runtime_aggregates_derived_source_klines_without_overcounting_updates():
+    runtime = Path("assets/runtime/roxy_live_candle_chart.html").read_text(encoding="utf-8")
+
+    assert "const sourceCandleByTime = new Map()" in runtime
+    assert "function mergeStreamKline(incoming)" in runtime
+    assert "sourceCandleByTime.set(sourceTime" in runtime
+    assert "Math.floor(sourceTime / streamAggregationSeconds)" in runtime
+    assert "bucketRows.reduce" in runtime
+    assert "klines.forEach((item) => mergeStreamKline" in runtime
+    assert "mergeStreamKline({\n          time: Math.floor(Number(kline.t)" in runtime
+
+
+def test_live_chart_runtime_exposes_all_timeframes_and_long_ema_controls():
+    runtime = Path("assets/runtime/roxy_live_candle_chart.html").read_text(encoding="utf-8")
+
+    for timeframe in streamlit_app.TIMEFRAME_OPTIONS:
+        assert f'data-fasttf="{timeframe}"' in runtime
+    assert 'data-indicator="EMA50"' in runtime
+    assert 'data-indicator="EMA200"' in runtime
+    assert 'data-indicator="VWAP"' in runtime
+    assert 'EMA50: true, EMA200: true' in runtime
+    assert '["EMA200", "SMA200"].includes(name)' in runtime
+    assert "const technicalMetrics = payload.metrics || {}" in runtime
+    assert "RSI ${metricText(technicalMetrics.rsi14, 1)}" in runtime
+    assert "ATR ${metricText(technicalMetrics.atr14, 2)}" in runtime
+
+
+def test_live_chart_runtime_renders_synchronized_rsi_and_macd_panels():
+    runtime = Path("assets/runtime/roxy_live_candle_chart.html").read_text(encoding="utf-8")
+
+    assert 'id="rlc-rsi-chart"' in runtime
+    assert 'id="rlc-macd-chart"' in runtime
+    assert 'data-indicator="RSI"' in runtime
+    assert 'data-indicator="MACD"' in runtime
+    assert "rsiSeries.createPriceLine({ price: 70" in runtime
+    assert "rsiSeries.createPriceLine({ price: 30" in runtime
+    assert "macdChart.addHistogramSeries" in runtime
+    assert "macdSignalSeries.setData(macdSignalData)" in runtime
+    assert "chart.timeScale().subscribeVisibleTimeRangeChange" in runtime
+    assert "miniChart.timeScale().setVisibleRange(range)" in runtime
+
+
+def test_home_chart_exposes_every_supported_timeframe_and_truthful_indicator_labels(monkeypatch):
+    frame = pd.DataFrame(
+        {
+            "ts": pd.date_range("2026-07-18", periods=48, freq="20min", tz="UTC"),
+            "open": [100.0 + index * 0.1 for index in range(48)],
+            "high": [100.5 + index * 0.1 for index in range(48)],
+            "low": [99.5 + index * 0.1 for index in range(48)],
+            "close": [100.2 + index * 0.1 for index in range(48)],
+            "volume": [1000.0 + index for index in range(48)],
+        }
+    )
+    monkeypatch.setattr(streamlit_app, "cached_trade_desk_chart_df", lambda *_args, **_kwargs: frame)
+
+    markup = streamlit_app.roxy_home_live_chart_html(
+        symbol="BTC/USD",
+        market="crypto",
+        timeframe="20m",
+    )
+
+    for timeframe in streamlit_app.TIMEFRAME_OPTIONS:
+        assert f"tf={timeframe}" in markup
+    assert 'class="active" href="?view=Dashboard&amp;symbol=BTC%2FUSD&amp;market=crypto&amp;tf=20m"' in markup
+    assert "<i>EMA 9</i><i>SMA 20</i><i>SMA 40</i>" in markup
+    assert "<i>EMA 20</i>" not in markup
+    assert "<i>EMA 40</i>" not in markup
+
+    monkeypatch.setattr(streamlit_app, "cached_trade_desk_chart_df", lambda *_args, **_kwargs: pd.DataFrame())
+    loading_markup = streamlit_app.roxy_home_live_chart_html(
+        symbol="BTC/USD",
+        market="crypto",
+        timeframe="4h",
+    )
+    for timeframe in streamlit_app.TIMEFRAME_OPTIONS:
+        assert f"tf={timeframe}" in loading_markup
+    assert "<i>EMA 9</i><i>SMA 20</i><i>SMA 40</i>" in loading_markup
+
+
+def test_home_chart_timeframe_controls_wrap_instead_of_hiding_supported_periods():
+    css = Path("assets/styles/roxy_base.css.html").read_text(encoding="utf-8")
+
+    assert ".roxy-ref-timeframes{display:flex;flex-wrap:wrap" in css
+    assert "overflow:visible" in css
 
 
 def test_command_center_target_prices_uses_ladder_before_fallbacks():
@@ -4524,6 +4784,74 @@ def test_market_news_cards_expose_openable_sources_for_news_tickers_and_ipos():
     assert rows[0]["url"] == "https://example.com/coin-news"
     assert rows[1]["url"].endswith("/SPCX/")
     assert rows[2]["url"] == "https://finance.yahoo.com/quote/ABCD/news"
+
+
+def test_selected_asset_news_items_matches_ticker_company_and_crypto_name_without_substrings():
+    items = [
+        {"title": "Apple expands services", "summary": "AAPL reports next week", "link": "https://example.com/aapl"},
+        {"title": "Bitcoin holds support", "summary": "Crypto markets stabilize", "link": "https://example.com/btc"},
+        {"title": "Capital spending rises", "summary": "A broad market report", "link": "https://example.com/capital"},
+    ]
+
+    apple = selected_asset_news_items(items, "AAPL", "stock", asset_name="Apple Inc.")
+    bitcoin = selected_asset_news_items(items, "BTC/USD", "crypto", asset_name="Bitcoin")
+
+    assert [row["link"] for row in apple] == ["https://example.com/aapl"]
+    assert [row["link"] for row in bitcoin] == ["https://example.com/btc"]
+
+
+def test_selected_asset_news_items_requires_dollar_prefix_for_ambiguous_short_stock_ticker():
+    items = [
+        {"title": "A new market cycle", "summary": "General context", "link": "https://example.com/general"},
+        {"title": "$A breaks resistance", "summary": "Agilent update", "link": "https://example.com/agilent"},
+    ]
+
+    rows = selected_asset_news_items(items, "A", "stock", asset_name="")
+
+    assert [row["link"] for row in rows] == ["https://example.com/agilent"]
+
+
+def test_selected_asset_news_items_deduplicates_links_and_obeys_limit():
+    items = [
+        {"title": "ETH update one", "summary": "", "link": "https://example.com/eth"},
+        {"title": "Ethereum update duplicate", "summary": "", "link": "https://example.com/eth"},
+        {"title": "Ethereum update two", "summary": "", "link": "https://example.com/eth-2"},
+    ]
+
+    rows = selected_asset_news_items(items, "ETH/USD", "crypto", limit=1)
+
+    assert len(rows) == 1
+    assert rows[0]["asset_match"].upper() in {"ETH", "ETHEREUM"}
+
+
+def test_actions_finviz_news_never_fills_selected_asset_panel_with_other_symbols(monkeypatch):
+    monkeypatch.setattr(
+        "streamlit_app.load_finviz_news_feed_rows",
+        lambda limit=24: [
+            {"symbol": "TSLA", "headline": "Tesla update", "detail": "Other asset", "source": "Finviz"},
+        ],
+    )
+
+    article = roxy_actions_finviz_news_article("AAPL")
+
+    assert "Sin coincidencias para AAPL" in article
+    assert "no completa este espacio con titulares de otros activos" in article
+    assert "Tesla update" not in article
+
+
+def test_actions_finviz_news_uses_only_exact_selected_symbol(monkeypatch):
+    monkeypatch.setattr(
+        "streamlit_app.load_finviz_news_feed_rows",
+        lambda limit=24: [
+            {"symbol": "AAPL", "headline": "Apple update", "detail": "Selected asset", "source": "Finviz"},
+            {"symbol": "TSLA", "headline": "Tesla update", "detail": "Other asset", "source": "Finviz"},
+        ],
+    )
+
+    article = roxy_actions_finviz_news_article("AAPL")
+
+    assert "Apple update" in article
+    assert "Tesla update" not in article
 
 
 def test_market_news_cards_do_not_emit_indented_markdown_code_blocks():
@@ -5255,6 +5583,9 @@ def test_render_live_ops_strip_outputs_escaped_compact_strip():
 def test_live_refresh_keeps_command_center_inputs_outside_fragment():
     source = function_source_from_file("streamlit_app.py", "show_focused_roxy_app")
 
+    assert source.find('if selected_page in {"Diagnostico", "Noticias", "Calendario"}') < source.find(
+        "context = load_focused_live_context()"
+    )
     controls_index = source.index("render_command_center_controls")
     fragment_index = source.index("@st.fragment")
     assert controls_index < fragment_index
@@ -5534,14 +5865,16 @@ def test_dashboard_ui_state_round_trips_to_disk(tmp_path):
         timeframe="4h",
         page="Opciones",
         path=path,
+        user_id="trader@example.com",
     )
 
-    assert streamlit_app.read_dashboard_ui_state(path) == {
+    assert streamlit_app.read_dashboard_ui_state(path, user_id="trader@example.com") == {
         "symbol": "BTC/USD",
         "market": "crypto",
         "timeframe": "4h",
         "page": "Opciones",
     }
+    assert streamlit_app.read_dashboard_ui_state(path, user_id="other@example.com") == {}
 
 
 def test_study_center_uses_persistent_navigation_for_live_refresh():
@@ -9959,9 +10292,19 @@ def test_build_chart_level_plan_includes_trade_levels():
     assert by_level["Entrada"]["precio"] == 100
     assert by_level["Stop"]["precio"] == 97
     assert by_level["Objetivo 2%"]["precio"] == 102
-    assert round(by_level["Objetivo 10%"]["precio"], 2) == 110
+    assert by_level["Objetivo 5%"]["precio"] == 105
+    assert "Objetivo 10%" not in by_level
+    assert by_level["Objetivo 2%"]["uso"] == "Nivel explícito · brief.target_ladder"
     assert by_level["Soporte"]["precio"] == 96
     assert by_level["SMA200"]["precio"] == 90
+
+
+def test_build_chart_level_plan_does_not_invent_targets_from_entry():
+    chart_df = pd.DataFrame([{"ts": pd.Timestamp("2026-06-07 10:00"), "close": 100}])
+
+    rows = build_chart_level_plan(chart_df, {"entry": 100, "stop": 97}, {}, {})
+
+    assert not any(str(row.get("nivel", "")).startswith("Objetivo") for row in rows)
 
 
 def test_build_visual_zone_rows_marks_entry_stop_and_range_zones():
@@ -10200,7 +10543,18 @@ def test_build_professional_price_chart_includes_hover_cursor():
         ]
     )
 
-    chart = build_professional_price_chart(chart_df, {"entry": 103, "stop": 99}, {}, {})
+    chart = build_professional_price_chart(
+        chart_df,
+        {"entry": 103, "stop": 99},
+        {},
+        {
+            "target_ladder": [
+                {"target": "2%", "target_price": 105.06},
+                {"target": "5%", "target_price": 108.15},
+                {"target": "10%", "target_price": 113.30},
+            ]
+        },
+    )
     spec = chart.to_dict()
 
     assert "params" in spec
@@ -10236,6 +10590,46 @@ def test_build_professional_price_chart_includes_hover_cursor():
             level_labels.extend(row.get("label_text", "") for row in spec.get("datasets", {}).get(data_name, []))
     assert any("Objetivo 5%" in label for label in level_labels)
     assert any("Objetivo 10%" in label for label in level_labels)
+
+
+def test_build_professional_price_chart_does_not_infer_unprovided_targets():
+    chart_df = pd.DataFrame(
+        [
+            {"ts": "2026-01-01", "open": 100, "high": 102, "low": 98, "close": 101, "volume": 1000},
+            {"ts": "2026-01-02", "open": 101, "high": 104, "low": 100, "close": 103, "volume": 1200},
+        ]
+    )
+
+    spec_text = str(build_professional_price_chart(chart_df, {"entry": 103, "stop": 99}, {}, {}).to_dict())
+
+    assert "Objetivo 2%" not in spec_text
+    assert "Objetivo 5%" not in spec_text
+    assert "Objetivo 10%" not in spec_text
+    assert "Target +" not in spec_text
+
+
+def test_build_professional_price_chart_normalizes_short_stop_and_target_distances():
+    chart_df = pd.DataFrame(
+        [
+            {"ts": "2026-01-01", "open": 101, "high": 102, "low": 99, "close": 100, "volume": 1000},
+            {"ts": "2026-01-02", "open": 99, "high": 100, "low": 97, "close": 98, "volume": 1400},
+        ]
+    )
+    spec_text = str(
+        build_professional_price_chart(
+            chart_df,
+            {"entry": 100, "stop": 105, "direction": "SHORT"},
+            {},
+            {"target_ladder": [{"target": "1", "target_price": 95}]},
+        ).to_dict()
+    )
+
+    assert "SHORT" in spec_text
+    assert "Stop -7.1%" in spec_text
+    assert "Target +3.1%" in spec_text
+    assert "R/R 1.00" in spec_text
+    assert "'low': 95.0" in spec_text
+    assert "'high': 100.0" in spec_text
 
 
 def test_build_professional_price_chart_can_disable_hover_for_live_refresh():

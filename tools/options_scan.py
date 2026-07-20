@@ -6,6 +6,8 @@ import json
 import sys
 import warnings
 from datetime import datetime
+
+from roxy_time import utc_now_naive_iso
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +21,7 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 from options_strategy import OptionSelectionConfig, fetch_scored_option_candidates
+from durable_storage import atomic_write_csv, atomic_write_text
 from roxy_paths import alerts_dir, output_dir
 
 
@@ -105,7 +108,7 @@ def build_options_candidates(df: pd.DataFrame, config: OptionSelectionConfig, *,
 def build_summary(df: pd.DataFrame, source: str | Path | None, limit: int) -> dict[str, Any]:
     if df.empty:
         return {
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": utc_now_naive_iso(),
             "source": str(source) if source else None,
             "rows": 0,
             "candidate_count": 0,
@@ -115,7 +118,7 @@ def build_summary(df: pd.DataFrame, source: str | Path | None, limit: int) -> di
     candidates = df[df["option_decision"].eq("OPTION_CANDIDATE")].copy()
     best = candidates.sort_values(["option_score", "spread_pct"], ascending=[False, True]).head(limit)
     return {
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": utc_now_naive_iso(),
         "source": str(source) if source else None,
         "rows": int(len(df)),
         "candidate_count": int(len(candidates)),
@@ -219,15 +222,13 @@ def main() -> None:
         output_dir.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         out_path = output_dir / f"options_candidates_{ts}.csv"
-        candidates.to_csv(out_path, index=False)
+        atomic_write_csv(candidates, out_path)
         print(f"\nSaved: {out_path}")
 
     summary = build_summary(candidates, path, args.limit)
     report = render_report(summary)
-    Path(args.report_path).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.report_path).write_text(report, encoding="utf-8")
-    Path(args.json_path).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.json_path).write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
+    atomic_write_text(report, args.report_path)
+    atomic_write_text(json.dumps(summary, indent=2, default=str), args.json_path)
     print(f"Wrote report: {args.report_path}")
     print(f"Wrote summary: {args.json_path}")
     print(f"Option candidates: {summary['candidate_count']}")

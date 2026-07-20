@@ -1,15 +1,8 @@
-"""OAuth scaffold for future integration.
+"""GitHub OAuth helpers used by Roxy's secrets service and callback server.
 
-This module provides placeholder functions and notes for integrating
-OAuth-based authentication (GitHub, Google) into the Streamlit app.
-
-To implement:
-- Choose a provider (GitHub, Google) and create OAuth client credentials.
-- Store client id/secret in env vars (e.g. `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`).
-- Use a library such as `authlib` or `requests-oauthlib` to perform the flow.
-- Exchange code for token on a secure server endpoint; store user info in session.
-
-Current functions are stubs returning `None` or raising `NotImplementedError`.
+The authorization-code and device flows are implemented with bounded HTTP
+requests. Credentials remain environment-backed and callers own encrypted
+session/token persistence. Unsupported providers fail explicitly.
 """
 from __future__ import annotations
 
@@ -40,12 +33,11 @@ def start_oauth_flow(provider: str, redirect_uri: str, state: str | None = None)
     cfg = get_provider_config(provider)
     if not cfg.get("client_id"):
         raise RuntimeError("OAuth client_id not configured in env vars")
-    # Build the authorize URL with state (left as an exercise)
     # Request user and org read scopes so we can check org membership for admin auto-promotion
     scope = "read:user read:org"
     from urllib.parse import urlencode
     # include a state parameter to mitigate CSRF in redirect flows
-    state = os.environ.get("OAUTH_TEST_STATE") or ""
+    state = str(state or os.environ.get("OAUTH_TEST_STATE") or "")
     params = {"client_id": cfg['client_id'], "redirect_uri": redirect_uri, "scope": scope}
     if state:
         params["state"] = state

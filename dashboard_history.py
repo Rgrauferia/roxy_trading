@@ -5,6 +5,9 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from pandas.errors import EmptyDataError
+
+from durable_storage import atomic_write_csv, exclusive_file_lock
 
 
 HISTORY_IDENTITY_FIELDS = ("market", "symbol", "tf", "signal", "score")
@@ -84,23 +87,30 @@ def append_scan_history(
     record = dict(row)
     record["ts"] = normalize_history_timestamp(record.get("ts"))
     incoming = pd.DataFrame([record])
-    existing = pd.DataFrame()
-    if path.exists():
-        try:
-            existing = pd.read_csv(path)
-        except Exception:
-            existing = pd.DataFrame()
-    if not existing.empty and scan_history_duplicate(
-        existing.iloc[-1],
-        record,
-        min_interval_seconds=min_interval_seconds,
-    ):
-        return {"appended": False, "reason": "duplicate_recent", "rows": len(existing)}
-    combined = incoming if existing.empty else pd.concat([existing, incoming], ignore_index=True)
-    if max_rows > 0 and len(combined) > int(max_rows):
-        combined = combined.tail(int(max_rows))
-    combined.to_csv(path, index=False)
-    return {"appended": True, "reason": "new_sample", "rows": len(combined)}
+    with exclusive_file_lock(path):
+        existing = pd.DataFrame()
+        if path.exists():
+            try:
+                existing = pd.read_csv(path)
+            except EmptyDataError:
+                existing = pd.DataFrame()
+            except Exception as exc:
+                return {
+                    "appended": False,
+                    "reason": f"unreadable:{type(exc).__name__}",
+                    "rows": None,
+                }
+        if not existing.empty and scan_history_duplicate(
+            existing.iloc[-1],
+            record,
+            min_interval_seconds=min_interval_seconds,
+        ):
+            return {"appended": False, "reason": "duplicate_recent", "rows": len(existing)}
+        combined = incoming if existing.empty else pd.concat([existing, incoming], ignore_index=True)
+        if max_rows > 0 and len(combined) > int(max_rows):
+            combined = combined.tail(int(max_rows))
+        atomic_write_csv(combined, path)
+        return {"appended": True, "reason": "new_sample", "rows": len(combined)}
 
 
 def compact_scan_history(
@@ -112,38 +122,39 @@ def compact_scan_history(
     path = Path(scan_db)
     if not path.exists():
         return {"compacted": False, "reason": "missing", "before_rows": 0, "after_rows": 0, "removed_rows": 0}
-    try:
-        df = pd.read_csv(path)
-    except Exception as exc:
+    with exclusive_file_lock(path):
+        try:
+            df = pd.read_csv(path)
+        except Exception as exc:
+            return {
+                "compacted": False,
+                "reason": f"unreadable:{type(exc).__name__}",
+                "before_rows": 0,
+                "after_rows": 0,
+                "removed_rows": 0,
+            }
+        if df.empty:
+            return {"compacted": False, "reason": "empty", "before_rows": 0, "after_rows": 0, "removed_rows": 0}
+        kept: list[dict[str, Any]] = []
+        for _, row in df.iterrows():
+            current = row.to_dict()
+            previous = kept[-1] if kept else None
+            if previous is not None and scan_history_duplicate(
+                previous,
+                current,
+                min_interval_seconds=min_interval_seconds,
+            ):
+                continue
+            kept.append(current)
+        compacted = pd.DataFrame(kept)
+        if max_rows > 0 and len(compacted) > int(max_rows):
+            compacted = compacted.tail(int(max_rows))
+        atomic_write_csv(compacted, path)
+        removed = len(df) - len(compacted)
         return {
-            "compacted": False,
-            "reason": f"unreadable:{type(exc).__name__}",
-            "before_rows": 0,
-            "after_rows": 0,
-            "removed_rows": 0,
+            "compacted": removed > 0,
+            "reason": "deduped" if removed > 0 else "unchanged",
+            "before_rows": len(df),
+            "after_rows": len(compacted),
+            "removed_rows": removed,
         }
-    if df.empty:
-        return {"compacted": False, "reason": "empty", "before_rows": 0, "after_rows": 0, "removed_rows": 0}
-    kept: list[dict[str, Any]] = []
-    for _, row in df.iterrows():
-        current = row.to_dict()
-        previous = kept[-1] if kept else None
-        if previous is not None and scan_history_duplicate(
-            previous,
-            current,
-            min_interval_seconds=min_interval_seconds,
-        ):
-            continue
-        kept.append(current)
-    compacted = pd.DataFrame(kept)
-    if max_rows > 0 and len(compacted) > int(max_rows):
-        compacted = compacted.tail(int(max_rows))
-    compacted.to_csv(path, index=False)
-    removed = len(df) - len(compacted)
-    return {
-        "compacted": removed > 0,
-        "reason": "deduped" if removed > 0 else "unchanged",
-        "before_rows": len(df),
-        "after_rows": len(compacted),
-        "removed_rows": removed,
-    }

@@ -7,11 +7,18 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+BASE_DIR = Path(__file__).resolve().parents[1]
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+from durable_storage import atomic_write_text
 
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".mkv", ".webm"}
@@ -187,7 +194,20 @@ def slugify(value: str, fallback: str = "video") -> str:
 
 
 def run_command(args: list[str], *, timeout: int | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout, check=False)
+    try:
+        return subprocess.run(
+            args,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
+        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+        timeout_text = stderr or f"timeout after {timeout}s"
+        return subprocess.CompletedProcess(args, 124, stdout, timeout_text)
 
 
 def command_exists(name: str) -> bool:
@@ -205,11 +225,13 @@ def default_sources() -> list[Path]:
         home / "Desktop",
         home / "Documents" / "Roxy trading",
         home / "Documents" / "Roxy Trading",
-        Path("/Volumes/RoxyData/Roxy trading"),
-        Path("/Volumes/RoxyData/RoxyTrading"),
-        Path("/Volumes/RoxyData/Videos"),
-        Path("/Volumes/RoxyData/Downloads"),
     ]
+
+
+def configured_archive_dir(env: dict[str, str] | None = None) -> Path | None:
+    values = env if env is not None else os.environ
+    raw = str(values.get("ROXY_VIDEO_ARCHIVE_DIR") or "").strip()
+    return Path(raw).expanduser() if raw else None
 
 
 def source_allows_all(source: Path) -> bool:
@@ -387,7 +409,7 @@ def ffprobe_metadata(path: Path) -> dict[str, Any]:
     }
 
 
-def extract_audio(path: Path, audio_dir: Path, slug: str, *, force: bool = False) -> Path | None:
+def extract_audio(path: Path, audio_dir: Path, slug: str, *, force: bool = False, timeout: int = 900) -> Path | None:
     audio_dir.mkdir(parents=True, exist_ok=True)
     audio_path = audio_dir / f"{slug}.m4a"
     if audio_path.exists() and not force:
@@ -408,13 +430,20 @@ def extract_audio(path: Path, audio_dir: Path, slug: str, *, force: bool = False
         "32k",
         str(audio_path),
     ]
-    proc = run_command(cmd, timeout=None)
+    proc = run_command(cmd, timeout=timeout)
     if proc.returncode != 0:
         return None
     return audio_path
 
 
-def extract_frames(path: Path, frames_dir: Path, *, every_seconds: int = 300, force: bool = False) -> list[Path]:
+def extract_frames(
+    path: Path,
+    frames_dir: Path,
+    *,
+    every_seconds: int = 300,
+    force: bool = False,
+    timeout: int = 900,
+) -> list[Path]:
     frames_dir.mkdir(parents=True, exist_ok=True)
     existing = sorted(frames_dir.glob("frame_*.jpg"))
     if existing and not force:
@@ -423,21 +452,41 @@ def extract_frames(path: Path, frames_dir: Path, *, every_seconds: int = 300, fo
         return []
     for old in existing:
         old.unlink(missing_ok=True)
-    output_pattern = frames_dir / "frame_%03d.jpg"
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-i",
-        str(path),
-        "-vf",
-        f"fps=1/{max(60, every_seconds)},scale=1366:-1",
-        "-q:v",
-        "3",
-        str(output_pattern),
-    ]
-    proc = run_command(cmd, timeout=None)
-    if proc.returncode != 0:
-        return []
+    metadata = ffprobe_metadata(path)
+    duration_seconds = float(metadata.get("duration_seconds") or 0.0)
+    if duration_seconds <= 0:
+        sample_points = [30.0]
+    else:
+        interval = max(180, int(every_seconds))
+        sample_count = max(1, min(12, int(duration_seconds // interval) + 1))
+        if sample_count == 1:
+            sample_points = [max(5.0, min(duration_seconds * 0.5, duration_seconds - 1))]
+        else:
+            sample_points = [
+                max(5.0, min(duration_seconds - 1, (duration_seconds * (idx + 1)) / (sample_count + 1)))
+                for idx in range(sample_count)
+            ]
+    per_frame_timeout = max(15, min(int(timeout), 45))
+    for idx, timestamp in enumerate(sample_points, start=1):
+        target = frames_dir / f"frame_{idx:03d}.jpg"
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-ss",
+            f"{timestamp:.2f}",
+            "-i",
+            str(path),
+            "-frames:v",
+            "1",
+            "-vf",
+            "scale=1366:-1",
+            "-q:v",
+            "3",
+            str(target),
+        ]
+        proc = run_command(cmd, timeout=per_frame_timeout)
+        if proc.returncode != 0:
+            target.unlink(missing_ok=True)
     return sorted(frames_dir.glob("frame_*.jpg"))
 
 
@@ -800,8 +849,7 @@ def load_json(path: Path, default: Any) -> Any:
 
 
 def write_json(path: Path, payload: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+    atomic_write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", path)
 
 
 def manifest_collection(item: dict[str, Any]) -> str:
@@ -907,14 +955,25 @@ def process_video(
     transcribe: bool = False,
     model_size: str = "tiny",
     language: str = "es",
+    ffmpeg_timeout: int = 900,
 ) -> dict[str, Any]:
     identity = file_identity(path)
     target_dir = output_dir_for(path, identity, out_root)
     target_dir.mkdir(parents=True, exist_ok=True)
     slug = slugify(path.stem)
     metadata = ffprobe_metadata(path)
-    audio_path = extract_audio(path, target_dir / "audio", slug, force=force)
-    frames = extract_frames(path, target_dir / "frames", every_seconds=every_seconds, force=force)
+    audio_path = (
+        extract_audio(path, target_dir / "audio", slug, force=force, timeout=ffmpeg_timeout)
+        if transcribe
+        else None
+    )
+    frames = extract_frames(
+        path,
+        target_dir / "frames",
+        every_seconds=every_seconds,
+        force=force,
+        timeout=ffmpeg_timeout,
+    )
     ocr_files = ocr_frames(frames, target_dir / "ocr", force=force)
     ocr_text = read_ocr_text(ocr_files)
     if ocr_text:
@@ -1246,6 +1305,317 @@ Esta revision corre cuando no hay videos/materiales nuevos. Sirve para convertir
     return md_path
 
 
+def _source_label(item: dict[str, Any]) -> str:
+    source = str(item.get("source_path") or item.get("source") or "")
+    return Path(source).name if source else "fuente desconocida"
+
+
+def _topic_source_map(index: dict[str, Any]) -> dict[str, list[str]]:
+    mapped: dict[str, list[str]] = {}
+    for item in [*(index.get("videos") or []), *(index.get("materials") or [])]:
+        label = _source_label(item)
+        for topic in item.get("topics") or []:
+            key = str(topic)
+            mapped.setdefault(key, [])
+            if label not in mapped[key]:
+                mapped[key].append(label)
+    return mapped
+
+
+def _sources_for(topic_sources: dict[str, list[str]], topics: list[str], limit: int = 8) -> list[str]:
+    sources: list[str] = []
+    for topic in topics:
+        for source in topic_sources.get(topic, []):
+            if source not in sources:
+                sources.append(source)
+            if len(sources) >= limit:
+                return sources
+    return sources
+
+
+def build_teacher_playbook(index: dict[str, Any]) -> dict[str, Any]:
+    """Build a source-backed operating playbook from studied videos/materials.
+
+    The playbook is intentionally deterministic. It does not invent a winning
+    system; it converts the teacher material already indexed into rules Roxy can
+    use as filters, explanations, and pre-trade checks.
+    """
+    videos = list(index.get("videos") or [])
+    materials = list(index.get("materials") or [])
+    topic_counts: dict[str, int] = {}
+    for item in [*videos, *materials]:
+        for topic in item.get("topics") or []:
+            topic_counts[str(topic)] = topic_counts.get(str(topic), 0) + 1
+    topic_sources = _topic_source_map(index)
+
+    def has(*topics: str) -> bool:
+        return any(topic_counts.get(topic, 0) > 0 for topic in topics)
+
+    strategy_rules: list[dict[str, Any]] = []
+    if has("Medias moviles", "SMA200 filtro mayor"):
+        strategy_rules.append(
+            {
+                "id": "ma_alignment",
+                "name": "Alineacion de medias antes de entrar",
+                "use_when": "Acciones o crypto con estrategia de tendencia/pullback.",
+                "rule": "Roxy debe validar EMA/SMA rapidas, medias 20/40 y filtro mayor antes de marcar una entrada.",
+                "entry_requirements": [
+                    "15m define la zona precisa de entrada.",
+                    "1h confirma direccion y evita entrar contra la tendencia mayor.",
+                    "La media mayor no debe bloquear el recorrido al target.",
+                    "La entrada debe tener stop, target y R/R minimo visibles.",
+                ],
+                "reject_if": [
+                    "Precio extendido lejos de medias.",
+                    "Medias cruzadas sin direccion limpia.",
+                    "Target queda demasiado cerca para compensar el riesgo.",
+                ],
+                "source_topics": ["Medias moviles", "SMA200 filtro mayor"],
+                "sources": _sources_for(topic_sources, ["Medias moviles", "SMA200 filtro mayor"]),
+            }
+        )
+    if has("Canales y tendencias", "Canal alcista"):
+        strategy_rules.append(
+            {
+                "id": "channel_context",
+                "name": "Canal y tendencia mandan el contexto",
+                "use_when": "Roxy detecta movimiento dentro de canal o posible ruptura.",
+                "rule": "Separar operativa dentro del canal de operativa por ruptura; no mezclar ambas senales.",
+                "entry_requirements": [
+                    "Marcar piso, techo y mitad del canal.",
+                    "Confirmar si el precio esta en zona de rebote o zona de rechazo.",
+                    "La recomendacion debe decir si busca rebote, continuacion o breakout.",
+                ],
+                "reject_if": [
+                    "Entrada en medio del canal sin ventaja clara.",
+                    "Ruptura sin volumen o sin cierre de confirmacion.",
+                ],
+                "source_topics": ["Canales y tendencias", "Canal alcista"],
+                "sources": _sources_for(topic_sources, ["Canales y tendencias", "Canal alcista"]),
+            }
+        )
+    if has("Timing de entrada"):
+        strategy_rules.append(
+            {
+                "id": "timing_precision",
+                "name": "Timing: precision sin perder contexto",
+                "use_when": "Roxy baja a 1m/5m para ejecutar.",
+                "rule": "1m y 5m solo afinan la entrada; la direccion debe venir de 15m/1h.",
+                "entry_requirements": [
+                    "Confirmar gatillo corto despues de definir plan 15m/1h.",
+                    "No recalcular una compra por cada tick; esperar cierre o micro-confirmacion.",
+                    "Mostrar tiempo restante si la estrategia depende de ciclo de 20m/2h/daily.",
+                ],
+                "reject_if": [
+                    "Solo existe senal de 1m sin apoyo de timeframes mayores.",
+                    "El spread o la volatilidad anula la precision del gatillo.",
+                ],
+                "source_topics": ["Timing de entrada"],
+                "sources": _sources_for(topic_sources, ["Timing de entrada"]),
+            }
+        )
+    if has("Lateralidades"):
+        strategy_rules.append(
+            {
+                "id": "range_playbook",
+                "name": "Lateralidad: piso, techo y paciencia",
+                "use_when": "Mercado sin tendencia clara.",
+                "rule": "Roxy debe tratar lateralidades como operativas de rango, no como tendencia.",
+                "entry_requirements": [
+                    "Identificar soporte y resistencia del rango.",
+                    "Comprar cerca del piso solo con rechazo confirmado.",
+                    "Evitar perseguir velas hacia el centro del rango.",
+                ],
+                "reject_if": [
+                    "Precio esta en mitad del rango.",
+                    "No hay volumen/confirmacion en la zona extrema.",
+                ],
+                "source_topics": ["Lateralidades"],
+                "sources": _sources_for(topic_sources, ["Lateralidades"]),
+            }
+        )
+    if has("Opciones"):
+        strategy_rules.append(
+            {
+                "id": "options_contract_quality",
+                "name": "Opciones: contrato primero, hype nunca",
+                "use_when": "Roxy traduzca una tesis a calls/puts.",
+                "rule": "Una oportunidad de opciones debe validar delta, DTE, spread, volumen, OI y break-even.",
+                "entry_requirements": [
+                    "Mostrar contrato candidato, expiracion y break-even.",
+                    "Evitar spreads amplios y contratos sin liquidez.",
+                    "Comparar riesgo/recompensa contra operar la accion.",
+                ],
+                "reject_if": [
+                    "Contrato iliquido.",
+                    "Break-even demasiado lejos para el movimiento esperado.",
+                    "Evento binario no contemplado.",
+                ],
+                "source_topics": ["Opciones"],
+                "sources": _sources_for(topic_sources, ["Opciones"]),
+            }
+        )
+    if has("VWAP y liquidez", "Microestructura de mercado"):
+        strategy_rules.append(
+            {
+                "id": "liquidity_filter",
+                "name": "Liquidez/VWAP como filtro de calidad",
+                "use_when": "Entrada intradia o confirmacion de fuerza.",
+                "rule": "Roxy debe considerar VWAP, volumen, spread y liquidez antes de subir la confianza.",
+                "entry_requirements": [
+                    "Precio respetando VWAP o recuperandolo con volumen.",
+                    "Spread razonable para el activo.",
+                    "Volumen relativo suficiente para confirmar movimiento.",
+                ],
+                "reject_if": [
+                    "Movimiento con volumen seco.",
+                    "Spread o slippage alto.",
+                    "Falso breakout sin participacion.",
+                ],
+                "source_topics": ["VWAP y liquidez", "Microestructura de mercado"],
+                "sources": _sources_for(topic_sources, ["VWAP y liquidez", "Microestructura de mercado"]),
+            }
+        )
+    if has("Macro/FED"):
+        strategy_rules.append(
+            {
+                "id": "macro_event_guard",
+                "name": "Filtro macro y eventos",
+                "use_when": "Hay CPI, PCE, FOMC, NFP, earnings o evento de tasas cerca.",
+                "rule": "Roxy debe reducir agresividad o pedir confirmacion extra antes de operar cerca de eventos.",
+                "entry_requirements": [
+                    "Mostrar evento relevante y hora.",
+                    "Evitar senales debiles antes de noticias de alto impacto.",
+                    "Usar menor tamano o esperar ruptura confirmada despues del evento.",
+                ],
+                "reject_if": [
+                    "Evento de alto impacto esta encima y la senal no esta completa.",
+                    "Volatilidad esperada invalida el stop.",
+                ],
+                "source_topics": ["Macro/FED"],
+                "sources": _sources_for(topic_sources, ["Macro/FED"]),
+            }
+        )
+
+    anti_patterns = [
+        {
+            "id": "chasing",
+            "name": "Perseguir precio",
+            "avoid": "No entrar despues de una vela extendida si la zona de entrada ya paso.",
+            "roxy_response": "Marcar ESPERAR CONFIRMACION y recalcular nueva zona.",
+            "sources": _sources_for(topic_sources, ["Timing de entrada", "Canales y tendencias", "Medias moviles"], 5),
+        },
+        {
+            "id": "single_timeframe",
+            "name": "Operar con un solo timeframe",
+            "avoid": "No aprobar oportunidad si solo 1m/5m se ve bien y 15m/1h no confirma.",
+            "roxy_response": "Bajar confianza y explicar que falta confirmacion superior.",
+            "sources": _sources_for(topic_sources, ["Timing de entrada", "Medias moviles"], 5),
+        },
+        {
+            "id": "no_plan",
+            "name": "Senal sin plan",
+            "avoid": "No mostrar COMPRA/VENDER sin entrada, stop, target, R/R, invalidez y razon.",
+            "roxy_response": "Convertir la senal en NO OPERAR hasta completar el plan.",
+            "sources": _sources_for(topic_sources, ["Check list y no negociables", "Riesgo", "Medias moviles"], 5),
+        },
+        {
+            "id": "revenge_trading",
+            "name": "Recuperar perdidas a la fuerza",
+            "avoid": "No aumentar riesgo para recuperar una perdida previa.",
+            "roxy_response": "Bloquear operativa si el riesgo supera 1R o el usuario esta forzando entrada.",
+            "sources": _sources_for(topic_sources, ["Riesgo", "Check list y no negociables"], 5),
+        },
+    ]
+
+    opportunity_checklist = [
+        "Datos live confirmados y timestamp fresco.",
+        "Activo, timeframe y mercado definidos.",
+        "Regimen identificado: tendencia, canal, lateralidad, ruptura o no operar.",
+        "Direccion validada por timeframe mayor.",
+        "Entrada, stop, target, R/R y razon visibles.",
+        "Volumen/liquidez suficientes para operar.",
+        "Evento macro/earnings revisado.",
+        "Semaforo final: OPERAR AHORA, ESPERAR CONFIRMACION o NO OPERAR.",
+        "Explicacion de Roxy con las 3-5 razones principales.",
+    ]
+
+    return {
+        "generated_at": now_iso(),
+        "source_counts": {
+            "videos": len(videos),
+            "materials": len(materials),
+            "total": len(videos) + len(materials),
+        },
+        "topic_counts": dict(sorted(topic_counts.items(), key=lambda item: (-item[1], item[0]))),
+        "strategy_rules": strategy_rules,
+        "anti_patterns": anti_patterns,
+        "opportunity_checklist": opportunity_checklist,
+        "classroom_foundation": [
+            "Que es trading y que no es trading.",
+            "Tipos de activos: acciones, crypto, opciones, ETF, indices y forex.",
+            "Precio, spread, volumen, liquidez, ordenes y riesgo.",
+            "Velas, timeframes, tendencia, soporte/resistencia y medias moviles.",
+            "Plan de operacion: entrada, stop, target, R/R, tamano y diario.",
+        ],
+    }
+
+
+def write_teacher_playbook(out_root: Path, index: dict[str, Any]) -> Path:
+    playbook = build_teacher_playbook(index)
+    json_path = out_root / "roxy_teacher_playbook.json"
+    md_path = out_root / "roxy_teacher_playbook.md"
+    write_json(json_path, playbook)
+    rule_lines = []
+    for rule in playbook.get("strategy_rules", []):
+        sources = ", ".join(rule.get("sources") or []) or "sin fuente clasificada"
+        requirements = "\n".join(f"  - {item}" for item in rule.get("entry_requirements") or [])
+        rejects = "\n".join(f"  - {item}" for item in rule.get("reject_if") or [])
+        rule_lines.append(
+            f"### {rule.get('name')}\n"
+            f"- Uso: {rule.get('use_when')}\n"
+            f"- Regla: {rule.get('rule')}\n"
+            f"- Requisitos:\n{requirements}\n"
+            f"- Bloquear si:\n{rejects}\n"
+            f"- Fuentes: {sources}"
+        )
+    anti_lines = "\n".join(
+        f"- **{item.get('name')}**: {item.get('avoid')} Respuesta de Roxy: {item.get('roxy_response')}"
+        for item in playbook.get("anti_patterns", [])
+    )
+    checklist = "\n".join(f"- {item}" for item in playbook.get("opportunity_checklist", []))
+    topic_lines = "\n".join(
+        f"- {topic}: {count}" for topic, count in (playbook.get("topic_counts") or {}).items()
+    ) or "- Sin temas clasificados."
+    md_path.write_text(
+        f"""# Roxy Teacher Playbook
+
+Generado: `{playbook.get('generated_at')}`
+Videos estudiados: `{playbook.get('source_counts', {}).get('videos')}`
+Materiales estudiados: `{playbook.get('source_counts', {}).get('materials')}`
+
+Este archivo alimenta el cerebro operativo de Roxy con reglas derivadas de clases, videos y materiales ya indexados. No habilita ordenes automaticas ni garantiza rentabilidad; sirve como filtro, explicacion y checklist de decision.
+
+## Temas detectados
+
+{topic_lines}
+
+## Reglas operativas
+
+{chr(10).join(rule_lines) or "- Todavia no hay reglas suficientes."}
+
+## Antipatrones que Roxy debe evitar
+
+{anti_lines}
+
+## Checklist antes de mostrar una oportunidad
+
+{checklist}
+"""
+    )
+    return md_path
+
+
 def already_processed(index: dict[str, Any], path: Path) -> bool:
     identity = file_identity(path)
     for collection in ("videos", "materials"):
@@ -1269,8 +1639,17 @@ def run_once(args: argparse.Namespace) -> dict[str, Any]:
         if item.get("target_dir")
     }
     reconcile_index_only = bool(getattr(args, "reconcile_index_only", False))
-    videos = [] if reconcile_index_only else iter_video_files(sources, max_depth=args.max_depth)
-    materials = [] if reconcile_index_only else iter_material_files(sources, max_depth=args.max_depth)
+    media_kind = str(getattr(args, "media_kind", "all") or "all")
+    videos = (
+        []
+        if reconcile_index_only or media_kind == "materials"
+        else iter_video_files(sources, max_depth=args.max_depth)
+    )
+    materials = (
+        []
+        if reconcile_index_only or media_kind == "videos"
+        else iter_material_files(sources, max_depth=args.max_depth)
+    )
     processed = []
     processed_materials = []
     if not reconcile_index_only:
@@ -1285,6 +1664,7 @@ def run_once(args: argparse.Namespace) -> dict[str, Any]:
                 transcribe=args.transcribe,
                 model_size=args.model_size,
                 language=args.language,
+                ffmpeg_timeout=int(getattr(args, "ffmpeg_timeout", 900) or 900),
             )
             processed.append(manifest)
             index = update_index(out_root, processed, processed_materials)
@@ -1347,12 +1727,14 @@ def run_once(args: argparse.Namespace) -> dict[str, Any]:
     idle_review_path = None
     if args.idle_review and not processed and not processed_materials:
         idle_review_path = write_idle_learning_review(out_root, updated)
+    teacher_playbook_path = write_teacher_playbook(out_root, updated)
     if (
         index_changed
         or processed
         or archived
         or partial_cleanup.get("removed_count")
         or idle_review_path
+        or teacher_playbook_path
         or not (out_root / "ROXY_LEARNING_SYNC.md").exists()
     ):
         write_sync_file(out_root, updated)
@@ -1367,6 +1749,7 @@ def run_once(args: argparse.Namespace) -> dict[str, Any]:
         "partial_artifacts_reclaimed_mb": float(partial_cleanup.get("reclaimed_mb") or 0.0),
         "partial_artifacts_skipped": int(partial_cleanup.get("skipped_count") or 0),
         "idle_review": str(idle_review_path) if idle_review_path else None,
+        "teacher_playbook": str(teacher_playbook_path),
         "archive_dir": str(Path(args.archive_dir).expanduser()) if args.archive_dir else None,
         "output": str(out_root),
         "index": updated,
@@ -1380,10 +1763,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--limit", type=int, default=0, help="Maximo de videos nuevos por corrida. 0 = sin limite.")
     parser.add_argument("--max-depth", type=int, default=4, help="Profundidad maxima de escaneo por carpeta.")
     parser.add_argument("--every-seconds", type=int, default=300, help="Frecuencia de capturas para OCR.")
+    parser.add_argument(
+        "--ffmpeg-timeout",
+        type=int,
+        default=900,
+        help="Segundos maximos para extraer audio o frames de un video antes de saltarlo parcialmente.",
+    )
     parser.add_argument("--transcribe", action="store_true", help="Transcribir audio con faster-whisper local.")
     parser.add_argument("--model-size", default="tiny", help="Modelo faster-whisper: tiny, base, small, medium.")
     parser.add_argument("--language", default="es", help="Idioma para Whisper.")
     parser.add_argument("--force", action="store_true", help="Reprocesar aunque ya exista en el indice.")
+    parser.add_argument(
+        "--media-kind",
+        choices=("all", "videos", "materials"),
+        default="all",
+        help="Tipo de fuente a procesar en esta corrida.",
+    )
     parser.add_argument("--archive-dir", default="", help="Mover videos procesados correctamente a esta carpeta.")
     parser.add_argument(
         "--archive-indexed",

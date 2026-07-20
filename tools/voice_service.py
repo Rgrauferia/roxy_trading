@@ -1,8 +1,15 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 import json
+import html
+import hashlib
 import os
+import plistlib
+import re
+import hmac
+import tempfile
 import time
 import logging
 import uuid
@@ -11,9 +18,25 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Request, Depends
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from cryptography import x509
+from cryptography.hazmat.primitives import serialization
+
+from roxy_trader.device_sync import (
+    apply_device_sync,
+    default_device_sync_stores,
+    device_sync_snapshot,
+    require_allowed_device_sync_user,
+)
+
+try:
+    from roxy_os import RoxyOrchestrator
+    from roxy_os.core.agent_router import AgentRouter as RoxyOSAgentRouter
+except Exception:
+    RoxyOrchestrator = None
+    RoxyOSAgentRouter = None
 
 try:
     # mount secrets router if available
@@ -69,6 +92,8 @@ _DEV_AUTH_WARNING_LOGGED = False
 
 # simple in-memory rate limiter: api_key -> (count, window_start)
 _RATE_STATE: Dict[str, Dict[str, int]] = {}
+_ROXY_OS_VOICE_BRAIN = None
+ROXY_OS_VOICE_AGENTS = {"calendar", "documents", "email", "home", "shopping"}
 
 # optional Redis for persistent rate limiting if REDIS_URL is provided
 REDIS_URL = os.getenv("REDIS_URL")
@@ -147,6 +172,48 @@ class FeedbackRequest(BaseModel):
     note: Optional[str] = None
 
 
+class DeviceSyncRequest(BaseModel):
+    # Optional fields preserve PATCH-like semantics on PUT: a device may update
+    # one revisioned scope without implicitly replacing every other scope.
+    watchlists: Optional[Dict[str, object]] = None
+    ui_state: Optional[Dict[str, object]] = None
+    personal_tasks: Optional[Dict[str, object]] = None
+    shopping_list: Optional[Dict[str, object]] = None
+
+
+def roxy_os_voice_response(query: str, *, user: Optional[str], profile: dict[str, object]) -> object | None:
+    """Route personal intents before market symbol extraction in the legacy brain."""
+    global _ROXY_OS_VOICE_BRAIN
+    if RoxyOSAgentRouter is None or RoxyOrchestrator is None:
+        return None
+    intent, agent = RoxyOSAgentRouter().route(query)
+    if agent not in ROXY_OS_VOICE_AGENTS:
+        return None
+    if _ROXY_OS_VOICE_BRAIN is None:
+        _ROXY_OS_VOICE_BRAIN = RoxyOrchestrator(memory_path=Path("data/roxy_os_memory.json"))
+    return _ROXY_OS_VOICE_BRAIN.handle(
+        query,
+        user_id=str(user or "local_user"),
+        context=dict(profile or {}),
+    )
+
+
+def roxy_os_assist_state(response: object) -> dict[str, object]:
+    data = response.to_dict() if hasattr(response, "to_dict") else {}
+    permission = data.get("permission") if isinstance(data.get("permission"), dict) else {}
+    return {
+        "reply": str(data.get("message") or ""),
+        "intent": str(data.get("intent") or "personal"),
+        "agent": str(data.get("agent") or "roxy_os"),
+        "voice_style": "female_es_latam",
+        "should_speak": True,
+        "needs_live_source": False,
+        "safety_level": str(permission.get("risk_level") or "normal"),
+        "suggested_actions": list(data.get("actions") or []),
+        "operational_data": dict(data.get("data") or {}),
+    }
+
+
 def empty_active_context() -> dict[str, object]:
     return {
         "active_intent": "",
@@ -170,10 +237,78 @@ def sync_request_profile(req: AssistRequest) -> None:
     """Persist safe visible profile fields before the brain reads user context."""
     if not req.profile or va_backend is None or not hasattr(va_backend, "update_user_profile"):
         return
+    profile = dict(req.profile)
+    context_symbol = request_context_symbol(profile)
+    if context_symbol:
+        profile["default_symbol"] = context_symbol
+    if not profile.get("language") and profile.get("preferred_language"):
+        profile["language"] = profile.get("preferred_language")
     try:
-        va_backend.update_user_profile(req.user, req.profile)
+        va_backend.update_user_profile(req.user, profile)
     except Exception:
         logger.exception("inline profile sync error")
+
+
+def request_context_symbol(profile: dict[str, object] | None) -> str:
+    values = profile if isinstance(profile, dict) else {}
+    for key in ("current_symbol", "active_symbol", "symbol", "default_symbol"):
+        symbol = str(values.get(key) or "").strip().upper().replace("-USD", "/USD")
+        if symbol and re.fullmatch(r"[A-Z0-9.]{1,12}(?:/USD)?", symbol):
+            return symbol
+    return ""
+
+
+def contextualize_request_query(req: AssistRequest) -> str:
+    query = (req.query or "").strip()
+    symbol = request_context_symbol(req.profile)
+    if not query or not symbol or symbol.lower() in query.lower():
+        return query
+    normalized = query.lower()
+    relative_terms = (
+        "esta oportunidad",
+        "este activo",
+        "esta accion",
+        "esta acción",
+        "esta crypto",
+        "esta cripto",
+        "esta grafica",
+        "esta gráfica",
+        "this opportunity",
+        "this asset",
+        "this chart",
+        "selected asset",
+    )
+    return f"{query} {symbol}" if any(term in normalized for term in relative_terms) else query
+
+
+def enrich_assist_state_with_request_context(
+    state: dict[str, object],
+    profile: dict[str, object] | None,
+) -> dict[str, object]:
+    payload = dict(state or {})
+    values = profile if isinstance(profile, dict) else {}
+    symbol = request_context_symbol(values)
+    market = str(values.get("current_market") or values.get("active_market") or values.get("market") or "").strip().lower()
+    timeframe = str(
+        values.get("current_timeframe") or values.get("active_timeframe") or values.get("timeframe") or ""
+    ).strip().lower()
+    page = str(values.get("current_page") or values.get("active_page") or values.get("page") or "").strip()
+    if not str(payload.get("active_symbol") or "").strip() and symbol:
+        payload["active_symbol"] = symbol
+    if not str(payload.get("active_market") or "").strip() and market in {"stock", "crypto", "options"}:
+        payload["active_market"] = market
+    if not str(payload.get("active_timeframe") or "").strip() and re.fullmatch(r"\d+[mhdw]", timeframe):
+        payload["active_timeframe"] = timeframe
+    if page:
+        payload.setdefault("active_page", page[:80])
+    active_context = payload.get("active_context") if isinstance(payload.get("active_context"), dict) else {}
+    active_context = dict(active_context)
+    for key in ("active_symbol", "active_market", "active_timeframe", "active_page"):
+        value = payload.get(key)
+        if value and not active_context.get(key):
+            active_context[key] = value
+    payload["active_context"] = active_context
+    return payload
 
 
 def sse_event(event_name: str, payload: dict[str, object]) -> str:
@@ -183,17 +318,20 @@ def sse_event(event_name: str, payload: dict[str, object]) -> str:
 
 def require_api_key(request: Request):
     global _DEV_AUTH_WARNING_LOGGED
-    if VOICE_API_KEY is None:
-        # allow local dev when VOICE_API_KEY not set, but log warning
+    configured_key = str(os.getenv("VOICE_API_KEY") or "").strip()
+    if not configured_key:
+        client_host = str(getattr(getattr(request, "client", None), "host", "") or "").strip().lower()
+        if client_host not in {"127.0.0.1", "::1", "localhost", "testclient"}:
+            raise HTTPException(status_code=503, detail="VOICE_API_KEY required for non-loopback clients")
         if not _DEV_AUTH_WARNING_LOGGED:
-            logger.warning("VOICE_API_KEY not set — running in permissive dev mode")
+            logger.warning("VOICE_API_KEY not set — allowing loopback clients only")
             _DEV_AUTH_WARNING_LOGGED = True
-        return None
+        return "loopback-local"
     auth = request.headers.get("Authorization")
     if not auth or not auth.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing Authorization header")
     token = auth.split(" ", 1)[1]
-    if token != VOICE_API_KEY:
+    if not hmac.compare_digest(token, configured_key):
         raise HTTPException(status_code=403, detail="Invalid API key")
     return token
 
@@ -247,6 +385,255 @@ def tradingview_webhook_auth_configured() -> bool:
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/v1/state-sync/{user_id}")
+def read_device_state(user_id: str, token: Optional[str] = Depends(require_api_key)):
+    rate_limited(token)
+    watchlists, ui_state, personal_tasks, shopping_list = default_device_sync_stores()
+    try:
+        payload = device_sync_snapshot(
+            user_id,
+            watchlists=watchlists,
+            ui_state=ui_state,
+            personal_tasks=personal_tasks,
+            shopping_list=shopping_list,
+        )
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="User is not allowed for device synchronization")
+    payload["auth_mode"] = "bearer" if str(os.getenv("VOICE_API_KEY") or "").strip() else "loopback-only"
+    return payload
+
+
+@app.put("/v1/state-sync/{user_id}")
+def write_device_state(
+    user_id: str,
+    req: DeviceSyncRequest,
+    token: Optional[str] = Depends(require_api_key),
+):
+    rate_limited(token)
+    watchlists, ui_state, personal_tasks, shopping_list = default_device_sync_stores()
+    try:
+        payload = apply_device_sync(
+            user_id,
+            req.model_dump(exclude_unset=True) if hasattr(req, "model_dump") else req.dict(exclude_unset=True),
+            watchlists=watchlists,
+            ui_state=ui_state,
+            personal_tasks=personal_tasks,
+            shopping_list=shopping_list,
+        )
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="User is not allowed for device synchronization")
+    payload["auth_mode"] = "bearer" if str(os.getenv("VOICE_API_KEY") or "").strip() else "loopback-only"
+    if payload.get("status") == "CONFLICT":
+        raise HTTPException(status_code=409, detail=payload)
+    return payload
+
+
+@app.get("/roxy-mobile", response_class=FileResponse)
+def roxy_mobile_page():
+    response = FileResponse(ASSETS_DIR / "roxy_mobile.html", media_type="text/html")
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
+        "connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
+
+
+@app.get("/roxy-mobile-manifest.json")
+def roxy_mobile_manifest():
+    return JSONResponse(
+        {
+            "name": "Roxy Operaciones",
+            "short_name": "Roxy",
+            "start_url": "/roxy-mobile",
+            "scope": "/",
+            "display": "standalone",
+            "background_color": "#07111f",
+            "theme_color": "#0d1b2d",
+            "icons": [
+                {"src": "/assets/roxy_avatar_icon.jpg", "sizes": "512x512", "type": "image/jpeg"}
+            ],
+        },
+        headers={"Cache-Control": "public, max-age=3600", "X-Content-Type-Options": "nosniff"},
+    )
+
+
+@app.get("/roxy-mobile-sw.js")
+def roxy_mobile_service_worker():
+    return FileResponse(
+        ASSETS_DIR / "roxy_mobile_sw.js",
+        media_type="application/javascript",
+        headers={
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": "/",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+def mobile_gateway_material_dir() -> Path:
+    configured = str(os.getenv("ROXY_MOBILE_GATEWAY_DIR") or "").strip()
+    return Path(configured) if configured else Path.home() / "Library" / "Application Support" / "RoxyTrading" / "mobile_gateway"
+
+
+def _loopback_client(request: Request) -> bool:
+    host = str(request.client.host if request.client else "").strip().lower()
+    return host in {"127.0.0.1", "::1", "localhost", "testclient"} or host.startswith("::ffff:127.")
+
+
+def _write_mobile_physical_proof(payload: dict[str, object]) -> Path:
+    root = mobile_gateway_material_dir()
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    target = root / "physical_proof.json"
+    handle, temporary_name = tempfile.mkstemp(prefix=".physical_proof.", suffix=".tmp", dir=str(root))
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream, ensure_ascii=False, indent=2, sort_keys=True)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary_name, 0o600)
+        os.replace(temporary_name, target)
+    finally:
+        try:
+            os.unlink(temporary_name)
+        except FileNotFoundError:
+            pass
+    return target
+
+
+@app.post("/v1/mobile/physical-proof/{user_id}")
+def record_mobile_physical_proof(
+    user_id: str,
+    request: Request,
+    token: Optional[str] = Depends(require_api_key),
+):
+    rate_limited(token)
+    if _loopback_client(request):
+        raise HTTPException(status_code=403, detail="Physical proof requires a non-loopback client")
+    if str(request.url.scheme or "").lower() != "https":
+        raise HTTPException(status_code=400, detail="Physical proof requires HTTPS")
+    try:
+        user = require_allowed_device_sync_user(user_id)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="User is not allowed for device synchronization")
+    root = mobile_gateway_material_dir()
+    ca_path = root / "roxy-mobile-ca.crt"
+    configured_token = str(os.getenv("VOICE_API_KEY") or "").strip()
+    try:
+        ca_bytes = ca_path.read_bytes()
+    except OSError:
+        raise HTTPException(status_code=503, detail="Roxy Mobile CA is not configured")
+    if not configured_token:
+        raise HTTPException(status_code=503, detail="Bearer authentication is not configured")
+    now = datetime.now(timezone.utc).isoformat()
+    client_host = str(request.client.host if request.client else "").strip().lower()
+    proof = {
+        "contract_version": "roxy-mobile-physical-proof/1.0.0",
+        "verified_at": now,
+        "user_id": user,
+        "transport": "https",
+        "remote_client": True,
+        "client_fingerprint": hashlib.sha256(client_host.encode("utf-8")).hexdigest()[:16],
+        "bearer_fingerprint": hashlib.sha256(configured_token.encode("utf-8")).hexdigest()[:16],
+        "ca_fingerprint": hashlib.sha256(ca_bytes).hexdigest()[:16],
+    }
+    _write_mobile_physical_proof(proof)
+    return {
+        "status": "VERIFIED_REMOTE_CLIENT",
+        "contract_version": proof["contract_version"],
+        "verified_at": now,
+        "user_id": user,
+    }
+
+
+@app.get("/roxy-mobile-ca.crt")
+def roxy_mobile_ca_certificate():
+    path = mobile_gateway_material_dir() / "roxy-mobile-ca.crt"
+    if not path.is_file() or path.is_symlink():
+        raise HTTPException(status_code=404, detail="Roxy Mobile CA is not configured")
+    return FileResponse(
+        path,
+        media_type="application/x-x509-ca-cert",
+        filename="roxy-mobile-ca.crt",
+        headers={"Cache-Control": "public, max-age=3600", "X-Content-Type-Options": "nosniff"},
+    )
+
+
+@app.get("/roxy-mobile-ca.mobileconfig")
+def roxy_mobile_ca_profile():
+    path = mobile_gateway_material_dir() / "roxy-mobile-ca.crt"
+    if not path.is_file() or path.is_symlink():
+        raise HTTPException(status_code=404, detail="Roxy Mobile CA is not configured")
+    try:
+        certificate = x509.load_pem_x509_certificate(path.read_bytes())
+        certificate_der = certificate.public_bytes(serialization.Encoding.DER)
+    except (OSError, ValueError):
+        raise HTTPException(status_code=503, detail="Roxy Mobile CA is invalid")
+    digest = hashlib.sha256(certificate_der).digest()
+    profile_uuid = str(uuid.UUID(bytes=digest[:16])).upper()
+    certificate_uuid = str(uuid.UUID(bytes=digest[16:32])).upper()
+    payload = {
+        "PayloadContent": [{
+            "PayloadCertificateFileName": "roxy-mobile-ca.crt",
+            "PayloadContent": certificate_der,
+            "PayloadDescription": "CA pública para el gateway HTTPS local de Roxy Mobile.",
+            "PayloadDisplayName": "Roxy Mobile Local CA",
+            "PayloadIdentifier": "com.roxy.mobile.ca.certificate",
+            "PayloadType": "com.apple.security.root",
+            "PayloadUUID": certificate_uuid,
+            "PayloadVersion": 1,
+        }],
+        "PayloadDescription": "Instala únicamente la CA pública de Roxy Mobile; no contiene Bearer ni claves privadas.",
+        "PayloadDisplayName": "Roxy Mobile Local CA",
+        "PayloadIdentifier": "com.roxy.mobile.ca.profile",
+        "PayloadOrganization": "Roxy",
+        "PayloadRemovalDisallowed": False,
+        "PayloadScope": "System",
+        "PayloadType": "Configuration",
+        "PayloadUUID": profile_uuid,
+        "PayloadVersion": 1,
+    }
+    return Response(
+        content=plistlib.dumps(payload, fmt=plistlib.FMT_XML, sort_keys=True),
+        media_type="application/x-apple-aspen-config",
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Disposition": 'attachment; filename="roxy-mobile-ca.mobileconfig"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@app.get("/roxy-mobile-pair", response_class=HTMLResponse)
+def roxy_mobile_pairing_page(request: Request):
+    if not _loopback_client(request):
+        raise HTTPException(status_code=403, detail="Pairing is available only from the Roxy host")
+    path = mobile_gateway_material_dir() / "pairing.txt"
+    try:
+        pairing = path.read_text(encoding="utf-8")
+    except OSError:
+        pairing = "Gateway móvil no configurado. Ejecuta tools/mobile_gateway.py install."
+    response = HTMLResponse(
+        "<!doctype html><html lang='es'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+        "<title>Vincular Roxy Mobile</title><link rel='stylesheet' href='/assets/roxy_mobile.css'></head>"
+        "<body><main><section class='panel'><h1>Vincular Roxy Mobile</h1>"
+        "<p>Esta página sólo responde en el Mac de Roxy. Trata el Bearer como una contraseña.</p>"
+        "<details><summary>Mostrar instrucciones privadas</summary><pre>"
+        + html.escape(pairing)
+        + "</pre></details><p><a href='/roxy-mobile-ca.mobileconfig'>Perfil para iPad/iPhone</a> · "
+        "<a href='/roxy-mobile-ca.crt'>Certificado CA</a> · <a href='/roxy-mobile'>Abrir cliente</a></p>"
+        "</section></main></body></html>"
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 @app.get("/v1/webhooks/tradingview/status")
@@ -327,7 +714,7 @@ async def tradingview_webhook(request: Request):
 @app.get("/roxy-live", response_class=HTMLResponse)
 def roxy_live_page():
     return HTMLResponse(
-        """
+        r"""
 <!doctype html>
 <html lang="es">
 <head>
@@ -679,7 +1066,7 @@ def roxy_live_page():
           <img src="/assets/roxy_avatar_card.jpg" alt="Roxy bienvenida" />
           <div>
             <strong>Roxy IA activa</strong>
-            <small>Avatar oficial, voz femenina configurable, memoria de sesion y modo conversacion.</small>
+            <small>Avatar oficial, voz femenina configurable, memoria de sesion y modo conversacion. <a href="/roxy-mobile">Abrir cliente operativo móvil</a>.</small>
           </div>
         </div>
         <div class="row">
@@ -819,6 +1206,28 @@ def roxy_live_page():
     const guardedAssistTimeoutMs = 30000;
     const assistStreamEndpoint = "/v1/assist/stream";
 
+    function browserVoiceFallbackAllowed() {
+      return window.__roxyAllowBrowserVoiceFallback === true || window.ROXY_ENABLE_BROWSER_VOICE_FALLBACK === true;
+    }
+
+    function cancelBrowserSpeech() {
+      try {
+        if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      } catch (_err) {}
+    }
+
+    function disableBrowserTtsControls() {
+      if (browserVoiceFallbackAllowed()) return;
+      if ($("autoSpeak")) {
+        $("autoSpeak").checked = false;
+        $("autoSpeak").disabled = true;
+      }
+      if ($("voiceSelect")) $("voiceSelect").disabled = true;
+      if ($("voiceRate")) $("voiceRate").disabled = true;
+      if ($("voicePitch")) $("voicePitch").disabled = true;
+      cancelBrowserSpeech();
+    }
+
     function restoreSettings() {
       $("user").value = localStorage.getItem("roxyLiveUser") || "local";
       $("session").value = localStorage.getItem("roxyLiveSession") || ("roxy-live-" + Math.random().toString(36).slice(2, 10));
@@ -839,13 +1248,14 @@ def roxy_live_page():
         localStorage.setItem("roxyLiveVoicePreset", "receptionist");
         applyReceptionistVoiceTuning($("language").value || "es");
       }
+      disableBrowserTtsControls();
     }
 
     function saveSettings() {
       if (!$("saveSettings").checked) return;
       localStorage.setItem("roxyLiveUser", $("user").value || "local");
       localStorage.setItem("roxyLiveSession", $("session").value || "local");
-      localStorage.setItem("roxyLiveAutoSpeak", $("autoSpeak").checked ? "true" : "false");
+      localStorage.setItem("roxyLiveAutoSpeak", browserVoiceFallbackAllowed() && $("autoSpeak").checked ? "true" : "false");
       localStorage.setItem("roxyLiveAutoSend", $("autoSendVoice").checked ? "true" : "false");
       localStorage.setItem("roxyLiveConversationMode", $("conversationMode").checked ? "true" : "false");
       localStorage.setItem("roxyLiveWakeMode", $("wakeMode").checked ? "true" : "false");
@@ -3405,17 +3815,21 @@ def roxy_live_page():
 
     function updateVoiceDiagnostics(languageOverride) {
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      const ttsReady = "speechSynthesis" in window;
+      const ttsReady = browserVoiceFallbackAllowed() && "speechSynthesis" in window;
       const lang = languageOverride || $("language").value || "es";
-      const voice = chooseVoice(lang);
+      const voice = ttsReady ? chooseVoice(lang) : null;
       const parts = [
         SR ? "mic OK" : "mic no soportado",
-        ttsReady ? "voz OK" : "voz no soportada",
+        ttsReady ? "voz navegador OK" : "voz ElevenLabs directa",
         speechLang(lang),
       ];
       if (voice) parts.push(voice.name + " / " + voice.lang);
-      parts.push(voiceQualityLabel(voice, lang));
-      parts.push(voiceQualityActionHint(voice, lang));
+      if (ttsReady) {
+        parts.push(voiceQualityLabel(voice, lang));
+        parts.push(voiceQualityActionHint(voice, lang));
+      } else {
+        parts.push("fallback local apagado");
+      }
       $("voiceStatus").textContent = parts.join(" · ");
     }
 
@@ -3433,6 +3847,13 @@ def roxy_live_page():
     }
 
     function populateVoices() {
+      if (!browserVoiceFallbackAllowed()) {
+        disableBrowserTtsControls();
+        const select = $("voiceSelect");
+        if (select) select.innerHTML = "<option>ElevenLabs</option>";
+        updateVoiceDiagnostics();
+        return;
+      }
       if (!("speechSynthesis" in window)) return;
       const select = $("voiceSelect");
       const voices = window.speechSynthesis.getVoices() || [];
@@ -3493,6 +3914,10 @@ def roxy_live_page():
 
     function speak(text, languageOverride) {
       if (!text || !("speechSynthesis" in window)) return false;
+      if (!browserVoiceFallbackAllowed()) {
+        cancelBrowserSpeech();
+        return false;
+      }
       setVoicePresenceActive(true);
       const run = () => {
         const lang = languageOverride || $("language").value || "es";
@@ -3722,7 +4147,7 @@ def roxy_live_page():
             });
           } else if (eventName === "speak") {
             spoke = true;
-            const started = finalState && $("autoSpeak").checked
+            const started = finalState && browserVoiceFallbackAllowed() && $("autoSpeak").checked
               ? speak(finalState.reply || payload.text || "", finalState.language || payload.language || $("language").value)
               : false;
             if (!started) settleAfterTurn(finalState || payload);
@@ -4172,7 +4597,7 @@ def roxy_live_page():
       recognition.continuous = $("wakeMode").checked || $("conversationMode").checked;
       recognition.onstart = () => {
         isListening = true;
-        $("voiceStatus").textContent = "escuchando · " + recognition.lang;
+        $("voiceStatus").textContent = "Roxy preparada";
         setAvatar("listening", "attentive");
       };
       recognition.onresult = (event) => {
@@ -4295,11 +4720,15 @@ def roxy_live_page():
     });
     restoreSettings();
     populateVoices();
-    ensureReceptionistVoiceReady($("language").value || "es", {save: true});
+    if (browserVoiceFallbackAllowed()) ensureReceptionistVoiceReady($("language").value || "es", {save: true});
     updateVoiceDiagnostics();
     updateVoiceDraftStatus();
     if ("speechSynthesis" in window) {
       window.speechSynthesis.onvoiceschanged = () => {
+        if (!browserVoiceFallbackAllowed()) {
+          cancelBrowserSpeech();
+          return;
+        }
         populateVoices();
         ensureReceptionistVoiceReady($("language").value || "es", {save: true});
         updateVoiceDiagnostics();
@@ -4335,7 +4764,7 @@ def assist(req: AssistRequest, token: Optional[str] = Depends(require_api_key)):
     except Exception as e:
         logger.exception("Rate limiter error: %s", e)
 
-    q = (req.query or "").strip()
+    q = contextualize_request_query(req)
     user = req.user
     session_id = req.session_id
     logger.info("assist request user=%s query=%s", user, q[:200])
@@ -4343,7 +4772,14 @@ def assist(req: AssistRequest, token: Optional[str] = Depends(require_api_key)):
 
     # Prefer the local Roxy brain because it owns safety and product context.
     reply = None
-    if va_backend is not None:
+    try:
+        personal_response = roxy_os_voice_response(q, user=user, profile=req.profile)
+        if personal_response is not None:
+            reply = str(getattr(personal_response, "message", "") or "")
+    except Exception:
+        logger.exception("Roxy OS personal voice error")
+        raise HTTPException(status_code=500, detail="personal assistant backend error")
+    if va_backend is not None and not reply:
         try:
             reply = va_backend.generate_reply(q, user=user, session_id=session_id)
         except TypeError:
@@ -4367,16 +4803,25 @@ def assist(req: AssistRequest, token: Optional[str] = Depends(require_api_key)):
 
 
 def build_assist_state(req: AssistRequest, started_at: float) -> dict[str, object]:
-    q = (req.query or "").strip()
+    q = contextualize_request_query(req)
     user = req.user
     session_id = req.session_id
     logger.info("assist state request user=%s session=%s query=%s", user, session_id, q[:200])
     sync_request_profile(req)
 
+    try:
+        personal_response = roxy_os_voice_response(q, user=user, profile=req.profile)
+        if personal_response is not None:
+            return add_turn_metadata(roxy_os_assist_state(personal_response), started_at, "roxy_os")
+    except Exception:
+        logger.exception("Roxy OS personal voice state error")
+        raise HTTPException(status_code=500, detail="personal assistant backend error")
+
     if va_backend is not None:
         try:
             if hasattr(va_backend, "generate_reply_state"):
                 state = va_backend.generate_reply_state(q, user=user, session_id=session_id)
+                state = enrich_assist_state_with_request_context(state, req.profile)
                 return add_turn_metadata(state, started_at, "local_brain")
             return add_turn_metadata(
                 {

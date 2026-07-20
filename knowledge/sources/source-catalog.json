@@ -1,0 +1,175 @@
+{
+  "version": 2,
+  "updatedAt": "2026-07-01T00:00:00.000Z",
+  "automaticDownloadsEnabled": true,
+  "remoteApiConnectionsEnabled": true,
+  "defaultInbox": "knowledge/inbox",
+  "defaultProcessed": "knowledge/processed",
+  "roadmap": "knowledge/sources/roxy-knowledge-roadmap.json",
+  "policy": {
+    "summary": "Roxy solo debe ingerir conocimiento desde fuentes legales, autorizadas y auditables.",
+    "copyright": "No descargar ni procesar libros, cursos o PDFs sin licencia o permiso explicito.",
+    "manualUploads": "Los libros/cursos comerciales se registran como fuentes objetivo, pero requieren que el usuario suba una copia legal propia a knowledge/inbox.",
+    "apis": "Las APIs privadas requieren credenciales propias, terminos revisados y un conector explicito antes de activar ingestion remota. Datos publicos sin llave, como FRED CSV, pueden actualizarse automaticamente.",
+    "legalPdfs": "Los PDFs legales pueden subirse manualmente a knowledge/inbox."
+  },
+  "inboxFolders": {
+    "libros": "knowledge/inbox/libros",
+    "cursos": "knowledge/inbox/cursos",
+    "datosMercado": "knowledge/inbox/datos-mercado",
+    "economia": "knowledge/inbox/economia",
+    "noticias": "knowledge/inbox/noticias",
+    "indicadores": "knowledge/inbox/indicadores",
+    "estrategias": "knowledge/inbox/estrategias",
+    "backtesting": "knowledge/inbox/backtesting",
+    "diarioTrading": "knowledge/inbox/diario-trading"
+  },
+  "categories": [
+    {
+      "id": "libros",
+      "label": "Libros",
+      "allowed": true,
+      "ingestionMode": "manual_upload",
+      "automaticDownload": false,
+      "requirements": ["Copia comprada/licenciada/dominio publico", "Mantener titulo, autor y fuente"]
+    },
+    {
+      "id": "cursos",
+      "label": "Cursos",
+      "allowed": true,
+      "ingestionMode": "manual_upload",
+      "automaticDownload": false,
+      "requirements": ["Derecho de uso", "Preferir transcripciones propias o apuntes"]
+    },
+    {
+      "id": "apuntes-propios",
+      "label": "Apuntes propios",
+      "allowed": true,
+      "ingestionMode": "manual_upload",
+      "automaticDownload": false,
+      "requirements": ["Debe identificar tema o categoria cuando sea posible"]
+    },
+    {
+      "id": "documentos-publicos",
+      "label": "Documentos publicos",
+      "allowed": true,
+      "ingestionMode": "manual_upload_or_explicit_connector",
+      "automaticDownload": false,
+      "requirements": ["Fuente publica o licencia compatible", "Guardar URL y fecha"]
+    },
+    {
+      "id": "datos-mercado-api",
+      "label": "Datos de mercado por API",
+      "allowed": true,
+      "ingestionMode": "api_connector_required",
+      "automaticDownload": false,
+      "requirements": ["Credenciales propias", "Terminos de uso revisados", "No guardar secretos en fragments"]
+    },
+    {
+      "id": "calendario-economico",
+      "label": "Calendario economico",
+      "allowed": true,
+      "ingestionMode": "api_connector_required",
+      "automaticDownload": false,
+      "requirements": ["Fuente oficial o proveedor autorizado", "Timestamp de actualizacion"]
+    },
+    {
+      "id": "noticias",
+      "label": "Noticias",
+      "allowed": true,
+      "ingestionMode": "licensed_feed_or_manual_upload",
+      "automaticDownload": false,
+      "requirements": ["Solo feeds licenciados o articulos con permiso", "No copiar paywalls"]
+    },
+    {
+      "id": "indicadores",
+      "label": "Indicadores",
+      "allowed": true,
+      "ingestionMode": "manual_upload_or_internal_docs",
+      "automaticDownload": false,
+      "requirements": ["Definir formula, interpretacion, limites y ejemplos"]
+    },
+    {
+      "id": "estrategias-internas",
+      "label": "Estrategias internas",
+      "allowed": true,
+      "ingestionMode": "manual_upload",
+      "automaticDownload": false,
+      "requirements": ["Separar regla, contexto, invalidez, riesgo y ejemplos"]
+    },
+    {
+      "id": "diario-trading",
+      "label": "Diario de trading",
+      "allowed": true,
+      "ingestionMode": "manual_upload",
+      "automaticDownload": false,
+      "requirements": ["Evitar datos personales innecesarios", "Preservar fecha, activo, resultado y leccion"]
+    },
+    {
+      "id": "backtesting",
+      "label": "Backtesting",
+      "allowed": true,
+      "ingestionMode": "generated_or_manual_upload",
+      "automaticDownload": false,
+      "requirements": ["Incluir universo, periodo, supuestos, metricas y limitaciones"]
+    }
+  ],
+  "learningLevels": [
+    {
+      "level": 1,
+      "id": "biblioteca-base",
+      "label": "Biblioteca base",
+      "target": "200+ libros/apuntes legales",
+      "sourceType": "manual_upload_required"
+    },
+    {
+      "level": 2,
+      "id": "cursos",
+      "label": "Cursos completos",
+      "sourceType": "manual_upload_required"
+    },
+    {
+      "level": 3,
+      "id": "bases-mercado",
+      "label": "Bases de datos del mercado",
+      "sourceType": "api_connector_required"
+    },
+    {
+      "level": 4,
+      "id": "indicadores",
+      "label": "Indicadores",
+      "sourceType": "internal_docs_and_examples"
+    },
+    {
+      "level": 5,
+      "id": "economia",
+      "label": "Economia",
+      "sourceType": "official_public_sources_or_api"
+    },
+    {
+      "level": 6,
+      "id": "noticias",
+      "label": "Noticias",
+      "sourceType": "licensed_feed_required"
+    },
+    {
+      "level": 7,
+      "id": "estrategias",
+      "label": "Estrategias",
+      "sourceType": "internal_strategy_library"
+    },
+    {
+      "level": 8,
+      "id": "backtesting",
+      "label": "Backtesting",
+      "sourceType": "generated_results"
+    }
+  ],
+  "prohibited": [
+    "Descarga automatica de libros o cursos con copyright sin licencia",
+    "Scraping de contenido privado",
+    "Uso de APIs sin credenciales o fuera de terminos",
+    "Ingestion de informacion personal sensible no necesaria",
+    "Guardar llaves API, passwords o tokens dentro de fragments"
+  ]
+}

@@ -66,7 +66,8 @@ Transcribir audio con Whisper local:
 - LaunchAgent: `com.roxy.video-learning`.
 - Configuracion: `deployment/com.roxy.video-learning.plist`.
 - Intervalo: cada 35 minutos (`2100` segundos).
-- Si encuentra videos o materiales nuevos, los procesa y puede archivarlos en `/Volumes/RoxyData/RoxyVideosAnalizados`.
+- Sin configuración adicional, sólo escanea carpetas locales del usuario. Fuentes externas requieren `ROXY_VIDEO_SOURCES` y el archivo opcional requiere `ROXY_VIDEO_ARCHIVE_DIR`; un volumen nunca se selecciona implícitamente.
+- El LaunchAgent instalado actualmente declara sus rutas externas de forma explícita en sus argumentos y puede archivarlas en `/Volumes/RoxyData/RoxyVideosAnalizados`.
 - Si no encuentra nada nuevo, actualiza `idle_learning_review.md/json` para que Roxy siga estudiando el conocimiento ya extraido.
 
 ## Dependencias

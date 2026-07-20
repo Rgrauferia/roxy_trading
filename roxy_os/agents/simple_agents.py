@@ -7,6 +7,11 @@ from typing import Any
 from roxy_os.core.agent_router import AgentRouter
 from roxy_os.memory.memory_manager import RoxyMemoryManager
 from roxy_os.models import AgentResult, RoxyRequest
+from roxy_os.personal_tasks import ACTIVE_TASK_STATUSES, PersonalTaskStore
+from roxy_os.shopping_list import ShoppingListStore
+from roxy_os.home_assistant import HomeAssistantClient
+from roxy_os.document_vault import DocumentVault
+from roxy_os.email_service import GmailReadonlyClient, OutlookReadonlyClient, readonly_email_client
 from tools import weather_service
 
 
@@ -223,19 +228,85 @@ class ReaderAgent(BaseAgent):
         )
 
 
+class DocumentsAgent(BaseAgent):
+    name = "documents"
+
+    def __init__(self, memory: RoxyMemoryManager, vault: DocumentVault | None = None) -> None:
+        super().__init__(memory)
+        self.vault = vault or DocumentVault()
+
+    def handle(self, request: RoxyRequest, *, intent: str, permission_mode: str) -> AgentResult:
+        snapshot = self.vault.snapshot(request.user_id, limit=25)
+        documents = list(snapshot.get("documents") or [])
+        if documents:
+            names = [str(row.get("name") or "") for row in documents[:8]]
+            message = "Tus documentos locales activos son: " + ", ".join(names) + "."
+        else:
+            message = "No tienes documentos activos en el repositorio local de Roxy."
+        return AgentResult(
+            self.name,
+            intent,
+            message,
+            {
+                "document_snapshot": snapshot,
+                "content_read": False,
+                "required_permission_for_content": "file_read",
+            },
+            actions=[{"type": "open_documents", "view": "Documentos", "confirmation_required": False}],
+        )
+
+
+class EmailAgent(BaseAgent):
+    name = "email"
+
+    def __init__(
+        self,
+        memory: RoxyMemoryManager,
+        client: GmailReadonlyClient | OutlookReadonlyClient | None = None,
+    ) -> None:
+        super().__init__(memory)
+        self.client = client or readonly_email_client()
+
+    def handle(self, request: RoxyRequest, *, intent: str, permission_mode: str) -> AgentResult:
+        inbox = self.client.inbox(limit=5)
+        status = str(inbox.get("status") or "SERVICE_NOT_CONFIGURED")
+        messages = list(inbox.get("messages") or [])
+        provider = "Outlook" if str(inbox.get("provider") or "").lower() == "outlook" else "Gmail"
+        if status == "CONNECTED" and messages:
+            labels = [str(row.get("subject") or "(sin asunto)") for row in messages]
+            message = f"{provider} esta conectado en solo lectura. Asuntos recientes: " + "; ".join(labels) + "."
+        elif status == "CONNECTED":
+            message = f"{provider} esta conectado en solo lectura y no devolvio mensajes recientes en INBOX."
+        else:
+            message = f"Correo: {status}. {inbox.get('detail') or 'Proveedor no disponible.'}"
+        return AgentResult(
+            self.name,
+            intent,
+            message,
+            {"email_snapshot": inbox, "body_read": False, "send_enabled": False},
+            actions=[{"type": "open_email", "view": "Correo", "confirmation_required": False}],
+        )
+
+
 class ShoppingAgent(BaseAgent):
     name = "shopping"
 
-    def __init__(self, memory: RoxyMemoryManager, router: AgentRouter) -> None:
+    def __init__(
+        self,
+        memory: RoxyMemoryManager,
+        router: AgentRouter,
+        shopping_list: ShoppingListStore | None = None,
+    ) -> None:
         super().__init__(memory)
         self.router = router
+        self.shopping_list = shopping_list or ShoppingListStore()
 
     def handle(self, request: RoxyRequest, *, intent: str, permission_mode: str) -> AgentResult:
         if intent == "shopping_query":
-            items = self.memory.list_memories(user_id=request.user_id, memory_type="shopping_item", limit=50)
+            items = self.shopping_list.list_items(request.user_id, statuses={"PENDING"}, limit=50)
             if not items:
                 return AgentResult(self.name, intent, "No tengo articulos pendientes en tu lista de compra.", {"items": []})
-            labels = [item["content"] for item in items]
+            labels = [str(item.get("name") or "") for item in items]
             return AgentResult(
                 self.name,
                 intent,
@@ -253,24 +324,14 @@ class ShoppingAgent(BaseAgent):
             )
         writes = []
         for item in items:
-            writes.append(
-                self.memory.remember(
-                    user_id=request.user_id,
-                    memory_type="shopping_item",
-                    title=f"Comprar {item}",
-                    content=item,
-                    source="voice_or_text",
-                    tags=["shopping", "household"],
-                    importance=4,
-                    metadata={"status": "pending"},
-                )
-            )
+            saved = self.shopping_list.add(request.user_id, item, source="voice_or_text")
+            saved["content"] = saved["name"]  # compatibility with the original voice response contract
+            writes.append(saved)
         return AgentResult(
             self.name,
             intent,
             "Listo, agregue a tu lista: " + ", ".join(item["content"] for item in writes) + ".",
             {"items": writes},
-            memory_writes=writes,
         )
 
 
@@ -347,6 +408,17 @@ class TraderAgent(BaseAgent):
 
         return max(rows, key=score)
 
+    def _matching_visible_row(self, rows: list[dict[str, Any]], symbol: str) -> dict[str, Any] | None:
+        requested = str(symbol or "").strip().upper()
+        return next(
+            (
+                row
+                for row in rows
+                if str(row.get("symbol") or row.get("ticker") or "").strip().upper() == requested
+            ),
+            None,
+        )
+
     def _visible_opportunity_message(self, row: dict[str, Any], *, module: str, symbol: str) -> str:
         ticker = self._row_value(row, "symbol", "ticker", default=symbol)
         decision = self._row_value(row, "decision", "signal", "state", default="ESPERAR CONFIRMACION")
@@ -399,7 +471,25 @@ class TraderAgent(BaseAgent):
             market = "stock"
             timeframe = "1h"
         visible_rows = self._visible_rows(request.context)
-        best_visible = self._best_visible_row(visible_rows)
+        explicit_asset = any(
+            re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", normalized)
+            for alias in (*self.STOCK_SYMBOLS.keys(), *self.CRYPTO_SYMBOLS.keys())
+        )
+        relative_asset = any(
+            phrase in normalized
+            for phrase in (
+                "esta oportunidad",
+                "este activo",
+                "esta accion",
+                "esta acción",
+                "esta crypto",
+                "esta cripto",
+                "esta grafica",
+                "esta gráfica",
+            )
+        )
+        matching_visible = self._matching_visible_row(visible_rows, requested_symbol)
+        best_visible = matching_visible if matching_visible and (explicit_asset or relative_asset) else self._best_visible_row(visible_rows)
         message = (
             self._visible_opportunity_message(best_visible, module=module, symbol=symbol)
             if best_visible
@@ -419,6 +509,7 @@ class TraderAgent(BaseAgent):
                 "timeframe": timeframe,
                 "visible_opportunities": visible_rows,
                 "best_visible_opportunity": best_visible,
+                "selected_visible_opportunity": matching_visible,
                 "next_action": "open_roxy_trading_and_scan",
                 "watchlist_memory": watchlist,
                 "requires_live_market_data": True,
@@ -520,6 +611,10 @@ class BrowserAgent(BaseAgent):
 class CalendarAgent(BaseAgent):
     name = "calendar"
 
+    def __init__(self, memory: RoxyMemoryManager, personal_tasks: PersonalTaskStore | None = None) -> None:
+        super().__init__(memory)
+        self.personal_tasks = personal_tasks or PersonalTaskStore()
+
     REMINDER_PATTERNS = [
         r"(?:acuerdame|acuérdame|recuerdame|recuérdame)\s+(?:que\s+)?(.+)$",
         r"(?:agrega|guarda)\s+(?:un\s+)?recordatorio\s+(?:para\s+)?(.+)$",
@@ -538,27 +633,22 @@ class CalendarAgent(BaseAgent):
     def handle(self, request: RoxyRequest, *, intent: str, permission_mode: str) -> AgentResult:
         reminder = self._extract_reminder(request.text)
         if reminder:
-            saved = self.memory.remember(
-                user_id=request.user_id,
-                memory_type="reminder",
-                title=f"Recordatorio: {reminder[:80]}",
-                content=reminder,
-                source="voice_or_text",
-                tags=["calendar", "reminder"],
-                importance=4,
-                metadata={"status": "pending"},
-            )
+            saved = self.personal_tasks.create(request.user_id, reminder, source="voice_or_text")
+            saved["content"] = saved["title"]  # compatibility with the original reminder response contract
             return AgentResult(
                 self.name,
                 intent,
                 f"Listo, guarde el recordatorio: {reminder}.",
-                {"reminder": saved, "requires_calendar_integration": False},
-                memory_writes=[saved],
+                {"reminder": saved, "task": saved, "requires_calendar_integration": False},
             )
 
-        reminders = self.memory.list_memories(user_id=request.user_id, memory_type="reminder", limit=20)
+        reminders = self.personal_tasks.list_tasks(
+            request.user_id,
+            statuses=ACTIVE_TASK_STATUSES,
+            limit=20,
+        )
         if reminders:
-            labels = [item["content"] for item in reminders[:8]]
+            labels = [str(item.get("title") or "") for item in reminders[:8]]
             message = "Tienes estos recordatorios: " + "; ".join(labels) + "."
         else:
             message = (
@@ -569,27 +659,46 @@ class CalendarAgent(BaseAgent):
             self.name,
             intent,
             message,
-            {"reminders": reminders, "requires_calendar_integration": True},
+            {"reminders": reminders, "tasks": reminders, "requires_calendar_integration": True},
         )
 
 
 class HomeAgent(BaseAgent):
     name = "home"
 
+    def __init__(self, memory: RoxyMemoryManager, home_assistant: HomeAssistantClient | None = None) -> None:
+        super().__init__(memory)
+        self.home_assistant = home_assistant or HomeAssistantClient()
+
     def handle(self, request: RoxyRequest, *, intent: str, permission_mode: str) -> AgentResult:
+        snapshot = self.home_assistant.entities()
+        status = str(snapshot.get("status") or "SERVICE_NOT_CONFIGURED")
+        if status == "CONNECTED":
+            writable = sum(bool(item.get("writable")) for item in snapshot.get("entities", []))
+            message = (
+                f"Home Assistant esta conectado. Veo {int(snapshot.get('entity_count') or 0)} entidades, "
+                f"de las cuales {writable} son luces o interruptores controlables. "
+                "Prepare la accion solicitada, pero no la ejecutare sin entidad exacta, permiso y confirmacion."
+            )
+        else:
+            message = f"Roxy Home: {status}. {snapshot.get('detail') or 'Servicio no disponible.'}"
         return AgentResult(
             self.name,
             intent,
-            (
-                "Roxy Home debe conectarse a Home Assistant para controlar luces, temperatura, camaras y TV. "
-                "Las camaras y seguridad siempre requieren permisos claros."
-            ),
+            message,
             {
                 "recommended_hub": "Home Assistant",
                 "required_permission": "smart_home",
                 "mode": permission_mode,
+                "home_assistant": snapshot,
             },
-            actions=[{"type": "home_assistant_command", "command": request.text, "confirmation_required": True}],
+            actions=[{
+                "type": "home_assistant_command_preview",
+                "command": request.text,
+                "confirmation_required": True,
+                "executed": False,
+                "provider_status": status,
+            }],
         )
 
 

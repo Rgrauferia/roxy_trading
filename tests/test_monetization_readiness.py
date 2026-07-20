@@ -40,7 +40,7 @@ def _closed_rows_by_week(*, weeks: int, hits_per_week: int, stops_per_week: int 
     return rows
 
 
-def test_monetization_report_allows_beta_scanner_but_blocks_accuracy_claims():
+def test_monetization_report_does_not_treat_blocked_candidates_as_tracked_evidence():
     journal = pd.DataFrame(
         [
             {"status": "BLOCKED", "closed_outcome": "", "closed_move_pct": ""}
@@ -55,12 +55,14 @@ def test_monetization_report_allows_beta_scanner_but_blocks_accuracy_claims():
         live_orders_enabled=False,
     )
 
-    assert report["stage"] == "BETA_SCANNER_READY"
-    assert report["beta_ready"] is True
+    assert report["stage"] == "PRIVATE_ALPHA"
+    assert report["beta_ready"] is False
     assert report["signal_validated"] is False
-    assert "scanner educativo" in report["can_sell_as"]
+    assert "alpha privada" in report["can_sell_as"]
     assert "garantia" in report["cannot_sell_as"]
-    assert report["paper_summary"]["tracked"] == 25
+    assert report["paper_summary"]["candidates"] == 25
+    assert report["paper_summary"]["tracked"] == 0
+    assert report["paper_summary"]["blocked"] == 25
     assert report["paper_summary"]["closed"] == 0
     assert report["warnings"]
 
@@ -199,12 +201,39 @@ def test_combined_paper_summary_counts_crypto_and_alpaca_results():
     summary = combined_paper_monetization_summary(alpaca, crypto)
 
     assert summary["tracked"] == 3
+    assert summary["candidates"] == 3
     assert summary["closed"] == 2
     assert summary["hit_2"] == 1
     assert summary["hit_5"] == 1
     assert summary["stops"] == 1
     assert summary["hit_2_rate"] == 0.5
     assert summary["stop_rate"] == 0.5
+
+
+def test_paper_summary_collapses_correlated_scanner_snapshots_into_one_episode():
+    rows = pd.DataFrame(
+        [
+            {
+                "ts": f"2026-06-22T12:{minute:02d}:00+00:00",
+                "market": "crypto",
+                "symbol": "ETH/USD",
+                "strategy_family": "Pullback",
+                "timeframe": "15m",
+                "status": "CLOSED_HIT_5",
+                "closed_outcome": "HIT_5",
+                "closed_at": "2026-06-23T10:00:00+00:00",
+            }
+            for minute in (0, 5, 10, 15)
+        ]
+    )
+
+    summary = combined_paper_monetization_summary(crypto_journal=rows)
+
+    assert summary["candidates"] == 4
+    assert summary["tracked"] == 1
+    assert summary["closed"] == 1
+    assert summary["hit_5"] == 1
+    assert summary["duplicates_collapsed"] == 3
 
 
 def test_subscription_scenarios_apply_store_commission():

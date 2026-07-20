@@ -1,8 +1,10 @@
 from streamlit_app import (
+    apply_live_provider_runtime_status,
     external_confirmation_plan,
     live_provider_effective_summary,
     live_provider_quality_summary,
     live_provider_rows,
+    live_provider_runtime_summary,
     market_realtime_dashboard_rows,
     market_realtime_route_summary,
     render_external_confirmation_plan,
@@ -36,6 +38,71 @@ def test_live_provider_rows_marks_alpaca_ready_for_paper_when_key_and_secret_exi
     assert alpaca["tone"] == "buy"
     assert alpaca["missing"] == "-"
     assert alpaca["present_keys"] == "ALPACA_API_KEY, ALPACA_API_SECRET"
+
+
+def test_runtime_status_downgrades_invalid_alpaca_credentials_without_leaking_values():
+    rows = live_provider_rows(env={"ALPACA_API_KEY": "sensitive-key-value", "ALPACA_API_SECRET": "sensitive-secret-value"})
+    report = {
+        "checks": [
+            {
+                "name": "alpaca_account_probe",
+                "status": "WARN",
+                "auth_ok": False,
+                "error_category": "AUTH_INVALID",
+                "detail": "Alpaca account auth failed in paper mode (AUTH_INVALID).",
+            }
+        ]
+    }
+
+    effective_rows = apply_live_provider_runtime_status(rows, report)
+    alpaca = row_for(effective_rows, "Alpaca")
+    summary = live_provider_runtime_summary(live_provider_quality_summary(effective_rows), report)
+
+    assert alpaca["configured"] is True
+    assert alpaca["operational"] is False
+    assert alpaca["status"] == "Autenticacion invalida"
+    assert alpaca["mode"] == "AUTH_INVALID"
+    assert alpaca["tone"] == "avoid"
+    assert summary["mode"] == "PROVIDER_AUTH_FAILED"
+    assert summary["status"] == "Alpaca no operativo"
+    assert summary["tone"] == "avoid"
+    assert summary["ready_providers"] == "yfinance"
+    assert "sensitive-key-value" not in summary["detail"]
+    assert "sensitive-secret-value" not in str(effective_rows)
+
+
+def test_runtime_status_marks_successfully_probed_alpaca_as_validated():
+    rows = live_provider_rows(env={"ALPACA_API_KEY": "key", "ALPACA_API_SECRET": "secret"})
+    report = {
+        "checks": [
+            {
+                "name": "alpaca_account_probe",
+                "status": "OK",
+                "auth_ok": True,
+                "detail": "Alpaca paper account validated.",
+            }
+        ]
+    }
+
+    effective_rows = apply_live_provider_runtime_status(rows, report)
+    alpaca = row_for(effective_rows, "Alpaca")
+    summary = live_provider_runtime_summary(live_provider_quality_summary(effective_rows), report)
+
+    assert alpaca["operational"] is True
+    assert alpaca["status"] == "Conectado y validado"
+    assert alpaca["mode"] == "PAPER_VALIDATED"
+    assert summary["mode"] == "PAPER_LIVE_VALIDATED"
+    assert summary["status"] == "Alpaca conectado y validado"
+
+
+def test_runtime_status_preserves_credential_only_summary_without_probe():
+    rows = live_provider_rows(env={"ALPACA_API_KEY": "key", "ALPACA_API_SECRET": "secret"})
+
+    effective_rows = apply_live_provider_runtime_status(rows, {})
+    summary = live_provider_runtime_summary(live_provider_quality_summary(effective_rows), {})
+
+    assert row_for(effective_rows, "Alpaca")["status"] == "Listo paper/preview"
+    assert summary["mode"] == "PAPER_LIVE_READY"
 
 
 def test_live_provider_rows_accepts_alpaca_secret_key_alias_without_values():

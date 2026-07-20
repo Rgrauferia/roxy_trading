@@ -6,6 +6,7 @@ import pandas as pd
 from tools import ma_scan
 from tools.ma_scan import (
     apply_backtest_filter,
+    build_crypto_history_cache,
     parse_csv_list,
     resample_ohlcv,
     sort_scan_results,
@@ -139,6 +140,7 @@ def test_main_writes_timing_json(tmp_path, monkeypatch):
     (data_dir / "watchlist_stocks.txt").write_text("AAPL\n")
     (data_dir / "watchlist_crypto.txt").write_text("BTC/USD\n")
     timing_path = tmp_path / "alerts" / "timing.json"
+    coverage_path = tmp_path / "alerts" / "coverage.json"
 
     def frame(market: str, symbol: str, tf: str) -> pd.DataFrame:
         return pd.DataFrame(
@@ -157,7 +159,28 @@ def test_main_writes_timing_json(tmp_path, monkeypatch):
     monkeypatch.setattr(ma_scan, "OUTPUT_DIR", output_dir)
     monkeypatch.setattr(ma_scan, "DATA_DIR", data_dir)
     monkeypatch.setattr(ma_scan, "run_stock_scan", lambda symbols, interval, period, config, include_extended_hours=False: frame("stock", symbols[0], interval))
-    monkeypatch.setattr(ma_scan, "run_crypto_scan", lambda symbols, timeframe, limit, config: frame("crypto", symbols[0], timeframe))
+    exchange = object()
+    monkeypatch.setattr("roxy_scanner.create_binanceus_exchange", lambda: exchange)
+    monkeypatch.setattr(
+        "roxy_scanner.binanceus_symbol_coverage",
+        lambda symbols, exchange=None: {
+            "contract_version": "roxy-binanceus-symbol-coverage/1.0.0",
+            "status": "CONNECTED",
+            "requested_count": len(symbols),
+            "supported_count": len(symbols),
+            "unsupported_count": 0,
+            "exact_count": len(symbols),
+            "quote_fallback_count": 0,
+            "supported_symbols": symbols,
+            "unsupported_symbols": [],
+            "symbol_map": {symbol: symbol for symbol in symbols},
+        },
+    )
+    monkeypatch.setattr(
+        ma_scan,
+        "run_crypto_scan",
+        lambda symbols, timeframe, limit, config, **kwargs: frame("crypto", symbols[0], timeframe),
+    )
     monkeypatch.setattr(
         sys,
         "argv",
@@ -171,6 +194,8 @@ def test_main_writes_timing_json(tmp_path, monkeypatch):
             "1h",
             "--timing-json",
             str(timing_path),
+            "--crypto-coverage-json",
+            str(coverage_path),
             "--save",
         ],
     )
@@ -185,3 +210,106 @@ def test_main_writes_timing_json(tmp_path, monkeypatch):
     assert [step["market"] for step in payload["steps"]] == ["stock", "crypto"]
     assert [step["timeframe"] for step in payload["steps"]] == ["15m", "1h"]
     assert all(step["duration_seconds"] >= 0 for step in payload["steps"])
+    assert payload["crypto_symbol_coverage"]["supported_count"] == 1
+    assert json.loads(coverage_path.read_text())["unsupported_count"] == 0
+
+
+def test_run_crypto_scan_uses_provider_mapping_and_shared_exchange(monkeypatch):
+    calls = []
+    exchange = object()
+
+    def fake_fetch(symbol, *, timeframe, limit, exchange=None, provider_symbol=None):
+        calls.append((symbol, provider_symbol, timeframe, limit, exchange))
+        return pd.DataFrame(
+            {
+                "ts": pd.date_range("2026-01-01", periods=220, freq="15min"),
+                "open": range(220),
+                "high": [value + 2 for value in range(220)],
+                "low": [value - 1 for value in range(220)],
+                "close": [value + 1 for value in range(220)],
+                "volume": [1000] * 220,
+            }
+        )
+
+    monkeypatch.setattr("roxy_scanner.fetch_crypto_ohlcv", fake_fetch)
+
+    out = ma_scan.run_crypto_scan(
+        ["WIF/USD"],
+        "15m",
+        200,
+        ma_scan.MovingAverageConfig(),
+        exchange=exchange,
+        symbol_map={"WIF/USD": "WIF/USDT"},
+    )
+
+    assert calls == [("WIF/USD", "WIF/USDT", "15m", 200, exchange)]
+    assert out.loc[0, "symbol"] == "WIF/USD"
+    assert out.loc[0, "provider_symbol"] == "WIF/USDT"
+    assert out.loc[0, "symbol_resolution"] == "QUOTE_FALLBACK"
+    assert out.loc[0, "data_source"] == "ccxt:binanceus"
+
+
+def test_crypto_history_cache_fetches_one_expanded_hourly_series_for_two_and_four_hours():
+    calls = []
+    exchange = object()
+
+    def fake_fetch(symbol, *, timeframe, limit, exchange=None, provider_symbol=None):
+        calls.append((symbol, provider_symbol, timeframe, limit, exchange))
+        return pd.DataFrame(
+            {
+                "ts": pd.date_range("2026-01-01", periods=1000, freq="h"),
+                "open": [100.0] * 1000,
+                "high": [102.0] * 1000,
+                "low": [99.0] * 1000,
+                "close": [101.0] * 1000,
+                "volume": [1000.0] * 1000,
+            }
+        )
+
+    cache, meta = build_crypto_history_cache(
+        ["BTC/USD", "WIF/USD"],
+        ["15m", "1h", "2h", "4h"],
+        500,
+        exchange=exchange,
+        symbol_map={"WIF/USD": "WIF/USDT"},
+        fetcher=fake_fetch,
+    )
+
+    assert calls == [
+        ("BTC/USD", "BTC/USD", "1h", 1000, exchange),
+        ("WIF/USD", "WIF/USDT", "1h", 1000, exchange),
+    ]
+    assert len(cache[("BTC/USD", "2h")]) >= 500
+    assert len(cache[("BTC/USD", "4h")]) >= 250
+    assert meta["saved_request_count"] == 4
+    assert meta["derived_timeframes"] == ["2h", "4h"]
+
+
+def test_run_crypto_scan_uses_prefetched_history_without_provider_request(monkeypatch):
+    monkeypatch.setattr(
+        "roxy_scanner.fetch_crypto_ohlcv",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("provider should not be called")),
+    )
+    history = pd.DataFrame(
+        {
+            "ts": pd.date_range("2026-01-01", periods=240, freq="4h"),
+            "open": [100.0 + value * 0.1 for value in range(240)],
+            "high": [101.0 + value * 0.1 for value in range(240)],
+            "low": [99.0 + value * 0.1 for value in range(240)],
+            "close": [100.5 + value * 0.1 for value in range(240)],
+            "volume": [1000.0] * 240,
+        }
+    )
+
+    out = ma_scan.run_crypto_scan(
+        ["BTC/USD"],
+        "4h",
+        500,
+        ma_scan.MovingAverageConfig(),
+        exchange=object(),
+        history_by_symbol={"BTC/USD": history},
+    )
+
+    assert out.loc[0, "symbol"] == "BTC/USD"
+    assert out.loc[0, "tf"] == "4h"
+    assert out.loc[0, "signal"] != "ERROR"

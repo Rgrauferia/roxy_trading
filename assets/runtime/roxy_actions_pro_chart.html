@@ -1,0 +1,744 @@
+
+    <div class="roxy-pro-chart" id="__CHART_ID__">
+      <header class="rpc-head">
+        <div>
+          <span class="rpc-kicker">GRAFICA OPERATIVA</span>
+          <strong data-rpc-title></strong>
+          <small data-rpc-subtitle></small>
+        </div>
+        <aside data-rpc-last></aside>
+      </header>
+	      <section class="rpc-toolbar">
+	        <button data-range="32" class="active">32 velas</button>
+	        <button data-range="48">48 velas</button>
+	        <button data-range="96">96 velas</button>
+	        <button data-range="all">Todo</button>
+	        <button data-layer="clean">Solo velas</button>
+	        <button data-layer="strategy" class="layer-active">Plan Roxy</button>
+	        <button data-layer="all">Indicadores</button>
+	        <span>Zoom operativo · pan · cursor · precio live sincronizado</span>
+	      </section>
+      <section class="rpc-tradebar" data-rpc-tradebar></section>
+      <section class="rpc-reading" data-rpc-reading></section>
+      <main class="rpc-stage" data-rpc-stage data-layer-mode="strategy">
+        <div class="rpc-chart"></div>
+        <div class="rpc-level-bands" data-rpc-level-bands></div>
+        <div class="rpc-crosscard" data-rpc-cross></div>
+        <div class="rpc-plan" data-rpc-plan></div>
+        <div class="rpc-statusbar" data-rpc-status></div>
+      </main>
+      <footer class="rpc-legend">
+        <b><i style="background:#ec4899"></i>EMA 9</b>
+        <b><i style="background:#a855f7"></i>EMA 21</b>
+        <b><i style="background:#38bdf8"></i>AVG 20</b>
+        <b><i style="background:#f59e0b"></i>AVG 40</b>
+        <b><i style="background:#94a3b8"></i>Bollinger</b>
+        <b><i style="background:#22c55e"></i>Entrada</b>
+        <b><i style="background:#ef4444"></i>Stop</b>
+        <b><i style="background:#38bdf8"></i>Target</b>
+      </footer>
+    </div>
+    <style>
+      html,body{margin:0;background:transparent;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#e5f3ff}
+      .roxy-pro-chart{height:calc(100vh - 2px);display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(96,165,250,.34);border-radius:16px;background:radial-gradient(circle at 48% 10%,rgba(14,165,233,.22),transparent 32%),radial-gradient(circle at 12% 92%,rgba(34,197,94,.10),transparent 34%),linear-gradient(180deg,rgba(4,10,22,.98),rgba(2,6,23,.97));box-shadow:0 0 0 1px rgba(255,255,255,.045) inset,0 18px 38px rgba(0,0,0,.42),0 0 42px rgba(14,165,233,.10)}
+      .rpc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 14px 8px;border-bottom:1px solid rgba(96,165,250,.16)}
+      .rpc-kicker{display:block;color:#7dd3fc;font-size:10px;font-weight:950;letter-spacing:.16em}
+      .rpc-head strong{display:block;margin-top:3px;font-size:18px;line-height:1.05;color:#f8fafc;letter-spacing:.02em}
+      .rpc-head small{display:block;margin-top:5px;color:#93c5fd;font-size:11px;font-weight:760}
+      .rpc-head aside{text-align:right;color:#22c55e;font-size:18px;font-weight:1000;text-shadow:0 0 18px rgba(34,197,94,.34);font-variant-numeric:tabular-nums;transition:transform .18s ease,filter .18s ease,color .18s ease}
+      .rpc-head aside small{display:block;color:#a7f3d0;font-size:10px;font-weight:850}
+      .rpc-head aside.rpc-flash-up{color:#22c55e;filter:drop-shadow(0 0 14px rgba(34,197,94,.62));animation:rpcPriceFlashUp .52s ease-out 1}
+      .rpc-head aside.rpc-flash-down{color:#fb7185;filter:drop-shadow(0 0 14px rgba(251,113,133,.50));animation:rpcPriceFlashDown .52s ease-out 1}
+      .rpc-head aside.rpc-flash-flat{filter:drop-shadow(0 0 12px rgba(56,189,248,.46));animation:rpcPriceFlashFlat .52s ease-out 1}
+      .rpc-head aside.rpc-closed{color:#facc15;text-shadow:0 0 18px rgba(250,204,21,.34)}
+      .rpc-head aside.rpc-degraded{color:#fb7185;text-shadow:0 0 18px rgba(251,113,133,.34)}
+      .rpc-toolbar{display:flex;align-items:center;gap:7px;padding:6px 10px;border-bottom:1px solid rgba(96,165,250,.14);overflow-x:auto;white-space:nowrap}
+      .rpc-toolbar button{border:1px solid rgba(96,165,250,.34);border-radius:9px;background:rgba(15,23,42,.86);color:#dbeafe;font-size:11px;font-weight:900;padding:6px 9px;cursor:pointer}
+      .rpc-toolbar button.active,.rpc-toolbar button:hover{background:#2563eb;color:#fff;border-color:#60a5fa;box-shadow:0 0 18px rgba(37,99,235,.36)}
+      .rpc-toolbar button[data-layer]{border-color:rgba(34,197,94,.24);color:#bbf7d0}
+      .rpc-toolbar button[data-layer].layer-active{background:rgba(34,197,94,.22);border-color:rgba(34,197,94,.54);color:#ecfdf5;box-shadow:0 0 18px rgba(34,197,94,.22)}
+      .rpc-toolbar span{margin-left:auto;color:#91a8c9;font-size:10px;font-weight:760}
+      .rpc-tradebar{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding:6px 9px;border-bottom:1px solid rgba(96,165,250,.12);background:linear-gradient(90deg,rgba(15,23,42,.46),rgba(14,165,233,.08),rgba(15,23,42,.46))}
+      .rpc-tradebar span{min-width:0;border:1px solid rgba(125,211,252,.17);border-radius:10px;background:rgba(2,6,23,.58);padding:6px 7px;box-shadow:0 0 18px rgba(56,189,248,.06) inset}
+      .rpc-tradebar small{display:block;color:#7dd3fc;font-size:8px;font-weight:1000;letter-spacing:.10em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .rpc-tradebar b{display:block;margin-top:2px;color:#f8fafc;font-size:12px;font-weight:1000;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .rpc-tradebar .danger small,.rpc-tradebar .danger b{color:#fb7185}.rpc-tradebar .good small,.rpc-tradebar .good b{color:#86efac}.rpc-tradebar .blue small,.rpc-tradebar .blue b{color:#7dd3fc}
+      .rpc-reading{display:grid;grid-template-columns:1.45fr repeat(3,minmax(0,1fr));gap:7px;padding:7px 9px;border-bottom:1px solid rgba(96,165,250,.12);background:linear-gradient(90deg,rgba(2,6,23,.46),rgba(34,197,94,.08),rgba(2,6,23,.46))}
+      .rpc-reading span{min-width:0;border:1px solid rgba(125,211,252,.16);border-radius:10px;background:rgba(2,6,23,.56);padding:7px 8px;color:#dbeafe}
+      .rpc-reading small{display:block;color:#7dd3fc;font-size:8px;font-weight:1000;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .rpc-reading b{display:block;margin-top:2px;color:#f8fafc;font-size:12px;font-weight:1000;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .rpc-reading em{display:block;margin-top:2px;color:#9fb8da;font-size:10px;font-style:normal;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .rpc-reading .ready{border-color:rgba(34,197,94,.34);box-shadow:0 0 22px rgba(34,197,94,.10) inset}.rpc-reading .ready small,.rpc-reading .ready b{color:#86efac}
+      .rpc-reading .wait{border-color:rgba(250,204,21,.30);box-shadow:0 0 22px rgba(250,204,21,.08) inset}.rpc-reading .wait small,.rpc-reading .wait b{color:#fde68a}
+      .rpc-reading .danger{border-color:rgba(248,113,113,.32);box-shadow:0 0 22px rgba(248,113,113,.08) inset}.rpc-reading .danger small,.rpc-reading .danger b{color:#fecaca}
+      .rpc-stage{position:relative;flex:1 1 auto;min-height:560px;padding:6px 7px 0}
+	      .rpc-stage:before{content:"";position:absolute;inset:6px 7px 56px;border-radius:12px;background:linear-gradient(90deg,transparent,rgba(56,189,248,.06),transparent),radial-gradient(circle at 70% 16%,rgba(34,197,94,.08),transparent 22%);pointer-events:none}
+	      .rpc-stage:after{content:"";position:absolute;inset:6px 7px 56px;border-radius:12px;background-image:linear-gradient(rgba(148,163,184,.038) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.038) 1px,transparent 1px);background-size:48px 48px;opacity:.52;pointer-events:none}
+	      .rpc-chart{position:absolute;inset:6px 7px 56px 7px}
+      .rpc-stage[data-layer-mode="strategy"]:before{background:radial-gradient(circle at 70% 16%,rgba(34,197,94,.08),transparent 24%)}
+      .rpc-stage[data-layer-mode="clean"]:before,.rpc-stage[data-layer-mode="clean"]:after{opacity:.30}
+      .rpc-stage[data-layer-mode="all"]:after{opacity:.64}
+      .rpc-level-bands{position:absolute;inset:6px 7px 56px;border-radius:12px;z-index:2;overflow:hidden;pointer-events:none;opacity:.34;transition:opacity .18s ease}
+      .rpc-stage[data-layer-mode="clean"] .rpc-level-bands{opacity:0}
+      .rpc-stage[data-layer-mode="strategy"] .rpc-level-bands{opacity:.28}
+      .rpc-stage[data-layer-mode="all"] .rpc-level-bands{opacity:.52}
+      .rpc-level-band{position:absolute;left:0;right:0;min-height:14px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;border-top:1px solid rgba(255,255,255,.20);border-bottom:1px solid rgba(255,255,255,.10);font-size:8px;font-weight:1000;letter-spacing:.06em;text-transform:uppercase;text-shadow:0 1px 4px rgba(0,0,0,.82);box-shadow:0 0 12px rgba(255,255,255,.04) inset}
+      .rpc-level-band b{border-radius:999px;padding:3px 7px;background:rgba(2,6,23,.76);box-shadow:0 0 18px rgba(0,0,0,.24);font-variant-numeric:tabular-nums}
+      .rpc-level-entry{background:linear-gradient(90deg,rgba(34,197,94,.025),rgba(34,197,94,.11),rgba(34,197,94,.03));border-color:rgba(34,197,94,.42);color:#bbf7d0}
+      .rpc-level-stop{background:linear-gradient(90deg,rgba(239,68,68,.02),rgba(239,68,68,.10),rgba(239,68,68,.025));border-color:rgba(248,113,113,.44);color:#fecaca}
+      .rpc-level-target{background:linear-gradient(90deg,rgba(56,189,248,.02),rgba(56,189,248,.10),rgba(56,189,248,.025));border-color:rgba(125,211,252,.44);color:#bae6fd}
+      .rpc-crosscard{position:absolute;left:16px;top:16px;z-index:5;display:none;min-width:190px;padding:8px 10px;border:1px solid rgba(125,211,252,.32);border-left:3px solid #38bdf8;border-radius:10px;background:rgba(2,6,23,.78);backdrop-filter:blur(10px);box-shadow:0 14px 28px rgba(0,0,0,.34);font-size:11px;font-weight:850;line-height:1.35;color:#dbeafe}
+      .rpc-crosscard b{color:#f8fafc}
+      .rpc-plan{position:absolute;right:14px;bottom:58px;z-index:4;max-width:236px;padding:8px 10px;border:1px solid rgba(34,197,94,.25);border-left:3px solid #22c55e;border-radius:12px;background:rgba(2,6,23,.58);backdrop-filter:blur(10px);box-shadow:0 14px 28px rgba(0,0,0,.22);font-size:10px;font-weight:850;line-height:1.34;color:#dbeafe;pointer-events:none;opacity:.76;transition:opacity .18s ease,transform .18s ease}
+      .rpc-stage[data-layer-mode="clean"] .rpc-plan{opacity:0;transform:translateY(8px)}
+      .rpc-stage[data-layer-mode="all"] .rpc-plan{opacity:.82}
+      .rpc-plan strong{display:block;color:#fff;font-size:12px;margin-bottom:4px}
+      .rpc-plan span{display:grid;grid-template-columns:78px 1fr;gap:8px;color:#a7bce0}
+      .rpc-plan b{color:#f8fafc;text-align:right}
+	      .rpc-statusbar{position:absolute;left:16px;right:16px;bottom:10px;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid rgba(125,211,252,.18);border-radius:10px;background:rgba(2,6,23,.72);backdrop-filter:blur(10px);padding:7px 9px;color:#9fb8da;font-size:10px;font-weight:900;pointer-events:none}
+	      .rpc-statusbar b{color:#e0f2fe}.rpc-statusbar em{font-style:normal;color:#22c55e}.rpc-statusbar .rpc-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px;background:#22c55e;box-shadow:0 0 12px rgba(34,197,94,.9);animation:rpcLiveDot 1.2s ease-in-out infinite}
+      .rpc-statusbar.rpc-near-entry{border-color:rgba(34,197,94,.42);box-shadow:0 0 24px rgba(34,197,94,.16)}
+      .rpc-statusbar.rpc-danger{border-color:rgba(248,113,113,.46);box-shadow:0 0 24px rgba(248,113,113,.14)}
+      .rpc-statusbar.rpc-closed{border-color:rgba(250,204,21,.36);box-shadow:0 0 24px rgba(250,204,21,.10)}
+      .rpc-statusbar.rpc-degraded{border-color:rgba(248,113,113,.42);box-shadow:0 0 24px rgba(248,113,113,.12)}
+      .rpc-statusbar.rpc-closed .rpc-dot{background:#facc15;box-shadow:0 0 12px rgba(250,204,21,.9)}
+      .rpc-statusbar.rpc-degraded .rpc-dot{background:#fb7185;box-shadow:0 0 12px rgba(251,113,133,.9)}
+	      .rpc-legend{display:flex;gap:9px;align-items:center;overflow-x:auto;padding:8px 10px 10px;border-top:1px solid rgba(96,165,250,.14);white-space:nowrap}
+      .rpc-legend b{display:inline-flex;align-items:center;gap:5px;color:#bfd7ff;font-size:10px;font-weight:900}
+      .rpc-legend i{display:block;width:18px;height:3px;border-radius:99px;box-shadow:0 0 10px currentColor}
+      @keyframes rpcLiveDot{0%,100%{opacity:.45;transform:scale(.9)}50%{opacity:1;transform:scale(1.18)}}
+      @keyframes rpcPriceFlashUp{0%{transform:translateY(0) scale(1)}45%{transform:translateY(-2px) scale(1.045)}100%{transform:translateY(0) scale(1)}}
+      @keyframes rpcPriceFlashDown{0%{transform:translateY(0) scale(1)}45%{transform:translateY(2px) scale(1.045)}100%{transform:translateY(0) scale(1)}}
+      @keyframes rpcPriceFlashFlat{0%{transform:scale(1)}45%{transform:scale(1.035)}100%{transform:scale(1)}}
+	      @media(max-width:720px){.rpc-head{padding:9px 10px 6px}.rpc-head strong{font-size:15px}.rpc-head aside{font-size:15px}.rpc-toolbar span{display:none}.rpc-tradebar{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.rpc-tradebar span{padding:6px 7px}.rpc-tradebar b{font-size:11px}.rpc-reading{grid-template-columns:1fr 1fr;gap:6px}.rpc-reading b{font-size:11px}.rpc-stage{min-height:560px}.rpc-plan{display:none}.rpc-crosscard{max-width:calc(100% - 32px)}.rpc-chart{inset:6px 7px 64px 7px}.rpc-level-bands{inset:6px 7px 64px}.rpc-stage:before,.rpc-stage:after{inset:6px 7px 64px}.rpc-statusbar{left:12px;right:12px;bottom:8px;font-size:8px;display:block}.rpc-statusbar em{display:block;margin-top:2px}.rpc-legend{padding-bottom:8px}.rpc-legend b{font-size:9px}}
+    </style>
+    <script>
+    (() => {
+      const ensureLightweightCharts = async () => {
+        if (window.LightweightCharts) return true;
+        const inlineSource = __LIGHTWEIGHT_INLINE__;
+        if (inlineSource) {
+          try {
+            const script = document.createElement("script");
+            script.textContent = inlineSource;
+            document.head.appendChild(script);
+            if (window.LightweightCharts) return true;
+          } catch (error) {}
+        }
+        try {
+          await new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = "https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js";
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+          });
+        } catch (error) {}
+        return Boolean(window.LightweightCharts);
+      };
+      const payload = __PAYLOAD__;
+      const root = document.getElementById("__CHART_ID__");
+      const chartEl = root.querySelector(".rpc-chart");
+      const stageEl = root.querySelector("[data-rpc-stage]");
+      const crossEl = root.querySelector("[data-rpc-cross]");
+      const planEl = root.querySelector("[data-rpc-plan]");
+      const statusEl = root.querySelector("[data-rpc-status]");
+      const tradebarEl = root.querySelector("[data-rpc-tradebar]");
+      const readingEl = root.querySelector("[data-rpc-reading]");
+      const levelBandsEl = root.querySelector("[data-rpc-level-bands]");
+      const titleEl = root.querySelector("[data-rpc-title]");
+      const subtitleEl = root.querySelector("[data-rpc-subtitle]");
+      const lastEl = root.querySelector("[data-rpc-last]");
+      const candles = payload.candles || [];
+      const boot = async () => {
+      if (!await ensureLightweightCharts() || !candles.length) {
+        chartEl.innerHTML = "<div style='padding:18px;color:#fecaca'>No se pudo cargar la grafica profesional.</div>";
+        return;
+      }
+      const fmt = (v) => Number(v).toLocaleString("en-US", {minimumFractionDigits: Number(v) >= 1 ? 2 : 4, maximumFractionDigits: Number(v) >= 1 ? 2 : 6});
+      const positivePrice = (value) => {
+        if (value === null || value === undefined || value === "") return NaN;
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : NaN;
+      };
+      const pct = (price, base) => {
+        const p = Number(price);
+        const b = Number(base);
+        return Number.isFinite(p) && Number.isFinite(b) && b > 0 ? (p - b) / b : 0;
+      };
+      let displayedLastPrice = null;
+      const setLastBadge = (price, base, source = "historial", options = {}) => {
+        const move = pct(price, base);
+        const previousDisplayed = Number(displayedLastPrice);
+        const tickMove = Number.isFinite(previousDisplayed) ? Number(price) - previousDisplayed : 0;
+        displayedLastPrice = Number(price);
+        const badge = options.degraded ? "RESPALDO" : options.closed ? "LAST" : options.live ? "LIVE" : "QUOTE";
+        lastEl.innerHTML = `${badge} ${fmt(price)}<small>${move >= 0 ? "+" : ""}${(move * 100).toFixed(2)}% · ${source}</small>`;
+        lastEl.style.color = options.degraded ? "#38bdf8" : options.closed ? "#facc15" : move >= 0 ? "#22c55e" : "#fb7185";
+        lastEl.classList.remove("rpc-flash-up", "rpc-flash-down", "rpc-flash-flat", "rpc-closed", "rpc-degraded");
+        if (options.closed) lastEl.classList.add("rpc-closed");
+        if (options.degraded) lastEl.classList.add("rpc-degraded");
+        void lastEl.offsetWidth;
+        lastEl.classList.add(tickMove > 0 ? "rpc-flash-up" : tickMove < 0 ? "rpc-flash-down" : "rpc-flash-flat");
+      };
+	      const renderTradebar = (price, source = "historial") => {
+	        if (!tradebarEl) return;
+	        const summary = payload.roxySummary || {};
+	        const entry = positivePrice(summary.entry);
+	        const stop = positivePrice(summary.stop);
+	        const target = positivePrice(summary.target);
+	        const rr = positivePrice(summary.rr);
+	        const live = positivePrice(price);
+	        const nearEntry = Number.isFinite(live) && Number.isFinite(entry) && Math.abs(live - entry) <= Math.max(Math.abs(entry) * .0035, .02);
+	        const nearStop = Number.isFinite(live) && Number.isFinite(stop) && Math.abs(live - stop) <= Math.max(Math.abs(stop) * .0035, .02);
+	        tradebarEl.innerHTML = `
+	          <span class="blue"><small>Precio live</small><b>${Number.isFinite(live) ? fmt(live) : "--"}</b></span>
+	          <span class="good"><small>${nearEntry ? "En zona entrada" : "Entrada"}</small><b>${Number.isFinite(entry) ? fmt(entry) : "Pendiente"}</b></span>
+	          <span class="danger"><small>${nearStop ? "Cerca del stop" : "Stop"}</small><b>${Number.isFinite(stop) ? fmt(stop) : "Pendiente"}</b></span>
+	          <span class="blue"><small>Target</small><b>${Number.isFinite(target) ? fmt(target) : "Pendiente"}</b></span>
+	          <span><small>Feed</small><b>${String(source || "historial").slice(0, 26)}</b></span>
+	        `;
+        if (Number.isFinite(rr)) {
+          const last = tradebarEl.lastElementChild;
+          if (last) last.innerHTML = `<small>R/R · Feed</small><b>1:${rr.toFixed(1)} · ${String(source || "historial").slice(0, 18)}</b>`;
+        }
+      };
+      const renderReading = (price, source = "historial") => {
+        if (!readingEl) return;
+        const summary = payload.roxySummary || {};
+        const live = positivePrice(price);
+        const entry = positivePrice(summary.entry);
+        const stop = positivePrice(summary.stop);
+        const target = positivePrice(summary.target);
+        const zoneLow = positivePrice(summary.entryZoneLow);
+        const zoneHigh = positivePrice(summary.entryZoneHigh);
+        const hasZone = Number.isFinite(zoneLow) && Number.isFinite(zoneHigh) && zoneHigh > zoneLow;
+        const near = (value, ratio = .0035) => Number.isFinite(live) && Number.isFinite(value) && Math.abs(live - value) <= Math.max(Math.abs(value) * ratio, .02);
+        const hasCompletePlan = Number.isFinite(entry) && Number.isFinite(stop) && Number.isFinite(target);
+        let state = hasCompletePlan ? "Esperar confirmacion" : "Plan pendiente";
+        let tone = "wait";
+        let detail = hasCompletePlan
+          ? "Roxy espera alineacion limpia antes de entrada."
+          : "Sin entrada, stop y objetivo verificables; Roxy no emite una decision.";
+        if (hasCompletePlan && Number.isFinite(live) && live <= stop * 1.002) {
+          state = "No entrar";
+          tone = "danger";
+          detail = "Precio demasiado cerca del stop o debajo de invalidacion.";
+        } else if (hasCompletePlan && Number.isFinite(live) && live >= target * .995) {
+          state = "Tomar ganancia / no perseguir";
+          tone = "wait";
+          detail = "Precio ya esta cerca del target planeado.";
+        } else if (hasCompletePlan && hasZone && live >= zoneLow && live <= zoneHigh) {
+          state = "Zona de entrada";
+          tone = "ready";
+          detail = "Precio dentro de la zona operativa de Roxy.";
+        } else if (hasCompletePlan && near(entry, .004)) {
+          state = "Entrada posible";
+          tone = "ready";
+          detail = "Precio tocando entrada; confirmar vela y volumen.";
+        } else if (hasCompletePlan && Number.isFinite(live) && live < entry) {
+          state = "Esperar pullback";
+          tone = "wait";
+          detail = "Aun no llega a la entrada calculada.";
+        } else if (hasCompletePlan && Number.isFinite(live) && live > entry) {
+          state = "Gestionar";
+          tone = "ready";
+          detail = "Precio sobre entrada; vigilar stop y target.";
+        }
+        const distanceToEntry = Number.isFinite(live) && Number.isFinite(entry) ? live - entry : NaN;
+        const distanceLabel = Number.isFinite(distanceToEntry) ? `${distanceToEntry >= 0 ? "+" : ""}${fmt(distanceToEntry)}` : "--";
+        readingEl.innerHTML = `
+          <span class="${tone}"><small>Lectura Roxy · modo trading limpio</small><b>${state}</b><em>${detail}</em></span>
+          <span><small>Entrada exacta</small><b>${Number.isFinite(entry) ? fmt(entry) : "Pendiente"}</b><em>${hasZone ? `${fmt(zoneLow)} - ${fmt(zoneHigh)}` : "Sin nivel verificado"}</em></span>
+          <span class="danger"><small>Invalidacion</small><b>${Number.isFinite(stop) ? fmt(stop) : "Pendiente"}</b><em>${Number.isFinite(stop) ? "Stop no se negocia" : "Sin nivel verificado"}</em></span>
+          <span class="ready"><small>Objetivo · distancia</small><b>${Number.isFinite(target) ? fmt(target) : "Pendiente"}</b><em>${hasCompletePlan ? `${distanceLabel} desde entrada · ${String(source || "feed").slice(0, 16)}` : "Sin nivel verificado"}</em></span>
+        `;
+      };
+      const parentQuote = () => {
+        try {
+          const parentDoc = window.parent && window.parent.document ? window.parent.document : null;
+          if (!parentDoc) return null;
+          const safeSymbol = String(payload.symbol || "").toUpperCase();
+          const nodes = Array.from(parentDoc.querySelectorAll("[data-roxy-stock-live-price]"));
+          const node = nodes.find((item) => String(item.dataset.roxyStockSymbol || "").toUpperCase() === safeSymbol);
+          if (!node) return null;
+          const raw = node.dataset.roxyServerPrice || node.dataset.roxyPrice || String(node.textContent || "").replace(/[^0-9.-]/g, "");
+          const price = Number(raw);
+          if (!Number.isFinite(price) || price <= 0) return null;
+          const statusNode = parentDoc.querySelector(`[data-roxy-stock-live-status][data-roxy-stock-symbol="${safeSymbol}"]`);
+          const source = node.dataset.roxySource || (statusNode && statusNode.textContent ? String(statusNode.textContent).trim() : "Roxy server live");
+          const marketOpen = node.dataset.roxyMarketOpen === "true" ? true : node.dataset.roxyMarketOpen === "false" ? false : null;
+          return {
+            price,
+            state: marketOpen === false ? "CLOSED" : marketOpen === true ? "REGULAR" : "",
+            source: source || "Roxy server live",
+            marketOpen,
+            freshness: node.dataset.roxyFreshness || "",
+            updatedAt: node.dataset.roxyUpdatedAt || ""
+          };
+        } catch (error) {
+          return null;
+        }
+      };
+      const yahooQuote = async (symbol) => {
+        const controller = new AbortController();
+        const timer = window.setTimeout(() => controller.abort(), 4200);
+        try {
+          const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1m`;
+          const res = await fetch(url, { cache: "no-store", signal: controller.signal });
+          if (!res.ok) return null;
+          const data = await res.json();
+          const result = data && data.chart && data.chart.result && data.chart.result[0];
+          if (!result) return null;
+          const meta = result.meta || {};
+          const quote = result.indicators && result.indicators.quote && result.indicators.quote[0];
+          const closes = quote && Array.isArray(quote.close) ? quote.close.filter((v) => Number.isFinite(Number(v))) : [];
+          const price = Number(meta.regularMarketPrice || meta.postMarketPrice || meta.preMarketPrice || closes[closes.length - 1]);
+          if (!Number.isFinite(price) || price <= 0) return null;
+	          return {
+	            price,
+	            state: String(meta.marketState || "").toUpperCase(),
+	            source: meta.marketState ? `Yahoo ${String(meta.marketState).toLowerCase()}` : "Yahoo live",
+	            marketOpen: ["REGULAR", "PRE", "POST"].includes(String(meta.marketState || "").toUpperCase())
+	          };
+        } catch (error) {
+          return null;
+        } finally {
+          window.clearTimeout(timer);
+        }
+      };
+      const latest = candles[candles.length - 1];
+      const previous = candles.length > 1 ? candles[candles.length - 2] : latest;
+      titleEl.textContent = `${payload.symbol} · ${payload.timeframe} · ${payload.panelLabel}`;
+      subtitleEl.textContent = "Velas reales · EMA 9/21 · AVG 20/40 · Bollinger · Volumen · Plan Roxy";
+      setLastBadge(latest.close, previous.close, "historial", { live: false });
+      renderTradebar(latest.close, "historial");
+      renderReading(latest.close, "historial");
+      const chart = LightweightCharts.createChart(chartEl, {
+        autoSize: true,
+        layout: { background: { type: "solid", color: "rgba(2,6,23,0)" }, textColor: "#dbeafe", fontFamily: "Inter, system-ui, sans-serif", attributionLogo: false },
+        grid: { vertLines: { color: "rgba(148,163,184,.105)" }, horzLines: { color: "rgba(148,163,184,.13)" } },
+        crosshair: {
+          mode: LightweightCharts.CrosshairMode.Normal,
+          vertLine: { color: "rgba(226,232,240,.46)", style: 3, width: 1, labelBackgroundColor: "#2563eb" },
+          horzLine: { color: "rgba(226,232,240,.46)", style: 3, width: 1, labelBackgroundColor: "#2563eb" }
+        },
+        rightPriceScale: { borderColor: "rgba(125,211,252,.28)", scaleMargins: { top: .04, bottom: .16 }, visible: true },
+        timeScale: { borderColor: "rgba(125,211,252,.22)", timeVisible: true, secondsVisible: false, rightOffset: 9, barSpacing: window.innerWidth < 720 ? 15 : 20, minBarSpacing: 8 },
+        handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+        handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
+      });
+	      const candleSeries = chart.addCandlestickSeries({
+        upColor: "#22c55e", downColor: "#ef4444",
+        borderUpColor: "#86efac", borderDownColor: "#fca5a5",
+        wickUpColor: "#86efac", wickDownColor: "#fca5a5",
+        priceLineVisible: true, lastValueVisible: true,
+        priceFormat: { type: "price", precision: latest.close >= 1 ? 2 : 5, minMove: latest.close >= 1 ? .01 : .00001 },
+	      });
+	      candleSeries.setData(candles);
+	      let liveCandle = { ...latest };
+	      const liveLine = candleSeries.createPriceLine({
+	        price: latest.close,
+	        color: "#22c55e",
+	        lineWidth: 2,
+	        lineStyle: LightweightCharts.LineStyle.Solid,
+	        axisLabelVisible: true,
+	        title: "LIVE",
+	      });
+      const strategyAnnotations = (payload.strategyAnnotations || []).filter((annotation) => annotation && typeof annotation === "object");
+      const annotationPrices = strategyAnnotations.flatMap((annotation) => [
+        positivePrice(annotation.value),
+        positivePrice(annotation.low),
+        positivePrice(annotation.high),
+      ]).filter(Number.isFinite);
+      const visiblePlanLevels = strategyAnnotations.length ? [] : (payload.levels || []);
+      const levelPrices = visiblePlanLevels.map((level) => positivePrice(level.value)).filter(Number.isFinite).concat(annotationPrices);
+      const quantile = (values, q) => {
+        const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+        if (!sorted.length) return null;
+        const pos = (sorted.length - 1) * q;
+        const base = Math.floor(pos);
+        const rest = pos - base;
+        return sorted[base + 1] !== undefined ? sorted[base] + rest * (sorted[base + 1] - sorted[base]) : sorted[base];
+      };
+      const smartRangeFor = (livePrice = null) => {
+        const fixedRange = payload.displayRange || null;
+        if (fixedRange && Number.isFinite(Number(fixedRange.minValue)) && Number.isFinite(Number(fixedRange.maxValue)) && Number(fixedRange.maxValue) > Number(fixedRange.minValue)) {
+          const fixedLow = Number(fixedRange.minValue);
+          const fixedHigh = Number(fixedRange.maxValue);
+          const fixedCenter = (fixedLow + fixedHigh) / 2;
+          const fixedSpan = Math.max(fixedHigh - fixedLow, Math.abs(fixedCenter) * .006, .01);
+          const anchors = levelPrices
+            .concat(Number(livePrice))
+            .filter((value) => Number.isFinite(value) && (!Number.isFinite(fixedCenter) || Math.abs(value - fixedCenter) <= fixedSpan * 1.45));
+          const low = Math.min(fixedLow, ...anchors).valueOf();
+          const high = Math.max(fixedHigh, ...anchors).valueOf();
+          const span = Math.max(high - low, Math.abs(high) * .006, .01);
+          return { minValue: low - span * .09, maxValue: high + span * .09 };
+        }
+        const visibleHint = window.innerWidth < 720 ? 32 : Number(payload.suggestedVisibleCandles || 48);
+        const recent = candles.slice(-Math.max(34, Math.min(96, visibleHint + 22)));
+        const bodyVals = recent.flatMap((c) => [Number(c.open), Number(c.close)]).filter(Number.isFinite);
+        const wickVals = recent.flatMap((c) => [Number(c.high), Number(c.low)]).filter(Number.isFinite);
+        let low = quantile(bodyVals, .06);
+        let high = quantile(bodyVals, .94);
+        const wickLow = quantile(wickVals, .12);
+        const wickHigh = quantile(wickVals, .88);
+        if (Number.isFinite(wickLow)) low = Number.isFinite(low) ? Math.min(low, wickLow) : wickLow;
+        if (Number.isFinite(wickHigh)) high = Number.isFinite(high) ? Math.max(high, wickHigh) : wickHigh;
+        const center = Number.isFinite(low) && Number.isFinite(high) ? (low + high) / 2 : Number(livePrice);
+        const bodySpan = Number.isFinite(low) && Number.isFinite(high) ? Math.max(high - low, Math.abs(center) * .006, .01) : Math.abs(center) * .01;
+        const anchorLimit = Math.max(bodySpan * 1.85, Math.abs(center) * .018, .08);
+        const anchors = levelPrices
+          .concat(Number(livePrice))
+          .filter((value) => Number.isFinite(value) && (!Number.isFinite(center) || Math.abs(value - center) <= anchorLimit));
+        anchors.forEach((value) => {
+          low = Number.isFinite(low) ? Math.min(low, value) : value;
+          high = Number.isFinite(high) ? Math.max(high, value) : value;
+        });
+        if (!Number.isFinite(low) || !Number.isFinite(high) || high <= low) return null;
+        const span = Math.max(high - low, Math.abs(high) * .006, .01);
+        return { minValue: low - span * .10, maxValue: high + span * .10 };
+      };
+      const applySmartScale = (livePrice = null) => {
+        const range = smartRangeFor(livePrice);
+        if (!range) return;
+        candleSeries.applyOptions({ autoscaleInfoProvider: () => ({ priceRange: range }) });
+      };
+      applySmartScale(latest.close);
+      const lineStyles = {
+        "EMA9": ["#ec4899", 2, 0],
+        "EMA21": ["#a855f7", 2, 0],
+        "SMA20": ["#38bdf8", 2, 0],
+        "SMA40": ["#f59e0b", 2, 0],
+        "BB Upper": ["rgba(203,213,225,.36)", 1, 2],
+        "BB Mid": ["rgba(148,163,184,.26)", 1, 2],
+        "BB Lower": ["rgba(203,213,225,.36)", 1, 2],
+      };
+      const indicatorSeries = [];
+      const emaSeries = [];
+      const trendSeries = [];
+      const bollingerSeries = [];
+      Object.entries(lineStyles).forEach(([name, spec]) => {
+        const data = (payload.lines && payload.lines[name]) || [];
+        if (!data.length) return;
+        const series = chart.addLineSeries({ color: spec[0], lineWidth: spec[1], lineStyle: spec[2], priceLineVisible: false, lastValueVisible: false });
+        series.setData(data);
+        indicatorSeries.push(series);
+        if (["EMA9", "EMA21"].includes(String(name))) emaSeries.push(series);
+        if (["SMA20", "SMA40"].includes(String(name))) trendSeries.push(series);
+        if (String(name).startsWith("BB ")) bollingerSeries.push(series);
+      });
+      const volume = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "volume", lastValueVisible: false, priceLineVisible: false });
+      volume.setData(candles.map((c) => ({ time: c.time, value: c.volume || 0, color: c.close >= c.open ? "rgba(34,197,94,.38)" : "rgba(239,68,68,.38)" })));
+      chart.priceScale("volume").applyOptions({ scaleMargins: { top: .84, bottom: 0 }, visible: false, borderVisible: false });
+      visiblePlanLevels.forEach((level) => {
+        const value = Number(level.value);
+        if (!Number.isFinite(value)) return;
+        candleSeries.createPriceLine({ price: value, color: level.color, lineWidth: 2, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: `${level.label} ${fmt(value)}` });
+	      });
+      const annotationColor = (type) => ({
+        ENTRY_ZONE: "#facc15",
+        CONFIRMATION: "#22c55e",
+        STOP_LINE: "#ef4444",
+        INVALIDATION: "#fb7185",
+        TARGET: "#38bdf8",
+      }[String(type || "").toUpperCase()] || "#a78bfa");
+      const annotationLines = new Set();
+      const strategyPriceLines = [];
+      const strategyLineSeries = [];
+      strategyAnnotations.forEach((annotation) => {
+        const type = String(annotation.type || "").toUpperCase();
+        if (["EMA", "TREND_HEALTH", "STRUCTURE"].includes(type)) return;
+        if (type === "TREND_LINE") {
+          const startTime = Number(annotation.startTime);
+          const endTime = Number(annotation.endTime);
+          const startValue = positivePrice(annotation.startValue);
+          const endValue = positivePrice(annotation.endValue);
+          if (![startTime, endTime, startValue, endValue].every(Number.isFinite)) return;
+          const role = String(annotation.role || "").toLowerCase();
+          const series = chart.addLineSeries({
+            color: ["support", "bullish_divergence"].includes(role) ? "#22c55e" : role === "bearish_divergence" ? "#ef4444" : "#f59e0b",
+            lineWidth: 2,
+            lineStyle: LightweightCharts.LineStyle.Solid,
+            priceLineVisible: false,
+            lastValueVisible: true,
+            title: String(annotation.label || "Estructura").slice(0, 28),
+          });
+          series.setData([
+            { time: startTime, value: startValue },
+            { time: endTime, value: endValue },
+          ]);
+          strategyLineSeries.push(series);
+          return;
+        }
+        const specs = type === "ENTRY_ZONE"
+          ? [[annotation.low, `${annotation.label || "Zona"} inferior`], [annotation.high, `${annotation.label || "Zona"} superior`]]
+          : [[annotation.value, annotation.label || type]];
+        specs.forEach(([rawValue, label]) => {
+          const value = positivePrice(rawValue);
+          if (!Number.isFinite(value)) return;
+          const precision = value >= 100 ? 2 : value >= 1 ? 4 : 6;
+          const key = value.toFixed(precision);
+          if (annotationLines.has(key)) return;
+          annotationLines.add(key);
+          const strategyLine = candleSeries.createPriceLine({
+            price: value,
+            color: annotationColor(type),
+            lineWidth: type === "CONFIRMATION" ? 2 : 1,
+            lineStyle: type === "ENTRY_ZONE" ? LightweightCharts.LineStyle.Dotted : LightweightCharts.LineStyle.Dashed,
+            axisLabelVisible: true,
+            title: `${String(label).slice(0, 28)} ${fmt(value)}`,
+          });
+          strategyPriceLines.push(strategyLine);
+        });
+      });
+      const strategySummary = payload.strategySummary || {};
+      const strategyReady = ["READY", "NEAR_ENTRY", "WAITING_CONFIRMATION"].includes(String(strategySummary.status || ""));
+	      candleSeries.setMarkers([
+	        {
+	          time: latest.time,
+	          position: strategyReady ? "belowBar" : "aboveBar",
+	          color: strategyReady ? "#facc15" : "#38bdf8",
+	          shape: strategyReady ? "arrowUp" : "arrowDown",
+	          text: strategyReady ? `${strategySummary.name || "Estrategia"} · ${strategySummary.status}` : "Roxy live",
+	        }
+	      ]);
+      if (statusEl) {
+        const lastTime = latest.time ? new Date(Number(latest.time) * 1000).toLocaleString() : "sin hora";
+        const levelText = visiblePlanLevels.map((level) => `${level.label}: ${fmt(Number(level.value))}`).join(" · ");
+        const quality = payload.chartQuality || {};
+        const cleanedText = Number(quality.removedAnomalies || 0) > 0 ? ` · ${Number(quality.removedAnomalies || 0)} velas filtradas` : "";
+        const strategyText = strategySummary.name && strategySummary.status !== "DATA_INSUFFICIENT"
+          ? `${strategySummary.name} · ${strategySummary.status}`
+          : "Estrategia esperando muestra suficiente";
+        statusEl.innerHTML = `<span><span class="rpc-dot"></span><b>Velas:</b> ${candles.length}${cleanedText} · <b>Ultima:</b> ${lastTime}</span><em>${levelText || strategyText}</em>`;
+      }
+      const updateLevelBands = () => {
+        if (!levelBandsEl || !candleSeries || !chartEl.clientHeight) return;
+        const summary = payload.roxySummary || {};
+        const specs = [
+          {
+            key: "target",
+            cls: "target",
+            label: "Target",
+            price: positivePrice(summary.target),
+          },
+          {
+            key: "entry",
+            cls: "entry",
+            label: Number.isFinite(positivePrice(summary.entryZoneLow)) && Number.isFinite(positivePrice(summary.entryZoneHigh)) ? "Zona entrada" : "Entrada Roxy",
+            price: positivePrice(summary.entry),
+            low: positivePrice(summary.entryZoneLow),
+            high: positivePrice(summary.entryZoneHigh),
+          },
+          {
+            key: "stop",
+            cls: "stop",
+            label: "Stop invalida",
+            price: positivePrice(summary.stop),
+          },
+        ];
+        const bands = [];
+        specs.forEach((spec) => {
+          const price = Number(spec.price);
+          if (!Number.isFinite(price) || price <= 0) return;
+          let y = candleSeries.priceToCoordinate(price);
+          if (!Number.isFinite(Number(y))) return;
+          let top = Number(y) - 11;
+          let height = 22;
+          if (spec.key === "entry" && Number.isFinite(spec.low) && Number.isFinite(spec.high) && spec.high > spec.low) {
+            const topCoord = candleSeries.priceToCoordinate(spec.high);
+            const bottomCoord = candleSeries.priceToCoordinate(spec.low);
+            if (Number.isFinite(Number(topCoord)) && Number.isFinite(Number(bottomCoord))) {
+              top = Math.min(Number(topCoord), Number(bottomCoord));
+              height = Math.max(22, Math.abs(Number(bottomCoord) - Number(topCoord)));
+            }
+          }
+          top = Math.max(0, Math.min(chartEl.clientHeight - height, top));
+          bands.push(`<div class="rpc-level-band rpc-level-${spec.cls}" style="top:${top.toFixed(1)}px;height:${height.toFixed(1)}px"><b>${spec.label} · ${fmt(price)}</b></div>`);
+        });
+        levelBandsEl.innerHTML = bands.join("");
+      };
+      window.setTimeout(updateLevelBands, 80);
+      if (chart.timeScale && chart.timeScale().subscribeVisibleLogicalRangeChange) {
+        chart.timeScale().subscribeVisibleLogicalRangeChange(updateLevelBands);
+      }
+	      const plan = payload.roxySummary || {};
+        const planEntry = positivePrice(plan.entry);
+        const planStop = positivePrice(plan.stop);
+        const planTarget = positivePrice(plan.target);
+        const planRr = positivePrice(plan.rr);
+        const planComplete = Number.isFinite(planEntry) && Number.isFinite(planStop) && Number.isFinite(planTarget);
+	      planEl.innerHTML = `<strong>Plan Roxy: ${planComplete ? (plan.action || "Esperar confirmacion") : "Pendiente de niveles"}</strong>
+	        <span>Estrategia <b>${strategySummary.name || "Sin estrategia validada"} · ${strategySummary.status || "DATA_INSUFFICIENT"}</b></span>
+	        <span>Entrada <b>${Number.isFinite(planEntry) ? fmt(planEntry) : "Pendiente"}</b></span>
+	        <span>Stop <b>${Number.isFinite(planStop) ? fmt(planStop) : "Pendiente"}</b></span>
+	        <span>Target <b>${Number.isFinite(planTarget) ? fmt(planTarget) : "Pendiente"}</b></span>
+	        <span>R/R <b>${planComplete && Number.isFinite(planRr) ? "1R : " + planRr.toFixed(1) + "R" : "Pendiente"}</b></span>`;
+	      const setVisible = (count) => {
+        if (count === "all" || candles.length <= Number(count)) {
+          chart.timeScale().fitContent();
+          window.setTimeout(updateLevelBands, 80);
+          return;
+        }
+        const to = candles.length + 5;
+        chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, candles.length - Number(count)), to });
+        window.setTimeout(updateLevelBands, 80);
+      };
+	      setVisible(window.innerWidth < 720 ? 32 : (payload.suggestedVisibleCandles || 48));
+      root.querySelectorAll("[data-range]").forEach((button) => {
+        button.addEventListener("click", () => {
+          root.querySelectorAll("[data-range]").forEach((b) => b.classList.remove("active"));
+          button.classList.add("active");
+          setVisible(button.dataset.range);
+        });
+      });
+      const applyLayerMode = (mode) => {
+        const clean = mode === "clean";
+        const strategy = mode === "strategy";
+        const all = mode === "all";
+        indicatorSeries.forEach((series) => series.applyOptions({ visible: false }));
+        emaSeries.forEach((series) => series.applyOptions({ visible: !clean }));
+        trendSeries.forEach((series) => series.applyOptions({ visible: all }));
+        bollingerSeries.forEach((series) => series.applyOptions({ visible: all || strategy }));
+        volume.applyOptions({ visible: all || strategy });
+        if (levelBandsEl) levelBandsEl.style.display = clean || strategyAnnotations.length ? "none" : "";
+        if (planEl) planEl.style.display = clean ? "none" : "";
+        strategyPriceLines.forEach((line) => line.applyOptions({ lineVisible: !clean, axisLabelVisible: !clean }));
+        strategyLineSeries.forEach((series) => series.applyOptions({ visible: !clean }));
+        if (stageEl) stageEl.dataset.layerMode = mode;
+        if (statusEl) {
+          statusEl.dataset.layerMode = mode;
+        }
+      };
+      root.querySelectorAll("[data-layer]").forEach((button) => {
+        button.addEventListener("click", () => {
+          root.querySelectorAll("[data-layer]").forEach((b) => b.classList.remove("layer-active"));
+          button.classList.add("layer-active");
+          applyLayerMode(button.dataset.layer || "strategy");
+          window.setTimeout(updateLevelBands, 60);
+        });
+      });
+      applyLayerMode("strategy");
+      chart.subscribeCrosshairMove((param) => {
+        if (!param || !param.time || !param.point || !param.seriesData) {
+          crossEl.style.display = "none";
+          return;
+        }
+        const data = param.seriesData.get(candleSeries);
+        if (!data) {
+          crossEl.style.display = "none";
+          return;
+        }
+        crossEl.style.display = "block";
+        crossEl.style.left = Math.min(Math.max(14, param.point.x + 18), chartEl.clientWidth - 220) + "px";
+        crossEl.style.top = Math.min(Math.max(14, param.point.y - 10), chartEl.clientHeight - 122) + "px";
+        const dir = data.close >= data.open ? "🟢" : "🔴";
+        crossEl.innerHTML = `<b>${dir} ${payload.symbol}</b><br>O ${fmt(data.open)} · H ${fmt(data.high)}<br>L ${fmt(data.low)} · C ${fmt(data.close)}<br><span>Usa esta lectura para confirmar entrada, stop y target.</span>`;
+      });
+      const ro = new ResizeObserver(() => chart.resize(chartEl.clientWidth, chartEl.clientHeight));
+      ro.observe(chartEl);
+      const roxyResizeBands = new ResizeObserver(updateLevelBands);
+      roxyResizeBands.observe(chartEl);
+      const syncLiveQuote = async (overrideQuote = null) => {
+        const quote = overrideQuote || parentQuote();
+        if (!quote) {
+          if (statusEl) {
+            statusEl.innerHTML = `<span><b>Feed live:</b> esperando quote del servidor</span><em>La grafica conserva velas reales; no hace consultas cross-origin ni simula ticks.</em>`;
+          }
+          return;
+        }
+        const price = Number(quote.price);
+        if (!Number.isFinite(price) || price <= 0) return;
+        liveCandle = {
+          ...liveCandle,
+          close: price,
+          high: Math.max(Number(liveCandle.high || price), price),
+          low: Math.min(Number(liveCandle.low || price), price)
+        };
+	        candleSeries.update(liveCandle);
+	        const sourceText = String(quote.source || "");
+	        const freshnessText = String(quote.freshness || "");
+	        const sourceLower = `${sourceText} ${freshnessText} ${quote.mode || ""}`.toLowerCase();
+	        const hasRealQuote = Number.isFinite(price) && price > 0;
+	        const hasBridgeProblem = sourceLower.includes("bridge stock no disponible")
+	          || sourceLower.includes("bridge caido")
+	          || sourceLower.includes("bridge caído")
+	          || sourceLower.includes("conexion fallida")
+	          || sourceLower.includes("conexión fallida")
+	          || sourceLower.includes("timeout");
+	        const isBackupQuote = hasRealQuote && (
+	          sourceLower.includes("respaldo")
+	          || sourceLower.includes("fallback")
+	          || sourceLower.includes("yahoo")
+	          || sourceLower.includes("stooq")
+	          || sourceLower.includes("alpaca")
+	          || sourceLower.includes("snapshot")
+	          || sourceLower.includes("polling")
+	          || sourceLower.includes("stream")
+	        );
+	        const isDegraded = hasBridgeProblem && !isBackupQuote;
+	        const isBackup = hasBridgeProblem && isBackupQuote;
+	        const isClosed = quote.marketOpen === false || (quote.state && !["REGULAR", "PRE", "POST"].includes(String(quote.state).toUpperCase()));
+	        const liveTitle = isClosed ? `LAST ${fmt(price)}` : isBackup ? `RESPALDO ${fmt(price)}` : `LIVE ${fmt(price)}`;
+	        liveLine.applyOptions({
+	          price,
+	          color: isDegraded ? "#fb7185" : isBackup ? "#38bdf8" : isClosed ? "#facc15" : price >= previous.close ? "#22c55e" : "#fb7185",
+	          title: liveTitle,
+	        });
+	        const feedLabel = isDegraded
+	          ? "feed pendiente · ultimo real conservado"
+	          : isBackup
+	            ? `${quote.source} · feed respaldo real`
+	            : isClosed
+	              ? `${quote.source} · ultimo precio real`
+	              : quote.source;
+	        setLastBadge(price, previous.close, feedLabel, { live: !isClosed && !isDegraded, closed: isClosed, degraded: isDegraded });
+	        renderTradebar(price, feedLabel);
+	        renderReading(price, feedLabel);
+	        applySmartScale(price);
+          window.setTimeout(updateLevelBands, 40);
+	        if (statusEl) {
+		          const stateText = isClosed ? " · mercado cerrado" : "";
+	          const summary = payload.roxySummary || {};
+	          const entry = positivePrice(summary.entry);
+	          const stop = positivePrice(summary.stop);
+	          const nearEntry = Number.isFinite(entry) && Math.abs(price - entry) <= Math.max(Math.abs(entry) * .0035, .02);
+	          const nearStop = Number.isFinite(stop) && Math.abs(price - stop) <= Math.max(Math.abs(stop) * .0035, .02);
+	          statusEl.classList.toggle("rpc-near-entry", nearEntry);
+	          statusEl.classList.toggle("rpc-danger", nearStop);
+	          statusEl.classList.toggle("rpc-closed", Boolean(isClosed));
+	          statusEl.classList.toggle("rpc-degraded", Boolean(isDegraded));
+	          const feedStatus = isDegraded ? "Feed pendiente" : isBackup ? "Feed respaldo real" : isClosed ? "Ultimo precio real" : "Live real";
+	          const feedExplain = isDegraded
+	            ? "Roxy conserva la ultima vela/precio real y espera un quote nuevo; no simula ticks."
+	            : isBackup
+	              ? "Roxy usa un quote real de respaldo y mantiene la grafica sincronizada mientras reconecta el stream."
+	            : isClosed
+	              ? "Mercado cerrado: Roxy no simula ticks; el movimiento live vuelve cuando abra la sesion."
+	              : nearEntry
+	                ? "Precio entrando en zona de entrada Roxy."
+	                : nearStop
+	                  ? "Atencion: precio cerca del stop."
+	                  : "Precio sincronizado sobre la vela actual sin salir de la pagina.";
+		          statusEl.innerHTML = `<span><span class="rpc-dot"></span><b>${feedStatus}:</b> ${quote.source}${stateText} · ${quote.updatedAt || new Date().toLocaleTimeString()}</span><em>${feedExplain}</em>`;
+		        }
+      };
+      try {
+        const parentDoc = window.parent && window.parent.document ? window.parent.document : null;
+        if (parentDoc) {
+          parentDoc.addEventListener("roxy-stock-quote", (event) => {
+            const detail = event && event.detail ? event.detail : {};
+            const eventSymbol = String(detail.symbol || (detail.quote && detail.quote.symbol) || "").toUpperCase();
+            if (eventSymbol !== String(payload.symbol || "").toUpperCase()) return;
+            syncLiveQuote(detail.quote || detail);
+          });
+        }
+      } catch (error) {}
+      syncLiveQuote();
+      window.setInterval(syncLiveQuote, 2500);
+      };
+      boot();
+    })();
+    </script>

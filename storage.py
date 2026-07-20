@@ -9,8 +9,9 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
-from datetime import datetime
 from typing import Optional
+
+from roxy_time import utc_now_naive_iso
 
 DB_PATH = os.path.join("db", "roxy.db")
 os.makedirs("db", exist_ok=True)
@@ -175,7 +176,7 @@ def save_summary(summary: dict, path: str | None = None) -> None:
         path = DB_PATH
     conn = _connect(path)
     cur = conn.cursor()
-    ts = summary.get("timestamp") or datetime.utcnow().isoformat()
+    ts = summary.get("timestamp") or utc_now_naive_iso()
     cur.execute(
         "INSERT INTO summaries (ts, summary_json) VALUES (?, ?)", (ts, json.dumps(summary))
     )
@@ -188,7 +189,7 @@ def save_backtest_result(name: str, metrics: dict, path: str | None = None) -> N
         path = DB_PATH
     conn = _connect(path)
     cur = conn.cursor()
-    ts = metrics.get("timestamp") or datetime.utcnow().isoformat()
+    ts = metrics.get("timestamp") or utc_now_naive_iso()
     cur.execute("INSERT INTO backtests (name, ts, metrics_json) VALUES (?, ?, ?)", (name, ts, json.dumps(metrics)))
     conn.commit()
     backtest_id = cur.lastrowid
@@ -226,7 +227,7 @@ def save_scan_df(df, market: Optional[str] = None, path: str | None = None) -> N
     cur = conn.cursor()
     rows = []
     for _, r in df.iterrows():
-        ts = datetime.utcnow().isoformat()
+        ts = utc_now_naive_iso()
         symbol = r.get("symbol")
         tf = r.get("tf") or r.get("interval")
         score = r.get("score")
@@ -274,7 +275,7 @@ def save_simulated_trade(user: str, symbol: str, side: str, qty: float, price: f
         path = DB_PATH
     conn = _connect(path)
     cur = conn.cursor()
-    ts = datetime.utcnow().isoformat()
+    ts = utc_now_naive_iso()
     cur.execute(
         "INSERT INTO sim_trades (ts, user, symbol, side, qty, price, note) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (ts, user, symbol, side, qty, price, note or ""),
@@ -291,7 +292,7 @@ def open_sim_position(user: str, symbol: str, qty: float, entry_price: float, no
         path = DB_PATH
     conn = _connect(path)
     cur = conn.cursor()
-    ts = datetime.utcnow().isoformat()
+    ts = utc_now_naive_iso()
     cur.execute(
         "INSERT INTO sim_positions (ts_open, user, symbol, qty, entry_price, note) VALUES (?, ?, ?, ?, ?, ?)",
         (ts, user, symbol, qty, entry_price, note or ""),
@@ -308,7 +309,7 @@ def close_sim_position(position_id: int, close_price: float, path: str | None = 
         path = DB_PATH
     conn = _connect(path)
     cur = conn.cursor()
-    ts = datetime.utcnow().isoformat()
+    ts = utc_now_naive_iso()
     # fetch position
     cur.execute("SELECT qty, entry_price FROM sim_positions WHERE id = ? AND ts_close IS NULL", (position_id,))
     row = cur.fetchone()
@@ -332,11 +333,23 @@ def close_sim_position_by_symbol(user: str, symbol: str, qty: float, close_price
         path = DB_PATH
     conn = _connect(path)
     cur = conn.cursor()
+    clean_symbol = str(symbol or "").strip().upper()
     remaining = float(qty)
+    close_price = float(close_price)
+    if not clean_symbol:
+        conn.close()
+        raise ValueError("symbol is required")
+    if remaining <= 0 or close_price <= 0:
+        conn.close()
+        raise ValueError("qty and close_price must be positive")
     total_pnl = 0.0
     # select open positions for user+symbol in descending id (LIFO)
-    cur.execute("SELECT id, qty, entry_price FROM sim_positions WHERE user = ? AND symbol = ? AND ts_close IS NULL ORDER BY id DESC", (user, symbol))
+    cur.execute("SELECT id, qty, entry_price FROM sim_positions WHERE user = ? AND UPPER(symbol) = ? AND ts_close IS NULL ORDER BY id DESC", (user, clean_symbol))
     rows = cur.fetchall()
+    held_qty = sum(float(row[1]) for row in rows)
+    if remaining > held_qty + 1e-9:
+        conn.close()
+        raise ValueError(f"sell qty {remaining} exceeds held qty {held_qty}")
     for pid, pqty, entry in rows:
         if remaining <= 0:
             break
@@ -347,11 +360,11 @@ def close_sim_position_by_symbol(user: str, symbol: str, qty: float, close_price
             new_qty = float(pqty) - take
             cur.execute("UPDATE sim_positions SET qty = ? WHERE id = ?", (new_qty, pid))
             # insert a closed record for the taken portion
-            ts = datetime.utcnow().isoformat()
+            ts = utc_now_naive_iso()
             cur.execute("INSERT INTO sim_positions (ts_open, ts_close, user, symbol, qty, entry_price, close_price, pnl, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (ts, ts, user, symbol, take, entry, close_price, pnl, "partial-close"))
         else:
             # close entire row
-            ts = datetime.utcnow().isoformat()
+            ts = utc_now_naive_iso()
             cur.execute("UPDATE sim_positions SET ts_close = ?, close_price = ?, pnl = ? WHERE id = ?", (ts, close_price, pnl, pid))
         total_pnl += float(pnl)
         remaining -= take
@@ -406,7 +419,7 @@ def create_account_if_missing(user: str, starting_equity: float = 10000.0, path:
     cur = conn.cursor()
     cur.execute("SELECT equity FROM sim_accounts WHERE user = ?", (user,))
     if cur.fetchone() is None:
-        ts = datetime.utcnow().isoformat()
+        ts = utc_now_naive_iso()
         cur.execute("INSERT INTO sim_accounts (user, created_ts, equity) VALUES (?, ?, ?)", (user, ts, float(starting_equity)))
         cur.execute("INSERT INTO sim_account_points (user, ts, equity) VALUES (?, ?, ?)", (user, ts, float(starting_equity)))
         conn.commit()
@@ -428,7 +441,7 @@ def set_user_role(user: str, role: str, actor: str | None = None, path: str | No
     row = cur.fetchone()
     old_role = row[0] if row else None
     cur.execute("INSERT OR REPLACE INTO user_roles (user, role) VALUES (?, ?)", (user, role))
-    ts = datetime.utcnow().isoformat()
+    ts = utc_now_naive_iso()
     cur.execute("INSERT INTO role_audit (actor, target_user, old_role, new_role, ts) VALUES (?, ?, ?, ?, ?)", (actor or "system", user, old_role, role, ts))
     conn.commit()
     conn.close()
@@ -439,7 +452,7 @@ def set_user_role(user: str, role: str, actor: str | None = None, path: str | No
         log_dir = Path("logs")
         log_dir.mkdir(parents=True, exist_ok=True)
         logp = log_dir / "role_audit.log"
-        ts = datetime.utcnow().isoformat()
+        ts = utc_now_naive_iso()
         actor_f = actor or "system"
         # write via rotating logger when available
         try:
@@ -506,7 +519,7 @@ def update_account_equity(user: str, delta: float, path: str | None = None) -> f
         conn.close()
         raise ValueError("Account not found")
     new_equity = float(row[0]) + float(delta)
-    ts = datetime.utcnow().isoformat()
+    ts = utc_now_naive_iso()
     cur.execute("UPDATE sim_accounts SET equity = ? WHERE user = ?", (new_equity, user))
     cur.execute("INSERT INTO sim_account_points (user, ts, equity) VALUES (?, ?, ?)", (user, ts, new_equity))
     conn.commit()
@@ -602,19 +615,28 @@ def snapshot_account_point(user: str, path: str | None = None) -> float:
         unreal += (last - float(entry)) * float(qty)
 
     snapshot_equity = base_equity + float(unreal)
-    ts = datetime.utcnow().isoformat()
+    ts = utc_now_naive_iso()
     cur.execute("INSERT INTO sim_account_points (user, ts, equity) VALUES (?, ?, ?)", (user, ts, snapshot_equity))
     conn.commit()
     conn.close()
     return snapshot_equity
 
 
-def get_simulated_trades(limit: int = 100, path: str | None = None):
+def get_simulated_trades(limit: int = 100, path: str | None = None, *, user: str | None = None):
     if path is None:
         path = DB_PATH
     conn = _connect(path)
     cur = conn.cursor()
-    cur.execute("SELECT id, ts, user, symbol, side, qty, price, note FROM sim_trades ORDER BY id DESC LIMIT ?", (limit,))
+    if user:
+        cur.execute(
+            "SELECT id, ts, user, symbol, side, qty, price, note FROM sim_trades WHERE user = ? ORDER BY id DESC LIMIT ?",
+            (user, limit),
+        )
+    else:
+        cur.execute(
+            "SELECT id, ts, user, symbol, side, qty, price, note FROM sim_trades ORDER BY id DESC LIMIT ?",
+            (limit,),
+        )
     rows = cur.fetchall()
     conn.close()
     return rows

@@ -1,8 +1,11 @@
 import os
 import json
 import sqlite3
+import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+from tools import output_maintenance
 
 from tools.output_maintenance import (
     DEFAULT_ALERT_REPORT_RETENTION_RULES,
@@ -25,12 +28,88 @@ from tools.output_maintenance import (
     maintenance_operation_summary,
     maintenance_top_level_aliases,
     render_text_report,
+    resolve_output_archive_dir,
     runtime_footprint,
     sqlite_db_maintenance,
     trim_history_file,
     trim_log_files,
     write_report,
 )
+
+
+def test_resolve_output_archive_dir_uses_verified_local_fallback(tmp_path, monkeypatch):
+    requested = tmp_path / "external" / "output_archive"
+    requested.mkdir(parents=True)
+    fallback = tmp_path / "local" / "maintenance_archive"
+    original_write_text = Path.write_text
+
+    def deny_external_probe(path, *args, **kwargs):
+        if path.parent == requested and path.name.startswith(".roxy_maintenance_write_test_"):
+            raise PermissionError("launchd denied external volume")
+        return original_write_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", deny_external_probe)
+
+    result = resolve_output_archive_dir(requested, fallback_dir=fallback)
+
+    assert result["requested_dir"] == str(requested)
+    assert result["effective_dir"] == str(fallback)
+    assert result["fallback"] is True
+    assert result["writable"] is True
+    assert "PermissionError" in result["fallback_reason"]
+
+
+def test_cleanup_runtime_artifacts_archives_to_local_fallback_when_external_denied(
+    tmp_path,
+    monkeypatch,
+):
+    output = tmp_path / "output"
+    alerts = tmp_path / "alerts"
+    logs = tmp_path / "logs"
+    requested = tmp_path / "external" / "output_archive"
+    fallback = tmp_path / "local" / "maintenance_archive"
+    snapshots = tmp_path / "snapshots"
+    for path in (output, alerts, logs, requested, snapshots):
+        path.mkdir(parents=True)
+    old_file = output / "stocks_tech_20260606_000000.csv"
+    new_file = output / "stocks_tech_20260607_000000.csv"
+    old_file.write_text("old")
+    new_file.write_text("new")
+    os.utime(old_file, (1, 1))
+    os.utime(new_file, (2, 2))
+    original_write_text = Path.write_text
+
+    def deny_external_probe(path, *args, **kwargs):
+        if path.parent == requested and path.name.startswith(".roxy_maintenance_write_test_"):
+            raise PermissionError("launchd denied external volume")
+        return original_write_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", deny_external_probe)
+
+    result = cleanup_runtime_artifacts(
+        output_dir=output,
+        alerts_path=alerts,
+        log_dirs=[logs],
+        retention_rules={"stocks_tech_*.csv": 1},
+        stale_output_rules={},
+        output_archive_dir=requested,
+        fallback_output_archive_dir=fallback,
+        log_snapshot_dir=snapshots,
+        sqlite_db_path=None,
+        dashboard_history_path=None,
+    )
+
+    assert result["output_archive_fallback"] is True
+    assert result["output_archive_requested_dir"] == str(requested)
+    assert result["output_archive_effective_dir"] == str(fallback)
+    assert result["output_archive_error_count"] == 0
+    assert result["output_archive_count"] == 1
+    assert (fallback / old_file.name).read_text() == "old"
+    assert result["hygiene_summary"]["archive_ready"] is True
+    assert result["hygiene_summary"]["external_archive_ready"] is False
+    assert result["hygiene_summary"]["archive_fallback"] is True
+    assert result["hygiene_summary"]["protected"] is True
+    assert result["status"] == "OK"
 
 
 def test_cleanup_output_files_applies_pattern_retention(tmp_path):
@@ -70,6 +149,19 @@ def test_runtime_footprint_counts_runtime_files_and_bytes(tmp_path):
     assert footprint["total_files"] == 3
     assert footprint["total_bytes"] == 9
     assert footprint["output"]["bytes"] == 4
+
+
+def test_directory_footprint_ignores_only_empty_hidden_lock_files(tmp_path):
+    output = tmp_path / "output"
+    output.mkdir()
+    (output / ".history.jsonl.lock").touch()
+    (output / ".nonempty.lock").write_text("owner")
+    (output / "visible.lock").touch()
+
+    footprint = directory_footprint(output)
+
+    assert footprint["files"] == 2
+    assert footprint["ignored_lock_files"] == 1
 
 
 def test_cleanup_output_files_dry_run_keeps_files(tmp_path):
@@ -830,6 +922,65 @@ def test_cleanup_log_snapshots_dry_run_keeps_files(tmp_path):
     assert result["removed_count"] == 1
     assert first.exists()
     assert second.exists()
+
+
+def test_cleanup_log_snapshots_bounds_unresponsive_external_scan(tmp_path, monkeypatch):
+    snapshot_dir = tmp_path / "snapshots"
+    snapshot_dir.mkdir()
+
+    def timeout_scan(*args, **kwargs):
+        raise subprocess.TimeoutExpired(args[0], kwargs.get("timeout", 0))
+
+    monkeypatch.setattr(output_maintenance.subprocess, "run", timeout_scan)
+
+    result = cleanup_log_snapshots(
+        snapshot_dir=snapshot_dir,
+        patterns=("*.err.*",),
+        scan_timeout_seconds=0.25,
+    )
+
+    assert result["removed_count"] == 0
+    assert result["scan_status"] == "WARN"
+    assert result["scan_errors"] == {"*.err.*": "timeout>0.2s"}
+
+
+def test_maintenance_summary_distinguishes_external_snapshot_timeout_from_internal_failure(tmp_path):
+    result = {
+        "dry_run": False,
+        "output_archive_error_count": 0,
+        "prepared_dir_error_count": 0,
+        "output_archive_exists": True,
+        "output_archive_writable": True,
+        "output_archive_effective_dir": str(tmp_path / "archive"),
+        "log_snapshot_dir_exists": True,
+        "log_snapshot_counts": {
+            "scan_status": "WARN",
+            "scan_errors": {"*.err.*": "timeout>5.0s"},
+        },
+        "sqlite_maintenance": {"status": "MISSING", "reclaimable_mb": 0.0},
+        "dashboard_history_after_rows": 0,
+        "dashboard_history_max_rows": 5000,
+        "runtime_footprint_after": {"total_mb": 10.0, "total_files": 5},
+    }
+
+    hygiene = maintenance_hygiene_summary(result)
+    operation = maintenance_operation_summary({**result, "hygiene_summary": hygiene})
+    aliases = maintenance_top_level_aliases(
+        {**result, "hygiene_summary": hygiene, "operation_summary": operation}
+    )
+
+    assert hygiene["status"] == "WARN"
+    assert hygiene["protected"] is False
+    assert hygiene["internal_protected"] is True
+    assert hygiene["external_snapshot_degraded"] is True
+    assert hygiene["label"] == "Interno protegido / snapshots degradados"
+    assert operation["status"] == "WARN"
+    assert operation["protected"] is False
+    assert operation["internal_protected"] is True
+    assert operation["external_snapshot_degraded"] is True
+    assert operation["label"] == "Interno protegido / snapshots degradados"
+    assert aliases["hygiene_internal_protected"] is True
+    assert aliases["hygiene_external_snapshot_degraded"] is True
 
 
 def test_compact_dashboard_history_file_dedupes_and_bounds_rows(tmp_path):

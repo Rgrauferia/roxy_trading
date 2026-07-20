@@ -15,6 +15,7 @@ from urllib.request import urlopen
 from accuracy_tracker import build_accuracy_report
 from roxy_ai import autonomous_learning_plan, load_memory
 from roxy_paths import alerts_dir, data_dir, project_path
+from durable_storage import atomic_write_text, exclusive_file_lock
 
 
 AUTOPILOT_STATUS_PATH = alerts_dir() / "roxy_autopilot_status.json"
@@ -115,12 +116,13 @@ def load_json(path: str | Path, default: Any) -> Any:
 def write_json_with_backup(path: str | Path, payload: Any) -> Path | None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    backup_path = None
-    if p.exists():
-        backup_path = p.with_suffix(p.suffix + f".bak.{utc_now().strftime('%Y%m%d%H%M%S%f')}")
-        shutil.copy2(p, backup_path)
-    p.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-    return backup_path
+    with exclusive_file_lock(p):
+        backup_path = None
+        if p.exists():
+            backup_path = p.with_suffix(p.suffix + f".bak.{utc_now().strftime('%Y%m%d%H%M%S%f')}")
+            shutil.copy2(p, backup_path)
+        atomic_write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", p)
+        return backup_path
 
 
 def file_age_seconds(path: str | Path, *, now: datetime | None = None) -> int | None:
@@ -410,7 +412,7 @@ def write_proposal_files(proposals: list[dict[str, Any]], *, directory: Path = A
     written = []
     for proposal in proposals:
         path = directory / f"{proposal['id']}.json"
-        path.write_text(json.dumps(proposal, indent=2, sort_keys=True) + "\n")
+        atomic_write_text(json.dumps(proposal, indent=2, sort_keys=True) + "\n", path)
         written.append(str(path))
     return written
 

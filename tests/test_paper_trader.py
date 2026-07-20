@@ -60,3 +60,35 @@ def test_paper_trader_buy_sell_flow():
         # cleanup and restore
         storage.DB_PATH = old_db
         shutil.rmtree(tmpdir)
+
+
+def test_paper_trader_rejects_phantom_close_even_with_force(tmp_path):
+    old_db = storage.DB_PATH
+    try:
+        storage.DB_PATH = str(tmp_path / "paper.db")
+        storage.init_db(storage.DB_PATH)
+        trader = SimplePaperTrader("isolated-user", starting_equity=10000.0)
+        trader.buy("aapl", 1, 100.0, force=True, price_source="test_fixture", price_ts="2026-07-19T12:00:00Z")
+
+        with pytest.raises(RuntimeError, match="exceeds held qty"):
+            trader.sell("AAPL", 2, 101.0, force=True)
+
+        assert trader.get_position("AAPL") == 1.0
+        trades = storage.get_simulated_trades(user="isolated-user")
+        assert len(trades) == 1
+        assert "price_source=test_fixture" in trades[0][7]
+    finally:
+        storage.DB_PATH = old_db
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"fill_rate": 0}, "fill_rate"),
+        ({"fill_rate": 1.1}, "fill_rate"),
+        ({"slippage_pct": -0.1}, "slippage_pct"),
+    ],
+)
+def test_paper_trader_rejects_invalid_execution_configuration(kwargs, message):
+    with pytest.raises(ValueError, match=message):
+        SimplePaperTrader("invalid-config", **kwargs)

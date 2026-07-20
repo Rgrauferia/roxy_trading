@@ -14,6 +14,7 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 from roxy_paths import alerts_dir as configured_alerts_dir
+from durable_storage import atomic_write_text
 
 
 CORE_LAUNCHD_MODULES: dict[str, str] = {
@@ -21,12 +22,18 @@ CORE_LAUNCHD_MODULES: dict[str, str] = {
     "ma_live": "tools.ma_live_launchd",
     "ma_daily": "tools.ma_daily_launchd",
     "output_maintenance": "tools.output_maintenance_launchd",
+    "price_alert_monitor": "tools.price_alert_monitor_launchd",
+    "voice_live": "tools.voice_live_launchd",
+}
+OPTIONAL_LAUNCHD_MODULES: dict[str, str] = {
+    "mobile_gateway": "tools.mobile_gateway",
 }
 HEALTH_WATCHDOG_NAME = "health_watchdog"
 OUTPUT_MAINTENANCE_NAME = "output_maintenance"
 MA_LIVE_NAME = "ma_live"
 STREAMLIT_NAME = "streamlit"
 MA_DAILY_NAME = "ma_daily"
+VOICE_LIVE_NAME = "voice_live"
 REQUIRED_LIVE_TIMEFRAMES = {"15m", "1h", "2h", "4h"}
 HEALTH_WATCHDOG_REQUIRED_FLAGS = [
     "--notify-health",
@@ -147,6 +154,81 @@ def health_watchdog_install_args(module: Any) -> argparse.Namespace:
         load=True,
         run_now=False,
     )
+
+
+def price_alert_monitor_install_args(module: Any) -> argparse.Namespace:
+    return argparse.Namespace(
+        label=getattr(module, "DEFAULT_LABEL"),
+        python_path=None,
+        interval_seconds=getattr(module, "DEFAULT_INTERVAL_SECONDS"),
+        load=True,
+    )
+
+
+def voice_live_install_args(module: Any) -> argparse.Namespace:
+    return argparse.Namespace(
+        label=getattr(module, "DEFAULT_LABEL"),
+        python_path=None,
+        host=module.configured_host(),
+        port=module.configured_port(),
+        load=True,
+    )
+
+
+def recover_voice_live_config() -> dict[str, Any]:
+    from tools import voice_live_launchd
+
+    before = voice_live_launchd.status()
+    desired_host = voice_live_launchd.configured_host()
+    desired_port = voice_live_launchd.configured_port()
+
+    def issues_for(state: dict[str, Any]) -> list[str]:
+        issues: list[str] = []
+        if not state.get("installed"):
+            issues.append("not_installed")
+        if not state.get("loaded"):
+            issues.append("not_loaded")
+        if "tools.voice_service:app" not in str(state.get("command") or ""):
+            issues.append("wrong_command")
+        if not state.get("environment_managed"):
+            issues.append("environment_not_managed")
+        if not state.get("pythonpath_managed"):
+            issues.append("pythonpath_not_managed")
+        if str(state.get("host") or "") != desired_host:
+            issues.append("wrong_host")
+        if state.get("port") != desired_port:
+            issues.append("wrong_port")
+        return issues
+
+    issues = issues_for(before)
+    result: dict[str, Any] = {
+        "module": "tools.voice_live_launchd",
+        "label": str(before.get("label") or voice_live_launchd.DEFAULT_LABEL),
+        "before": before,
+        "desired_host": desired_host,
+        "desired_port": desired_port,
+        "issues": issues,
+        "action": "none",
+        "ok": not issues,
+    }
+    if not issues:
+        result["action"] = "already_current"
+        result["after"] = before
+        return result
+    try:
+        path = voice_live_launchd.install(voice_live_install_args(voice_live_launchd))
+        after = voice_live_launchd.status()
+        after_issues = issues_for(after)
+        result.update(
+            action="reinstalled",
+            path=str(path),
+            after=after,
+            after_issues=after_issues,
+            ok=not after_issues,
+        )
+    except Exception as exc:
+        result.update(action="error", error=f"{type(exc).__name__}: {exc}", ok=False)
+    return result
 
 
 def recover_health_watchdog_config() -> dict[str, Any]:
@@ -661,6 +743,10 @@ def install_args_for_launch_agent(module_name: str, module: Any) -> argparse.Nam
         return output_maintenance_install_args(module)
     if module_name == "tools.roxy_health_launchd":
         return health_watchdog_install_args(module)
+    if module_name == "tools.price_alert_monitor_launchd":
+        return price_alert_monitor_install_args(module)
+    if module_name == "tools.voice_live_launchd":
+        return voice_live_install_args(module)
     return None
 
 
@@ -720,12 +806,11 @@ def restart_launch_agent(module_name: str, *, label: str | None = None) -> dict[
 
 def write_launchd_recovery_report(result: dict[str, Any], report_path: str | Path = DEFAULT_REPORT_PATH) -> Path:
     path = Path(report_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "generated_at": utc_now().isoformat(),
         **result,
     }
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str))
+    atomic_write_text(json.dumps(payload, indent=2, sort_keys=True, default=str), path)
     return path
 
 
@@ -742,6 +827,7 @@ def ensure_core_launch_agents(
         services[MA_LIVE_NAME] = recover_ma_live_config()
         services[STREAMLIT_NAME] = recover_streamlit_config()
         services[MA_DAILY_NAME] = recover_ma_daily_config()
+        services[VOICE_LIVE_NAME] = recover_voice_live_config()
     recovered = [name for name, item in services.items() if item.get("action") == "bootstrapped" and item.get("ok")]
     recovered.extend(name for name, item in services.items() if item.get("action") == "reinstalled" and item.get("ok"))
     failed = [name for name, item in services.items() if not item.get("ok")]
@@ -761,7 +847,11 @@ def ensure_core_launch_agents(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Recover installed Roxy LaunchAgents that are not loaded.")
-    parser.add_argument("--service", choices=sorted(CORE_LAUNCHD_MODULES), action="append")
+    parser.add_argument(
+        "--service",
+        choices=sorted({**CORE_LAUNCHD_MODULES, **OPTIONAL_LAUNCHD_MODULES}),
+        action="append",
+    )
     return parser.parse_args()
 
 
@@ -769,7 +859,8 @@ def main() -> None:
     args = parse_args()
     modules = None
     if args.service:
-        modules = {name: CORE_LAUNCHD_MODULES[name] for name in args.service}
+        available = {**CORE_LAUNCHD_MODULES, **OPTIONAL_LAUNCHD_MODULES}
+        modules = {name: available[name] for name in args.service}
     print(json.dumps(ensure_core_launch_agents(modules, report_path=DEFAULT_REPORT_PATH), indent=2, sort_keys=True))
 
 

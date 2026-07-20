@@ -13,13 +13,16 @@ import os
 import sqlite3
 import json
 import logging
+import re
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from datetime import timedelta
 import hashlib
 import hmac
 import secrets as _secrets
 import base64
+
+from roxy_time import utc_now_naive
 
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
@@ -184,6 +187,7 @@ def ensure_tables():
                     state TEXT NOT NULL UNIQUE,
                     username TEXT,
                     session_token TEXT,
+                    encrypted_session_token BLOB,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
                 """,
@@ -245,6 +249,26 @@ def ensure_tables():
         except Exception:
             # ignore if sessions doesn't exist yet or ALTER not supported
             pass
+        try:
+            cur.execute("PRAGMA table_info(oauth_results)")
+            oauth_result_columns = [row[1] for row in cur.fetchall()]
+            if "encrypted_session_token" not in oauth_result_columns:
+                cur.execute("ALTER TABLE oauth_results ADD COLUMN encrypted_session_token BLOB")
+            migration_key = _get_fernet_key()
+            fernet = Fernet(migration_key) if Fernet is not None and migration_key else None
+            if fernet is not None:
+                legacy_rows = cur.execute(
+                    "SELECT id, session_token FROM oauth_results "
+                    "WHERE TRIM(COALESCE(session_token, '')) <> '' "
+                    "AND encrypted_session_token IS NULL"
+                ).fetchall()
+                for result_id, plain_token in legacy_rows:
+                    cur.execute(
+                        "UPDATE oauth_results SET encrypted_session_token=?, session_token='' WHERE id=?",
+                        (fernet.encrypt(str(plain_token).encode()), result_id),
+                    )
+        except Exception:
+            logger.exception("oauth_results encrypted-token migration failed")
         conn.commit()
     finally:
         conn.close()
@@ -270,34 +294,60 @@ def _decrypt(token: bytes) -> str:
         raise HTTPException(status_code=500, detail="Failed to decrypt secret")
 
 
+def _env_enabled(name: str) -> bool:
+    return str(os.getenv(name) or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _development_runtime() -> bool:
+    mode = str(os.getenv("ROXY_ENV") or os.getenv("ENVIRONMENT") or "production").strip().lower()
+    return mode in {"dev", "development", "local", "test", "testing"}
+
+
+def _loopback_request(req: Request) -> bool:
+    host = str(getattr(getattr(req, "client", None), "host", "") or "").strip().lower()
+    if host in {"127.0.0.1", "::1", "localhost"}:
+        return True
+    return host == "testclient" and _development_runtime()
+
+
 def _require_admin(req: Request):
+    admin_token = str(os.getenv("ADMIN_TOKEN") or "").strip()
+    admin_users = {item.strip() for item in str(os.getenv("ADMIN_USERS") or "").split(",") if item.strip()}
+    admin_orgs = {item.strip() for item in str(os.getenv("ADMIN_ORGS") or "").split(",") if item.strip()}
+    admin_oauth_provider = str(os.getenv("ADMIN_OAUTH_PROVIDER") or "github").strip() or "github"
     # If ADMIN_TOKEN present, accept it for backwards compatibility
     auth = req.headers.get("Authorization")
     if auth and auth.startswith("Bearer "):
         token = auth.split(" ", 1)[1]
-        if ADMIN_TOKEN and token == ADMIN_TOKEN:
+        if admin_token and hmac.compare_digest(token, admin_token):
             return {"type": "admin_token"}
 
         # try OAuth provider (e.g., GitHub) token introspection via `auth` module
         try:
             import auth as oauth_auth
 
-            user_info = oauth_auth.fetch_user_info(ADMIN_OAUTH_PROVIDER, token)
+            user_info = oauth_auth.fetch_user_info(admin_oauth_provider, token)
             username = user_info.get("login") or user_info.get("username")
-            if username in ADMIN_USERS:
+            if username in admin_users:
                 return {"type": "user", "user": username}
             # check orgs membership
-            if ADMIN_ORGS:
+            if admin_orgs:
                 orgs = oauth_auth.get_user_orgs(token)
-                if any(o in ADMIN_ORGS for o in orgs):
+                if any(o in admin_orgs for o in orgs):
                     return {"type": "user", "user": username}
         except Exception:
             # ignore and fall through to unauthorized
             pass
 
-    # permissive dev mode if no ADMIN_TOKEN and no ADMIN_USERS/ORGS configured
-    if not ADMIN_TOKEN and not ADMIN_USERS and not ADMIN_ORGS:
-        logger.warning("No admin auth configured; admin endpoints permissive in dev")
+    if (
+        not admin_token
+        and not admin_users
+        and not admin_orgs
+        and _env_enabled("ROXY_ALLOW_INSECURE_DEV_ADMIN")
+        and _development_runtime()
+        and _loopback_request(req)
+    ):
+        logger.warning("Explicit loopback-only insecure admin mode enabled for development")
         return {"type": "dev"}
 
     raise HTTPException(status_code=403, detail="admin authorization required")
@@ -312,7 +362,7 @@ def _actor_label(actor) -> str:
 def _create_session(username: str, provider: str = "local", ttl_days: int = 7) -> dict:
     plain = _secrets.token_urlsafe(32)
     h = _hash_key(plain)
-    expires_at = (datetime.utcnow() + timedelta(days=ttl_days)).isoformat()
+    expires_at = (utc_now_naive() + timedelta(days=ttl_days)).isoformat()
     conn = _conn()
     try:
         cur = conn.cursor()
@@ -328,7 +378,7 @@ def _create_session_with_provider_token(username: str, provider: str, provider_t
     """Create a session and store an encrypted provider token in the sessions table."""
     plain = _secrets.token_urlsafe(32)
     h = _hash_key(plain)
-    expires_at = (datetime.utcnow() + timedelta(days=ttl_days)).isoformat()
+    expires_at = (utc_now_naive() + timedelta(days=ttl_days)).isoformat()
     enc_token = _encrypt(provider_token_plain)
     scopes_s = ",".join(scopes or [])
     conn = _conn()
@@ -337,7 +387,7 @@ def _create_session_with_provider_token(username: str, provider: str, provider_t
         # optionally create a refresh token and store its hash
         refresh_plain = _secrets.token_urlsafe(48)
         refresh_hash = _hash_key(refresh_plain)
-        refresh_expires = (datetime.utcnow() + timedelta(days=30)).isoformat()
+        refresh_expires = (utc_now_naive() + timedelta(days=30)).isoformat()
         cur.execute(
             "INSERT INTO sessions (token_hash, username, provider, encrypted_token, scopes, expires_at, refresh_token_hash, refresh_expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (h, username, provider, enc_token, scopes_s, expires_at, refresh_hash, refresh_expires),
@@ -354,13 +404,13 @@ def _get_session_by_token(token: str) -> Optional[dict]:
     conn = _conn()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, username, provider, expires_at FROM sessions WHERE token_hash=? AND (expires_at IS NULL OR expires_at > ?)", (h, datetime.utcnow().isoformat()))
+        cur.execute("SELECT id, username, provider, expires_at FROM sessions WHERE token_hash=? AND (expires_at IS NULL OR expires_at > ?)", (h, utc_now_naive().isoformat()))
         r = cur.fetchone()
         if not r:
             return None
         # update last_used timestamp
         try:
-            cur.execute("UPDATE sessions SET last_used=? WHERE id=?", (datetime.utcnow().isoformat(), r[0]))
+            cur.execute("UPDATE sessions SET last_used=? WHERE id=?", (utc_now_naive().isoformat(), r[0]))
             conn.commit()
         except Exception:
             pass
@@ -370,9 +420,18 @@ def _get_session_by_token(token: str) -> Optional[dict]:
 
 
 @router.post('/auth/mock-login')
-def auth_mock_login(username: str = Body(...)):
+def auth_mock_login(request: Request, username: str = Body(...)):
     """Create a short-lived session token for local development and tests."""
-    return _create_session(username=username, provider="mock", ttl_days=7)
+    if not (
+        _env_enabled("ROXY_ENABLE_MOCK_LOGIN")
+        and _development_runtime()
+        and _loopback_request(request)
+    ):
+        raise HTTPException(status_code=404, detail="not found")
+    normalized_username = str(username or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_.@-]{1,64}", normalized_username):
+        raise HTTPException(status_code=422, detail="invalid username")
+    return _create_session(username=normalized_username, provider="mock", ttl_days=1)
 
 
 @router.post('/auth/device/start')
@@ -414,7 +473,7 @@ def auth_start_redirect(redirect_uri: str):
         import auth as oauth
         # generate server-side state and persist for CSRF protection
         state = _secrets.token_urlsafe(24)
-        expires = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
+        expires = (utc_now_naive() + timedelta(minutes=15)).isoformat()
         conn = _conn()
         try:
             cur = conn.cursor()
@@ -431,53 +490,60 @@ def auth_start_redirect(redirect_uri: str):
 
 
 @router.get('/auth/callback')
-def auth_oauth_callback(code: str, state: Optional[str] = None, redirect_uri: str = None):
+def auth_oauth_callback(code: str, state: str, redirect_uri: Optional[str] = None):
     """Exchange code for token, store provider token encrypted, and return a session token."""
     try:
         import auth as oauth
-        # validate provided state server-side if present
-        if state:
-            conn = _conn()
+        conn = _conn()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT id, expires_at, redirect_uri FROM oauth_states WHERE state=?", (state,))
+            r = cur.fetchone()
+            if not r:
+                raise HTTPException(status_code=400, detail="invalid or expired state")
             try:
-                cur = conn.cursor()
-                cur.execute("SELECT id, expires_at FROM oauth_states WHERE state=?", (state,))
-                r = cur.fetchone()
-                if not r:
-                    raise HTTPException(status_code=400, detail="invalid or expired state")
-                # delete state after use
+                expires_at = datetime.fromisoformat(str(r[1] or "").replace("Z", "+00:00"))
+                if expires_at.tzinfo is not None:
+                    expires_at = expires_at.astimezone(timezone.utc).replace(tzinfo=None)
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail="invalid or expired state")
+            if expires_at <= utc_now_naive():
                 cur.execute("DELETE FROM oauth_states WHERE id=?", (r[0],))
                 conn.commit()
-            finally:
-                conn.close()
+                raise HTTPException(status_code=400, detail="invalid or expired state")
+            stored_redirect_uri = str(r[2] or "").strip()
+            if not stored_redirect_uri:
+                raise HTTPException(status_code=400, detail="invalid redirect state")
+            cur.execute("DELETE FROM oauth_states WHERE id=?", (r[0],))
+            conn.commit()
+        finally:
+            conn.close()
 
-        token = oauth.exchange_code_for_token('github', code, redirect_uri)
+        token = oauth.exchange_code_for_token('github', code, stored_redirect_uri)
         info = oauth.fetch_user_info('github', token)
         username = info.get('login')
         # store provider token encrypted and include scopes if returned
         sess = _create_session_with_provider_token(username, provider='github', provider_token_plain=token, scopes=["read:user","read:org"])
-        # if state provided, write oauth_results so the UI can poll for the resulting session token
-        if state:
-            try:
-                conn = _conn()
-                cur = conn.cursor()
-                cur.execute("INSERT OR REPLACE INTO oauth_results (state, username, session_token) VALUES (?, ?, ?)", (state, username, sess['token']))
-                conn.commit()
-            except Exception:
-                logger.exception("failed to write oauth_results")
-            finally:
-                try:
-                    conn.close()
-                except Exception:
-                    pass
-        # optionally write a run/oauth_callback.json for Streamlit redirect helper
+        # Store the one-time Roxy session result; the provider token remains encrypted.
         try:
-            from pathlib import Path
-            p = Path('run')
-            p.mkdir(parents=True, exist_ok=True)
-            (p / 'oauth_callback.json').write_text(json.dumps({'login': username, 'access_token': token}))
+            conn = _conn()
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT OR REPLACE INTO oauth_results "
+                "(state, username, session_token, encrypted_session_token) VALUES (?, ?, '', ?)",
+                (state, username, _encrypt(sess['token'])),
+            )
+            conn.commit()
         except Exception:
-            pass
+            logger.exception("failed to write oauth_results")
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
         return {"username": username, "session_token": sess['token']}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("oauth callback failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -498,11 +564,17 @@ def auth_check_state(state: str, sig: Optional[str] = None):
     conn = _conn()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT username, session_token FROM oauth_results WHERE state=?", (state,))
+        cur.execute(
+            "SELECT username, encrypted_session_token, session_token FROM oauth_results WHERE state=?",
+            (state,),
+        )
         r = cur.fetchone()
         if not r:
             raise HTTPException(status_code=404, detail="not ready")
-        username, token = r
+        username, encrypted_token, legacy_token = r
+        token = _decrypt(encrypted_token) if encrypted_token else str(legacy_token or "")
+        if not token:
+            raise HTTPException(status_code=500, detail="session result unavailable")
         cur.execute("DELETE FROM oauth_results WHERE state=?", (state,))
         conn.commit()
         return {"username": username, "session_token": token}
@@ -527,11 +599,11 @@ def auth_refresh(request: Request):
     # generate new plain token and store its hash
     new_plain = _secrets.token_urlsafe(32)
     new_hash = _hash_key(new_plain)
-    new_expires = (datetime.utcnow() + timedelta(days=7)).isoformat()
+    new_expires = (utc_now_naive() + timedelta(days=7)).isoformat()
     conn = _conn()
     try:
         cur = conn.cursor()
-        cur.execute("UPDATE sessions SET token_hash=?, expires_at=?, last_used=? WHERE id=?", (new_hash, new_expires, datetime.utcnow().isoformat(), s['id']))
+        cur.execute("UPDATE sessions SET token_hash=?, expires_at=?, last_used=? WHERE id=?", (new_hash, new_expires, utc_now_naive().isoformat(), s['id']))
         cur.execute("INSERT INTO secret_audit (secret_id, actor, action, details) VALUES (?, ?, 'rotate_session', ?)", (s['id'], s['username'], json.dumps({'rotated_by': 'self'})))
         conn.commit()
         return {"token": new_plain, "expires_at": new_expires}
@@ -555,17 +627,17 @@ def auth_refresh_token(refresh_token: str = Body(...)):
         sid, username, refresh_expires_at, refresh_revoked = r
         if refresh_revoked:
             raise HTTPException(status_code=401, detail="refresh token revoked")
-        if refresh_expires_at and refresh_expires_at <= datetime.utcnow().isoformat():
+        if refresh_expires_at and refresh_expires_at <= utc_now_naive().isoformat():
             raise HTTPException(status_code=401, detail="refresh token expired")
         # rotate access token and refresh token
         new_plain = _secrets.token_urlsafe(32)
         new_hash = _hash_key(new_plain)
-        new_expires = (datetime.utcnow() + timedelta(days=7)).isoformat()
+        new_expires = (utc_now_naive() + timedelta(days=7)).isoformat()
         # rotate refresh token
         new_refresh_plain = _secrets.token_urlsafe(48)
         new_refresh_hash = _hash_key(new_refresh_plain)
-        new_refresh_expires = (datetime.utcnow() + timedelta(days=30)).isoformat()
-        cur.execute("UPDATE sessions SET token_hash=?, expires_at=?, refresh_token_hash=?, refresh_expires_at=?, last_used=? WHERE id=?", (new_hash, new_expires, new_refresh_hash, new_refresh_expires, datetime.utcnow().isoformat(), sid))
+        new_refresh_expires = (utc_now_naive() + timedelta(days=30)).isoformat()
+        cur.execute("UPDATE sessions SET token_hash=?, expires_at=?, refresh_token_hash=?, refresh_expires_at=?, last_used=? WHERE id=?", (new_hash, new_expires, new_refresh_hash, new_refresh_expires, utc_now_naive().isoformat(), sid))
         cur.execute("INSERT INTO secret_audit (secret_id, actor, action, details) VALUES (?, ?, 'refresh_token_rotate', ?)", (sid, username, json.dumps({'rotated_by': 'refresh'})))
         conn.commit()
         return {"token": new_plain, "expires_at": new_expires, "refresh_token": new_refresh_plain, "refresh_expires_at": new_refresh_expires}
@@ -677,7 +749,7 @@ def _verify_state_sig(state: str, sig: str) -> bool:
 
 
 @router.get("/secrets", response_model=List[SecretMeta])
-def list_secrets(skip: int = 0, limit: int = 100):
+def list_secrets(skip: int = 0, limit: int = 100, actor: Optional[dict] = Depends(_require_admin)):
     conn = _conn()
     try:
         cur = conn.cursor()
@@ -720,7 +792,7 @@ def create_secret(payload: SecretCreate, actor: Optional[str] = Depends(_require
 
 
 @router.get("/secrets/{name}", response_model=SecretMeta)
-def get_secret_meta(name: str):
+def get_secret_meta(name: str, actor: Optional[dict] = Depends(_require_admin)):
     conn = _conn()
     try:
         cur = conn.cursor()
@@ -783,7 +855,7 @@ def rotate_secret(name: str, new_value: Optional[str] = Body(None), reason: Opti
 
 
 @router.get("/secrets/{name}/revisions")
-def list_revisions(name: str):
+def list_revisions(name: str, actor: Optional[dict] = Depends(_require_admin)):
     conn = _conn()
     try:
         cur = conn.cursor()
@@ -806,7 +878,7 @@ def list_revisions(name: str):
 
 
 def _now_iso():
-    return datetime.utcnow().isoformat()
+    return utc_now_naive().isoformat()
 
 
 @router.post("/api-keys")
@@ -816,7 +888,7 @@ def create_api_key(name: Optional[str] = Body(None), owner: Optional[str] = Body
     h = _hash_key(plain)
     scopes_s = ",".join(scopes or [])
     expires_in = expires_in_days or API_KEY_TTL_DAYS
-    expires_at = (datetime.utcnow() + timedelta(days=expires_in)).isoformat()
+    expires_at = (utc_now_naive() + timedelta(days=expires_in)).isoformat()
     conn = _conn()
     try:
         cur = conn.cursor()
@@ -862,7 +934,7 @@ def rotate_api_key(kid: int, actor: Optional[dict] = Depends(_require_admin)):
         # create new
         plain = _generate_plain_api_key()
         h = _hash_key(plain)
-        expires_at = (datetime.utcnow() + timedelta(days=API_KEY_TTL_DAYS)).isoformat()
+        expires_at = (utc_now_naive() + timedelta(days=API_KEY_TTL_DAYS)).isoformat()
         cur.execute("INSERT INTO api_keys (key_hash, name, owner, scopes, expires_at) VALUES (?, ?, ?, ?, ?)", (h, name, owner, scopes, expires_at))
         new_id = cur.lastrowid
         cur.execute("INSERT INTO secret_audit (secret_id, actor, action, details) VALUES (?, ?, 'rotate_api_key', ?)", (kid, _actor_label(actor), json.dumps({"new_id": new_id})))
@@ -893,7 +965,7 @@ def rotate_expired_api_keys_job():
     conn = _conn()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id FROM api_keys WHERE revoked=0 AND expires_at <= ?", (datetime.utcnow().isoformat(),))
+        cur.execute("SELECT id FROM api_keys WHERE revoked=0 AND expires_at <= ?", (utc_now_naive().isoformat(),))
         rows = cur.fetchall()
         for (kid,) in rows:
             try:
@@ -906,7 +978,7 @@ def rotate_expired_api_keys_job():
 
 def prune_old_revisions_job():
     logger.info("prune_old_revisions_job: pruning old secret revisions")
-    cutoff = (datetime.utcnow() - timedelta(days=ROTATION_PRUNE_DAYS)).isoformat()
+    cutoff = (utc_now_naive() - timedelta(days=ROTATION_PRUNE_DAYS)).isoformat()
     conn = _conn()
     try:
         cur = conn.cursor()

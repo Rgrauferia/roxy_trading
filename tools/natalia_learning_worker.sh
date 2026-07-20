@@ -2,7 +2,7 @@
 set -u
 
 PROJECT_DIR="/Users/robertograu/roxy_trading"
-SOURCE_DIR="/Volumes/RoxyData/natalia_trading_copy_20260614_175259"
+SOURCE_DIR="${ROXY_LEARNING_SOURCE_DIR:-/Volumes/RoxyData}"
 PYTHON="$PROJECT_DIR/.venv/bin/python"
 LOCK_DIR="$PROJECT_DIR/run/natalia_learning.lock"
 LOG_FILE="$PROJECT_DIR/logs/natalia_learning_worker.log"
@@ -32,8 +32,9 @@ while true; do
   output="$("$PYTHON" tools/video_learning_ingest.py \
     --source "$SOURCE_DIR" \
     --limit 1 \
-    --max-depth 12 \
+    --max-depth 8 \
     --every-seconds 900 \
+    --ffmpeg-timeout 240 \
     --idle-review 2>&1)"
   rc=$?
   printf '%s\n' "$output" >> "$LOG_FILE"

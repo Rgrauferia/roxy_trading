@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from roxy_time import utc_now_naive_iso
+
 import pandas as pd
+
+from durable_storage import atomic_write_text
 
 
 def _safe_float(value: Any) -> float | None:
@@ -55,7 +58,7 @@ def _compact_row(row: pd.Series) -> dict[str, Any]:
 def build_scan_summary(df: pd.DataFrame, limit: int = 10) -> dict[str, Any]:
     if df.empty:
         return {
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": utc_now_naive_iso(),
             "rows": 0,
             "signal_counts": {},
             "raw_signal_counts": {},
@@ -80,7 +83,7 @@ def build_scan_summary(df: pd.DataFrame, limit: int = 10) -> dict[str, Any]:
         eligible_watch = eligible_watch.sort_values(["score", "symbol"], ascending=[False, True])
 
     return {
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": utc_now_naive_iso(),
         "rows": int(len(data)),
         "signal_counts": {str(key): int(value) for key, value in data["signal"].value_counts().items()},
         "raw_signal_counts": {str(key): int(value) for key, value in data["raw_signal"].value_counts().items()},
@@ -156,9 +159,7 @@ def write_scan_report(
 ) -> dict[str, Any]:
     summary = build_scan_summary(df, limit=limit)
     report = render_scan_report(summary, scan_path=scan_path)
-    Path(report_path).parent.mkdir(parents=True, exist_ok=True)
-    Path(report_path).write_text(report, encoding="utf-8")
+    atomic_write_text(report, report_path)
     if json_path:
-        Path(json_path).parent.mkdir(parents=True, exist_ok=True)
-        Path(json_path).write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
+        atomic_write_text(json.dumps(summary, indent=2, default=str), json_path)
     return summary

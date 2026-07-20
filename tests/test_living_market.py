@@ -239,6 +239,11 @@ def test_live_price_snapshot_prefers_alpaca_for_stocks(monkeypatch):
         "fetch_yfinance_live_price",
         lambda symbol: (_ for _ in ()).throw(AssertionError("yfinance should not be called")),
     )
+    monkeypatch.setattr(
+        living_market,
+        "fetch_yfinance_quote_price",
+        lambda symbol: (_ for _ in ()).throw(AssertionError("yfinance quote should not be called")),
+    )
 
     snapshot = living_market.build_live_price_snapshot(
         "AAPL",

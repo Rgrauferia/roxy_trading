@@ -4,7 +4,30 @@ from pathlib import Path
 import pytest
 
 from tools import roxy_stock_stream_bridge
-from tools.roxy_stock_stream_bridge import app, normalize_stock_symbols, sse_event, stock_snapshot_payload
+from tools.roxy_stock_stream_bridge import (
+    allowed_stock_stream_origins,
+    app,
+    normalize_stock_symbols,
+    sse_event,
+    stock_snapshot_payload,
+)
+
+
+def test_stock_bridge_cors_rejects_wildcard_and_invalid_origins():
+    assert allowed_stock_stream_origins("*") == [
+        "http://127.0.0.1:3000",
+        "http://localhost:3000",
+    ]
+    assert allowed_stock_stream_origins(
+        "https://roxy.example, javascript:alert(1), https://roxy.example/, http://localhost:3000/path"
+    ) == ["https://roxy.example"]
+
+
+def test_stock_bridge_accepts_explicit_comma_separated_origins():
+    assert allowed_stock_stream_origins("https://one.example,https://two.example:8443") == [
+        "https://one.example",
+        "https://two.example:8443",
+    ]
 
 
 def test_normalize_stock_symbols_limits_and_sanitizes_input():
@@ -134,9 +157,13 @@ def test_stock_bridge_dockerfile_uses_render_safe_startup_and_port():
     assert 'os.getenv("PORT", "10000")' in launcher
     assert '"tools.roxy_stock_stream_bridge:app"' in launcher
     assert "proxy_headers=True" in launcher
+    assert 'ROXY_STOCK_BRIDGE_HOST", "127.0.0.1"' in launcher
+    assert 'ROXY_STOCK_BRIDGE_TRUSTED_PROXIES", "127.0.0.1"' in launcher
+    assert 'forwarded_allow_ips="*"' not in launcher
     assert "name: roxy-stock-stream" in render_config
     assert "dockerCommand: ./scripts/stock_bridge_entrypoint.sh" in render_config
     assert "ROXY_STOCK_BRIDGE_URL" in render_config
     assert "https://roxy-stock-stream.onrender.com/v1/market/stock-snapshot" in render_config
     assert "ALPACA_SECRET_KEY" in render_config
     assert "value: 10000" in render_config
+    assert "ROXY_STOCK_STREAM_ALLOWED_ORIGINS" in render_config

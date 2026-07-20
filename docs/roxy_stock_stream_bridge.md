@@ -19,6 +19,7 @@ export ALPACA_API_KEY="your_key"
 export ALPACA_API_SECRET="your_secret"
 export ALPACA_DATA_FEED="iex"
 export ROXY_STOCK_STREAM_URL="http://127.0.0.1:8765/v1/market/stock-stream"
+export ROXY_STOCK_STREAM_ALLOWED_ORIGINS="http://127.0.0.1:3000,http://localhost:3000"
 
 python3 -m uvicorn tools.roxy_stock_stream_bridge:app --host 127.0.0.1 --port 8765
 ```
@@ -70,6 +71,8 @@ ALPACA_DATA_FEED=iex
 ```
 
 The main `roxy-trading` service only receives `ROXY_STOCK_STREAM_URL`; it never sends API keys to frontend code.
+
+The bridge rejects wildcard CORS. `ROXY_STOCK_STREAM_ALLOWED_ORIGINS` must contain exact comma-separated `http`/`https` origins. Local startup binds to `127.0.0.1`; a remote deployment must explicitly set `ROXY_STOCK_BRIDGE_HOST=0.0.0.0`. Proxy headers trust loopback only unless `ROXY_STOCK_BRIDGE_TRUSTED_PROXIES` is deliberately changed for a known proxy range.
 
 If you manage Render from a Blueprint, sync/redeploy the blueprint after pushing the repo. If the service is created manually, create a Docker web service named `roxy-stock-stream`, point it to this repo, and use `Dockerfile.stock-bridge`.
 

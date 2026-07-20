@@ -19,6 +19,7 @@ from alpaca.trading.requests import TakeProfitRequest, StopLossRequest
 from alpaca.data.historical.stock import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
+from roxy_trader.indicators import exponential_moving_average, session_vwap, wilder_rsi
 
 # ----------------------------
 # CONFIG
@@ -66,25 +67,16 @@ logging.basicConfig(
 # HELPERS: Indicators
 # ----------------------------
 def ema(series: pd.Series, period: int) -> pd.Series:
-    return series.ewm(span=period, adjust=False).mean()
+    return exponential_moving_average(series, period)
 
 
 def rsi(series: pd.Series, period: int = 14) -> pd.Series:
-    delta = series.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(period).mean()
-    rs = gain / (loss.replace(0, np.nan))
-    return 100 - (100 / (1 + rs))
+    return wilder_rsi(series, period)
 
 
 def vwap(df: pd.DataFrame) -> pd.Series:
-    # VWAP intradia aproximado por barras: sum(price*vol)/sum(vol) resetea diario
-    # df debe tener columns: close, volume, timestamp (datetime)
-    df = df.copy()
-    df["date"] = df["timestamp"].dt.date
-    typical = df["close"]  # simplificado; puedes usar (high+low+close)/3 si agregas high/low
-    pv = typical * df["volume"]
-    return pv.groupby(df["date"]).cumsum() / df["volume"].groupby(df["date"]).cumsum()
+    normalized = df.rename(columns={"timestamp": "ts"}) if "ts" not in df.columns else df
+    return session_vwap(normalized)
 
 
 # ----------------------------

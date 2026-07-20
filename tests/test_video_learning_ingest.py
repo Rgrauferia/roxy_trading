@@ -1,6 +1,32 @@
+import os
 from pathlib import Path
 
 from tools import video_learning_ingest as ingest
+
+
+def test_default_sources_do_not_implicitly_scan_external_volumes(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("ROXY_VIDEO_SOURCES", raising=False)
+    monkeypatch.setattr(ingest.Path, "home", lambda: tmp_path)
+
+    sources = ingest.default_sources()
+
+    assert sources
+    assert all(str(path).startswith(str(tmp_path)) for path in sources)
+    assert all(not str(path).startswith("/Volumes/") for path in sources)
+
+
+def test_default_sources_accept_explicit_external_configuration(tmp_path: Path, monkeypatch):
+    external = tmp_path / "mounted" / "videos"
+    local = tmp_path / "Downloads"
+    monkeypatch.setenv("ROXY_VIDEO_SOURCES", os.pathsep.join([str(local), str(external)]))
+
+    assert ingest.default_sources() == [local, external]
+
+
+def test_video_archive_dir_is_explicit_only(tmp_path: Path):
+    assert ingest.configured_archive_dir({}) is None
+    assert ingest.configured_archive_dir({"ROXY_VIDEO_ARCHIVE_DIR": "  "}) is None
+    assert ingest.configured_archive_dir({"ROXY_VIDEO_ARCHIVE_DIR": str(tmp_path)}) == tmp_path
 
 
 def test_detects_learning_video_keywords(tmp_path: Path):
@@ -542,6 +568,57 @@ def test_write_idle_learning_review_creates_markdown_and_json(tmp_path: Path):
     body = review_path.read_text()
     assert "Roxy Idle Learning Review" in body
     assert "Canales y tendencias" in body
+
+
+def test_build_teacher_playbook_turns_topics_into_operating_rules():
+    index = {
+        "videos": [
+            {
+                "source_path": "/tmp/03-25-Masterclass EMA 9.mp4",
+                "topics": ["Medias moviles", "Timing de entrada"],
+            },
+            {
+                "source_path": "/tmp/03-09-Canales y Tendencias.mp4",
+                "topics": ["Canales y tendencias"],
+            },
+        ],
+        "materials": [
+            {
+                "source_path": "/tmp/Risk Management.pdf",
+                "topics": ["Riesgo", "Check list y no negociables"],
+            }
+        ],
+    }
+
+    playbook = ingest.build_teacher_playbook(index)
+
+    assert playbook["source_counts"]["videos"] == 2
+    assert playbook["source_counts"]["materials"] == 1
+    assert playbook["topic_counts"]["Medias moviles"] == 1
+    assert any(rule["id"] == "ma_alignment" for rule in playbook["strategy_rules"])
+    assert any(rule["id"] == "timing_precision" for rule in playbook["strategy_rules"])
+    assert any(item["id"] == "no_plan" for item in playbook["anti_patterns"])
+    assert "Entrada, stop, target, R/R y razon visibles." in playbook["opportunity_checklist"]
+
+
+def test_write_teacher_playbook_creates_markdown_and_json(tmp_path: Path):
+    index = {
+        "videos": [
+            {
+                "source_path": "/tmp/05-26-Cruces de Medias Moviles.mp4",
+                "topics": ["Medias moviles"],
+            }
+        ],
+        "materials": [],
+    }
+
+    path = ingest.write_teacher_playbook(tmp_path, index)
+
+    assert path.exists()
+    assert (tmp_path / "roxy_teacher_playbook.json").exists()
+    body = path.read_text()
+    assert "Roxy Teacher Playbook" in body
+    assert "Alineacion de medias antes de entrar" in body
 
 
 def test_parse_args_defaults_to_35_minute_watch_interval(monkeypatch):

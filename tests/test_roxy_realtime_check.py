@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import tarfile
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -24,6 +25,8 @@ from tools.dashboard_render_probe import (
     soft_console_warning_family,
     unique_messages,
     visible_view_from_text,
+    visible_label_for_view,
+    required_text_present,
 )
 from tools.roxy_realtime_check import (
     BASE_DIR,
@@ -31,6 +34,8 @@ from tools.roxy_realtime_check import (
     DEFAULT_HEALTH_HISTORY_MAINTENANCE_TARGET_RATIO,
     DEFAULT_HEALTH_HISTORY_MAINTENANCE_TRIGGER_RATIO,
     acquire_run_lock,
+    annotate_health_history_no_append,
+    allowed_core_warn_checks_from_history_metrics,
     ai_brief_report_needs_recovery,
     alert_quality_report_needs_recovery,
     append_health_history,
@@ -68,6 +73,7 @@ from tools.roxy_realtime_check import (
     ensure_runtime_backup_report,
     ensure_storage_migration_target,
     ensure_yfinance_cache_recovery,
+    enable_runtime_stack_dump,
     freshness_check,
     heartbeat_check,
     health_history_entry,
@@ -94,6 +100,8 @@ from tools.roxy_realtime_check import (
     summarize_health_history_entries,
     top_health_issue,
     output_maintenance_report_needs_recovery,
+    output_maintenance_issue_from_history_metrics,
+    output_maintenance_protected_from_history_metrics,
     provider_recovery_summary,
     provider_effective_targets_with_market_baseline,
     runtime_backup_report_needs_recovery,
@@ -118,6 +126,7 @@ from tools.roxy_realtime_check import (
     validate_health_history_integrity,
     validate_health_stability_slo,
     validate_live_backend_process_guard,
+    validate_live_scan_efficiency_report,
     validate_live_service,
     validate_cached_local_storage_pressure_sources,
     validate_local_storage_pressure_sources,
@@ -127,6 +136,7 @@ from tools.roxy_realtime_check import (
     validate_output_maintenance_report,
     validate_output_maintenance_service,
     validate_options_candidates,
+    validate_opportunity_lifecycle_report,
     validate_operational_logs,
     validate_provider_recovery_contract,
     validate_project_storage_footprint,
@@ -142,6 +152,7 @@ from tools.roxy_realtime_check import (
     validate_streamlit_service,
     validate_video_learning_library,
     write_run_lock_status,
+    write_run_lock_phase,
     write_report,
     yfinance_cache_needs_recovery,
 )
@@ -154,9 +165,25 @@ def test_visible_view_from_text_detects_streamlit_view_heading_fallback():
     assert visible_view_from_text(text, "Dashboard") == ""
 
 
+def test_dashboard_probe_maps_canonical_routes_to_visible_navigation_labels():
+    assert visible_label_for_view("Dashboard") == "Inicio"
+    assert visible_label_for_view("Backtest") == "Backtesting"
+    assert visible_label_for_view("Capital") == "Portafolio y operaciones"
+    assert visible_label_for_view("Opciones") == "Opciones"
+
+
+def test_dashboard_probe_required_text_is_case_and_whitespace_insensitive():
+    assert required_text_present("ROXY   TRADING\nActivo", "Roxy Trading") is True
+    assert required_text_present("ROXY TRADING", "Backtesting") is False
+
+
 def test_dashboard_render_probe_classifies_browser_feature_warnings_as_soft():
     assert message_matches_any("Error: Unrecognized data set: source_0", SOFT_CONSOLE_ERROR_PATTERNS)
     assert message_matches_any("Unrecognized feature: 'battery'.", SOFT_CONSOLE_WARNING_PATTERNS)
+    assert message_matches_any(
+        'Invalid color passed for widgetBackgroundColor in theme.sidebar: ""',
+        SOFT_CONSOLE_WARNING_PATTERNS,
+    )
     assert message_matches_any(
         "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.",
         SOFT_CONSOLE_WARNING_PATTERNS,
@@ -186,6 +213,10 @@ def test_dashboard_render_probe_deduplicates_soft_warning_samples():
 
 def test_dashboard_render_probe_classifies_soft_warning_families():
     assert soft_console_warning_family("Unrecognized feature: 'battery'.") == "browser_feature_policy"
+    assert (
+        soft_console_warning_family('Invalid color passed for widgetBorderColor in theme.sidebar: ""')
+        == "streamlit_optional_sidebar_theme"
+    )
     assert soft_console_warning_family("The input spec uses Vega-Lite v5.20.1") == "vega_lite_version"
     assert soft_console_warning_family('WARN Dropping "fit-x" because spec has discrete width.') == "vega_fit_width"
     assert message_family_counts(
@@ -486,6 +517,26 @@ def evaluate_smart_alert(row):
             }
         )
     )
+    (alerts / "ma_live_scan_timing.json").write_text(
+        json.dumps(
+            {
+                "generated_at": now.isoformat(),
+                "status": "SUCCESS",
+                "crypto_timeframes": ["15m", "1h", "2h", "4h"],
+                "crypto_fetch_optimization": {
+                    "enabled": True,
+                    "base_request_count": 2,
+                    "saved_request_count": 4,
+                },
+                "steps": [
+                    {"timeframe": "15m", "fetch_mode": "DIRECT"},
+                    {"timeframe": "1h", "fetch_mode": "SHARED_1H"},
+                    {"timeframe": "2h", "fetch_mode": "DERIVED_FROM_1H"},
+                    {"timeframe": "4h", "fetch_mode": "DERIVED_FROM_1H"},
+                ],
+            }
+        )
+    )
     (alerts / "roxy_ai_brief.json").write_text(
         json.dumps(
             {"source_freshness": {"alerts_allowed": True, "detail": "live/confluencia actualizados hace 2 min."}}
@@ -633,6 +684,41 @@ def evaluate_smart_alert(row):
         )
     )
     (alerts / "roxy_realtime_check.json").write_text(json.dumps({"generated_at": now.isoformat(), "status": "WARN"}))
+    (alerts / "price_alert_monitor.json").write_text(
+        json.dumps(
+            {
+                "contract_version": "roxy-durable-alert-monitor/2.0.0",
+                "status": "NO_DATA",
+                "generated_at": now.isoformat(),
+                "active_alerts": 0,
+                "evaluated": 0,
+                "blocked": 0,
+                "triggered": 0,
+            }
+        )
+    )
+    (alerts / "opportunity_sync.json").write_text(
+        json.dumps(
+            {
+                "contract_version": "roxy-opportunity-sync/1.0.0",
+                "status": "OK",
+                "generated_at": now.isoformat(),
+                "source_healthy": True,
+                "candidate_count": 0,
+                "trade_ready_count": 0,
+                "users": {"local_user": {"synced": True, "count": 0}},
+            }
+        )
+    )
+    (alerts / "opportunity_lifecycle.json").write_text(
+        json.dumps(
+            {
+                "contract": "roxy-opportunity-lifecycle/1.0.0",
+                "updated_at": now.isoformat(),
+                "archived_opportunities": [],
+            }
+        )
+    )
     (alerts / "runtime_backup.json").write_text(json.dumps({"generated_at": now.isoformat(), "status": "OK"}))
     backup = base_dir / "external" / "runtime_backup.tar.gz"
     backup.parent.mkdir()
@@ -662,11 +748,15 @@ def evaluate_smart_alert(row):
         confluence,
         options,
         alerts / "ma_live_heartbeat.json",
+        alerts / "ma_live_scan_timing.json",
         alerts / "roxy_ai_brief.json",
         alerts / "roxy_daily_opportunity_plan.json",
         alerts / "roxy_status.json",
         alerts / "alert_quality.json",
         alerts / "output_maintenance.json",
+        alerts / "price_alert_monitor.json",
+        alerts / "opportunity_sync.json",
+        alerts / "opportunity_lifecycle.json",
         alerts / "runtime_backup.json",
     ):
         _touch(path, now)
@@ -677,6 +767,119 @@ def test_validate_operational_logs_accepts_missing_logs(tmp_path):
 
     assert status["status"] == "OK"
     assert status["existing_count"] == 0
+
+
+def test_validate_opportunity_lifecycle_accepts_archived_symbol_absent_from_active_brief(tmp_path):
+    now = datetime(2026, 7, 19, 22, 0, tzinfo=timezone.utc)
+    lifecycle = tmp_path / "opportunity_lifecycle.json"
+    brief = tmp_path / "roxy_ai_brief.json"
+    lifecycle.write_text(
+        json.dumps(
+            {
+                "contract": "roxy-opportunity-lifecycle/1.0.0",
+                "updated_at": now.isoformat(),
+                "archived_opportunities": [
+                    {
+                        "symbol": "LTC/USD",
+                        "status": "Invalidada",
+                        "archived_at": now.isoformat(),
+                        "reactivation_policy": "FRESH_ALERT_READY",
+                    }
+                ],
+            }
+        )
+    )
+    brief.write_text(json.dumps({"opportunities": []}))
+
+    status = validate_opportunity_lifecycle_report(lifecycle, brief, now=now)
+
+    assert status["status"] == "OK"
+    assert status["archived_count"] == 1
+    assert status["active_overlap_count"] == 0
+
+
+def test_validate_opportunity_lifecycle_fails_when_archived_symbol_is_still_active(tmp_path):
+    now = datetime(2026, 7, 19, 22, 0, tzinfo=timezone.utc)
+    lifecycle = tmp_path / "opportunity_lifecycle.json"
+    brief = tmp_path / "roxy_ai_brief.json"
+    event = {
+        "symbol": "LTC/USD",
+        "status": "Invalidada",
+        "archived_at": now.isoformat(),
+        "reactivation_policy": "FRESH_ALERT_READY",
+    }
+    lifecycle.write_text(
+        json.dumps(
+            {
+                "contract": "roxy-opportunity-lifecycle/1.0.0",
+                "updated_at": now.isoformat(),
+                "archived_opportunities": [event, dict(event)],
+            }
+        )
+    )
+    brief.write_text(json.dumps({"opportunities": [{"symbol": "LTC/USD"}]}))
+
+    status = validate_opportunity_lifecycle_report(lifecycle, brief, now=now)
+
+    assert status["status"] == "FAIL"
+    assert status["duplicate_symbol_count"] == 1
+    assert status["active_overlap_symbols"] == ["LTC/USD"]
+    assert "archived symbols still active LTC/USD" in status["detail"]
+
+
+def test_validate_live_scan_efficiency_confirms_shared_hourly_derivation(tmp_path):
+    now = datetime(2026, 7, 19, 22, 0, tzinfo=timezone.utc)
+    path = tmp_path / "timing.json"
+    path.write_text(
+        json.dumps(
+            {
+                "generated_at": now.isoformat(),
+                "status": "SUCCESS",
+                "crypto_timeframes": ["15m", "1h", "2h", "4h"],
+                "crypto_fetch_optimization": {
+                    "enabled": True,
+                    "base_request_count": 25,
+                    "saved_request_count": 50,
+                },
+                "steps": [
+                    {"timeframe": "15m", "fetch_mode": "DIRECT"},
+                    {"timeframe": "1h", "fetch_mode": "SHARED_1H"},
+                    {"timeframe": "2h", "fetch_mode": "DERIVED_FROM_1H"},
+                    {"timeframe": "4h", "fetch_mode": "DERIVED_FROM_1H"},
+                ],
+            }
+        )
+    )
+
+    status = validate_live_scan_efficiency_report(path, now=now)
+
+    assert status["status"] == "OK"
+    assert status["saved_request_count"] == 50
+    assert status["step_fetch_modes"]["4h"] == "DERIVED_FROM_1H"
+
+
+def test_validate_live_scan_efficiency_warns_when_derived_frames_are_fetched_directly(tmp_path):
+    now = datetime(2026, 7, 19, 22, 0, tzinfo=timezone.utc)
+    path = tmp_path / "timing.json"
+    path.write_text(
+        json.dumps(
+            {
+                "generated_at": now.isoformat(),
+                "status": "SUCCESS",
+                "crypto_timeframes": ["15m", "1h", "2h", "4h"],
+                "steps": [
+                    {"timeframe": "2h", "fetch_mode": "DIRECT"},
+                    {"timeframe": "4h", "fetch_mode": "DIRECT"},
+                ],
+            }
+        )
+    )
+
+    status = validate_live_scan_efficiency_report(path, now=now)
+
+    assert status["status"] == "WARN"
+    assert "derived crypto reuse missing" in status["detail"]
+    assert "direct derived timeframe 2h,4h" in status["detail"]
 
 
 def test_validate_dashboard_history_hygiene_reports_info_before_history_exists(tmp_path):
@@ -1353,6 +1556,41 @@ def test_validate_dashboard_render_probe_report_tracks_console_warning_classes(t
     assert "benign soft warning family browser_feature_policy 2/1u" in status["detail"]
 
 
+def test_validate_dashboard_render_probe_report_treats_optional_sidebar_colors_as_benign(tmp_path):
+    now = datetime(2026, 6, 8, 12, 0, tzinfo=timezone.utc)
+    report = tmp_path / "dashboard_render_probe.json"
+    report.write_text(
+        json.dumps(
+            {
+                "generated_at": now.isoformat(),
+                "status": "OK",
+                "detail": "render OK 14000 chars, URL/state persisted",
+                "text_length": 14000,
+                "black_screen": False,
+                "live_no_reload": True,
+                "view_persisted": True,
+                "selected_view_persisted": True,
+                "symbol_persisted": True,
+                "market_persisted": True,
+                "timeframe_persisted": True,
+                "forbidden_text_found": [],
+                "missing_required_text": [],
+                "soft_console_warning_count": 3,
+                "soft_console_warning_unique_count": 3,
+                "soft_console_warning_family_counts": {"streamlit_optional_sidebar_theme": 3},
+                "soft_console_warning_unique_family_counts": {"streamlit_optional_sidebar_theme": 3},
+            }
+        )
+    )
+
+    status = validate_dashboard_render_probe_report(report, now=now)
+
+    assert status["status"] == "OK"
+    assert status["actionable_soft_console_warning_count"] == 0
+    assert status["actionable_soft_console_warning_family_counts"] == {}
+    assert "benign soft warning family streamlit_optional_sidebar_theme 3/3u" in status["detail"]
+
+
 def test_validate_dashboard_render_probe_report_tracks_actionable_soft_warnings(tmp_path):
     now = datetime(2026, 6, 8, 12, 0, tzinfo=timezone.utc)
     report = tmp_path / "dashboard_render_probe.json"
@@ -1808,6 +2046,9 @@ def test_validate_operational_logs_ignores_benign_noise(tmp_path):
                 "2026-06-10 Please replace `use_container_width` with `width`.",
                 "`use_container_width` will be removed after 2025-12-31.",
                 "/tmp/.venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+",
+                "/tmp/.venv/lib/python3.12/site-packages/yfinance/utils.py:667: DeprecationWarning: generic timedelta unit",
+                "/tmp/roxy/tools/roxy_realtime_check.py:2806: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated",
+                "ecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future.",
                 "  warnings.warn(",
             ]
         )
@@ -1816,7 +2057,7 @@ def test_validate_operational_logs_ignores_benign_noise(tmp_path):
     status = validate_operational_logs([log_path], now=datetime.fromtimestamp(log_path.stat().st_mtime, timezone.utc))
 
     assert status["status"] == "OK"
-    assert status["ignored_line_count"] == 4
+    assert status["ignored_line_count"] == 7
     assert status["critical_issues"] == []
 
 
@@ -1837,6 +2078,35 @@ def test_validate_operational_logs_fails_on_recent_traceback(tmp_path):
     assert status["status"] == "FAIL"
     assert status["critical_issues"]
     assert any("PermissionError" in item["line"] for item in status["critical_issues"])
+
+
+def test_validate_operational_logs_accepts_recovered_runtime_backup_permission_fallback(tmp_path):
+    alerts = tmp_path / "alerts"
+    alerts.mkdir()
+    log_path = tmp_path / "runtime_backup.err"
+    reason = (
+        "PermissionError: [Errno 1] Operation not permitted: "
+        "'/Volumes/RoxyData/projects/roxy_trading/_backup/runtime/.archive.tmp'"
+    )
+    log_path.write_text("Traceback (most recent call last):\n" + reason)
+    log_mtime = datetime.fromtimestamp(log_path.stat().st_mtime, timezone.utc)
+    (alerts / "runtime_backup.json").write_text(
+        json.dumps(
+            {
+                "generated_at": (log_mtime + timedelta(seconds=1)).isoformat(),
+                "status": "OK",
+                "archive_verified": True,
+                "target_fallback": True,
+                "target_fallback_reason": reason,
+            }
+        )
+    )
+
+    status = validate_operational_logs([log_path], base_dir=tmp_path, now=log_mtime + timedelta(seconds=2))
+
+    assert status["status"] == "OK"
+    assert status["critical_issues"] == []
+    assert status["ignored_line_count"] == 2
 
 
 def test_validate_operational_logs_ignores_old_timestamped_traceback_in_active_log(tmp_path):
@@ -2235,6 +2505,12 @@ def test_evaluate_realtime_health_passes_with_good_artifacts(tmp_path, monkeypat
     assert "alerts 0" in ai_brief["detail"]
     assert any(item["name"] == "salto_integration" and item["status"] == "OK" for item in report["checks"])
     assert any(item["name"] == "chart_indicators" and item["status"] == "WARN" for item in report["checks"])
+    storage_pressure = next(
+        (item for item in report["checks"] if item["name"] == "local_storage_pressure_sources"),
+        None,
+    )
+    if storage_pressure is not None:
+        assert all(str(item["path"]).startswith(str(tmp_path)) for item in storage_pressure["top_entries"])
 
 
 def test_evaluate_realtime_health_fails_when_required_timeframe_missing(tmp_path):
@@ -2672,6 +2948,21 @@ def test_choose_chart_symbol_keeps_explicit_symbol_override():
     ) == ("AAPL", "stock")
 
 
+def test_choose_chart_symbol_ignores_empty_focus_placeholder():
+    scan_df = pd.DataFrame(
+        [
+            {"symbol": "-", "market": "stock"},
+            {"symbol": "ETH/USD", "market": "crypto"},
+        ]
+    )
+
+    assert choose_chart_symbol(
+        scan_df,
+        None,
+        operational_focus_symbol="-",
+    ) == ("ETH/USD", "crypto")
+
+
 def test_attach_report_metrics_publishes_current_realtime_aliases():
     report = {
         "status": "OK",
@@ -3063,6 +3354,69 @@ def test_validate_report_metrics_contract_requires_health_history_age_aliases():
     assert "health_history_post_append_maintenance_target_bytes" in status["metrics_missing_aliases"]
     assert "health_history_post_append_maintenance_effective_min_entries" in status["metrics_missing_aliases"]
     assert "health_history_post_append_maintenance_after_budget_ratio" in status["metrics_missing_aliases"]
+
+
+def test_no_history_annotation_satisfies_maintenance_metrics_without_mutating_history(tmp_path):
+    history_path = tmp_path / "health.jsonl"
+    history_path.write_text(
+        json.dumps(
+            {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "status": "WARN",
+                "checks": {},
+                "metrics": {},
+            }
+        )
+        + "\n"
+    )
+    original = history_path.read_bytes()
+    history_check = validate_health_history_integrity(
+        history_path,
+        max_entries=120,
+        max_bytes=1024 * 1024,
+    )
+    report = {"status": "WARN", "checks": [history_check]}
+
+    annotation = annotate_health_history_no_append(
+        report,
+        history_path=history_path,
+        max_entries=120,
+        max_bytes=1024 * 1024,
+        min_entries=60,
+    )
+    refresh_report_metrics_contract(report)
+
+    assert annotation is not None
+    assert annotation["action"] == "skipped_no_history"
+    assert annotation["ok"] is True
+    assert annotation["target_bytes"] > 0
+    assert history_path.read_bytes() == original
+    contract = next(item for item in report["checks"] if item["name"] == "report_metrics_contract")
+    assert contract["status"] == "OK"
+    assert report["metrics"]["health_history_post_append_maintenance_action"] == "skipped_no_history"
+
+
+def test_refresh_report_metrics_contract_replaces_a_stale_persisted_warning():
+    report = {
+        "status": "WARN",
+        "checks": [
+            {
+                "name": "report_metrics_contract",
+                "status": "WARN",
+                "detail": "metrics aliases missing obsolete_alias",
+                "metrics_missing_aliases": ["obsolete_alias"],
+            }
+        ],
+        "metrics": {},
+    }
+
+    refresh_report_metrics_contract(report)
+
+    contract = next(item for item in report["checks"] if item["name"] == "report_metrics_contract")
+    assert contract["status"] == "OK"
+    assert contract["metrics_missing_aliases"] == []
+    assert report["status"] == "OK"
+    assert report["metrics"]["report_metrics_contract_check_status"] == "OK"
 
 
 def test_validate_report_metrics_contract_requires_history_byte_aliases():
@@ -7106,6 +7460,18 @@ def test_ensure_post_append_health_history_maintenance_waits_until_trigger(tmp_p
     assert result["after_line_count"] == before["line_count"]
     assert result["removed_lines"] == 0
     assert result["removed_bytes"] == 0
+    assert {
+        "action",
+        "ok",
+        "target_bytes",
+        "configured_min_entries",
+        "effective_min_entries",
+        "min_entry_floor",
+        "target_fit_entries",
+        "min_entries_relaxed",
+        "removed_lines",
+        "removed_bytes",
+    } <= result.keys()
     assert after["line_count"] == len(rows)
     assert after["budget_ratio"] == before["budget_ratio"]
 
@@ -7307,6 +7673,62 @@ def test_write_run_lock_status_records_blocked_and_released(tmp_path):
     assert payload["event"] == "released"
     assert payload["acquired"] is False
     assert payload["released_at"] == (now + timedelta(minutes=1)).isoformat()
+
+
+def test_write_run_lock_phase_updates_metadata_status_and_validation(tmp_path):
+    now = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
+    lock_path = tmp_path / "roxy.lock"
+    status_path = tmp_path / "alerts" / "roxy_realtime_lock.json"
+    lock_info = acquire_run_lock(lock_path, now=now)
+
+    payload = write_run_lock_phase(
+        lock_info,
+        status_path,
+        "ensure_dashboard_render_probe",
+        now=now + timedelta(minutes=2),
+    )
+    metadata = json.loads((lock_path / "metadata.json").read_text())
+    status = validate_realtime_lock_status(status_path, now=now + timedelta(minutes=3))
+    release_run_lock(lock_info)
+
+    assert payload["event"] == "progress"
+    assert payload["acquired"] is True
+    assert metadata["phase"] == "ensure_dashboard_render_probe"
+    assert status["status"] == "OK"
+    assert status["owner_phase"] == "ensure_dashboard_render_probe"
+    assert status["phase_age_minutes"] == 1.0
+    assert "phase ensure_dashboard_render_probe" in status["detail"]
+
+
+def test_blocked_run_inherits_active_owner_phase(tmp_path):
+    now = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
+    lock_path = tmp_path / "roxy.lock"
+    status_path = tmp_path / "alerts" / "roxy_realtime_lock.json"
+    owner = acquire_run_lock(lock_path, now=now)
+    write_run_lock_phase(owner, status_path, "evaluate_initial_health", now=now + timedelta(minutes=1))
+
+    blocked = acquire_run_lock(lock_path, now=now + timedelta(minutes=2))
+    payload = write_run_lock_status(blocked, status_path, event="blocked", now=now + timedelta(minutes=2))
+    release_run_lock(owner)
+
+    assert blocked["acquired"] is False
+    assert blocked["owner_phase"] == "evaluate_initial_health"
+    assert payload["owner_phase"] == "evaluate_initial_health"
+
+
+def test_enable_runtime_stack_dump_registers_sigusr1(monkeypatch):
+    captured = {}
+
+    def fake_register(signum, *, file, all_threads, chain):
+        captured.update(signum=signum, file=file, all_threads=all_threads, chain=chain)
+
+    monkeypatch.setattr(roxy_realtime_check.faulthandler, "register", fake_register)
+
+    assert enable_runtime_stack_dump() is True
+    assert captured["signum"] == roxy_realtime_check.signal.SIGUSR1
+    assert captured["file"] is roxy_realtime_check.sys.stderr
+    assert captured["all_threads"] is True
+    assert captured["chain"] is False
 
 
 def test_validate_realtime_lock_status_accepts_released_lock(tmp_path):
@@ -10651,6 +11073,80 @@ def test_history_core_runtime_status_treats_alpaca_probe_as_external_warning():
     assert roxy_realtime_check.history_core_runtime_status(row) == "OK"
 
 
+def test_history_core_runtime_status_ignores_self_amplified_slo_with_protected_non_core_warnings():
+    row = {
+        "status": "WARN",
+        "checks": {
+            "alpaca_account_probe": "WARN",
+            "video_learning_library": "WARN",
+            "output_maintenance_report": "WARN",
+            "health_stability_slo": "FAIL",
+        },
+        "top_issue": {"name": "health_stability_slo", "status": "FAIL"},
+        "metrics": {
+            "provider_recovery_premium_blocked": True,
+            "output_maintenance_hygiene_protected": True,
+            "output_maintenance_operation_protected": True,
+            "output_maintenance_footprint_budget_status": "OK",
+            "output_maintenance_archive_errors": 0,
+        },
+    }
+
+    assert roxy_realtime_check.history_core_runtime_status(row) == "OK"
+
+
+def test_history_core_runtime_status_keeps_external_permission_warning_outside_trading_core():
+    row = {
+        "status": "WARN",
+        "checks": {
+            "external_disk": "WARN",
+            "health_stability_slo": "FAIL",
+        },
+        "top_issue": {"name": "health_stability_slo", "status": "FAIL"},
+        "metrics": {
+            "external_disk_mounted": True,
+            "external_disk_writable": False,
+            "external_disk_permission_required": True,
+        },
+    }
+
+    assert roxy_realtime_check.history_core_runtime_status(row) == "OK"
+
+
+def test_history_core_runtime_status_keeps_other_external_disk_warnings_degraded():
+    row = {
+        "status": "WARN",
+        "checks": {"external_disk": "WARN", "health_stability_slo": "WARN"},
+        "top_issue": {"name": "external_disk", "status": "WARN"},
+        "metrics": {
+            "external_disk_mounted": True,
+            "external_disk_writable": True,
+            "external_disk_permission_required": False,
+        },
+    }
+
+    assert roxy_realtime_check.history_core_runtime_status(row) == "WARN"
+
+
+def test_history_core_runtime_status_keeps_unprotected_maintenance_warning_degraded():
+    row = {
+        "status": "WARN",
+        "checks": {
+            "output_maintenance_report": "WARN",
+            "health_stability_slo": "FAIL",
+        },
+        "top_issue": {"name": "health_stability_slo", "status": "FAIL"},
+        "metrics": {
+            "output_maintenance_hygiene_protected": False,
+            "output_maintenance_operation_protected": True,
+            "output_maintenance_footprint_budget_status": "OK",
+            "output_maintenance_archive_errors": 0,
+        },
+    }
+
+    assert roxy_realtime_check.history_core_runtime_status(row) == "WARN"
+
+
 def test_history_core_runtime_status_treats_active_video_ingest_storage_warn_as_operational():
     row = {
         "status": "WARN",
@@ -12078,6 +12574,33 @@ def test_validate_health_stability_slo_uses_current_entry_to_clear_stale_interna
     assert "current streak FAIL" not in status["detail"]
 
 
+def test_validate_health_stability_slo_replaces_matching_current_history_entry(tmp_path):
+    history = tmp_path / "history.jsonl"
+    rows = [
+        {"status": "OK", "generated_at": f"2026-06-08T12:0{idx}:00+00:00"}
+        for idx in range(3)
+    ]
+    history.write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+    current_entry = {
+        **rows[-1],
+        "checks": {"report_metrics_contract": "OK"},
+        "metrics": {"report_metrics_contract_issue_count": 0},
+    }
+
+    status = validate_health_stability_slo(
+        history,
+        min_sample_size=1,
+        warn_ok_rate=0.0,
+        fail_ok_rate=0.0,
+        current_entry=current_entry,
+    )
+
+    assert status["sample_size"] == 3
+    assert status["current_streak_status"] == "OK"
+    assert status["current_streak_count"] == 3
+    assert status["current_core_streak_count"] == 3
+
+
 def test_validate_health_stability_slo_reports_info_after_recovery(tmp_path):
     history = tmp_path / "history.jsonl"
     rows = [
@@ -12323,6 +12846,69 @@ def test_validate_health_stability_slo_clears_recovered_core_provider_block_nois
     assert "core recovered sustained OK x11" in status["detail"]
     assert "dominant chart_provider_effective x11 historical recovered" in status["detail"]
     assert "operational Core operativo / externo bloqueado" in status["detail"]
+    assert "core recovery OK rate" not in status["detail"]
+    assert "OK rate 0.0% < 75%" not in status["detail"]
+
+
+def test_validate_health_stability_slo_keeps_recovery_when_local_notifications_are_operable(tmp_path):
+    history = tmp_path / "history.jsonl"
+    rows = [
+        {
+            "status": "FAIL",
+            "generated_at": f"2026-06-08T10:{idx:02d}:00+00:00",
+            "top_issue": {"name": "streamlit_app", "status": "FAIL"},
+            "checks": {"streamlit_app": "FAIL", "health_stability_slo": "FAIL"},
+            "metrics": {"provider_recovery_premium_blocked": True},
+        }
+        for idx in range(26)
+    ]
+    rows.extend(
+        {
+            "status": "WARN",
+            "generated_at": f"2026-06-08T12:{idx:02d}:00+00:00",
+            "top_issue": {"name": "alpaca_account_probe", "status": "WARN"},
+            "checks": {
+                "alpaca_account_probe": "WARN",
+                "health_stability_slo": "FAIL",
+                **({"notification_delivery": "WARN"} if idx == 73 else {}),
+            },
+            "metrics": {
+                "provider_recovery_premium_blocked": True,
+                "provider_recovery_label": "Premium bloqueado",
+                "provider_recovery_missing_provider_keys": ["ALPACA_API_KEY"],
+                "status_snapshot_alert_quality_sync_checked": True,
+                "status_snapshot_alert_quality_issue_count": 0,
+                "operational_summary_contract_checked": True,
+                "operational_summary_contract_issue_count": 0,
+                "notification_channel_count": 0,
+                "notification_local_file_fallback": True,
+                "notification_cooldown_state_malformed": False,
+                "notification_health_notify_state_malformed": False,
+                "notification_health_notify_incident_key_missing": False,
+                "notification_history_line_budget_status": "OK",
+                "notification_history_budget_status": "OK",
+                "notification_malformed_recent_lines": 0,
+            },
+        }
+        for idx in range(74)
+    )
+    history.write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+
+    status = validate_health_stability_slo(
+        history,
+        min_sample_size=5,
+        warn_ok_rate=0.90,
+        fail_ok_rate=0.75,
+        recovered_core_ok_streak=10,
+    )
+
+    assert status["status"] == "INFO"
+    assert status["core_ok_rate"] == 0.74
+    assert status["current_core_streak_status"] == "OK"
+    assert status["current_core_streak_count"] == 74
+    assert status["core_recovered_sustained"] is True
+    assert status["core_recovery_state"] == "RECOVERED"
+    assert status["provider_block_recovering"] is True
     assert "core recovery OK rate" not in status["detail"]
     assert "OK rate 0.0% < 75%" not in status["detail"]
 
@@ -13287,6 +13873,10 @@ def test_validate_salto_integration_is_operational():
     assert status["status"] == "OK"
     assert status["definitions"] >= 5
     assert status["active_or_watch"] >= 1
+    assert status["fixture_only"] is True
+    assert status["published_market_rows"] == 0
+    assert "fixture-only, 0 market rows published" in status["detail"]
+    assert "synthetic active/watch" not in status["detail"]
 
 
 def test_validate_smart_alert_contract_requires_chart_operable_gate(tmp_path):
@@ -16349,6 +16939,77 @@ def test_output_maintenance_report_needs_recovery_for_warn_or_fail():
     )
 
 
+def test_output_maintenance_report_defers_recent_external_snapshot_retry():
+    recent_snapshot_warning = _healthy_output_maintenance_check(
+        status="WARN",
+        operation_protected=False,
+        hygiene_status="WARN",
+        operation_status="WARN",
+        age_hours=0.1,
+        log_snapshot_scan_status="WARN",
+        log_snapshot_scan_errors={"*.err.*": "timeout>5.0s"},
+    )
+
+    assert not output_maintenance_report_needs_recovery(
+        {"checks": [recent_snapshot_warning]}
+    )
+    assert output_maintenance_report_needs_recovery(
+        {"checks": [{**recent_snapshot_warning, "age_hours": 1.0}]}
+    )
+    assert output_maintenance_report_needs_recovery(
+        {
+            "checks": [
+                {
+                    **recent_snapshot_warning,
+                    "footprint_budget_status": "WARN",
+                }
+            ]
+        }
+    )
+
+
+def test_output_maintenance_history_protection_accepts_external_snapshot_only():
+    metrics = {
+        "output_maintenance_malformed": False,
+        "output_maintenance_dry_run": False,
+        "output_maintenance_hygiene_protected": False,
+        "output_maintenance_operation_protected": False,
+        "output_maintenance_internal_protected": True,
+        "output_maintenance_external_degraded": True,
+        "output_maintenance_archive_errors": 0,
+        "output_maintenance_footprint_budget_status": "OK",
+        "output_maintenance_operation_label": "Revisar limpieza",
+    }
+
+    assert output_maintenance_protected_from_history_metrics(metrics) is True
+    assert output_maintenance_issue_from_history_metrics(metrics) is False
+    assert "output_maintenance_report" in allowed_core_warn_checks_from_history_metrics(metrics)
+
+    legacy_metrics = dict(metrics)
+    legacy_metrics.pop("output_maintenance_internal_protected")
+    legacy_metrics.pop("output_maintenance_external_degraded")
+    legacy_metrics["output_maintenance_hygiene_issues"] = ["log snapshot scan warn"]
+    assert output_maintenance_protected_from_history_metrics(legacy_metrics) is True
+    assert "output_maintenance_report" in allowed_core_warn_checks_from_history_metrics(legacy_metrics)
+
+
+def test_output_maintenance_history_protection_keeps_internal_warning_unprotected():
+    metrics = {
+        "output_maintenance_malformed": False,
+        "output_maintenance_dry_run": False,
+        "output_maintenance_hygiene_protected": False,
+        "output_maintenance_operation_protected": False,
+        "output_maintenance_internal_protected": False,
+        "output_maintenance_archive_errors": 0,
+        "output_maintenance_footprint_budget_status": "OK",
+        "output_maintenance_operation_label": "Revisar limpieza",
+    }
+
+    assert output_maintenance_protected_from_history_metrics(metrics) is False
+    assert output_maintenance_issue_from_history_metrics(metrics) is True
+    assert "output_maintenance_report" not in allowed_core_warn_checks_from_history_metrics(metrics)
+
+
 def _healthy_output_maintenance_check(**overrides):
     item = {
         "name": "output_maintenance_report",
@@ -16810,6 +17471,51 @@ def test_dashboard_render_probe_needs_recovery_when_focus_symbol_changed():
     assert not dashboard_render_probe_needs_recovery(fresh_focus)
 
 
+def test_dashboard_render_probe_needs_recovery_ignores_empty_focus_markers():
+    report = {
+        "checks": [
+            {
+                "name": "status_snapshot",
+                "status": "WARN",
+                "operational_focus_symbol": "-",
+                "top_symbol": "—",
+                "daily_plan_top_symbol": "N/A",
+                "top_market": "-",
+            },
+            {
+                "name": "dashboard_render_probe",
+                "status": "OK",
+                "age_minutes": 3.0,
+                "contract_version": 2,
+                "final_symbol": "ETH/USD",
+                "selected_symbol": "ETH/USD",
+                "final_market": "crypto",
+                "selected_market": "crypto",
+                "final_timeframe": "1h",
+                "selected_timeframe": "1h",
+            },
+            {
+                "name": "dashboard_search_render_probe",
+                "status": "OK",
+                "age_minutes": 3.0,
+                "contract_version": 2,
+                "final_symbol": "AAPL",
+                "selected_symbol": "AAPL",
+                "final_market": "stock",
+                "selected_market": "stock",
+                "final_timeframe": "1h",
+                "selected_timeframe": "1h",
+            },
+        ]
+    }
+
+    assert not dashboard_render_probe_needs_recovery(report)
+
+    report["checks"][0]["top_symbol"] = "BTC/USD"
+    report["checks"][0]["top_market"] = "crypto"
+    assert dashboard_render_probe_needs_recovery(report)
+
+
 def test_dashboard_render_probe_needs_recovery_refreshes_near_operational_age_limit():
     assert dashboard_render_probe_needs_recovery(
         {
@@ -17099,43 +17805,54 @@ def test_ensure_dashboard_render_probe_report_runs_probe_script(tmp_path, monkey
             }
         )
     )
-    captured = {"urls": [], "required": []}
+    captured = {"calls": [], "active": 0, "peak_active": 0}
+    captured_lock = threading.Lock()
+    simultaneous_start = threading.Barrier(2, timeout=2)
 
     def fake_run(cmd, cwd, text, capture_output, timeout):
-        captured["urls"].append(cmd[cmd.index("--url") + 1])
-        captured["required"].append([cmd[idx + 1] for idx, value in enumerate(cmd) if value == "--required-text"])
         report_path = Path(cmd[cmd.index("--json-path") + 1])
         is_search = report_path.name == "dashboard_render_probe_search.json"
-        report_path.write_text(
-            json.dumps(
-                {
-                    "generated_at": "2026-06-08T12:00:00+00:00",
-                    "status": "OK",
-                    "detail": "render OK",
-                    "text_length": 2345 if is_search else 1234,
-                    "contract_version": 2,
-                    "black_screen": False,
-                    "live_no_reload": True,
-                    "view_persisted": True,
-                    "selected_view_persisted": True,
-                    "symbol_persisted": True,
-                    "market_persisted": True,
-                    "timeframe_persisted": True,
-                    "final_url": (
-                        "http://127.0.0.1:3000/?view=Dashboard&symbol=AAPL&market=stock&tf=1h"
-                        if is_search
-                        else "http://127.0.0.1:3000/?view=Dashboard&symbol=BONK%2FUSD&market=crypto&tf=1h"
-                    ),
-                    "final_symbol": "AAPL" if is_search else "BONK/USD",
-                    "selected_symbol": "AAPL" if is_search else "BONK/USD",
-                    "final_market": "stock" if is_search else "crypto",
-                    "selected_market": "stock" if is_search else "crypto",
-                    "final_timeframe": "1h",
-                    "selected_timeframe": "1h",
-                }
+        url = cmd[cmd.index("--url") + 1]
+        required = [cmd[idx + 1] for idx, value in enumerate(cmd) if value == "--required-text"]
+        with captured_lock:
+            captured["calls"].append({"url": url, "required": required})
+            captured["active"] += 1
+            captured["peak_active"] = max(captured["peak_active"], captured["active"])
+        try:
+            simultaneous_start.wait()
+            report_path.write_text(
+                json.dumps(
+                    {
+                        "generated_at": "2026-06-08T12:00:00+00:00",
+                        "status": "OK",
+                        "detail": "render OK",
+                        "text_length": 2345 if is_search else 1234,
+                        "contract_version": 2,
+                        "black_screen": False,
+                        "live_no_reload": True,
+                        "view_persisted": True,
+                        "selected_view_persisted": True,
+                        "symbol_persisted": True,
+                        "market_persisted": True,
+                        "timeframe_persisted": True,
+                        "final_url": (
+                            "http://127.0.0.1:3000/?view=Dashboard&symbol=AAPL&market=stock&tf=1h"
+                            if is_search
+                            else "http://127.0.0.1:3000/?view=Dashboard&symbol=BONK%2FUSD&market=crypto&tf=1h"
+                        ),
+                        "final_symbol": "AAPL" if is_search else "BONK/USD",
+                        "selected_symbol": "AAPL" if is_search else "BONK/USD",
+                        "final_market": "stock" if is_search else "crypto",
+                        "selected_market": "stock" if is_search else "crypto",
+                        "final_timeframe": "1h",
+                        "selected_timeframe": "1h",
+                    }
+                )
             )
-        )
-        return type("Result", (), {"returncode": 0, "stdout": "done", "stderr": ""})()
+            return type("Result", (), {"returncode": 0, "stdout": "done", "stderr": ""})()
+        finally:
+            with captured_lock:
+                captured["active"] -= 1
 
     monkeypatch.setattr(roxy_realtime_check.subprocess, "run", fake_run)
 
@@ -17165,12 +17882,20 @@ def test_ensure_dashboard_render_probe_report_runs_probe_script(tmp_path, monkey
     assert result["search"]["selected_timeframe"] == "1h"
     assert result["search"]["market_persisted"] is True
     assert result["search"]["timeframe_persisted"] is True
-    assert captured["urls"] == [
-        "http://127.0.0.1:3000/?view=Dashboard&symbol=BONK%2FUSD&market=crypto&tf=1h",
-        "http://127.0.0.1:3000/?view=Dashboard&symbol=AAPL&market=stock&tf=1h",
-    ]
-    assert captured["required"][0] == ["Live sin reload", "Dashboard", "BONK/USD", "Roxy Trading"]
-    assert captured["required"][1] == ["Live sin reload", "Dashboard", "AAPL", "Roxy Trading"]
+    assert captured["peak_active"] == 2
+    calls_by_url = {call["url"]: call["required"] for call in captured["calls"]}
+    assert calls_by_url == {
+        "http://127.0.0.1:3000/?view=Dashboard&symbol=BONK%2FUSD&market=crypto&tf=1h": [
+            "Live sin reload",
+            "BONK/USD",
+            "Roxy Trading",
+        ],
+        "http://127.0.0.1:3000/?view=Dashboard&symbol=AAPL&market=stock&tf=1h": [
+            "Live sin reload",
+            "AAPL",
+            "Roxy Trading",
+        ],
+    }
 
 
 def test_dashboard_render_probe_url_preserves_explicit_query():
@@ -17368,7 +18093,7 @@ def test_validate_launchd_recovery_report_accepts_fresh_ok_report(tmp_path):
             {
                 "generated_at": (now - timedelta(minutes=5)).isoformat(),
                 "status": "OK",
-                "service_count": 6,
+                "service_count": 7,
                 "recovered": ["streamlit"],
                 "failed": [],
                 "services": {
@@ -17377,7 +18102,8 @@ def test_validate_launchd_recovery_report_accepts_fresh_ok_report(tmp_path):
                     "ma_live": {"ok": True},
                     "output_maintenance": {"ok": True},
                     "streamlit": {"ok": True},
-                    "extra": {"ok": True},
+                    "price_alert_monitor": {"ok": True},
+                    "voice_live": {"ok": True},
                 },
             }
         )
@@ -17387,10 +18113,60 @@ def test_validate_launchd_recovery_report_accepts_fresh_ok_report(tmp_path):
 
     assert status["status"] == "OK"
     assert status["age_minutes"] == 5.0
-    assert status["service_count"] == 6
+    assert status["service_count"] == 7
     assert status["recovered_count"] == 1
     assert status["failed_count"] == 0
-    assert "Launchd recovery OK for 6 service(s)" in status["detail"]
+    assert "Launchd recovery OK for 7 service(s)" in status["detail"]
+
+
+def test_validate_price_alert_monitor_report_requires_fresh_verified_contract(tmp_path):
+    now = datetime(2026, 7, 19, 8, 0, tzinfo=timezone.utc)
+    report = tmp_path / "price_alert_monitor.json"
+    report.write_text(
+        json.dumps(
+            {
+                "contract_version": "roxy-durable-alert-monitor/2.0.0",
+                "status": "OK",
+                "generated_at": (now - timedelta(seconds=40)).isoformat(),
+                "active_alerts": 2,
+                "evaluated": 2,
+                "blocked": 0,
+                "triggered": 1,
+            }
+        )
+    )
+
+    status = roxy_realtime_check.validate_price_alert_monitor_report(report, now=now)
+
+    assert status["status"] == "OK"
+    assert status["active_alert_count"] == 2
+    assert status["triggered_count"] == 1
+
+
+def test_validate_price_alert_monitor_report_fails_stale_and_warns_provider_gate(tmp_path):
+    now = datetime(2026, 7, 19, 8, 0, tzinfo=timezone.utc)
+    report = tmp_path / "price_alert_monitor.json"
+    report.write_text(
+        json.dumps(
+            {
+                "contract_version": "roxy-durable-alert-monitor/2.0.0",
+                "status": "WARNING",
+                "generated_at": (now - timedelta(minutes=1)).isoformat(),
+                "active_alerts": 1,
+                "evaluated": 0,
+                "blocked": 1,
+            }
+        )
+    )
+    warning = roxy_realtime_check.validate_price_alert_monitor_report(report, now=now)
+    stale = roxy_realtime_check.validate_price_alert_monitor_report(
+        report, now=now + timedelta(minutes=4)
+    )
+
+    assert warning["status"] == "WARN"
+    assert warning["blocked_count"] == 1
+    assert stale["status"] == "FAIL"
+    assert "stale" in stale["detail"]
 
 
 def test_validate_launchd_recovery_report_warns_when_expected_service_is_missing(tmp_path):
@@ -17402,14 +18178,16 @@ def test_validate_launchd_recovery_report_warns_when_expected_service_is_missing
             {
                 "generated_at": now.isoformat(),
                 "status": "OK",
-                "service_count": 4,
+                "service_count": 6,
                 "recovered": [],
                 "failed": [],
                 "services": {
                     "health_watchdog": {"ok": True},
                     "ma_daily": {"ok": True},
                     "ma_live": {"ok": True},
+                    "price_alert_monitor": {"ok": True},
                     "streamlit": {"ok": True},
+                    "voice_live": {"ok": True},
                 },
             }
         )
@@ -17421,7 +18199,7 @@ def test_validate_launchd_recovery_report_warns_when_expected_service_is_missing
     assert status["missing_expected_services"] == ["output_maintenance"]
     assert status["missing_expected_service_count"] == 1
     assert "missing services output_maintenance" in status["detail"]
-    assert "service count 4/5" in status["detail"]
+    assert "service count 6/7" in status["detail"]
 
 
 def test_validate_launchd_recovery_report_warns_when_expected_service_is_unhealthy(tmp_path):
@@ -17433,7 +18211,7 @@ def test_validate_launchd_recovery_report_warns_when_expected_service_is_unhealt
             {
                 "generated_at": now.isoformat(),
                 "status": "OK",
-                "service_count": 5,
+                "service_count": 7,
                 "recovered": [],
                 "failed": [],
                 "services": {
@@ -17441,6 +18219,8 @@ def test_validate_launchd_recovery_report_warns_when_expected_service_is_unhealt
                     "ma_daily": {"ok": True},
                     "ma_live": {"ok": False, "action": "error"},
                     "output_maintenance": {"ok": True},
+                    "price_alert_monitor": {"ok": True},
+                    "voice_live": {"ok": True},
                     "streamlit": {"ok": True},
                 },
             }
@@ -17464,7 +18244,7 @@ def test_validate_launchd_recovery_report_warns_when_stale(tmp_path):
             {
                 "generated_at": (now - timedelta(minutes=45)).isoformat(),
                 "status": "OK",
-                "service_count": 6,
+                "service_count": 7,
                 "recovered": [],
                 "failed": [],
                 "services": {
@@ -17473,7 +18253,8 @@ def test_validate_launchd_recovery_report_warns_when_stale(tmp_path):
                     "ma_live": {"ok": True},
                     "output_maintenance": {"ok": True},
                     "streamlit": {"ok": True},
-                    "extra": {"ok": True},
+                    "price_alert_monitor": {"ok": True},
+                    "voice_live": {"ok": True},
                 },
             }
         )
@@ -17495,7 +18276,7 @@ def test_validate_launchd_recovery_report_warns_when_services_failed(tmp_path):
             {
                 "generated_at": now.isoformat(),
                 "status": "WARN",
-                "service_count": 6,
+                "service_count": 7,
                 "recovered": [],
                 "failed": ["ma_live"],
                 "services": {
@@ -17504,7 +18285,8 @@ def test_validate_launchd_recovery_report_warns_when_services_failed(tmp_path):
                     "ma_live": {"ok": False},
                     "output_maintenance": {"ok": True},
                     "streamlit": {"ok": True},
-                    "extra": {"ok": True},
+                    "price_alert_monitor": {"ok": True},
+                    "voice_live": {"ok": True},
                 },
             }
         )
@@ -17921,6 +18703,68 @@ def test_validate_local_storage_pressure_sources_reports_top_candidates(tmp_path
     assert "action Review user storage manually" in status["detail"]
 
 
+def test_validate_local_storage_pressure_sources_bounds_production_directory_scan(tmp_path, monkeypatch):
+    downloads = tmp_path / "Downloads"
+    downloads.mkdir()
+
+    def timed_out(*args, **kwargs):
+        raise roxy_realtime_check.subprocess.TimeoutExpired(args[0], kwargs.get("timeout", 0))
+
+    monkeypatch.setattr(roxy_realtime_check.Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(roxy_realtime_check.subprocess, "run", timed_out)
+
+    status = validate_local_storage_pressure_sources(
+        free_pct=24.5,
+        candidate_relpaths=("Downloads",),
+    )
+
+    assert status["candidate_count"] == 0
+    assert status["unreadable_candidate_count"] == 1
+    assert status["status"] == "INFO"
+    assert status["measurement_complete"] is False
+    assert status["measurement_state"] == "PARTIAL"
+    assert status["unreadable_entries"] == [
+        {
+            "name": "Downloads",
+            "path": str(downloads),
+            "reason": "timeout_or_unreadable",
+        }
+    ]
+    assert "unreadable 1 (Downloads)" in status["detail"]
+
+
+def test_validate_local_storage_pressure_sources_parallelizes_production_probes(tmp_path, monkeypatch):
+    relpaths = ("Downloads", "Desktop", "Documents", "Movies")
+    for relpath in relpaths:
+        (tmp_path / relpath).mkdir()
+    lock = threading.Lock()
+    active = 0
+    peak_active = 0
+
+    def slow_probe(path):
+        nonlocal active, peak_active
+        with lock:
+            active += 1
+            peak_active = max(peak_active, active)
+        time.sleep(0.05)
+        with lock:
+            active -= 1
+        return len(path.name)
+
+    monkeypatch.setattr(roxy_realtime_check.Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(roxy_realtime_check, "bounded_directory_size_bytes", slow_probe)
+
+    status = validate_local_storage_pressure_sources(
+        free_pct=24.5,
+        candidate_relpaths=relpaths,
+    )
+
+    assert status["candidate_count"] == 4
+    assert status["unreadable_candidate_count"] == 0
+    assert status["measurement_state"] == "COMPLETE"
+    assert peak_active > 1
+
+
 def test_validate_local_storage_pressure_sources_marks_safe_cache_plan_ready(tmp_path):
     caches = tmp_path / "Library" / "Caches"
     caches.mkdir(parents=True)
@@ -18308,6 +19152,24 @@ def test_validate_external_disk_accepts_recent_operational_backup_when_probe_den
     assert status["operational_write_verified"] is True
 
 
+def test_validate_external_disk_warns_when_mounted_but_launchagent_write_is_denied(tmp_path, monkeypatch):
+    original_write_text = type(tmp_path).write_text
+
+    def deny_probe(self, *args, **kwargs):
+        if self.name.startswith(".roxy_write_test_"):
+            raise PermissionError("TCC denied")
+        return original_write_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(type(tmp_path), "write_text", deny_probe)
+
+    status = validate_external_disk(tmp_path, warn_free_gb=0, fail_free_gb=0)
+
+    assert status["status"] == "WARN"
+    assert status["mounted"] is True
+    assert status["writable"] is False
+    assert status["permission_required"] is True
+
+
 def test_evaluate_realtime_health_can_check_configured_external_disk(tmp_path):
     now = datetime(2026, 6, 8, 12, 0, tzinfo=timezone.utc)
     _write_good_artifacts(tmp_path, now)
@@ -18327,9 +19189,13 @@ def test_evaluate_realtime_health_can_check_configured_external_disk(tmp_path):
 
     external = next(item for item in report["checks"] if item["name"] == "external_disk")
     migration = next(item for item in report["checks"] if item["name"] == "storage_migration")
+    runtime_cache = next(item for item in report["checks"] if item["name"] == "runtime_cache_migration")
     assert external["status"] == "OK"
     assert migration["status"] == "OK"
     assert migration["state"] == "NOT_PRESENT"
+    assert runtime_cache["state"] == "NOT_PRESENT"
+    assert runtime_cache["source_path"].startswith(str(tmp_path))
+    assert runtime_cache["destination_path"].startswith(str(tmp_path))
 
 
 def test_evaluate_realtime_health_adds_local_storage_pressure_sources_under_disk_pressure(tmp_path, monkeypatch):
@@ -18366,7 +19232,7 @@ def test_evaluate_realtime_health_adds_local_storage_pressure_sources_under_disk
 
     storage_check = next(item for item in report["checks"] if item["name"] == "local_storage_pressure_sources")
     assert storage_check["status"] == "INFO"
-    assert calls == [{"free_pct": 24.5}]
+    assert calls == [{"home_dir": tmp_path, "free_pct": 24.5}]
 
 
 def test_validate_local_training_media_accepts_small_local_folder(tmp_path):
@@ -18479,6 +19345,53 @@ def test_validate_video_learning_library_warns_on_missing_notes_and_unarchived_s
     assert status["unarchived_source_count"] == 1
     assert "sync file missing" in status["detail"]
     assert "unarchived sources" in status["detail"]
+
+
+def test_validate_video_learning_library_treats_external_volume_source_as_hosted(tmp_path, monkeypatch):
+    media = tmp_path / "training_videos"
+    target = media / "lesson_external"
+    notes = target / "notes" / "auto_knowledge.md"
+    notes.parent.mkdir(parents=True)
+    notes.write_text("ok")
+    (target / "manifest.json").write_text("{}")
+    (media / "ROXY_LEARNING_SYNC.md").write_text("sync")
+    external_root = tmp_path / "Volumes"
+    source = external_root / "RoxyData" / "library" / "lesson.mp4"
+    (media / "video_learning_index.json").write_text(
+        json.dumps(
+            {
+                "updated_at": "2026-06-10T12:00:00+00:00",
+                "videos": [
+                    {
+                        "source_path": str(source),
+                        "target_dir": str(target),
+                        "notes_path": str(notes),
+                        "topics": ["Medias moviles"],
+                    }
+                ],
+            }
+        )
+    )
+
+    original_exists = roxy_realtime_check.Path.exists
+
+    def reject_external_probe(path):
+        if path == source:
+            raise AssertionError("external source must not be probed")
+        return original_exists(path)
+
+    monkeypatch.setattr(roxy_realtime_check.Path, "exists", reject_external_probe)
+
+    status = validate_video_learning_library(
+        media,
+        unarchived_source_warn_gb=0.0000001,
+        external_volume_root=external_root,
+    )
+
+    assert status["status"] == "OK"
+    assert status["unarchived_source_count"] == 0
+    assert status["externally_archived_source_count"] == 1
+    assert status["external_volume_root"] == str(external_root.absolute())
 
 
 def test_validate_video_learning_library_tracks_partial_source_refs_without_degrading(tmp_path):
@@ -20676,6 +21589,46 @@ def test_validate_ai_brief_report_summarizes_gate_readiness_and_blocker(tmp_path
     assert "blocker 15m da entrada: WAIT" in status["detail"]
 
 
+def test_validate_ai_brief_report_rejects_scan_watch_with_silent_or_contradictory_target(tmp_path):
+    brief = tmp_path / "roxy_ai_brief.json"
+    base = {
+        "source_freshness": {"alerts_allowed": True, "detail": "fresh"},
+        "opportunities": [
+            {
+                "symbol": "BTC/USD",
+                "action": "CRYPTO_SCAN_WATCH",
+                "target_contract": "MISSING_EXPLICIT_TARGET",
+                "recommended_target_pct": None,
+                "recommended_target_price": None,
+            }
+        ],
+    }
+    brief.write_text(json.dumps(base))
+    valid = validate_ai_brief_report(brief)
+    brief.write_text(
+        json.dumps(
+            {
+                **base,
+                "opportunities": [
+                    {
+                        **base["opportunities"][0],
+                        "recommended_target_pct": 0.02,
+                    }
+                ],
+            }
+        )
+    )
+    inconsistent = validate_ai_brief_report(brief)
+
+    assert valid["status"] == "OK"
+    assert valid["scan_watch_count"] == 1
+    assert valid["scan_watch_missing_target_contract_count"] == 0
+    assert valid["scan_watch_inconsistent_level_count"] == 0
+    assert inconsistent["status"] == "FAIL"
+    assert inconsistent["scan_watch_inconsistent_level_count"] == 1
+    assert "inconsistent 1" in inconsistent["detail"]
+
+
 def test_validate_ai_brief_report_warns_when_live_source_is_newer(tmp_path):
     now = datetime(2026, 6, 11, 12, 10, tzinfo=timezone.utc)
     brief = tmp_path / "roxy_ai_brief.json"
@@ -22137,6 +23090,62 @@ def test_validate_status_snapshot_report_confirms_alert_quality_discard_handoff(
     assert status["alert_quality_discard_handoff_focus_symbol"] == "ETH/USD"
     assert status["alert_quality_discard_handoff_source"] == "ALERT_QUALITY_DISCARD"
     assert "focus ETH/USD ALERT_QUALITY_DISCARD" in status["detail"]
+
+
+def test_validate_status_snapshot_report_accepts_discarded_candidate_with_empty_active_plan(tmp_path):
+    now = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
+    status_path = tmp_path / "roxy_status.json"
+    status_path.write_text(
+        json.dumps(
+            {
+                "generated_at": (now - timedelta(minutes=1)).isoformat(),
+                "mode": "AI_WATCH_24H",
+                "alert_count": 0,
+                "watch_count": 0,
+                "notifications_ready": 0,
+                "status": "WARN",
+                "state": "WAITING",
+                "system_status": "WARN",
+                "market_state": "WAITING",
+                "recommended_action": "Esperar un candidato nuevo o confirmacion para reactivar.",
+                "top_symbol": "-",
+                "operational_focus_symbol": "ETH/USD",
+                "operational_focus_source": "ALERT_QUALITY_DISCARD",
+                "operational_focus_reason": "Candidato invalidado por antiguedad.",
+                "operational_focus_overrides_top": True,
+                "alert_gate_summary": {"total_opportunities": 0, "notifications_ready": 0},
+                "daily_plan_mode": "DAILY_OPPORTUNITY_PLAN_24H",
+                "daily_plan_top_symbol": "-",
+                "daily_plan_top_stage": "-",
+                "daily_plan_matches_top": False,
+                "daily_plan_matches_focus": False,
+                "daily_plan_supports_focus": False,
+                "daily_plan_alignment": "NO_DAILY_PLAN",
+                "alert_quality_state": "WAITING",
+                "alert_quality_blocker_category": "MARKET_TRIGGER_WAIT",
+                "alert_quality_false_negative_risk": "MEDIUM",
+                "alert_quality_recommended_action": "Esperar un candidato nuevo o confirmacion para reactivar.",
+                "alert_quality_missed_trigger_plan_active": True,
+                "alert_quality_missed_trigger_plan_symbol": "ETH/USD",
+                "alert_quality_missed_trigger_plan_review_due": True,
+                "alert_quality_missed_trigger_plan_review_status": "OVERDUE",
+                "alert_quality_missed_trigger_plan_review_pressure": "STALE_SINGLE",
+                "alert_quality_missed_trigger_plan_auto_review_decision": "DISCARD_STALE_SINGLE",
+                "alert_quality_missed_trigger_plan_decision_action": "Invalidar candidato obsoleto.",
+                "alert_quality_missed_trigger_plan_rotation_guard_active": False,
+                "alert_quality_missed_trigger_plan_discard_guard_active": True,
+                "alert_quality_missed_trigger_plan_discard_symbol": "ETH/USD",
+                "alert_quality_missed_trigger_plan_discard_cooldown_cycles": 12,
+            }
+        )
+    )
+
+    status = validate_status_snapshot_report(status_path, max_age_minutes=30, now=now)
+
+    assert status["status"] == "OK"
+    assert status["daily_plan_alignment"] == "NO_DAILY_PLAN"
+    assert status["alert_quality_discard_handoff_status"] == "CONFIRMED"
+    assert "daily plan top missing" not in status["detail"]
 
 
 def test_validate_status_snapshot_report_warns_when_alert_quality_discard_handoff_pending(tmp_path):
@@ -23763,6 +24772,52 @@ def test_ai_brief_report_needs_recovery_for_warn_or_fail():
     assert not ai_brief_report_needs_recovery({"checks": [{"name": "ai_brief", "status": "OK"}]})
 
 
+def test_ai_brief_consistency_reread_uses_newly_completed_brief():
+    initial = {
+        "checks": [
+            {
+                "name": "ai_brief",
+                "status": "WARN",
+                "generated_at": "2026-07-19T05:20:00+00:00",
+                "source_lag_minutes": 2.8,
+            }
+        ]
+    }
+    refreshed = {
+        "checks": [
+            {
+                "name": "ai_brief",
+                "status": "OK",
+                "generated_at": "2026-07-19T05:23:25+00:00",
+                "source_lag_minutes": 0.0,
+            }
+        ]
+    }
+
+    selected, metadata = roxy_realtime_check.refresh_ai_brief_consistency_if_improved(
+        initial,
+        lambda: refreshed,
+    )
+
+    assert selected is refreshed
+    assert metadata["improved"] is True
+    assert metadata["before_status"] == "WARN"
+    assert metadata["after_status"] == "OK"
+
+
+def test_ai_brief_consistency_reread_keeps_persistent_warning():
+    initial = {"checks": [{"name": "ai_brief", "status": "WARN", "source_lag_minutes": 4.0}]}
+    still_stale = {"checks": [{"name": "ai_brief", "status": "WARN", "source_lag_minutes": 4.2}]}
+
+    selected, metadata = roxy_realtime_check.refresh_ai_brief_consistency_if_improved(
+        initial,
+        lambda: still_stale,
+    )
+
+    assert selected is initial
+    assert metadata["improved"] is False
+
+
 def test_ai_brief_report_needs_recovery_for_source_lag_even_if_status_ok():
     assert ai_brief_report_needs_recovery(
         {
@@ -23997,6 +25052,15 @@ def test_parse_args_exposes_storage_and_footprint_thresholds(monkeypatch):
     assert args.dashboard_history_refresh_minutes == 45.0
     assert args.ensure_daily_opportunity_plan_report is True
     assert args.ensure_status_snapshot_report is True
+
+
+def test_parse_args_keeps_external_disk_opt_in(monkeypatch):
+    monkeypatch.delenv("ROXY_EXTERNAL_DISK_PATH", raising=False)
+    monkeypatch.setattr("sys.argv", ["roxy_realtime_check.py"])
+
+    args = roxy_realtime_check.parse_args()
+
+    assert args.external_disk_path == ""
 
 
 def test_main_passes_storage_and_footprint_args_to_health_eval(tmp_path, monkeypatch, capsys):
@@ -24607,6 +25671,74 @@ def test_main_does_not_duplicate_alert_quality_recovery_refresh(tmp_path, monkey
     assert calls.count("alert_quality") == 1
     assert calls.count("ai_brief") == 0
     assert calls == ["health", "alert_quality", "health"]
+
+
+def test_main_keeps_canonical_health_complete_while_ai_brief_reads_working_snapshot(
+    tmp_path, monkeypatch, capsys
+):
+    canonical = tmp_path / "health.json"
+    text_path = tmp_path / "health.txt"
+    canonical.write_text(json.dumps({"sentinel": "previous-complete"}))
+    previous_override = str(tmp_path / "previous-health.json")
+    monkeypatch.setenv("ROXY_REALTIME_HEALTH_PATH", previous_override)
+    calls: list[str] = []
+
+    def fake_health(**kwargs):
+        return {
+            "generated_at": "2026-06-10T12:00:00+00:00",
+            "status": "OK",
+            "ok": True,
+            "checks": [
+                {"name": "ai_brief", "status": "OK", "detail": "fresh"},
+                {"name": "alert_quality_report", "status": "OK", "detail": "fresh"},
+            ],
+        }
+
+    def fake_ai_brief_report(**kwargs):
+        calls.append("ai_brief")
+        assert json.loads(canonical.read_text()) == {"sentinel": "previous-complete"}
+        working = Path(os.environ["ROXY_REALTIME_HEALTH_PATH"])
+        assert working != canonical
+        assert working.exists()
+        assert json.loads(working.read_text())["checks"]
+        return {"ok": True, "action": "regenerated"}
+
+    def fake_alert_quality_report(**kwargs):
+        calls.append("alert_quality")
+        return {"ok": True, "action": "regenerated"}
+
+    monkeypatch.setattr(roxy_realtime_check, "evaluate_realtime_health", fake_health)
+    monkeypatch.setattr(roxy_realtime_check, "ensure_ai_brief_report", fake_ai_brief_report)
+    monkeypatch.setattr(roxy_realtime_check, "ensure_alert_quality_report", fake_alert_quality_report)
+    monkeypatch.setattr(roxy_realtime_check, "alert_quality_report_needs_recovery", lambda report: False)
+    monkeypatch.setattr(roxy_realtime_check, "ai_brief_report_needs_recovery", lambda report: False)
+    monkeypatch.setattr(roxy_realtime_check, "dashboard_render_probe_autoheal_enabled", lambda args, report: False)
+    monkeypatch.setattr(roxy_realtime_check, "chart_health_autoheal_enabled", lambda args, report: False)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "roxy_realtime_check.py",
+            "--no-lock",
+            "--no-history",
+            "--no-fail",
+            "--base-dir",
+            str(tmp_path),
+            "--json-path",
+            str(canonical),
+            "--text-path",
+            str(text_path),
+            "--ensure-alert-quality-report",
+        ],
+    )
+
+    roxy_realtime_check.main()
+    capsys.readouterr()
+
+    assert calls == ["ai_brief", "alert_quality"]
+    assert json.loads(canonical.read_text())["checks"]
+    assert os.environ["ROXY_REALTIME_HEALTH_PATH"] == previous_override
+    assert not list(tmp_path.glob(".health.json.working.*.json"))
+    assert not list(tmp_path.glob(".health.txt.working.*.txt"))
 
 
 def test_main_refreshes_health_history_check_after_append_without_trim(tmp_path, monkeypatch, capsys):

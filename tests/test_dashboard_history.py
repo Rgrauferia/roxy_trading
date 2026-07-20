@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+
 import pandas as pd
 
 from dashboard_history import append_scan_history, compact_scan_history, scan_history_duplicate
@@ -59,6 +61,32 @@ def test_append_scan_history_appends_after_interval_and_trims(tmp_path):
     assert stored["symbol"].tolist() == ["AAPL", "MSFT"]
 
 
+def test_append_scan_history_preserves_unreadable_existing_file(tmp_path):
+    scan_db = tmp_path / "scan_history.csv"
+    original = b'"unterminated\n'
+    scan_db.write_bytes(original)
+
+    result = append_scan_history(scan_db, base_row())
+
+    assert result == {
+        "appended": False,
+        "reason": "unreadable:ParserError",
+        "rows": None,
+    }
+    assert scan_db.read_bytes() == original
+
+
+def test_append_scan_history_initializes_an_empty_existing_file(tmp_path):
+    scan_db = tmp_path / "scan_history.csv"
+    scan_db.touch()
+
+    result = append_scan_history(scan_db, base_row())
+    stored = pd.read_csv(scan_db)
+
+    assert result == {"appended": True, "reason": "new_sample", "rows": 1}
+    assert stored["symbol"].tolist() == ["AAPL"]
+
+
 def test_compact_scan_history_removes_adjacent_live_duplicates(tmp_path):
     scan_db = tmp_path / "scan_history.csv"
     rows = [
@@ -74,3 +102,28 @@ def test_compact_scan_history_removes_adjacent_live_duplicates(tmp_path):
     assert result["compacted"] is True
     assert result["removed_rows"] == 1
     assert stored["signal"].tolist() == ["WAIT", "BUY"]
+
+
+def test_concurrent_appends_are_serialized_and_atomically_replaced(tmp_path):
+    scan_db = tmp_path / "scan_history.csv"
+
+    def append(index):
+        return append_scan_history(
+            scan_db,
+            base_row(
+                ts=f"2026-06-10T14:{index:02d}:00+00:00",
+                symbol=f"S{index:02d}",
+            ),
+            max_rows=100,
+        )
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        results = list(executor.map(append, range(16)))
+
+    stored = pd.read_csv(scan_db)
+    assert all(result["appended"] is True for result in results)
+    assert len(stored) == 16
+    assert set(stored["symbol"]) == {f"S{index:02d}" for index in range(16)}
+    assert scan_db.stat().st_mode & 0o777 == 0o600
+    assert (tmp_path / ".scan_history.csv.lock").stat().st_mode & 0o777 == 0o600
+    assert not list(tmp_path.glob(".scan_history.csv.*.tmp"))

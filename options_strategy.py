@@ -9,6 +9,8 @@ from typing import Any
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from roxy_trader.api_budget import observe_api_call
+
 import pandas as pd
 
 
@@ -425,8 +427,10 @@ def _http_get_json(url: str, params: dict[str, Any], token: str, timeout: int = 
             "Accept": "application/json",
         },
     )
-    with urlopen(request, timeout=timeout) as response:
-        return json.loads(response.read().decode("utf-8"))
+    with observe_api_call("tradier", "options") as observation:
+        with urlopen(request, timeout=timeout) as response:
+            observation.set_http_status(getattr(response, "status", None))
+            return json.loads(response.read().decode("utf-8"))
 
 
 def _list_value(value: Any) -> list[Any]:

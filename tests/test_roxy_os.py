@@ -1,3 +1,8 @@
+import json
+from concurrent.futures import ThreadPoolExecutor
+
+import pytest
+
 from roxy_os import RoxyOrchestrator
 from roxy_os.memory import RoxyMemoryManager
 
@@ -18,6 +23,7 @@ def test_roxy_os_adds_and_recalls_shopping_items(tmp_path):
     assert "pan" in followup.message
     assert "cafe" in followup.message
     assert "leche" in followup.message
+    assert [item["name"] for item in roxy.shopping_list.list_items("robert")] == ["cafe", "leche", "pan"]
 
 
 def test_roxy_os_splits_common_grocery_voice_dictation_without_commas(tmp_path):
@@ -37,6 +43,7 @@ def test_roxy_os_persists_memory_between_instances(tmp_path):
     response = second_instance.handle("Roxy, lista de compra", user_id="robert")
 
     assert "pan" in response.message
+    assert (tmp_path / "roxy_shopping_list.json").exists()
 
 
 def test_roxy_os_blocks_destructive_or_sensitive_commands(tmp_path):
@@ -175,6 +182,31 @@ def test_roxy_os_trader_formats_crypto_visible_snapshot_as_yes_no(tmp_path):
     assert "contrato" in response.message
 
 
+def test_roxy_os_trader_explains_explicit_visible_asset_not_highest_other_row(tmp_path):
+    roxy = RoxyOrchestrator(memory_path=tmp_path / "memory.json")
+
+    response = roxy.handle(
+        "Roxy analiza Apple",
+        user_id="robert",
+        context={
+            "module": "acciones-operar",
+            "symbol": "AAPL",
+            "market": "stock",
+            "opportunity_snapshot": {
+                "rows": [
+                    {"symbol": "TSLA", "confidence": "99", "decision": "ESPERAR", "price": "400"},
+                    {"symbol": "AAPL", "confidence": "72", "decision": "VIGILAR", "price": "210"},
+                ]
+            },
+        },
+    )
+
+    assert response.data["best_visible_opportunity"]["symbol"] == "AAPL"
+    assert response.data["selected_visible_opportunity"]["symbol"] == "AAPL"
+    assert "Mejor oportunidad visible: AAPL" in response.message
+    assert "TSLA" not in response.message
+
+
 def test_roxy_os_routes_crypto_2h_voice_command(tmp_path):
     roxy = RoxyOrchestrator(memory_path=tmp_path / "memory.json")
 
@@ -260,6 +292,54 @@ def test_roxy_os_saves_and_lists_general_reminders(tmp_path):
     assert "llamar al cliente manana" in saved.message
     assert saved.data["reminder"]["content"] == "llamar al cliente manana"
     assert "llamar al cliente manana" in listed.message
+    tasks = roxy.personal_tasks.list_tasks("robert")
+    assert tasks[0]["title"] == "llamar al cliente manana"
+    assert tasks[0]["source"] == "voice_or_text"
+
+
+def test_roxy_os_personal_tasks_are_shared_between_instances(tmp_path):
+    memory_path = tmp_path / "memory.json"
+    first = RoxyOrchestrator(memory_path=memory_path)
+    first.handle("Roxy acuerdame revisar el calendario", user_id="robert")
+
+    second = RoxyOrchestrator(memory_path=memory_path)
+    response = second.handle("Roxy que recordatorios tengo", user_id="robert")
+
+    assert "revisar el calendario" in response.message
+    assert response.data["tasks"][0]["status"] == "PENDING"
+    assert (tmp_path / "roxy_personal_tasks.json").exists()
+
+
+def test_roxy_os_lists_document_metadata_without_reading_content(tmp_path):
+    memory_path = tmp_path / "memory.json"
+    roxy = RoxyOrchestrator(memory_path=memory_path)
+    roxy.document_vault.ingest("robert", "contrato.pdf", b"pdf fixture")
+
+    response = roxy.handle("Roxy, lista de documentos guardados", user_id="robert")
+
+    assert response.agent == "documents"
+    assert response.intent == "documents_query"
+    assert "contrato.pdf" in response.message
+    assert response.data["content_read"] is False
+    assert response.data["document_snapshot"]["sync_state"] == "LOCAL_ENCRYPTED"
+    assert response.data["document_snapshot"]["at_rest_encryption"] is True
+    assert response.actions[0]["view"] == "Documentos"
+
+
+def test_roxy_os_email_is_read_only_and_explicit_when_unconfigured(tmp_path, monkeypatch):
+    monkeypatch.delenv("ROXY_GMAIL_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv("ROXY_OUTLOOK_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv("ROXY_EMAIL_PROVIDER", raising=False)
+    roxy = RoxyOrchestrator(memory_path=tmp_path / "memory.json")
+
+    response = roxy.handle("Roxy revisa mis correos recientes", user_id="robert")
+
+    assert response.agent == "email"
+    assert response.intent == "email_query"
+    assert "SERVICE_NOT_CONFIGURED" in response.message
+    assert response.data["body_read"] is False
+    assert response.data["send_enabled"] is False
+    assert response.actions[0]["view"] == "Correo"
 
 
 def test_roxy_os_refuses_reader_secret_paths_when_permission_allowed(tmp_path):
@@ -323,3 +403,42 @@ def test_memory_search_is_user_scoped(tmp_path):
 
     assert len(results) == 1
     assert results[0]["content"] == "cafe"
+
+
+def test_memory_store_preserves_concurrent_writes_across_instances(tmp_path):
+    path = tmp_path / "memory.json"
+
+    def remember(index):
+        return RoxyMemoryManager(path).remember(
+            user_id=f"user-{index:02d}",
+            memory_type="note",
+            title=f"Note {index}",
+            content=f"Content {index}",
+            source="concurrency-test",
+        )
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        list(executor.map(remember, range(16)))
+
+    payload = json.loads(path.read_text())
+    assert len(payload["memories"]) == 16
+    assert {row["user_id"] for row in payload["memories"]} == {f"user-{index:02d}" for index in range(16)}
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert (tmp_path / ".memory.json.lock").stat().st_mode & 0o777 == 0o600
+
+
+def test_memory_store_does_not_overwrite_unreadable_content(tmp_path):
+    path = tmp_path / "memory.json"
+    original = b'{"memories": ['
+    path.write_bytes(original)
+
+    with pytest.raises(ValueError, match="memory store unreadable"):
+        RoxyMemoryManager(path).remember(
+            user_id="local",
+            memory_type="note",
+            title="Safe",
+            content="Do not overwrite",
+            source="test",
+        )
+
+    assert path.read_bytes() == original

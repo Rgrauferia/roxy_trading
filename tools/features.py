@@ -13,6 +13,7 @@ import sqlite3
 from typing import Optional
 import pandas as pd
 import numpy as np
+from roxy_trader.indicators import IndicatorConfig, add_indicators
 
 DB_PATH = os.path.join(os.getcwd(), "db", "roxy.db")
 
@@ -47,29 +48,18 @@ def compute_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
     if df is None or df.empty:
         return df
-    out = df.copy()
+    out = add_indicators(
+        df,
+        config=IndicatorConfig(sma_windows=(3, 10, 30), ema_windows=(3, 10, 30)),
+    )
     out["ret"] = out["close"].pct_change().fillna(0)
 
-    # SMAs and EMAs
+    # Preserve the feature-store column contract while sourcing values centrally.
     for n in (3, 10, 30):
-        out[f"sma_{n}"] = out["close"].rolling(n, min_periods=1).mean()
-        out[f"ema_{n}"] = out["close"].ewm(span=n, adjust=False).mean()
-
-    # ATR
-    high_low = out["high"] - out["low"]
-    high_prev_close = (out["high"] - out["close"].shift(1)).abs()
-    low_prev_close = (out["low"] - out["close"].shift(1)).abs()
-    tr = pd.concat([high_low, high_prev_close, low_prev_close], axis=1).max(axis=1)
-    out["atr_14"] = tr.rolling(14, min_periods=1).mean()
-
-    # RSI (14)
-    delta = out["close"].diff()
-    up = delta.clip(lower=0)
-    down = -1 * delta.clip(upper=0)
-    roll_up = up.rolling(14, min_periods=1).mean()
-    roll_down = down.rolling(14, min_periods=1).mean()
-    rs = roll_up / (roll_down + 1e-9)
-    out["rsi_14"] = 100.0 - (100.0 / (1.0 + rs))
+        out[f"sma_{n}"] = out[f"sma{n}"]
+        out[f"ema_{n}"] = out[f"ema{n}"]
+    out["atr_14"] = out["atr14"]
+    out["rsi_14"] = out["rsi14"]
 
     # volatility
     for n in (10, 30):

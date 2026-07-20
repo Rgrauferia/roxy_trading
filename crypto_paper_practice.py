@@ -7,6 +7,8 @@ from typing import Any, Mapping
 
 import pandas as pd
 
+from durable_storage import atomic_write_csv, exclusive_file_lock
+
 
 DEFAULT_JOURNAL_PATH = Path("alerts/crypto_paper_practice.csv")
 
@@ -234,6 +236,16 @@ def load_crypto_paper_practice_journal(path: str | Path = DEFAULT_JOURNAL_PATH) 
     return data[PRACTICE_COLUMNS]
 
 
+def _load_crypto_journal_for_update(path: Path) -> pd.DataFrame:
+    if not path.exists() or path.stat().st_size == 0:
+        return pd.DataFrame(columns=PRACTICE_COLUMNS)
+    data = pd.read_csv(path)
+    for column in PRACTICE_COLUMNS:
+        if column not in data.columns:
+            data[column] = None
+    return data[PRACTICE_COLUMNS]
+
+
 def record_crypto_paper_practice_candidates(
     candidates: pd.DataFrame,
     *,
@@ -243,14 +255,15 @@ def record_crypto_paper_practice_candidates(
         return load_crypto_paper_practice_journal(path)
     journal_path = Path(path)
     journal_path.parent.mkdir(parents=True, exist_ok=True)
-    existing = load_crypto_paper_practice_journal(journal_path)
-    frames = [frame for frame in [existing, candidates[PRACTICE_COLUMNS]] if not frame.empty]
-    combined = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=PRACTICE_COLUMNS)
-    combined = combined.drop_duplicates(subset=["practice_id"], keep="first").reset_index(drop=True)
-    if not existing.empty and combined["practice_id"].astype(str).tolist() == existing["practice_id"].astype(str).tolist():
-        return existing[PRACTICE_COLUMNS]
-    combined.to_csv(journal_path, index=False)
-    return combined[PRACTICE_COLUMNS]
+    with exclusive_file_lock(journal_path):
+        existing = _load_crypto_journal_for_update(journal_path)
+        frames = [frame for frame in [existing, candidates[PRACTICE_COLUMNS]] if not frame.empty]
+        combined = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=PRACTICE_COLUMNS)
+        combined = combined.drop_duplicates(subset=["practice_id"], keep="first").reset_index(drop=True)
+        if not existing.empty and combined["practice_id"].astype(str).tolist() == existing["practice_id"].astype(str).tolist():
+            return existing[PRACTICE_COLUMNS]
+        atomic_write_csv(combined, journal_path)
+        return combined[PRACTICE_COLUMNS]
 
 
 def score_crypto_paper_practice_journal(
@@ -350,13 +363,14 @@ def close_and_save_crypto_paper_practice_journal(
     now: datetime | None = None,
 ) -> pd.DataFrame:
     journal_path = Path(path)
-    journal = load_crypto_paper_practice_journal(journal_path)
-    closed = close_crypto_paper_practice_journal(journal, price_lookup=price_lookup, now=now)
-    if closed.empty:
-        return closed
     journal_path.parent.mkdir(parents=True, exist_ok=True)
-    closed.to_csv(journal_path, index=False)
-    return closed
+    with exclusive_file_lock(journal_path):
+        journal = _load_crypto_journal_for_update(journal_path)
+        closed = close_crypto_paper_practice_journal(journal, price_lookup=price_lookup, now=now)
+        if closed.empty:
+            return closed
+        atomic_write_csv(closed, journal_path)
+        return closed
 
 
 def price_lookup_from_crypto_opportunities(opportunities: pd.DataFrame | list[Mapping[str, Any]] | None) -> dict[str, float]:

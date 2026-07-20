@@ -55,9 +55,49 @@ def _journal_records(journal: pd.DataFrame | list[Mapping[str, Any]] | None) -> 
     return [dict(row) for row in journal if isinstance(row, Mapping)]
 
 
+def paper_evidence_records(records: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
+    """Collapse repeated scanner snapshots into independent paper episodes."""
+    episodes: dict[tuple[Any, ...], dict[str, Any]] = {}
+    eligible_raw = 0
+    for index, row in enumerate(records):
+        status = _text(row.get("status")).upper()
+        outcome = _text(row.get("closed_outcome") or row.get("outcome")).upper()
+        is_closed = status.startswith("CLOSED_") or outcome in {"HIT_2", "HIT_5", "HIT_10", "STOP"}
+        is_ready = status in {"READY_FOR_PAPER", "OPEN", "PAPER_OPEN"}
+        if not (is_ready or is_closed):
+            continue
+        eligible_raw += 1
+        symbol = _text(row.get("symbol")).upper()
+        strategy = _text(row.get("strategy_family") or row.get("strategy"))
+        timeframe = _text(row.get("timeframe")) or "-"
+        opened = _parse_datetime(row.get("ts") or row.get("opened_at") or row.get("created_at"))
+        if symbol and opened is not None:
+            market = _text(row.get("market")).lower()
+            session_date = opened.date().isoformat()
+            key = (market, symbol, strategy, timeframe, session_date)
+        else:
+            # Legacy/test rows without identity or timestamps remain independent.
+            key = ("row", index)
+        existing = episodes.get(key)
+        existing_status = _text((existing or {}).get("status")).upper()
+        existing_outcome = _text((existing or {}).get("closed_outcome") or (existing or {}).get("outcome")).upper()
+        existing_closed = existing_status.startswith("CLOSED_") or existing_outcome in {"HIT_2", "HIT_5", "HIT_10", "STOP"}
+        if existing is None or (is_closed and not existing_closed):
+            episodes[key] = row
+        elif is_closed == existing_closed:
+            current_time = _text(row.get("closed_at") or row.get("ts"))
+            previous_time = _text(existing.get("closed_at") or existing.get("ts"))
+            if current_time >= previous_time:
+                episodes[key] = row
+    evidence = list(episodes.values())
+    return evidence, max(0, eligible_raw - len(evidence))
+
+
 def paper_journal_monetization_summary(journal: pd.DataFrame | list[Mapping[str, Any]] | None) -> dict[str, Any]:
     records = _journal_records(journal)
-    tracked = len(records)
+    candidates = len(records)
+    evidence_records, duplicates_collapsed = paper_evidence_records(records)
+    tracked = 0
     closed = 0
     ready = 0
     blocked = 0
@@ -67,14 +107,18 @@ def paper_journal_monetization_summary(journal: pd.DataFrame | list[Mapping[str,
     stops = 0
     closed_moves: list[float] = []
 
-    for row in records:
+    blocked = sum(1 for row in records if _text(row.get("status")).upper() == "BLOCKED")
+
+    for row in evidence_records:
         status = _text(row.get("status")).upper()
         outcome = _text(row.get("closed_outcome") or row.get("outcome")).upper()
+        is_closed = status.startswith("CLOSED_") or outcome in {"HIT_2", "HIT_5", "HIT_10", "STOP"}
+        is_ready = status in {"READY_FOR_PAPER", "OPEN", "PAPER_OPEN"}
+        if is_ready or is_closed:
+            tracked += 1
         if status == "READY_FOR_PAPER":
             ready += 1
-        if status == "BLOCKED":
-            blocked += 1
-        if status.startswith("CLOSED_") or outcome in {"HIT_2", "HIT_5", "HIT_10", "STOP"}:
+        if is_closed:
             closed += 1
             move = _float(row.get("closed_move_pct") or row.get("move_pct"))
             if move is not None:
@@ -89,6 +133,8 @@ def paper_journal_monetization_summary(journal: pd.DataFrame | list[Mapping[str,
             stops += 1
 
     return {
+        "candidates": candidates,
+        "duplicates_collapsed": duplicates_collapsed,
         "tracked": tracked,
         "closed": closed,
         "open": max(0, tracked - closed),
@@ -131,6 +177,8 @@ def combined_paper_monetization_summary(
     return {
         "alpaca": alpaca,
         "crypto": crypto,
+        "candidates": int(alpaca["candidates"]) + int(crypto["candidates"]),
+        "duplicates_collapsed": int(alpaca["duplicates_collapsed"]) + int(crypto["duplicates_collapsed"]),
         "tracked": int(alpaca["tracked"]) + int(crypto["tracked"]),
         "closed": closed,
         "open": int(alpaca["open"]) + int(crypto["open"]),
@@ -255,7 +303,9 @@ def paper_weekly_consistency_summary(
     alpaca_journal: pd.DataFrame | list[Mapping[str, Any]] | None = None,
     crypto_journal: pd.DataFrame | list[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    records = _journal_records(alpaca_journal) + _journal_records(crypto_journal)
+    records, _duplicates_collapsed = paper_evidence_records(
+        _journal_records(alpaca_journal) + _journal_records(crypto_journal)
+    )
     rows: list[dict[str, Any]] = []
     for row in records:
         status = _text(row.get("status")).upper()
@@ -512,6 +562,7 @@ __all__ = [
     "build_monetization_readiness_report",
     "combined_paper_monetization_summary",
     "paper_journal_monetization_summary",
+    "paper_evidence_records",
     "paper_weekly_consistency_summary",
     "profitability_validation_status",
     "subscription_scenarios",

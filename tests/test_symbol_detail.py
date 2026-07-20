@@ -20,6 +20,12 @@ from symbol_detail import (
 )
 
 
+def _contract_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    expected = frame.copy()
+    expected["ts"] = pd.to_datetime(expected["ts"], utc=True)
+    return expected
+
+
 def test_resolve_symbol_query_accepts_company_names_and_crypto_aliases():
     assert resolve_symbol_query("Apple") == "AAPL"
     assert resolve_symbol_query("aapl") == "AAPL"
@@ -95,11 +101,16 @@ def test_fetch_symbol_history_with_source_prefers_alpaca_when_available(monkeypa
         env={"ALPACA_API_KEY": "key", "ALPACA_API_SECRET": "secret"},
     )
 
-    assert out.equals(alpaca_df)
+    assert out.equals(_contract_frame(alpaca_df))
     assert source["provider"] == "Alpaca"
     assert source["source"] == "alpaca_iex"
     assert source["mode"] == "BROKER_DATA"
     assert source["fallback"] is False
+    assert source["contract_version"] == "roxy-market-data/1.0.0"
+    assert source["status"] == "OK"
+    assert source["row_count"] == 3
+    assert source["timeframe"] == "15m"
+    assert source["latency_class"] == "provider_native"
 
 
 def test_alpaca_env_credentials_accepts_secret_key_alias():
@@ -145,7 +156,7 @@ def test_fetch_symbol_history_with_source_prefers_alpaca_with_secret_key_alias(m
         env={"ALPACA_API_KEY": "key", "ALPACA_SECRET_KEY": "secret"},
     )
 
-    assert out.equals(alpaca_df)
+    assert out.equals(_contract_frame(alpaca_df))
     assert source["provider"] == "Alpaca"
     assert source["mode"] == "BROKER_DATA"
 
@@ -191,7 +202,7 @@ def test_fetch_symbol_history_with_source_uses_polygon_after_alpaca_auth_failure
         env={"ALPACA_API_KEY": "key", "ALPACA_API_SECRET": "secret", "POLYGON_API_KEY": "polygon-key-value"},
     )
 
-    assert out.equals(polygon_df)
+    assert out.equals(_contract_frame(polygon_df))
     assert source["provider"] == "Polygon"
     assert source["source"] == "polygon_aggs"
     assert source["mode"] == "PREMIUM_DATA"
@@ -222,10 +233,12 @@ def test_fetch_symbol_history_with_source_falls_back_to_yfinance_when_alpaca_emp
         env={"ALPACA_API_KEY": "key", "ALPACA_API_SECRET": "secret"},
     )
 
-    assert out.equals(fallback_df)
+    assert out.equals(_contract_frame(fallback_df))
     assert source["provider"] == "yfinance"
     assert source["mode"] == "FALLBACK"
     assert source["fallback"] is True
+    assert source["is_delayed"] is True
+    assert source["latency_class"] == "public_fallback"
     assert source["fallback_reason"] == "alpaca_empty"
     assert "sin velas" in source["fallback_detail"]
 
@@ -251,7 +264,7 @@ def test_fetch_symbol_history_with_source_reports_alpaca_placeholder_credentials
     env = {"ALPACA_API_KEY": "TU_KEY_PAPER", "ALPACA_API_SECRET": "TU_SECRET_PAPER"}
     out, source = fetch_symbol_history_with_source("AAPL", market="stock", timeframe="1h", env=env)
 
-    assert out.equals(fallback_df)
+    assert out.equals(_contract_frame(fallback_df))
     assert alpaca_credentials_available(env) is False
     assert alpaca_placeholder_credential_keys(env) == ["ALPACA_API_KEY", "ALPACA_API_SECRET"]
     assert source["fallback_reason"] == "alpaca_placeholder_credentials"
@@ -284,7 +297,7 @@ def test_fetch_symbol_history_with_source_classifies_alpaca_feed_permission(monk
         env={"ALPACA_API_KEY": "key", "ALPACA_API_SECRET": "secret"},
     )
 
-    assert out.equals(fallback_df)
+    assert out.equals(_contract_frame(fallback_df))
     assert source["fallback_reason"] == "alpaca_feed_permission"
     assert "feed/permisos" in source["fallback_detail"]
     assert "IEX/SIP" in source["fallback_action"]

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import signal
 import shlex
 import subprocess
 import time
@@ -76,6 +77,32 @@ def screen_session_exists(session_name: str = DEFAULT_SESSION_NAME) -> bool:
     return f".{session_name}" in listing or f"\t{session_name}" in listing
 
 
+def runtime_backup_daemon_pids() -> list[int]:
+    """Find daemon processes even when GNU screen lost its session socket."""
+    result = run_command(["ps", "-axo", "pid=,command="])
+    if result.returncode != 0:
+        return []
+    script = str(TOOLS_DIR / "runtime_backup_daemon.py")
+    pids: list[int] = []
+    for raw_line in result.stdout.splitlines():
+        line = raw_line.strip()
+        if script not in line:
+            continue
+        parts = line.split(maxsplit=2)
+        if len(parts) < 3:
+            continue
+        raw_pid, executable = parts[0], parts[1]
+        if not Path(executable).name.casefold().startswith("python"):
+            continue
+        try:
+            pid = int(raw_pid)
+        except (TypeError, ValueError):
+            continue
+        if pid > 0 and pid != os.getpid():
+            pids.append(pid)
+    return sorted(set(pids))
+
+
 def python_path() -> Path:
     venv_python = BASE_DIR / ".venv" / "bin" / "python"
     if venv_python.exists():
@@ -124,10 +151,12 @@ def status(
     pid = heartbeat.get("pid") if heartbeat else None
     session_exists = screen_session_exists(session_name)
     pid_running = pid_is_running(pid)
+    process_pids = runtime_backup_daemon_pids()
+    process_count = len(process_pids)
     fresh = age_minutes is not None and age_minutes <= stale_minutes
     daemon_status = str(heartbeat.get("status") or "").upper()
     backup_status = str(heartbeat.get("last_backup_status") or "").upper()
-    running = bool(session_exists and pid_running and fresh and daemon_status in {"RUNNING", "DEGRADED"})
+    running = bool(pid_running and fresh and daemon_status in {"RUNNING", "DEGRADED"})
     healthy = bool(running and backup_status in {"OK", "DRY_RUN"})
     return {
         "session_name": session_name,
@@ -137,6 +166,8 @@ def status(
         "heartbeat_age_minutes": age_minutes,
         "pid": pid,
         "pid_running": pid_running,
+        "process_pids": process_pids,
+        "process_count": process_count,
         "daemon_status": daemon_status,
         "last_backup_status": backup_status,
         "last_backup_at": heartbeat.get("last_backup_at") if heartbeat else None,
@@ -150,6 +181,15 @@ def status(
 def stop(session_name: str = DEFAULT_SESSION_NAME) -> None:
     if screen_session_exists(session_name):
         run_command(["screen", "-S", session_name, "-X", "quit"])
+    pids = runtime_backup_daemon_pids()
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            continue
+    deadline = time.time() + 3.0
+    while time.time() < deadline and any(pid_is_running(pid) for pid in pids):
+        time.sleep(0.1)
 
 
 def start(
@@ -180,19 +220,21 @@ def ensure(
     stale_minutes: float = 15.0,
 ) -> dict[str, Any]:
     current = status(session_name=session_name, stale_minutes=stale_minutes)
-    if current.get("healthy"):
+    if current.get("healthy") and int(current.get("process_count") or 0) <= 1:
         return {"action": "healthy", "status": current}
-    if current.get("session_exists"):
+    duplicate_count = int(current.get("process_count") or 0)
+    if current.get("session_exists") or duplicate_count:
         stop(session_name)
         time.sleep(0.5)
     started = start(
         session_name=session_name,
         interval_hours=interval_hours,
         poll_seconds=poll_seconds,
-        run_at_start=True,
+        run_at_start=duplicate_count <= 1,
         force=False,
     )
-    return {"action": "restarted", "before": current, "status": started.get("status"), "command": started.get("command")}
+    action = "deduplicated" if duplicate_count > 1 else "restarted"
+    return {"action": action, "before": current, "status": started.get("status"), "command": started.get("command")}
 
 
 def parse_args() -> argparse.Namespace:

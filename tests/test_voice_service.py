@@ -1,6 +1,7 @@
 import os
 import logging
 import json
+import plistlib
 from fastapi.testclient import TestClient
 
 
@@ -11,6 +12,102 @@ def test_health():
     r = client.get("/health")
     assert r.status_code == 200
     assert r.json().get("status") == "ok"
+
+
+def test_roxy_mobile_shell_is_installable_secure_and_sync_scoped():
+    from tools import voice_service
+
+    client = TestClient(voice_service.app)
+    page = client.get("/roxy-mobile")
+    manifest = client.get("/roxy-mobile-manifest.json")
+    worker = client.get("/roxy-mobile-sw.js")
+    script = client.get("/assets/roxy_mobile.js")
+
+    assert page.status_code == 200
+    assert 'href="/roxy-mobile-manifest.json"' in page.text
+    assert 'src="/assets/roxy_mobile.js"' in page.text
+    assert "unsafe-inline" not in page.headers["content-security-policy"]
+    assert page.headers["cache-control"] == "no-store"
+    assert manifest.json()["display"] == "standalone"
+    assert manifest.json()["start_url"] == "/roxy-mobile"
+    assert worker.headers["service-worker-allowed"] == "/"
+    assert "/v1/" in worker.text and "return" in worker.text
+    assert "sessionStorage" not in script.text
+    assert "localStorage" not in script.text
+    assert "Transporte inseguro" in script.text
+    assert "response.status===409" in script.text
+    for scope in ("watchlists", "ui_state", "personal_tasks", "shopping_list"):
+        assert scope in script.text
+
+
+def test_roxy_mobile_pairing_is_loopback_only_and_ca_is_public(tmp_path, monkeypatch):
+    from tools import voice_service
+    from tools import mobile_gateway
+
+    gateway = tmp_path / "gateway"
+    monkeypatch.setattr(mobile_gateway, "local_ipv4_addresses", lambda: ["192.168.1.20"])
+    generated = mobile_gateway.generate_credentials(gateway)
+    token = generated["paths"]["token"].read_text(encoding="utf-8")
+    monkeypatch.setenv("ROXY_MOBILE_GATEWAY_DIR", str(gateway))
+    local = TestClient(voice_service.app, client=("127.0.0.1", 50000))
+    remote = TestClient(voice_service.app, client=("203.0.113.20", 50000))
+
+    paired = local.get("/roxy-mobile-pair")
+    denied = remote.get("/roxy-mobile-pair")
+    ca = remote.get("/roxy-mobile-ca.crt")
+    profile = remote.get("/roxy-mobile-ca.mobileconfig")
+
+    assert paired.status_code == 200
+    assert token in paired.text
+    assert "<details><summary>Mostrar instrucciones privadas</summary>" in paired.text
+    assert paired.headers["cache-control"] == "no-store"
+    assert denied.status_code == 403
+    assert token not in denied.text
+    assert ca.status_code == 200
+    assert ca.headers["content-disposition"].startswith("attachment;")
+    assert profile.status_code == 200
+    assert profile.headers["content-type"].startswith("application/x-apple-aspen-config")
+    assert profile.headers["cache-control"] == "no-store"
+    parsed = plistlib.loads(profile.content)
+    assert parsed["PayloadType"] == "Configuration"
+    assert parsed["PayloadContent"][0]["PayloadType"] == "com.apple.security.root"
+    assert token.encode("utf-8") not in profile.content
+
+
+def test_mobile_physical_proof_requires_https_bearer_allowlist_and_remote_client(tmp_path, monkeypatch):
+    from tools import mobile_gateway, voice_service
+
+    gateway = tmp_path / "gateway"
+    monkeypatch.setattr(mobile_gateway, "local_ipv4_addresses", lambda: ["192.168.1.20"])
+    generated = mobile_gateway.generate_credentials(gateway)
+    token = generated["paths"]["token"].read_text(encoding="utf-8")
+    monkeypatch.setenv("ROXY_MOBILE_GATEWAY_DIR", str(gateway))
+    monkeypatch.setenv("VOICE_API_KEY", token)
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "local_user")
+    headers = {"Authorization": f"Bearer {token}"}
+    remote = TestClient(
+        voice_service.app,
+        base_url="https://roxy.test",
+        client=("192.168.1.44", 50000),
+    )
+    local = TestClient(
+        voice_service.app,
+        base_url="https://roxy.test",
+        client=("127.0.0.1", 50000),
+    )
+
+    verified = remote.post("/v1/mobile/physical-proof/local_user", headers=headers)
+    denied_local = local.post("/v1/mobile/physical-proof/local_user", headers=headers)
+    denied_user = remote.post("/v1/mobile/physical-proof/not_allowed", headers=headers)
+
+    assert verified.status_code == 200
+    assert verified.json()["status"] == "VERIFIED_REMOTE_CLIENT"
+    assert denied_local.status_code == 403
+    assert denied_user.status_code == 403
+    persisted = (gateway / "physical_proof.json").read_text(encoding="utf-8")
+    assert token not in persisted
+    assert "192.168.1.44" not in persisted
+    assert (gateway / "physical_proof.json").stat().st_mode & 0o777 == 0o600
 
 
 def test_tradingview_webhook_requires_configured_secret(tmp_path, monkeypatch):
@@ -907,6 +1004,60 @@ def test_assist_state_syncs_inline_profile_before_reply(monkeypatch):
     assert calls[1] == ("reply", "alice", "profile-session")
 
 
+def test_assist_state_resolves_relative_opportunity_to_visible_symbol(monkeypatch):
+    os.environ["VOICE_API_KEY"] = "testkey"
+    from tools import voice_service
+
+    calls = []
+    monkeypatch.setattr(voice_service, "VOICE_API_KEY", "testkey")
+    monkeypatch.setattr(voice_service, "llm", None)
+    monkeypatch.setattr(
+        voice_service.va_backend,
+        "update_user_profile",
+        lambda user, profile: calls.append(("profile", user, profile)) or profile,
+    )
+    monkeypatch.setattr(
+        voice_service.va_backend,
+        "generate_reply_state",
+        lambda q, user=None, session_id=None: calls.append(("reply", q, session_id))
+        or {
+            "reply": "LINK/USD visible.",
+            "intent": "opportunity",
+            "suggested_actions": [],
+        },
+    )
+    voice_service._RATE_STATE.clear()
+
+    client = TestClient(voice_service.app)
+    response = client.post(
+        "/v1/assist/state",
+        json={
+            "query": "Roxy, explicame esta oportunidad",
+            "user": "alice",
+            "session_id": "visible-context",
+            "profile": {
+                "current_symbol": "LINK/USD",
+                "current_market": "crypto",
+                "current_timeframe": "1h",
+                "preferred_language": "es",
+            },
+        },
+        headers={"Authorization": "Bearer testkey"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["active_symbol"] == "LINK/USD"
+    assert payload["active_market"] == "crypto"
+    assert payload["active_timeframe"] == "1h"
+    assert payload.get("active_page", "") == ""
+    assert payload["active_context"]["active_symbol"] == "LINK/USD"
+    assert calls[0][0:2] == ("profile", "alice")
+    assert calls[0][2]["default_symbol"] == "LINK/USD"
+    assert calls[0][2]["language"] == "es"
+    assert calls[1] == ("reply", "Roxy, explicame esta oportunidad LINK/USD", "visible-context")
+
+
 def test_assist_session_returns_memory_state(monkeypatch):
     os.environ["VOICE_API_KEY"] = "testkey"
     from tools import voice_service
@@ -1303,6 +1454,7 @@ def test_learning_status_endpoint(monkeypatch):
 def test_dev_auth_warning_logs_once(monkeypatch, caplog):
     from tools import voice_service
 
+    monkeypatch.delenv("VOICE_API_KEY", raising=False)
     monkeypatch.setattr(voice_service, "VOICE_API_KEY", None)
     monkeypatch.setattr(voice_service, "_DEV_AUTH_WARNING_LOGGED", False)
     monkeypatch.setattr(voice_service, "llm", None)
@@ -1317,4 +1469,40 @@ def test_dev_auth_warning_logs_once(monkeypatch, caplog):
             assert r.status_code == 200
 
     messages = [record.message for record in caplog.records if "VOICE_API_KEY not set" in record.message]
-    assert messages == ["VOICE_API_KEY not set — running in permissive dev mode"]
+    assert messages == ["VOICE_API_KEY not set — allowing loopback clients only"]
+
+
+def test_voice_api_routes_email_to_roxy_os_before_market_symbol_extraction(tmp_path, monkeypatch):
+    from roxy_os import RoxyOrchestrator
+    from tools import voice_service
+
+    monkeypatch.delenv("VOICE_API_KEY", raising=False)
+    monkeypatch.delenv("ROXY_GMAIL_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv("ROXY_OUTLOOK_ACCESS_TOKEN", raising=False)
+    monkeypatch.setattr(voice_service, "VOICE_API_KEY", None)
+    monkeypatch.setattr(
+        voice_service,
+        "_ROXY_OS_VOICE_BRAIN",
+        RoxyOrchestrator(memory_path=tmp_path / "memory.json"),
+    )
+    voice_service._RATE_STATE.clear()
+    client = TestClient(voice_service.app)
+
+    reply = client.post(
+        "/v1/assist",
+        json={"query": "Roxy revisa mis correos recientes", "user": "probe_user"},
+    )
+    state = client.post(
+        "/v1/assist/state",
+        json={"query": "Roxy revisa mis correos recientes", "user": "probe_user"},
+    )
+
+    assert reply.status_code == 200
+    assert "Correo: SERVICE_NOT_CONFIGURED" in reply.json()["reply"]
+    assert "oportunidad" not in reply.json()["reply"].lower()
+    assert state.status_code == 200
+    assert state.json()["intent"] == "email_query"
+    assert state.json()["agent"] == "email"
+    assert state.json()["response_source"] == "roxy_os"
+    assert state.json()["operational_data"]["body_read"] is False
+    assert state.json()["operational_data"]["send_enabled"] is False

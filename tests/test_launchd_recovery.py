@@ -6,11 +6,62 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from tools import launchd_recovery
+from tools import mobile_gateway
 from tools import ma_daily_launchd
 from tools import ma_live_launchd
 from tools import output_maintenance_launchd
+from tools import price_alert_monitor_launchd
 from tools import roxy_health_launchd
 from tools import streamlit_launchd
+from tools import voice_live_launchd
+
+
+def test_price_alert_monitor_launchd_contract_is_core_and_runs_every_minute(tmp_path):
+    plist = price_alert_monitor_launchd.build_plist(
+        python_path=tmp_path / "python",
+        interval_seconds=60,
+    )
+    command = plist["ProgramArguments"][2]
+
+    assert launchd_recovery.CORE_LAUNCHD_MODULES["price_alert_monitor"] == "tools.price_alert_monitor_launchd"
+    assert plist["StartInterval"] == 60
+    assert plist["RunAtLoad"] is True
+    assert "price_alert_monitor.py" in command
+    assert "--no-fail" in command
+    assert "Application Support/RoxyTrading/.env" in command
+
+
+def test_voice_live_launchd_is_core_and_reinstalls_legacy_direct_command(monkeypatch, tmp_path):
+    legacy = {
+        "label": voice_live_launchd.DEFAULT_LABEL,
+        "installed": True,
+        "loaded": True,
+        "path": str(tmp_path / "voice.plist"),
+        "command": "python -m uvicorn tools.voice_service:app --host 127.0.0.1 --port 8010",
+        "host": "127.0.0.1",
+        "port": 8010,
+        "environment_managed": False,
+        "pythonpath_managed": False,
+    }
+    current = {
+        **legacy,
+        "command": "source managed.env && export PYTHONPATH=x && uvicorn tools.voice_service:app --host 127.0.0.1 --port 8010",
+        "environment_managed": True,
+        "pythonpath_managed": True,
+    }
+    states = iter((legacy, current))
+    monkeypatch.setattr(voice_live_launchd, "status", lambda: next(states))
+    monkeypatch.setattr(voice_live_launchd, "configured_host", lambda: "127.0.0.1")
+    monkeypatch.setattr(voice_live_launchd, "configured_port", lambda: 8010)
+    monkeypatch.setattr(voice_live_launchd, "install", lambda args: tmp_path / "voice.plist")
+
+    result = launchd_recovery.recover_voice_live_config()
+
+    assert launchd_recovery.CORE_LAUNCHD_MODULES["voice_live"] == "tools.voice_live_launchd"
+    assert result["action"] == "reinstalled"
+    assert result["ok"] is True
+    assert result["issues"] == ["environment_not_managed", "pythonpath_not_managed"]
+    assert result["after_issues"] == []
 
 
 def test_launchd_recovery_cli_help_runs_from_repo_root():
@@ -26,6 +77,32 @@ def test_launchd_recovery_cli_help_runs_from_repo_root():
 
     assert result.returncode == 0
     assert "Recover installed Roxy LaunchAgents" in result.stdout
+
+
+def test_mobile_gateway_is_recoverable_but_not_a_core_requirement(monkeypatch, tmp_path):
+    states = iter((
+        {
+            "label": mobile_gateway.DEFAULT_LABEL,
+            "installed": True,
+            "loaded": False,
+            "path": str(tmp_path / "gateway.plist"),
+        },
+        {
+            "label": mobile_gateway.DEFAULT_LABEL,
+            "installed": True,
+            "loaded": True,
+            "path": str(tmp_path / "gateway.plist"),
+        },
+    ))
+    monkeypatch.setattr(mobile_gateway, "status", lambda: next(states))
+    monkeypatch.setattr(mobile_gateway, "bootstrap", lambda path: None)
+
+    result = launchd_recovery.recover_launch_agent("tools.mobile_gateway")
+
+    assert "mobile_gateway" not in launchd_recovery.CORE_LAUNCHD_MODULES
+    assert launchd_recovery.OPTIONAL_LAUNCHD_MODULES["mobile_gateway"] == "tools.mobile_gateway"
+    assert result["action"] == "bootstrapped"
+    assert result["ok"] is True
 
 
 def health_watchdog_command(realtime_command: str) -> str:

@@ -20,8 +20,9 @@ logger = logging.getLogger("auto_exec")
 
 
 def _execution_enabled() -> bool:
-    v = os.getenv("EXECUTION_ENABLED", "1")
-    return v not in ("0", "false", "False")
+    # Fail closed. Local paper mutation requires an explicit operator opt-in.
+    v = os.getenv("EXECUTION_ENABLED", "0")
+    return v.strip().lower() in ("1", "true", "yes", "on", "paper")
 
 
 def run_llm_auto_pipeline(user: str, symbols: List[str], horizon: str = "1d", dry_run: bool = True, auto_execute: bool = False) -> Dict[str, Any]:

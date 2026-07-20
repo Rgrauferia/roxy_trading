@@ -33,7 +33,10 @@ alerts/*.jpg
 alerts/*.jpeg
 alerts/*.webp
 data/*.bak*
+data/roxy_documents/
 knowledge/inbox/
+knowledge/logs/
+knowledge/processed/
 knowledge/sources/*.pdf
 knowledge/sources/*.epub
 knowledge/sources/*.zip

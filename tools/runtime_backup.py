@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 import tarfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,7 +11,16 @@ from typing import Any
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-DEFAULT_TARGET_DIR = Path("/Volumes/RoxyData/projects/roxy_trading/_backup/runtime")
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+from durable_storage import atomic_write_text
+
+DEFAULT_FALLBACK_TARGET_DIR = BASE_DIR / "output" / "runtime_backups"
+DEFAULT_EXTERNAL_TARGET_DIR = Path("/Volumes/RoxyData/projects/roxy_trading/_backup/runtime")
+DEFAULT_TARGET_DIR = Path(
+    str(os.getenv("ROXY_RUNTIME_BACKUP_TARGET_DIR") or DEFAULT_FALLBACK_TARGET_DIR)
+).expanduser()
 DEFAULT_REPORT_PATH = BASE_DIR / "alerts" / "runtime_backup.json"
 DEFAULT_TEXT_PATH = BASE_DIR / "alerts" / "runtime_backup.txt"
 DEFAULT_INCLUDE_PATHS = ("alerts", "db", "data")
@@ -172,9 +182,14 @@ def create_runtime_backup(
     retention_count: int = DEFAULT_RETENTION_COUNT,
     dry_run: bool = False,
     now: datetime | None = None,
+    fallback_target_dir: str | Path | None = DEFAULT_FALLBACK_TARGET_DIR,
 ) -> dict[str, Any]:
     root = Path(base_dir)
-    target = Path(target_dir)
+    requested_target = Path(target_dir)
+    target = requested_target
+    fallback_target = Path(fallback_target_dir) if fallback_target_dir else None
+    target_fallback = False
+    target_fallback_reason = ""
     report_file = Path(report_path)
     text_file = Path(text_path)
     current = now or utc_now()
@@ -183,21 +198,38 @@ def create_runtime_backup(
     if not dry_run:
         ensure_preflight_report_member(root=root, report_file=report_file, include_paths=include_paths, now=current)
     candidates = archive_candidates(root, include_paths)
-    target.mkdir(parents=True, exist_ok=True)
-    archive_path = target / backup_filename(current)
-    temp_archive_path = target / f".{archive_path.name}.{os.getpid()}.tmp"
+    archive_name = backup_filename(current)
     missing = [value for value in include_paths if not (root / value).exists()]
     included = [str(path.relative_to(root)) for path in candidates]
 
-    if not dry_run:
+    def write_archive(destination: Path) -> Path:
+        destination.mkdir(parents=True, exist_ok=True)
+        final_path = destination / archive_name
+        temp_path = destination / f".{final_path.name}.{os.getpid()}.tmp"
         try:
-            with tarfile.open(temp_archive_path, "w:gz") as archive:
+            if dry_run:
+                return final_path
+            with tarfile.open(temp_path, "w:gz") as archive:
                 for path in candidates:
                     archive.add(path, arcname=path.relative_to(root))
-            temp_archive_path.replace(archive_path)
+            temp_path.replace(final_path)
+            return final_path
         except Exception:
-            temp_archive_path.unlink(missing_ok=True)
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
             raise
+
+    try:
+        archive_path = write_archive(target)
+    except PermissionError as exc:
+        if fallback_target is None or fallback_target == requested_target:
+            raise
+        target = fallback_target
+        target_fallback = True
+        target_fallback_reason = f"{type(exc).__name__}: {exc}"
+        archive_path = write_archive(target)
     verification = (
         {
             "archive_readable": False,
@@ -219,7 +251,10 @@ def create_runtime_backup(
         "generated_at": current.isoformat(),
         "status": "DRY_RUN" if dry_run else "OK",
         "base_dir": str(root),
+        "requested_target_dir": str(requested_target),
         "target_dir": str(target),
+        "target_fallback": target_fallback,
+        "target_fallback_reason": target_fallback_reason,
         "archive_path": str(archive_path),
         "archive_exists": archive_path.exists(),
         "archive_size_bytes": archive_size,
@@ -231,10 +266,8 @@ def create_runtime_backup(
         "dry_run": dry_run,
         **verification,
     }
-    report_file.parent.mkdir(parents=True, exist_ok=True)
-    report_file.write_text(json.dumps(json_safe(result), indent=2, sort_keys=True))
-    text_file.parent.mkdir(parents=True, exist_ok=True)
-    text_file.write_text(render_text_report(result))
+    atomic_write_text(json.dumps(json_safe(result), indent=2, sort_keys=True), report_file)
+    atomic_write_text(render_text_report(result), text_file)
     return result
 
 
@@ -261,6 +294,15 @@ def render_text_report(result: dict[str, Any]) -> str:
         lines.append("Critical missing: " + ", ".join(result.get("archive_missing_critical_members") or []))
     if result.get("archive_verification_error") and not result.get("dry_run"):
         lines.append(f"Archive verification error: {result.get('archive_verification_error')}")
+    if result.get("target_fallback"):
+        lines.append(
+            "Target fallback: "
+            + str(result.get("target_dir") or "-")
+            + " (requested "
+            + str(result.get("requested_target_dir") or "-")
+            + ")"
+        )
+        lines.append("Target fallback reason: " + str(result.get("target_fallback_reason") or "permission denied"))
     return "\n".join(lines) + "\n"
 
 

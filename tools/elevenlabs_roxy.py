@@ -3,19 +3,30 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
+import json
 import os
 from pathlib import Path
-from typing import Any
+import tempfile
+from typing import Any, Mapping
 
 import requests
+
+from roxy_trader.api_budget import ApiBudgetBlockedError, observe_api_call
 
 
 DEFAULT_ELEVENLABS_AGENT_ID = "agent_6101kwchebzdf91rfk9757wq0mk4"
 ELEVENLABS_SIGNED_URL_ENDPOINT = "https://api.elevenlabs.io/v1/convai/conversation/get-signed-url"
 ELEVENLABS_CONVERSATION_TOKEN_ENDPOINT = "https://api.elevenlabs.io/v1/convai/conversation/token"
-ELEVENLABS_ENV_KEYS = {"ELEVENLABS_AGENT_ID", "ELEVENLABS_API_KEY"}
+ELEVENLABS_ENV_KEYS = {
+    "ELEVENLABS_AGENT_ID",
+    "ELEVENLABS_API_KEY",
+    "ROXY_ELEVENLABS_AUTH_CIRCUIT_PATH",
+    "ROXY_ELEVENLABS_AUTH_RETRY_SECONDS",
+}
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LOCAL_ENV_FILES = (PROJECT_ROOT / ".env.local", PROJECT_ROOT / ".env")
+DEFAULT_ELEVENLABS_AUTH_CIRCUIT_PATH = PROJECT_ROOT / "alerts" / "elevenlabs_auth_circuit.json"
+DEFAULT_ELEVENLABS_AUTH_RETRY_SECONDS = 6 * 60 * 60
 
 SAFE_PROFILE_FIELDS = (
     "user_name",
@@ -53,6 +64,8 @@ class ElevenLabsRoxySession:
     configured: bool = False
     error: str = ""
     generated_at: str = ""
+    state: str = "UNKNOWN"
+    http_status: int | None = None
 
 
 def _strip_env_value(raw_value: str) -> str:
@@ -104,6 +117,88 @@ def elevenlabs_env_fingerprint(env: dict[str, str] | None = None) -> str:
     api_key = (source.get("ELEVENLABS_API_KEY") or "").strip()
     digest = hashlib.sha256(f"{agent_id}:{api_key}".encode("utf-8")).hexdigest()
     return digest[:16]
+
+
+def _auth_circuit_path(source: Mapping[str, str]) -> Path:
+    configured = str(source.get("ROXY_ELEVENLABS_AUTH_CIRCUIT_PATH") or "").strip()
+    return Path(configured).expanduser() if configured else DEFAULT_ELEVENLABS_AUTH_CIRCUIT_PATH
+
+
+def _auth_retry_seconds(source: Mapping[str, str]) -> int:
+    try:
+        configured = int(float(str(source.get("ROXY_ELEVENLABS_AUTH_RETRY_SECONDS") or "")))
+    except (TypeError, ValueError):
+        configured = DEFAULT_ELEVENLABS_AUTH_RETRY_SECONDS
+    return max(60, min(configured, 24 * 60 * 60))
+
+
+def _read_auth_circuit(
+    source: Mapping[str, str],
+    *,
+    agent_id: str,
+    generated_at: str,
+) -> ElevenLabsRoxySession | None:
+    path = _auth_circuit_path(source)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return None
+    if str(payload.get("state") or "").upper() != "AUTH_INVALID":
+        return None
+    if str(payload.get("fingerprint") or "") != elevenlabs_env_fingerprint(dict(source)):
+        return None
+    try:
+        failed_at = datetime.fromisoformat(str(payload.get("failed_at") or "").replace("Z", "+00:00"))
+        if failed_at.tzinfo is None:
+            failed_at = failed_at.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+    age_seconds = max(0, int((datetime.now(timezone.utc) - failed_at.astimezone(timezone.utc)).total_seconds()))
+    remaining = _auth_retry_seconds(source) - age_seconds
+    if remaining <= 0:
+        return None
+    http_status = payload.get("http_status")
+    return ElevenLabsRoxySession(
+        agent_id=agent_id,
+        configured=False,
+        error=(
+            "ElevenLabs authentication circuit active; rotate credentials or retry in "
+            f"{remaining}s"
+        ),
+        generated_at=generated_at,
+        state="AUTH_INVALID",
+        http_status=int(http_status) if isinstance(http_status, int) else 401,
+    )
+
+
+def _write_auth_circuit(
+    source: Mapping[str, str],
+    *,
+    state: str,
+    http_status: int | None,
+) -> None:
+    path = _auth_circuit_path(source)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "state": str(state or "UNKNOWN").upper(),
+        "http_status": http_status,
+        "failed_at": datetime.now(timezone.utc).isoformat(),
+        "fingerprint": elevenlabs_env_fingerprint(dict(source)),
+        "retry_seconds": _auth_retry_seconds(source),
+    }
+    fd, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        temporary.chmod(0o600)
+        os.replace(temporary, path)
+        path.chmod(0o600)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def sanitize_value(value: Any) -> Any:
@@ -183,34 +278,54 @@ def get_conversation_signed_url(
     api_key = (source.get("ELEVENLABS_API_KEY") or "").strip()
     generated_at = datetime.now(timezone.utc).isoformat()
     if not resolved_agent_id:
-        return ElevenLabsRoxySession(agent_id="", configured=False, error="Missing ELEVENLABS_AGENT_ID", generated_at=generated_at)
+        return ElevenLabsRoxySession(agent_id="", configured=False, error="Missing ELEVENLABS_AGENT_ID", generated_at=generated_at, state="NOT_CONFIGURED")
     if not api_key:
         return ElevenLabsRoxySession(
             agent_id=resolved_agent_id,
             configured=False,
             error="Missing ELEVENLABS_API_KEY",
             generated_at=generated_at,
+            state="NOT_CONFIGURED",
         )
+    circuit = _read_auth_circuit(source, agent_id=resolved_agent_id, generated_at=generated_at)
+    if circuit is not None:
+        return circuit
     try:
-        response = requests.get(
-            ELEVENLABS_SIGNED_URL_ENDPOINT,
-            params={"agent_id": resolved_agent_id},
-            headers={"xi-api-key": api_key},
-            timeout=timeout_seconds,
-        )
+        with observe_api_call("elevenlabs", "signed_url") as observation:
+            response = requests.get(
+                ELEVENLABS_SIGNED_URL_ENDPOINT,
+                params={"agent_id": resolved_agent_id},
+                headers={"xi-api-key": api_key},
+                timeout=timeout_seconds,
+            )
+            observation.set_http_status(response.status_code)
     except requests.RequestException as exc:
         return ElevenLabsRoxySession(
             agent_id=resolved_agent_id,
             configured=False,
             error=f"ElevenLabs request failed: {exc}",
             generated_at=generated_at,
+            state="PROVIDER_UNAVAILABLE",
+        )
+    except ApiBudgetBlockedError as exc:
+        return ElevenLabsRoxySession(
+            agent_id=resolved_agent_id,
+            configured=False,
+            error=f"ElevenLabs cooldown activo; reintentar en {exc.retry_after_seconds}s",
+            generated_at=generated_at,
+            state="RATE_LIMITED",
         )
     if response.status_code >= 400:
+        state = "AUTH_INVALID" if response.status_code in {401, 403} else "RATE_LIMITED" if response.status_code == 429 else "PROVIDER_ERROR"
+        if state == "AUTH_INVALID":
+            _write_auth_circuit(source, state=state, http_status=response.status_code)
         return ElevenLabsRoxySession(
             agent_id=resolved_agent_id,
             configured=False,
             error=f"ElevenLabs signed URL error {response.status_code}",
             generated_at=generated_at,
+            state=state,
+            http_status=response.status_code,
         )
     try:
         payload = response.json()
@@ -223,12 +338,15 @@ def get_conversation_signed_url(
             configured=False,
             error="ElevenLabs did not return a signed_url",
             generated_at=generated_at,
+            state="INVALID_RESPONSE",
         )
     return ElevenLabsRoxySession(
         agent_id=resolved_agent_id,
         signed_url=signed_url,
         configured=True,
         generated_at=generated_at,
+        state="CONNECTED",
+        http_status=response.status_code,
     )
 
 
@@ -246,34 +364,54 @@ def get_conversation_token(
     api_key = (source.get("ELEVENLABS_API_KEY") or "").strip()
     generated_at = datetime.now(timezone.utc).isoformat()
     if not resolved_agent_id:
-        return ElevenLabsRoxySession(agent_id="", configured=False, error="Missing ELEVENLABS_AGENT_ID", generated_at=generated_at)
+        return ElevenLabsRoxySession(agent_id="", configured=False, error="Missing ELEVENLABS_AGENT_ID", generated_at=generated_at, state="NOT_CONFIGURED")
     if not api_key:
         return ElevenLabsRoxySession(
             agent_id=resolved_agent_id,
             configured=False,
             error="Missing ELEVENLABS_API_KEY",
             generated_at=generated_at,
+            state="NOT_CONFIGURED",
         )
+    circuit = _read_auth_circuit(source, agent_id=resolved_agent_id, generated_at=generated_at)
+    if circuit is not None:
+        return circuit
     try:
-        response = requests.get(
-            ELEVENLABS_CONVERSATION_TOKEN_ENDPOINT,
-            params={"agent_id": resolved_agent_id},
-            headers={"xi-api-key": api_key},
-            timeout=timeout_seconds,
-        )
+        with observe_api_call("elevenlabs", "conversation_token") as observation:
+            response = requests.get(
+                ELEVENLABS_CONVERSATION_TOKEN_ENDPOINT,
+                params={"agent_id": resolved_agent_id},
+                headers={"xi-api-key": api_key},
+                timeout=timeout_seconds,
+            )
+            observation.set_http_status(response.status_code)
     except requests.RequestException as exc:
         return ElevenLabsRoxySession(
             agent_id=resolved_agent_id,
             configured=False,
             error=f"ElevenLabs token request failed: {exc}",
             generated_at=generated_at,
+            state="PROVIDER_UNAVAILABLE",
+        )
+    except ApiBudgetBlockedError as exc:
+        return ElevenLabsRoxySession(
+            agent_id=resolved_agent_id,
+            configured=False,
+            error=f"ElevenLabs cooldown activo; reintentar en {exc.retry_after_seconds}s",
+            generated_at=generated_at,
+            state="RATE_LIMITED",
         )
     if response.status_code >= 400:
+        state = "AUTH_INVALID" if response.status_code in {401, 403} else "RATE_LIMITED" if response.status_code == 429 else "PROVIDER_ERROR"
+        if state == "AUTH_INVALID":
+            _write_auth_circuit(source, state=state, http_status=response.status_code)
         return ElevenLabsRoxySession(
             agent_id=resolved_agent_id,
             configured=False,
             error=f"ElevenLabs token error {response.status_code}",
             generated_at=generated_at,
+            state=state,
+            http_status=response.status_code,
         )
     try:
         payload = response.json()
@@ -286,10 +424,13 @@ def get_conversation_token(
             configured=False,
             error="ElevenLabs did not return a token",
             generated_at=generated_at,
+            state="INVALID_RESPONSE",
         )
     return ElevenLabsRoxySession(
         agent_id=resolved_agent_id,
         conversation_token=token,
         configured=True,
         generated_at=generated_at,
+        state="CONNECTED",
+        http_status=response.status_code,
     )

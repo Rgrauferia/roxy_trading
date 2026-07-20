@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import argparse
 import csv
+import fnmatch
 import io
 import json
 import math
+import os
 import shutil
 import sqlite3
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,6 +22,7 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 from roxy_paths import alerts_dir, output_dir
+from durable_storage import atomic_write_text, exclusive_file_lock
 
 OUTPUT_DIR = output_dir()
 ALERTS_DIR = alerts_dir()
@@ -27,6 +31,7 @@ LAUNCHD_LOG_DIR = Path.home() / "Library" / "Logs" / "RoxyTrading"
 DEFAULT_EXTERNAL_DISK_PATH = Path("/Volumes/RoxyData")
 DEFAULT_LOG_SNAPSHOT_DIR = Path("/Volumes/RoxyData/MacArchive/log_snapshots")
 DEFAULT_OUTPUT_ARCHIVE_DIR = DEFAULT_EXTERNAL_DISK_PATH / "MacArchive" / "roxy_trading" / "output_archive"
+DEFAULT_LOCAL_OUTPUT_ARCHIVE_DIR = OUTPUT_DIR / "maintenance_archive"
 DEFAULT_JSON_PATH = ALERTS_DIR / "output_maintenance.json"
 DEFAULT_TEXT_PATH = ALERTS_DIR / "output_maintenance.txt"
 DEFAULT_DB_PATH = BASE_DIR / "db" / "roxy.db"
@@ -97,6 +102,7 @@ DEFAULT_HISTORY_MIN_APPENDS_UNTIL_WARN = 8
 DEFAULT_HISTORY_APPEND_GUARD_TARGET_BUFFER = 4
 DEFAULT_HISTORY_MIN_LINE_FLOOR_RATIO = 0.50
 DEFAULT_LOG_SNAPSHOT_KEEP_COUNT = 20
+DEFAULT_LOG_SNAPSHOT_SCAN_TIMEOUT_SECONDS = 5.0
 DEFAULT_SQLITE_VACUUM_MIN_RECLAIM_MB = 64.0
 DEFAULT_DASHBOARD_HISTORY_MAX_ROWS = 5000
 DEFAULT_DASHBOARD_HISTORY_MIN_INTERVAL_SECONDS = 55.0
@@ -167,6 +173,7 @@ SAFE_LOCAL_CACHE_CLEANUP_NAMES = (".cache", "Library/Caches")
 def directory_footprint(path: str | Path) -> dict[str, Any]:
     root = Path(path)
     files = 0
+    ignored_lock_files = 0
     bytes_total = 0
     if not root.exists():
         return {"path": str(root), "exists": False, "files": 0, "bytes": 0, "mb": 0.0}
@@ -180,11 +187,22 @@ def directory_footprint(path: str | Path) -> dict[str, Any]:
         if not child.is_file():
             continue
         try:
-            bytes_total += child.stat().st_size
+            child_size = child.stat().st_size
+            if child.name.startswith(".") and child.name.endswith(".lock") and child_size == 0:
+                ignored_lock_files += 1
+                continue
+            bytes_total += child_size
             files += 1
         except OSError:
             continue
-    return {"path": str(root), "exists": True, "files": files, "bytes": bytes_total, "mb": round(bytes_total / (1024**2), 3)}
+    return {
+        "path": str(root),
+        "exists": True,
+        "files": files,
+        "ignored_lock_files": ignored_lock_files,
+        "bytes": bytes_total,
+        "mb": round(bytes_total / (1024**2), 3),
+    }
 
 
 def runtime_footprint(
@@ -220,9 +238,100 @@ def files_for_pattern(output_dir: Path, pattern: str) -> list[Path]:
 
 
 def default_output_archive_dir() -> Path | None:
-    if DEFAULT_EXTERNAL_DISK_PATH.exists() and DEFAULT_EXTERNAL_DISK_PATH.is_dir():
-        return DEFAULT_OUTPUT_ARCHIVE_DIR
-    return None
+    configured = str(os.getenv("ROXY_OUTPUT_ARCHIVE_DIR") or "").strip()
+    # A removable/network volume must never be an implicit dependency of the
+    # health watchdog. Operators can opt in with an explicit path.
+    return Path(configured).expanduser() if configured else DEFAULT_LOCAL_OUTPUT_ARCHIVE_DIR
+
+
+def resolve_output_archive_dir(
+    requested_dir: str | Path | None,
+    *,
+    fallback_dir: str | Path | None = DEFAULT_LOCAL_OUTPUT_ARCHIVE_DIR,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    requested = Path(requested_dir) if requested_dir else None
+    fallback = Path(fallback_dir) if fallback_dir else None
+    if requested is None:
+        return {
+            "requested_dir": "",
+            "effective_dir": "",
+            "fallback": False,
+            "fallback_reason": "",
+            "writable": False,
+        }
+    if dry_run:
+        return {
+            "requested_dir": str(requested),
+            "effective_dir": str(requested),
+            "fallback": False,
+            "fallback_reason": "dry-run: write probe skipped",
+            "writable": requested.exists() and requested.is_dir(),
+        }
+    requested_probe_root = requested
+    while not requested_probe_root.exists() and requested_probe_root.parent != requested_probe_root:
+        requested_probe_root = requested_probe_root.parent
+    probe = requested_probe_root / f".roxy_maintenance_write_test_{os.getpid()}"
+    try:
+        if not requested_probe_root.is_dir():
+            raise OSError(f"archive ancestor is not a directory: {requested_probe_root}")
+        probe.write_text("ok")
+        if probe.read_text() != "ok":
+            raise OSError("archive write verification failed")
+        return {
+            "requested_dir": str(requested),
+            "effective_dir": str(requested),
+            "fallback": False,
+            "fallback_reason": "",
+            "writable": True,
+        }
+    except OSError as exc:
+        if fallback is None:
+            return {
+                "requested_dir": str(requested),
+                "effective_dir": str(requested),
+                "fallback": False,
+                "fallback_reason": f"{type(exc).__name__}: {exc}",
+                "writable": False,
+            }
+        fallback_probe_root = fallback
+        while not fallback_probe_root.exists() and fallback_probe_root.parent != fallback_probe_root:
+            fallback_probe_root = fallback_probe_root.parent
+        fallback_probe = fallback_probe_root / f".roxy_maintenance_write_test_{os.getpid()}"
+        try:
+            if not fallback_probe_root.is_dir():
+                raise OSError(f"fallback archive ancestor is not a directory: {fallback_probe_root}")
+            fallback_probe.write_text("ok")
+            if fallback_probe.read_text() != "ok":
+                raise OSError("fallback archive write verification failed")
+        except OSError as fallback_exc:
+            return {
+                "requested_dir": str(requested),
+                "effective_dir": str(requested),
+                "fallback": False,
+                "fallback_reason": (
+                    f"primary {type(exc).__name__}: {exc}; "
+                    f"fallback {type(fallback_exc).__name__}: {fallback_exc}"
+                ),
+                "writable": False,
+            }
+        finally:
+            try:
+                fallback_probe.unlink(missing_ok=True)
+            except OSError:
+                pass
+        return {
+            "requested_dir": str(requested),
+            "effective_dir": str(fallback),
+            "fallback": True,
+            "fallback_reason": f"{type(exc).__name__}: {exc}",
+            "writable": True,
+        }
+    finally:
+        try:
+            probe.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def unique_destination(path: Path) -> Path:
@@ -458,7 +567,9 @@ def trim_log_files(
     return trimmed
 
 
-def compact_learning_journal_history_file(path: Path, *, dry_run: bool = False) -> dict[str, Any] | None:
+def _compact_learning_journal_history_file_unlocked(
+    path: Path, *, dry_run: bool = False
+) -> dict[str, Any] | None:
     if not path.exists() or not path.is_file() or path.suffix.lower() != ".csv":
         return None
     before_bytes = path.stat().st_size
@@ -494,7 +605,7 @@ def compact_learning_journal_history_file(path: Path, *, dry_run: bool = False) 
     writer.writerows(kept_rows)
     payload = buffer.getvalue()
     if not dry_run:
-        path.write_text(payload)
+        atomic_write_text(payload, path)
     after_bytes = len(payload.encode())
     return {
         "path": str(path),
@@ -510,7 +621,12 @@ def compact_learning_journal_history_file(path: Path, *, dry_run: bool = False) 
     }
 
 
-def trim_history_file(
+def compact_learning_journal_history_file(path: Path, *, dry_run: bool = False) -> dict[str, Any] | None:
+    with exclusive_file_lock(path):
+        return _compact_learning_journal_history_file_unlocked(path, dry_run=dry_run)
+
+
+def _trim_history_file_unlocked(
     path: Path,
     *,
     max_lines: int,
@@ -546,7 +662,7 @@ def trim_history_file(
             total_bytes += line_bytes
         kept = ([header_line] if header_line is not None else []) + list(reversed(kept_data_by_bytes))
     if not dry_run:
-        path.write_text("\n".join(kept) + "\n")
+        atomic_write_text("\n".join(kept) + "\n", path)
     after_bytes = len(("\n".join(kept) + "\n").encode()) if kept else 0
     return {
         "path": str(path),
@@ -560,6 +676,24 @@ def trim_history_file(
         "min_lines": min_lines,
         "preserved_header": preserve_header,
     }
+
+
+def trim_history_file(
+    path: Path,
+    *,
+    max_lines: int,
+    max_bytes: int | None = DEFAULT_MAX_HISTORY_BYTES,
+    min_lines: int = DEFAULT_MIN_HISTORY_LINES,
+    dry_run: bool = False,
+) -> dict[str, Any] | None:
+    with exclusive_file_lock(path):
+        return _trim_history_file_unlocked(
+            path,
+            max_lines=max_lines,
+            max_bytes=max_bytes,
+            min_lines=min_lines,
+            dry_run=dry_run,
+        )
 
 
 def trim_history_files(
@@ -961,7 +1095,29 @@ def maintenance_hygiene_summary(result: Mapping[str, Any]) -> dict[str, Any]:
     archive_errors = int(result.get("output_archive_error_count") or 0)
     prepared_errors = int(result.get("prepared_dir_error_count") or 0)
     output_archive_exists = bool(result.get("output_archive_exists"))
+    output_archive_fallback = bool(result.get("output_archive_fallback"))
+    output_archive_writable = bool(result.get("output_archive_writable", output_archive_exists))
+    output_archive_requested_dir = str(result.get("output_archive_requested_dir") or "")
+    output_archive_effective_dir = str(
+        result.get("output_archive_effective_dir") or result.get("output_archive_dir") or ""
+    )
+    output_archive_local = bool(
+        output_archive_effective_dir
+        and Path(output_archive_effective_dir).expanduser().resolve()
+        == DEFAULT_LOCAL_OUTPUT_ARCHIVE_DIR.expanduser().resolve()
+    )
     log_snapshot_dir_exists = bool(result.get("log_snapshot_dir_exists"))
+    log_snapshot_counts = (
+        result.get("log_snapshot_counts")
+        if isinstance(result.get("log_snapshot_counts"), Mapping)
+        else {}
+    )
+    log_snapshot_scan_status = str(log_snapshot_counts.get("scan_status") or "OK").upper()
+    log_snapshot_scan_errors = (
+        log_snapshot_counts.get("scan_errors")
+        if isinstance(log_snapshot_counts.get("scan_errors"), Mapping)
+        else {}
+    )
     sqlite_info = result.get("sqlite_maintenance") if isinstance(result.get("sqlite_maintenance"), Mapping) else {}
     sqlite_status = str(sqlite_info.get("status") or "")
     sqlite_reclaimable = float(result.get("sqlite_db_reclaimable_mb") or sqlite_info.get("reclaimable_mb") or 0.0)
@@ -1046,14 +1202,24 @@ def maintenance_hygiene_summary(result: Mapping[str, Any]) -> dict[str, Any]:
     sqlite_vacuum_min_reclaim_mb = float(
         sqlite_info.get("vacuum_min_reclaim_mb") or DEFAULT_SQLITE_VACUUM_MIN_RECLAIM_MB
     )
-    protected = bool(
+    internal_protected = bool(
         output_archive_exists
-        and log_snapshot_dir_exists
+        and output_archive_writable
         and archive_errors == 0
         and prepared_errors == 0
         and not dry_run
         and sqlite_status != "ERROR"
         and dashboard_rows <= dashboard_max_rows
+    )
+    external_snapshot_degraded = bool(
+        internal_protected
+        and log_snapshot_dir_exists
+        and log_snapshot_scan_status == "WARN"
+    )
+    protected = bool(
+        internal_protected
+        and log_snapshot_dir_exists
+        and log_snapshot_scan_status == "OK"
     )
     issues: list[str] = []
     if dry_run:
@@ -1062,6 +1228,8 @@ def maintenance_hygiene_summary(result: Mapping[str, Any]) -> dict[str, Any]:
         issues.append("output archive dir missing")
     if not log_snapshot_dir_exists:
         issues.append("log snapshot dir missing")
+    if log_snapshot_scan_status != "OK":
+        issues.append(f"log snapshot scan {log_snapshot_scan_status.lower()}")
     if archive_errors:
         issues.append(f"archive errors {archive_errors}")
     if prepared_errors:
@@ -1083,12 +1251,23 @@ def maintenance_hygiene_summary(result: Mapping[str, Any]) -> dict[str, Any]:
         if local_cache_retry_recommended:
             issue += " retry"
         issues.append(issue)
-    external_archive_ready = output_archive_exists and log_snapshot_dir_exists and archive_errors == 0 and prepared_errors == 0
+    external_archive_ready = bool(
+        not output_archive_fallback
+        and not output_archive_local
+        and output_archive_exists
+        and output_archive_writable
+        and log_snapshot_dir_exists
+        and log_snapshot_scan_status == "OK"
+        and archive_errors == 0
+        and prepared_errors == 0
+    )
     if dry_run:
         next_action = "Ejecutar limpieza real"
     elif not output_archive_exists or not log_snapshot_dir_exists:
         next_action = "Conectar RoxyData y preparar carpetas"
-    elif archive_errors or prepared_errors:
+    elif log_snapshot_scan_status != "OK":
+        next_action = "Revisar acceso a snapshots en RoxyData"
+    elif archive_errors or prepared_errors or not output_archive_writable:
         next_action = "Revisar permisos de RoxyData"
     elif sqlite_status == "ERROR":
         next_action = "Reparar SQLite"
@@ -1108,10 +1287,16 @@ def maintenance_hygiene_summary(result: Mapping[str, Any]) -> dict[str, Any]:
         next_action = "Monitorear historiales"
     else:
         next_action = "Monitorear"
+    if output_archive_fallback and next_action == "Monitorear":
+        next_action = "Autorizar RoxyData; respaldo local activo"
     if protected:
         label = "Protegido"
         tone = "buy"
         status = "OK"
+    elif external_snapshot_degraded:
+        label = "Interno protegido / snapshots degradados"
+        tone = "watch"
+        status = "WARN"
     elif archive_errors or prepared_errors or sqlite_status == "ERROR":
         label = "Revisar limpieza"
         tone = "avoid"
@@ -1121,8 +1306,8 @@ def maintenance_hygiene_summary(result: Mapping[str, Any]) -> dict[str, Any]:
         tone = "watch"
         status = "WARN"
     detail_parts = [
-        f"archive {'OK' if output_archive_exists else 'missing'}",
-        f"snapshots {'OK' if log_snapshot_dir_exists else 'missing'}",
+        f"archive {'local fallback' if output_archive_fallback else 'local' if output_archive_local else 'external' if output_archive_exists else 'missing'}",
+        f"snapshots {log_snapshot_scan_status.lower() if log_snapshot_dir_exists else 'missing'}",
         f"hist max {max_history_lines}",
         f"logs max {round(max_log_bytes / (1024**2), 1)}MB",
         f"dashboard {dashboard_rows}/{dashboard_max_rows}",
@@ -1130,6 +1315,8 @@ def maintenance_hygiene_summary(result: Mapping[str, Any]) -> dict[str, Any]:
         f"runtime {runtime_mb:.1f}MB/{runtime_files} files",
         f"accion {next_action}",
     ]
+    if output_archive_fallback:
+        detail_parts.append("external archive permission required")
     if trimmed_history_count:
         detail_parts.append(f"hist trimmed {trimmed_history_count}/{trimmed_history_removed_lines} lines")
     if trimmed_history_min_lines_relaxed_count:
@@ -1215,12 +1402,21 @@ def maintenance_hygiene_summary(result: Mapping[str, Any]) -> dict[str, Any]:
         "label": label,
         "tone": tone,
         "protected": protected,
+        "internal_protected": internal_protected,
+        "external_snapshot_degraded": external_snapshot_degraded,
         "detail": " | ".join(detail_parts),
         "issues": issues,
         "next_action": next_action,
         "external_archive_ready": external_archive_ready,
-        "archive_ready": output_archive_exists and archive_errors == 0,
-        "log_snapshots_ready": log_snapshot_dir_exists,
+        "archive_ready": output_archive_exists and output_archive_writable and archive_errors == 0,
+        "archive_fallback": output_archive_fallback,
+        "archive_local": output_archive_local,
+        "archive_writable": output_archive_writable,
+        "archive_requested_dir": output_archive_requested_dir,
+        "archive_effective_dir": output_archive_effective_dir,
+        "log_snapshots_ready": log_snapshot_dir_exists and log_snapshot_scan_status == "OK",
+        "log_snapshot_scan_status": log_snapshot_scan_status,
+        "log_snapshot_scan_errors": dict(log_snapshot_scan_errors),
         "history_max_lines": max_history_lines,
         "max_log_bytes": max_log_bytes,
         "dashboard_history_rows": dashboard_rows,
@@ -1286,6 +1482,8 @@ def maintenance_operation_summary(result: Mapping[str, Any]) -> dict[str, Any]:
     )
     archive_count = int(result.get("output_archive_count") or 0)
     protected = bool(hygiene.get("protected"))
+    internal_protected = bool(hygiene.get("internal_protected", protected))
+    external_snapshot_degraded = bool(hygiene.get("external_snapshot_degraded"))
     hygiene_status = str(hygiene.get("status") or "").upper()
     dry_run = bool(result.get("dry_run"))
     if dry_run:
@@ -1300,6 +1498,10 @@ def maintenance_operation_summary(result: Mapping[str, Any]) -> dict[str, Any]:
         label = "Protegido"
         tone = "buy"
         status = "OK"
+    elif hygiene_status == "WARN" and internal_protected and external_snapshot_degraded:
+        label = "Interno protegido / snapshots degradados"
+        tone = "watch"
+        status = "WARN"
     elif hygiene_status == "WARN":
         label = "Revisar limpieza"
         tone = str(hygiene.get("tone") or "watch")
@@ -1336,6 +1538,8 @@ def maintenance_operation_summary(result: Mapping[str, Any]) -> dict[str, Any]:
         "tone": tone if tone in {"buy", "watch", "avoid", "neutral"} else "watch",
         "detail": " | ".join(detail_parts),
         "protected": protected,
+        "internal_protected": internal_protected,
+        "external_snapshot_degraded": external_snapshot_degraded,
         "action_count": action_count,
         "removed_file_count": removed_files,
         "trimmed_item_count": trimmed_items,
@@ -1494,6 +1698,8 @@ def maintenance_top_level_aliases(result: Mapping[str, Any]) -> dict[str, Any]:
         "hygiene_label": str(hygiene.get("label") or ""),
         "hygiene_detail": str(hygiene.get("detail") or ""),
         "hygiene_protected": bool(hygiene.get("protected", False)),
+        "hygiene_internal_protected": bool(hygiene.get("internal_protected", False)),
+        "hygiene_external_snapshot_degraded": bool(hygiene.get("external_snapshot_degraded", False)),
         "history_budget_margin_bytes": min(byte_margins) if byte_margins else None,
         "history_budget_min_estimated_appends_until_warn": history_budget_min_estimated_appends_until_warn,
         "history_budget_min_estimated_appends_until_warn_name": history_budget_min_estimated_appends_until_warn_name,
@@ -1642,12 +1848,14 @@ def cleanup_log_snapshots(
     snapshot_dir: str | Path = DEFAULT_LOG_SNAPSHOT_DIR,
     patterns: tuple[str, ...] = ("*.err.*", "*.out.*", "*.log.*"),
     keep_count: int = DEFAULT_LOG_SNAPSHOT_KEEP_COUNT,
+    scan_timeout_seconds: float = DEFAULT_LOG_SNAPSHOT_SCAN_TIMEOUT_SECONDS,
     dry_run: bool = False,
 ) -> dict[str, Any]:
     root = Path(snapshot_dir)
     removed: list[str] = []
     kept_counts: dict[str, int] = {}
     removed_counts: dict[str, int] = {}
+    scan_errors: dict[str, str] = {}
     keep_count = max(0, int(keep_count))
     if not root.exists():
         return {
@@ -1658,9 +1866,42 @@ def cleanup_log_snapshots(
             "removed_counts": removed_counts,
             "exists": False,
         }
+    try:
+        scan = subprocess.run(
+            [
+                "/usr/bin/find",
+                str(root),
+                "-maxdepth",
+                "1",
+                "-type",
+                "f",
+                "-print0",
+            ],
+            capture_output=True,
+            check=False,
+            timeout=max(0.1, float(scan_timeout_seconds)),
+        )
+    except subprocess.TimeoutExpired:
+        scan = None
+        scan_error = f"timeout>{float(scan_timeout_seconds):.1f}s"
+    else:
+        scan_error = ""
+        if scan.returncode != 0:
+            detail = scan.stderr.decode("utf-8", errors="replace").strip()
+            scan_error = detail or f"find_exit_{scan.returncode}"
+    candidates = (
+        [Path(os.fsdecode(item)) for item in scan.stdout.split(b"\0") if item]
+        if scan is not None and not scan_error
+        else []
+    )
     for pattern in patterns:
+        if scan_error:
+            scan_errors[pattern] = scan_error
+            kept_counts[pattern] = 0
+            removed_counts[pattern] = 0
+            continue
         files = sorted(
-            [path for path in root.glob(pattern) if path.is_file()],
+            [path for path in candidates if fnmatch.fnmatch(path.name, pattern) and path.is_file()],
             key=lambda path: path.stat().st_mtime,
             reverse=True,
         )
@@ -1677,6 +1918,9 @@ def cleanup_log_snapshots(
         "removed_count": len(removed),
         "kept_counts": kept_counts,
         "removed_counts": removed_counts,
+        "scan_status": "WARN" if scan_errors else "OK",
+        "scan_errors": scan_errors,
+        "scan_timeout_seconds": float(scan_timeout_seconds),
         "exists": True,
     }
 
@@ -2221,6 +2465,7 @@ def cleanup_runtime_artifacts(
     retention_rules: Mapping[str, int] | None = None,
     stale_output_rules: Mapping[str, float] | None = None,
     output_archive_dir: str | Path | None = None,
+    fallback_output_archive_dir: str | Path | None = DEFAULT_LOCAL_OUTPUT_ARCHIVE_DIR,
     dry_run: bool = False,
     max_log_bytes: int = DEFAULT_MAX_LOG_BYTES,
     max_history_lines: int = DEFAULT_MAX_HISTORY_LINES,
@@ -2241,6 +2486,14 @@ def cleanup_runtime_artifacts(
     training_videos_path: str | Path = DEFAULT_TRAINING_VIDEOS_PATH,
     enable_partial_video_artifact_cleanup: bool = True,
 ) -> dict[str, Any]:
+    archive_resolution = resolve_output_archive_dir(
+        output_archive_dir,
+        fallback_dir=fallback_output_archive_dir,
+        dry_run=dry_run,
+    )
+    requested_output_archive_dir = str(archive_resolution.get("requested_dir") or "")
+    effective_output_archive_dir = str(archive_resolution.get("effective_dir") or "")
+    output_archive_dir = effective_output_archive_dir or None
     footprint_before = runtime_footprint(output_dir=output_dir, alerts_path=alerts_path, log_dirs=log_dirs)
     prepared_dirs = prepare_maintenance_dirs(
         output_archive_dir=output_archive_dir,
@@ -2389,6 +2642,11 @@ def cleanup_runtime_artifacts(
             "stale_output_kept_counts": stale_output["kept_counts"],
             "stale_output_max_age_days_rules": stale_output.get("max_age_days_rules", {}),
             "output_archive_dir": str(output_archive_dir) if output_archive_dir else "",
+            "output_archive_requested_dir": requested_output_archive_dir,
+            "output_archive_effective_dir": effective_output_archive_dir,
+            "output_archive_fallback": bool(archive_resolution.get("fallback")),
+            "output_archive_fallback_reason": str(archive_resolution.get("fallback_reason") or ""),
+            "output_archive_writable": bool(archive_resolution.get("writable")),
             "output_archive_count": int(result.get("archived_count") or 0) + int(stale_output.get("archived_count") or 0),
             "output_archive_error_count": int(result.get("archive_error_count") or 0) + int(stale_output.get("archive_error_count") or 0),
             "prepared_dirs": prepared_dirs,
@@ -2647,10 +2905,8 @@ def write_report(
 ) -> tuple[Path, Path]:
     json_file = Path(json_path)
     text_file = Path(text_path)
-    json_file.parent.mkdir(parents=True, exist_ok=True)
-    text_file.parent.mkdir(parents=True, exist_ok=True)
-    json_file.write_text(json.dumps(json_safe(dict(result)), indent=2, sort_keys=True))
-    text_file.write_text(render_text_report(result))
+    atomic_write_text(json.dumps(json_safe(dict(result)), indent=2, sort_keys=True), json_file)
+    atomic_write_text(render_text_report(result), text_file)
     return json_file, text_file
 
 
@@ -2675,6 +2931,11 @@ def parse_args() -> argparse.Namespace:
         "--archive-dir",
         default=str(default_output_archive_dir() or ""),
         help="Move removed output files here before deleting from the active output directory.",
+    )
+    parser.add_argument(
+        "--fallback-archive-dir",
+        default=str(DEFAULT_LOCAL_OUTPUT_ARCHIVE_DIR),
+        help="Verified local fallback when the requested archive is mounted but this process cannot write to it.",
     )
     parser.add_argument("--rule", action="append", type=parse_rule, help="Retention rule like 'ma_live_strategy_*.csv=96'. Can be repeated.")
     parser.add_argument(
@@ -2722,6 +2983,7 @@ def main() -> None:
         retention_rules=rules,
         stale_output_rules=stale_output_rules,
         output_archive_dir=args.archive_dir or None,
+        fallback_output_archive_dir=args.fallback_archive_dir or None,
         dry_run=args.dry_run,
         max_log_bytes=args.max_log_bytes,
         max_history_lines=args.max_history_lines,

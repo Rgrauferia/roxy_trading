@@ -1,6 +1,7 @@
 import json
 import tarfile
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -168,6 +169,46 @@ def test_create_runtime_backup_removes_temp_archive_on_failure(tmp_path, monkeyp
 
     assert not list(target.glob("roxy_runtime_*.tar.gz"))
     assert not list(target.glob("*.tmp"))
+
+
+def test_create_runtime_backup_uses_verified_local_fallback_when_external_target_is_denied(tmp_path, monkeypatch):
+    base = tmp_path / "project"
+    external = tmp_path / "external" / "runtime"
+    fallback = tmp_path / "local" / "runtime"
+    alerts = base / "alerts"
+    db = base / "db"
+    alerts.mkdir(parents=True)
+    db.mkdir()
+    (alerts / "roxy_realtime_check.json").write_text("{}")
+    (db / "scan_history.csv").write_text("ts,market,symbol,tf,signal,score\n")
+    (db / "roxy.db").write_text("db")
+    real_tar_open = runtime_backup.tarfile.open
+
+    def deny_external(path, *args, **kwargs):
+        if str(path).startswith(str(external)):
+            raise PermissionError("external volume denied to LaunchAgent")
+        return real_tar_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(runtime_backup.tarfile, "open", deny_external)
+
+    result = create_runtime_backup(
+        base_dir=base,
+        target_dir=external,
+        fallback_target_dir=fallback,
+        report_path=alerts / "runtime_backup.json",
+        text_path=alerts / "runtime_backup.txt",
+        include_paths=("alerts", "db"),
+        now=datetime(2026, 7, 18, 20, 0, tzinfo=timezone.utc),
+    )
+
+    assert result["status"] == "OK"
+    assert result["target_fallback"] is True
+    assert result["requested_target_dir"] == str(external)
+    assert result["target_dir"] == str(fallback)
+    assert result["archive_verified"] is True
+    assert Path(result["archive_path"]).exists()
+    assert "PermissionError" in result["target_fallback_reason"]
+    assert "Target fallback:" in (alerts / "runtime_backup.txt").read_text()
 
 
 def test_render_text_report_includes_missing_paths():

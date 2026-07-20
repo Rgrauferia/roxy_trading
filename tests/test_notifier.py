@@ -1,7 +1,35 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 import notifier
+
+
+def test_notification_history_and_cooldowns_are_transactional(tmp_path, monkeypatch):
+    history_path = tmp_path / "notification_history.jsonl"
+    cooldown_path = tmp_path / "notification_cooldowns.json"
+    monkeypatch.setattr(notifier, "NOTIFICATION_HISTORY_FILE", history_path)
+    monkeypatch.setattr(notifier, "NOTIFICATION_COOLDOWN_FILE", cooldown_path)
+
+    def record(index):
+        alert = f"BUY S{index:02d} setup"
+        notifier._append_history(
+            {"ts": f"2026-06-10T00:{index:02d}:00+00:00", "sent": True, "channels": ["test"], "alert": alert},
+            max_lines=100,
+            max_bytes=None,
+        )
+        return notifier.filter_alerts_by_cooldown([alert], cooldown_minutes=60)
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        results = list(executor.map(record, range(16)))
+
+    history = [json.loads(line) for line in history_path.read_text().splitlines()]
+    cooldowns = json.loads(cooldown_path.read_text())
+    assert len(history) == 16
+    assert len(cooldowns) == 16
+    assert all(len(sendable) == 1 and not skipped for sendable, skipped in results)
+    assert history_path.stat().st_mode & 0o777 == 0o600
+    assert cooldown_path.stat().st_mode & 0o777 == 0o600
 
 
 def _clear_channels(monkeypatch):

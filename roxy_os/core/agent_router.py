@@ -59,6 +59,12 @@ class AgentRouter:
         if self._has_any(normalized, ["abre google", "busca en google", "navega", "abre la pagina", "abre la página"]):
             return "browser_action", "browser"
 
+        if self._has_any(normalized, ["mis documentos", "documentos guardados", "lista de documentos", "repositorio de documentos"]):
+            return "documents_query", "documents"
+
+        if self._has_any(normalized, ["mi correo", "mis correos", "bandeja de entrada", "emails recientes", "correos recientes"]):
+            return "email_query", "email"
+
         if self._has_any(normalized, ["temperatura", "luces", "televisor", "volumen", "camara", "cámara", "termostato"]):
             return "home_control", "home"
 

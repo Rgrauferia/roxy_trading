@@ -14,6 +14,8 @@ import hashlib
 from datetime import datetime, timedelta
 from typing import Optional
 
+from roxy_time import utc_now_naive
+
 DB_PATH = os.path.join(os.getcwd(), "db", "roxy.db")
 
 
@@ -38,7 +40,7 @@ def get_cached(prompt: str) -> Optional[str]:
         response, expires_at = r
         if expires_at:
             try:
-                if expires_at <= datetime.utcnow().isoformat():
+                if expires_at <= utc_now_naive().isoformat():
                     # expired — delete
                     cur.execute("DELETE FROM prompt_cache WHERE pkey=?", (pkey,))
                     conn.commit()
@@ -52,7 +54,7 @@ def get_cached(prompt: str) -> Optional[str]:
 
 def set_cached(prompt: str, response: str, model: Optional[str] = None, ttl_seconds: int = 3600) -> None:
     pkey = _pkey(prompt)
-    expires_at = (datetime.utcnow() + timedelta(seconds=ttl_seconds)).isoformat() if ttl_seconds else None
+    expires_at = (utc_now_naive() + timedelta(seconds=ttl_seconds)).isoformat() if ttl_seconds else None
     conn = _conn()
     try:
         cur = conn.cursor()

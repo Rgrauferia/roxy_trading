@@ -46,11 +46,11 @@ def test_roxy_hologram_avatar_embeds_human_face_rig():
 
 
 def test_roxy_hologram_face_layers_are_not_disabled():
-    source = Path(streamlit_app.__file__).read_text(encoding="utf-8")
+    styles = streamlit_app.roxy_application_style_markup(include_academy_auth=True)
 
-    assert ".roxy-gaze,.roxy-mouth,.roxy-lip,.roxy-blink,.roxy-eye{display:none" not in source
-    assert "@keyframes roxyHumanBlink" in source
-    assert "@keyframes roxyHumanTalk" in source
+    assert ".roxy-gaze,.roxy-mouth,.roxy-lip,.roxy-blink,.roxy-eye{display:none" not in styles
+    assert "@keyframes roxyHumanBlink" in styles
+    assert "@keyframes roxyHumanTalk" in styles
 
 
 def test_roxy_avatar_html_falls_back_to_svg_when_asset_missing(monkeypatch):

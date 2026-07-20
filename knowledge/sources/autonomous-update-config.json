@@ -1,0 +1,23 @@
+{
+  "enabled": true,
+  "intervalHours": 6,
+  "legalMode": "public_and_user_owned_only",
+  "runAtLoad": true,
+  "tasks": {
+    "refreshPublicSources": true,
+    "refreshMacroData": true,
+    "refreshInternalStudyNotes": true,
+    "ingestInbox": true
+  },
+  "safety": {
+    "downloadCopyrightedBooks": false,
+    "scrapePaywalledContent": false,
+    "useUnconfiguredPaidApis": false,
+    "storeSecretsInKnowledge": false
+  },
+  "notes": [
+    "Roxy puede actualizar automaticamente fuentes publicas, oficiales y datos abiertos.",
+    "Libros, cursos o PDFs comerciales deben ser subidos por el usuario si tiene derecho a usarlos.",
+    "Noticias comerciales como Reuters o Bloomberg requieren feed licenciado antes de activar ingestion."
+  ]
+}

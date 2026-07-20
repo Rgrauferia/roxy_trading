@@ -11,6 +11,11 @@ from typing import Any
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+from durable_storage import atomic_write_text
+
 LOG_DIR = BASE_DIR / "logs" / "development_cadence"
 STATE_PATH = LOG_DIR / "state.json"
 STATUS_PATH = LOG_DIR / "status.json"
@@ -76,8 +81,7 @@ def load_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    atomic_write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", path)
 
 
 def run_git_status(repo: Path) -> list[str]:

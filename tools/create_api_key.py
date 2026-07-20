@@ -14,6 +14,8 @@ import os
 import sqlite3
 from datetime import datetime, timedelta
 
+from roxy_time import utc_now_naive
+
 try:
     from tools import secrets_service
 except Exception:
@@ -39,7 +41,7 @@ def create_api_key(name: str, owner: str, scopes: str, ttl_days: int = 365) -> s
 
     plain = secrets_service._generate_plain_api_key()
     h = secrets_service._hash_key(plain)
-    expires_at = (datetime.utcnow() + timedelta(days=ttl_days)).isoformat()
+    expires_at = (utc_now_naive() + timedelta(days=ttl_days)).isoformat()
 
     conn = _conn()
     try:
@@ -50,7 +52,7 @@ def create_api_key(name: str, owner: str, scopes: str, ttl_days: int = 365) -> s
         except Exception:
             pass
         cur.execute("INSERT INTO api_keys (key_hash, name, owner, scopes, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (h, name, owner, scopes, datetime.utcnow().isoformat(), expires_at))
+                    (h, name, owner, scopes, utc_now_naive().isoformat(), expires_at))
         conn.commit()
     finally:
         conn.close()

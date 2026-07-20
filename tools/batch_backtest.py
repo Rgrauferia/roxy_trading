@@ -16,6 +16,7 @@ import sys
 # ensure repo root is importable when running as a script
 sys.path.insert(0, os.getcwd())
 from backtester import run_backtest
+from roxy_time import utc_now
 
 
 def find_csvs(pattern: str = "output/*.csv", limit: int = 5):
@@ -43,7 +44,7 @@ def main():
         metrics = run_backtest(df, buy_score=args.buy_score, name=name)
         results[name] = metrics
 
-    out_path = args.out or f"output/backtest_batch_summary_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+    out_path = args.out or f"output/backtest_batch_summary_{utc_now().strftime('%Y%m%d_%H%M%S')}.json"
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     with open(out_path, "w") as fh:
         json.dump(results, fh, indent=2)

@@ -21,6 +21,8 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
+from roxy_trader.api_budget import ApiBudgetBlockedError, observe_api_call
+
 try:
     from fastapi import FastAPI, Query
     from fastapi.middleware.cors import CORSMiddleware
@@ -37,12 +39,33 @@ ALPACA_REST_BASE = "https://data.alpaca.markets/v2"
 DEFAULT_SYMBOLS = ("AAPL", "MSFT", "NVDA", "TSLA", "AMD")
 MAX_SYMBOLS = 24
 HTTP_TIMEOUT_SECONDS = 6
+DEFAULT_ALLOWED_ORIGINS = (
+    "http://127.0.0.1:3000",
+    "http://localhost:3000",
+)
+
+
+def allowed_stock_stream_origins(raw: str | None = None) -> list[str]:
+    """Return explicit browser origins; wildcard CORS is never accepted."""
+    value = str(raw if raw is not None else os.getenv("ROXY_STOCK_STREAM_ALLOWED_ORIGINS") or os.getenv("ROXY_STOCK_STREAM_ALLOWED_ORIGIN") or "")
+    candidates = [item.strip().rstrip("/") for item in value.split(",") if item.strip()]
+    if not candidates:
+        return list(DEFAULT_ALLOWED_ORIGINS)
+    clean: list[str] = []
+    for origin in candidates:
+        if origin == "*":
+            continue
+        if not re.fullmatch(r"https?://[^/?#\s]+(?::\d+)?", origin):
+            continue
+        if origin not in clean:
+            clean.append(origin)
+    return clean or list(DEFAULT_ALLOWED_ORIGINS)
 
 app = FastAPI(title="Roxy Stock Stream Bridge", version="1.0.0") if FastAPI is not None else None
 if app is not None and CORSMiddleware is not None:
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[os.getenv("ROXY_STOCK_STREAM_ALLOWED_ORIGIN", "*")],
+        allow_origins=allowed_stock_stream_origins(),
         allow_credentials=False,
         allow_methods=["GET", "OPTIONS"],
         allow_headers=["*"],
@@ -109,12 +132,20 @@ def _alpaca_credentials() -> tuple[str, str]:
     )
 
 
-def _http_json(url: str, headers: dict[str, str] | None = None) -> dict[str, Any] | list[Any] | None:
+def _http_json(
+    url: str,
+    headers: dict[str, str] | None = None,
+    *,
+    provider: str,
+    operation: str,
+) -> dict[str, Any] | list[Any] | None:
     request = Request(url, headers=headers or {})
     try:
-        with urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
-            body = response.read().decode("utf-8", errors="replace")
-    except (HTTPError, URLError, TimeoutError, OSError):
+        with observe_api_call(provider, operation) as observation:
+            with urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
+                observation.set_http_status(getattr(response, "status", None))
+                body = response.read().decode("utf-8", errors="replace")
+    except (HTTPError, URLError, TimeoutError, OSError, ApiBudgetBlockedError):
         return None
     try:
         parsed = json.loads(body)
@@ -137,8 +168,8 @@ def _alpaca_rest_quote(symbol: str) -> dict[str, Any] | None:
     trade_url = f"{ALPACA_REST_BASE}/stocks/{symbol}/trades/latest?{query}"
     quote_url = f"{ALPACA_REST_BASE}/stocks/{symbol}/quotes/latest?{query}"
 
-    trade_payload = _http_json(trade_url, headers=headers)
-    quote_payload = _http_json(quote_url, headers=headers)
+    trade_payload = _http_json(trade_url, headers=headers, provider="alpaca", operation="stream_bridge_trade")
+    quote_payload = _http_json(quote_url, headers=headers, provider="alpaca", operation="stream_bridge_quote")
     trade = trade_payload.get("trade") if isinstance(trade_payload, dict) else None
     quote = quote_payload.get("quote") if isinstance(quote_payload, dict) else None
 
@@ -173,9 +204,11 @@ def _stooq_quote(symbol: str) -> dict[str, Any] | None:
     url = f"https://stooq.com/q/l/?s={stooq_symbol}&f=sd2t2ohlcv&h&e=csv"
     request = Request(url, headers={"User-Agent": "RoxyTrading/1.0"})
     try:
-        with urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
-            body = response.read().decode("utf-8", errors="replace")
-    except (HTTPError, URLError, TimeoutError, OSError):
+        with observe_api_call("stooq", "delayed_quote") as observation:
+            with urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
+                observation.set_http_status(getattr(response, "status", None))
+                body = response.read().decode("utf-8", errors="replace")
+    except (HTTPError, URLError, TimeoutError, OSError, ApiBudgetBlockedError):
         return None
 
     rows = list(csv.DictReader(body.splitlines()))
@@ -204,7 +237,12 @@ def _stooq_quote(symbol: str) -> dict[str, Any] | None:
 
 def _yahoo_quote(symbol: str) -> dict[str, Any] | None:
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1d&interval=1m"
-    payload = _http_json(url, headers={"User-Agent": "RoxyTrading/1.0"})
+    payload = _http_json(
+        url,
+        headers={"User-Agent": "RoxyTrading/1.0"},
+        provider="yfinance",
+        operation="stream_bridge_chart",
+    )
     if not isinstance(payload, dict):
         return None
     result_items = (((payload.get("chart") or {}).get("result") or []) if isinstance(payload.get("chart"), dict) else [])
@@ -407,7 +445,6 @@ if app is not None:
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
                 "X-Accel-Buffering": "no",
-                "Access-Control-Allow-Origin": os.getenv("ROXY_STOCK_STREAM_ALLOWED_ORIGIN", "*"),
             },
         )
 
@@ -417,7 +454,6 @@ if app is not None:
             stock_snapshot_payload(normalize_stock_symbols(symbols)),
             headers={
                 "Cache-Control": "no-store",
-                "Access-Control-Allow-Origin": os.getenv("ROXY_STOCK_STREAM_ALLOWED_ORIGIN", "*"),
             },
         )
 
@@ -433,7 +469,8 @@ def main() -> None:
 
     port = int(os.getenv("PORT", "10000"))
     print(f"Starting Roxy stock stream bridge on port {port}", flush=True)
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    host = os.getenv("ROXY_STOCK_BRIDGE_HOST", "127.0.0.1").strip() or "127.0.0.1"
+    uvicorn.run(app, host=host, port=port)
 
 
 if __name__ == "__main__":

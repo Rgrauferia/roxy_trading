@@ -1,0 +1,2471 @@
+    <div id="roxy-live-chart-root">
+      <nav class="rlc-menu">
+        <span>File</span><span>Tools</span><span>Help</span>
+        <b>Charts</b><b>WatchLists</b><b>EasyScan</b><b>News & Notes</b><b>Alerts</b><b>Library</b><b>Trading</b>
+      </nav>
+      <header class="rlc-head">
+        <div>
+          <strong id="rlc-title"></strong>
+          <span id="rlc-range"></span>
+        </div>
+        <div class="rlc-actions">
+          <button data-range="1D">1D</button>
+          <button data-range="1W">1W</button>
+          <button data-range="1M">1M</button>
+          <button data-range="3M">3M</button>
+          <button data-range="1Y">1Y</button>
+          <button data-range="ALL">ALL</button>
+        </div>
+        <div class="rlc-status" id="rlc-status"></div>
+      </header>
+      <section class="rlc-symbolbar">
+        <strong id="rlc-symbol-chip"></strong>
+        <button data-fasttf="1m">1m</button>
+        <button data-fasttf="5m">5m</button>
+        <button data-fasttf="15m">15m</button>
+        <button data-fasttf="20m">20m</button>
+        <button data-fasttf="30m">30m</button>
+        <button data-fasttf="1h">1h</button>
+        <button data-fasttf="2h">2h</button>
+        <button data-fasttf="4h">4h</button>
+        <button data-fasttf="1d">D</button>
+        <button data-fasttf="1w">W</button>
+        <span class="rlc-indicator-title">BBand 20 2</span>
+        <label><input type="checkbox" data-indicator="EMA9"> EMA9</label>
+        <label><input type="checkbox" data-indicator="EMA20"> EMA20</label>
+        <label><input type="checkbox" data-indicator="EMA21"> EMA21</label>
+        <label><input type="checkbox" data-indicator="EMA50"> EMA50</label>
+        <label><input type="checkbox" data-indicator="EMA200"> EMA200</label>
+        <label><input type="checkbox" data-indicator="VWAP"> VWAP</label>
+        <label><input type="checkbox" data-indicator="RSI"> RSI</label>
+        <label><input type="checkbox" data-indicator="MACD"> MACD</label>
+        <label><input type="checkbox" data-indicator="SMA20"> Avg 20</label>
+        <label><input type="checkbox" data-indicator="SMA40"> Avg 40</label>
+        <label><input type="checkbox" data-indicator="SMA100"> Avg 100</label>
+        <label><input type="checkbox" data-indicator="SMA200"> Avg 200</label>
+        <label><input type="checkbox" data-indicator="BBand"> BBand</label>
+        <label><input type="checkbox" data-indicator="Plan"> Plan</label>
+        <label><input type="checkbox" data-indicator="Info"> Info</label>
+        <label title="Activado: autoajuste al rango visible. Desactivado: escala manual con el eje."><input type="checkbox" data-indicator="Scale"> Escala auto</label>
+        <label><input type="checkbox" data-indicator="Labels"> Labels</label>
+        <label><input type="checkbox" data-indicator="Volume"> Vol</label>
+        <button class="rlc-preset" data-preset="naked">Solo velas</button>
+        <button class="rlc-preset" data-preset="clean">Limpio</button>
+        <button class="rlc-preset" data-preset="full">Completo</button>
+      </section>
+      <div class="rlc-body">
+        <div class="rlc-chart-wrap" tabindex="0" aria-label="Grafica interactiva de Roxy">
+          <div id="roxy-live-chart"></div>
+          <canvas id="rlc-bb-fill-layer" aria-label="Nube Bollinger"></canvas>
+          <svg id="rlc-drawing-layer" aria-label="Herramientas de dibujo"></svg>
+          <div class="rlc-cursor-line rlc-cursor-v" id="rlc-cursor-v"></div>
+          <div class="rlc-cursor-line rlc-cursor-h" id="rlc-cursor-h"></div>
+          <div class="rlc-quote-line" id="rlc-quote-line"></div>
+          <div class="rlc-hover-card" id="rlc-hover-card"></div>
+          <div class="rlc-snap-cue" id="rlc-snap-cue"></div>
+          <div class="rlc-brand-mark"><strong>Roxy</strong><span>AI Trading</span></div>
+          <div class="rlc-plan-badge" id="rlc-plan-badge"></div>
+          <div class="rlc-drawing-state" id="rlc-drawing-state">Sin dibujos</div>
+          <div class="rlc-mode-badge" id="rlc-mode-badge">NAV · rueda zoom · arrastra pan</div>
+        </div>
+        <aside class="rlc-toolbox" aria-label="Herramientas">
+          <div class="rlc-tool-readout" id="rlc-tool-readout">Cursor</div>
+          <button data-tool="cursor" data-lucide="mouse-pointer-2" class="active" title="Navegar: arrastra y zoom" aria-label="Navegar grafica"></button>
+          <button data-tool="crosshair" data-lucide="crosshair" title="Crosshair" aria-label="Crosshair"></button>
+          <button data-tool="select" data-lucide="mouse-pointer-click" title="Editar dibujos" aria-label="Editar dibujos"></button>
+          <button data-tool="trend" data-lucide="slash" title="Linea de tendencia" aria-label="Linea de tendencia"></button>
+          <button data-tool="ray" data-lucide="move-up-right" title="Rayo / linea extendida" aria-label="Rayo / linea extendida"></button>
+          <button data-tool="horizontal" data-lucide="minus" title="Linea horizontal" aria-label="Linea horizontal"></button>
+          <button data-quicklevel="entry" data-lucide="log-in" title="Marcar entrada al precio/cursor" aria-label="Marcar entrada"></button>
+          <button data-quicklevel="stop" data-lucide="shield-alert" title="Marcar stop visual" aria-label="Marcar stop"></button>
+          <button data-quicklevel="target2" data-lucide="badge-dollar-sign" title="Marcar target 2%" aria-label="Marcar target 2%"></button>
+          <button data-quicklevel="plan" data-lucide="list-checks" title="Aplicar plan Roxy editable" aria-label="Aplicar plan Roxy"></button>
+          <button data-tool="vertical" data-lucide="grip-vertical" title="Linea vertical" aria-label="Linea vertical"></button>
+          <button data-tool="rect" data-lucide="square" title="Rectangulo / zona" aria-label="Rectangulo / zona"></button>
+          <button data-tool="channel" data-lucide="columns-2" title="Canal paralelo" aria-label="Canal paralelo"></button>
+          <button data-tool="fib" data-lucide="ruler" title="Fibonacci rapido" aria-label="Fibonacci rapido"></button>
+          <button data-tool="triangle" data-lucide="triangle" title="Triangulo simetrico" aria-label="Triangulo simetrico"></button>
+          <button data-tool="wedgeUp" data-lucide="trending-up" title="Wedge ascendente" aria-label="Wedge ascendente"></button>
+          <button data-tool="wedgeDown" data-lucide="trending-down" title="Wedge descendente" aria-label="Wedge descendente"></button>
+          <button data-tool="arrow" data-lucide="arrow-up-right" title="Flecha" aria-label="Flecha"></button>
+          <button data-tool="measure" data-lucide="move-vertical" title="Medir movimiento" aria-label="Medir movimiento"></button>
+          <button data-tool="text" data-lucide="type" title="Texto / nota" aria-label="Texto / nota"></button>
+          <button data-tool="eraser" data-lucide="eraser" title="Borrador: toca una linea" aria-label="Borrador"></button>
+          <button data-action="undo" data-lucide="undo-2" title="Deshacer ultimo cambio" aria-label="Deshacer ultimo cambio"></button>
+	          <button data-action="redo" data-lucide="redo-2" title="Rehacer cambio" aria-label="Rehacer cambio"></button>
+	          <button data-action="lock" data-lucide="lock-keyhole" title="Bloquear/desbloquear dibujos" aria-label="Bloquear dibujos"></button>
+	          <button data-action="sync" data-lucide="cloud-upload" title="Sincronizar esta grafica con Roxy" aria-label="Sincronizar grafica"></button>
+	          <button data-action="clear-plan" data-lucide="list-x" title="Quitar lineas editables del plan" aria-label="Quitar lineas del plan"></button>
+	          <button data-action="pan-left" data-lucide="chevron-left" title="Mover grafica a la izquierda" aria-label="Mover grafica a la izquierda"></button>
+	          <button data-action="zoom-in" data-lucide="zoom-in" title="Acercar velas" aria-label="Acercar velas"></button>
+	          <button data-action="zoom-out" data-lucide="zoom-out" title="Alejar velas" aria-label="Alejar velas"></button>
+	          <button data-action="pan-right" data-lucide="chevron-right" title="Mover grafica a la derecha" aria-label="Mover grafica a la derecha"></button>
+	          <button data-action="fit" data-lucide="scan" title="Ajustar todo el historial visible" aria-label="Ajustar vista"></button>
+	          <button data-action="fullscreen" data-lucide="maximize-2" title="Pantalla completa de esta grafica" aria-label="Pantalla completa"></button>
+	          <button data-tool="clear" data-lucide="trash-2" title="Borrar todos los dibujos" aria-label="Borrar todos los dibujos"></button>
+          <label title="Ajuste visual a velas"><input id="rlc-snap" type="checkbox" checked> Snap</label>
+          <label title="Mostrar u ocultar dibujos"><input id="rlc-show" type="checkbox" checked> Show</label>
+        </aside>
+      </div>
+      <section class="rlc-oscillator-grid" id="rlc-oscillator-grid" aria-label="Osciladores técnicos">
+        <article id="rlc-rsi-panel"><header><strong>RSI 14</strong><span>30 sobreventa · 70 sobrecompra</span></header><div id="rlc-rsi-chart"></div></article>
+        <article id="rlc-macd-panel"><header><strong>MACD 12/26/9</strong><span>Línea · señal · histograma</span></header><div id="rlc-macd-chart"></div></article>
+      </section>
+      <div class="rlc-foot">
+        <span id="rlc-live"></span>
+        <span id="rlc-candle-countdown"></span>
+        <span id="rlc-session-legend"></span>
+        <span id="rlc-crosshair-link">Cursor local</span>
+        <span id="rlc-source"></span>
+        <span id="rlc-technicals"></span>
+        <span id="rlc-error"></span>
+      </div>
+    </div>
+    <style>
+      html, body { margin:0; background:#05070b; color:#e5e7eb; font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      #roxy-live-chart-root { height:calc(100vh - 2px); display:flex; flex-direction:column; background:#05070b; border:1px solid rgba(148,163,184,.30); border-radius:4px; overflow:hidden; box-shadow:inset 0 0 0 1px rgba(255,255,255,.03); }
+      .rlc-menu { display:none; align-items:center; gap:9px; padding:4px 8px; background:#020305; border-bottom:1px solid rgba(148,163,184,.22); color:#d1d5db; font-size:11px; font-weight:850; white-space:nowrap; overflow:hidden; }
+      .rlc-menu b { color:#f8fafc; border-left:1px solid rgba(148,163,184,.35); padding-left:9px; }
+      .rlc-head { display:grid; grid-template-columns:minmax(145px,1fr) auto minmax(118px,.45fr); gap:6px; align-items:center; padding:2px 7px; background:linear-gradient(#151923,#070a10); border-bottom:1px solid rgba(148,163,184,.24); }
+      .rlc-head strong { display:block; font-size:12px; color:#f8fafc; letter-spacing:.01em; }
+      .rlc-head span { font-size:10px; color:#a8b3c4; }
+      .rlc-actions { display:flex; gap:4px; flex-wrap:wrap; justify-content:center; }
+      .rlc-actions button { background:#151923; color:#d1d5db; border:1px solid rgba(148,163,184,.34); border-radius:3px; padding:3px 6px; font-size:10px; font-weight:900; cursor:pointer; }
+      .rlc-actions button.active, .rlc-actions button:hover { color:#f8fafc; border-color:#60a5fa; background:#1d4ed8; }
+      .rlc-status { justify-self:end; text-align:right; color:#7CFC00; font-size:11px; font-weight:950; white-space:nowrap; }
+      .rlc-symbolbar { display:flex; align-items:center; gap:5px; min-height:24px; padding:2px 7px; background:#080a0f; border-bottom:1px solid rgba(148,163,184,.22); color:#e5e7eb; white-space:nowrap; overflow:auto; scrollbar-width:thin; }
+      .rlc-symbolbar strong { color:#fff000; font-size:14px; font-weight:1000; margin-right:2px; }
+      .rlc-symbolbar button { background:transparent; color:#e5e7eb; border:0; border-radius:2px; padding:2px 5px; font-size:12px; font-weight:950; cursor:pointer; }
+      .rlc-symbolbar button.active, .rlc-symbolbar button:hover { background:#2563eb; color:#f8fafc; }
+      .rlc-symbolbar .rlc-preset { border:1px solid rgba(96,165,250,.42); background:#0b1220; color:#bfdbfe; padding:2px 6px; font-size:10px; }
+      .rlc-symbolbar .rlc-preset[data-preset="naked"] { border-color:rgba(248,250,252,.58); color:#f8fafc; }
+      .rlc-symbolbar .rlc-preset[data-preset="clean"] { border-color:rgba(34,197,94,.50); color:#bbf7d0; }
+      .rlc-symbolbar label { display:inline-flex; align-items:center; gap:3px; border:0; border-radius:2px; padding:1px 3px; font-size:11px; font-weight:950; cursor:pointer; }
+      .rlc-symbolbar input { width:10px; height:10px; accent-color:#22c55e; }
+      .rlc-indicator-title { color:#e5e7eb; font-size:11px; font-weight:950; margin-left:4px; }
+      .rlc-body { position:relative; display:flex; flex:1 1 auto; min-height:0; flex-direction:column; gap:0; align-items:stretch; background:#05070b; padding-top:34px; box-sizing:border-box; }
+      .rlc-chart-wrap { position:relative; flex:1 1 auto; min-height:0; min-width:0; outline:none; }
+      .rlc-oscillator-grid { display:none; grid-template-columns:1fr 1fr; gap:5px; flex:0 0 122px; min-height:0; padding:4px 6px; border-top:1px solid rgba(148,163,184,.20); background:#05070b; }
+      .rlc-oscillator-grid article { display:grid; grid-template-rows:auto minmax(0,1fr); min-width:0; min-height:0; border:1px solid rgba(148,163,184,.20); border-radius:4px; overflow:hidden; }
+      .rlc-oscillator-grid article>header { display:flex; justify-content:space-between; gap:6px; padding:2px 5px; background:#0b1019; color:#94a3b8; font-size:9px; }
+      .rlc-oscillator-grid article>header strong { color:#e5e7eb; font-size:9px; }
+      #rlc-rsi-chart, #rlc-macd-chart { min-width:0; min-height:0; }
+      .rlc-chart-wrap:focus-visible { box-shadow:inset 0 0 0 2px rgba(96,165,250,.72); }
+      #roxy-live-chart-root[data-tool-mode="draw"] .rlc-chart-wrap { box-shadow:inset 0 0 0 1px rgba(34,197,94,.42); }
+      #roxy-live-chart { position:relative; z-index:1; height:100%; min-height:0; }
+      #rlc-bb-fill-layer { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:0; opacity:.18; }
+	      #rlc-drawing-layer { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; z-index:3; touch-action:pan-x pan-y pinch-zoom; }
+	      #rlc-drawing-layer.active, #rlc-drawing-layer.drawing-mode { pointer-events:auto; cursor:crosshair; touch-action:none; }
+	      #rlc-drawing-layer.chart-pan-mode { pointer-events:none; cursor:grab; touch-action:pan-x pan-y pinch-zoom; }
+	      #rlc-drawing-layer.editing { cursor:default; }
+      #rlc-drawing-layer [data-roxy-drawing="true"] { cursor:pointer; }
+      #rlc-drawing-layer [data-selected="true"] { filter:drop-shadow(0 0 5px rgba(250,204,21,.72)); }
+      #rlc-drawing-layer [data-selection-handle="true"] { cursor:grab; pointer-events:all; }
+      #rlc-drawing-layer.locked [data-roxy-drawing="true"] { cursor:not-allowed; }
+      .rlc-cursor-line { position:absolute; z-index:6; display:none; pointer-events:none; background:rgba(248,250,252,.46); }
+      .rlc-cursor-v { top:0; bottom:0; width:1px; }
+      .rlc-cursor-h { left:0; right:0; height:1px; }
+      .rlc-quote-line { position:absolute; top:8px; left:10px; z-index:5; display:none; flex-wrap:wrap; gap:8px; align-items:center; max-width:calc(100% - 390px); padding:6px 8px; border:1px solid rgba(148,163,184,.30); border-left:3px solid #22c55e; border-radius:4px; background:rgba(2,6,23,.72); color:#e5e7eb; font-size:10px; font-weight:900; line-height:1.25; pointer-events:none; box-shadow:0 10px 22px rgba(0,0,0,.28); backdrop-filter:blur(7px); }
+      .rlc-quote-line b { color:#f8fafc; font-size:11px; }
+      .rlc-quote-line span { color:#a8b3c4; }
+      .rlc-quote-line .up { color:#39ff88; }
+      .rlc-quote-line .down { color:#ff6b6b; }
+      .rlc-hover-card { position:absolute; z-index:7; display:none; min-width:188px; max-width:250px; padding:7px 8px; border:1px solid rgba(226,232,240,.34); border-radius:4px; background:rgba(2,6,23,.88); color:#f8fafc; font-size:10px; font-weight:850; line-height:1.35; pointer-events:none; box-shadow:0 12px 28px rgba(0,0,0,.35); backdrop-filter:blur(8px); }
+      .rlc-hover-card b { color:#fff000; font-size:11px; }
+      .rlc-hover-card span { color:#a8b3c4; }
+      .rlc-snap-cue { position:absolute; z-index:8; display:none; width:18px; height:18px; margin-left:-9px; margin-top:-9px; border:2px solid #fbbf24; border-radius:999px; pointer-events:none; box-shadow:0 0 0 4px rgba(251,191,36,.18), 0 0 16px rgba(251,191,36,.62); }
+      .rlc-brand-mark { position:absolute; left:10px; bottom:10px; z-index:4; display:flex; align-items:baseline; gap:5px; border:1px solid rgba(34,197,94,.28); border-radius:4px; background:rgba(2,6,23,.52); padding:4px 7px; color:#f8fafc; pointer-events:none; box-shadow:0 8px 18px rgba(0,0,0,.24); }
+      .rlc-brand-mark strong { color:#bbf7d0; font-size:16px; line-height:1; font-weight:1000; letter-spacing:.01em; }
+      .rlc-brand-mark span { color:#cbd5e1; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.06em; }
+      .rlc-plan-badge { position:absolute; top:10px; right:10px; z-index:4; display:none; max-width:min(360px, calc(100% - 20px)); padding:7px 9px; border:1px solid rgba(56,189,248,.36); border-left:3px solid #38bdf8; border-radius:4px; background:rgba(2,6,23,.72); color:#dbeafe; font-size:10px; font-weight:900; line-height:1.35; pointer-events:none; box-shadow:0 10px 26px rgba(0,0,0,.30); backdrop-filter:blur(7px); }
+      .rlc-plan-badge b { color:#f8fafc; font-size:11px; }
+      .rlc-drawing-state { position:absolute; left:50%; bottom:10px; z-index:5; transform:translateX(-50%); padding:5px 8px; border:1px solid rgba(148,163,184,.34); border-radius:3px; background:rgba(2,6,23,.66); color:#dbeafe; font-size:10px; font-weight:950; letter-spacing:.02em; pointer-events:none; box-shadow:0 8px 18px rgba(0,0,0,.26); backdrop-filter:blur(7px); }
+      .rlc-drawing-state.has-drawings { border-color:rgba(34,197,94,.48); color:#bbf7d0; }
+      .rlc-drawing-state.has-selection { border-color:rgba(250,204,21,.72); color:#fde68a; }
+      .rlc-mode-badge { position:absolute; right:10px; bottom:10px; z-index:5; padding:5px 7px; border:1px solid rgba(96,165,250,.36); border-radius:3px; background:rgba(2,6,23,.68); color:#bfdbfe; font-size:10px; font-weight:950; letter-spacing:.02em; pointer-events:none; box-shadow:0 8px 18px rgba(0,0,0,.26); }
+      .rlc-mode-badge.draw { border-color:rgba(34,197,94,.48); color:#bbf7d0; }
+      .rlc-toolbox { position:absolute; left:0; right:0; top:0; bottom:auto; display:flex; align-items:center; gap:4px; padding:4px 7px; min-height:34px; background:linear-gradient(180deg,rgba(30,41,59,.96),rgba(15,23,42,.94)); border:1px solid rgba(226,232,240,.40); border-left:0; border-right:0; border-radius:0; z-index:12; overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; box-shadow:0 10px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.10); backdrop-filter:blur(10px); pointer-events:auto; }
+      #roxy-live-chart-root[data-tool-mode="draw"] .rlc-toolbox { border-color:rgba(34,197,94,.72); border-left:0; border-right:0; box-shadow:0 10px 24px rgba(0,0,0,.34), inset 0 0 0 1px rgba(34,197,94,.20); }
+      .rlc-tool-readout { color:#f8fafc; font-size:9px; font-weight:1000; letter-spacing:.05em; text-transform:uppercase; text-align:center; background:rgba(2,6,23,.56); border:1px solid rgba(226,232,240,.28); border-radius:2px; padding:5px 8px; min-width:86px; white-space:nowrap; }
+      .rlc-toolbox button, .rlc-toolbox [data-tool], .rlc-toolbox [data-action], .rlc-toolbox [data-quicklevel] { position:relative; flex:0 0 auto; box-sizing:border-box; width:25px; height:25px; display:grid; place-items:center; padding:3px; border:1px solid rgba(226,232,240,.56); background:#0b1220; color:#f8fafc; border-radius:3px; cursor:pointer; }
+      .rlc-toolbox button svg, .rlc-toolbox svg[data-tool], .rlc-toolbox svg[data-action], .rlc-toolbox svg[data-quicklevel] { width:25px; height:25px; stroke-width:2.45px; }
+      .rlc-toolbox button.active, .rlc-toolbox button:hover, .rlc-toolbox [data-tool].active, .rlc-toolbox [data-action].active, .rlc-toolbox [data-quicklevel].active, .rlc-toolbox [data-tool]:hover, .rlc-toolbox [data-action]:hover, .rlc-toolbox [data-quicklevel]:hover { background:#22c55e; color:#f8fafc; border-color:#bbf7d0; transform:translateY(-1px); box-shadow:0 0 0 1px rgba(187,247,208,.30), 0 7px 14px rgba(0,0,0,.22); }
+      .rlc-toolbox button.active::after, .rlc-toolbox [data-tool].active::after, .rlc-toolbox [data-action].active::after, .rlc-toolbox [data-quicklevel].active::after { content:""; position:absolute; left:4px; right:4px; bottom:2px; height:2px; background:#f8fafc; border-radius:99px; }
+      .rlc-toolbox [data-quicklevel="entry"] { border-color:rgba(34,197,94,.78); color:#bbf7d0; }
+      .rlc-toolbox [data-quicklevel="stop"] { border-color:rgba(248,113,113,.78); color:#fecaca; }
+      .rlc-toolbox [data-quicklevel^="target"] { border-color:rgba(56,189,248,.78); color:#bae6fd; }
+      .rlc-toolbox [data-quicklevel="plan"] { border-color:rgba(250,204,21,.82); color:#fde68a; }
+	      .rlc-toolbox [data-action="undo"], .rlc-toolbox [data-action="redo"] { border-color:rgba(203,213,225,.58); color:#e2e8f0; }
+	      .rlc-toolbox [data-action="lock"] { border-color:rgba(250,204,21,.74); color:#fde68a; }
+	      .rlc-toolbox [data-action="clear-plan"] { border-color:rgba(251,146,60,.74); color:#fed7aa; }
+	      .rlc-toolbox [data-action="pan-left"], .rlc-toolbox [data-action="pan-right"], .rlc-toolbox [data-action="zoom-in"], .rlc-toolbox [data-action="zoom-out"], .rlc-toolbox [data-action="fit"], .rlc-toolbox [data-action="fullscreen"] { border-color:rgba(96,165,250,.74); color:#bfdbfe; }
+	      .rlc-toolbox label { flex:0 0 auto; display:flex; align-items:center; gap:3px; color:#f8fafc; font-size:10px; font-weight:900; white-space:nowrap; }
+	      .rlc-toolbox input { width:11px; height:11px; accent-color:#22c55e; }
+	      .rlc-foot { display:flex; gap:10px; justify-content:space-between; padding:3px 8px; background:#05070b; border-top:1px solid rgba(148,163,184,.18); color:#a8b3c4; font-size:10px; }
+	      #rlc-live { color:#f8fafc; }
+	      #rlc-candle-countdown { color:#bfdbfe; font-weight:900; white-space:nowrap; }
+	      #rlc-candle-countdown[data-state="active"] { color:#bbf7d0; }
+	      #rlc-candle-countdown[data-state="closed"] { color:#fcd34d; }
+	      #rlc-candle-countdown[data-state="stale"] { color:#fca5a5; }
+	      #rlc-session-legend { color:#94a3b8; white-space:nowrap; }
+	      #rlc-crosshair-link { color:#c4b5fd; font-weight:850; white-space:nowrap; }
+	      #rlc-crosshair-link[data-state="linked"] { color:#86efac; }
+	      #rlc-error { color:#fca5a5; }
+	      .rlc-compact #roxy-live-chart { height:100%; min-height:0; }
+	      #roxy-live-chart-root.rlc-fullscreen { width:100vw; height:100vh; border-radius:0; border:0; background:#05070b; }
+	      #roxy-live-chart-root.rlc-fullscreen .rlc-chart-wrap { height:calc(100vh - 244px); }
+	      #roxy-live-chart-root.rlc-fullscreen #roxy-live-chart { height:100%; }
+	      #roxy-live-chart-root.rlc-fullscreen .rlc-toolbox { left:0; right:0; top:0; bottom:auto; }
+	      #roxy-live-chart-root.rlc-fullscreen .rlc-brand-mark { bottom:10px; }
+      #roxy-live-chart a[href*="tradingview"],
+      #roxy-live-chart [title*="TradingView"] { display:none!important; opacity:0!important; pointer-events:none!important; }
+      @media (max-width: 430px) {
+        .rlc-head { grid-template-columns:1fr; }
+        .rlc-status { justify-self:start; text-align:left; }
+        .rlc-body { grid-template-columns:minmax(0,1fr); }
+        #roxy-live-chart { height:100%; min-height:0; }
+        .rlc-quote-line { top:8px; left:8px; right:8px; max-width:calc(100% - 16px); }
+        .rlc-plan-badge { top:64px; right:8px; }
+        .rlc-toolbox button, .rlc-toolbox [data-tool], .rlc-toolbox [data-action], .rlc-toolbox [data-quicklevel] { width:28px; height:26px; }
+        .rlc-menu { display:none; }
+        .rlc-foot { flex-direction:column; gap:4px; }
+        .rlc-oscillator-grid { grid-template-columns:1fr!important; flex-basis:196px; }
+      }
+    </style>
+    <script>
+    (() => {
+      if (window.LightweightCharts) return;
+      const inlineSource = __LIGHTWEIGHT_INLINE__;
+      if (!inlineSource) return;
+      try {
+        const script = document.createElement("script");
+        script.textContent = inlineSource;
+        document.head.appendChild(script);
+      } catch (error) {}
+    })();
+    </script>
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+    <script>
+    (() => {
+      const payload = __ROXY_PAYLOAD__;
+      const root = document.getElementById("roxy-live-chart-root");
+      const chartEl = document.getElementById("roxy-live-chart");
+      const chartWrap = document.querySelector(".rlc-chart-wrap");
+      const oscillatorGrid = document.getElementById("rlc-oscillator-grid");
+      const rsiPanel = document.getElementById("rlc-rsi-panel");
+      const macdPanel = document.getElementById("rlc-macd-panel");
+      const rsiChartEl = document.getElementById("rlc-rsi-chart");
+      const macdChartEl = document.getElementById("rlc-macd-chart");
+      const bbCanvas = document.getElementById("rlc-bb-fill-layer");
+      const statusEl = document.getElementById("rlc-status");
+      const technicalsEl = document.getElementById("rlc-technicals");
+      const liveEl = document.getElementById("rlc-live");
+      const sourceEl = document.getElementById("rlc-source");
+      const candleCountdownEl = document.getElementById("rlc-candle-countdown");
+      const sessionLegendEl = document.getElementById("rlc-session-legend");
+      const crosshairLinkEl = document.getElementById("rlc-crosshair-link");
+      const errorEl = document.getElementById("rlc-error");
+      const drawLayer = document.getElementById("rlc-drawing-layer");
+      const cursorV = document.getElementById("rlc-cursor-v");
+      const cursorH = document.getElementById("rlc-cursor-h");
+      const quoteLine = document.getElementById("rlc-quote-line");
+      const hoverCard = document.getElementById("rlc-hover-card");
+      const snapCue = document.getElementById("rlc-snap-cue");
+      const planBadge = document.getElementById("rlc-plan-badge");
+      const drawingState = document.getElementById("rlc-drawing-state");
+      const modeBadge = document.getElementById("rlc-mode-badge");
+      const toolbox = document.querySelector(".rlc-toolbox");
+      const toolReadout = document.getElementById("rlc-tool-readout");
+      const snapToggle = document.getElementById("rlc-snap");
+      const showToggle = document.getElementById("rlc-show");
+      const rangeEl = document.getElementById("rlc-range");
+      const titleEl = document.getElementById("rlc-title");
+      const symbolChip = document.getElementById("rlc-symbol-chip");
+      const indicatorTitle = document.querySelector(".rlc-indicator-title");
+	      const tradePlan = payload.tradePlan || {};
+      const sessionContract = payload.session || {};
+	      const sessionVisual = payload.sessionVisual || {};
+      const strategy = payload.strategy || {};
+	      const fmt = (value) => Number(value).toLocaleString(undefined, { maximumFractionDigits: value > 1000 ? 2 : 6 });
+	      const finitePrice = (value) => Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : null;
+	      const chartTimeToSeconds = (time) => {
+	        if (typeof time === "number") return time;
+	        if (time && typeof time === "object" && time.year && time.month && time.day) {
+	          return Math.floor(Date.UTC(time.year, time.month - 1, time.day) / 1000);
+	        }
+	        return null;
+	      };
+	      const decorateSessionCandle = (candle) => {
+	        const item = Object.assign({}, candle);
+	        if (!sessionVisual.enabled) return item;
+	        const phase = String(item.sessionPhase || "");
+	        const border = phase === "PREMARKET"
+	          ? (sessionVisual.premarketBorder || "#38bdf8")
+	          : phase === "AFTER_HOURS"
+	          ? (sessionVisual.afterHoursBorder || "#f59e0b")
+	          : "";
+	        if (border) {
+	          item.borderColor = border;
+	          item.wickColor = border;
+	        }
+	        return item;
+	      };
+	      const candles = (payload.candles || []).map(decorateSessionCandle).sort((a, b) => a.time - b.time);
+      if (!window.LightweightCharts || candles.length === 0) {
+        root.innerHTML = "<div style='padding:16px;color:#fca5a5'>Grafica live no pudo cargar. Roxy mantiene fallback del servidor.</div>";
+        return;
+      }
+      if (window.lucide && typeof window.lucide.createIcons === "function") window.lucide.createIcons();
+      titleEl.textContent = `${payload.symbol} · ${payload.timeframe} · velas live`;
+      symbolChip.textContent = payload.symbol;
+      if (indicatorTitle && strategy.title) indicatorTitle.textContent = strategy.title;
+      rangeEl.textContent = `${candles.length.toLocaleString()} velas cargadas`;
+      if (sessionLegendEl && sessionVisual.enabled) {
+        sessionLegendEl.textContent = "Sesiones · PRE borde azul · POST borde ámbar · regular direccional";
+        sessionLegendEl.title = sessionVisual.basis || "Clasificación horaria de cada vela";
+      } else if (sessionLegendEl) {
+        sessionLegendEl.style.display = "none";
+      }
+      const renderCandleCountdown = () => {
+        if (!candleCountdownEl) return;
+        const interval = Math.max(1, Number(payload.stream && payload.stream.intervalSeconds) || 60);
+        const last = candles[candles.length - 1];
+        const lastStart = Number(last && last.time);
+        const sessionLabel = String(sessionContract.scheduledSession || "Sesión sin validar");
+        const operationalStatus = String(sessionContract.operationalStatus || "UNKNOWN");
+        const lastSession = String(sessionContract.lastCandleSession || "Sin vela");
+        const closed = ["CLOSED", "PROVIDER_MARKET_CLOSED"].includes(operationalStatus);
+        if (closed || !sessionContract.countdownEligible) {
+          candleCountdownEl.dataset.state = "closed";
+          candleCountdownEl.textContent = `${sessionLabel} · última vela ${lastSession}`;
+          return;
+        }
+        const remaining = Math.ceil(lastStart + interval - Date.now() / 1000);
+        if (!Number.isFinite(lastStart) || remaining <= 0 || remaining > interval) {
+          candleCountdownEl.dataset.state = "stale";
+          candleCountdownEl.textContent = `${sessionLabel} · vela finalizada · esperando proveedor`;
+          return;
+        }
+        const hours = Math.floor(remaining / 3600);
+        const minutes = Math.floor((remaining % 3600) / 60);
+        const seconds = remaining % 60;
+        const clock = hours > 0
+          ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+          : `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+        candleCountdownEl.dataset.state = "active";
+        candleCountdownEl.textContent = `${sessionLabel} · vela ${payload.timeframe} · ${clock}`;
+      };
+      renderCandleCountdown();
+      window.setInterval(renderCandleCountdown, 1000);
+      const navigateToTimeframe = (timeframe) => {
+        const cleanTimeframe = String(timeframe || "").toLowerCase();
+        if (!cleanTimeframe || cleanTimeframe === String(payload.timeframe || "").toLowerCase()) return;
+        const buildUrl = (baseHref) => {
+          const url = new URL(baseHref);
+          url.searchParams.set("view", "Dashboard");
+          url.searchParams.set("symbol", payload.symbol || "");
+          url.searchParams.set("market", payload.market || "");
+          url.searchParams.set("tf", cleanTimeframe);
+          return url.toString();
+        };
+        const navigateParent = (targetUrl) => {
+          try {
+            const link = document.createElement("a");
+            link.href = targetUrl;
+            link.target = "_parent";
+            link.rel = "noreferrer";
+            link.dataset.roxyTimeframeNav = cleanTimeframe;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            return;
+          } catch (error) {}
+          try {
+            window.parent.location.assign(targetUrl);
+            return;
+          } catch (error) {}
+          try {
+            window.top.location.assign(targetUrl);
+            return;
+          } catch (error) {}
+          window.location.assign(targetUrl);
+        };
+        try {
+          const parentHref = window.parent && window.parent.location ? window.parent.location.href : "";
+          const baseHref = parentHref && !parentHref.includes("/component/") ? parentHref : `${window.location.origin}/`;
+          navigateParent(buildUrl(baseHref));
+        } catch (error) {
+          const fallback = `${window.location.origin}/?view=Dashboard&symbol=${encodeURIComponent(payload.symbol || "")}&market=${encodeURIComponent(payload.market || "")}&tf=${encodeURIComponent(cleanTimeframe)}`;
+          navigateParent(fallback);
+        }
+      };
+      document.querySelectorAll("[data-fasttf]").forEach((button) => {
+        button.classList.toggle("active", String(button.dataset.fasttf || "").toLowerCase() === String(payload.timeframe || "").toLowerCase());
+        button.addEventListener("click", () => navigateToTimeframe(button.dataset.fasttf));
+      });
+      const settingsKey = `roxy-chart-settings:v4:${payload.symbol}:${payload.timeframe}:${strategy.profile || "default"}`;
+      const viewportKey = `roxy-chart-viewport:v1:${payload.symbol}:${payload.timeframe}`;
+      const defaultSettings = Object.assign({}, payload.defaultIndicators || {});
+      const indicatorPresets = {
+        naked: {
+          EMA9: false, EMA20: false, EMA21: false, EMA50: false, EMA200: false, VWAP: false, SMA20: false, SMA40: false, SMA100: false, SMA200: false,
+          BBand: false, RSI: false, MACD: false, Labels: false, Plan: false, Info: false, Scale: true, Volume: true,
+        },
+        clean: {
+          EMA9: true, EMA20: false, EMA21: false, EMA50: false, EMA200: false, VWAP: true, SMA20: true, SMA40: true, SMA100: false, SMA200: false,
+          BBand: true, RSI: true, MACD: true, Labels: false, Plan: false, Info: false, Scale: true, Volume: true,
+        },
+        full: {
+          EMA9: true, EMA20: true, EMA21: true, EMA50: true, EMA200: true, VWAP: true, SMA20: true, SMA40: true, SMA100: true, SMA200: true,
+          BBand: true, RSI: true, MACD: true, Labels: true, Plan: true, Info: true, Scale: true, Volume: true,
+        },
+      };
+      const loadSettings = () => {
+        const serverSettings = payload.persistedChartState && payload.persistedChartState.settings
+          ? payload.persistedChartState.settings
+          : {};
+        try {
+          return Object.assign({}, defaultSettings, serverSettings, JSON.parse(localStorage.getItem(settingsKey) || "{}"));
+        } catch (error) {
+          return Object.assign({}, defaultSettings, serverSettings);
+        }
+      };
+      let indicatorSettings = loadSettings();
+      const saveSettings = () => {
+        try {
+          localStorage.setItem(settingsKey, JSON.stringify(indicatorSettings));
+        } catch (error) {}
+      };
+      const normalizeViewport = (value) => {
+        const from = Number(value && value.from);
+        const to = Number(value && value.to);
+        if (!Number.isFinite(from) || !Number.isFinite(to) || from <= 0 || to <= from || to - from > 316224000) return null;
+        return { from: Math.round(from), to: Math.round(to) };
+      };
+      const loadViewport = () => {
+        const serverViewport = normalizeViewport(payload.persistedChartState && payload.persistedChartState.viewport);
+        try {
+          return normalizeViewport(JSON.parse(localStorage.getItem(viewportKey) || "null")) || serverViewport;
+        } catch (error) {
+          return serverViewport;
+        }
+      };
+      let restoredViewport = loadViewport();
+      let viewportSaveTimer = null;
+	      const chart = LightweightCharts.createChart(chartEl, {
+	        layout: { background: { color: "#05070b" }, textColor: "#f8fafc", attributionLogo: false },
+	        grid: { vertLines: { color: "rgba(148,163,184,.16)" }, horzLines: { color: "rgba(148,163,184,.16)" } },
+	        rightPriceScale: { borderColor: "rgba(148,163,184,.32)", textColor: "#7CFC00", scaleMargins: { top: 0.08, bottom: 0.18 } },
+	        timeScale: { borderColor: "rgba(148,163,184,.32)", timeVisible: true, secondsVisible: false, rightOffset: 8 },
+	        crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: "rgba(248,250,252,.54)", width: 1, style: LightweightCharts.LineStyle.Dashed }, horzLine: { color: "rgba(248,250,252,.54)", width: 1, style: LightweightCharts.LineStyle.Dashed } },
+	        handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+	        handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
+	      });
+      const oscillatorPayload = payload.oscillators || {};
+      const rsiData = Array.isArray(oscillatorPayload.RSI14) ? oscillatorPayload.RSI14 : [];
+      const macdData = Array.isArray(oscillatorPayload.MACD) ? oscillatorPayload.MACD : [];
+      const macdSignalData = Array.isArray(oscillatorPayload["MACD Signal"]) ? oscillatorPayload["MACD Signal"] : [];
+      const macdHistData = Array.isArray(oscillatorPayload["MACD Hist"]) ? oscillatorPayload["MACD Hist"] : [];
+      let rsiChart = null;
+      let rsiSeries = null;
+      let macdChart = null;
+      let macdSeries = null;
+      let macdSignalSeries = null;
+      let macdHistSeries = null;
+      const miniChartOptions = (element) => ({
+        width: Math.max(1, element.clientWidth),
+        height: Math.max(60, element.clientHeight),
+        layout: { background: { color: "#05070b" }, textColor: "#94a3b8", attributionLogo: false },
+        grid: { vertLines: { color: "rgba(148,163,184,.10)" }, horzLines: { color: "rgba(148,163,184,.12)" } },
+        rightPriceScale: { borderColor: "rgba(148,163,184,.22)", scaleMargins: { top: .12, bottom: .12 } },
+        timeScale: { visible: false, borderVisible: false, timeVisible: true, rightOffset: 8 },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        handleScroll: false,
+        handleScale: false,
+      });
+      if (oscillatorGrid && (rsiData.length || macdHistData.length || macdData.length)) {
+        oscillatorGrid.style.display = "grid";
+      }
+      if (rsiData.length && rsiChartEl) {
+        rsiChart = LightweightCharts.createChart(rsiChartEl, miniChartOptions(rsiChartEl));
+        rsiSeries = rsiChart.addLineSeries({
+          color: "#38bdf8", lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true,
+          autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }),
+        });
+        rsiSeries.setData(rsiData);
+        rsiSeries.createPriceLine({ price: 70, color: "rgba(245,158,11,.72)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "70" });
+        rsiSeries.createPriceLine({ price: 30, color: "rgba(34,197,94,.72)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "30" });
+      } else if (rsiPanel) {
+        rsiPanel.style.display = "none";
+      }
+      if ((macdHistData.length || macdData.length) && macdChartEl) {
+        macdChart = LightweightCharts.createChart(macdChartEl, miniChartOptions(macdChartEl));
+        if (macdHistData.length) {
+          macdHistSeries = macdChart.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false, base: 0 });
+          macdHistSeries.setData(macdHistData.map((point) => ({
+            ...point,
+            color: Number(point.value) >= 0 ? "rgba(34,197,94,.55)" : "rgba(239,68,68,.55)",
+          })));
+        }
+        if (macdData.length) {
+          macdSeries = macdChart.addLineSeries({ color: "#38bdf8", lineWidth: 1.4, priceLineVisible: false, lastValueVisible: true });
+          macdSeries.setData(macdData);
+          macdSeries.createPriceLine({ price: 0, color: "rgba(148,163,184,.52)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: false });
+        }
+        if (macdSignalData.length) {
+          macdSignalSeries = macdChart.addLineSeries({ color: "#f59e0b", lineWidth: 1.2, priceLineVisible: false, lastValueVisible: false });
+          macdSignalSeries.setData(macdSignalData);
+        }
+      } else if (macdPanel) {
+        macdPanel.style.display = "none";
+      }
+      chart.timeScale().subscribeVisibleTimeRangeChange((range) => {
+        if (!range) return;
+        [rsiChart, macdChart].forEach((miniChart) => {
+          if (miniChart) miniChart.timeScale().setVisibleRange(range);
+        });
+      });
+      const candleSeries = chart.addCandlestickSeries({
+        upColor: "#39ff88", wickUpColor: "#39ff88", borderUpColor: "#39ff88",
+        downColor: "#ff3b30", wickDownColor: "#ff3b30", borderDownColor: "#ff3b30",
+        priceLineVisible: false,
+        lastValueVisible: false,
+      });
+      candleSeries.setData(candles);
+      const latestCandleClose = finitePrice(candles[candles.length - 1] && candles[candles.length - 1].close);
+      const payloadLivePrice = finitePrice(payload.live && payload.live.price);
+      const hasCanonicalLivePrice = payloadLivePrice != null;
+      let currentLiveLinePrice = payloadLivePrice || latestCandleClose || 0;
+      const candleByTime = new Map(candles.map((c) => [Number(c.time), c]));
+      const crosshairInstanceId = `${payload.timeframe}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+      const crosshairLinkName = `roxy-chart-crosshair:v1:${payload.market}:${payload.symbol}`;
+      let applyingLinkedCrosshair = false;
+      let lastLinkedCrosshairTime = null;
+      let suppressLinkedClear = false;
+      let crosshairChannel = null;
+      if (typeof window.BroadcastChannel === "function") {
+        try {
+          crosshairChannel = new BroadcastChannel(crosshairLinkName);
+          root.dataset.crosshairLinkState = "ready";
+          if (crosshairLinkEl) crosshairLinkEl.textContent = "Cursor enlazado";
+        } catch (error) {
+          root.dataset.crosshairLinkState = "unavailable";
+        }
+      } else {
+        root.dataset.crosshairLinkState = "unavailable";
+      }
+      const quantile = (values, ratio) => {
+        const clean = values.filter((value) => Number.isFinite(Number(value))).map(Number).sort((a, b) => a - b);
+        if (!clean.length) return null;
+        const index = Math.min(clean.length - 1, Math.max(0, Math.floor((clean.length - 1) * ratio)));
+        return clean[index];
+      };
+      const smartAutoScaleRange = () => {
+        const visible = chart.timeScale().getVisibleRange ? chart.timeScale().getVisibleRange() : null;
+        const from = Number(visible && visible.from);
+        const to = Number(visible && visible.to);
+        const visibleCandles = candles.filter((candle) => {
+          const time = Number(candle.time);
+          return Number.isFinite(time) && (!Number.isFinite(from) || time >= from) && (!Number.isFinite(to) || time <= to);
+        });
+        const scope = visibleCandles.length >= 24 ? visibleCandles : candles.slice(-160);
+        if (scope.length < 8) return null;
+        const bodyValues = [];
+        const wickValues = [];
+        scope.forEach((candle) => {
+          [candle.open, candle.close].forEach((value) => bodyValues.push(Number(value)));
+          [candle.high, candle.low].forEach((value) => wickValues.push(Number(value)));
+        });
+        const bodyMin = quantile(bodyValues, 0.02);
+        const bodyMax = quantile(bodyValues, 0.98);
+        const wickMin = quantile(wickValues, 0.05);
+        const wickMax = quantile(wickValues, 0.95);
+        root.dataset.smartBodyMin = String(bodyMin);
+        root.dataset.smartBodyMax = String(bodyMax);
+        root.dataset.smartWickMin = String(wickMin);
+        root.dataset.smartWickMax = String(wickMax);
+        if (![bodyMin, bodyMax, wickMin, wickMax].every((value) => Number.isFinite(Number(value)))) return null;
+        let minValue = Math.min(bodyMin, wickMin);
+        let maxValue = Math.max(bodyMax, wickMax);
+        const latest = candles[candles.length - 1] || {};
+        [latest.close, latest.open, payload.live && payload.live.price].forEach((value) => {
+          const number = Number(value);
+          if (Number.isFinite(number) && number > 0) {
+            minValue = Math.min(minValue, number);
+            maxValue = Math.max(maxValue, number);
+          }
+        });
+        const span = maxValue - minValue;
+        if (!Number.isFinite(span) || span <= 0) return null;
+        const padding = Math.max(span * 0.12, Math.abs(maxValue) * 0.002, 0.01);
+        const range = { minValue: minValue - padding, maxValue: maxValue + padding };
+        root.dataset.smartScaleMin = String(range.minValue);
+        root.dataset.smartScaleMax = String(range.maxValue);
+        root.dataset.smartScaleCandles = String(scope.length);
+        return range;
+      };
+      candleSeries.applyOptions({
+        autoscaleInfoProvider: (original) => {
+          if (!indicatorSettings.Scale) return original();
+          const range = smartAutoScaleRange();
+          return range ? { priceRange: range } : original();
+        },
+      });
+      const candleChange = (candle) => {
+        const open = Number(candle && candle.open);
+        const close = Number(candle && candle.close);
+        if (!Number.isFinite(open) || open === 0 || !Number.isFinite(close)) {
+          return { value: null, pct: null };
+        }
+        return { value: close - open, pct: ((close - open) / open) * 100 };
+      };
+      const renderQuoteLine = (candle, sourceLabel = "") => {
+        if (!quoteLine || !candle) return;
+        const change = candleChange(candle);
+        const tone = change.value == null ? "" : change.value >= 0 ? "up" : "down";
+        const sign = change.value != null && change.value >= 0 ? "+" : "";
+        const changeText = change.value == null
+          ? "--"
+          : `${sign}${fmt(change.value)} (${sign}${Number(change.pct).toFixed(2)}%)`;
+        const date = candle.time ? new Date(Number(candle.time) * 1000).toLocaleString() : "";
+        const label = sourceLabel || date || "Ultima vela";
+        quoteLine.innerHTML = `<b>${payload.symbol}</b>` +
+          `<span>${payload.timeframe}</span>` +
+          `<span>C ${fmt(Number(candle.close))}</span>` +
+          `<span class="${tone}">${changeText}</span>` +
+          `<span>${label}</span>`;
+      };
+      renderQuoteLine(candles[candles.length - 1], `Cierre ${payload.timeframe}`);
+      const nearestCandleByX = (x) => {
+        let best = null;
+        let bestDistance = Infinity;
+        for (const candle of candles) {
+          const cx = chart.timeScale().timeToCoordinate(candle.time);
+          if (cx == null) continue;
+          const distance = Math.abs(cx - x);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            best = { candle, x: cx };
+          }
+        }
+        return bestDistance <= 28 ? best : null;
+      };
+      const nearestCandleByTime = (time) => {
+        const target = Number(time);
+        if (!Number.isFinite(target)) return null;
+        let best = null;
+        let bestDistance = Infinity;
+        for (const candle of candles) {
+          const distance = Math.abs(Number(candle.time) - target);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            best = candle;
+          }
+        }
+        return best;
+      };
+      const volumeSeries = chart.addHistogramSeries({
+        color: "rgba(56,189,248,.35)",
+        priceFormat: { type: "volume" },
+        priceScaleId: "volume",
+      });
+      chart.priceScale("volume").applyOptions({ scaleMargins: { top: 0.86, bottom: 0 }, borderVisible: false, visible: false });
+      volumeSeries.setData(candles.map((c) => ({
+        time: c.time,
+        value: c.volume || 0,
+        color: c.close >= c.open ? "rgba(34,197,94,.35)" : "rgba(239,68,68,.35)",
+      })));
+      const indicatorSeries = {};
+      Object.entries(payload.lines || {}).forEach(([name, values]) => {
+        if (!values || !values.length) return;
+        const series = chart.addLineSeries({
+          color: (payload.lineColors || {})[name] || "#e5e7eb",
+          lineWidth: name.startsWith("BB") ? 1 : ["EMA200", "SMA200"].includes(name) ? 2 : 1.5,
+          lineStyle: name.startsWith("BB") ? LightweightCharts.LineStyle.Dashed : LightweightCharts.LineStyle.Solid,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          crosshairMarkerVisible: !name.startsWith("BB"),
+          title: "",
+          visible: Boolean(indicatorSettings[name] ?? true),
+          autoscaleInfoProvider: () => null,
+        });
+        series.setData(values);
+        indicatorSeries[name] = series;
+      });
+      const strategySeries = [];
+      const strategyPriceLines = [];
+      const strategyAnnotations = (payload.strategyAnnotations || []).filter((annotation) => annotation && typeof annotation === "object");
+      const strategyColor = (type) => ({
+        ENTRY_ZONE: "#facc15",
+        CONFIRMATION: "#22c55e",
+        STOP_LINE: "#ef4444",
+        INVALIDATION: "#fb7185",
+        TARGET: "#38bdf8",
+      }[String(type || "").toUpperCase()] || "#a78bfa");
+      const strategyLineKeys = new Set();
+      strategyAnnotations.forEach((annotation) => {
+        const type = String(annotation.type || "").toUpperCase();
+        if (["EMA", "TREND_HEALTH", "STRUCTURE"].includes(type)) return;
+        if (type === "TREND_LINE") {
+          const startTime = Number(annotation.startTime);
+          const endTime = Number(annotation.endTime);
+          const startValue = finitePrice(annotation.startValue);
+          const endValue = finitePrice(annotation.endValue);
+          if (![startTime, endTime, startValue, endValue].every(Number.isFinite)) return;
+          const role = String(annotation.role || "").toLowerCase();
+          const series = chart.addLineSeries({
+            color: ["support", "bullish_divergence"].includes(role) ? "#22c55e" : role === "bearish_divergence" ? "#ef4444" : "#f59e0b",
+            lineWidth: 2,
+            lineStyle: LightweightCharts.LineStyle.Solid,
+            priceLineVisible: false,
+            lastValueVisible: true,
+            title: String(annotation.label || "Estructura").slice(0, 28),
+            visible: Boolean(indicatorSettings.Plan),
+          });
+          series.setData([{ time: startTime, value: startValue }, { time: endTime, value: endValue }]);
+          strategySeries.push(series);
+          return;
+        }
+        const specs = type === "ENTRY_ZONE"
+          ? [[annotation.low, `${annotation.label || "Zona"} inferior`], [annotation.high, `${annotation.label || "Zona"} superior`]]
+          : [[annotation.value, annotation.label || type]];
+        specs.forEach(([rawValue, label]) => {
+          const value = finitePrice(rawValue);
+          if (!Number.isFinite(value)) return;
+          const key = value.toFixed(value >= 1 ? 4 : 6);
+          if (strategyLineKeys.has(key)) return;
+          strategyLineKeys.add(key);
+          const line = candleSeries.createPriceLine({
+            price: value,
+            color: strategyColor(type),
+            lineWidth: type === "CONFIRMATION" ? 2 : 1,
+            lineStyle: type === "ENTRY_ZONE" ? LightweightCharts.LineStyle.Dotted : LightweightCharts.LineStyle.Dashed,
+            lineVisible: Boolean(indicatorSettings.Plan),
+            axisLabelVisible: Boolean(indicatorSettings.Plan),
+            title: `${String(label).slice(0, 25)} ${fmt(value)}`,
+          });
+          strategyPriceLines.push(line);
+        });
+      });
+      const liveLine = candleSeries.createPriceLine({
+        price: currentLiveLinePrice,
+        color: "#7CFC00",
+        lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dotted,
+        lineVisible: false,
+        axisLabelVisible: true,
+        title: "",
+      });
+      const closeReferenceLine = candleSeries.createPriceLine({
+        price: latestCandleClose || currentLiveLinePrice,
+        color: "rgba(148,163,184,.75)",
+        lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dotted,
+        axisLabelVisible: false,
+        title: "",
+      });
+      const applyIndicatorSettings = () => {
+        const labelsVisible = Boolean(indicatorSettings.Labels);
+        Object.entries(indicatorSeries).forEach(([name, series]) => {
+          const visible = name.startsWith("BB")
+            ? Boolean(indicatorSettings["BBand"])
+            : Boolean(indicatorSettings[name] ?? true);
+          series.applyOptions({
+            visible,
+            lastValueVisible: visible && labelsVisible,
+            title: visible && labelsVisible ? name : "",
+          });
+        });
+        volumeSeries.applyOptions({ visible: Boolean(indicatorSettings.Volume) });
+        strategySeries.forEach((series) => series.applyOptions({ visible: Boolean(indicatorSettings.Plan) }));
+        strategyPriceLines.forEach((line) => line.applyOptions({
+          lineVisible: Boolean(indicatorSettings.Plan),
+          axisLabelVisible: Boolean(indicatorSettings.Plan),
+        }));
+        liveLine.applyOptions({ title: labelsVisible ? "Tick live" : "", axisLabelVisible: true });
+        closeReferenceLine.applyOptions({
+          title: labelsVisible ? `Cierre ${payload.timeframe}` : "",
+          axisLabelVisible: false,
+        });
+        bbCanvas.style.display = Boolean(indicatorSettings.BBand) ? "block" : "none";
+        const showRsi = Boolean(rsiChart && indicatorSettings.RSI);
+        const showMacd = Boolean(macdChart && indicatorSettings.MACD);
+        if (rsiPanel) rsiPanel.style.display = showRsi ? "grid" : "none";
+        if (macdPanel) macdPanel.style.display = showMacd ? "grid" : "none";
+        if (oscillatorGrid) {
+          oscillatorGrid.style.display = showRsi || showMacd ? "grid" : "none";
+          oscillatorGrid.style.gridTemplateColumns = showRsi && showMacd ? "1fr 1fr" : "1fr";
+        }
+        if (rsiSeries) rsiSeries.applyOptions({ visible: showRsi });
+        [macdSeries, macdSignalSeries, macdHistSeries].forEach((series) => {
+          if (series) series.applyOptions({ visible: showMacd });
+        });
+        if (quoteLine) quoteLine.style.display = Boolean(indicatorSettings.Info) ? "flex" : "none";
+        chart.timeScale().applyOptions({ rightOffset: indicatorSettings.Scale ? 14 : 8 });
+        chart.priceScale("right").applyOptions({ autoScale: Boolean(indicatorSettings.Scale) });
+        root.dataset.priceScaleMode = indicatorSettings.Scale ? "auto-visible" : "manual-axis";
+        document.querySelectorAll("[data-indicator]").forEach((input) => {
+          input.checked = Boolean(indicatorSettings[input.dataset.indicator]);
+        });
+        window.setTimeout(() => {
+          if (showRsi && rsiChart && rsiChartEl) rsiChart.applyOptions({ width: rsiChartEl.clientWidth, height: Math.max(60, rsiChartEl.clientHeight) });
+          if (showMacd && macdChart && macdChartEl) macdChart.applyOptions({ width: macdChartEl.clientWidth, height: Math.max(60, macdChartEl.clientHeight) });
+        }, 0);
+        requestAnimationFrame(drawBollingerCloud);
+      };
+      document.querySelectorAll("[data-indicator]").forEach((input) => {
+        input.addEventListener("change", () => {
+          indicatorSettings[input.dataset.indicator] = input.checked;
+          saveSettings();
+          applyIndicatorSettings();
+          requestAnimationFrame(() => {
+            renderDrawings();
+            updatePlanBadge();
+          });
+        });
+      });
+      document.querySelectorAll("[data-preset]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const preset = indicatorPresets[button.dataset.preset] || indicatorPresets.clean;
+          indicatorSettings = Object.assign({}, indicatorSettings, preset);
+          saveSettings();
+          applyIndicatorSettings();
+          requestAnimationFrame(() => {
+            renderDrawings();
+            updatePlanBadge();
+          });
+          if (toolReadout) {
+            toolReadout.textContent = button.dataset.preset === "full"
+              ? "Vista completa"
+              : button.dataset.preset === "naked"
+                ? "Solo velas"
+                : "Vista limpia";
+          }
+        });
+      });
+      applyIndicatorSettings();
+      const setVisibleRange = (label) => {
+        const last = candles[candles.length - 1];
+        const span = { "1D": 86400, "1W": 604800, "1M": 2592000, "3M": 7776000, "1Y": 31536000 }[label];
+        if (!span || !last) {
+          chart.timeScale().fitContent();
+        } else {
+          chart.timeScale().setVisibleRange({ from: Math.max(candles[0].time, last.time - span), to: last.time + payload.stream.intervalSeconds * 8 });
+        }
+        document.querySelectorAll(".rlc-actions button").forEach((button) => button.classList.toggle("active", button.dataset.range === label));
+      };
+      document.querySelectorAll(".rlc-actions button").forEach((button) => button.addEventListener("click", () => setVisibleRange(button.dataset.range)));
+      const initialRange = ["1m", "5m", "15m", "20m", "30m"].includes(String(payload.timeframe || "").toLowerCase())
+        ? "1D"
+        : ["1h", "2h", "4h"].includes(String(payload.timeframe || "").toLowerCase())
+          ? "1W"
+          : "1M";
+      const setInitialTradingRange = () => {
+        const timeframe = String(payload.timeframe || "").toLowerCase();
+        const barsByTimeframe = { "1m": 140, "5m": 120, "15m": 110, "20m": 120, "30m": 120, "1h": 130, "2h": 130, "4h": 130 };
+        const visibleBars = Math.min(candles.length, barsByTimeframe[timeframe] || 160);
+        if (visibleBars >= 12 && chart.timeScale().setVisibleLogicalRange) {
+          chart.timeScale().setVisibleLogicalRange({
+            from: Math.max(0, candles.length - visibleBars),
+            to: candles.length + 7,
+          });
+        } else {
+          setVisibleRange(initialRange);
+        }
+        document.querySelectorAll(".rlc-actions button").forEach((button) => button.classList.toggle("active", button.dataset.range === initialRange));
+      };
+      const restoreViewport = () => {
+        if (!restoredViewport) return false;
+        const interval = Math.max(1, Number(payload.stream && payload.stream.intervalSeconds) || 60);
+        const first = Number(candles[0] && candles[0].time);
+        const last = Number(candles[candles.length - 1] && candles[candles.length - 1].time);
+        const from = Math.max(first - interval * 12, Number(restoredViewport.from));
+        const to = Math.min(last + interval * 30, Number(restoredViewport.to));
+        if (!Number.isFinite(from) || !Number.isFinite(to) || to - from < interval * 10) return false;
+        chart.timeScale().setVisibleRange({ from, to });
+        root.dataset.viewportState = "restored";
+        root.dataset.viewportFrom = String(Math.round(from));
+        root.dataset.viewportTo = String(Math.round(to));
+        return true;
+      };
+      if (!restoreViewport()) {
+        root.dataset.viewportState = "default";
+        setInitialTradingRange();
+      }
+      const bbUpper = (payload.lines && payload.lines["BB Upper"]) || [];
+      const bbLower = (payload.lines && payload.lines["BB Lower"]) || [];
+      const bbLowerByTime = new Map(bbLower.map((point) => [Number(point.time), Number(point.value)]));
+      function syncBandCanvasSize() {
+        if (!bbCanvas || !chartWrap) return;
+        const ratio = window.devicePixelRatio || 1;
+        const rect = chartWrap.getBoundingClientRect();
+        const width = Math.max(1, Math.round(rect.width * ratio));
+        const height = Math.max(1, Math.round(rect.height * ratio));
+        if (bbCanvas.width !== width || bbCanvas.height !== height) {
+          bbCanvas.width = width;
+          bbCanvas.height = height;
+          bbCanvas.style.width = `${rect.width}px`;
+          bbCanvas.style.height = `${rect.height}px`;
+        }
+      }
+	      function drawBollingerCloud() {
+	        if (!bbCanvas || !chartWrap) return;
+	        syncBandCanvasSize();
+        const ctx = bbCanvas.getContext("2d");
+        if (!ctx) return;
+        ctx.clearRect(0, 0, bbCanvas.width, bbCanvas.height);
+        if (!indicatorSettings.BBand || bbUpper.length < 2 || bbLower.length < 2) return;
+        const ratio = window.devicePixelRatio || 1;
+        const upperPoints = [];
+        const lowerPoints = [];
+        for (const upper of bbUpper) {
+          const time = Number(upper.time);
+          const lower = bbLowerByTime.get(time);
+          if (!Number.isFinite(time) || !Number.isFinite(lower)) continue;
+          const x = chart.timeScale().timeToCoordinate(time);
+          const yu = candleSeries.priceToCoordinate(Number(upper.value));
+          const yl = candleSeries.priceToCoordinate(lower);
+          if (x == null || yu == null || yl == null) continue;
+          upperPoints.push([x * ratio, yu * ratio]);
+          lowerPoints.push([x * ratio, yl * ratio]);
+        }
+        if (upperPoints.length < 2 || lowerPoints.length < 2) return;
+        ctx.save();
+        ctx.beginPath();
+        upperPoints.forEach(([x, y], idx) => {
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        lowerPoints.slice().reverse().forEach(([x, y]) => ctx.lineTo(x, y));
+        ctx.closePath();
+        ctx.fillStyle = "rgba(248,250,252,.035)";
+        ctx.fill();
+        ctx.lineWidth = 1 * ratio;
+        ctx.setLineDash([4 * ratio, 4 * ratio]);
+        ctx.strokeStyle = "rgba(248,250,252,.30)";
+	        ctx.stroke();
+	        ctx.restore();
+	      }
+	      const updateVisibleRangeTelemetry = (range = null) => {
+	        const currentRange = range || (chart.timeScale().getVisibleRange ? chart.timeScale().getVisibleRange() : null);
+	        if (!currentRange) return;
+	        const from = chartTimeToSeconds(currentRange.from);
+	        const to = chartTimeToSeconds(currentRange.to);
+	        if (from == null || to == null) return;
+	        root.dataset.visibleFrom = String(Math.round(Number(from)));
+	        root.dataset.visibleTo = String(Math.round(Number(to)));
+	        root.dataset.visibleSpan = String(Math.max(0, Math.round(Number(to) - Number(from))));
+	      };
+	      const visibleRangeNumbers = () => {
+	        const currentRange = chart.timeScale().getVisibleRange ? chart.timeScale().getVisibleRange() : null;
+	        const first = Number(candles[0] && candles[0].time);
+	        const last = Number(candles[candles.length - 1] && candles[candles.length - 1].time);
+	        const from = currentRange ? chartTimeToSeconds(currentRange.from) : null;
+	        const to = currentRange ? chartTimeToSeconds(currentRange.to) : null;
+	        return {
+	          from: Number.isFinite(Number(from)) ? Number(from) : first,
+	          to: Number.isFinite(Number(to)) ? Number(to) : last,
+	          first,
+	          last,
+	          interval: Math.max(1, Number(payload.stream && payload.stream.intervalSeconds) || 60),
+	        };
+	      };
+	      const applyManualVisibleRange = (from, to) => {
+	        const bounds = visibleRangeNumbers();
+	        if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return;
+	        const minSpan = bounds.interval * 10;
+	        const maxSpan = Math.max(minSpan, (bounds.last - bounds.first) + bounds.interval * 30);
+	        let span = Math.max(minSpan, Math.min(maxSpan, to - from));
+	        let center = (from + to) / 2;
+	        let nextFrom = center - span / 2;
+	        let nextTo = center + span / 2;
+	        const minFrom = bounds.first - bounds.interval * 12;
+	        const maxTo = bounds.last + bounds.interval * 30;
+	        if (nextFrom < minFrom) {
+	          nextFrom = minFrom;
+	          nextTo = nextFrom + span;
+	        }
+	        if (nextTo > maxTo) {
+	          nextTo = maxTo;
+	          nextFrom = nextTo - span;
+	        }
+	        chart.timeScale().setVisibleRange({ from: nextFrom, to: nextTo });
+	        updateVisibleRangeTelemetry({ from: nextFrom, to: nextTo });
+	        requestAnimationFrame(drawBollingerCloud);
+	        requestAnimationFrame(renderDrawings);
+	      };
+	      const zoomManualVisibleRange = (clientX, deltaY) => {
+	        const bounds = visibleRangeNumbers();
+	        const span = Math.max(bounds.interval * 10, bounds.to - bounds.from);
+	        const rect = chartEl.getBoundingClientRect();
+	        const ratio = Math.max(0.05, Math.min(0.95, (clientX - rect.left) / Math.max(1, rect.width)));
+	        const anchor = bounds.from + span * ratio;
+	        const factor = deltaY > 0 ? 1.16 : 0.86;
+	        const nextSpan = span * factor;
+	        applyManualVisibleRange(anchor - nextSpan * ratio, anchor + nextSpan * (1 - ratio));
+	      };
+	      const panManualVisibleRange = (pixelDeltaX) => {
+	        const bounds = visibleRangeNumbers();
+	        const span = Math.max(bounds.interval * 10, bounds.to - bounds.from);
+	        const secondsDelta = -(pixelDeltaX / Math.max(1, chartEl.clientWidth)) * span;
+	        applyManualVisibleRange(bounds.from + secondsDelta, bounds.to + secondsDelta);
+	      };
+	      let manualNavDrag = null;
+	      chartEl.addEventListener("wheel", (event) => {
+	        if (!navigationTools.has(activeTool)) return;
+	        event.preventDefault();
+	        if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+	          panManualVisibleRange(event.deltaX);
+	        } else {
+	          zoomManualVisibleRange(event.clientX, event.deltaY);
+	        }
+	      }, { passive: false });
+	      drawLayer.addEventListener("wheel", (event) => {
+	        if (!navigationTools.has(activeTool)) return;
+	        event.preventDefault();
+	        if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+	          panManualVisibleRange(event.deltaX);
+	        } else {
+	          zoomManualVisibleRange(event.clientX, event.deltaY);
+	        }
+	      }, { passive: false });
+	      chartEl.addEventListener("pointerdown", (event) => {
+	        if (!navigationTools.has(activeTool) || event.button !== 0) return;
+	        manualNavDrag = { pointerId: event.pointerId, x: event.clientX };
+	        try { chartEl.setPointerCapture(event.pointerId); } catch (error) {}
+	      });
+	      chartEl.addEventListener("pointermove", (event) => {
+	        if (navigationTools.has(activeTool) && !manualNavDrag) showRoxyCursor(event);
+	        if (!manualNavDrag || manualNavDrag.pointerId !== event.pointerId || !navigationTools.has(activeTool)) return;
+	        const deltaX = event.clientX - manualNavDrag.x;
+	        if (Math.abs(deltaX) < 2) return;
+	        event.preventDefault();
+	        panManualVisibleRange(deltaX);
+	        manualNavDrag.x = event.clientX;
+	      });
+	      const clearManualNavDrag = (event) => {
+	        if (!manualNavDrag || (event && manualNavDrag.pointerId !== event.pointerId)) return;
+	        try { chartEl.releasePointerCapture(manualNavDrag.pointerId); } catch (error) {}
+	        manualNavDrag = null;
+	      };
+	      chartEl.addEventListener("pointerup", clearManualNavDrag);
+	      chartEl.addEventListener("pointercancel", clearManualNavDrag);
+	      chartEl.addEventListener("pointerleave", () => {
+	        if (!manualNavDrag && navigationTools.has(activeTool)) hideRoxyCursor();
+	      });
+	      const resizeChartNow = () => {
+	        chart.applyOptions({ width: chartEl.clientWidth, height: chartEl.clientHeight });
+          if (rsiChart && rsiChartEl && rsiPanel && rsiPanel.style.display !== "none") {
+            rsiChart.applyOptions({ width: rsiChartEl.clientWidth, height: Math.max(60, rsiChartEl.clientHeight) });
+          }
+          if (macdChart && macdChartEl && macdPanel && macdPanel.style.display !== "none") {
+            macdChart.applyOptions({ width: macdChartEl.clientWidth, height: Math.max(60, macdChartEl.clientHeight) });
+          }
+	        requestAnimationFrame(drawBollingerCloud);
+	        requestAnimationFrame(renderDrawings);
+	        requestAnimationFrame(() => updateVisibleRangeTelemetry());
+	      };
+	      const fitChartToContent = () => {
+	        chart.timeScale().fitContent();
+	        resizeChartNow();
+	        if (toolReadout) toolReadout.textContent = "Vista ajustada";
+	      };
+	      const zoomChartFromCenter = (direction) => {
+	        const rect = chartEl.getBoundingClientRect();
+	        zoomManualVisibleRange(rect.left + rect.width / 2, direction > 0 ? -1 : 1);
+	        if (toolReadout) toolReadout.textContent = direction > 0 ? "Zoom +" : "Zoom -";
+	      };
+	      const panChartByFraction = (fraction) => {
+	        panManualVisibleRange(chartEl.clientWidth * fraction);
+	        if (toolReadout) toolReadout.textContent = fraction > 0 ? "Pan izquierda" : "Pan derecha";
+	      };
+	      const fullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+	      const toggleFullscreenChart = async () => {
+	        try {
+	          if (fullscreenElement()) {
+	            if (document.exitFullscreen) await document.exitFullscreen();
+	            else if (document.webkitExitFullscreen) await document.webkitExitFullscreen();
+	          } else if (root.requestFullscreen) {
+	            await root.requestFullscreen();
+	          } else if (root.webkitRequestFullscreen) {
+	            await root.webkitRequestFullscreen();
+	          } else if (toolReadout) {
+	            toolReadout.textContent = "Pantalla completa no disponible";
+	          }
+	        } catch (error) {
+	          if (toolReadout) toolReadout.textContent = "Pantalla completa no disponible";
+	        }
+	      };
+	      const syncFullscreenState = () => {
+	        root.classList.toggle("rlc-fullscreen", fullscreenElement() === root);
+	        window.setTimeout(resizeChartNow, 80);
+	      };
+	      document.addEventListener("fullscreenchange", syncFullscreenState);
+	      document.addEventListener("webkitfullscreenchange", syncFullscreenState);
+	      chart.timeScale().subscribeVisibleTimeRangeChange((range) => {
+	        updateVisibleRangeTelemetry(range);
+	        const cleanRange = normalizeViewport(range);
+	        if (cleanRange) {
+	          restoredViewport = cleanRange;
+	          window.clearTimeout(viewportSaveTimer);
+	          viewportSaveTimer = window.setTimeout(() => {
+	            try {
+	              localStorage.setItem(viewportKey, JSON.stringify(cleanRange));
+	              root.dataset.viewportState = "saved-local";
+	            } catch (error) {}
+	          }, 240);
+	        }
+	        requestAnimationFrame(drawBollingerCloud);
+	      });
+      let streamStateLabel = payload.stream.enabled ? "STREAM ON" : "HISTORIAL";
+      const updateStatus = (price, source, ageText) => {
+        const now = new Date();
+        statusEl.textContent = streamStateLabel;
+        liveEl.textContent = `Tick live ${fmt(Number(price))} · ${ageText || now.toLocaleTimeString()}`;
+        sourceEl.textContent = source || payload.stream.provider || payload.live.source || "";
+        errorEl.textContent = "";
+      };
+      const technicalMetrics = payload.metrics || {};
+      const metricText = (value, digits = 2) => Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : "--";
+      if (technicalsEl) {
+        const atrPercent = Number.isFinite(Number(technicalMetrics.atrPct))
+          ? `${(Number(technicalMetrics.atrPct) * 100).toFixed(2)}%`
+          : "--";
+        const relativeVolume = Number.isFinite(Number(technicalMetrics.relativeVolume))
+          ? `${Number(technicalMetrics.relativeVolume).toFixed(2)}x`
+          : "--";
+        technicalsEl.textContent = `RSI ${metricText(technicalMetrics.rsi14, 1)} · MACD ${metricText(technicalMetrics.macdHist, 4)} · ATR ${metricText(technicalMetrics.atr14, 2)} (${atrPercent}) · VWAP ${metricText(technicalMetrics.vwap, 2)} · RVol ${relativeVolume}`;
+        technicalsEl.title = technicalMetrics.engine || "Motor central de indicadores";
+      }
+      updateStatus(currentLiveLinePrice, payload.live.source || payload.stream.provider, payload.live.ageSeconds != null ? `${payload.live.ageSeconds}s` : "");
+      const mergeCandle = (incoming) => {
+        if (!incoming || !incoming.time || !Number.isFinite(Number(incoming.close))) return;
+        const last = candles[candles.length - 1];
+        if (last && incoming.time === last.time) {
+          last.open = Number.isFinite(Number(incoming.open)) ? Number(incoming.open) : last.open;
+          last.high = Math.max(last.high, Number(incoming.high || incoming.close));
+          last.low = Math.min(last.low, Number(incoming.low || incoming.close));
+          last.close = Number(incoming.close);
+          last.volume = Number(incoming.volume || last.volume || 0);
+          candleSeries.update(last);
+          volumeSeries.update({ time: last.time, value: last.volume || 0, color: last.close >= last.open ? "rgba(34,197,94,.35)" : "rgba(239,68,68,.35)" });
+          candleByTime.set(Number(last.time), last);
+        } else if (!last || incoming.time > last.time) {
+          candles.push(incoming);
+          candleSeries.update(incoming);
+          volumeSeries.update({ time: incoming.time, value: incoming.volume || 0, color: incoming.close >= incoming.open ? "rgba(34,197,94,.35)" : "rgba(239,68,68,.35)" });
+          candleByTime.set(Number(incoming.time), incoming);
+        }
+        const incomingClose = Number(incoming.close);
+        if (Number.isFinite(incomingClose) && incomingClose > 0) {
+          closeReferenceLine.applyOptions({ price: incomingClose });
+          if (payload.stream.enabled || !hasCanonicalLivePrice) {
+            currentLiveLinePrice = incomingClose;
+          }
+          liveLine.applyOptions({ price: currentLiveLinePrice });
+          updateStatus(currentLiveLinePrice, payload.stream.provider, "browser");
+        }
+        renderQuoteLine(candles[candles.length - 1], `Cierre ${payload.timeframe}`);
+        requestAnimationFrame(drawBollingerCloud);
+        requestAnimationFrame(renderDrawings);
+      };
+      const symbolCandidates = payload.stream.symbols || [];
+      let activeSymbol = symbolCandidates[0];
+      let klineSocket = null;
+      let klineReconnectTimer = null;
+      let klineReconnectAttempt = 0;
+      const sourceCandleByTime = new Map();
+      const streamTargetSeconds = Math.max(1, Number(payload.stream.intervalSeconds) || 60);
+      const streamSourceSeconds = Math.max(1, Number(payload.stream.sourceIntervalSeconds) || streamTargetSeconds);
+      const streamAggregationSeconds = Number(payload.stream.aggregationSeconds) || 0;
+      const streamUsesAggregation = streamAggregationSeconds > streamSourceSeconds;
+      const streamDerivationLabel = payload.stream.derivedFrom
+        ? ` · ${payload.stream.derivedFrom}→${payload.timeframe}`
+        : "";
+      function mergeStreamKline(incoming) {
+        if (!streamUsesAggregation) {
+          mergeCandle(incoming);
+          return;
+        }
+        const sourceTime = Number(incoming && incoming.time);
+        if (!Number.isFinite(sourceTime) || !Number.isFinite(Number(incoming && incoming.close))) return;
+        sourceCandleByTime.set(sourceTime, {
+          time: sourceTime,
+          open: Number(incoming.open),
+          high: Number(incoming.high),
+          low: Number(incoming.low),
+          close: Number(incoming.close),
+          volume: Number(incoming.volume || 0),
+        });
+        if (sourceCandleByTime.size > 2400) {
+          const oldest = Array.from(sourceCandleByTime.keys()).sort((a, b) => a - b).slice(0, 400);
+          oldest.forEach((time) => sourceCandleByTime.delete(time));
+        }
+        const bucket = Math.floor(sourceTime / streamAggregationSeconds) * streamAggregationSeconds;
+        const bucketRows = Array.from(sourceCandleByTime.values())
+          .filter((row) => row.time >= bucket && row.time < bucket + streamAggregationSeconds)
+          .sort((a, b) => a.time - b.time);
+        if (!bucketRows.length) return;
+        mergeCandle({
+          time: bucket,
+          open: bucketRows[0].open,
+          high: Math.max(...bucketRows.map((row) => row.high)),
+          low: Math.min(...bucketRows.map((row) => row.low)),
+          close: bucketRows[bucketRows.length - 1].close,
+          volume: bucketRows.reduce((total, row) => total + Math.max(0, Number(row.volume) || 0), 0),
+        });
+      }
+      async function fetchFirst(pathBuilder) {
+        let lastError = "";
+        for (const candidate of symbolCandidates) {
+          try {
+            const response = await fetch(pathBuilder(candidate), { cache: "no-store" });
+            if (!response.ok) throw new Error(`${response.status}`);
+            activeSymbol = candidate;
+            return await response.json();
+          } catch (error) {
+            lastError = `${candidate}: ${error.message || error}`;
+          }
+        }
+        throw new Error(lastError || "sin simbolo BinanceUS");
+      }
+      async function pollTicker() {
+        if (!payload.stream.enabled) return;
+        try {
+          const ticker = await fetchFirst((candidate) => `https://api.binance.us/api/v3/ticker/price?symbol=${candidate}`);
+          const price = Number(ticker.price);
+          if (!Number.isFinite(price) || price <= 0) return;
+          const nowSeconds = Math.floor(Date.now() / 1000);
+          const bucket = Math.floor(nowSeconds / payload.stream.intervalSeconds) * payload.stream.intervalSeconds;
+          const last = candles[candles.length - 1] || { close: price };
+          mergeCandle({
+            time: bucket,
+            open: last.time === bucket ? last.open : last.close,
+            high: last.time === bucket ? Math.max(last.high, price) : price,
+            low: last.time === bucket ? Math.min(last.low, price) : price,
+            close: price,
+            volume: last.time === bucket ? last.volume : 0,
+          });
+          sourceEl.textContent = `BinanceUS ${activeSymbol} · browser stream`;
+        } catch (error) {
+          errorEl.textContent = `stream: ${error.message || error}`;
+        }
+      }
+      async function pollKlines() {
+        if (!payload.stream.enabled) return;
+        try {
+          const klines = await fetchFirst((candidate) => `https://api.binance.us/api/v3/klines?symbol=${candidate}&interval=${payload.stream.interval}&limit=1000`);
+          if (!Array.isArray(klines)) return;
+          klines.forEach((item) => mergeStreamKline({
+            time: Math.floor(Number(item[0]) / 1000),
+            open: Number(item[1]),
+            high: Number(item[2]),
+            low: Number(item[3]),
+            close: Number(item[4]),
+            volume: Number(item[5] || 0),
+          }));
+        } catch (error) {
+          errorEl.textContent = `klines: ${error.message || error}`;
+        }
+      }
+      function applyKlineMessage(message, sourceLabel) {
+        const kline = message && (message.k || (message.data && message.data.k));
+        if (!kline) return false;
+        mergeStreamKline({
+          time: Math.floor(Number(kline.t) / 1000),
+          open: Number(kline.o),
+          high: Number(kline.h),
+          low: Number(kline.l),
+          close: Number(kline.c),
+          volume: Number(kline.v || 0),
+        });
+        sourceEl.textContent = sourceLabel;
+        return true;
+      }
+      function scheduleKlineReconnect(candidateIndex) {
+        if (!payload.stream.enabled) return;
+        if (klineReconnectTimer) window.clearTimeout(klineReconnectTimer);
+        const delay = Math.min(15000, 1200 * Math.max(1, klineReconnectAttempt));
+        klineReconnectTimer = window.setTimeout(() => {
+          openKlineSocket(candidateIndex);
+        }, delay);
+      }
+      function openKlineSocket(candidateIndex = 0) {
+        if (!payload.stream.enabled || !symbolCandidates.length || !window.WebSocket) return;
+        const index = candidateIndex % symbolCandidates.length;
+        const candidate = symbolCandidates[index];
+        activeSymbol = candidate;
+        try {
+          if (klineSocket && klineSocket.readyState <= 1) {
+            klineSocket.close(1000, "reconnect");
+          }
+        } catch (error) {}
+        const streamName = `${candidate.toLowerCase()}@kline_${payload.stream.interval}`;
+        const url = `${payload.stream.wsBase}/ws/${streamName}`;
+        klineSocket = new WebSocket(url);
+        klineSocket.onopen = () => {
+          klineReconnectAttempt = 0;
+          streamStateLabel = "WS STREAM";
+          statusEl.textContent = streamStateLabel;
+          sourceEl.textContent = `BinanceUS ${candidate} · WebSocket kline${streamDerivationLabel}`;
+          errorEl.textContent = "";
+        };
+        klineSocket.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            applyKlineMessage(message, `BinanceUS ${candidate} · WebSocket kline${streamDerivationLabel}`);
+          } catch (error) {
+            errorEl.textContent = `ws parse: ${error.message || error}`;
+          }
+        };
+        klineSocket.onerror = () => {
+          streamStateLabel = "STREAM ON";
+          statusEl.textContent = streamStateLabel;
+          errorEl.textContent = `ws intentando ${symbolCandidates[(index + 1) % symbolCandidates.length] || candidate}`;
+        };
+        klineSocket.onclose = () => {
+          streamStateLabel = "STREAM ON";
+          statusEl.textContent = streamStateLabel;
+          klineReconnectAttempt += 1;
+          scheduleKlineReconnect(index + 1);
+        };
+      }
+	      const drawingKey = `roxy-drawings:${payload.symbol}:${payload.timeframe}`;
+	      let activeTool = "cursor";
+	      const navigationTools = new Set(["cursor", "crosshair"]);
+	      const drawingEditTools = new Set(["select", "eraser"]);
+	      let drawStart = null;
+      let previewNode = null;
+      let selectedDrawingIndex = null;
+      let editDrag = null;
+      let lastCursorPoint = null;
+      let drawingsLocked = false;
+      const drawings = [];
+      const undoStack = [];
+      const redoStack = [];
+      const svgNS = "http://www.w3.org/2000/svg";
+      const toolLabels = {
+        cursor: "cursor",
+        crosshair: "crosshair",
+        select: "editar",
+        trend: "linea",
+        ray: "rayo",
+        horizontal: "horizontal",
+        vertical: "vertical",
+        rect: "zona",
+        channel: "canal",
+        fib: "fibo",
+        triangle: "triangulo",
+        wedgeUp: "wedge alcista",
+        wedgeDown: "wedge bajista",
+        arrow: "flecha",
+        measure: "medida",
+        text: "texto",
+        eraser: "borrador",
+      };
+      const updateDrawingTelemetry = () => {
+        root.dataset.drawingCount = String(drawings.length);
+        root.dataset.selectedDrawing = selectedDrawingIndex == null ? "" : String(selectedDrawingIndex);
+        root.dataset.activeTool = activeTool;
+        if (drawingState) {
+          const selectedText = selectedDrawingIndex == null ? "" : ` · seleccionado ${selectedDrawingIndex + 1}`;
+          const countText = drawings.length === 1 ? "1 dibujo guardado" : `${drawings.length} dibujos guardados`;
+          const toolText = toolLabels[activeTool] || activeTool;
+          drawingState.textContent = drawings.length ? `${countText}${selectedText} · ${toolText}` : `Sin dibujos · ${toolText}`;
+          drawingState.classList.toggle("has-drawings", drawings.length > 0);
+          drawingState.classList.toggle("has-selection", selectedDrawingIndex != null);
+        }
+      };
+      const syncToolInteractionMode = () => {
+        const chartNavigationMode = navigationTools.has(activeTool);
+        const drawingEditMode = drawingEditTools.has(activeTool);
+        root.dataset.toolMode = chartNavigationMode ? "navigate" : drawingEditMode ? "edit" : "draw";
+        root.dataset.activeToolLabel = activeTool;
+	        drawLayer.classList.toggle("active", !chartNavigationMode);
+	        drawLayer.classList.toggle("drawing-mode", !chartNavigationMode && !drawingEditMode);
+	        drawLayer.classList.toggle("chart-pan-mode", chartNavigationMode);
+	        drawLayer.classList.toggle("editing", drawingEditMode);
+	        updateDrawingTelemetry();
+	        if (modeBadge) {
+	          modeBadge.classList.toggle("draw", !chartNavigationMode);
+	          modeBadge.textContent = chartNavigationMode
+	            ? "NAV · rueda zoom · arrastra pan"
+	            : drawingEditMode
+	            ? "EDITAR · toca dibujos · arrastra puntos"
+	            : `DIBUJO · ${activeTool} · arrastra en la grafica`;
+	        }
+	        chart.applyOptions({
+	          handleScroll: { mouseWheel: true, pressedMouseMove: chartNavigationMode, horzTouchDrag: chartNavigationMode, vertTouchDrag: false },
+	          handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
+	        });
+	      };
+      const nearestCandleAnchor = (point) => {
+        if (!snapToggle || !snapToggle.checked || !candles.length) return null;
+        let best = null;
+        let bestScore = Infinity;
+        for (const candle of candles) {
+          const x = chart.timeScale().timeToCoordinate(candle.time);
+          if (x == null) continue;
+          const candidates = [
+            ["open", candle.open],
+            ["high", candle.high],
+            ["low", candle.low],
+            ["close", candle.close],
+          ];
+          for (const [field, price] of candidates) {
+            const y = candleSeries.priceToCoordinate(Number(price));
+            if (y == null) continue;
+            const dx = Math.abs(x - point.x);
+            const dy = Math.abs(y - point.y);
+            const score = dx + dy * 0.65;
+            if (dx <= 24 && dy <= 28 && score < bestScore) {
+              bestScore = score;
+              best = { x, y, time: candle.time, price: Number(price), snappedTo: field };
+            }
+          }
+        }
+        return best;
+      };
+      const pointFromEvent = (event) => {
+        const box = drawLayer.getBoundingClientRect();
+        const raw = {
+          x: Math.max(0, Math.min(box.width, event.clientX - box.left)),
+          y: Math.max(0, Math.min(box.height, event.clientY - box.top)),
+        };
+        const snapped = nearestCandleAnchor(raw);
+        if (snapped) return snapped;
+        const time = chartTimeToSeconds(chart.timeScale().coordinateToTime(raw.x));
+        const price = candleSeries.coordinateToPrice(raw.y);
+        return {
+          ...raw,
+          time: time ?? null,
+          price: Number.isFinite(Number(price)) ? Number(price) : null,
+        };
+      };
+      const pointFromPixel = (x, y) => {
+        const box = drawLayer.getBoundingClientRect();
+        const px = Math.max(0, Math.min(box.width, x));
+        const py = Math.max(0, Math.min(box.height, y));
+        const time = chartTimeToSeconds(chart.timeScale().coordinateToTime(px));
+        const price = candleSeries.coordinateToPrice(py);
+        return {
+          x: px,
+          y: py,
+          time: time ?? null,
+          price: Number.isFinite(Number(price)) ? Number(price) : null,
+        };
+      };
+      const pointFromPrice = (price, x = null) => {
+        const box = drawLayer.getBoundingClientRect();
+        const px = Number.isFinite(Number(x)) ? Number(x) : Math.max(0, box.width - 72);
+        const y = candleSeries.priceToCoordinate(Number(price));
+        const time = chartTimeToSeconds(chart.timeScale().coordinateToTime(px));
+        return {
+          x: Math.max(0, Math.min(box.width, px)),
+          y: y == null ? box.height / 2 : y,
+          time: time ?? null,
+          price: Number.isFinite(Number(price)) ? Number(price) : null,
+        };
+      };
+      const projectPoint = (shape, index) => {
+        const time = Number(shape[`time${index}`]);
+        const price = Number(shape[`price${index}`]);
+        const fallbackX = Number(shape[`x${index}`]);
+        const fallbackY = Number(shape[`y${index}`]);
+        const x = Number.isFinite(time) ? chart.timeScale().timeToCoordinate(time) : null;
+        const y = Number.isFinite(price) ? candleSeries.priceToCoordinate(price) : null;
+        return {
+          x: x == null ? (Number.isFinite(fallbackX) ? fallbackX : 0) : x,
+          y: y == null ? (Number.isFinite(fallbackY) ? fallbackY : 0) : y,
+          time: Number.isFinite(time) ? time : null,
+          price: Number.isFinite(price) ? price : null,
+        };
+      };
+      const makeNode = (name, attrs = {}) => {
+        const node = document.createElementNS(svgNS, name);
+        Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, String(value)));
+        return node;
+      };
+      const wrapLineHitTarget = (node, preview) => {
+        if (!node || preview || String(node.nodeName || "").toLowerCase() !== "line") return node;
+        const hit = makeNode("line", {
+          x1: node.getAttribute("x1") || 0,
+          y1: node.getAttribute("y1") || 0,
+          x2: node.getAttribute("x2") || 0,
+          y2: node.getAttribute("y2") || 0,
+          stroke: "rgba(255,255,255,0)",
+          "stroke-width": 16,
+          "stroke-linecap": "round",
+          "pointer-events": "stroke",
+          "data-hit-target": "true",
+        });
+        const group = makeNode("g", {});
+        group.appendChild(hit);
+        group.appendChild(node);
+        return group;
+      };
+      const syncDrawLayerSize = () => {
+        const box = chartEl.getBoundingClientRect();
+        drawLayer.setAttribute("viewBox", `0 0 ${Math.max(1, Math.round(box.width))} ${Math.max(1, Math.round(box.height))}`);
+      };
+      const saveDrawings = () => {
+        try {
+          localStorage.setItem(drawingKey, JSON.stringify(drawings));
+        } catch (error) {}
+      };
+      const syncChartStateToServer = () => {
+        const state = {
+          symbol: payload.symbol,
+          market: payload.market,
+          timeframe: payload.timeframe,
+          drawings: drawings.slice(0, 200),
+          settings: indicatorSettings,
+          viewport: normalizeViewport(chart.timeScale().getVisibleRange ? chart.timeScale().getVisibleRange() : null),
+        };
+        const serialized = JSON.stringify(state);
+        if (serialized.length > 48000) {
+          if (toolReadout) toolReadout.textContent = "Demasiados dibujos para sincronizar";
+          return;
+        }
+        try {
+          const bytes = new TextEncoder().encode(serialized);
+          let binary = "";
+          bytes.forEach((value) => { binary += String.fromCharCode(value); });
+          const encoded = btoa(binary).split("+").join("-").split("/").join("_").replace(/=+$/g, "");
+          const parentHref = window.parent && window.parent.location ? window.parent.location.href : window.location.href;
+          const url = new URL(parentHref);
+          url.searchParams.delete("rx_probe");
+          url.searchParams.set("chart_sync", encoded);
+          root.dataset.syncState = "sending";
+          if (toolReadout) toolReadout.textContent = `Sincronizando ${drawings.length} dibujos con Roxy`;
+          const link = document.createElement("a");
+          link.href = url.toString();
+          link.target = "_parent";
+          link.rel = "noreferrer";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        } catch (error) {
+          root.dataset.syncState = "error";
+          if (toolReadout) toolReadout.textContent = "No se pudo sincronizar";
+        }
+      };
+      const drawingsSnapshot = () => JSON.stringify(drawings);
+      const restoreDrawingsSnapshot = (snapshot) => {
+        drawings.splice(0, drawings.length);
+        try {
+          const restored = JSON.parse(snapshot || "[]");
+          if (Array.isArray(restored)) restored.forEach((shape) => drawings.push(shape));
+        } catch (error) {}
+        selectedDrawingIndex = null;
+        saveDrawings();
+        renderDrawings();
+      };
+      const pushDrawingHistory = (snapshot = drawingsSnapshot()) => {
+        undoStack.push(snapshot);
+        if (undoStack.length > 40) undoStack.shift();
+        redoStack.splice(0, redoStack.length);
+      };
+      const undoDrawings = () => {
+        if (!undoStack.length) {
+          if (toolReadout) toolReadout.textContent = "Nada para deshacer";
+          return;
+        }
+        redoStack.push(drawingsSnapshot());
+        restoreDrawingsSnapshot(undoStack.pop());
+        if (toolReadout) toolReadout.textContent = "Deshecho";
+      };
+      const redoDrawings = () => {
+        if (!redoStack.length) {
+          if (toolReadout) toolReadout.textContent = "Nada para rehacer";
+          return;
+        }
+        undoStack.push(drawingsSnapshot());
+        restoreDrawingsSnapshot(redoStack.pop());
+        if (toolReadout) toolReadout.textContent = "Rehecho";
+      };
+      const toggleDrawingLock = () => {
+        drawingsLocked = !drawingsLocked;
+        toolbox.querySelectorAll("[data-action='lock']").forEach((button) => {
+          button.classList.toggle("active", drawingsLocked);
+          button.setAttribute("aria-pressed", drawingsLocked ? "true" : "false");
+        });
+        drawLayer.classList.toggle("locked", drawingsLocked);
+        if (toolReadout) toolReadout.textContent = drawingsLocked ? "Dibujos bloqueados" : "Dibujos desbloqueados";
+      };
+      const clearAppliedPlanLevels = () => {
+        const before = drawings.length;
+        const kept = drawings.filter((shape) => !(shape && shape.roxyPlanApplied));
+        if (kept.length === before) {
+          if (toolReadout) toolReadout.textContent = "Sin plan aplicado";
+          return;
+        }
+        pushDrawingHistory();
+        drawings.splice(0, drawings.length, ...kept);
+        selectedDrawingIndex = null;
+        saveDrawings();
+        renderDrawings();
+        if (toolReadout) toolReadout.textContent = "Plan editable quitado";
+      };
+      const removePreview = () => {
+        if (previewNode && previewNode.parentNode) previewNode.parentNode.removeChild(previewNode);
+        previewNode = null;
+      };
+      const drawingShapeFromPoints = (start, end, tool) => ({
+        version: 2,
+        tool,
+        x1: Math.round(start.x),
+        y1: Math.round(start.y),
+        x2: Math.round(end.x),
+        y2: Math.round(end.y),
+        time1: start.time,
+        price1: start.price,
+        time2: end.time,
+        price2: end.price,
+        snap: Boolean(snapToggle.checked),
+      });
+      const setStrokeInteraction = (node, preview) => {
+        node.setAttribute("data-roxy-drawing", "true");
+        node.setAttribute("pointer-events", preview ? "none" : "all");
+      };
+      const setSnapCue = (point) => {
+        if (!snapCue) return;
+        if (point && point.snappedTo) {
+          snapCue.style.display = "block";
+          snapCue.style.left = `${point.x}px`;
+          snapCue.style.top = `${point.y}px`;
+        } else {
+          snapCue.style.display = "none";
+        }
+      };
+      const clearSnapCue = () => {
+        if (snapCue) snapCue.style.display = "none";
+      };
+      const hideRoxyCursor = () => {
+        if (hoverCard) hoverCard.style.display = "none";
+        if (cursorV) cursorV.style.display = "none";
+        if (cursorH) cursorH.style.display = "none";
+      };
+      const showRoxyCursor = (event) => {
+        if (!hoverCard || !cursorV || !cursorH) return;
+        const box = drawLayer.getBoundingClientRect();
+        const xPoint = Math.max(0, Math.min(box.width, event.clientX - box.left));
+        const yPoint = Math.max(0, Math.min(box.height, event.clientY - box.top));
+        const nearest = nearestCandleByX(xPoint);
+        if (!nearest || !nearest.candle) {
+          hideRoxyCursor();
+          renderQuoteLine(candles[candles.length - 1], "Ultima vela");
+          return;
+        }
+        const candle = nearest.candle;
+        const yPrice = candleSeries.coordinateToPrice(yPoint);
+        lastCursorPoint = {
+          x: xPoint,
+          y: yPoint,
+          time: candle.time,
+          price: Number.isFinite(Number(yPrice)) ? Number(yPrice) : Number(candle.close),
+        };
+        cursorV.style.display = "block";
+        cursorH.style.display = "block";
+        cursorV.style.left = `${nearest.x}px`;
+        cursorH.style.top = `${yPoint}px`;
+        const cardX = Math.min(Math.max(8, xPoint + 14), Math.max(8, box.width - 260));
+        const cardY = Math.min(Math.max(8, yPoint + 14), Math.max(8, box.height - 126));
+        const date = new Date(Number(candle.time) * 1000);
+        renderQuoteLine(candle, date.toLocaleString());
+        hoverCard.style.display = "block";
+        hoverCard.style.left = `${cardX}px`;
+        hoverCard.style.top = `${cardY}px`;
+        hoverCard.innerHTML = `<b>${payload.symbol}</b> <span>${date.toLocaleString()}</span><br>` +
+          `O ${fmt(Number(candle.open))} · H ${fmt(Number(candle.high))}<br>` +
+          `L ${fmt(Number(candle.low))} · C ${fmt(Number(candle.close))}<br>` +
+          `<span>Cursor ${Number.isFinite(Number(yPrice)) ? fmt(Number(yPrice)) : "--"} · Vol ${fmt(Number(candle.volume || 0))}</span>`;
+      };
+      const addSelectionHandles = (shape) => {
+        if (selectedDrawingIndex == null) return null;
+        const group = makeNode("g", { "data-selection-handles": "true" });
+        const p1 = projectPoint(shape, 1);
+        const p2 = projectPoint(shape, 2);
+        const points = shape.tool === "priceLevel" ? [p1] : [p1, p2];
+        points.forEach((point, index) => {
+          group.appendChild(makeNode("circle", {
+            "data-selection-handle": "true",
+            "data-handle-index": index + 1,
+            cx: point.x,
+            cy: point.y,
+            r: 7,
+            fill: "#fbbf24",
+            stroke: "#0f172a",
+            "stroke-width": 2,
+          }));
+        });
+        drawLayer.appendChild(group);
+        return group;
+      };
+      const selectDrawing = (index) => {
+        selectedDrawingIndex = Number.isInteger(index) && drawings[index] ? index : null;
+        renderDrawings();
+        if (toolReadout) {
+          toolReadout.textContent = selectedDrawingIndex == null ? "Sin seleccion" : `Seleccion ${selectedDrawingIndex + 1}`;
+        }
+      };
+      const deleteDrawing = (index) => {
+        if (!Number.isInteger(index) || !drawings[index]) return;
+        pushDrawingHistory();
+        drawings.splice(index, 1);
+        selectedDrawingIndex = null;
+        renderDrawings();
+        saveDrawings();
+        if (toolReadout) toolReadout.textContent = "Dibujo borrado";
+      };
+      const updateShapePoint = (shape, pointIndex, point) => {
+        shape[`x${pointIndex}`] = Math.round(point.x);
+        shape[`y${pointIndex}`] = Math.round(point.y);
+        shape[`time${pointIndex}`] = point.time;
+        shape[`price${pointIndex}`] = point.price;
+      };
+      const moveShapeByPixels = (shape, originalShape, dx, dy) => {
+        const originalP1 = projectPoint(originalShape, 1);
+        const originalP2 = projectPoint(originalShape, 2);
+        updateShapePoint(shape, 1, pointFromPixel(originalP1.x + dx, originalP1.y + dy));
+        updateShapePoint(shape, 2, pointFromPixel(originalP2.x + dx, originalP2.y + dy));
+      };
+      const spanLabelFromSeconds = (seconds) => {
+        const clean = Math.abs(Number(seconds));
+        if (!Number.isFinite(clean) || clean <= 0) return "";
+        const minutes = Math.round(clean / 60);
+        if (minutes < 90) return `${minutes}m`;
+        const hours = Math.round((clean / 3600) * 10) / 10;
+        if (hours < 48) return `${hours}h`;
+        const days = Math.round((clean / 86400) * 10) / 10;
+        return `${days}d`;
+      };
+      const measureSummaryFromPoints = (p1, p2) => {
+        const start = Number(p1 && p1.price);
+        const end = Number(p2 && p2.price);
+        const priceDelta = Number.isFinite(start) && Number.isFinite(end) ? end - start : null;
+        const pctDelta = priceDelta != null && start !== 0 ? (priceDelta / start) * 100 : null;
+        const sign = priceDelta != null && priceDelta >= 0 ? "+" : "";
+        const timeDelta = Number.isFinite(Number(p1 && p1.time)) && Number.isFinite(Number(p2 && p2.time))
+          ? Math.abs(Number(p2.time) - Number(p1.time))
+          : null;
+        const bars = timeDelta != null && Number(payload.stream && payload.stream.intervalSeconds) > 0
+          ? Math.max(1, Math.round(timeDelta / Number(payload.stream.intervalSeconds)))
+          : null;
+        const span = timeDelta != null ? spanLabelFromSeconds(timeDelta) : "";
+        return {
+          pctText: pctDelta == null ? "Medida" : `${sign}${pctDelta.toFixed(2)}%`,
+          priceText: priceDelta == null ? "--" : `${sign}${fmt(priceDelta)}`,
+          barsText: bars == null ? (span || "--") : `${bars} velas${span ? ` / ${span}` : ""}`,
+          tone: priceDelta == null ? "neutral" : priceDelta >= 0 ? "up" : "down",
+        };
+      };
+      const addDrawingNode = (shape, persist = true, preview = false, index = null) => {
+        let node = null;
+        const p1 = projectPoint(shape, 1);
+        const p2 = projectPoint(shape, 2);
+        const box = chartEl.getBoundingClientRect();
+        const common = { stroke: "#f8fafc", "stroke-width": 1.85, fill: "none", "stroke-linecap": "round" };
+        if (shape.tool === "entryZone") {
+          const top = Math.min(p1.y, p2.y);
+          const bottom = Math.max(p1.y, p2.y);
+          const group = makeNode("g", {});
+          group.appendChild(makeNode("rect", {
+            x: 0,
+            y: top,
+            width: box.width,
+            height: Math.max(2, bottom - top),
+            stroke: "#22c55e",
+            "stroke-width": 1.2,
+            "stroke-dasharray": "5 4",
+            fill: "rgba(34,197,94,.10)",
+          }));
+          const label = makeNode("text", { x: 8, y: Math.max(14, top + 16), fill: "#bbf7d0", "font-size": 11, "font-weight": 950 });
+          label.textContent = shape.label || "Zona de entrada Roxy";
+          group.appendChild(label);
+          node = group;
+        } else if (shape.tool === "priceLevel") {
+          const levelColors = {
+            entry: "#22c55e",
+            stop: "#ef4444",
+            target2: "#38bdf8",
+            target5: "#a78bfa",
+            target10: "#fbbf24",
+          };
+          const levelLabels = {
+            entry: "Entrada",
+            stop: "Stop",
+            target2: "TP 2%",
+            target5: "TP 5%",
+            target10: "TP 10%",
+          };
+          const kind = shape.levelKind || "entry";
+          const color = levelColors[kind] || "#f8fafc";
+          const label = shape.label || levelLabels[kind] || "Nivel";
+          const priceText = Number.isFinite(Number(p1.price)) ? fmt(Number(p1.price)) : "--";
+          const group = makeNode("g", {});
+          group.appendChild(makeNode("line", { ...common, x1: 0, y1: p1.y, x2: box.width, y2: p1.y, stroke: color, "stroke-width": shape.systemPlan ? 1.25 : 1.7, "stroke-dasharray": shape.systemPlan ? "3 3" : kind === "stop" ? "6 4" : "" }));
+          const labelWidth = Math.min(130, Math.max(76, `${label} ${priceText}`.length * 6.4));
+          const labelX = Math.max(4, box.width - labelWidth - 6);
+          const labelY = Math.max(6, Math.min(box.height - 23, p1.y - 11));
+          group.appendChild(makeNode("rect", { x: labelX, y: labelY, width: labelWidth, height: 22, rx: 2, fill: color, "fill-opacity": .92, stroke: "#020617", "stroke-width": .8 }));
+          const text = makeNode("text", { x: labelX + 6, y: labelY + 15, fill: "#020617", "font-size": 11, "font-weight": 950 });
+          text.textContent = `${label} ${priceText}`;
+          group.appendChild(text);
+          node = group;
+        } else if (shape.tool === "trend" || shape.tool === "ray") {
+          let x2 = p2.x;
+          let y2 = p2.y;
+          if (shape.tool === "ray") {
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            if (Math.abs(dx) > 1) {
+              x2 = dx >= 0 ? box.width : 0;
+              y2 = p1.y + dy * ((x2 - p1.x) / dx);
+            }
+          }
+          node = makeNode("line", { ...common, x1: p1.x, y1: p1.y, x2, y2, stroke: shape.tool === "ray" ? "#86efac" : "#f8fafc" });
+        } else if (shape.tool === "measure") {
+          const group = makeNode("g", {});
+          const summary = measureSummaryFromPoints(p1, p2);
+          const color = summary.tone === "down" ? "#fb7185" : summary.tone === "up" ? "#39ff88" : "#fbbf24";
+          const line = makeNode("line", { ...common, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, stroke: color, "stroke-dasharray": "5 4", "stroke-width": 1.8 });
+          const midX = (p1.x + p2.x) / 2;
+          const midY = (p1.y + p2.y) / 2;
+          const panelWidth = Math.min(178, Math.max(104, Math.max(summary.pctText.length, summary.priceText.length, summary.barsText.length) * 7.2 + 24));
+          const panelHeight = 51;
+          const panelX = Math.min(Math.max(6, midX + 9), Math.max(6, box.width - panelWidth - 8));
+          const panelY = Math.min(Math.max(8, midY - panelHeight - 8), Math.max(8, box.height - panelHeight - 8));
+          group.appendChild(line);
+          group.appendChild(makeNode("circle", { cx: p1.x, cy: p1.y, r: 3.5, fill: color, stroke: "#020617", "stroke-width": 1 }));
+          group.appendChild(makeNode("circle", { cx: p2.x, cy: p2.y, r: 3.5, fill: color, stroke: "#020617", "stroke-width": 1 }));
+          group.appendChild(makeNode("rect", { x: panelX, y: panelY, width: panelWidth, height: panelHeight, rx: 3, fill: "rgba(2,6,23,.88)", stroke: color, "stroke-width": 1.1 }));
+          const label = makeNode("text", { x: panelX + 8, y: panelY + 15, fill: color, "font-size": 11, "font-weight": 950, "data-measure-summary": "true" });
+          const pct = makeNode("tspan", { x: panelX + 8, dy: 0 });
+          pct.textContent = summary.pctText;
+          const price = makeNode("tspan", { x: panelX + 8, dy: 14, fill: "#e5e7eb", "font-size": 10, "font-weight": 850 });
+          price.textContent = `Precio ${summary.priceText}`;
+          const bars = makeNode("tspan", { x: panelX + 8, dy: 13, fill: "#a8b3c4", "font-size": 9, "font-weight": 800 });
+          bars.textContent = summary.barsText;
+          label.appendChild(pct);
+          label.appendChild(price);
+          label.appendChild(bars);
+          group.appendChild(label);
+          node = group;
+        } else if (shape.tool === "arrow") {
+          const group = makeNode("g", {});
+          const line = makeNode("line", { ...common, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, stroke: "#86efac" });
+          const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+          const size = 9;
+          const left = makeNode("line", { ...common, x1: p2.x, y1: p2.y, x2: p2.x - size * Math.cos(angle - Math.PI / 6), y2: p2.y - size * Math.sin(angle - Math.PI / 6), stroke: "#86efac" });
+          const right = makeNode("line", { ...common, x1: p2.x, y1: p2.y, x2: p2.x - size * Math.cos(angle + Math.PI / 6), y2: p2.y - size * Math.sin(angle + Math.PI / 6), stroke: "#86efac" });
+          group.appendChild(line); group.appendChild(left); group.appendChild(right);
+          node = group;
+        } else if (shape.tool === "horizontal") {
+          node = makeNode("line", { ...common, x1: 0, y1: p1.y, x2: box.width, y2: p1.y, stroke: "#facc15", "stroke-dasharray": "4 4" });
+        } else if (shape.tool === "vertical") {
+          node = makeNode("line", { ...common, x1: p1.x, y1: 0, x2: p1.x, y2: box.height, stroke: "#38bdf8", "stroke-dasharray": "4 4" });
+        } else if (shape.tool === "rect") {
+          node = makeNode("rect", {
+            x: Math.min(p1.x, p2.x),
+            y: Math.min(p1.y, p2.y),
+            width: Math.abs(p2.x - p1.x),
+            height: Math.abs(p2.y - p1.y),
+            stroke: "#a78bfa",
+            "stroke-width": 1.5,
+            fill: "rgba(167,139,250,.10)",
+          });
+        } else if (shape.tool === "channel") {
+          const group = makeNode("g", {});
+          const offset = Math.max(24, Math.min(72, Math.abs(p2.y - p1.y) * .45 || 42));
+          group.appendChild(makeNode("line", { ...common, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, stroke: "#c084fc" }));
+          group.appendChild(makeNode("line", { ...common, x1: p1.x, y1: p1.y + offset, x2: p2.x, y2: p2.y + offset, stroke: "#c084fc", "stroke-dasharray": "4 4" }));
+          group.appendChild(makeNode("line", { ...common, x1: p1.x, y1: p1.y, x2: p1.x, y2: p1.y + offset, stroke: "#c084fc", "stroke-opacity": .45 }));
+          group.appendChild(makeNode("line", { ...common, x1: p2.x, y1: p2.y, x2: p2.x, y2: p2.y + offset, stroke: "#c084fc", "stroke-opacity": .45 }));
+          node = group;
+        } else if (shape.tool === "fib") {
+          const group = makeNode("g", {});
+          [0, .236, .382, .5, .618, .786, 1].forEach((ratio) => {
+            const y = p1.y + ((p2.y - p1.y) * ratio);
+            const line = makeNode("line", { ...common, x1: Math.min(p1.x, p2.x), y1: y, x2: Math.max(p1.x, p2.x), y2: y, stroke: "#fbbf24", "stroke-dasharray": ratio === 0 || ratio === 1 ? "" : "3 4" });
+            const label = makeNode("text", { x: Math.min(p1.x, p2.x) + 4, y: y - 3, fill: "#fbbf24", "font-size": 10, "font-weight": 800 });
+            label.textContent = `${Math.round(ratio * 100)}%`;
+            group.appendChild(line); group.appendChild(label);
+          });
+          node = group;
+        } else if (shape.tool === "triangle" || shape.tool === "wedgeUp" || shape.tool === "wedgeDown") {
+          const group = makeNode("g", {});
+          const left = Math.min(p1.x, p2.x);
+          const right = Math.max(p1.x, p2.x);
+          const top = Math.min(p1.y, p2.y);
+          const bottom = Math.max(p1.y, p2.y);
+          const height = Math.max(8, bottom - top);
+          const midpoint = top + (height / 2);
+          let upperEnd = midpoint;
+          let lowerEnd = midpoint;
+          let labelText = "Triangulo simetrico";
+          let color = "#38bdf8";
+          if (shape.tool === "wedgeUp") {
+            upperEnd = top + (height * .34);
+            lowerEnd = bottom - (height * .12);
+            labelText = "Wedge ascendente";
+            color = "#fb7185";
+          } else if (shape.tool === "wedgeDown") {
+            upperEnd = top + (height * .12);
+            lowerEnd = bottom - (height * .34);
+            labelText = "Wedge descendente";
+            color = "#86efac";
+          }
+          group.appendChild(makeNode("polygon", {
+            points: `${left},${top} ${right},${upperEnd} ${right},${lowerEnd} ${left},${bottom}`,
+            fill: color,
+            "fill-opacity": .055,
+            stroke: "none",
+          }));
+          group.appendChild(makeNode("line", { ...common, x1: left, y1: top, x2: right, y2: upperEnd, stroke: color, "stroke-width": 1.8 }));
+          group.appendChild(makeNode("line", { ...common, x1: left, y1: bottom, x2: right, y2: lowerEnd, stroke: color, "stroke-width": 1.8 }));
+          group.appendChild(makeNode("line", { ...common, x1: left, y1: top, x2: left, y2: bottom, stroke: color, "stroke-opacity": .34, "stroke-dasharray": "3 4" }));
+          const label = makeNode("text", { x: left + 5, y: Math.max(12, top - 5), fill: color, "font-size": 10, "font-weight": 900 });
+          label.textContent = labelText;
+          group.appendChild(label);
+          node = group;
+        } else if (shape.tool === "text") {
+          node = makeNode("text", { x: p1.x, y: p1.y, fill: "#f8fafc", "font-size": 13, "font-weight": 700 });
+          node.textContent = shape.text || "Nota";
+        }
+        if (node) {
+          node = wrapLineHitTarget(node, preview);
+          setStrokeInteraction(node, preview);
+          if (shape.systemPlan) {
+            node.setAttribute("data-roxy-plan", "true");
+            node.setAttribute("pointer-events", "none");
+          }
+          if (index != null) node.setAttribute("data-drawing-index", String(index));
+          if (index != null && index === selectedDrawingIndex) node.setAttribute("data-selected", "true");
+          if (preview) {
+            node.setAttribute("data-preview", "true");
+            node.setAttribute("opacity", ".72");
+          }
+          drawLayer.appendChild(node);
+          if (persist) {
+            pushDrawingHistory();
+            drawings.push(shape);
+            saveDrawings();
+          }
+        }
+        return node;
+      };
+      const shapeFromPriceLevel = (kind, price, options = {}) => {
+        const cleanPrice = finitePrice(price);
+        if (!cleanPrice) return null;
+        const box = drawLayer.getBoundingClientRect();
+        const left = pointFromPrice(cleanPrice, 0);
+        const right = pointFromPrice(cleanPrice, Math.max(1, box.width - 1));
+        return {
+          version: 2,
+          tool: "priceLevel",
+          levelKind: kind,
+          label: options.label || null,
+          systemPlan: Boolean(options.systemPlan),
+          roxyPlanApplied: Boolean(options.roxyPlanApplied),
+          x1: Math.round(left.x),
+          y1: Math.round(left.y),
+          x2: Math.round(right.x),
+          y2: Math.round(right.y),
+          time1: left.time,
+          price1: cleanPrice,
+          time2: right.time,
+          price2: cleanPrice,
+          snap: false,
+        };
+      };
+      const planLevelItems = () => [
+        { kind: "entry", label: "Entrada Roxy", price: finitePrice(tradePlan.entry) },
+        { kind: "stop", label: "Stop Roxy", price: finitePrice(tradePlan.stop) },
+        { kind: "target2", label: "TP 2%", price: finitePrice(tradePlan.target2) },
+        { kind: "target5", label: "TP 5%", price: finitePrice(tradePlan.target5) },
+        { kind: "target10", label: "TP 10%", price: finitePrice(tradePlan.target10) },
+      ].filter((item) => item.price);
+      const planShapes = () => {
+        const shapes = [];
+        const zoneLow = finitePrice(tradePlan.entryZoneLow);
+        const zoneHigh = finitePrice(tradePlan.entryZoneHigh);
+        if (zoneLow && zoneHigh && zoneLow !== zoneHigh) {
+          const lowPoint = pointFromPrice(Math.min(zoneLow, zoneHigh), 0);
+          const highPoint = pointFromPrice(Math.max(zoneLow, zoneHigh), drawLayer.getBoundingClientRect().width - 1);
+          shapes.push({
+            version: 2,
+            tool: "entryZone",
+            label: `Zona entrada ${fmt(Math.min(zoneLow, zoneHigh))} - ${fmt(Math.max(zoneLow, zoneHigh))}`,
+            systemPlan: true,
+            x1: Math.round(lowPoint.x),
+            y1: Math.round(lowPoint.y),
+            x2: Math.round(highPoint.x),
+            y2: Math.round(highPoint.y),
+            time1: lowPoint.time,
+            price1: Math.min(zoneLow, zoneHigh),
+            time2: highPoint.time,
+            price2: Math.max(zoneLow, zoneHigh),
+            snap: false,
+          });
+        }
+        planLevelItems().forEach((item) => {
+          const shape = shapeFromPriceLevel(item.kind, item.price, { label: item.label, systemPlan: true });
+          if (shape) shapes.push(shape);
+        });
+        return shapes;
+      };
+      const updatePlanBadge = () => {
+        if (!planBadge) return;
+        const items = planLevelItems();
+        if (!items.length || !indicatorSettings.Plan) {
+          planBadge.style.display = "none";
+          planBadge.innerHTML = "";
+          return;
+        }
+        const entry = finitePrice(tradePlan.entry);
+        const stop = finitePrice(tradePlan.stop);
+        const target = finitePrice(tradePlan.target2);
+        const rr = Number(tradePlan.rrTo2);
+        planBadge.style.display = "block";
+        planBadge.innerHTML = `<b>Plan Roxy: ${tradePlan.action || tradePlan.planStatus || "Vigilar"}</b><br>` +
+          `Entrada ${entry ? fmt(entry) : "--"} · Stop ${stop ? fmt(stop) : "--"} · TP2 ${target ? fmt(target) : "--"}` +
+          `${Number.isFinite(rr) ? ` · R:R ${rr.toFixed(2)}` : ""}`;
+      };
+      const applyTradePlanLevels = () => {
+        const items = planLevelItems();
+        if (!items.length) {
+          if (toolReadout) toolReadout.textContent = "Plan Roxy sin niveles";
+          return;
+        }
+        pushDrawingHistory();
+        items.forEach((item) => {
+          const shape = shapeFromPriceLevel(item.kind, item.price, { label: item.label, roxyPlanApplied: true });
+          if (shape) drawings.push(shape);
+        });
+        selectedDrawingIndex = drawings.length ? drawings.length - 1 : null;
+        saveDrawings();
+        renderDrawings();
+        if (toolReadout) toolReadout.textContent = "Plan Roxy aplicado";
+      };
+      const renderDrawings = () => {
+        removePreview();
+        syncDrawLayerSize();
+        drawLayer.replaceChildren();
+        if (indicatorSettings.Plan && strategyAnnotations.length === 0) {
+          planShapes().forEach((shape) => addDrawingNode(shape, false, false, null));
+        }
+        drawings.forEach((shape, index) => addDrawingNode(shape, false, false, index));
+        if (selectedDrawingIndex != null && drawings[selectedDrawingIndex]) addSelectionHandles(drawings[selectedDrawingIndex]);
+        updateDrawingTelemetry();
+      };
+      chart.timeScale().subscribeVisibleTimeRangeChange(() => requestAnimationFrame(renderDrawings));
+      chartWrap.addEventListener("pointerdown", () => {
+        try { chartWrap.focus({ preventScroll: true }); } catch (error) {}
+      });
+      const referencePrice = () => {
+        const latest = candles[candles.length - 1] || {};
+        const livePrice = Number(payload.live && payload.live.price);
+        const cursorPrice = Number(lastCursorPoint && lastCursorPoint.price);
+        if (Number.isFinite(cursorPrice) && cursorPrice > 0) return cursorPrice;
+        if (Number.isFinite(livePrice) && livePrice > 0) return livePrice;
+        return Number(latest.close || latest.open || 0);
+      };
+      const addPriceLevel = (kind) => {
+        const base = referencePrice();
+        if (!Number.isFinite(base) || base <= 0) return;
+        const multiplier = kind === "stop" ? 0.99 : kind === "target2" ? 1.02 : kind === "target5" ? 1.05 : kind === "target10" ? 1.10 : 1;
+        const price = base * multiplier;
+        const shape = shapeFromPriceLevel(kind, price);
+        if (!shape) return;
+        pushDrawingHistory();
+        drawings.push(shape);
+        selectedDrawingIndex = drawings.length - 1;
+        saveDrawings();
+        renderDrawings();
+        if (toolReadout) {
+          const label = kind === "entry" ? "Entrada" : kind === "stop" ? "Stop" : "Target 2%";
+          toolReadout.textContent = `${label} marcado @ ${fmt(price)}`;
+        }
+      };
+      const restoreDrawings = () => {
+        try {
+          const localValue = localStorage.getItem(drawingKey);
+          const serverValue = payload.persistedChartState && Array.isArray(payload.persistedChartState.drawings)
+            ? payload.persistedChartState.drawings
+            : [];
+          const saved = localValue === null ? serverValue : JSON.parse(localValue || "[]");
+          if (Array.isArray(saved)) {
+            saved.forEach((shape) => {
+              drawings.push(shape);
+            });
+            root.dataset.serverDrawingCount = String(serverValue.length);
+            root.dataset.syncState = localValue === null && serverValue.length ? "restored" : "local";
+            renderDrawings();
+          }
+        } catch (error) {}
+      };
+      toolbox.querySelectorAll("[data-tool]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const tool = button.dataset.tool || "cursor";
+          if (tool === "clear") {
+            if (drawingsLocked) {
+              if (toolReadout) toolReadout.textContent = "Desbloquea para borrar";
+              return;
+            }
+            pushDrawingHistory();
+            drawings.splice(0, drawings.length);
+            selectedDrawingIndex = null;
+            renderDrawings();
+            saveDrawings();
+            if (toolReadout) toolReadout.textContent = "Dibujos borrados";
+            return;
+	          }
+	          activeTool = tool;
+	          toolbox.querySelectorAll("[data-tool]").forEach((item) => item.classList.toggle("active", item === button));
+	          syncToolInteractionMode();
+	          if (activeTool === "crosshair") hideRoxyCursor();
+          if (toolReadout) {
+            const title = button.getAttribute("title") || activeTool;
+            toolReadout.textContent = tool === "eraser"
+              ? "Borrador: toca una linea"
+            : (["cursor", "crosshair"].includes(activeTool) ? title : activeTool === "select" ? "Editar dibujos" : `${title}: arrastra`);
+          }
+        });
+      });
+      chartWrap.addEventListener("keydown", (event) => {
+        const key = String(event.key || "").toLowerCase();
+        if (key === "escape") {
+          activeTool = "cursor";
+          toolbox.querySelectorAll("[data-tool]").forEach((item) => item.classList.toggle("active", item.dataset.tool === "cursor"));
+          syncToolInteractionMode();
+          if (toolReadout) toolReadout.textContent = "Cursor";
+          event.preventDefault();
+        } else if ((key === "delete" || key === "backspace") && selectedDrawingIndex != null) {
+          deleteDrawing(selectedDrawingIndex);
+          event.preventDefault();
+        } else if (key === "+" || key === "=") {
+          zoomChartFromCenter(1);
+          event.preventDefault();
+        } else if (key === "-" || key === "_") {
+          zoomChartFromCenter(-1);
+          event.preventDefault();
+        } else if (key === "f") {
+          fitChartToContent();
+          event.preventDefault();
+        }
+      });
+      toolbox.querySelectorAll("[data-action]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const action = button.dataset.action || "";
+          if (action === "undo") {
+            if (drawingsLocked) {
+              if (toolReadout) toolReadout.textContent = "Desbloquea para deshacer";
+              return;
+            }
+            undoDrawings();
+          } else if (action === "redo") {
+            if (drawingsLocked) {
+              if (toolReadout) toolReadout.textContent = "Desbloquea para rehacer";
+              return;
+            }
+            redoDrawings();
+          } else if (action === "lock") {
+            toggleDrawingLock();
+	          } else if (action === "sync") {
+	            syncChartStateToServer();
+	          } else if (action === "clear-plan") {
+	            if (drawingsLocked) {
+	              if (toolReadout) toolReadout.textContent = "Desbloquea para limpiar plan";
+	              return;
+	            }
+	            clearAppliedPlanLevels();
+		          } else if (action === "pan-left") {
+		            panChartByFraction(0.18);
+		          } else if (action === "pan-right") {
+		            panChartByFraction(-0.18);
+		          } else if (action === "zoom-in") {
+		            zoomChartFromCenter(1);
+		          } else if (action === "zoom-out") {
+		            zoomChartFromCenter(-1);
+		          } else if (action === "fit") {
+		            fitChartToContent();
+		          } else if (action === "fullscreen") {
+	            toggleFullscreenChart();
+	          }
+		        });
+		      });
+      toolbox.querySelectorAll("[data-quicklevel]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const quickLevel = button.dataset.quicklevel || "entry";
+          if (quickLevel === "plan") {
+            applyTradePlanLevels();
+          } else {
+            addPriceLevel(quickLevel);
+          }
+        });
+      });
+	      showToggle.addEventListener("change", () => {
+	        drawLayer.style.display = showToggle.checked ? "block" : "none";
+	      });
+	      syncToolInteractionMode();
+      drawLayer.addEventListener("pointerdown", (event) => {
+        if (navigationTools.has(activeTool)) return;
+        event.preventDefault();
+        if (drawingsLocked) {
+          if (toolReadout) toolReadout.textContent = "Dibujos bloqueados";
+          return;
+        }
+        const handle = event.target && event.target.closest ? event.target.closest("[data-selection-handle='true']") : null;
+        if (handle && selectedDrawingIndex != null && drawings[selectedDrawingIndex]) {
+          editDrag = {
+            mode: "handle",
+            pointIndex: Number(handle.getAttribute("data-handle-index")) || 1,
+            drawingIndex: selectedDrawingIndex,
+            originalSnapshot: drawingsSnapshot(),
+          };
+          drawLayer.setPointerCapture(event.pointerId);
+          if (toolReadout) toolReadout.textContent = `Editando punto ${editDrag.pointIndex}`;
+          return;
+        }
+        const target = event.target && event.target.closest ? event.target.closest("[data-roxy-drawing='true']") : null;
+        const targetIndex = target ? Number(target.getAttribute("data-drawing-index")) : NaN;
+        if (activeTool === "eraser") {
+          if (Number.isInteger(targetIndex)) deleteDrawing(targetIndex);
+          return;
+        }
+        if (Number.isInteger(targetIndex)) {
+          selectDrawing(targetIndex);
+          if (activeTool === "select" && drawings[targetIndex]) {
+            editDrag = {
+              mode: "move",
+              drawingIndex: targetIndex,
+              startX: event.clientX,
+              startY: event.clientY,
+              originalShape: Object.assign({}, drawings[targetIndex]),
+              originalSnapshot: drawingsSnapshot(),
+            };
+            drawLayer.setPointerCapture(event.pointerId);
+            if (toolReadout) toolReadout.textContent = "Moviendo dibujo";
+          }
+          return;
+        }
+        if (activeTool === "select") {
+          selectDrawing(null);
+          return;
+        }
+        removePreview();
+        drawStart = pointFromEvent(event);
+        setSnapCue(drawStart);
+        drawLayer.setPointerCapture(event.pointerId);
+      });
+      drawLayer.addEventListener("pointermove", (event) => {
+        if (!editDrag && !drawStart && navigationTools.has(activeTool)) {
+          showRoxyCursor(event);
+          return;
+        }
+        if (editDrag && drawings[editDrag.drawingIndex]) {
+          event.preventDefault();
+          const shape = drawings[editDrag.drawingIndex];
+          if (editDrag.mode === "handle") {
+            const point = pointFromEvent(event);
+            updateShapePoint(shape, editDrag.pointIndex, point);
+            setSnapCue(point);
+            if (toolReadout) {
+              const priceText = Number.isFinite(Number(point.price)) ? fmt(Number(point.price)) : "--";
+              toolReadout.textContent = `Punto ${editDrag.pointIndex} @ ${priceText}`;
+            }
+          } else if (editDrag.mode === "move") {
+            moveShapeByPixels(shape, editDrag.originalShape, event.clientX - editDrag.startX, event.clientY - editDrag.startY);
+            if (toolReadout) toolReadout.textContent = "Moviendo dibujo";
+          }
+          renderDrawings();
+          return;
+        }
+        if (!drawStart || navigationTools.has(activeTool) || activeTool === "select") return;
+        const end = pointFromEvent(event);
+        setSnapCue(end);
+        removePreview();
+        const shape = drawingShapeFromPoints(drawStart, end, activeTool);
+        previewNode = addDrawingNode(shape, false, true);
+        if (toolReadout) {
+          if (activeTool === "measure") {
+            const summary = measureSummaryFromPoints(drawStart, end);
+            toolReadout.textContent = `${summary.pctText} | ${summary.priceText} | ${summary.barsText}`;
+            return;
+          }
+          const priceText = Number.isFinite(Number(end.price)) ? fmt(Number(end.price)) : "--";
+          const snapText = end.snappedTo ? ` · snap ${end.snappedTo}` : "";
+          toolReadout.textContent = `${activeTool} @ ${priceText}${snapText}`;
+        }
+      });
+      drawLayer.addEventListener("pointerup", (event) => {
+        if (editDrag) {
+          event.preventDefault();
+          if (editDrag.originalSnapshot && editDrag.originalSnapshot !== drawingsSnapshot()) {
+            pushDrawingHistory(editDrag.originalSnapshot);
+          }
+          saveDrawings();
+          try { drawLayer.releasePointerCapture(event.pointerId); } catch (error) {}
+          if (toolReadout) toolReadout.textContent = "Dibujo actualizado";
+          editDrag = null;
+          clearSnapCue();
+          return;
+        }
+        if (!drawStart || navigationTools.has(activeTool) || activeTool === "select") return;
+        event.preventDefault();
+        const end = pointFromEvent(event);
+        removePreview();
+        const shape = drawingShapeFromPoints(drawStart, end, activeTool);
+        if (activeTool === "text") {
+          const text = window.prompt("Texto para la grafica", "Entrada / salida") || "Nota";
+          shape.text = text;
+        }
+        addDrawingNode(shape, true);
+        selectedDrawingIndex = drawings.length - 1;
+        renderDrawings();
+        if (toolReadout) {
+          if (activeTool === "measure") {
+            const summary = measureSummaryFromPoints(drawStart, end);
+            toolReadout.textContent = `${summary.pctText} | ${summary.priceText} | ${summary.barsText}`;
+          } else {
+            const priceText = Number.isFinite(Number(shape.price2 || shape.price1)) ? ` @ ${fmt(Number(shape.price2 || shape.price1))}` : "";
+            toolReadout.textContent = `${activeTool}${priceText}`;
+          }
+        }
+        try { drawLayer.releasePointerCapture(event.pointerId); } catch (error) {}
+        clearSnapCue();
+        drawStart = null;
+      });
+      drawLayer.addEventListener("pointercancel", (event) => {
+        removePreview();
+        try { drawLayer.releasePointerCapture(event.pointerId); } catch (error) {}
+        if (manualNavDrag && manualNavDrag.pointerId === event.pointerId) manualNavDrag = null;
+        editDrag = null;
+        clearSnapCue();
+        drawStart = null;
+      });
+      drawLayer.addEventListener("pointerleave", () => {
+        if (!editDrag && !drawStart) hideRoxyCursor();
+      });
+      window.addEventListener("keydown", (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+          event.preventDefault();
+          if (drawingsLocked) {
+            if (toolReadout) toolReadout.textContent = event.shiftKey ? "Desbloquea para rehacer" : "Desbloquea para deshacer";
+            return;
+          }
+          if (event.shiftKey) redoDrawings();
+          else undoDrawings();
+          return;
+        }
+        if ((event.key === "Backspace" || event.key === "Delete") && selectedDrawingIndex != null) {
+          event.preventDefault();
+          if (drawingsLocked) {
+            if (toolReadout) toolReadout.textContent = "Desbloquea para borrar";
+            return;
+          }
+          deleteDrawing(selectedDrawingIndex);
+        }
+        if (event.key === "Escape") {
+          selectedDrawingIndex = null;
+          renderDrawings();
+          clearSnapCue();
+          hideRoxyCursor();
+        }
+      });
+      chart.subscribeCrosshairMove((param) => {
+        if (!hoverCard || !param || !param.point || !param.time) {
+          if (hoverCard) hoverCard.style.display = "none";
+          renderQuoteLine(candles[candles.length - 1], "Ultima vela");
+          if (suppressLinkedClear) {
+            suppressLinkedClear = false;
+          } else if (!applyingLinkedCrosshair && crosshairChannel) {
+            crosshairChannel.postMessage({ source: crosshairInstanceId, timeframe: payload.timeframe, clear: true });
+          }
+          return;
+        }
+        const time = chartTimeToSeconds(param.time);
+        const candle = candleByTime.get(Number(time));
+        if (!candle) {
+          hoverCard.style.display = "none";
+          renderQuoteLine(candles[candles.length - 1], "Ultima vela");
+          return;
+        }
+        const box = chartEl.getBoundingClientRect();
+        const x = Math.min(Math.max(8, param.point.x + 14), Math.max(8, box.width - 260));
+        const y = Math.min(Math.max(8, param.point.y + 14), Math.max(8, box.height - 116));
+        const date = new Date(Number(candle.time) * 1000);
+        const repeatsLinkedEvent = Number(lastLinkedCrosshairTime) === Number(candle.time);
+        if (!applyingLinkedCrosshair && !repeatsLinkedEvent && crosshairChannel) {
+          crosshairChannel.postMessage({
+            source: crosshairInstanceId,
+            timeframe: payload.timeframe,
+            time: Number(candle.time),
+          });
+        }
+        renderQuoteLine(candle, date.toLocaleString());
+        hoverCard.style.display = "block";
+        hoverCard.style.left = `${x}px`;
+        hoverCard.style.top = `${y}px`;
+        hoverCard.innerHTML = `<b>${payload.symbol}</b> <span>${date.toLocaleString()}</span><br>` +
+          `O ${fmt(Number(candle.open))} · H ${fmt(Number(candle.high))}<br>` +
+          `L ${fmt(Number(candle.low))} · C ${fmt(Number(candle.close))}<br>` +
+          `<span>Vol ${fmt(Number(candle.volume || 0))}</span>`;
+      });
+	      if (crosshairChannel) {
+	        crosshairChannel.addEventListener("message", (event) => {
+	          const message = event && event.data;
+	          if (!message || message.source === crosshairInstanceId) return;
+	          applyingLinkedCrosshair = true;
+	          try {
+	            if (message.clear) {
+	              suppressLinkedClear = true;
+	              if (typeof chart.clearCrosshairPosition === "function") chart.clearCrosshairPosition();
+	              root.dataset.linkedTimeframe = "";
+	              if (crosshairLinkEl) {
+	                crosshairLinkEl.dataset.state = "";
+	                crosshairLinkEl.textContent = "Cursor enlazado";
+	              }
+	            } else {
+	              const linkedCandle = nearestCandleByTime(message.time);
+	              if (!linkedCandle) return;
+	              lastLinkedCrosshairTime = Number(linkedCandle.time);
+	              if (typeof chart.setCrosshairPosition === "function") {
+	                chart.setCrosshairPosition(Number(linkedCandle.close), linkedCandle.time, candleSeries);
+	              }
+	              root.dataset.linkedTimeframe = String(message.timeframe || "");
+	              if (crosshairLinkEl) {
+	                crosshairLinkEl.dataset.state = "linked";
+	                crosshairLinkEl.textContent = `Cursor ${message.timeframe || "otra grafica"} ↔ ${payload.timeframe}`;
+	              }
+	              renderQuoteLine(linkedCandle, new Date(Number(linkedCandle.time) * 1000).toLocaleString());
+	            }
+	          } finally {
+	            window.requestAnimationFrame(() => { applyingLinkedCrosshair = false; });
+	          }
+	        });
+	        window.addEventListener("pagehide", () => crosshairChannel.close(), { once: true });
+	      }
+	      const ro = new ResizeObserver(resizeChartNow);
+      ro.observe(chartEl);
+      restoreDrawings();
+      updatePlanBadge();
+      renderDrawings();
+      requestAnimationFrame(drawBollingerCloud);
+      if (payload.stream.enabled) {
+        openKlineSocket();
+        pollTicker();
+        pollKlines();
+        window.setInterval(pollTicker, payload.stream.tickerMs || 2000);
+        window.setInterval(pollKlines, payload.stream.klineMs || 30000);
+        window.addEventListener("beforeunload", () => {
+          try {
+            if (klineSocket) klineSocket.close(1000, "page unload");
+          } catch (error) {}
+        });
+      } else {
+        sourceEl.textContent = `${payload.stream.provider || payload.live.source || "quote + historial"} · streaming real de acciones requiere Alpaca/Polygon WebSocket durante mercado abierto.`;
+      }
+    })();
+    </script>

@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "agentName": "Roxy Terminal Agent",
+  "projectRoot": "/Users/robertograu/roxy_trading",
+  "defaultTimeoutMs": 120000,
+  "maxCommandsPerTask": 20,
+  "allowedCommands": [
+    "cat",
+    "chmod",
+    "find",
+    "git",
+    "head",
+    "ls",
+    "make",
+    "node",
+    "npm",
+    "python",
+    "python3",
+    "pwd",
+    "pytest",
+    "rg",
+    "sed",
+    "tail",
+    "test",
+    "wc"
+  ],
+  "allowedNpmSubcommands": [
+    "install",
+    "i",
+    "ci",
+    "run",
+    "test",
+    "lint",
+    "build"
+  ],
+  "requiresApproval": {
+    "gitPush": true,
+    "deploy": true,
+    "productionDeploy": true,
+    "systemChanges": true,
+    "realMoneyTrading": true
+  },
+  "autonomousScopes": {
+    "allowInternalTradingCodeChanges": true,
+    "allowChartAndIndicatorFixes": true,
+    "allowBacktestingAndPaperTradingChanges": true,
+    "allowTestsAndBuildFixes": true,
+    "allowRealMoneyTrading": false
+  },
+  "blocked": {
+    "readEnvFiles": true,
+    "showSecrets": true,
+    "sudo": true,
+    "rmRf": true,
+    "outsideProjectWrites": true,
+    "productionDeployWithoutApproval": true,
+    "gitPushWithoutApproval": true,
+    "realMoneyTrading": true
+  },
+  "logRetentionDays": 30,
+  "notes": [
+    "Roxy puede trabajar dentro del proyecto, pero no debe leer .env ni mostrar secretos.",
+    "Push, deploy de produccion y cualquier accion con dinero real requieren aprobacion explicita.",
+    "Este agente ejecuta comandos auditables y guarda logs por tarea."
+  ]
+}

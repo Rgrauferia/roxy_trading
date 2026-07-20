@@ -3,14 +3,16 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 
+from durable_storage import atomic_write_csv, atomic_write_text, exclusive_file_lock
 from options_strategy import best_option_contract
 
 from daily_opportunity_plan import build_daily_opportunity_plan, daily_plan_text_lines
@@ -54,7 +56,11 @@ STATUS_JSON_PATH = ALERTS_DIR / "roxy_status.json"
 STATUS_TEXT_PATH = ALERTS_DIR / "roxy_status.txt"
 DAILY_PLAN_JSON_PATH = ALERTS_DIR / "roxy_daily_opportunity_plan.json"
 ALERT_QUALITY_JSON_PATH = ALERTS_DIR / "alert_quality.json"
-REALTIME_HEALTH_PATH = ALERTS_DIR / "roxy_realtime_check.json"
+OPPORTUNITY_LIFECYCLE_JSON_PATH = ALERTS_DIR / "opportunity_lifecycle.json"
+REALTIME_HEALTH_PATH = Path(
+    os.getenv("ROXY_REALTIME_HEALTH_PATH", "").strip()
+    or ALERTS_DIR / "roxy_realtime_check.json"
+)
 CHART_REALTIME_HEALTH_PATH = ALERTS_DIR / "chart_realtime_health.json"
 LEARNING_JOURNAL_PATH = ALERTS_DIR / "roxy_learning_journal.csv"
 MAX_ALERTS_PER_BRIEF = 3
@@ -382,6 +388,47 @@ def realtime_health_status(
             if safe_text(item.get("status")).upper() == "FAIL"
         ]
         failed_names = {safe_text(item.get("name")) for item in failed}
+        auxiliary_infrastructure_failures = {
+            "external_disk",
+            "runtime_backup_report",
+            "runtime_backup_service",
+            "health_stability_slo",
+        }
+        unavailable_render_probes = {
+            safe_text(item.get("name"))
+            for item in failed
+            if safe_text(item.get("name")) in {"dashboard_render_probe", "dashboard_search_render_probe"}
+            and "executable doesn't exist" in safe_text(item.get("detail")).lower()
+        }
+        auxiliary_infrastructure_failures.update(unavailable_render_probes)
+        allowed_markets = [safe_text(item).lower() for item in route_fields.get("allowed_markets", []) if safe_text(item)]
+        concrete_auxiliary_failures = auxiliary_infrastructure_failures - {"health_stability_slo"}
+        if (
+            failed
+            and failed_names <= auxiliary_infrastructure_failures
+            and bool(failed_names & concrete_auxiliary_failures)
+            and allowed_markets
+        ):
+            detail = "; ".join(
+                f"{safe_text(item.get('name'))}: {safe_text(item.get('detail'))}"
+                for item in failed[:3]
+                if safe_text(item.get("name")) or safe_text(item.get("detail"))
+            )
+            route_text = route_prefix()
+            return {
+                "status": "WARN",
+                "label": "Mercado operativo; infraestructura degradada",
+                "detail": " | ".join(part for part in [route_text, detail] if part),
+                "age_minutes": age,
+                "alerts_allowed": True,
+                "stock_alerts_allowed": "stock" in allowed_markets and not bool(provider_recovery.get("premium_blocked")),
+                "crypto_alerts_allowed": "crypto" in allowed_markets,
+                "auxiliary_failures": sorted(failed_names),
+                "provider_recovery": provider_recovery,
+                "market_realtime": market_realtime,
+                **route_fields,
+                "path": str(health_path),
+            }
         recoverable_brief_failures = {"ai_brief", "operational_summary_contract", "health_stability_slo"}
         brief_cycle_failures = {"ai_brief", "operational_summary_contract"}
         if (
@@ -737,9 +784,7 @@ def attach_chart_contracts_to_opportunities(
 
 
 def write_json(path: str | Path, payload: Any) -> None:
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(payload, indent=2, sort_keys=True))
+    atomic_write_text(json.dumps(payload, indent=2, sort_keys=True), path)
 
 
 def load_memory(path: str | Path = MEMORY_PATH) -> dict[str, Any]:
@@ -1640,12 +1685,31 @@ def normalize_opportunity_row(row: dict[str, Any]) -> dict[str, Any]:
     signal = safe_text(item.get("signal")).upper()
     if safe_float(item.get("risk_pct")) is None and entry is not None and stop is not None and entry > 0 and 0 < stop < entry:
         item["risk_pct"] = round((entry - stop) / entry, 6)
-    if safe_float(item.get("recommended_target_pct") or item.get("target_pct")) is None and signal != "AVOID":
-        item["recommended_target_pct"] = 0.02
-    if entry is not None and entry > 0:
-        item.setdefault("target_2pct_price", round(entry * 1.02, 6))
-        item.setdefault("target_5pct_price", round(entry * 1.05, 6))
-        item.setdefault("target_10pct_price", round(entry * 1.10, 6))
+    target_pct = safe_float(item.get("recommended_target_pct") or item.get("target_pct"))
+    explicit_target_price = safe_float(item.get("recommended_target_price") or item.get("target_price"))
+    if explicit_target_price is None:
+        for field in ("target_2pct_price", "target_5pct_price", "target_10pct_price"):
+            explicit_target_price = safe_float(item.get(field))
+            if explicit_target_price is not None:
+                item["recommended_target_price"] = explicit_target_price
+                item["target_basis"] = f"explicit_price_field:{field}"
+                break
+    if target_pct is None:
+        decision = safe_text(item.get("trade_decision") or item.get("decision")).upper()
+        explicit_decision_target = re.fullmatch(r"TRADE_FOR_(2|5|10)PCT", decision)
+        if explicit_decision_target:
+            target_pct = int(explicit_decision_target.group(1)) / 100.0
+            item["recommended_target_pct"] = target_pct
+            item["target_basis"] = "decision_operativa_explicita"
+    if explicit_target_price is not None:
+        item["recommended_target_price"] = explicit_target_price
+        item["target_contract"] = "EXPLICIT_TARGET"
+    elif entry is not None and entry > 0 and target_pct is not None:
+        if safe_float(item.get("recommended_target_price")) is None:
+            item["recommended_target_price"] = round(entry * (1.0 + target_pct), 6)
+        item["target_contract"] = "EXPLICIT_TARGET"
+    elif signal != "AVOID":
+        item["target_contract"] = "MISSING_EXPLICIT_TARGET"
     return item
 
 
@@ -1789,6 +1853,7 @@ def crypto_scan_candidate_rows(scan_df: pd.DataFrame | None, *, limit: int = 3) 
         signal = "BUY" if raw_signal == "BUY" else safe_text(item.get("signal") or "WATCH").upper() or "WATCH"
         if score < 55 and signal != "BUY":
             continue
+        observed_price = safe_float(item.get("current_price") or item.get("last_price") or item.get("price") or item.get("close"))
         entry = safe_float(item.get("entry") or item.get("close"))
         stop = safe_float(item.get("stop") or item.get("risk_anchor"))
         risk_pct = None
@@ -1814,9 +1879,15 @@ def crypto_scan_candidate_rows(scan_df: pd.DataFrame | None, *, limit: int = 3) 
             "trigger_score": int(max(0, min(100, round(score)))),
             "trend_score": int(max(0, min(100, round(score)))),
             "entry": entry,
+            "current_price": observed_price,
+            "price_basis": "ultimo cierre del scan normalizado" if observed_price is not None else "precio no disponible",
             "stop": stop,
             "risk_pct": risk_pct,
-            "recommended_target_pct": 0.02,
+            "recommended_target_pct": None,
+            "recommended_target_price": None,
+            "target_contract": "MISSING_EXPLICIT_TARGET",
+            "levels_status": "WATCH_ONLY_INCOMPLETE",
+            "levels_source": "normalized_scan",
             "relative_volume_15m": safe_float(item.get("relative_volume")),
             "backtest_eligible": backtest_eligible,
             "backtest_profit_factor": safe_float(item.get("backtest_profit_factor")),
@@ -3095,7 +3166,10 @@ def build_status_snapshot(brief: dict[str, Any], alert_quality_report: dict[str,
         and daily_plan_top_symbol_value == top_symbol_value
     )
     operational_focus_active = operational_focus_symbol not in {"", "-"} and (
-        operational_focus_overrides_top or operational_focus_symbol != top_symbol_value
+        operational_focus_overrides_top
+        or operational_focus_symbol != top_symbol_value
+        or operational_focus_source
+        in {"ALERT_QUALITY_DISCARD", "ALERT_QUALITY_ROTATION", "ALERT_QUALITY_CONFIRMATION_ROTATION"}
     )
     daily_plan_rows = daily_plan.get("rows") if isinstance(daily_plan.get("rows"), list) else []
     daily_plan_focus_row = {}
@@ -3670,26 +3744,31 @@ def append_learning_journal(
     row["fingerprint"] = _learning_journal_fingerprint(row)
     journal_path = Path(path or LEARNING_JOURNAL_PATH)
     journal_path.parent.mkdir(parents=True, exist_ok=True)
-    if journal_path.exists():
-        try:
+    with exclusive_file_lock(journal_path):
+        if journal_path.exists() and journal_path.stat().st_size > 0:
             existing = pd.read_csv(journal_path)
-        except Exception:
+        else:
             existing = pd.DataFrame()
-    else:
-        existing = pd.DataFrame()
 
-    if not existing.empty and "fingerprint" in existing.columns:
-        latest_fingerprint = safe_text(existing.iloc[-1].get("fingerprint"))
-        if latest_fingerprint == row["fingerprint"]:
-            compacted = compact_learning_journal_frame(existing, max_rows=max_rows)
-            if len(compacted) != len(existing):
-                compacted.to_csv(journal_path, index=False)
-            return row
+        if not existing.empty and "fingerprint" in existing.columns:
+            latest_fingerprint = safe_text(existing.iloc[-1].get("fingerprint"))
+            if latest_fingerprint == row["fingerprint"]:
+                compacted = compact_learning_journal_frame(existing, max_rows=max_rows)
+                if len(compacted) != len(existing):
+                    atomic_write_csv(compacted, journal_path)
+                return row
 
-    updated = pd.concat([existing, pd.DataFrame([row])], ignore_index=True)
-    updated = compact_learning_journal_frame(updated, max_rows=max_rows)
-    updated.to_csv(journal_path, index=False)
-    return row
+        row_frame = pd.DataFrame([row])
+        if existing.empty:
+            updated = row_frame
+        else:
+            columns = list(dict.fromkeys([*existing.columns, *row_frame.columns]))
+            records = existing.reindex(columns=columns).to_dict(orient="records")
+            records.append({column: row.get(column, pd.NA) for column in columns})
+            updated = pd.DataFrame.from_records(records, columns=columns)
+        updated = compact_learning_journal_frame(updated, max_rows=max_rows)
+        atomic_write_csv(updated, journal_path)
+        return row
 
 
 def write_status_snapshot(brief: dict[str, Any], alert_quality_report: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -3782,15 +3861,84 @@ def write_status_snapshot(brief: dict[str, Any], alert_quality_report: dict[str,
                 + " | ".join(f"{alert_gate_label(gate)}={count}" for gate, count in list(gate_counts.items())[:5])
             )
     lines.append(f"Lab: {status['learning_plan_count']} plan item(s) | {status['experiment_count']} experiment(s)")
-    STATUS_TEXT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    STATUS_TEXT_PATH.write_text("\n".join(lines))
+    atomic_write_text("\n".join(lines), STATUS_TEXT_PATH)
     return status
 
 
-def write_brief(brief: dict[str, Any]) -> None:
-    write_json(BRIEF_JSON_PATH, {key: value for key, value in brief.items() if key != "memory"})
-    if brief.get("daily_opportunity_plan"):
-        write_json(DAILY_PLAN_JSON_PATH, brief["daily_opportunity_plan"])
+def apply_alert_quality_lifecycle(
+    brief: dict[str, Any],
+    alert_quality_report: dict[str, Any] | None,
+    *,
+    prior_archived: list[dict[str, Any]] | None = None,
+    now: datetime | None = None,
+) -> list[dict[str, Any]]:
+    """Keep discarded setups off active surfaces until a fresh ALERT_READY trigger."""
+    report = alert_quality_report if isinstance(alert_quality_report, dict) else {}
+    observed_at = now or datetime.now(timezone.utc)
+    if observed_at.tzinfo is None:
+        observed_at = observed_at.replace(tzinfo=timezone.utc)
+    observed_at = observed_at.astimezone(timezone.utc)
+    opportunities = [row for row in brief.get("opportunities", []) if isinstance(row, dict)]
+    ready_symbols = {
+        safe_text(row.get("symbol")).upper()
+        for row in opportunities
+        if safe_text(row.get("ai_action")).upper() == "ALERT"
+        and safe_text(row.get("alert_gate")).upper() == "ALERT_READY"
+    }
+
+    events_by_symbol: dict[str, dict[str, Any]] = {}
+    for item in prior_archived or []:
+        if not isinstance(item, dict):
+            continue
+        prior_symbol = safe_text(item.get("symbol")).upper()
+        if not prior_symbol or prior_symbol in ready_symbols:
+            continue
+        retained = dict(item)
+        retained.setdefault("reactivation_policy", "FRESH_ALERT_READY")
+        events_by_symbol[prior_symbol] = retained
+
+    if report.get("missed_trigger_plan_discard_guard_active"):
+        symbol = safe_text(report.get("missed_trigger_plan_discard_symbol")).upper()
+        discarded = [row for row in opportunities if safe_text(row.get("symbol")).upper() == symbol]
+        if symbol and symbol not in ready_symbols and discarded:
+            reason = (
+                safe_text(report.get("missed_trigger_plan_discard_reason"))
+                or "Candidato stale sin confirmacion 15m."
+            )
+            resume = safe_text(report.get("missed_trigger_plan_discard_resume_condition"))
+            archived_at = safe_text(report.get("generated_at")) or observed_at.isoformat()
+            cooldown_minutes = max(
+                safe_float(report.get("missed_trigger_plan_discard_cooldown_eta_minutes")) or 15.0,
+                1.0,
+            )
+            cooldown_until = (observed_at + timedelta(minutes=cooldown_minutes)).isoformat()
+            row = discarded[0]
+            events_by_symbol[symbol] = {
+                **row,
+                "symbol": symbol,
+                "market": safe_text(row.get("market")) or ("crypto" if "/" in symbol else "stock"),
+                "status": "Invalidada",
+                "archived_at": archived_at,
+                "cooldown_until": cooldown_until,
+                "reactivation_policy": "FRESH_ALERT_READY",
+                "archive_reason": reason,
+                "resume_condition": resume,
+                "lifecycle_source": "ALERT_QUALITY_DISCARD",
+            }
+
+    events = list(events_by_symbol.values())
+    archived_symbols = set(events_by_symbol)
+    remaining = [row for row in opportunities if safe_text(row.get("symbol")).upper() not in archived_symbols]
+    brief["opportunities"] = remaining
+    brief["archived_opportunities"] = events
+    if len(remaining) != len(opportunities):
+        brief["alert_count"] = sum(safe_text(row.get("ai_action")).upper() == "ALERT" for row in remaining)
+        brief["watch_count"] = len(remaining) - int(brief["alert_count"])
+        brief["daily_opportunity_plan"] = build_daily_opportunity_plan(remaining)
+    return events
+
+
+def write_brief(brief: dict[str, Any]) -> dict[str, Any] | None:
     alert_quality_report = None
     try:
         from alert_quality import write_alert_quality_report
@@ -3803,6 +3951,27 @@ def write_brief(brief: dict[str, Any]) -> None:
         )
     except Exception:
         pass
+    lifecycle_path = BRIEF_JSON_PATH.parent / OPPORTUNITY_LIFECYCLE_JSON_PATH.name
+    lifecycle_payload = load_json(lifecycle_path, {})
+    prior_archived = (
+        lifecycle_payload.get("archived_opportunities", []) if isinstance(lifecycle_payload, dict) else []
+    )
+    archived_events = apply_alert_quality_lifecycle(
+        brief,
+        alert_quality_report,
+        prior_archived=prior_archived if isinstance(prior_archived, list) else [],
+    )
+    write_json(
+        lifecycle_path,
+        {
+            "contract": "roxy-opportunity-lifecycle/1.0.0",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "archived_opportunities": archived_events,
+        },
+    )
+    write_json(BRIEF_JSON_PATH, {key: value for key, value in brief.items() if key != "memory"})
+    if brief.get("daily_opportunity_plan"):
+        write_json(DAILY_PLAN_JSON_PATH, brief["daily_opportunity_plan"])
     save_memory(brief.get("memory") or load_memory())
     lines = [
         "ROXY AI WATCH",
@@ -3902,7 +4071,7 @@ def write_brief(brief: dict[str, Any]) -> None:
                 f"| stop {stop_rate * 100:.0f}% "
                 f"| {safe_text(item.get('proposed_rule'))}"
             )
-    BRIEF_TEXT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    BRIEF_TEXT_PATH.write_text("\n".join(lines))
+    atomic_write_text("\n".join(lines), BRIEF_TEXT_PATH)
     write_status_snapshot(brief, alert_quality_report=alert_quality_report)
     append_learning_journal(brief)
+    return alert_quality_report

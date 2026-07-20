@@ -53,6 +53,13 @@ class RiskManager:
         qty = float(qty)
         price = float(price)
         side = (side or "BUY").upper()
+        symbol = str(symbol or "").strip().upper()
+        if not symbol:
+            return False, "symbol is required"
+        if qty <= 0:
+            return False, "qty must be positive"
+        if price <= 0:
+            return False, "price must be positive"
 
         # confidence check (if provided)
         if confidence is not None:

@@ -71,3 +71,39 @@ def test_render_alpaca_paper_account_panel_hides_values():
     assert "Alpaca Paper Account" in html
     assert "key-only" not in html
     assert "Credenciales pendientes" in html
+
+
+def test_alpaca_paper_account_snapshot_skips_client_after_runtime_auth_failure():
+    called = False
+
+    def factory(api_key, secret_key):
+        nonlocal called
+        called = True
+        raise AssertionError("client should not retry known-invalid credentials")
+
+    snapshot = alpaca_paper_account_snapshot(
+        {
+            "ALPACA_API_KEY": "rejected-key-value",
+            "ALPACA_API_SECRET": "rejected-secret-value",
+            "ALPACA_PAPER": "true",
+        },
+        client_factory=factory,
+        realtime_report={
+            "checks": [
+                {
+                    "name": "alpaca_account_probe",
+                    "status": "WARN",
+                    "auth_ok": False,
+                    "error_category": "AUTH_INVALID",
+                }
+            ]
+        },
+    )
+
+    assert called is False
+    assert snapshot["connected"] is False
+    assert snapshot["paper_ready"] is False
+    assert snapshot["mode"] == "AUTH_INVALID"
+    assert snapshot["status"] == "Paper pendiente"
+    assert "rejected-key-value" not in str(snapshot)
+    assert "rejected-secret-value" not in str(snapshot)

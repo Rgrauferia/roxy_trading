@@ -3,14 +3,18 @@ from __future__ import annotations
 import argparse
 import ast
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
+import faulthandler
 from functools import lru_cache
 import json
+import math
 import os
 import plistlib
 import queue
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tarfile
@@ -19,7 +23,7 @@ import time
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.error import URLError
 from urllib.parse import parse_qs, quote, unquote, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
@@ -35,6 +39,7 @@ if str(BASE_DIR) not in sys.path:
 
 from roxy_paths import alerts_dir as configured_alerts_dir
 from roxy_paths import output_dir as configured_output_dir
+from durable_storage import atomic_write_text
 
 OUTPUT_DIR = configured_output_dir()
 ALERTS_DIR = configured_alerts_dir()
@@ -43,7 +48,15 @@ DEFAULT_TEXT_PATH = ALERTS_DIR / "roxy_realtime_check.txt"
 DEFAULT_DASHBOARD_RENDER_PROBE_PATH = ALERTS_DIR / "dashboard_render_probe.json"
 DEFAULT_DASHBOARD_SEARCH_RENDER_PROBE_PATH = ALERTS_DIR / "dashboard_render_probe_search.json"
 DEFAULT_LAUNCHD_RECOVERY_REPORT_PATH = ALERTS_DIR / "launchd_recovery.json"
-EXPECTED_LAUNCHD_RECOVERY_SERVICES = ("health_watchdog", "ma_daily", "ma_live", "output_maintenance", "streamlit")
+EXPECTED_LAUNCHD_RECOVERY_SERVICES = (
+    "health_watchdog",
+    "ma_daily",
+    "ma_live",
+    "output_maintenance",
+    "price_alert_monitor",
+    "streamlit",
+    "voice_live",
+)
 DEFAULT_HEALTH_NOTIFY_STATE_PATH = ALERTS_DIR / "roxy_health_notify_state.json"
 DEFAULT_HEALTH_HISTORY_PATH = ALERTS_DIR / "roxy_realtime_history.jsonl"
 DEFAULT_HEALTH_HISTORY_MAX_ENTRIES = 500
@@ -66,6 +79,7 @@ DEFAULT_ALERT_QUALITY_HISTORY_BUDGET_MIN_APPENDS_UNTIL_WARN = 8
 DEFAULT_OUTPUT_MAINTENANCE_HISTORY_BUDGET_MIN_APPENDS_UNTIL_WARN = 8
 DEFAULT_OUTPUT_MAINTENANCE_HISTORY_BUDGET_RECOVERY_MIN_APPENDS_UNTIL_WARN = 9
 DEFAULT_OUTPUT_MAINTENANCE_HISTORY_BUDGET_STALE_MIN_APPEND_DRIFT = 4
+DEFAULT_OUTPUT_MAINTENANCE_LOG_SNAPSHOT_RETRY_HOURS = 1.0
 HEALTH_HISTORY_JSON_SEPARATORS = (",", ":")
 HEALTH_HISTORY_STORAGE_EXCLUDED_METRIC_PREFIXES = ("health_stability_slo_",)
 HEALTH_HISTORY_STORAGE_DUPLICATE_METRIC_PREFIX_ALIASES = (("status_snapshot_alert_quality_", "alert_quality_"),)
@@ -149,6 +163,7 @@ DEFAULT_LAUNCHD_ENV_PATH = Path.home() / "Library" / "Application Support" / "Ro
 DASHBOARD_SOFT_CONSOLE_WARNING_FAMILY_PATTERNS = {
     "browser_feature_policy": ["Unrecognized feature:"],
     "iframe_sandbox_policy": ["An iframe which has both allow-scripts and allow-same-origin"],
+    "streamlit_optional_sidebar_theme": ["Invalid color passed for", "in theme.sidebar"],
     "vega_lite_version": ["The input spec uses Vega-Lite"],
     "empty_chart_extent": ["WARN Infinite extent for field"],
 }
@@ -158,6 +173,7 @@ DASHBOARD_SOFT_CONSOLE_ERROR_FAMILY_PATTERNS = {
 DASHBOARD_BENIGN_SOFT_CONSOLE_WARNING_FAMILIES = {
     "browser_feature_policy",
     "iframe_sandbox_policy",
+    "streamlit_optional_sidebar_theme",
     "vega_lite_version",
 }
 LIVE_BACKEND_PROCESS_ROLES = {
@@ -1259,6 +1275,58 @@ def validate_dashboard_render_probe_report(
     )
 
 
+def validate_dual_chart_crosshair_probe_report(
+    path: str | Path,
+    *,
+    max_age_minutes: float = 1440.0,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    target = Path(path)
+    payload, load_state = read_json_object_report(target)
+    if not load_state.get("exists"):
+        return check(
+            "dual_chart_crosshair_probe",
+            "INFO",
+            "Sonda del cursor dual aun no ejecutada.",
+            path=str(target),
+            probe_status="NO_DATA",
+        )
+    if load_state.get("malformed"):
+        return check(
+            "dual_chart_crosshair_probe",
+            "WARN",
+            f"Sonda del cursor dual invalida: {load_state.get('detail')}",
+            path=str(target),
+            probe_status="ERROR",
+        )
+    current = now or utc_now()
+    generated = parse_utc_datetime(payload.get("generated_at"))
+    age_minutes = ((current - generated).total_seconds() / 60.0) if generated else None
+    probe_status = str(payload.get("status") or "NO_DATA").upper()
+    if age_minutes is None or age_minutes > max_age_minutes:
+        return check(
+            "dual_chart_crosshair_probe",
+            "INFO",
+            f"Sonda del cursor dual sin evidencia vigente ({age_minutes:.1f}m)." if age_minutes is not None else "Sonda del cursor dual sin fecha valida.",
+            path=str(target),
+            probe_status="STALE",
+            age_minutes=age_minutes,
+            max_age_minutes=max_age_minutes,
+        )
+    status = "OK" if probe_status == "OK" and bool(payload.get("ok")) else "FAIL"
+    return check(
+        "dual_chart_crosshair_probe",
+        status,
+        str(payload.get("detail") or "Sonda del cursor dual sin detalle."),
+        path=str(target),
+        probe_status=probe_status,
+        age_minutes=age_minutes,
+        max_age_minutes=max_age_minutes,
+        states=payload.get("states") if isinstance(payload.get("states"), list) else [],
+        console_error_count=len(payload.get("console_errors") or []),
+    )
+
+
 def heartbeat_artifact_path(heartbeat: dict[str, Any], key: str) -> Path | None:
     value = heartbeat.get(key)
     if not value:
@@ -1597,6 +1665,81 @@ def heartbeat_check(
             path=str(heartbeat_path),
         ),
         hb_status,
+    )
+
+
+def validate_live_scan_efficiency_report(
+    report_path: str | Path,
+    *,
+    max_age_minutes: float = 15.0,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    path = Path(report_path)
+    payload, load_state = read_json_object_report(path)
+    if not load_state.get("exists"):
+        return check("live_scan_efficiency", "WARN", "Live scan timing report missing", path=str(path))
+    if load_state.get("malformed"):
+        return check(
+            "live_scan_efficiency",
+            "FAIL",
+            f"Live scan timing report malformed: {load_state.get('detail')}",
+            path=str(path),
+        )
+    generated_at = parse_utc_datetime(payload.get("generated_at"))
+    if generated_at is None:
+        return check("live_scan_efficiency", "FAIL", "Live scan timing generated_at invalid", path=str(path))
+    current = now or utc_now()
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    age_minutes = max(0.0, (current - generated_at).total_seconds() / 60.0)
+    report_status = str(payload.get("status") or "UNKNOWN").upper()
+    timeframes = [str(value).strip().lower() for value in payload.get("crypto_timeframes", [])]
+    derived = [value for value in timeframes if value in {"2h", "4h"}]
+    optimization = (
+        payload.get("crypto_fetch_optimization")
+        if isinstance(payload.get("crypto_fetch_optimization"), dict)
+        else {}
+    )
+    enabled = bool(optimization.get("enabled"))
+    saved_requests = int(optimization.get("saved_request_count") or 0)
+    base_requests = int(optimization.get("base_request_count") or 0)
+    steps = [row for row in payload.get("steps", []) if isinstance(row, dict)]
+    step_modes = {str(row.get("timeframe") or "").lower(): str(row.get("fetch_mode") or "") for row in steps}
+    issues: list[str] = []
+    status = "OK"
+    if age_minutes > max_age_minutes:
+        status = "FAIL"
+        issues.append(f"stale {age_minutes:.1f}m")
+    if report_status not in {"SUCCESS", "RUNNING"}:
+        status = "FAIL"
+        issues.append(f"status {report_status}")
+    if derived:
+        if not enabled or saved_requests <= 0 or base_requests <= 0:
+            status = "WARN" if status == "OK" else status
+            issues.append("derived crypto reuse missing")
+        missing_modes = [value for value in derived if step_modes.get(value) != "DERIVED_FROM_1H"]
+        if report_status == "SUCCESS" and missing_modes:
+            status = "WARN" if status == "OK" else status
+            issues.append("direct derived timeframe " + ",".join(missing_modes))
+    detail = (
+        f"Live scan efficiency {report_status}, age {age_minutes:.1f}m, crypto frames "
+        f"{','.join(timeframes) or '-'}, saved {saved_requests} provider request(s)/cycle, base {base_requests}"
+    )
+    if issues:
+        detail += "; " + "; ".join(issues)
+    return check(
+        "live_scan_efficiency",
+        status,
+        detail,
+        path=str(path),
+        report_status=report_status,
+        age_minutes=round(age_minutes, 1),
+        crypto_timeframes=timeframes,
+        derived_timeframes=derived,
+        optimization_enabled=enabled,
+        saved_request_count=saved_requests,
+        base_request_count=base_requests,
+        step_fetch_modes=step_modes,
     )
 
 
@@ -2776,17 +2919,24 @@ def choose_chart_symbol(
     operational_focus_symbol: str | None = None,
     operational_focus_market: str | None = None,
 ) -> tuple[str, str]:
-    if explicit_symbol:
-        clean_symbol = explicit_symbol.upper()
+    def clean_candidate(value: Any) -> str:
+        candidate = str(value or "").strip().upper()
+        return "" if candidate in {"", "-", "NONE", "NULL", "N/A"} else candidate
+
+    clean_symbol = clean_candidate(explicit_symbol)
+    if clean_symbol:
         return clean_symbol, chart_market_for_symbol(clean_symbol)
-    if operational_focus_symbol:
-        clean_symbol = str(operational_focus_symbol or "").strip().upper()
-        if clean_symbol:
-            return clean_symbol, chart_market_for_symbol(clean_symbol, fallback=operational_focus_market or "stock")
+    clean_symbol = clean_candidate(operational_focus_symbol)
+    if clean_symbol:
+        return clean_symbol, chart_market_for_symbol(clean_symbol, fallback=operational_focus_market or "stock")
     if scan_df.empty or "symbol" not in scan_df.columns:
         return "", "stock"
-    row = scan_df.iloc[0].to_dict()
-    return str(row.get("symbol") or "").upper(), str(row.get("market") or "stock").lower()
+    for _, scan_row in scan_df.iterrows():
+        row = scan_row.to_dict()
+        clean_symbol = clean_candidate(row.get("symbol"))
+        if clean_symbol:
+            return clean_symbol, str(row.get("market") or "stock").lower()
+    return "", "stock"
 
 
 def sample_salto_chart() -> pd.DataFrame:
@@ -2795,7 +2945,7 @@ def sample_salto_chart() -> pd.DataFrame:
         close = 50.0 + idx * 0.22
         rows.append(
             {
-                "ts": pd.Timestamp("2026-01-01") + pd.Timedelta(hours=idx),
+                "ts": pd.Timestamp("2026-01-01") + pd.to_timedelta(idx, unit="h"),
                 "open": close - 0.05,
                 "high": close + 0.15,
                 "low": close - 0.20,
@@ -2835,10 +2985,11 @@ def validate_salto_integration() -> dict[str, Any]:
         if not key_mapping_ok:
             issues.append("strategy_family_from_setup does not map every salto key")
         if not active_or_watch:
-            issues.append("synthetic chart did not produce active/watch salto setup")
+            issues.append("isolated validation fixture did not produce active/watch salto setup")
         status = "OK" if not issues else "FAIL"
         detail = (
-            f"{len(SALTO_STRATEGIES)} definitions, {len(active_or_watch)} synthetic active/watch"
+            f"{len(SALTO_STRATEGIES)} definitions, {len(active_or_watch)} isolated fixture detections; "
+            "fixture-only, 0 market rows published"
             if not issues
             else "; ".join(issues)
         )
@@ -2848,6 +2999,8 @@ def validate_salto_integration() -> dict[str, Any]:
             detail,
             definitions=len(SALTO_STRATEGIES),
             active_or_watch=len(active_or_watch),
+            fixture_only=True,
+            published_market_rows=0,
             core_missing=core_missing,
             lab_missing=lab_missing,
         )
@@ -3085,7 +3238,8 @@ def validate_local_storage_pressure_sources(
     root = Path(home_dir) if home_dir is not None else Path.home()
     candidates: list[dict[str, Any]] = []
     missing_count = 0
-    unreadable_count = 0
+    unreadable_entries: list[dict[str, str]] = []
+    measurable_paths: list[tuple[str, Path]] = []
     for relpath in candidate_relpaths:
         rel = str(relpath).strip()
         if not rel:
@@ -3095,9 +3249,26 @@ def validate_local_storage_pressure_sources(
         if not exists:
             missing_count += 1
             continue
-        size = path_size_bytes(path)
+        measurable_paths.append((rel, path))
+
+    if home_dir is not None:
+        measured_sizes = [path_size_bytes(path) for _, path in measurable_paths]
+    else:
+        # Each production probe is already subprocess-bounded. Run the independent
+        # probes together so several slow macOS-protected/cache directories cannot
+        # add their timeout budgets serially to the watchdog heartbeat.
+        with ThreadPoolExecutor(max_workers=min(4, max(1, len(measurable_paths)))) as executor:
+            measured_sizes = list(executor.map(bounded_directory_size_bytes, (path for _, path in measurable_paths)))
+
+    for (rel, path), size in zip(measurable_paths, measured_sizes):
         if size is None:
-            unreadable_count += 1
+            unreadable_entries.append(
+                {
+                    "name": rel,
+                    "path": str(path),
+                    "reason": "timeout_or_unreadable",
+                }
+            )
             continue
         candidates.append(
             {
@@ -3109,15 +3280,15 @@ def validate_local_storage_pressure_sources(
                 "is_symlink": path.is_symlink(),
             }
         )
+    unreadable_count = len(unreadable_entries)
     candidates = sorted(candidates, key=lambda item: int(item.get("size_bytes") or 0), reverse=True)
     top_entries = candidates[: max(1, int(top_limit))]
     top_total_gb = round(sum(int(item.get("size_bytes") or 0) for item in top_entries) / (1024**3), 4)
     scanned_total_gb = round(sum(int(item.get("size_bytes") or 0) for item in candidates) / (1024**3), 4)
     pressure_active = free_pct is not None and float(free_pct) <= float(scan_threshold_pct)
-    if unreadable_count:
-        status = "WARN" if pressure_active else "INFO"
-    else:
-        status = "INFO"
+    # This is an advisory inventory. Capacity severity belongs to validate_disk_space;
+    # an individual directory timing out must not make the runtime core unavailable.
+    status = "INFO"
     leaders = ", ".join(f"{item['name']} {float(item['size_gb']):.2f} GiB" for item in top_entries[:3])
     if leaders:
         detail = f"Local storage pressure sources: {leaders}"
@@ -3126,7 +3297,8 @@ def validate_local_storage_pressure_sources(
     if free_pct is not None:
         detail += f"; disk free {float(free_pct):.1f}%"
     if unreadable_count:
-        detail += f"; unreadable {unreadable_count}"
+        unreadable_names = ", ".join(item["name"] for item in unreadable_entries[:3])
+        detail += f"; unreadable {unreadable_count} ({unreadable_names})"
     result = check(
         "local_storage_pressure_sources",
         status,
@@ -3138,6 +3310,9 @@ def validate_local_storage_pressure_sources(
         candidate_count=len(candidates),
         missing_candidate_count=missing_count,
         unreadable_candidate_count=unreadable_count,
+        unreadable_entries=unreadable_entries,
+        measurement_complete=unreadable_count == 0,
+        measurement_state="COMPLETE" if unreadable_count == 0 else "PARTIAL",
         scanned_total_gb=scanned_total_gb,
         top_total_gb=top_total_gb,
         top_entries=top_entries,
@@ -3275,6 +3450,10 @@ def validate_cached_local_storage_pressure_sources(
             and not cache_invalidated_by_maintenance
         ):
             cached = dict(cached_check)
+            cached_unreadable = int(cached.get("unreadable_candidate_count") or 0)
+            cached["status"] = "INFO"
+            cached["measurement_complete"] = cached_unreadable == 0
+            cached["measurement_state"] = "COMPLETE" if cached_unreadable == 0 else "PARTIAL"
             cached["cached"] = True
             cached["cache_path"] = str(path)
             cached["cache_age_minutes"] = round(age_minutes, 1)
@@ -3395,7 +3574,10 @@ def validate_external_disk(
         operational_archive_path = archive_value
 
     if not writable and not operational_write_verified:
-        status = "FAIL"
+        # macOS LaunchAgents can read a mounted volume while TCC denies only
+        # ad-hoc writes. This is an auxiliary permission issue, not proof that
+        # market data or the mounted archive is unavailable.
+        status = "WARN"
     elif free_gb < fail_free_gb:
         status = "FAIL"
     elif free_gb < warn_free_gb:
@@ -3407,7 +3589,7 @@ def validate_external_disk(
         if operational_write_verified:
             detail = f"{path} mounted, backup write verified, {free_gb:.2f} GiB free"
         else:
-            detail = f"{path} mounted but not writable"
+            detail = f"{path} mounted but write permission is required for this process"
     return check(
         "external_disk",
         status,
@@ -3415,6 +3597,7 @@ def validate_external_disk(
         path=str(path),
         mounted=True,
         writable=writable,
+        permission_required=bool(not writable and not operational_write_verified),
         operational_write_verified=operational_write_verified,
         operational_age_hours=operational_age_hours,
         operational_archive_path=operational_archive_path,
@@ -3444,6 +3627,30 @@ def path_size_bytes(path: Path) -> int | None:
     except OSError:
         return None
     return total
+
+
+def bounded_directory_size_bytes(path: Path, *, timeout_seconds: float = 2.0) -> int | None:
+    """Measure operator directories out of process so health checks cannot hang on I/O."""
+    if not path.exists() and not path.is_symlink():
+        return None
+    if path.is_file() or path.is_symlink():
+        return path_size_bytes(path)
+    try:
+        result = subprocess.run(
+            ["du", "-sk", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=max(0.1, float(timeout_seconds)),
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    try:
+        return int(result.stdout.split()[0]) * 1024
+    except (IndexError, TypeError, ValueError):
+        return None
 
 
 def read_tail(path: Path, max_bytes: int = 6000) -> str:
@@ -3532,6 +3739,7 @@ def validate_video_learning_library(
     *,
     unarchived_source_warn_gb: float = 1.0,
     video_ingest_active: bool = False,
+    external_volume_root: str | Path = "/Volumes",
 ) -> dict[str, Any]:
     root = Path(media_path)
     index_path = root / "video_learning_index.json"
@@ -3598,7 +3806,7 @@ def validate_video_learning_library(
     pending_archive_source_bytes = 0
     topic_counter: Counter[str] = Counter()
     staging_root = root.parent / "data" / "video_ingest_staging"
-    external_archive_root = Path("/Volumes/RoxyData/RoxyVideosAnalizados")
+    external_root = Path(external_volume_root).absolute()
     indexed_target_dirs = {
         str(item.get("target_dir") or "")
         for item in [*videos, *materials]
@@ -3638,21 +3846,22 @@ def validate_video_learning_library(
             partial_source_refs.append(source_value)
         source_path = Path(source_value) if source_value else None
         archived_path = str(item.get("archived_path") or "")
-        if source_path is not None and source_path.exists() and not archived_path:
+        externally_hosted = bool(
+            source_path is not None
+            and source_path.absolute().is_relative_to(external_root)
+        )
+        if source_path is not None and not archived_path and externally_hosted:
+            # The source already lives off the local disk. Do not touch a volume that may be offline.
+            externally_archived_sources.append(str(source_path))
+        elif source_path is not None and source_path.exists() and not archived_path:
             size = path_size_bytes(source_path) or 0
             try:
                 in_active_staging = source_path.resolve().is_relative_to(staging_root.resolve())
             except OSError:
                 in_active_staging = False
-            try:
-                already_in_external_archive = source_path.resolve().is_relative_to(external_archive_root.resolve())
-            except OSError:
-                already_in_external_archive = False
             if video_ingest_active and in_active_staging:
                 pending_archive_sources.append(str(source_path))
                 pending_archive_source_bytes += size
-            elif already_in_external_archive:
-                externally_archived_sources.append(str(source_path))
             else:
                 unarchived_sources.append(str(source_path))
                 unarchived_source_bytes += size
@@ -3732,6 +3941,7 @@ def validate_video_learning_library(
         pending_archive_source_gb=round(pending_archive_source_gb, 4),
         archive_pending_due_to_active_ingest=bool(pending_archive_sources and video_ingest_active),
         externally_archived_source_count=len(externally_archived_sources),
+        external_volume_root=str(external_root),
         partial_source_ref_count=len(partial_source_refs),
         partial_source_ref_samples=partial_source_refs[:5],
         issues=issues,
@@ -4207,6 +4417,41 @@ def validate_daily_service() -> dict[str, Any]:
         command=command,
         schedule=schedule,
         retention_count=retention_count,
+    )
+
+
+def validate_price_alert_monitor_service() -> dict[str, Any]:
+    try:
+        from tools import price_alert_monitor_launchd
+
+        info = price_alert_monitor_launchd.status()
+    except Exception as exc:
+        return check("price_alert_monitor_service", "WARN", f"Could not inspect price alert monitor: {exc}")
+    command = str(info.get("command") or "")
+    try:
+        interval = int(info.get("interval_seconds") or 0)
+    except (TypeError, ValueError):
+        interval = 0
+    issues: list[str] = []
+    if not info.get("installed"):
+        issues.append("not installed")
+    if not info.get("loaded"):
+        issues.append("not loaded")
+    if "price_alert_monitor.py" not in command:
+        issues.append("wrong command")
+    if "--no-fail" not in command:
+        issues.append("--no-fail missing")
+    if interval < 30 or interval > 120:
+        issues.append(f"interval out of range: {interval}s")
+    status = "OK" if not issues else "FAIL"
+    return check(
+        "price_alert_monitor_service",
+        status,
+        "Price alert monitor LaunchAgent loaded every 60s" if not issues else "; ".join(issues),
+        installed=bool(info.get("installed")),
+        loaded=bool(info.get("loaded")),
+        interval_seconds=interval,
+        command=command,
     )
 
 
@@ -5241,6 +5486,25 @@ def validate_ai_brief_report(
     top_gate = str(gate_summary.get("top_gate_label") or gate_summary.get("top_gate") or "")
     top_blocker = str(gate_summary.get("top_blocker") or "")
     top_quality = str(gate_summary.get("top_quality") or "")
+    opportunities = [row for row in brief.get("opportunities", []) if isinstance(row, dict)]
+    def explicit_number(value: Any) -> float | None:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return None
+        return number if math.isfinite(number) else None
+
+    scan_watch_rows = [
+        row for row in opportunities if str(row.get("action") or "").upper() == "CRYPTO_SCAN_WATCH"
+    ]
+    missing_target_contract = sum(1 for row in scan_watch_rows if not row.get("target_contract"))
+    inconsistent_incomplete_levels = sum(
+        1
+        for row in scan_watch_rows
+        if str(row.get("target_contract") or "") == "MISSING_EXPLICIT_TARGET"
+        and (explicit_number(row.get("recommended_target_pct")) is not None
+             or explicit_number(row.get("recommended_target_price")) is not None)
+    )
     generated_at = parse_utc_datetime(brief.get("generated_at"))
     current = now or utc_now()
     if current.tzinfo is None:
@@ -5275,11 +5539,18 @@ def validate_ai_brief_report(
         detail += f", generated future {generated_at_future_minutes:.1f}m"
     if source_lag_minutes is not None and source_lag_status != "OK":
         detail += f", brief atrasado {source_lag_minutes:.1f}m vs fuente live"
+    if scan_watch_rows:
+        detail += (
+            f", scan WATCH target contract {len(scan_watch_rows) - missing_target_contract}/{len(scan_watch_rows)}, "
+            f"inconsistent {inconsistent_incomplete_levels}"
+        )
     status = "OK" if allowed else "FAIL"
     if status == "OK" and generated_at_status != "OK":
         status = generated_at_status
     if status == "OK" and source_lag_status == "WARN":
         status = "WARN"
+    if missing_target_contract or inconsistent_incomplete_levels:
+        status = "FAIL"
 
     return check(
         "ai_brief",
@@ -5297,6 +5568,9 @@ def validate_ai_brief_report(
         avg_readiness=avg_readiness,
         top_gate=top_gate,
         top_blocker=top_blocker,
+        scan_watch_count=len(scan_watch_rows),
+        scan_watch_missing_target_contract_count=missing_target_contract,
+        scan_watch_inconsistent_level_count=inconsistent_incomplete_levels,
         top_quality=top_quality,
         source_freshness=freshness,
         generated_at_future_minutes=generated_at_future_minutes,
@@ -5993,7 +6267,7 @@ def validate_status_snapshot_report(
         issues.append("top readiness out of range")
     if daily_plan_mode != "DAILY_OPPORTUNITY_PLAN_24H":
         issues.append("daily plan mode missing")
-    if daily_plan_top_symbol == "-" or daily_plan_top_stage == "-":
+    if total_opportunities > 0 and (daily_plan_top_symbol == "-" or daily_plan_top_stage == "-"):
         issues.append("daily plan top missing")
     if daily_plan_top_probability is not None and not number_in_range(daily_plan_top_probability):
         issues.append("daily plan probability out of range")
@@ -6840,6 +7114,12 @@ def operational_log_signals(text: str) -> tuple[list[str], list[str], int]:
         if any(pattern in line for pattern in BENIGN_OPERATIONAL_LOG_PATTERNS):
             ignored += 1
             continue
+        if "/site-packages/yfinance/" in line and "DeprecationWarning:" in line:
+            ignored += 1
+            continue
+        if "generic' unit for NumPy timedelta is deprecated" in line:
+            ignored += 1
+            continue
         if benign_streamlit_event_loop_close and (
             line == "Exception in thread ScriptRunner.scriptThread:"
             or line == "Traceback (most recent call last):"
@@ -6897,6 +7177,17 @@ def validate_operational_logs(
     active_count = 0
     existing_count = 0
     timestamp_filtered_log_count = 0
+    backup_report = read_json(base_dir / "alerts" / "runtime_backup.json")
+    backup_generated_at = parse_utc_datetime(backup_report.get("generated_at"))
+    recovered_backup_permission_reason = str(backup_report.get("target_fallback_reason") or "")
+    recovered_backup_requested_target = str(backup_report.get("requested_target_dir") or "")
+    recovered_backup_permission_error = bool(
+        backup_report.get("status") == "OK"
+        and backup_report.get("archive_verified") is True
+        and backup_report.get("target_fallback") is True
+        and "PermissionError" in recovered_backup_permission_reason
+        and "Operation not permitted" in recovered_backup_permission_reason
+    )
 
     for path in paths:
         if not path.exists() or not path.is_file():
@@ -6922,6 +7213,27 @@ def validate_operational_logs(
         if timestamp_filtered:
             timestamp_filtered_log_count += 1
         critical, warnings_found, ignored = operational_log_signals(filtered_tail)
+        if (
+            critical
+            and path.name == "runtime_backup.err"
+            and recovered_backup_permission_error
+            and backup_generated_at is not None
+            and backup_generated_at.timestamp() >= stat.st_mtime
+            and all(
+                line == "Traceback (most recent call last):"
+                or line in recovered_backup_permission_reason
+                or recovered_backup_permission_reason in line
+                or (
+                    "PermissionError" in line
+                    and "Operation not permitted" in line
+                    and recovered_backup_requested_target
+                    and recovered_backup_requested_target in line
+                )
+                for line in critical
+            )
+        ):
+            ignored += len(critical)
+            critical = []
         ignored_line_count += ignored
         for line in critical[:5]:
             critical_issues.append({"path": str(path), "line": line})
@@ -8449,6 +8761,24 @@ def validate_output_maintenance_report(
     dry_run_status = "WARN" if dry_run else "OK"
     output_archive_error_count = int(payload.get("output_archive_error_count", 0) or 0)
     archive_status = "WARN" if output_archive_error_count else "OK"
+    output_archive_fallback = bool(payload.get("output_archive_fallback"))
+    output_archive_requested_dir = str(payload.get("output_archive_requested_dir") or "")
+    output_archive_effective_dir = str(
+        payload.get("output_archive_effective_dir")
+        or payload.get("output_archive_dir")
+        or payload.get("archive_dir")
+        or ""
+    )
+    output_archive_writable = bool(payload.get("output_archive_writable", True))
+    log_snapshot_counts = (
+        payload.get("log_snapshot_counts") if isinstance(payload.get("log_snapshot_counts"), dict) else {}
+    )
+    log_snapshot_scan_status = str(log_snapshot_counts.get("scan_status") or "OK").upper()
+    log_snapshot_scan_errors = (
+        log_snapshot_counts.get("scan_errors")
+        if isinstance(log_snapshot_counts.get("scan_errors"), dict)
+        else {}
+    )
     sqlite_maintenance = (
         payload.get("sqlite_maintenance") if isinstance(payload.get("sqlite_maintenance"), dict) else {}
     )
@@ -8464,6 +8794,8 @@ def validate_output_maintenance_report(
     operation_label = str(operation_summary.get("label") or "")
     operation_tone = str(operation_summary.get("tone") or "")
     operation_protected = operation_summary.get("protected") if operation_summary else None
+    hygiene_issues = hygiene_summary.get("issues") if isinstance(hygiene_summary.get("issues"), list) else []
+    normalized_hygiene_issues = {str(issue or "").strip().lower() for issue in hygiene_issues if str(issue).strip()}
     sqlite_status_check = "WARN" if sqlite_status == "ERROR" else "OK"
     hygiene_status_check = "FAIL" if hygiene_status == "FAIL" else "WARN" if hygiene_status == "WARN" else "OK"
     details = [f"age {age_hours:.1f}h"]
@@ -8789,6 +9121,7 @@ def validate_output_maintenance_report(
         elif skipped_positive:
             local_cache_cleanup_skip_state = "SKIPPED_UNKNOWN_ELIGIBLE"
         else:
+            local_cache_cleanup_skipped_ratio = 0.0
             local_cache_cleanup_skip_state = "CLEAR"
     if local_cache_cleanup_retry_recommended is None:
         local_cache_cleanup_retry_recommended = local_cache_cleanup_skip_state in {
@@ -9048,28 +9381,42 @@ def validate_output_maintenance_report(
         current_history_budget_projected_top.get("projected_next_byte_margin"),
         numeric=True,
     )
+    saved_min_append_estimate = payload.get("current_history_budget_min_estimated_appends_until_warn")
+    current_min_append_estimate = current_history_budget.get("min_estimated_appends_until_warn")
+    min_append_estimate_within_stale_tolerance = False
+    try:
+        min_append_estimate_within_stale_tolerance = abs(
+            float(saved_min_append_estimate) - float(current_min_append_estimate)
+        ) <= DEFAULT_OUTPUT_MAINTENANCE_HISTORY_BUDGET_STALE_MIN_APPEND_DRIFT
+    except (TypeError, ValueError):
+        pass
     current_history_budget_alias_mismatch(
         "current_history_budget_min_estimated_appends_until_warn",
-        current_history_budget.get("min_estimated_appends_until_warn"),
+        current_min_append_estimate,
         numeric=True,
         tolerance=DEFAULT_OUTPUT_MAINTENANCE_HISTORY_BUDGET_STALE_MIN_APPEND_DRIFT,
     )
-    current_history_budget_alias_mismatch(
-        "current_history_budget_min_estimated_appends_until_warn_name",
-        current_history_budget.get("min_estimated_appends_until_warn_name"),
-    )
-    current_history_budget_alias_mismatch(
-        "current_history_budget_min_estimated_appends_until_line_warn",
-        current_history_budget.get("min_estimated_appends_until_line_warn"),
-        numeric=True,
-        tolerance=DEFAULT_OUTPUT_MAINTENANCE_HISTORY_BUDGET_STALE_MIN_APPEND_DRIFT,
-    )
-    current_history_budget_alias_mismatch(
-        "current_history_budget_min_estimated_appends_until_byte_warn",
-        current_history_budget.get("min_estimated_appends_until_byte_warn"),
-        numeric=True,
-        tolerance=DEFAULT_OUTPUT_MAINTENANCE_HISTORY_BUDGET_STALE_MIN_APPEND_DRIFT,
-    )
+    # The limiting file can legitimately switch between two histories while
+    # their aggregate append estimates remain within the accepted stale-report
+    # tolerance. Its companion name/line/byte values describe that file, so
+    # comparing them independently creates a false contract warning.
+    if not min_append_estimate_within_stale_tolerance:
+        current_history_budget_alias_mismatch(
+            "current_history_budget_min_estimated_appends_until_warn_name",
+            current_history_budget.get("min_estimated_appends_until_warn_name"),
+        )
+        current_history_budget_alias_mismatch(
+            "current_history_budget_min_estimated_appends_until_line_warn",
+            current_history_budget.get("min_estimated_appends_until_line_warn"),
+            numeric=True,
+            tolerance=DEFAULT_OUTPUT_MAINTENANCE_HISTORY_BUDGET_STALE_MIN_APPEND_DRIFT,
+        )
+        current_history_budget_alias_mismatch(
+            "current_history_budget_min_estimated_appends_until_byte_warn",
+            current_history_budget.get("min_estimated_appends_until_byte_warn"),
+            numeric=True,
+            tolerance=DEFAULT_OUTPUT_MAINTENANCE_HISTORY_BUDGET_STALE_MIN_APPEND_DRIFT,
+        )
     if not hygiene_summary:
         contract_issues.append("maintenance hygiene summary missing")
     if not operation_summary:
@@ -9092,6 +9439,22 @@ def validate_output_maintenance_report(
         elif operation_protected is not None and bool(report_protected_alias) != bool(operation_protected):
             contract_issues.append("maintenance protected alias mismatch")
     contract_status = "WARN" if contract_issues else "OK"
+    snapshot_scan_external_degraded = bool(
+        log_snapshot_scan_status == "WARN"
+        and normalized_hygiene_issues == {"log snapshot scan warn"}
+        and not dry_run
+        and output_exists
+        and output_archive_error_count == 0
+        and footprint_budget_status in {"OK", "INFO"}
+        and current_history_budget_status_check in {"OK", "INFO"}
+        and not contract_issues
+        and sqlite_status_check == "OK"
+        and partial_video_cleanup_status_check == "OK"
+    )
+    internal_protected = bool(
+        snapshot_scan_external_degraded
+        or (hygiene_summary.get("protected") is True and operation_protected is not False)
+    )
     report_status_check = report_status_alias if report_status_alias in {"WARN", "FAIL"} else "OK"
     status = status_max(
         age_status,
@@ -9110,6 +9473,13 @@ def validate_output_maintenance_report(
     details.append(f"archived output {output_archive_count}")
     if output_archive_error_count:
         details.append(f"archive errors {output_archive_error_count}")
+    if output_archive_fallback:
+        details.append("local archive fallback active; external permission required")
+    if log_snapshot_scan_status != "OK":
+        details.append(
+            f"log snapshot scan {log_snapshot_scan_status.lower()}"
+            + (f" ({len(log_snapshot_scan_errors)} patterns)" if log_snapshot_scan_errors else "")
+        )
     details.append(f"removed stale output {stale_output_removed_count}")
     details.append(f"trimmed logs {trimmed_log_count}")
     details.append(f"trimmed histories {trimmed_history_count}")
@@ -9301,6 +9671,15 @@ def validate_output_maintenance_report(
         output_archive_count=output_archive_count,
         output_archive_error_count=output_archive_error_count,
         output_archive_dir=str(payload.get("output_archive_dir") or payload.get("archive_dir") or ""),
+        output_archive_requested_dir=output_archive_requested_dir,
+        output_archive_effective_dir=output_archive_effective_dir,
+        output_archive_fallback=output_archive_fallback,
+        output_archive_writable=output_archive_writable,
+        log_snapshot_scan_status=log_snapshot_scan_status,
+        log_snapshot_scan_errors=log_snapshot_scan_errors,
+        log_snapshot_scan_retry_hours=DEFAULT_OUTPUT_MAINTENANCE_LOG_SNAPSHOT_RETRY_HOURS,
+        external_degraded=snapshot_scan_external_degraded,
+        internal_protected=internal_protected,
         stale_output_removed_count=stale_output_removed_count,
         stale_output_removed_counts=dict(payload.get("stale_output_removed_counts") or {}),
         trimmed_log_count=trimmed_log_count,
@@ -9441,7 +9820,7 @@ def validate_output_maintenance_report(
         hygiene_tone=hygiene_summary.get("tone"),
         hygiene_protected=bool(hygiene_summary.get("protected")),
         hygiene_detail=str(hygiene_summary.get("detail") or ""),
-        hygiene_issues=hygiene_summary.get("issues") if isinstance(hygiene_summary.get("issues"), list) else [],
+        hygiene_issues=hygiene_issues,
         operation_label=operation_summary.get("label"),
         operation_status=operation_summary.get("status"),
         operation_tone=operation_summary.get("tone"),
@@ -9933,6 +10312,223 @@ def validate_launchd_recovery_report(
     )
 
 
+def validate_price_alert_monitor_report(
+    report_path: str | Path,
+    *,
+    max_age_minutes: float = 3.0,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    path = Path(report_path)
+    payload, load_state = read_json_object_report(path)
+    if not load_state.get("exists"):
+        return check("price_alert_monitor", "FAIL", "Price alert monitor report missing", path=str(path))
+    if load_state.get("malformed"):
+        return check(
+            "price_alert_monitor", "FAIL", f"Price alert monitor report malformed: {load_state.get('detail')}", path=str(path)
+        )
+    generated_at = parse_utc_datetime(payload.get("generated_at"))
+    if generated_at is None:
+        return check("price_alert_monitor", "FAIL", "Price alert monitor generated_at invalid", path=str(path))
+    current = now or utc_now()
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    age_minutes = max(0.0, (current - generated_at).total_seconds() / 60.0)
+    contract = str(payload.get("contract_version") or "")
+    report_status = str(payload.get("status") or "UNKNOWN").upper()
+    issues: list[str] = []
+    status = "OK"
+    if contract != "roxy-durable-alert-monitor/2.0.0":
+        status = "FAIL"
+        issues.append(f"contract {contract or '-'}")
+    if age_minutes > float(max_age_minutes):
+        status = "FAIL"
+        issues.append(f"stale {age_minutes:.1f}m")
+    if report_status == "WARNING" and status == "OK":
+        status = "WARN"
+        issues.append("provider gate blocked one or more rules")
+    elif report_status not in {"OK", "NO_DATA", "WARNING"}:
+        status = "FAIL"
+        issues.append(f"status {report_status}")
+    active = int(payload.get("active_alerts") or 0)
+    evaluated = int(payload.get("evaluated") or 0)
+    blocked = int(payload.get("blocked") or 0)
+    triggered = int(payload.get("triggered") or 0)
+    expired = int(payload.get("expired") or 0)
+    pending = int(payload.get("notification_pending") or 0)
+    delivery_failures = int(payload.get("permanent_delivery_failures") or 0)
+    detail = (
+        f"Durable price/EMA/volume alert monitor {report_status}, age {age_minutes:.1f}m, active {active}, "
+        f"evaluated {evaluated}, blocked {blocked}, triggered {triggered}, expired {expired}, "
+        f"delivery pending {pending}, permanent delivery failures {delivery_failures}"
+    )
+    if issues:
+        detail += "; " + "; ".join(issues)
+    return check(
+        "price_alert_monitor",
+        status,
+        detail,
+        path=str(path),
+        contract_version=contract,
+        report_status=report_status,
+        age_minutes=round(age_minutes, 1),
+        active_alert_count=active,
+        evaluated_count=evaluated,
+        blocked_count=blocked,
+        expired_count=expired,
+        notification_pending_count=pending,
+        permanent_delivery_failure_count=delivery_failures,
+        triggered_count=triggered,
+        notification_count=int(payload.get("notifications") or 0),
+        provider_states=payload.get("provider_states") if isinstance(payload.get("provider_states"), dict) else {},
+    )
+
+
+def validate_opportunity_sync_report(
+    report_path: str | Path,
+    *,
+    max_age_minutes: float = 15.0,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    path = Path(report_path)
+    payload, load_state = read_json_object_report(path)
+    if not load_state.get("exists"):
+        return check("opportunity_sync", "FAIL", "Opportunity sync report missing", path=str(path))
+    if load_state.get("malformed"):
+        return check("opportunity_sync", "FAIL", f"Opportunity sync report malformed: {load_state.get('detail')}", path=str(path))
+    generated_at = parse_utc_datetime(payload.get("generated_at"))
+    if generated_at is None:
+        return check("opportunity_sync", "FAIL", "Opportunity sync generated_at invalid", path=str(path))
+    current = now or utc_now()
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    age_minutes = max(0.0, (current - generated_at).total_seconds() / 60.0)
+    contract = str(payload.get("contract_version") or payload.get("contract") or "")
+    report_status = str(payload.get("status") or "UNKNOWN").upper()
+    issues: list[str] = []
+    status = "OK"
+    if contract != "roxy-opportunity-sync/1.0.0":
+        status = "FAIL"
+        issues.append(f"contract {contract or '-'}")
+    if age_minutes > max_age_minutes:
+        status = "FAIL"
+        issues.append(f"stale {age_minutes:.1f}m")
+    if report_status == "WARNING" and status == "OK":
+        status = "WARN"
+        issues.append("source degraded; last known list preserved")
+    elif report_status not in {"OK", "WARNING"}:
+        status = "FAIL"
+        issues.append(f"status {report_status}")
+    users = payload.get("users") if isinstance(payload.get("users"), dict) else {}
+    detail = (
+        f"Opportunity sync {report_status}, age {age_minutes:.1f}m, candidates "
+        f"{int(payload.get('candidate_count') or 0)}, ready {int(payload.get('trade_ready_count') or 0)}, users {len(users)}"
+    )
+    if issues:
+        detail += "; " + "; ".join(issues)
+    return check(
+        "opportunity_sync",
+        status,
+        detail,
+        path=str(path),
+        contract_version=contract,
+        report_status=report_status,
+        age_minutes=round(age_minutes, 1),
+        candidate_count=int(payload.get("candidate_count") or 0),
+        trade_ready_count=int(payload.get("trade_ready_count") or 0),
+        user_count=len(users),
+        source_healthy=bool(payload.get("source_healthy")),
+    )
+
+
+def validate_opportunity_lifecycle_report(
+    report_path: str | Path,
+    brief_path: str | Path,
+    *,
+    max_age_minutes: float = 15.0,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    path = Path(report_path)
+    payload, load_state = read_json_object_report(path)
+    if not load_state.get("exists"):
+        return check("opportunity_lifecycle", "FAIL", "Opportunity lifecycle report missing", path=str(path))
+    if load_state.get("malformed"):
+        return check(
+            "opportunity_lifecycle",
+            "FAIL",
+            f"Opportunity lifecycle report malformed: {load_state.get('detail')}",
+            path=str(path),
+        )
+    updated_at = parse_utc_datetime(payload.get("updated_at"))
+    if updated_at is None:
+        return check("opportunity_lifecycle", "FAIL", "Opportunity lifecycle updated_at invalid", path=str(path))
+    current = now or utc_now()
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    age_minutes = max(0.0, (current - updated_at).total_seconds() / 60.0)
+    contract = str(payload.get("contract") or "")
+    events = payload.get("archived_opportunities")
+    issues: list[str] = []
+    if contract != "roxy-opportunity-lifecycle/1.0.0":
+        issues.append(f"contract {contract or '-'}")
+    if age_minutes > max_age_minutes:
+        issues.append(f"stale {age_minutes:.1f}m")
+    if not isinstance(events, list):
+        issues.append("archived_opportunities is not a list")
+        events = []
+    symbols: list[str] = []
+    for index, event in enumerate(events):
+        if not isinstance(event, dict):
+            issues.append(f"event {index} is not an object")
+            continue
+        symbol = str(event.get("symbol") or "").strip().upper()
+        if not symbol or symbol == "-":
+            issues.append(f"event {index} missing symbol")
+            continue
+        symbols.append(symbol)
+        if str(event.get("status") or "") != "Invalidada":
+            issues.append(f"{symbol} status is not Invalidada")
+        if str(event.get("reactivation_policy") or "") != "FRESH_ALERT_READY":
+            issues.append(f"{symbol} reactivation policy invalid")
+        if not parse_utc_datetime(event.get("archived_at")):
+            issues.append(f"{symbol} archived_at invalid")
+    duplicate_symbols = sorted({symbol for symbol in symbols if symbols.count(symbol) > 1})
+    if duplicate_symbols:
+        issues.append("duplicate archived symbols " + ",".join(duplicate_symbols))
+
+    brief_payload, brief_state = read_json_object_report(Path(brief_path))
+    active_symbols: set[str] = set()
+    if brief_state.get("malformed") or not brief_state.get("exists"):
+        issues.append("active brief unavailable")
+    else:
+        active_symbols = {
+            str(row.get("symbol") or "").strip().upper()
+            for row in brief_payload.get("opportunities", [])
+            if isinstance(row, dict) and str(row.get("symbol") or "").strip()
+        }
+    overlap = sorted(set(symbols) & active_symbols)
+    if overlap:
+        issues.append("archived symbols still active " + ",".join(overlap))
+    status = "FAIL" if issues else "OK"
+    detail = (
+        f"Opportunity lifecycle {contract or '-'}, age {age_minutes:.1f}m, archived {len(symbols)}, "
+        f"active overlap {len(overlap)}"
+    )
+    if issues:
+        detail += "; " + "; ".join(issues)
+    return check(
+        "opportunity_lifecycle",
+        status,
+        detail,
+        path=str(path),
+        contract_version=contract,
+        age_minutes=round(age_minutes, 1),
+        archived_count=len(symbols),
+        duplicate_symbol_count=len(duplicate_symbols),
+        active_overlap_count=len(overlap),
+        active_overlap_symbols=overlap,
+    )
+
+
 def validate_chart_health_report(
     report_path: Path,
     *,
@@ -10385,7 +10981,17 @@ def evaluate_realtime_health(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     required_timeframes = required_timeframes or {"15m", "1h", "2h", "4h"}
+    custom_base_dir = Path(base_dir).resolve(strict=False) != BASE_DIR.resolve(strict=False)
     output_path, alerts_path = runtime_dirs(base_dir)
+    isolated_runtime_dirs = custom_base_dir or (
+        output_path.resolve(strict=False) != (BASE_DIR / "output").resolve(strict=False)
+        or alerts_path.resolve(strict=False) != (BASE_DIR / "alerts").resolve(strict=False)
+    )
+    storage_scan_root = (
+        Path(os.path.commonpath([str(output_path), str(alerts_path)]))
+        if isolated_runtime_dirs
+        else None
+    )
     checks: list[dict[str, Any]] = []
     disk_check = validate_disk_space(base_dir, warn_free_gb=warn_free_gb, fail_free_gb=fail_free_gb)
     checks.append(disk_check)
@@ -10398,6 +11004,7 @@ def evaluate_realtime_health(
             validate_cached_local_storage_pressure_sources(
                 cache_path=alerts_path / DEFAULT_LOCAL_STORAGE_PRESSURE_CACHE_PATH.name,
                 maintenance_report_path=alerts_path / "output_maintenance.json",
+                home_dir=storage_scan_root,
                 free_pct=disk_free_pct,
                 now=now,
             )
@@ -10434,6 +11041,17 @@ def evaluate_realtime_health(
         )
     )
     if external_disk_path:
+        external_root = Path(external_disk_path)
+        default_cache_source = (
+            Path(base_dir) / "home" / ".cache" / "codex-runtimes"
+            if custom_base_dir
+            else DEFAULT_RUNTIME_CACHE_SOURCE_PATH
+        )
+        default_cache_destination = (
+            external_root / "MacArchive" / Path.home().name / ".cache" / "codex-runtimes"
+            if custom_base_dir
+            else DEFAULT_RUNTIME_CACHE_DESTINATION_PATH
+        )
         checks.append(
             validate_external_disk(
                 external_disk_path,
@@ -10454,8 +11072,8 @@ def evaluate_realtime_health(
         )
         checks.append(
             validate_runtime_cache_migration(
-                source_path=runtime_cache_source_path or DEFAULT_RUNTIME_CACHE_SOURCE_PATH,
-                destination_path=runtime_cache_destination_path or DEFAULT_RUNTIME_CACHE_DESTINATION_PATH,
+                source_path=runtime_cache_source_path or default_cache_source,
+                destination_path=runtime_cache_destination_path or default_cache_destination,
                 external_disk_path=external_disk_path,
             )
         )
@@ -10491,6 +11109,14 @@ def evaluate_realtime_health(
         heartbeat_status.setdefault("load_detail", heartbeat_load_state.get("detail"))
         heartbeat_status["heartbeat_status"] = hb_status
     checks.append(heartbeat_status)
+    live_scan_timing_path = alerts_path / "ma_live_scan_timing.json"
+    checks.append(
+        validate_live_scan_efficiency_report(
+            live_scan_timing_path,
+            max_age_minutes=max_age_minutes,
+            now=now,
+        )
+    )
     checks.append(validate_live_backend_process_guard())
     freshness_max_age_minutes = max_age_minutes
     if hb_status == "RUNNING" and heartbeat_status.get("status") == "OK":
@@ -10617,6 +11243,7 @@ def evaluate_realtime_health(
     checks.append(validate_dashboard_realtime_contract(base_dir / "streamlit_app.py"))
     checks.append(validate_dashboard_history_hygiene(base_dir / "db" / "scan_history.csv", now=now))
     checks.append(validate_dashboard_render_probe_report(alerts_path / "dashboard_render_probe.json", now=now))
+    checks.append(validate_dual_chart_crosshair_probe_report(alerts_path / "dual_chart_crosshair_probe.json", now=now))
     checks.append(
         validate_dashboard_render_probe_report(
             alerts_path / "dashboard_render_probe_search.json",
@@ -10637,6 +11264,18 @@ def evaluate_realtime_health(
     checks.append(validate_runtime_backup_report(runtime_backup_report_path, now=now))
     launchd_recovery_report_path = alerts_path / "launchd_recovery.json"
     checks.append(validate_launchd_recovery_report(launchd_recovery_report_path, now=now))
+    price_alert_monitor_report_path = alerts_path / "price_alert_monitor.json"
+    checks.append(validate_price_alert_monitor_report(price_alert_monitor_report_path, now=now))
+    opportunity_sync_report_path = alerts_path / "opportunity_sync.json"
+    checks.append(validate_opportunity_sync_report(opportunity_sync_report_path, now=now))
+    opportunity_lifecycle_report_path = alerts_path / "opportunity_lifecycle.json"
+    checks.append(
+        validate_opportunity_lifecycle_report(
+            opportunity_lifecycle_report_path,
+            brief_path,
+            now=now,
+        )
+    )
     checks.append(validate_notification_delivery(alerts_path))
     checks.append(
         validate_health_history_integrity(
@@ -10661,6 +11300,7 @@ def evaluate_realtime_health(
         checks.append(check("streamlit_service_24h", "WARN", "LaunchAgent check skipped"))
         checks.append(check("daily_service", "WARN", "LaunchAgent check skipped"))
         checks.append(check("health_watchdog_service", "WARN", "LaunchAgent check skipped"))
+        checks.append(check("price_alert_monitor_service", "WARN", "LaunchAgent check skipped"))
         checks.append(check("output_maintenance_service", "WARN", "LaunchAgent check skipped"))
         checks.append(check("runtime_backup_service", "WARN", "LaunchAgent check skipped"))
     else:
@@ -10669,6 +11309,7 @@ def evaluate_realtime_health(
         checks.append(validate_streamlit_service())
         checks.append(validate_daily_service())
         checks.append(validate_health_watchdog_service())
+        checks.append(validate_price_alert_monitor_service())
         checks.append(validate_output_maintenance_service())
         checks.append(validate_runtime_backup_service())
 
@@ -10683,11 +11324,15 @@ def evaluate_realtime_health(
             "confluence": str(confluence_path) if confluence_path else None,
             "options": str(options_path) if options_path else None,
             "heartbeat": str(heartbeat_path),
+            "live_scan_timing": str(live_scan_timing_path),
             "brief": str(brief_path),
             "alert_quality": str(alerts_path / "alert_quality.json"),
             "output_maintenance": str(maintenance_report_path),
             "runtime_backup": str(runtime_backup_report_path),
             "launchd_recovery": str(launchd_recovery_report_path),
+            "price_alert_monitor": str(price_alert_monitor_report_path),
+            "opportunity_sync": str(opportunity_sync_report_path),
+            "opportunity_lifecycle": str(opportunity_lifecycle_report_path),
         },
     }
     report["provider_recovery"] = provider_recovery_summary(checks)
@@ -11434,10 +12079,8 @@ def json_safe(value: Any) -> Any:
 def write_report(report: dict[str, Any], *, json_path: str | Path, text_path: str | Path) -> tuple[Path, Path]:
     json_file = Path(json_path)
     text_file = Path(text_path)
-    json_file.parent.mkdir(parents=True, exist_ok=True)
-    text_file.parent.mkdir(parents=True, exist_ok=True)
-    json_file.write_text(json.dumps(json_safe(report), indent=2, sort_keys=True))
-    text_file.write_text(render_text_report(report))
+    atomic_write_text(json.dumps(json_safe(report), indent=2, sort_keys=True), json_file)
+    atomic_write_text(render_text_report(report), text_file)
     return json_file, text_file
 
 
@@ -11549,6 +12192,9 @@ def health_history_entry(report: dict[str, Any]) -> dict[str, Any]:
             metrics["external_disk_free_gb"] = item.get("free_gb")
             metrics["external_disk_free_pct"] = item.get("free_pct")
             metrics["external_disk_mounted"] = item.get("mounted")
+            metrics["external_disk_writable"] = item.get("writable")
+            metrics["external_disk_permission_required"] = item.get("permission_required")
+            metrics["external_disk_operational_write_verified"] = item.get("operational_write_verified")
         elif name == "local_training_media":
             metrics["training_media_gb"] = item.get("size_gb")
             metrics["training_media_state"] = item.get("state")
@@ -11795,6 +12441,9 @@ def health_history_entry(report: dict[str, Any]) -> dict[str, Any]:
             metrics["output_maintenance_max_alerts_footprint_mb"] = item.get("max_alerts_footprint_mb")
             metrics["output_maintenance_max_logs_footprint_mb"] = item.get("max_logs_footprint_mb")
             metrics["output_maintenance_generated_at_future_minutes"] = item.get("generated_at_future_minutes")
+            metrics["output_maintenance_external_degraded"] = item.get("external_degraded")
+            metrics["output_maintenance_internal_protected"] = item.get("internal_protected")
+            metrics["output_maintenance_log_snapshot_scan_status"] = item.get("log_snapshot_scan_status")
             metrics["output_footprint_mb"] = item.get("output_footprint_mb")
             metrics["alerts_footprint_mb"] = item.get("alerts_footprint_mb")
             metrics["logs_footprint_mb"] = item.get("logs_footprint_mb")
@@ -12017,7 +12666,7 @@ def health_history_entry(report: dict[str, Any]) -> dict[str, Any]:
             skipped_positive = (skipped_mb is not None and skipped_mb > 0) or (
                 skipped_count is not None and skipped_count > 0
             )
-            skip_ratio = None
+            skip_ratio = 0.0
             skip_state = "CLEAR"
             if eligible_mb is not None and eligible_mb > 0:
                 effective_skipped_mb = max(skipped_mb or 0.0, 0.0)
@@ -14190,6 +14839,15 @@ def health_history_entry(report: dict[str, Any]) -> dict[str, Any]:
             metrics["realtime_lock_overlap_shared_flags"] = item.get("lock_overlap_shared_flags")
             metrics["realtime_lock_overlap_owner_only_flags"] = item.get("lock_overlap_owner_only_flags")
             metrics["realtime_lock_overlap_blocked_only_flags"] = item.get("lock_overlap_blocked_only_flags")
+        elif name == "opportunity_sync":
+            metrics["opportunity_sync_check_status"] = status
+            metrics["opportunity_sync_report_status"] = item.get("report_status")
+            metrics["opportunity_sync_age_minutes"] = item.get("age_minutes")
+            metrics["opportunity_sync_candidate_count"] = item.get("candidate_count")
+            metrics["opportunity_sync_trade_ready_count"] = item.get("trade_ready_count")
+            metrics["opportunity_sync_user_count"] = item.get("user_count")
+            metrics["opportunity_sync_source_healthy"] = item.get("source_healthy")
+            metrics["opportunity_sync_contract_version"] = item.get("contract_version")
         elif name == "ai_brief":
             metrics["ai_brief_status"] = status
             metrics["ai_brief_malformed"] = item.get("malformed")
@@ -14806,6 +15464,16 @@ def validate_report_metrics_contract(report: dict[str, Any]) -> dict[str, Any]:
             "ai_alert_count",
             "ai_watch_count",
         ),
+        "opportunity_sync": (
+            "opportunity_sync_check_status",
+            "opportunity_sync_report_status",
+            "opportunity_sync_age_minutes",
+            "opportunity_sync_candidate_count",
+            "opportunity_sync_trade_ready_count",
+            "opportunity_sync_user_count",
+            "opportunity_sync_source_healthy",
+            "opportunity_sync_contract_version",
+        ),
         "provider_env_parity": (
             "provider_env_effective_alpaca_configured",
             "provider_env_effective_provider_keys",
@@ -14850,6 +15518,24 @@ def refresh_report_metrics_contract(report: dict[str, Any]) -> dict[str, Any]:
     ]
     attach_report_metrics(report)
     report["checks"].append(validate_report_metrics_contract(report))
+    report["status"] = overall_status(report["checks"])
+    report["ok"] = report["status"] == "OK"
+    issue = top_health_issue(report)
+    report["top_issue"] = (
+        {
+            "name": issue.get("name"),
+            "status": issue.get("status"),
+            "detail": issue.get("detail"),
+        }
+        if issue
+        else {}
+    )
+    attach_report_metrics(report)
+    # The metrics contract is self-describing: the first pass adds its own
+    # aliases and may also expose fields attached by late post-append history
+    # maintenance. Validate once more against that final metrics projection so
+    # the persisted check cannot report aliases that are already present.
+    replace_report_check(report, validate_report_metrics_contract(report))
     report["status"] = overall_status(report["checks"])
     report["ok"] = report["status"] == "OK"
     issue = top_health_issue(report)
@@ -15122,10 +15808,19 @@ def output_maintenance_protected_from_history_metrics(metrics: dict[str, Any]) -
         return False
     if metrics.get("output_maintenance_dry_run") is True:
         return False
-    if metrics.get("output_maintenance_hygiene_protected") is not True:
-        return False
-    if metrics.get("output_maintenance_operation_protected") is False:
-        return False
+    hygiene_issues = metrics.get("output_maintenance_hygiene_issues")
+    normalized_hygiene_issues = (
+        {str(issue or "").strip().lower() for issue in hygiene_issues if str(issue).strip()}
+        if isinstance(hygiene_issues, list)
+        else set()
+    )
+    external_snapshot_only = normalized_hygiene_issues == {"log snapshot scan warn"}
+    internal_protected = metrics.get("output_maintenance_internal_protected") is True or external_snapshot_only
+    if not internal_protected:
+        if metrics.get("output_maintenance_hygiene_protected") is not True:
+            return False
+        if metrics.get("output_maintenance_operation_protected") is False:
+            return False
     if int(metrics.get("output_maintenance_archive_errors") or 0) > 0:
         return False
     if budget_status and budget_status not in {"OK", "INFO"}:
@@ -15788,6 +16483,10 @@ def validate_realtime_lock_status(
     acquired = bool(payload.get("acquired"))
     owner_command = str(payload.get("owner_command") or payload.get("command") or "")
     owner_command_flags = payload.get("owner_command_flags") or payload.get("command_flags") or []
+    owner_phase = str(payload.get("owner_phase") or payload.get("phase") or "").strip()
+    owner_phase_started_at = parse_utc_datetime(
+        payload.get("owner_phase_started_at") or payload.get("phase_started_at")
+    )
     blocked_command = str(payload.get("blocked_command") or "")
     blocked_command_flags = payload.get("blocked_command_flags") or []
     owner_is_health_check = (
@@ -15826,6 +16525,11 @@ def validate_realtime_lock_status(
         round(max(0.0, (generated_at - current).total_seconds() / 60.0), 1) if generated_at else None
     )
     acquired_age_minutes = round(max(0.0, (current - started_at).total_seconds() / 60.0), 1) if started_at else None
+    phase_age_minutes = (
+        round(max(0.0, (current - owner_phase_started_at).total_seconds() / 60.0), 1)
+        if owner_phase_started_at
+        else None
+    )
     started_at_future_minutes = (
         round(max(0.0, (started_at - current).total_seconds() / 60.0), 1) if started_at else None
     )
@@ -15860,21 +16564,27 @@ def validate_realtime_lock_status(
             detail += " blocked " + ",".join(str(flag) for flag in blocked_command_flags[:5])
         if overlap_shared_flags:
             detail += " shared " + ",".join(overlap_shared_flags[:3])
+        if owner_phase:
+            detail += f" phase {owner_phase}"
         detail += f" profile {lock_overlap_profile.lower()}"
     elif stale_replaced:
         status = "WARN"
         detail = f"Stale realtime lock replaced after {float(stale_age_minutes or 0.0):.1f}m"
     elif (
         acquired
-        and event == "acquired"
+        and event in {"acquired", "progress"}
         and acquired_age_minutes is not None
         and acquired_age_minutes > float(max_acquired_minutes)
     ):
         status = "FAIL"
         detail = f"Realtime check lock active {acquired_age_minutes:.1f}m > {float(max_acquired_minutes):.1f}m"
-    elif acquired and event == "acquired":
+    elif acquired and event in {"acquired", "progress"}:
         status = "OK"
         detail = f"Realtime check lock active {acquired_age_minutes or 0.0:.1f}m"
+        if owner_phase:
+            detail += f" phase {owner_phase}"
+            if phase_age_minutes is not None:
+                detail += f" {phase_age_minutes:.1f}m"
     elif event == "released":
         status = "OK"
         detail = "Last realtime check released lock"
@@ -15923,6 +16633,11 @@ def validate_realtime_lock_status(
         command_script=payload.get("command_script"),
         owner_command=owner_command,
         owner_command_flags=owner_command_flags if isinstance(owner_command_flags, list) else [],
+        owner_phase=owner_phase,
+        owner_phase_started_at=(
+            payload.get("owner_phase_started_at") or payload.get("phase_started_at")
+        ),
+        phase_age_minutes=phase_age_minutes,
         blocked_command=blocked_command,
         blocked_command_flags=blocked_command_flags if isinstance(blocked_command_flags, list) else [],
         lock_overlap_profile=lock_overlap_profile,
@@ -19447,7 +20162,15 @@ def validate_health_stability_slo(
 ) -> dict[str, Any]:
     entries = read_health_history_entries(history_path, limit=max(sample_limit, min_sample_size))
     if current_entry:
-        entries = [*entries, current_entry]
+        current_generated_at = str(current_entry.get("generated_at") or "")
+        if (
+            entries
+            and current_generated_at
+            and str(entries[-1].get("generated_at") or "") == current_generated_at
+        ):
+            entries = [*entries[:-1], current_entry]
+        else:
+            entries = [*entries, current_entry]
     summary = summarize_health_history_entries(
         entries,
         limit=sample_limit,
@@ -23692,11 +24415,28 @@ def ensure_output_maintenance_report(
     try:
         from tools import output_maintenance
 
-        archive_dir = (
-            output_archive_dir if output_archive_dir is not None else output_maintenance.default_output_archive_dir()
-        )
+        custom_root = Path(output_path).resolve() != Path(output_maintenance.OUTPUT_DIR).resolve()
+        if output_archive_dir is not None:
+            archive_dir = output_archive_dir
+        elif not custom_root:
+            archive_dir = output_maintenance.default_output_archive_dir()
+        else:
+            # Custom/test roots must stay self-contained and must never block
+            # on the workstation's optional external archive volume.
+            archive_dir = Path(output_path) / "maintenance_archive"
         history_byte_limit = (
             int(max_history_bytes) if max_history_bytes is not None else int(DEFAULT_HEALTH_HISTORY_MAX_BYTES)
+        )
+        isolated_options = (
+            {
+                "fallback_output_archive_dir": Path(output_path) / "maintenance_archive",
+                "log_snapshot_dir": Path(output_path) / "log_snapshots",
+                "sqlite_db_path": None,
+                "dashboard_history_path": None,
+                "training_videos_path": Path(output_path) / "training_videos",
+            }
+            if custom_root
+            else {}
         )
         result = output_maintenance.cleanup_runtime_artifacts(
             output_dir=output_path,
@@ -23705,6 +24445,7 @@ def ensure_output_maintenance_report(
             output_archive_dir=archive_dir,
             max_history_bytes=history_byte_limit,
             enable_local_cache_cleanup=True,
+            **isolated_options,
         )
         json_path, output_text_path = output_maintenance.write_report(
             result,
@@ -23887,13 +24628,20 @@ def dashboard_probe_market_for_symbol(symbol: str) -> str:
     return "crypto" if "/" in str(symbol or "") else "stock"
 
 
+def dashboard_probe_state_value(value: Any) -> str:
+    normalized = str(value or "").strip()
+    if normalized.upper() in {"", "-", "--", "—", "N/A", "NA", "NONE", "NULL"}:
+        return ""
+    return normalized
+
+
 def dashboard_focus_probe_state(alerts_path: str | Path) -> dict[str, str]:
     payload = read_json(Path(alerts_path) / "roxy_status.json")
     symbol = ""
     if isinstance(payload, dict):
         for key in ("operational_focus_symbol", "top_symbol", "daily_plan_top_symbol"):
-            value = str(payload.get(key) or "").strip()
-            if value and value != "-":
+            value = dashboard_probe_state_value(payload.get(key))
+            if value:
                 symbol = value
                 break
     symbol = symbol or "ETH/USD"
@@ -24027,27 +24775,31 @@ def ensure_dashboard_render_probe_report(
     search_screenshot_path = alerts_path / "dashboard_render_probe_search.png"
     try:
         focus_probe_state = dashboard_focus_probe_state(alerts_path)
-        primary = run_dashboard_render_probe_script(
-            base=base,
-            url=dashboard_render_probe_url(app_url, alerts_path=alerts_path),
-            report_path=report_path,
-            screenshot_path=screenshot_path,
-            timeout_seconds=timeout_seconds,
-            required_text=[
-                "Live sin reload",
-                "Dashboard",
-                focus_probe_state["symbol"],
-                "Roxy Trading",
-            ],
-        )
-        search = run_dashboard_render_probe_script(
-            base=base,
-            url=dashboard_search_render_probe_url(app_url),
-            report_path=search_report_path,
-            screenshot_path=search_screenshot_path,
-            timeout_seconds=timeout_seconds,
-            required_text=["Live sin reload", "Dashboard", "AAPL", "Roxy Trading"],
-        )
+        with ThreadPoolExecutor(max_workers=2, thread_name_prefix="roxy-dashboard-probe") as executor:
+            primary_future = executor.submit(
+                run_dashboard_render_probe_script,
+                base=base,
+                url=dashboard_render_probe_url(app_url, alerts_path=alerts_path),
+                report_path=report_path,
+                screenshot_path=screenshot_path,
+                timeout_seconds=timeout_seconds,
+                required_text=[
+                    "Live sin reload",
+                    focus_probe_state["symbol"],
+                    "Roxy Trading",
+                ],
+            )
+            search_future = executor.submit(
+                run_dashboard_render_probe_script,
+                base=base,
+                url=dashboard_search_render_probe_url(app_url),
+                report_path=search_report_path,
+                screenshot_path=search_screenshot_path,
+                timeout_seconds=timeout_seconds,
+                required_text=["Live sin reload", "AAPL", "Roxy Trading"],
+            )
+            primary = primary_future.result()
+            search = search_future.result()
         return {
             "action": "regenerated",
             "ok": bool(primary.get("ok")) and bool(search.get("ok")),
@@ -24080,6 +24832,91 @@ def ensure_dashboard_render_probe_report(
             "error": f"{type(exc).__name__}: {exc}",
             "report_path": str(report_path),
         }
+
+
+def annotate_health_history_no_append(
+    report: dict[str, Any],
+    *,
+    history_path: str | Path,
+    max_entries: int = DEFAULT_HEALTH_HISTORY_MAX_ENTRIES,
+    max_bytes: int | None = DEFAULT_HEALTH_HISTORY_MAX_BYTES,
+    min_entries: int = DEFAULT_HEALTH_HISTORY_MIN_ENTRIES,
+) -> dict[str, Any] | None:
+    """Publish an explicit, read-only maintenance contract for --no-history runs."""
+    history_check = next(
+        (
+            dict(item)
+            for item in report.get("checks", [])
+            if isinstance(item, dict) and item.get("name") == "health_history_integrity"
+        ),
+        None,
+    )
+    if history_check is None:
+        return None
+    configured_target_bytes = (
+        int(int(max_bytes) * DEFAULT_HEALTH_HISTORY_MAINTENANCE_TARGET_RATIO) if max_bytes else 0
+    )
+    if configured_target_bytes > 0:
+        min_entry_plan = health_history_effective_min_entries_for_target(
+            history_path,
+            max_entries=max_entries,
+            min_entries=min_entries,
+            target_bytes=configured_target_bytes,
+        )
+    else:
+        configured_min_entries = max(0, int(min_entries))
+        min_entry_plan = {
+            "configured_min_entries": configured_min_entries,
+            "effective_min_entries": configured_min_entries,
+            "min_entry_floor": int(
+                configured_min_entries * DEFAULT_HEALTH_HISTORY_MAINTENANCE_MIN_ENTRY_FLOOR_RATIO
+            ),
+            "target_fit_entries": configured_min_entries,
+            "min_entries_relaxed": False,
+        }
+    annotation = {
+        "action": "skipped_no_history",
+        "ok": str(history_check.get("status") or "").upper() in {"OK", "INFO"},
+        "target_bytes": configured_target_bytes,
+        "configured_target_bytes": configured_target_bytes,
+        "configured_min_entries": int(min_entry_plan.get("configured_min_entries") or 0),
+        "effective_min_entries": int(min_entry_plan.get("effective_min_entries") or 0),
+        "min_entry_floor": int(min_entry_plan.get("min_entry_floor") or 0),
+        "target_fit_entries": int(min_entry_plan.get("target_fit_entries") or 0),
+        "min_entries_relaxed": bool(min_entry_plan.get("min_entries_relaxed")),
+        "removed_lines": 0,
+        "removed_bytes": 0,
+        "after_budget_ratio": history_check.get("budget_ratio"),
+        "before_maintenance_plan_state": history_check.get("maintenance_plan_state"),
+        "before_maintenance_plan_action": history_check.get("maintenance_plan_action"),
+        "maintenance_estimated_appends_until_trigger": history_check.get(
+            "maintenance_estimated_appends_until_trigger"
+        ),
+    }
+    history_check.update(
+        {
+            "post_append_maintenance_action": annotation["action"],
+            "post_append_maintenance_ok": annotation["ok"],
+            "post_append_maintenance_target_bytes": annotation["target_bytes"],
+            "post_append_maintenance_configured_target_bytes": annotation["configured_target_bytes"],
+            "post_append_maintenance_configured_min_entries": annotation["configured_min_entries"],
+            "post_append_maintenance_effective_min_entries": annotation["effective_min_entries"],
+            "post_append_maintenance_min_entry_floor": annotation["min_entry_floor"],
+            "post_append_maintenance_target_fit_entries": annotation["target_fit_entries"],
+            "post_append_maintenance_min_entries_relaxed": annotation["min_entries_relaxed"],
+            "post_append_maintenance_removed_lines": 0,
+            "post_append_maintenance_removed_bytes": 0,
+            "post_append_maintenance_after_budget_ratio": annotation["after_budget_ratio"],
+            "post_append_maintenance_before_plan_state": annotation["before_maintenance_plan_state"],
+            "post_append_maintenance_before_plan_action": annotation["before_maintenance_plan_action"],
+            "post_append_maintenance_estimated_appends_until_trigger": annotation[
+                "maintenance_estimated_appends_until_trigger"
+            ],
+        }
+    )
+    replace_report_check(report, history_check)
+    report["health_history_post_append_maintenance"] = annotation
+    return annotation
 
 
 def ensure_alert_quality_report(
@@ -24329,6 +25166,40 @@ def output_maintenance_report_needs_recovery(report: dict[str, Any]) -> bool:
             notification_budget_state = str(notification_delivery.get(key) or "").upper()
             if notification_budget_state and notification_budget_state not in {"OK", "INFO", "CLEAR"}:
                 return True
+    required_fields = (
+        "runtime_footprint_mb",
+        "output_footprint_mb",
+        "alerts_footprint_mb",
+        "logs_footprint_mb",
+        "dashboard_history_after_rows",
+        "dashboard_history_max_rows",
+        "max_history_bytes",
+        "min_history_lines",
+        "hygiene_status",
+        "operation_status",
+    )
+    required_fields_present = not any(
+        item.get(field) is None or str(item.get(field)).strip() == "" for field in required_fields
+    )
+    try:
+        maintenance_age_hours = float(item.get("age_hours") or 0.0)
+    except (TypeError, ValueError):
+        maintenance_age_hours = 0.0
+    snapshot_scan_retry_deferred = bool(
+        str(item.get("status") or "").upper() == "WARN"
+        and str(item.get("log_snapshot_scan_status") or "").upper() == "WARN"
+        and maintenance_age_hours < DEFAULT_OUTPUT_MAINTENANCE_LOG_SNAPSHOT_RETRY_HOURS
+        and item.get("dry_run") is not True
+        and item.get("output_exists") is not False
+        and int(item.get("output_archive_error_count") or 0) == 0
+        and str(item.get("footprint_budget_status") or "OK").upper() in {"OK", "INFO"}
+        and str(item.get("history_budget_status") or "OK").upper() in {"OK", "INFO"}
+        and str(item.get("history_budget_pressure") or "CLEAR").upper() in {"CLEAR", "OK", "INFO"}
+        and not (item.get("maintenance_contract_issues") or [])
+        and required_fields_present
+    )
+    if snapshot_scan_retry_deferred:
+        return False
     if str(item.get("status") or "").upper() in {"WARN", "FAIL"}:
         return True
     if item.get("dry_run") is True:
@@ -24365,19 +25236,7 @@ def output_maintenance_report_needs_recovery(report: dict[str, Any]) -> bool:
         and local_cache_eligible_count > 0
     ):
         return True
-    required_fields = (
-        "runtime_footprint_mb",
-        "output_footprint_mb",
-        "alerts_footprint_mb",
-        "logs_footprint_mb",
-        "dashboard_history_after_rows",
-        "dashboard_history_max_rows",
-        "max_history_bytes",
-        "min_history_lines",
-        "hygiene_status",
-        "operation_status",
-    )
-    return any(item.get(field) is None or str(item.get(field)).strip() == "" for field in required_fields)
+    return not required_fields_present
 
 
 def dashboard_render_probe_needs_recovery(
@@ -24389,13 +25248,11 @@ def dashboard_render_probe_needs_recovery(
     expected_focus_symbol = ""
     expected_focus_market = ""
     if status_snapshot:
-        expected_focus_symbol = str(
-            status_snapshot.get("operational_focus_symbol")
-            or status_snapshot.get("top_symbol")
-            or status_snapshot.get("daily_plan_top_symbol")
-            or ""
-        ).strip()
-        expected_focus_market = str(status_snapshot.get("top_market") or "").strip()
+        for key in ("operational_focus_symbol", "top_symbol", "daily_plan_top_symbol"):
+            expected_focus_symbol = dashboard_probe_state_value(status_snapshot.get(key))
+            if expected_focus_symbol:
+                break
+        expected_focus_market = dashboard_probe_state_value(status_snapshot.get("top_market"))
         if not expected_focus_market and expected_focus_symbol:
             expected_focus_market = "crypto" if "/" in expected_focus_symbol else "stock"
     names = ["dashboard_render_probe", "dashboard_search_render_probe"]
@@ -24560,14 +25417,10 @@ def output_maintenance_current_history_budget_needs_recovery(item: dict[str, Any
         )
     except (TypeError, ValueError):
         return True
-    saved_min_name = str(item.get("history_budget_min_estimated_appends_until_warn_name") or "")
-    current_min_name = str(snapshot.get("min_estimated_appends_until_warn_name") or "")
     if saved_min_appends is not None and current_min_appends is not None:
-        if abs(saved_min_appends - current_min_appends) >= (
+        if abs(saved_min_appends - current_min_appends) > (
             DEFAULT_OUTPUT_MAINTENANCE_HISTORY_BUDGET_STALE_MIN_APPEND_DRIFT
         ):
-            return True
-        if saved_min_name and current_min_name and saved_min_name != current_min_name:
             return True
 
     projected_keys_present = any(
@@ -24742,13 +25595,46 @@ KNOWN_PROVIDER_BLOCK_WARN_CHECKS = {
     "alert_quality_report",
     "chart_provider_effective",
     "health_stability_slo",
+    # The learning library is an optional knowledge subsystem. A WARN remains
+    # visible in the global report, but it must not make the trading runtime
+    # look unavailable when charts, scans and alerts are healthy.
+    "video_learning_library",
 }
 
 
 def allowed_core_warn_checks_from_history_metrics(metrics: dict[str, Any]) -> set[str]:
     allowed = set(KNOWN_PROVIDER_BLOCK_WARN_CHECKS)
+    # External archival storage is not a trading-runtime dependency. Keep its
+    # permission warning visible globally, while allowing the market/data core
+    # to remain operational when the volume is mounted and the warning is
+    # exclusively an OS permission boundary. Missing/unmounted disks remain a
+    # FAIL and other disk warnings are not whitelisted here.
+    if (
+        metrics.get("external_disk_mounted") is True
+        and metrics.get("external_disk_permission_required") is True
+        and metrics.get("external_disk_writable") is False
+    ):
+        allowed.add("external_disk")
     if str(metrics.get("project_storage_state") or "").upper() == "VIDEO_INGEST_ACTIVE":
         allowed.add("project_storage_footprint")
+    try:
+        maintenance_archive_errors = int(metrics.get("output_maintenance_archive_errors") or 0)
+    except (TypeError, ValueError):
+        maintenance_archive_errors = 1
+    legacy_maintenance_protected = bool(
+        metrics.get("output_maintenance_hygiene_protected") is True
+        and metrics.get("output_maintenance_operation_protected") is True
+        and str(metrics.get("output_maintenance_footprint_budget_status") or "").upper() in {"", "OK"}
+        and maintenance_archive_errors == 0
+    )
+    if output_maintenance_protected_from_history_metrics(metrics) or legacy_maintenance_protected:
+        allowed.add("output_maintenance_report")
+    # A writable local fallback is an operational notification path even when
+    # no external/macOS channel has been configured. Keep that limitation
+    # visible in the global report without letting it reset an otherwise
+    # healthy core-recovery streak.
+    if notification_delivery_healthy_from_history_metrics(metrics):
+        allowed.add("notification_delivery")
     return allowed
 
 
@@ -24869,18 +25755,23 @@ def history_metrics_short_blocked_lock_age_minutes(metrics: dict[str, Any]) -> f
 
 def history_core_runtime_status(row: dict[str, Any]) -> str:
     status = history_stability_status(row)
-    if status != "WARN":
-        return status
     checks = row.get("checks") if isinstance(row.get("checks"), dict) else {}
     metrics = row.get("metrics") if isinstance(row.get("metrics"), dict) else {}
     top_issue = row.get("top_issue") if isinstance(row.get("top_issue"), dict) else {}
-    if history_row_has_transient_slow_heartbeat(row):
-        return "OK"
     warn_checks = {str(name) for name, check_status in checks.items() if str(check_status or "").upper() == "WARN"}
     fail_checks = {str(name) for name, check_status in checks.items() if str(check_status or "").upper() == "FAIL"}
+    # The historical SLO is an observer of the runtime, not a runtime
+    # dependency. Ignoring only its own FAIL prevents a self-amplifying loop;
+    # any other failed check still degrades the core immediately.
     if fail_checks - {"health_stability_slo"}:
         return status
+    if history_row_has_transient_slow_heartbeat(row):
+        return "OK"
+    if status not in {"WARN", "FAIL"}:
+        return status
     if warn_checks and warn_checks <= allowed_core_warn_checks_from_history_metrics(metrics):
+        return "OK"
+    if not warn_checks and fail_checks and fail_checks <= {"health_stability_slo"}:
         return "OK"
     if not warn_checks and str(top_issue.get("name") or "") in allowed_core_warn_checks_from_history_metrics(metrics):
         return "OK"
@@ -25234,6 +26125,31 @@ def live_data_check_has_structural_risk(name: str, item: dict[str, Any]) -> bool
     return False
 
 
+def refresh_ai_brief_consistency_if_improved(
+    report: dict[str, Any],
+    refresh_health: Callable[[], dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Re-read a brief that may have changed while a long health pass ran."""
+    before = named_check(report, "ai_brief")
+    if not before or not ai_brief_report_needs_recovery(report):
+        return report, None
+    refreshed = refresh_health()
+    after = named_check(refreshed, "ai_brief")
+    rank = {"OK": 0, "INFO": 0, "WARN": 1, "FAIL": 2}
+    before_status = str(before.get("status") or "FAIL").upper()
+    after_status = str(after.get("status") or "FAIL").upper()
+    improved = rank.get(after_status, 2) < rank.get(before_status, 2)
+    metadata = {
+        "action": "final_consistency_reread",
+        "improved": improved,
+        "before_status": before_status,
+        "after_status": after_status,
+        "before_generated_at": before.get("generated_at"),
+        "after_generated_at": after.get("generated_at"),
+    }
+    return (refreshed if improved else report), metadata
+
+
 def live_data_needs_recovery(report: dict[str, Any]) -> bool:
     present_names = {str(item.get("name") or "") for item in report.get("checks") or [] if isinstance(item, dict)}
     if not REQUIRED_LIVE_DATA_RECOVERY_CHECKS.issubset(present_names):
@@ -25472,7 +26388,7 @@ def acquire_run_lock(
     }
     try:
         lock_dir.mkdir(parents=True, exist_ok=False)
-        metadata_path.write_text(json.dumps(json_safe(payload), indent=2, sort_keys=True))
+        write_json_atomic(metadata_path, payload)
         return {"acquired": True, **payload}
     except FileExistsError:
         metadata = read_json(metadata_path)
@@ -25485,7 +26401,7 @@ def acquire_run_lock(
         if dead_pid_replaced:
             shutil.rmtree(lock_dir, ignore_errors=True)
             lock_dir.mkdir(parents=True, exist_ok=False)
-            metadata_path.write_text(json.dumps(json_safe(payload), indent=2, sort_keys=True))
+            write_json_atomic(metadata_path, payload)
             return {
                 "acquired": True,
                 "dead_pid_replaced": True,
@@ -25498,7 +26414,7 @@ def acquire_run_lock(
         if age_minutes is not None and age_minutes >= stale_minutes:
             shutil.rmtree(lock_dir, ignore_errors=True)
             lock_dir.mkdir(parents=True, exist_ok=False)
-            metadata_path.write_text(json.dumps(json_safe(payload), indent=2, sort_keys=True))
+            write_json_atomic(metadata_path, payload)
             return {"acquired": True, "stale_replaced": True, "stale_age_minutes": age_minutes, **payload}
         return {
             "acquired": False,
@@ -25509,9 +26425,17 @@ def acquire_run_lock(
             "stale_minutes": stale_minutes,
             "owner_command": metadata.get("command"),
             "owner_command_flags": metadata.get("command_flags"),
+            "owner_phase": metadata.get("phase"),
+            "owner_phase_started_at": metadata.get("phase_started_at"),
             "blocked_command": command_context.get("command"),
             "blocked_command_flags": command_context.get("command_flags"),
         }
+
+
+def write_json_atomic(path: str | Path, payload: dict[str, Any]) -> Path:
+    target = Path(path)
+    atomic_write_text(json.dumps(json_safe(payload), indent=2, sort_keys=True), target)
+    return target
 
 
 def run_lock_command_context(argv: list[str] | None = None) -> dict[str, Any]:
@@ -25564,15 +26488,55 @@ def write_run_lock_status(
         "command_script": info.get("command_script"),
         "owner_command": info.get("owner_command") or info.get("command"),
         "owner_command_flags": info.get("owner_command_flags") or info.get("command_flags"),
+        "phase": info.get("phase"),
+        "phase_started_at": info.get("phase_started_at"),
+        "owner_phase": info.get("owner_phase") or info.get("phase"),
+        "owner_phase_started_at": info.get("owner_phase_started_at") or info.get("phase_started_at"),
         "blocked_command": info.get("blocked_command"),
         "blocked_command_flags": info.get("blocked_command_flags"),
     }
     if event_name == "released":
         payload["released_at"] = current.isoformat()
     path = Path(status_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(json_safe(payload), indent=2, sort_keys=True))
+    write_json_atomic(path, payload)
     return payload
+
+
+def write_run_lock_phase(
+    lock_info: dict[str, Any] | None,
+    status_path: str | Path,
+    phase: str,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Publish durable progress for a running health check.
+
+    The lock metadata is updated as well as the public status file so a
+    concurrent blocked run can still report the phase owned by the active PID.
+    """
+    if not lock_info or not lock_info.get("acquired"):
+        return {}
+    current = now or utc_now()
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    lock_info["phase"] = str(phase or "unknown")
+    lock_info["phase_started_at"] = current.isoformat()
+    metadata_path = Path(str(lock_info.get("lock_path") or "")) / "metadata.json"
+    if metadata_path.parent.exists():
+        write_json_atomic(metadata_path, lock_info)
+    return write_run_lock_status(lock_info, status_path, event="progress", now=current)
+
+
+def enable_runtime_stack_dump() -> bool:
+    """Allow a live watchdog to dump all Python stacks with SIGUSR1."""
+    sigusr1 = getattr(signal, "SIGUSR1", None)
+    if sigusr1 is None:
+        return False
+    try:
+        faulthandler.register(sigusr1, file=sys.stderr, all_threads=True, chain=False)
+    except (AttributeError, OSError, RuntimeError, ValueError):
+        return False
+    return True
 
 
 def alert_quality_notification_context(item: dict[str, Any]) -> dict[str, str]:
@@ -25752,7 +26716,6 @@ def notify_health_if_needed(
     )
 
     if not should_send:
-        state_file.parent.mkdir(parents=True, exist_ok=True)
         state.update(
             {
                 "last_status": str(report.get("status") or ""),
@@ -25761,7 +26724,7 @@ def notify_health_if_needed(
                 "last_incident_key": incident_key or state.get("last_incident_key", ""),
             }
         )
-        state_file.write_text(json.dumps(json_safe(state), indent=2, sort_keys=True))
+        write_json_atomic(state_file, state)
         return {
             "sent": False,
             "reason": "ok" if not message else "cooldown",
@@ -25782,7 +26745,6 @@ def notify_health_if_needed(
         result = {"sent": False, "reason": "send_failed", "message": message, "error": str(exc)}
     result["incident_key"] = incident_key
 
-    state_file.parent.mkdir(parents=True, exist_ok=True)
     state_update = {
         "last_status": str(report.get("status") or ""),
         "last_checked_at": current.isoformat(),
@@ -25794,7 +26756,7 @@ def notify_health_if_needed(
     if bool(result.get("sent")):
         state_update["last_sent_at"] = current.isoformat()
     state.update(state_update)
-    state_file.write_text(json.dumps(json_safe(state), indent=2, sort_keys=True))
+    write_json_atomic(state_file, state)
     return result
 
 
@@ -25813,7 +26775,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-service-check", action="store_true")
     parser.add_argument("--warn-free-gb", type=float, default=1.0)
     parser.add_argument("--fail-free-gb", type=float, default=0.25)
-    parser.add_argument("--external-disk-path", default=str(DEFAULT_EXTERNAL_DISK_PATH))
+    parser.add_argument(
+        "--external-disk-path",
+        default=os.getenv("ROXY_EXTERNAL_DISK_PATH", "").strip(),
+        help="Optional external volume to inspect. Disabled unless explicitly configured.",
+    )
     parser.add_argument("--external-warn-free-gb", type=float, default=100.0)
     parser.add_argument("--external-fail-free-gb", type=float, default=20.0)
     parser.add_argument("--storage-migration-source-path", default=str(DEFAULT_PARALLELS_SOURCE_PATH))
@@ -25942,7 +26908,17 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    enable_runtime_stack_dump()
     lock_info = None
+    working_json_path = Path(args.json_path).with_name(
+        f".{Path(args.json_path).name}.working.{os.getpid()}.json"
+    )
+    working_text_path = Path(args.text_path).with_name(
+        f".{Path(args.text_path).name}.working.{os.getpid()}.txt"
+    )
+    previous_health_override = os.environ.get("ROXY_REALTIME_HEALTH_PATH")
+    if args.ensure_alert_quality_report:
+        os.environ["ROXY_REALTIME_HEALTH_PATH"] = str(working_json_path.resolve())
     try:
         if not args.no_lock:
             lock_info = acquire_run_lock(args.lock_path, stale_minutes=args.lock_stale_minutes)
@@ -25955,6 +26931,11 @@ def main() -> None:
                 )
                 return
             write_run_lock_status(lock_info, args.lock_status_path, event="acquired")
+
+        def mark_phase(name: str) -> None:
+            write_run_lock_phase(lock_info, args.lock_status_path, name)
+
+        mark_phase("prepare_health_context")
         required_timeframes = {item.strip().lower() for item in args.required_timeframes.split(",") if item.strip()}
         health_eval_kwargs = {
             "base_dir": Path(args.base_dir),
@@ -25996,17 +26977,22 @@ def main() -> None:
 
         backup_autoheal = None
         if args.ensure_runtime_backup_daemon:
+            mark_phase("ensure_runtime_backup_daemon")
             backup_autoheal = ensure_runtime_backup_daemon(
                 interval_hours=args.runtime_backup_interval_hours,
                 poll_seconds=args.runtime_backup_poll_seconds,
                 stale_minutes=args.runtime_backup_stale_minutes,
             )
+        if args.ensure_core_launchagents:
+            mark_phase("ensure_core_launchagents")
         launchd_autoheal = ensure_core_launchagents() if args.ensure_core_launchagents else None
+        mark_phase("evaluate_initial_health")
         report = refresh_health()
         chart_health_autoheal = None
         live_data_autoheal = None
         storage_migration_autoheal = None
-        if args.ensure_storage_migration and storage_migration_needs_recovery(report):
+        if args.ensure_storage_migration and args.external_disk_path and storage_migration_needs_recovery(report):
+            mark_phase("ensure_storage_migration")
             storage_migration_autoheal = ensure_storage_migration_target(
                 source_path=args.storage_migration_source_path,
                 destination_path=args.storage_migration_destination_path,
@@ -26016,9 +27002,11 @@ def main() -> None:
             report = refresh_health()
         yfinance_cache_autoheal = None
         if args.ensure_yfinance_cache and yfinance_cache_needs_recovery(report):
+            mark_phase("ensure_yfinance_cache")
             yfinance_cache_autoheal = ensure_yfinance_cache_recovery(report)
             report = refresh_health()
         if args.ensure_live_data and live_data_needs_recovery(report):
+            mark_phase("ensure_live_data")
             if live_data_recovery_should_wait_for_service(report):
                 live_data_autoheal = {
                     "action": "skipped_running_service",
@@ -26034,6 +27022,7 @@ def main() -> None:
                 )
                 report = refresh_health()
         if args.ensure_chart_health_report and chart_health_report_needs_recovery(report):
+            mark_phase("ensure_chart_health_report")
             _, chart_alerts_path = runtime_dirs(Path(args.base_dir))
             chart_health_autoheal = ensure_chart_health_report(
                 report_path=chart_alerts_path / "chart_realtime_health.json"
@@ -26046,7 +27035,11 @@ def main() -> None:
         alert_quality_refreshed_this_run = False
         ai_brief_refreshed_this_run = False
         chart_health_context_changed = False
-        if args.ensure_output_maintenance_report and output_maintenance_report_needs_recovery(report):
+        if (
+            args.ensure_output_maintenance_report
+            and output_maintenance_report_needs_recovery(report)
+        ):
+            mark_phase("ensure_output_maintenance_report")
             output_path, alerts_path = runtime_dirs(Path(args.base_dir))
             output_maintenance_autoheal = ensure_output_maintenance_report(
                 output_path=output_path,
@@ -26067,6 +27060,7 @@ def main() -> None:
                 report = refresh_health()
         runtime_backup_report_autoheal = None
         if args.ensure_runtime_backup_report and runtime_backup_report_needs_recovery(report):
+            mark_phase("ensure_runtime_backup_report")
             _, alerts_path = runtime_dirs(Path(args.base_dir))
             current_backup_report = read_json(alerts_path / "runtime_backup.json")
             runtime_backup_report_autoheal = ensure_runtime_backup_report(
@@ -26079,6 +27073,7 @@ def main() -> None:
         if args.ensure_alert_quality_report and (
             alert_quality_report_needs_recovery(report) or ai_brief_report_needs_recovery(report)
         ):
+            mark_phase("ensure_alert_quality_report")
             _, alerts_path = runtime_dirs(Path(args.base_dir))
             if ai_brief_report_needs_recovery(report):
                 ai_brief_autoheal = ensure_ai_brief_report(base_dir=Path(args.base_dir))
@@ -26093,6 +27088,7 @@ def main() -> None:
             chart_health_context_changed = True
             report = refresh_health()
         if args.ensure_streamlit_app and args.app_url and streamlit_app_needs_recovery(report):
+            mark_phase("ensure_streamlit_app")
             streamlit_app_autoheal = recover_streamlit_app(
                 wait_seconds=args.streamlit_recovery_wait_seconds, app_url=args.app_url
             )
@@ -26103,12 +27099,14 @@ def main() -> None:
             report,
             max_ok_age_minutes=args.dashboard_history_refresh_minutes,
         ):
+            mark_phase("ensure_dashboard_history_sample")
             dashboard_history_autoheal = ensure_dashboard_history_sample(
                 base_dir=Path(args.base_dir),
                 max_age_minutes=args.dashboard_history_refresh_minutes,
             )
             report = refresh_health()
         if dashboard_render_probe_autoheal_enabled(args, report):
+            mark_phase("ensure_dashboard_render_probe")
             dashboard_render_probe_autoheal = ensure_dashboard_render_probe_report(
                 base_dir=Path(args.base_dir),
                 app_url=args.app_url,
@@ -26117,6 +27115,7 @@ def main() -> None:
             report = refresh_health()
         daily_plan_autoheal = None
         if args.ensure_daily_opportunity_plan_report and daily_opportunity_plan_needs_recovery(report):
+            mark_phase("ensure_daily_opportunity_plan")
             daily_plan_autoheal = ensure_daily_opportunity_plan_report(
                 base_dir=Path(args.base_dir),
                 timeout_seconds=args.live_data_recovery_timeout_seconds,
@@ -26125,6 +27124,7 @@ def main() -> None:
             report = refresh_health()
         status_snapshot_autoheal = None
         if status_snapshot_autoheal_enabled(args, report) and status_snapshot_needs_recovery(report):
+            mark_phase("ensure_status_snapshot")
             status_snapshot_autoheal = ensure_status_snapshot_report(
                 base_dir=Path(args.base_dir),
                 timeout_seconds=args.live_data_recovery_timeout_seconds,
@@ -26132,8 +27132,9 @@ def main() -> None:
             chart_health_context_changed = True
             report = refresh_health()
         if args.ensure_alert_quality_report:
+            mark_phase("synchronize_ai_brief_and_alert_quality")
             refresh_report_metrics_contract(report)
-            write_report(report, json_path=args.json_path, text_path=args.text_path)
+            write_report(report, json_path=working_json_path, text_path=working_text_path)
             _, alerts_path = runtime_dirs(Path(args.base_dir))
             if not alert_quality_refreshed_this_run and not ai_brief_refreshed_this_run:
                 ai_brief_autoheal = ensure_ai_brief_report(base_dir=Path(args.base_dir))
@@ -26166,18 +27167,25 @@ def main() -> None:
         if chart_health_autoheal_enabled(args, report) and (
             chart_health_context_changed or chart_health_report_needs_recovery(report)
         ):
+            mark_phase("synchronize_chart_health")
             _, alerts_path = runtime_dirs(Path(args.base_dir))
             chart_health_autoheal = ensure_chart_health_report(report_path=alerts_path / "chart_realtime_health.json")
             chart_health_context_changed = False
             report = refresh_health()
         if dashboard_render_probe_autoheal_enabled(args, report):
+            mark_phase("refresh_dashboard_render_probe")
             dashboard_render_probe_autoheal = ensure_dashboard_render_probe_report(
                 base_dir=Path(args.base_dir),
                 app_url=args.app_url,
                 timeout_seconds=args.live_data_recovery_timeout_seconds,
             )
             report = refresh_health()
-        if args.ensure_output_maintenance_report and output_maintenance_report_needs_recovery(report):
+        if (
+            args.ensure_output_maintenance_report
+            and output_maintenance_autoheal is None
+            and output_maintenance_report_needs_recovery(report)
+        ):
+            mark_phase("followup_output_maintenance")
             output_path, alerts_path = runtime_dirs(Path(args.base_dir))
             followup_output_maintenance_autoheal = ensure_output_maintenance_report(
                 output_path=output_path,
@@ -26196,6 +27204,7 @@ def main() -> None:
                 output_maintenance_autoheal = followup_output_maintenance_autoheal
             report = refresh_health()
         if args.ensure_alert_quality_report and ai_brief_report_needs_recovery(report):
+            mark_phase("final_ai_brief_resync")
             _, alerts_path = runtime_dirs(Path(args.base_dir))
             final_ai_brief_autoheal = ensure_ai_brief_report(base_dir=Path(args.base_dir))
             final_alert_quality_autoheal = ensure_alert_quality_report(
@@ -26239,6 +27248,11 @@ def main() -> None:
                 )
                 chart_health_context_changed = False
                 report = refresh_health()
+        mark_phase("final_consistency_refresh")
+        report, ai_brief_consistency_refresh = refresh_ai_brief_consistency_if_improved(
+            report,
+            refresh_health,
+        )
         if backup_autoheal is not None:
             report["runtime_backup_autoheal"] = json_safe(backup_autoheal)
         if launchd_autoheal is not None:
@@ -26267,14 +27281,25 @@ def main() -> None:
             report["status_snapshot_autoheal"] = json_safe(status_snapshot_autoheal)
         if ai_brief_autoheal is not None:
             report["ai_brief_autoheal"] = json_safe(ai_brief_autoheal)
+        if ai_brief_consistency_refresh is not None:
+            report["ai_brief_consistency_refresh"] = json_safe(ai_brief_consistency_refresh)
         if alert_quality_autoheal is not None:
             report["alert_quality_autoheal"] = json_safe(alert_quality_autoheal)
         history_result = None
         post_append_history_maintenance = None
+        mark_phase("write_health_report")
         if not args.no_history:
             existing_history = read_health_history_entries(args.history_path, limit=args.history_max_entries)
             report["stability_summary"] = summarize_health_history_entries(
                 [*existing_history, health_history_entry(report)]
+            )
+        else:
+            annotate_health_history_no_append(
+                report,
+                history_path=args.history_path,
+                max_entries=args.history_max_entries,
+                max_bytes=args.history_max_bytes,
+                min_entries=args.history_min_entries,
             )
         refresh_report_metrics_contract(report)
         json_path, text_path = write_report(report, json_path=args.json_path, text_path=args.text_path)
@@ -26472,6 +27497,7 @@ def main() -> None:
                     )
         notify_result = None
         if args.notify_health:
+            mark_phase("notify_health")
             notify_result = notify_health_if_needed(
                 report,
                 state_path=args.health_notify_state_path,
@@ -26490,6 +27516,12 @@ def main() -> None:
         if report["status"] == "FAIL" and not args.no_fail:
             raise SystemExit(1)
     finally:
+        working_json_path.unlink(missing_ok=True)
+        working_text_path.unlink(missing_ok=True)
+        if previous_health_override is None:
+            os.environ.pop("ROXY_REALTIME_HEALTH_PATH", None)
+        else:
+            os.environ["ROXY_REALTIME_HEALTH_PATH"] = previous_health_override
         if lock_info and lock_info.get("acquired"):
             release_run_lock(lock_info)
             write_run_lock_status(lock_info, args.lock_status_path, event="released")

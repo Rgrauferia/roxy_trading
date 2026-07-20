@@ -11,9 +11,18 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from dashboard_history import append_scan_history
+from roxy_trader.indicators import (
+    IndicatorConfig,
+    add_indicators as add_central_indicators,
+    exponential_moving_average,
+    wilder_atr,
+    wilder_rsi,
+)
+from roxy_trader.cache_policy import cache_ttl
 
 # Optional data sources
 import yfinance as yf
+from roxy_trader.api_budget import observe_api_call
 
 # -------------------------
 # App Config (Modern UI)
@@ -203,37 +212,22 @@ def ensure_ohlcv(df):
 # Indicators
 # -------------------------
 def ema(series, span):
-    return series.ewm(span=span, adjust=False).mean()
+    return exponential_moving_average(series, span)
 
 
 def rsi(close, period=14):
-    delta = close.diff()
-    gain = delta.clip(lower=0)
-    loss = (-delta).clip(lower=0)
-    avg_gain = gain.rolling(period).mean()
-    avg_loss = loss.rolling(period).mean()
-    rs = avg_gain / (avg_loss.replace(0, np.nan))
-    out = 100 - (100 / (1 + rs))
-    return out.fillna(0)
+    return wilder_rsi(close, period)
 
 
 def atr(df, period=14):
-    high = df["high"]
-    low = df["low"]
-    close = df["close"]
-    prev_close = close.shift(1)
-    tr = pd.concat([(high - low), (high - prev_close).abs(), (low - prev_close).abs()], axis=1).max(axis=1)
-    return tr.rolling(period).mean()
+    return wilder_atr(df, period)
 
 
 def add_indicators(df):
-    x = df.copy()
-    x["ema20"] = ema(x["close"], 20)
-    x["ema50"] = ema(x["close"], 50)
-    x["ema200"] = ema(x["close"], 200)
-    x["rsi14"] = rsi(x["close"], 14)
-    x["atr14"] = atr(x, 14)
-    return x
+    return add_central_indicators(
+        df,
+        config=IndicatorConfig(sma_windows=(), ema_windows=(20, 50, 200)),
+    )
 
 
 # -------------------------
@@ -323,33 +317,35 @@ def trade_levels(df, atr_mult_stop=1.5, atr_mult_tp1=1.0, atr_mult_tp2=2.0):
 # -------------------------
 # Fetch live market data
 # -------------------------
-@st.cache_data(ttl=30, show_spinner=False)
+@st.cache_data(ttl=cache_ttl("market_screen"), show_spinner=False)
 def fetch_yf(symbol, tf, lookback_days=180):
     # tf mapping for yfinance
     tf_map = {"1m": "1m", "2m": "2m", "5m": "5m", "15m": "15m", "30m": "30m", "60m": "60m", "1h": "60m", "1d": "1d"}
     interval = tf_map.get(tf, "60m")
     start = datetime.now() - timedelta(days=int(lookback_days))
 
-    df = yf.download(
-        tickers=symbol,
-        interval=interval,
-        start=start.strftime("%Y-%m-%d"),
-        progress=False,
-        auto_adjust=False,
-        threads=True,
-    )
+    with observe_api_call("yfinance", "dashboard_history"):
+        df = yf.download(
+            tickers=symbol,
+            interval=interval,
+            start=start.strftime("%Y-%m-%d"),
+            progress=False,
+            auto_adjust=False,
+            threads=True,
+        )
     df = ensure_ohlcv(df)
     return df
 
 
-@st.cache_data(ttl=15, show_spinner=False)
+@st.cache_data(ttl=cache_ttl("crypto_market"), show_spinner=False)
 def fetch_ccxt(symbol, tf, limit=300, exchange_id="binance"):
     ex = getattr(ccxt, exchange_id)({"enableRateLimit": True})
     # symbol example: BTC/USDT
     tf_map = {"1m": "1m", "5m": "5m", "15m": "15m", "1h": "1h", "4h": "4h", "1d": "1d"}
     timeframe = tf_map.get(tf, "1h")
 
-    ohlcv = ex.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
+    with observe_api_call(exchange_id, "dashboard_ohlcv"):
+        ohlcv = ex.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
     if not ohlcv:
         return pd.DataFrame()
     x = pd.DataFrame(ohlcv, columns=["time", "open", "high", "low", "close", "volume"])

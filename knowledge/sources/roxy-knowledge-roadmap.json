@@ -1,0 +1,258 @@
+{
+  "version": 1,
+  "updatedAt": "2026-07-01T00:00:00.000Z",
+  "objective": "Mapa de conocimiento para alimentar a Roxy Trader de forma legal, progresiva y auditable.",
+  "downloadPolicy": {
+    "copyrightedBooks": "manual_upload_required",
+    "paidCourses": "manual_upload_required",
+    "marketData": "api_connector_required",
+    "news": "licensed_feed_required",
+    "publicEconomicData": "official_public_source_or_api",
+    "internalStrategies": "internal_generated_or_manual_upload"
+  },
+  "levels": [
+    {
+      "level": 1,
+      "id": "biblioteca",
+      "title": "Biblioteca base",
+      "targetCount": "200+ libros, apuntes y documentos legales",
+      "inbox": "knowledge/inbox/libros",
+      "ingestionMode": "manual_upload_required",
+      "goal": "Dar a Roxy fundamentos teoricos solidos sobre analisis tecnico, psicologia, riesgo, opciones e inversion.",
+      "sections": [
+        {
+          "id": "analisis-tecnico",
+          "title": "Analisis Tecnico",
+          "titles": [
+            "Technical Analysis of the Financial Markets",
+            "Encyclopedia of Chart Patterns",
+            "Japanese Candlestick Charting Techniques",
+            "The Art and Science of Technical Analysis",
+            "Trading Price Action Trends",
+            "Trading Price Action Reversals",
+            "Trading Price Action Trading Ranges"
+          ]
+        },
+        {
+          "id": "psicologia",
+          "title": "Psicologia",
+          "titles": [
+            "Trading in the Zone",
+            "The Disciplined Trader",
+            "The Daily Trading Coach"
+          ]
+        },
+        {
+          "id": "gestion-riesgo",
+          "title": "Gestion del Riesgo",
+          "titles": [
+            "Trade Your Way to Financial Freedom",
+            "The New Trading for a Living"
+          ]
+        },
+        {
+          "id": "opciones",
+          "title": "Opciones",
+          "titles": [
+            "Options as a Strategic Investment",
+            "Trading Options Greeks"
+          ]
+        },
+        {
+          "id": "inversion",
+          "title": "Inversion",
+          "titles": [
+            "The Intelligent Investor",
+            "Security Analysis",
+            "One Up On Wall Street"
+          ]
+        }
+      ],
+      "legalNote": "Estos titulos comerciales no se descargan automaticamente. Sube solo PDFs/TXT/MD que tengas derecho legal a usar."
+    },
+    {
+      "level": 2,
+      "id": "cursos",
+      "title": "Cursos completos",
+      "inbox": "knowledge/inbox/cursos",
+      "ingestionMode": "manual_upload_required",
+      "goal": "Convertir transcripciones, notas y clases autorizadas en conocimiento practico para Roxy.",
+      "topics": [
+        "TradingView",
+        "ICT",
+        "Smart Money Concepts",
+        "Wyckoff",
+        "Market Profile",
+        "Volume Profile",
+        "Options Trading",
+        "Futures",
+        "Forex",
+        "Crypto"
+      ],
+      "legalNote": "Cursos pagos o privados requieren permiso/licencia. Preferir transcripciones propias y apuntes del usuario."
+    },
+    {
+      "level": 3,
+      "id": "bases-mercado",
+      "title": "Bases de datos del mercado",
+      "inbox": "knowledge/inbox/datos-mercado",
+      "ingestionMode": "api_connector_required",
+      "goal": "Alimentar precios, historiales y microestructura para analisis operativo real.",
+      "dataTypes": [
+        "OHLC",
+        "Volumen",
+        "Tick data",
+        "Level II",
+        "Options Chain",
+        "Open Interest",
+        "Futures",
+        "ETFs",
+        "Forex",
+        "Criptomonedas"
+      ],
+      "providers": [
+        {
+          "name": "Polygon.io",
+          "status": "connector_required",
+          "env": ["POLYGON_API_KEY"]
+        },
+        {
+          "name": "Alpaca",
+          "status": "connector_required",
+          "env": ["ALPACA_API_KEY", "ALPACA_API_SECRET"]
+        },
+        {
+          "name": "Alpha Vantage",
+          "status": "connector_required",
+          "env": ["ALPHA_VANTAGE_API_KEY"]
+        },
+        {
+          "name": "Twelve Data",
+          "status": "connector_required",
+          "env": ["TWELVE_DATA_API_KEY"]
+        },
+        {
+          "name": "Binance",
+          "status": "public_or_keyed_connector_required",
+          "env": ["BINANCE_API_KEY", "BINANCE_API_SECRET"]
+        }
+      ]
+    },
+    {
+      "level": 4,
+      "id": "indicadores",
+      "title": "Indicadores",
+      "inbox": "knowledge/inbox/indicadores",
+      "ingestionMode": "internal_docs_and_examples",
+      "goal": "Documentar formula, lectura, limites, falsas senales y uso operativo.",
+      "indicators": [
+        "EMA",
+        "SMA",
+        "VWAP",
+        "RSI",
+        "MACD",
+        "ATR",
+        "ADX",
+        "Bollinger Bands",
+        "Fibonacci",
+        "Ichimoku",
+        "Pivot Points",
+        "Supertrend",
+        "OBV",
+        "Volume Profile"
+      ]
+    },
+    {
+      "level": 5,
+      "id": "economia",
+      "title": "Economia",
+      "inbox": "knowledge/inbox/economia",
+      "ingestionMode": "official_public_source_or_api",
+      "goal": "Agregar contexto macro para evitar operar ciego durante eventos de alto impacto.",
+      "topics": [
+        "Calendario economico",
+        "CPI",
+        "PPI",
+        "GDP",
+        "Non-Farm Payrolls",
+        "FOMC",
+        "Tasas de interes",
+        "Desempleo",
+        "Inflacion"
+      ],
+      "officialSources": [
+        {
+          "name": "Federal Reserve",
+          "status": "public_source_or_connector_required"
+        },
+        {
+          "name": "U.S. Bureau of Labor Statistics",
+          "status": "public_source_or_connector_required"
+        },
+        {
+          "name": "Bureau of Economic Analysis",
+          "status": "public_source_or_connector_required"
+        }
+      ]
+    },
+    {
+      "level": 6,
+      "id": "noticias",
+      "title": "Noticias",
+      "inbox": "knowledge/inbox/noticias",
+      "ingestionMode": "licensed_feed_required",
+      "goal": "Leer titulares y contexto diario sin copiar contenido protegido.",
+      "targets": [
+        "Reuters",
+        "Bloomberg",
+        "MarketWatch",
+        "Investing.com"
+      ],
+      "legalNote": "Reuters/Bloomberg y otros proveedores pueden requerir licencia. Roxy solo debe ingerir feeds autorizados o resumenes propios."
+    },
+    {
+      "level": 7,
+      "id": "estrategias",
+      "title": "Estrategias",
+      "inbox": "knowledge/inbox/estrategias",
+      "ingestionMode": "internal_strategy_library",
+      "goal": "Crear playbooks operativos con condiciones, invalidacion, riesgo y ejemplos.",
+      "strategies": [
+        "EMA Cross",
+        "Pullback",
+        "Breakout",
+        "Reversal",
+        "Trend Following",
+        "Scalping",
+        "Swing",
+        "Smart Money",
+        "ICT",
+        "Wyckoff",
+        "Gap Trading",
+        "ORB",
+        "Momentum"
+      ]
+    },
+    {
+      "level": 8,
+      "id": "backtesting",
+      "title": "Backtesting",
+      "inbox": "knowledge/inbox/backtesting",
+      "ingestionMode": "generated_results",
+      "goal": "Guardar miles de pruebas documentadas con metricas, supuestos, drawdown y condiciones de mercado.",
+      "requiredFields": [
+        "estrategia",
+        "activo",
+        "timeframe",
+        "periodo",
+        "reglas",
+        "win_rate",
+        "profit_factor",
+        "max_drawdown",
+        "expectancy",
+        "sample_size",
+        "limitaciones"
+      ]
+    }
+  ]
+}

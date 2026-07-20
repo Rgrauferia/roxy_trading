@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from durable_storage import atomic_write_text, exclusive_file_lock
+
 
 ALERTS_DIR = Path("alerts")
 DEFAULT_BRIEF_PATH = ALERTS_DIR / "roxy_ai_brief.json"
@@ -163,8 +165,7 @@ def read_history(path: Path = DEFAULT_HISTORY_PATH, *, limit: int = DEFAULT_HIST
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+    atomic_write_text(json.dumps(payload, indent=2, sort_keys=True), path)
 
 
 def compact_history_entry_for_storage(entry: dict[str, Any]) -> dict[str, Any]:
@@ -231,7 +232,7 @@ def compact_history_entry_for_storage(entry: dict[str, Any]) -> dict[str, Any]:
     return compacted
 
 
-def append_history(
+def _append_history_unlocked(
     path: Path,
     entry: dict[str, Any],
     *,
@@ -305,8 +306,36 @@ def append_history(
             kept.append(line)
             total_bytes += line_bytes
         lines = list(reversed(kept))
-    path.write_text("\n".join(lines) + "\n")
+    atomic_write_text("\n".join(lines) + "\n", path)
     return len(lines)
+
+
+def append_history(
+    path: Path,
+    entry: dict[str, Any],
+    *,
+    limit: int = DEFAULT_HISTORY_LIMIT,
+    max_bytes: int | None = DEFAULT_HISTORY_MAX_BYTES,
+    min_entries: int = DEFAULT_HISTORY_MIN_ENTRIES,
+    warn_ratio: float = DEFAULT_HISTORY_BUDGET_WARN_RATIO,
+    watch_margin_ratio: float = DEFAULT_HISTORY_BUDGET_WATCH_MARGIN_RATIO,
+    next_append_guard_multiplier: float = DEFAULT_HISTORY_BUDGET_NEXT_APPEND_GUARD_MULTIPLIER,
+    min_appends_until_warn: int = DEFAULT_HISTORY_BUDGET_MIN_APPENDS_UNTIL_WARN,
+    cap_target_ratio: float = DEFAULT_HISTORY_CAP_TARGET_RATIO,
+) -> int:
+    with exclusive_file_lock(path):
+        return _append_history_unlocked(
+            path,
+            entry,
+            limit=limit,
+            max_bytes=max_bytes,
+            min_entries=min_entries,
+            warn_ratio=warn_ratio,
+            watch_margin_ratio=watch_margin_ratio,
+            next_append_guard_multiplier=next_append_guard_multiplier,
+            min_appends_until_warn=min_appends_until_warn,
+            cap_target_ratio=cap_target_ratio,
+        )
 
 
 def top_opportunity_snapshot(brief: dict[str, Any]) -> dict[str, Any]:

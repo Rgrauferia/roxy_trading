@@ -1,4 +1,7 @@
+from concurrent.futures import ThreadPoolExecutor
+
 import pandas as pd
+import pytest
 
 from crypto_paper_practice import (
     build_crypto_paper_practice_candidates,
@@ -104,6 +107,53 @@ def test_record_crypto_paper_practice_candidates_dedupes(tmp_path, monkeypatch):
     assert len(first) == 1
     assert len(second) == 1
     assert path.exists()
+
+
+def test_concurrent_crypto_records_do_not_lose_candidates(tmp_path):
+    path = tmp_path / "crypto.csv"
+
+    def record(index):
+        candidates = build_crypto_paper_practice_candidates(
+            pd.DataFrame(
+                [{
+                    "action": "ALERT",
+                    "symbol": f"C{index:02d}/USD",
+                    "market": "crypto",
+                    "signal": "BUY",
+                    "decision": "TRADE_FOR_2PCT",
+                    "entry": 100.0 + index,
+                    "stop": 99.0 + index,
+                    "target_pct": 0.02,
+                    "risk_pct": 0.01,
+                }]
+            )
+        )
+        record_crypto_paper_practice_candidates(candidates, path=path)
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        list(executor.map(record, range(16)))
+
+    stored = pd.read_csv(path)
+    assert set(stored["symbol"]) == {f"C{index:02d}/USD" for index in range(16)}
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert (tmp_path / ".crypto.csv.lock").stat().st_mode & 0o777 == 0o600
+    assert not list(tmp_path.glob(".crypto.csv.*.tmp"))
+
+
+def test_crypto_record_preserves_unreadable_journal(tmp_path):
+    path = tmp_path / "crypto.csv"
+    original = b'"unterminated\n'
+    path.write_bytes(original)
+    candidates = build_crypto_paper_practice_candidates(
+        pd.DataFrame(
+            [{"action": "ALERT", "symbol": "BTC/USD", "market": "crypto", "entry": 100, "stop": 99}]
+        )
+    )
+
+    with pytest.raises(pd.errors.ParserError):
+        record_crypto_paper_practice_candidates(candidates, path=path)
+
+    assert path.read_bytes() == original
 
 
 def test_score_and_summarize_crypto_paper_practice_targets_and_stop():

@@ -14,7 +14,8 @@ router = APIRouter(prefix="/api/auto")
 try:
     from tools.api_auth import require_api_key
 except Exception:
-    require_api_key = None
+    def require_api_key(*_args, **_kwargs):
+        raise HTTPException(status_code=503, detail="API authentication unavailable")
 
 
 class AutoExecRequest(BaseModel):
@@ -26,18 +27,15 @@ class AutoExecRequest(BaseModel):
 
 
 @router.post("/execute")
-def execute(req: AutoExecRequest = Body(...), caller: dict = Depends(require_api_key) if require_api_key is not None else None):
+def execute(req: AutoExecRequest = Body(...), caller: dict = Depends(require_api_key)):
     # scope check
-    if caller:
-        ctype = caller.get("type") if isinstance(caller, dict) else None
-        if ctype == "api_key":
-            scopes = caller.get("scopes") or []
-            if "auto:execute" not in scopes:
-                raise HTTPException(status_code=403, detail="API key missing required scope: auto:execute")
-        elif ctype == "admin":
-            pass
-        else:
-            raise HTTPException(status_code=403, detail="unauthorized caller")
+    ctype = caller.get("type") if isinstance(caller, dict) else None
+    if ctype == "api_key":
+        scopes = caller.get("scopes") or []
+        if "auto:execute" not in scopes:
+            raise HTTPException(status_code=403, detail="API key missing required scope: auto:execute")
+    elif ctype != "admin":
+        raise HTTPException(status_code=403, detail="unauthorized caller")
 
     try:
         from tools import auto_exec

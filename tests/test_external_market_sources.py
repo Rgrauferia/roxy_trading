@@ -1,5 +1,7 @@
 import json
 
+from roxy_trader.api_budget import ApiUsageLedger
+
 from tools.external_market_sources import (
     CryptoComClient,
     ExternalMarketAggregator,
@@ -51,6 +53,22 @@ def test_finviz_client_parses_export_csv_without_exposing_url_secret():
     assert rows[0].volume == 1234567
     assert rows[0].raw["sector"] == "Technology"
     assert "secret-token-value" not in str(status)
+
+
+def test_finviz_client_emits_real_usage_telemetry(tmp_path, monkeypatch):
+    usage_path = tmp_path / "usage.sqlite"
+    monkeypatch.setenv("ROXY_API_TELEMETRY_ENABLED", "1")
+    monkeypatch.setenv("ROXY_API_USAGE_DB", str(usage_path))
+    client = FinvizEliteClient(
+        "https://elite.finviz.com/export/screener?auth=secret-token-value",
+        transport=lambda *_args: "Ticker,Price\nAAPL,195.25\n",
+    )
+
+    assert client.fetch_screener()[0].symbol == "AAPL"
+    summary = ApiUsageLedger(usage_path).provider_summary("finviz")
+
+    assert summary["requests"] == 1
+    assert summary["errors"] == 0
 
 
 def test_finviz_client_accepts_auth_token_env_without_exposing_secret():
@@ -187,7 +205,7 @@ def test_finviz_pattern_strategies_convert_chart_labels_to_operating_plan():
 def test_crypto_com_client_parses_public_ticker_response():
     payload = {
         "id": 1,
-        "method": "public/get-ticker",
+        "method": "public/get-tickers",
         "result": {
             "data": [
                 {
@@ -204,11 +222,8 @@ def test_crypto_com_client_parses_public_ticker_response():
     }
 
     def fake_transport(url, body, headers):
-        assert url == "https://api.crypto.com/exchange/v1/public/get-ticker"
-        assert body
-        request = json.loads(body.decode("utf-8"))
-        assert request["method"] == "public/get-ticker"
-        assert request["params"]["instrument_name"] == "BTC_USDT"
+        assert url == "https://api.crypto.com/exchange/v1/public/get-tickers?instrument_name=BTC_USDT"
+        assert body is None
         return json.dumps(payload)
 
     client = CryptoComClient(transport=fake_transport)
