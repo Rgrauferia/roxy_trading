@@ -43,6 +43,8 @@ services:
         value: "0"
       - key: ROXY_PUBLIC_URL
         value: https://roxy-trading.onrender.com
+      - key: ROXY_USERS_PATH
+        value: /var/data/roxy_users.json
       - key: ROXY_GOOGLE_CLIENT_ID
         sync: false
       - key: ROXY_GOOGLE_CLIENT_SECRET
@@ -66,6 +68,14 @@ services:
       - key: ALPACA_SECRET_KEY
         sync: false
       - key: POLYGON_API_KEY
+        sync: false
+      - key: ROXY_FINVIZ_EXPORT_URL
+        sync: false
+      - key: ROXY_FINVIZ_AUTH_TOKEN
+        sync: false
+      - key: CRYPTO_COM_API_KEY
+        sync: false
+      - key: CRYPTO_COM_API_SECRET
         sync: false
       - key: TRADINGVIEW_WEBHOOK_SECRET
         sync: false

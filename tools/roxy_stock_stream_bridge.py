@@ -26,12 +26,13 @@ from roxy_trader.api_budget import ApiBudgetBlockedError, observe_api_call
 try:
     from fastapi import FastAPI, Query
     from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import JSONResponse, StreamingResponse
+    from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 except ImportError:  # pragma: no cover - service runtime installs requirements.txt
     FastAPI = None  # type: ignore[assignment]
     Query = None  # type: ignore[assignment]
     CORSMiddleware = None  # type: ignore[assignment]
     JSONResponse = None  # type: ignore[assignment]
+    RedirectResponse = None  # type: ignore[assignment]
     StreamingResponse = None  # type: ignore[assignment]
 
 ALPACA_STREAM_BASE = "wss://stream.data.alpaca.markets/v2"
@@ -123,6 +124,14 @@ def _feed_name() -> str:
 
 def _stream_enabled() -> bool:
     return os.getenv("ROXY_STOCK_ALPACA_STREAM", "1").strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _frontend_url() -> str:
+    return (
+        os.getenv("ROXY_TRADING_APP_URL")
+        or os.getenv("ROXY_PUBLIC_URL")
+        or "https://roxy-trading.onrender.com"
+    ).strip()
 
 
 def _alpaca_credentials() -> tuple[str, str]:
@@ -413,7 +422,9 @@ def stock_snapshot_payload(symbols: list[str]) -> dict[str, Any]:
 if app is not None:
 
     @app.get("/")
-    def root() -> JSONResponse:
+    def root():
+        if os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID"):
+            return RedirectResponse(_frontend_url(), status_code=307)
         return JSONResponse(
             {
                 "ok": True,

@@ -60,6 +60,19 @@ def test_stock_bridge_root_and_health_endpoints_are_render_friendly():
     assert health.json()["ok"] is True
 
 
+def test_stock_bridge_root_redirects_to_frontend_only_in_render(monkeypatch):
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setenv("RENDER", "true")
+    monkeypatch.setenv("ROXY_PUBLIC_URL", "https://roxy.example")
+
+    root = TestClient(app).get("/", follow_redirects=False)
+
+    assert root.status_code == 307
+    assert root.headers["location"] == "https://roxy.example"
+
+
 def test_stock_bridge_accepts_alpaca_secret_key_alias(monkeypatch):
     monkeypatch.setenv("ALPACA_API_KEY", "paper-key")
     monkeypatch.delenv("ALPACA_API_SECRET", raising=False)

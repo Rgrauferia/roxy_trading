@@ -9,12 +9,26 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from pathlib import Path
 from typing import Optional
 
+from roxy_paths import db_dir as configured_db_dir
 from roxy_time import utc_now_naive_iso
 
-DB_PATH = os.path.join("db", "roxy.db")
-os.makedirs("db", exist_ok=True)
+
+def _default_db_path() -> str:
+    configured = os.environ.get("ROXY_DB_PATH") or os.environ.get("ROXY_AUTH_DB_PATH")
+    if configured:
+        path = Path(configured).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return str(path)
+
+    directory = configured_db_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    return str(directory / "roxy.db")
+
+
+DB_PATH = _default_db_path()
 
 
 def init_db(path: str = DB_PATH) -> None:

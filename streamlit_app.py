@@ -4884,6 +4884,11 @@ def render_roxy_elevenlabs_assistant() -> None:
     components.html(runtime_html, height=1)
 
 
+def render_roxy_headless_voice_runtime() -> None:
+    """Mount the connected voice runtime without adding a visible control panel."""
+    render_roxy_elevenlabs_assistant()
+
+
 def read_dashboard_ui_state(
     path: Path = DASHBOARD_UI_STATE_FILE,
     *,
@@ -37913,7 +37918,7 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         render_finviz_pattern_strategy_board(limit=24)
         render_roxy_strategy_split_board(rows, limit=12)
 
-    def render_actions_reference_terminal(*, show_strategy_sections: bool = False) -> None:
+    def render_actions_reference_terminal_deploy(*, show_strategy_sections: bool = False) -> None:
         # Keep Acciones pinned to the requested Finviz/Roxy command-center reference:
         # sidebar, scanner, heat map, movers, news, alerts, watchlists and feature rail.
         render_roxy_actions_reference_market_terminal(
@@ -37929,11 +37934,13 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         )
 
     if actions_tab in strategy_tabs:
-        render_actions_reference_terminal(show_strategy_sections=True)
+        render_roxy_headless_voice_runtime()
+        render_actions_reference_terminal_deploy(show_strategy_sections=True)
         return
 
     if actions_tab in overview_tabs or actions_tab not in chart_tabs:
-        render_actions_reference_terminal(show_strategy_sections=True)
+        render_roxy_headless_voice_runtime()
+        render_actions_reference_terminal_deploy(show_strategy_sections=True)
         return
 
     strategy_panes: list[tuple[str, str, pd.DataFrame]] = []
@@ -38051,6 +38058,21 @@ def render_roxy_actions_folder(table: pd.DataFrame, *, timeframe: str) -> None:
         """,
         unsafe_allow_html=True,
     )
+
+
+def render_roxy_actions_operating_route(*, timeframe: str = "1h") -> None:
+    """Resolve the live actions table before opening the canonical terminal."""
+    context = load_focused_live_context()
+    brief = context.get("brief") if isinstance(context.get("brief"), dict) else {}
+    table = focused_opportunity_table(brief)
+    selected_symbol = text_display(
+        first_query_param_value(st.query_params, "symbol")
+        or st.session_state.get("command_symbol")
+        or "AAPL"
+    ).upper()
+    if not isinstance(table, pd.DataFrame) or table.empty:
+        table = pd.DataFrame([roxy_selected_asset_row(selected_symbol, "stock")])
+    render_roxy_actions_folder(table, timeframe=timeframe or "1h")
 
 
 def roxy_durable_alerts_html(*, market: str, limit: int = 6) -> tuple[str, int]:
@@ -41879,7 +41901,7 @@ def render_roxy_module_workspace(table: pd.DataFrame, *, active_module: str, tim
         timeframe=timeframe,
     )
     if active_module in {"acciones-operar", "acciones", "accion", "stock", "stocks", "acciones-disponibles"}:
-        render_roxy_actions_folder(table, timeframe="1h")
+        render_roxy_actions_operating_route(timeframe="1h")
         return
     if active_module == "crypto-trabajar":
         rows = roxy_asset_rows_for_market(table, "crypto")
@@ -46401,11 +46423,11 @@ def main() -> None:
         actions_table = pd.DataFrame([roxy_selected_asset_row(actions_symbol, actions_market)])
         hydrate_command_state_from_query_params(st.query_params, st.session_state, actions_symbol)
         apply_pending_command_state()
-        render_roxy_actions_folder(
-            actions_table,
-            timeframe=normalize_command_timeframe(st.session_state.get("command_timeframe") or first_query_param_value(st.query_params, "tf")),
+        render_roxy_actions_operating_route(
+            timeframe=normalize_command_timeframe(
+                st.session_state.get("command_timeframe") or first_query_param_value(st.query_params, "tf")
+            ),
         )
-        render_roxy_elevenlabs_assistant()
         return
     if active_module_query in {"crypto-20m", "crypto-2h", "crypto-daily"}:
         # Crypto workspaces fetch their own exchange candles and signals. They
