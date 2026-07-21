@@ -33336,6 +33336,30 @@ def render_roxy_opening_stage(
         </div>
         """
     )
+    render_roxy_visual_dashboard(
+        symbol=symbol,
+        market=market,
+        timeframe=timeframe,
+        safe_symbol=safe_symbol,
+        safe_market=safe_market,
+        safe_timeframe=safe_timeframe,
+        safe_user_name=safe_user_name,
+        home_chart_html=home_chart_html,
+        movers_html=movers_html,
+        events_html=events_html,
+        market_summary_html=market_summary_html,
+        modules_block_html=modules_block_html,
+        selected_action=selected_action,
+        selected_plan_detail=selected_plan_detail,
+        selected_source=selected_source,
+        equity=equity,
+        risk_pct=risk_pct,
+        risk_cash=risk_cash,
+        ready_now=ready_now,
+        watch_now=watch_now,
+    )
+    return
+
     plan_tone = "ready" if selected_plan_ready else "pending"
     professional_home_html = roxy_clean_html_fragment(
         f"""
@@ -33415,6 +33439,106 @@ def render_roxy_opening_stage(
     )
     st.markdown(
         professional_home_html,
+        unsafe_allow_html=True,
+    )
+
+
+def render_roxy_visual_dashboard(
+    *,
+    symbol: str,
+    market: str,
+    timeframe: str,
+    safe_symbol: str,
+    safe_market: str,
+    safe_timeframe: str,
+    safe_user_name: str,
+    home_chart_html: str,
+    movers_html: str,
+    events_html: str,
+    market_summary_html: str,
+    modules_block_html: str,
+    selected_action: str,
+    selected_plan_detail: str,
+    selected_source: str,
+    equity: float,
+    risk_pct: float,
+    risk_cash: float,
+    ready_now: int,
+    watch_now: int,
+) -> None:
+    """Restore Roxy's visual folder dashboard while keeping every summary source-backed."""
+
+    opportunity_href = roxy_route_href(
+        "trading.opportunities", symbol=symbol, market=market, tf=timeframe
+    )
+    analysis_href = (
+        f"?view=Dashboard&symbol={quote(str(symbol or 'AAPL'), safe='')}"
+        f"&market={quote(str(market or 'stock'), safe='')}"
+        f"&tf={quote(str(timeframe or '1h'), safe='')}&module=acciones-operar&tab=analisis"
+    )
+    live_grid_html = roxy_clean_html_fragment(
+        f"""
+        <div class="roxy-ref-live-grid">
+          <div class="roxy-ref-panel roxy-ref-movers">
+            <span><i class="material-symbols-outlined" aria-hidden="true">verified</i>Mejores oportunidades</span>
+            {movers_html}
+            <a href="{opportunity_href}" target="_self">Ver todas</a>
+          </div>
+          {home_chart_html}
+          <div class="roxy-ref-panel roxy-ref-events">
+            <span><i class="material-symbols-outlined" aria-hidden="true">event_upcoming</i>Proximos eventos</span>
+            {events_html}
+            <a href="{roxy_route_href('market.calendar', symbol=symbol, market=market, tf=timeframe)}" target="_self">Ver calendario</a>
+          </div>
+          <div class="roxy-ref-panel roxy-ref-bot">
+            {roxy_hologram_avatar_html("speaking", "Roxy avatar mini")}
+          </div>
+          <div class="roxy-ref-panel roxy-ref-assistant">
+            <div class="roxy-ref-assistant-avatar">{roxy_avatar_html("speaking", "Roxy hablando")}</div>
+            <p><strong>Roxy</strong><span>{safe_user_name}, tengo {ready_now} oportunidades listas y {watch_now} en vigilancia.</span></p>
+            <a href="{opportunity_href}" target="_self">Mostrar oportunidades</a>
+          </div>
+          <div class="roxy-ref-panel roxy-ref-actions">
+            <a href="{opportunity_href}" target="_self"><i class="material-symbols-outlined" aria-hidden="true">query_stats</i>Mostrar oportunidades</a>
+            <a href="{analysis_href}" target="_self"><i class="material-symbols-outlined" aria-hidden="true">candlestick_chart</i>Analisis de {safe_symbol}</a>
+            <a href="{roxy_route_href('trading.portfolio', symbol=symbol, market=market, tf=timeframe)}" target="_self"><i class="material-symbols-outlined" aria-hidden="true">business_center</i>Revisar capital</a>
+          </div>
+        </div>
+        """
+    )
+    st.markdown(
+        f"""
+        <style>
+          @media(max-width:760px){{
+            .block-container{{padding-top:0!important;padding-left:.25rem!important;padding-right:.25rem!important;max-width:100vw!important}}
+            [data-testid="stHeader"]{{display:none!important}}
+            .roxy-reference-stage{{grid-template-columns:92px minmax(0,1fr) 92px!important;grid-template-areas:"top top top" "left center right" "modules modules modules" "live live live" "nav nav nav"!important;gap:4px!important;min-height:0!important;padding:7px 5px 9px!important;align-content:start!important;overflow:hidden!important}}
+            .roxy-ref-topbar{{grid-template-columns:22px 72px minmax(0,1fr) 24px 30px!important;gap:5px!important;min-height:42px!important;padding-bottom:5px!important}}
+            .roxy-ref-logo .brand-logo-img{{width:70px!important;max-width:70px!important}}.roxy-ref-welcome strong{{font-size:10px!important}}.roxy-ref-welcome span{{font-size:7px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+            .roxy-reference-stage .roxy-stage-center{{min-height:245px!important;align-self:end!important}}.roxy-reference-stage .roxy-stage-center .roxy-hologram-avatar{{width:min(205px,56vw)!important;aspect-ratio:.72/1!important}}.roxy-reference-stage .roxy-hologram-name strong{{font-size:33px!important}}.roxy-reference-stage .roxy-hologram-name span{{font-size:7px!important}}.roxy-reference-stage .roxy-audio-wave{{height:19px!important;bottom:8%!important}}
+            .roxy-reference-stage .roxy-stage-left{{gap:4px!important;min-width:0!important}}.roxy-reference-stage .roxy-stage-bubble{{padding:6px!important}}.roxy-reference-stage .roxy-stage-bubble strong{{font-size:11px!important}}.roxy-reference-stage .roxy-stage-bubble span{{font-size:7px!important}}.roxy-reference-stage .roxy-stage-live-msg{{height:16px!important}}.roxy-reference-stage .roxy-stage-wave{{min-height:28px!important;padding:3px!important}}.roxy-reference-stage .roxy-stage-wave span{{font-size:5px!important}}.roxy-reference-stage .roxy-ref-market-summary{{padding:5px!important}}.roxy-reference-stage .roxy-ref-market-summary span,.roxy-reference-stage .roxy-ref-market-summary strong,.roxy-reference-stage .roxy-ref-market-summary b{{font-size:5.7px!important}}.roxy-reference-stage .roxy-ref-market-summary em,.roxy-reference-stage .roxy-ref-market-summary small{{font-size:5px!important}}.roxy-reference-stage .roxy-stage-status{{padding:5px!important}}.roxy-reference-stage .roxy-stage-status span{{font-size:5.5px!important}}.roxy-reference-stage .roxy-stage-status strong{{font-size:12px!important}}.roxy-reference-stage .roxy-stage-status small,.roxy-reference-stage .roxy-stage-status a{{font-size:5.5px!important}}
+            .roxy-reference-stage .roxy-stage-right{{gap:4px!important;min-width:0!important}}.roxy-reference-stage .roxy-stage-brand .brand-logo-img{{width:82px!important}}.roxy-reference-stage .roxy-stage-brand span{{font-size:5.5px!important}}.roxy-reference-stage .roxy-stage-brand strong{{font-size:7px!important;max-width:88px!important;text-align:right}}.roxy-reference-stage .roxy-stage-values{{width:100%!important;gap:4px!important}}.roxy-reference-stage .roxy-stage-values div{{grid-template-columns:14px minmax(0,1fr)!important;gap:3px!important;padding:4px!important}}.roxy-reference-stage .roxy-stage-values div:before{{width:12px!important;height:12px!important}}.roxy-reference-stage .roxy-stage-values span{{font-size:5px!important}}.roxy-reference-stage .roxy-stage-values strong{{font-size:5.4px!important}}.roxy-reference-stage .roxy-stage-values em{{font-size:5px!important}}
+            .roxy-reference-stage .roxy-stage-modules{{grid-template-columns:repeat(5,minmax(0,1fr))!important;padding-top:3px!important;margin-top:-5px!important}}.roxy-reference-stage .roxy-stage-module{{padding:2px 1px 0!important;min-width:0!important}}.roxy-reference-stage .roxy-stage-module b{{width:31px!important;height:31px!important;margin-bottom:4px!important}}.roxy-reference-stage .roxy-stage-module b .material-symbols-outlined{{font-size:20px!important}}.roxy-reference-stage .roxy-stage-module span{{font-size:5.7px!important;line-height:1!important}}.roxy-reference-stage .roxy-stage-module strong{{font-size:5px!important;line-height:1.05!important;min-height:15px!important}}
+            .roxy-ref-live-grid{{grid-template-columns:minmax(0,1fr)!important;grid-template-areas:"chart" "assistant" "actions" "movers" "events"!important;gap:5px!important;margin-top:1px!important}}.roxy-ref-chart{{width:100%!important}}.roxy-ref-bot{{display:none!important}}.roxy-real-candle-chart{{height:204px!important}}.roxy-ref-assistant{{grid-template-columns:32px minmax(0,1fr) auto!important}}.roxy-ref-actions{{grid-template-columns:repeat(3,minmax(0,1fr))!important}}.roxy-ref-actions a{{min-height:34px!important;font-size:7px!important;padding:5px!important}}.roxy-ref-movers,.roxy-ref-events{{display:grid!important;grid-template-columns:1fr 1fr!important;gap:5px!important}}.roxy-ref-movers>span,.roxy-ref-events>span,.roxy-ref-movers>a,.roxy-ref-events>a{{grid-column:1/-1!important}}
+            .roxy-ref-bottomnav{{margin-top:4px!important;padding:5px 8px!important}}.roxy-ref-bottomnav a{{font-size:6px!important}}.roxy-ref-bottomnav b{{width:22px!important;height:22px!important;font-size:12px!important}}.roxy-ref-bottomnav a:nth-child(3) b{{width:38px!important;height:38px!important;margin-top:-16px!important;background:radial-gradient(circle,#1d4ed8,#082f49)!important;color:#fff!important;font-size:18px!important}}
+          }}
+        </style>
+        <section class="roxy-opening-stage roxy-reference-stage">
+          <div class="roxy-universe" aria-hidden="true"><i class="roxy-space-nebula"></i><i class="roxy-space-stars roxy-space-stars-far"></i><i class="roxy-space-stars roxy-space-stars-mid"></i><i class="roxy-space-stars roxy-space-stars-near"></i><i class="roxy-space-planet"></i><i class="roxy-space-comet"></i><i class="roxy-space-aurora"></i><i class="roxy-space-constellation roxy-space-constellation-a"></i><i class="roxy-space-constellation roxy-space-constellation-b"></i><i class="roxy-space-moon"></i><i class="roxy-space-stream roxy-space-stream-a"></i><i class="roxy-space-stream roxy-space-stream-b"></i></div>
+          <div class="roxy-ref-topbar"><div class="roxy-ref-menu" aria-hidden="true"><span></span><span></span><span></span></div><div class="roxy-ref-logo">{brand_logo_html()}</div><div class="roxy-ref-welcome"><strong>Bienvenido, {safe_user_name}</strong><span>Roxy Trading · {safe_symbol} · {safe_timeframe}</span></div><div class="roxy-ref-alert" aria-label="{ready_now} oportunidades listas"><b>{ready_now}</b></div><div class="roxy-ref-mini-avatar">{roxy_avatar_html("ready", "mini", "Roxy")}</div></div>
+          <div class="roxy-stage-left">
+            <div class="roxy-stage-bubble"><strong>Hola, soy Roxy.</strong><span>¿En que puedo ayudarte?</span><div class="roxy-stage-live-msg"><small>Escuchando el mercado...</small><small>Analizando oportunidades...</small><small>Lista para abrir carpetas.</small></div><i></i><i></i><i></i></div>
+            <div class="roxy-stage-wave"><span>Escuchar a Roxy</span><div aria-hidden="true"><b style="--i:1"></b><b style="--i:2"></b><b style="--i:3"></b><b style="--i:4"></b><b style="--i:5"></b><b style="--i:6"></b><b style="--i:7"></b><b style="--i:8"></b><b style="--i:9"></b><b style="--i:10"></b><b style="--i:11"></b><b style="--i:12"></b></div></div>
+            <div class="roxy-ref-market-summary"><span>Resumen del mercado</span>{market_summary_html}<small>Datos del proveedor disponible · sin precios simulados</small></div>
+            <div class="roxy-stage-status"><span>Plan tecnico actual</span><strong>{html.escape(selected_action)}</strong><small><b>{safe_symbol}</b> · {html.escape(selected_plan_detail)}</small><a href="{analysis_href}" target="_self">Ver analisis</a></div>
+          </div>
+          <div class="roxy-stage-center">{roxy_hologram_avatar_html("speaking", "Roxy esta hablando y analizando el mercado")}<div class="roxy-stage-title"><strong>ROXY</strong><span>AI TRADING ASSISTANT</span></div></div>
+          <div class="roxy-stage-right"><div class="roxy-stage-brand"><span>Grau Service LLC</span><strong>Trading inteligente, controlado y visual.</strong></div><div class="roxy-stage-values"><div><span>Datos</span><strong>{html.escape(selected_source)}</strong><em>Fuente declarada</em></div><div><span>Riesgo paper</span><strong>${risk_cash:,.2f} por operacion</strong><em>{risk_pct:.1f}% de ${equity:,.2f}</em></div><div><span>Contexto</span><strong>{safe_market}</strong><em>{safe_symbol} · {safe_timeframe}</em></div></div></div>
+          {modules_block_html}
+          {live_grid_html}
+          <nav class="roxy-ref-bottomnav" aria-label="Navegacion Roxy"><a class="active" href="{roxy_route_href('market.overview', symbol=symbol, market=market, tf=timeframe)}" target="_self"><b class="material-symbols-outlined">home</b><span>Inicio</span></a><a href="{roxy_route_href('trading.alerts', symbol=symbol, market=market, tf=timeframe)}" target="_self"><b class="material-symbols-outlined">notifications</b><span>Alertas</span></a><a href="{roxy_route_href('roxy.assistant', symbol=symbol, market=market, tf=timeframe)}" target="_self"><b>R</b><span>Roxy</span></a><a href="{roxy_route_href('roxy.education', symbol=symbol, market=market, tf=timeframe)}" target="_self"><b class="material-symbols-outlined">menu_book</b><span>Aprender</span></a><a href="{roxy_route_href('system.diagnostics', symbol=symbol, market=market, tf=timeframe)}" target="_self"><b class="material-symbols-outlined">settings</b><span>Sistema</span></a></nav>
+        </section>
+        """,
         unsafe_allow_html=True,
     )
 
