@@ -141,11 +141,8 @@ def test_opening_stage_has_no_fixed_market_or_trade_numbers():
     assert "La fuente de velas se muestra en la grafica" in opening_source
     assert "for row in all_opportunity_rows" in opening_source
     assert "Capital paper ${equity:,.2f} · sin broker" in opening_source
-    assert "render_roxy_visual_dashboard(" in opening_source
-    assert "roxy_hologram_avatar_html" in opening_source
-    assert 'class="roxy-opening-stage roxy-reference-stage"' in opening_source
-    assert "Resumen del mercado" in opening_source
-    assert "sin precios simulados" in opening_source
+    assert "roxy_hologram_avatar_html" not in opening_source
+    assert 'class="roxy-prof-home"' in opening_source
 
 
 def test_opening_stage_mobile_prioritizes_chart_and_persistent_navigation():
@@ -154,25 +151,15 @@ def test_opening_stage_mobile_prioritizes_chart_and_persistent_navigation():
         source.index("def render_roxy_opening_stage") : source.index("def render_roxy_first_screen_launchpad")
     ]
 
-    assert 'grid-template-areas:"top top top" "left center right" "modules modules modules" "live live live" "nav nav nav"' in opening_source
-    assert ".roxy-reference-stage .roxy-stage-modules{{grid-template-columns:repeat(5" in opening_source
-    assert 'grid-template-areas:"chart" "assistant" "actions" "movers" "events"' in opening_source
-    assert 'class="roxy-ref-live-grid"' in opening_source
-    assert 'class="roxy-ref-bottomnav"' in opening_source
-    assert "roxy-stage-module" in opening_source
+    assert ".roxy-prof-grid:nth-of-type(2){{order:2}}" in opening_source
+    assert ".roxy-prof-status{{order:3;grid-template-columns:repeat(2" in opening_source
+    assert ".roxy-prof-links{{order:6;position:fixed" in opening_source
+    assert "min-height:46px" in opening_source
+    nav_source = opening_source[opening_source.index('<nav class="roxy-prof-links"') :]
+    assert nav_source.count('class="material-symbols-outlined"') == 5
     assert "trading.opportunities" in opening_source
+    assert "trading.watchlists" in opening_source
     assert "trading.alerts" in opening_source
-    assert "system.diagnostics" in opening_source
-
-
-def test_visual_dashboard_html_is_cleaned_before_streamlit_renders_it():
-    source = _streamlit_source()
-    visual_source = source[
-        source.index("def render_roxy_visual_dashboard") : source.index("def render_roxy_first_screen_launchpad")
-    ]
-
-    assert "dashboard_html = roxy_clean_html_fragment(" in visual_source
-    assert "st.markdown(\n        dashboard_html," in visual_source
 
 
 def test_roxy_os_debug_panel_is_scoped_to_roxy_and_diagnostics_pages():
