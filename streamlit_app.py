@@ -33506,7 +33506,7 @@ def render_roxy_visual_dashboard(
         </div>
         """
     )
-    st.markdown(
+    dashboard_html = roxy_clean_html_fragment(
         f"""
         <style>
           @media(max-width:760px){{
@@ -33538,7 +33538,10 @@ def render_roxy_visual_dashboard(
           {live_grid_html}
           <nav class="roxy-ref-bottomnav" aria-label="Navegacion Roxy"><a class="active" href="{roxy_route_href('market.overview', symbol=symbol, market=market, tf=timeframe)}" target="_self"><b class="material-symbols-outlined">home</b><span>Inicio</span></a><a href="{roxy_route_href('trading.alerts', symbol=symbol, market=market, tf=timeframe)}" target="_self"><b class="material-symbols-outlined">notifications</b><span>Alertas</span></a><a href="{roxy_route_href('roxy.assistant', symbol=symbol, market=market, tf=timeframe)}" target="_self"><b>R</b><span>Roxy</span></a><a href="{roxy_route_href('roxy.education', symbol=symbol, market=market, tf=timeframe)}" target="_self"><b class="material-symbols-outlined">menu_book</b><span>Aprender</span></a><a href="{roxy_route_href('system.diagnostics', symbol=symbol, market=market, tf=timeframe)}" target="_self"><b class="material-symbols-outlined">settings</b><span>Sistema</span></a></nav>
         </section>
-        """,
+        """
+    )
+    st.markdown(
+        dashboard_html,
         unsafe_allow_html=True,
     )
 

@@ -165,6 +165,16 @@ def test_opening_stage_mobile_prioritizes_chart_and_persistent_navigation():
     assert "system.diagnostics" in opening_source
 
 
+def test_visual_dashboard_html_is_cleaned_before_streamlit_renders_it():
+    source = _streamlit_source()
+    visual_source = source[
+        source.index("def render_roxy_visual_dashboard") : source.index("def render_roxy_first_screen_launchpad")
+    ]
+
+    assert "dashboard_html = roxy_clean_html_fragment(" in visual_source
+    assert "st.markdown(\n        dashboard_html," in visual_source
+
+
 def test_roxy_os_debug_panel_is_scoped_to_roxy_and_diagnostics_pages():
     source = _streamlit_source()
     main_source = source[source.index("def main()") :]
