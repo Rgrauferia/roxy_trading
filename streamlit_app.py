@@ -5101,6 +5101,54 @@ ROXY_COMMAND_MODULES = [
 ]
 
 
+def activate_roxy_dashboard_module(slug: str) -> None:
+    """Open a dashboard module without forcing a browser-level reload."""
+
+    module = normalize_roxy_module(slug, default="acciones-operar")
+    item = roxy_module_by_slug(module)
+    symbol = text_display(item.get("symbol") or "AAPL").upper()
+    market = normalize_command_market(item.get("market"), symbol)
+    timeframe = normalize_command_timeframe(item.get("tf") or "1h")
+    st.session_state["roxy_active_module"] = module
+    st.query_params["module"] = module
+    apply_roxy_navigation_target(
+        page=text_display(item.get("page") or "Dashboard"),
+        symbol=symbol,
+        market=market,
+        timeframe=timeframe,
+        budget_scope=text_display(item.get("scope") or ""),
+        message=f"Roxy abrio {item.get('label') or module}.",
+    )
+
+
+def render_roxy_session_safe_module_launcher() -> None:
+    """Render real Streamlit controls so folder changes keep the live session."""
+
+    st.markdown(
+        """
+        <style>
+          .roxy-folder-launcher-label{margin:2px 0 5px;color:#7dd3fc;font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}
+          div[data-testid="stElementContainer"]:has(.roxy-folder-launcher-label) + div[data-testid="stElementContainer"] div[data-testid="stHorizontalBlock"]{gap:5px}
+          div[data-testid="stElementContainer"]:has(.roxy-folder-launcher-label) + div[data-testid="stElementContainer"] button[kind="secondary"]{min-height:42px;border-color:rgba(56,189,248,.32);background:linear-gradient(180deg,rgba(10,28,50,.96),rgba(5,15,30,.96));color:#e0f2fe;font-size:11px;font-weight:850}
+          @media(max-width:760px){div[data-testid="stElementContainer"]:has(.roxy-folder-launcher-label) + div[data-testid="stElementContainer"] button[kind="secondary"]{min-height:46px;padding:4px 3px;font-size:8px;line-height:1.05}}
+        </style>
+        <div class="roxy-folder-launcher-label">Abrir carpeta · sin recargar la pagina</div>
+        """,
+        unsafe_allow_html=True,
+    )
+    columns = st.columns(len(ROXY_COMMAND_MODULES), gap="small")
+    for index, item in enumerate(ROXY_COMMAND_MODULES):
+        with columns[index]:
+            if st.button(
+                text_display(item.get("label")),
+                key=f"roxy_session_module_{safe_key(item.get('slug'))}",
+                help=text_display(item.get("detail")),
+                width="stretch",
+            ):
+                activate_roxy_dashboard_module(text_display(item.get("slug")))
+                st.rerun()
+
+
 ROXY_ROUTE_REGISTRY: dict[str, dict[str, str]] = {
     "market.overview": {"view": "Dashboard", "label": "Inicio"},
     "market.news": {"view": "Noticias", "label": "Noticias"},
@@ -33276,9 +33324,6 @@ def render_roxy_visual_dashboard(
     dashboard_html = roxy_clean_html_fragment(
         f"""
         <style>
-          .roxy-stage-module{{position:relative}}
-          .roxy-stage-module .roxy-folder-submit{{position:absolute;inset:0;z-index:20;width:100%;height:100%;margin:0;padding:0;border:0;background:transparent;opacity:0;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}}
-          .roxy-stage-module:focus-within{{outline:2px solid #7dd3fc;outline-offset:2px}}
           @media(max-width:760px){{.roxy-ref-bot{{display:none!important}}}}
         </style>
         <section class="roxy-opening-stage roxy-reference-stage">
@@ -33312,6 +33357,7 @@ def render_roxy_opening_stage(
     watch_now: int,
     opportunities: pd.DataFrame | None = None,
 ) -> None:
+    render_roxy_session_safe_module_launcher()
     safe_symbol = html.escape(text_display(symbol).upper())
     safe_market = html.escape(text_display(market).upper())
     safe_timeframe = html.escape(text_display(timeframe))
@@ -33408,19 +33454,12 @@ def render_roxy_opening_stage(
         st.session_state["roxy_active_module"] = active_module
     modules_html = "".join(
         f"""
-        <form class="roxy-stage-module {'roxy-stage-module-active' if item['slug'] == active_module else ''}"
-              action="/" method="get" target="_top">
-          <input type="hidden" name="view" value="{html.escape(item['page'])}">
-          <input type="hidden" name="symbol" value="{html.escape(item['symbol'])}">
-          <input type="hidden" name="market" value="{html.escape(item['market'])}">
-          <input type="hidden" name="tf" value="{html.escape(str(item.get('tf') or timeframe or '1h'))}">
-          <input type="hidden" name="module" value="{html.escape(item['slug'])}">
-          <button class="roxy-folder-submit" type="submit" aria-label="Abrir carpeta {html.escape(item['label'])}"></button>
+        <div class="roxy-stage-module {'roxy-stage-module-active' if item['slug'] == active_module else ''}" aria-hidden="true">
           <em>{html.escape(str(item.get('badge') or ''))}</em>
           <b><i class="material-symbols-outlined" aria-hidden="true">{html.escape(str(item.get('icon') or 'radio_button_checked'))}</i><small>{html.escape(item['mark'])}</small></b>
           <span>{html.escape(item['label'])}</span>
           <strong>{html.escape(item['detail'])}</strong>
-        </form>
+        </div>
         """
         for item in ROXY_COMMAND_MODULES
     )

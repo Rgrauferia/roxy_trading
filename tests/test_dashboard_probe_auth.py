@@ -149,7 +149,7 @@ def test_opening_stage_has_no_fixed_market_or_trade_numbers():
     assert "roxy_hologram_avatar_html" in visual_source
 
 
-def test_opening_stage_restores_visual_modules_with_real_mobile_navigation():
+def test_opening_stage_restores_visual_modules_with_session_safe_mobile_navigation():
     source = _streamlit_source()
     opening_source = source[
         source.index("def render_roxy_opening_stage") : source.index("def render_roxy_first_screen_launchpad")
@@ -158,15 +158,36 @@ def test_opening_stage_restores_visual_modules_with_real_mobile_navigation():
         source.index("def render_roxy_visual_dashboard") : source.index("def render_roxy_opening_stage")
     ]
 
-    assert '<form class="roxy-stage-module' in opening_source
-    assert 'method="get" target="_top"' in opening_source
-    assert 'name="module"' in opening_source
-    assert 'class="roxy-folder-submit" type="submit"' in opening_source
+    assert "render_roxy_session_safe_module_launcher()" in opening_source
+    assert '<div class="roxy-stage-module' in opening_source
+    assert '<form class="roxy-stage-module' not in opening_source
     assert "for item in ROXY_COMMAND_MODULES" in opening_source
-    assert "touch-action:manipulation" in visual_source
+    assert "roxy-folder-submit" not in visual_source
     assert '<nav class="roxy-ref-bottomnav"' in visual_source
     assert "trading.opportunities" in visual_source
     assert "trading.alerts" in visual_source
+
+
+def test_session_safe_module_activation_preserves_streamlit_session(monkeypatch):
+    calls = []
+    monkeypatch.setattr(streamlit_app.st, "query_params", {})
+    monkeypatch.setattr(streamlit_app.st, "session_state", {})
+    monkeypatch.setattr(streamlit_app, "apply_roxy_navigation_target", lambda **kwargs: calls.append(kwargs))
+
+    streamlit_app.activate_roxy_dashboard_module("acciones-operar")
+
+    assert streamlit_app.st.query_params["module"] == "acciones-operar"
+    assert streamlit_app.st.session_state["roxy_active_module"] == "acciones-operar"
+    assert calls == [
+        {
+            "page": "Dashboard",
+            "symbol": "AAPL",
+            "market": "stock",
+            "timeframe": "1h",
+            "budget_scope": "Acciones",
+            "message": "Roxy abrio Acciones.",
+        }
+    ]
 
 
 def test_roxy_os_debug_panel_is_scoped_to_roxy_and_diagnostics_pages():
