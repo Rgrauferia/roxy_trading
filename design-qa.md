@@ -1,48 +1,44 @@
-# Design QA: Roxy Auth Welcome Screen
+# Roxy dashboard design QA
 
-Source visual: user-provided mobile login/register reference for Roxy Trading.
-Prototype state: `http://localhost:8502/?auth=login` and `http://localhost:8502/?auth=register`.
+- Source visual truth: `/tmp/codex-remote-attachments/019f76dc-7cec-7ca2-a72e-9dcc2b978a54/090ABABB-F970-4ACC-9C74-B3F50125D32E/3-Photo-3.jpg`
+- Intended viewport: 390 × 844 mobile
+- Intended state: authenticated Dashboard, AAPL selected, no folder open
+- Implementation screenshot: unavailable; the in-app browser webview timed out for both the local and Render URLs, and no Chrome browser connection was available.
 
-Checks completed:
-- Login gate renders before the dashboard when no Roxy user is authenticated.
-- The screen keeps the living universe background, animated Roxy avatar, large ROXY title, language selector, login form, Apple/Google visual actions, registration link, and security note.
-- Register mode includes name, username, email, password, language, remember option, and create-account action.
-- Registration stores a local salted password hash in `data/roxy_users.json` at runtime and sets the session profile.
-- Login accepts username or email and restores the user profile from the local user store.
-- Auth persistence creates a browser session token after login/register, keeps it in localStorage, appends it to internal folder links, and restores the user from `rx_session` when Streamlit opens a new browser session.
-- Roxy personalization verified with a temporary user: dashboard showed `Bienvenido, Carlos Rivera`, and the assistant message addressed `Carlos Rivera`.
-- Folder navigation QA with a temporary user: opening Crypto Daily kept the user authenticated and did not show the auth screen.
-- Clean URL restore QA with a temporary user: visiting `?view=Dashboard&module=acciones-operar` without a token restored the session from browser storage, added `rx_session`, and opened the Acciones folder without re-registering.
-- Mobile DOM check at 393px width: login shell width 385px, document scroll width 393px, login form 347px wide, submit button 305px wide, 2 Roxy avatar images, 2 social actions.
-- Register DOM check at 393px width: register form 347px wide, required placeholders visible, submit button 305px wide, document scroll width 393px.
-- Desktop DOM check at 1440px width: login shell width 700px, centered premium console, compact Roxy hero above the welcome card, form centered beneath it, no horizontal overflow.
-- Intermediate desktop/zoom check at 800px width: centered premium console remains active, shell width 700px, form width 560px, no horizontal overflow.
-- Desktop register check at 1440px width: register uses the same centered premium console pattern, with compact Roxy hero, centered form, and no horizontal overflow.
-- Browser console error check returned no errors.
-- `python3 -m py_compile streamlit_app.py` passed.
+## Full-view comparison evidence
 
-## Functional QA: Live Folders
+Blocked. The source screenshot is available, but a browser-rendered implementation screenshot could not be captured in the current session. Code inspection, HTTP health, startup smoke tests, and unit/integration tests are not substitutes for the required visual comparison.
 
-Checks completed:
-- Crypto 20min countdown is browser-live: verified it moved from `19:27` to `19:24` without a Streamlit reload, and the circular progress CSS variable updated to `2.92%`.
-- Crypto 2H countdown is browser-live: verified it moved from `01:49:07` to `01:49:05`, with session preserved and no login screen.
-- Crypto Daily countdown is browser-live: verified it moved from `21:48:58` to `21:48:56`, with session preserved and no login screen.
-- Folder URLs keep `rx_session` after navigation, so changing folders does not force a new registration/login.
-- Operational charts remain mounted in the folder flow. Daily QA showed `WS STREAM / STREAM ON`, `BTC/USD · 1d · velas live`, `BinanceUS WebSocket + REST fallback`, EMA/Bollinger/volume controls, and drawing tools.
-- Temporary QA user `qa_roxy_805270` was removed from the local user store after testing.
+## Focused region comparison evidence
 
-## Functional QA: Strategy-Specific Operational Charts
+Blocked for the same reason. The regions that still require direct comparison are the Roxy portrait crop, five-folder row, live chart area, top bar, and bottom navigation.
 
-Checks completed:
-- Crypto 20min opens operational charts as `Entrada 1m · Crypto 20min` and `Contexto 1h · Crypto 20min`, with `Scalping: 1m entrada · 1h contexto · EMA9/21 · BB 20 2 · volumen`, BinanceUS WebSocket stream, `EMA9`, `EMA21`, `BBand`, `Plan`, `Info`, and `Vol` active.
-- Crypto 2H opens operational charts as `Ejecucion 2h · Crypto 2H` and `Confirmacion 4h · Crypto 2H`, with `Confirmacion: 2h ejecucion · 4h contexto · EMA20/Avg40 · soporte/resistencia`, BinanceUS WebSocket stream, `EMA20`, `Avg 40`, `BBand`, `Plan`, `Info`, and `Vol` active.
-- Crypto Daily opens operational charts as `Estructura 1D · Crypto Daily` and `Confirmacion 1W · Crypto Daily`, with `Macro: 1D estructura · 1W confirmacion · SMA20/40/100/200 · niveles clave`, BinanceUS WebSocket stream, `Avg 20`, `Avg 40`, `Avg 100`, `Avg 200`, `BBand`, `Plan`, `Info`, `Labels`, and `Vol` active.
-- The Roxy plan overlay now receives entry zone, entry, stop, target 2, target 5, target 10, and R:R values, so the chart opens ready for operational review instead of requiring manual setup.
-- Temporary QA user `qa_roxy_strategy` was removed from the local user store after testing.
+## Findings
 
-Known acceptable differences:
-- Apple and Google buttons are visual entry points only until real OAuth client credentials are configured.
-- Streamlit sessions reset per browser tab/reload, but registered users persist locally through the user store.
-- Stock charts use live/premium provider data when configured and fall back to public market data when broker/feed credentials are unavailable; the chart labels disclose the active source.
+- [P0] Browser-rendered evidence is unavailable.
+  - Location: mobile Dashboard on the public Render deployment.
+  - Evidence: both browser attempts timed out before the webview attached; the fallback Chrome connection was unavailable.
+  - Impact: typography, spacing, colors, image crop, copy density, and responsive fidelity cannot be truthfully approved from code alone.
+  - Fix: capture the deployed Dashboard at 390 × 844 and compare it directly with the source screenshot before declaring visual QA complete.
 
-Final result: passed.
+## Interaction checks completed outside visual QA
+
+- The five folders submit explicit GET navigation state: `view`, `symbol`, `market`, `tf`, and `module`.
+- Folder controls use full-card tap targets and `touch-action: manipulation` for mobile Safari.
+- The duplicated Safari portrait layer was removed; the hologram now embeds one JPEG while retaining the face rig.
+- The complete automated suite passed: 2702 tests.
+- GitHub CI and the Streamlit startup smoke test passed for commit `e7f9d04a7`.
+
+## Comparison history
+
+- Initial pass: blocked before visual comparison because no implementation screenshot could be captured.
+- No visual fixes were inferred after the block; the remaining approval requires new browser-rendered evidence.
+
+## Implementation checklist
+
+- Capture the authenticated public Dashboard at 390 × 844.
+- Test each of the five folder controls and confirm the URL/module workspace changes.
+- Compare the full screen and focused portrait/folder/chart regions with the source.
+- Resolve any P0/P1/P2 differences, repeat capture, and change the final result only after the comparison passes.
+
+final result: blocked
