@@ -43,6 +43,8 @@ def test_roxy_hologram_avatar_embeds_human_face_rig():
     assert "roxy-eye-lid-right" in html
     assert "roxy-mouth-rig" in html
     assert "roxy-cheek-left" in html
+    assert html.count("data:image/jpeg;base64,") == 1
+    assert "roxy-neck-head" not in html
 
 
 def test_roxy_hologram_face_layers_are_not_disabled():

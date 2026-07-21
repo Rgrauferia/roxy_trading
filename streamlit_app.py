@@ -851,7 +851,6 @@ def roxy_hologram_avatar_html(state: str = "listening", label: str = "Roxy Tradi
         '<div class="roxy-holo-pedestal" aria-hidden="true"><span></span><span></span><span></span></div>'
         '<div class="roxy-avatar-core">'
         f"{image_html}"
-        f'<span class="roxy-neck-head" aria-hidden="true">{image_html}</span>'
         '<span class="roxy-face-glow"></span>'
         '<span class="roxy-face-life"></span>'
         '<span class="roxy-human-rig" aria-hidden="true">'
@@ -33211,6 +33210,97 @@ def roxy_home_live_chart_html(*, symbol: str, market: str, timeframe: str) -> st
     """)
 
 
+def render_roxy_visual_dashboard(
+    *,
+    symbol: str,
+    market: str,
+    timeframe: str,
+    safe_symbol: str,
+    safe_market: str,
+    safe_timeframe: str,
+    safe_user_name: str,
+    home_chart_html: str,
+    movers_html: str,
+    events_html: str,
+    market_summary_html: str,
+    modules_block_html: str,
+    selected_action: str,
+    selected_plan_detail: str,
+    selected_source: str,
+    equity: float,
+    risk_pct: float,
+    risk_cash: float,
+    ready_now: int,
+    watch_now: int,
+) -> None:
+    """Render the original Roxy command-center layout with source-backed data."""
+
+    opportunity_href = roxy_route_href(
+        "trading.opportunities", symbol=symbol, market=market, tf=timeframe
+    )
+    analysis_href = (
+        f"?view=Dashboard&symbol={quote(str(symbol or 'AAPL'), safe='')}"
+        f"&market={quote(str(market or 'stock'), safe='')}"
+        f"&tf={quote(str(timeframe or '1h'), safe='')}&module=acciones-operar&tab=analisis"
+    )
+    live_grid_html = roxy_clean_html_fragment(
+        f"""
+        <div class="roxy-ref-live-grid">
+          <div class="roxy-ref-panel roxy-ref-movers">
+            <span><i class="material-symbols-outlined" aria-hidden="true">verified</i>Mejores oportunidades</span>
+            {movers_html}
+            <a href="{opportunity_href}" target="_top">Ver todas</a>
+          </div>
+          {home_chart_html}
+          <div class="roxy-ref-panel roxy-ref-events">
+            <span><i class="material-symbols-outlined" aria-hidden="true">event_upcoming</i>Proximos eventos</span>
+            {events_html}
+            <a href="{roxy_route_href('market.calendar', symbol=symbol, market=market, tf=timeframe)}" target="_top">Ver calendario</a>
+          </div>
+          <div class="roxy-ref-panel roxy-ref-bot">
+            {roxy_hologram_avatar_html("speaking", "Roxy avatar mini")}
+          </div>
+          <div class="roxy-ref-panel roxy-ref-assistant">
+            <div class="roxy-ref-assistant-avatar">{roxy_avatar_html("speaking", "Roxy hablando")}</div>
+            <p><strong>Roxy</strong><span>{safe_user_name}, tengo {ready_now} oportunidades listas y {watch_now} en vigilancia.</span></p>
+            <a href="{opportunity_href}" target="_top">Mostrar oportunidades</a>
+          </div>
+          <div class="roxy-ref-panel roxy-ref-actions">
+            <a href="{opportunity_href}" target="_top"><i class="material-symbols-outlined" aria-hidden="true">query_stats</i>Mostrar oportunidades</a>
+            <a href="{analysis_href}" target="_top"><i class="material-symbols-outlined" aria-hidden="true">candlestick_chart</i>Analisis de {safe_symbol}</a>
+            <a href="{roxy_route_href('trading.portfolio', symbol=symbol, market=market, tf=timeframe)}" target="_top"><i class="material-symbols-outlined" aria-hidden="true">business_center</i>Revisar capital</a>
+          </div>
+        </div>
+        """
+    )
+    dashboard_html = roxy_clean_html_fragment(
+        f"""
+        <style>
+          .roxy-stage-module{{position:relative}}
+          .roxy-stage-module .roxy-folder-submit{{position:absolute;inset:0;z-index:20;width:100%;height:100%;margin:0;padding:0;border:0;background:transparent;opacity:0;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}}
+          .roxy-stage-module:focus-within{{outline:2px solid #7dd3fc;outline-offset:2px}}
+          @media(max-width:760px){{.roxy-ref-bot{{display:none!important}}}}
+        </style>
+        <section class="roxy-opening-stage roxy-reference-stage">
+          <div class="roxy-universe" aria-hidden="true"><i class="roxy-space-nebula"></i><i class="roxy-space-stars roxy-space-stars-far"></i><i class="roxy-space-stars roxy-space-stars-mid"></i><i class="roxy-space-stars roxy-space-stars-near"></i><i class="roxy-space-planet"></i><i class="roxy-space-comet"></i><i class="roxy-space-aurora"></i><i class="roxy-space-constellation roxy-space-constellation-a"></i><i class="roxy-space-constellation roxy-space-constellation-b"></i><i class="roxy-space-moon"></i><i class="roxy-space-stream roxy-space-stream-a"></i><i class="roxy-space-stream roxy-space-stream-b"></i></div>
+          <div class="roxy-ref-topbar"><div class="roxy-ref-menu" aria-hidden="true"><span></span><span></span><span></span></div><div class="roxy-ref-logo">{brand_logo_html()}</div><div class="roxy-ref-welcome"><strong>Bienvenido, {safe_user_name}</strong><span>Roxy Trading · {safe_symbol} · {safe_timeframe}</span></div><div class="roxy-ref-alert" aria-label="{ready_now} oportunidades listas"><b>{ready_now}</b></div><div class="roxy-ref-mini-avatar">{roxy_avatar_html("ready", "mini", "Roxy")}</div></div>
+          <div class="roxy-stage-left">
+            <div class="roxy-stage-bubble"><strong>Hola, soy Roxy.</strong><span>¿En que puedo ayudarte?</span><div class="roxy-stage-live-msg"><small>Escuchando el mercado...</small><small>Analizando oportunidades...</small><small>Lista para abrir carpetas.</small></div><i></i><i></i><i></i></div>
+            <div class="roxy-stage-wave"><span>Escuchar a Roxy</span><div aria-hidden="true"><b style="--i:1"></b><b style="--i:2"></b><b style="--i:3"></b><b style="--i:4"></b><b style="--i:5"></b><b style="--i:6"></b><b style="--i:7"></b><b style="--i:8"></b><b style="--i:9"></b><b style="--i:10"></b><b style="--i:11"></b><b style="--i:12"></b></div></div>
+            <div class="roxy-ref-market-summary"><span>Resumen del mercado</span>{market_summary_html}<small>Datos del proveedor disponible · sin precios simulados</small></div>
+            <div class="roxy-stage-status"><span>Plan tecnico actual</span><strong>{html.escape(selected_action)}</strong><small><b>{safe_symbol}</b> · {html.escape(selected_plan_detail)}</small><a href="{analysis_href}" target="_top">Ver analisis</a></div>
+          </div>
+          <div class="roxy-stage-center">{roxy_hologram_avatar_html("speaking", "Roxy esta hablando y analizando el mercado")}<div class="roxy-stage-title"><strong>ROXY</strong><span>AI TRADING ASSISTANT</span></div></div>
+          <div class="roxy-stage-right"><div class="roxy-stage-brand"><span>Grau Service LLC</span><strong>Trading inteligente, controlado y visual.</strong></div><div class="roxy-stage-values"><div><span>Datos</span><strong>{html.escape(selected_source)}</strong><em>Fuente declarada</em></div><div><span>Riesgo paper</span><strong>${risk_cash:,.2f} por operacion</strong><em>{risk_pct:.1f}% de ${equity:,.2f}</em></div><div><span>Contexto</span><strong>{safe_market}</strong><em>{safe_symbol} · {safe_timeframe}</em></div></div></div>
+          {modules_block_html}
+          {live_grid_html}
+          <nav class="roxy-ref-bottomnav" aria-label="Navegacion Roxy"><a class="active" href="{roxy_route_href('market.overview', symbol=symbol, market=market, tf=timeframe)}" target="_top"><b class="material-symbols-outlined">home</b><span>Inicio</span></a><a href="{roxy_route_href('trading.alerts', symbol=symbol, market=market, tf=timeframe)}" target="_top"><b class="material-symbols-outlined">notifications</b><span>Alertas</span></a><a href="{roxy_route_href('roxy.assistant', symbol=symbol, market=market, tf=timeframe)}" target="_top"><b>R</b><span>Roxy</span></a><a href="{roxy_route_href('roxy.education', symbol=symbol, market=market, tf=timeframe)}" target="_top"><b class="material-symbols-outlined">menu_book</b><span>Aprender</span></a><a href="{roxy_route_href('system.diagnostics', symbol=symbol, market=market, tf=timeframe)}" target="_top"><b class="material-symbols-outlined">settings</b><span>Sistema</span></a></nav>
+        </section>
+        """
+    )
+    st.markdown(dashboard_html, unsafe_allow_html=True)
+
+
 def render_roxy_opening_stage(
     symbol: str,
     market: str,
@@ -33318,14 +33408,19 @@ def render_roxy_opening_stage(
         st.session_state["roxy_active_module"] = active_module
     modules_html = "".join(
         f"""
-        <a class="roxy-stage-module {'roxy-stage-module-active' if item['slug'] == active_module else ''}"
-           href="?view={quote(item['page'], safe='')}&symbol={quote(item['symbol'], safe='')}&market={quote(item['market'], safe='')}&tf={quote(str(item.get('tf') or timeframe or '1h'), safe='')}&module={quote(item['slug'], safe='')}"
-           target="_self">
+        <form class="roxy-stage-module {'roxy-stage-module-active' if item['slug'] == active_module else ''}"
+              action="/" method="get" target="_top">
+          <input type="hidden" name="view" value="{html.escape(item['page'])}">
+          <input type="hidden" name="symbol" value="{html.escape(item['symbol'])}">
+          <input type="hidden" name="market" value="{html.escape(item['market'])}">
+          <input type="hidden" name="tf" value="{html.escape(str(item.get('tf') or timeframe or '1h'))}">
+          <input type="hidden" name="module" value="{html.escape(item['slug'])}">
+          <button class="roxy-folder-submit" type="submit" aria-label="Abrir carpeta {html.escape(item['label'])}"></button>
           <em>{html.escape(str(item.get('badge') or ''))}</em>
           <b><i class="material-symbols-outlined" aria-hidden="true">{html.escape(str(item.get('icon') or 'radio_button_checked'))}</i><small>{html.escape(item['mark'])}</small></b>
           <span>{html.escape(item['label'])}</span>
           <strong>{html.escape(item['detail'])}</strong>
-        </a>
+        </form>
         """
         for item in ROXY_COMMAND_MODULES
     )
@@ -33336,6 +33431,30 @@ def render_roxy_opening_stage(
         </div>
         """
     )
+    if text_display(os.environ.get("ROXY_DASHBOARD_LAYOUT") or "visual").lower() != "generic":
+        render_roxy_visual_dashboard(
+            symbol=symbol,
+            market=market,
+            timeframe=timeframe,
+            safe_symbol=safe_symbol,
+            safe_market=safe_market,
+            safe_timeframe=safe_timeframe,
+            safe_user_name=safe_user_name,
+            home_chart_html=home_chart_html,
+            movers_html=movers_html,
+            events_html=events_html,
+            market_summary_html=market_summary_html,
+            modules_block_html=modules_block_html,
+            selected_action=selected_action,
+            selected_plan_detail=selected_plan_detail,
+            selected_source=selected_source,
+            equity=equity,
+            risk_pct=risk_pct,
+            risk_cash=risk_cash,
+            ready_now=ready_now,
+            watch_now=watch_now,
+        )
+        return
     plan_tone = "ready" if selected_plan_ready else "pending"
     professional_home_html = roxy_clean_html_fragment(
         f"""

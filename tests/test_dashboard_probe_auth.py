@@ -134,6 +134,9 @@ def test_opening_stage_has_no_fixed_market_or_trade_numbers():
     opening_source = source[
         source.index("def render_roxy_opening_stage") : source.index("def render_roxy_first_screen_launchpad")
     ]
+    visual_source = source[
+        source.index("def render_roxy_visual_dashboard") : source.index("def render_roxy_opening_stage")
+    ]
 
     for fake_value in ("5,278.40", "16,735.02", "38,991.12", "194.50", "190.20", "201.80", "9:02 AM"):
         assert fake_value not in opening_source
@@ -141,25 +144,29 @@ def test_opening_stage_has_no_fixed_market_or_trade_numbers():
     assert "La fuente de velas se muestra en la grafica" in opening_source
     assert "for row in all_opportunity_rows" in opening_source
     assert "Capital paper ${equity:,.2f} · sin broker" in opening_source
-    assert "roxy_hologram_avatar_html" not in opening_source
-    assert 'class="roxy-prof-home"' in opening_source
+    assert 'os.environ.get("ROXY_DASHBOARD_LAYOUT") or "visual"' in opening_source
+    assert 'class="roxy-opening-stage roxy-reference-stage"' in visual_source
+    assert "roxy_hologram_avatar_html" in visual_source
 
 
-def test_opening_stage_mobile_prioritizes_chart_and_persistent_navigation():
+def test_opening_stage_restores_visual_modules_with_real_mobile_navigation():
     source = _streamlit_source()
     opening_source = source[
         source.index("def render_roxy_opening_stage") : source.index("def render_roxy_first_screen_launchpad")
     ]
+    visual_source = source[
+        source.index("def render_roxy_visual_dashboard") : source.index("def render_roxy_opening_stage")
+    ]
 
-    assert ".roxy-prof-grid:nth-of-type(2){{order:2}}" in opening_source
-    assert ".roxy-prof-status{{order:3;grid-template-columns:repeat(2" in opening_source
-    assert ".roxy-prof-links{{order:6;position:fixed" in opening_source
-    assert "min-height:46px" in opening_source
-    nav_source = opening_source[opening_source.index('<nav class="roxy-prof-links"') :]
-    assert nav_source.count('class="material-symbols-outlined"') == 5
-    assert "trading.opportunities" in opening_source
-    assert "trading.watchlists" in opening_source
-    assert "trading.alerts" in opening_source
+    assert '<form class="roxy-stage-module' in opening_source
+    assert 'method="get" target="_top"' in opening_source
+    assert 'name="module"' in opening_source
+    assert 'class="roxy-folder-submit" type="submit"' in opening_source
+    assert "for item in ROXY_COMMAND_MODULES" in opening_source
+    assert "touch-action:manipulation" in visual_source
+    assert '<nav class="roxy-ref-bottomnav"' in visual_source
+    assert "trading.opportunities" in visual_source
+    assert "trading.alerts" in visual_source
 
 
 def test_roxy_os_debug_panel_is_scoped_to_roxy_and_diagnostics_pages():
