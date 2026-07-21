@@ -145,6 +145,23 @@ def test_opening_stage_has_no_fixed_market_or_trade_numbers():
     assert 'class="roxy-prof-home"' in opening_source
 
 
+def test_opening_stage_mobile_prioritizes_chart_and_persistent_navigation():
+    source = _streamlit_source()
+    opening_source = source[
+        source.index("def render_roxy_opening_stage") : source.index("def render_roxy_first_screen_launchpad")
+    ]
+
+    assert ".roxy-prof-grid:nth-of-type(2){{order:2}}" in opening_source
+    assert ".roxy-prof-status{{order:3;grid-template-columns:repeat(2" in opening_source
+    assert ".roxy-prof-links{{order:6;position:fixed" in opening_source
+    assert "min-height:46px" in opening_source
+    nav_source = opening_source[opening_source.index('<nav class="roxy-prof-links"') :]
+    assert nav_source.count('class="material-symbols-outlined"') == 5
+    assert "trading.opportunities" in opening_source
+    assert "trading.watchlists" in opening_source
+    assert "trading.alerts" in opening_source
+
+
 def test_roxy_os_debug_panel_is_scoped_to_roxy_and_diagnostics_pages():
     source = _streamlit_source()
     main_source = source[source.index("def main()") :]
@@ -176,7 +193,7 @@ def test_voice_commands_and_feedback_run_before_direct_module_returns():
 
     assert command_index < actions_index < crypto_index
     assert 'st.session_state.pop("roxy_launch_message", "")' in main_source
-    assert "st.success(command_feedback)" in main_source
+    assert 'st.toast(command_feedback, icon="✅")' in main_source
 
 
 def test_missing_voice_query_does_not_execute_placeholder_command(monkeypatch):

@@ -33365,7 +33365,20 @@ def render_roxy_opening_stage(
           .roxy-prof-links{{display:flex;flex-wrap:wrap;gap:8px;border:1px solid #263449;border-radius:9px;background:#0f1724;padding:10px 12px;margin-top:10px}}.roxy-prof-links a{{border:1px solid #32425a;border-radius:6px;padding:7px 9px;color:#cbd5e1}}
           .roxy-prof-modules{{margin-top:10px}}.roxy-prof-modules .roxy-stage-modules{{position:static!important;inset:auto!important;margin:0!important}}
           @media(max-width:900px){{.roxy-prof-grid{{grid-template-columns:1fr}}.roxy-prof-status{{grid-template-columns:repeat(2,minmax(0,1fr))}}}}
-          @media(max-width:600px){{.roxy-prof-head{{display:block}}.roxy-prof-head>div:last-child{{text-align:left;margin-top:10px}}.roxy-prof-status{{grid-template-columns:1fr}}.roxy-prof-list>div{{grid-template-columns:24px minmax(0,1fr)}}.roxy-prof-list b{{grid-column:2;text-align:left}}}}
+          @media(max-width:600px){{
+            .roxy-prof-home{{display:flex;flex-direction:column;gap:8px;margin:0 auto;padding:0 0 calc(78px + env(safe-area-inset-bottom));}}
+            .roxy-prof-head{{order:1;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:9px 10px;border-radius:8px;position:sticky;top:0;z-index:15;background:rgba(9,18,31,.96);backdrop-filter:blur(16px)}}
+            .roxy-prof-brand{{gap:9px}}.roxy-prof-brand .brand-logo-img{{width:54px;max-width:54px;border-radius:5px}}.roxy-prof-brand strong{{font-size:15px}}.roxy-prof-brand span{{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}}
+            .roxy-prof-head>div:last-child{{text-align:right;margin:0;align-self:center}}.roxy-prof-head>div:last-child strong{{font-size:11px}}.roxy-prof-head>div:last-child span{{font-size:8px;max-width:128px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+            .roxy-prof-grid{{gap:8px;margin:0}}.roxy-prof-grid:nth-of-type(2){{order:2}}.roxy-prof-status{{order:3;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin:0;border-radius:8px}}.roxy-prof-grid:nth-of-type(3){{order:4}}.roxy-prof-modules{{order:5;margin:0}}
+            .roxy-prof-status>div{{padding:8px 9px;min-height:66px}}.roxy-prof-status>div:first-child{{display:none}}.roxy-prof-status>div:nth-child(3){{grid-column:1/-1;min-height:58px}}.roxy-prof-status span{{font-size:8px}}.roxy-prof-status strong{{font-size:12px;margin-top:3px}}.roxy-prof-status small{{font-size:9px;margin-top:2px}}
+            .roxy-prof-panel{{border-radius:8px}}.roxy-prof-panel>header{{padding:8px 9px}}.roxy-prof-panel>header strong{{font-size:12px}}.roxy-prof-panel>header span{{font-size:8px;max-width:46%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}.roxy-prof-chart{{padding:4px}}
+            .roxy-prof-side{{gap:8px}}.roxy-prof-plan{{padding:10px}}.roxy-prof-plan strong{{font-size:17px}}.roxy-prof-plan p{{margin:5px 0;font-size:10px}}
+            .roxy-prof-list>div{{grid-template-columns:24px minmax(0,1fr)}}.roxy-prof-list b{{grid-column:2;text-align:left}}
+            .roxy-prof-links{{order:6;position:fixed;left:8px;right:8px;bottom:calc(7px + env(safe-area-inset-bottom));z-index:2147482000;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;margin:0;padding:6px;border:1px solid rgba(71,101,139,.74);border-radius:15px;background:rgba(7,15,28,.96);box-shadow:0 14px 38px rgba(0,0,0,.52);backdrop-filter:blur(18px)}}
+            .roxy-prof-links a{{display:grid;place-items:center;gap:2px;min-height:46px;padding:4px 2px;border:0;border-radius:9px;font-size:7px;line-height:1.05;text-align:center;letter-spacing:.02em}}.roxy-prof-links a:first-child{{background:#17345a;color:#e0f2fe}}
+            .roxy-prof-links .material-symbols-outlined{{font-size:19px;line-height:1}}
+          }}
         </style>
         <section class="roxy-prof-home">
           <header class="roxy-prof-head">
@@ -33391,12 +33404,11 @@ def render_roxy_opening_stage(
           </div>
           <div class="roxy-prof-modules">{modules_block_html}</div>
           <nav class="roxy-prof-links" aria-label="Accesos operativos">
-            <a href="{roxy_route_href('trading.opportunities', symbol=symbol, market=market, tf=timeframe)}" target="_self">Oportunidades</a>
-            <a href="{roxy_route_href('trading.watchlists', symbol=symbol, market=market, tf=timeframe)}" target="_self">Watchlists</a>
-            <a href="{roxy_route_href('trading.alerts', symbol=symbol, market=market, tf=timeframe)}" target="_self">Alertas</a>
-            <a href="{roxy_route_href('trading.portfolio', symbol=symbol, market=market, tf=timeframe)}" target="_self">Capital</a>
-            <a href="{roxy_route_href('trading.studies', symbol=symbol, market=market, tf=timeframe)}" target="_self">Estudios</a>
-            <a href="{roxy_route_href('system.diagnostics', symbol=symbol, market=market, tf=timeframe)}" target="_self">Diagnostico</a>
+            <a href="{roxy_route_href('market.overview', symbol=symbol, market=market, tf=timeframe)}" target="_self"><i class="material-symbols-outlined" aria-hidden="true">monitoring</i><span>Mercado</span></a>
+            <a href="{roxy_route_href('trading.opportunities', symbol=symbol, market=market, tf=timeframe)}" target="_self"><i class="material-symbols-outlined" aria-hidden="true">radar</i><span>Oportunidades</span></a>
+            <a href="{roxy_route_href('trading.watchlists', symbol=symbol, market=market, tf=timeframe)}" target="_self"><i class="material-symbols-outlined" aria-hidden="true">visibility</i><span>Watchlists</span></a>
+            <a href="{roxy_route_href('trading.alerts', symbol=symbol, market=market, tf=timeframe)}" target="_self"><i class="material-symbols-outlined" aria-hidden="true">notifications</i><span>Alertas</span></a>
+            <a href="{roxy_route_href('system.diagnostics', symbol=symbol, market=market, tf=timeframe)}" target="_self"><i class="material-symbols-outlined" aria-hidden="true">settings</i><span>Sistema</span></a>
           </nav>
         </section>
         """
@@ -46407,7 +46419,7 @@ def main() -> None:
     process_roxy_os_query_command()
     command_feedback = str(st.session_state.pop("roxy_launch_message", "") or "").strip()
     if command_feedback:
-        st.success(command_feedback)
+        st.toast(command_feedback, icon="✅")
     active_module_query = normalize_roxy_module(first_query_param_value(st.query_params, "module"), default="")
     if active_module_query in {"acciones-operar", "acciones", "accion", "stock", "stocks", "acciones-disponibles"}:
         # This is also the canonical dual-chart workspace. Preserve the market
