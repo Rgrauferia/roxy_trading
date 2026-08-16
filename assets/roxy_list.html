@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#173f2b" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Lista Roxy" />
+  <title>Roxy Home · Lista de compras</title>
+  <link rel="icon" href="/assets/roxy_avatar_icon.jpg" />
+  <link rel="apple-touch-icon" href="/assets/roxy_avatar_icon.jpg" />
+  <link rel="manifest" href="/lista-manifest.json" />
+  <link rel="stylesheet" href="/assets/roxy_list.css" />
+  <link rel="stylesheet" href="/assets/roxy_list_overrides.css" />
+  <script src="/assets/roxy_list.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div><span class="brand-mark" aria-hidden="true">R</span><span><strong>Roxy Home</strong><small>Lista NFC</small></span></div>
+    <button id="shareButton" class="icon-action" type="button" aria-label="Compartir lista">Compartir</button>
+  </header>
+
+  <main id="app" aria-busy="true">
+    <section class="intro" aria-labelledby="pageTitle">
+      <p>Tu casa, en orden</p>
+      <h1 id="pageTitle">Toda la compra</h1>
+    </section>
+
+    <section class="hero" aria-label="Resumen de compras">
+      <span>Todo lo que necesitas</span>
+      <div class="hero-stats">
+        <div><strong id="pendingTotal">0</strong><small>artículos pendientes</small></div>
+        <div><strong id="categoryTotal">0</strong><small>categorías activas</small></div>
+      </div>
+    </section>
+
+    <p id="connectionState" class="connection" role="status" aria-live="polite">Conectando…</p>
+
+    <section class="tools" aria-label="Buscar y filtrar">
+      <label class="search"><span>Buscar</span><input id="searchInput" type="search" placeholder="Leche, café, limpieza…" autocomplete="off" /></label>
+      <div id="categoryFilters" class="chips" role="group" aria-label="Categorías"></div>
+    </section>
+
+    <section aria-labelledby="usualTitle">
+      <div class="section-heading"><div><p>Sugerencias</p><h2 id="usualTitle">Productos habituales</h2></div></div>
+      <div id="usualProducts" class="product-grid"></div>
+      <button id="toggleStaples" class="secondary full" type="button">Ver todos los productos</button>
+    </section>
+
+    <section aria-labelledby="listTitle">
+      <div class="section-heading"><div><p>Lista activa</p><h2 id="listTitle">Por comprar</h2></div><span id="rowCount">0 productos</span></div>
+      <div id="shoppingList" class="shopping-list"></div>
+    </section>
+
+    <button id="completeButton" class="primary full" type="button">Compra hecha</button>
+
+    <section aria-labelledby="customTitle" class="custom-card">
+      <div class="section-heading"><div><p>A tu manera</p><h2 id="customTitle">Producto personalizado</h2></div></div>
+      <form id="customForm">
+        <label><span>Producto</span><input id="customName" maxlength="120" required placeholder="Ej. Yogur natural" /></label>
+        <div class="form-row">
+          <label><span>Cantidad</span><input id="customQuantity" type="number" min="0.01" max="100000" step="1" value="1" required /></label>
+          <label><span>Unidad</span><input id="customUnit" maxlength="32" value="unidad" required /></label>
+        </div>
+        <label><span>Categoría</span><select id="customCategory"><option value="FOOD">Alimentos</option><option value="HOUSEHOLD">Despensa y hogar</option><option value="PERSONAL">Aseo personal</option><option value="HEALTH">Salud</option><option value="OTHER">Otros</option><option value="GENERAL">General</option></select></label>
+        <button id="customSubmit" class="secondary full" type="button">Agregar a la lista</button>
+      </form>
+    </section>
+
+    <details class="history-card">
+      <summary>Historial de compras</summary>
+      <div id="historyList"></div>
+    </details>
+
+    <section class="install-card" aria-labelledby="installTitle">
+      <h2 id="installTitle">Lista siempre a mano</h2>
+      <p>En iPhone: Compartir → Añadir a pantalla de inicio. También puedes abrir esta página desde tu sticker NFC.</p>
+      <button id="installButton" class="secondary full" type="button" hidden>Instalar Roxy Home</button>
+    </section>
+  </main>
+
+  <dialog id="pairDialog" aria-labelledby="pairTitle">
+    <form id="pairForm" method="dialog">
+      <p class="eyebrow">Acceso privado</p><h2 id="pairTitle">Conecta este dispositivo</h2>
+      <p>Hazlo una sola vez. La clave se cambia por una sesión segura y nunca se guarda en JavaScript.</p>
+      <label><span>Usuario permitido</span><input id="userId" value="local_user" autocomplete="username" required /></label>
+      <label><span>Clave de acceso</span><input id="apiToken" type="password" autocomplete="current-password" required /></label>
+      <p id="pairError" class="error" role="alert"></p>
+      <button class="primary full" type="submit">Conectar</button>
+    </form>
+  </dialog>
+
+  <dialog id="confirmDialog" aria-labelledby="confirmTitle">
+    <form method="dialog">
+      <p class="eyebrow">Confirmación</p><h2 id="confirmTitle">¿Compra terminada?</h2>
+      <p id="confirmCopy">La lista se archivará y seguirá disponible en el historial.</p>
+      <div class="dialog-actions"><button id="cancelComplete" class="secondary" value="cancel">Cancelar</button><button id="confirmComplete" class="primary" value="confirm">Sí, archivar</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

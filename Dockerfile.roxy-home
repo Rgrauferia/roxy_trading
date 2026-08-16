@@ -1,0 +1,24 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app \
+    ROXY_SHOPPING_LIST_PATH=/var/data/roxy_home/shopping_list.json
+
+COPY requirements-roxy-home.txt ./
+RUN python -m pip install --upgrade pip \
+    && pip install -r requirements-roxy-home.txt
+
+COPY roxy_os ./roxy_os
+COPY tools/__init__.py ./tools/__init__.py
+COPY tools/roxy_home_service.py ./tools/roxy_home_service.py
+COPY assets/roxy_list.html assets/roxy_list.css assets/roxy_list_overrides.css assets/roxy_list.js assets/roxy_list_sw.js assets/roxy_avatar_icon.jpg ./assets/
+
+RUN mkdir -p /var/data/roxy_home
+
+EXPOSE 10000
+
+CMD ["sh", "-c", "uvicorn tools.roxy_home_service:app --host 0.0.0.0 --port ${PORT:-10000} --no-access-log"]

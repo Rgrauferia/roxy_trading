@@ -13,12 +13,20 @@ class AgentRouter:
         ):
             return "weather_query", "weather"
 
-        if self._has_any(normalized, ["comprar", "compra", "mercado", "supermercado"]) and self._has_any(
-            normalized, ["pan", "cafe", "café", "leche", "mercado", "casa"]
+        if self._has_any(
+            normalized,
+            ["qué falta comprar", "que falta comprar", "qué necesito comprar", "que necesito comprar", "lista de compra"],
+        ):
+            return "shopping_query", "shopping"
+        if self._has_any(normalized, ["quita ", "quitar ", "elimina ", "borra "]) and self._has_any(
+            normalized, ["lista", "compra", "café", "cafe", "leche", "pan", "agua", "huevos", "queso"]
+        ):
+            return "shopping_remove", "shopping"
+        if self._has_any(
+            normalized,
+            ["agrega ", "añade ", "anade ", "apunta ", "comprar ", "compra de la casa", "necesito "],
         ):
             return "shopping_add", "shopping"
-        if self._has(normalized, "que necesito comprar") or self._has(normalized, "lista de compra"):
-            return "shopping_query", "shopping"
 
         if self._has_any(
             normalized,
@@ -109,12 +117,20 @@ class AgentRouter:
         return any(part in text for part in parts)
 
     def extract_shopping_items(self, text: str) -> list[str]:
-        normalized = re.sub(r"(?i)^.*?(comprar|compra de la casa|necesito)\s+", "", text).strip()
-        normalized = re.sub(r"(?i)\b(roxy|acu[eé]rdame|recuerdame|que tengo que|hacer la)\b", "", normalized)
+        return [row["name"] for row in self.extract_shopping_requests(text)]
+
+    def extract_shopping_requests(self, text: str) -> list[dict[str, object]]:
+        normalized = re.sub(
+            r"(?i)^.*?(?:agrega(?:r)?|añade|anade|apunta|comprar|compra de la casa|necesito|quita(?:r)?|elimina|borra)\s+",
+            "",
+            text,
+        ).strip()
+        normalized = re.sub(r"(?i)\b(roxy|acu[eé]rdame|recuerdame|que tengo que|hacer la|de la lista)\b", "", normalized)
         items = re.split(r",|\sy\s|\be[xs]tera\b|\betc(?:etera)?\b", normalized)
-        cleaned = []
+        cleaned: list[str] = []
         for item in items:
             value = re.sub(r"\s+", " ", item).strip(" .;:-")
+            value = re.sub(r"(?i)^(?:el|la|los|las)\s+", "", value)
             if value and len(value) > 1:
                 cleaned.append(value)
         if len(cleaned) == 1:
@@ -143,4 +159,39 @@ class AgentRouter:
             words = cleaned[0].split()
             if 1 < len(words) <= 8 and all(word.lower() in common_groceries for word in words):
                 cleaned = words
-        return cleaned
+        number_words = {
+            "un": 1,
+            "una": 1,
+            "uno": 1,
+            "dos": 2,
+            "tres": 3,
+            "cuatro": 4,
+            "cinco": 5,
+            "seis": 6,
+            "siete": 7,
+            "ocho": 8,
+            "nueve": 9,
+            "diez": 10,
+        }
+        requests: list[dict[str, object]] = []
+        for value in cleaned:
+            match = re.match(
+                r"(?i)^(\d+(?:[.,]\d+)?|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s+"
+                r"(?:(paquetes?|botellas?|bolsas?|latas?|cajas?|unidades?)\s+de\s+)?(.+)$",
+                value,
+            )
+            if not match:
+                requests.append({"name": value, "quantity": 1, "unit": "unidad"})
+                continue
+            raw_quantity, raw_unit, name = match.groups()
+            quantity = number_words.get(raw_quantity.lower())
+            if quantity is None:
+                quantity = float(raw_quantity.replace(",", "."))
+            requests.append(
+                {
+                    "name": name.strip(),
+                    "quantity": quantity,
+                    "unit": (raw_unit or "unidad").lower(),
+                }
+            )
+        return requests

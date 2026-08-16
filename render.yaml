@@ -95,6 +95,29 @@ services:
       sizeGB: 1
 
   - type: web
+    name: roxy-home
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: ./Dockerfile.roxy-home
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: ROXY_HOME_API_KEY
+        generateValue: true
+      - key: ROXY_STATE_SYNC_USERS
+        value: local_user
+      - key: ROXY_SHOPPING_LIST_PATH
+        value: /var/data/roxy_home/shopping_list.json
+    disk:
+      name: roxy-home-data
+      mountPath: /var/data
+      sizeGB: 1
+
+  - type: web
     name: roxy-stock-stream
     runtime: docker
     plan: starter

@@ -35,6 +35,21 @@ def test_roxy_os_splits_common_grocery_voice_dictation_without_commas(tmp_path):
     assert [item["content"] for item in response.data["items"]] == ["pan", "cafe", "leche"]
 
 
+def test_shopping_voice_understands_quantity_remove_and_missing_query(tmp_path):
+    roxy = RoxyOrchestrator(memory_path=tmp_path / "memory.json")
+
+    added = roxy.handle("Roxy, agrega dos paquetes de agua", user_id="robert")
+    query = roxy.handle("¿Qué falta comprar?", user_id="robert")
+    removed = roxy.handle("Roxy, quita el agua de la lista", user_id="robert")
+
+    assert added.intent == "shopping_add"
+    assert added.data["items"][0]["quantity"] == 2
+    assert added.data["items"][0]["unit"] == "paquetes"
+    assert "2 paquetes de agua" in query.message
+    assert removed.intent == "shopping_remove"
+    assert removed.data["items"][0]["name"] == "agua"
+
+
 def test_roxy_os_persists_memory_between_instances(tmp_path):
     memory_path = tmp_path / "memory.json"
     RoxyOrchestrator(memory_path=memory_path).handle("Roxy, acuerdame comprar pan", user_id="robert")
