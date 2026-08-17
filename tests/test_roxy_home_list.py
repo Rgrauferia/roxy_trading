@@ -75,6 +75,7 @@ def test_mobile_session_cookie_is_httponly_secure_and_bound_to_user(monkeypatch)
     assert "HttpOnly" in cookie
     assert "Secure" in cookie
     assert "SameSite=strict" in cookie
+    assert "Max-Age=31536000" in cookie
     assert "shopping-test-key" not in cookie
     assert denied.status_code == 403
 

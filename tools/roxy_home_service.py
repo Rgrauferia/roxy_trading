@@ -18,7 +18,10 @@ from roxy_os.shopping_list import ShoppingListStore, normalize_shopping_user
 
 ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets"
 SESSION_COOKIE = "roxy_shopping_session"
-SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
+# A trusted household device should not need recurring pairing. The signed,
+# HttpOnly cookie remains revocable by rotating ROXY_HOME_API_KEY, while normal
+# Safari/PWA sessions stay connected for one year.
+SESSION_TTL_SECONDS = 365 * 24 * 60 * 60
 RATE_LIMIT_WINDOW_SECONDS = 60
 RATE_LIMIT_MAX = 120
 _RATE_STATE: dict[str, dict[str, int]] = {}

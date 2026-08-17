@@ -16,7 +16,7 @@ Antes del primer uso remoto, Render debe tener:
 - `ROXY_STATE_SYNC_USERS`: identificador exacto del usuario autorizado. Para la instalación personal predeterminada es `local_user`; si Roxy usa otro nombre de cuenta, sustitúyelo aquí y en la pantalla de conexión.
 - `ROXY_SHOPPING_LIST_PATH=/var/data/roxy_home/shopping_list.json` (incluido en `render.yaml`).
 
-La primera conexión cambia el Bearer por una cookie `HttpOnly`, `Secure`, `SameSite=Strict` ligada al usuario durante 30 días. La clave no se guarda en JavaScript ni se escribe en el sticker.
+La primera conexión cambia el Bearer por una cookie `HttpOnly`, `Secure`, `SameSite=Strict` ligada al usuario durante un año. La clave no se guarda en JavaScript ni se escribe en el sticker. Debe hacerse desde una pestaña normal de Safari: la navegación privada elimina sus datos al cerrarse y, por diseño de iOS, volvería a solicitar la clave.
 
 ## Programar el sticker con NFC Tools en iPhone
 
@@ -44,7 +44,7 @@ Para que el mismo sticker funcione en cualquier teléfono compatible, conserva t
 
 ## Instalar como PWA en iPhone
 
-1. Abre la URL en **Safari**.
+1. Abre la URL en **Safari normal**, no en una pestaña Privada.
 2. Conecta una vez el usuario autorizado y `ROXY_HOME_API_KEY`.
 3. Toca **Compartir** y luego **Añadir a pantalla de inicio**.
 4. Confirma el nombre `Lista Roxy` y toca **Añadir**.
