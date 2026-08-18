@@ -179,7 +179,7 @@ def _security_headers(response: Response) -> Response:
 
 @app.get("/", include_in_schema=False)
 def root() -> RedirectResponse:
-    return RedirectResponse("/lista", status_code=307)
+    return RedirectResponse("/home", status_code=307)
 
 
 @app.get("/health")
@@ -187,6 +187,7 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "roxy-home"}
 
 
+@app.get("/home", response_class=FileResponse)
 @app.get("/lista", response_class=FileResponse)
 def shopping_page() -> Response:
     response = FileResponse(ASSETS_DIR / "roxy_list.html", media_type="text/html")
@@ -205,12 +206,12 @@ def shopping_page() -> Response:
 def shopping_manifest() -> Response:
     response = JSONResponse(
         {
-            "id": "/lista",
+            "id": "/home",
             "name": "Roxy Home – Lista de compras",
             "short_name": "Lista Roxy",
             "description": "Lista de compras privada y sincronizada de Roxy Home.",
-            "start_url": "/lista",
-            "scope": "/lista",
+            "start_url": "/home",
+            "scope": "/home",
             "display": "standalone",
             "orientation": "portrait-primary",
             "background_color": "#f7f4ed",
@@ -228,6 +229,16 @@ def shopping_service_worker() -> Response:
         ASSETS_DIR / "roxy_list_sw.js",
         media_type="application/javascript",
         headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/lista"},
+    )
+    return _security_headers(response)
+
+
+@app.get("/home-sw.js")
+def home_service_worker() -> Response:
+    response = FileResponse(
+        ASSETS_DIR / "roxy_list_sw.js",
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/home"},
     )
     return _security_headers(response)
 

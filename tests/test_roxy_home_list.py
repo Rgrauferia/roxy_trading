@@ -14,10 +14,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=5"' in page.text
-    assert '/assets/roxy_list.js?v=5' in worker.text
+    assert 'src="/assets/roxy_list.js?v=6"' in page.text
+    assert '/assets/roxy_list.js?v=6' in worker.text
     assert "unsafe-inline" not in page.headers["content-security-policy"]
-    assert manifest.json()["start_url"] == "/lista"
+    assert manifest.json()["start_url"] == "/home"
+    assert manifest.json()["scope"] == "/home"
     assert manifest.json()["display"] == "standalone"
     assert worker.headers["service-worker-allowed"] == "/lista"
     assert "indexedDB" in script.text
@@ -96,7 +97,9 @@ def test_roxy_home_is_a_separate_app_surface(monkeypatch):
     monkeypatch.setenv("ROXY_HOME_API_KEY", "shopping-test-key")
     client = TestClient(roxy_home_service.app)
 
-    assert client.get("/", follow_redirects=False).headers["location"] == "/lista"
+    assert client.get("/", follow_redirects=False).headers["location"] == "/home"
+    assert client.get("/home").status_code == 200
+    assert client.get("/home-sw.js").headers["service-worker-allowed"] == "/home"
     assert client.get("/health").json()["service"] == "roxy-home"
     assert client.get("/_stcore/health").status_code == 404
     assert client.get("/roxy-mobile").status_code == 404
