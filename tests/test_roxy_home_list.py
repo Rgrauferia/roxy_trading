@@ -14,7 +14,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js"' in page.text
+    assert 'src="/assets/roxy_list.js?v=5"' in page.text
+    assert '/assets/roxy_list.js?v=5' in worker.text
     assert "unsafe-inline" not in page.headers["content-security-policy"]
     assert manifest.json()["start_url"] == "/lista"
     assert manifest.json()["display"] == "standalone"
