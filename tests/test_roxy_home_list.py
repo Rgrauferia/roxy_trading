@@ -23,6 +23,9 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "navigator.share" in script.text
     assert "startRoxyVoice" in script.text
     assert "Conversation.startSession" in script.text
+    assert "connectionType:'websocket'" in script.text
+    assert "@elevenlabs/client@1.8.1" in script.text
+    assert "La aplicación actual es Roxy Home" in script.text
     assert "sendCommandToRoxyOS" in script.text
     assert 'id="roxyVoiceLauncher"' in page.text
     assert "microphone=(self)" in page.headers["permissions-policy"]
@@ -122,7 +125,8 @@ def test_roxy_home_shared_elevenlabs_agent_can_read_and_update_shopping_list(tmp
     assert session.status_code == 200
     assert session.json()["provider"] == "ElevenLabs"
     assert session.json()["agent_id"] == "agent_shared_roxy"
-    assert session.json()["voice_mode"] == "public_agent"
+    assert session.json()["voice_mode"] == "public_websocket"
+    assert session.json()["connection_type"] == "websocket"
     assert command.status_code == 200
     assert command.json()["ok"] is True
     assert command.json()["agent"] == "shopping"

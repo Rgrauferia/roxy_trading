@@ -1,4 +1,4 @@
-const CACHE='roxy-list-shell-v3';
+const CACHE='roxy-list-shell-v4';
 const SHELL=['/lista','/lista-manifest.json','/assets/roxy_list.css','/assets/roxy_list_overrides.css','/assets/roxy_list.js','/assets/roxy_avatar_icon.jpg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
