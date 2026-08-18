@@ -194,9 +194,10 @@ def shopping_page() -> Response:
     response.headers["Cache-Control"] = "no-cache"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; img-src 'self' data:; style-src 'self'; "
-        "script-src 'self' https://esm.sh https://cdn.jsdelivr.net https://esm.run; "
+        "script-src 'self' blob: https://esm.sh https://cdn.jsdelivr.net https://esm.run; "
         "connect-src 'self' https://api.elevenlabs.io https://*.elevenlabs.io "
         "wss://api.elevenlabs.io wss://*.elevenlabs.io; media-src 'self' blob:; "
+        "worker-src 'self' blob:; "
         "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
     )
     return _security_headers(response)

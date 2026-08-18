@@ -14,8 +14,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=7"' in page.text
-    assert '/assets/roxy_list.js?v=7' in worker.text
+    assert 'src="/assets/roxy_list.js?v=8"' in page.text
+    assert '/assets/roxy_list.js?v=8' in worker.text
     assert "unsafe-inline" not in page.headers["content-security-policy"]
     assert manifest.json()["start_url"] == "/home"
     assert manifest.json()["scope"] == "/home"
@@ -34,6 +34,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="roxyVoiceLauncher"' in page.text
     assert "microphone=(self)" in page.headers["permissions-policy"]
     assert "https://*.elevenlabs.io" in page.headers["content-security-policy"]
+    assert "worker-src 'self' blob:" in page.headers["content-security-policy"]
+    assert "script-src 'self' blob:" in page.headers["content-security-policy"]
     assert "localStorage.setItem('roxyShoppingUser'" in script.text
     assert "localStorage.setItem('apiToken'" not in script.text
 
