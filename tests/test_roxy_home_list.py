@@ -21,6 +21,12 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert worker.headers["service-worker-allowed"] == "/lista"
     assert "indexedDB" in script.text
     assert "navigator.share" in script.text
+    assert "startRoxyVoice" in script.text
+    assert "Conversation.startSession" in script.text
+    assert "sendCommandToRoxyOS" in script.text
+    assert 'id="roxyVoiceLauncher"' in page.text
+    assert "microphone=(self)" in page.headers["permissions-policy"]
+    assert "https://*.elevenlabs.io" in page.headers["content-security-policy"]
     assert "localStorage.setItem('roxyShoppingUser'" in script.text
     assert "localStorage.setItem('apiToken'" not in script.text
 
@@ -90,3 +96,35 @@ def test_roxy_home_is_a_separate_app_surface(monkeypatch):
     assert client.get("/health").json()["service"] == "roxy-home"
     assert client.get("/_stcore/health").status_code == 404
     assert client.get("/roxy-mobile").status_code == 404
+
+
+def test_roxy_home_shared_elevenlabs_agent_can_read_and_update_shopping_list(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "shopping-test-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert")
+    monkeypatch.setenv("ROXY_SHOPPING_LIST_PATH", str(tmp_path / "shopping.json"))
+    monkeypatch.setenv("ELEVENLABS_AGENT_ID", "agent_shared_roxy")
+    roxy_home_service._RATE_STATE.clear()
+    client = TestClient(roxy_home_service.app, base_url="https://roxy.test")
+    client.post(
+        "/v1/shopping/session/robert",
+        headers={"Authorization": "Bearer shopping-test-key"},
+    )
+
+    session = client.get("/v1/assistant/session/robert")
+    command = client.post(
+        "/v1/assistant/command/robert",
+        json={"text": "agrega pan a mi lista de compra"},
+    )
+    shopping = client.get("/v1/shopping/robert")
+
+    assert session.status_code == 200
+    assert session.json()["provider"] == "ElevenLabs"
+    assert session.json()["agent_id"] == "agent_shared_roxy"
+    assert session.json()["voice_mode"] == "public_agent"
+    assert command.status_code == 200
+    assert command.json()["ok"] is True
+    assert command.json()["agent"] == "shopping"
+    assert "pan" in command.json()["message"].lower()
+    assert shopping.json()["items"][0]["name"].lower() == "pan"

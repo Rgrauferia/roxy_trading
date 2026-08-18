@@ -99,6 +99,24 @@
     </form>
   </dialog>
 
+  <button id="roxyVoiceLauncher" class="roxy-voice-launcher" type="button" aria-controls="roxyVoicePanel" aria-expanded="false">
+    <img src="/assets/roxy_avatar_icon.jpg" alt="" /><span><strong>Hablar con Roxy</strong><small>ElevenLabs</small></span>
+  </button>
+  <section id="roxyVoicePanel" class="roxy-voice-panel" aria-labelledby="roxyVoiceTitle" hidden>
+    <header>
+      <img src="/assets/roxy_avatar_icon.jpg" alt="Roxy" />
+      <div><strong id="roxyVoiceTitle">Roxy</strong><small>ElevenLabs Agent</small></div>
+      <button id="roxyVoiceClose" type="button" aria-label="Cerrar conversación">×</button>
+    </header>
+    <p id="roxyVoiceStatus" class="roxy-voice-status" role="status" aria-live="polite">Lista para conversar</p>
+    <div id="roxyVoiceTranscript" class="roxy-voice-transcript" aria-live="polite">Pulsa iniciar y pregúntame por tu lista o cualquier tema de Roxy.</div>
+    <div class="roxy-voice-actions">
+      <button id="roxyVoiceStart" class="primary" type="button">Iniciar conversación</button>
+      <button id="roxyVoiceEnd" class="secondary" type="button" disabled>Terminar</button>
+    </div>
+    <small class="roxy-voice-provider">Voz original de ElevenLabs · misma Roxy en todos tus sistemas</small>
+  </section>
+
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 </body>
 </html>

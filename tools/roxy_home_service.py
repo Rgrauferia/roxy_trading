@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import os
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -48,8 +49,50 @@ class ShoppingQuantityRequest(BaseModel):
     quantity: float = Field(gt=0, le=100_000)
 
 
+class AssistantCommandRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=1000)
+
+
 def _store() -> ShoppingListStore:
     return ShoppingListStore(os.getenv("ROXY_SHOPPING_LIST_PATH", "data/roxy_shopping_list.json"))
+
+
+def _assistant_shopping_intent(text: str) -> str:
+    normalized = text.lower().strip()
+    if re.search(r"\b(quita|quitar|elimina|borra)\b", normalized):
+        return "shopping_remove"
+    if re.search(r"\b(agrega|agregar|añade|anade|apunta|comprar|necesito)\b", normalized):
+        return "shopping_add"
+    if re.search(r"(lista de compras?|qué falta comprar|que falta comprar|qué necesito comprar|que necesito comprar)", normalized):
+        return "shopping_query"
+    return "general"
+
+
+def _assistant_shopping_requests(text: str) -> list[dict[str, Any]]:
+    cleaned = re.sub(
+        r"(?i)^.*?\b(?:agrega(?:r)?|añade|anade|apunta|comprar|necesito|quita(?:r)?|elimina|borra)\b\s+",
+        "",
+        text,
+    ).strip()
+    cleaned = re.sub(
+        r"(?i)\s+(?:a|de)\s+(?:mi|la)\s+lista(?:\s+de\s+compras?)?\s*$",
+        "",
+        cleaned,
+    ).strip()
+    requests: list[dict[str, Any]] = []
+    for raw in re.split(r",|\s+y\s+", cleaned):
+        value = re.sub(r"\s+", " ", raw).strip(" .;:-")
+        if not value:
+            continue
+        quantity = 1.0
+        quantity_match = re.match(r"(?i)^(\d+(?:[.,]\d+)?)\s+(.+)$", value)
+        if quantity_match:
+            quantity = float(quantity_match.group(1).replace(",", "."))
+            value = quantity_match.group(2).strip()
+        value = re.sub(r"(?i)^(?:de|el|la|los|las)\s+", "", value).strip()
+        if value:
+            requests.append({"name": value[:120], "quantity": quantity, "unit": "unidad"})
+    return requests
 
 
 def _allowed_users() -> set[str]:
@@ -130,7 +173,7 @@ def _rate_limit(request: Request) -> None:
 def _security_headers(response: Response) -> Response:
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(self), geolocation=()"
     return response
 
 
@@ -149,8 +192,11 @@ def shopping_page() -> Response:
     response = FileResponse(ASSETS_DIR / "roxy_list.html", media_type="text/html")
     response.headers["Cache-Control"] = "no-cache"
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
-        "connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+        "default-src 'self'; img-src 'self' data:; style-src 'self'; "
+        "script-src 'self' https://esm.sh https://cdn.jsdelivr.net https://esm.run; "
+        "connect-src 'self' https://api.elevenlabs.io https://*.elevenlabs.io "
+        "wss://api.elevenlabs.io wss://*.elevenlabs.io; media-src 'self' blob:; "
+        "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
     )
     return _security_headers(response)
 
@@ -209,6 +255,114 @@ def delete_session() -> Response:
     response = Response(status_code=204)
     response.delete_cookie(SESSION_COOKIE, path="/")
     return _security_headers(response)
+
+
+@app.get("/v1/assistant/session/{user_id}")
+def assistant_session(user_id: str, request: Request, auth: str = Depends(_authenticate)) -> dict[str, Any]:
+    """Return non-secret configuration for the shared public ElevenLabs agent."""
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    agent_id = str(
+        os.getenv("ELEVENLABS_AGENT_ID") or "agent_6101kwchebzdf91rfk9757wq0mk4"
+    ).strip()
+    if not agent_id:
+        raise HTTPException(status_code=503, detail="Roxy ElevenLabs no está configurada")
+    snapshot = _store().snapshot(user, limit=100)
+    return {
+        "status": "READY",
+        "provider": "ElevenLabs",
+        "agent_id": agent_id,
+        "voice_mode": "public_agent",
+        "user_id": user,
+        "dynamic_variables": {
+            "user_name": user,
+            "preferred_language": "es",
+            "current_app": "Roxy Home",
+            "current_page": "Lista de compras",
+            "shopping_pending_count": int(snapshot.get("pending_count") or 0),
+            "roxy_identity": "La misma Roxy de Roxy Trading, Roxy Home y Roxy Finance",
+        },
+    }
+
+
+@app.post("/v1/assistant/command/{user_id}")
+def assistant_command(
+    user_id: str,
+    payload: AssistantCommandRequest,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    """Execute safe Roxy OS commands issued through ElevenLabs client tools."""
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    command_text = payload.text.strip()
+    # Voice naturally says “agrega pan a mi lista de compra”. The shared
+    # router also recognizes “lista de compra” as a read query, so remove only
+    # this destination suffix when an explicit write verb is present.
+    if re.search(r"(?i)\b(agrega|añade|anade|apunta|quita|elimina|borra)\b", command_text):
+        command_text = re.sub(
+            r"(?i)\s+(?:a|de)\s+(?:mi|la)\s+lista(?:\s+de\s+compras?)?\s*$",
+            "",
+            command_text,
+        ).strip()
+    intent = _assistant_shopping_intent(command_text)
+    agent = "shopping" if intent.startswith("shopping_") else "general"
+    store = _store()
+    rows: list[dict[str, Any]] = []
+    if intent == "shopping_query":
+        rows = store.list_items(user, statuses={"PENDING"}, limit=50)
+        if rows:
+            labels = [
+                f"{item.get('quantity') or 1:g} {item.get('unit') or 'unidad'} de {item.get('name') or ''}"
+                for item in rows
+            ]
+            message = "En tu lista tengo: " + ", ".join(labels) + "."
+        else:
+            message = "No tengo artículos pendientes en tu lista de compra."
+    elif intent == "shopping_remove":
+        removed: list[dict[str, Any]] = []
+        missing: list[str] = []
+        for row in _assistant_shopping_requests(command_text):
+            try:
+                removed.append(store.delete_named(user, row["name"]))
+            except KeyError:
+                missing.append(str(row["name"]))
+        rows = removed
+        message = (
+            "Quité de tu lista: " + ", ".join(str(item.get("name")) for item in removed) + "."
+            if removed
+            else "No encontré esos artículos en tus pendientes."
+        )
+        if missing:
+            message += " No encontré: " + ", ".join(missing) + "."
+    elif intent == "shopping_add":
+        for row in _assistant_shopping_requests(command_text):
+            rows.append(
+                store.add(
+                    user,
+                    row["name"],
+                    quantity=row.get("quantity") or 1,
+                    unit=row.get("unit") or "unidad",
+                    source="elevenlabs_voice",
+                )
+            )
+        message = (
+            "Listo, agregué a tu lista: " + ", ".join(str(item.get("name")) for item in rows) + "."
+            if rows
+            else "Dime qué artículos quieres agregar a la lista."
+        )
+    else:
+        # General knowledge stays inside the ElevenLabs agent. This endpoint is
+        # deliberately limited to durable Roxy Home actions.
+        message = "La herramienta de Roxy Home solo ejecuta consultas y cambios de la lista de compras."
+    return {
+        "ok": True,
+        "intent": intent,
+        "agent": agent,
+        "message": message,
+        "data": {"items": rows},
+        "snapshot": store.snapshot(user, limit=100),
+    }
 
 
 @app.get("/v1/shopping/{user_id}")
