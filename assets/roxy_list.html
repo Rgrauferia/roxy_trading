@@ -11,8 +11,8 @@
   <link rel="icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=17" />
-  <script src="/assets/roxy_list.js?v=17" defer></script>
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=18" />
+  <script src="/assets/roxy_list.js?v=18" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -25,8 +25,16 @@
 
   <main id="app" aria-busy="true">
     <section class="welcome" aria-labelledby="pageTitle">
-      <p class="eyebrow">Buenos días</p>
-      <h1 id="pageTitle">¿Qué necesitas hoy?</h1>
+      <img class="welcome-scene" src="/assets/roxy_home/home-hero-plant.png" alt="" aria-hidden="true" />
+      <div class="welcome-copy">
+        <div class="welcome-moment">
+          <p id="homeDate" class="welcome-date">Hoy en casa</p>
+          <time id="homeTime" datetime="">--:--</time>
+        </div>
+        <h1 id="pageTitle"><span id="homeGreeting">Buenos días,</span><strong>familia</strong></h1>
+        <span class="welcome-stroke" aria-hidden="true"></span>
+        <p class="welcome-subtitle">Esto es lo importante hoy <span aria-hidden="true">✦</span></p>
+      </div>
       <form id="roxyCommandForm" class="command-bar">
         <label for="roxyCommand">Escribe o habla con Roxy</label>
         <div><input id="roxyCommand" maxlength="1000" placeholder="Agrega leche o prepárame una receta de pan" /><button type="submit">Enviar</button></div>

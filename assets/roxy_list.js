@@ -45,6 +45,15 @@
   let cookingTimerTick = null;
   const announcedTimers = new Set();
 
+  function renderHomeMoment(){
+    const moment=new Date();
+    const hour=moment.getHours();
+    $('homeGreeting').textContent=hour<12?'Buenos días,':hour<19?'Buenas tardes,':'Buenas noches,';
+    $('homeDate').textContent=new Intl.DateTimeFormat('es',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(moment);
+    const timeText=new Intl.DateTimeFormat('es',{hour:'numeric',minute:'2-digit'}).format(moment);
+    const timeNode=$('homeTime');timeNode.textContent=timeText;timeNode.dateTime=moment.toISOString();
+  }
+
   const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
   const fallbackImage = itemCategory => itemCategory === 'PERSONAL'
     ? '/assets/roxy_home/products/soap.png'
@@ -581,7 +590,7 @@
     window.addEventListener('online',()=>load({quiet:true}));
   }
 
-  bind();render();load();
+  bind();renderHomeMoment();setInterval(renderHomeMoment,30000);render();load();
   if('serviceWorker'in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){
     const homeRoute=location.pathname.startsWith('/home');
     navigator.serviceWorker.register(homeRoute?'/home-sw.js':'/lista-sw.js',{scope:homeRoute?'/home':'/lista',updateViaCache:'none'}).catch(()=>{});

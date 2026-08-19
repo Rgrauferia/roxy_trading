@@ -45,7 +45,19 @@ button, a, input, textarea, select, summary { -webkit-tap-highlight-color: trans
 .quiet-button { min-height: 42px; padding: 0 13px; border: 1px solid var(--line); border-radius: 14px; color: var(--forest); background: var(--paper); font-weight: 750; }
 
 main { width: min(100%, 860px); min-width: 0; margin: 0 auto; padding: 18px 18px calc(118px + env(safe-area-inset-bottom)); }
-.welcome { padding: 5px 2px 16px; }
+.welcome { position: relative; isolation: isolate; overflow: hidden; min-height: 348px; padding: 26px 24px 15px; border: 1px solid rgba(23,77,54,.11); border-radius: 28px; background: #fbf7ee; box-shadow: var(--shadow); }
+.welcome-scene { position: absolute; z-index: -2; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 54% center; }
+.welcome::after { position: absolute; z-index: -1; inset: 0; background: rgba(255,253,248,.1); content: ""; pointer-events: none; }
+.welcome-copy { position: relative; width: 61%; min-height: 217px; }
+.welcome-moment { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.welcome-date { margin: 0; color: #95702f; font-size: 11px; font-weight: 850; letter-spacing: .11em; line-height: 1.35; text-transform: uppercase; }
+.welcome-moment time { display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border: 1px solid rgba(23,77,54,.13); border-radius: 999px; color: var(--forest); background: rgba(255,253,250,.82); font-size: 11px; font-weight: 850; white-space: nowrap; }
+.welcome h1 { margin-top: 21px; font-size: clamp(42px, 8vw, 62px); line-height: .9; }
+.welcome h1 span, .welcome h1 strong { display: block; }
+.welcome h1 strong { font-weight: 500; }
+.welcome-stroke { display: block; width: min(210px, 86%); height: 3px; margin-top: 15px; border-radius: 3px; background: var(--gold); transform: rotate(-1.5deg); }
+.welcome-subtitle { margin: 18px 0 0; color: #515c56; font-size: 14px; line-height: 1.4; }
+.welcome-subtitle span { color: var(--gold); }
 .eyebrow, .section-heading p { margin: 0 0 5px; color: var(--gold); font-size: 11px; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
 h1, h2, h3, p { overflow-wrap: anywhere; }
 h1, h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; color: var(--forest-dark); }
@@ -54,7 +66,7 @@ h2 { font-size: 28px; line-height: 1.05; }
 h3 { margin: 0 0 12px; color: var(--forest); font: 600 22px/1.1 Georgia, serif; }
 .lead { margin: 8px 0 20px; color: var(--muted); font-size: 15px; line-height: 1.5; }
 
-.command-bar { margin-top: 18px; }
+.command-bar { position: relative; z-index: 2; margin-top: 18px; }
 .command-bar > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
 .command-bar div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 6px; border: 1px solid #d3d6cf; border-radius: 19px; background: var(--paper); box-shadow: 0 8px 24px rgba(31, 61, 46, .07); }
 .command-bar input { min-width: 0; min-height: 48px; padding: 0 11px; border: 0; color: var(--ink); background: transparent; font-size: 15px; }
@@ -209,9 +221,16 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
   .topbar { min-height: 62px; padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: 8px; }
   .brand-mark { width: 34px; height: 34px; font-size: 24px; }
   .brand strong { font-size: 17px; }
-  .welcome { padding-bottom: 10px; }
-  .welcome h1 { font-size: 35px; }
-  .command-bar { margin-top: 12px; }
+  .welcome { min-height: 330px; padding: 19px 15px 13px; border-radius: 24px; }
+  .welcome-scene { object-position: 59% center; }
+  .welcome-copy { width: 63%; min-height: 208px; }
+  .welcome-date { max-width: 185px; font-size: 9px; letter-spacing: .08em; }
+  .welcome-moment { display: grid; justify-items: start; gap: 7px; }
+  .welcome-moment time { min-height: 25px; padding: 0 9px; font-size: 10px; }
+  .welcome h1 { margin-top: 15px; font-size: clamp(37px, 10.7vw, 45px); }
+  .welcome-stroke { margin-top: 12px; }
+  .welcome-subtitle { max-width: 190px; margin-top: 13px; font-size: 12px; }
+  .command-bar { margin-top: 10px; }
   .command-bar input { min-height: 44px; }
   .app-panel { gap: 12px; }
   .quick-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
