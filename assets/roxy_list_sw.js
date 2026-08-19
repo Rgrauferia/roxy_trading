@@ -1,5 +1,5 @@
-const CACHE='roxy-list-shell-v12';
-const SHELL=['/home','/lista-manifest.json','/assets/roxy_list.css?v=12','/assets/roxy_list_overrides.css?v=12','/assets/roxy_list.js?v=12','/assets/roxy_avatar_icon.jpg'];
+const CACHE='roxy-list-shell-v13';
+const SHELL=['/home','/lista-manifest.json','/assets/roxy_list.css?v=13','/assets/roxy_list_overrides.css?v=13','/assets/roxy_home_food.css?v=13','/assets/roxy_list.js?v=13','/assets/roxy_avatar_icon.jpg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{

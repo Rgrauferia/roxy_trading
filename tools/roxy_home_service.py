@@ -6,6 +6,7 @@ import hmac
 import os
 import re
 import time
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,13 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from roxy_os.home_ai import (
+    HomeAIBudgetExceeded,
+    HomeAIConfig,
+    HomeAIConfigurationError,
+    RoxyHomeAI,
+)
+from roxy_os.home_food import HomeFoodStore, HomePermissionPolicy
 from roxy_os.shopping_list import ShoppingListStore, normalize_shopping_user
 
 
@@ -53,13 +61,75 @@ class AssistantCommandRequest(BaseModel):
     text: str = Field(min_length=1, max_length=1000)
 
 
+class HomeProfileRequest(BaseModel):
+    preferences: list[str] = Field(default_factory=list, max_length=50)
+    allergies: list[str] = Field(default_factory=list, max_length=50)
+    dislikes: list[str] = Field(default_factory=list, max_length=50)
+    household_size: int = Field(default=1, ge=1, le=50)
+
+
+class PantryItemRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    quantity: float = Field(default=1, gt=0, le=100_000)
+    unit: str = Field(default="unidad", min_length=1, max_length=32)
+
+
+class PantryRequest(BaseModel):
+    items: list[PantryItemRequest] = Field(default_factory=list, max_length=500)
+
+
+class HomePromptRequest(BaseModel):
+    prompt: str = Field(min_length=1, max_length=2000)
+    mode: str = Field(default="routine", pattern="^(routine|deep)$")
+
+
+class RecipeScaleRequest(BaseModel):
+    servings: float = Field(gt=0, le=100)
+
+
+class RecipeShoppingRequest(BaseModel):
+    confirmed: bool = False
+    servings: float | None = Field(default=None, gt=0, le=100)
+
+
+class FoodSafetyRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+
+
 def _store() -> ShoppingListStore:
     return ShoppingListStore(os.getenv("ROXY_SHOPPING_LIST_PATH", "data/roxy_shopping_list.json"))
 
 
+def _home_food_store() -> HomeFoodStore:
+    return HomeFoodStore(os.getenv("ROXY_HOME_MEMORY_PATH", "data/roxy_home_food.json"))
+
+
+def _home_ai() -> RoxyHomeAI:
+    return RoxyHomeAI(HomeAIConfig.from_env())
+
+
+def _ai_call(callback: Any) -> dict[str, Any]:
+    try:
+        return callback()
+    except HomeAIConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except HomeAIBudgetExceeded as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        # Provider errors stay server-side; no key, prompt internals or stack
+        # details are returned to the browser.
+        raise HTTPException(status_code=502, detail="Roxy Home no pudo completar la solicitud de IA.") from exc
+
+
 def _assistant_shopping_intent(text: str) -> str:
     normalized = text.lower().strip()
-    if re.search(r"\b(quita|quitar|elimina|borra)\b", normalized):
+    if re.search(r"\b(agrega|añade|anade|pon|pasa)\b.*\bingredientes?\b.*\blista\b", normalized):
+        return "recipe_to_shopping"
+    if re.search(r"\b(receta|cocinar|cocino|preparar|preparo)\b", normalized):
+        return "recipe_generate"
+    if re.search(r"\b(quita|quitar|elimina|borra|saca|sacar|remueve|remover)\b|\bya no necesito\b", normalized):
         return "shopping_remove"
     if re.search(r"\b(agrega|agregar|añade|anade|apunta|comprar|necesito)\b", normalized):
         return "shopping_add"
@@ -70,7 +140,7 @@ def _assistant_shopping_intent(text: str) -> str:
 
 def _assistant_shopping_requests(text: str) -> list[dict[str, Any]]:
     cleaned = re.sub(
-        r"(?i)^.*?\b(?:agrega(?:r)?|añade|anade|apunta|comprar|necesito|quita(?:r)?|elimina|borra)\b\s+",
+        r"(?i)^.*?\b(?:agrega(?:r)?|añade|anade|apunta|comprar|necesito|quita(?:r)?|elimina|borra|saca(?:r)?|remueve|remover)\b\s+",
         "",
         text,
     ).strip()
@@ -89,10 +159,38 @@ def _assistant_shopping_requests(text: str) -> list[dict[str, Any]]:
         if quantity_match:
             quantity = float(quantity_match.group(1).replace(",", "."))
             value = quantity_match.group(2).strip()
-        value = re.sub(r"(?i)^(?:de|el|la|los|las)\s+", "", value).strip()
+        value = re.sub(r"(?i)^(?:de|el|la|los|las|un|una|unos|unas)\s+", "", value).strip()
         if value:
             requests.append({"name": value[:120], "quantity": quantity, "unit": "unidad"})
     return requests
+
+
+def _voice_item_identity(value: Any) -> str:
+    normalized = unicodedata.normalize("NFKD", str(value or ""))
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalized.encode("ascii", "ignore").decode("ascii").lower()).strip()
+    words = []
+    for word in normalized.split():
+        if len(word) > 4 and word.endswith("es"):
+            word = word[:-2]
+        elif len(word) > 3 and word.endswith("s"):
+            word = word[:-1]
+        words.append(word)
+    return " ".join(words)
+
+
+def _delete_voice_item(store: ShoppingListStore, user: str, name: str) -> dict[str, Any]:
+    try:
+        return store.delete_named(user, name)
+    except KeyError:
+        target = _voice_item_identity(name)
+        matches = [
+            item
+            for item in store.list_items(user, statuses={"PENDING"}, limit=1000)
+            if _voice_item_identity(item.get("name")) == target
+        ]
+        if len(matches) == 1:
+            return store.delete(user, matches[0]["id"])
+        raise
 
 
 def _allowed_users() -> set[str]:
@@ -309,20 +407,62 @@ def assistant_command(
     _rate_limit(request)
     user = _authorize_user(user_id, auth)
     command_text = payload.text.strip()
+    intent = _assistant_shopping_intent(command_text)
     # Voice naturally says “agrega pan a mi lista de compra”. The shared
     # router also recognizes “lista de compra” as a read query, so remove only
     # this destination suffix when an explicit write verb is present.
-    if re.search(r"(?i)\b(agrega|añade|anade|apunta|quita|elimina|borra)\b", command_text):
+    if intent in {"shopping_add", "shopping_remove"}:
         command_text = re.sub(
             r"(?i)\s+(?:a|de)\s+(?:mi|la)\s+lista(?:\s+de\s+compras?)?\s*$",
             "",
             command_text,
         ).strip()
-    intent = _assistant_shopping_intent(command_text)
-    agent = "shopping" if intent.startswith("shopping_") else "general"
+    agent = "shopping" if intent.startswith("shopping_") else "home_food" if intent.startswith("recipe_") else "general"
     store = _store()
     rows: list[dict[str, Any]] = []
-    if intent == "shopping_query":
+    extra: dict[str, Any] = {}
+    if intent == "recipe_generate":
+        home_store = _home_food_store()
+        recipe_data = _ai_call(
+            lambda: _home_ai().generate_recipe(command_text, home_store.snapshot(user), deep=False)
+        )
+        try:
+            recipe = home_store.save_recipe(user, recipe_data, mode="routine")
+        except ValueError as exc:
+            raise HTTPException(status_code=502, detail="Roxy devolvió una receta incompleta.") from exc
+        ingredients = ", ".join(
+            f"{row.get('quantity'):g} {row.get('unit')} de {row.get('name')}"
+            for row in recipe.get("ingredients", [])
+        )
+        message = f"Te preparé {recipe['title']} para {recipe['servings']:g} porciones. Ingredientes: {ingredients}."
+        if recipe.get("steps"):
+            message += " Preparación: " + " ".join(
+                f"{index}. {step}" for index, step in enumerate(recipe["steps"], start=1)
+            )
+        message += " Si te gusta, dime: agrega los ingredientes de esta receta a mi lista."
+        extra["recipe"] = recipe
+    elif intent == "recipe_to_shopping":
+        home_store = _home_food_store()
+        recipes = home_store.snapshot(user).get("recipes", [])
+        if not recipes:
+            raise HTTPException(status_code=409, detail="Primero pide o crea una receta.")
+        # The spoken command itself is the explicit confirmation required to
+        # convert the most recently approved recipe into shopping items.
+        conversion = home_store.commit_recipe_to_shopping(
+            user,
+            recipes[-1]["id"],
+            store,
+            confirmed=True,
+        )
+        rows = conversion.get("items", [])
+        if rows:
+            message = "Agregué los ingredientes que faltaban: " + ", ".join(
+                str(item.get("name")) for item in rows
+            ) + "."
+        else:
+            message = "Según tu despensa, ya tienes todos los ingredientes de esa receta."
+        extra["recipe_id"] = recipes[-1]["id"]
+    elif intent == "shopping_query":
         rows = store.list_items(user, statuses={"PENDING"}, limit=50)
         if rows:
             labels = [
@@ -337,7 +477,7 @@ def assistant_command(
         missing: list[str] = []
         for row in _assistant_shopping_requests(command_text):
             try:
-                removed.append(store.delete_named(user, row["name"]))
+                removed.append(_delete_voice_item(store, user, row["name"]))
             except KeyError:
                 missing.append(str(row["name"]))
         rows = removed
@@ -373,7 +513,7 @@ def assistant_command(
         "intent": intent,
         "agent": agent,
         "message": message,
-        "data": {"items": rows},
+        "data": {"items": rows, **extra},
         "snapshot": store.snapshot(user, limit=100),
     }
 
@@ -459,3 +599,166 @@ def complete_purchase(
     user = _authorize_user(user_id, auth)
     result = _store().complete_purchase(user)
     return {"status": "COMPLETED" if result.get("completed") else "EMPTY", **result}
+
+
+@app.get("/v1/home-food/{user_id}")
+def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenticate)) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    return _home_food_store().snapshot(user)
+
+
+@app.put("/v1/home-food/{user_id}/profile")
+def update_home_profile(
+    user_id: str,
+    payload: HomeProfileRequest,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    profile = _home_food_store().update_profile(user, **payload.model_dump())
+    return {"status": "UPDATED", "profile": profile}
+
+
+@app.put("/v1/home-food/{user_id}/pantry")
+def update_home_pantry(
+    user_id: str,
+    payload: PantryRequest,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        items = _home_food_store().replace_pantry(user, [row.model_dump() for row in payload.items])
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "UPDATED", "items": items}
+
+
+@app.post("/v1/home-food/{user_id}/recipes", status_code=201)
+def generate_home_recipe(
+    user_id: str,
+    payload: HomePromptRequest,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    store = _home_food_store()
+    snapshot = store.snapshot(user)
+    recipe_data = _ai_call(
+        lambda: _home_ai().generate_recipe(payload.prompt, snapshot, deep=payload.mode == "deep")
+    )
+    try:
+        recipe = store.save_recipe(user, recipe_data, mode=payload.mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail="Roxy devolvió una receta incompleta.") from exc
+    return {"status": "CREATED", "recipe": recipe}
+
+
+@app.post("/v1/home-food/{user_id}/substitutions")
+def suggest_home_substitutions(
+    user_id: str,
+    payload: HomePromptRequest,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    snapshot = _home_food_store().snapshot(user)
+    result = _ai_call(lambda: _home_ai().substitutions(payload.prompt, snapshot))
+    return {"status": "READY", "result": result}
+
+
+@app.post("/v1/home-food/{user_id}/recipes/{recipe_id}/scale")
+def scale_home_recipe(
+    user_id: str,
+    recipe_id: str,
+    payload: RecipeScaleRequest,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        recipe = _home_food_store().scale_recipe(user, recipe_id, payload.servings)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Receta no encontrada") from exc
+    return {"status": "SCALED", "recipe": recipe}
+
+
+@app.post("/v1/home-food/{user_id}/recipes/{recipe_id}/shopping-preview")
+def preview_recipe_shopping(
+    user_id: str,
+    recipe_id: str,
+    payload: RecipeShoppingRequest,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        preview = _home_food_store().shopping_preview(user, recipe_id, servings=payload.servings)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Receta no encontrada") from exc
+    return {"status": "PREVIEW", **preview}
+
+
+@app.post("/v1/home-food/{user_id}/recipes/{recipe_id}/shopping-commit")
+def commit_recipe_shopping(
+    user_id: str,
+    recipe_id: str,
+    payload: RecipeShoppingRequest,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    decision = HomePermissionPolicy.decision("recipe_to_shopping", confirmed=payload.confirmed)
+    if decision != "ALLOW":
+        raise HTTPException(status_code=409, detail="CONFIRMATION_REQUIRED")
+    try:
+        return _home_food_store().commit_recipe_to_shopping(
+            user,
+            recipe_id,
+            _store(),
+            confirmed=True,
+            servings=payload.servings,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Receta no encontrada") from exc
+
+
+@app.post("/v1/home-food/{user_id}/weekly-plans", status_code=201)
+def create_home_weekly_plan(
+    user_id: str,
+    payload: HomePromptRequest,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    store = _home_food_store()
+    result = _ai_call(
+        lambda: _home_ai().weekly_plan(payload.prompt, store.snapshot(user), deep=payload.mode == "deep")
+    )
+    try:
+        plan = store.save_weekly_plan(user, result)
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail="Roxy devolvió un plan incompleto.") from exc
+    return {"status": "CREATED", "plan": plan}
+
+
+@app.post("/v1/home-food/{user_id}/food-safety")
+def research_food_safety(
+    user_id: str,
+    payload: FoodSafetyRequest,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    result = _ai_call(lambda: _home_ai().food_safety(payload.question, _home_food_store().snapshot(user)))
+    return {"status": "READY", "result": result}

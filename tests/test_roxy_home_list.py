@@ -14,8 +14,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=12"' in page.text
-    assert '/assets/roxy_list.js?v=12' in worker.text
+    assert 'src="/assets/roxy_list.js?v=13"' in page.text
+    assert '/assets/roxy_list.js?v=13' in worker.text
     assert "unsafe-inline" not in page.headers["content-security-policy"]
     assert manifest.json()["start_url"] == "/home"
     assert manifest.json()["scope"] == "/home"
@@ -41,6 +41,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "script-src 'self' blob:" in page.headers["content-security-policy"]
     assert "localStorage.setItem('roxyShoppingUser'" in script.text
     assert "localStorage.setItem('apiToken'" not in script.text
+    assert 'id="recipeSubmit"' in page.text
+    assert 'id="pantryForm"' in page.text
+    assert 'id="weeklyPlanForm"' in page.text
+    assert 'id="substitutionForm"' in page.text
+    assert "/v1/home-food/" in script.text
+    assert "recipeSubmit" in script.text
+    assert "shopping-preview" in script.text
+    assert "shopping-commit" in script.text
+    assert "/substitutions" in script.text
 
 
 def test_shopping_api_crud_complete_history_and_user_isolation(tmp_path, monkeypatch):

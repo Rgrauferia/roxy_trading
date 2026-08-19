@@ -11,9 +11,10 @@
   <link rel="icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=12" />
-  <link rel="stylesheet" href="/assets/roxy_list_overrides.css?v=10" />
-  <script src="/assets/roxy_list.js?v=12" defer></script>
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=13" />
+  <link rel="stylesheet" href="/assets/roxy_list_overrides.css?v=13" />
+  <link rel="stylesheet" href="/assets/roxy_home_food.css?v=13" />
+  <script src="/assets/roxy_list.js?v=13" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -66,6 +67,53 @@
         <label><span>Categoría</span><select id="customCategory"><option value="FOOD">Alimentos</option><option value="HOUSEHOLD">Despensa y hogar</option><option value="PERSONAL">Aseo personal</option><option value="HEALTH">Salud</option><option value="OTHER">Otros</option><option value="GENERAL">General</option></select></label>
         <button id="customSubmit" class="secondary full" type="button">Agregar a la lista</button>
       </form>
+    </section>
+
+    <section class="home-kitchen" aria-labelledby="kitchenTitle">
+      <div class="section-heading"><div><p>Roxy cocina contigo</p><h2 id="kitchenTitle">Cocina y despensa</h2></div></div>
+      <p class="kitchen-note">Tus preferencias y alergias se guardan solo en Roxy Home. Roxy nunca compra ni controla dispositivos desde aquí.</p>
+      <details>
+        <summary>Preferencias y alergias</summary>
+        <form id="homeProfileForm" class="kitchen-form">
+          <label><span>Preferencias</span><input id="homePreferences" placeholder="Mediterránea, vegetariana…" /></label>
+          <label><span>Alergias</span><input id="homeAllergies" placeholder="Nueces, mariscos…" /></label>
+          <label><span>No me gusta</span><input id="homeDislikes" placeholder="Cilantro…" /></label>
+          <label><span>Personas en casa</span><input id="homeHousehold" type="number" min="1" max="50" value="1" /></label>
+          <button class="secondary full" type="submit">Guardar preferencias</button>
+        </form>
+      </details>
+      <details>
+        <summary>Mi despensa</summary>
+        <form id="pantryForm" class="kitchen-form">
+          <label><span>Productos disponibles</span><textarea id="pantryItems" rows="4" placeholder="Arroz, 2, tazas&#10;Tomate, 4, unidades"></textarea></label>
+          <small>Un producto por línea: nombre, cantidad y unidad separados por comas.</small>
+          <button class="secondary full" type="submit">Guardar despensa</button>
+        </form>
+      </details>
+      <form id="recipeForm" class="kitchen-form recipe-form">
+        <label><span>¿Qué quieres cocinar?</span><textarea id="recipePrompt" rows="3" required placeholder="Una cena rápida con pollo y verduras para cuatro personas"></textarea></label>
+        <label><span>Modo</span><select id="recipeMode"><option value="routine">Luna · rápido</option><option value="deep">Terra · razonamiento profundo</option></select></label>
+        <button id="recipeSubmit" class="primary full" type="submit">Crear receta con Roxy</button>
+      </form>
+      <article id="recipeResult" class="recipe-result" aria-live="polite" hidden></article>
+      <form id="substitutionForm" class="kitchen-form">
+        <label><span>Sustituir un ingrediente</span><input id="substitutionPrompt" required placeholder="No tengo mantequilla, ¿qué puedo usar?" /></label>
+        <button class="secondary full" type="submit">Buscar sustitución segura</button>
+      </form>
+      <article id="substitutionResult" class="recipe-result" aria-live="polite" hidden></article>
+      <form id="weeklyPlanForm" class="kitchen-form">
+        <label><span>Plan semanal</span><input id="weeklyPlanPrompt" required placeholder="Cenas sencillas para 7 días" /></label>
+        <button class="secondary full" type="submit">Crear plan semanal</button>
+      </form>
+      <article id="weeklyPlanResult" class="recipe-result" aria-live="polite" hidden></article>
+      <details>
+        <summary>Seguridad alimentaria y retiros</summary>
+        <form id="foodSafetyForm" class="kitchen-form">
+          <label><span>Consulta vigente</span><input id="foodSafetyQuestion" required placeholder="¿Hay retiros activos de huevos en Florida?" /></label>
+          <button class="secondary full" type="submit">Investigar con Terra</button>
+        </form>
+        <article id="foodSafetyResult" class="recipe-result" aria-live="polite" hidden></article>
+      </details>
     </section>
 
     <details class="history-card">
