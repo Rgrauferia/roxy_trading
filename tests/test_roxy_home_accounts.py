@@ -20,13 +20,14 @@ def test_account_store_hashes_passwords_and_limits_member_creation_to_owner(tmp_
     )
 
     raw = json.loads(path.read_text(encoding="utf-8"))
-    password_hashes = [row["password_hash"] for row in raw["members"].values()]
+    members_by_username = {row["username"]: row for row in raw["members"].values()}
+    password_hashes = [row["password_hash"] for row in members_by_username.values()]
 
     assert owner["storage_user_id"] == partner["storage_user_id"] == "local_user"
     assert owner["household_id"] == partner["household_id"]
     assert "una-clave-segura" not in path.read_text(encoding="utf-8")
     assert all(value.startswith("pbkdf2_sha256$600000$") for value in password_hashes)
-    assert verify_password("una-clave-segura", password_hashes[0])
+    assert verify_password("una-clave-segura", members_by_username["robert"]["password_hash"])
     assert store.authenticate("ROBERT", "una-clave-segura")["display_name"] == "Robert"
     assert store.authenticate("robert", "incorrecta") is None
 
