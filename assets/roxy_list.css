@@ -164,6 +164,14 @@ textarea { resize: vertical; line-height: 1.45; }
 .roxy-stage button { max-width: 420px; }
 .history-row { display: grid; gap: 3px; padding: 13px 0; border-bottom: 1px solid var(--line); }
 .history-row small { color: var(--muted); }
+.account-card > p:not(.eyebrow) { color: var(--muted); line-height: 1.5; }
+.legacy-access { padding-top: 4px; border-top: 1px solid var(--line); }
+.legacy-access summary { color: var(--forest); font-size: 12px; font-weight: 800; cursor: pointer; }
+.member-list { display: grid; gap: 8px; margin: 14px 0 18px; }
+.member-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 15px; background: var(--sage-soft); }
+.member-row strong, .member-row small { display: block; }
+.member-row small { margin-top: 3px; color: var(--muted); }
+.member-row span { flex: 0 0 auto; color: var(--gold); font-size: 10px; font-weight: 850; letter-spacing: .08em; }
 
 .bottom-nav { position: fixed; right: 0; bottom: 0; left: 0; z-index: 25; display: grid; grid-template-columns: repeat(5, 1fr); min-height: 73px; padding: 8px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); border-top: 1px solid rgba(23,77,54,.14); background: rgba(255,253,250,.96); backdrop-filter: blur(18px); }
 .bottom-nav button { min-width: 0; border: 0; color: #737b76; background: transparent; font-size: 11px; }

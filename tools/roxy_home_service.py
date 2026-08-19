@@ -7,6 +7,7 @@ import os
 import re
 import time
 import unicodedata
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,7 @@ from roxy_os.home_ai import (
     HomeAIConfigurationError,
     RoxyHomeAI,
 )
+from roxy_os.home_accounts import HomeAccountStore
 from roxy_os.home_food import HomeFoodStore, HomePermissionPolicy
 from roxy_os.shopping_list import ShoppingListStore, normalize_shopping_user
 
@@ -34,6 +36,9 @@ SESSION_TTL_SECONDS = 365 * 24 * 60 * 60
 RATE_LIMIT_WINDOW_SECONDS = 60
 RATE_LIMIT_MAX = 120
 _RATE_STATE: dict[str, dict[str, int]] = {}
+LOGIN_RATE_LIMIT_WINDOW_SECONDS = 15 * 60
+LOGIN_RATE_LIMIT_MAX = 10
+_LOGIN_RATE_STATE: dict[str, dict[str, int]] = {}
 
 app = FastAPI(
     title="Roxy Home",
@@ -112,12 +117,38 @@ class FoodSafetyRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
 
 
+class HomeLoginRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=64)
+    password: str = Field(min_length=8, max_length=128)
+
+
+class HomeBootstrapRequest(HomeLoginRequest):
+    display_name: str = Field(min_length=1, max_length=64)
+    household_name: str = Field(default="Nuestro hogar", min_length=1, max_length=64)
+    storage_user_id: str = Field(default="local_user", min_length=1, max_length=96)
+
+
+class HomeMemberRequest(HomeLoginRequest):
+    display_name: str = Field(min_length=1, max_length=64)
+
+
+@dataclass(frozen=True)
+class AuthContext:
+    mode: str
+    storage_user_id: str | None = None
+    member_id: str | None = None
+
+
 def _store() -> ShoppingListStore:
     return ShoppingListStore(os.getenv("ROXY_SHOPPING_LIST_PATH", "data/roxy_shopping_list.json"))
 
 
 def _home_food_store() -> HomeFoodStore:
     return HomeFoodStore(os.getenv("ROXY_HOME_MEMORY_PATH", "data/roxy_home_food.json"))
+
+
+def _account_store() -> HomeAccountStore:
+    return HomeAccountStore(os.getenv("ROXY_HOME_ACCOUNTS_PATH", "data/roxy_home_accounts.json"))
 
 
 def _home_ai() -> RoxyHomeAI:
@@ -273,6 +304,14 @@ def _session_cookie(user_id: str) -> str:
     return f"{encoded}.{signature}"
 
 
+def _member_session_cookie(member: dict[str, Any]) -> str:
+    expires = int(time.time()) + SESSION_TTL_SECONDS
+    raw = f"member|{member['id']}|{member['storage_user_id']}|{expires}"
+    encoded = base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
+    signature = hmac.new(_api_key().encode(), encoded.encode(), hashlib.sha256).hexdigest()
+    return f"{encoded}.{signature}"
+
+
 def _cookie_user(value: str) -> str | None:
     encoded, separator, signature = str(value or "").partition(".")
     if not separator or not encoded or not signature:
@@ -282,6 +321,8 @@ def _cookie_user(value: str) -> str | None:
         if not hmac.compare_digest(signature, expected):
             return None
         decoded = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)).decode()
+        if decoded.startswith("member|"):
+            return None
         user_id, raw_expires = decoded.rsplit("|", 1)
         if int(raw_expires) < int(time.time()):
             return None
@@ -290,24 +331,71 @@ def _cookie_user(value: str) -> str | None:
         return None
 
 
-def _authenticate(request: Request) -> str:
-    cookie_user = _cookie_user(request.cookies.get(SESSION_COOKIE, ""))
-    if cookie_user:
-        return f"cookie:{cookie_user}"
+def _cookie_auth(value: str) -> AuthContext | None:
+    encoded, separator, signature = str(value or "").partition(".")
+    if not separator or not encoded or not signature:
+        return None
+    try:
+        expected = hmac.new(_api_key().encode(), encoded.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature, expected):
+            return None
+        decoded = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)).decode()
+        if decoded.startswith("member|"):
+            _, member_id, storage_user_id, raw_expires = decoded.split("|", 3)
+            if int(raw_expires) < int(time.time()):
+                return None
+            member = _account_store().member(member_id)
+            if member is None or not hmac.compare_digest(member["storage_user_id"], normalize_shopping_user(storage_user_id)):
+                return None
+            return AuthContext("member", member["storage_user_id"], member["id"])
+        user_id, raw_expires = decoded.rsplit("|", 1)
+        if int(raw_expires) < int(time.time()):
+            return None
+        return AuthContext("legacy", normalize_shopping_user(user_id))
+    except (HTTPException, ValueError, UnicodeDecodeError):
+        return None
+
+
+def _authenticate(request: Request) -> AuthContext:
+    cookie_auth = _cookie_auth(request.cookies.get(SESSION_COOKIE, ""))
+    if cookie_auth:
+        return cookie_auth
     authorization = str(request.headers.get("Authorization") or "")
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Falta la clave de acceso")
     supplied = authorization.split(" ", 1)[1]
     if not hmac.compare_digest(supplied, _api_key()):
         raise HTTPException(status_code=403, detail="Clave de acceso incorrecta")
-    return "bearer"
+    return AuthContext("bearer")
 
 
-def _authorize_user(user_id: str, auth: str) -> str:
+def _authorize_user(user_id: str, auth: AuthContext) -> str:
     user = _allowed_user(user_id)
-    if auth.startswith("cookie:") and not hmac.compare_digest(auth.split(":", 1)[1], user):
+    if auth.storage_user_id and not hmac.compare_digest(auth.storage_user_id, user):
         raise HTTPException(status_code=403, detail="La sesión pertenece a otro usuario")
     return user
+
+
+def _member_for_auth(auth: AuthContext) -> dict[str, Any] | None:
+    return _account_store().member(auth.member_id) if auth.mode == "member" and auth.member_id else None
+
+
+def _set_session_cookie(response: Response, value: str) -> None:
+    response.set_cookie(
+        SESSION_COOKIE,
+        value,
+        max_age=SESSION_TTL_SECONDS,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        path="/",
+    )
+
+
+def _personalize(message: str, auth: AuthContext) -> str:
+    member = _member_for_auth(auth)
+    name = str(member.get("display_name") or "").strip() if member else ""
+    return f"Claro, {name}. {message}" if name else message
 
 
 def _rate_limit(request: Request) -> None:
@@ -319,6 +407,18 @@ def _rate_limit(request: Request) -> None:
         return
     if state["count"] >= RATE_LIMIT_MAX:
         raise HTTPException(status_code=429, detail="Demasiadas solicitudes; inténtalo de nuevo en un minuto")
+    state["count"] += 1
+
+
+def _login_rate_limit(request: Request, username: str) -> None:
+    key = f"{request.client.host if request.client else 'unknown'}:{username.strip().lower()}"
+    now = int(time.time())
+    state = _LOGIN_RATE_STATE.get(key)
+    if state is None or now - state["start"] >= LOGIN_RATE_LIMIT_WINDOW_SECONDS:
+        _LOGIN_RATE_STATE[key] = {"start": now, "count": 1}
+        return
+    if state["count"] >= LOGIN_RATE_LIMIT_MAX:
+        raise HTTPException(status_code=429, detail="Demasiados intentos de acceso; espera quince minutos.")
     state["count"] += 1
 
 
@@ -402,15 +502,7 @@ def create_session(user_id: str, request: Request) -> Response:
     auth = _authenticate(request)
     user = _authorize_user(user_id, auth)
     response = JSONResponse({"status": "PAIRED", "user_id": user})
-    response.set_cookie(
-        SESSION_COOKIE,
-        _session_cookie(user),
-        max_age=SESSION_TTL_SECONDS,
-        httponly=True,
-        secure=True,
-        samesite="strict",
-        path="/",
-    )
+    _set_session_cookie(response, _session_cookie(user))
     return _security_headers(response)
 
 
@@ -419,6 +511,90 @@ def delete_session() -> Response:
     response = Response(status_code=204)
     response.delete_cookie(SESSION_COOKIE, path="/")
     return _security_headers(response)
+
+
+@app.get("/v1/home-account/me")
+def home_account_me(request: Request, auth: AuthContext = Depends(_authenticate)) -> dict[str, Any]:
+    _rate_limit(request)
+    member = _member_for_auth(auth)
+    if member:
+        return {"status": "AUTHENTICATED", "mode": "member", "requires_profile_setup": False, **member}
+    if auth.storage_user_id:
+        return {
+            "status": "LEGACY_SESSION",
+            "mode": "legacy",
+            "requires_profile_setup": not _account_store().household_configured(auth.storage_user_id),
+            "storage_user_id": auth.storage_user_id,
+            "display_name": "",
+            "role": "LEGACY",
+        }
+    raise HTTPException(status_code=401, detail="Inicia sesión en Roxy Home")
+
+
+@app.post("/v1/home-account/login")
+def home_account_login(payload: HomeLoginRequest, request: Request) -> Response:
+    _login_rate_limit(request, payload.username)
+    member = _account_store().authenticate(payload.username, payload.password)
+    if member is None:
+        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
+    response = JSONResponse({"status": "AUTHENTICATED", "mode": "member", **member})
+    _set_session_cookie(response, _member_session_cookie(member))
+    return _security_headers(response)
+
+
+@app.post("/v1/home-account/bootstrap", status_code=201)
+def home_account_bootstrap(
+    payload: HomeBootstrapRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> Response:
+    _rate_limit(request)
+    if auth.mode == "member":
+        raise HTTPException(status_code=409, detail="El hogar ya tiene una sesión personal")
+    storage_user = _authorize_user(payload.storage_user_id, auth)
+    try:
+        member = _account_store().bootstrap(
+            storage_user,
+            household_name=payload.household_name,
+            username=payload.username,
+            display_name=payload.display_name,
+            password=payload.password,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    response = JSONResponse({"status": "CREATED", "mode": "member", **member}, status_code=201)
+    _set_session_cookie(response, _member_session_cookie(member))
+    return _security_headers(response)
+
+
+@app.get("/v1/home-account/members")
+def home_account_members(request: Request, auth: AuthContext = Depends(_authenticate)) -> dict[str, Any]:
+    _rate_limit(request)
+    member = _member_for_auth(auth)
+    if member is None:
+        raise HTTPException(status_code=409, detail="Primero crea tu perfil personal")
+    return {"status": "READY", "members": _account_store().members(member["id"])}
+
+
+@app.post("/v1/home-account/members", status_code=201)
+def home_account_add_member(
+    payload: HomeMemberRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    member = _member_for_auth(auth)
+    if member is None:
+        raise HTTPException(status_code=409, detail="Primero crea tu perfil personal")
+    try:
+        created = _account_store().add_member(
+            member["id"], username=payload.username, display_name=payload.display_name, password=payload.password
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"status": "CREATED", "member": created}
 
 
 @app.get("/v1/assistant/session/{user_id}")
@@ -432,6 +608,8 @@ def assistant_session(user_id: str, request: Request, auth: str = Depends(_authe
     if not agent_id:
         raise HTTPException(status_code=503, detail="Roxy ElevenLabs no está configurada")
     snapshot = _store().snapshot(user, limit=100)
+    member = _member_for_auth(auth)
+    display_name = member["display_name"] if member else user
     return {
         "status": "READY",
         "provider": "ElevenLabs",
@@ -440,7 +618,9 @@ def assistant_session(user_id: str, request: Request, auth: str = Depends(_authe
         "connection_type": "websocket",
         "user_id": user,
         "dynamic_variables": {
-            "user_name": user,
+            "user_name": display_name,
+            "member_id": member["id"] if member else "legacy",
+            "household_name": member["household_name"] if member else "Roxy Home",
             "preferred_language": "es",
             "current_app": "Roxy Home",
             "current_page": "Lista de compras",
@@ -544,13 +724,13 @@ def assistant_command(
                 message = f"Temporizador iniciado por {seconds // 60} minutos." if seconds >= 60 else f"Temporizador iniciado por {seconds} segundos."
                 extra["cooking"] = detail
                 extra["timer"] = timer
-                return {"ok":True,"intent":intent,"agent":agent,"message":message,"data":{"items":[],**extra},"snapshot":store.snapshot(user,limit=100)}
+                return {"ok":True,"intent":intent,"agent":agent,"message":_personalize(message,auth),"data":{"items":[],**extra},"snapshot":store.snapshot(user,limit=100)}
             if intent == "cooking_timer_query":
                 detail = home_store.cooking_session_detail(user, active["id"])
                 timers = [row for row in detail["session"].get("timers", []) if row.get("status") == "ACTIVE"]
                 message = "No hay temporizadores activos." if not timers else "Quedan " + ", ".join(f"{row.get('remaining_seconds',0)//60} minutos y {row.get('remaining_seconds',0)%60} segundos" for row in timers) + "."
                 extra["cooking"] = detail
-                return {"ok":True,"intent":intent,"agent":agent,"message":message,"data":{"items":[],**extra},"snapshot":store.snapshot(user,limit=100)}
+                return {"ok":True,"intent":intent,"agent":agent,"message":_personalize(message,auth),"data":{"items":[],**extra},"snapshot":store.snapshot(user,limit=100)}
             action = {
                 "cooking_next": "next",
                 "cooking_previous": "previous",
@@ -616,7 +796,7 @@ def assistant_command(
         "ok": True,
         "intent": intent,
         "agent": agent,
-        "message": message,
+        "message": _personalize(message, auth),
         "data": {"items": rows, **extra},
         "snapshot": store.snapshot(user, limit=100),
     }

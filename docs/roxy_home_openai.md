@@ -31,7 +31,7 @@ La clave permanece en el servidor. La PWA usa la cookie segura de Roxy Home y nu
 - Terra atiende razonamiento profundo.
 - Consultas vigentes de seguridad alimentaria o retiros fuerzan Terra, `web_search` y `tool_choice="required"`. La respuesta se rechaza si OpenAI no reporta una llamada de búsqueda.
 - Las respuestas se crean mediante Responses API con `store=False`.
-- Solo el perfil, alergias y despensa del usuario autenticado se envían al modelo.
+- Solo el contexto Home del hogar autenticado y el nombre del miembro activo se envían al modelo.
 - El consumo se registra en un libro diario exclusivo de Home; no se mezcla con Study o Trading.
 - Una receta se convierte primero en una vista previa. Solo `shopping-commit` con `confirmed: true` agrega ingredientes faltantes a `ShoppingListStore`.
 - Las bebidas se guardan como `alcoholic` o `non_alcoholic`, se filtran por separado y conservan la misma confirmación antes de pasar ingredientes a la lista.
@@ -40,7 +40,9 @@ La clave permanece en el servidor. La PWA usa la cookie segura de Roxy Home y nu
 
 ## Datos y endpoints
 
-La memoria privada vive en `ROXY_HOME_MEMORY_PATH`, agrupada por usuario. Incluye preferencias, alergias, productos de despensa, recetas y planes semanales. La lista de compras continúa en su almacenamiento existente y solo recibe los ingredientes confirmados.
+La memoria privada vive en `ROXY_HOME_MEMORY_PATH`, agrupada por hogar. Incluye preferencias, alergias, productos de despensa, recetas y planes semanales compartidos. Las identidades personales y sus hashes de contraseña viven separadamente en `ROXY_HOME_ACCOUNTS_PATH`. La lista de compras continúa en su almacenamiento existente y solo recibe los ingredientes confirmados.
+
+La sesión de miembro proporciona a OpenAI y ElevenLabs únicamente el nombre visible, rol y hogar necesarios para dirigirse correctamente a la persona. No se envían contraseñas, hashes, cookies ni la clave de Home.
 
 - `GET /v1/home-food/{user}`
 - `PUT /v1/home-food/{user}/profile`
@@ -58,6 +60,8 @@ La memoria privada vive en `ROXY_HOME_MEMORY_PATH`, agrupada por usuario. Incluy
 - `POST /v1/home-food/{user}/food-safety`
 
 Todos requieren la autenticación existente de Roxy Home y aplican la misma autorización por usuario.
+
+Los endpoints de identidad son `POST /v1/home-account/login`, `GET /v1/home-account/me`, `POST /v1/home-account/bootstrap` y `GET/POST /v1/home-account/members`. El alta inicial requiere una sesión Home anterior o el Bearer administrativo; las altas siguientes requieren el rol `OWNER`.
 
 ## Referencias oficiales
 

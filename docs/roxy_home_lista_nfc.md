@@ -15,8 +15,11 @@ Antes del primer uso remoto, Render debe tener:
 - `ROXY_HOME_API_KEY`: clave larga y aleatoria generada por Render. No debe incluirse en la URL NFC.
 - `ROXY_STATE_SYNC_USERS`: identificador exacto del usuario autorizado. Para la instalación personal predeterminada es `local_user`; si Roxy usa otro nombre de cuenta, sustitúyelo aquí y en la pantalla de conexión.
 - `ROXY_SHOPPING_LIST_PATH=/var/data/roxy_home/shopping_list.json` (incluido en `render.yaml`).
+- `ROXY_HOME_ACCOUNTS_PATH=/var/data/roxy_home/accounts.json` para hogares y miembros; también está incluido en `render.yaml`.
 
-La primera conexión cambia el Bearer por una cookie `HttpOnly`, `Secure`, `SameSite=Strict` ligada al usuario durante un año. La clave no se guarda en JavaScript ni se escribe en el sticker. Debe hacerse desde una pestaña normal de Safari: la navegación privada elimina sus datos al cerrarse y, por diseño de iOS, volvería a solicitar la clave.
+La primera conexión cambia el Bearer por una cookie `HttpOnly`, `Secure`, `SameSite=Strict`. Desde **Más → Personas de esta casa**, el dispositivo conectado crea el primer perfil personal sin mover ni borrar los datos de `local_user`. Ese perfil administrador puede crear el segundo miembro. Cada persona inicia sesión una vez y conserva una cookie personal durante un año. Las contraseñas se guardan como hashes PBKDF2-SHA256 con sal individual; nunca se guardan en JavaScript ni se escriben en el sticker.
+
+Los miembros pertenecen al mismo hogar y, por tanto, comparten lista, historial, recetas y despensa. La sesión conserva la identidad de quien habla para que el saludo, ElevenLabs y las confirmaciones de Roxy usen su nombre. Un miembro normal no puede crear otros perfiles.
 
 ## Programar el sticker con NFC Tools en iPhone
 
@@ -45,7 +48,7 @@ Para que el mismo sticker funcione en cualquier teléfono compatible, conserva t
 ## Instalar como PWA en iPhone
 
 1. Abre la URL en **Safari normal**, no en una pestaña Privada.
-2. Conecta una vez el usuario autorizado y `ROXY_HOME_API_KEY`.
+2. Inicia sesión una vez con tu usuario personal. Para la migración inicial, conecta el dispositivo administrador con `ROXY_HOME_API_KEY` y crea el primer perfil en **Más**.
 3. Toca **Compartir** y luego **Añadir a pantalla de inicio**.
 4. Confirma el nombre `Lista Roxy` y toca **Añadir**.
 5. Abre el icono instalado y verifica que la lista carga sin volver a escribir la clave.
@@ -57,14 +60,14 @@ El shell, la última lista visible y una cola de cambios se conservan para uso s
 - **Compra hecha** requiere confirmación, archiva los artículos activos y crea un registro de historial.
 - El historial no se elimina al borrar un artículo activo.
 - La versión 2 del almacén se migra de forma compatible al leer un archivo de versión 1: agrega `trips` y `user_revisions` sin destruir los artículos existentes.
-- Cada operación valida el usuario permitido y el propietario del artículo. Un usuario no puede leer ni modificar filas de otro.
+- Cada operación valida la sesión, la pertenencia al hogar y el namespace compartido. Un miembro no puede entrar al hogar de otra cuenta.
 - Roxy Voice utiliza el mismo `ShoppingListStore`; entiende altas con cantidad, consultas y eliminaciones.
 
 ## Prueba rápida después de desplegar
 
 1. Abre `https://roxy-home.onrender.com/lista` con Wi-Fi.
 2. Agrega `Leche` desde productos habituales y aumenta la cantidad.
-3. Abre la misma URL en otro dispositivo, conecta el mismo usuario y confirma la sincronización.
+3. Abre la misma URL en el otro dispositivo, inicia sesión con el segundo miembro y confirma que ambos ven la misma lista.
 4. Activa modo avión, agrega un artículo y vuelve a conectarte; debe aparecer el aviso de sincronización.
 5. Comparte la lista desde el botón superior.
 6. Pulsa **Compra hecha**, cancela una vez y luego confirma; comprueba el historial.

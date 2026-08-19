@@ -128,6 +128,8 @@ services:
         value: /var/data/roxy_home/shopping_list.json
       - key: ROXY_HOME_MEMORY_PATH
         value: /var/data/roxy_home/home_food.json
+      - key: ROXY_HOME_ACCOUNTS_PATH
+        value: /var/data/roxy_home/accounts.json
       - key: ROXY_HOME_AI_BUDGET_PATH
         value: /var/data/roxy_home/openai_budget.json
       - key: ROXY_HOME_OPENAI_API_KEY
