@@ -284,8 +284,8 @@ def assistant_session(user_id: str, request: Request, auth: str = Depends(_authe
         "status": "READY",
         "provider": "ElevenLabs",
         "agent_id": agent_id,
-        "voice_mode": "public_websocket",
-        "connection_type": "websocket",
+        "voice_mode": "public_webrtc",
+        "connection_type": "webrtc",
         "user_id": user,
         "dynamic_variables": {
             "user_name": user,

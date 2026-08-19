@@ -14,8 +14,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=9"' in page.text
-    assert '/assets/roxy_list.js?v=9' in worker.text
+    assert 'src="/assets/roxy_list.js?v=10"' in page.text
+    assert '/assets/roxy_list.js?v=10' in worker.text
     assert "unsafe-inline" not in page.headers["content-security-policy"]
     assert manifest.json()["start_url"] == "/home"
     assert manifest.json()["scope"] == "/home"
@@ -25,9 +25,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "navigator.share" in script.text
     assert "startRoxyVoice" in script.text
     assert "Conversation.startSession" in script.text
-    assert "connectionType:'websocket'" in script.text
+    assert "connectionType:'webrtc'" in script.text
     assert "permissionStream" not in script.text
     assert "Roxy te está escuchando" in script.text
+    assert "handleRoxyShoppingTranscript" in script.text
+    assert "never uses end_call" not in script.text
     assert "@elevenlabs/client@1.8.1" in script.text
     assert "La aplicación actual es Roxy Home" in script.text
     assert "sendCommandToRoxyOS" in script.text
@@ -129,14 +131,22 @@ def test_roxy_home_shared_elevenlabs_agent_can_read_and_update_shopping_list(tmp
         json={"text": "agrega pan a mi lista de compra"},
     )
     shopping = client.get("/v1/shopping/robert")
+    removed = client.post(
+        "/v1/assistant/command/robert",
+        json={"text": "quita pan de mi lista de compras"},
+    )
+    after_remove = client.get("/v1/shopping/robert")
 
     assert session.status_code == 200
     assert session.json()["provider"] == "ElevenLabs"
     assert session.json()["agent_id"] == "agent_shared_roxy"
-    assert session.json()["voice_mode"] == "public_websocket"
-    assert session.json()["connection_type"] == "websocket"
+    assert session.json()["voice_mode"] == "public_webrtc"
+    assert session.json()["connection_type"] == "webrtc"
     assert command.status_code == 200
     assert command.json()["ok"] is True
     assert command.json()["agent"] == "shopping"
     assert "pan" in command.json()["message"].lower()
     assert shopping.json()["items"][0]["name"].lower() == "pan"
+    assert removed.json()["intent"] == "shopping_remove"
+    assert "pan" in removed.json()["message"].lower()
+    assert after_remove.json()["items"] == []
