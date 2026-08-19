@@ -44,15 +44,23 @@
   let currentCooking = null;
   let cookingTimerTick = null;
   const announcedTimers = new Set();
+  let greetingName=String(localStorage.getItem('roxyHomeGreetingName')||'').trim().slice(0,32);
 
   function renderHomeMoment(){
     const moment=new Date();
     const hour=moment.getHours();
-    $('homeGreeting').textContent=hour<12?'Buenos días,':hour<19?'Buenas tardes,':'Buenas noches,';
+    const salutation=hour<12?'Buenos días':hour<19?'Buenas tardes':'Buenas noches';
+    $('homeGreeting').textContent=`${salutation}${greetingName?',':''}`;
+    const person=$('homePerson');person.textContent=greetingName;person.hidden=!greetingName;
+    $('greetingSettingsButton').textContent=greetingName?'Cambiar':'Tu nombre';
     $('homeDate').textContent=new Intl.DateTimeFormat('es',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(moment);
     const timeText=new Intl.DateTimeFormat('es',{hour:'numeric',minute:'2-digit'}).format(moment);
     const timeNode=$('homeTime');timeNode.textContent=timeText;timeNode.dateTime=moment.toISOString();
   }
+
+  function openGreetingSettings(){$('greetingName').value=greetingName;$('greetingDialog').showModal();$('greetingName').focus()}
+  function saveGreeting(event){event.preventDefault();const name=$('greetingName').value.trim().slice(0,32);if(!name){announce('Escribe un nombre o elige Sin nombre');return}greetingName=name;localStorage.setItem('roxyHomeGreetingName',name);renderHomeMoment();$('greetingDialog').close();announce(`Este dispositivo saludará a ${name}`)}
+  function clearGreeting(){greetingName='';localStorage.removeItem('roxyHomeGreetingName');renderHomeMoment();$('greetingDialog').close();announce('Saludo sin nombre en este dispositivo')}
 
   const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
   const fallbackImage = itemCategory => itemCategory === 'PERSONAL'
@@ -573,6 +581,9 @@
     $('weeklyPlanForm').addEventListener('submit',createWeeklyPlan);
     $('foodSafetyForm').addEventListener('submit',researchFoodSafety);
     $('roxyCommandForm').addEventListener('submit',submitRoxyCommand);
+    $('greetingSettingsButton').addEventListener('click',openGreetingSettings);
+    $('greetingForm').addEventListener('submit',saveGreeting);
+    $('clearGreetingButton').addEventListener('click',clearGreeting);
     $('roxyVoiceLauncher').addEventListener('click',openRoxyVoice);
     $('roxyVoiceClose').addEventListener('click',closeRoxyVoice);
     $('roxyVoiceStart').addEventListener('click',startRoxyVoice);

@@ -51,7 +51,9 @@ main { width: min(100%, 860px); min-width: 0; margin: 0 auto; padding: 18px 18px
 .welcome-copy { position: relative; width: 61%; min-height: 217px; }
 .welcome-moment { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
 .welcome-date { margin: 0; color: #95702f; font-size: 11px; font-weight: 850; letter-spacing: .11em; line-height: 1.35; text-transform: uppercase; }
-.welcome-moment time { display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border: 1px solid rgba(23,77,54,.13); border-radius: 999px; color: var(--forest); background: rgba(255,253,250,.82); font-size: 11px; font-weight: 850; white-space: nowrap; }
+.welcome-device { display: flex; align-items: center; gap: 6px; }
+.welcome-moment time, .welcome-person-button { display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border: 1px solid rgba(23,77,54,.13); border-radius: 999px; color: var(--forest); background: rgba(255,253,250,.82); font-size: 11px; font-weight: 850; white-space: nowrap; }
+.welcome-person-button { justify-content: center; border-color: rgba(181,139,61,.3); color: #76561f; }
 .welcome h1 { margin-top: 21px; font-size: clamp(42px, 8vw, 62px); line-height: .9; }
 .welcome h1 span, .welcome h1 strong { display: block; }
 .welcome h1 strong { font-weight: 500; }
@@ -226,7 +228,7 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
   .welcome-copy { width: 63%; min-height: 208px; }
   .welcome-date { max-width: 185px; font-size: 9px; letter-spacing: .08em; }
   .welcome-moment { display: grid; justify-items: start; gap: 7px; }
-  .welcome-moment time { min-height: 25px; padding: 0 9px; font-size: 10px; }
+  .welcome-moment time, .welcome-person-button { min-height: 25px; padding: 0 9px; font-size: 10px; }
   .welcome h1 { margin-top: 15px; font-size: clamp(37px, 10.7vw, 45px); }
   .welcome-stroke { margin-top: 12px; }
   .welcome-subtitle { max-width: 190px; margin-top: 13px; font-size: 12px; }

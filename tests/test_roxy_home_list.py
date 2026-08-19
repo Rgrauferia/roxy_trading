@@ -14,12 +14,17 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=18"' in page.text
-    assert '/assets/roxy_list.js?v=18' in worker.text
+    assert 'src="/assets/roxy_list.js?v=19"' in page.text
+    assert '/assets/roxy_list.js?v=19' in worker.text
     assert 'id="homeDate"' in page.text
     assert 'id="homeTime"' in page.text
     assert 'id="homeGreeting"' in page.text
-    assert '>familia<' in page.text
+    assert 'id="homePerson"' in page.text
+    assert 'id="greetingDialog"' in page.text
+    assert 'id="greetingSettingsButton"' in page.text
+    assert "localStorage.getItem('roxyHomeGreetingName')" in script.text
+    assert "localStorage.setItem('roxyHomeGreetingName'" in script.text
+    assert "localStorage.removeItem('roxyHomeGreetingName')" in script.text
     assert 'home-hero-plant.png' in page.text
     assert "Intl.DateTimeFormat('es'" in script.text
     assert 'Roberto' not in page.text

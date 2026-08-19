@@ -11,8 +11,8 @@
   <link rel="icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=18" />
-  <script src="/assets/roxy_list.js?v=18" defer></script>
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=19" />
+  <script src="/assets/roxy_list.js?v=19" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -29,9 +29,9 @@
       <div class="welcome-copy">
         <div class="welcome-moment">
           <p id="homeDate" class="welcome-date">Hoy en casa</p>
-          <time id="homeTime" datetime="">--:--</time>
+          <div class="welcome-device"><time id="homeTime" datetime="">--:--</time><button id="greetingSettingsButton" class="welcome-person-button" type="button">Tu nombre</button></div>
         </div>
-        <h1 id="pageTitle"><span id="homeGreeting">Buenos días,</span><strong>familia</strong></h1>
+        <h1 id="pageTitle"><span id="homeGreeting">Buenos días</span><strong id="homePerson" hidden></strong></h1>
         <span class="welcome-stroke" aria-hidden="true"></span>
         <p class="welcome-subtitle">Esto es lo importante hoy <span aria-hidden="true">✦</span></p>
       </div>
@@ -219,6 +219,15 @@
       <label><span>Clave de acceso</span><input id="apiToken" type="password" autocomplete="current-password" required /></label>
       <p id="pairError" class="error" role="alert"></p>
       <button class="primary full" type="submit">Conectar</button>
+    </form>
+  </dialog>
+
+  <dialog id="greetingDialog" aria-labelledby="greetingTitle">
+    <form id="greetingForm">
+      <div class="dialog-heading"><div><p class="eyebrow">Este dispositivo</p><h2 id="greetingTitle">¿Cómo te saludo?</h2></div><button type="button" data-close-dialog="greetingDialog" aria-label="Cerrar">Cerrar</button></div>
+      <p>Escribe el nombre que Roxy debe mostrar en este teléfono o computadora. Se guarda solamente aquí.</p>
+      <label><span>Nombre para el saludo</span><input id="greetingName" maxlength="32" autocomplete="nickname" placeholder="Ej. Robert o Roxy" /></label>
+      <div class="dialog-actions"><button id="clearGreetingButton" class="secondary" type="button">Sin nombre</button><button class="primary" type="submit">Guardar</button></div>
     </form>
   </dialog>
 
