@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#081523" />
+  <title>Roxy Markets</title>
+  <link rel="stylesheet" href="/assets/roxy_market.css?v=1" />
+  <script src="/assets/roxy_market.js?v=1" defer></script>
+</head>
+<body>
+  <header class="topbar"><a href="/" class="brand" aria-label="Inicio"><span>R</span><div><strong id="brandTitle">Roxy</strong><small>Inteligencia de mercado</small></div></a><a id="otherApp" class="switch" hidden>Otro mercado</a></header>
+  <main>
+    <section class="hero"><p class="eyebrow" id="productEyebrow">ROXY MARKETS</p><h1 id="pageTitle">Analiza con Roxy</h1><p>Datos reales primero. OpenAI explica el contexto verificado, pero nunca coloca órdenes.</p></section>
+    <section class="market-card" aria-labelledby="marketTitle">
+      <div class="symbol-row"><label><span>Activo</span><input id="symbolInput" autocomplete="off" maxlength="24" /></label><button id="refreshButton" type="button">Actualizar</button></div>
+      <div id="marketState" class="market-state" aria-live="polite"><span>Conectando con el mercado…</span></div>
+      <div class="market-grid">
+        <div><span>Precio</span><strong id="marketPrice">—</strong></div><div><span>Cambio</span><strong id="marketChange">—</strong></div><div><span>Fuente</span><strong id="marketSource">—</strong></div><div><span>Actualizado</span><strong id="marketTime">—</strong></div>
+      </div>
+    </section>
+    <section class="ai-card" aria-labelledby="aiTitle">
+      <p class="eyebrow">OPENAI · RESPONSES API</p><h2 id="aiTitle">Pregúntale a Roxy</h2>
+      <form id="aiForm">
+        <label><span>Pregunta</span><textarea id="questionInput" rows="4" required placeholder="Explícame el riesgo y los escenarios de este activo"></textarea></label>
+        <div class="form-actions"><label><span>Profundidad</span><select id="depthInput"><option value="routine">Rápida · Luna</option><option value="deep">Profunda · Terra</option></select></label><button id="askButton" type="submit">Analizar</button></div>
+      </form>
+      <article id="answerCard" class="answer" hidden><div id="answerMeta"></div><p id="answerText"></p><ul id="answerSources"></ul></article>
+    </section>
+    <section class="safety"><strong>Control determinista</strong><p>Roxy puede explicar señales y preparar escenarios. La ejecución permanece desactivada y cualquier acción sensible requiere confirmación.</p></section>
+  </main>
+  <dialog id="pairDialog"><form id="pairForm"><p class="eyebrow">ACCESO PRIVADO</p><h2>Conecta este dispositivo</h2><p>La clave se usa una sola vez y se cambia por una sesión segura.</p><input type="text" name="username" autocomplete="username" value="roxy-market" hidden /><label><span>Clave de acceso</span><input id="accessKey" type="password" autocomplete="current-password" required /></label><p id="pairError" role="alert"></p><button type="submit">Conectar</button></form></dialog>
+  <div id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
