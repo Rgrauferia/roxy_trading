@@ -34,6 +34,8 @@ La clave permanece en el servidor. La PWA usa la cookie segura de Roxy Home y nu
 - Solo el perfil, alergias y despensa del usuario autenticado se envían al modelo.
 - El consumo se registra en un libro diario exclusivo de Home; no se mezcla con Study o Trading.
 - Una receta se convierte primero en una vista previa. Solo `shopping-commit` con `confirmed: true` agrega ingredientes faltantes a `ShoppingListStore`.
+- Las bebidas se guardan como `alcoholic` o `non_alcoholic`, se filtran por separado y conservan la misma confirmación antes de pasar ingredientes a la lista.
+- Favoritos, notas, fotos y sesiones de cocina con temporizadores permanecen en la memoria privada del usuario.
 - Comprar, pagar o controlar electrodomésticos/dispositivos está denegado.
 
 ## Datos y endpoints
@@ -44,6 +46,10 @@ La memoria privada vive en `ROXY_HOME_MEMORY_PATH`, agrupada por usuario. Incluy
 - `PUT /v1/home-food/{user}/profile`
 - `PUT /v1/home-food/{user}/pantry`
 - `POST /v1/home-food/{user}/recipes`
+- `PATCH /v1/home-food/{user}/recipes/{id}`
+- `POST /v1/home-food/{user}/recipes/{id}/cooking-sessions`
+- `POST /v1/home-food/{user}/cooking-sessions/{session}/timers`
+- `DELETE /v1/home-food/{user}/cooking-sessions/{session}/timers/{timer}`
 - `POST /v1/home-food/{user}/substitutions`
 - `POST /v1/home-food/{user}/recipes/{id}/scale`
 - `POST /v1/home-food/{user}/recipes/{id}/shopping-preview`

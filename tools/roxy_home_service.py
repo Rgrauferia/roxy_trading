@@ -81,6 +81,7 @@ class PantryRequest(BaseModel):
 class HomePromptRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=2000)
     mode: str = Field(default="routine", pattern="^(routine|deep)$")
+    recipe_type: str = Field(default="general", pattern="^(general|alcoholic|non_alcoholic)$")
 
 
 class RecipeScaleRequest(BaseModel):
@@ -94,6 +95,17 @@ class RecipeShoppingRequest(BaseModel):
 
 class CookingSessionActionRequest(BaseModel):
     action: str = Field(pattern="^(next|previous|restart|complete)$")
+
+
+class CookingTimerRequest(BaseModel):
+    duration_seconds: int = Field(gt=0, le=86_400)
+    label: str = Field(default="Temporizador", max_length=120)
+
+
+class RecipePersonalizeRequest(BaseModel):
+    favorite: bool = False
+    user_notes: str = Field(default="", max_length=2000)
+    photo_data_url: str | None = Field(default=None, max_length=2_100_000)
 
 
 class FoodSafetyRequest(BaseModel):
@@ -139,6 +151,10 @@ def _assistant_shopping_intent(text: str) -> str:
         return "cooking_previous"
     if re.search(r"\b(repite|repetir|cual es el paso|cuál es el paso)\b", normalized):
         return "cooking_current"
+    if re.search(r"\b(temporizador|timer)\b", normalized) and re.search(r"\b(pon|inicia|iniciar|programa|programar)\b", normalized):
+        return "cooking_timer_set"
+    if re.search(r"\b(cuanto|cuánto)\b.*\b(falta|queda)\b|\btiempo restante\b", normalized):
+        return "cooking_timer_query"
     if re.search(r"\b(termine|terminé|finaliza|finalizar)\b.*\b(receta|cocina|cocinar)\b", normalized):
         return "cooking_complete"
     if re.search(r"\b(receta|cocinar|cocino|preparar|preparo)\b", normalized):
@@ -169,14 +185,38 @@ def _assistant_shopping_requests(text: str) -> list[dict[str, Any]]:
         if not value:
             continue
         quantity = 1.0
-        quantity_match = re.match(r"(?i)^(\d+(?:[.,]\d+)?)\s+(.+)$", value)
+        word_numbers = {"un":1,"una":1,"uno":1,"dos":2,"tres":3,"cuatro":4,"cinco":5,"seis":6,"media":.5,"medio":.5}
+        quantity_match = re.match(r"(?i)^(\d+(?:[.,]\d+)?|un|una|uno|dos|tres|cuatro|cinco|seis|media|medio)\s+(.+)$", value)
         if quantity_match:
-            quantity = float(quantity_match.group(1).replace(",", "."))
+            raw_quantity = quantity_match.group(1).lower()
+            quantity = word_numbers.get(raw_quantity, float(raw_quantity.replace(",", ".")) if raw_quantity[0].isdigit() else 1)
             value = quantity_match.group(2).strip()
+        unit = "unidad"
+        unit_match = re.match(r"(?i)^(paquetes?|botellas?|bolsas?|litros?|kilos?|kilogramos?|gramos?|docenas?|latas?|tazas?|unidades?)\s+(?:de\s+)?(.+)$", value)
+        if unit_match:
+            raw_unit = unit_match.group(1).lower()
+            unit_aliases = {"paquetes":"paquete","botellas":"botella","bolsas":"bolsa","litros":"litro","kilos":"kilo","kilogramos":"kilogramo","gramos":"gramo","docenas":"docena","latas":"lata","tazas":"taza","unidades":"unidad"}
+            unit = unit_aliases.get(raw_unit, raw_unit)
+            value = unit_match.group(2).strip()
         value = re.sub(r"(?i)^(?:de|el|la|los|las|un|una|unos|unas)\s+", "", value).strip()
         if value:
-            requests.append({"name": value[:120], "quantity": quantity, "unit": "unidad"})
+            requests.append({"name": value[:120], "quantity": quantity, "unit": unit})
     return requests
+
+
+def _timer_seconds(text: str) -> int | None:
+    normalized = text.lower().replace(",", ".")
+    match = re.search(r"(\d+(?:\.\d+)?)\s*(segundos?|minutos?|horas?)", normalized)
+    if not match:
+        words = {"un":1,"una":1,"dos":2,"tres":3,"cuatro":4,"cinco":5,"diez":10,"quince":15,"veinte":20,"treinta":30}
+        match = re.search(r"\b(" + "|".join(words) + r")\b\s*(segundos?|minutos?|horas?)", normalized)
+        if not match:
+            return None
+        amount = float(words[match.group(1)])
+    else:
+        amount = float(match.group(1))
+    unit = match.group(2)
+    return int(amount * (3600 if unit.startswith("hora") else 60 if unit.startswith("minuto") else 1))
 
 
 def _voice_item_identity(value: Any) -> str:
@@ -495,6 +535,22 @@ def assistant_command(
         else:
             if active is None:
                 raise HTTPException(status_code=409, detail="No hay una receta activa. Dime: guíame paso a paso.")
+            if intent == "cooking_timer_set":
+                seconds = _timer_seconds(command_text)
+                if seconds is None:
+                    raise HTTPException(status_code=422, detail="Dime la duración, por ejemplo: pon un temporizador de 20 minutos.")
+                timer = home_store.add_cooking_timer(user, active["id"], duration_seconds=seconds, label="Temporizador de cocina")
+                detail = home_store.cooking_session_detail(user, active["id"])
+                message = f"Temporizador iniciado por {seconds // 60} minutos." if seconds >= 60 else f"Temporizador iniciado por {seconds} segundos."
+                extra["cooking"] = detail
+                extra["timer"] = timer
+                return {"ok":True,"intent":intent,"agent":agent,"message":message,"data":{"items":[],**extra},"snapshot":store.snapshot(user,limit=100)}
+            if intent == "cooking_timer_query":
+                detail = home_store.cooking_session_detail(user, active["id"])
+                timers = [row for row in detail["session"].get("timers", []) if row.get("status") == "ACTIVE"]
+                message = "No hay temporizadores activos." if not timers else "Quedan " + ", ".join(f"{row.get('remaining_seconds',0)//60} minutos y {row.get('remaining_seconds',0)%60} segundos" for row in timers) + "."
+                extra["cooking"] = detail
+                return {"ok":True,"intent":intent,"agent":agent,"message":message,"data":{"items":[],**extra},"snapshot":store.snapshot(user,limit=100)}
             action = {
                 "cooking_next": "next",
                 "cooking_previous": "previous",
@@ -699,11 +755,32 @@ def generate_home_recipe(
     recipe_data = _ai_call(
         lambda: _home_ai().generate_recipe(payload.prompt, snapshot, deep=payload.mode == "deep")
     )
+    if payload.recipe_type != "general":
+        recipe_data = {**recipe_data, "kind": "drink", "drink_type": payload.recipe_type}
     try:
         recipe = store.save_recipe(user, recipe_data, mode=payload.mode)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail="Roxy devolvió una receta incompleta.") from exc
     return {"status": "CREATED", "recipe": recipe}
+
+
+@app.patch("/v1/home-food/{user_id}/recipes/{recipe_id}")
+def personalize_home_recipe(
+    user_id: str,
+    recipe_id: str,
+    payload: RecipePersonalizeRequest,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        recipe = _home_food_store().personalize_recipe(user, recipe_id, **payload.model_dump())
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Receta no encontrada") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "UPDATED", "recipe": recipe}
 
 
 @app.post("/v1/home-food/{user_id}/recipes/{recipe_id}/cooking-sessions", status_code=201)
@@ -756,6 +833,41 @@ def update_home_cooking_session(
         raise HTTPException(status_code=404, detail="Sesión de cocina no encontrada") from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/v1/home-food/{user_id}/cooking-sessions/{session_id}/timers", status_code=201)
+def create_home_cooking_timer(
+    user_id: str,
+    session_id: str,
+    payload: CookingTimerRequest,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    store = _home_food_store()
+    try:
+        timer = store.add_cooking_timer(user, session_id, **payload.model_dump())
+        return {"status":"STARTED","timer":timer,**store.cooking_session_detail(user,session_id)}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Sesión de cocina no encontrada") from exc
+
+
+@app.delete("/v1/home-food/{user_id}/cooking-sessions/{session_id}/timers/{timer_id}")
+def cancel_home_cooking_timer(
+    user_id: str,
+    session_id: str,
+    timer_id: str,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        timer = _home_food_store().cancel_cooking_timer(user, session_id, timer_id)
+        return {"status":"CANCELLED","timer":timer}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Temporizador no encontrado") from exc
 
 
 @app.post("/v1/home-food/{user_id}/substitutions")

@@ -14,8 +14,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=14"' in page.text
-    assert '/assets/roxy_list.js?v=14' in worker.text
+    assert 'src="/assets/roxy_list.js?v=16"' in page.text
+    assert '/assets/roxy_list.js?v=16' in worker.text
     assert "unsafe-inline" not in page.headers["content-security-policy"]
     assert manifest.json()["start_url"] == "/home"
     assert manifest.json()["scope"] == "/home"
@@ -56,6 +56,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "speechSynthesis" in script.text
     assert "productImages" in script.text
     assert "/substitutions" in script.text
+    assert 'id="pantryRecipeButton"' in page.text
+    assert 'id="beverageForm"' in page.text
+    assert 'data-recipe-filter="alcoholic"' in page.text
+    assert 'data-recipe-filter="non_alcoholic"' in page.text
+    assert 'id="recipePersonalForm"' in page.text
+    assert 'id="startTimerButton"' in page.text
+    assert "createRecipeFromPantry" in script.text
+    assert "saveRecipePersonalization" in script.text
+    assert "/timers" in script.text
     dockerfile = (roxy_home_service.ASSETS_DIR.parent / "Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert "COPY assets/roxy_home/products ./assets/roxy_home/products" in dockerfile
     assert "COPY assets/roxy_avatar_card.jpg ./assets/roxy_avatar_card.jpg" in dockerfile
@@ -200,11 +209,30 @@ def test_recipe_library_and_guided_cooking_api_are_private_and_persistent(tmp_pa
         json={"prompt": "Hazme un pan", "mode": "routine"},
     )
     recipe_id = created.json()["recipe"]["id"]
+    beverage = client.post(
+        "/v1/home-food/robert/recipes",
+        headers=headers,
+        json={"prompt": "Hazme un cóctel", "mode": "routine", "recipe_type": "alcoholic"},
+    )
+    personalized = client.patch(
+        f"/v1/home-food/robert/recipes/{recipe_id}",
+        headers=headers,
+        json={
+            "favorite": True,
+            "user_notes": "Usar menos sal",
+            "photo_data_url": "data:image/png;base64,aGVsbG8=",
+        },
+    )
     started = client.post(
         f"/v1/home-food/robert/recipes/{recipe_id}/cooking-sessions",
         headers=headers,
     )
     session_id = started.json()["session"]["id"]
+    timer = client.post(
+        f"/v1/home-food/robert/cooking-sessions/{session_id}/timers",
+        headers=headers,
+        json={"duration_seconds": 300, "label": "Horno"},
+    )
     advanced = client.post(
         f"/v1/home-food/robert/cooking-sessions/{session_id}",
         headers=headers,
@@ -218,11 +246,42 @@ def test_recipe_library_and_guided_cooking_api_are_private_and_persistent(tmp_pa
 
     assert created.status_code == 201
     assert created.json()["recipe"]["kind"] == "bread"
+    assert beverage.json()["recipe"]["kind"] == "drink"
+    assert beverage.json()["recipe"]["drink_type"] == "alcoholic"
+    assert personalized.json()["recipe"]["favorite"] is True
+    assert personalized.json()["recipe"]["user_notes"] == "Usar menos sal"
+    assert timer.status_code == 201
+    assert timer.json()["session"]["timers"][0]["label"] == "Horno"
     assert started.json()["current_step"] == "Mezcla la masa"
     assert advanced.json()["current_step"] == "Hornea el pan"
     assert snapshot.json()["recipes"][0]["title"] == "Pan casero"
     assert snapshot.json()["cooking_sessions"][0]["step_index"] == 1
     assert private.status_code == 404
+
+
+def test_roxy_voice_preserves_natural_quantities_and_units(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "home-test-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert")
+    monkeypatch.setenv("ROXY_SHOPPING_LIST_PATH", str(tmp_path / "shopping.json"))
+    roxy_home_service._RATE_STATE.clear()
+    client = TestClient(roxy_home_service.app)
+    headers = {"Authorization": "Bearer home-test-key"}
+
+    response = client.post(
+        "/v1/assistant/command/robert",
+        headers=headers,
+        json={"text": "Agrega dos paquetes de agua, medio kilo de arroz y una docena de huevos"},
+    )
+
+    assert response.status_code == 200
+    rows = response.json()["snapshot"]["items"]
+    assert [(row["name"].lower(), row["quantity"], row["unit"]) for row in rows] == [
+        ("agua", 2, "paquete"),
+        ("arroz", 0.5, "kilo"),
+        ("huevos", 1, "docena"),
+    ]
 
 
 def test_roxy_voice_saves_recipe_adds_ingredients_and_guides_steps(tmp_path, monkeypatch):
@@ -269,9 +328,23 @@ def test_roxy_voice_saves_recipe_adds_ingredients_and_guides_steps(tmp_path, mon
         headers=headers,
         json={"text": "Siguiente paso"},
     )
+    timer = client.post(
+        "/v1/assistant/command/robert",
+        headers=headers,
+        json={"text": "Pon un temporizador de cinco minutos"},
+    )
+    time_left = client.post(
+        "/v1/assistant/command/robert",
+        headers=headers,
+        json={"text": "Cuánto tiempo queda"},
+    )
 
     assert recipe.json()["data"]["recipe"]["kind"] == "drink"
     assert ingredients.json()["intent"] == "recipe_to_shopping"
     assert ingredients.json()["snapshot"]["pending_count"] == 1
     assert guide.json()["data"]["cooking"]["current_step"] == "Exprime los limones"
     assert next_step.json()["data"]["cooking"]["current_step"] == "Mezcla con agua"
+    assert timer.json()["intent"] == "cooking_timer_set"
+    assert timer.json()["data"]["timer"]["duration_seconds"] == 300
+    assert time_left.json()["intent"] == "cooking_timer_query"
+    assert "minutos" in time_left.json()["message"]

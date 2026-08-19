@@ -6,7 +6,7 @@ import re
 import tempfile
 import unicodedata
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 from uuid import uuid4
@@ -19,7 +19,7 @@ except ImportError:  # pragma: no cover - Windows fallback
 from roxy_os.shopping_list import ShoppingListStore, normalize_shopping_user
 
 
-HOME_FOOD_STORE_VERSION = 2
+HOME_FOOD_STORE_VERSION = 3
 
 
 def _now_iso() -> str:
@@ -91,7 +91,29 @@ class HomeFoodStore:
         defaults = cls._new_user()
         for key, value in defaults.items():
             record.setdefault(key, deepcopy(value))
+        for recipe in record.get("recipes", []):
+            if isinstance(recipe, dict) and recipe.get("kind") == "drink" and recipe.get("drink_type") not in {
+                "alcoholic",
+                "non_alcoholic",
+            }:
+                recipe["drink_type"] = cls._infer_drink_type(recipe)
         return record
+
+    @staticmethod
+    def _infer_drink_type(recipe: dict[str, Any]) -> str:
+        searchable = _identity(
+            f"{recipe.get('title') or ''} {recipe.get('description') or ''} "
+            + " ".join(
+                str(row.get("name") or "")
+                for row in (recipe.get("ingredients") or [])
+                if isinstance(row, dict)
+            )
+        )
+        alcoholic = re.search(
+            r"\b(alcohol|ron|vodka|tequila|whisky|whiskey|ginebra|gin|vino|cerveza|licor|brandy|champan|champagne)\b",
+            searchable,
+        )
+        return "alcoholic" if alcoholic else "non_alcoholic"
 
     def _read_unlocked(self) -> dict[str, Any]:
         try:
@@ -228,10 +250,18 @@ class HomeFoodStore:
                 kind = "dessert"
             else:
                 kind = "meal"
+        drink_type = ""
+        if kind == "drink":
+            drink_type = _identity(raw.get("drink_type"))
+            if drink_type not in {"alcoholic", "non_alcoholic"}:
+                drink_type = HomeFoodStore._infer_drink_type(
+                    {"title": title, "description": raw.get("description"), "ingredients": ingredients}
+                )
         return {
             "title": title,
             "description": _text(raw.get("description"), 1000),
             "kind": kind,
+            "drink_type": drink_type,
             "servings": servings,
             "ingredients": ingredients,
             "steps": steps,
@@ -250,11 +280,48 @@ class HomeFoodStore:
                 "mode": "deep" if mode == "deep" else "routine",
                 "created_at": _now_iso(),
                 "shopping_converted_at": None,
+                "favorite": False,
+                "user_notes": "",
+                "photo_data_url": "",
             }
             record.setdefault("recipes", []).append(row)
             record["recipes"] = record["recipes"][-100:]
             record["revision"] = int(record.get("revision") or 0) + 1
             return deepcopy(row)
+
+        return self._mutate(apply)
+
+    def personalize_recipe(
+        self,
+        user_id: Any,
+        recipe_id: str,
+        *,
+        favorite: Any,
+        user_notes: Any,
+        photo_data_url: Any = None,
+    ) -> dict[str, Any]:
+        notes = _text(user_notes, 2000)
+        photo = None if photo_data_url is None else str(photo_data_url or "").strip()
+        if photo and not re.match(r"^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$", photo):
+            raise ValueError("La foto debe ser JPEG, PNG o WebP.")
+        if photo and len(photo) > 2_100_000:
+            raise ValueError("La foto es demasiado grande; usa una imagen menor de 1.5 MB.")
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            record = self._user(payload, user_id)
+            recipe = next(
+                (row for row in record.get("recipes", []) if str(row.get("id")) == str(recipe_id)),
+                None,
+            )
+            if recipe is None:
+                raise KeyError(recipe_id)
+            recipe["favorite"] = bool(favorite)
+            recipe["user_notes"] = notes
+            if photo is not None:
+                recipe["photo_data_url"] = photo
+            recipe["updated_at"] = _now_iso()
+            record["revision"] = int(record.get("revision") or 0) + 1
+            return deepcopy(recipe)
 
         return self._mutate(apply)
 
@@ -284,11 +351,58 @@ class HomeFoodStore:
                 "created_at": timestamp,
                 "updated_at": timestamp,
                 "completed_at": None,
+                "timers": [],
             }
             record.setdefault("cooking_sessions", []).append(session)
             record["cooking_sessions"] = record["cooking_sessions"][-100:]
             record["revision"] = int(record.get("revision") or 0) + 1
             return deepcopy(session)
+
+        return self._mutate(apply)
+
+    def add_cooking_timer(
+        self, user_id: Any, session_id: str, *, duration_seconds: Any, label: Any = "Temporizador"
+    ) -> dict[str, Any]:
+        seconds = int(_positive_number(duration_seconds, maximum=86_400))
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            record = self._user(payload, user_id)
+            session = next(
+                (row for row in record.get("cooking_sessions", []) if str(row.get("id")) == str(session_id)),
+                None,
+            )
+            if session is None:
+                raise KeyError(session_id)
+            started = datetime.now(timezone.utc)
+            timer = {
+                "id": uuid4().hex,
+                "label": _text(label, 120) or "Temporizador",
+                "duration_seconds": seconds,
+                "started_at": started.isoformat(),
+                "ends_at": (started + timedelta(seconds=seconds)).isoformat(),
+                "status": "ACTIVE",
+            }
+            session.setdefault("timers", []).append(timer)
+            session["updated_at"] = _now_iso()
+            record["revision"] = int(record.get("revision") or 0) + 1
+            return deepcopy(timer)
+
+        return self._mutate(apply)
+
+    def cancel_cooking_timer(self, user_id: Any, session_id: str, timer_id: str) -> dict[str, Any]:
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            record = self._user(payload, user_id)
+            session = next((row for row in record.get("cooking_sessions", []) if str(row.get("id")) == str(session_id)), None)
+            if session is None:
+                raise KeyError(session_id)
+            timer = next((row for row in session.get("timers", []) if str(row.get("id")) == str(timer_id)), None)
+            if timer is None:
+                raise KeyError(timer_id)
+            timer["status"] = "CANCELLED"
+            timer["cancelled_at"] = _now_iso()
+            session["updated_at"] = _now_iso()
+            record["revision"] = int(record.get("revision") or 0) + 1
+            return deepcopy(timer)
 
         return self._mutate(apply)
 
@@ -353,8 +467,21 @@ class HomeFoodStore:
         if recipe is None:
             raise KeyError(session.get("recipe_id"))
         index = max(0, min(int(session.get("step_index") or 0), len(recipe.get("steps") or []) - 1))
+        enriched_session = deepcopy(session)
+        now = datetime.now(timezone.utc)
+        for timer in enriched_session.get("timers", []):
+            if timer.get("status") != "ACTIVE":
+                timer["remaining_seconds"] = 0
+                continue
+            try:
+                remaining = max(0, int((datetime.fromisoformat(str(timer.get("ends_at"))) - now).total_seconds()))
+            except (TypeError, ValueError):
+                remaining = 0
+            timer["remaining_seconds"] = remaining
+            if remaining == 0:
+                timer["status"] = "FINISHED"
         return {
-            "session": session,
+            "session": enriched_session,
             "recipe": recipe,
             "current_step": (recipe.get("steps") or [""])[index],
             "step_number": index + 1,

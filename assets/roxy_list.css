@@ -170,6 +170,16 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
 .recipe-columns h3 { font-size: 19px; }
 .recipe-columns li { margin: 8px 0; line-height: 1.45; }
 .recipe-detail-actions { position: sticky; bottom: -23px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 14px 0 23px; background: var(--paper); }
+.recipe-personal-form { display: grid; gap: 12px; padding: 16px; border-top: 1px solid var(--line); background: var(--sage-soft); }
+.beverage-studio { display: grid; gap: 12px; margin-top: 18px; background: linear-gradient(135deg, #f8f0df, #eef4ed); }
+.beverage-studio h3 { margin-top: 3px; font-size: clamp(24px, 5vw, 31px); }
+.beverage-studio small { color: var(--muted); line-height: 1.45; }
+.favorite-check { display: flex; align-items: center; gap: 9px; color: var(--forest); font-size: 14px; }
+.favorite-check input { width: 22px; min-height: 22px; }
+.timer-box { display: grid; gap: 9px; }
+.timer-box > div:first-child { display: grid; grid-template-columns: 90px 1fr; gap: 8px; }
+.timer-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 13px; background: #f5eee2; color: var(--forest); font-weight: 800; }
+.timer-row button { min-height: 34px; border: 1px solid var(--line); border-radius: 10px; background: white; color: var(--danger); }
 .cooking-dialog { width: min(calc(100% - 20px), 620px); }
 .cooking-visual { overflow: hidden; border-radius: 23px; background: var(--sage); }
 .cooking-visual img { display: block; width: 100%; height: 210px; object-fit: cover; }

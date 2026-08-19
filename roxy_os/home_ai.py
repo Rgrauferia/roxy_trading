@@ -147,7 +147,9 @@ alergias y despensa. No tienes acceso a memoria, credenciales ni datos de Study 
 como restricciones estrictas y advierte sobre contaminación cruzada cuando corresponda. Nunca compres, hagas
 pedidos ni controles electrodomésticos o dispositivos sensibles. Convertir una receta en lista requiere una
 confirmación posterior del usuario y tú solo produces la receta. Responde exclusivamente con JSON válido, sin
-Markdown. No inventes fuentes. Para seguridad alimentaria o retiros usa las fuentes web vigentes proporcionadas,
+Markdown. En bebidas devuelve drink_type (alcoholic o non_alcoholic); etiqueta claramente el alcohol, no lo
+presentes como apto para menores y ofrece una alternativa sin alcohol cuando sea útil. No inventes fuentes.
+Para seguridad alimentaria o retiros usa las fuentes web vigentes proporcionadas,
 prioriza autoridades como FDA, USDA y CDC, indica fecha y expresa incertidumbre cuando falte información."""
 
 
@@ -263,7 +265,8 @@ class RoxyHomeAI:
     def generate_recipe(self, prompt: str, snapshot: dict[str, Any], *, deep: bool = False) -> dict[str, Any]:
         return self._respond(
             "Genera una receta realizable, incluyendo comidas, panes, postres o bebidas según la solicitud. "
-            "Devuelve title, description, kind (meal, bread, dessert, drink u other), servings, ingredients "
+            "Devuelve title, description, kind (meal, bread, dessert, drink u other), drink_type cuando sea "
+            "una bebida (alcoholic o non_alcoholic), servings, ingredients "
             "(name, quantity, unit, notes), steps completos y allergen_notes. Cada paso debe poder leerse en "
             "voz alta como una instrucción clara. Solicitud: " + str(prompt),
             self._context(snapshot),

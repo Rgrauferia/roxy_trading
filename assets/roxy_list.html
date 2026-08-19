@@ -11,8 +11,8 @@
   <link rel="icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=14" />
-  <script src="/assets/roxy_list.js?v=14" defer></script>
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=16" />
+  <script src="/assets/roxy_list.js?v=16" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -67,6 +67,19 @@
           <button id="recipeSubmit" class="primary" type="submit">Crear con Roxy</button>
         </div>
       </form>
+      <button id="pantryRecipeButton" class="secondary full" type="button">Crear una receta con lo que tengo</button>
+
+      <section class="beverage-studio card" aria-labelledby="beverageTitle">
+        <div><p class="eyebrow">Frías, calientes o para compartir</p><h3 id="beverageTitle">Preparar bebidas</h3></div>
+        <form id="beverageForm" class="kitchen-form">
+          <label><span>¿Qué bebida quieres?</span><input id="beveragePrompt" required placeholder="Ej. Limonada de fresa o mojito clásico" /></label>
+          <div class="inline-actions">
+            <label><span>Tipo</span><select id="beverageType"><option value="non_alcoholic">Sin alcohol</option><option value="alcoholic">Con alcohol</option></select></label>
+            <button id="beverageSubmit" class="primary" type="submit">Crear bebida</button>
+          </div>
+          <small>Las bebidas con alcohol quedan identificadas claramente y separadas de las opciones sin alcohol.</small>
+        </form>
+      </section>
 
       <div class="recipe-filters chips" role="group" aria-label="Tipos de receta">
         <button class="chip active" type="button" data-recipe-filter="all">Todas</button>
@@ -74,6 +87,9 @@
         <button class="chip" type="button" data-recipe-filter="bread">Panes</button>
         <button class="chip" type="button" data-recipe-filter="dessert">Postres</button>
         <button class="chip" type="button" data-recipe-filter="drink">Bebidas</button>
+        <button class="chip" type="button" data-recipe-filter="non_alcoholic">Sin alcohol</button>
+        <button class="chip" type="button" data-recipe-filter="alcoholic">Con alcohol</button>
+        <button class="chip" type="button" data-recipe-filter="favorite">Favoritas</button>
       </div>
 
       <section class="content-section" aria-labelledby="libraryTitle">
@@ -172,6 +188,12 @@
     <article>
       <div class="dialog-heading"><div><p class="eyebrow">Receta guardada</p><h2 id="recipeDialogTitle">Receta</h2></div><button type="button" data-close-dialog="recipeDialog" aria-label="Cerrar">Cerrar</button></div>
       <div id="recipeDialogContent"></div>
+      <form id="recipePersonalForm" class="recipe-personal-form">
+        <label class="favorite-check"><input id="recipeFavorite" type="checkbox" /> Marcar como favorita</label>
+        <label><span>Mis notas</span><textarea id="recipeNotes" rows="3" placeholder="Ej. Menos azúcar y cinco minutos más de horno"></textarea></label>
+        <label><span>Foto de mi receta</span><input id="recipePhoto" type="file" accept="image/jpeg,image/png,image/webp" /></label>
+        <button class="secondary full" type="submit">Guardar mis cambios</button>
+      </form>
     </article>
   </dialog>
 
@@ -180,6 +202,10 @@
       <div class="dialog-heading"><div><p id="cookingProgress" class="eyebrow">Paso 1</p><h2 id="cookingTitle">Cocinando con Roxy</h2></div><button type="button" data-close-dialog="cookingDialog" aria-label="Cerrar">Pausar</button></div>
       <div class="cooking-visual"><img id="cookingImage" src="/assets/roxy_avatar_card.jpg" alt="" /></div>
       <p id="cookingStep" class="cooking-step" aria-live="polite"></p>
+      <div class="timer-box">
+        <div><input id="timerMinutes" type="number" min="0.1" max="1440" step="0.1" value="10" aria-label="Minutos del temporizador" /><button id="startTimerButton" class="secondary" type="button">Iniciar temporizador</button></div>
+        <div id="cookingTimers" aria-live="polite"></div>
+      </div>
       <div class="cooking-actions">
         <button id="speakStepButton" class="secondary" type="button">Escuchar paso</button>
         <div><button id="previousStepButton" class="secondary" type="button">Anterior</button><button id="nextStepButton" class="primary" type="button">Siguiente</button></div>

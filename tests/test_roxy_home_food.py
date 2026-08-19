@@ -91,3 +91,69 @@ def test_saved_recipe_can_resume_a_persistent_guided_cooking_session(tmp_path):
     assert second["session"]["step_index"] == 1
     assert completed["session"]["status"] == "COMPLETED"
     assert store.snapshot("alice")["cooking_sessions"] == []
+
+
+def test_recipe_personalization_and_cooking_timers_stay_private(tmp_path):
+    store = HomeFoodStore(tmp_path / "home.json")
+    recipe = store.save_recipe("robert", sample_recipe())
+    personalized = store.personalize_recipe(
+        "robert",
+        recipe["id"],
+        favorite=True,
+        user_notes="Duplicar el tomate",
+        photo_data_url="data:image/webp;base64,aGVsbG8=",
+    )
+    session = store.start_cooking_session("robert", recipe["id"])
+    timer = store.add_cooking_timer(
+        "robert", session["id"], duration_seconds=120, label="Arroz"
+    )
+    detail = store.cooking_session_detail("robert", session["id"])
+    cancelled = store.cancel_cooking_timer("robert", session["id"], timer["id"])
+
+    assert personalized["favorite"] is True
+    assert personalized["user_notes"] == "Duplicar el tomate"
+    assert personalized["photo_data_url"].startswith("data:image/webp;base64,")
+    assert 0 < detail["session"]["timers"][0]["remaining_seconds"] <= 120
+    assert cancelled["status"] == "CANCELLED"
+    assert store.snapshot("alice")["recipes"] == []
+    assert store.snapshot("alice")["cooking_sessions"] == []
+
+
+def test_drinks_are_classified_with_and_without_alcohol(tmp_path):
+    store = HomeFoodStore(tmp_path / "home.json")
+    alcoholic = store.save_recipe(
+        "robert",
+        {
+            **sample_recipe(),
+            "title": "Cóctel de piña",
+            "kind": "drink",
+            "drink_type": "alcoholic",
+        },
+    )
+    normal = store.save_recipe(
+        "robert",
+        {
+            **sample_recipe(),
+            "title": "Limonada",
+            "kind": "drink",
+            "drink_type": "non_alcoholic",
+        },
+    )
+
+    assert alcoholic["drink_type"] == "alcoholic"
+    assert normal["drink_type"] == "non_alcoholic"
+
+    # Recipes saved before drink_type existed are classified when read.
+    legacy = store.save_recipe(
+        "robert",
+        {
+            **sample_recipe(),
+            "title": "Café frío",
+            "kind": "drink",
+        },
+    )
+    payload = store._read_unlocked()
+    payload["users"]["robert"]["recipes"][-1].pop("drink_type")
+    store._write_unlocked(payload)
+    migrated = store.get_recipe("robert", legacy["id"])
+    assert migrated["drink_type"] == "non_alcoholic"
