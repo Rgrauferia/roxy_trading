@@ -14,8 +14,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=16"' in page.text
-    assert '/assets/roxy_list.js?v=16' in worker.text
+    assert 'src="/assets/roxy_list.js?v=17"' in page.text
+    assert '/assets/roxy_list.js?v=17' in worker.text
     assert "unsafe-inline" not in page.headers["content-security-policy"]
     assert manifest.json()["start_url"] == "/home"
     assert manifest.json()["scope"] == "/home"
@@ -35,6 +35,10 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "La aplicación actual es Roxy Home" in script.text
     assert "sendCommandToRoxyOS" in script.text
     assert 'id="roxyVoiceLauncher"' in page.text
+    assert 'id="roxyPanel"' not in page.text
+    assert 'data-tab-link="roxy"' not in page.text
+    assert "habitual_products" in script.text
+    assert "paper-towels.png" in script.text
     assert "microphone=(self)" in page.headers["permissions-policy"]
     assert "https://*.elevenlabs.io" in page.headers["content-security-policy"]
     assert "worker-src 'self' blob:" in page.headers["content-security-policy"]
@@ -99,6 +103,26 @@ def test_shopping_api_crud_complete_history_and_user_isolation(tmp_path, monkeyp
     assert snapshot.json()["items"] == []
     assert snapshot.json()["history"][0]["items"][0]["name"] == "Leche"
     assert alice.json()["items"][0]["name"] == "Privado"
+
+
+def test_shopping_memory_learns_habitual_products_privately(tmp_path):
+    store = ShoppingListStore(tmp_path / "shopping.json")
+    store.add("robert", "Leche", quantity=2, unit="litro", category="FOOD")
+    store.add("robert", "Pan", unit="paquete", category="FOOD")
+    store.complete_purchase("robert")
+    store.add("robert", "Leche", unit="litro", category="FOOD")
+    store.complete_purchase("robert")
+    store.add("alice", "Café privado", unit="bolsa", category="FOOD")
+    store.complete_purchase("alice")
+
+    robert = store.snapshot("robert")["habitual_products"]
+    alice = store.snapshot("alice")["habitual_products"]
+
+    assert robert[0]["name"] == "Leche"
+    assert robert[0]["purchase_count"] == 2
+    assert robert[0]["unit"] == "litro"
+    assert {row["name"] for row in robert} == {"Leche", "Pan"}
+    assert [row["name"] for row in alice] == ["Café privado"]
 
 
 def test_mobile_session_cookie_is_httponly_secure_and_bound_to_user(monkeypatch):

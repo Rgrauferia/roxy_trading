@@ -19,10 +19,18 @@
     tomate:'tomato.png', tomato:'tomato.png', aguacate:'avocado.png', avocado:'avocado.png',
     cafe:'coffee.png', coffee:'coffee.png', aceite:'oil.png', oil:'oil.png',
     'papel higienico':'toilet-paper.png', agua:'water.png', water:'water.png',
-    detergente:'detergent.png', detergent:'detergent.png', jabon:'soap.png', soap:'soap.png'
+    detergente:'detergent.png', detergent:'detergent.png', jabon:'soap.png', soap:'soap.png',
+    levadura:'yeast.png', yeast:'yeast.png', mantequilla:'butter.png', butter:'butter.png',
+    oxiclean:'cleaning-powder.png', 'oxi clean':'cleaning-powder.png', 'limpiador en polvo':'cleaning-powder.png',
+    'papel toalla':'paper-towels.png', 'papel de cocina':'paper-towels.png', 'toalla de papel':'paper-towels.png',
+    'paper towel':'paper-towels.png', analgésico:'pain-relief.png', analgesico:'pain-relief.png',
+    ibuprofeno:'pain-relief.png', acetaminofen:'pain-relief.png', paracetamol:'pain-relief.png',
+    'pastillitas de dolor':'pain-relief.png', 'pastillas de dolor':'pain-relief.png',
+    sal:'salt.png', salt:'salt.png', suavizante:'fabric-softener.png', 'fabric softener':'fabric-softener.png',
+    vainilla:'vanilla.png', vanilla:'vanilla.png'
   };
 
-  let snapshot = {items:[],history:[],revision:0};
+  let snapshot = {items:[],history:[],habitual_products:[],revision:0};
   let homeFood = {profile:{preferences:[],allergies:[],dislikes:[],household_size:1},pantry:[],recipes:[],cooking_sessions:[],weekly_plans:[]};
   let user = localStorage.getItem('roxyShoppingUser') || 'local_user';
   let category = 'ALL';
@@ -38,14 +46,20 @@
   const announcedTimers = new Set();
 
   const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const fallbackImage = itemCategory => itemCategory === 'PERSONAL'
+    ? '/assets/roxy_home/products/soap.png'
+    : itemCategory === 'HOUSEHOLD'
+      ? '/assets/roxy_home/products/detergent.png'
+      : itemCategory === 'HEALTH'
+        ? '/assets/roxy_home/products/pain-relief.png'
+        : '/assets/roxy_home/products/rice.png';
   const imagePath = (name, itemCategory='GENERAL') => {
     const identity = normalize(name);
-    const exact = Object.keys(productImages).find(key => identity === key || identity.includes(key));
+    const exact = Object.keys(productImages)
+      .sort((left,right) => right.length-left.length)
+      .find(key => identity === key || identity.startsWith(`${key} `) || identity.endsWith(` ${key}`) || identity.includes(` ${key} `));
     if (exact) return `/assets/roxy_home/products/${productImages[exact]}`;
-    if (itemCategory === 'PERSONAL') return '/assets/roxy_home/products/soap.png';
-    if (itemCategory === 'HOUSEHOLD') return '/assets/roxy_home/products/detergent.png';
-    if (itemCategory === 'HEALTH') return '/assets/roxy_home/products/water.png';
-    return '/assets/roxy_home/products/rice.png';
+    return fallbackImage(itemCategory);
   };
   const recipeImage = recipe => {
     if (recipe && /^data:image\/(jpeg|png|webp);base64,/.test(String(recipe.photo_data_url || ''))) return recipe.photo_data_url;
@@ -202,7 +216,8 @@
     img.alt = alt;
     img.loading = 'lazy';
     img.addEventListener('error',() => {
-      if (!img.src.endsWith('/rice.png')) img.src = '/assets/roxy_home/products/rice.png';
+      const fallback = fallbackImage(itemCategory);
+      if (!img.src.endsWith(fallback)) img.src = fallback;
     },{once:true});
     return img;
   }
@@ -231,21 +246,36 @@
   function filteredStaple(row) {
     return (category === 'ALL' || row[1] === category) && (!search || normalize(row[0]).includes(normalize(search)));
   }
+  function suggestedProducts() {
+    const activeNames = new Set(activeItems().map(item => normalize(item.name)));
+    const remembered = (Array.isArray(snapshot.habitual_products) ? snapshot.habitual_products : [])
+      .filter(item => item && item.name && !activeNames.has(normalize(item.name)))
+      .map(item => [item.name,item.category||'GENERAL',item.unit||'unidad',Number(item.purchase_count||item.times_used||1)]);
+    const seen = new Set(remembered.map(row => normalize(row[0])));
+    return [...remembered,...staples.filter(row => !seen.has(normalize(row[0])) )];
+  }
   function renderStaples() {
     const root = $('usualProducts');
     root.replaceChildren();
-    const matches = staples.filter(filteredStaple);
+    const learnedCount = (Array.isArray(snapshot.habitual_products) ? snapshot.habitual_products : []).length;
+    $('usualHint').textContent = learnedCount
+      ? `Roxy recuerda ${learnedCount} ${learnedCount===1?'producto':'productos'} de tu historial.`
+      : 'Roxy aprenderá automáticamente de lo que agregas y compras.';
+    const matches = suggestedProducts().filter(filteredStaple);
     const compact = category === 'ALL' && !search && !showAllStaples;
     const rows = compact ? matches.slice(0,4) : matches;
-    rows.forEach(([name,itemCategory,unit]) => {
+    rows.forEach(([name,itemCategory,unit,frequency=0]) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'product';
       button.setAttribute('aria-label',`Agregar ${name}`);
       const img = makeImage(name,itemCategory,'');
-      const title = document.createElement('span'); title.textContent = name;
+      const copy = document.createElement('span'); copy.className='product-copy';
+      const title = document.createElement('strong'); title.textContent = name;
+      copy.append(title);
+      if(frequency){const detail=document.createElement('small');detail.textContent=frequency===1?'Lo usaste antes':`${frequency} compras`;copy.append(detail)}
       const add = document.createElement('b'); add.textContent = '+'; add.setAttribute('aria-hidden','true');
-      button.append(img,title,add);
+      button.append(img,copy,add);
       button.addEventListener('click',() => addItem({name,quantity:1,unit,category:itemCategory}));
       root.append(button);
     });
@@ -503,8 +533,8 @@
   function roxyVoiceTranscript(text,source='Roxy'){$('roxyVoiceTranscript').textContent=`${source}: ${text}`}
   function stopRoxyPermissionStream(){if(!roxyVoicePermissionStream)return;roxyVoicePermissionStream.getTracks().forEach(track=>track.stop());roxyVoicePermissionStream=null}
   function roxyVoiceError(error,phase){const name=String(error&&error.name||'Error').replace(/[^A-Za-z]/g,'').slice(0,32)||'Error';if(name==='NotAllowedError'||name==='SecurityError')return'Safari no tiene permiso para usar el micrófono. Actívalo en los ajustes del sitio.';if(name==='NotFoundError')return'El iPhone no encontró un micrófono disponible.';if(name==='NotReadableError'||name==='AbortError')return'El micrófono está ocupado por otra aplicación. Ciérrala y vuelve a intentar.';return`No pude iniciar ElevenLabs en la etapa ${phase} (${name}). Pulsa iniciar para reintentar.`}
-  function openRoxyVoice(){$('roxyVoicePanel').hidden=false;$('roxyVoiceLauncher').setAttribute('aria-expanded','true')}
-  function closeRoxyVoice(){$('roxyVoicePanel').hidden=true;$('roxyVoiceLauncher').setAttribute('aria-expanded','false')}
+  function openRoxyVoice(){$('roxyVoicePanel').hidden=false;$('roxyVoiceLauncher').setAttribute('aria-expanded','true');$('roxyVoiceLauncher').classList.add('active');$('roxyVoiceStart').focus()}
+  function closeRoxyVoice(){$('roxyVoicePanel').hidden=true;$('roxyVoiceLauncher').setAttribute('aria-expanded','false');$('roxyVoiceLauncher').classList.remove('active');$('roxyVoiceLauncher').focus()}
   async function loadElevenLabs(){if(roxyElevenLabsModule)return roxyElevenLabsModule;let lastError=null;for(const url of roxyVoiceUrls){try{roxyElevenLabsModule=await import(url);return roxyElevenLabsModule}catch(error){lastError=error}}throw lastError||new Error('ElevenLabs SDK no disponible')}
   function currentShoppingSummary(){const rows=activeItems();return{pending_count:rows.length,total_quantity:rows.reduce((total,item)=>total+Number(item.quantity||0),0),items:rows.slice(0,50).map(item=>({name:item.name,quantity:item.quantity,unit:item.unit,category:item.category}))}}
   async function sendRoxyHomeCommand(parameters={}){const command=String(parameters.command||parameters.text||parameters.request||'').trim();if(!command)return{ok:false,error:'missing_command'};const result=await api(`/v1/assistant/command/${encodeURIComponent(user)}`,{method:'POST',body:JSON.stringify({text:command})});await load({quiet:true});if(result.message)roxyVoiceTranscript(result.message);if(result.data&&result.data.cooking)showCooking(result.data.cooking);return result}

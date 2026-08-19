@@ -11,8 +11,8 @@
   <link rel="icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=16" />
-  <script src="/assets/roxy_list.js?v=16" defer></script>
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=17" />
+  <script src="/assets/roxy_list.js?v=17" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -50,7 +50,7 @@
       </section>
 
       <section class="content-section staples-section" aria-labelledby="usualTitle">
-        <div class="section-heading"><div><p>Un toque y listo</p><h2 id="usualTitle">Productos habituales</h2></div></div>
+        <div class="section-heading"><div><p>Un toque y listo</p><h2 id="usualTitle">Productos habituales</h2><small id="usualHint">Roxy aprende de tus compras.</small></div></div>
         <div id="usualProducts" class="product-grid"></div>
         <button id="toggleStaples" class="secondary full" type="button">Ver todos</button>
       </section>
@@ -119,16 +119,6 @@
       </details>
     </section>
 
-    <section id="roxyPanel" class="app-panel" data-panel="roxy" aria-labelledby="roxyTitle" hidden>
-      <div class="roxy-stage">
-        <img src="/assets/roxy_avatar_card.jpg" alt="Roxy" />
-        <p class="eyebrow">La misma Roxy · memoria Home</p>
-        <h2 id="roxyTitle">Habla conmigo</h2>
-        <p>Puedo crear y guardar recetas, añadir o quitar productos, decirte qué falta y guiarte paso a paso mientras cocinas.</p>
-        <button id="roxyVoiceLauncher" class="primary full" type="button" aria-controls="roxyVoicePanel" aria-expanded="false">Iniciar conversación</button>
-      </div>
-    </section>
-
     <section id="pantryPanel" class="app-panel" data-panel="pantry" aria-labelledby="pantryTitle" hidden>
       <div class="section-heading hero-heading"><div><p>Personalizado para tu casa</p><h2 id="pantryTitle">Despensa y preferencias</h2></div></div>
       <p class="lead">Roxy descuenta lo que ya tienes y respeta tus alergias al preparar cada receta.</p>
@@ -166,7 +156,7 @@
   <nav class="bottom-nav" aria-label="Secciones de Roxy Home">
     <button class="active" type="button" data-tab-link="shopping"><strong>Compra</strong></button>
     <button type="button" data-tab-link="recipes"><strong>Recetas</strong></button>
-    <button class="roxy-nav" type="button" data-tab-link="roxy"><img src="/assets/roxy_avatar_icon.jpg" alt="" /><strong>Roxy</strong></button>
+    <button id="roxyVoiceLauncher" class="roxy-nav" type="button" aria-controls="roxyVoicePanel" aria-expanded="false"><img src="/assets/roxy_avatar_icon.jpg" alt="" /><strong>Roxy</strong></button>
     <button type="button" data-tab-link="pantry"><strong>Despensa</strong></button>
     <button type="button" data-tab-link="more"><strong>Más</strong></button>
   </nav>
@@ -233,7 +223,7 @@
   </dialog>
 
   <section id="roxyVoicePanel" class="roxy-voice-panel" aria-labelledby="roxyVoiceTitle" hidden>
-    <header><img src="/assets/roxy_avatar_icon.jpg" alt="Roxy" /><div><strong id="roxyVoiceTitle">Roxy</strong><small>Escuchando en Roxy Home</small></div><button id="roxyVoiceClose" type="button" aria-label="Cerrar conversación">Cerrar</button></header>
+    <header><img src="/assets/roxy_avatar_icon.jpg" alt="Roxy" /><div><strong id="roxyVoiceTitle">Roxy</strong><small>Contigo en tu lista</small></div><button id="roxyVoiceClose" type="button" aria-label="Cerrar conversación">Cerrar</button></header>
     <p id="roxyVoiceStatus" class="roxy-voice-status" role="status" aria-live="polite">Lista para conversar</p>
     <div id="roxyVoiceTranscript" class="roxy-voice-transcript" aria-live="polite">Puedes pedirme una receta, cambiar tu lista o decir “guíame paso a paso”.</div>
     <div class="roxy-voice-actions"><button id="roxyVoiceStart" class="primary" type="button">Iniciar</button><button id="roxyVoiceEnd" class="secondary" type="button" disabled>Terminar</button></div>

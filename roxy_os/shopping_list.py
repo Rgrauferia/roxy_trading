@@ -17,7 +17,7 @@ except ImportError:  # pragma: no cover - Windows fallback
     fcntl = None
 
 
-SHOPPING_STORE_VERSION = 2
+SHOPPING_STORE_VERSION = 3
 SHOPPING_STATUSES = {"PENDING", "PURCHASED", "ARCHIVED"}
 SHOPPING_CATEGORIES = {"GENERAL", "FOOD", "HOUSEHOLD", "HEALTH", "PERSONAL", "OTHER"}
 
@@ -66,6 +66,7 @@ class ShoppingListStore:
             "updated_at": _now_iso(),
             "items": [],
             "trips": [],
+            "product_memory": {},
             "user_revisions": {},
         }
 
@@ -81,6 +82,8 @@ class ShoppingListStore:
         if not isinstance(payload.get("trips"), list):
             payload["trips"] = []
         payload["trips"] = [trip for trip in payload["trips"] if isinstance(trip, dict)]
+        if not isinstance(payload.get("product_memory"), dict):
+            payload["product_memory"] = {}
         if not isinstance(payload.get("user_revisions"), dict):
             payload["user_revisions"] = {}
         return payload
@@ -156,6 +159,18 @@ class ShoppingListStore:
 
         def apply(payload: dict[str, Any]) -> dict[str, Any]:
             now = _now_iso()
+            user_memory = payload.setdefault("product_memory", {}).setdefault(user, {})
+            remembered = user_memory.setdefault(item_identity, {})
+            remembered.update(
+                {
+                    "identity": item_identity,
+                    "name": display_name,
+                    "unit": normalized_unit,
+                    "category": normalized_category,
+                    "last_added_at": now,
+                }
+            )
+            remembered["times_added"] = max(0, int(remembered.get("times_added") or 0)) + 1
             for item in payload["items"]:
                 if (
                     normalize_shopping_user(item.get("user_id")) == user
@@ -355,6 +370,86 @@ class ShoppingListStore:
         trips.sort(key=lambda trip: str(trip.get("completed_at") or ""), reverse=True)
         return trips[: max(1, min(int(limit), 100))]
 
+    def habitual_products(self, user_id: Any, *, limit: int = 20) -> list[dict[str, Any]]:
+        """Learn private product suggestions from this user's real list and trip history."""
+        user = normalize_shopping_user(user_id)
+        payload = self._read_unlocked()
+        learned: dict[str, dict[str, Any]] = {}
+        user_memory = payload.get("product_memory", {}).get(user, {})
+        if isinstance(user_memory, dict):
+            for identity, raw in user_memory.items():
+                row = raw if isinstance(raw, dict) else {}
+                try:
+                    name = normalize_shopping_name(row.get("name") or identity)
+                except ValueError:
+                    continue
+                category = str(row.get("category") or "GENERAL").strip().upper()
+                learned[str(identity)] = {
+                    "identity": str(identity),
+                    "name": name,
+                    "unit": " ".join(str(row.get("unit") or "unidad").strip().split())[:32] or "unidad",
+                    "category": category if category in SHOPPING_CATEGORIES else "GENERAL",
+                    "times_used": max(0, int(row.get("times_added") or 0)),
+                    "purchase_count": 0,
+                    "last_used_at": str(row.get("last_added_at") or "")[:64],
+                }
+        identities_with_memory = set(learned)
+
+        def remember(raw: Any, *, used_at: Any, purchased: bool, count_use: bool = True) -> None:
+            row = raw if isinstance(raw, dict) else {}
+            try:
+                name = normalize_shopping_name(row.get("name"))
+                identity = str(row.get("identity") or _identity(name))
+            except ValueError:
+                return
+            if not identity:
+                return
+            entry = learned.setdefault(
+                identity,
+                {
+                    "identity": identity,
+                    "name": name,
+                    "unit": "unidad",
+                    "category": "GENERAL",
+                    "times_used": 0,
+                    "purchase_count": 0,
+                    "last_used_at": "",
+                },
+            )
+            timestamp = str(used_at or "")[:64]
+            if count_use:
+                entry["times_used"] += 1
+            if purchased:
+                entry["purchase_count"] += 1
+            if timestamp >= str(entry.get("last_used_at") or ""):
+                entry["name"] = name
+                entry["unit"] = " ".join(str(row.get("unit") or "unidad").strip().split())[:32] or "unidad"
+                category = str(row.get("category") or "GENERAL").strip().upper()
+                entry["category"] = category if category in SHOPPING_CATEGORIES else "GENERAL"
+                entry["last_used_at"] = timestamp
+
+        for trip in payload.get("trips", []):
+            if normalize_shopping_user(trip.get("user_id")) != user:
+                continue
+            completed_at = trip.get("completed_at")
+            for raw in trip.get("items", []) if isinstance(trip.get("items"), list) else []:
+                try:
+                    identity = str(raw.get("identity") or _identity(raw.get("name")))
+                except (AttributeError, ValueError):
+                    identity = ""
+                remember(raw, used_at=completed_at, purchased=True, count_use=identity not in identities_with_memory)
+
+        rows = [
+            row
+            for row in learned.values()
+            if int(row.get("times_used") or 0) >= 2 or int(row.get("purchase_count") or 0) >= 1
+        ]
+        rows.sort(key=lambda row: str(row.get("name") or "").casefold())
+        rows.sort(key=lambda row: str(row.get("last_used_at") or ""), reverse=True)
+        rows.sort(key=lambda row: int(row.get("times_used") or 0), reverse=True)
+        rows.sort(key=lambda row: int(row.get("purchase_count") or 0), reverse=True)
+        return rows[: max(1, min(int(limit), 100))]
+
     @staticmethod
     def _normalize_sync_item(raw: Any, user: str) -> dict[str, Any] | None:
         row = raw if isinstance(raw, dict) else {}
@@ -430,5 +525,6 @@ class ShoppingListStore:
             "pending_count": sum(item.get("status") == "PENDING" for item in items),
             "purchased_count": sum(item.get("status") == "PURCHASED" for item in items),
             "history": self.history(user_id, limit=12),
+            "habitual_products": self.habitual_products(user_id, limit=20),
             "items": items,
         }
