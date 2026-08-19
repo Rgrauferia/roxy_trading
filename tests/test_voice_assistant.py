@@ -1,8 +1,34 @@
 import json
 import math
+from types import SimpleNamespace
 
 from roxy_ai import normalize_opportunity_row
 from tools import voice_assistant
+
+
+class _FakeOpenAIAnswer:
+    status = "ok"
+    text = "Explicación de OpenAI basada en el contexto verificado de AAPL."
+    model = "gpt-5.6-luna"
+    tier = "routine"
+    sources = (SimpleNamespace(name="Alpaca IEX", url=None, as_of="2026-08-19T14:31:00Z"),)
+    data_as_of = "2026-08-19T14:31:00Z"
+    usage = SimpleNamespace(
+        input_tokens=100,
+        output_tokens=40,
+        total_tokens=140,
+        estimated_cost_usd=0.001,
+        monthly_spend_usd=0.001,
+        monthly_budget_usd=20.0,
+    )
+
+
+class _FakeOpenAIBrain:
+    calls = []
+
+    def answer(self, question, *, market_context):
+        self.calls.append((question, market_context))
+        return _FakeOpenAIAnswer()
 
 
 def test_voice_assistant_summarizes_latest_opportunity(tmp_path, monkeypatch):
@@ -34,6 +60,65 @@ def test_voice_assistant_summarizes_latest_opportunity(tmp_path, monkeypatch):
     assert "AAPL" in reply
     assert "Canal alcista" in reply
     assert "SMA20" in reply
+
+
+def test_voice_assistant_uses_openai_for_explanation_with_verified_context(tmp_path, monkeypatch):
+    brief_path = tmp_path / "brief.json"
+    brief_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-08-19T14:31:00Z",
+                "opportunities": [
+                    {
+                        "symbol": "AAPL",
+                        "signal": "WATCH",
+                        "entry": 203.4,
+                        "data_source": "Alpaca IEX",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    _FakeOpenAIBrain.calls = []
+    monkeypatch.setattr(voice_assistant, "BRIEF_PATH", brief_path)
+    monkeypatch.setattr(voice_assistant, "RoxyTradingOpenAIBrain", _FakeOpenAIBrain)
+
+    state = voice_assistant.generate_reply_state("Explícame AAPL")
+
+    assert state["reply"].startswith("Explicación de OpenAI")
+    assert state["openai"]["model"] == "gpt-5.6-luna"
+    assert state["openai"]["execution_allowed"] is False
+    assert _FakeOpenAIBrain.calls[0][1]["sources"][0]["name"] == "Alpaca IEX"
+    assert _FakeOpenAIBrain.calls[0][1]["data_as_of"] == "2026-08-19T14:31:00Z"
+
+
+def test_voice_assistant_keeps_account_and_sensitive_actions_deterministic(monkeypatch):
+    _FakeOpenAIBrain.calls = []
+    monkeypatch.setattr(voice_assistant, "RoxyTradingOpenAIBrain", _FakeOpenAIBrain)
+    monkeypatch.setattr(voice_assistant.storage, "get_account_equity", lambda user: 4321.0)
+
+    account = voice_assistant.generate_reply_state("Explica mi balance", user="local")
+    sensitive = voice_assistant.generate_reply_state("Analiza y compra AAPL", user="local")
+
+    assert account["intent"] == "account"
+    assert "4321.00" in account["reply"]
+    assert "openai" not in account
+    assert "openai" not in sensitive
+    assert _FakeOpenAIBrain.calls == []
+
+
+def test_voice_assistant_falls_back_to_local_reply_when_openai_is_unavailable(monkeypatch):
+    class UnavailableBrain:
+        def answer(self, question, *, market_context):
+            return SimpleNamespace(status="blocked", text="", blocked_reason="provider_error")
+
+    monkeypatch.setattr(voice_assistant, "RoxyTradingOpenAIBrain", UnavailableBrain)
+
+    state = voice_assistant.generate_reply_state("Explica cómo funciona una media móvil")
+
+    assert state["reply"]
+    assert "openai" not in state
 
 
 def test_voice_assistant_never_substitutes_another_symbol_when_requested_one_is_absent(tmp_path, monkeypatch):

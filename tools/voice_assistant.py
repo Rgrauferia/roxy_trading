@@ -8,6 +8,7 @@ from typing import Any, Optional
 
 import storage
 
+from roxy_trader.openai_brain import RoxyTradingOpenAIBrain
 from tools.roxy_interactive_brain import RoxyBrainReply
 from tools.roxy_interactive_brain import RoxyConversationMemory
 from tools.roxy_interactive_brain import RoxyFeedbackMemory
@@ -19,6 +20,28 @@ from tools.roxy_interactive_brain import list_knowledge_sources
 
 BRIEF_PATH = Path("alerts/roxy_ai_brief.json")
 MEMORY_PATH = Path("alerts/roxy_ai_memory.json")
+
+
+_OPENAI_EXPLANATION_TERMS = re.compile(
+    r"\b(explica(?:me)?|explícame|analiza|por que|por qué|riesgo|escenario|investiga|investigacion|"
+    r"investigación|noticias?|news|catalizadores?|macro|compar[ae]|profundo|deep|"
+    r"que significa|qué significa|como funciona|cómo funciona)\b",
+    re.IGNORECASE,
+)
+_SENSITIVE_TRADING_TERMS = re.compile(
+    r"\b(compra|comprar|vende|vender|ejecuta|coloca|cancela|abre (?:una )?posicion|"
+    r"abre (?:una )?posición|cierra (?:la )?posicion|cierra (?:la )?posición|"
+    r"buy now|sell now|place (?:the )?order|execute (?:the )?trade)\b",
+    re.IGNORECASE,
+)
+_DETERMINISTIC_INTENTS = {
+    "account",
+    "account_status",
+    "action_confirmation_required",
+    "position_size",
+    "pre_trade_preflight",
+    "trading_dashboard_handoff",
+}
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -326,6 +349,90 @@ def _account_reply(query: str, user: Optional[str]) -> str | None:
     return None
 
 
+def _verified_openai_context(query: str) -> dict[str, Any]:
+    """Return a small, server-side market snapshot safe to send to OpenAI."""
+    brief = _load_json(BRIEF_PATH)
+    symbol = _extract_symbol(query)
+    opportunity = _latest_opportunity(symbol) if symbol else _latest_opportunity()
+    context: dict[str, Any] = {
+        "product": "roxy_trading",
+        "data_as_of": (
+            opportunity.get("data_as_of")
+            or opportunity.get("as_of")
+            or opportunity.get("updated_at")
+            or opportunity.get("timestamp")
+            or brief.get("generated_at")
+            or brief.get("data_as_of")
+        ),
+    }
+    if opportunity:
+        context["opportunity"] = opportunity
+    if symbol:
+        context["requested_symbol"] = symbol
+
+    sources: list[dict[str, Any]] = []
+    raw_sources = brief.get("sources")
+    if isinstance(raw_sources, list):
+        sources.extend(item for item in raw_sources if isinstance(item, (str, dict)))
+    source_name = str(
+        opportunity.get("data_source")
+        or opportunity.get("chart_source_label")
+        or opportunity.get("source")
+        or ""
+    ).strip()
+    if source_name and source_name != "-":
+        sources.append({"name": source_name, "as_of": context.get("data_as_of")})
+    if sources:
+        context["sources"] = sources
+    return context
+
+
+def _should_use_openai(query: str, state: dict[str, Any]) -> bool:
+    if not _OPENAI_EXPLANATION_TERMS.search(query or ""):
+        return False
+    if _SENSITIVE_TRADING_TERMS.search(query or ""):
+        return False
+    return str(state.get("intent") or "") not in _DETERMINISTIC_INTENTS
+
+
+def _enhance_with_openai(query: str, state: dict[str, Any]) -> dict[str, Any]:
+    """Enhance explanations while preserving deterministic state and safety gates."""
+    if not _should_use_openai(query, state):
+        return state
+    try:
+        answer = RoxyTradingOpenAIBrain().answer(
+            query,
+            market_context=_verified_openai_context(query),
+        )
+    except Exception:
+        return state
+    if answer.status != "ok" or not answer.text.strip():
+        return state
+
+    enhanced = dict(state)
+    enhanced["reply"] = answer.text.strip()
+    enhanced["openai"] = {
+        "status": answer.status,
+        "model": answer.model,
+        "tier": answer.tier,
+        "sources": [
+            {"name": source.name, "url": source.url, "as_of": source.as_of}
+            for source in answer.sources
+        ],
+        "data_as_of": answer.data_as_of,
+        "execution_allowed": False,
+        "usage": {
+            "input_tokens": answer.usage.input_tokens,
+            "output_tokens": answer.usage.output_tokens,
+            "total_tokens": answer.usage.total_tokens,
+            "estimated_cost_usd": answer.usage.estimated_cost_usd,
+            "monthly_spend_usd": answer.usage.monthly_spend_usd,
+            "monthly_budget_usd": answer.usage.monthly_budget_usd,
+        },
+    }
+    return enhanced
+
+
 def generate_reply_state(query: str, user: Optional[str] = None, session_id: Optional[str] = None) -> dict[str, Any]:
     q = (query or "").strip()
     if not q:
@@ -361,7 +468,7 @@ def generate_reply_state(query: str, user: Optional[str] = None, session_id: Opt
         response = RoxyInteractiveBrain(BRIEF_PATH, MEMORY_PATH).generate_reply(q, user=user, session_id=session_id)
         state = response.as_dict()
         state["events"] = build_voice_events(q, response)
-        return state
+        return _enhance_with_openai(q, state)
     except Exception:
         pass
 
