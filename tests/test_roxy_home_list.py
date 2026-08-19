@@ -14,8 +14,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=11"' in page.text
-    assert '/assets/roxy_list.js?v=11' in worker.text
+    assert 'src="/assets/roxy_list.js?v=12"' in page.text
+    assert '/assets/roxy_list.js?v=12' in worker.text
     assert "unsafe-inline" not in page.headers["content-security-policy"]
     assert manifest.json()["start_url"] == "/home"
     assert manifest.json()["scope"] == "/home"
@@ -29,7 +29,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "await navigator.mediaDevices.getUserMedia" in script.text
     assert "permissionStream" not in script.text
     assert "Roxy te está escuchando" in script.text
-    assert "handleRoxyShoppingTranscript" in script.text
+    assert "handleRoxyShoppingTranscript" not in script.text
     assert "never uses end_call" not in script.text
     assert "@elevenlabs/client@1.8.1" in script.text
     assert "La aplicación actual es Roxy Home" in script.text
