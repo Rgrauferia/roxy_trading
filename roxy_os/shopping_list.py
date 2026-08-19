@@ -33,6 +33,21 @@ def normalize_shopping_user(value: Any) -> str:
 
 def normalize_shopping_name(value: Any) -> str:
     name = " ".join(str(value or "").strip().split())
+    # Voice agents may pass the destination together with the tool argument
+    # (for example, "a la lista de compras detergente"). Keep only the
+    # product so the shared list, product memory and image resolver all use
+    # the same stable identity.
+    wrappers = (
+        r"(?i)^(?:por favor\s+)?(?:agrega(?:r)?|añade|anade|pon|apunta|incluye|mete)\s+",
+        r"(?i)^(?:a|en)\s+(?:mi|la)\s+lista(?:\s+de\s+compras?)?\s+",
+        r"(?i)^(?:mi|la)\s+lista(?:\s+de\s+compras?)?\s+",
+        r"(?i)^lista\s+de\s+compras?\s+",
+    )
+    previous = None
+    while name and name != previous:
+        previous = name
+        for pattern in wrappers:
+            name = re.sub(pattern, "", name).strip(" .,:;-")
     if not name:
         raise ValueError("El articulo necesita un nombre.")
     return name[:120]
@@ -79,6 +94,13 @@ class ShoppingListStore:
             return self._empty()
         payload["schema_version"] = SHOPPING_STORE_VERSION
         payload["items"] = [item for item in payload["items"] if isinstance(item, dict)]
+        for item in payload["items"]:
+            try:
+                cleaned_name = normalize_shopping_name(item.get("name"))
+            except ValueError:
+                continue
+            item["name"] = cleaned_name
+            item["identity"] = _identity(cleaned_name)
         if not isinstance(payload.get("trips"), list):
             payload["trips"] = []
         payload["trips"] = [trip for trip in payload["trips"] if isinstance(trip, dict)]

@@ -1,6 +1,8 @@
+import json
+
 from fastapi.testclient import TestClient
 
-from roxy_os.shopping_list import ShoppingListStore
+from roxy_os.shopping_list import ShoppingListStore, normalize_shopping_name
 
 
 def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
@@ -14,8 +16,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=20"' in page.text
-    assert '/assets/roxy_list.js?v=20' in worker.text
+    assert 'src="/assets/roxy_list.js?v=21"' in page.text
+    assert '/assets/roxy_list.js?v=21' in worker.text
     assert 'id="homeDate"' in page.text
     assert 'id="homeTime"' in page.text
     assert 'id="homeGreeting"' in page.text
@@ -77,6 +79,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "cooking-sessions" in script.text
     assert "speechSynthesis" in script.text
     assert "productImages" in script.text
+    for asset in ("mandarin.png", "ice-cream.png", "sugar.png", "dulce-de-leche.png", "medicine.png", "eyebrow-gel.png", "scent-sachets.png", "groceries.png"):
+        assert asset in script.text
+        assert asset in worker.text
+        assert client.get(f"/assets/roxy_home/products/{asset}").status_code == 200
+    assert "productLabel" in script.text
     assert "/substitutions" in script.text
     assert 'id="pantryRecipeButton"' in page.text
     assert 'id="beverageForm"' in page.text
@@ -143,6 +150,31 @@ def test_shopping_memory_learns_habitual_products_privately(tmp_path):
     assert robert[0]["unit"] == "litro"
     assert {row["name"] for row in robert} == {"Leche", "Pan"}
     assert [row["name"] for row in alice] == ["Café privado"]
+
+
+def test_voice_product_wrappers_are_removed_from_names_and_legacy_rows(tmp_path):
+    path = tmp_path / "shopping.json"
+    store = ShoppingListStore(path)
+    created = store.add("robert", "agrega a la lista de compras detergente de lavar")
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    raw["items"].append(
+        {
+            "id": "legacy",
+            "user_id": "robert",
+            "name": "a la lista gel de cejas",
+            "quantity": 1,
+            "unit": "unidad",
+            "category": "GENERAL",
+            "status": "PENDING",
+        }
+    )
+    path.write_text(json.dumps(raw), encoding="utf-8")
+
+    names = {row["name"] for row in store.list_items("robert")}
+
+    assert created["name"] == "detergente de lavar"
+    assert normalize_shopping_name("a la lista de compras azúcar") == "azúcar"
+    assert names == {"detergente de lavar", "gel de cejas"}
 
 
 def test_mobile_session_cookie_is_httponly_secure_and_bound_to_user(monkeypatch):

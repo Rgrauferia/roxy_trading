@@ -27,7 +27,18 @@
     ibuprofeno:'pain-relief.png', acetaminofen:'pain-relief.png', paracetamol:'pain-relief.png',
     'pastillitas de dolor':'pain-relief.png', 'pastillas de dolor':'pain-relief.png',
     sal:'salt.png', salt:'salt.png', suavizante:'fabric-softener.png', 'fabric softener':'fabric-softener.png',
-    vainilla:'vanilla.png', vanilla:'vanilla.png'
+    vainilla:'vanilla.png', vanilla:'vanilla.png',
+    mandarina:'mandarin.png', mandarinas:'mandarin.png', naranja:'mandarin.png', naranjas:'mandarin.png',
+    clementina:'mandarin.png', citrico:'mandarin.png', citricos:'mandarin.png',
+    'dulce de leche':'dulce-de-leche.png', cajeta:'dulce-de-leche.png', arequipe:'dulce-de-leche.png',
+    'ninja ice cream':'ice-cream.png', 'ninja creami':'ice-cream.png',
+    'helado de dulce de leche':'ice-cream.png', helado:'ice-cream.png', 'ice cream':'ice-cream.png', mantecado:'ice-cream.png',
+    azucar:'sugar.png', sugar:'sugar.png',
+    'gel de cejas':'eyebrow-gel.png', cejas:'eyebrow-gel.png', 'eyebrow gel':'eyebrow-gel.png',
+    medicamento:'medicine.png', medicamentos:'medicine.png', medicina:'medicine.png', medicinas:'medicine.png',
+    farmacia:'medicine.png', pastilla:'medicine.png', pastillas:'medicine.png',
+    'bolsitas de olor':'scent-sachets.png', 'bolsa de olor':'scent-sachets.png',
+    ambientador:'scent-sachets.png', aromatizante:'scent-sachets.png', sachet:'scent-sachets.png'
   };
 
   let snapshot = {items:[],history:[],habitual_products:[],revision:0};
@@ -67,15 +78,27 @@
   function clearGreeting(){greetingName='';localStorage.removeItem('roxyHomeGreetingName');renderHomeMoment();$('greetingDialog').close();announce('Saludo sin nombre en este dispositivo')}
 
   const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const productLabel = value => {
+    let label=String(value||'').replace(/\s+/g,' ').trim();
+    const wrappers=[
+      /^(?:por favor\s+)?(?:agrega(?:r)?|añade|anade|pon|apunta|incluye|mete)\s+/i,
+      /^(?:a|en)\s+(?:mi|la)\s+lista(?:\s+de\s+compras?)?\s+/i,
+      /^(?:mi|la)\s+lista(?:\s+de\s+compras?)?\s+/i,
+      /^lista\s+de\s+compras?\s+/i
+    ];
+    let previous='';
+    while(label&&label!==previous){previous=label;wrappers.forEach(pattern=>{label=label.replace(pattern,'').trim()})}
+    return label||String(value||'').trim();
+  };
   const fallbackImage = itemCategory => itemCategory === 'PERSONAL'
     ? '/assets/roxy_home/products/soap.png'
     : itemCategory === 'HOUSEHOLD'
       ? '/assets/roxy_home/products/detergent.png'
       : itemCategory === 'HEALTH'
         ? '/assets/roxy_home/products/pain-relief.png'
-        : '/assets/roxy_home/products/rice.png';
+        : '/assets/roxy_home/products/groceries.png';
   const imagePath = (name, itemCategory='GENERAL') => {
-    const identity = normalize(name);
+    const identity = normalize(productLabel(name));
     const exact = Object.keys(productImages)
       .sort((left,right) => right.length-left.length)
       .find(key => identity === key || identity.startsWith(`${key} `) || identity.endsWith(` ${key}`) || identity.includes(` ${key} `));
@@ -347,17 +370,18 @@
     }
     rows.forEach(item => {
       const article=document.createElement('article'); article.className='shopping-item';
-      const img=makeImage(item.name,item.category,''); img.className='product-thumb';
+      const label=productLabel(item.name);
+      const img=makeImage(label,item.category,''); img.className='product-thumb';
       const copy=document.createElement('div'); copy.className='shopping-copy';
-      const strong=document.createElement('strong'); strong.textContent=item.name;
+      const strong=document.createElement('strong'); strong.textContent=label;
       const small=document.createElement('small'); small.textContent=`${categories[item.category]||'General'} · ${item.unit||'unidad'}`;
       copy.append(strong,small);
       const stepper=document.createElement('div'); stepper.className='stepper';
-      const minus=makeButton('−','',()=>changeQuantity(item,-1),`Disminuir cantidad de ${item.name}`); minus.disabled=Number(item.quantity)<=1;
+      const minus=makeButton('−','',()=>changeQuantity(item,-1),`Disminuir cantidad de ${label}`); minus.disabled=Number(item.quantity)<=1;
       const output=document.createElement('output'); output.value=String(item.quantity); output.textContent=String(item.quantity); output.setAttribute('aria-label',`Cantidad ${item.quantity}`);
-      const plus=makeButton('+','',()=>changeQuantity(item,1),`Aumentar cantidad de ${item.name}`);
+      const plus=makeButton('+','',()=>changeQuantity(item,1),`Aumentar cantidad de ${label}`);
       stepper.append(minus,output,plus);
-      const remove=makeButton('Eliminar','delete',()=>removeItem(item),`Eliminar ${item.name}`);
+      const remove=makeButton('Eliminar','delete',()=>removeItem(item),`Eliminar ${label}`);
       const controls=document.createElement('div'); controls.className='item-controls'; controls.append(stepper,remove);
       article.append(img,copy,controls); root.append(article);
     });
