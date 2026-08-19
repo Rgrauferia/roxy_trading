@@ -61,6 +61,20 @@ services:
         value: agent_6101kwchebzdf91rfk9757wq0mk4
       - key: ELEVENLABS_API_KEY
         sync: false
+      - key: ROXY_TRADING_OPENAI_ENABLED
+        value: "1"
+      - key: ROXY_TRADING_OPENAI_API_KEY
+        sync: false
+      - key: ROXY_TRADING_OPENAI_ROUTINE_MODEL
+        value: gpt-5.6-luna
+      - key: ROXY_TRADING_OPENAI_DEEP_MODEL
+        value: gpt-5.6-terra
+      - key: ROXY_TRADING_OPENAI_MONTHLY_BUDGET_USD
+        value: "20"
+      - key: ROXY_TRADING_OPENAI_MAX_CALL_USD
+        value: "0.25"
+      - key: ROXY_TRADING_OPENAI_USAGE_DB
+        value: /var/data/alerts/roxy_trading_openai_usage.sqlite
       - key: ALPACA_API_KEY
         sync: false
       - key: ALPACA_API_SECRET
@@ -172,45 +186,6 @@ services:
         sync: false
 
   - type: web
-    name: roxy-stocks
-    runtime: docker
-    plan: starter
-    region: oregon
-    dockerfilePath: ./Dockerfile.roxy-market
-    dockerContext: .
-    healthCheckPath: /health
-    autoDeployTrigger: commit
-    envVars:
-      - key: ROXY_MARKET_PRODUCT
-        value: trading
-      - key: ROXY_TRADING_ACCESS_KEY
-        generateValue: true
-      - key: ROXY_TRADING_OPENAI_ENABLED
-        value: "1"
-      - key: ROXY_TRADING_OPENAI_API_KEY
-        sync: false
-      - key: ROXY_TRADING_OPENAI_ROUTINE_MODEL
-        value: gpt-5.6-luna
-      - key: ROXY_TRADING_OPENAI_DEEP_MODEL
-        value: gpt-5.6-terra
-      - key: ROXY_TRADING_OPENAI_MONTHLY_BUDGET_USD
-        value: "20"
-      - key: ROXY_TRADING_OPENAI_MAX_CALL_USD
-        value: "0.25"
-      - key: ROXY_TRADING_OPENAI_USAGE_DB
-        value: /var/data/alerts/roxy_trading_openai_usage.sqlite
-      - key: ROXY_CRYPTO_APP_URL
-        value: https://roxy-crypto.onrender.com
-      - key: ALPACA_API_KEY
-        sync: false
-      - key: ALPACA_API_SECRET
-        sync: false
-    disk:
-      name: roxy-stocks-data
-      mountPath: /var/data
-      sizeGB: 1
-
-  - type: web
     name: roxy-crypto
     runtime: docker
     plan: starter
@@ -239,7 +214,7 @@ services:
       - key: ROXY_CRYPTO_OPENAI_USAGE_DB
         value: /var/data/alerts/roxy_crypto_openai_usage.sqlite
       - key: ROXY_TRADING_APP_URL
-        value: https://roxy-stocks.onrender.com
+        value: https://roxy-trading.onrender.com
     disk:
       name: roxy-crypto-data
       mountPath: /var/data

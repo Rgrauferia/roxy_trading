@@ -1,6 +1,8 @@
 import importlib
+from pathlib import Path
 
 from fastapi.testclient import TestClient
+import yaml
 
 from roxy_trader.openai_brain import RoxyOpenAIConfig
 
@@ -101,3 +103,17 @@ def test_openai_credentials_budgets_and_ledgers_are_product_scoped():
     assert trading.ledger_path != crypto.ledger_path
     assert "api_key" not in trading.public_status()
     assert "api_key" not in crypto.public_status()
+
+
+def test_render_reuses_existing_trading_service_and_only_splits_crypto():
+    root = Path(__file__).resolve().parents[1]
+    deployment = yaml.safe_load((root / "render.yaml").read_text(encoding="utf-8"))
+    services = {service["name"]: service for service in deployment["services"]}
+
+    assert "roxy-trading" in services
+    assert "roxy-crypto" in services
+    assert "roxy-stocks" not in services
+    trading_vars = {item["key"]: item for item in services["roxy-trading"]["envVars"]}
+    crypto_vars = {item["key"]: item for item in services["roxy-crypto"]["envVars"]}
+    assert trading_vars["ROXY_TRADING_OPENAI_API_KEY"]["sync"] is False
+    assert crypto_vars["ROXY_TRADING_APP_URL"]["value"] == "https://roxy-trading.onrender.com"

@@ -2,7 +2,7 @@
 
 Roxy conserva una identidad común, pero las dos superficies de mercado se despliegan como servicios separados:
 
-- `roxy-stocks`: acciones y ETFs.
+- `roxy-trading`: el servicio existente de acciones y ETFs; se conserva completo.
 - `roxy-crypto`: activos crypto disponibles 24/7.
 
 Cada servicio obtiene el precio en el servidor: Trading consume el bridge sanitizado de acciones y Crypto consulta el ticker público del exchange mediante CCXT. El navegador no puede aportar ni alterar el contexto enviado a OpenAI. Si el proveedor no devuelve un precio y una fuente verificables, Roxy bloquea cualquier afirmación sobre el mercado actual.
@@ -44,4 +44,4 @@ ROXY_MARKET_PRODUCT=crypto ROXY_CRYPTO_ACCESS_KEY=local-key \
   uvicorn tools.roxy_market_service:app --port 8771
 ```
 
-En Render, `render.yaml` define discos, claves, presupuestos y URLs independientes. Antes de activar producción hay que introducir dos secretos distintos: `ROXY_TRADING_OPENAI_API_KEY` y `ROXY_CRYPTO_OPENAI_API_KEY`.
+En Render, `render.yaml` reutiliza el servicio pagado `roxy-trading` para Acciones y define únicamente `roxy-crypto` como servicio nuevo. No se crea un segundo servicio de acciones. Antes de activar OpenAI en producción hay que introducir dos secretos distintos: `ROXY_TRADING_OPENAI_API_KEY` y `ROXY_CRYPTO_OPENAI_API_KEY`.
