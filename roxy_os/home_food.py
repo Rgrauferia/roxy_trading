@@ -19,7 +19,7 @@ except ImportError:  # pragma: no cover - Windows fallback
 from roxy_os.shopping_list import ShoppingListStore, normalize_shopping_user
 
 
-HOME_FOOD_STORE_VERSION = 1
+HOME_FOOD_STORE_VERSION = 2
 
 
 def _now_iso() -> str:
@@ -80,9 +80,18 @@ class HomeFoodStore:
             "profile": {"preferences": [], "allergies": [], "dislikes": [], "household_size": 1},
             "pantry": [],
             "recipes": [],
+            "cooking_sessions": [],
             "weekly_plans": [],
             "revision": 0,
         }
+
+    @classmethod
+    def _normalized_user_record(cls, raw: Any) -> dict[str, Any]:
+        record = deepcopy(raw) if isinstance(raw, dict) else {}
+        defaults = cls._new_user()
+        for key, value in defaults.items():
+            record.setdefault(key, deepcopy(value))
+        return record
 
     def _read_unlocked(self) -> dict[str, Any]:
         try:
@@ -128,15 +137,13 @@ class HomeFoodStore:
     @classmethod
     def _user(cls, payload: dict[str, Any], user_id: Any) -> dict[str, Any]:
         user = normalize_shopping_user(user_id)
-        record = payload.setdefault("users", {}).setdefault(user, cls._new_user())
-        if not isinstance(record, dict):
-            record = cls._new_user()
-            payload["users"][user] = record
+        record = cls._normalized_user_record(payload.setdefault("users", {}).get(user))
+        payload["users"][user] = record
         return record
 
     def snapshot(self, user_id: Any) -> dict[str, Any]:
         user = normalize_shopping_user(user_id)
-        record = deepcopy(self._read_unlocked().get("users", {}).get(user) or self._new_user())
+        record = self._normalized_user_record(self._read_unlocked().get("users", {}).get(user))
         return {"user_id": user, **record}
 
     def update_profile(
@@ -207,12 +214,27 @@ class HomeFoodStore:
             )
         if not ingredients:
             raise ValueError("La receta necesita ingredientes.")
+        steps = _string_list(raw.get("steps"), limit=40)
+        if not steps:
+            raise ValueError("La receta necesita pasos de preparación.")
+        kind = _identity(raw.get("kind") or raw.get("category"))
+        if kind not in {"meal", "bread", "dessert", "drink", "other"}:
+            searchable = _identity(f"{title} {raw.get('description') or ''}")
+            if re.search(r"\b(bebida|batido|coctel|cocktail|jugo|zumo|limonada|cafe|te|smoothie)\b", searchable):
+                kind = "drink"
+            elif re.search(r"\b(pan|baguette|focaccia|brioche|masa)\b", searchable):
+                kind = "bread"
+            elif re.search(r"\b(postre|pastel|tarta|galleta|flan|helado)\b", searchable):
+                kind = "dessert"
+            else:
+                kind = "meal"
         return {
             "title": title,
             "description": _text(raw.get("description"), 1000),
+            "kind": kind,
             "servings": servings,
             "ingredients": ingredients,
-            "steps": _string_list(raw.get("steps"), limit=40),
+            "steps": steps,
             "allergen_notes": _string_list(raw.get("allergen_notes"), limit=20),
             "sources": [row for row in (raw.get("sources") or [])[:20] if isinstance(row, dict)],
         }
@@ -241,6 +263,102 @@ class HomeFoodStore:
             if str(recipe.get("id")) == str(recipe_id):
                 return recipe
         raise KeyError(recipe_id)
+
+    def start_cooking_session(self, user_id: Any, recipe_id: str) -> dict[str, Any]:
+        recipe = self.get_recipe(user_id, recipe_id)
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            record = self._user(payload, user_id)
+            timestamp = _now_iso()
+            for existing in record.get("cooking_sessions", []):
+                if existing.get("status") == "ACTIVE":
+                    existing["status"] = "PAUSED"
+                    existing["updated_at"] = timestamp
+            session = {
+                "id": uuid4().hex,
+                "recipe_id": recipe_id,
+                "recipe_title": recipe.get("title"),
+                "step_index": 0,
+                "step_count": len(recipe.get("steps") or []),
+                "status": "ACTIVE",
+                "created_at": timestamp,
+                "updated_at": timestamp,
+                "completed_at": None,
+            }
+            record.setdefault("cooking_sessions", []).append(session)
+            record["cooking_sessions"] = record["cooking_sessions"][-100:]
+            record["revision"] = int(record.get("revision") or 0) + 1
+            return deepcopy(session)
+
+        return self._mutate(apply)
+
+    def update_cooking_session(self, user_id: Any, session_id: str, action: str) -> dict[str, Any]:
+        normalized_action = _identity(action).replace(" ", "_")
+        if normalized_action not in {"next", "previous", "restart", "complete"}:
+            raise ValueError("Acción de cocina no válida.")
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            record = self._user(payload, user_id)
+            session = next(
+                (row for row in record.get("cooking_sessions", []) if str(row.get("id")) == str(session_id)),
+                None,
+            )
+            if session is None:
+                raise KeyError(session_id)
+            recipe = next(
+                (row for row in record.get("recipes", []) if str(row.get("id")) == str(session.get("recipe_id"))),
+                None,
+            )
+            if recipe is None:
+                raise KeyError(session.get("recipe_id"))
+            last_index = max(0, len(recipe.get("steps") or []) - 1)
+            current = max(0, min(int(session.get("step_index") or 0), last_index))
+            if normalized_action == "next":
+                if current >= last_index:
+                    session["status"] = "COMPLETED"
+                    session["completed_at"] = _now_iso()
+                else:
+                    session["step_index"] = current + 1
+                    session["status"] = "ACTIVE"
+            elif normalized_action == "previous":
+                session["step_index"] = max(0, current - 1)
+                session["status"] = "ACTIVE"
+                session["completed_at"] = None
+            elif normalized_action == "restart":
+                session["step_index"] = 0
+                session["status"] = "ACTIVE"
+                session["completed_at"] = None
+            else:
+                session["status"] = "COMPLETED"
+                session["completed_at"] = _now_iso()
+            session["updated_at"] = _now_iso()
+            session["step_count"] = len(recipe.get("steps") or [])
+            record["revision"] = int(record.get("revision") or 0) + 1
+            return deepcopy(session)
+
+        return self._mutate(apply)
+
+    def cooking_session_detail(self, user_id: Any, session_id: str) -> dict[str, Any]:
+        snapshot = self.snapshot(user_id)
+        session = next(
+            (row for row in snapshot.get("cooking_sessions", []) if str(row.get("id")) == str(session_id)),
+            None,
+        )
+        if session is None:
+            raise KeyError(session_id)
+        recipe = next(
+            (row for row in snapshot.get("recipes", []) if str(row.get("id")) == str(session.get("recipe_id"))),
+            None,
+        )
+        if recipe is None:
+            raise KeyError(session.get("recipe_id"))
+        index = max(0, min(int(session.get("step_index") or 0), len(recipe.get("steps") or []) - 1))
+        return {
+            "session": session,
+            "recipe": recipe,
+            "current_step": (recipe.get("steps") or [""])[index],
+            "step_number": index + 1,
+        }
 
     def scale_recipe(self, user_id: Any, recipe_id: str, servings: Any) -> dict[str, Any]:
         recipe = self.get_recipe(user_id, recipe_id)

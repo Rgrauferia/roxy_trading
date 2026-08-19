@@ -92,6 +92,10 @@ class RecipeShoppingRequest(BaseModel):
     servings: float | None = Field(default=None, gt=0, le=100)
 
 
+class CookingSessionActionRequest(BaseModel):
+    action: str = Field(pattern="^(next|previous|restart|complete)$")
+
+
 class FoodSafetyRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
 
@@ -125,8 +129,18 @@ def _ai_call(callback: Any) -> dict[str, Any]:
 
 def _assistant_shopping_intent(text: str) -> str:
     normalized = text.lower().strip()
-    if re.search(r"\b(agrega|añade|anade|pon|pasa)\b.*\bingredientes?\b.*\blista\b", normalized):
+    if re.search(r"\b(agrega|añade|anade|pon|pasa)\b.*\bingredientes?\b.*\b(lista|carrito)\b", normalized):
         return "recipe_to_shopping"
+    if re.search(r"\b(guiame|guíame|guia|guía)\b|\b(cocinar|preparar)\b.*\bpaso a paso\b|\bempezar a cocinar\b", normalized):
+        return "cooking_start"
+    if re.search(r"\b(siguiente paso|continua|continúa|adelante)\b", normalized):
+        return "cooking_next"
+    if re.search(r"\b(paso anterior|anterior paso|atras|atrás)\b", normalized):
+        return "cooking_previous"
+    if re.search(r"\b(repite|repetir|cual es el paso|cuál es el paso)\b", normalized):
+        return "cooking_current"
+    if re.search(r"\b(termine|terminé|finaliza|finalizar)\b.*\b(receta|cocina|cocinar)\b", normalized):
+        return "cooking_complete"
     if re.search(r"\b(receta|cocinar|cocino|preparar|preparo)\b", normalized):
         return "recipe_generate"
     if re.search(r"\b(quita|quitar|elimina|borra|saca|sacar|remueve|remover)\b|\bya no necesito\b", normalized):
@@ -417,7 +431,13 @@ def assistant_command(
             "",
             command_text,
         ).strip()
-    agent = "shopping" if intent.startswith("shopping_") else "home_food" if intent.startswith("recipe_") else "general"
+    agent = (
+        "shopping"
+        if intent.startswith("shopping_")
+        else "home_food"
+        if intent.startswith("recipe_") or intent.startswith("cooking_")
+        else "general"
+    )
     store = _store()
     rows: list[dict[str, Any]] = []
     extra: dict[str, Any] = {}
@@ -462,6 +482,34 @@ def assistant_command(
         else:
             message = "Según tu despensa, ya tienes todos los ingredientes de esa receta."
         extra["recipe_id"] = recipes[-1]["id"]
+    elif intent.startswith("cooking_"):
+        home_store = _home_food_store()
+        home_snapshot = home_store.snapshot(user)
+        sessions = home_snapshot.get("cooking_sessions", [])
+        active = next((row for row in reversed(sessions) if row.get("status") == "ACTIVE"), None)
+        if intent == "cooking_start":
+            recipes = home_snapshot.get("recipes", [])
+            if not recipes:
+                raise HTTPException(status_code=409, detail="Primero pide o crea una receta.")
+            session = home_store.start_cooking_session(user, recipes[-1]["id"])
+        else:
+            if active is None:
+                raise HTTPException(status_code=409, detail="No hay una receta activa. Dime: guíame paso a paso.")
+            action = {
+                "cooking_next": "next",
+                "cooking_previous": "previous",
+                "cooking_complete": "complete",
+            }.get(intent)
+            session = home_store.update_cooking_session(user, active["id"], action) if action else active
+        detail = home_store.cooking_session_detail(user, session["id"])
+        if detail["session"].get("status") == "COMPLETED":
+            message = f"Terminamos {detail['recipe']['title']}. La receta seguirá guardada en tu biblioteca."
+        else:
+            message = (
+                f"Paso {detail['step_number']} de {len(detail['recipe'].get('steps') or [])}: "
+                f"{detail['current_step']}"
+            )
+        extra["cooking"] = detail
     elif intent == "shopping_query":
         rows = store.list_items(user, statuses={"PENDING"}, limit=50)
         if rows:
@@ -656,6 +704,58 @@ def generate_home_recipe(
     except ValueError as exc:
         raise HTTPException(status_code=502, detail="Roxy devolvió una receta incompleta.") from exc
     return {"status": "CREATED", "recipe": recipe}
+
+
+@app.post("/v1/home-food/{user_id}/recipes/{recipe_id}/cooking-sessions", status_code=201)
+def start_home_cooking_session(
+    user_id: str,
+    recipe_id: str,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    store = _home_food_store()
+    try:
+        session = store.start_cooking_session(user, recipe_id)
+        return {"status": "STARTED", **store.cooking_session_detail(user, session["id"])}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Receta no encontrada") from exc
+
+
+@app.get("/v1/home-food/{user_id}/cooking-sessions/{session_id}")
+def read_home_cooking_session(
+    user_id: str,
+    session_id: str,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        return {"status": "READY", **_home_food_store().cooking_session_detail(user, session_id)}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Sesión de cocina no encontrada") from exc
+
+
+@app.post("/v1/home-food/{user_id}/cooking-sessions/{session_id}")
+def update_home_cooking_session(
+    user_id: str,
+    session_id: str,
+    payload: CookingSessionActionRequest,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    store = _home_food_store()
+    try:
+        store.update_cooking_session(user, session_id, payload.action)
+        return {"status": "UPDATED", **store.cooking_session_detail(user, session_id)}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Sesión de cocina no encontrada") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.post("/v1/home-food/{user_id}/substitutions")

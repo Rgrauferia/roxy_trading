@@ -262,8 +262,10 @@ class RoxyHomeAI:
 
     def generate_recipe(self, prompt: str, snapshot: dict[str, Any], *, deep: bool = False) -> dict[str, Any]:
         return self._respond(
-            "Genera una receta realizable. Devuelve title, description, servings, ingredients "
-            "(name, quantity, unit, notes), steps y allergen_notes. Solicitud: " + str(prompt),
+            "Genera una receta realizable, incluyendo comidas, panes, postres o bebidas según la solicitud. "
+            "Devuelve title, description, kind (meal, bread, dessert, drink u other), servings, ingredients "
+            "(name, quantity, unit, notes), steps completos y allergen_notes. Cada paso debe poder leerse en "
+            "voz alta como una instrucción clara. Solicitud: " + str(prompt),
             self._context(snapshot),
             deep=deep,
         )

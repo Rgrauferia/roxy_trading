@@ -1,5 +1,5 @@
-const CACHE='roxy-list-shell-v13';
-const SHELL=['/home','/lista-manifest.json','/assets/roxy_list.css?v=13','/assets/roxy_list_overrides.css?v=13','/assets/roxy_home_food.css?v=13','/assets/roxy_list.js?v=13','/assets/roxy_avatar_icon.jpg'];
+const CACHE='roxy-list-shell-v14';
+const SHELL=['/home','/lista-manifest.json','/assets/roxy_list.css?v=14','/assets/roxy_list.js?v=14','/assets/roxy_avatar_icon.jpg','/assets/roxy_avatar_card.jpg','/assets/roxy_home/products/milk.png','/assets/roxy_home/products/eggs.png','/assets/roxy_home/products/rice.png','/assets/roxy_home/products/bread.png','/assets/roxy_home/products/bananas.png','/assets/roxy_home/products/chicken.png','/assets/roxy_home/products/cheese.png','/assets/roxy_home/products/tomato.png','/assets/roxy_home/products/avocado.png','/assets/roxy_home/products/coffee.png','/assets/roxy_home/products/oil.png','/assets/roxy_home/products/toilet-paper.png','/assets/roxy_home/products/water.png','/assets/roxy_home/products/detergent.png','/assets/roxy_home/products/soap.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{

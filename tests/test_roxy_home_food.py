@@ -72,3 +72,22 @@ def test_home_permission_policy_denies_purchase_and_device_control():
     assert HomePermissionPolicy.decision("recipe_to_shopping", confirmed=True) == "ALLOW"
     assert HomePermissionPolicy.decision("purchase", confirmed=True) == "DENY"
     assert HomePermissionPolicy.decision("device_control", confirmed=True) == "DENY"
+
+
+def test_saved_recipe_can_resume_a_persistent_guided_cooking_session(tmp_path):
+    store = HomeFoodStore(tmp_path / "home.json")
+    recipe = store.save_recipe("robert", sample_recipe())
+
+    session = store.start_cooking_session("robert", recipe["id"])
+    first = store.cooking_session_detail("robert", session["id"])
+    store.update_cooking_session("robert", session["id"], "next")
+    second = store.cooking_session_detail("robert", session["id"])
+    store.update_cooking_session("robert", session["id"], "next")
+    completed = store.cooking_session_detail("robert", session["id"])
+
+    assert first["current_step"] == "Cocinar"
+    assert first["step_number"] == 1
+    assert second["current_step"] == "Servir"
+    assert second["session"]["step_index"] == 1
+    assert completed["session"]["status"] == "COMPLETED"
+    assert store.snapshot("alice")["cooking_sessions"] == []
