@@ -42,3 +42,40 @@ Blocked for the same reason. The regions that still require direct comparison ar
 - Resolve any P0/P1/P2 differences, repeat capture, and change the final result only after the comparison passes.
 
 final result: blocked
+
+---
+
+# Roxy Home shared-family hero QA
+
+- Source visual truth: `artifacts/roxy-home-family-hero/reference.jpg`
+- Intended viewport: 390 × 844 mobile
+- Intended state: authenticated Roxy Home shopping view at the top of the page
+- Implementation screenshot: `artifacts/roxy-home-family-hero/implementation-mobile.png`
+- Public URL: `https://roxy-home.onrender.com/lista`
+
+## Full-view comparison evidence
+
+The published mobile view preserves the reference's warm cream home atmosphere, oversized dark-green serif greeting, gold date/detail line, arched window, and leafy plant. The personalized name was intentionally replaced with the shared label `familia`. The existing Roxy Home header, command input, quick actions, shopping list, and bottom navigation remain in their established positions.
+
+## Focused region comparison evidence
+
+- The date displays the device-local weekday, day, month, and year in Spanish.
+- The time displays the device-local hour and minute.
+- The greeting changes between `Buenos días`, `Buenas tardes`, and `Buenas noches`.
+- The decorative plant image is loaded at its optimized 1200 × 800 size and is ignored by assistive technology.
+- The Roxy command bar remains fully visible and usable inside the hero.
+
+## Findings
+
+- Initial comparison: the hero asset returned 404 because the Home Docker image copied only the product-image subdirectory.
+- Fix: added the dedicated hero asset to `Dockerfile.roxy-home`, redeployed, and verified the public asset returns HTTP 200.
+- Final comparison: no blocking visual differences. At 390 × 844 the document width is exactly 390 px, there is no horizontal overflow, the background image is loaded, and browser logs contain no errors or warnings.
+
+## Interaction and regression checks
+
+- 32 Home-focused tests passed across shopping, habitual-product memory, Home AI, recipes, cooking, and API flows.
+- Dynamic date/time semantics use a real `<time>` element with an ISO datetime value.
+- PWA cache advanced to v18 and includes the family hero for offline reopening.
+- Docker build could not run locally because the Docker daemon was not available; the real Render Docker deployment succeeded and served the image.
+
+final result: passed
