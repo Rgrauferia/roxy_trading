@@ -89,6 +89,10 @@ def test_two_personal_sessions_share_existing_home_data_and_personalize_roxy(tmp
         "/v1/home-account/members",
         json={"username": "third", "display_name": "Third", "password": "third-clave-segura"},
     )
+    legacy_after_migration = TestClient(roxy_home_service.app, base_url="https://roxy.test").post(
+        "/v1/shopping/session/local_user",
+        headers={"Authorization": "Bearer home-account-test-key"},
+    )
 
     assert paired.status_code == 200
     assert existing.status_code == 201
@@ -103,6 +107,7 @@ def test_two_personal_sessions_share_existing_home_data_and_personalize_roxy(tmp
     assert {row["name"] for row in owner_after.json()["items"]} == {"Leche existente", "pan"}
     assert owner_voice.json()["dynamic_variables"]["user_name"] == "Robert"
     assert partner_cannot_invite.status_code == 403
+    assert legacy_after_migration.status_code == 409
 
 
 def test_login_rejects_wrong_password_without_exposing_account(tmp_path, monkeypatch):

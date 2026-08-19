@@ -501,6 +501,8 @@ def create_session(user_id: str, request: Request) -> Response:
     _rate_limit(request)
     auth = _authenticate(request)
     user = _authorize_user(user_id, auth)
+    if _account_store().household_configured(user):
+        raise HTTPException(status_code=409, detail="Este hogar ya usa perfiles personales; inicia sesión con tu usuario")
     response = JSONResponse({"status": "PAIRED", "user_id": user})
     _set_session_cookie(response, _session_cookie(user))
     return _security_headers(response)
