@@ -306,7 +306,7 @@ class ShoppingAgent(BaseAgent):
             items = self.shopping_list.list_items(request.user_id, statuses={"PENDING"}, limit=50)
             if not items:
                 return AgentResult(self.name, intent, "No tengo articulos pendientes en tu lista de compra.", {"items": []})
-            labels = [str(item.get("name") or "") for item in items]
+            labels = [f"{item.get('quantity') or 1:g} {item.get('unit') or 'unidad'} de {item.get('name') or ''}" for item in items]
             return AgentResult(
                 self.name,
                 intent,
@@ -314,7 +314,30 @@ class ShoppingAgent(BaseAgent):
                 {"items": items},
             )
 
-        items = self.router.extract_shopping_items(request.text)
+        if intent == "shopping_remove":
+            requests = self.router.extract_shopping_requests(request.text)
+            if not requests:
+                return AgentResult(self.name, intent, "Dime qué artículo quieres quitar.", {"items": []})
+            removed = []
+            missing = []
+            for row in requests:
+                try:
+                    removed.append(self.shopping_list.delete_named(request.user_id, row["name"]))
+                except KeyError:
+                    missing.append(str(row["name"]))
+            if not removed:
+                return AgentResult(
+                    self.name,
+                    intent,
+                    "No encontré " + ", ".join(missing) + " en tus pendientes.",
+                    {"items": [], "missing": missing},
+                )
+            message = "Quité de tu lista: " + ", ".join(str(item.get("name")) for item in removed) + "."
+            if missing:
+                message += " No encontré: " + ", ".join(missing) + "."
+            return AgentResult(self.name, intent, message, {"items": removed, "missing": missing})
+
+        items = self.router.extract_shopping_requests(request.text)
         if not items:
             return AgentResult(
                 self.name,
@@ -324,7 +347,13 @@ class ShoppingAgent(BaseAgent):
             )
         writes = []
         for item in items:
-            saved = self.shopping_list.add(request.user_id, item, source="voice_or_text")
+            saved = self.shopping_list.add(
+                request.user_id,
+                item["name"],
+                quantity=item.get("quantity") or 1,
+                unit=item.get("unit") or "unidad",
+                source="voice_or_text",
+            )
             saved["content"] = saved["name"]  # compatibility with the original voice response contract
             writes.append(saved)
         return AgentResult(

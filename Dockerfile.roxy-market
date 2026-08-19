@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+COPY requirements-roxy-market.txt ./
+RUN python -m pip install --upgrade pip \
+    && pip install -r requirements-roxy-market.txt
+
+COPY assets/roxy_market.html ./assets/roxy_market.html
+COPY assets/roxy_market.css ./assets/roxy_market.css
+COPY assets/roxy_market.js ./assets/roxy_market.js
+COPY tools/roxy_market_service.py ./tools/roxy_market_service.py
+COPY roxy_trader ./roxy_trader
+RUN mkdir -p /var/data/alerts
+
+EXPOSE 10000
+
+CMD ["sh", "-c", "uvicorn tools.roxy_market_service:app --host 0.0.0.0 --port ${PORT:-10000}"]

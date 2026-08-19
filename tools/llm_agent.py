@@ -10,7 +10,7 @@ from typing import List, Optional
 
 from roxy_time import utc_now_naive_iso
 from fastapi import APIRouter, Body, HTTPException, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from tools.api_auth import require_api_key
 
 logger = logging.getLogger("llm_agent")
@@ -37,10 +37,56 @@ class Signal(BaseModel):
     confidence: Optional[float] = None
 
 
+class ExplainRequest(BaseModel):
+    question: str
+    context: Optional[dict] = None
+    depth: Optional[str] = None
+    confirmed: bool = False
+
+
+class ExplainResponse(BaseModel):
+    text: str
+    status: str
+    model: Optional[str] = None
+    tier: str
+    sources: list[dict] = Field(default_factory=list)
+    usage: dict = Field(default_factory=dict)
+    requires_confirmation: bool = False
+    execution_allowed: bool = False
+    data_as_of: Optional[str] = None
+    blocked_reason: Optional[str] = None
+
+
 def _model_to_dict(model: BaseModel) -> dict:
     if hasattr(model, "model_dump"):
         return model.model_dump()
     return model.dict()
+
+
+def _require_ai_scope(caller: dict) -> None:
+    caller_type = caller.get("type") if isinstance(caller, dict) else None
+    if caller_type == "api_key" and "ai:signal" not in (caller.get("scopes") or []):
+        raise HTTPException(status_code=403, detail="API key missing required scope: ai:signal")
+    if caller_type not in {"admin", "api_key"}:
+        raise HTTPException(status_code=403, detail="unauthorized caller")
+
+
+@router.post("/explain", response_model=ExplainResponse)
+def explain_verified_context(
+    payload: ExplainRequest = Body(...), caller: dict = Depends(require_api_key)
+):
+    """Explain existing Roxy evidence; never generate or execute an order."""
+
+    _require_ai_scope(caller)
+    from roxy_trader.openai_brain import RoxyTradingOpenAIBrain
+
+    answer = RoxyTradingOpenAIBrain().answer(
+        payload.question,
+        market_context=payload.context,
+        requested_depth=payload.depth,
+        confirmed=payload.confirmed,
+    )
+    return ExplainResponse(**answer.public_dict())
 
 
 def _insert_ai_run(run_id: str, user: Optional[str], prompt: str, response: str, parsed_json: Optional[str], model: Optional[str] = None):
@@ -69,11 +115,7 @@ def generate_signals(payload: SignalRequest = Body(...), caller: dict = Depends(
     falls back to `tools.llm_provider.generate_reply`, parses a JSON array of signals,
     and persists an audit row to `ai_runs`.
     """
-    caller_type = caller.get("type") if isinstance(caller, dict) else None
-    if caller_type == "api_key" and "ai:signal" not in (caller.get("scopes") or []):
-        raise HTTPException(status_code=403, detail="API key missing required scope: ai:signal")
-    if caller_type not in {"admin", "api_key"}:
-        raise HTTPException(status_code=403, detail="unauthorized caller")
+    _require_ai_scope(caller)
     try:
         symbols = [s.strip().upper() for s in payload.symbols]
         # Attempt to include small feature snapshots for each symbol
@@ -117,46 +159,13 @@ def generate_signals(payload: SignalRequest = Body(...), caller: dict = Depends(
         except Exception:
             cached = None
 
-        # try streaming with OpenAI if available
+        # Provider selection is product-scoped. The provider itself uses the
+        # Responses API and refuses market claims without verified sources.
         try:
             from tools import llm_provider
             provider = llm_provider._choose_provider()
         except Exception:
             provider = None
-
-        if provider == "openai":
-            try:
-                # attempt to stream from OpenAI
-                import openai
-
-                api_key = os.getenv("OPENAI_API_KEY")
-                if api_key:
-                    openai.api_key = api_key
-                    model_used = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
-                    # build messages
-                    system = os.getenv("OPENAI_SYSTEM_PROMPT", "You are a helpful trading assistant.")
-                    stream_resp = openai.ChatCompletion.create(model=model_used, messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}], max_tokens=512, stream=True)
-                    parts = []
-                    for chunk in stream_resp:
-                        try:
-                            # new SDK returns chunks with choices->[delta]->content
-                            delta = chunk.choices[0].delta
-                            if hasattr(delta, 'get'):
-                                txt = delta.get('content')
-                            else:
-                                txt = getattr(delta, 'content', None)
-                            if txt:
-                                parts.append(txt)
-                        except Exception:
-                            try:
-                                txt = getattr(chunk.choices[0], 'text', None)
-                                if txt:
-                                    parts.append(txt)
-                            except Exception:
-                                pass
-                    text = "".join(parts).strip()
-            except Exception:
-                logger.exception("OpenAI streaming failed; will fall back to sync provider")
 
         # if we have a text and it wasn't from cache, store it
         if text and (not getattr(cached, 'strip', lambda: None)()):

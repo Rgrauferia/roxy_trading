@@ -5,10 +5,10 @@ securely from environment variables, an optional key file path, or the OS keyrin
 when available.
 
 Configuration (environment variables):
-- `LLM_PROVIDER`: 'openai' or 'anthropic'. If unset the code will pick an
-  available provider based on which API key is present.
-- `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`: API keys for respective providers.
-- `OPENAI_MODEL` / `ANTHROPIC_MODEL`: model names to use.
+- `ROXY_TRADING_LLM_PROVIDER`: 'openai' or 'anthropic'.
+- OpenAI is product-scoped and only reads `ROXY_TRADING_OPENAI_*`; it never
+  falls back to a Study or generic `OPENAI_API_KEY`.
+- `ANTHROPIC_API_KEY`: legacy optional provider key.
 - `LLM_KEY_FILE`: optional file path containing the API key (used if the env var
   is not set). This file should have restrictive permissions.
 """
@@ -57,19 +57,26 @@ def _get_secret(env_var: str, file_env_var: str, keyring_name: str) -> Optional[
 
 
 def _choose_provider() -> str:
-    configured = os.getenv("LLM_PROVIDER")
+    configured = os.getenv("ROXY_TRADING_LLM_PROVIDER")
     if configured:
         return configured.lower()
 
-    # auto-detect based on available keys
-    if _get_secret("OPENAI_API_KEY", "LLM_KEY_FILE", "openai"):
+    # Trading OpenAI credentials are intentionally isolated from generic/Study keys.
+    if os.getenv("ROXY_TRADING_OPENAI_API_KEY"):
         return "openai"
     if _get_secret("ANTHROPIC_API_KEY", "LLM_KEY_FILE", "anthropic"):
         return "anthropic"
     return "none"
 
 
-def generate_reply(query: str, user: Optional[str] = None) -> str:
+def generate_reply(
+    query: str,
+    user: Optional[str] = None,
+    *,
+    context: Optional[dict] = None,
+    requested_depth: Optional[str] = None,
+    confirmed: bool = False,
+) -> str:
     q = (query or "").strip()
     if not q:
         return ""
@@ -77,31 +84,19 @@ def generate_reply(query: str, user: Optional[str] = None) -> str:
     provider = _choose_provider()
 
     if provider == "openai":
-        api_key = _get_secret("OPENAI_API_KEY", "LLM_KEY_FILE", "openai")
-        if not api_key:
-            logger.warning("OpenAI provider selected but no API key found")
-            return ""
         try:
-            import openai
+            from roxy_trader.openai_brain import RoxyTradingOpenAIBrain
 
-            openai.api_key = api_key
-            model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
-            system = os.getenv("OPENAI_SYSTEM_PROMPT", "You are a helpful assistant for a trading dashboard.")
-            resp = openai.ChatCompletion.create(
-                model=model,
-                messages=[{"role": "system", "content": system}, {"role": "user", "content": q}],
-                max_tokens=512,
+            answer = RoxyTradingOpenAIBrain().answer(
+                q,
+                market_context=context,
+                requested_depth=requested_depth,
+                confirmed=confirmed,
             )
-            # new OpenAI response shape
-            try:
-                text = resp.choices[0].message.content.strip()
-            except Exception:
-                # fallback for older SDK shapes
-                text = getattr(resp.choices[0], "text", "").strip()
-            return text
-        except Exception as e:
-            logger.exception("OpenAI call failed: %s", e)
-            return f"(llm error) {e}"
+            return answer.text
+        except Exception:
+            logger.exception("Roxy Trading OpenAI call failed")
+            return ""
 
     if provider == "anthropic":
         api_key = _get_secret("ANTHROPIC_API_KEY", "LLM_KEY_FILE", "anthropic")

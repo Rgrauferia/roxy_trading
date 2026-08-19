@@ -17,7 +17,7 @@ except ImportError:  # pragma: no cover - Windows fallback
     fcntl = None
 
 
-SHOPPING_STORE_VERSION = 1
+SHOPPING_STORE_VERSION = 2
 SHOPPING_STATUSES = {"PENDING", "PURCHASED", "ARCHIVED"}
 SHOPPING_CATEGORIES = {"GENERAL", "FOOD", "HOUSEHOLD", "HEALTH", "PERSONAL", "OTHER"}
 
@@ -61,7 +61,13 @@ class ShoppingListStore:
         self.lock_path = self.path.with_suffix(self.path.suffix + ".lock")
 
     def _empty(self) -> dict[str, Any]:
-        return {"schema_version": SHOPPING_STORE_VERSION, "updated_at": _now_iso(), "items": [], "user_revisions": {}}
+        return {
+            "schema_version": SHOPPING_STORE_VERSION,
+            "updated_at": _now_iso(),
+            "items": [],
+            "trips": [],
+            "user_revisions": {},
+        }
 
     def _read_unlocked(self) -> dict[str, Any]:
         try:
@@ -72,6 +78,9 @@ class ShoppingListStore:
             return self._empty()
         payload["schema_version"] = SHOPPING_STORE_VERSION
         payload["items"] = [item for item in payload["items"] if isinstance(item, dict)]
+        if not isinstance(payload.get("trips"), list):
+            payload["trips"] = []
+        payload["trips"] = [trip for trip in payload["trips"] if isinstance(trip, dict)]
         if not isinstance(payload.get("user_revisions"), dict):
             payload["user_revisions"] = {}
         return payload
@@ -243,6 +252,109 @@ class ShoppingListStore:
 
         return self._mutate(apply)
 
+    def set_quantity(self, user_id: Any, item_id: Any, quantity: Any) -> dict[str, Any]:
+        """Set one item's quantity without allowing cross-user mutation."""
+
+        user = normalize_shopping_user(user_id)
+        target_id = str(item_id or "").strip()
+        amount = normalize_quantity(quantity)
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            for item in payload["items"]:
+                if item.get("id") != target_id or normalize_shopping_user(item.get("user_id")) != user:
+                    continue
+                previous = float(item.get("quantity") or 0)
+                item["quantity"] = amount
+                item["updated_at"] = _now_iso()
+                if previous != amount:
+                    self._bump_revision(payload, user)
+                return deepcopy(item)
+            raise KeyError("Articulo no encontrado para este usuario.")
+
+        return self._mutate(apply)
+
+    def delete(self, user_id: Any, item_id: Any) -> dict[str, Any]:
+        """Delete one active row. Completed trip history remains immutable."""
+
+        user = normalize_shopping_user(user_id)
+        target_id = str(item_id or "").strip()
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            for index, item in enumerate(payload["items"]):
+                if item.get("id") != target_id or normalize_shopping_user(item.get("user_id")) != user:
+                    continue
+                removed = payload["items"].pop(index)
+                self._bump_revision(payload, user)
+                return deepcopy(removed)
+            raise KeyError("Articulo no encontrado para este usuario.")
+
+        return self._mutate(apply)
+
+    def delete_named(self, user_id: Any, name: Any) -> dict[str, Any]:
+        user = normalize_shopping_user(user_id)
+        target_identity = _identity(name)
+        for item in self.list_items(user, statuses={"PENDING"}, limit=1000):
+            if str(item.get("identity") or _identity(item.get("name"))) == target_identity:
+                return self.delete(user, item.get("id"))
+        raise KeyError("Articulo no encontrado para este usuario.")
+
+    def complete_purchase(self, user_id: Any) -> dict[str, Any]:
+        """Archive every pending item and append one recoverable purchase trip."""
+
+        user = normalize_shopping_user(user_id)
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            pending = [
+                item
+                for item in payload["items"]
+                if normalize_shopping_user(item.get("user_id")) == user
+                and str(item.get("status") or "PENDING").upper() in {"PENDING", "PURCHASED"}
+            ]
+            if not pending:
+                return {"completed": False, "trip": None, "count": 0, "total_quantity": 0.0}
+            now = _now_iso()
+            trip_id = uuid4().hex
+            trip_items: list[dict[str, Any]] = []
+            for item in pending:
+                item["status"] = "ARCHIVED"
+                item["purchased_at"] = now
+                item["updated_at"] = now
+                item["trip_id"] = trip_id
+                trip_items.append(
+                    {
+                        key: deepcopy(item.get(key))
+                        for key in ("id", "name", "quantity", "unit", "category", "notes")
+                    }
+                )
+            trip = {
+                "id": trip_id,
+                "user_id": user,
+                "completed_at": now,
+                "item_count": len(trip_items),
+                "total_quantity": round(sum(float(item.get("quantity") or 0) for item in trip_items), 4),
+                "items": trip_items,
+            }
+            payload.setdefault("trips", []).append(trip)
+            self._bump_revision(payload, user)
+            return {
+                "completed": True,
+                "trip": deepcopy(trip),
+                "count": trip["item_count"],
+                "total_quantity": trip["total_quantity"],
+            }
+
+        return self._mutate(apply)
+
+    def history(self, user_id: Any, *, limit: int = 12) -> list[dict[str, Any]]:
+        user = normalize_shopping_user(user_id)
+        trips = [
+            deepcopy(trip)
+            for trip in self._read_unlocked().get("trips", [])
+            if normalize_shopping_user(trip.get("user_id")) == user
+        ]
+        trips.sort(key=lambda trip: str(trip.get("completed_at") or ""), reverse=True)
+        return trips[: max(1, min(int(limit), 100))]
+
     @staticmethod
     def _normalize_sync_item(raw: Any, user: str) -> dict[str, Any] | None:
         row = raw if isinstance(raw, dict) else {}
@@ -317,5 +429,6 @@ class ShoppingListStore:
             "revision": self._revision(payload, normalize_shopping_user(user_id)),
             "pending_count": sum(item.get("status") == "PENDING" for item in items),
             "purchased_count": sum(item.get("status") == "PURCHASED" for item in items),
+            "history": self.history(user_id, limit=12),
             "items": items,
         }

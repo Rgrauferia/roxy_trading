@@ -84,3 +84,32 @@ def test_shopping_device_replace_forces_user_namespace(tmp_path):
     assert result["conflict"] is False
     assert store.list_items("alice") == []
     assert store.list_items("robert")[0]["user_id"] == "robert"
+
+
+def test_shopping_quantity_delete_complete_and_history_are_user_scoped(tmp_path):
+    store = ShoppingListStore(tmp_path / "shopping.json")
+    milk = store.add("robert", "Leche", quantity=1, category="FOOD")
+    store.add("robert", "Café", quantity=2, category="HOUSEHOLD")
+    private = store.add("alice", "Privado")
+
+    updated = store.set_quantity("robert", milk["id"], 3)
+    deleted = store.delete_named("robert", "café")
+    completed = store.complete_purchase("robert")
+
+    assert updated["quantity"] == 3
+    assert deleted["name"] == "Café"
+    assert completed["completed"] is True
+    assert completed["count"] == 1
+    assert store.list_items("robert") == []
+    assert store.history("robert")[0]["items"][0]["name"] == "Leche"
+    assert store.history("alice") == []
+    assert store.list_items("alice")[0]["id"] == private["id"]
+
+
+def test_complete_purchase_is_idempotent_when_list_is_empty(tmp_path):
+    store = ShoppingListStore(tmp_path / "shopping.json")
+
+    result = store.complete_purchase("robert")
+
+    assert result == {"completed": False, "trip": None, "count": 0, "total_quantity": 0.0}
+    assert store.history("robert") == []
