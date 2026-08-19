@@ -78,6 +78,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "/timers" in script.text
     dockerfile = (roxy_home_service.ASSETS_DIR.parent / "Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert "COPY assets/roxy_home/products ./assets/roxy_home/products" in dockerfile
+    assert "COPY assets/roxy_home/home-hero-plant.png ./assets/roxy_home/home-hero-plant.png" in dockerfile
     assert "COPY assets/roxy_avatar_card.jpg ./assets/roxy_avatar_card.jpg" in dockerfile
 
 
