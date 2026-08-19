@@ -14,8 +14,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=10"' in page.text
-    assert '/assets/roxy_list.js?v=10' in worker.text
+    assert 'src="/assets/roxy_list.js?v=11"' in page.text
+    assert '/assets/roxy_list.js?v=11' in worker.text
     assert "unsafe-inline" not in page.headers["content-security-policy"]
     assert manifest.json()["start_url"] == "/home"
     assert manifest.json()["scope"] == "/home"
@@ -25,7 +25,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "navigator.share" in script.text
     assert "startRoxyVoice" in script.text
     assert "Conversation.startSession" in script.text
-    assert "connectionType:'webrtc'" in script.text
+    assert "connectionType:'websocket'" in script.text
+    assert "await navigator.mediaDevices.getUserMedia" in script.text
     assert "permissionStream" not in script.text
     assert "Roxy te está escuchando" in script.text
     assert "handleRoxyShoppingTranscript" in script.text
@@ -140,8 +141,8 @@ def test_roxy_home_shared_elevenlabs_agent_can_read_and_update_shopping_list(tmp
     assert session.status_code == 200
     assert session.json()["provider"] == "ElevenLabs"
     assert session.json()["agent_id"] == "agent_shared_roxy"
-    assert session.json()["voice_mode"] == "public_webrtc"
-    assert session.json()["connection_type"] == "webrtc"
+    assert session.json()["voice_mode"] == "public_websocket"
+    assert session.json()["connection_type"] == "websocket"
     assert command.status_code == 200
     assert command.json()["ok"] is True
     assert command.json()["agent"] == "shopping"
