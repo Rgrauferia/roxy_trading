@@ -989,6 +989,22 @@ def personalize_home_recipe(
     return {"status": "UPDATED", "recipe": recipe}
 
 
+@app.delete("/v1/home-food/{user_id}/recipes/{recipe_id}")
+def delete_home_recipe(
+    user_id: str,
+    recipe_id: str,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        recipe = _home_food_store().delete_recipe(user, recipe_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Receta no encontrada") from exc
+    return {"status": "DELETED", "recipe": recipe}
+
+
 @app.post("/v1/home-food/{user_id}/recipes/{recipe_id}/cooking-sessions", status_code=201)
 def start_home_cooking_session(
     user_id: str,

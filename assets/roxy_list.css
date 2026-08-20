@@ -196,6 +196,8 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
 .recipe-columns h3 { font-size: 19px; }
 .recipe-columns li { margin: 8px 0; line-height: 1.45; }
 .recipe-detail-actions { position: sticky; bottom: -23px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 14px 0 23px; background: var(--paper); }
+.danger-button { border: 1px solid #e5c9c5; background: #fff7f5; color: var(--danger); }
+.danger-button:disabled { opacity: .55; }
 .recipe-personal-form { display: grid; gap: 12px; padding: 16px; border-top: 1px solid var(--line); background: var(--sage-soft); }
 .beverage-studio { display: grid; gap: 12px; margin-top: 18px; background: linear-gradient(135deg, #f8f0df, #eef4ed); }
 .beverage-studio h3 { margin-top: 3px; font-size: clamp(24px, 5vw, 31px); }

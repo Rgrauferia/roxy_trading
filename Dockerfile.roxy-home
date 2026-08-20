@@ -18,6 +18,7 @@ COPY tools/roxy_home_service.py ./tools/roxy_home_service.py
 COPY assets/roxy_list.html assets/roxy_list.css assets/roxy_list_overrides.css assets/roxy_home_food.css assets/roxy_list.js assets/roxy_list_sw.js assets/roxy_avatar_icon.jpg ./assets/
 COPY assets/roxy_avatar_card.jpg ./assets/roxy_avatar_card.jpg
 COPY assets/roxy_home/products ./assets/roxy_home/products
+COPY assets/roxy_home/recipes ./assets/roxy_home/recipes
 COPY assets/roxy_home/home-hero-plant.png ./assets/roxy_home/home-hero-plant.png
 
 RUN mkdir -p /var/data/roxy_home

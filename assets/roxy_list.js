@@ -118,10 +118,17 @@
   };
   const recipeImage = recipe => {
     if (recipe && /^data:image\/(jpeg|png|webp);base64,/.test(String(recipe.photo_data_url || ''))) return recipe.photo_data_url;
+    const searchable=normalize(`${recipe&&recipe.title||''} ${recipe&&recipe.description||''} ${(recipe&&recipe.ingredients||[]).map(row=>row&&row.name||'').join(' ')}`);
+    if(/\b(pizza|pizzeta|calzone)\b/.test(searchable))return'/assets/roxy_home/recipes/pizza.png';
+    if(/\b(pasta|espagueti|spaghetti|macarron|fideo|lasana|ravioli)\b/.test(searchable))return'/assets/roxy_home/recipes/pasta.png';
+    if(/\b(pan|baguette|focaccia|brioche|bollo|masa madre)\b/.test(searchable))return'/assets/roxy_home/recipes/bread.png';
+    if(/\b(postre|pastel|tarta|bizcocho|flan|arroz con leche|galleta|helado)\b/.test(searchable))return'/assets/roxy_home/recipes/dessert.png';
+    if(/\b(sopa|caldo|crema|ensalada|aguacate|vegetal|verdura)\b/.test(searchable))return'/assets/roxy_home/recipes/soup-salad.png';
+    if(/\b(bebida|limonada|jugo|zumo|batido|smoothie|mojito|coctel|cocktail)\b/.test(searchable))return'/assets/roxy_home/recipes/drinks.png';
     const kind = recipe && recipe.kind;
-    if (kind === 'bread') return imagePath('pan','FOOD');
-    if (kind === 'drink') return imagePath('agua','HOUSEHOLD');
-    if (kind === 'dessert') return imagePath('leche','FOOD');
+    if (kind === 'bread') return '/assets/roxy_home/recipes/bread.png';
+    if (kind === 'drink') return '/assets/roxy_home/recipes/drinks.png';
+    if (kind === 'dessert') return '/assets/roxy_home/recipes/dessert.png';
     return imagePath((recipe && recipe.ingredients && recipe.ingredients[0] && recipe.ingredients[0].name) || 'pollo','FOOD');
   };
 
@@ -426,7 +433,7 @@
     $('recipeCount').textContent=`${rows.length} ${rows.length===1?'receta':'recetas'}`;
     rows.forEach(recipe=>{
       const button=document.createElement('button');button.type='button';button.className='recipe-card';
-      const img=document.createElement('img');img.src=recipeImage(recipe);img.alt='';img.loading='lazy';
+      const img=document.createElement('img');img.src=recipeImage(recipe);img.alt=`Foto de ${recipe.title||'la receta'}`;img.loading='lazy';
       const copy=document.createElement('span');const strong=document.createElement('strong');strong.textContent=recipe.title;
       const drinkLabel=recipe.kind==='drink'?(recipe.drink_type==='alcoholic'?'Con alcohol':'Sin alcohol'):'';
       const small=document.createElement('small');small.textContent=`${recipe.favorite?'Favorita · ':''}${drinkLabel||kindLabels[recipe.kind]||'Receta'} · ${recipe.servings||1} porciones · ${recipe.steps.length} pasos`;
@@ -438,7 +445,7 @@
   function openRecipe(recipe){
     currentRecipe=recipe;$('recipeDialogTitle').textContent=recipe.title||'Receta de Roxy';
     const root=$('recipeDialogContent');root.replaceChildren();
-    const hero=document.createElement('div');hero.className='recipe-detail-hero';const img=document.createElement('img');img.src=recipeImage(recipe);img.alt='';
+    const hero=document.createElement('div');hero.className='recipe-detail-hero';const img=document.createElement('img');img.src=recipeImage(recipe);img.alt=`Foto de ${recipe.title||'la receta'}`;
     const intro=document.createElement('div');const meta=document.createElement('strong');const recipeLabel=recipe.kind==='drink'?(recipe.drink_type==='alcoholic'?'Bebida con alcohol':'Bebida sin alcohol'):(kindLabels[recipe.kind]||'Receta');meta.textContent=`${recipeLabel} · ${recipe.servings||1} porciones`;
     const description=document.createElement('p');description.textContent=recipe.description||'Receta guardada por Roxy.';intro.append(meta,description);hero.append(img,intro);
     const columns=document.createElement('div');columns.className='recipe-columns';
@@ -468,6 +475,14 @@
       const data=await api(`/v1/home-food/${encodeURIComponent(user)}/recipes/${encodeURIComponent(currentRecipe.id)}`,{method:'PATCH',body:JSON.stringify({favorite:$('recipeFavorite').checked,user_notes:$('recipeNotes').value,photo_data_url:photo})});
       currentRecipe=data.recipe;await load({quiet:true});openRecipe(data.recipe);announce('Receta personalizada y guardada');
     }catch(error){announce(error.message)}finally{button.disabled=false}
+  }
+  async function deleteCurrentRecipe(){
+    if(!currentRecipe)return;
+    const title=currentRecipe.title||'esta receta';
+    if(!window.confirm(`¿Eliminar “${title}”?\n\nLa receta y sus sesiones de cocina se borrarán de este hogar. La lista de compras no cambiará.`))return;
+    const button=$('deleteRecipeButton');button.disabled=true;
+    try{await api(`/v1/home-food/${encodeURIComponent(user)}/recipes/${encodeURIComponent(currentRecipe.id)}`,{method:'DELETE'});currentRecipe=null;$('recipeDialog').close();await load({quiet:true});renderRecipes();announce('Receta eliminada')}
+    catch(error){announce(error.message)}finally{button.disabled=false}
   }
   async function previewRecipe(recipeId,servings){
     try{
@@ -633,6 +648,7 @@
     $('beverageForm').addEventListener('submit',createBeverage);
     $('pantryRecipeButton').addEventListener('click',createRecipeFromPantry);
     $('recipePersonalForm').addEventListener('submit',saveRecipePersonalization);
+    $('deleteRecipeButton').addEventListener('click',deleteCurrentRecipe);
     $('substitutionForm').addEventListener('submit',createSubstitution);
     $('weeklyPlanForm').addEventListener('submit',createWeeklyPlan);
     $('foodSafetyForm').addEventListener('submit',researchFoodSafety);

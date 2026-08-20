@@ -331,6 +331,31 @@ class HomeFoodStore:
                 return recipe
         raise KeyError(recipe_id)
 
+    def delete_recipe(self, user_id: Any, recipe_id: str) -> dict[str, Any]:
+        """Delete one recipe and only its associated cooking sessions."""
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            record = self._user(payload, user_id)
+            recipes = record.get("recipes", [])
+            recipe = next(
+                (row for row in recipes if str(row.get("id")) == str(recipe_id)),
+                None,
+            )
+            if recipe is None:
+                raise KeyError(recipe_id)
+            record["recipes"] = [
+                row for row in recipes if str(row.get("id")) != str(recipe_id)
+            ]
+            record["cooking_sessions"] = [
+                row
+                for row in record.get("cooking_sessions", [])
+                if str(row.get("recipe_id")) != str(recipe_id)
+            ]
+            record["revision"] = int(record.get("revision") or 0) + 1
+            return deepcopy(recipe)
+
+        return self._mutate(apply)
+
     def start_cooking_session(self, user_id: Any, recipe_id: str) -> dict[str, Any]:
         recipe = self.get_recipe(user_id, recipe_id)
 

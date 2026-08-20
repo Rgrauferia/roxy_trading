@@ -16,8 +16,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=24"' in page.text
-    assert '/assets/roxy_list.js?v=24' in worker.text
+    assert 'src="/assets/roxy_list.js?v=25"' in page.text
+    assert '/assets/roxy_list.js?v=25' in worker.text
     assert 'id="homeDate"' in page.text
     assert 'id="homeTime"' in page.text
     assert 'id="homeGreeting"' in page.text
@@ -98,15 +98,24 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'data-recipe-filter="alcoholic"' in page.text
     assert 'data-recipe-filter="non_alcoholic"' in page.text
     assert 'id="recipePersonalForm"' in page.text
+    assert 'id="deleteRecipeButton"' in page.text
+    assert "deleteCurrentRecipe" in script.text
+    assert "method:'DELETE'" in script.text
+    assert "¿Eliminar" in script.text
     assert 'id="startTimerButton"' in page.text
     assert "createRecipeFromPantry" in script.text
     assert "saveRecipePersonalization" in script.text
     assert "/timers" in script.text
     dockerfile = (roxy_home_service.ASSETS_DIR.parent / "Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert "COPY assets/roxy_home/products ./assets/roxy_home/products" in dockerfile
+    assert "COPY assets/roxy_home/recipes ./assets/roxy_home/recipes" in dockerfile
     assert "ROXY_HOME_ACCOUNTS_PATH=/var/data/roxy_home/accounts.json" in dockerfile
     assert "COPY assets/roxy_home/home-hero-plant.png ./assets/roxy_home/home-hero-plant.png" in dockerfile
     assert "COPY assets/roxy_avatar_card.jpg ./assets/roxy_avatar_card.jpg" in dockerfile
+    for asset in ("pizza.png", "pasta.png", "bread.png", "soup-salad.png", "dessert.png", "drinks.png"):
+        assert f"/assets/roxy_home/recipes/{asset}" in script.text
+        assert f"/assets/roxy_home/recipes/{asset}" in worker.text
+        assert client.get(f"/assets/roxy_home/recipes/{asset}").status_code == 200
 
 
 def test_shopping_api_crud_complete_history_and_user_isolation(tmp_path, monkeypatch):
