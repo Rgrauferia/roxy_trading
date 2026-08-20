@@ -91,9 +91,11 @@ def test_voice_can_create_recipe_add_ingredients_and_remove_naturally(tmp_path, 
 
     assert recipe.status_code == 200
     assert recipe.json()["intent"] == "recipe_generate"
-    assert recipe.json()["data"]["recipe"]["title"] == "Pasta de Roxy"
+    assert recipe.json()["data"]["recipe"]["title"] == "Pasta rápida con tomate y ajo"
+    assert recipe.json()["data"]["generation_mode"] == "voice_local_recipe_catalog"
     assert add.json()["intent"] == "recipe_to_shopping"
     assert add.json()["data"]["items"][0]["name"] == "Pasta"
     assert remove.json()["intent"] == "shopping_remove"
     assert "Pasta" in remove.json()["message"]
-    assert final_list.json()["items"] == []
+    assert all(row["name"] != "Pasta" for row in final_list.json()["items"])
+    assert len(final_list.json()["items"]) == 4

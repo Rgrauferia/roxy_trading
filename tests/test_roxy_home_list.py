@@ -16,8 +16,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=23"' in page.text
-    assert '/assets/roxy_list.js?v=23' in worker.text
+    assert 'src="/assets/roxy_list.js?v=24"' in page.text
+    assert '/assets/roxy_list.js?v=24' in worker.text
     assert 'id="homeDate"' in page.text
     assert 'id="homeTime"' in page.text
     assert 'id="homeGreeting"' in page.text
@@ -58,6 +58,9 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "must_speak:true" in script.text
     assert "Lee en voz alta ahora el campo speech completo" in script.text
     assert "No respondas antes de que la herramienta termine" in script.text
+    assert "recoverRoxyVoiceSpeech" in script.text
+    assert "sendUserMessage" in script.text
+    assert "RESULTADO CONFIRMADO DE ROXY HOME" in script.text
     assert 'id="roxyVoiceLauncher"' in page.text
     assert 'id="roxyPanel"' not in page.text
     assert 'data-tab-link="roxy"' not in page.text
@@ -425,9 +428,10 @@ def test_roxy_voice_saves_recipe_adds_ingredients_and_guides_steps(tmp_path, mon
     assert recipe.json()["speech"] == recipe.json()["message"]
     assert "Preparación:" in recipe.json()["speech"]
     assert ingredients.json()["intent"] == "recipe_to_shopping"
-    assert ingredients.json()["snapshot"]["pending_count"] == 1
-    assert guide.json()["data"]["cooking"]["current_step"] == "Exprime los limones"
-    assert next_step.json()["data"]["cooking"]["current_step"] == "Mezcla con agua"
+    assert recipe.json()["data"]["generation_mode"] == "voice_local_recipe_catalog"
+    assert ingredients.json()["snapshot"]["pending_count"] == 4
+    assert guide.json()["data"]["cooking"]["current_step"] == "Exprime los limones."
+    assert next_step.json()["data"]["cooking"]["current_step"] == "Disuelve el azúcar en una taza de agua."
     assert timer.json()["intent"] == "cooking_timer_set"
     assert timer.json()["data"]["timer"]["duration_seconds"] == 300
     assert time_left.json()["intent"] == "cooking_timer_query"

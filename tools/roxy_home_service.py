@@ -678,9 +678,14 @@ def assistant_command(
     extra: dict[str, Any] = {}
     if intent == "recipe_generate":
         home_store = _home_food_store()
-        recipe_data, generation_mode = _recipe_with_resilience(
-            command_text, home_store.snapshot(user), deep=False
-        )
+        # The ElevenLabs client tool currently allows only one second for its
+        # response. A remote model can exceed that even when it succeeds, which
+        # made the voice agent announce a false failure before the recipe
+        # appeared on screen. Voice requests use the curated local catalog so
+        # the complete, durable recipe returns inside the tool deadline. The
+        # regular recipe screen continues to use OpenAI with resilient fallback.
+        recipe_data = generate_local_recipe(command_text, home_store.snapshot(user))
+        generation_mode = "voice_local_recipe_catalog"
         try:
             recipe = home_store.save_recipe(user, recipe_data, mode="routine")
         except ValueError as exc:

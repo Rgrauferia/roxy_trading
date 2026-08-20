@@ -1,3 +1,5 @@
+from time import perf_counter
+
 from fastapi.testclient import TestClient
 
 from roxy_os.home_recipe_fallback import generate_local_recipe
@@ -50,3 +52,30 @@ def test_shopping_voice_understands_more_natural_vocabulary():
     assert _assistant_shopping_requests("anota dos paquetes de pasta en mi lista") == [
         {"name": "pasta", "quantity": 2, "unit": "paquete"}
     ]
+
+
+def test_voice_recipe_returns_inside_client_tool_deadline_without_waiting_for_openai(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    class ForbiddenRemoteAI:
+        def generate_recipe(self, *args, **kwargs):
+            raise AssertionError("voice recipe must not wait for the remote provider")
+
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "home-test-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert")
+    monkeypatch.setenv("ROXY_HOME_MEMORY_PATH", str(tmp_path / "home.json"))
+    monkeypatch.setenv("ROXY_SHOPPING_LIST_PATH", str(tmp_path / "shopping.json"))
+    monkeypatch.setattr(roxy_home_service, "_home_ai", lambda: ForbiddenRemoteAI())
+    roxy_home_service._RATE_STATE.clear()
+    client = TestClient(roxy_home_service.app)
+    started = perf_counter()
+    response = client.post(
+        "/v1/assistant/command/robert",
+        headers={"Authorization": "Bearer home-test-key"},
+        json={"text": "Dame una receta para hacer pan"},
+    )
+    elapsed = perf_counter() - started
+    assert response.status_code == 200
+    assert elapsed < 0.5
+    assert response.json()["data"]["generation_mode"] == "voice_local_recipe_catalog"
+    assert "Pan casero sencillo" in response.json()["speech"]
