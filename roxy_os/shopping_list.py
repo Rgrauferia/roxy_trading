@@ -38,7 +38,7 @@ def normalize_shopping_name(value: Any) -> str:
     # product so the shared list, product memory and image resolver all use
     # the same stable identity.
     wrappers = (
-        r"(?i)^(?:por favor\s+)?(?:agrega(?:r)?|añade|anade|pon|apunta|incluye|mete)\s+",
+        r"(?i)^(?:por favor\s+)?(?:agrega(?:r)?|añade|anade|pon|apunta|anota|incluye|mete|echa|échame|echame|suma|súmale|sumale|trae)\s+",
         r"(?i)^(?:a|en)\s+(?:mi|la)\s+lista(?:\s+de\s+compras?)?\s+",
         r"(?i)^(?:mi|la)\s+lista(?:\s+de\s+compras?)?\s+",
         r"(?i)^lista\s+de\s+compras?\s+",

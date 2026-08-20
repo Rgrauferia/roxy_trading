@@ -22,6 +22,7 @@ from roxy_os.home_ai import (
     HomeAIConfigurationError,
     RoxyHomeAI,
 )
+from roxy_os.home_recipe_fallback import generate_local_recipe
 from roxy_os.home_accounts import HomeAccountStore
 from roxy_os.home_food import HomeFoodStore, HomePermissionPolicy
 from roxy_os.shopping_list import ShoppingListStore, normalize_shopping_user
@@ -170,9 +171,21 @@ def _ai_call(callback: Any) -> dict[str, Any]:
         raise HTTPException(status_code=502, detail="Roxy Home no pudo completar la solicitud de IA.") from exc
 
 
+def _recipe_with_resilience(prompt: str, snapshot: dict[str, Any], *, deep: bool) -> tuple[dict[str, Any], str]:
+    """Keep recipes usable while reporting whether OpenAI or the local catalog answered."""
+    try:
+        return _home_ai().generate_recipe(prompt, snapshot, deep=deep), "openai"
+    except (HomeAIConfigurationError, HomeAIBudgetExceeded, ValueError, KeyError):
+        return generate_local_recipe(prompt, snapshot), "local_recipe_catalog"
+    except Exception:
+        # Provider/network details stay server-side; the curated recipe is real,
+        # deterministic and explicitly identified instead of simulating an AI call.
+        return generate_local_recipe(prompt, snapshot), "local_recipe_catalog"
+
+
 def _assistant_shopping_intent(text: str) -> str:
     normalized = text.lower().strip()
-    if re.search(r"\b(agrega|añade|anade|pon|pasa)\b.*\bingredientes?\b.*\b(lista|carrito)\b", normalized):
+    if re.search(r"\b(agrega|añade|anade|pon|pasa|mete|incluye|echa)\b.*\bingredientes?\b.*\b(lista|carrito)\b", normalized):
         return "recipe_to_shopping"
     if re.search(r"\b(guiame|guíame|guia|guía)\b|\b(cocinar|preparar)\b.*\bpaso a paso\b|\bempezar a cocinar\b", normalized):
         return "cooking_start"
@@ -190,23 +203,23 @@ def _assistant_shopping_intent(text: str) -> str:
         return "cooking_complete"
     if re.search(r"\b(receta|cocinar|cocino|preparar|preparo)\b", normalized):
         return "recipe_generate"
-    if re.search(r"\b(quita|quitar|elimina|borra|saca|sacar|remueve|remover)\b|\bya no necesito\b", normalized):
+    if re.search(r"\b(quita|quitar|elimina|eliminar|borra|borrar|saca|sacar|remueve|remover|retira|retirar|quita|descarta)\b|\bya no (?:necesito|hace falta)\b", normalized):
         return "shopping_remove"
-    if re.search(r"\b(agrega|agregar|añade|anade|apunta|comprar|necesito)\b", normalized):
+    if re.search(r"\b(agrega|agregar|añade|anade|apunta|anota|comprar|necesito|pon|mete|incluye|echa|echame|échame|suma|sumale|súmale|trae)\b", normalized):
         return "shopping_add"
-    if re.search(r"(lista de compras?|qué falta comprar|que falta comprar|qué necesito comprar|que necesito comprar)", normalized):
+    if re.search(r"(lista de compras?|qué falta comprar|que falta comprar|qué necesito comprar|que necesito comprar|qué hay que comprar|que hay que comprar|qué tenemos pendiente|que tenemos pendiente|muéstrame la lista|muestrame la lista)", normalized):
         return "shopping_query"
     return "general"
 
 
 def _assistant_shopping_requests(text: str) -> list[dict[str, Any]]:
     cleaned = re.sub(
-        r"(?i)^.*?\b(?:agrega(?:r)?|añade|anade|apunta|comprar|necesito|quita(?:r)?|elimina|borra|saca(?:r)?|remueve|remover)\b\s+",
+        r"(?i)^.*?\b(?:agrega(?:r)?|añade|anade|apunta|anota|comprar|necesito|pon|mete|incluye|echa|échame|echame|suma|súmale|sumale|trae|quita(?:r)?|elimina(?:r)?|borra(?:r)?|saca(?:r)?|remueve|remover|retira(?:r)?|descarta)\b\s+",
         "",
         text,
     ).strip()
     cleaned = re.sub(
-        r"(?i)\s+(?:a|de)\s+(?:mi|la)\s+lista(?:\s+de\s+compras?)?\s*$",
+        r"(?i)\s+(?:a|de|en)\s+(?:mi|la)\s+lista(?:\s+de\s+compras?)?\s*$",
         "",
         cleaned,
     ).strip()
@@ -649,7 +662,7 @@ def assistant_command(
     # this destination suffix when an explicit write verb is present.
     if intent in {"shopping_add", "shopping_remove"}:
         command_text = re.sub(
-            r"(?i)\s+(?:a|de)\s+(?:mi|la)\s+lista(?:\s+de\s+compras?)?\s*$",
+            r"(?i)\s+(?:a|de|en)\s+(?:mi|la)\s+lista(?:\s+de\s+compras?)?\s*$",
             "",
             command_text,
         ).strip()
@@ -665,8 +678,8 @@ def assistant_command(
     extra: dict[str, Any] = {}
     if intent == "recipe_generate":
         home_store = _home_food_store()
-        recipe_data = _ai_call(
-            lambda: _home_ai().generate_recipe(command_text, home_store.snapshot(user), deep=False)
+        recipe_data, generation_mode = _recipe_with_resilience(
+            command_text, home_store.snapshot(user), deep=False
         )
         try:
             recipe = home_store.save_recipe(user, recipe_data, mode="routine")
@@ -683,6 +696,7 @@ def assistant_command(
             )
         message += " Si te gusta, dime: agrega los ingredientes de esta receta a mi lista."
         extra["recipe"] = recipe
+        extra["generation_mode"] = generation_mode
     elif intent == "recipe_to_shopping":
         home_store = _home_food_store()
         recipes = home_store.snapshot(user).get("recipes", [])
@@ -726,13 +740,15 @@ def assistant_command(
                 message = f"Temporizador iniciado por {seconds // 60} minutos." if seconds >= 60 else f"Temporizador iniciado por {seconds} segundos."
                 extra["cooking"] = detail
                 extra["timer"] = timer
-                return {"ok":True,"intent":intent,"agent":agent,"message":_personalize(message,auth),"data":{"items":[],**extra},"snapshot":store.snapshot(user,limit=100)}
+                spoken = _personalize(message, auth)
+                return {"ok":True,"intent":intent,"agent":agent,"message":spoken,"speech":spoken,"must_speak":True,"data":{"items":[],**extra},"snapshot":store.snapshot(user,limit=100)}
             if intent == "cooking_timer_query":
                 detail = home_store.cooking_session_detail(user, active["id"])
                 timers = [row for row in detail["session"].get("timers", []) if row.get("status") == "ACTIVE"]
                 message = "No hay temporizadores activos." if not timers else "Quedan " + ", ".join(f"{row.get('remaining_seconds',0)//60} minutos y {row.get('remaining_seconds',0)%60} segundos" for row in timers) + "."
                 extra["cooking"] = detail
-                return {"ok":True,"intent":intent,"agent":agent,"message":_personalize(message,auth),"data":{"items":[],**extra},"snapshot":store.snapshot(user,limit=100)}
+                spoken = _personalize(message, auth)
+                return {"ok":True,"intent":intent,"agent":agent,"message":spoken,"speech":spoken,"must_speak":True,"data":{"items":[],**extra},"snapshot":store.snapshot(user,limit=100)}
             action = {
                 "cooking_next": "next",
                 "cooking_previous": "previous",
@@ -794,11 +810,14 @@ def assistant_command(
         # General knowledge stays inside the ElevenLabs agent. This endpoint is
         # deliberately limited to durable Roxy Home actions.
         message = "La herramienta de Roxy Home solo ejecuta consultas y cambios de la lista de compras."
+    spoken = _personalize(message, auth)
     return {
         "ok": True,
         "intent": intent,
         "agent": agent,
-        "message": _personalize(message, auth),
+        "message": spoken,
+        "speech": spoken,
+        "must_speak": True,
         "data": {"items": rows, **extra},
         "snapshot": store.snapshot(user, limit=100),
     }
@@ -934,8 +953,8 @@ def generate_home_recipe(
     user = _authorize_user(user_id, auth)
     store = _home_food_store()
     snapshot = store.snapshot(user)
-    recipe_data = _ai_call(
-        lambda: _home_ai().generate_recipe(payload.prompt, snapshot, deep=payload.mode == "deep")
+    recipe_data, generation_mode = _recipe_with_resilience(
+        payload.prompt, snapshot, deep=payload.mode == "deep"
     )
     if payload.recipe_type != "general":
         recipe_data = {**recipe_data, "kind": "drink", "drink_type": payload.recipe_type}
@@ -943,7 +962,7 @@ def generate_home_recipe(
         recipe = store.save_recipe(user, recipe_data, mode=payload.mode)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail="Roxy devolvió una receta incompleta.") from exc
-    return {"status": "CREATED", "recipe": recipe}
+    return {"status": "CREATED", "recipe": recipe, "generation_mode": generation_mode}
 
 
 @app.patch("/v1/home-food/{user_id}/recipes/{recipe_id}")

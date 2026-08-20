@@ -21,7 +21,13 @@ Roxy Home comparte la identidad y el tono de Roxy, pero funciona como un dominio
 
 5. Guarda los cambios y despliega nuevamente `roxy-home`.
 
-La clave permanece en el servidor. La PWA usa la cookie segura de Roxy Home y nunca recibe ni almacena la clave de OpenAI. No hay fallback a claves genéricas: si falta el secreto dedicado, los endpoints de IA responden `503`.
+La clave permanece en el servidor. La PWA usa la cookie segura de Roxy Home y nunca recibe ni almacena la clave de OpenAI. No hay fallback a claves genéricas ni se reutilizan secretos de otros productos.
+
+### Continuidad de recetas
+
+Si el proveedor de IA o la clave dedicada no están disponibles, las recetas rutinarias continúan funcionando con un recetario local real y validado de Roxy Home. La respuesta indica `generation_mode: local_recipe_catalog`, se guarda en la misma biblioteca y puede convertirse en lista o guía paso a paso. No se presenta como una respuesta de OpenAI. Sustituciones, planes semanales e investigación vigente siguen requiriendo la conexión OpenAI dedicada y responden `503` si no está disponible.
+
+La herramienta de voz devuelve además `speech` y `must_speak`. El agente debe esperar el resultado y leer `speech` completo; el texto visible en pantalla no sustituye la respuesta hablada.
 
 `gpt-5.6-luna` y `gpt-5.6-terra` son los identificadores exigidos por el contrato de Roxy Home. La cuenta/proyecto de OpenAI debe tener acceso a ellos; la aplicación no sustituye silenciosamente otro modelo.
 

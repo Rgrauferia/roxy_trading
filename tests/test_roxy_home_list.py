@@ -16,8 +16,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=21"' in page.text
-    assert '/assets/roxy_list.js?v=21' in worker.text
+    assert 'src="/assets/roxy_list.js?v=23"' in page.text
+    assert '/assets/roxy_list.js?v=23' in worker.text
     assert 'id="homeDate"' in page.text
     assert 'id="homeTime"' in page.text
     assert 'id="homeGreeting"' in page.text
@@ -54,6 +54,10 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "@elevenlabs/client@1.8.1" in script.text
     assert "La aplicación actual es Roxy Home" in script.text
     assert "sendCommandToRoxyOS" in script.text
+    assert "sendCommandToRoxyOSForVoice" in script.text
+    assert "must_speak:true" in script.text
+    assert "Lee en voz alta ahora el campo speech completo" in script.text
+    assert "No respondas antes de que la herramienta termine" in script.text
     assert 'id="roxyVoiceLauncher"' in page.text
     assert 'id="roxyPanel"' not in page.text
     assert 'data-tab-link="roxy"' not in page.text
@@ -79,11 +83,12 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "cooking-sessions" in script.text
     assert "speechSynthesis" in script.text
     assert "productImages" in script.text
-    for asset in ("mandarin.png", "ice-cream.png", "sugar.png", "dulce-de-leche.png", "medicine.png", "eyebrow-gel.png", "scent-sachets.png", "groceries.png"):
+    for asset in ("mandarin.png", "ice-cream.png", "sugar.png", "dulce-de-leche.png", "medicine.png", "eyebrow-gel.png", "scent-sachets.png", "flour.png", "pasta.png", "yogurt.png", "juice.png", "vegetables.png", "beef.png", "fish.png", "shampoo.png", "groceries.png"):
         assert asset in script.text
         assert asset in worker.text
         assert client.get(f"/assets/roxy_home/products/{asset}").status_code == 200
     assert "productLabel" in script.text
+    assert "local_recipe_catalog" in script.text
     assert "/substitutions" in script.text
     assert 'id="pantryRecipeButton"' in page.text
     assert 'id="beverageForm"' in page.text
@@ -416,6 +421,9 @@ def test_roxy_voice_saves_recipe_adds_ingredients_and_guides_steps(tmp_path, mon
     )
 
     assert recipe.json()["data"]["recipe"]["kind"] == "drink"
+    assert recipe.json()["must_speak"] is True
+    assert recipe.json()["speech"] == recipe.json()["message"]
+    assert "Preparación:" in recipe.json()["speech"]
     assert ingredients.json()["intent"] == "recipe_to_shopping"
     assert ingredients.json()["snapshot"]["pending_count"] == 1
     assert guide.json()["data"]["cooking"]["current_step"] == "Exprime los limones"
