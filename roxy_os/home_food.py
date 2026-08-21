@@ -267,6 +267,8 @@ class HomeFoodStore:
             "steps": steps,
             "allergen_notes": _string_list(raw.get("allergen_notes"), limit=20),
             "sources": [row for row in (raw.get("sources") or [])[:20] if isinstance(row, dict)],
+            "shared_recipe_id": _text(raw.get("shared_recipe_id"), 64),
+            "generation_source": _text(raw.get("generation_source"), 64),
         }
 
     def save_recipe(self, user_id: Any, recipe: dict[str, Any], *, mode: str = "routine") -> dict[str, Any]:

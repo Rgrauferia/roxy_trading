@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -22,9 +22,29 @@ from roxy_os.home_ai import (
     HomeAIConfigurationError,
     RoxyHomeAI,
 )
-from roxy_os.home_recipe_fallback import generate_local_recipe
+from roxy_os.home_recipe_fallback import find_local_recipe, generate_local_recipe, local_recipe_catalog_summary
+from roxy_os.home_recipe_library import (
+    HomeRecipeLibraryStore,
+    recipe_is_compatible,
+    requested_servings,
+    scale_recipe_payload,
+)
 from roxy_os.home_accounts import HomeAccountStore
+from roxy_os.home_commerce import (
+    AFFILIATE_DISCLOSURE,
+    HomeCommerceStore,
+    create_purchase_links,
+    personalize_items,
+    public_providers,
+)
 from roxy_os.home_food import HomeFoodStore, HomePermissionPolicy
+from roxy_os.home_recipe_videos import (
+    FalHailuoVideoProvider,
+    HomeRecipeVideoConfig,
+    HomeRecipeVideoStore,
+    submit_recipe_video,
+    sync_recipe_video,
+)
 from roxy_os.shopping_list import ShoppingListStore, normalize_shopping_user
 
 
@@ -74,6 +94,28 @@ class HomeProfileRequest(BaseModel):
     household_size: int = Field(default=1, ge=1, le=50)
 
 
+class CommerceProfileRequest(BaseModel):
+    objective: str = Field(default="balanced", pattern="^(balanced|lowest_price|organic|favorites)$")
+    organic_preference: str = Field(default="no_preference", pattern="^(required|preferred|no_preference)$")
+    favorite_retailers: list[str] = Field(default_factory=list, max_length=30)
+    favorite_brands: list[str] = Field(default_factory=list, max_length=30)
+    avoided_brands: list[str] = Field(default_factory=list, max_length=30)
+    dietary_labels: list[str] = Field(default_factory=list, max_length=30)
+    allow_substitutions: bool = True
+    postal_code: str = Field(default="", max_length=12)
+
+
+class CommercePrepareRequest(BaseModel):
+    source: str = Field(default="shopping", pattern="^(shopping|recipe)$")
+    recipe_id: str | None = Field(default=None, max_length=64)
+    provider_ids: list[str] = Field(default_factory=list, max_length=10)
+
+
+class CommerceCheckoutRequest(BaseModel):
+    provider_id: str = Field(min_length=1, max_length=32)
+    confirmed: bool = False
+
+
 class PantryItemRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     quantity: float = Field(default=1, gt=0, le=100_000)
@@ -114,6 +156,16 @@ class RecipePersonalizeRequest(BaseModel):
     photo_data_url: str | None = Field(default=None, max_length=2_100_000)
 
 
+class RecipeVideoRequest(BaseModel):
+    visibility: str = Field(default="shared", pattern="^(shared|household)$")
+    confirmed: bool = False
+
+
+class RecipeVideoReviewRequest(BaseModel):
+    approved: bool
+    notes: str = Field(default="", max_length=1000)
+
+
 class FoodSafetyRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
 
@@ -148,6 +200,99 @@ def _home_food_store() -> HomeFoodStore:
     return HomeFoodStore(os.getenv("ROXY_HOME_MEMORY_PATH", "data/roxy_home_food.json"))
 
 
+def _recipe_library_store() -> HomeRecipeLibraryStore:
+    return HomeRecipeLibraryStore(
+        os.getenv("ROXY_HOME_RECIPE_LIBRARY_PATH", "data/roxy_home_recipe_library.sqlite")
+    )
+
+
+def _recipe_video_store() -> HomeRecipeVideoStore:
+    return HomeRecipeVideoStore(
+        os.getenv("ROXY_HOME_VIDEO_LIBRARY_PATH", "data/roxy_home_recipe_video_library.json")
+    )
+
+
+def _recipe_video_config() -> HomeRecipeVideoConfig:
+    return HomeRecipeVideoConfig.from_env()
+
+
+def _recipe_video_provider(config: HomeRecipeVideoConfig) -> FalHailuoVideoProvider:
+    return FalHailuoVideoProvider(config)
+
+
+def _submit_recipe_video_background(
+    store: HomeRecipeVideoStore,
+    provider: FalHailuoVideoProvider,
+    video_id: str,
+) -> None:
+    try:
+        submit_recipe_video(store, provider, video_id)
+    except ConnectionError:
+        # submit_recipe_video already persists FAILED without leaking provider
+        # details. Cooking must continue even when media generation is down.
+        return
+
+
+def _queue_recipe_video_for_cooking(
+    user: str,
+    recipe: dict[str, Any],
+    background_tasks: BackgroundTasks,
+) -> tuple[str, dict[str, Any] | None]:
+    """Queue missing shared media; beginning to cook is the user's intent."""
+
+    config = _recipe_video_config()
+    if not config.configured:
+        return config.state.upper(), None
+    store = _recipe_video_store()
+    existing = store.find_for_recipe(user, recipe)
+    if existing is not None:
+        existing["reused"] = True
+        return "REUSED", existing
+    if store.monthly_reserved_usd() + config.estimated_recipe_cost_usd > config.monthly_budget_usd:
+        return "BUDGET_LIMIT", None
+    record, reused = store.create_or_reuse(user, recipe, config, visibility="shared")
+    public = store._public(record, user)
+    public["reused"] = reused
+    if not reused:
+        background_tasks.add_task(
+            _submit_recipe_video_background,
+            store,
+            _recipe_video_provider(config),
+            record["id"],
+        )
+    return ("REUSED" if reused else "QUEUED"), public
+
+
+def _commerce_store() -> HomeCommerceStore:
+    return HomeCommerceStore(os.getenv("ROXY_HOME_COMMERCE_PATH", "data/roxy_home_commerce.json"))
+
+
+def _commerce_providers(profile: dict[str, Any], activity: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    rows = public_providers()
+    favorites = {str(name).casefold(): index for index, name in enumerate(profile.get("favorite_retailers") or [])}
+    counts = (activity or {}).get("provider_counts") or {}
+    rows.sort(
+        key=lambda row: (
+            favorites.get(str(row["name"]).casefold(), 999),
+            not row["configured"],
+            -int(counts.get(row["id"], 0)),
+            row["name"],
+        )
+    )
+    for row in rows:
+        row["handoff_count"] = int(counts.get(row["id"], 0))
+    return rows
+
+
+def _commerce_disclosure(providers: list[dict[str, Any]]) -> str:
+    notices = [AFFILIATE_DISCLOSURE]
+    for provider in providers:
+        notice = str(provider.get("disclosure") or "").strip()
+        if provider.get("configured") and notice and notice not in notices:
+            notices.append(notice)
+    return " ".join(notices)
+
+
 def _account_store() -> HomeAccountStore:
     return HomeAccountStore(os.getenv("ROXY_HOME_ACCOUNTS_PATH", "data/roxy_home_accounts.json"))
 
@@ -171,20 +316,67 @@ def _ai_call(callback: Any) -> dict[str, Any]:
         raise HTTPException(status_code=502, detail="Roxy Home no pudo completar la solicitud de IA.") from exc
 
 
-def _recipe_with_resilience(prompt: str, snapshot: dict[str, Any], *, deep: bool) -> tuple[dict[str, Any], str]:
-    """Keep recipes usable while reporting whether OpenAI or the local catalog answered."""
+def _with_private_allergy_notes(recipe: dict[str, Any], snapshot: dict[str, Any]) -> dict[str, Any]:
+    result = {**recipe, "allergen_notes": list(recipe.get("allergen_notes") or [])}
+    allergies = [str(value).strip() for value in ((snapshot.get("profile") or {}).get("allergies") or []) if str(value).strip()]
+    if allergies:
+        private_note = "Alergias de este hogar: " + ", ".join(allergies) + ". Verifica etiquetas y contaminación cruzada."
+        if private_note not in result["allergen_notes"]:
+            result["allergen_notes"].append(private_note)
+    return result
+
+
+def _recipe_with_resilience(
+    prompt: str,
+    snapshot: dict[str, Any],
+    *,
+    deep: bool,
+    recipe_type: str = "general",
+) -> tuple[dict[str, Any], str]:
+    """Use the curated catalog first and reserve OpenAI for uncommon recipes."""
+    local_recipe = find_local_recipe(prompt, snapshot)
+    if local_recipe is not None:
+        return scale_recipe_payload(local_recipe, requested_servings(prompt)), "local_recipe_catalog"
+    shared_recipe = _recipe_library_store().find(prompt, snapshot, recipe_type=recipe_type)
+    if shared_recipe is not None:
+        return _with_private_allergy_notes(shared_recipe, snapshot), "shared_recipe_library"
     try:
-        return _home_ai().generate_recipe(prompt, snapshot, deep=deep), "openai"
+        # Canonical content is generated without any household profile, pantry,
+        # name or preference. Only that sanitized base may enter the global DB.
+        generated = _home_ai().generate_recipe(
+            prompt,
+            {"profile": {}, "pantry": []},
+            deep=deep,
+        )
+        if not recipe_is_compatible(generated, snapshot):
+            private_recipe = _home_ai().generate_recipe(prompt, snapshot, deep=deep)
+            return {
+                **scale_recipe_payload(private_recipe, requested_servings(prompt)),
+                "shared_recipe_id": "",
+                "generation_source": "openai_private",
+            }, "openai_private"
+        published = _recipe_library_store().publish(
+            prompt,
+            generated,
+            source="openai",
+            recipe_type=recipe_type,
+        )
+        generated = _with_private_allergy_notes({
+            **scale_recipe_payload(generated, requested_servings(prompt)),
+            "shared_recipe_id": published.get("id") or "",
+            "generation_source": "openai",
+        }, snapshot)
+        return generated, "openai"
     except (HomeAIConfigurationError, HomeAIBudgetExceeded, ValueError, KeyError):
-        return generate_local_recipe(prompt, snapshot), "local_recipe_catalog"
+        return scale_recipe_payload(generate_local_recipe(prompt, snapshot), requested_servings(prompt)), "local_recipe_catalog"
     except Exception:
-        # Provider/network details stay server-side; the curated recipe is real,
-        # deterministic and explicitly identified instead of simulating an AI call.
-        return generate_local_recipe(prompt, snapshot), "local_recipe_catalog"
+        return scale_recipe_payload(generate_local_recipe(prompt, snapshot), requested_servings(prompt)), "local_recipe_catalog"
 
 
 def _assistant_shopping_intent(text: str) -> str:
     normalized = text.lower().strip()
+    if re.search(r"\b(prepara|preparar|busca|buscar|encuentra|encontrar)\b.*\b(compra|carrito)\b", normalized):
+        return "commerce_prepare"
     if re.search(r"\b(agrega|añade|anade|pon|pasa|mete|incluye|echa)\b.*\bingredientes?\b.*\b(lista|carrito)\b", normalized):
         return "recipe_to_shopping"
     if re.search(r"\b(guiame|guíame|guia|guía)\b|\b(cocinar|preparar)\b.*\bpaso a paso\b|\bempezar a cocinar\b", normalized):
@@ -201,9 +393,32 @@ def _assistant_shopping_intent(text: str) -> str:
         return "cooking_timer_query"
     if re.search(r"\b(termine|terminé|finaliza|finalizar)\b.*\b(receta|cocina|cocinar)\b", normalized):
         return "cooking_complete"
+    natural_recipe_request = bool(
+        re.search(r"\b(dame|hazme|prep[aá]ra(?:me)?|ensena(?:me)?|ens[eé]ña(?:me)?)\b", normalized)
+        or re.search(r"\b(quiero|quisiera)\b.*\b(hacer|preparar|cocinar)\b", normalized)
+    )
+    if natural_recipe_request and find_local_recipe(text, {}) is not None:
+        return "recipe_generate"
+    # People commonly request drinks and desserts without saying "receta"
+    # ("dame un mojito", "hazme un flan"). Keep this ahead of shopping
+    # mutations, but require a preparation verb so "agrega jugo" continues to
+    # mean an item for the shopping list.
+    if re.search(
+        r"\b(dame|hazme|prep[aá]ra(?:me)?|ensena(?:me)?|ens[eé]ña(?:me)?)\b.*"
+        r"\b(bebida|coctel|cóctel|mojito|margarita|daiquiri|limonada|jugo|zumo|"
+        r"batido|licuado|smoothie|cafe|café|te|té|chocolate caliente|postre|flan|"
+        r"pastel|tarta|galleta|helado)\b",
+        normalized,
+    ) or re.search(
+        r"\b(quiero|quisiera)\b.*\b(hacer|preparar)\b.*"
+        r"\b(bebida|coctel|cóctel|mojito|margarita|daiquiri|limonada|jugo|zumo|"
+        r"batido|licuado|smoothie|postre|flan|pastel|tarta|galleta|helado)\b",
+        normalized,
+    ):
+        return "recipe_generate"
     if re.search(r"\b(receta|cocinar|cocino|preparar|preparo)\b", normalized):
         return "recipe_generate"
-    if re.search(r"\b(quita|quitar|elimina|eliminar|borra|borrar|saca|sacar|remueve|remover|retira|retirar|quita|descarta)\b|\bya no (?:necesito|hace falta)\b", normalized):
+    if re.search(r"\b(quita|quitar|elimina|eliminar|borra|borrar|saca|sacar|remueve|remover|retira|retirar|descarta)\b|\bya no (?:necesito|hace falta)\b", normalized):
         return "shopping_remove"
     if re.search(r"\b(agrega|agregar|añade|anade|apunta|anota|comprar|necesito|pon|mete|incluye|echa|echame|échame|suma|sumale|súmale|trae)\b", normalized):
         return "shopping_add"
@@ -391,6 +606,12 @@ def _authorize_user(user_id: str, auth: AuthContext) -> str:
 
 def _member_for_auth(auth: AuthContext) -> dict[str, Any] | None:
     return _account_store().member(auth.member_id) if auth.mode == "member" and auth.member_id else None
+
+
+def _commerce_owner_key(auth: AuthContext, user: str) -> str:
+    # Shopping and pantry stay shared by household, while retailer/brand and
+    # budget preferences belong to the authenticated person.
+    return f"member:{auth.member_id}" if auth.mode == "member" and auth.member_id else f"legacy:{user}"
 
 
 def _set_session_cookie(response: Response, value: str) -> None:
@@ -669,6 +890,8 @@ def assistant_command(
     agent = (
         "shopping"
         if intent.startswith("shopping_")
+        else "home_commerce"
+        if intent.startswith("commerce_")
         else "home_food"
         if intent.startswith("recipe_") or intent.startswith("cooking_")
         else "general"
@@ -676,7 +899,43 @@ def assistant_command(
     store = _store()
     rows: list[dict[str, Any]] = []
     extra: dict[str, Any] = {}
-    if intent == "recipe_generate":
+    if intent == "commerce_prepare":
+        food_snapshot = _home_food_store().snapshot(user)
+        use_recipe = bool(re.search(r"\bingredientes?\b|\breceta\b", command_text.lower()))
+        if use_recipe:
+            recipes = food_snapshot.get("recipes", [])
+            if not recipes:
+                raise HTTPException(status_code=409, detail="Primero pide o crea una receta.")
+            preview = _home_food_store().shopping_preview(user, recipes[-1]["id"])
+            raw_items = preview["items"]
+            source = "recipe"
+            source_title = f"Ingredientes para {preview['title']}"
+        else:
+            raw_items = store.list_items(user, statuses={"PENDING"}, limit=100)
+            source = "shopping"
+            source_title = "Lista de compras de Roxy Home"
+        if not raw_items:
+            raise HTTPException(status_code=409, detail="No hay productos pendientes para preparar.")
+        owner_key = _commerce_owner_key(auth, user)
+        commerce_store = _commerce_store()
+        items = personalize_items(
+            raw_items,
+            commerce_store.profile(owner_key),
+            food_snapshot.get("profile", {}).get("allergies", []),
+        )
+        providers = _commerce_providers(commerce_store.profile(owner_key))
+        preparation = commerce_store.save_preparation(
+            owner_key,
+            user,
+            source=source,
+            source_title=source_title,
+            items=items,
+            providers=[row["id"] for row in providers],
+        )
+        message = "Preparé los productos para que elijas un comercio y revises la compra. Yo no pagaré ni finalizaré nada por ti."
+        extra["preparation"] = preparation
+        extra["providers"] = providers
+    elif intent == "recipe_generate":
         home_store = _home_food_store()
         # The ElevenLabs client tool currently allows only one second for its
         # response. A remote model can exceed that even when it succeeds, which
@@ -911,11 +1170,133 @@ def complete_purchase(
     return {"status": "COMPLETED" if result.get("completed") else "EMPTY", **result}
 
 
+@app.get("/v1/home-commerce/{user_id}")
+def read_home_commerce(
+    user_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    store = _commerce_store()
+    owner_key = _commerce_owner_key(auth, user)
+    profile = store.profile(owner_key)
+    activity = store.activity(owner_key)
+    providers = _commerce_providers(profile, activity)
+    return {
+        "status": "READY",
+        "profile": profile,
+        "providers": providers,
+        "activity": activity,
+        "disclosure": _commerce_disclosure(providers),
+    }
+
+
+@app.put("/v1/home-commerce/{user_id}/profile")
+def update_home_commerce_profile(
+    user_id: str,
+    payload: CommerceProfileRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        profile = _commerce_store().update_profile(_commerce_owner_key(auth, user), payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "UPDATED", "profile": profile}
+
+
+@app.post("/v1/home-commerce/{user_id}/preparations", status_code=201)
+def prepare_home_purchase(
+    user_id: str,
+    payload: CommercePrepareRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    food_snapshot = _home_food_store().snapshot(user)
+    if payload.source == "recipe":
+        if not payload.recipe_id:
+            raise HTTPException(status_code=422, detail="Selecciona una receta para preparar la compra.")
+        try:
+            source = _home_food_store().shopping_preview(user, payload.recipe_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Receta no encontrada") from exc
+        raw_items = source["items"]
+        source_title = f"Ingredientes para {source['title']}"
+    else:
+        raw_items = _store().list_items(user, statuses={"PENDING"}, limit=100)
+        source_title = "Lista de compras de Roxy Home"
+    if not raw_items:
+        raise HTTPException(status_code=409, detail="No hay productos pendientes para preparar.")
+    owner_key = _commerce_owner_key(auth, user)
+    profile = _commerce_store().profile(owner_key)
+    activity = _commerce_store().activity(owner_key)
+    provider_rows = _commerce_providers(profile, activity)
+    known = {row["id"] for row in provider_rows}
+    requested = list(dict.fromkeys(payload.provider_ids)) if payload.provider_ids else [row["id"] for row in provider_rows]
+    if not requested or any(provider not in known for provider in requested):
+        raise HTTPException(status_code=422, detail="Selecciona proveedores compatibles.")
+    items = personalize_items(raw_items, profile, food_snapshot.get("profile", {}).get("allergies", []))
+    preparation = _commerce_store().save_preparation(
+        owner_key,
+        user,
+        source=payload.source,
+        source_title=source_title,
+        items=items,
+        providers=requested,
+    )
+    return {"status": "PREPARED", "preparation": preparation, "providers": provider_rows}
+
+
+@app.post("/v1/home-commerce/{user_id}/preparations/{preparation_id}/checkout")
+def create_home_purchase_link(
+    user_id: str,
+    preparation_id: str,
+    payload: CommerceCheckoutRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    if payload.confirmed is not True:
+        raise HTTPException(status_code=409, detail="CONFIRMATION_REQUIRED")
+    owner_key = _commerce_owner_key(auth, user)
+    try:
+        preparation = _commerce_store().preparation(owner_key, preparation_id)
+        result = create_purchase_links(payload.provider_id, preparation)
+        handoff = _commerce_store().record_handoff(
+            owner_key,
+            preparation_id,
+            provider_id=payload.provider_id,
+            provider_name=str(result["provider"]["name"]),
+            mode=str(result["mode"]),
+            link_count=len(result.get("links") or []),
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Preparación no encontrada") from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ConnectionError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "READY_FOR_REVIEW", "disclosure": AFFILIATE_DISCLOSURE, "handoff": handoff, **result}
+
+
 @app.get("/v1/home-food/{user_id}")
 def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenticate)) -> dict[str, Any]:
     _rate_limit(request)
     user = _authorize_user(user_id, auth)
-    return _home_food_store().snapshot(user)
+    return {
+        **_home_food_store().snapshot(user),
+        "local_catalog": local_recipe_catalog_summary(),
+        "shared_recipe_library": _recipe_library_store().summary(),
+        "recipe_video_service": _recipe_video_config().public_status(),
+    }
 
 
 @app.put("/v1/home-food/{user_id}/profile")
@@ -959,7 +1340,10 @@ def generate_home_recipe(
     store = _home_food_store()
     snapshot = store.snapshot(user)
     recipe_data, generation_mode = _recipe_with_resilience(
-        payload.prompt, snapshot, deep=payload.mode == "deep"
+        payload.prompt,
+        snapshot,
+        deep=payload.mode == "deep",
+        recipe_type=payload.recipe_type,
     )
     if payload.recipe_type != "general":
         recipe_data = {**recipe_data, "kind": "drink", "drink_type": payload.recipe_type}
@@ -1005,10 +1389,158 @@ def delete_home_recipe(
     return {"status": "DELETED", "recipe": recipe}
 
 
+@app.get("/v1/home-food/{user_id}/recipes/{recipe_id}/video")
+def read_home_recipe_video(
+    user_id: str,
+    recipe_id: str,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        recipe = _home_food_store().get_recipe(user, recipe_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Receta no encontrada") from exc
+    config = _recipe_video_config()
+    video = _recipe_video_store().find_for_recipe(user, recipe)
+    return {"status": "READY" if video and video.get("status") == "READY" else "AVAILABLE", "video": video, "service": config.public_status()}
+
+
+@app.post("/v1/home-food/{user_id}/recipes/{recipe_id}/video", status_code=202)
+def create_home_recipe_video(
+    user_id: str,
+    recipe_id: str,
+    payload: RecipeVideoRequest,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        recipe = _home_food_store().get_recipe(user, recipe_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Receta no encontrada") from exc
+    config = _recipe_video_config()
+    if not config.configured:
+        raise HTTPException(
+            status_code=503,
+            detail="La generación de videos todavía no está conectada o no tiene un presupuesto Home activo.",
+        )
+    store = _recipe_video_store()
+    existing = store.find_for_recipe(user, recipe)
+    if existing:
+        existing["reused"] = True
+        return {"status": "REUSED", "video": existing, "service": config.public_status()}
+    if payload.confirmed is not True:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "CONFIRMATION_REQUIRED",
+                "estimated_cost_usd": config.estimated_recipe_cost_usd,
+                "message": "Confirma antes de generar. Roxy reutilizará este video después.",
+            },
+        )
+    if store.monthly_reserved_usd() + config.estimated_recipe_cost_usd > config.monthly_budget_usd:
+        raise HTTPException(status_code=429, detail="Se alcanzó el presupuesto mensual de videos de Roxy Home.")
+    record, reused = store.create_or_reuse(user, recipe, config, visibility=payload.visibility)
+    if not reused:
+        try:
+            record = submit_recipe_video(store, _recipe_video_provider(config), record["id"])
+        except ConnectionError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+    public = store._public(record, user)
+    public["reused"] = reused
+    return {"status": "REUSED" if reused else "PROCESSING", "video": public, "service": config.public_status()}
+
+
+@app.post("/v1/home-food/{user_id}/recipe-videos/{video_id}/sync")
+def sync_home_recipe_video(
+    user_id: str,
+    video_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    store = _recipe_video_store()
+    try:
+        record = store.accessible_internal(user, video_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Video no encontrado") from exc
+    if record.get("owner_user_id") != user and record.get("status") != "READY":
+        raise HTTPException(status_code=403, detail="Este video pertenece a otro hogar.")
+    config = _recipe_video_config()
+    if record.get("status") not in {"REVIEW", "READY", "FAILED", "REJECTED"} and not config.configured:
+        raise HTTPException(status_code=503, detail="El proveedor de videos no está disponible.")
+    if record.get("status") not in {"REVIEW", "READY", "FAILED", "REJECTED"}:
+        record = sync_recipe_video(store, _recipe_video_provider(config), config, video_id)
+    return {"status": record.get("status"), "video": store._public(record, user)}
+
+
+@app.post("/v1/home-food/{user_id}/recipe-videos/{video_id}/review")
+def review_home_recipe_video(
+    user_id: str,
+    video_id: str,
+    payload: RecipeVideoReviewRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    config = _recipe_video_config()
+    supplied = str(request.headers.get("X-Roxy-Video-Admin-Key") or "")
+    if not config.admin_key or not hmac.compare_digest(supplied, config.admin_key):
+        raise HTTPException(status_code=403, detail="Revisión administrativa requerida.")
+    try:
+        record = _recipe_video_store().approve(video_id, approved=payload.approved, notes=payload.notes)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Video no encontrado") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"status": record.get("status"), "video": _recipe_video_store()._public(record, user)}
+
+
+@app.get("/v1/home-food/{user_id}/recipe-videos/{video_id}/clips/{clip_index}", response_class=FileResponse)
+def read_home_recipe_video_clip(
+    user_id: str,
+    video_id: str,
+    clip_index: int,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> Response:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    store = _recipe_video_store()
+    try:
+        record = store.accessible_internal(user, video_id)
+        clips = record.get("clips") or []
+        clip = clips[clip_index] if 0 <= clip_index < len(clips) else None
+        if not clip or not clip.get("media_path"):
+            raise KeyError(video_id)
+        media_path = Path(str(clip["media_path"])).resolve()
+        media_path.relative_to(_recipe_video_config().media_dir.resolve())
+        if not media_path.is_file():
+            raise KeyError(video_id)
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail="Clip no encontrado") from exc
+    response = FileResponse(
+        media_path,
+        media_type="video/mp4",
+        filename=f"roxy-{video_id}-{clip_index + 1}.mp4",
+        content_disposition_type="inline",
+    )
+    response.headers["Cache-Control"] = (
+        "public, max-age=86400" if record.get("visibility") == "shared" and record.get("status") == "READY" else "private, no-store"
+    )
+    return _security_headers(response)
+
+
 @app.post("/v1/home-food/{user_id}/recipes/{recipe_id}/cooking-sessions", status_code=201)
 def start_home_cooking_session(
     user_id: str,
     recipe_id: str,
+    background_tasks: BackgroundTasks,
     request: Request,
     auth: str = Depends(_authenticate),
 ) -> dict[str, Any]:
@@ -1017,7 +1549,14 @@ def start_home_cooking_session(
     store = _home_food_store()
     try:
         session = store.start_cooking_session(user, recipe_id)
-        return {"status": "STARTED", **store.cooking_session_detail(user, session["id"])}
+        detail = store.cooking_session_detail(user, session["id"])
+        video_status, video = _queue_recipe_video_for_cooking(user, detail["recipe"], background_tasks)
+        return {
+            "status": "STARTED",
+            **detail,
+            "recipe_video_status": video_status,
+            "recipe_video": video,
+        }
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Receta no encontrada") from exc
 

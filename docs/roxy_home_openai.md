@@ -23,9 +23,11 @@ Roxy Home comparte la identidad y el tono de Roxy, pero funciona como un dominio
 
 La clave permanece en el servidor. La PWA usa la cookie segura de Roxy Home y nunca recibe ni almacena la clave de OpenAI. No hay fallback a claves genéricas ni se reutilizan secretos de otros productos.
 
-### Continuidad de recetas
+### Recetario local antes de OpenAI
 
-Si el proveedor de IA o la clave dedicada no están disponibles, las recetas rutinarias continúan funcionando con un recetario local real y validado de Roxy Home. La respuesta indica `generation_mode: local_recipe_catalog`, se guarda en la misma biblioteca y puede convertirse en lista o guía paso a paso. No se presenta como una respuesta de OpenAI. Sustituciones, planes semanales e investigación vigente siguen requiriendo la conexión OpenAI dedicada y responden `503` si no está disponible.
+Las recetas comunes se resuelven primero con un recetario local real y validado de Roxy Home. El catálogo contiene 62 preparaciones: 18 comidas o panes, 11 postres y 33 bebidas, de las cuales 24 son alcohólicas y 9 sin alcohol. Solo una solicitud sin coincidencia confiable se envía a OpenAI. Esto reduce costo y latencia y mantiene las recetas habituales disponibles aunque el proveedor o la clave dedicada fallen.
+
+La respuesta local indica `generation_mode: local_recipe_catalog`, se guarda en la misma biblioteca y puede convertirse en lista o guía paso a paso. No se presenta como una respuesta de OpenAI. Sustituciones, planes semanales e investigación vigente siguen requiriendo la conexión OpenAI dedicada y responden `503` si no está disponible.
 
 La herramienta de voz devuelve además `speech` y `must_speak`. El agente debe esperar el resultado y leer `speech` completo; el texto visible en pantalla no sustituye la respuesta hablada.
 

@@ -110,6 +110,21 @@ class ShoppingListStore:
             payload["user_revisions"] = {}
         return payload
 
+    def user_ids(self) -> list[str]:
+        """Return normalized owners without exposing shopping item contents."""
+        payload = self._read_unlocked()
+        users = {
+            normalize_shopping_user(item.get("user_id"))
+            for item in payload.get("items", [])
+            if isinstance(item, dict) and item.get("user_id")
+        }
+        users.update(
+            normalize_shopping_user(user)
+            for user in (payload.get("user_revisions") or {})
+            if str(user or "").strip()
+        )
+        return sorted(users)
+
     @staticmethod
     def _revision(payload: dict[str, Any], user: str) -> int:
         revisions = payload.setdefault("user_revisions", {})

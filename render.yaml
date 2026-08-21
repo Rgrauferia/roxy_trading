@@ -128,8 +128,30 @@ services:
         value: /var/data/roxy_home/shopping_list.json
       - key: ROXY_HOME_MEMORY_PATH
         value: /var/data/roxy_home/home_food.json
+      - key: ROXY_HOME_RECIPE_LIBRARY_PATH
+        value: /var/data/roxy_home/recipe_library.sqlite
       - key: ROXY_HOME_ACCOUNTS_PATH
         value: /var/data/roxy_home/accounts.json
+      - key: ROXY_HOME_COMMERCE_PATH
+        value: /var/data/roxy_home/commerce.json
+      - key: ROXY_HOME_VIDEO_LIBRARY_PATH
+        value: /var/data/roxy_home/recipe_video_library.json
+      - key: ROXY_HOME_VIDEO_MEDIA_DIR
+        value: /var/data/roxy_home/recipe_videos
+      - key: ROXY_HOME_VIDEO_ENABLED
+        value: "1"
+      - key: ROXY_HOME_VIDEO_FAL_KEY
+        sync: false
+      - key: ROXY_HOME_VIDEO_CLIP_COUNT
+        value: "3"
+      - key: ROXY_HOME_VIDEO_PRICE_PER_SECOND_USD
+        value: "0.045"
+      - key: ROXY_HOME_VIDEO_MONTHLY_BUDGET_USD
+        value: "10"
+      - key: ROXY_HOME_VIDEO_MAX_RECIPE_COST_USD
+        value: "1.00"
+      - key: ROXY_HOME_VIDEO_ADMIN_KEY
+        sync: false
       - key: ROXY_HOME_AI_BUDGET_PATH
         value: /var/data/roxy_home/openai_budget.json
       - key: ROXY_HOME_OPENAI_API_KEY
@@ -144,6 +166,20 @@ services:
         value: "100000"
       - key: ROXY_HOME_AI_MAX_OUTPUT_TOKENS
         value: "4000"
+      - key: ROXY_HOME_INSTACART_API_KEY
+        sync: false
+      - key: ROXY_HOME_INSTACART_API_URL
+        value: https://connect.instacart.com/idp/v1/products/products_link
+      - key: ROXY_HOME_INSTACART_AFFILIATE_URL
+        sync: false
+      - key: ROXY_HOME_AMAZON_ASSOCIATE_TAG
+        sync: false
+      - key: ROXY_HOME_WALMART_AFFILIATE_LINK_TEMPLATE
+        sync: false
+      - key: ROXY_HOME_TARGET_AFFILIATE_LINK_TEMPLATE
+        sync: false
+      - key: ROXY_HOME_THRIVE_AFFILIATE_LINK_TEMPLATE
+        sync: false
     disk:
       name: roxy-home-data
       mountPath: /var/data

@@ -12,8 +12,8 @@
   <link rel="icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=25" />
-  <script src="/assets/roxy_list.js?v=25" defer></script>
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=34" />
+  <script src="/assets/roxy_list.js?v=34" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -58,6 +58,15 @@
         <div class="finish-row"><span><strong id="pendingTotal">0</strong> artículos pendientes</span><button id="completeButton" class="primary" type="button">Compra hecha</button></div>
       </section>
 
+      <section class="content-section commerce-card" aria-labelledby="commerceTitle">
+        <div class="section-heading"><div><p>Roxy compra contigo</p><h2 id="commerceTitle">Preparar mi compra</h2><small id="commerceSummary">Personalizada según tus preferencias.</small></div><span>Afiliados</span></div>
+        <p>Roxy organiza los productos y te lleva al comercio elegido. Tú siempre revisas precios, sustituciones y confirmas el pago.</p>
+        <div id="commerceProviderBadges" class="provider-badges" aria-label="Comercios disponibles"></div>
+        <button id="prepareShoppingButton" class="primary full" type="button">Buscar productos de mi lista</button>
+        <small id="affiliateDisclosure" class="affiliate-disclosure"></small>
+        <div id="commerceRecent" class="commerce-recent" aria-live="polite"></div>
+      </section>
+
       <section class="content-section staples-section" aria-labelledby="usualTitle">
         <div class="section-heading"><div><p>Un toque y listo</p><h2 id="usualTitle">Productos habituales</h2><small id="usualHint">Roxy aprende de tus compras.</small></div></div>
         <div id="usualProducts" class="product-grid"></div>
@@ -67,7 +76,7 @@
 
     <section id="recipesPanel" class="app-panel" data-panel="recipes" aria-labelledby="recipesTitle" hidden>
       <div class="section-heading hero-heading"><div><p>Roxy cocina contigo</p><h2 id="recipesTitle">Recetas</h2></div><span>Guardado automático</span></div>
-      <p class="lead">Pide comidas, panes, postres o bebidas. Cada receta quedará guardada para que puedas retomarla cuando quieras.</p>
+      <p class="lead">Pide comidas, panes, postres o bebidas. Cada receta quedará guardada para que puedas retomarla cuando quieras. <span id="recipeCatalogHint"></span></p>
 
       <form id="recipeForm" class="recipe-request card">
         <label><span>¿Qué quieres preparar?</span><textarea id="recipePrompt" rows="3" required placeholder="Quiero hacer un pan casero fácil"></textarea></label>
@@ -102,7 +111,7 @@
       </div>
 
       <section class="content-section" aria-labelledby="libraryTitle">
-        <div class="section-heading"><div><p>Tu carpeta</p><h2 id="libraryTitle">Mis recetas</h2></div><span id="recipeCount">0 recetas</span></div>
+        <div class="section-heading"><div><p>Tu carpeta organizada</p><h2 id="libraryTitle">Mis recetas</h2><small>Comidas · Postres · Bebidas</small></div><span id="recipeCount">0 recetas</span></div>
         <div id="recipeLibrary" class="recipe-library"></div>
       </section>
 
@@ -144,6 +153,18 @@
         <label><span>No me gusta</span><input id="homeDislikes" placeholder="Cilantro…" /></label>
         <label><span>Personas en casa</span><input id="homeHousehold" type="number" min="1" max="50" value="1" /></label>
         <button class="secondary full" type="submit">Guardar preferencias</button>
+      </form>
+      <form id="commerceProfileForm" class="card kitchen-form">
+        <p class="eyebrow">Compras a tu manera</p><h3>Mi perfil de compra</h3>
+        <label><span>Qué debe priorizar Roxy</span><select id="commerceObjective"><option value="balanced">Mejor equilibrio</option><option value="lowest_price">Menor precio</option><option value="organic">Productos orgánicos</option><option value="favorites">Mis marcas favoritas</option></select></label>
+        <label><span>Productos orgánicos</span><select id="commerceOrganic"><option value="no_preference">Sin preferencia</option><option value="preferred">Preferir orgánicos</option><option value="required">Solo buscar orgánicos</option></select></label>
+        <label><span>Tiendas favoritas</span><input id="commerceRetailers" placeholder="Instacart, Walmart, Amazon…" /></label>
+        <label><span>Marcas favoritas</span><input id="commerceBrands" placeholder="Separadas por comas" /></label>
+        <label><span>Marcas que no quiero</span><input id="commerceAvoidedBrands" placeholder="Separadas por comas" /></label>
+        <label><span>Etiquetas o dieta</span><input id="commerceDietary" placeholder="Sin gluten, vegano, bajo sodio…" /></label>
+        <label><span>Código postal</span><input id="commercePostalCode" inputmode="text" autocomplete="postal-code" maxlength="12" placeholder="Para disponibilidad local" /></label>
+        <label class="favorite-check"><input id="commerceSubstitutions" type="checkbox" checked /> Permitir que Roxy sugiera sustituciones</label>
+        <button class="primary full" type="submit">Guardar perfil de compra</button>
       </form>
     </section>
 
@@ -206,6 +227,7 @@
     <article>
       <div class="dialog-heading"><div><p id="cookingProgress" class="eyebrow">Paso 1</p><h2 id="cookingTitle">Cocinando con Roxy</h2></div><button type="button" data-close-dialog="cookingDialog" aria-label="Cerrar">Pausar</button></div>
       <div class="cooking-visual"><img id="cookingImage" src="/assets/roxy_avatar_card.jpg" alt="" /></div>
+      <section id="cookingVideo" class="cooking-video" aria-live="polite" hidden></section>
       <p id="cookingStep" class="cooking-step" aria-live="polite"></p>
       <div class="timer-box">
         <div><input id="timerMinutes" type="number" min="0.1" max="1440" step="0.1" value="10" aria-label="Minutos del temporizador" /><button id="startTimerButton" class="secondary" type="button">Iniciar temporizador</button></div>
@@ -215,6 +237,24 @@
         <button id="speakStepButton" class="secondary" type="button">Escuchar paso</button>
         <div><button id="previousStepButton" class="secondary" type="button">Anterior</button><button id="nextStepButton" class="primary" type="button">Siguiente</button></div>
       </div>
+    </article>
+  </dialog>
+
+  <dialog id="commerceDialog" class="commerce-dialog" aria-labelledby="commerceDialogTitle">
+    <article>
+      <div class="dialog-heading"><div><p class="eyebrow">Preparado para revisar</p><h2 id="commerceDialogTitle">Tu compra personalizada</h2></div><button type="button" data-close-dialog="commerceDialog" aria-label="Cerrar">Cerrar</button></div>
+      <div id="commerceItems" class="commerce-items"></div>
+      <p id="commerceDisclosureDialog" class="affiliate-disclosure"></p>
+      <p id="commerceProviderDisclosure" class="affiliate-disclosure provider-disclosure" hidden></p>
+      <div id="commerceActions" class="commerce-actions"></div>
+      <section id="commerceConfirmation" class="commerce-confirmation" aria-labelledby="commerceConfirmTitle" hidden>
+        <strong id="commerceConfirmTitle">Confirmar salida segura</strong>
+        <p id="commerceConfirmCopy"></p>
+        <label class="favorite-check"><input id="commerceConfirmCheck" type="checkbox" /> Entiendo que revisaré productos, precio final y pago directamente con el comercio.</label>
+        <div class="dialog-actions"><button id="commerceConfirmCancel" class="secondary" type="button">Volver</button><button id="commerceConfirmButton" class="primary" type="button" disabled>Continuar al comercio</button></div>
+      </section>
+      <p id="commerceHandoffNote" class="commerce-safety" role="status"></p>
+      <p class="commerce-safety">Roxy no almacena contraseñas ni tarjetas y nunca completa el pago automáticamente.</p>
     </article>
   </dialog>
 

@@ -15,10 +15,12 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     script = client.get("/assets/roxy_list.js")
 
     assert page.status_code == 200
-    assert '<meta name="impact-site-verification" content="18b7dad2-1277-4abb-ae16-df84b1d41a04" />' in page.text
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=25"' in page.text
-    assert '/assets/roxy_list.js?v=25' in worker.text
+    assert 'src="/assets/roxy_list.js?v=34"' in page.text
+    assert '/assets/roxy_list.js?v=34' in worker.text
+    assert 'id="cookingVideo"' in page.text
+    assert "syncCookingVideo" in script.text
+    assert "Roxy está creando el video" in script.text
     assert 'id="homeDate"' in page.text
     assert 'id="homeTime"' in page.text
     assert 'id="homeGreeting"' in page.text
@@ -75,6 +77,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "localStorage.setItem('apiToken'" not in script.text
     assert 'id="recipeSubmit"' in page.text
     assert 'id="recipeLibrary"' in page.text
+    assert 'id="recipeCatalogHint"' in page.text
     assert 'id="cookingDialog"' in page.text
     assert 'data-tab-link="recipes"' in page.text
     assert 'id="pantryForm"' in page.text
@@ -98,6 +101,9 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="beverageForm"' in page.text
     assert 'data-recipe-filter="alcoholic"' in page.text
     assert 'data-recipe-filter="non_alcoholic"' in page.text
+    assert "recipe-category-grid" in script.text
+    assert "dataset.recipeCategory" in script.text
+    assert "Comidas" in script.text and "Postres" in script.text and "Bebidas" in script.text
     assert 'id="recipePersonalForm"' in page.text
     assert 'id="deleteRecipeButton"' in page.text
     assert "deleteCurrentRecipe" in script.text
@@ -107,10 +113,21 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "createRecipeFromPantry" in script.text
     assert "saveRecipePersonalization" in script.text
     assert "/timers" in script.text
+    assert "loadRecipeVideo" in script.text
+    assert "createRecipeVideo" not in script.text
+    assert "Video de esta receta" in script.text
+    assert "Cuando empieces a cocinar" in script.text
+    assert "recipe_video_status" in script.text
+    assert "syncRecipeVideo" in script.text
+    assert "/recipe-videos/" in script.text
+    assert "los guardará y los reutilizará para todos" in script.text
     dockerfile = (roxy_home_service.ASSETS_DIR.parent / "Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert "COPY assets/roxy_home/products ./assets/roxy_home/products" in dockerfile
     assert "COPY assets/roxy_home/recipes ./assets/roxy_home/recipes" in dockerfile
     assert "ROXY_HOME_ACCOUNTS_PATH=/var/data/roxy_home/accounts.json" in dockerfile
+    assert "ROXY_HOME_VIDEO_LIBRARY_PATH=/var/data/roxy_home/recipe_video_library.json" in dockerfile
+    assert "ROXY_HOME_VIDEO_MEDIA_DIR=/var/data/roxy_home/recipe_videos" in dockerfile
+    assert "ROXY_HOME_RECIPE_LIBRARY_PATH=/var/data/roxy_home/recipe_library.sqlite" in dockerfile
     assert "COPY assets/roxy_home/home-hero-plant.png ./assets/roxy_home/home-hero-plant.png" in dockerfile
     assert "COPY assets/roxy_avatar_card.jpg ./assets/roxy_avatar_card.jpg" in dockerfile
     for asset in ("pizza.png", "pasta.png", "bread.png", "soup-salad.png", "dessert.png", "drinks.png"):
@@ -292,6 +309,7 @@ def test_recipe_library_and_guided_cooking_api_are_private_and_persistent(tmp_pa
     monkeypatch.setenv("ROXY_HOME_API_KEY", "home-test-key")
     monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert,alice")
     monkeypatch.setenv("ROXY_HOME_MEMORY_PATH", str(tmp_path / "home.json"))
+    monkeypatch.setenv("ROXY_HOME_RECIPE_LIBRARY_PATH", str(tmp_path / "recipe-library.sqlite"))
     monkeypatch.setattr(roxy_home_service, "_home_ai", lambda: FakeHomeAI())
     roxy_home_service._RATE_STATE.clear()
     client = TestClient(roxy_home_service.app)
@@ -300,7 +318,9 @@ def test_recipe_library_and_guided_cooking_api_are_private_and_persistent(tmp_pa
     created = client.post(
         "/v1/home-food/robert/recipes",
         headers=headers,
-        json={"prompt": "Hazme un pan", "mode": "routine"},
+        # An uncommon request verifies that the API still reaches OpenAI when
+        # the expanded local catalog has no confident match.
+        json={"prompt": "Hazme una injera etíope", "mode": "routine"},
     )
     recipe_id = created.json()["recipe"]["id"]
     beverage = client.post(
@@ -405,7 +425,7 @@ def test_roxy_voice_saves_recipe_adds_ingredients_and_guides_steps(tmp_path, mon
     recipe = client.post(
         "/v1/assistant/command/robert",
         headers=headers,
-        json={"text": "Dame una receta de limonada"},
+        json={"text": "Dame una limonada"},
     )
     ingredients = client.post(
         "/v1/assistant/command/robert",
