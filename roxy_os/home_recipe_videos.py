@@ -25,10 +25,10 @@ from roxy_os.shopping_list import normalize_shopping_user
 
 
 VIDEO_STORE_VERSION = 1
-VIDEO_PROMPT_VERSION = 2
+VIDEO_PROMPT_VERSION = 3
 VIDEO_STATUSES = {"QUEUED", "PROCESSING", "REVIEW", "READY", "FAILED", "REJECTED"}
 VIDEO_VISIBILITIES = {"shared", "household"}
-FAL_MODEL = "fal-ai/minimax/hailuo-02/standard/text-to-video"
+FAL_MODEL = "fal-ai/kling-video/v3/standard/text-to-video"
 FAL_QUEUE_URL = f"https://queue.fal.run/{FAL_MODEL}"
 
 
@@ -91,16 +91,16 @@ class HomeRecipeVideoConfig:
     @classmethod
     def from_env(cls) -> "HomeRecipeVideoConfig":
         clip_count = max(1, min(3, int(os.getenv("ROXY_HOME_VIDEO_CLIP_COUNT", "3") or 3)))
-        # Hailuo's current standard endpoint supports six- or ten-second clips;
-        # six seconds keeps the first Roxy Home implementation economical.
-        clip_seconds = 6
+        # Kling 3 supports short 5-second vertical clips. This keeps each
+        # demonstration focused on one physical cooking action.
+        clip_seconds = 5
         return cls(
             enabled=str(os.getenv("ROXY_HOME_VIDEO_ENABLED", "0")).strip().lower() in {"1", "true", "yes"},
             api_key=str(os.getenv("ROXY_HOME_VIDEO_FAL_KEY", "")).strip(),
             clip_count=clip_count,
             clip_seconds=clip_seconds,
             price_per_second_usd=max(
-                0.001, float(os.getenv("ROXY_HOME_VIDEO_PRICE_PER_SECOND_USD", "0.045") or 0.045)
+                0.001, float(os.getenv("ROXY_HOME_VIDEO_PRICE_PER_SECOND_USD", "0.084") or 0.084)
             ),
             monthly_budget_usd=max(
                 0.0, float(os.getenv("ROXY_HOME_VIDEO_MONTHLY_BUDGET_USD", "0") or 0)
@@ -149,7 +149,7 @@ class HomeRecipeVideoConfig:
             "enabled": self.configured,
             "state": self.state,
             "message": messages[self.state],
-            "provider": "fal.ai · Hailuo 02" if self.configured else "",
+            "provider": "fal.ai · Kling 3 Standard" if self.configured else "",
             "clip_count": self.clip_count,
             "clip_seconds": self.clip_seconds,
             "estimated_recipe_cost_usd": self.estimated_recipe_cost_usd,
@@ -159,7 +159,7 @@ class HomeRecipeVideoConfig:
         }
 
 
-class FalHailuoVideoProvider:
+class FalRecipeVideoProvider:
     def __init__(self, config: HomeRecipeVideoConfig, *, session: Any = requests) -> None:
         self.config = config
         self.session = session
@@ -187,10 +187,18 @@ class FalHailuoVideoProvider:
         response = self.session.post(
             FAL_QUEUE_URL,
             headers=self.headers,
-            # Keep Roxy's instructional choreography intact. The provider's
-            # cinematic optimizer can turn a demonstration into decorative
-            # food B-roll, which is not useful while somebody is cooking.
-            json={"prompt": prompt, "duration": str(self.config.clip_seconds), "prompt_optimizer": False},
+            json={
+                "prompt": prompt,
+                "duration": str(self.config.clip_seconds),
+                "generate_audio": False,
+                "shot_type": "customize",
+                "aspect_ratio": "9:16",
+                "negative_prompt": (
+                    "text, captions, subtitles, labels, letters, watermark, logo, packaging, extra ingredients, "
+                    "unrelated food, static still life, beauty shot, deformed hands, extra fingers, unsafe technique"
+                ),
+                "cfg_scale": 0.7,
+            },
             timeout=30,
         )
         response.raise_for_status()
@@ -497,7 +505,7 @@ class HomeRecipeVideoStore:
                 "visibility": visibility,
                 "owner_user_id": user,
                 "status": "QUEUED",
-                "provider": "fal_hailuo_02",
+                "provider": "fal_kling_v3_standard",
                 "model": FAL_MODEL,
                 "estimated_cost_usd": config.estimated_recipe_cost_usd,
                 "created_at": _now_iso(),
@@ -569,7 +577,7 @@ class HomeRecipeVideoStore:
 
 def submit_recipe_video(
     store: HomeRecipeVideoStore,
-    provider: FalHailuoVideoProvider,
+    provider: FalRecipeVideoProvider,
     video_id: str,
 ) -> dict[str, Any]:
     record = store.get_internal(video_id)
@@ -592,7 +600,7 @@ def submit_recipe_video(
 
 def sync_recipe_video(
     store: HomeRecipeVideoStore,
-    provider: FalHailuoVideoProvider,
+    provider: FalRecipeVideoProvider,
     config: HomeRecipeVideoConfig,
     video_id: str,
 ) -> dict[str, Any]:
@@ -638,3 +646,8 @@ def sync_recipe_video(
             row["status"] = "QUEUED"
 
     return store.update(video_id, apply)
+
+
+# Compatibility alias for callers and older tests while the provider name is
+# migrated from the original Hailuo implementation.
+FalHailuoVideoProvider = FalRecipeVideoProvider

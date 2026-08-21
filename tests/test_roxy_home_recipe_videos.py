@@ -33,10 +33,10 @@ def video_config(tmp_path):
         enabled=True,
         api_key="home-fal-secret",
         clip_count=3,
-        clip_seconds=6,
-        price_per_second_usd=0.045,
+        clip_seconds=5,
+        price_per_second_usd=0.084,
         monthly_budget_usd=20,
-        max_recipe_cost_usd=1,
+        max_recipe_cost_usd=1.5,
         media_dir=tmp_path / "media",
         admin_key="review-secret",
     )
@@ -79,7 +79,7 @@ def test_new_prompt_version_does_not_reuse_old_decorative_video(tmp_path):
 
     assert reused is False
     assert regenerated["id"] != created["id"]
-    assert regenerated["prompt_version"] == 2
+    assert regenerated["prompt_version"] == 3
 
 
 def test_provider_does_not_replace_instructional_choreography(tmp_path):
@@ -99,7 +99,10 @@ def test_provider_does_not_replace_instructional_choreography(tmp_path):
 
     FalHailuoVideoProvider(video_config(tmp_path), session=Session()).submit("show hands mixing")
 
-    assert captured["json"]["prompt_optimizer"] is False
+    assert captured["json"]["aspect_ratio"] == "9:16"
+    assert captured["json"]["generate_audio"] is False
+    assert captured["json"]["cfg_scale"] == 0.7
+    assert "text, captions" in captured["json"]["negative_prompt"]
 
 
 def test_shared_video_is_generated_once_then_reused_without_leaking_owner(tmp_path):
@@ -154,7 +157,7 @@ def test_public_config_never_exposes_provider_or_admin_secrets(tmp_path):
 
     assert public["enabled"] is True
     assert public["state"] == "ready"
-    assert public["estimated_recipe_cost_usd"] == 0.81
+    assert public["estimated_recipe_cost_usd"] == 1.26
     assert "home-fal-secret" not in str(public)
     assert "review-secret" not in str(public)
 

@@ -145,11 +145,11 @@ services:
       - key: ROXY_HOME_VIDEO_CLIP_COUNT
         value: "3"
       - key: ROXY_HOME_VIDEO_PRICE_PER_SECOND_USD
-        value: "0.045"
+        value: "0.084"
       - key: ROXY_HOME_VIDEO_MONTHLY_BUDGET_USD
         value: "10"
       - key: ROXY_HOME_VIDEO_MAX_RECIPE_COST_USD
-        value: "1.00"
+        value: "1.50"
       - key: ROXY_HOME_VIDEO_ADMIN_KEY
         sync: false
       - key: ROXY_HOME_AI_BUDGET_PATH
