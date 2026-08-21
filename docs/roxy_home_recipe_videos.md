@@ -19,7 +19,7 @@ La versión 2 de los prompts exige una acción culinaria visible: manos adultas 
 
 ## Proveedor inicial
 
-El adaptador usa `fal-ai/kling-video/v3/standard/text-to-video`. Las demostraciones duran cinco segundos, se generan en 9:16, sin audio, y el costo editable parte de USD 0.084 por segundo, verificado el 21 de agosto de 2026 en la [documentación de fal.ai](https://fal.ai/models/fal-ai/kling-video/v3/standard/text-to-video/api).
+El adaptador usa `fal-ai/minimax/hailuo-02/standard/text-to-video`. Las demostraciones duran seis segundos y el costo editable parte de USD 0.045 por segundo, verificado el 21 de agosto de 2026 en la [documentación de fal.ai](https://fal.ai/models/fal-ai/minimax/hailuo-02/standard/text-to-video/api). La versión 4 conserva instrucciones de acción estrictas y desactiva el optimizador cinematográfico para evitar tomas decorativas.
 
 El proveedor está aislado detrás de `FalRecipeVideoProvider`; se puede añadir Runway u otro proveedor sin cambiar recetas, usuarios o URLs de reproducción.
 
@@ -42,7 +42,7 @@ ROXY_HOME_VIDEO_LIBRARY_PATH=/var/data/roxy_home/recipe_video_library.json
 ROXY_HOME_VIDEO_MEDIA_DIR=/var/data/roxy_home/recipe_videos
 ```
 
-Con tres demostraciones de cinco segundos, la estimación actual es USD 1.26 por receta. La generación permanece deshabilitada si no hay presupuesto, si falta la clave o si el costo estimado supera `ROXY_HOME_VIDEO_MAX_RECIPE_COST_USD`.
+Con tres demostraciones de seis segundos, la estimación actual es USD 0.81 por receta. La generación permanece deshabilitada si no hay presupuesto, si falta la clave o si el costo estimado supera `ROXY_HOME_VIDEO_MAX_RECIPE_COST_USD`.
 
 ## Flujo de revisión
 
