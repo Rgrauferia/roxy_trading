@@ -15,6 +15,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     script = client.get("/assets/roxy_list.js")
 
     assert page.status_code == 200
+    assert '<meta name="impact-site-verification" content="18b7dad2-1277-4abb-ae16-df84b1d41a04" />' in page.text
     assert 'href="/lista-manifest.json"' in page.text
     assert 'src="/assets/roxy_list.js?v=25"' in page.text
     assert '/assets/roxy_list.js?v=25' in worker.text
