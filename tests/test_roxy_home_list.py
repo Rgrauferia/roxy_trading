@@ -16,8 +16,10 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=35"' in page.text
-    assert '/assets/roxy_list.js?v=35' in worker.text
+    assert 'src="/assets/roxy_list.js?v=36"' in page.text
+    assert '/assets/roxy_list.js?v=36' in worker.text
+    assert 'demostraciones listas' in script.text
+    assert "aria-live','polite" in script.text
     assert 'id="cookingVideo"' in page.text
     assert "syncCookingVideo" in script.text
     assert "Roxy está creando las demostraciones" in script.text

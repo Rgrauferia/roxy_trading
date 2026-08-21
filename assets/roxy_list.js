@@ -633,12 +633,13 @@
     try{const data=await api(`/v1/home-food/${encodeURIComponent(user)}/cooking-sessions/${encodeURIComponent(sessionId)}`);currentCooking=data;showCooking(data);refreshCookingVideo(data.recipe.id);}catch(error){announce(error.message);}
   }
   function renderCookingVideo(status,video){
-    const root=$('cookingVideo');root.replaceChildren();clearTimeout(cookingVideoPoll);cookingVideoPoll=null;
+    const root=$('cookingVideo');root.replaceChildren();root.setAttribute('aria-live','polite');clearTimeout(cookingVideoPoll);cookingVideoPoll=null;
     const service=homeFood.recipe_video_service||{};
     if(!video){if(service.enabled){root.hidden=false;const strong=document.createElement('strong');strong.textContent='Video de Roxy';const small=document.createElement('small');small.textContent='El video se preparará automáticamente al comenzar una receta nueva.';root.append(strong,small);}else root.hidden=true;return;}
     currentCookingVideo=video;root.hidden=false;
     const strong=document.createElement('strong');strong.textContent=video.status==='READY'?'Video disponible':video.status==='REVIEW'?'Video terminado':video.status==='FAILED'?'No se pudo crear el video':'Roxy está creando las demostraciones';
-    const small=document.createElement('small');small.textContent=video.status==='REVIEW'?'Las demostraciones ya están guardadas y esperan revisión antes de compartirse.':video.status==='READY'?'Este video ya fue revisado y puede reutilizarse.':video.status==='FAILED'?'La receta continúa disponible. Roxy podrá intentarlo nuevamente con una versión corregida.':'Puedes seguir cocinando; Roxy comprobará el progreso automáticamente.';root.append(strong,small);
+    const completed=(video.clips||[]).filter(clip=>clip.status==='COMPLETED').length;const total=Number(video.clip_count||(video.clips||[]).length||3);const elapsed=Math.max(0,Math.floor((Date.now()-Date.parse(video.created_at||new Date().toISOString()))/60000));
+    const small=document.createElement('small');small.textContent=video.status==='REVIEW'?'Las demostraciones ya están guardadas y esperan revisión antes de compartirse.':video.status==='READY'?'Este video ya fue revisado y puede reutilizarse.':video.status==='FAILED'?'La receta continúa disponible. Roxy podrá intentarlo nuevamente con una versión corregida.':`${completed} de ${total} demostraciones listas${elapsed?` · ${elapsed} min`:''}. Puedes seguir cocinando; Roxy actualiza el progreso automáticamente.`;root.append(strong,small);
     const playable=(video.clips||[]).filter(clip=>clip.playback_url);if(playable.length){const clips=document.createElement('div');clips.className='cooking-video-clips';playable.forEach((clip,index)=>{const media=document.createElement('video');media.controls=true;media.playsInline=true;media.preload='metadata';media.src=clip.playback_url;media.setAttribute('aria-label',clip.step_label||`Clip ${index+1}`);clips.append(media);});root.append(clips);}
     if(['QUEUED','PROCESSING'].includes(video.status))cookingVideoPoll=setTimeout(()=>syncCookingVideo(video.id),12000);
   }
