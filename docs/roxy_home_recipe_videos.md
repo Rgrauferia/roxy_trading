@@ -40,6 +40,7 @@ Las rutas persistentes ya están preparadas en `render.yaml`:
 ```text
 ROXY_HOME_VIDEO_LIBRARY_PATH=/var/data/roxy_home/recipe_video_library.json
 ROXY_HOME_VIDEO_MEDIA_DIR=/var/data/roxy_home/recipe_videos
+ROXY_HOME_VIDEO_HAILUO_PRICE_PER_SECOND_USD=0.045
 ```
 
 Con tres demostraciones de seis segundos, la estimación actual es USD 0.81 por receta. La generación permanece deshabilitada si no hay presupuesto, si falta la clave o si el costo estimado supera `ROXY_HOME_VIDEO_MAX_RECIPE_COST_USD`.

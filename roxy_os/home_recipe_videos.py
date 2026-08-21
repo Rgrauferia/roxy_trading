@@ -99,8 +99,10 @@ class HomeRecipeVideoConfig:
             api_key=str(os.getenv("ROXY_HOME_VIDEO_FAL_KEY", "")).strip(),
             clip_count=clip_count,
             clip_seconds=clip_seconds,
+            # Keep provider pricing isolated. A stale price left by a short
+            # provider experiment must never disable or overstate Hailuo jobs.
             price_per_second_usd=max(
-                0.001, float(os.getenv("ROXY_HOME_VIDEO_PRICE_PER_SECOND_USD", "0.045") or 0.045)
+                0.001, float(os.getenv("ROXY_HOME_VIDEO_HAILUO_PRICE_PER_SECOND_USD", "0.045") or 0.045)
             ),
             monthly_budget_usd=max(
                 0.0, float(os.getenv("ROXY_HOME_VIDEO_MONTHLY_BUDGET_USD", "0") or 0)

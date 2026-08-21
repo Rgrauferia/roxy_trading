@@ -144,7 +144,7 @@ services:
         sync: false
       - key: ROXY_HOME_VIDEO_CLIP_COUNT
         value: "3"
-      - key: ROXY_HOME_VIDEO_PRICE_PER_SECOND_USD
+      - key: ROXY_HOME_VIDEO_HAILUO_PRICE_PER_SECOND_USD
         value: "0.045"
       - key: ROXY_HOME_VIDEO_MONTHLY_BUDGET_USD
         value: "10"

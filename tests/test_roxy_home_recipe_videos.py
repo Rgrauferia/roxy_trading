@@ -159,6 +159,16 @@ def test_public_config_never_exposes_provider_or_admin_secrets(tmp_path):
     assert "review-secret" not in str(public)
 
 
+def test_hailuo_price_ignores_stale_generic_provider_price(monkeypatch):
+    monkeypatch.setenv("ROXY_HOME_VIDEO_PRICE_PER_SECOND_USD", "0.084")
+    monkeypatch.delenv("ROXY_HOME_VIDEO_HAILUO_PRICE_PER_SECOND_USD", raising=False)
+
+    config = HomeRecipeVideoConfig.from_env()
+
+    assert config.price_per_second_usd == 0.045
+    assert config.clip_seconds == 6
+
+
 def test_public_config_explains_why_video_is_not_ready(tmp_path):
     config = video_config(tmp_path)
     missing_key = HomeRecipeVideoConfig(**{**config.__dict__, "api_key": ""})
