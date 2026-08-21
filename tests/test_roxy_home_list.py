@@ -246,6 +246,7 @@ def test_roxy_home_is_a_separate_app_surface(monkeypatch):
     assert client.get("/home").status_code == 200
     assert client.get("/home-sw.js").headers["service-worker-allowed"] == "/home"
     assert client.get("/health").json()["service"] == "roxy-home"
+    assert client.get("/health").json()["video_prompt_version"] == 4
     assert client.get("/_stcore/health").status_code == 404
     assert client.get("/roxy-mobile").status_code == 404
 

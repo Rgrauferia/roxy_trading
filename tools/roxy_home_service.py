@@ -42,6 +42,7 @@ from roxy_os.home_recipe_videos import (
     FalHailuoVideoProvider,
     HomeRecipeVideoConfig,
     HomeRecipeVideoStore,
+    VIDEO_PROMPT_VERSION,
     submit_recipe_video,
     sync_recipe_video,
 )
@@ -669,8 +670,8 @@ def root() -> RedirectResponse:
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "service": "roxy-home"}
+def health() -> dict[str, str | int]:
+    return {"status": "ok", "service": "roxy-home", "video_prompt_version": VIDEO_PROMPT_VERSION}
 
 
 @app.get("/home", response_class=FileResponse)
