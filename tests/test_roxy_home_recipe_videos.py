@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from roxy_os.home_food import HomeFoodStore
 from roxy_os.home_recipe_videos import (
+    FalHailuoVideoProvider,
     HomeRecipeVideoConfig,
     HomeRecipeVideoStore,
     recipe_fingerprint,
@@ -49,6 +50,56 @@ def test_recipe_fingerprint_excludes_private_personalization():
 
     assert recipe_fingerprint(first) == recipe_fingerprint(second)
     assert recipe_fingerprint(first) != recipe_fingerprint(changed)
+
+
+def test_video_prompts_require_a_visible_instructional_action(tmp_path):
+    store = HomeRecipeVideoStore(tmp_path / "library.json")
+    recipe = sample_recipe()
+    recipe["steps"][0] = "Mezcla la harina con la levadura y la sal."
+
+    created, reused = store.create_or_reuse("robert", recipe, video_config(tmp_path), visibility="shared")
+    prompt = created["clips"][0]["prompt"]
+
+    assert reused is False
+    assert "poured one by one" in prompt
+    assert "actively stirring" in prompt
+    assert "not merely show ingredients or finished food" in prompt
+    assert "No static hero shot" in prompt
+    assert "Harina" in prompt
+
+
+def test_new_prompt_version_does_not_reuse_old_decorative_video(tmp_path):
+    store = HomeRecipeVideoStore(tmp_path / "library.json")
+    recipe = sample_recipe()
+    created, _ = store.create_or_reuse("robert", recipe, video_config(tmp_path), visibility="shared")
+    store.update(created["id"], lambda row: row.update(prompt_version=1, status="READY"))
+
+    assert store.find_for_recipe("robert", recipe) is None
+    regenerated, reused = store.create_or_reuse("robert", recipe, video_config(tmp_path), visibility="shared")
+
+    assert reused is False
+    assert regenerated["id"] != created["id"]
+    assert regenerated["prompt_version"] == 2
+
+
+def test_provider_does_not_replace_instructional_choreography(tmp_path):
+    captured = {}
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"request_id": "request-1"}
+
+    class Session:
+        def post(self, _url, **kwargs):
+            captured.update(kwargs)
+            return Response()
+
+    FalHailuoVideoProvider(video_config(tmp_path), session=Session()).submit("show hands mixing")
+
+    assert captured["json"]["prompt_optimizer"] is False
 
 
 def test_shared_video_is_generated_once_then_reused_without_leaking_owner(tmp_path):

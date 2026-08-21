@@ -25,6 +25,7 @@ from roxy_os.shopping_list import normalize_shopping_user
 
 
 VIDEO_STORE_VERSION = 1
+VIDEO_PROMPT_VERSION = 2
 VIDEO_STATUSES = {"QUEUED", "PROCESSING", "REVIEW", "READY", "FAILED", "REJECTED"}
 VIDEO_VISIBILITIES = {"shared", "household"}
 FAL_MODEL = "fal-ai/minimax/hailuo-02/standard/text-to-video"
@@ -186,7 +187,10 @@ class FalHailuoVideoProvider:
         response = self.session.post(
             FAL_QUEUE_URL,
             headers=self.headers,
-            json={"prompt": prompt, "duration": str(self.config.clip_seconds), "prompt_optimizer": True},
+            # Keep Roxy's instructional choreography intact. The provider's
+            # cinematic optimizer can turn a demonstration into decorative
+            # food B-roll, which is not useful while somebody is cooking.
+            json={"prompt": prompt, "duration": str(self.config.clip_seconds), "prompt_optimizer": False},
             timeout=30,
         )
         response.raise_for_status()
@@ -339,7 +343,12 @@ class HomeRecipeVideoStore:
     def find_for_recipe(self, user_id: Any, recipe: dict[str, Any]) -> dict[str, Any] | None:
         user = normalize_shopping_user(user_id)
         fingerprint = recipe_fingerprint(recipe)
-        rows = [row for row in self._read_unlocked().get("videos", []) if row.get("recipe_fingerprint") == fingerprint]
+        rows = [
+            row
+            for row in self._read_unlocked().get("videos", [])
+            if row.get("recipe_fingerprint") == fingerprint
+            and int(row.get("prompt_version") or 0) == VIDEO_PROMPT_VERSION
+        ]
         accessible = [
             row
             for row in rows
@@ -370,21 +379,85 @@ class HomeRecipeVideoStore:
         )
 
     @staticmethod
+    def _action_direction(step: str) -> str:
+        normalized = _identity(step)
+        if any(word in normalized for word in ("mezcla", "mezclar", "bate", "batir", "revuelve", "revolver")):
+            return (
+                "Show the named ingredients being poured one by one into the bowl, then show the utensil actively "
+                "stirring them until they are visibly combined and the texture changes."
+            )
+        if any(word in normalized for word in ("amasa", "amasar")):
+            return (
+                "Show both hands repeatedly folding, pressing, and turning the dough on the work surface until it "
+                "becomes smoother and more elastic."
+            )
+        if any(word in normalized for word in ("anade", "agrega", "incorpora", "vierte", "verter")):
+            return (
+                "Show a hand visibly adding the named ingredient to the correct container, followed by the exact "
+                "mixing or combining movement required by the instruction."
+            )
+        if any(word in normalized for word in ("repos", "crecer", "ferment", "duplica", "leva")):
+            return (
+                "Show hands covering the prepared mixture correctly, then use a brief coherent time-lapse that "
+                "clearly demonstrates its rise or resting change."
+            )
+        if any(word in normalized for word in ("hornea", "hornear", "h horno", "oven")):
+            return (
+                "Show oven-mitted hands placing the prepared tray into the oven and a brief time transition to the "
+                "properly baked result; keep the action physically plausible and safe."
+            )
+        if any(word in normalized for word in ("corta", "pica", "rebana", "trocea")):
+            return (
+                "Show hands using a cutting board and a controlled safe grip while visibly making the cuts described; "
+                "fingers remain behind the blade."
+            )
+        if any(word in normalized for word in ("licua", "procesa", "tritura")):
+            return (
+                "Show the ingredients entering the appliance, the lid being secured, and the mixture visibly changing "
+                "consistency while blending."
+            )
+        if any(word in normalized for word in ("agita", "shake", "coctelera", "sirve", "cuela")):
+            return (
+                "Show hands performing the beverage technique continuously, including the real shaking, straining, "
+                "or pouring movement and the liquid entering the serving glass."
+            )
+        if any(word in normalized for word in ("cocina", "sofrie", "frie", "hierve", "saltea")):
+            return (
+                "Show the food being added to the correct pan or pot and actively stirred while heat produces a visible, "
+                "realistic cooking change."
+            )
+        return (
+            "Show adult hands performing the instruction continuously and visibly, including the tool touching the food "
+            "and an observable change from the beginning to the end of the step."
+        )
+
+    @staticmethod
     def _prompt_segments(recipe: dict[str, Any], count: int) -> list[tuple[str, str]]:
         steps = [_text(row, 400) for row in (recipe.get("steps") or []) if _text(row)]
         if not steps:
             raise ValueError("La receta no tiene pasos para visualizar.")
+        ingredient_names = [
+            _text(row.get("name"), 80)
+            for row in (recipe.get("ingredients") or [])
+            if isinstance(row, dict) and _text(row.get("name"))
+        ]
+        ingredient_context = ", ".join(ingredient_names[:12]) or "the ingredients named in the instruction"
         indices = sorted({min(len(steps) - 1, round(index * (len(steps) - 1) / max(1, count - 1))) for index in range(count)})
         while len(indices) < count:
             indices.append(indices[-1])
         result = []
         for position, step_index in enumerate(indices[:count], start=1):
             step = steps[step_index]
+            action_direction = HomeRecipeVideoStore._action_direction(step)
             prompt = (
-                f"Vertical 9:16 premium cooking tutorial B-roll for the recipe '{_text(recipe.get('title'), 160)}'. "
-                f"Show this exact stage visually: {step}. Close-up of ingredients and cookware on a warm cream and "
-                "deep green home kitchen, realistic food, steady camera, clean surfaces, no faces, no logos, no text, "
-                "no brand packaging. This is an illustrative clip that will be reviewed before publication."
+                f"Vertical 9:16 hands-only step-by-step cooking demonstration for the recipe "
+                f"'{_text(recipe.get('title'), 160)}'. The clip must visibly teach this exact instruction, not merely "
+                f"show ingredients or finished food: '{step}'. {action_direction} Relevant recipe ingredients: "
+                f"{ingredient_context}. Start with the action already beginning; use one coherent close-up sequence and "
+                "keep the hands, utensil, container, and changing food centered and fully visible. Realistic quantities, "
+                "realistic motion, clean warm home kitchen, steady camera. No static hero shot, no still life, no decorative "
+                "B-roll, no unrelated finished dish, no faces, no logos, no captions, no text, no brand packaging. "
+                "Accuracy of the demonstrated cooking action is more important than cinematic styling."
             )
             result.append((f"Paso visual {position}: {step[:90]}", prompt))
         return result
@@ -408,6 +481,7 @@ class HomeRecipeVideoStore:
                 same_scope = row.get("visibility") == "shared" if visibility == "shared" else row.get("owner_user_id") == user
                 if (
                     row.get("recipe_fingerprint") == fingerprint
+                    and int(row.get("prompt_version") or 0) == VIDEO_PROMPT_VERSION
                     and same_scope
                     and row.get("status") not in {"FAILED", "REJECTED"}
                 ):
@@ -418,6 +492,7 @@ class HomeRecipeVideoStore:
             row = {
                 "id": uuid4().hex,
                 "recipe_fingerprint": fingerprint,
+                "prompt_version": VIDEO_PROMPT_VERSION,
                 "recipe_title": _text(recipe.get("title"), 180),
                 "visibility": visibility,
                 "owner_user_id": user,

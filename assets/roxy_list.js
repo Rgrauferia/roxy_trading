@@ -507,13 +507,13 @@
     loadRecipeVideo(recipe,videoArea);
   }
 
-  function recipeVideoStatusLabel(status){return({QUEUED:'En cola',PROCESSING:'Roxy está creando los clips',REVIEW:'Pendiente de revisión',READY:'Video disponible',FAILED:'La generación no terminó',REJECTED:'No pasó la revisión'})[status]||'Video de la receta'}
+  function recipeVideoStatusLabel(status){return({QUEUED:'En cola',PROCESSING:'Roxy está creando las demostraciones',REVIEW:'Pendiente de revisión',READY:'Video disponible',FAILED:'La generación no terminó',REJECTED:'No pasó la revisión'})[status]||'Video de la receta'}
   function renderRecipeVideo(video,service,area,recipe){
     if(currentRecipe&&currentRecipe.id!==recipe.id)return;
     area.replaceChildren();
     if(!video){
       if(!service||!service.enabled){area.hidden=true;return}
-      area.hidden=false;const heading=document.createElement('div');heading.className='recipe-video-heading';const copy=document.createElement('div');const title=document.createElement('h3');title.textContent='Video de esta receta';const note=document.createElement('p');note.textContent=`Cuando empieces a cocinar, Roxy preparará ${service.clip_count} clips automáticamente, los guardará y los reutilizará para todos.`;copy.append(title,note);heading.append(copy);area.append(heading);return;
+      area.hidden=false;const heading=document.createElement('div');heading.className='recipe-video-heading';const copy=document.createElement('div');const title=document.createElement('h3');title.textContent='Video de esta receta';const note=document.createElement('p');note.textContent=`Cuando empieces a cocinar, Roxy preparará ${service.clip_count} demostraciones prácticas automáticamente, las guardará y las reutilizará para todos.`;copy.append(title,note);heading.append(copy);area.append(heading);return;
     }
     area.hidden=false;const heading=document.createElement('div');heading.className='recipe-video-heading';const copy=document.createElement('div');const title=document.createElement('h3');title.textContent='Video creado por Roxy';const note=document.createElement('p');note.textContent=`${recipeVideoStatusLabel(video.status)} · ${video.visibility==='shared'?'biblioteca compartida':'solo este hogar'} · generado con IA`;copy.append(title,note);heading.append(copy);area.append(heading);
     const playable=(video.clips||[]).filter(clip=>clip.playback_url);
@@ -525,7 +525,7 @@
     if(['QUEUED','PROCESSING'].includes(video.status)){
       const refresh=makeButton('Comprobar progreso','secondary',()=>syncRecipeVideo(video.id,recipe,area));heading.append(refresh);
     }else if(video.status==='REVIEW'){
-      const review=document.createElement('p');review.className='recipe-video-review';review.textContent='Roxy ya guardó los clips. Antes de compartirlos con otros usuarios se revisarán ingredientes, técnicas y seguridad.';area.append(review);
+      const review=document.createElement('p');review.className='recipe-video-review';review.textContent='Roxy ya guardó las demostraciones. Antes de compartirlas con otros usuarios se revisarán la acción, los ingredientes, la técnica y la seguridad.';area.append(review);
     }else if(video.status==='FAILED'){
       const failed=document.createElement('p');failed.className='recipe-video-review error';failed.textContent='No se cobró una nueva generación desde esta pantalla. Un administrador puede revisar el proveedor antes de intentarlo otra vez.';area.append(failed);
     }
@@ -536,7 +536,7 @@
   }
   async function syncRecipeVideo(videoId,recipe,area){
     area.setAttribute('aria-busy','true');
-    try{const data=await api(`/v1/home-food/${encodeURIComponent(user)}/recipe-videos/${encodeURIComponent(videoId)}/sync`,{method:'POST',body:'{}'});renderRecipeVideo(data.video,homeFood.recipe_video_service||{},area,recipe);announce(data.status==='REVIEW'?'Los clips están guardados y listos para revisión':'Roxy actualizó el progreso del video')}
+    try{const data=await api(`/v1/home-food/${encodeURIComponent(user)}/recipe-videos/${encodeURIComponent(videoId)}/sync`,{method:'POST',body:'{}'});renderRecipeVideo(data.video,homeFood.recipe_video_service||{},area,recipe);announce(data.status==='REVIEW'?'Las demostraciones están guardadas y listas para revisión':'Roxy actualizó el progreso del video')}
     catch(error){announce(error.message)}finally{area.removeAttribute('aria-busy')}
   }
 
@@ -637,8 +637,8 @@
     const service=homeFood.recipe_video_service||{};
     if(!video){if(service.enabled){root.hidden=false;const strong=document.createElement('strong');strong.textContent='Video de Roxy';const small=document.createElement('small');small.textContent='El video se preparará automáticamente al comenzar una receta nueva.';root.append(strong,small);}else root.hidden=true;return;}
     currentCookingVideo=video;root.hidden=false;
-    const strong=document.createElement('strong');strong.textContent=video.status==='READY'?'Video disponible':video.status==='REVIEW'?'Video terminado':'Roxy está creando el video';
-    const small=document.createElement('small');small.textContent=video.status==='REVIEW'?'Los clips ya están guardados y esperan revisión antes de compartirse.':video.status==='READY'?'Este video ya fue revisado y puede reutilizarse.':'Puedes seguir cocinando; Roxy comprobará el progreso automáticamente.';root.append(strong,small);
+    const strong=document.createElement('strong');strong.textContent=video.status==='READY'?'Video disponible':video.status==='REVIEW'?'Video terminado':video.status==='FAILED'?'No se pudo crear el video':'Roxy está creando las demostraciones';
+    const small=document.createElement('small');small.textContent=video.status==='REVIEW'?'Las demostraciones ya están guardadas y esperan revisión antes de compartirse.':video.status==='READY'?'Este video ya fue revisado y puede reutilizarse.':video.status==='FAILED'?'La receta continúa disponible. Roxy podrá intentarlo nuevamente con una versión corregida.':'Puedes seguir cocinando; Roxy comprobará el progreso automáticamente.';root.append(strong,small);
     const playable=(video.clips||[]).filter(clip=>clip.playback_url);if(playable.length){const clips=document.createElement('div');clips.className='cooking-video-clips';playable.forEach((clip,index)=>{const media=document.createElement('video');media.controls=true;media.playsInline=true;media.preload='metadata';media.src=clip.playback_url;media.setAttribute('aria-label',clip.step_label||`Clip ${index+1}`);clips.append(media);});root.append(clips);}
     if(['QUEUED','PROCESSING'].includes(video.status))cookingVideoPoll=setTimeout(()=>syncCookingVideo(video.id),12000);
   }

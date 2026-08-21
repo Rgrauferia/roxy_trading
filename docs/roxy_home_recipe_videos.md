@@ -1,6 +1,8 @@
 # Videos reutilizables de recetas en Roxy Home
 
-Roxy Home puede generar clips ilustrativos de una receta una sola vez, guardarlos en el disco persistente de Home y reutilizarlos para otros usuarios. La generación comienza automáticamente cuando alguien toca **Cocinar paso a paso**; no existe un botón separado de “Crear video”. Esta integración no usa ni comparte claves, memoria o presupuesto de Trading.
+Roxy Home genera demostraciones prácticas de una receta una sola vez, las guarda en el disco persistente de Home y puede reutilizarlas para otros usuarios después de la revisión. La generación comienza automáticamente cuando alguien toca **Cocinar paso a paso**; no existe un botón separado de “Crear video”. Esta integración no usa ni comparte claves, memoria o presupuesto de Trading.
+
+La versión 2 de los prompts exige una acción culinaria visible: manos adultas añadiendo, mezclando, amasando, cortando, cocinando, sirviendo o ejecutando la técnica descrita. Se prohíben planos estáticos de ingredientes, tomas decorativas y resultados finales que no demuestren el paso. Los videos anteriores a esta versión no se reutilizan.
 
 ## Comportamiento
 

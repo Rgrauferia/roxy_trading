@@ -16,11 +16,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=34"' in page.text
-    assert '/assets/roxy_list.js?v=34' in worker.text
+    assert 'src="/assets/roxy_list.js?v=35"' in page.text
+    assert '/assets/roxy_list.js?v=35' in worker.text
     assert 'id="cookingVideo"' in page.text
     assert "syncCookingVideo" in script.text
-    assert "Roxy está creando el video" in script.text
+    assert "Roxy está creando las demostraciones" in script.text
     assert 'id="homeDate"' in page.text
     assert 'id="homeTime"' in page.text
     assert 'id="homeGreeting"' in page.text
@@ -120,7 +120,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "recipe_video_status" in script.text
     assert "syncRecipeVideo" in script.text
     assert "/recipe-videos/" in script.text
-    assert "los guardará y los reutilizará para todos" in script.text
+    assert "las guardará y las reutilizará para todos" in script.text
     dockerfile = (roxy_home_service.ASSETS_DIR.parent / "Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert "COPY assets/roxy_home/products ./assets/roxy_home/products" in dockerfile
     assert "COPY assets/roxy_home/recipes ./assets/roxy_home/recipes" in dockerfile
