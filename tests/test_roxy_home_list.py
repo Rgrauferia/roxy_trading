@@ -16,8 +16,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=38"' in page.text
-    assert '/assets/roxy_list.js?v=38' in worker.text
+    assert 'src="/assets/roxy_list.js?v=39"' in page.text
+    assert '/assets/roxy_list.js?v=39' in worker.text
     assert 'demostraciones listas' in script.text
     assert "aria-live','polite" in script.text
     assert 'id="cookingVideo"' in page.text
@@ -133,6 +133,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "recipe_video_status" in script.text
     assert "syncRecipeVideo" in script.text
     assert "/recipe-videos/" in script.text
+    assert "clip.step_indices" in script.text
+    assert "clipMatchesStep" in script.text
     assert "las guardará y las reutilizará para todos" in script.text
     dockerfile = (roxy_home_service.ASSETS_DIR.parent / "Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert "COPY assets/roxy_home/products ./assets/roxy_home/products" in dockerfile
@@ -259,7 +261,7 @@ def test_roxy_home_is_a_separate_app_surface(monkeypatch):
     assert client.get("/home").status_code == 200
     assert client.get("/home-sw.js").headers["service-worker-allowed"] == "/home"
     assert client.get("/health").json()["service"] == "roxy-home"
-    assert client.get("/health").json()["video_prompt_version"] == 6
+    assert client.get("/health").json()["video_prompt_version"] == 7
     assert client.get("/_stcore/health").status_code == 404
     assert client.get("/roxy-mobile").status_code == 404
 

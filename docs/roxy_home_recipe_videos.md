@@ -100,3 +100,20 @@ ROXY_HOME_RECIPE_LIBRARY_PATH=/var/data/roxy_home/recipe_library.sqlite
 ```
 
 SQLite es adecuada mientras Roxy Home funcione como una sola instancia de Render. Antes de escalar a varias instancias para App Store y Google Play, se migrará el mismo contrato a PostgreSQL y los MP4 a almacenamiento de objetos/CDN; las aplicaciones seguirán usando las mismas APIs y no necesitarán cambios de comportamiento.
+# Videoteca global de acciones de Roxy
+
+Roxy Home usa un catálogo global versionado de 60 demostraciones genéricas. Los clips no contienen datos del hogar, nombres de usuarios, marcas ni texto visible. Una receta privada conserva únicamente la relación entre cada paso y la acción correspondiente; el archivo audiovisual aprobado puede reutilizarse entre hogares.
+
+La versión inicial contiene 40 acciones de cocina, 8 de postres/panadería y 12 de bebidas. El clasificador determinista reconoce primero acciones específicas como amasar, cortar, hervir, hornear, macerar, agitar una coctelera o preparar el borde de una copa. Los pasos repetidos comparten un único archivo y guardan todos sus índices para que la interfaz muestre el clip solamente durante el paso correcto.
+
+Cada clip debe mantener la identidad visual canónica: la misma mujer adulta del retrato de Roxy, cabello oscuro, delantal verde, cocina familiar cálida, formato vertical y ausencia de marcas, empaques o textos. El rostro aparece brevemente y la acción práctica permanece visible. Un clip solo entra a la biblioteca compartida después de revisión.
+
+Para inspeccionar el lote y su costo sin iniciar generación:
+
+```bash
+.venv/bin/python tools/roxy_home_video_catalog.py --price-per-clip 0.102
+```
+
+El comando es deliberadamente de solo lectura: produce el manifiesto, los prompts y el costo estimado, pero nunca llama al proveedor. La generación pagada requiere un flujo administrativo separado y confirmación explícita. Con la referencia de 512p de seis segundos, 60 clips a USD 0.102 estiman USD 6.12 antes de repeticiones. El precio real debe comprobarse en el proveedor inmediatamente antes de confirmar el lote.
+
+El progreso se expone dentro de `recipe_video_service.action_library`: total, aprobados, pendientes y desglose por familia. La aplicación puede reproducir clips ya aprobados aunque el generador esté temporalmente desactivado o sin presupuesto.

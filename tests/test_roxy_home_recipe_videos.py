@@ -9,6 +9,8 @@ from roxy_os.home_recipe_videos import (
     HomeRecipeVideoStore,
     recipe_fingerprint,
 )
+from roxy_os.home_video_actions import ROXY_ACTION_CLIPS, classify_recipe_step
+from tools.roxy_home_video_catalog import build_plan
 
 
 def sample_recipe(title="Pan casero"):
@@ -62,11 +64,12 @@ def test_video_prompts_require_a_visible_instructional_action(tmp_path):
     prompt = created["clips"][0]["prompt"]
 
     assert reused is False
-    assert "ONLY pour" in prompt
-    assert "actively stir" in prompt
-    assert "absolutely no writing" in prompt
-    assert "No static hero shot" in prompt
-    assert "Harina" in prompt
+    assert "stir neutral dry ingredients" in prompt
+    assert "same adult woman" in prompt
+    assert "No writing" in prompt
+    assert "generic unbranded ingredients" in prompt
+    assert created["clips"][0]["action_key"] == "mix_dry"
+    assert "Harina" not in prompt
     assert recipe["steps"][0] not in prompt
 
 
@@ -76,8 +79,9 @@ def test_video_clips_keep_the_recipe_step_index_for_synchronized_playback(tmp_pa
     created, _ = HomeRecipeVideoStore(tmp_path / "library.json").create_or_reuse(
         "robert", recipe, video_config(tmp_path), visibility="shared"
     )
-    assert [clip["step_index"] for clip in created["clips"]] == [0, 2, 4]
-    assert created["clips"][1]["step_label"].startswith("Paso 3:")
+    assert [clip["step_index"] for clip in created["clips"]] == [0]
+    assert created["clips"][0]["step_indices"] == [0, 1, 2, 3, 4]
+    assert created["clips"][0]["step_label"].startswith("Paso 1:")
 
 
 def test_new_prompt_version_does_not_reuse_old_decorative_video(tmp_path):
@@ -91,7 +95,7 @@ def test_new_prompt_version_does_not_reuse_old_decorative_video(tmp_path):
 
     assert reused is False
     assert regenerated["id"] != created["id"]
-    assert regenerated["prompt_version"] == 6
+    assert regenerated["prompt_version"] == 7
 
 
 def test_rest_and_baking_prompts_exclude_wrong_actions(tmp_path):
@@ -102,10 +106,62 @@ def test_rest_and_baking_prompts_exclude_wrong_actions(tmp_path):
 
     rest_prompt = created["clips"][1]["prompt"]
     bake_prompt = created["clips"][2]["prompt"]
-    assert "expands to twice its size" in rest_prompt
-    assert "do not knead" in rest_prompt
-    assert "visibly open oven" in bake_prompt
-    assert "Do not mix, measure, flour, or knead" in bake_prompt
+    assert "reveal it visibly risen" in rest_prompt
+    assert created["clips"][1]["action_key"] == "rest_dough"
+    assert "place a prepared tray into an open oven" in bake_prompt
+    assert created["clips"][2]["action_key"] == "bake_insert"
+
+
+def test_global_action_catalog_has_sixty_clips_including_drinks_and_desserts():
+    assert len(ROXY_ACTION_CLIPS) == 60
+    assert len({clip.key for clip in ROXY_ACTION_CLIPS}) == 60
+    assert sum(clip.family == "drinks" for clip in ROXY_ACTION_CLIPS) == 12
+    assert {clip.family for clip in ROXY_ACTION_CLIPS} >= {"cooking", "baking", "dessert", "drinks"}
+    assert classify_recipe_step("Agita bien la coctelera", recipe_kind="bebida alcohólica") == "shake_cocktail"
+    assert classify_recipe_step("Amasa durante diez minutos", recipe_kind="pan") == "knead_dough"
+
+
+def test_action_library_status_reports_global_progress(tmp_path):
+    status = HomeRecipeVideoStore(tmp_path / "library.json").action_library_status()
+
+    assert status["total"] == 60
+    assert status["ready"] == 0
+    assert status["missing"] == 60
+    assert status["families"]["drinks"] == {"total": 12, "ready": 0}
+
+
+def test_catalog_plan_estimates_cost_without_starting_generation():
+    plan = build_plan(0.102)
+
+    assert plan["clip_count"] == 60
+    assert plan["estimated_total_usd"] == 6.12
+    assert plan["generation_started"] is False
+
+
+def test_approved_action_clips_are_reused_by_a_different_recipe_at_zero_cost(tmp_path):
+    store = HomeRecipeVideoStore(tmp_path / "library.json")
+    config = video_config(tmp_path)
+    first, _ = store.create_or_reuse("robert", sample_recipe("Pan familiar"), config, visibility="shared")
+
+    def ready_for_review(row):
+        row["status"] = "REVIEW"
+        for index, clip in enumerate(row["clips"]):
+            path = config.media_dir / row["id"] / f"clip-{index + 1}.mp4"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"video")
+            clip.update(status="COMPLETED", media_path=str(path.resolve()), bytes=5)
+
+    store.update(first["id"], ready_for_review)
+    store.approve(first["id"], approved=True)
+    second_recipe = sample_recipe("Otro pan con las mismas técnicas")
+
+    assert store.estimated_generation_cost(second_recipe, config) == 0
+    second, reused_recipe = store.create_or_reuse("alice", second_recipe, config, visibility="shared")
+
+    assert reused_recipe is False
+    assert second["status"] == "READY"
+    assert second["estimated_cost_usd"] == 0
+    assert all(clip["library_reused"] for clip in second["clips"])
 
 
 def test_provider_does_not_replace_instructional_choreography(tmp_path):

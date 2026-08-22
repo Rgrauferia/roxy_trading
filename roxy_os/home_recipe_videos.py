@@ -22,10 +22,17 @@ except ImportError:  # pragma: no cover - Windows fallback
     fcntl = None
 
 from roxy_os.shopping_list import normalize_shopping_user
+from roxy_os.home_video_actions import (
+    ACTION_BY_KEY,
+    ACTION_LIBRARY_VERSION,
+    ROXY_ACTION_CLIPS,
+    action_prompt,
+    classify_recipe_step,
+)
 
 
 VIDEO_STORE_VERSION = 1
-VIDEO_PROMPT_VERSION = 6
+VIDEO_PROMPT_VERSION = 7
 VIDEO_STATUSES = {"QUEUED", "PROCESSING", "REVIEW", "READY", "FAILED", "REJECTED"}
 VIDEO_VISIBILITIES = {"shared", "household"}
 FAL_MODEL = "fal-ai/minimax/video-01-subject-reference"
@@ -319,6 +326,9 @@ class HomeRecipeVideoStore:
                     "status": clip.get("status"),
                     "step_label": clip.get("step_label"),
                     "step_index": clip.get("step_index"),
+                    "step_indices": clip.get("step_indices") or [clip.get("step_index")],
+                    "action_key": clip.get("action_key"),
+                    "library_reused": bool(clip.get("library_reused")),
                     "playback_url": (
                         f"/v1/home-food/{user}/recipe-videos/{record['id']}/clips/{index}"
                         if clip.get("media_path") and record.get("status") in {"REVIEW", "READY"}
@@ -381,6 +391,53 @@ class HomeRecipeVideoStore:
         )
 
     @staticmethod
+    def _reusable_action_index(payload: dict[str, Any]) -> dict[str, tuple[dict[str, Any], int, str]]:
+        reusable: dict[str, tuple[dict[str, Any], int, str]] = {}
+        for source in reversed(payload.get("videos") or []):
+            if (
+                source.get("visibility") != "shared"
+                or source.get("status") != "READY"
+                or int(source.get("action_library_version") or 0) != ACTION_LIBRARY_VERSION
+            ):
+                continue
+            for source_index, source_clip in enumerate(source.get("clips") or []):
+                action_key = str(source_clip.get("action_key") or "")
+                media_path = str(source_clip.get("media_path") or "")
+                if action_key and media_path and Path(media_path).is_file() and action_key not in reusable:
+                    reusable[action_key] = (source_clip, source_index, str(source.get("id") or ""))
+        return reusable
+
+    def estimated_generation_cost(self, recipe: dict[str, Any], config: HomeRecipeVideoConfig) -> float:
+        reusable = self._reusable_action_index(self._read_unlocked())
+        segments = self._prompt_segments(recipe, config.clip_count)
+        missing = min(
+            config.clip_count,
+            sum(action_key not in reusable for _label, _prompt, _step_index, action_key, _step_indices in segments),
+        )
+        return round(missing * config.price_per_clip_usd, 2)
+
+    def action_library_status(self) -> dict[str, Any]:
+        reusable = self._reusable_action_index(self._read_unlocked())
+        ready_keys = [clip.key for clip in ROXY_ACTION_CLIPS if clip.key in reusable]
+        missing_keys = [clip.key for clip in ROXY_ACTION_CLIPS if clip.key not in reusable]
+        families: dict[str, dict[str, int]] = {}
+        for clip in ROXY_ACTION_CLIPS:
+            row = families.setdefault(clip.family, {"total": 0, "ready": 0})
+            row["total"] += 1
+            row["ready"] += int(clip.key in reusable)
+        return {
+            "version": ACTION_LIBRARY_VERSION,
+            "total": len(ROXY_ACTION_CLIPS),
+            "ready": len(ready_keys),
+            "missing": len(missing_keys),
+            "families": families,
+            "missing_actions": [
+                {"key": key, "label": ACTION_BY_KEY[key].label, "family": ACTION_BY_KEY[key].family}
+                for key in missing_keys
+            ],
+        }
+
+    @staticmethod
     def _action_direction(step: str) -> str:
         normalized = _identity(step)
         if any(word in normalized for word in ("mezcla", "mezclar", "bate", "batir", "revuelve", "revolver")):
@@ -435,42 +492,21 @@ class HomeRecipeVideoStore:
         )
 
     @staticmethod
-    def _prompt_segments(recipe: dict[str, Any], count: int) -> list[tuple[str, str, int]]:
+    def _prompt_segments(recipe: dict[str, Any], count: int) -> list[tuple[str, str, int, str, list[int]]]:
         steps = [_text(row, 400) for row in (recipe.get("steps") or []) if _text(row)]
         if not steps:
             raise ValueError("La receta no tiene pasos para visualizar.")
-        ingredient_names = [
-            _text(row.get("name"), 80)
-            for row in (recipe.get("ingredients") or [])
-            if isinstance(row, dict) and _text(row.get("name"))
-        ]
-        indices = sorted({min(len(steps) - 1, round(index * (len(steps) - 1) / max(1, count - 1))) for index in range(count)})
-        while len(indices) < count:
-            indices.append(indices[-1])
-        result = []
-        for position, step_index in enumerate(indices[:count], start=1):
+        grouped: dict[str, list[int]] = {}
+        for step_index, step in enumerate(steps):
+            action_key = classify_recipe_step(step, recipe_kind=recipe.get("kind"))
+            grouped.setdefault(action_key, []).append(step_index)
+        result: list[tuple[str, str, int, str, list[int]]] = []
+        for action_key, step_indices in grouped.items():
+            step_index = step_indices[0]
             step = steps[step_index]
-            action_direction = HomeRecipeVideoStore._action_direction(step)
-            normalized_step = _identity(step)
-            relevant_ingredients = [name for name in ingredient_names if _identity(name) in normalized_step]
-            ingredient_rule = (
-                f"The only ingredients allowed in frame are: {', '.join(relevant_ingredients[:6])}. "
-                if relevant_ingredients
-                else "Do not introduce any new ingredient or package into the frame. "
+            result.append(
+                (f"Paso {step_index + 1}: {step[:90]}", action_prompt(action_key), step_index, action_key, step_indices)
             )
-            prompt = (
-                "Use the exact same adult woman from the subject reference portrait as Roxy in every clip; preserve her "
-                "facial identity, age, skin tone, hair, and natural appearance. Roxy is the only person in a warm home "
-                "kitchen and wears the same elegant forest-green apron in every clip. Begin with a clear natural view of "
-                "her face, then keep her face recognizable while her hands perform the practical cooking action. "
-                f"{action_direction} {ingredient_rule}Start with the action already beginning; use one coherent medium "
-                "or close-up sequence and keep Roxy, her hands, utensil, container, and changing food visible. Realistic quantities, "
-                "realistic motion, clean warm home kitchen, steady camera. The entire frame must contain absolutely no "
-                "writing: no letters, words, numbers, captions, subtitles, labels, signs, logos, or packaging. No static "
-                "hero shot, no still life, no decorative B-roll, no unrelated finished dish, and no other people. "
-                "Accuracy of the demonstrated cooking action is more important than cinematic styling."
-            )
-            result.append((f"Paso {step_index + 1}: {step[:90]}", prompt, step_index))
         return result
 
     def create_or_reuse(
@@ -500,36 +536,69 @@ class HomeRecipeVideoStore:
                     reused["reused"] = True
                     return reused, True
             segments = self._prompt_segments(recipe, config.clip_count)
+            reusable = self._reusable_action_index(payload)
+            clips = []
+            generated_missing = 0
+            for label, prompt, step_index, action_key, step_indices in segments:
+                candidate = reusable.get(action_key)
+                if candidate:
+                    source_clip, source_index, source_video_id = candidate
+                    clips.append(
+                        {
+                            "status": "COMPLETED",
+                            "step_label": label,
+                            "step_index": step_index,
+                            "step_indices": step_indices,
+                            "action_key": action_key,
+                            "prompt": "",
+                            "provider_request_id": "",
+                            "status_url": "",
+                            "response_url": "",
+                            "media_path": source_clip.get("media_path"),
+                            "bytes": source_clip.get("bytes") or 0,
+                            "error": "",
+                            "library_reused": True,
+                            "source_video_id": source_video_id,
+                            "source_clip_index": source_index,
+                        }
+                    )
+                elif generated_missing < config.clip_count:
+                    generated_missing += 1
+                    clips.append(
+                        {
+                            "status": "QUEUED",
+                            "step_label": label,
+                            "step_index": step_index,
+                            "step_indices": step_indices,
+                            "action_key": action_key,
+                            "prompt": prompt,
+                            "provider_request_id": "",
+                            "status_url": "",
+                            "response_url": "",
+                            "media_path": "",
+                            "bytes": 0,
+                            "error": "",
+                            "library_reused": False,
+                        }
+                    )
+            missing_count = sum(not clip.get("media_path") for clip in clips)
             row = {
                 "id": uuid4().hex,
                 "recipe_fingerprint": fingerprint,
                 "prompt_version": VIDEO_PROMPT_VERSION,
+                "action_library_version": ACTION_LIBRARY_VERSION,
                 "recipe_title": _text(recipe.get("title"), 180),
                 "visibility": visibility,
                 "owner_user_id": user,
-                "status": "QUEUED",
-                "provider": "fal_minimax_roxy_subject_v6",
+                "status": "READY" if missing_count == 0 else "QUEUED",
+                "provider": "fal_minimax_roxy_action_library_v1",
                 "model": FAL_MODEL,
-                "estimated_cost_usd": config.estimated_recipe_cost_usd,
+                "estimated_cost_usd": round(missing_count * config.price_per_clip_usd, 2),
                 "created_at": _now_iso(),
                 "updated_at": _now_iso(),
                 "reviewed_at": None,
                 "review_notes": "",
-                "clips": [
-                    {
-                        "status": "QUEUED",
-                        "step_label": label,
-                        "step_index": step_index,
-                        "prompt": prompt,
-                        "provider_request_id": "",
-                        "status_url": "",
-                        "response_url": "",
-                        "media_path": "",
-                        "bytes": 0,
-                        "error": "",
-                    }
-                    for label, prompt, step_index in segments
-                ],
+                "clips": clips,
             }
             rows.append(row)
             rows[:] = rows[-1_000:]
@@ -587,15 +656,19 @@ def submit_recipe_video(
     record = store.get_internal(video_id)
     if any(clip.get("provider_request_id") for clip in record.get("clips") or []):
         return record
+    pending = [clip for clip in (record.get("clips") or []) if not clip.get("media_path")]
+    if not pending:
+        return record
     try:
-        submitted = [provider.submit(str(clip.get("prompt") or "")) for clip in record.get("clips") or []]
+        submitted = [provider.submit(str(clip.get("prompt") or "")) for clip in pending]
     except Exception as exc:
         store.update(video_id, lambda row: row.update(status="FAILED", review_notes="No se pudo iniciar la generación."))
         raise ConnectionError("No se pudo iniciar la generación de video.") from exc
 
     def apply(row: dict[str, Any]) -> None:
         row["status"] = "PROCESSING"
-        for clip, job in zip(row.get("clips") or [], submitted):
+        row_pending = [clip for clip in (row.get("clips") or []) if not clip.get("media_path")]
+        for clip, job in zip(row_pending, submitted):
             clip.update(job)
             clip["status"] = "PROCESSING"
 

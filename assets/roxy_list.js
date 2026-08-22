@@ -641,6 +641,7 @@
     for(let stepIndex=0;stepIndex<steps.length;stepIndex+=1){const step=normalizedStepText(steps[stepIndex]);if(step&&label.includes(step.slice(0,Math.min(55,step.length))))return stepIndex+1}
     return Math.min(steps.length,Math.max(1,Math.round(index*Math.max(0,steps.length-1)/Math.max(1,totalClips-1))+1));
   }
+  function clipMatchesStep(clip,stepNumber,steps,index,totalClips){const mapped=(clip&&Array.isArray(clip.step_indices)?clip.step_indices:[]).map(value=>Number(value)+1).filter(Number.isFinite);return mapped.length?mapped.includes(stepNumber):clipStepNumber(clip,steps,index,totalClips)===stepNumber}
   function currentStepVideo(){return $('cookingVideo').querySelector('video[data-current-step="true"]')}
   function startSynchronizedStepVideo(){const media=currentStepVideo();if(!media)return;media.muted=true;media.loop=true;media.currentTime=0;media.play().catch(()=>{})}
   function stopSynchronizedStepVideo(){const media=currentStepVideo();if(!media)return;media.loop=false;media.pause()}
@@ -653,7 +654,7 @@
     const completed=(video.clips||[]).filter(clip=>clip.status==='COMPLETED').length;const total=Number(video.clip_count||(video.clips||[]).length||3);const elapsed=Math.max(0,Math.floor((Date.now()-Date.parse(video.created_at||new Date().toISOString()))/60000));
     const small=document.createElement('small');small.textContent=video.status==='REVIEW'?'Las demostraciones ya están guardadas y esperan revisión antes de compartirse.':video.status==='READY'?'Este video ya fue revisado y puede reutilizarse.':video.status==='FAILED'?'La receta continúa disponible. Roxy podrá intentarlo nuevamente con una versión corregida.':`${completed} de ${total} demostraciones listas${elapsed?` · ${elapsed} min`:''}. Puedes seguir cocinando; Roxy actualiza el progreso automáticamente.`;root.append(strong,small);
     const steps=(currentCooking&&currentCooking.recipe&&currentCooking.recipe.steps)||[];const stepNumber=Number(currentCooking&&currentCooking.step_number||1);const allClips=video.clips||[];
-    const currentClip=allClips.map((clip,index)=>({clip,index,step:clipStepNumber(clip,steps,index,allClips.length)})).find(row=>row.step===stepNumber&&row.clip.playback_url);
+    const currentClip=allClips.map((clip,index)=>({clip,index})).find(row=>clipMatchesStep(row.clip,stepNumber,steps,row.index,allClips.length)&&row.clip.playback_url);
     if(currentClip){const clips=document.createElement('div');clips.className='cooking-video-clips';const media=document.createElement('video');media.controls=true;media.muted=true;media.playsInline=true;media.preload='metadata';media.src=currentClip.clip.playback_url;media.dataset.currentStep='true';media.setAttribute('aria-label',`Demostración del paso ${stepNumber}: ${currentClip.clip.step_label||''}`);const label=document.createElement('span');label.className='cooking-video-step-label';label.textContent=`Roxy demuestra el paso ${stepNumber}`;clips.append(media,label);root.append(clips)}
     else if(['REVIEW','READY'].includes(video.status)){const note=document.createElement('small');note.textContent=`El paso ${stepNumber} todavía no tiene una demostración específica. Roxy mantendrá la guía hablada y escrita.`;root.append(note)}
     if(['QUEUED','PROCESSING'].includes(video.status))cookingVideoPoll=setTimeout(()=>syncCookingVideo(video.id),12000);

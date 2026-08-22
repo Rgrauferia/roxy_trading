@@ -220,6 +220,12 @@ def _recipe_video_config() -> HomeRecipeVideoConfig:
     return HomeRecipeVideoConfig.from_env()
 
 
+def _recipe_video_public_status() -> dict[str, Any]:
+    status = _recipe_video_config().public_status()
+    status["action_library"] = _recipe_video_store().action_library_status()
+    return status
+
+
 def _recipe_video_provider(config: HomeRecipeVideoConfig) -> FalHailuoVideoProvider:
     return FalHailuoVideoProvider(config)
 
@@ -249,26 +255,28 @@ def _queue_recipe_video_for_cooking(
     """Queue missing shared media; beginning to cook is the user's intent."""
 
     config = _recipe_video_config()
-    if not config.configured:
-        return config.state.upper(), None
     store = _recipe_video_store()
     existing = store.find_for_recipe(user, recipe)
     if existing is not None:
         existing["reused"] = True
         return "REUSED", existing
-    if store.monthly_reserved_usd() + config.estimated_recipe_cost_usd > config.monthly_budget_usd:
+    estimated_cost = store.estimated_generation_cost(recipe, config)
+    if estimated_cost > 0 and not config.configured:
+        return config.state.upper(), None
+    if estimated_cost > 0 and store.monthly_reserved_usd() + estimated_cost > config.monthly_budget_usd:
         return "BUDGET_LIMIT", None
     record, reused = store.create_or_reuse(user, recipe, config, visibility="shared")
     public = store._public(record, user)
     public["reused"] = reused
-    if not reused:
+    fully_reused = record.get("status") == "READY"
+    if not reused and not fully_reused:
         background_tasks.add_task(
             _submit_recipe_video_background,
             store,
             _recipe_video_provider(config),
             record["id"],
         )
-    return ("REUSED" if reused else "QUEUED"), public
+    return ("REUSED" if reused or fully_reused else "QUEUED"), public
 
 
 def _commerce_store() -> HomeCommerceStore:
@@ -1303,7 +1311,7 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
         **_home_food_store().snapshot(user),
         "local_catalog": local_recipe_catalog_summary(),
         "shared_recipe_library": _recipe_library_store().summary(),
-        "recipe_video_service": _recipe_video_config().public_status(),
+        "recipe_video_service": _recipe_video_public_status(),
         "voice_service": _home_voice_config().public_status(),
     }
 
@@ -1413,7 +1421,7 @@ def read_home_recipe_video(
         raise HTTPException(status_code=404, detail="Receta no encontrada") from exc
     config = _recipe_video_config()
     video = _recipe_video_store().find_for_recipe(user, recipe)
-    return {"status": "READY" if video and video.get("status") == "READY" else "AVAILABLE", "video": video, "service": config.public_status()}
+    return {"status": "READY" if video and video.get("status") == "READY" else "AVAILABLE", "video": video, "service": _recipe_video_public_status()}
 
 
 @app.post("/v1/home-food/{user_id}/recipes/{recipe_id}/video", status_code=202)
@@ -1431,36 +1439,38 @@ def create_home_recipe_video(
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Receta no encontrada") from exc
     config = _recipe_video_config()
-    if not config.configured:
-        raise HTTPException(
-            status_code=503,
-            detail="La generación de videos todavía no está conectada o no tiene un presupuesto Home activo.",
-        )
     store = _recipe_video_store()
     existing = store.find_for_recipe(user, recipe)
     if existing:
         existing["reused"] = True
-        return {"status": "REUSED", "video": existing, "service": config.public_status()}
-    if payload.confirmed is not True:
+        return {"status": "REUSED", "video": existing, "service": _recipe_video_public_status()}
+    estimated_cost = store.estimated_generation_cost(recipe, config)
+    if estimated_cost > 0 and not config.configured:
+        raise HTTPException(
+            status_code=503,
+            detail="La videoteca no cubre todavía todos estos pasos y el generador no está disponible.",
+        )
+    if payload.confirmed is not True and estimated_cost > 0:
         raise HTTPException(
             status_code=409,
             detail={
                 "code": "CONFIRMATION_REQUIRED",
-                "estimated_cost_usd": config.estimated_recipe_cost_usd,
+                "estimated_cost_usd": estimated_cost,
                 "message": "Confirma antes de generar. Roxy reutilizará este video después.",
             },
         )
-    if store.monthly_reserved_usd() + config.estimated_recipe_cost_usd > config.monthly_budget_usd:
+    if estimated_cost > 0 and store.monthly_reserved_usd() + estimated_cost > config.monthly_budget_usd:
         raise HTTPException(status_code=429, detail="Se alcanzó el presupuesto mensual de videos de Roxy Home.")
     record, reused = store.create_or_reuse(user, recipe, config, visibility=payload.visibility)
-    if not reused:
+    fully_reused = record.get("status") == "READY"
+    if not reused and not fully_reused:
         try:
             record = submit_recipe_video(store, _recipe_video_provider(config), record["id"])
         except ConnectionError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
     public = store._public(record, user)
     public["reused"] = reused
-    return {"status": "REUSED" if reused else "PROCESSING", "video": public, "service": config.public_status()}
+    return {"status": "REUSED" if reused or fully_reused else "PROCESSING", "video": public, "service": _recipe_video_public_status()}
 
 
 @app.post("/v1/home-food/{user_id}/recipe-videos/{video_id}/sync")
