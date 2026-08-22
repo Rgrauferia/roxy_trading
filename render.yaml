@@ -144,14 +144,26 @@ services:
         sync: false
       - key: ROXY_HOME_VIDEO_CLIP_COUNT
         value: "3"
-      - key: ROXY_HOME_VIDEO_HAILUO_PRICE_PER_SECOND_USD
-        value: "0.045"
+      - key: ROXY_HOME_VIDEO_SUBJECT_PRICE_PER_CLIP_USD
+        value: "0.50"
       - key: ROXY_HOME_VIDEO_MONTHLY_BUDGET_USD
         value: "10"
       - key: ROXY_HOME_VIDEO_MAX_RECIPE_COST_USD
-        value: "1.00"
+        value: "1.50"
       - key: ROXY_HOME_VIDEO_ADMIN_KEY
         sync: false
+      - key: ROXY_HOME_VIDEO_ROXY_REFERENCE_URL
+        value: https://roxy-home.onrender.com/assets/roxy_avatar.jpg
+      - key: ROXY_HOME_ELEVENLABS_API_KEY
+        sync: false
+      - key: ROXY_HOME_ELEVENLABS_AGENT_ID
+        value: agent_6101kwchebzdf91rfk9757wq0mk4
+      - key: ROXY_HOME_ELEVENLABS_VOICE_ID
+        sync: false
+      - key: ROXY_HOME_ELEVENLABS_MODEL_ID
+        value: eleven_multilingual_v2
+      - key: ROXY_HOME_ELEVENLABS_CACHE_DIR
+        value: /var/data/roxy_home/voice
       - key: ROXY_HOME_AI_BUDGET_PATH
         value: /var/data/roxy_home/openai_budget.json
       - key: ROXY_HOME_OPENAI_API_KEY

@@ -16,13 +16,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=36"' in page.text
-    assert '/assets/roxy_list.js?v=36' in worker.text
+    assert 'src="/assets/roxy_list.js?v=37"' in page.text
+    assert '/assets/roxy_list.js?v=37' in worker.text
     assert 'demostraciones listas' in script.text
     assert "aria-live','polite" in script.text
     assert 'id="cookingVideo"' in page.text
     assert "syncCookingVideo" in script.text
     assert "Roxy está creando las demostraciones" in script.text
+    assert "/speech`" in script.text
+    assert "Roxy hablando" in script.text
     assert 'id="homeDate"' in page.text
     assert 'id="homeTime"' in page.text
     assert 'id="homeGreeting"' in page.text
@@ -91,6 +93,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "shopping-commit" in script.text
     assert "cooking-sessions" in script.text
     assert "speechSynthesis" in script.text
+    assert "/speech`" in script.text
+    assert "Roxy hablando" in script.text
     assert "productImages" in script.text
     for asset in ("mandarin.png", "ice-cream.png", "sugar.png", "dulce-de-leche.png", "medicine.png", "eyebrow-gel.png", "scent-sachets.png", "flour.png", "pasta.png", "yogurt.png", "juice.png", "vegetables.png", "beef.png", "fish.png", "shampoo.png", "groceries.png"):
         assert asset in script.text
@@ -248,7 +252,7 @@ def test_roxy_home_is_a_separate_app_surface(monkeypatch):
     assert client.get("/home").status_code == 200
     assert client.get("/home-sw.js").headers["service-worker-allowed"] == "/home"
     assert client.get("/health").json()["service"] == "roxy-home"
-    assert client.get("/health").json()["video_prompt_version"] == 5
+    assert client.get("/health").json()["video_prompt_version"] == 6
     assert client.get("/_stcore/health").status_code == 404
     assert client.get("/roxy-mobile").status_code == 404
 

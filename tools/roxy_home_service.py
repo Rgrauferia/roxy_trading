@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import requests
+
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -46,6 +48,7 @@ from roxy_os.home_recipe_videos import (
     submit_recipe_video,
     sync_recipe_video,
 )
+from roxy_os.home_voice import ElevenLabsHomeVoice, HomeVoiceConfig
 from roxy_os.shopping_list import ShoppingListStore, normalize_shopping_user
 
 
@@ -219,6 +222,10 @@ def _recipe_video_config() -> HomeRecipeVideoConfig:
 
 def _recipe_video_provider(config: HomeRecipeVideoConfig) -> FalHailuoVideoProvider:
     return FalHailuoVideoProvider(config)
+
+
+def _home_voice_config() -> HomeVoiceConfig:
+    return HomeVoiceConfig.from_env()
 
 
 def _submit_recipe_video_background(
@@ -1297,6 +1304,7 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
         "local_catalog": local_recipe_catalog_summary(),
         "shared_recipe_library": _recipe_library_store().summary(),
         "recipe_video_service": _recipe_video_config().public_status(),
+        "voice_service": _home_voice_config().public_status(),
     }
 
 
@@ -1575,6 +1583,25 @@ def read_home_cooking_session(
         return {"status": "READY", **_home_food_store().cooking_session_detail(user, session_id)}
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Sesión de cocina no encontrada") from exc
+
+
+@app.post("/v1/home-food/{user_id}/cooking-sessions/{session_id}/speech", response_class=FileResponse)
+def speak_home_cooking_step(user_id: str, session_id: str, request: Request, auth: str = Depends(_authenticate)) -> Response:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        detail = _home_food_store().cooking_session_detail(user, session_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Sesión de cocina no encontrada") from exc
+    text = "Receta terminada. Buen provecho." if detail["session"].get("status") == "COMPLETED" else f"Paso {detail['step_number']}. {detail['current_step']}"
+    config = _home_voice_config()
+    if not config.configured:
+        raise HTTPException(status_code=503, detail="Falta conectar la voz oficial de Roxy Home")
+    try:
+        audio_path = ElevenLabsHomeVoice(config).synthesize(text, user_id=user)
+    except (requests.RequestException, RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail="No se pudo generar la voz oficial de Roxy") from exc
+    return FileResponse(audio_path, media_type="audio/mpeg", filename="roxy-paso.mp3", headers={"Cache-Control": "private, max-age=31536000, immutable"})
 
 
 @app.post("/v1/home-food/{user_id}/cooking-sessions/{session_id}")

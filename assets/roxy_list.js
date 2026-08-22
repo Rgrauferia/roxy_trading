@@ -68,6 +68,7 @@
   let currentRecipe = null;
   let currentCooking = null;
   let currentCookingVideo = null;
+  let roxyStepAudio = null;
   let cookingVideoPoll = null;
   let cookingTimerTick = null;
   const announcedTimers = new Set();
@@ -698,11 +699,19 @@
       if(action==='next'&&data.session.status!=='COMPLETED')speakCurrentStep();
     }catch(error){announce(error.message);}
   }
-  function speakCurrentStep(){
-    if(!currentCooking||!('speechSynthesis'in window))return;
-    speechSynthesis.cancel();
-    const speech=new SpeechSynthesisUtterance(currentCooking.session.status==='COMPLETED'?'Receta terminada. Buen provecho.':`Paso ${currentCooking.step_number}. ${currentCooking.current_step}`);
-    speech.lang='es-US';speech.rate=.92;speechSynthesis.speak(speech);
+  async function speakCurrentStep(){
+    if(!currentCooking)return;
+    const button=$('speakStepButton');const original=button.textContent;button.disabled=true;button.textContent='Roxy hablando…';
+    try{
+      if(roxyStepAudio){roxyStepAudio.pause();roxyStepAudio=null}
+      const response=await fetch(`/v1/home-food/${encodeURIComponent(user)}/cooking-sessions/${encodeURIComponent(currentCooking.session.id)}/speech`,{method:'POST',credentials:'include',cache:'no-store',headers:{Accept:'audio/mpeg'}});
+      if(!response.ok){let detail='';try{detail=String((await response.json()).detail||'')}catch(_error){}throw new Error(detail||`HTTP ${response.status}`)}
+      const url=URL.createObjectURL(await response.blob());const audio=new Audio(url);roxyStepAudio=audio;audio.addEventListener('ended',()=>{URL.revokeObjectURL(url);if(roxyStepAudio===audio)roxyStepAudio=null},{once:true});audio.addEventListener('error',()=>URL.revokeObjectURL(url),{once:true});await audio.play();
+    }catch(error){
+      const speech=currentCooking.session.status==='COMPLETED'?'Receta terminada. Buen provecho.':`Paso ${currentCooking.step_number}. ${currentCooking.current_step}`;
+      if(roxyVoiceConversation&&typeof roxyVoiceConversation.sendUserMessage==='function'){roxyVoiceConversation.sendUserMessage(`[LECTURA DE RECETA. NO LLAMES HERRAMIENTAS.] Lee exactamente con la voz oficial de Roxy: ${speech}`);announce('Roxy leerá el paso en la conversación')}
+      else announce(error.message||'No pude conectar la voz oficial de Roxy');
+    }finally{button.disabled=false;button.textContent=original}
   }
 
   function populateHomeForms(){

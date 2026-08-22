@@ -34,11 +34,12 @@ def video_config(tmp_path):
         api_key="home-fal-secret",
         clip_count=3,
         clip_seconds=6,
-        price_per_second_usd=0.045,
+        price_per_clip_usd=0.50,
         monthly_budget_usd=20,
-        max_recipe_cost_usd=1,
+        max_recipe_cost_usd=1.5,
         media_dir=tmp_path / "media",
         admin_key="review-secret",
+        roxy_reference_url="https://roxy-home.onrender.com/assets/roxy_avatar.jpg",
     )
 
 
@@ -80,7 +81,7 @@ def test_new_prompt_version_does_not_reuse_old_decorative_video(tmp_path):
 
     assert reused is False
     assert regenerated["id"] != created["id"]
-    assert regenerated["prompt_version"] == 5
+    assert regenerated["prompt_version"] == 6
 
 
 def test_rest_and_baking_prompts_exclude_wrong_actions(tmp_path):
@@ -115,6 +116,7 @@ def test_provider_does_not_replace_instructional_choreography(tmp_path):
     FalHailuoVideoProvider(video_config(tmp_path), session=Session()).submit("show hands mixing")
 
     assert captured["json"]["prompt_optimizer"] is False
+    assert captured["json"]["subject_reference_image_url"].endswith("/assets/roxy_avatar.jpg")
 
 
 def test_shared_video_is_generated_once_then_reused_without_leaking_owner(tmp_path):
@@ -169,18 +171,18 @@ def test_public_config_never_exposes_provider_or_admin_secrets(tmp_path):
 
     assert public["enabled"] is True
     assert public["state"] == "ready"
-    assert public["estimated_recipe_cost_usd"] == 0.81
+    assert public["estimated_recipe_cost_usd"] == 1.5
     assert "home-fal-secret" not in str(public)
     assert "review-secret" not in str(public)
 
 
-def test_hailuo_price_ignores_stale_generic_provider_price(monkeypatch):
+def test_subject_video_price_ignores_stale_generic_provider_price(monkeypatch):
     monkeypatch.setenv("ROXY_HOME_VIDEO_PRICE_PER_SECOND_USD", "0.084")
-    monkeypatch.delenv("ROXY_HOME_VIDEO_HAILUO_PRICE_PER_SECOND_USD", raising=False)
+    monkeypatch.delenv("ROXY_HOME_VIDEO_SUBJECT_PRICE_PER_CLIP_USD", raising=False)
 
     config = HomeRecipeVideoConfig.from_env()
 
-    assert config.price_per_second_usd == 0.045
+    assert config.price_per_clip_usd == 0.50
     assert config.clip_seconds == 6
 
 

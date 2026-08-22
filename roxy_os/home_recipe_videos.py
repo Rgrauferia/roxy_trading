@@ -25,10 +25,10 @@ from roxy_os.shopping_list import normalize_shopping_user
 
 
 VIDEO_STORE_VERSION = 1
-VIDEO_PROMPT_VERSION = 5
+VIDEO_PROMPT_VERSION = 6
 VIDEO_STATUSES = {"QUEUED", "PROCESSING", "REVIEW", "READY", "FAILED", "REJECTED"}
 VIDEO_VISIBILITIES = {"shared", "household"}
-FAL_MODEL = "fal-ai/minimax/hailuo-02/standard/text-to-video"
+FAL_MODEL = "fal-ai/minimax/video-01-subject-reference"
 FAL_QUEUE_URL = f"https://queue.fal.run/{FAL_MODEL}"
 
 
@@ -82,11 +82,12 @@ class HomeRecipeVideoConfig:
     api_key: str
     clip_count: int
     clip_seconds: int
-    price_per_second_usd: float
+    price_per_clip_usd: float
     monthly_budget_usd: float
     max_recipe_cost_usd: float
     media_dir: Path
     admin_key: str
+    roxy_reference_url: str
 
     @classmethod
     def from_env(cls) -> "HomeRecipeVideoConfig":
@@ -99,24 +100,23 @@ class HomeRecipeVideoConfig:
             api_key=str(os.getenv("ROXY_HOME_VIDEO_FAL_KEY", "")).strip(),
             clip_count=clip_count,
             clip_seconds=clip_seconds,
-            # Keep provider pricing isolated. A stale price left by a short
-            # provider experiment must never disable or overstate Hailuo jobs.
-            price_per_second_usd=max(
-                0.001, float(os.getenv("ROXY_HOME_VIDEO_HAILUO_PRICE_PER_SECOND_USD", "0.045") or 0.045)
-            ),
+            # Keep provider pricing isolated. A stale price left by another
+            # model experiment must never disable or misprice subject jobs.
+            price_per_clip_usd=max(0.01, float(os.getenv("ROXY_HOME_VIDEO_SUBJECT_PRICE_PER_CLIP_USD", "0.50") or 0.50)),
             monthly_budget_usd=max(
                 0.0, float(os.getenv("ROXY_HOME_VIDEO_MONTHLY_BUDGET_USD", "0") or 0)
             ),
             max_recipe_cost_usd=max(
-                0.0, float(os.getenv("ROXY_HOME_VIDEO_MAX_RECIPE_COST_USD", "1.00") or 1)
+                0.0, float(os.getenv("ROXY_HOME_VIDEO_MAX_RECIPE_COST_USD", "1.50") or 1.5)
             ),
             media_dir=Path(os.getenv("ROXY_HOME_VIDEO_MEDIA_DIR", "data/roxy_home_recipe_videos")),
             admin_key=str(os.getenv("ROXY_HOME_VIDEO_ADMIN_KEY", "")).strip(),
+            roxy_reference_url=str(os.getenv("ROXY_HOME_VIDEO_ROXY_REFERENCE_URL", "https://roxy-home.onrender.com/assets/roxy_avatar.jpg")).strip(),
         )
 
     @property
     def estimated_recipe_cost_usd(self) -> float:
-        return round(self.clip_count * self.clip_seconds * self.price_per_second_usd, 2)
+        return round(self.clip_count * self.price_per_clip_usd, 2)
 
     @property
     def configured(self) -> bool:
@@ -151,7 +151,7 @@ class HomeRecipeVideoConfig:
             "enabled": self.configured,
             "state": self.state,
             "message": messages[self.state],
-            "provider": "fal.ai · Hailuo 02" if self.configured else "",
+            "provider": "fal.ai · Roxy con identidad consistente" if self.configured else "",
             "clip_count": self.clip_count,
             "clip_seconds": self.clip_seconds,
             "estimated_recipe_cost_usd": self.estimated_recipe_cost_usd,
@@ -189,9 +189,9 @@ class FalRecipeVideoProvider:
         response = self.session.post(
             FAL_QUEUE_URL,
             headers=self.headers,
-            # Preserve Roxy's action choreography. Hailuo's prompt optimizer
-            # can turn a practical demonstration into decorative food B-roll.
-            json={"prompt": prompt, "duration": str(self.config.clip_seconds), "prompt_optimizer": False},
+            # Preserve Roxy's action choreography; prompt optimization can
+            # turn a practical demonstration into decorative food B-roll.
+            json={"prompt": prompt, "subject_reference_image_url": self.config.roxy_reference_url, "prompt_optimizer": False},
             timeout=30,
         )
         response.raise_for_status()
@@ -458,12 +458,15 @@ class HomeRecipeVideoStore:
                 else "Do not introduce any new ingredient or package into the frame. "
             )
             prompt = (
-                "Vertical hands-only practical cooking demonstration. "
-                f"{action_direction} {ingredient_rule}Start with the action already beginning; use one coherent close-up sequence and "
-                "keep the hands, utensil, container, and changing food centered and fully visible. Realistic quantities, "
+                "Use the exact same adult woman from the subject reference portrait as Roxy in every clip; preserve her "
+                "facial identity, age, skin tone, hair, and natural appearance. Roxy is the only person in a warm home "
+                "kitchen and wears the same elegant forest-green apron in every clip. Begin with a clear natural view of "
+                "her face, then keep her face recognizable while her hands perform the practical cooking action. "
+                f"{action_direction} {ingredient_rule}Start with the action already beginning; use one coherent medium "
+                "or close-up sequence and keep Roxy, her hands, utensil, container, and changing food visible. Realistic quantities, "
                 "realistic motion, clean warm home kitchen, steady camera. The entire frame must contain absolutely no "
                 "writing: no letters, words, numbers, captions, subtitles, labels, signs, logos, or packaging. No static "
-                "hero shot, no still life, no decorative B-roll, no unrelated finished dish, and no faces. "
+                "hero shot, no still life, no decorative B-roll, no unrelated finished dish, and no other people. "
                 "Accuracy of the demonstrated cooking action is more important than cinematic styling."
             )
             result.append((f"Paso visual {position}: {step[:90]}", prompt))
@@ -504,7 +507,7 @@ class HomeRecipeVideoStore:
                 "visibility": visibility,
                 "owner_user_id": user,
                 "status": "QUEUED",
-                "provider": "fal_hailuo_02_action_v5",
+                "provider": "fal_minimax_roxy_subject_v6",
                 "model": FAL_MODEL,
                 "estimated_cost_usd": config.estimated_recipe_cost_usd,
                 "created_at": _now_iso(),

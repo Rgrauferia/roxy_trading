@@ -2,7 +2,7 @@
 
 Roxy Home genera demostraciones prácticas de una receta una sola vez, las guarda en el disco persistente de Home y puede reutilizarlas para otros usuarios después de la revisión. La generación comienza automáticamente cuando alguien toca **Cocinar paso a paso**; no existe un botón separado de “Crear video”. Esta integración no usa ni comparte claves, memoria o presupuesto de Trading.
 
-La versión 2 de los prompts exige una acción culinaria visible: manos adultas añadiendo, mezclando, amasando, cortando, cocinando, sirviendo o ejecutando la técnica descrita. Se prohíben planos estáticos de ingredientes, tomas decorativas y resultados finales que no demuestren el paso. Los videos anteriores a esta versión no se reutilizan.
+La versión 6 de los prompts exige una acción culinaria visible y usa el retrato oficial de Roxy como referencia de sujeto. La misma mujer representa a Roxy en todos los clips, con rostro, edad, tono de piel y cabello consistentes. Se prohíben planos estáticos, texto inventado, personas adicionales y resultados que no demuestren el paso. Los videos anteriores a esta versión no se reutilizan.
 
 ## Comportamiento
 
@@ -19,7 +19,7 @@ La versión 2 de los prompts exige una acción culinaria visible: manos adultas 
 
 ## Proveedor inicial
 
-El adaptador usa `fal-ai/minimax/hailuo-02/standard/text-to-video`. Las demostraciones duran seis segundos y el costo editable parte de USD 0.045 por segundo, verificado el 21 de agosto de 2026 en la [documentación de fal.ai](https://fal.ai/models/fal-ai/minimax/hailuo-02/standard/text-to-video/api). La versión 5 usa instrucciones exclusivas por acción, elimina el texto original del paso para evitar subtítulos inventados y desactiva el optimizador cinematográfico.
+El adaptador usa `fal-ai/minimax/video-01-subject-reference`. Cada solicitud incluye `assets/roxy_avatar.jpg` mediante `subject_reference_image_url`, conserva la identidad visual y desactiva el optimizador para respetar la acción culinaria. El precio de referencia es USD 0.50 por clip, verificado el 21 de agosto de 2026 en la [documentación oficial de fal.ai](https://fal.ai/models/fal-ai/minimax/video-01-subject-reference/api).
 
 El proveedor está aislado detrás de `FalRecipeVideoProvider`; se puede añadir Runway u otro proveedor sin cambiar recetas, usuarios o URLs de reproducción.
 
@@ -31,8 +31,9 @@ En **roxy-home → Environment** configura únicamente secretos de Home:
 ROXY_HOME_VIDEO_ENABLED=1
 ROXY_HOME_VIDEO_FAL_KEY=<clave exclusiva de Roxy Home>
 ROXY_HOME_VIDEO_MONTHLY_BUDGET_USD=20
-ROXY_HOME_VIDEO_MAX_RECIPE_COST_USD=1.00
+ROXY_HOME_VIDEO_MAX_RECIPE_COST_USD=1.50
 ROXY_HOME_VIDEO_ADMIN_KEY=<clave larga y aleatoria para revisión>
+ROXY_HOME_VIDEO_ROXY_REFERENCE_URL=https://roxy-home.onrender.com/assets/roxy_avatar.jpg
 ```
 
 Las rutas persistentes ya están preparadas en `render.yaml`:
@@ -40,10 +41,10 @@ Las rutas persistentes ya están preparadas en `render.yaml`:
 ```text
 ROXY_HOME_VIDEO_LIBRARY_PATH=/var/data/roxy_home/recipe_video_library.json
 ROXY_HOME_VIDEO_MEDIA_DIR=/var/data/roxy_home/recipe_videos
-ROXY_HOME_VIDEO_HAILUO_PRICE_PER_SECOND_USD=0.045
+ROXY_HOME_VIDEO_SUBJECT_PRICE_PER_CLIP_USD=0.50
 ```
 
-Con tres demostraciones de seis segundos, la estimación actual es USD 0.81 por receta. La generación permanece deshabilitada si no hay presupuesto, si falta la clave o si el costo estimado supera `ROXY_HOME_VIDEO_MAX_RECIPE_COST_USD`.
+Con tres demostraciones, la estimación actual es USD 1.50 por receta. La generación permanece deshabilitada si no hay presupuesto, si falta la clave o si el costo estimado supera `ROXY_HOME_VIDEO_MAX_RECIPE_COST_USD`.
 
 ## Flujo de revisión
 
