@@ -17,8 +17,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=46"' in page.text
-    assert '/assets/roxy_list.js?v=46' in worker.text
+    assert 'src="/assets/roxy_list.js?v=47"' in page.text
+    assert '/assets/roxy_list.js?v=47' in worker.text
     assert 'id="todayPanel"' in page.text
     assert 'data-tab-link="today"' in page.text
     assert page.text.index('id="todayPanel"') < page.text.index('id="shoppingPanel"') < page.text.index('id="recipesPanel"')
@@ -104,6 +104,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "localStorage.setItem('apiToken'" not in script.text
     assert 'id="recipeSubmit"' in page.text
     assert 'id="recipeLibrary"' in page.text
+    assert page.text.index('id="recipeLibrary"') < page.text.index('id="recipeForm"')
+    assert 'Pídele a Roxy algo diferente' in page.text
     assert 'id="recipeCatalogHint"' in page.text
     assert 'id="cookingDialog"' in page.text
     assert 'data-tab-link="recipes"' in page.text
