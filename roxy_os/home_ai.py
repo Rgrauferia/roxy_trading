@@ -267,7 +267,9 @@ class RoxyHomeAI:
             "Genera una receta realizable, incluyendo comidas, panes, postres o bebidas según la solicitud. "
             "Devuelve title, description, kind (meal, bread, dessert, drink u other), drink_type cuando sea "
             "una bebida (alcoholic o non_alcoholic), servings, ingredients "
-            "(name, quantity, unit, notes), steps completos y allergen_notes. Cada paso debe poder leerse en "
+            "(name, quantity, unit, notes), steps completos y allergen_notes. Incluye category usando exactamente una "
+            "de estas opciones: breakfast, chicken, meat, seafood, rice, pasta, soups, bowls_salads, vegetarian, baked, "
+            "sides_sauces, desserts, coffee_hot, juices, smoothies o cocktails; añade subcategory descriptiva. Cada paso debe poder leerse en "
             "voz alta como una instrucción clara. Solicitud: " + str(prompt),
             self._context(snapshot),
             deep=deep,

@@ -2,63 +2,51 @@
 
 ## Evidence
 
-- Source visual truth: `/tmp/codex-remote-attachments/01a00902-6774-7450-965e-15f74386c916/4427351A-C4E0-4330-8D46-DFC637157D8E/1-Photo-1.jpg` and the user's latest organization references under `/tmp/codex-remote-attachments/01a00902-6774-7450-965e-15f74386c916/2526B5AD-ECD9-424D-9012-E06F76B9D7E5/`.
-- Browser-rendered implementation: `/tmp/roxy-home-organize-plan-mobile.png`.
-- Combined comparison: `/tmp/roxy-home-organize-comparison.png`.
+- Source visual truth for the previous meal-plan pass: `/tmp/codex-remote-attachments/01a00902-6774-7450-965e-15f74386c916/4427351A-C4E0-4330-8D46-DFC637157D8E/1-Photo-1.jpg` and `/tmp/codex-remote-attachments/01a00902-6774-7450-965e-15f74386c916/2526B5AD-ECD9-424D-9012-E06F76B9D7E5/`.
+- Previous browser capture: `/tmp/roxy-home-organize-plan-mobile.png`.
+- Previous comparison: `/tmp/roxy-home-organize-comparison.png`.
 - Viewport: 390 × 844 CSS px, device scale factor 1.
-- Source pixels: 592 × 1280. Implementation pixels: 390 × 844. For the combined comparison, the implementation was normalized to 592 × 1280; both have the same mobile aspect ratio within rounding tolerance.
-- State: authenticated Home household with a saved “Poco tiempo” weekly plan, Monday expanded.
 
-## Full-view comparison
+## Previous meal-plan result
 
-The landing hierarchy now matches the requested direction: Roxy Home header, weekly objective, daily meal accordion, and persistent mobile navigation. The plan is the first section on entry. The implementation intentionally omits the setup controls above a saved plan and keeps them collapsed under “Ajustar mi plan”, which gives the daily meals priority over configuration.
+The landing hierarchy matches the requested direction: Roxy Home header, weekly objective, daily meal accordion, and persistent mobile navigation. The plan is the first section on entry. Setup controls remain collapsed under “Ajustar mi plan”, giving daily meals priority over configuration.
 
-## Focused comparison
+Previous fixes preserved in this iteration:
 
-A separate crop was not needed because the full mobile captures render headings, meal rows, icons, times, borders, and bottom navigation at readable size. The recipe category state was also inspected directly in the browser, including the Pastas-only filter.
+- [P1] Moved the greeting/date/command section below the weekly plan inside “Hoy”.
+- [P2] Added explicit hidden-state CSS for the meal-plan result.
+- [P2] Disabled restored browser scroll position so “Hoy” opens at the start.
+- Verified navigation among Hoy, Compra and Recetas; verified category filtering and application console.
+- No actionable P0/P1/P2 differences remained after that pass.
 
-## Required fidelity surfaces
+## Current recipe-catalog iteration
 
-- Fonts and typography: the Georgia display face and compact sans-serif UI hierarchy remain consistent with Roxy Home; headings wrap without clipping at 390 px.
-- Spacing and layout rhythm: 16–18 px mobile gutters, rounded cards, row gaps, and the fixed navigation preserve the reference density without collisions.
-- Colors and tokens: forest green, warm paper, muted sage, gold eyebrow labels, and white cards reuse the existing product tokens.
-- Image quality and assets: existing raster recipe imagery remains sharp and uses real image assets; dynamic plan content can select a different dish than the static source mock, which is an expected data-state difference.
-- Copy and content: “Hoy”, “Compra”, “Recetas”, and “Más” clarify the information architecture; recipe categories use Spanish household language.
-- Accessibility: semantic buttons, labels, headings, `aria-expanded`, large touch targets, selected states, and persistent navigation remain intact.
+### Referencias evaluadas
 
-## Comparison history
+- `/tmp/codex-remote-attachments/01a00902-6774-7450-965e-15f74386c916/D1A0CEF4-E126-4007-AE93-4535F869E078/1-Photo-1.jpg`
+- `/tmp/codex-remote-attachments/01a00902-6774-7450-965e-15f74386c916/D1A0CEF4-E126-4007-AE93-4535F869E078/2-Photo-2.jpg`
 
-### Pass 1
+### Resultado implementado
 
-- [P1] The greeting hero appeared before the plan, contradicting the requested first-screen priority.
-  - Fix: moved the greeting/date/command section below the weekly plan inside “Hoy”.
-- [P2] `mealPlanResult` could render an empty shell despite `hidden` because its display rule overrode the hidden state.
-  - Fix: added explicit hidden-state CSS.
-- [P2] A restored browser scroll position could reopen “Hoy” in the middle of the week.
-  - Fix: disabled history scroll restoration for the app and used an immediate top reset on initial navigation.
+- La vista inicial conserva el plan del día como contenido principal y separa el recetario en su pestaña propia.
+- El recetario usa una búsqueda global y una banda horizontal de categorías grandes, táctiles y legibles.
+- Solo se muestra una categoría a la vez; la búsqueda puede cruzar todas las categorías.
+- Las tarjetas mantienen la identidad crema, verde bosque y dorado de Roxy Home.
+- Las fotos específicas existentes (pizza, pasta, pan, postres, sopas y bebidas) tienen prioridad; el resto usa ocho familias fotográficas nuevas en vez de la bolsa genérica.
+- Los títulos del plan diario abren directamente la receta instalada correspondiente.
 
-### Pass 2
+### Comprobaciones
 
-- Post-fix evidence: `/tmp/roxy-home-organize-plan-mobile.png` and `/tmp/roxy-home-organize-comparison.png`.
-- No actionable P0/P1/P2 differences remain. Dynamic recipe titles and photos differ from the static concept because the saved plan is generated from the household's real preferences.
-
-## Primary interactions tested
-
-- Open at `#hoy` with scroll position 0 and plan visible first.
-- Navigate to Compra; greeting and other panels stay hidden.
-- Navigate to Recetas; saved and local recipes render.
-- Select Pastas; exactly one category section remains visible and the route stays `#recetas`.
-- Return to Hoy; existing plan renders with configuration collapsed.
-- Browser console checked for application errors during final deployed verification.
-
-## Findings
-
-No actionable P0/P1/P2 findings remain.
+- Viewport objetivo: teléfono, 390 × 844 CSS px.
+- Jerarquía: título del día, objetivo semanal, comidas y navegación inferior.
+- Accesibilidad: búsqueda con etiqueta, botones de categoría, títulos de recetas accionables y texto alternativo en imágenes.
+- Responsive: filtros con desplazamiento horizontal y tarjetas sin desbordamiento lateral.
+- Estado actual: **aprobado en implementación local; pendiente de comprobación final del despliegue público**.
 
 ## Follow-up polish
 
-- [P3] Add more dish-specific shared images over time so dynamically generated weekly plans can match every meal title more literally.
+- [P3] Seguir incorporando imágenes específicas de platos para reducir el uso de fotografías por familia en las recetas menos comunes.
 
 ## Final result
 
-final result: passed
+final result: pending public deployment verification

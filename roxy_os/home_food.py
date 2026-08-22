@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any, Callable
 from uuid import uuid4
 
+from roxy_os.home_recipe_catalog import CATEGORY_META, infer_recipe_category
+
 try:
     import fcntl
 except ImportError:  # pragma: no cover - Windows fallback
@@ -312,11 +314,16 @@ class HomeFoodStore:
                 drink_type = HomeFoodStore._infer_drink_type(
                     {"title": title, "description": raw.get("description"), "ingredients": ingredients}
                 )
+        category = _text(raw.get("category"), 40)
+        if category not in CATEGORY_META:
+            category = infer_recipe_category(title, kind, drink_type)
         return {
             "title": title,
             "description": _text(raw.get("description"), 1000),
             "kind": kind,
             "drink_type": drink_type,
+            "category": category,
+            "subcategory": _text(raw.get("subcategory"), 80),
             "servings": servings,
             "ingredients": ingredients,
             "steps": steps,

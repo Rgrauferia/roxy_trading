@@ -47,14 +47,12 @@ def test_expanded_catalog_covers_common_drinks_meals_and_desserts_before_openai(
     assert find_local_recipe("Quiero preparar injera etíope tradicional", snapshot) is None
 
     summary = local_recipe_catalog_summary()
-    assert summary == {
-        "total": 70,
-        "meals": 26,
-        "desserts": 11,
-        "drinks": 33,
-        "alcoholic_drinks": 24,
-        "non_alcoholic_drinks": 9,
-    }
+    assert summary["total"] >= 380
+    assert summary["categories"] == 16
+    assert summary["meals"] >= 240
+    assert summary["desserts"] >= 25
+    assert summary["alcoholic_drinks"] >= 24
+    assert summary["non_alcoholic_drinks"] >= 80
 
 
 def test_common_recipe_bypasses_openai_but_uncommon_recipe_uses_it(monkeypatch, tmp_path):
@@ -104,7 +102,36 @@ def test_recipe_endpoint_uses_real_local_catalog_when_home_openai_is_not_connect
     assert response.json()["recipe"]["title"] == "Pan casero sencillo"
     saved = client.get("/v1/home-food/robert", headers={"Authorization": "Bearer home-test-key"}).json()
     assert saved["recipes"]
-    assert saved["local_catalog"]["total"] == 70
+    assert saved["local_catalog"]["total"] >= 380
+
+
+def test_installed_catalog_has_requested_categories_and_real_recipe_payloads():
+    from roxy_os.home_recipe_fallback import local_recipe_catalog
+
+    rows = local_recipe_catalog({"profile": {"allergies": []}})
+    by_title = {row["title"]: row for row in rows}
+    expected = {
+        "Huevos Benedict": "breakfast",
+        "Pollo teriyaki": "chicken",
+        "Ropa vieja": "meat",
+        "Camarones al ajillo": "seafood",
+        "Moros y cristianos": "rice",
+        "Pasta carbonara": "pasta",
+        "Ajiaco": "soups",
+        "Poke bowl": "bowls_salads",
+        "Falafel": "vegetarian",
+        "Pizza margarita": "baked",
+        "Mojo cubano": "sides_sauces",
+        "Tres leches": "desserts",
+        "Café cubano": "coffee_hot",
+        "Agua de jamaica": "juices",
+        "Smoothie bowl de açaí": "smoothies",
+    }
+    for title, category in expected.items():
+        assert title in by_title
+        assert by_title[title]["category"] == category
+        assert by_title[title]["ingredients"]
+        assert by_title[title]["steps"]
 
 
 def test_shopping_voice_understands_more_natural_vocabulary():

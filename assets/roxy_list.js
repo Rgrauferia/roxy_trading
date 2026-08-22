@@ -59,7 +59,8 @@
   let currentPreparation = null;
   let user = localStorage.getItem('roxyShoppingUser') || 'local_user';
   let category = 'ALL';
-  let recipeFilter = 'all';
+  let recipeFilter = 'breakfast';
+  let recipeSearch = '';
   let search = '';
   let showAllStaples = false;
   let busy = false;
@@ -133,6 +134,9 @@
     if(/\b(postre|pastel|tarta|bizcocho|flan|arroz con leche|galleta|helado)\b/.test(searchable))return'/assets/roxy_home/recipes/dessert.png';
     if(/\b(sopa|caldo|crema|ensalada|aguacate|vegetal|verdura)\b/.test(searchable))return'/assets/roxy_home/recipes/soup-salad.png';
     if(/\b(bebida|limonada|jugo|zumo|batido|smoothie|mojito|coctel|cocktail)\b/.test(searchable))return'/assets/roxy_home/recipes/drinks.png';
+    const category=recipeCategoryId(recipe||{});
+    const categoryImages={breakfast:'breakfast.jpg',chicken:'proteins.jpg',meat:'proteins.jpg',seafood:'proteins.jpg',rice:'rice-pasta.jpg',pasta:'rice-pasta.jpg',soups:'soups-bowls.jpg',bowls_salads:'soups-bowls.jpg',vegetarian:'soups-bowls.jpg',baked:'baked.jpg',sides_sauces:'soups-bowls.jpg',desserts:'desserts.jpg',coffee_hot:'coffee.jpg',juices:'juices-smoothies.jpg',smoothies:'juices-smoothies.jpg',cocktails:'drinks.png'};
+    if(categoryImages[category])return category==='cocktails'?'/assets/roxy_home/recipes/drinks.png':`/assets/roxy_home/recipe_categories/${categoryImages[category]}`;
     const kind = recipe && recipe.kind;
     if (kind === 'bread') return '/assets/roxy_home/recipes/bread.png';
     if (kind === 'drink') return '/assets/roxy_home/recipes/drinks.png';
@@ -447,16 +451,40 @@
   }
 
   const kindLabels={meal:'Comida',bread:'Pan',dessert:'Postre',drink:'Bebida',other:'Otra'};
-  const recipeCategoryLabels={breakfast:'Desayuno',meal:'Comida',pasta:'Pasta',bread:'Pan',dessert:'Postre',drink:'Bebida'};
+  const recipeCategories=[
+    {id:'breakfast',title:'Desayunos',description:'Huevos, avena, yogur, pancakes y tostadas',icon:'egg_alt'},
+    {id:'chicken',title:'Pollo',description:'Recetas cotidianas de pollo',icon:'skillet'},
+    {id:'meat',title:'Carnes',description:'Res y cerdo',icon:'outdoor_grill'},
+    {id:'seafood',title:'Pescados y mariscos',description:'Pescados, atún y camarones',icon:'set_meal'},
+    {id:'rice',title:'Arroces',description:'Arroces, risottos y paellas',icon:'rice_bowl'},
+    {id:'pasta',title:'Pastas y fideos',description:'Pastas, lasañas y fideos',icon:'ramen_dining'},
+    {id:'soups',title:'Sopas, cremas y guisos',description:'Platos de cuchara reconfortantes',icon:'soup_kitchen'},
+    {id:'bowls_salads',title:'Bowls y ensaladas',description:'Comidas frescas y completas',icon:'salad'},
+    {id:'vegetarian',title:'Vegetarianas',description:'Recetas sin carne',icon:'eco'},
+    {id:'baked',title:'Horneados',description:'Pizzas, panes, masas y gratinados',icon:'bakery_dining'},
+    {id:'sides_sauces',title:'Acompañamientos y salsas',description:'Guarniciones y básicos caseros',icon:'tapas'},
+    {id:'desserts',title:'Postres',description:'Dulces clásicos para compartir',icon:'cake'},
+    {id:'coffee_hot',title:'Café y calientes',description:'Café caliente, frío, té y chocolate',icon:'coffee'},
+    {id:'juices',title:'Jugos y refrescantes',description:'Jugos, limonadas y aguas frescas',icon:'local_drink'},
+    {id:'smoothies',title:'Batidos y smoothies',description:'Frutas, proteína y bowls',icon:'blender'},
+    {id:'cocktails',title:'Cócteles',description:'Bebidas para adultos',icon:'local_bar'},
+  ];
+  const recipeCategoryLabels=Object.fromEntries(recipeCategories.map(row=>[row.id,row.title]));
   function recipeCategoryId(recipe){
+    if(recipe&&recipe.category&&recipeCategories.some(row=>row.id===recipe.category))return recipe.category;
     const title=normalize(recipe.title||'');
     const ingredients=normalize((recipe.ingredients||[]).map(row=>typeof row==='string'?row:row.name||'').join(' '));
-    if(recipe.kind==='drink')return'drink';
-    if(recipe.kind==='dessert'||/(postre|dulce|galleta|bizcocho|pastel|tarta|flan|brownie|helado|arroz con leche|tiramisu|churro)/.test(title))return'dessert';
-    if(recipe.kind==='bread'||/(^| )(pan|baguette|focaccia|brioche|arepa)( |$)/.test(title))return'bread';
+    if(recipe.kind==='drink')return recipe.drink_type==='alcoholic'?'cocktails':/(cafe|espresso|latte|mocha|te|chocolate caliente)/.test(title)?'coffee_hot':/(batido|smoothie)/.test(title)?'smoothies':'juices';
+    if(recipe.kind==='dessert'||/(postre|dulce|galleta|bizcocho|pastel|tarta|flan|brownie|helado|arroz con leche|tiramisu|churro)/.test(title))return'desserts';
+    if(recipe.kind==='bread'||/(^| )(pan|baguette|focaccia|brioche|arepa|pizza)( |$)/.test(title))return'baked';
     if(/(pasta|espagueti|spaghetti|lasana|macarron|fideo|ravioli|tortellini|linguini|penne)/.test(title))return'pasta';
     if(/(desayuno|avena|pancake|panqueque|waffle|tostada|omelet|huevos rancheros|yogur|granola)/.test(title)||(/huevo/.test(ingredients)&&/(tostada|desayuno)/.test(title)))return'breakfast';
-    return'meal';
+    if(/(salmon|pescado|camaron|atun|ceviche|marisco)/.test(title))return'seafood';
+    if(/(pollo|alita)/.test(title))return'chicken';
+    if(/(arroz|risotto|paella)/.test(title))return'rice';
+    if(/(sopa|crema|guiso|potaje|ajiaco)/.test(title))return'soups';
+    if(/(ensalada|bowl)/.test(title))return'bowls_salads';
+    return'meat';
   }
   function recipeCard(recipe){
     const button=document.createElement('button');button.type='button';button.className='recipe-card';
@@ -470,6 +498,8 @@
     const root=$('recipeLibrary'); root.replaceChildren();
     const catalog=homeFood.local_catalog||{};
     $('recipeCatalogHint').textContent=catalog.total?`Roxy conoce ${catalog.total} recetas localmente y reserva OpenAI para algo especial.`:'';
+    const filters=$('recipeFilters');filters.replaceChildren();
+    [...recipeCategories,{id:'favorite',title:'Favoritas',icon:'favorite'}].forEach(category=>{const button=document.createElement('button');button.type='button';button.className=`recipe-filter-card${recipeFilter===category.id?' active':''}`;button.dataset.recipeFilter=category.id;button.innerHTML=`<span class="material-symbols-rounded" aria-hidden="true">${category.icon}</span><span>${category.title}</span>`;button.addEventListener('click',()=>{recipeFilter=category.id;renderRecipes()});filters.append(button)});
     const sessions=homeFood.cooking_sessions||[];
     const active=[...sessions].reverse().find(row=>row.status==='ACTIVE');
     if(active){
@@ -480,18 +510,9 @@
       copy.append(strong,small); resume.append(img,copy); resume.addEventListener('click',()=>resumeCooking(active.id)); root.append(resume);
     }
     const saved=(homeFood.recipes||[]).slice().reverse();const savedTitles=new Set(saved.map(recipe=>String(recipe.title||'').toLocaleLowerCase('es')));const included=(homeFood.local_recipes||[]).filter(recipe=>!savedTitles.has(String(recipe.title||'').toLocaleLowerCase('es')));const allRows=recipeFilter==='favorite'?saved:[...saved,...included];
-    const rows=allRows.filter(recipe=>recipeFilter==='all'||(recipeFilter==='favorite'?recipe.favorite:recipeFilter==='alcoholic'||recipeFilter==='non_alcoholic'?recipe.drink_type===recipeFilter:recipeCategoryId(recipe)===recipeFilter));
+    const rows=allRows.filter(recipe=>{const matchesSearch=!recipeSearch||normalize(`${recipe.title||''} ${recipe.subcategory||''}`).includes(recipeSearch);const matchesCategory=recipeFilter==='favorite'?recipe.favorite:recipeSearch||recipeCategoryId(recipe)===recipeFilter;return matchesSearch&&matchesCategory});
     $('recipeCount').textContent=`${rows.length} ${rows.length===1?'receta':'recetas'}`;
-    const categories=[
-      {id:'breakfast',title:'Desayunos',description:'Opciones para comenzar el día'},
-      {id:'meal',title:'Comidas',description:'Platos principales y preparaciones saladas'},
-      {id:'pasta',title:'Pastas',description:'Espaguetis, lasañas y otras pastas'},
-      {id:'bread',title:'Panes',description:'Panes, masas y horneados salados'},
-      {id:'dessert',title:'Dulces y postres',description:'Preparaciones dulces para compartir'},
-      {id:'drink',title:'Bebidas',description:'Con alcohol y sin alcohol'},
-    ];
-    const categoryFilter=['breakfast','meal','pasta','bread','dessert','drink'].includes(recipeFilter)?recipeFilter:(recipeFilter==='alcoholic'||recipeFilter==='non_alcoholic'?'drink':null);
-    const visibleCategories=categoryFilter?categories.filter(category=>category.id===categoryFilter):categories;
+    const visibleCategories=recipeSearch?recipeCategories.filter(category=>rows.some(recipe=>recipeCategoryId(recipe)===category.id)):recipeCategories.filter(category=>category.id===recipeFilter);
     visibleCategories.forEach(category=>{
       const categoryRows=rows.filter(recipe=>recipeCategoryId(recipe)===category.id);
       if(!categoryRows.length&&recipeFilter==='all')return;
@@ -503,12 +524,13 @@
       if(!categoryRows.length){const empty=document.createElement('div');empty.className='empty category-empty';empty.textContent=`Todavía no hay ${category.title.toLowerCase()} disponibles.`;grid.append(empty);}
       section.append(grid);root.append(section);
     });
-    if(!rows.length&&recipeFilter==='favorite'){const empty=document.createElement('div');empty.className='empty';empty.innerHTML='<strong>Aún no tienes favoritas</strong>Abre una receta para marcarla como favorita.';root.replaceChildren(empty);}
+    if(!rows.length){const empty=document.createElement('div');empty.className='empty';empty.innerHTML=recipeFilter==='favorite'?'<strong>Aún no tienes favoritas</strong>Abre una receta para marcarla como favorita.':'<strong>No encontré coincidencias</strong>Prueba otra palabra o categoría.';root.replaceChildren(empty);}
   }
   async function openCatalogRecipe(recipe){
     try{const data=await api(`/v1/home-food/${encodeURIComponent(user)}/recipes`,{method:'POST',body:JSON.stringify({prompt:recipe.title,mode:'routine',recipe_type:recipe.drink_type||'general'})});await load({quiet:true});openRecipe(data.recipe);announce('Receta incluida guardada en tu carpeta')}
     catch(error){announce(error.message)}
   }
+  function openRecipeByTitle(title){const key=normalize(title);const rows=[...(homeFood.recipes||[]),...(homeFood.local_recipes||[])];const recipe=rows.find(row=>normalize(row.title||'')===key)||rows.find(row=>{const candidate=normalize(row.title||'');return candidate.length>7&&(key.includes(candidate)||candidate.includes(key))});if(recipe){recipe.catalog_key?openCatalogRecipe(recipe):openRecipe(recipe)}else{selectPanel('recipes');$('recipeSearch').value=title;recipeSearch=key;renderRecipes()}}
   function addTextList(root,rows,ordered=false){const list=document.createElement(ordered?'ol':'ul');(rows||[]).forEach(row=>{const item=document.createElement('li');item.textContent=typeof row==='string'?row:`${row.quantity||''} ${row.unit||''} de ${row.name||''}${row.notes?` · ${row.notes}`:''}`.trim();list.append(item)});root.append(list);}
   function openRecipe(recipe){
     currentRecipe=recipe;$('recipeDialogTitle').textContent=recipe.title||'Receta de Roxy';
@@ -859,7 +881,7 @@
       const summary=(day.meals||[]).map(meal=>meal.title).join(' · ');const stateCopy=dayStatus==='scheduled'?(index===0?(day.meals||[]).map(meal=>mealTypeLabels[meal.meal_type]).join(' · '):summary):mealDayStates[dayStatus];toggle.innerHTML=`<span class="meal-plan-date"><small>${weekday}</small><strong>${date.getDate()}</strong></span><span class="meal-plan-day-title"><strong>${fullDate}</strong><small>${stateCopy}</small></span><span class="material-symbols-rounded meal-plan-chevron" aria-hidden="true">expand_less</span>`;
       toggle.addEventListener('click',()=>{const willOpen=!article.classList.contains('open');document.querySelectorAll('.meal-plan-day').forEach(row=>{row.classList.remove('open');row.querySelector('.meal-plan-day-toggle').setAttribute('aria-expanded','false')});article.classList.toggle('open',willOpen);toggle.setAttribute('aria-expanded',String(willOpen))});
       const body=document.createElement('div');body.className='meal-plan-day-body';
-      (day.meals||[]).forEach((meal,mealIndex)=>{const row=document.createElement('article');row.className='meal-plan-meal';const image=document.createElement('img');image.src=recipeImage({title:meal.title,ingredients:meal.ingredients||[],kind:'meal'});image.alt=`${mealTypeLabels[meal.meal_type]||'Comida'}: ${meal.title}`;const copy=document.createElement('div');copy.className='meal-plan-meal-copy';const type=document.createElement('small');type.textContent=mealTypeLabels[meal.meal_type]||'Comida';const title=document.createElement('strong');title.textContent=meal.title;const meta=document.createElement('span');meta.className='meal-plan-meal-meta';meta.innerHTML=`<span class="material-symbols-rounded" aria-hidden="true">schedule</span>${meal.minutes||0} min`;const actions=document.createElement('span');actions.className='meal-plan-meal-actions';const swap=document.createElement('button');swap.type='button';swap.className='meal-plan-icon-button';swap.setAttribute('aria-label',`Cambiar ${meal.title}`);swap.innerHTML='<span class="material-symbols-rounded" aria-hidden="true">autorenew</span>';swap.addEventListener('click',()=>updateWeeklyPlanMeal(index,mealIndex,'swap'));const favorite=document.createElement('button');favorite.type='button';favorite.className=`meal-plan-icon-button${meal.favorite?' active':''}`;favorite.setAttribute('aria-label',`${meal.favorite?'Quitar de':'Guardar en'} favoritos ${meal.title}`);favorite.setAttribute('aria-pressed',String(Boolean(meal.favorite)));favorite.innerHTML=`<span class="material-symbols-rounded" aria-hidden="true">${meal.favorite?'favorite':'favorite_border'}</span>`;favorite.addEventListener('click',()=>updateWeeklyPlanMeal(index,mealIndex,'favorite'));actions.append(swap,favorite);copy.append(type,title,meta);row.append(image,copy,actions);body.append(row)});
+      (day.meals||[]).forEach((meal,mealIndex)=>{const row=document.createElement('article');row.className='meal-plan-meal';const image=document.createElement('img');image.src=recipeImage({title:meal.title,ingredients:meal.ingredients||[],kind:'meal'});image.alt=`${mealTypeLabels[meal.meal_type]||'Comida'}: ${meal.title}`;const copy=document.createElement('div');copy.className='meal-plan-meal-copy';const type=document.createElement('small');type.textContent=mealTypeLabels[meal.meal_type]||'Comida';const title=document.createElement('button');title.type='button';title.className='meal-plan-recipe-link';title.textContent=meal.title;title.setAttribute('aria-label',`Abrir receta ${meal.title}`);title.addEventListener('click',()=>openRecipeByTitle(meal.title));const meta=document.createElement('span');meta.className='meal-plan-meal-meta';meta.innerHTML=`<span class="material-symbols-rounded" aria-hidden="true">schedule</span>${meal.minutes||0} min`;const actions=document.createElement('span');actions.className='meal-plan-meal-actions';const swap=document.createElement('button');swap.type='button';swap.className='meal-plan-icon-button';swap.setAttribute('aria-label',`Cambiar ${meal.title}`);swap.innerHTML='<span class="material-symbols-rounded" aria-hidden="true">autorenew</span>';swap.addEventListener('click',()=>updateWeeklyPlanMeal(index,mealIndex,'swap'));const favorite=document.createElement('button');favorite.type='button';favorite.className=`meal-plan-icon-button${meal.favorite?' active':''}`;favorite.setAttribute('aria-label',`${meal.favorite?'Quitar de':'Guardar en'} favoritos ${meal.title}`);favorite.setAttribute('aria-pressed',String(Boolean(meal.favorite)));favorite.innerHTML=`<span class="material-symbols-rounded" aria-hidden="true">${meal.favorite?'favorite':'favorite_border'}</span>`;favorite.addEventListener('click',()=>updateWeeklyPlanMeal(index,mealIndex,'favorite'));actions.append(swap,favorite);copy.append(type,title,meta);row.append(image,copy,actions);body.append(row)});
       if(day.rescheduled_from){const moved=document.createElement('p');moved.className='meal-plan-reuse-note';moved.textContent='Roxy movió aquí las comidas de un día que quedó libre.';body.append(moved)}if(day.reuse_note){const reuse=document.createElement('p');reuse.className='meal-plan-reuse-note';reuse.textContent=day.reuse_note;body.append(reuse)}const live=document.createElement('section');live.className='meal-plan-live';const liveTitle=document.createElement('strong');liveTitle.textContent=dayStatus==='scheduled'?'¿Cambió el día?':mealDayStates[dayStatus];const liveActions=document.createElement('div');[['cooked','task_alt','Ya cocinamos'],['leftovers','takeout_dining','Comeremos sobras'],['skip','event_busy','No cocinaremos']].forEach(([action,icon,label])=>{const button=document.createElement('button');button.type='button';button.className=dayStatus===action?'active':'';button.disabled=dayStatus===action;button.innerHTML=`<span class="material-symbols-rounded" aria-hidden="true">${icon}</span>${label}`;button.addEventListener('click',()=>updateWeeklyPlanDay(index,action));liveActions.append(button)});if(dayStatus!=='scheduled'){const reset=document.createElement('button');reset.type='button';reset.innerHTML='<span class="material-symbols-rounded" aria-hidden="true">restart_alt</span>Restaurar';reset.addEventListener('click',()=>updateWeeklyPlanDay(index,'reset'));liveActions.append(reset)}live.append(liveTitle,liveActions);if(day.status_note){const note=document.createElement('p');note.textContent=day.status_note;live.append(note)}body.append(live);const ready=document.createElement('label');ready.className='meal-plan-ready';ready.innerHTML='<span>Ya tengo los ingredientes de este día</span>';const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=weeklyPlanReadyDays.has(index)||['cooked','leftovers','skipped'].includes(dayStatus);checkbox.disabled=['cooked','leftovers','skipped'].includes(dayStatus);checkbox.addEventListener('change',()=>checkbox.checked?weeklyPlanReadyDays.add(index):weeklyPlanReadyDays.delete(index));ready.append(checkbox);body.append(ready);article.append(toggle,body);daysRoot.append(article);
     });
     const prepRoot=$('mealPlanPrepSessions');prepRoot.replaceChildren();(plan.prep_sessions||[]).forEach(session=>{const article=document.createElement('article');article.className='meal-plan-prep-session';const header=document.createElement('header');const title=document.createElement('strong');title.textContent=session.title;const meta=document.createElement('span');const sessionDate=new Date(`${session.date}T12:00:00`);meta.textContent=`${new Intl.DateTimeFormat('es',{weekday:'long',day:'numeric'}).format(sessionDate)} · ${session.minutes} min`;header.append(title,meta);const list=document.createElement('ul');(session.tasks||[]).forEach(task=>{const item=document.createElement('li');item.textContent=task;list.append(item)});article.append(header,list);prepRoot.append(article)});
@@ -956,7 +978,7 @@
     document.querySelectorAll('[data-tab-link]').forEach(button=>button.addEventListener('click',event=>{event.preventDefault();selectPanel(button.dataset.tabLink)}));
     document.querySelectorAll('[data-open-custom]').forEach(button=>button.addEventListener('click',()=>$('customDialog').showModal()));
     document.querySelectorAll('[data-close-dialog]').forEach(button=>button.addEventListener('click',()=>$(button.dataset.closeDialog).close()));
-    document.querySelectorAll('[data-recipe-filter]').forEach(button=>button.addEventListener('click',()=>{recipeFilter=button.dataset.recipeFilter;document.querySelectorAll('[data-recipe-filter]').forEach(row=>row.classList.toggle('active',row===button));renderRecipes()}));
+    $('recipeSearch').addEventListener('input',event=>{recipeSearch=normalize(event.target.value);renderRecipes()});
     $('installButton').addEventListener('click',async()=>{if(installPrompt){installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;$('installButton').hidden=true}});
     window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();installPrompt=event;$('installButton').hidden=false});
     window.addEventListener('online',()=>load({quiet:true}));

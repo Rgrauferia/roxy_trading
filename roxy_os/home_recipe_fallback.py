@@ -3,7 +3,10 @@ from __future__ import annotations
 import re
 import unicodedata
 from copy import deepcopy
+from functools import lru_cache
 from typing import Any
+
+from roxy_os.home_recipe_catalog import installed_recipe_templates
 
 
 def _identity(value: Any) -> str:
@@ -38,6 +41,7 @@ def _recipe(
     return row
 
 
+@lru_cache(maxsize=1)
 def _templates() -> dict[str, dict[str, Any]]:
     templates = {
         "bread": {
@@ -64,6 +68,20 @@ def _templates() -> dict[str, dict[str, Any]]:
         "cocktail": {"title": "Mojito clásico", "description": "Cóctel para adultos; incluye alternativa sin alcohol.", "kind": "drink", "drink_type": "alcoholic", "servings": 1, "ingredients": [_ingredient("Ron blanco", 50, "mililitro"), _ingredient("Limón", 1, "unidad"), _ingredient("Hierbabuena", 8, "hoja"), _ingredient("Azúcar", 2, "cucharadita"), _ingredient("Agua con gas", 100, "mililitro"), _ingredient("Hielo", 1, "taza")], "steps": ["Machaca suavemente la hierbabuena con el azúcar y el jugo de limón.", "Añade hielo y ron; completa con agua con gas.", "Remueve y sirve. Para la versión sin alcohol, omite el ron y aumenta el agua con gas."]},
     }
     templates.update(_expanded_templates())
+    templates.update(installed_recipe_templates())
+    for row in templates.values():
+        if row.get("category"):
+            continue
+        if row.get("drink_type") == "alcoholic":
+            row["category"] = "cocktails"
+        elif row.get("kind") == "drink":
+            row["category"] = "juices"
+        elif row.get("kind") == "dessert":
+            row["category"] = "desserts"
+        elif row.get("kind") == "bread":
+            row["category"] = "baked"
+        else:
+            row["category"] = "pasta" if re.search(r"pasta|espagueti|lasa", _identity(row.get("title"))) else "chicken" if "pollo" in _identity(row.get("title")) else "bowls_salads" if re.search(r"bowl|ensalada", _identity(row.get("title"))) else "soups" if re.search(r"sopa|lenteja", _identity(row.get("title"))) else "meat"
     return templates
 
 
@@ -138,6 +156,19 @@ def _local_recipe_key(prompt: str) -> str | None:
     alcohol_requested = not alcohol_free and bool(
         re.search(r"\b(con alcohol|bebida alcoholica|para adultos|ingrediente alcoholico|vodka|ron|tequila|whisky|ginebra|licor)\b", query)
     )
+    installed_matches = [
+        (key, _identity(row.get("title")))
+        for key, row in _templates().items()
+        if key.startswith("installed_") and _identity(row.get("title")) in query
+    ]
+    if installed_matches:
+        key = max(installed_matches, key=lambda item: len(item[1]))[0]
+        drink_type = str(_templates()[key].get("drink_type") or "")
+        if alcohol_free and drink_type == "alcoholic":
+            return None
+        if alcohol_requested and drink_type == "non_alcoholic":
+            return None
+        return key
     if re.search(r"\bpina colada\b", query):
         return "pina_colada_zero" if alcohol_free else "pina_colada"
     if re.search(r"\bmargarita\b", query):
@@ -249,7 +280,7 @@ def find_local_recipe(prompt: str, snapshot: dict[str, Any]) -> dict[str, Any] |
 
 
 def local_recipe_catalog_summary() -> dict[str, int]:
-    rows = list(_templates().values())
+    rows = list(_unique_catalog_templates().values())
     return {
         "total": len(rows),
         "meals": sum(row.get("kind") in {"meal", "bread"} for row in rows),
@@ -257,6 +288,7 @@ def local_recipe_catalog_summary() -> dict[str, int]:
         "drinks": sum(row.get("kind") == "drink" for row in rows),
         "alcoholic_drinks": sum(row.get("drink_type") == "alcoholic" for row in rows),
         "non_alcoholic_drinks": sum(row.get("drink_type") == "non_alcoholic" for row in rows),
+        "categories": len({row.get("category") for row in rows if row.get("category")}),
     }
 
 
@@ -264,8 +296,21 @@ def local_recipe_catalog(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
     """Return the installed cookbook without creating user-owned copies."""
     return [
         {"catalog_key": key, **_prepare_local_recipe(key, snapshot)}
-        for key in sorted(_templates(), key=lambda value: str(_templates()[value].get("title") or value).casefold())
+        for key in sorted(_unique_catalog_templates(), key=lambda value: str(_templates()[value].get("title") or value).casefold())
     ]
+
+
+def _unique_catalog_templates() -> dict[str, dict[str, Any]]:
+    """Prefer the new categorized edition when a legacy title is duplicated."""
+    templates = _templates()
+    unique: dict[str, dict[str, Any]] = {}
+    seen_titles: set[str] = set()
+    for key in sorted(templates, key=lambda value: (not value.startswith("installed_"), value)):
+        title = _identity(templates[key].get("title") or key)
+        if title and title not in seen_titles:
+            unique[key] = templates[key]
+            seen_titles.add(title)
+    return unique
 
 
 def generate_local_recipe(prompt: str, snapshot: dict[str, Any]) -> dict[str, Any]:
