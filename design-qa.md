@@ -41,7 +41,9 @@ Previous fixes preserved in this iteration:
 - Jerarquía: título del día, objetivo semanal, comidas y navegación inferior.
 - Accesibilidad: búsqueda con etiqueta, botones de categoría, títulos de recetas accionables y texto alternativo en imágenes.
 - Responsive: filtros con desplazamiento horizontal y tarjetas sin desbordamiento lateral.
-- Estado actual: **aprobado en implementación local; pendiente de comprobación final del despliegue público**.
+- Despliegue público comprobado en `https://roxy-home.onrender.com/lista#recetas` con el mismo viewport móvil.
+- Se verificaron 16 categorías, búsqueda global con “Café cubano”, cambio a la categoría Pollo, fotografías visibles, navegación inferior y ausencia de errores de consola.
+- Estado actual: **aprobado en el despliegue público**.
 
 ## Follow-up polish
 
@@ -49,4 +51,4 @@ Previous fixes preserved in this iteration:
 
 ## Final result
 
-final result: pending public deployment verification
+final result: passed
