@@ -491,7 +491,6 @@
     const hero=document.createElement('div');hero.className='recipe-detail-hero';const img=document.createElement('img');img.src=recipeImage(recipe);img.alt=`Foto de ${recipe.title||'la receta'}`;
     const intro=document.createElement('div');const meta=document.createElement('strong');const recipeLabel=recipe.kind==='drink'?(recipe.drink_type==='alcoholic'?'Bebida con alcohol':'Bebida sin alcohol'):(kindLabels[recipe.kind]||'Receta');meta.textContent=`${recipeLabel} · ${recipe.servings||1} porciones`;
     const description=document.createElement('p');description.textContent=recipe.description||'Receta guardada por Roxy.';intro.append(meta,description);hero.append(img,intro);
-    const videoArea=document.createElement('section');videoArea.className='recipe-video-area';videoArea.setAttribute('aria-live','polite');
     const columns=document.createElement('div');columns.className='recipe-columns';
     const ingredients=document.createElement('section');const ingTitle=document.createElement('h3');ingTitle.textContent='Ingredientes';ingredients.append(ingTitle);addTextList(ingredients,recipe.ingredients||[]);
     const steps=document.createElement('section');const stepTitle=document.createElement('h3');stepTitle.textContent='Preparación';steps.append(stepTitle);addTextList(steps,recipe.steps||[],true);columns.append(ingredients,steps);
@@ -500,12 +499,11 @@
     const buy=makeButton('Buscar para comprar','secondary',()=>preparePurchase('recipe',recipe.id));
     const guide=makeButton('Cocinar paso a paso','primary',()=>startCooking(recipe.id));actions.append(add,guide);
     actions.insertBefore(buy,guide);
-    root.append(hero,videoArea,columns,actions);
+    root.append(hero,columns,actions);
     $('recipeFavorite').checked=Boolean(recipe.favorite);
     $('recipeNotes').value=recipe.user_notes||'';
     $('recipePhoto').value='';
     if(!$('recipeDialog').open)$('recipeDialog').showModal();
-    loadRecipeVideo(recipe,videoArea);
   }
 
   function recipeVideoStatusLabel(status){return({QUEUED:'En cola',PROCESSING:'Roxy está creando las demostraciones',REVIEW:'Pendiente de revisión',READY:'Video disponible',FAILED:'La generación no terminó',REJECTED:'No pasó la revisión'})[status]||'Video de la receta'}

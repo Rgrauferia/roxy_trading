@@ -273,7 +273,7 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
 .cooking-video > strong { color: var(--forest); }
 .cooking-video > small { color: var(--muted); line-height: 1.4; }
 .cooking-video-clips { display: grid; gap: .65rem; }
-.cooking-video-clips video { display: block; width: 100%; aspect-ratio: 9 / 16; max-height: min(76dvh, 820px); margin-inline: auto; border-radius: 18px; background: #0c1711; object-fit: contain; box-shadow: 0 16px 38px rgba(12, 38, 26, .2); }
+.cooking-video-clips video { display: block; width: 100%; aspect-ratio: 16 / 9; margin-inline: auto; border-radius: 18px; background: #0c1711; object-fit: cover; box-shadow: 0 16px 38px rgba(12, 38, 26, .2); }
 .cooking-video-step-label { display: grid; gap: .2rem; color: var(--forest); font-size: 14px; font-weight: 850; }
 .cooking-video-step-label small { color: var(--muted); font-size: 11px; font-weight: 650; line-height: 1.4; }
 .cooking-visual[hidden] { display: none; }
