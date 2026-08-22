@@ -17,8 +17,16 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=44"' in page.text
-    assert '/assets/roxy_list.js?v=44' in worker.text
+    assert 'src="/assets/roxy_list.js?v=45"' in page.text
+    assert '/assets/roxy_list.js?v=45' in worker.text
+    assert 'id="todayPanel"' in page.text
+    assert 'data-tab-link="today"' in page.text
+    assert page.text.index('id="todayPanel"') < page.text.index('id="shoppingPanel"') < page.text.index('id="recipesPanel"')
+    assert page.text.index('id="mealPlanStudio"') < page.text.index('id="recipesPanel"')
+    assert page.text.index('id="mealPlanStudio"') < page.text.index('id="homeWelcome"')
+    assert 'data-recipe-filter="breakfast"' in page.text
+    assert 'data-recipe-filter="pasta"' in page.text
+    assert 'data-recipe-filter="bread"' in page.text
     assert 'aspect-ratio: 16 / 9' in style.text
     assert "media.loop=true" in script.text
     assert "videoSeconds*cycles/audioSeconds" in script.text
@@ -134,7 +142,9 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'data-recipe-filter="non_alcoholic"' in page.text
     assert "recipe-category-grid" in script.text
     assert "dataset.recipeCategory" in script.text
-    assert "Comidas" in script.text and "Postres" in script.text and "Bebidas" in script.text
+    assert "Desayunos" in script.text and "Pastas" in script.text and "Dulces y postres" in script.text and "Bebidas" in script.text
+    assert "recipeCategoryId" in script.text
+    assert "setup.open=false" in script.text
     assert 'id="recipePersonalForm"' in page.text
     assert 'id="deleteRecipeButton"' in page.text
     assert "deleteCurrentRecipe" in script.text

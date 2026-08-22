@@ -46,6 +46,7 @@ button, a, input, textarea, select, summary { -webkit-tap-highlight-color: trans
 
 main { width: min(100%, 860px); min-width: 0; margin: 0 auto; padding: 18px 18px calc(118px + env(safe-area-inset-bottom)); }
 .welcome { position: relative; isolation: isolate; overflow: hidden; min-height: 348px; padding: 26px 24px 15px; border: 1px solid rgba(23,77,54,.11); border-radius: 28px; background: #fbf7ee; box-shadow: var(--shadow); }
+.welcome[hidden],.meal-plan-result[hidden] { display: none; }
 .welcome-scene { position: absolute; z-index: -2; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 54% center; }
 .welcome::after { position: absolute; z-index: -1; inset: 0; background: rgba(255,253,248,.1); content: ""; pointer-events: none; }
 .welcome-copy { position: relative; width: 61%; min-height: 217px; }
@@ -60,6 +61,7 @@ main { width: min(100%, 860px); min-width: 0; margin: 0 auto; padding: 18px 18px
 .welcome-stroke { display: block; width: min(210px, 86%); height: 3px; margin-top: 15px; border-radius: 3px; background: var(--gold); transform: rotate(-1.5deg); }
 .welcome-subtitle { margin: 18px 0 0; color: #515c56; font-size: 14px; line-height: 1.4; }
 .welcome-subtitle span { color: var(--gold); }
+.today-welcome { margin-top: 18px; }
 .eyebrow, .section-heading p { margin: 0 0 5px; color: var(--gold); font-size: 11px; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
 h1, h2, h3, p { overflow-wrap: anywhere; }
 h1, h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; color: var(--forest-dark); }
@@ -144,6 +146,13 @@ textarea { resize: vertical; line-height: 1.45; }
 .meal-plan-heading > p:last-child { margin: 7px 0 0; color: var(--muted); line-height: 1.45; }
 .meal-plan-heading h2 { font-size: clamp(31px,8vw,43px); }
 #mealPlanForm { display: grid; gap: 15px; }
+.meal-plan-setup { overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: #fbfaf6; }
+.meal-plan-setup > summary { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 15px 17px; color: var(--forest); cursor: pointer; list-style: none; }
+.meal-plan-setup > summary::-webkit-details-marker { display: none; }
+.meal-plan-setup > summary strong,.meal-plan-setup > summary small { display: block; }
+.meal-plan-setup > summary small { margin-top: 3px; color: var(--muted); font-size: 10px; }
+.meal-plan-setup[open] > summary { border-bottom: 1px solid var(--line); }
+.meal-plan-setup #mealPlanForm { padding: 16px; }
 .meal-plan-styles { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; margin: 0; padding: 0; border: 0; }
 .meal-plan-styles legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 .meal-plan-styles label { position: relative; display: grid; place-items: center; align-content: center; min-height: 132px; padding: 13px 8px; border: 1px solid var(--line); border-radius: 18px; color: var(--forest); background: #fff; text-align: center; cursor: pointer; }
@@ -277,6 +286,7 @@ textarea { resize: vertical; line-height: 1.45; }
 .bottom-nav { position: fixed; right: 0; bottom: 0; left: 0; z-index: 25; display: grid; grid-template-columns: repeat(5, 1fr); min-height: 73px; padding: 8px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); border-top: 1px solid rgba(23,77,54,.14); background: rgba(255,253,250,.96); backdrop-filter: blur(18px); }
 .bottom-nav button { min-width: 0; border: 0; color: #737b76; background: transparent; font-size: 11px; }
 .bottom-nav button.active { color: var(--forest); }
+.bottom-nav button > .material-symbols-rounded { display: block; margin: 0 auto 4px; font-size: 24px; }
 .bottom-nav button::before { content: ""; display: block; width: 22px; height: 3px; margin: 0 auto 8px; border-radius: 5px; background: transparent; }
 .bottom-nav button.active::before { background: var(--gold); }
 .bottom-nav img { display: block; width: 36px; height: 36px; margin: -19px auto 2px; border: 3px solid var(--paper); border-radius: 50%; object-fit: cover; box-shadow: 0 5px 14px rgba(23,77,54,.2); }

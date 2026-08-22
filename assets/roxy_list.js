@@ -303,15 +303,17 @@
     return img;
   }
 
-  function selectPanel(panel) {
+  function selectPanel(panel,{smooth=true}={}) {
     document.querySelectorAll('[data-panel]').forEach(node => {
       const active = node.dataset.panel === panel;
       node.hidden = !active;
       node.classList.toggle('active',active);
     });
     document.querySelectorAll('.bottom-nav [data-tab-link]').forEach(button => button.classList.toggle('active',button.dataset.tabLink === panel));
-    location.hash = panel === 'shopping' ? 'compra' : panel === 'recipes' ? 'recetas' : panel === 'pantry' ? 'despensa' : panel;
-    window.scrollTo({top:0,behavior:'smooth'});
+    $('homeWelcome').hidden=panel!=='today';
+    const hashes={today:'hoy',shopping:'compra',recipes:'recetas',pantry:'despensa',more:'mas'};
+    location.hash=hashes[panel]||'hoy';
+    window.scrollTo({top:0,behavior:smooth?'smooth':'auto'});
   }
 
   function renderFilters() {
@@ -445,12 +447,23 @@
   }
 
   const kindLabels={meal:'Comida',bread:'Pan',dessert:'Postre',drink:'Bebida',other:'Otra'};
+  const recipeCategoryLabels={breakfast:'Desayuno',meal:'Comida',pasta:'Pasta',bread:'Pan',dessert:'Postre',drink:'Bebida'};
+  function recipeCategoryId(recipe){
+    const title=normalize(recipe.title||'');
+    const ingredients=normalize((recipe.ingredients||[]).map(row=>typeof row==='string'?row:row.name||'').join(' '));
+    if(recipe.kind==='drink')return'drink';
+    if(recipe.kind==='dessert'||/(postre|dulce|galleta|bizcocho|pastel|tarta|flan|brownie|helado|arroz con leche|tiramisu|churro)/.test(title))return'dessert';
+    if(recipe.kind==='bread'||/(^| )(pan|baguette|focaccia|brioche|arepa)( |$)/.test(title))return'bread';
+    if(/(pasta|espagueti|spaghetti|lasana|macarron|fideo|ravioli|tortellini|linguini|penne)/.test(title))return'pasta';
+    if(/(desayuno|avena|pancake|panqueque|waffle|tostada|omelet|huevos rancheros|yogur|granola)/.test(title)||(/huevo/.test(ingredients)&&/(tostada|desayuno)/.test(title)))return'breakfast';
+    return'meal';
+  }
   function recipeCard(recipe){
     const button=document.createElement('button');button.type='button';button.className='recipe-card';
     const img=document.createElement('img');img.src=recipeImage(recipe);img.alt=`Foto de ${recipe.title||'la receta'}`;img.loading='lazy';
     const copy=document.createElement('span');const strong=document.createElement('strong');strong.textContent=recipe.title;
     const drinkLabel=recipe.kind==='drink'?(recipe.drink_type==='alcoholic'?'Con alcohol':'Sin alcohol'):'';
-    const small=document.createElement('small');small.textContent=`${recipe.favorite?'Favorita · ':''}${drinkLabel||kindLabels[recipe.kind]||'Receta'} · ${recipe.servings||1} porciones · ${(recipe.steps||[]).length} pasos`;
+    const small=document.createElement('small');small.textContent=`${recipe.favorite?'Favorita · ':''}${drinkLabel||recipeCategoryLabels[recipeCategoryId(recipe)]||kindLabels[recipe.kind]||'Receta'} · ${recipe.servings||1} porciones · ${(recipe.steps||[]).length} pasos`;
     copy.append(strong,small);button.append(img,copy);button.addEventListener('click',()=>recipe.catalog_key?openCatalogRecipe(recipe):openRecipe(recipe));return button;
   }
   function renderRecipes() {
@@ -467,20 +480,25 @@
       copy.append(strong,small); resume.append(img,copy); resume.addEventListener('click',()=>resumeCooking(active.id)); root.append(resume);
     }
     const saved=(homeFood.recipes||[]).slice().reverse();const savedTitles=new Set(saved.map(recipe=>String(recipe.title||'').toLocaleLowerCase('es')));const included=(homeFood.local_recipes||[]).filter(recipe=>!savedTitles.has(String(recipe.title||'').toLocaleLowerCase('es')));const allRows=recipeFilter==='favorite'?saved:[...saved,...included];
-    const rows=allRows.filter(recipe=>recipeFilter==='all'||(recipeFilter==='favorite'?recipe.favorite:recipeFilter==='alcoholic'||recipeFilter==='non_alcoholic'?recipe.drink_type===recipeFilter:recipe.kind===recipeFilter));
+    const rows=allRows.filter(recipe=>recipeFilter==='all'||(recipeFilter==='favorite'?recipe.favorite:recipeFilter==='alcoholic'||recipeFilter==='non_alcoholic'?recipe.drink_type===recipeFilter:recipeCategoryId(recipe)===recipeFilter));
     $('recipeCount').textContent=`${rows.length} ${rows.length===1?'receta':'recetas'}`;
     const categories=[
-      {id:'meal',title:'Comidas',description:'Platos, panes y preparaciones saladas',matches:recipe=>recipe.kind!=='drink'&&recipe.kind!=='dessert'},
-      {id:'dessert',title:'Postres',description:'Dulces y preparaciones para compartir',matches:recipe=>recipe.kind==='dessert'},
-      {id:'drink',title:'Bebidas',description:'Con alcohol y sin alcohol',matches:recipe=>recipe.kind==='drink'},
+      {id:'breakfast',title:'Desayunos',description:'Opciones para comenzar el día'},
+      {id:'meal',title:'Comidas',description:'Platos principales y preparaciones saladas'},
+      {id:'pasta',title:'Pastas',description:'Espaguetis, lasañas y otras pastas'},
+      {id:'bread',title:'Panes',description:'Panes, masas y horneados salados'},
+      {id:'dessert',title:'Dulces y postres',description:'Preparaciones dulces para compartir'},
+      {id:'drink',title:'Bebidas',description:'Con alcohol y sin alcohol'},
     ];
-    const visibleCategories=recipeFilter==='dessert'?categories.slice(1,2):(recipeFilter==='drink'||recipeFilter==='alcoholic'||recipeFilter==='non_alcoholic')?categories.slice(2):recipeFilter==='meal'||recipeFilter==='bread'?categories.slice(0,1):categories;
+    const categoryFilter=['breakfast','meal','pasta','bread','dessert','drink'].includes(recipeFilter)?recipeFilter:(recipeFilter==='alcoholic'||recipeFilter==='non_alcoholic'?'drink':null);
+    const visibleCategories=categoryFilter?categories.filter(category=>category.id===categoryFilter):categories;
     visibleCategories.forEach(category=>{
-      const categoryRows=rows.filter(category.matches);
+      const categoryRows=rows.filter(recipe=>recipeCategoryId(recipe)===category.id);
+      if(!categoryRows.length&&recipeFilter==='all')return;
       const section=document.createElement('section');section.className='recipe-category';section.dataset.recipeCategory=category.id;
       const heading=document.createElement('div');heading.className='recipe-category-heading';
       const copy=document.createElement('div');const title=document.createElement('h3');title.textContent=category.title;const description=document.createElement('p');description.textContent=category.description;copy.append(title,description);
-      const count=document.createElement('span');count.textContent=String(categoryRows.length);count.setAttribute('aria-label',`${categoryRows.length} recetas en ${category.title}`);heading.append(copy,count);section.append(heading);
+      const count=document.createElement('span');count.textContent=String(categoryRows.length);count.setAttribute('aria-label',`${categoryRows.length} ${categoryRows.length===1?'receta':'recetas'} en ${category.title}`);heading.append(copy,count);section.append(heading);
       const grid=document.createElement('div');grid.className='recipe-category-grid';categoryRows.forEach(recipe=>grid.append(recipeCard(recipe)));
       if(!categoryRows.length){const empty=document.createElement('div');empty.className='empty category-empty';empty.textContent=`Todavía no hay ${category.title.toLowerCase()} disponibles.`;grid.append(empty);}
       section.append(grid);root.append(section);
@@ -828,10 +846,10 @@
   const mealTypeLabels={breakfast:'Desayuno',lunch:'Comida',dinner:'Cena'};
   const mealDayStates={scheduled:'Planificado',cooked:'Ya cocinado',leftovers:'Comeremos sobras',skipped:'Día libre'};
   function renderMealPlan(plan){
-    currentWeeklyPlan=plan||null;const result=$('mealPlanResult');const daysRoot=$('mealPlanDays');daysRoot.replaceChildren();
+    currentWeeklyPlan=plan||null;const result=$('mealPlanResult');const setup=$('mealPlanSetup');const daysRoot=$('mealPlanDays');daysRoot.replaceChildren();
     const remembered=homeFood.meal_planning||{};
-    if(!plan){result.hidden=true;$('mealPlanPeople').value=remembered.people||homeFood.profile&&homeFood.profile.household_size||2;$('mealPlanMinutes').value=remembered.max_minutes||25;$('mealPlanBudget').value=remembered.weekly_budget||85;$('mealPlanCookDays').value=String(remembered.cook_days||2);$('mealPlanScope').value=remembered.meal_scope||'all';const rememberedStyle=document.querySelector(`input[name="mealPlanStyle"][value="${CSS.escape(remembered.style||'normal')}"]`);if(rememberedStyle)rememberedStyle.checked=true;return}
-    result.hidden=false;$('mealPlanFocus').textContent=plan.focus||'Tu semana organizada';$('mealPlanPrepTip').textContent=plan.prep_tip||'';
+    if(!plan){result.hidden=true;setup.open=true;$('mealPlanPeople').value=remembered.people||homeFood.profile&&homeFood.profile.household_size||2;$('mealPlanMinutes').value=remembered.max_minutes||25;$('mealPlanBudget').value=remembered.weekly_budget||85;$('mealPlanCookDays').value=String(remembered.cook_days||2);$('mealPlanScope').value=remembered.meal_scope||'all';const rememberedStyle=document.querySelector(`input[name="mealPlanStyle"][value="${CSS.escape(remembered.style||'normal')}"]`);if(rememberedStyle)rememberedStyle.checked=true;return}
+    result.hidden=false;setup.open=false;$('mealPlanFocus').textContent=plan.focus||'Tu semana organizada';$('mealPlanPrepTip').textContent=plan.prep_tip||'';
     $('mealPlanPeople').value=plan.people||homeFood.profile&&homeFood.profile.household_size||1;$('mealPlanMinutes').value=plan.max_minutes||25;$('mealPlanBudget').value=plan.weekly_budget||85;$('mealPlanCookDays').value=String(plan.cook_days||2);$('mealPlanScope').value=plan.meal_scope||'all';
     const selected=document.querySelector(`input[name="mealPlanStyle"][value="${CSS.escape(plan.style||'normal')}"]`);if(selected)selected.checked=true;
     (plan.days||[]).forEach((day,index)=>{
@@ -870,7 +888,7 @@
   async function submitRoxyCommand(event){
     event.preventDefault();const input=$('roxyCommand');const command=input.value.trim();if(!command)return;
     const button=event.currentTarget.querySelector('button');button.disabled=true;button.textContent='…';
-    try{const result=await sendRoxyHomeCommand({command});input.value='';announce(result.message||'Listo');if(result.data&&result.data.recipe){await load({quiet:true});selectPanel('recipes');openRecipe(result.data.recipe)}if(result.data&&result.data.cooking){await load({quiet:true});showCooking(result.data.cooking)}}catch(error){announce(error.message)}finally{button.disabled=false;button.textContent='Enviar'}
+    try{const result=await sendRoxyHomeCommand({command});input.value='';announce(result.message||'Listo');if(result.data&&result.data.weekly_plan){await load({quiet:true});selectPanel('today')}if(result.data&&result.data.recipe){await load({quiet:true});selectPanel('recipes');openRecipe(result.data.recipe)}if(result.data&&result.data.cooking){await load({quiet:true});showCooking(result.data.cooking)}}catch(error){announce(error.message)}finally{button.disabled=false;button.textContent='Enviar'}
   }
 
   let roxyVoiceConversation=null;let roxyVoiceStarting=false;let roxyElevenLabsModule=null;let roxyVoicePermissionStream=null;let roxyLastAgentMessage='';let roxyLastAgentMessageAt=0;
@@ -886,7 +904,7 @@
   async function sendRoxyHomeCommand(parameters={}){const command=String(parameters.command||parameters.text||parameters.request||'').trim();if(!command)return{ok:false,error:'missing_command'};const result=await api(`/v1/assistant/command/${encodeURIComponent(user)}`,{method:'POST',body:JSON.stringify({text:command})});await load({quiet:true});if(result.message)roxyVoiceTranscript(result.message);if(result.data&&result.data.cooking)showCooking(result.data.cooking);if(result.data&&result.data.preparation){currentPreparation=result.data.preparation;renderCommercePreparation(currentPreparation,result.data.providers||commerce.providers||[]);if(!$('commerceDialog').open)$('commerceDialog').showModal()}return result}
   function recoverRoxyVoiceSpeech(speech,startedAt){setTimeout(()=>{if(!roxyVoiceConversation||!speech)return;const answer=String(roxyLastAgentMessage||'').toLowerCase();const falseFailure=/no (?:puedo|tengo acceso)|no (?:est[aá]|estaba) funcionando|b[uú]squeda.{0,30}recet|problema.{0,30}recet/.test(answer);if(roxyLastAgentMessageAt<=startedAt||falseFailure){const instruction=`[RESULTADO CONFIRMADO DE ROXY HOME. NO LLAMES HERRAMIENTAS.] Lee en voz alta exactamente este resultado completo y después pregunta si deseo agregar los ingredientes o cocinar paso a paso: ${speech}`;if(typeof roxyVoiceConversation.sendUserMessage==='function')roxyVoiceConversation.sendUserMessage(instruction)}},3200)}
   async function sendCommandToRoxyOSForVoice(parameters={}){const startedAt=Date.now();const result=await sendRoxyHomeCommand(parameters);const speech=String(result.speech||result.message||'').trim();recoverRoxyVoiceSpeech(speech,startedAt);return{ok:Boolean(result.ok),intent:result.intent||'general',must_speak:true,speech,message:speech,data:result.data||{},instruction:'Espera a que termine esta herramienta. Lee en voz alta ahora el campo speech completo. No lo resumas, no lo contradigas y no digas que no tienes acceso.'}}
-  function roxyHomeClientTools(){return{getCurrentScreenContext:async()=>({ok:true,app:'Roxy Home',page:'Lista de compras y recetas',provider:'ElevenLabs',member:{display_name:activePersonName(),role:account.role,household_name:account.household_name},shopping_list:currentShoppingSummary(),latest_recipe:currentRecipe&&{id:currentRecipe.id,title:currentRecipe.title,servings:currentRecipe.servings},instruction:'Eres la misma Roxy, operando únicamente con memoria y permisos de Home. Usa los datos reales de esta pantalla.'}),getShoppingList:async()=>({ok:true,shopping_list:currentShoppingSummary()}),summarizeCurrentScreen:async()=>({ok:true,summary:`Roxy Home muestra ${activeItems().length} productos pendientes y ${(homeFood.recipes||[]).length} recetas guardadas.`,shopping_list:currentShoppingSummary()}),sendCommandToRoxyOS:sendCommandToRoxyOSForVoice}}
+  function roxyHomeClientTools(){return{getCurrentScreenContext:async()=>({ok:true,app:'Roxy Home',page:'Hoy, plan de comidas, compra y recetas por categorías',provider:'ElevenLabs',member:{display_name:activePersonName(),role:account.role,household_name:account.household_name},shopping_list:currentShoppingSummary(),latest_recipe:currentRecipe&&{id:currentRecipe.id,title:currentRecipe.title,servings:currentRecipe.servings},instruction:'Eres la misma Roxy, operando únicamente con memoria y permisos de Home. Usa los datos reales de esta pantalla.'}),getShoppingList:async()=>({ok:true,shopping_list:currentShoppingSummary()}),summarizeCurrentScreen:async()=>({ok:true,summary:`Roxy Home muestra ${activeItems().length} productos pendientes y ${(homeFood.recipes||[]).length} recetas guardadas.`,shopping_list:currentShoppingSummary()}),sendCommandToRoxyOS:sendCommandToRoxyOSForVoice}}
   function roxyHomeOverrides(){const shopping=JSON.stringify(currentShoppingSummary());const person=activePersonName();const greeting=person?`Hola, ${person}. Soy Roxy y estoy contigo en Roxy Home. ¿Qué necesitas?`:'Hola, soy Roxy. Estoy contigo en Roxy Home. ¿Qué necesitas?';return{agent:{language:'es',firstMessage:greeting,prompt:{prompt:`Eres Roxy, con la misma identidad y voz del ecosistema Roxy, operando únicamente dentro de Roxy Home. La aplicación actual es Roxy Home, en las secciones Compra, Recetas, Plan semanal y Despensa. Estás hablando con ${person||'una persona del hogar'}; dirígete a esa persona por su nombre de forma natural, especialmente al saludar y confirmar acciones. Habla en español natural, cálido y directo. Mantén la conversación abierta después del saludo, escucha la respuesta del usuario y nunca uses end_call salvo que el usuario diga claramente terminar o adiós. La lista visible actual es ${shopping}. Usa getShoppingList antes de afirmar qué productos hay. Para pedir una receta, agregar o quitar artículos, consultar la lista, preparar la compra, organizar el menú semanal, preguntar qué toca un día, avisar que hoy no cocinarán, usar sobras, adaptar una comida a lo que hay en casa, guardar la receta de un día o guiar una receta paso a paso, siempre usa sendCommandToRoxyOS. Ejemplos válidos: "¿qué comemos el martes?", "hoy no cocino", "nos sobró pollo", "tengo arroz y vegetales" y "dame la receta de la cena del viernes". No respondas antes de que la herramienta termine. La herramienta es tu acceso real a las recetas, al plan y a la lista: nunca digas que no puedes acceder a ellos. Cuando termine, lee en voz alta exactamente el campo speech completo; que el texto aparezca en pantalla no cuenta como haberlo dicho. Después puedes preguntar si desea agregar los ingredientes o empezar la guía paso a paso. Si recibes un mensaje que comienza con RESULTADO CONFIRMADO DE ROXY HOME, no vuelvas a llamar herramientas: lee literalmente el resultado incluido. Para cocinar guiado reconoce guíame, siguiente paso, paso anterior, repite, pon un temporizador y cuánto tiempo queda. Expresiones como quita, saca, remueve o ya no necesito son órdenes de eliminación. Conserva cantidades y unidades naturales como paquetes, botellas, bolsas, kilos, gramos y docenas. Puedes preparar enlaces de compra para revisión, pero nunca afirmar que compraste, pagar ni finalizar una orden. No simules cambios. No inventes elementos de la lista, recetas, precios, disponibilidad ni alergias. No controles dispositivos. No uses memoria, secretos ni herramientas de Trading, Finanzas o Study.`}}}}
   async function startRoxyVoice(){if(roxyVoiceConversation||roxyVoiceStarting)return;openRoxyVoice();roxyVoiceStarting=true;roxyLastAgentMessage='';roxyLastAgentMessageAt=0;$('roxyVoiceStart').disabled=true;let phase='configuración';roxyVoiceStatus('Conectando con ElevenLabs…');try{if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new DOMException('Micrófono no disponible','NotFoundError');phase='permiso del micrófono';roxyVoicePermissionStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});const config=await api(`/v1/assistant/session/${encodeURIComponent(user)}`);phase='carga del agente';const eleven=await loadElevenLabs();const Conversation=eleven.Conversation||(eleven.default&&eleven.default.Conversation);if(!Conversation||!Conversation.startSession)throw new Error('SDK de ElevenLabs no disponible');phase='conexión de voz';const options={connectionType:'websocket',overrides:roxyHomeOverrides(),dynamicVariables:{...(config.dynamic_variables||{}),shopping_list_json:JSON.stringify(currentShoppingSummary())},clientTools:roxyHomeClientTools(),onConnect:()=>{roxyVoiceStarting=false;roxyVoiceStatus('Roxy te está escuchando');$('roxyVoiceStart').disabled=true;$('roxyVoiceEnd').disabled=false},onDisconnect:details=>{console.info('Roxy Home ElevenLabs disconnected',details||'normal');stopRoxyPermissionStream();roxyVoiceConversation=null;roxyVoiceStarting=false;const endedByAgent=details&&details.reason==='agent';roxyVoiceStatus(endedByAgent?'Roxy terminó la llamada antes de tiempo. Pulsa iniciar para reconectar.':'Conversación terminada',endedByAgent);$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true},onError:error=>{console.warn('Roxy Home ElevenLabs error',error);stopRoxyPermissionStream();roxyVoiceStarting=false;roxyVoiceStatus(roxyVoiceError(error,'conversación'),true);$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true},onModeChange:mode=>{const state=String(mode&&mode.mode||mode||'').toLowerCase();if(state.includes('speaking'))roxyVoiceStatus('Roxy está respondiendo');else if(state.includes('listening'))roxyVoiceStatus('Roxy te está escuchando')},onMessage:message=>{const source=String(message&&((message.source||message.role||message.type))||'').toLowerCase();const text=message&&(message.message||message.text||message.transcript||message.content||(message.agent_response_event&&message.agent_response_event.agent_response)||(message.user_transcription_event&&message.user_transcription_event.user_transcript));if(typeof text==='string'&&text.trim()){const fromUser=source.includes('user');if(!fromUser){roxyLastAgentMessage=text.trim();roxyLastAgentMessageAt=Date.now()}roxyVoiceTranscript(text.trim(),fromUser?'Tú':'Roxy')}}};if(config.conversation_token)options.conversationToken=config.conversation_token;else options.agentId=config.agent_id;roxyVoiceConversation=await Conversation.startSession(options);stopRoxyPermissionStream()}catch(error){console.warn('Roxy Home ElevenLabs start failed',error);stopRoxyPermissionStream();roxyVoiceConversation=null;roxyVoiceStarting=false;roxyVoiceStatus(roxyVoiceError(error,phase),true);$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true}}
   async function endRoxyVoice(){const conversation=roxyVoiceConversation;roxyVoiceConversation=null;stopRoxyPermissionStream();if(conversation&&typeof conversation.endSession==='function'){try{await conversation.endSession()}catch(error){console.warn('Roxy Home ElevenLabs end failed',error)}}roxyVoiceStarting=false;roxyVoiceStatus('Conversación terminada');$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true}
@@ -944,7 +962,10 @@
     window.addEventListener('online',()=>load({quiet:true}));
   }
 
-  bind();renderHomeMoment();setInterval(renderHomeMoment,30000);render();load();
+  bind();renderHomeMoment();setInterval(renderHomeMoment,30000);render();
+  if('scrollRestoration'in history)history.scrollRestoration='manual';
+  const initialPanels={hoy:'today',compra:'shopping',recetas:'recipes',despensa:'pantry',mas:'more'};
+  selectPanel(initialPanels[location.hash.slice(1)]||'today',{smooth:false});load();
   if('serviceWorker'in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){
     const homeRoute=location.pathname.startsWith('/home');
     navigator.serviceWorker.register(homeRoute?'/home-sw.js':'/lista-sw.js',{scope:homeRoute?'/home':'/lista',updateViaCache:'none'}).catch(()=>{});
