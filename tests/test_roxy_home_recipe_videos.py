@@ -186,6 +186,12 @@ def test_subject_video_price_ignores_stale_generic_provider_price(monkeypatch):
     assert config.clip_seconds == 6
 
 
+def test_home_container_includes_the_official_roxy_subject_reference():
+    dockerfile = Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
+
+    assert "assets/roxy_avatar.jpg" in dockerfile
+
+
 def test_public_config_explains_why_video_is_not_ready(tmp_path):
     config = video_config(tmp_path)
     missing_key = HomeRecipeVideoConfig(**{**config.__dict__, "api_key": ""})
