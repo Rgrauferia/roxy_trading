@@ -116,4 +116,6 @@ Para inspeccionar el lote y su costo sin iniciar generación:
 
 El comando es deliberadamente de solo lectura: produce el manifiesto, los prompts y el costo estimado, pero nunca llama al proveedor. La generación pagada requiere un flujo administrativo separado y confirmación explícita. Con la referencia de 512p de seis segundos, 60 clips a USD 0.102 estiman USD 6.12 antes de repeticiones. El precio real debe comprobarse en el proveedor inmediatamente antes de confirmar el lote.
 
+`ROXY_HOME_VIDEO_AUTO_GENERATE_MISSING_ACTIONS` permanece en `0` por defecto. Así, comenzar una receta reutiliza clips aprobados pero nunca ocasiona un cobro aislado por una acción que todavía falte. Solo debe activarse temporalmente en un entorno administrativo controlado.
+
 El progreso se expone dentro de `recipe_video_service.action_library`: total, aprobados, pendientes y desglose por familia. La aplicación puede reproducir clips ya aprobados aunque el generador esté temporalmente desactivado o sin presupuesto.

@@ -261,6 +261,13 @@ def _queue_recipe_video_for_cooking(
         existing["reused"] = True
         return "REUSED", existing
     estimated_cost = store.estimated_generation_cost(recipe, config)
+    allow_missing = str(os.getenv("ROXY_HOME_VIDEO_AUTO_GENERATE_MISSING_ACTIONS", "0")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    if estimated_cost > 0 and not allow_missing:
+        return "LIBRARY_BUILDING", None
     if estimated_cost > 0 and not config.configured:
         return config.state.upper(), None
     if estimated_cost > 0 and store.monthly_reserved_usd() + estimated_cost > config.monthly_budget_usd:

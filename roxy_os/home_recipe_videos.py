@@ -359,7 +359,7 @@ class HomeRecipeVideoStore:
             row
             for row in self._read_unlocked().get("videos", [])
             if row.get("recipe_fingerprint") == fingerprint
-            and int(row.get("prompt_version") or 0) == VIDEO_PROMPT_VERSION
+            and int(row.get("prompt_version") or 0) in {6, VIDEO_PROMPT_VERSION}
         ]
         accessible = [
             row
@@ -370,6 +370,7 @@ class HomeRecipeVideoStore:
             return None
         accessible.sort(
             key=lambda row: (
+                int(row.get("prompt_version") or 0) == VIDEO_PROMPT_VERSION,
                 row.get("status") == "READY",
                 row.get("visibility") == "shared",
                 str(row.get("created_at") or ""),

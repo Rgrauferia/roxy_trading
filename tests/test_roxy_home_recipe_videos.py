@@ -98,6 +98,15 @@ def test_new_prompt_version_does_not_reuse_old_decorative_video(tmp_path):
     assert regenerated["prompt_version"] == 7
 
 
+def test_existing_version_six_recipe_video_remains_available_during_library_migration(tmp_path):
+    store = HomeRecipeVideoStore(tmp_path / "library.json")
+    recipe = sample_recipe()
+    created, _ = store.create_or_reuse("robert", recipe, video_config(tmp_path), visibility="shared")
+    store.update(created["id"], lambda row: row.update(prompt_version=6, status="READY"))
+
+    assert store.find_for_recipe("robert", recipe)["id"] == created["id"]
+
+
 def test_rest_and_baking_prompts_exclude_wrong_actions(tmp_path):
     recipe = sample_recipe()
     created, _ = HomeRecipeVideoStore(tmp_path / "library.json").create_or_reuse(
@@ -389,6 +398,7 @@ def test_starting_recipe_automatically_queues_one_shared_video_for_all_users(tmp
     monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert,alice")
     monkeypatch.setenv("ROXY_HOME_MEMORY_PATH", str(memory_path))
     monkeypatch.setenv("ROXY_HOME_VIDEO_LIBRARY_PATH", str(library_path))
+    monkeypatch.setenv("ROXY_HOME_VIDEO_AUTO_GENERATE_MISSING_ACTIONS", "1")
     monkeypatch.setattr(roxy_home_service, "_recipe_video_config", lambda: config)
     monkeypatch.setattr(roxy_home_service, "_recipe_video_provider", lambda _config: FakeProvider())
     roxy_home_service._RATE_STATE.clear()
@@ -411,3 +421,29 @@ def test_starting_recipe_automatically_queues_one_shared_video_for_all_users(tmp
     assert second.json()["recipe_video_status"] == "REUSED"
     assert second.json()["recipe_video"]["id"] == first.json()["recipe_video"]["id"]
     assert len(submitted) == config.clip_count
+
+
+def test_starting_recipe_does_not_generate_paid_missing_action_by_default(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    config = video_config(tmp_path)
+    memory_path = tmp_path / "food.json"
+    food = HomeFoodStore(memory_path)
+    recipe = food.save_recipe("robert", sample_recipe())
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "home-test-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert")
+    monkeypatch.setenv("ROXY_HOME_MEMORY_PATH", str(memory_path))
+    monkeypatch.setenv("ROXY_HOME_VIDEO_LIBRARY_PATH", str(tmp_path / "videos.json"))
+    monkeypatch.delenv("ROXY_HOME_VIDEO_AUTO_GENERATE_MISSING_ACTIONS", raising=False)
+    monkeypatch.setattr(roxy_home_service, "_recipe_video_config", lambda: config)
+    roxy_home_service._RATE_STATE.clear()
+
+    response = TestClient(roxy_home_service.app).post(
+        f"/v1/home-food/robert/recipes/{recipe['id']}/cooking-sessions",
+        headers={"Authorization": "Bearer home-test-key"},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["recipe_video_status"] == "LIBRARY_BUILDING"
+    assert response.json()["recipe_video"] is None
+    assert not (tmp_path / "videos.json").exists()

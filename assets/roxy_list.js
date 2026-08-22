@@ -627,6 +627,7 @@
       if(data.recipe_video_status==='QUEUED')announce('Empezamos. Roxy también está preparando y guardando el video para reutilizarlo.');
       else if(data.recipe_video_status==='REUSED')announce('Empezamos con el video que Roxy ya tenía guardado.');
       else if(data.recipe_video_status==='BUDGET_LIMIT')announce('Empezamos la receta. El video esperará al próximo presupuesto disponible.');
+      else if(data.recipe_video_status==='LIBRARY_BUILDING')announce('Empezamos la receta. Roxy usará la guía hablada mientras completa su videoteca reutilizable, sin generar un cobro nuevo.');
       else if(['DISABLED','MISSING_KEY','MISSING_BUDGET','COST_LIMIT'].includes(data.recipe_video_status)){const service=homeFood.recipe_video_service||{};announce(service.message||'La guía funciona, pero falta terminar la configuración del video.');}
       speakCurrentStep();
     }catch(error){announce(error.message);}
