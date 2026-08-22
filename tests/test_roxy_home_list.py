@@ -16,8 +16,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=37"' in page.text
-    assert '/assets/roxy_list.js?v=37' in worker.text
+    assert 'src="/assets/roxy_list.js?v=38"' in page.text
+    assert '/assets/roxy_list.js?v=38' in worker.text
     assert 'demostraciones listas' in script.text
     assert "aria-live','polite" in script.text
     assert 'id="cookingVideo"' in page.text
@@ -25,6 +25,13 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "Roxy está creando las demostraciones" in script.text
     assert "/speech`" in script.text
     assert "Roxy hablando" in script.text
+    assert "currentStepVideo" in script.text
+    assert "dataset.currentStep='true'" in script.text
+    assert "startSynchronizedStepVideo" in script.text
+    assert "stopSynchronizedStepVideo" in script.text
+    assert "stepTimerSeconds" in script.text
+    assert "startAutomaticStepTimer" in script.text
+    assert "Roxy inició el temporizador del paso" in script.text
     assert 'id="homeDate"' in page.text
     assert 'id="homeTime"' in page.text
     assert 'id="homeGreeting"' in page.text

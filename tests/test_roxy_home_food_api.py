@@ -1,5 +1,13 @@
 from fastapi.testclient import TestClient
 
+from roxy_os.home_food import cooking_step_timer_seconds
+
+
+def test_cooking_step_timer_detects_wait_time_without_confusing_oven_temperature():
+    assert cooking_step_timer_seconds("Deja reposar 30 minutos mientras calientas el horno a 220 °C.") == 1800
+    assert cooking_step_timer_seconds("Hornea 1 hora y 15 minutos.") == 4500
+    assert cooking_step_timer_seconds("Mezcla hasta formar una masa uniforme.") == 0
+
 
 class FakeHomeAI:
     def generate_recipe(self, prompt, snapshot, *, deep=False):

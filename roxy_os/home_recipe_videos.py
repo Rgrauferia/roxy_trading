@@ -318,6 +318,7 @@ class HomeRecipeVideoStore:
                     "index": index,
                     "status": clip.get("status"),
                     "step_label": clip.get("step_label"),
+                    "step_index": clip.get("step_index"),
                     "playback_url": (
                         f"/v1/home-food/{user}/recipe-videos/{record['id']}/clips/{index}"
                         if clip.get("media_path") and record.get("status") in {"REVIEW", "READY"}
@@ -434,7 +435,7 @@ class HomeRecipeVideoStore:
         )
 
     @staticmethod
-    def _prompt_segments(recipe: dict[str, Any], count: int) -> list[tuple[str, str]]:
+    def _prompt_segments(recipe: dict[str, Any], count: int) -> list[tuple[str, str, int]]:
         steps = [_text(row, 400) for row in (recipe.get("steps") or []) if _text(row)]
         if not steps:
             raise ValueError("La receta no tiene pasos para visualizar.")
@@ -469,7 +470,7 @@ class HomeRecipeVideoStore:
                 "hero shot, no still life, no decorative B-roll, no unrelated finished dish, and no other people. "
                 "Accuracy of the demonstrated cooking action is more important than cinematic styling."
             )
-            result.append((f"Paso visual {position}: {step[:90]}", prompt))
+            result.append((f"Paso {step_index + 1}: {step[:90]}", prompt, step_index))
         return result
 
     def create_or_reuse(
@@ -518,6 +519,7 @@ class HomeRecipeVideoStore:
                     {
                         "status": "QUEUED",
                         "step_label": label,
+                        "step_index": step_index,
                         "prompt": prompt,
                         "provider_request_id": "",
                         "status_url": "",
@@ -526,7 +528,7 @@ class HomeRecipeVideoStore:
                         "bytes": 0,
                         "error": "",
                     }
-                    for label, prompt in segments
+                    for label, prompt, step_index in segments
                 ],
             }
             rows.append(row)

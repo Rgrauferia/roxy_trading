@@ -26,6 +26,19 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def cooking_step_timer_seconds(value: Any) -> int:
+    text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii").lower()
+    seconds = 0.0
+    patterns = (
+        (r"(\d+(?:[.,]\d+)?)\s*(?:horas?|hrs?|h)\b", 3600),
+        (r"(\d+(?:[.,]\d+)?)\s*(?:minutos?|mins?|min)\b", 60),
+        (r"(\d+(?:[.,]\d+)?)\s*(?:segundos?|segs?|seg|s)\b", 1),
+    )
+    for pattern, factor in patterns:
+        seconds += sum(float(match.replace(",", ".")) * factor for match in re.findall(pattern, text))
+    return max(0, round(seconds))
+
+
 def _text(value: Any, limit: int = 160) -> str:
     return " ".join(str(value or "").strip().split())[:limit]
 
@@ -507,11 +520,13 @@ class HomeFoodStore:
             timer["remaining_seconds"] = remaining
             if remaining == 0:
                 timer["status"] = "FINISHED"
+        current_step = (recipe.get("steps") or [""])[index]
         return {
             "session": enriched_session,
             "recipe": recipe,
-            "current_step": (recipe.get("steps") or [""])[index],
+            "current_step": current_step,
             "step_number": index + 1,
+            "suggested_timer_seconds": cooking_step_timer_seconds(current_step),
         }
 
     def scale_recipe(self, user_id: Any, recipe_id: str, servings: Any) -> dict[str, Any]:

@@ -628,11 +628,22 @@
       else if(data.recipe_video_status==='REUSED')announce('Empezamos con el video que Roxy ya tenía guardado.');
       else if(data.recipe_video_status==='BUDGET_LIMIT')announce('Empezamos la receta. El video esperará al próximo presupuesto disponible.');
       else if(['DISABLED','MISSING_KEY','MISSING_BUDGET','COST_LIMIT'].includes(data.recipe_video_status)){const service=homeFood.recipe_video_service||{};announce(service.message||'La guía funciona, pero falta terminar la configuración del video.');}
+      speakCurrentStep();
     }catch(error){announce(error.message);}
   }
   async function resumeCooking(sessionId){
-    try{const data=await api(`/v1/home-food/${encodeURIComponent(user)}/cooking-sessions/${encodeURIComponent(sessionId)}`);currentCooking=data;showCooking(data);refreshCookingVideo(data.recipe.id);}catch(error){announce(error.message);}
+    try{const data=await api(`/v1/home-food/${encodeURIComponent(user)}/cooking-sessions/${encodeURIComponent(sessionId)}`);currentCooking=data;showCooking(data);await refreshCookingVideo(data.recipe.id);speakCurrentStep();}catch(error){announce(error.message);}
   }
+  const normalizedStepText=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  function clipStepNumber(clip,steps,index,totalClips){
+    const explicit=Number(clip&&clip.step_index);if(Number.isInteger(explicit)&&explicit>=0)return explicit+1;
+    const label=normalizedStepText(clip&&clip.step_label);
+    for(let stepIndex=0;stepIndex<steps.length;stepIndex+=1){const step=normalizedStepText(steps[stepIndex]);if(step&&label.includes(step.slice(0,Math.min(55,step.length))))return stepIndex+1}
+    return Math.min(steps.length,Math.max(1,Math.round(index*Math.max(0,steps.length-1)/Math.max(1,totalClips-1))+1));
+  }
+  function currentStepVideo(){return $('cookingVideo').querySelector('video[data-current-step="true"]')}
+  function startSynchronizedStepVideo(){const media=currentStepVideo();if(!media)return;media.muted=true;media.loop=true;media.currentTime=0;media.play().catch(()=>{})}
+  function stopSynchronizedStepVideo(){const media=currentStepVideo();if(!media)return;media.loop=false;media.pause()}
   function renderCookingVideo(status,video){
     const root=$('cookingVideo');root.replaceChildren();root.setAttribute('aria-live','polite');clearTimeout(cookingVideoPoll);cookingVideoPoll=null;
     const service=homeFood.recipe_video_service||{};
@@ -641,7 +652,10 @@
     const strong=document.createElement('strong');strong.textContent=video.status==='READY'?'Video disponible':video.status==='REVIEW'?'Video terminado':video.status==='FAILED'?'No se pudo crear el video':'Roxy está creando las demostraciones';
     const completed=(video.clips||[]).filter(clip=>clip.status==='COMPLETED').length;const total=Number(video.clip_count||(video.clips||[]).length||3);const elapsed=Math.max(0,Math.floor((Date.now()-Date.parse(video.created_at||new Date().toISOString()))/60000));
     const small=document.createElement('small');small.textContent=video.status==='REVIEW'?'Las demostraciones ya están guardadas y esperan revisión antes de compartirse.':video.status==='READY'?'Este video ya fue revisado y puede reutilizarse.':video.status==='FAILED'?'La receta continúa disponible. Roxy podrá intentarlo nuevamente con una versión corregida.':`${completed} de ${total} demostraciones listas${elapsed?` · ${elapsed} min`:''}. Puedes seguir cocinando; Roxy actualiza el progreso automáticamente.`;root.append(strong,small);
-    const playable=(video.clips||[]).filter(clip=>clip.playback_url);if(playable.length){const clips=document.createElement('div');clips.className='cooking-video-clips';playable.forEach((clip,index)=>{const media=document.createElement('video');media.controls=true;media.playsInline=true;media.preload='metadata';media.src=clip.playback_url;media.setAttribute('aria-label',clip.step_label||`Clip ${index+1}`);clips.append(media);});root.append(clips);}
+    const steps=(currentCooking&&currentCooking.recipe&&currentCooking.recipe.steps)||[];const stepNumber=Number(currentCooking&&currentCooking.step_number||1);const allClips=video.clips||[];
+    const currentClip=allClips.map((clip,index)=>({clip,index,step:clipStepNumber(clip,steps,index,allClips.length)})).find(row=>row.step===stepNumber&&row.clip.playback_url);
+    if(currentClip){const clips=document.createElement('div');clips.className='cooking-video-clips';const media=document.createElement('video');media.controls=true;media.muted=true;media.playsInline=true;media.preload='metadata';media.src=currentClip.clip.playback_url;media.dataset.currentStep='true';media.setAttribute('aria-label',`Demostración del paso ${stepNumber}: ${currentClip.clip.step_label||''}`);const label=document.createElement('span');label.className='cooking-video-step-label';label.textContent=`Roxy demuestra el paso ${stepNumber}`;clips.append(media,label);root.append(clips)}
+    else if(['REVIEW','READY'].includes(video.status)){const note=document.createElement('small');note.textContent=`El paso ${stepNumber} todavía no tiene una demostración específica. Roxy mantendrá la guía hablada y escrita.`;root.append(note)}
     if(['QUEUED','PROCESSING'].includes(video.status))cookingVideoPoll=setTimeout(()=>syncCookingVideo(video.id),12000);
   }
   async function syncCookingVideo(videoId){
@@ -663,10 +677,16 @@
     $('previousStepButton').disabled=data.step_number<=1||data.session.status==='COMPLETED';
     $('nextStepButton').textContent=data.step_number>=total?'Terminar':'Siguiente';
     $('nextStepButton').disabled=data.session.status==='COMPLETED';
+    const automaticSeconds=Number(data.suggested_timer_seconds||stepTimerSeconds(data.current_step));if(automaticSeconds)$('timerMinutes').value=String(Math.round(automaticSeconds/6)/10);
     renderCookingTimers();
     clearInterval(cookingTimerTick);
     cookingTimerTick=setInterval(renderCookingTimers,1000);
     if(!$('cookingDialog').open)$('cookingDialog').showModal();
+    if(currentCookingVideo)renderCookingVideo(currentCookingVideo.status,currentCookingVideo);
+  }
+  function stepTimerSeconds(step){
+    const text=normalizedStepText(step);let seconds=0;const patterns=[{regex:/(\d+(?:[.,]\d+)?)\s*(?:horas?|hrs?|h)\b/g,factor:3600},{regex:/(\d+(?:[.,]\d+)?)\s*(?:minutos?|mins?|min)\b/g,factor:60},{regex:/(\d+(?:[.,]\d+)?)\s*(?:segundos?|segs?|seg|s)\b/g,factor:1}];
+    patterns.forEach(({regex,factor})=>{for(const match of text.matchAll(regex))seconds+=Number(String(match[1]).replace(',','.'))*factor});return Math.round(seconds);
   }
   function timerRemaining(timer){return Math.max(0,Math.ceil((new Date(timer.ends_at).getTime()-Date.now())/1000))}
   function renderCookingTimers(){
@@ -682,10 +702,19 @@
       if(remaining===0&&!announcedTimers.has(timer.id)){announcedTimers.add(timer.id);announce(`${timer.label||'Temporizador'} terminado`);if('vibrate'in navigator)navigator.vibrate([200,100,200]);if('speechSynthesis'in window){const alert=new SpeechSynthesisUtterance(`${timer.label||'Temporizador'} terminado`);alert.lang='es-US';speechSynthesis.speak(alert)}}
     });
   }
+  async function createCookingTimer(seconds,label,{automatic=false}={}){
+    if(!currentCooking||!(seconds>0))return false;const stepNumber=Number(currentCooking.step_number||1);const marker=`Paso ${stepNumber} ·`;
+    if(automatic&&((currentCooking.session.timers)||[]).some(timer=>String(timer.label||'').startsWith(marker)))return false;
+    const button=$('startTimerButton');button.disabled=true;
+    try{const data=await api(`/v1/home-food/${encodeURIComponent(user)}/cooking-sessions/${encodeURIComponent(currentCooking.session.id)}/timers`,{method:'POST',body:JSON.stringify({duration_seconds:Math.round(seconds),label})});showCooking(data);announce(automatic?`Roxy inició el temporizador del paso ${stepNumber}`:'Temporizador iniciado');return true}catch(error){announce(error.message);return false}finally{button.disabled=false}
+  }
   async function startCookingTimer(){
     if(!currentCooking)return;const minutes=Number($('timerMinutes').value);if(!(minutes>0)){announce('Indica cuántos minutos');return}
-    const button=$('startTimerButton');button.disabled=true;
-    try{const data=await api(`/v1/home-food/${encodeURIComponent(user)}/cooking-sessions/${encodeURIComponent(currentCooking.session.id)}/timers`,{method:'POST',body:JSON.stringify({duration_seconds:Math.round(minutes*60),label:`Temporizador de ${minutes} min`})});showCooking(data);announce('Temporizador iniciado')}catch(error){announce(error.message)}finally{button.disabled=false}
+    await createCookingTimer(minutes*60,`Temporizador de ${minutes} min`);
+  }
+  async function startAutomaticStepTimer(){
+    if(!currentCooking||currentCooking.session.status==='COMPLETED')return;const seconds=Number(currentCooking.suggested_timer_seconds||stepTimerSeconds(currentCooking.current_step));if(!(seconds>0))return;
+    const minutes=seconds/60;await createCookingTimer(seconds,`Paso ${currentCooking.step_number} · ${Number.isInteger(minutes)?minutes:minutes.toFixed(1)} min`,{automatic:true});
   }
   async function cancelCookingTimer(timerId){
     if(!currentCooking)return;
@@ -696,7 +725,7 @@
     try{
       const data=await api(`/v1/home-food/${encodeURIComponent(user)}/cooking-sessions/${encodeURIComponent(currentCooking.session.id)}`,{method:'POST',body:JSON.stringify({action})});
       showCooking(data);await load({quiet:true});
-      if(action==='next'&&data.session.status!=='COMPLETED')speakCurrentStep();
+      if(['next','previous'].includes(action)&&data.session.status!=='COMPLETED')speakCurrentStep();
     }catch(error){announce(error.message);}
   }
   async function speakCurrentStep(){
@@ -706,7 +735,7 @@
       if(roxyStepAudio){roxyStepAudio.pause();roxyStepAudio=null}
       const response=await fetch(`/v1/home-food/${encodeURIComponent(user)}/cooking-sessions/${encodeURIComponent(currentCooking.session.id)}/speech`,{method:'POST',credentials:'include',cache:'no-store',headers:{Accept:'audio/mpeg'}});
       if(!response.ok){let detail='';try{detail=String((await response.json()).detail||'')}catch(_error){}throw new Error(detail||`HTTP ${response.status}`)}
-      const url=URL.createObjectURL(await response.blob());const audio=new Audio(url);roxyStepAudio=audio;audio.addEventListener('ended',()=>{URL.revokeObjectURL(url);if(roxyStepAudio===audio)roxyStepAudio=null},{once:true});audio.addEventListener('error',()=>URL.revokeObjectURL(url),{once:true});await audio.play();
+      const url=URL.createObjectURL(await response.blob());const audio=new Audio(url);roxyStepAudio=audio;startSynchronizedStepVideo();audio.addEventListener('ended',()=>{stopSynchronizedStepVideo();URL.revokeObjectURL(url);if(roxyStepAudio===audio)roxyStepAudio=null;startAutomaticStepTimer()},{once:true});audio.addEventListener('error',()=>{stopSynchronizedStepVideo();URL.revokeObjectURL(url)},{once:true});await audio.play();
     }catch(error){
       const speech=currentCooking.session.status==='COMPLETED'?'Receta terminada. Buen provecho.':`Paso ${currentCooking.step_number}. ${currentCooking.current_step}`;
       if(roxyVoiceConversation&&typeof roxyVoiceConversation.sendUserMessage==='function'){roxyVoiceConversation.sendUserMessage(`[LECTURA DE RECETA. NO LLAMES HERRAMIENTAS.] Lee exactamente con la voz oficial de Roxy: ${speech}`);announce('Roxy leerá el paso en la conversación')}

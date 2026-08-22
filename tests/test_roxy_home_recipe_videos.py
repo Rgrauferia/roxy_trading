@@ -70,6 +70,16 @@ def test_video_prompts_require_a_visible_instructional_action(tmp_path):
     assert recipe["steps"][0] not in prompt
 
 
+def test_video_clips_keep_the_recipe_step_index_for_synchronized_playback(tmp_path):
+    recipe = sample_recipe()
+    recipe["steps"] = ["Paso uno.", "Paso dos.", "Paso tres.", "Paso cuatro.", "Paso cinco."]
+    created, _ = HomeRecipeVideoStore(tmp_path / "library.json").create_or_reuse(
+        "robert", recipe, video_config(tmp_path), visibility="shared"
+    )
+    assert [clip["step_index"] for clip in created["clips"]] == [0, 2, 4]
+    assert created["clips"][1]["step_label"].startswith("Paso 3:")
+
+
 def test_new_prompt_version_does_not_reuse_old_decorative_video(tmp_path):
     store = HomeRecipeVideoStore(tmp_path / "library.json")
     recipe = sample_recipe()
@@ -151,6 +161,7 @@ def test_shared_video_is_generated_once_then_reused_without_leaking_owner(tmp_pa
     assert public["visibility"] == "shared"
     assert public["can_preview"] is True
     assert public["clips"][0]["playback_url"].startswith("/v1/home-food/alice/")
+    assert public["clips"][0]["step_index"] == 0
 
 
 def test_household_video_never_becomes_visible_to_another_household(tmp_path):
