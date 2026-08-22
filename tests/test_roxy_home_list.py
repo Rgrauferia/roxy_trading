@@ -17,10 +17,12 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=42"' in page.text
-    assert '/assets/roxy_list.js?v=42' in worker.text
+    assert 'src="/assets/roxy_list.js?v=43"' in page.text
+    assert '/assets/roxy_list.js?v=43' in worker.text
     assert 'aspect-ratio: 16 / 9' in style.text
     assert "media.loop=true" in script.text
+    assert "videoSeconds*cycles/audioSeconds" in script.text
+    assert "stopSynchronizedStepVideo(true)" in script.text
     assert "visual.hidden=true" in script.text
     assert "root.append(hero,columns,actions)" in script.text
     assert "root.append(hero,videoArea,columns,actions)" not in script.text
