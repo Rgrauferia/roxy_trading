@@ -648,6 +648,67 @@ class HomeRecipeVideoStore:
 
         return self.update(video_id, apply)
 
+    def register_action_pilot(
+        self,
+        user_id: Any,
+        clips: list[dict[str, Any]],
+        *,
+        provider: str,
+        model: str,
+        estimated_cost_usd: float,
+    ) -> dict[str, Any]:
+        user = normalize_shopping_user(user_id)
+        if not clips or any(str(clip.get("action_key") or "") not in ACTION_BY_KEY for clip in clips):
+            raise ValueError("El piloto contiene una acción no válida.")
+        if any(not Path(str(clip.get("media_path") or "")).is_file() for clip in clips):
+            raise ValueError("Todos los clips piloto deben existir antes de registrarse.")
+        now = _now_iso()
+        record = {
+            "id": uuid4().hex,
+            "recipe_fingerprint": f"roxy-action-pilot-v{ACTION_LIBRARY_VERSION}-{uuid4().hex}",
+            "prompt_version": VIDEO_PROMPT_VERSION,
+            "action_library_version": ACTION_LIBRARY_VERSION,
+            "recipe_title": "Piloto de la videoteca Roxy",
+            "visibility": "shared",
+            "owner_user_id": user,
+            "status": "REVIEW",
+            "provider": _text(provider, 120),
+            "model": _text(model, 200),
+            "estimated_cost_usd": round(max(0.0, float(estimated_cost_usd)), 3),
+            "created_at": now,
+            "updated_at": now,
+            "reviewed_at": None,
+            "review_notes": "",
+            "clips": [],
+        }
+        for index, source in enumerate(clips):
+            action_key = str(source["action_key"])
+            record["clips"].append(
+                {
+                    "status": "COMPLETED",
+                    "step_label": ACTION_BY_KEY[action_key].label,
+                    "step_index": index,
+                    "step_indices": [index],
+                    "action_key": action_key,
+                    "prompt": "",
+                    "provider_request_id": _text(source.get("provider_request_id"), 200),
+                    "status_url": "",
+                    "response_url": "",
+                    "media_path": str(Path(str(source["media_path"])).resolve()),
+                    "bytes": int(source.get("bytes") or Path(str(source["media_path"])).stat().st_size),
+                    "error": "",
+                    "library_reused": False,
+                    "pilot": True,
+                }
+            )
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            payload.setdefault("videos", []).append(record)
+            payload["videos"] = payload["videos"][-1_000:]
+            return deepcopy(record)
+
+        return self._mutate(apply)
+
 
 def submit_recipe_video(
     store: HomeRecipeVideoStore,

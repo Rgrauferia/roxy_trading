@@ -11,6 +11,7 @@ from roxy_os.home_recipe_videos import (
 )
 from roxy_os.home_video_actions import ROXY_ACTION_CLIPS, classify_recipe_step
 from tools.roxy_home_video_catalog import build_plan
+from tools.roxy_home_video_pilot import ESTIMATED_PILOT_COST_USD, pilot_plan, run_pilot
 
 
 def sample_recipe(title="Pan casero"):
@@ -147,6 +148,44 @@ def test_catalog_plan_estimates_cost_without_starting_generation():
     assert plan["generation_started"] is False
 
 
+def test_pilot_plan_stays_below_one_dollar_without_retries():
+    plan = pilot_plan(1.0)
+
+    assert ESTIMATED_PILOT_COST_USD == 0.336
+    assert plan["within_budget"] is True
+    assert plan["automatic_retries"] == 0
+    assert plan["actions"] == ["Mezclar ingredientes secos", "Amasar", "Agitar coctelera"]
+
+
+def test_pilot_refuses_to_start_without_home_video_key(monkeypatch):
+    monkeypatch.delenv("ROXY_HOME_VIDEO_FAL_KEY", raising=False)
+
+    try:
+        run_pilot(1.0)
+    except RuntimeError as exc:
+        assert "ROXY_HOME_VIDEO_FAL_KEY" in str(exc)
+    else:
+        raise AssertionError("El piloto no debe iniciar sin la clave Home")
+
+
+def test_register_action_pilot_requires_review_before_global_reuse(tmp_path):
+    store = HomeRecipeVideoStore(tmp_path / "library.json")
+    clips = []
+    for index, action_key in enumerate(("mix_dry", "knead_dough", "shake_cocktail")):
+        path = tmp_path / f"clip-{index}.mp4"
+        path.write_bytes(b"video")
+        clips.append({"action_key": action_key, "media_path": str(path), "bytes": 5})
+
+    record = store.register_action_pilot(
+        "robert", clips, provider="test", model="test-model", estimated_cost_usd=0.336
+    )
+
+    assert record["status"] == "REVIEW"
+    assert store.action_library_status()["ready"] == 0
+    store.approve(record["id"], approved=True)
+    assert store.action_library_status()["ready"] == 3
+
+
 def test_approved_action_clips_are_reused_by_a_different_recipe_at_zero_cost(tmp_path):
     store = HomeRecipeVideoStore(tmp_path / "library.json")
     config = video_config(tmp_path)
@@ -266,6 +305,7 @@ def test_home_container_includes_the_official_roxy_subject_reference():
     dockerfile = Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
 
     assert "assets/roxy_avatar.jpg" in dockerfile
+    assert "tools/roxy_home_video_pilot.py" in dockerfile
 
 
 def test_public_config_explains_why_video_is_not_ready(tmp_path):
