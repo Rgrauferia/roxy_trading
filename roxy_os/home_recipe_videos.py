@@ -25,7 +25,7 @@ from roxy_os.shopping_list import normalize_shopping_user
 
 
 VIDEO_STORE_VERSION = 1
-VIDEO_PROMPT_VERSION = 4
+VIDEO_PROMPT_VERSION = 5
 VIDEO_STATUSES = {"QUEUED", "PROCESSING", "REVIEW", "READY", "FAILED", "REJECTED"}
 VIDEO_VISIBILITIES = {"shared", "household"}
 FAL_MODEL = "fal-ai/minimax/hailuo-02/standard/text-to-video"
@@ -384,8 +384,8 @@ class HomeRecipeVideoStore:
         normalized = _identity(step)
         if any(word in normalized for word in ("mezcla", "mezclar", "bate", "batir", "revuelve", "revolver")):
             return (
-                "Show the named ingredients being poured one by one into the bowl, then show the utensil actively "
-                "stirring them until they are visibly combined and the texture changes."
+                "ONLY pour the permitted ingredients into a clean bowl and actively stir them with a utensil until "
+                "they combine. Do not knead dough and do not show a finished dish."
             )
         if any(word in normalized for word in ("amasa", "amasar")):
             return (
@@ -399,13 +399,14 @@ class HomeRecipeVideoStore:
             )
         if any(word in normalized for word in ("repos", "crecer", "ferment", "duplica", "leva")):
             return (
-                "Show hands covering the prepared mixture correctly, then use a brief coherent time-lapse that "
-                "clearly demonstrates its rise or resting change."
+                "ONLY show an already-kneaded dough ball inside a clean bowl, hands covering the bowl with a plain "
+                "cloth, then a coherent time-lapse where that same dough visibly expands to twice its size. Do not "
+                "add flour, do not stir, and do not knead."
             )
         if any(word in normalized for word in ("hornea", "hornear", "h horno", "oven")):
             return (
-                "Show oven-mitted hands placing the prepared tray into the oven and a brief time transition to the "
-                "properly baked result; keep the action physically plausible and safe."
+                "ONLY show oven-mitted hands sliding a tray with one shaped raw loaf into a visibly open oven, closing "
+                "the oven door, then a match cut to the browned loaf being removed. Do not mix, measure, flour, or knead."
             )
         if any(word in normalized for word in ("corta", "pica", "rebana", "trocea")):
             return (
@@ -442,7 +443,6 @@ class HomeRecipeVideoStore:
             for row in (recipe.get("ingredients") or [])
             if isinstance(row, dict) and _text(row.get("name"))
         ]
-        ingredient_context = ", ".join(ingredient_names[:12]) or "the ingredients named in the instruction"
         indices = sorted({min(len(steps) - 1, round(index * (len(steps) - 1) / max(1, count - 1))) for index in range(count)})
         while len(indices) < count:
             indices.append(indices[-1])
@@ -450,14 +450,20 @@ class HomeRecipeVideoStore:
         for position, step_index in enumerate(indices[:count], start=1):
             step = steps[step_index]
             action_direction = HomeRecipeVideoStore._action_direction(step)
+            normalized_step = _identity(step)
+            relevant_ingredients = [name for name in ingredient_names if _identity(name) in normalized_step]
+            ingredient_rule = (
+                f"The only ingredients allowed in frame are: {', '.join(relevant_ingredients[:6])}. "
+                if relevant_ingredients
+                else "Do not introduce any new ingredient or package into the frame. "
+            )
             prompt = (
-                f"Vertical 9:16 hands-only step-by-step cooking demonstration for the recipe "
-                f"'{_text(recipe.get('title'), 160)}'. The clip must visibly teach this exact instruction, not merely "
-                f"show ingredients or finished food: '{step}'. {action_direction} Relevant recipe ingredients: "
-                f"{ingredient_context}. Start with the action already beginning; use one coherent close-up sequence and "
+                "Vertical hands-only practical cooking demonstration. "
+                f"{action_direction} {ingredient_rule}Start with the action already beginning; use one coherent close-up sequence and "
                 "keep the hands, utensil, container, and changing food centered and fully visible. Realistic quantities, "
-                "realistic motion, clean warm home kitchen, steady camera. No static hero shot, no still life, no decorative "
-                "B-roll, no unrelated finished dish, no faces, no logos, no captions, no text, no brand packaging. "
+                "realistic motion, clean warm home kitchen, steady camera. The entire frame must contain absolutely no "
+                "writing: no letters, words, numbers, captions, subtitles, labels, signs, logos, or packaging. No static "
+                "hero shot, no still life, no decorative B-roll, no unrelated finished dish, and no faces. "
                 "Accuracy of the demonstrated cooking action is more important than cinematic styling."
             )
             result.append((f"Paso visual {position}: {step[:90]}", prompt))
@@ -498,7 +504,7 @@ class HomeRecipeVideoStore:
                 "visibility": visibility,
                 "owner_user_id": user,
                 "status": "QUEUED",
-                "provider": "fal_hailuo_02_action_v4",
+                "provider": "fal_hailuo_02_action_v5",
                 "model": FAL_MODEL,
                 "estimated_cost_usd": config.estimated_recipe_cost_usd,
                 "created_at": _now_iso(),

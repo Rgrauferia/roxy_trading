@@ -19,7 +19,7 @@ La versión 2 de los prompts exige una acción culinaria visible: manos adultas 
 
 ## Proveedor inicial
 
-El adaptador usa `fal-ai/minimax/hailuo-02/standard/text-to-video`. Las demostraciones duran seis segundos y el costo editable parte de USD 0.045 por segundo, verificado el 21 de agosto de 2026 en la [documentación de fal.ai](https://fal.ai/models/fal-ai/minimax/hailuo-02/standard/text-to-video/api). La versión 4 conserva instrucciones de acción estrictas y desactiva el optimizador cinematográfico para evitar tomas decorativas.
+El adaptador usa `fal-ai/minimax/hailuo-02/standard/text-to-video`. Las demostraciones duran seis segundos y el costo editable parte de USD 0.045 por segundo, verificado el 21 de agosto de 2026 en la [documentación de fal.ai](https://fal.ai/models/fal-ai/minimax/hailuo-02/standard/text-to-video/api). La versión 5 usa instrucciones exclusivas por acción, elimina el texto original del paso para evitar subtítulos inventados y desactiva el optimizador cinematográfico.
 
 El proveedor está aislado detrás de `FalRecipeVideoProvider`; se puede añadir Runway u otro proveedor sin cambiar recetas, usuarios o URLs de reproducción.
 

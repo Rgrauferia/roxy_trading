@@ -61,11 +61,12 @@ def test_video_prompts_require_a_visible_instructional_action(tmp_path):
     prompt = created["clips"][0]["prompt"]
 
     assert reused is False
-    assert "poured one by one" in prompt
-    assert "actively stirring" in prompt
-    assert "not merely show ingredients or finished food" in prompt
+    assert "ONLY pour" in prompt
+    assert "actively stir" in prompt
+    assert "absolutely no writing" in prompt
     assert "No static hero shot" in prompt
     assert "Harina" in prompt
+    assert recipe["steps"][0] not in prompt
 
 
 def test_new_prompt_version_does_not_reuse_old_decorative_video(tmp_path):
@@ -79,7 +80,21 @@ def test_new_prompt_version_does_not_reuse_old_decorative_video(tmp_path):
 
     assert reused is False
     assert regenerated["id"] != created["id"]
-    assert regenerated["prompt_version"] == 4
+    assert regenerated["prompt_version"] == 5
+
+
+def test_rest_and_baking_prompts_exclude_wrong_actions(tmp_path):
+    recipe = sample_recipe()
+    created, _ = HomeRecipeVideoStore(tmp_path / "library.json").create_or_reuse(
+        "robert", recipe, video_config(tmp_path), visibility="shared"
+    )
+
+    rest_prompt = created["clips"][1]["prompt"]
+    bake_prompt = created["clips"][2]["prompt"]
+    assert "expands to twice its size" in rest_prompt
+    assert "do not knead" in rest_prompt
+    assert "visibly open oven" in bake_prompt
+    assert "Do not mix, measure, flour, or knead" in bake_prompt
 
 
 def test_provider_does_not_replace_instructional_choreography(tmp_path):
