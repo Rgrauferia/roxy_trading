@@ -68,6 +68,156 @@ def test_home_food_api_requires_confirmation_before_touching_shopping_list(tmp_p
     assert isolated.json()["recipes"] == []
 
 
+def test_weekly_plan_is_local_persistent_and_requires_confirmation_for_shopping(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "home-test-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert,alice")
+    monkeypatch.setenv("ROXY_HOME_MEMORY_PATH", str(tmp_path / "home.json"))
+    monkeypatch.setenv("ROXY_SHOPPING_LIST_PATH", str(tmp_path / "shopping.json"))
+    roxy_home_service._RATE_STATE.clear()
+    client = TestClient(roxy_home_service.app)
+    headers = {"Authorization": "Bearer home-test-key"}
+
+    created = client.post(
+        "/v1/home-food/robert/weekly-plans",
+        headers=headers,
+        json={"style": "quick", "people": 2, "max_minutes": 20, "weekly_budget": 85, "cook_days": 2, "meal_scope": "lunch_dinner"},
+    )
+    assert created.status_code == 201
+    plan = created.json()["plan"]
+    assert plan["generation_source"] == "local_weekly_catalog"
+    assert len(plan["days"]) == 7
+    assert all(len(day["meals"]) == 2 for day in plan["days"])
+    assert all([meal["meal_type"] for meal in day["meals"]] == ["lunch", "dinner"] for day in plan["days"])
+    assert len(plan["prep_sessions"]) == 2
+    assert max(meal["minutes"] for day in plan["days"] for meal in day["meals"]) <= 20
+
+    original_title = plan["days"][0]["meals"][0]["title"]
+    swapped = client.patch(
+        f"/v1/home-food/robert/weekly-plans/{plan['id']}/meal",
+        headers=headers,
+        json={"day_index": 0, "meal_index": 0, "action": "swap"},
+    )
+    assert swapped.status_code == 200
+    assert swapped.json()["plan"]["days"][0]["meals"][0]["title"] != original_title
+    favorite = client.patch(
+        f"/v1/home-food/robert/weekly-plans/{plan['id']}/meal",
+        headers=headers,
+        json={"day_index": 0, "meal_index": 0, "action": "favorite"},
+    )
+    assert favorite.status_code == 200
+    assert favorite.json()["plan"]["days"][0]["meals"][0]["favorite"] is True
+
+    lived = client.patch(
+        f"/v1/home-food/robert/weekly-plans/{plan['id']}/day",
+        headers=headers,
+        json={"day_index": 1, "action": "leftovers"},
+    )
+    assert lived.status_code == 200
+    assert lived.json()["plan"]["days"][1]["status"] == "leftovers"
+    assert lived.json()["shopping_preview"]
+
+    blocked = client.post(
+        f"/v1/home-food/robert/weekly-plans/{plan['id']}/shopping-commit",
+        headers=headers,
+        json={"confirmed": False, "excluded_days": []},
+    )
+    committed = client.post(
+        f"/v1/home-food/robert/weekly-plans/{plan['id']}/shopping-commit",
+        headers=headers,
+        json={"confirmed": True, "excluded_days": [0]},
+    )
+    robert = client.get("/v1/home-food/robert", headers=headers).json()
+    alice = client.get("/v1/home-food/alice", headers=headers).json()
+
+    assert blocked.status_code == 409
+    assert committed.status_code == 200
+    assert committed.json()["items"]
+    assert robert["weekly_plans"][-1]["id"] == plan["id"]
+    assert robert["weekly_plans"][-1]["days"][1]["status"] == "leftovers"
+    assert robert["meal_planning"]["cook_days"] == 2
+    assert robert["meal_planning"]["meal_scope"] == "lunch_dinner"
+    assert alice["weekly_plans"] == []
+
+
+def test_roxy_conversation_controls_days_and_reuses_available_recipes(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "home-test-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert")
+    monkeypatch.setenv("ROXY_HOME_MEMORY_PATH", str(tmp_path / "home.json"))
+    monkeypatch.setenv("ROXY_SHOPPING_LIST_PATH", str(tmp_path / "shopping.json"))
+    roxy_home_service._RATE_STATE.clear()
+    client = TestClient(roxy_home_service.app)
+    headers = {"Authorization": "Bearer home-test-key"}
+
+    created = client.post(
+        "/v1/assistant/command/robert",
+        headers=headers,
+        json={"text": "Roxy, organiza nuestro plan de comidas de la semana"},
+    )
+    assert created.status_code == 200
+    assert created.json()["intent"] == "weekly_create"
+    assert created.json()["agent"] == "home_food"
+
+    monday = client.post(
+        "/v1/assistant/command/robert",
+        headers=headers,
+        json={"text": "Roxy, ¿qué comemos el lunes?"},
+    )
+    assert monday.status_code == 200
+    assert monday.json()["intent"] == "weekly_query"
+    assert "Para Lunes" in monday.json()["speech"]
+
+    skipped = client.post(
+        "/v1/assistant/command/robert",
+        headers=headers,
+        json={"text": "Roxy, el martes no voy a cocinar"},
+    )
+    assert skipped.status_code == 200
+    assert skipped.json()["data"]["weekly_plan"]["days"][1]["status"] == "skipped"
+
+    leftovers = client.post(
+        "/v1/assistant/command/robert",
+        headers=headers,
+        json={"text": "Roxy, el miércoles comeremos las sobras"},
+    )
+    assert leftovers.status_code == 200
+    assert leftovers.json()["data"]["weekly_plan"]["days"][2]["status"] == "leftovers"
+
+    recipe = client.post(
+        "/v1/assistant/command/robert",
+        headers=headers,
+        json={"text": "Roxy, dame la receta de la cena del jueves"},
+    )
+    assert recipe.status_code == 200
+    assert recipe.json()["intent"] == "weekly_recipe"
+    assert recipe.json()["data"]["recipe"]["steps"]
+    assert recipe.json()["data"]["generation_mode"] == "local_recipe_catalog"
+
+    adapted = client.post(
+        "/v1/assistant/command/robert",
+        headers=headers,
+        json={"text": "Roxy, hoy no cociné, tengo pollo y arroz"},
+    )
+    assert adapted.status_code == 200
+    assert adapted.json()["intent"] == "weekly_from_pantry"
+    assert adapted.json()["data"]["recipe"]["generation_source"] == "local_recipe_catalog"
+    assert "No añadí nada a compras" in adapted.json()["speech"]
+    assert any(
+        meal.get("recipe_id") == adapted.json()["data"]["recipe"]["id"]
+        for meal in adapted.json()["data"]["weekly_plan"]["days"][roxy_home_service._weekly_day_index("hoy")]["meals"]
+    )
+
+    cookbook = client.get("/v1/home-food/robert", headers=headers).json()
+    assert cookbook["local_catalog"]["total"] == len(cookbook["local_recipes"])
+    assert cookbook["local_catalog"]["total"] >= 70
+    assert {"Avena nocturna con frutas", "Quesadilla de pollo y vegetales"}.issubset(
+        {row["title"] for row in cookbook["local_recipes"]}
+    )
+
+
 def test_voice_can_create_recipe_add_ingredients_and_remove_naturally(tmp_path, monkeypatch):
     from tools import roxy_home_service
 

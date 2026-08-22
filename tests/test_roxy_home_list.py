@@ -17,8 +17,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=43"' in page.text
-    assert '/assets/roxy_list.js?v=43' in worker.text
+    assert 'src="/assets/roxy_list.js?v=44"' in page.text
+    assert '/assets/roxy_list.js?v=44' in worker.text
     assert 'aspect-ratio: 16 / 9' in style.text
     assert "media.loop=true" in script.text
     assert "videoSeconds*cycles/audioSeconds" in script.text
@@ -100,7 +100,17 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="cookingDialog"' in page.text
     assert 'data-tab-link="recipes"' in page.text
     assert 'id="pantryForm"' in page.text
-    assert 'id="weeklyPlanForm"' in page.text
+    assert 'id="mealPlanForm"' in page.text
+    assert 'id="mealPlanShopping"' in page.text
+    assert 'name="mealPlanStyle"' in page.text
+    assert 'id="mealPlanCookDays"' in page.text
+    assert 'id="mealPlanScope"' in page.text
+    assert 'id="mealPlanPrepSessions"' in page.text
+    assert "/weekly-plans/" in script.text
+    assert "updateWeeklyPlanMeal" in script.text
+    assert "updateWeeklyPlanDay" in script.text
+    assert "Comeremos sobras" in script.text
+    assert "Cambiar ${meal.title}" in script.text
     assert 'id="substitutionForm"' in page.text
     assert "/v1/home-food/" in script.text
     assert "recipeSubmit" in script.text

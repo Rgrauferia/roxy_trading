@@ -109,6 +109,14 @@ def _expanded_templates() -> dict[str, dict[str, Any]]:
         "salmon": _recipe("Salmón al horno", "Salmón sencillo con limón y ajo.", "meal", 4, [("Filete de salmón", 4, "unidad"), ("Limón", 1, "unidad"), ("Ajo", 2, "diente"), ("Aceite de oliva", 2, "cucharada")], ["Calienta el horno a 200 °C.", "Coloca el salmón en una bandeja y añade aceite, ajo y limón.", "Hornea de 12 a 15 minutos, hasta alcanzar el punto seguro y deseado.", "Sirve inmediatamente." ]),
         "lentils": _recipe("Lentejas guisadas", "Guiso reconfortante de lentejas y vegetales.", "meal", 6, [("Lenteja", 2, "taza"), ("Agua o caldo", 7, "taza"), ("Zanahoria", 2, "unidad"), ("Papa", 2, "unidad"), ("Cebolla", 1, "unidad"), ("Ajo", 2, "diente")], ["Enjuaga las lentejas.", "Sofríe cebolla, ajo y zanahoria.", "Añade lentejas, papa y caldo.", "Cocina suavemente de 30 a 40 minutos hasta que estén tiernas." ]),
         "omelet": _recipe("Tortilla francesa con queso", "Desayuno rápido de huevo y queso.", "meal", 1, [("Huevo", 3, "unidad"), ("Queso", 0.5, "taza"), ("Mantequilla", 1, "cucharadita")], ["Bate los huevos con una pizca de sal.", "Derrite la mantequilla y vierte los huevos.", "Añade queso cuando los bordes cuajen.", "Dobla y cocina hasta que el huevo esté completamente cuajado." ]),
+        "overnight_oats": _recipe("Avena nocturna con frutas", "Desayuno frío que se prepara la noche anterior.", "meal", 1, [("Avena", 0.5, "taza"), ("Leche", 0.75, "taza"), ("Yogur natural", 0.25, "taza"), ("Fruta", 0.5, "taza")], ["Mezcla la avena, la leche y el yogur en un recipiente con tapa.", "Refrigera durante la noche o al menos seis horas.", "Añade la fruta justo antes de servir." ]),
+        "eggs_toast": _recipe("Huevos con tostada integral", "Desayuno rápido, completo y sencillo.", "meal", 1, [("Huevo", 2, "unidad"), ("Pan integral", 2, "rebanada"), ("Aceite", 1, "cucharadita")], ["Tuesta el pan.", "Calienta el aceite y cocina los huevos hasta que la clara y la yema alcancen el punto seguro deseado.", "Sirve los huevos sobre las tostadas." ]),
+        "avocado_toast": _recipe("Tostada de aguacate y huevo", "Desayuno saciante con aguacate y huevo.", "meal", 1, [("Pan integral", 2, "rebanada"), ("Aguacate", 0.5, "unidad"), ("Huevo", 1, "unidad"), ("Limón", 0.25, "unidad")], ["Tuesta el pan.", "Machaca el aguacate con unas gotas de limón.", "Cocina el huevo completamente y colócalo sobre la tostada con aguacate." ]),
+        "pancakes": _recipe("Panqueques de avena", "Panqueques rápidos de avena y plátano.", "meal", 2, [("Avena", 0.75, "taza"), ("Huevo", 1, "unidad"), ("Plátano", 1, "unidad"), ("Leche", 0.25, "taza")], ["Licúa la avena, el huevo, el plátano y la leche.", "Calienta una sartén antiadherente.", "Cocina porciones pequeñas hasta que aparezcan burbujas, voltea y cocina hasta que el centro esté hecho." ]),
+        "chicken_bowl": _recipe("Bowl de pollo y vegetales", "Comida rápida que aprovecha pollo y arroz ya cocidos.", "meal", 2, [("Pechuga de pollo cocida", 2, "unidad"), ("Vegetales mixtos", 3, "taza"), ("Arroz cocido", 1, "taza")], ["Calienta el pollo hasta que esté bien caliente en el centro.", "Saltea o recalienta los vegetales.", "Reparte arroz, pollo y vegetales en dos bowls y sirve." ]),
+        "tuna_bowl": _recipe("Bowl de atún y garbanzos", "Comida fresca sin cocción y rica en proteína.", "meal", 2, [("Atún", 2, "lata"), ("Garbanzos cocidos", 1.5, "taza"), ("Pepino", 1, "unidad"), ("Tomate", 2, "unidad"), ("Limón", 1, "unidad")], ["Escurre el atún y los garbanzos.", "Lava y corta el pepino y el tomate.", "Mezcla todo con jugo de limón y sirve frío." ]),
+        "chicken_wrap": _recipe("Wrap de pollo y aguacate", "Cena rápida para aprovechar pollo cocido.", "meal", 2, [("Pollo cocido", 240, "gramo"), ("Tortilla integral", 2, "unidad"), ("Aguacate", 1, "unidad"), ("Tomate", 1, "unidad")], ["Calienta el pollo hasta que esté bien caliente.", "Corta el tomate y el aguacate.", "Reparte el relleno entre las tortillas, enrolla y sirve." ]),
+        "quesadilla": _recipe("Quesadilla de pollo y vegetales", "Cena rápida de sartén con pollo y queso.", "meal", 2, [("Tortilla", 4, "unidad"), ("Pollo cocido", 200, "gramo"), ("Queso", 1, "taza"), ("Vegetales mixtos", 1, "taza")], ["Calienta el pollo y los vegetales.", "Distribuye pollo, vegetales y queso sobre dos tortillas y cubre con las restantes.", "Cocina cada quesadilla por ambos lados hasta que el queso se derrita y el centro esté bien caliente." ]),
 
         # Common desserts.
         "flan": _recipe("Flan de vainilla", "Postre de caramelo suave y cremoso.", "dessert", 8, [("Huevo", 5, "unidad"), ("Leche condensada", 1, "lata"), ("Leche evaporada", 1, "lata"), ("Vainilla", 1, "cucharadita"), ("Azúcar", 1, "taza")], ["Derrite el azúcar hasta formar caramelo y cubre el molde.", "Licúa huevos, leches y vainilla.", "Vierte en el molde y hornea a baño María a 175 °C unos 55 minutos.", "Enfría por completo antes de desmoldar." ]),
@@ -194,6 +202,14 @@ def _local_recipe_key(prompt: str) -> str | None:
         ("fried_rice", r"\b(arroz frito|arroz chino)\b"),
         ("salmon", r"\b(salmon al horno|salmon)\b"),
         ("lentils", r"\b(lenteja|lentejas)\b"),
+        ("overnight_oats", r"\b(avena nocturna|overnight oats)\b"),
+        ("eggs_toast", r"\b(huevos? con tostada|tostada con huevos?)\b"),
+        ("avocado_toast", r"\b(tostada de aguacate|tostada con aguacate)\b"),
+        ("pancakes", r"\b(panqueque|panqueques|pancake|pancakes)\b"),
+        ("chicken_bowl", r"\b(bowl de pollo|tazon de pollo)\b"),
+        ("tuna_bowl", r"\b(bowl de atun|atun y garbanzos)\b"),
+        ("chicken_wrap", r"\b(wrap de pollo|rollo de pollo)\b"),
+        ("quesadilla", r"\b(quesadilla|quesadillas)\b"),
         ("omelet", r"\b(omelet|omelette|tortilla francesa)\b"),
         ("bread", r"\b(pan|baguette|focaccia|brioche|masa)\b"),
         ("pasta", r"\b(pasta|espagueti|espaguetis|spaghetti|macarron|macarrones|fideo|fideos)\b"),
@@ -242,6 +258,14 @@ def local_recipe_catalog_summary() -> dict[str, int]:
         "alcoholic_drinks": sum(row.get("drink_type") == "alcoholic" for row in rows),
         "non_alcoholic_drinks": sum(row.get("drink_type") == "non_alcoholic" for row in rows),
     }
+
+
+def local_recipe_catalog(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return the installed cookbook without creating user-owned copies."""
+    return [
+        {"catalog_key": key, **_prepare_local_recipe(key, snapshot)}
+        for key in sorted(_templates(), key=lambda value: str(_templates()[value].get("title") or value).casefold())
+    ]
 
 
 def generate_local_recipe(prompt: str, snapshot: dict[str, Any]) -> dict[str, Any]:

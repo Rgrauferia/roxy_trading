@@ -91,6 +91,14 @@ class HomeFoodStore:
     def _new_user() -> dict[str, Any]:
         return {
             "profile": {"preferences": [], "allergies": [], "dislikes": [], "household_size": 1},
+            "meal_planning": {
+                "style": "normal",
+                "cook_days": 2,
+                "meal_scope": "all",
+                "people": 2,
+                "max_minutes": 25,
+                "weekly_budget": 85,
+            },
             "pantry": [],
             "recipes": [],
             "cooking_sessions": [],
@@ -226,6 +234,40 @@ class HomeFoodStore:
             record["pantry"] = pantry
             record["revision"] = int(record.get("revision") or 0) + 1
             return deepcopy(pantry)
+
+        return self._mutate(apply)
+
+    def update_meal_planning(
+        self,
+        user_id: Any,
+        *,
+        style: str,
+        cook_days: Any,
+        meal_scope: str,
+        people: Any,
+        max_minutes: Any,
+        weekly_budget: Any,
+    ) -> dict[str, Any]:
+        if style not in {"fitness", "normal", "quick", "weight_loss"}:
+            raise ValueError("El estilo de alimentación no es válido.")
+        if meal_scope not in {"all", "lunch_dinner", "dinner_only"}:
+            raise ValueError("La cantidad de comidas no es válida.")
+        planning = {
+            "style": style,
+            "cook_days": int(_positive_number(cook_days, maximum=7)),
+            "meal_scope": meal_scope,
+            "people": int(_positive_number(people, maximum=20)),
+            "max_minutes": int(_positive_number(max_minutes, maximum=180)),
+            "weekly_budget": round(float(weekly_budget), 2),
+        }
+        if planning["weekly_budget"] < 0 or planning["weekly_budget"] > 10_000:
+            raise ValueError("El presupuesto semanal no es válido.")
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            record = self._user(payload, user_id)
+            record["meal_planning"] = planning
+            record["revision"] = int(record.get("revision") or 0) + 1
+            return deepcopy(planning)
 
         return self._mutate(apply)
 
@@ -611,6 +653,29 @@ class HomeFoodStore:
             record["weekly_plans"] = record["weekly_plans"][-20:]
             record["revision"] = int(record.get("revision") or 0) + 1
             return deepcopy(row)
+
+        return self._mutate(apply)
+
+    def get_weekly_plan(self, user_id: Any, plan_id: str) -> dict[str, Any]:
+        snapshot = self.snapshot(user_id)
+        row = next(
+            (plan for plan in snapshot.get("weekly_plans", []) if str(plan.get("id")) == str(plan_id)),
+            None,
+        )
+        if row is None:
+            raise KeyError(plan_id)
+        return deepcopy(row)
+
+    def replace_weekly_plan(self, user_id: Any, plan_id: str, plan: dict[str, Any]) -> dict[str, Any]:
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            record = self._user(payload, user_id)
+            for index, existing in enumerate(record.get("weekly_plans", [])):
+                if str(existing.get("id")) == str(plan_id):
+                    updated = {**deepcopy(plan), "id": existing["id"], "created_at": existing["created_at"]}
+                    record["weekly_plans"][index] = updated
+                    record["revision"] = int(record.get("revision") or 0) + 1
+                    return deepcopy(updated)
+            raise KeyError(plan_id)
 
         return self._mutate(apply)
 

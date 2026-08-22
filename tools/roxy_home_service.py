@@ -8,6 +8,7 @@ import re
 import time
 import unicodedata
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +25,12 @@ from roxy_os.home_ai import (
     HomeAIConfigurationError,
     RoxyHomeAI,
 )
-from roxy_os.home_recipe_fallback import find_local_recipe, generate_local_recipe, local_recipe_catalog_summary
+from roxy_os.home_recipe_fallback import (
+    find_local_recipe,
+    generate_local_recipe,
+    local_recipe_catalog,
+    local_recipe_catalog_summary,
+)
 from roxy_os.home_recipe_library import (
     HomeRecipeLibraryStore,
     recipe_is_compatible,
@@ -40,6 +46,12 @@ from roxy_os.home_commerce import (
     public_providers,
 )
 from roxy_os.home_food import HomeFoodStore, HomePermissionPolicy
+from roxy_os.home_weekly_plans import (
+    create_local_weekly_plan,
+    update_weekly_plan_day,
+    update_weekly_plan_meal,
+    weekly_plan_shopping_items,
+)
 from roxy_os.home_recipe_videos import (
     FalHailuoVideoProvider,
     HomeRecipeVideoConfig,
@@ -134,6 +146,31 @@ class HomePromptRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=2000)
     mode: str = Field(default="routine", pattern="^(routine|deep)$")
     recipe_type: str = Field(default="general", pattern="^(general|alcoholic|non_alcoholic)$")
+
+
+class WeeklyPlanRequest(BaseModel):
+    style: str = Field(default="normal", pattern="^(fitness|normal|quick|weight_loss)$")
+    people: int = Field(default=1, ge=1, le=20)
+    max_minutes: int = Field(default=25, ge=5, le=180)
+    weekly_budget: float = Field(default=85, ge=0, le=10_000)
+    cook_days: int = Field(default=2, ge=1, le=7)
+    meal_scope: str = Field(default="all", pattern="^(all|lunch_dinner|dinner_only)$")
+
+
+class WeeklyPlanShoppingRequest(BaseModel):
+    confirmed: bool = False
+    excluded_days: list[int] = Field(default_factory=list, max_length=7)
+
+
+class WeeklyPlanMealRequest(BaseModel):
+    day_index: int = Field(ge=0, le=6)
+    meal_index: int = Field(ge=0, le=2)
+    action: str = Field(pattern="^(swap|favorite)$")
+
+
+class WeeklyPlanDayRequest(BaseModel):
+    day_index: int = Field(ge=0, le=6)
+    action: str = Field(pattern="^(cooked|leftovers|skip|reset)$")
 
 
 class RecipeScaleRequest(BaseModel):
@@ -398,6 +435,9 @@ def _recipe_with_resilience(
 
 def _assistant_shopping_intent(text: str) -> str:
     normalized = text.lower().strip()
+    weekly_intent = _assistant_weekly_intent(text)
+    if weekly_intent:
+        return weekly_intent
     if re.search(r"\b(prepara|preparar|busca|buscar|encuentra|encontrar)\b.*\b(compra|carrito)\b", normalized):
         return "commerce_prepare"
     if re.search(r"\b(agrega|añade|anade|pon|pasa|mete|incluye|echa)\b.*\bingredientes?\b.*\b(lista|carrito)\b", normalized):
@@ -448,6 +488,94 @@ def _assistant_shopping_intent(text: str) -> str:
     if re.search(r"(lista de compras?|qué falta comprar|que falta comprar|qué necesito comprar|que necesito comprar|qué hay que comprar|que hay que comprar|qué tenemos pendiente|que tenemos pendiente|muéstrame la lista|muestrame la lista)", normalized):
         return "shopping_query"
     return "general"
+
+
+def _assistant_weekly_intent(text: str) -> str:
+    """Recognize ordinary household language before the generic recipe router."""
+    normalized = unicodedata.normalize("NFKD", str(text or ""))
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalized.encode("ascii", "ignore").decode("ascii").lower()).strip()
+    if re.search(r"\b(organiza|organizar|crea|crear|prepara|preparar|haz|armar|arma)\b.*\b(plan|semana|menu)\b", normalized):
+        return "weekly_create"
+    if re.search(r"\b(que comemos|que cenamos|que desayunamos|que toca|comida de|receta de)\b.*\b(hoy|manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b", normalized):
+        return "weekly_recipe" if "receta" in normalized else "weekly_query"
+    if re.search(r"\b(hoy|manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b.*\b(no cocino|no cocinare|no voy a cocinar|no cocine|no podremos cocinar)\b", normalized):
+        return "weekly_from_pantry" if re.search(r"\btengo\b", normalized) else "weekly_skip"
+    if re.search(r"\b(no cocino|no cocinare|no voy a cocinar|no cocine|no podremos cocinar)\b.*\b(hoy|manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b", normalized):
+        return "weekly_from_pantry" if re.search(r"\btengo\b", normalized) else "weekly_skip"
+    if re.search(r"\b(tengo|nos queda|me queda)\b", normalized) and re.search(r"\b(que hago|que preparo|que cocino|comer|cena|almuerzo|hoy)\b", normalized):
+        return "weekly_from_pantry"
+    if re.search(r"\b(sobras|sobro|sobraron|comeremos lo de ayer|comemos lo de ayer)\b", normalized):
+        return "weekly_leftovers"
+    if re.search(r"\b(ya cocine|ya prepare|comida lista|cena lista)\b", normalized):
+        return "weekly_cooked"
+    if re.search(r"\b(restablece|restaurar|deshaz|deshacer)\b.*\b(hoy|manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo|dia)\b", normalized):
+        return "weekly_reset"
+    return ""
+
+
+_WEEKDAY_INDEX = {
+    "lunes": 0,
+    "martes": 1,
+    "miercoles": 2,
+    "jueves": 3,
+    "viernes": 4,
+    "sabado": 5,
+    "domingo": 6,
+}
+
+
+def _weekly_day_index(text: str) -> int:
+    normalized = unicodedata.normalize("NFKD", str(text or ""))
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalized.encode("ascii", "ignore").decode("ascii").lower()).strip()
+    for label, index in _WEEKDAY_INDEX.items():
+        if re.search(rf"\b{label}\b", normalized):
+            return index
+    return (date.today().weekday() + (1 if re.search(r"\bmanana\b", normalized) else 0)) % 7
+
+
+def _weekly_meal_type(text: str) -> str:
+    normalized = unicodedata.normalize("NFKD", str(text or ""))
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalized.encode("ascii", "ignore").decode("ascii").lower()).strip()
+    if re.search(r"\b(desayuno|desayunar)\b", normalized):
+        return "breakfast"
+    if re.search(r"\b(almuerzo|comida|almorzar)\b", normalized):
+        return "lunch"
+    return "dinner"
+
+
+def _weekly_plan_for_conversation(home_store: HomeFoodStore, user: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    snapshot = home_store.snapshot(user)
+    plans = snapshot.get("weekly_plans") or []
+    if plans:
+        return plans[-1], snapshot
+    settings = snapshot.get("meal_planning") or {}
+    plan = create_local_weekly_plan(
+        snapshot,
+        style=str(settings.get("style") or "normal"),
+        people=int(settings.get("people") or (snapshot.get("profile") or {}).get("household_size") or 1),
+        max_minutes=int(settings.get("max_minutes") or 25),
+        weekly_budget=float(settings.get("weekly_budget") or 85),
+        cook_days=int(settings.get("cook_days") or 2),
+        meal_scope=str(settings.get("meal_scope") or "all"),
+    )
+    return home_store.save_weekly_plan(user, plan), snapshot
+
+
+def _weekly_meal_for_command(plan: dict[str, Any], text: str) -> tuple[int, dict[str, Any], dict[str, Any]]:
+    day_index = _weekly_day_index(text)
+    days = plan.get("days") or []
+    if not days:
+        raise ValueError("El plan semanal no tiene días disponibles.")
+    day_index = min(day_index, len(days) - 1)
+    day = days[day_index]
+    meal_type = _weekly_meal_type(text)
+    meals = day.get("meals") or []
+    meal = next((row for row in meals if row.get("meal_type") == meal_type), None)
+    if meal is None and meals:
+        meal = meals[-1]
+    if meal is None:
+        raise ValueError("Ese día no tiene comidas programadas.")
+    return day_index, day, meal
 
 
 def _assistant_shopping_requests(text: str) -> list[dict[str, Any]]:
@@ -702,7 +830,8 @@ def shopping_page() -> Response:
     response = FileResponse(ASSETS_DIR / "roxy_list.html", media_type="text/html")
     response.headers["Cache-Control"] = "no-cache"
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; img-src 'self' data:; style-src 'self'; "
+        "default-src 'self'; img-src 'self' data:; style-src 'self' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
         "script-src 'self' blob: https://esm.sh https://cdn.jsdelivr.net https://esm.run; "
         "connect-src 'self' https://api.elevenlabs.io https://*.elevenlabs.io "
         "wss://api.elevenlabs.io wss://*.elevenlabs.io; media-src 'self' blob:; "
@@ -916,13 +1045,94 @@ def assistant_command(
         else "home_commerce"
         if intent.startswith("commerce_")
         else "home_food"
-        if intent.startswith("recipe_") or intent.startswith("cooking_")
+        if intent.startswith("recipe_") or intent.startswith("cooking_") or intent.startswith("weekly_")
         else "general"
     )
     store = _store()
     rows: list[dict[str, Any]] = []
     extra: dict[str, Any] = {}
-    if intent == "commerce_prepare":
+    if intent.startswith("weekly_"):
+        home_store = _home_food_store()
+        if intent == "weekly_create":
+            snapshot = home_store.snapshot(user)
+            settings = snapshot.get("meal_planning") or {}
+            plan = home_store.save_weekly_plan(
+                user,
+                create_local_weekly_plan(
+                    snapshot,
+                    style=str(settings.get("style") or "normal"),
+                    people=int(settings.get("people") or (snapshot.get("profile") or {}).get("household_size") or 1),
+                    max_minutes=int(settings.get("max_minutes") or 25),
+                    weekly_budget=float(settings.get("weekly_budget") or 85),
+                    cook_days=int(settings.get("cook_days") or 2),
+                    meal_scope=str(settings.get("meal_scope") or "all"),
+                ),
+            )
+            message = "Organicé una nueva semana usando tus preferencias y las recetas disponibles de Roxy. Puedes preguntarme qué toca cualquier día."
+            extra["weekly_plan"] = plan
+            extra["shopping_preview"] = weekly_plan_shopping_items(plan)
+        else:
+            plan, food_snapshot = _weekly_plan_for_conversation(home_store, user)
+            day_index, day, meal = _weekly_meal_for_command(plan, command_text)
+            if intent == "weekly_query":
+                meal_labels = ", ".join(
+                    f"{ {'breakfast':'desayuno','lunch':'comida','dinner':'cena'}.get(str(row.get('meal_type')), 'comida')}: {row.get('title')}"
+                    for row in day.get("meals") or []
+                )
+                message = f"Para {day.get('day')}, tenemos {meal_labels}."
+            elif intent in {"weekly_skip", "weekly_leftovers", "weekly_cooked", "weekly_reset"}:
+                action = {
+                    "weekly_skip": "skip",
+                    "weekly_leftovers": "leftovers",
+                    "weekly_cooked": "cooked",
+                    "weekly_reset": "reset",
+                }[intent]
+                updated = update_weekly_plan_day(plan, day_index=day_index, action=action)
+                plan = home_store.replace_weekly_plan(user, str(plan["id"]), updated)
+                message = {
+                    "weekly_skip": f"Entendido. Quité la cocina de {day.get('day')} y reorganicé las comidas siguientes.",
+                    "weekly_leftovers": f"Perfecto. Marqué {day.get('day')} como día de sobras y actualicé lo que falta comprar.",
+                    "weekly_cooked": f"Perfecto. Marqué la comida de {day.get('day')} como preparada.",
+                    "weekly_reset": f"Restablecí {day.get('day')} dentro del plan semanal.",
+                }[intent]
+            else:
+                recipe_prompt = str(meal.get("title") or command_text)
+                if intent == "weekly_from_pantry":
+                    pantry_match = re.search(r"(?i)\btengo\b\s+(.+)$", command_text)
+                    pantry_words = pantry_match.group(1).strip(" .") if pantry_match else command_text
+                    recipe_prompt = f"Receta sencilla para hoy con {pantry_words}"
+                recipe_data = find_local_recipe(recipe_prompt, food_snapshot)
+                generation_mode = "local_recipe_catalog"
+                if recipe_data is None:
+                    recipe_data, generation_mode = _recipe_with_resilience(recipe_prompt, food_snapshot, deep=False)
+                recipe = home_store.save_recipe(user, recipe_data, mode="routine")
+                if intent == "weekly_from_pantry":
+                    meal_type = str(meal.get("meal_type") or _weekly_meal_type(command_text))
+                    replacement = {
+                        "key": f"saved:{recipe['id']}",
+                        "recipe_id": recipe["id"],
+                        "title": recipe["title"],
+                        "minutes": int(recipe.get("minutes") or plan.get("max_minutes") or 25),
+                        "ingredients": list(recipe.get("ingredients") or []),
+                        "favorite": False,
+                        "meal_type": meal_type,
+                        "servings": recipe.get("servings") or plan.get("people") or 1,
+                    }
+                    meals = day.get("meals") or []
+                    meal_index = next((index for index, row in enumerate(meals) if row is meal), len(meals) - 1)
+                    meals[meal_index] = replacement
+                    day["status"] = "scheduled"
+                    day["status_note"] = "Roxy adaptó esta comida a los ingredientes disponibles en casa."
+                    plan = home_store.replace_weekly_plan(user, str(plan["id"]), plan)
+                    message = f"Con lo que tienes, adapté la comida de {day.get('day')} a {recipe['title']} y guardé la receta. No añadí nada a compras; puedo decirte qué falta si quieres."
+                else:
+                    message = f"La receta de {day.get('day')} es {recipe['title']}. Ya la guardé para que puedas abrirla o pedirme que te guíe paso a paso."
+                extra["recipe"] = recipe
+                extra["generation_mode"] = generation_mode
+            extra["weekly_plan"] = plan
+            extra["day_index"] = day_index
+            extra["shopping_preview"] = weekly_plan_shopping_items(plan)
+    elif intent == "commerce_prepare":
         food_snapshot = _home_food_store().snapshot(user)
         use_recipe = bool(re.search(r"\bingredientes?\b|\breceta\b", command_text.lower()))
         if use_recipe:
@@ -1314,9 +1524,11 @@ def create_home_purchase_link(
 def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenticate)) -> dict[str, Any]:
     _rate_limit(request)
     user = _authorize_user(user_id, auth)
+    snapshot = _home_food_store().snapshot(user)
     return {
-        **_home_food_store().snapshot(user),
+        **snapshot,
         "local_catalog": local_recipe_catalog_summary(),
+        "local_recipes": local_recipe_catalog(snapshot),
         "shared_recipe_library": _recipe_library_store().summary(),
         "recipe_video_service": _recipe_video_public_status(),
         "voice_service": _home_voice_config().public_status(),
@@ -1752,21 +1964,111 @@ def commit_recipe_shopping(
 @app.post("/v1/home-food/{user_id}/weekly-plans", status_code=201)
 def create_home_weekly_plan(
     user_id: str,
-    payload: HomePromptRequest,
+    payload: WeeklyPlanRequest,
     request: Request,
     auth: str = Depends(_authenticate),
 ) -> dict[str, Any]:
     _rate_limit(request)
     user = _authorize_user(user_id, auth)
     store = _home_food_store()
-    result = _ai_call(
-        lambda: _home_ai().weekly_plan(payload.prompt, store.snapshot(user), deep=payload.mode == "deep")
+    result = create_local_weekly_plan(
+        store.snapshot(user),
+        style=payload.style,
+        people=payload.people,
+        max_minutes=payload.max_minutes,
+        weekly_budget=payload.weekly_budget,
+        cook_days=payload.cook_days,
+        meal_scope=payload.meal_scope,
     )
     try:
+        planning = store.update_meal_planning(user, **payload.model_dump())
         plan = store.save_weekly_plan(user, result)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail="Roxy devolvió un plan incompleto.") from exc
-    return {"status": "CREATED", "plan": plan}
+    return {"status": "CREATED", "plan": plan, "meal_planning": planning}
+
+
+@app.post("/v1/home-food/{user_id}/weekly-plans/{plan_id}/shopping-commit")
+def commit_home_weekly_plan_shopping(
+    user_id: str,
+    plan_id: str,
+    payload: WeeklyPlanShoppingRequest,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    if payload.confirmed is not True:
+        raise HTTPException(status_code=409, detail="CONFIRMATION_REQUIRED")
+    try:
+        plan = _home_food_store().get_weekly_plan(user, plan_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Plan semanal no encontrado") from exc
+    items = weekly_plan_shopping_items(plan, {index for index in payload.excluded_days if 0 <= index <= 6})
+    added = [
+        _store().add(
+            user,
+            row["name"],
+            quantity=row["quantity"],
+            unit=row["unit"],
+            category="FOOD",
+            notes="Plan semanal de Roxy Home",
+            source="roxy_home_weekly_plan",
+        )
+        for row in items
+    ]
+    return {"status": "ADDED", "plan_id": plan_id, "items": added}
+
+
+@app.patch("/v1/home-food/{user_id}/weekly-plans/{plan_id}/meal")
+def change_home_weekly_plan_meal(
+    user_id: str,
+    plan_id: str,
+    payload: WeeklyPlanMealRequest,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    store = _home_food_store()
+    try:
+        plan = store.get_weekly_plan(user, plan_id)
+        updated = update_weekly_plan_meal(
+            plan,
+            store.snapshot(user),
+            day_index=payload.day_index,
+            meal_index=payload.meal_index,
+            action=payload.action,
+        )
+        saved = store.replace_weekly_plan(user, plan_id, updated)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Plan semanal no encontrado") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "UPDATED", "plan": saved}
+
+
+@app.patch("/v1/home-food/{user_id}/weekly-plans/{plan_id}/day")
+def change_home_weekly_plan_day(
+    user_id: str,
+    plan_id: str,
+    payload: WeeklyPlanDayRequest,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    store = _home_food_store()
+    try:
+        plan = store.get_weekly_plan(user, plan_id)
+        updated = update_weekly_plan_day(plan, day_index=payload.day_index, action=payload.action)
+        saved = store.replace_weekly_plan(user, plan_id, updated)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Plan semanal no encontrado") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    preview = weekly_plan_shopping_items(saved)
+    return {"status": "UPDATED", "plan": saved, "shopping_preview": preview}
 
 
 @app.post("/v1/home-food/{user_id}/food-safety")

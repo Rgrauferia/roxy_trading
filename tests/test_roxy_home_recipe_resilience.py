@@ -48,8 +48,8 @@ def test_expanded_catalog_covers_common_drinks_meals_and_desserts_before_openai(
 
     summary = local_recipe_catalog_summary()
     assert summary == {
-        "total": 62,
-        "meals": 18,
+        "total": 70,
+        "meals": 26,
         "desserts": 11,
         "drinks": 33,
         "alcoholic_drinks": 24,
@@ -104,7 +104,7 @@ def test_recipe_endpoint_uses_real_local_catalog_when_home_openai_is_not_connect
     assert response.json()["recipe"]["title"] == "Pan casero sencillo"
     saved = client.get("/v1/home-food/robert", headers={"Authorization": "Bearer home-test-key"}).json()
     assert saved["recipes"]
-    assert saved["local_catalog"]["total"] == 62
+    assert saved["local_catalog"]["total"] == 70
 
 
 def test_shopping_voice_understands_more_natural_vocabulary():

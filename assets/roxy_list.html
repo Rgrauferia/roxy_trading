@@ -12,8 +12,9 @@
   <link rel="icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=43" />
-  <script src="/assets/roxy_list.js?v=43" defer></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=44" />
+  <script src="/assets/roxy_list.js?v=44" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -78,6 +79,39 @@
       <div class="section-heading hero-heading"><div><p>Roxy cocina contigo</p><h2 id="recipesTitle">Recetas</h2></div><span>Guardado automático</span></div>
       <p class="lead">Pide comidas, panes, postres o bebidas. Cada receta quedará guardada para que puedas retomarla cuando quieras. <span id="recipeCatalogHint"></span></p>
 
+      <section id="mealPlanStudio" class="meal-plan-studio" aria-labelledby="mealPlanTitle">
+        <div class="meal-plan-heading"><p class="eyebrow">Tu semana, organizada</p><h2 id="mealPlanTitle">Plan de comidas</h2><p>Roxy adapta desayuno, comida y cena a tu ritmo real.</p></div>
+        <form id="mealPlanForm">
+          <fieldset class="meal-plan-styles"><legend>Elige el ritmo de esta semana</legend>
+            <label><input type="radio" name="mealPlanStyle" value="fitness" /><span class="material-symbols-rounded" aria-hidden="true">fitness_center</span><strong>Fitness</strong><small>Más proteína y energía</small></label>
+            <label><input type="radio" name="mealPlanStyle" value="normal" checked /><span class="material-symbols-rounded" aria-hidden="true">eco</span><strong>Vida normal</strong><small>Variado y equilibrado</small></label>
+            <label><input type="radio" name="mealPlanStyle" value="quick" /><span class="material-symbols-rounded" aria-hidden="true">schedule</span><strong>Poco tiempo</strong><small>Máximo 20 minutos</small></label>
+            <label><input type="radio" name="mealPlanStyle" value="weight_loss" /><span class="material-symbols-rounded" aria-hidden="true">monitor_weight</span><strong>Bajar de peso</strong><small>Porciones y saciedad</small></label>
+          </fieldset>
+          <div class="meal-plan-limits">
+            <label><span class="material-symbols-rounded" aria-hidden="true">group</span><input id="mealPlanPeople" type="number" min="1" max="20" value="2" aria-label="Personas" /><small>personas</small></label>
+            <label><span class="material-symbols-rounded" aria-hidden="true">schedule</span><input id="mealPlanMinutes" type="number" min="5" max="180" value="25" aria-label="Minutos máximos" /><small>min máximo</small></label>
+            <label><span class="material-symbols-rounded" aria-hidden="true">paid</span><span>$</span><input id="mealPlanBudget" type="number" min="0" max="10000" step="5" value="85" aria-label="Presupuesto semanal" /><small>esta semana</small></label>
+          </div>
+          <details class="meal-plan-questionnaire">
+            <summary><span><strong>Cuéntale a Roxy cómo es tu semana</strong><small>Se guarda para tus próximos planes</small></span><span class="material-symbols-rounded" aria-hidden="true">tune</span></summary>
+            <div class="meal-plan-questions">
+              <label><span>¿Cuántas veces quieren cocinar?</span><select id="mealPlanCookDays"><option value="1">Una vez por semana</option><option value="2" selected>Dos veces por semana</option><option value="3">Tres veces por semana</option><option value="5">Cinco veces por semana</option><option value="7">Todos los días</option></select></label>
+              <label><span>¿Qué comidas debe organizar Roxy?</span><select id="mealPlanScope"><option value="all">Desayuno, comida y cena</option><option value="lunch_dinner">Comida y cena</option><option value="dinner_only">Solo la cena</option></select></label>
+            </div>
+            <p>Las alergias, alimentos que no les gustan y preferencias se toman automáticamente del perfil del hogar.</p>
+          </details>
+          <button id="mealPlanCreate" class="primary full" type="submit">Crear mi plan semanal</button>
+        </form>
+        <section id="mealPlanResult" class="meal-plan-result" aria-live="polite" hidden>
+          <div class="meal-plan-focus"><span><small>Objetivo de esta semana</small><strong id="mealPlanFocus">Plan personalizado</strong></span><span class="material-symbols-rounded" aria-hidden="true">restaurant</span></div>
+          <div id="mealPlanDays" class="meal-plan-days"></div>
+          <aside id="mealPlanPrepTip" class="meal-plan-tip"></aside>
+          <section id="mealPlanPrep" class="meal-plan-prep" hidden><strong>Preparación recomendada</strong><div id="mealPlanPrepSessions"></div></section>
+          <div class="meal-plan-actions"><button id="mealPlanShopping" class="primary full" type="button"><span class="material-symbols-rounded" aria-hidden="true">shopping_cart</span> Crear lista de compras</button><button id="mealPlanPrepare" class="secondary full" type="button"><span class="material-symbols-rounded" aria-hidden="true">calendar_month</span> Preparar la semana</button></div>
+        </section>
+      </section>
+
       <form id="recipeForm" class="recipe-request card">
         <label><span>¿Qué quieres preparar?</span><textarea id="recipePrompt" rows="3" required placeholder="Quiero hacer un pan casero fácil"></textarea></label>
         <div class="inline-actions">
@@ -111,7 +145,7 @@
       </div>
 
       <section class="content-section" aria-labelledby="libraryTitle">
-        <div class="section-heading"><div><p>Tu carpeta organizada</p><h2 id="libraryTitle">Mis recetas</h2><small>Comidas · Postres · Bebidas</small></div><span id="recipeCount">0 recetas</span></div>
+        <div class="section-heading"><div><p>Incluidas y disponibles</p><h2 id="libraryTitle">Recetario de Roxy</h2><small>Toca una receta incluida para guardarla en tu carpeta</small></div><span id="recipeCount">0 recetas</span></div>
         <div id="recipeLibrary" class="recipe-library"></div>
       </section>
 
@@ -124,11 +158,6 @@
           <button class="secondary full" type="submit">Buscar sustitución segura</button>
         </form>
         <article id="substitutionResult" class="recipe-result" aria-live="polite" hidden></article>
-        <form id="weeklyPlanForm" class="kitchen-form">
-          <label><span>Plan semanal</span><input id="weeklyPlanPrompt" required placeholder="Cenas sencillas para 7 días" /></label>
-          <button class="secondary full" type="submit">Crear plan semanal</button>
-        </form>
-        <article id="weeklyPlanResult" class="recipe-result" aria-live="polite" hidden></article>
         <form id="foodSafetyForm" class="kitchen-form">
           <label><span>Seguridad alimentaria vigente</span><input id="foodSafetyQuestion" required placeholder="¿Hay retiros activos de huevos en Florida?" /></label>
           <button class="secondary full" type="submit">Investigar con Terra</button>
