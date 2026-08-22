@@ -268,13 +268,15 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
 .commerce-recent:empty { display: none; }
 .commerce-recent small { color: var(--muted); }
 .provider-disclosure { padding: .7rem .8rem; border-radius: 12px; background: #fff8e8; }
-.cooking-video { display: grid; gap: .65rem; padding: .8rem; border: 1px solid rgba(23, 63, 43, .14); border-radius: 18px; background: #edf4ec; }
+.cooking-video { display: grid; gap: .8rem; padding: .9rem; border: 1px solid rgba(23, 63, 43, .14); border-radius: 20px; background: #edf4ec; }
 .cooking-video[hidden] { display: none; }
 .cooking-video > strong { color: var(--forest); }
 .cooking-video > small { color: var(--muted); line-height: 1.4; }
-.cooking-video-clips { display: grid; gap: .5rem; }
-.cooking-video-clips video { display: block; width: 100%; aspect-ratio: 16 / 10; border-radius: 15px; background: #173f2b; object-fit: cover; }
-.cooking-video-step-label { color: var(--forest); font-size: 13px; font-weight: 800; }
+.cooking-video-clips { display: grid; gap: .65rem; }
+.cooking-video-clips video { display: block; width: 100%; aspect-ratio: 9 / 16; max-height: min(76dvh, 820px); margin-inline: auto; border-radius: 18px; background: #0c1711; object-fit: contain; box-shadow: 0 16px 38px rgba(12, 38, 26, .2); }
+.cooking-video-step-label { display: grid; gap: .2rem; color: var(--forest); font-size: 14px; font-weight: 850; }
+.cooking-video-step-label small { color: var(--muted); font-size: 11px; font-weight: 650; line-height: 1.4; }
+.cooking-visual[hidden] { display: none; }
 .commerce-confirmation { display: grid; gap: .8rem; margin-top: 1rem; padding: 1rem; border-radius: 18px; background: #edf4ec; border: 1px solid rgba(23, 63, 43, .14); }
 .commerce-confirmation[hidden] { display: none; }
 .commerce-confirmation > strong { color: var(--forest); font-family: Georgia, 'Times New Roman', serif; font-size: 1.12rem; }

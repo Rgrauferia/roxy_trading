@@ -13,11 +13,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     manifest = client.get("/lista-manifest.json")
     worker = client.get("/lista-sw.js")
     script = client.get("/assets/roxy_list.js")
+    style = client.get("/assets/roxy_list.css")
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=40"' in page.text
-    assert '/assets/roxy_list.js?v=40' in worker.text
+    assert 'src="/assets/roxy_list.js?v=41"' in page.text
+    assert '/assets/roxy_list.js?v=41' in worker.text
+    assert 'aspect-ratio: 9 / 16' in style.text
+    assert "media.loop=true" in script.text
+    assert "visual.hidden=true" in script.text
     assert 'demostraciones listas' in script.text
     assert "aria-live','polite" in script.text
     assert 'id="cookingVideo"' in page.text
