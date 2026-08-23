@@ -90,6 +90,7 @@ class RecipePhotoGenerationConfig:
     enabled: bool = False
     daily_limit: int = 600
     quality: str = "low"
+    request_interval_seconds: float = 0
 
     @classmethod
     def from_env(cls) -> "RecipePhotoGenerationConfig":
@@ -104,12 +105,20 @@ class RecipePhotoGenerationConfig:
         quality = str(os.getenv("ROXY_HOME_RECIPE_IMAGE_QUALITY") or "low").strip().lower()
         if quality not in {"low", "medium", "high"}:
             quality = "low"
+        try:
+            request_interval = max(
+                2,
+                min(30, float(os.getenv("ROXY_HOME_RECIPE_IMAGE_REQUEST_INTERVAL_SECONDS") or 12)),
+            )
+        except ValueError:
+            request_interval = 12
         return cls(
             api_key=api_key,
             model=str(os.getenv("ROXY_HOME_OPENAI_ROUTINE_MODEL") or "gpt-5.6-luna").strip(),
             enabled=enabled and bool(api_key),
             daily_limit=daily_limit,
             quality=quality,
+            request_interval_seconds=request_interval,
         )
 
 
@@ -207,6 +216,8 @@ class RecipePhotoGenerationQueue:
         self._pending: set[str] = set()
         self._lock = threading.Lock()
         self._metadata_lock = threading.Lock()
+        self._request_lock = threading.Lock()
+        self._next_request_at = 0.0
         self.budget_path = store.root / "image-generation-budget.json"
         self.failures_path = store.root / "image-generation-failures.json"
 
@@ -296,6 +307,18 @@ class RecipePhotoGenerationQueue:
             self._client = OpenAI(api_key=self.config.api_key)
         return self._client
 
+    def _wait_for_request_slot(self) -> None:
+        interval = max(0.0, float(self.config.request_interval_seconds))
+        if not interval:
+            return
+        now = time.monotonic()
+        with self._request_lock:
+            scheduled = max(now, self._next_request_at)
+            self._next_request_at = scheduled + interval
+        delay = scheduled - now
+        if delay > 0:
+            time.sleep(delay)
+
     @staticmethod
     def _image_result(response: Any) -> str:
         for item in getattr(response, "output", []) or []:
@@ -349,6 +372,7 @@ class RecipePhotoGenerationQueue:
             transient = {"APIConnectionError", "APITimeoutError", "InternalServerError", "RateLimitError", "RuntimeError"}
             for attempt in range(4):
                 try:
+                    self._wait_for_request_slot()
                     response = self._openai().responses.create(
                         model=self.config.model,
                         input=recipe_photo_prompt(recipe),
