@@ -8,14 +8,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="58" />
+  <meta name="roxy-home-version" content="59" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
   <link rel="stylesheet" href="/assets/roxy_list.css?v=52" />
-  <script src="/assets/roxy_list.js?v=58" defer></script>
+  <script src="/assets/roxy_list.js?v=59" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -29,14 +29,7 @@
   <main id="app" aria-busy="true">
     <section id="todayPanel" class="app-panel active" data-panel="today" aria-labelledby="mealPlanTitle">
       <section id="mealPlanStudio" class="meal-plan-studio" aria-labelledby="mealPlanTitle">
-        <div class="meal-plan-heading"><p class="eyebrow">Hoy en casa</p><h2 id="mealPlanTitle">¿Qué comemos hoy?</h2><p>Tu desayuno, comida y cena primero; el resto de la semana queda a un toque.</p></div>
-        <section id="mealPlanResult" class="meal-plan-result" aria-live="polite" hidden>
-          <div class="meal-plan-focus"><span><small>Objetivo de esta semana</small><strong id="mealPlanFocus">Plan personalizado</strong></span><span class="material-symbols-rounded" aria-hidden="true">restaurant</span></div>
-          <div id="mealPlanDays" class="meal-plan-days"></div>
-          <aside id="mealPlanPrepTip" class="meal-plan-tip"></aside>
-          <section id="mealPlanPrep" class="meal-plan-prep" hidden><strong>Preparación recomendada</strong><div id="mealPlanPrepSessions"></div></section>
-          <div class="meal-plan-actions"><button id="mealPlanShopping" class="primary full" type="button"><span class="material-symbols-rounded" aria-hidden="true">shopping_cart</span> Crear lista de compras</button><button id="mealPlanPrepare" class="secondary full" type="button"><span class="material-symbols-rounded" aria-hidden="true">calendar_month</span> Preparar la semana</button></div>
-        </section>
+        <div class="meal-plan-heading"><p class="eyebrow">Tu semana, organizada</p><h2 id="mealPlanTitle">Plan de comidas</h2><p>Roxy adapta desayuno, comida y cena al ritmo real de tu hogar.</p></div>
         <details id="mealPlanSetup" class="meal-plan-setup" open>
           <summary><span><strong>Ajustar mi plan</strong><small>Personas, tiempo, presupuesto y objetivo</small></span><span class="material-symbols-rounded" aria-hidden="true">tune</span></summary>
           <form id="mealPlanForm">
@@ -62,6 +55,13 @@
           <button id="mealPlanCreate" class="primary full" type="submit">Crear mi plan semanal</button>
           </form>
         </details>
+        <section id="mealPlanResult" class="meal-plan-result" aria-live="polite" hidden>
+          <div class="meal-plan-focus"><span><small>Objetivo de esta semana</small><strong id="mealPlanFocus">Plan personalizado</strong><em id="mealPlanBalance">Variado y equilibrado</em></span><span class="material-symbols-rounded" aria-hidden="true">restaurant</span></div>
+          <div id="mealPlanDays" class="meal-plan-days"></div>
+          <aside id="mealPlanPrepTip" class="meal-plan-tip"></aside>
+          <section id="mealPlanPrep" class="meal-plan-prep" hidden><strong>Preparación recomendada</strong><div id="mealPlanPrepSessions"></div></section>
+          <div class="meal-plan-actions"><button id="mealPlanShopping" class="primary full" type="button"><span class="material-symbols-rounded" aria-hidden="true">shopping_cart</span> Crear lista de compras</button><button id="mealPlanPrepare" class="secondary full" type="button"><span class="material-symbols-rounded" aria-hidden="true">calendar_month</span> Preparar la semana</button></div>
+        </section>
       </section>
 
       <section id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle">

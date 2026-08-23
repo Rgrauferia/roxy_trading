@@ -17,9 +17,9 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="58"' in page.text
-    assert 'src="/assets/roxy_list.js?v=58"' in page.text
-    assert '/assets/roxy_list.js?v=58' in worker.text
+    assert 'name="roxy-home-version" content="59"' in page.text
+    assert 'src="/assets/roxy_list.js?v=59"' in page.text
+    assert '/assets/roxy_list.js?v=59' in worker.text
     assert page.headers["cache-control"] == "no-store, no-cache, must-revalidate, max-age=0"
     assert page.headers["pragma"] == "no-cache"
     assert "event.persisted" in script.text
@@ -127,6 +127,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "/weekly-plans/" in script.text
     assert "updateWeeklyPlanMeal" in script.text
     assert "updateWeeklyPlanDay" in script.text
+    assert "mealPlanForm').requestSubmit()" in script.text
     assert "Comeremos sobras" in script.text
     assert "Cambiar ${meal.title}" in script.text
     assert 'id="substitutionForm"' in page.text
@@ -158,7 +159,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "recipeCategories" in script.text
     assert "coffee_hot" in script.text
     assert "bowls_salads" in script.text
-    assert "setup.open=false" in script.text
+    assert "setup.open=true" in script.text
+    assert "setup.classList.toggle('has-plan',Boolean(plan))" in script.text
     assert 'id="recipePersonalForm"' in page.text
     assert 'id="deleteRecipeButton"' in page.text
     assert "deleteCurrentRecipe" in script.text

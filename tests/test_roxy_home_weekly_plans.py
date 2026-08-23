@@ -19,8 +19,23 @@ def test_weekly_styles_generate_complete_real_meals_without_openai():
         assert len(plan["days"]) == 7
         assert all(len(day["meals"]) == 3 for day in plan["days"])
         assert all(meal["ingredients"] or meal["key"] == "leftovers" for day in plan["days"] for meal in day["meals"])
+        assert all(meal["nutrition_goal"] == plan["balance_note"] for day in plan["days"] for meal in day["meals"])
         assert plan["days"][0]["date"] == "2026-08-22"
         assert plan["days"][0]["day"] == "Sábado"
+
+
+def test_weekly_styles_apply_distinct_health_rules():
+    quick = create_local_weekly_plan({}, style="quick", people=2, max_minutes=45, weekly_budget=85)
+    fitness = create_local_weekly_plan({}, style="fitness", people=2, max_minutes=40, weekly_budget=85)
+    normal = create_local_weekly_plan({}, style="normal", people=2, max_minutes=40, weekly_budget=85)
+    weight_loss = create_local_weekly_plan({}, style="weight_loss", people=2, max_minutes=40, weekly_budget=85)
+
+    assert quick["max_minutes"] == 20
+    assert all(meal["minutes"] <= 20 for day in quick["days"] for meal in day["meals"])
+    assert "Proteína suficiente" in fitness["balance_note"]
+    assert "variedad" in normal["balance_note"]
+    assert "saciantes" in weight_loss["balance_note"]
+    assert [meal["key"] for meal in fitness["days"][0]["meals"]] != [meal["key"] for meal in weight_loss["days"][0]["meals"]]
 
 
 def test_spoken_weekly_days_follow_plan_starting_today():

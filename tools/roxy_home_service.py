@@ -54,6 +54,7 @@ from roxy_os.home_commerce import (
 )
 from roxy_os.home_food import HomeFoodStore, HomePermissionPolicy
 from roxy_os.home_weekly_plans import (
+    MEALS,
     create_local_weekly_plan,
     update_weekly_plan_day,
     update_weekly_plan_meal,
@@ -262,6 +263,11 @@ _RECIPE_PHOTO_QUEUE_LOCK = threading.Lock()
 def _all_recipe_photo_rows() -> list[dict[str, Any]]:
     rows = [
         *local_recipe_catalog({"profile": {"allergies": []}}),
+        *(
+            {**meal, "kind": "meal", "description": f"Resultado final de {meal.get('title') or 'la receta'}"}
+            for meal in MEALS.values()
+            if meal.get("title")
+        ),
         *_home_food_store().all_saved_recipes(),
     ]
     unique: list[dict[str, Any]] = []
@@ -1657,6 +1663,10 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
     snapshot = _home_food_store().snapshot(user)
     for recipe in snapshot.get("recipes", []):
         _recipe_photo_queue().schedule(recipe)
+    for plan in snapshot.get("weekly_plans", []):
+        for day in plan.get("days", []):
+            for meal in day.get("meals", []):
+                _recipe_photo_queue().schedule({**meal, "kind": "meal"})
     return {
         **snapshot,
         "local_catalog": local_recipe_catalog_summary(),

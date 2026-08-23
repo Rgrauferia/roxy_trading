@@ -78,6 +78,13 @@ STYLE_META = {
     "weight_loss": ("Porciones y saciedad", "Priorizar proteína, vegetales y fibra"),
 }
 
+STYLE_BALANCE = {
+    "fitness": "Proteína suficiente, carbohidratos útiles y energía para entrenar",
+    "normal": "Proteína, vegetales, cereales y variedad durante toda la semana",
+    "quick": "Platos completos que se preparan en 20 minutos o menos",
+    "weight_loss": "Proteína, vegetales y fibra para porciones saciantes",
+}
+
 SPANISH_WEEKDAYS = ("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo")
 
 
@@ -98,6 +105,7 @@ def create_local_weekly_plan(
     cook_days: int = 2, meal_scope: str = "all", start_date: date | None = None,
 ) -> dict[str, Any]:
     selected_style = style if style in STYLE_SCHEDULES else "normal"
+    effective_max_minutes = min(max_minutes, 20) if selected_style == "quick" else max_minutes
     profile = (snapshot or {}).get("profile") or {}
     exclusions = {_identity(value) for value in [*(profile.get("allergies") or []), *(profile.get("dislikes") or [])] if _identity(value)}
     alternatives_by_position = [
@@ -106,7 +114,7 @@ def create_local_weekly_plan(
             for schedule in STYLE_SCHEDULES.values()
             for day in schedule
             for key in [day[position]]
-            if int(MEALS[key].get("minutes") or 0) <= max_minutes or key == "leftovers"
+            if int(MEALS[key].get("minutes") or 0) <= effective_max_minutes or key == "leftovers"
         ]
         for position in range(3)
     ]
@@ -134,20 +142,21 @@ def create_local_weekly_plan(
                     for key in saved_favorites
                     if key in alternatives_by_position[meal_index]
                     and _compatible(MEALS[key], exclusions)
-                    and int(MEALS[key].get("minutes") or 0) <= max_minutes
+                    and int(MEALS[key].get("minutes") or 0) <= effective_max_minutes
                 ),
                 None,
             )
             if favorite and index == meal_index:
                 planned_keys[meal_index] = favorite
         meals = [
-            _meal(key, exclusions, alternatives_by_position[position], max_minutes)
+            _meal(key, exclusions, alternatives_by_position[position], effective_max_minutes)
             for position, key in enumerate(planned_keys)
             if position in selected_meal_indexes
         ]
         for position, meal in zip(selected_meal_indexes, meals):
             meal["meal_type"] = ("breakfast", "lunch", "dinner")[position]
             meal["servings"] = people
+            meal["nutrition_goal"] = STYLE_BALANCE[selected_style]
             meal["ingredients"] = [{**row, "quantity": round(float(row["quantity"]) * people, 3)} for row in meal["ingredients"]]
         days.append({
             "day": SPANISH_WEEKDAYS[current.weekday()],
@@ -179,11 +188,12 @@ def create_local_weekly_plan(
         "style": selected_style,
         "style_description": description,
         "people": people,
-        "max_minutes": max_minutes,
+        "max_minutes": effective_max_minutes,
         "weekly_budget": round(weekly_budget, 2),
         "cook_days": cook_days,
         "meal_scope": meal_scope if meal_scope in {"all", "lunch_dinner", "dinner_only"} else "all",
         "focus": focus,
+        "balance_note": STYLE_BALANCE[selected_style],
         "days": days,
         "prep_tip": f"Roxy organiza {cook_days} {'sesión' if cook_days == 1 else 'sesiones'} de cocina y reutiliza bases durante la semana.",
         "prep_sessions": prep_sessions,
