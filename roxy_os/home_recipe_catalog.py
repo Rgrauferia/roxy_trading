@@ -13,6 +13,8 @@ import unicodedata
 from functools import lru_cache
 from typing import Any
 
+from roxy_os.home_recipe_editorial import editorialize_recipe
+
 
 CATEGORY_META: dict[str, dict[str, str]] = {
     "breakfast": {"title": "Desayunos", "description": "Huevos, avena, yogur, pancakes y tostadas", "icon": "egg_alt"},
@@ -267,9 +269,10 @@ def installed_recipe_templates() -> dict[str, dict[str, Any]]:
                 continue
             kind, servings, ingredients, steps = _base_for(category, title)
             ingredients = _add_characteristic_ingredients(title, ingredients)
+            ingredients, steps, description = editorialize_recipe(category, title, kind, ingredients)
             rows[key] = {
                 "title": title,
-                "description": f"Receta práctica de {title.lower()}, incluida en Roxy Home.",
+                "description": description,
                 "kind": kind,
                 "category": category,
                 "subcategory": subcategory,

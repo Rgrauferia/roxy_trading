@@ -7,6 +7,7 @@ from functools import lru_cache
 from typing import Any
 
 from roxy_os.home_recipe_catalog import installed_recipe_templates
+from roxy_os.home_recipe_editorial import editorialize_recipe
 
 
 def _identity(value: Any) -> str:
@@ -82,6 +83,20 @@ def _templates() -> dict[str, dict[str, Any]]:
             row["category"] = "baked"
         else:
             row["category"] = "pasta" if re.search(r"pasta|espagueti|lasa", _identity(row.get("title"))) else "chicken" if "pollo" in _identity(row.get("title")) else "bowls_salads" if re.search(r"bowl|ensalada", _identity(row.get("title"))) else "soups" if re.search(r"sopa|lenteja", _identity(row.get("title"))) else "meat"
+    vague_phrases = ("metodo indicado", "segun corresponda", "orden indicado", "punto correcto", "cocina u hornea")
+    for row in templates.values():
+        steps_text = _identity(" ".join(str(step) for step in row.get("steps") or []))
+        if len(row.get("steps") or []) >= 5 and not any(phrase in steps_text for phrase in vague_phrases):
+            continue
+        ingredients, steps, description = editorialize_recipe(
+            str(row.get("category") or ""),
+            str(row.get("title") or "Receta"),
+            str(row.get("kind") or "meal"),
+            list(row.get("ingredients") or []),
+        )
+        row["ingredients"] = ingredients
+        row["steps"] = steps
+        row["description"] = description
     return templates
 
 

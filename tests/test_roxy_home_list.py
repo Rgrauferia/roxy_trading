@@ -17,7 +17,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="63"' in page.text
+    assert 'name="roxy-home-version" content="64"' in page.text
     assert 'href="/assets/roxy_list.css?v=56"' in page.text
     assert 'src="/assets/roxy_list.js?v=62"' in page.text
     assert '/assets/roxy_list.css?v=56' in worker.text
@@ -546,8 +546,8 @@ def test_roxy_voice_saves_recipe_adds_ingredients_and_guides_steps(tmp_path, mon
     assert ingredients.json()["intent"] == "recipe_to_shopping"
     assert recipe.json()["data"]["generation_mode"] == "voice_local_recipe_catalog"
     assert ingredients.json()["snapshot"]["pending_count"] == 4
-    assert guide.json()["data"]["cooking"]["current_step"] == "Exprime los limones."
-    assert next_step.json()["data"]["cooking"]["current_step"] == "Disuelve el azúcar en una taza de agua."
+    assert guide.json()["data"]["cooking"]["current_step"].startswith("Lava la fruta")
+    assert next_step.json()["data"]["cooking"]["current_step"].startswith("Corta todo en trozos")
     assert timer.json()["intent"] == "cooking_timer_set"
     assert timer.json()["data"]["timer"]["duration_seconds"] == 300
     assert time_left.json()["intent"] == "cooking_timer_query"

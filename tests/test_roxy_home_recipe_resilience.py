@@ -138,6 +138,42 @@ def test_installed_catalog_has_requested_categories_and_real_recipe_payloads():
         assert by_title[title]["steps"]
 
 
+def test_every_local_recipe_is_editorially_complete_and_has_no_placeholder_instructions():
+    from roxy_os.home_recipe_fallback import local_recipe_catalog
+
+    rows = local_recipe_catalog({"profile": {"allergies": []}})
+    forbidden = (
+        "método indicado",
+        "según corresponda",
+        "orden indicado",
+        "punto correcto",
+        "cocina u hornea",
+        "ingrediente principal",
+    )
+    assert len(rows) >= 500
+    for recipe in rows:
+        steps = recipe["steps"]
+        instructions = " ".join(steps).casefold()
+        assert len(steps) >= 5, recipe["title"]
+        assert all(len(step.strip()) >= 25 for step in steps), recipe["title"]
+        assert not any(phrase in instructions for phrase in forbidden), recipe["title"]
+
+
+def test_pollo_alfredo_explains_the_complete_recipe_instead_of_a_generic_method():
+    from roxy_os.home_recipe_fallback import exact_local_recipe
+
+    recipe = exact_local_recipe("Pollo Alfredo")
+    assert recipe is not None
+    ingredient_names = {row["name"] for row in recipe["ingredients"]}
+    assert {"Fettuccine", "Crema de leche", "Queso parmesano rallado", "Pollo"} <= ingredient_names
+    assert len(recipe["steps"]) == 6
+    instructions = " ".join(recipe["steps"])
+    assert "al dente" in instructions
+    assert "74 °C" in instructions
+    assert "2 minutos" in instructions
+    assert "método indicado" not in instructions
+
+
 def test_shopping_voice_understands_more_natural_vocabulary():
     from tools.roxy_home_service import _assistant_shopping_intent, _assistant_shopping_requests
     assert _assistant_shopping_intent("échame dos yogures en la lista") == "shopping_add"
