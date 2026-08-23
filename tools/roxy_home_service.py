@@ -870,7 +870,9 @@ def health() -> dict[str, str | int]:
 @app.get("/lista", response_class=FileResponse)
 def shopping_page() -> Response:
     response = FileResponse(ASSETS_DIR / "roxy_list.html", media_type="text/html")
-    response.headers["Cache-Control"] = "no-cache"
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; img-src 'self' data:; style-src 'self' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "

@@ -2,6 +2,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
+  const APP_VERSION = '55';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',HOUSEHOLD:'Hogar',PERSONAL:'Aseo',HEALTH:'Salud',OTHER:'Otros',GENERAL:'General'};
   const staples = [
@@ -989,11 +990,23 @@
   }
 
   bind();renderHomeMoment();setInterval(renderHomeMoment,30000);render();
+  window.addEventListener('pageshow',event=>{if(event.persisted)location.reload()});
   if('scrollRestoration'in history)history.scrollRestoration='manual';
   const initialPanels={hoy:'today',compra:'shopping',recetas:'recipes',despensa:'pantry',mas:'more'};
   selectPanel(initialPanels[location.hash.slice(1)]||'today',{smooth:false});load();
   if('serviceWorker'in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){
     const homeRoute=location.pathname.startsWith('/home');
-    navigator.serviceWorker.register(homeRoute?'/home-sw.js':'/lista-sw.js',{scope:homeRoute?'/home':'/lista',updateViaCache:'none'}).catch(()=>{});
+    navigator.serviceWorker.register(homeRoute?'/home-sw.js':'/lista-sw.js',{scope:homeRoute?'/home':'/lista',updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});
   }
+  async function refreshStaleApp(){
+    if(document.visibilityState==='hidden')return;
+    try{
+      const response=await fetch(`${location.pathname}?version-check=${Date.now()}`,{cache:'no-store',credentials:'same-origin'});
+      if(!response.ok)return;
+      const html=await response.text();
+      const match=html.match(/name="roxy-home-version" content="([^"]+)"/);
+      if(match&&match[1]!==APP_VERSION)location.reload();
+    }catch(_error){}
+  }
+  document.addEventListener('visibilitychange',refreshStaleApp);
 })();

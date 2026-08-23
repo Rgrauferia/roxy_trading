@@ -17,8 +17,14 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=54"' in page.text
-    assert '/assets/roxy_list.js?v=54' in worker.text
+    assert 'name="roxy-home-version" content="55"' in page.text
+    assert 'src="/assets/roxy_list.js?v=55"' in page.text
+    assert '/assets/roxy_list.js?v=55' in worker.text
+    assert page.headers["cache-control"] == "no-store, no-cache, must-revalidate, max-age=0"
+    assert page.headers["pragma"] == "no-cache"
+    assert "event.persisted" in script.text
+    assert "registration.update()" in script.text
+    assert "refreshStaleApp" in script.text
     assert 'id="todayPanel"' in page.text
     assert 'data-tab-link="today"' in page.text
     assert page.text.index('id="todayPanel"') < page.text.index('id="shoppingPanel"') < page.text.index('id="recipesPanel"')
