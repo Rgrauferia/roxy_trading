@@ -136,7 +136,7 @@
     if(/\b(bebida|limonada|jugo|zumo|batido|smoothie|mojito|coctel|cocktail)\b/.test(searchable))return'/assets/roxy_home/recipes/drinks.png';
     const category=recipeCategoryId(recipe||{});
     const categoryImages={breakfast:'breakfast.jpg',chicken:'proteins.jpg',meat:'proteins.jpg',seafood:'proteins.jpg',rice:'rice-pasta.jpg',pasta:'rice-pasta.jpg',soups:'soups-bowls.jpg',bowls_salads:'soups-bowls.jpg',vegetarian:'soups-bowls.jpg',baked:'baked.jpg',sides_sauces:'soups-bowls.jpg',desserts:'desserts.jpg',coffee_hot:'coffee.jpg',juices:'juices-smoothies.jpg',smoothies:'juices-smoothies.jpg',cocktails:'drinks.png'};
-    if(categoryImages[category])return category==='cocktails'?'/assets/roxy_home/recipes/drinks.png':`/assets/roxy_home/recipe_categories/${categoryImages[category]}`;
+    if(categoryImages[category])return category==='cocktails'?'/assets/roxy_home/recipes/drinks.png':`/assets/roxy_home/recipe_categories/${categoryImages[category]}?v=1`;
     const kind = recipe && recipe.kind;
     if (kind === 'bread') return '/assets/roxy_home/recipes/bread.png';
     if (kind === 'drink') return '/assets/roxy_home/recipes/drinks.png';

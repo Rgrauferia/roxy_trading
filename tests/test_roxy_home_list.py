@@ -17,8 +17,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=47"' in page.text
-    assert '/assets/roxy_list.js?v=47' in worker.text
+    assert 'src="/assets/roxy_list.js?v=48"' in page.text
+    assert '/assets/roxy_list.js?v=48' in worker.text
     assert 'id="todayPanel"' in page.text
     assert 'data-tab-link="today"' in page.text
     assert page.text.index('id="todayPanel"') < page.text.index('id="shoppingPanel"') < page.text.index('id="recipesPanel"')
@@ -173,6 +173,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     dockerfile = (roxy_home_service.ASSETS_DIR.parent / "Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert "COPY assets/roxy_home/products ./assets/roxy_home/products" in dockerfile
     assert "COPY assets/roxy_home/recipes ./assets/roxy_home/recipes" in dockerfile
+    assert "COPY assets/roxy_home/recipe_categories ./assets/roxy_home/recipe_categories" in dockerfile
     assert "ROXY_HOME_ACCOUNTS_PATH=/var/data/roxy_home/accounts.json" in dockerfile
     assert "ROXY_HOME_VIDEO_LIBRARY_PATH=/var/data/roxy_home/recipe_video_library.json" in dockerfile
     assert "ROXY_HOME_VIDEO_MEDIA_DIR=/var/data/roxy_home/recipe_videos" in dockerfile
@@ -183,6 +184,9 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
         assert f"/assets/roxy_home/recipes/{asset}" in script.text
         assert f"/assets/roxy_home/recipes/{asset}" in worker.text
         assert client.get(f"/assets/roxy_home/recipes/{asset}").status_code == 200
+    for asset in ("breakfast.jpg", "proteins.jpg", "rice-pasta.jpg", "soups-bowls.jpg", "baked.jpg", "desserts.jpg", "coffee.jpg", "juices-smoothies.jpg"):
+        assert f"/assets/roxy_home/recipe_categories/{asset}?v=1" in worker.text
+        assert client.get(f"/assets/roxy_home/recipe_categories/{asset}").status_code == 200
 
 
 def test_shopping_api_crud_complete_history_and_user_isolation(tmp_path, monkeypatch):
