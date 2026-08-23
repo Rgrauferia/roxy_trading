@@ -635,7 +635,8 @@
     catch(error){announce(error.message)}
   }
   function openRecipeByTitle(title){const key=normalize(title);const rows=[...(homeFood.recipes||[]),...(homeFood.local_recipes||[])];const recipe=rows.find(row=>normalize(row.title||'')===key)||rows.find(row=>{const candidate=normalize(row.title||'');return candidate.length>7&&(key.includes(candidate)||candidate.includes(key))});if(recipe){recipe.catalog_key?openCatalogRecipe(recipe):openRecipe(recipe)}else{selectPanel('recipes');$('recipeSearch').value=title;recipeSearch=key;renderRecipes()}}
-  function addTextList(root,rows,ordered=false){const list=document.createElement(ordered?'ol':'ul');(rows||[]).forEach(row=>{const item=document.createElement('li');item.textContent=typeof row==='string'?row:`${row.quantity||''} ${row.unit||''} de ${row.name||''}${row.notes?` · ${row.notes}`:''}`.trim();list.append(item)});root.append(list);}
+  function recipeQuantity(value){const number=Number(value);if(!Number.isFinite(number))return String(value||'');const whole=Math.floor(number);const fraction=number-whole;const matches=[[.25,'1/4'],[1/3,'1/3'],[.5,'1/2'],[2/3,'2/3'],[.75,'3/4']];const match=matches.find(([candidate])=>Math.abs(fraction-candidate)<.015);if(match)return`${whole?`${whole} `:''}${match[1]}`;return new Intl.NumberFormat('es',{maximumFractionDigits:2}).format(number)}
+  function addTextList(root,rows,ordered=false){const list=document.createElement(ordered?'ol':'ul');(rows||[]).forEach(row=>{const item=document.createElement('li');item.textContent=typeof row==='string'?row:`${recipeQuantity(row.quantity)} ${row.unit||''} de ${row.name||''}${row.notes?` · ${row.notes}`:''}`.trim();list.append(item)});root.append(list);}
   function openRecipe(recipe){
     currentRecipe=recipe;$('recipeDialogTitle').textContent=recipe.title||'Receta de Roxy';
     const root=$('recipeDialogContent');root.replaceChildren();
