@@ -8,14 +8,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="61" />
+  <meta name="roxy-home-version" content="62" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=54" />
-  <script src="/assets/roxy_list.js?v=61" defer></script>
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=56" />
+  <script src="/assets/roxy_list.js?v=62" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -28,6 +28,10 @@
 
   <main id="app" aria-busy="true">
     <section id="todayPanel" class="app-panel active" data-panel="today" aria-labelledby="mealPlanTitle">
+      <section id="upcomingEventCard" class="upcoming-event-card" hidden>
+        <span class="material-symbols-rounded" aria-hidden="true">event_upcoming</span>
+        <button id="upcomingEventButton" type="button" data-tab-link="calendar"><small>Próximo evento</small><strong id="upcomingEventTitle">Tu agenda está libre</strong><em id="upcomingEventTime"></em></button>
+      </section>
       <section id="mealPlanStudio" class="meal-plan-studio" aria-labelledby="mealPlanTitle">
         <div class="meal-plan-heading"><p class="eyebrow">Tu semana, organizada</p><h2 id="mealPlanTitle">Plan de comidas</h2><p>Roxy adapta desayuno, comida y cena al ritmo real de tu hogar.</p></div>
         <details id="mealPlanSetup" class="meal-plan-setup" open>
@@ -77,6 +81,28 @@
         <p id="connectionState" class="connection" role="status" aria-live="polite">Conectando…</p>
       </section>
 
+    </section>
+
+    <section id="calendarPanel" class="app-panel calendar-panel" data-panel="calendar" aria-labelledby="calendarTitle" hidden>
+      <header class="calendar-heading">
+        <div><p class="eyebrow">Tu tiempo, organizado</p><h2 id="calendarTitle">Calendario</h2><p id="calendarSyncStatus"><span aria-hidden="true"></span> Listo para sincronizar con tu teléfono</p></div>
+        <button type="button" class="calendar-profile-button" data-tab-link="more" aria-label="Abrir perfil y configuraciones"><span class="material-symbols-rounded" aria-hidden="true">manage_accounts</span></button>
+      </header>
+      <nav class="calendar-view-tabs" aria-label="Vista del calendario">
+        <button class="active" type="button" data-calendar-view="today">Hoy</button>
+        <button type="button" data-calendar-view="week">Semana</button>
+        <button type="button" data-calendar-view="month">Mes</button>
+        <button type="button" data-calendar-view="year">Año</button>
+      </nav>
+      <section class="calendar-hero">
+        <div><h3>Tu semana,<br />organizada</h3><span aria-hidden="true"></span><p>Dile a Roxy qué tienes planificado y ella prepara la propuesta para que tú la confirmes.</p></div>
+        <div class="calendar-roxy-action"><img src="/assets/roxy_avatar_icon.jpg" alt="Roxy" /><button id="calendarVoiceButton" class="primary" type="button"><span class="material-symbols-rounded" aria-hidden="true">mic</span> Agregar hablando</button></div>
+      </section>
+      <section id="calendarWeekStrip" class="calendar-week-strip" aria-label="Navegar por la semana"></section>
+      <section id="calendarAgenda" class="calendar-agenda" aria-live="polite"></section>
+      <section id="calendarMonth" class="calendar-month" hidden></section>
+      <section id="calendarYear" class="calendar-year" hidden></section>
+      <button id="calendarAddButton" class="calendar-add-button" type="button" aria-label="Agregar evento"><span class="material-symbols-rounded" aria-hidden="true">add</span></button>
     </section>
 
     <section id="shoppingPanel" class="app-panel" data-panel="shopping" aria-labelledby="shoppingTitle" hidden>
@@ -223,7 +249,7 @@
     <button type="button" data-tab-link="shopping"><span class="material-symbols-rounded" aria-hidden="true">shopping_cart</span><strong>Compra</strong></button>
     <button id="roxyVoiceLauncher" class="roxy-nav" type="button" aria-controls="roxyVoicePanel" aria-expanded="false"><img src="/assets/roxy_avatar_icon.jpg" alt="" /><strong>Roxy</strong></button>
     <button type="button" data-tab-link="recipes"><span class="material-symbols-rounded" aria-hidden="true">menu_book</span><strong>Recetas</strong></button>
-    <button type="button" data-tab-link="more"><span class="material-symbols-rounded" aria-hidden="true">more_horiz</span><strong>Más</strong></button>
+    <button type="button" data-tab-link="calendar"><span class="material-symbols-rounded" aria-hidden="true">calendar_month</span><strong>Calendario</strong></button>
   </nav>
 
   <dialog id="customDialog" aria-labelledby="customTitle">
@@ -352,6 +378,33 @@
       <p id="confirmCopy">La lista se archivará y seguirá disponible en el historial.</p>
       <div class="dialog-actions"><button id="cancelComplete" class="secondary" value="cancel">Cancelar</button><button id="confirmComplete" class="primary" value="confirm">Sí, archivar</button></div>
     </form>
+  </dialog>
+
+  <dialog id="calendarEventDialog" class="calendar-event-dialog" aria-labelledby="calendarEventDialogTitle">
+    <form id="calendarEventForm">
+      <div class="dialog-heading"><div><p class="eyebrow">Roxy Calendar</p><h2 id="calendarEventDialogTitle">Nuevo evento</h2></div><button type="button" data-close-dialog="calendarEventDialog" aria-label="Cerrar">Cerrar</button></div>
+      <input id="calendarEventId" type="hidden" />
+      <label><span>Evento</span><input id="calendarEventTitle" maxlength="160" required placeholder="Ej. Llamada del trabajo" /></label>
+      <div class="form-row"><label><span>Fecha</span><input id="calendarEventDate" type="date" required /></label><label><span>Hora</span><input id="calendarEventTime" type="time" required /></label></div>
+      <div class="form-row"><label><span>Duración</span><select id="calendarEventDuration"><option value="30">30 minutos</option><option value="60" selected>1 hora</option><option value="90">1 hora y media</option><option value="120">2 horas</option></select></label><label><span>Recordatorio</span><select id="calendarEventReminder"><option value="0">Sin aviso</option><option value="10">10 min antes</option><option value="30">30 min antes</option><option value="60" selected>1 hora antes</option><option value="1440">1 día antes</option></select></label></div>
+      <label><span>Calendario</span><select id="calendarEventCategory"><option value="PERSONAL">Personal</option><option value="WORK">Trabajo</option><option value="FAMILY">Familia</option><option value="SCHOOL">Escuela</option><option value="APPOINTMENTS">Citas</option><option value="HOME">Hogar</option></select></label>
+      <label><span>Repetir</span><select id="calendarEventRecurrence"><option value="NONE">No repetir</option><option value="DAILY">Todos los días</option><option value="WEEKLY">Cada semana</option><option value="WEEKDAYS">De lunes a viernes</option></select></label>
+      <label id="calendarRecurrenceUntilLabel" hidden><span>Repetir hasta</span><input id="calendarEventRecurrenceUntil" type="date" /></label>
+      <label><span>Ubicación</span><input id="calendarEventLocation" maxlength="240" placeholder="Opcional" /></label>
+      <label><span>Notas</span><textarea id="calendarEventNotes" rows="3" maxlength="2000" placeholder="Detalles importantes"></textarea></label>
+      <label><span>Participantes</span><input id="calendarEventParticipants" maxlength="500" placeholder="Correos separados por comas" /></label>
+      <p id="calendarEventError" class="error" role="alert"></p>
+      <div class="calendar-form-actions"><button id="calendarDeleteButton" class="danger-button" type="button" hidden>Eliminar</button><a id="calendarExportButton" class="secondary calendar-export-button" hidden>Agregar al iPhone</a><button class="primary" type="submit">Revisar evento</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="calendarConfirmDialog" class="calendar-confirm-dialog" aria-labelledby="calendarConfirmTitle">
+    <article>
+      <p class="eyebrow">Confirma antes de guardar</p><h2 id="calendarConfirmTitle">¿Programamos este evento?</h2>
+      <div id="calendarConfirmSummary"></div>
+      <div id="calendarConflictWarning" class="calendar-conflict" hidden></div>
+      <div class="dialog-actions"><button id="calendarConfirmCancel" class="secondary" type="button">Cambiar</button><button id="calendarConfirmSave" class="primary" type="button">Sí, programar</button></div>
+    </article>
   </dialog>
 
   <section id="roxyVoicePanel" class="roxy-voice-panel" aria-labelledby="roxyVoiceTitle" hidden>

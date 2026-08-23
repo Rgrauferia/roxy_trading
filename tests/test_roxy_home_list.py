@@ -17,11 +17,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="61"' in page.text
-    assert 'href="/assets/roxy_list.css?v=54"' in page.text
-    assert 'src="/assets/roxy_list.js?v=61"' in page.text
-    assert '/assets/roxy_list.css?v=54' in worker.text
-    assert '/assets/roxy_list.js?v=61' in worker.text
+    assert 'name="roxy-home-version" content="62"' in page.text
+    assert 'href="/assets/roxy_list.css?v=56"' in page.text
+    assert 'src="/assets/roxy_list.js?v=62"' in page.text
+    assert '/assets/roxy_list.css?v=56' in worker.text
+    assert '/assets/roxy_list.js?v=62' in worker.text
     assert 'class="meal-plan-limits"' not in page.text
     assert page.headers["cache-control"] == "no-store, no-cache, must-revalidate, max-age=0"
     assert page.headers["pragma"] == "no-cache"
@@ -31,6 +31,16 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "img-src 'self' data: blob:" in page.headers["content-security-policy"]
     assert "URL.revokeObjectURL(objectUrl)" in script.text
     assert 'id="todayPanel"' in page.text
+    assert 'id="calendarPanel"' in page.text
+    assert 'data-tab-link="calendar"' in page.text
+    assert '<strong>Calendario</strong>' in page.text
+    assert 'id="calendarEventDialog"' in page.text
+    assert 'id="calendarConfirmDialog"' in page.text
+    assert 'id="upcomingEventCard"' in page.text
+    assert '/v1/home-calendar/' in script.text
+    assert "Notification.requestPermission" in script.text
+    assert "data-calendar-view" in page.text
+    assert ".calendar-agenda[hidden]" in style.text
     assert 'data-tab-link="today"' in page.text
     assert page.text.index('id="todayPanel"') < page.text.index('id="shoppingPanel"') < page.text.index('id="recipesPanel"')
     assert page.text.index('id="mealPlanStudio"') < page.text.index('id="recipesPanel"')

@@ -8,6 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app \
     ROXY_SHOPPING_LIST_PATH=/var/data/roxy_home/shopping_list.json \
     ROXY_HOME_ACCOUNTS_PATH=/var/data/roxy_home/accounts.json \
+    ROXY_HOME_CALENDAR_PATH=/var/data/roxy_home/calendar.json \
     ROXY_HOME_COMMERCE_PATH=/var/data/roxy_home/commerce.json \
     ROXY_HOME_RECIPE_LIBRARY_PATH=/var/data/roxy_home/recipe_library.sqlite \
     ROXY_HOME_RECIPE_PHOTO_DIR=/var/data/roxy_home/recipe_photos \

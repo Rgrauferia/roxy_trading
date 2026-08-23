@@ -2,7 +2,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '61';
+  const APP_VERSION = '62';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',HOUSEHOLD:'Hogar',PERSONAL:'Aseo',HEALTH:'Salud',OTHER:'Otros',GENERAL:'General'};
   const staples = [
@@ -78,6 +78,12 @@
   const announcedTimers = new Set();
   let greetingName=String(localStorage.getItem('roxyHomeGreetingName')||'').trim().slice(0,32);
   let account={mode:'unknown',display_name:'',storage_user_id:user,role:''};
+  let homeCalendar={events:[],pending_draft:null,sync:{native_export:true,provider:'ICS'}};
+  let calendarView='today';
+  let calendarSelectedDate=new Date();
+  let calendarDisplayMonth=new Date(calendarSelectedDate.getFullYear(),calendarSelectedDate.getMonth(),1);
+  let pendingCalendarDraft=null;
+  const calendarReminderTimers=new Map();
 
   const activePersonName=()=>String(account.mode==='member'?account.display_name:greetingName||'').trim();
 
@@ -209,17 +215,22 @@
     try {
       account=await api('/v1/home-account/me');
       if(account.storage_user_id){user=account.storage_user_id;localStorage.setItem('roxyShoppingUser',user)}
-      const [shopping,food,shoppingCommerce] = await Promise.all([
+      const rangeStart=new Date();rangeStart.setHours(0,0,0,0);rangeStart.setDate(rangeStart.getDate()-7);
+      const rangeEnd=new Date(rangeStart);rangeEnd.setDate(rangeEnd.getDate()+370);
+      const [shopping,food,shoppingCommerce,calendarData] = await Promise.all([
         api(`/v1/shopping/${encodeURIComponent(user)}`),
         api(`/v1/home-food/${encodeURIComponent(user)}`),
-        api(`/v1/home-commerce/${encodeURIComponent(user)}`)
+        api(`/v1/home-commerce/${encodeURIComponent(user)}`),
+        api(`/v1/home-calendar/${encodeURIComponent(user)}?start=${encodeURIComponent(rangeStart.toISOString())}&end=${encodeURIComponent(rangeEnd.toISOString())}`)
       ]);
       snapshot = shopping;
       homeFood = food;
       commerce = shoppingCommerce;
+      homeCalendar = calendarData;
       await cacheSnapshot();
       await dbSet(`home-food:${user}`,homeFood);
       await dbSet(`home-commerce:${user}`,commerce);
+      await dbSet(`home-calendar:${user}`,homeCalendar);
       await flushQueue();
       setConnection('Sincronizado ahora','online');
       populateHomeForms();
@@ -231,10 +242,12 @@
       const cached = await dbGet(`snapshot:${user}`).catch(() => null);
       const cachedFood = await dbGet(`home-food:${user}`).catch(() => null);
       const cachedCommerce = await dbGet(`home-commerce:${user}`).catch(() => null);
+      const cachedCalendar = await dbGet(`home-calendar:${user}`).catch(() => null);
       if (cached) snapshot = cached;
       if (cachedFood) homeFood = cachedFood;
       if (cachedCommerce) commerce = cachedCommerce;
-      if (cached || cachedFood || cachedCommerce) {
+      if (cachedCalendar) homeCalendar = cachedCalendar;
+      if (cached || cachedFood || cachedCommerce || cachedCalendar) {
         setConnection('Sin conexión · mostrando lo guardado','offline');
         populateHomeForms();
         render();
@@ -318,9 +331,96 @@
     });
     document.querySelectorAll('.bottom-nav [data-tab-link]').forEach(button => button.classList.toggle('active',button.dataset.tabLink === panel));
     $('homeWelcome').hidden=panel!=='today';
-    const hashes={today:'hoy',shopping:'compra',recipes:'recetas',pantry:'despensa',more:'mas'};
+    const hashes={today:'hoy',shopping:'compra',recipes:'recetas',pantry:'despensa',calendar:'calendario',more:'mas'};
     location.hash=hashes[panel]||'hoy';
     window.scrollTo({top:0,behavior:smooth?'smooth':'auto'});
+  }
+
+  const calendarCategories={PERSONAL:'Personal',WORK:'Trabajo',FAMILY:'Familia',SCHOOL:'Escuela',APPOINTMENTS:'Citas',HOME:'Hogar'};
+  const calendarIcons={PERSONAL:'person',WORK:'work',FAMILY:'family_restroom',SCHOOL:'school',APPOINTMENTS:'medical_services',HOME:'home'};
+  const dateKey=value=>{const d=value instanceof Date?value:new Date(value);return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+  const sameDate=(a,b)=>dateKey(a)===dateKey(b);
+  const startOfWeek=value=>{const d=new Date(value);d.setHours(0,0,0,0);d.setDate(d.getDate()-d.getDay());return d};
+  const formatCalendarDay=value=>new Intl.DateTimeFormat('es',{weekday:'long',day:'numeric',month:'long'}).format(value);
+  const formatCalendarTime=value=>new Intl.DateTimeFormat('es',{hour:'numeric',minute:'2-digit',hour12:true}).format(new Date(value));
+  const eventsForDay=value=>(homeCalendar.events||[]).filter(event=>sameDate(event.starts_at,value));
+
+  function renderUpcomingEvent(){
+    const upcoming=(homeCalendar.events||[]).filter(event=>new Date(event.ends_at)>new Date()).sort((a,b)=>new Date(a.starts_at)-new Date(b.starts_at))[0];
+    const card=$('upcomingEventCard');card.hidden=!upcoming;if(!upcoming)return;
+    $('upcomingEventTitle').textContent=upcoming.title;
+    $('upcomingEventTime').textContent=`${formatCalendarDay(new Date(upcoming.starts_at))} · ${formatCalendarTime(upcoming.starts_at)} · Te avisaré ${Number(upcoming.reminder_minutes||0)===60?'una hora':`${Number(upcoming.reminder_minutes||0)} min`} antes`;
+  }
+
+  function scheduleCalendarReminders(){
+    calendarReminderTimers.forEach(timer=>clearTimeout(timer));calendarReminderTimers.clear();
+    if(!('Notification'in window)||Notification.permission!=='granted')return;
+    (homeCalendar.events||[]).forEach(event=>{
+      const delay=new Date(event.starts_at).getTime()-Number(event.reminder_minutes||0)*60000-Date.now();
+      if(delay<=0||delay>2147483647)return;
+      calendarReminderTimers.set(event.occurrence_id||event.id,setTimeout(()=>new Notification('Roxy Home',{body:`${event.title} · ${formatCalendarTime(event.starts_at)}`,icon:'/assets/roxy_avatar_icon.jpg'}),delay));
+    });
+  }
+
+  function calendarEventRow(event){
+    const button=document.createElement('button');button.type='button';button.className='calendar-event-row';button.dataset.category=event.category||'PERSONAL';button.addEventListener('click',()=>openCalendarEvent(event));
+    const time=document.createElement('time');time.dateTime=event.starts_at;time.textContent=formatCalendarTime(event.starts_at);
+    const dot=document.createElement('span');dot.className='calendar-event-dot';dot.setAttribute('aria-hidden','true');
+    const icon=document.createElement('span');icon.className='calendar-event-icon material-symbols-rounded';icon.textContent=calendarIcons[event.category]||'event';icon.setAttribute('aria-hidden','true');
+    const copy=document.createElement('span');copy.className='calendar-event-copy';const title=document.createElement('strong');title.textContent=event.title;const detail=document.createElement('small');detail.textContent=[event.location,calendarCategories[event.category]||'Personal'].filter(Boolean).join(' · ');copy.append(title,detail);
+    const reminder=document.createElement('span');reminder.className='calendar-event-reminder';reminder.textContent=Number(event.reminder_minutes||0)?`Aviso ${Number(event.reminder_minutes)===60?'1 h':`${event.reminder_minutes} min`} antes`:'Sin aviso';
+    button.append(time,dot,icon,copy,reminder);return button;
+  }
+
+  function renderCalendarWeekStrip(){
+    const root=$('calendarWeekStrip');root.replaceChildren();const first=startOfWeek(calendarSelectedDate);
+    for(let index=0;index<7;index+=1){const day=new Date(first);day.setDate(first.getDate()+index);const button=document.createElement('button');button.type='button';button.className='calendar-day-button';button.classList.toggle('active',sameDate(day,calendarSelectedDate));button.classList.toggle('has-events',eventsForDay(day).length>0);button.setAttribute('aria-pressed',String(sameDate(day,calendarSelectedDate)));const label=document.createElement('small');label.textContent=new Intl.DateTimeFormat('es',{weekday:'short'}).format(day).replace('.','');const number=document.createElement('strong');number.textContent=day.getDate();button.append(label,number);button.addEventListener('click',()=>{calendarSelectedDate=day;calendarDisplayMonth=new Date(day.getFullYear(),day.getMonth(),1);renderCalendar()});root.append(button)}
+  }
+
+  function renderCalendarAgenda(){
+    const root=$('calendarAgenda');root.replaceChildren();const dates=[];
+    if(calendarView==='week'){const first=startOfWeek(calendarSelectedDate);for(let i=0;i<7;i+=1){const day=new Date(first);day.setDate(first.getDate()+i);dates.push(day)}}else dates.push(new Date(calendarSelectedDate));
+    dates.forEach(day=>{const section=document.createElement('section');section.className='calendar-agenda-day';const header=document.createElement('header');const title=document.createElement('h3');title.textContent=sameDate(day,new Date())?`Hoy, ${formatCalendarDay(day)}`:formatCalendarDay(day);const add=makeButton('+','',()=>openCalendarEvent(null,day),`Agregar evento el ${formatCalendarDay(day)}`);header.append(title,add);section.append(header);const events=eventsForDay(day);if(events.length)events.forEach(event=>section.append(calendarEventRow(event)));else{const empty=document.createElement('div');empty.className='calendar-empty';const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.textContent='event_available';const copy=document.createElement('span');copy.textContent='No hay compromisos. Puedes decirle a Roxy qué quieres programar.';empty.append(icon,copy);section.append(empty)}root.append(section)});
+  }
+
+  function renderCalendarMonth(){
+    const root=$('calendarMonth');root.replaceChildren();const header=document.createElement('div');header.className='calendar-month-header';const previous=makeButton('‹','',()=>{calendarDisplayMonth.setMonth(calendarDisplayMonth.getMonth()-1);renderCalendarMonth()},'Mes anterior');const title=document.createElement('h3');title.textContent=new Intl.DateTimeFormat('es',{month:'long',year:'numeric'}).format(calendarDisplayMonth);const next=makeButton('›','',()=>{calendarDisplayMonth.setMonth(calendarDisplayMonth.getMonth()+1);renderCalendarMonth()},'Mes siguiente');header.append(previous,title,next);const grid=document.createElement('div');grid.className='calendar-month-grid';['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'].forEach(value=>{const label=document.createElement('small');label.textContent=value;grid.append(label)});const first=new Date(calendarDisplayMonth.getFullYear(),calendarDisplayMonth.getMonth(),1);const cursor=new Date(first);cursor.setDate(1-first.getDay());for(let i=0;i<42;i+=1){const day=new Date(cursor);day.setDate(cursor.getDate()+i);const button=document.createElement('button');button.type='button';button.className='calendar-month-day';button.textContent=day.getDate();button.classList.toggle('outside',day.getMonth()!==calendarDisplayMonth.getMonth());button.classList.toggle('today',sameDate(day,new Date()));button.classList.toggle('has-events',eventsForDay(day).length>0);button.addEventListener('click',()=>{calendarSelectedDate=day;calendarView='today';renderCalendar()});grid.append(button)}root.append(header,grid);
+  }
+
+  function renderCalendarYear(){
+    const root=$('calendarYear');root.replaceChildren();for(let month=0;month<12;month+=1){const date=new Date(calendarDisplayMonth.getFullYear(),month,1);const button=document.createElement('button');button.type='button';button.textContent=new Intl.DateTimeFormat('es',{month:'long'}).format(date);button.classList.toggle('current',month===new Date().getMonth()&&date.getFullYear()===new Date().getFullYear());button.addEventListener('click',()=>{calendarDisplayMonth=date;calendarSelectedDate=date;calendarView='month';renderCalendar()});root.append(button)}
+  }
+
+  function renderCalendar(){
+    document.querySelectorAll('[data-calendar-view]').forEach(button=>button.classList.toggle('active',button.dataset.calendarView===calendarView));
+    const agendaVisible=calendarView==='today'||calendarView==='week';$('calendarWeekStrip').hidden=!agendaVisible;$('calendarAgenda').hidden=!agendaVisible;$('calendarMonth').hidden=calendarView!=='month';$('calendarYear').hidden=calendarView!=='year';
+    if(agendaVisible){renderCalendarWeekStrip();renderCalendarAgenda()}else if(calendarView==='month')renderCalendarMonth();else renderCalendarYear();
+    const sync=homeCalendar.sync||{};$('calendarSyncStatus').lastChild.textContent=sync.google_calendar&&sync.google_calendar.connected?' Google Calendar conectado':' Listo para agregar eventos al teléfono';renderUpcomingEvent();scheduleCalendarReminders();
+  }
+
+  function calendarFormPayload(){
+    const start=new Date(`${$('calendarEventDate').value}T${$('calendarEventTime').value}:00`);const minutes=Number($('calendarEventDuration').value||60);const end=new Date(start.getTime()+minutes*60000);const recurrence=$('calendarEventRecurrence').value;
+    return{title:$('calendarEventTitle').value.trim(),starts_at:start.toISOString(),ends_at:end.toISOString(),timezone:Intl.DateTimeFormat().resolvedOptions().timeZone||'America/New_York',category:$('calendarEventCategory').value,reminder_minutes:Number($('calendarEventReminder').value||0),location:$('calendarEventLocation').value.trim(),notes:$('calendarEventNotes').value.trim(),participants:$('calendarEventParticipants').value.split(',').map(value=>value.trim()).filter(Boolean),recurrence,recurrence_until:recurrence==='NONE'?null:$('calendarEventRecurrenceUntil').value||null,all_day:false};
+  }
+
+  function openCalendarEvent(event=null,day=new Date()){
+    const existing=Boolean(event&&!event._draft);$('calendarEventForm').reset();$('calendarEventError').textContent='';const starts=event?new Date(event.starts_at):new Date(day);if(!event){starts.setHours(Math.max(9,new Date().getHours()+1),0,0,0)}const ends=event?new Date(event.ends_at):new Date(starts.getTime()+3600000);$('calendarEventId').value=existing&&event.id||'';$('calendarEventDialogTitle').textContent=existing?'Editar evento':'Nuevo evento';$('calendarEventTitle').value=event&&event.title||'';$('calendarEventDate').value=dateKey(starts);$('calendarEventTime').value=`${String(starts.getHours()).padStart(2,'0')}:${String(starts.getMinutes()).padStart(2,'0')}`;$('calendarEventDuration').value=String(Math.max(30,Math.round((ends-starts)/60000)));$('calendarEventReminder').value=String(event&&event.reminder_minutes!=null?event.reminder_minutes:60);$('calendarEventCategory').value=event&&event.category||'PERSONAL';$('calendarEventRecurrence').value=event&&event.recurrence||'NONE';$('calendarEventRecurrenceUntil').value=event&&event.recurrence_until||'';$('calendarRecurrenceUntilLabel').hidden=$('calendarEventRecurrence').value==='NONE';$('calendarEventLocation').value=event&&event.location||'';$('calendarEventNotes').value=event&&event.notes||'';$('calendarEventParticipants').value=(event&&event.participants||[]).join(', ');$('calendarDeleteButton').hidden=!existing;$('calendarExportButton').hidden=!existing;if(existing)$('calendarExportButton').href=`/v1/home-calendar/${encodeURIComponent(user)}/events/${encodeURIComponent(event.id)}.ics`;$('calendarEventDialog').showModal();
+  }
+
+  function showCalendarConfirmation(draft,conflicts=[],mode='create'){
+    pendingCalendarDraft={...draft,_mode:mode};const root=$('calendarConfirmSummary');root.replaceChildren();const title=document.createElement('strong');title.textContent=draft.title;const start=new Date(draft.starts_at);const copy=document.createElement('small');copy.textContent=`${formatCalendarDay(start)} · ${formatCalendarTime(start)} · ${calendarCategories[draft.category]||'Personal'} · aviso ${Number(draft.reminder_minutes||0)===60?'1 hora':`${Number(draft.reminder_minutes||0)} min`} antes`;root.append(title,copy);const warning=$('calendarConflictWarning');warning.hidden=!conflicts.length;warning.textContent=conflicts.length?`Hay un posible conflicto con “${conflicts[0].title}”. Puedes volver y cambiar la hora.`:'';$('calendarConfirmDialog').showModal();
+  }
+
+  async function submitCalendarEvent(event){
+    event.preventDefault();const payload=calendarFormPayload();if(payload.recurrence!=='NONE'&&!payload.recurrence_until){$('calendarEventError').textContent='Indica hasta cuándo debe repetirse.';return}const id=$('calendarEventId').value;try{if(id){showCalendarConfirmation({...payload,id},[], 'edit')}else{const data=await api(`/v1/home-calendar/${encodeURIComponent(user)}/drafts`,{method:'POST',body:JSON.stringify({...payload,confirmed:false})});showCalendarConfirmation(data.draft,data.conflicts||[])}$('calendarEventDialog').close()}catch(error){$('calendarEventError').textContent=error.message}
+  }
+
+  async function confirmCalendarEvent(){
+    if(!pendingCalendarDraft)return;const button=$('calendarConfirmSave');button.disabled=true;try{if(pendingCalendarDraft._mode==='edit'){const id=pendingCalendarDraft.id;const payload={...pendingCalendarDraft};delete payload.id;delete payload._mode;await api(`/v1/home-calendar/${encodeURIComponent(user)}/events/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(payload)})}else await api(`/v1/home-calendar/${encodeURIComponent(user)}/drafts/confirm`,{method:'POST',body:JSON.stringify({draft_id:pendingCalendarDraft.id,confirmed:true})});$('calendarConfirmDialog').close();pendingCalendarDraft=null;await load({quiet:true});selectPanel('calendar');announce('Evento guardado en Roxy Calendar');if('Notification'in window&&Notification.permission==='default')Notification.requestPermission().then(scheduleCalendarReminders)}catch(error){announce(error.message)}finally{button.disabled=false}
+  }
+
+  async function deleteCalendarEvent(){
+    const id=$('calendarEventId').value;if(!id||!window.confirm('¿Eliminar este evento del calendario?'))return;try{await api(`/v1/home-calendar/${encodeURIComponent(user)}/events/${encodeURIComponent(id)}`,{method:'DELETE'});$('calendarEventDialog').close();await load({quiet:true});announce('Evento eliminado')}catch(error){announce(error.message)}
   }
 
   function renderFilters() {
@@ -916,7 +1016,7 @@
   async function submitRoxyCommand(event){
     event.preventDefault();const input=$('roxyCommand');const command=input.value.trim();if(!command)return;
     const button=event.currentTarget.querySelector('button');button.disabled=true;button.textContent='…';
-    try{const result=await sendRoxyHomeCommand({command});input.value='';announce(result.message||'Listo');if(result.data&&result.data.weekly_plan){await load({quiet:true});selectPanel('today')}if(result.data&&result.data.recipe){await load({quiet:true});selectPanel('recipes');openRecipe(result.data.recipe)}if(result.data&&result.data.cooking){await load({quiet:true});showCooking(result.data.cooking)}}catch(error){announce(error.message)}finally{button.disabled=false;button.textContent='Enviar'}
+    try{const result=await sendRoxyHomeCommand({command});input.value='';announce(result.message||'Listo');if(result.data&&result.data.weekly_plan){await load({quiet:true});selectPanel('today')}if(result.data&&result.data.recipe){await load({quiet:true});selectPanel('recipes');openRecipe(result.data.recipe)}if(result.data&&result.data.cooking){await load({quiet:true});showCooking(result.data.cooking)}if(result.data&&result.data.calendar_draft){showCalendarConfirmation(result.data.calendar_draft,result.data.calendar_conflicts||[])}if(result.data&&result.data.calendar_event){await load({quiet:true});selectPanel('calendar')}}catch(error){announce(error.message)}finally{button.disabled=false;button.textContent='Enviar'}
   }
 
   let roxyVoiceConversation=null;let roxyVoiceStarting=false;let roxyElevenLabsModule=null;let roxyVoicePermissionStream=null;let roxyLastAgentMessage='';let roxyLastAgentMessageAt=0;
@@ -929,15 +1029,15 @@
   function closeRoxyVoice(){$('roxyVoicePanel').hidden=true;$('roxyVoiceLauncher').setAttribute('aria-expanded','false');$('roxyVoiceLauncher').classList.remove('active');$('roxyVoiceLauncher').focus()}
   async function loadElevenLabs(){if(roxyElevenLabsModule)return roxyElevenLabsModule;let lastError=null;for(const url of roxyVoiceUrls){try{roxyElevenLabsModule=await import(url);return roxyElevenLabsModule}catch(error){lastError=error}}throw lastError||new Error('ElevenLabs SDK no disponible')}
   function currentShoppingSummary(){const rows=activeItems();return{pending_count:rows.length,total_quantity:rows.reduce((total,item)=>total+Number(item.quantity||0),0),items:rows.slice(0,50).map(item=>({name:item.name,quantity:item.quantity,unit:item.unit,category:item.category}))}}
-  async function sendRoxyHomeCommand(parameters={}){const command=String(parameters.command||parameters.text||parameters.request||'').trim();if(!command)return{ok:false,error:'missing_command'};const result=await api(`/v1/assistant/command/${encodeURIComponent(user)}`,{method:'POST',body:JSON.stringify({text:command})});await load({quiet:true});if(result.message)roxyVoiceTranscript(result.message);if(result.data&&result.data.cooking)showCooking(result.data.cooking);if(result.data&&result.data.preparation){currentPreparation=result.data.preparation;renderCommercePreparation(currentPreparation,result.data.providers||commerce.providers||[]);if(!$('commerceDialog').open)$('commerceDialog').showModal()}return result}
+  async function sendRoxyHomeCommand(parameters={}){const command=String(parameters.command||parameters.text||parameters.request||'').trim();if(!command)return{ok:false,error:'missing_command'};const result=await api(`/v1/assistant/command/${encodeURIComponent(user)}`,{method:'POST',body:JSON.stringify({text:command})});await load({quiet:true});if(result.message)roxyVoiceTranscript(result.message);if(result.data&&result.data.cooking)showCooking(result.data.cooking);if(result.data&&result.data.calendar_draft)showCalendarConfirmation(result.data.calendar_draft,result.data.calendar_conflicts||[]);if(result.data&&result.data.calendar_event)selectPanel('calendar');if(result.data&&result.data.preparation){currentPreparation=result.data.preparation;renderCommercePreparation(currentPreparation,result.data.providers||commerce.providers||[]);if(!$('commerceDialog').open)$('commerceDialog').showModal()}return result}
   function recoverRoxyVoiceSpeech(speech,startedAt){setTimeout(()=>{if(!roxyVoiceConversation||!speech)return;const answer=String(roxyLastAgentMessage||'').toLowerCase();const falseFailure=/no (?:puedo|tengo acceso)|no (?:est[aá]|estaba) funcionando|b[uú]squeda.{0,30}recet|problema.{0,30}recet/.test(answer);if(roxyLastAgentMessageAt<=startedAt||falseFailure){const instruction=`[RESULTADO CONFIRMADO DE ROXY HOME. NO LLAMES HERRAMIENTAS.] Lee en voz alta exactamente este resultado completo y después pregunta si deseo agregar los ingredientes o cocinar paso a paso: ${speech}`;if(typeof roxyVoiceConversation.sendUserMessage==='function')roxyVoiceConversation.sendUserMessage(instruction)}},3200)}
   async function sendCommandToRoxyOSForVoice(parameters={}){const startedAt=Date.now();const result=await sendRoxyHomeCommand(parameters);const speech=String(result.speech||result.message||'').trim();recoverRoxyVoiceSpeech(speech,startedAt);return{ok:Boolean(result.ok),intent:result.intent||'general',must_speak:true,speech,message:speech,data:result.data||{},instruction:'Espera a que termine esta herramienta. Lee en voz alta ahora el campo speech completo. No lo resumas, no lo contradigas y no digas que no tienes acceso.'}}
-  function roxyHomeClientTools(){return{getCurrentScreenContext:async()=>({ok:true,app:'Roxy Home',page:'Hoy, plan de comidas, compra y recetas por categorías',provider:'ElevenLabs',member:{display_name:activePersonName(),role:account.role,household_name:account.household_name},shopping_list:currentShoppingSummary(),latest_recipe:currentRecipe&&{id:currentRecipe.id,title:currentRecipe.title,servings:currentRecipe.servings},instruction:'Eres la misma Roxy, operando únicamente con memoria y permisos de Home. Usa los datos reales de esta pantalla.'}),getShoppingList:async()=>({ok:true,shopping_list:currentShoppingSummary()}),summarizeCurrentScreen:async()=>({ok:true,summary:`Roxy Home muestra ${activeItems().length} productos pendientes y ${(homeFood.recipes||[]).length} recetas guardadas.`,shopping_list:currentShoppingSummary()}),sendCommandToRoxyOS:sendCommandToRoxyOSForVoice}}
-  function roxyHomeOverrides(){const shopping=JSON.stringify(currentShoppingSummary());const person=activePersonName();const greeting=person?`Hola, ${person}. Soy Roxy y estoy contigo en Roxy Home. ¿Qué necesitas?`:'Hola, soy Roxy. Estoy contigo en Roxy Home. ¿Qué necesitas?';return{agent:{language:'es',firstMessage:greeting,prompt:{prompt:`Eres Roxy, con la misma identidad y voz del ecosistema Roxy, operando únicamente dentro de Roxy Home. La aplicación actual es Roxy Home, en las secciones Compra, Recetas, Plan semanal y Despensa. Estás hablando con ${person||'una persona del hogar'}; dirígete a esa persona por su nombre de forma natural, especialmente al saludar y confirmar acciones. Habla en español natural, cálido y directo. Mantén la conversación abierta después del saludo, escucha la respuesta del usuario y nunca uses end_call salvo que el usuario diga claramente terminar o adiós. La lista visible actual es ${shopping}. Usa getShoppingList antes de afirmar qué productos hay. Para pedir una receta, agregar o quitar artículos, consultar la lista, preparar la compra, organizar el menú semanal, preguntar qué toca un día, avisar que hoy no cocinarán, usar sobras, adaptar una comida a lo que hay en casa, guardar la receta de un día o guiar una receta paso a paso, siempre usa sendCommandToRoxyOS. Ejemplos válidos: "¿qué comemos el martes?", "hoy no cocino", "nos sobró pollo", "tengo arroz y vegetales" y "dame la receta de la cena del viernes". No respondas antes de que la herramienta termine. La herramienta es tu acceso real a las recetas, al plan y a la lista: nunca digas que no puedes acceder a ellos. Cuando termine, lee en voz alta exactamente el campo speech completo; que el texto aparezca en pantalla no cuenta como haberlo dicho. Después puedes preguntar si desea agregar los ingredientes o empezar la guía paso a paso. Si recibes un mensaje que comienza con RESULTADO CONFIRMADO DE ROXY HOME, no vuelvas a llamar herramientas: lee literalmente el resultado incluido. Para cocinar guiado reconoce guíame, siguiente paso, paso anterior, repite, pon un temporizador y cuánto tiempo queda. Expresiones como quita, saca, remueve o ya no necesito son órdenes de eliminación. Conserva cantidades y unidades naturales como paquetes, botellas, bolsas, kilos, gramos y docenas. Puedes preparar enlaces de compra para revisión, pero nunca afirmar que compraste, pagar ni finalizar una orden. No simules cambios. No inventes elementos de la lista, recetas, precios, disponibilidad ni alergias. No controles dispositivos. No uses memoria, secretos ni herramientas de Trading, Finanzas o Study.`}}}}
+  function roxyHomeClientTools(){return{getCurrentScreenContext:async()=>({ok:true,app:'Roxy Home',page:'Hoy, plan de comidas, compra, recetas, despensa y calendario',provider:'ElevenLabs',member:{display_name:activePersonName(),role:account.role,household_name:account.household_name},shopping_list:currentShoppingSummary(),calendar:{upcoming:(homeCalendar.events||[]).slice(0,20)},latest_recipe:currentRecipe&&{id:currentRecipe.id,title:currentRecipe.title,servings:currentRecipe.servings},instruction:'Eres la misma Roxy, operando únicamente con memoria y permisos de Home. Usa los datos reales de esta pantalla.'}),getShoppingList:async()=>({ok:true,shopping_list:currentShoppingSummary()}),summarizeCurrentScreen:async()=>({ok:true,summary:`Roxy Home muestra ${activeItems().length} productos pendientes, ${(homeFood.recipes||[]).length} recetas guardadas y ${(homeCalendar.events||[]).length} eventos próximos.`,shopping_list:currentShoppingSummary()}),sendCommandToRoxyOS:sendCommandToRoxyOSForVoice}}
+  function roxyHomeOverrides(){const shopping=JSON.stringify(currentShoppingSummary());const person=activePersonName();const greeting=person?`Hola, ${person}. Soy Roxy y estoy contigo en Roxy Home. ¿Qué necesitas?`:'Hola, soy Roxy. Estoy contigo en Roxy Home. ¿Qué necesitas?';return{agent:{language:'es',firstMessage:greeting,prompt:{prompt:`Eres Roxy, con la misma identidad y voz del ecosistema Roxy, operando únicamente dentro de Roxy Home. La aplicación actual es Roxy Home, en las secciones Compra, Recetas, Plan semanal, Despensa y Calendario. Estás hablando con ${person||'una persona del hogar'}; dirígete a esa persona por su nombre de forma natural. Habla en español natural, cálido y directo. Mantén la conversación abierta después del saludo y nunca uses end_call salvo que el usuario diga claramente terminar o adiós. La lista visible actual es ${shopping}. Para crear, consultar, mover o cancelar eventos y para pedir una receta, cambiar la lista, organizar el menú o cocinar paso a paso, siempre usa sendCommandToRoxyOS. No respondas antes de que la herramienta termine. Nunca afirmes que guardaste un evento antes de que la herramienta lo confirme. Para un evento nuevo, lee la propuesta y pregunta si debe confirmarse; cuando el usuario diga sí, vuelve a llamar la herramienta con “confirmo”. Los eventos recurrentes necesitan fecha de inicio y final. Diferencia: dentista o llamada con fecha y hora va al calendario; comprar leche va a compras; pagar una factura antes de una fecha es una tarea y no debe convertirse en evento sin aclararlo. Cuando la herramienta termine, lee en voz alta exactamente el campo speech completo. Si recibes RESULTADO CONFIRMADO DE ROXY HOME, no vuelvas a llamar herramientas. Expresiones como quita, saca o ya no necesito son órdenes de eliminación. No inventes eventos, artículos, recetas, precios, disponibilidad ni alergias. No compres, no pagues, no controles dispositivos y no uses memoria ni herramientas de Trading, Finanzas o Study.`}}}}
   async function startRoxyVoice(){if(roxyVoiceConversation||roxyVoiceStarting)return;openRoxyVoice();roxyVoiceStarting=true;roxyLastAgentMessage='';roxyLastAgentMessageAt=0;$('roxyVoiceStart').disabled=true;let phase='configuración';roxyVoiceStatus('Conectando con ElevenLabs…');try{if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new DOMException('Micrófono no disponible','NotFoundError');phase='permiso del micrófono';roxyVoicePermissionStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});const config=await api(`/v1/assistant/session/${encodeURIComponent(user)}`);phase='carga del agente';const eleven=await loadElevenLabs();const Conversation=eleven.Conversation||(eleven.default&&eleven.default.Conversation);if(!Conversation||!Conversation.startSession)throw new Error('SDK de ElevenLabs no disponible');phase='conexión de voz';const options={connectionType:'websocket',overrides:roxyHomeOverrides(),dynamicVariables:{...(config.dynamic_variables||{}),shopping_list_json:JSON.stringify(currentShoppingSummary())},clientTools:roxyHomeClientTools(),onConnect:()=>{roxyVoiceStarting=false;roxyVoiceStatus('Roxy te está escuchando');$('roxyVoiceStart').disabled=true;$('roxyVoiceEnd').disabled=false},onDisconnect:details=>{console.info('Roxy Home ElevenLabs disconnected',details||'normal');stopRoxyPermissionStream();roxyVoiceConversation=null;roxyVoiceStarting=false;const endedByAgent=details&&details.reason==='agent';roxyVoiceStatus(endedByAgent?'Roxy terminó la llamada antes de tiempo. Pulsa iniciar para reconectar.':'Conversación terminada',endedByAgent);$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true},onError:error=>{console.warn('Roxy Home ElevenLabs error',error);stopRoxyPermissionStream();roxyVoiceStarting=false;roxyVoiceStatus(roxyVoiceError(error,'conversación'),true);$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true},onModeChange:mode=>{const state=String(mode&&mode.mode||mode||'').toLowerCase();if(state.includes('speaking'))roxyVoiceStatus('Roxy está respondiendo');else if(state.includes('listening'))roxyVoiceStatus('Roxy te está escuchando')},onMessage:message=>{const source=String(message&&((message.source||message.role||message.type))||'').toLowerCase();const text=message&&(message.message||message.text||message.transcript||message.content||(message.agent_response_event&&message.agent_response_event.agent_response)||(message.user_transcription_event&&message.user_transcription_event.user_transcript));if(typeof text==='string'&&text.trim()){const fromUser=source.includes('user');if(!fromUser){roxyLastAgentMessage=text.trim();roxyLastAgentMessageAt=Date.now()}roxyVoiceTranscript(text.trim(),fromUser?'Tú':'Roxy')}}};if(config.conversation_token)options.conversationToken=config.conversation_token;else options.agentId=config.agent_id;roxyVoiceConversation=await Conversation.startSession(options);stopRoxyPermissionStream()}catch(error){console.warn('Roxy Home ElevenLabs start failed',error);stopRoxyPermissionStream();roxyVoiceConversation=null;roxyVoiceStarting=false;roxyVoiceStatus(roxyVoiceError(error,phase),true);$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true}}
   async function endRoxyVoice(){const conversation=roxyVoiceConversation;roxyVoiceConversation=null;stopRoxyPermissionStream();if(conversation&&typeof conversation.endSession==='function'){try{await conversation.endSession()}catch(error){console.warn('Roxy Home ElevenLabs end failed',error)}}roxyVoiceStarting=false;roxyVoiceStatus('Conversación terminada');$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true}
 
-  function render(){renderShopping();renderRecipes();const latest=(homeFood.weekly_plans||[]).slice(-1)[0]||null;renderMealPlan(latest)}
+  function render(){renderShopping();renderRecipes();renderCalendar();const latest=(homeFood.weekly_plans||[]).slice(-1)[0]||null;renderMealPlan(latest)}
   function bind(){
     document.addEventListener('error',event=>{const image=event.target;if(!(image instanceof HTMLImageElement)||!image.src.includes('/v1/home-food/recipe-photo'))return;const card=image.closest('.recipe-card,.recipe-detail-hero,.meal-plan-meal');if(card)card.classList.add('no-photo');image.remove()},true);
     $('searchInput').addEventListener('input',event=>{search=event.target.value;renderShopping()});
@@ -979,6 +1079,14 @@
     $('roxyVoiceClose').addEventListener('click',closeRoxyVoice);
     $('roxyVoiceStart').addEventListener('click',startRoxyVoice);
     $('roxyVoiceEnd').addEventListener('click',endRoxyVoice);
+    $('calendarAddButton').addEventListener('click',()=>openCalendarEvent());
+    $('calendarVoiceButton').addEventListener('click',openRoxyVoice);
+    $('calendarEventForm').addEventListener('submit',submitCalendarEvent);
+    $('calendarEventRecurrence').addEventListener('change',event=>{$('calendarRecurrenceUntilLabel').hidden=event.target.value==='NONE'});
+    $('calendarConfirmSave').addEventListener('click',confirmCalendarEvent);
+    $('calendarConfirmCancel').addEventListener('click',async()=>{const draft=pendingCalendarDraft;$('calendarConfirmDialog').close();if(draft&&draft._mode!=='edit'){try{await api(`/v1/home-calendar/${encodeURIComponent(user)}/drafts`,{method:'DELETE'})}catch(_error){}}pendingCalendarDraft=null;if(draft&&!draft.action)openCalendarEvent({...draft,_draft:draft._mode!=='edit'})});
+    $('calendarDeleteButton').addEventListener('click',deleteCalendarEvent);
+    document.querySelectorAll('[data-calendar-view]').forEach(button=>button.addEventListener('click',()=>{calendarView=button.dataset.calendarView;renderCalendar()}));
     $('previousStepButton').addEventListener('click',()=>updateCooking('previous'));
     $('nextStepButton').addEventListener('click',()=>updateCooking('next'));
     $('speakStepButton').addEventListener('click',speakCurrentStep);
@@ -995,7 +1103,7 @@
   bind();renderHomeMoment();setInterval(renderHomeMoment,30000);render();
   window.addEventListener('pageshow',event=>{if(event.persisted)location.reload()});
   if('scrollRestoration'in history)history.scrollRestoration='manual';
-  const initialPanels={hoy:'today',compra:'shopping',recetas:'recipes',despensa:'pantry',mas:'more'};
+  const initialPanels={hoy:'today',compra:'shopping',recetas:'recipes',despensa:'pantry',calendario:'calendar',mas:'more'};
   selectPanel(initialPanels[location.hash.slice(1)]||'today',{smooth:false});load();
   if('serviceWorker'in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){
     const homeRoute=location.pathname.startsWith('/home');

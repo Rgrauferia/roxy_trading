@@ -132,6 +132,8 @@ services:
         value: /var/data/roxy_home/recipe_library.sqlite
       - key: ROXY_HOME_ACCOUNTS_PATH
         value: /var/data/roxy_home/accounts.json
+      - key: ROXY_HOME_CALENDAR_PATH
+        value: /var/data/roxy_home/calendar.json
       - key: ROXY_HOME_COMMERCE_PATH
         value: /var/data/roxy_home/commerce.json
       - key: ROXY_HOME_VIDEO_LIBRARY_PATH

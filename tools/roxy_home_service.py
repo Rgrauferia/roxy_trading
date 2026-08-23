@@ -9,7 +9,7 @@ import threading
 import time
 import unicodedata
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +45,7 @@ from roxy_os.home_recipe_photos import (
     RecipePhotoStore,
 )
 from roxy_os.home_accounts import HomeAccountStore
+from roxy_os.home_calendar import HomeCalendarStore, parse_calendar_command
 from roxy_os.home_commerce import (
     AFFILIATE_DISCLOSURE,
     HomeCommerceStore,
@@ -234,6 +235,30 @@ class HomeMemberRequest(HomeLoginRequest):
     display_name: str = Field(min_length=1, max_length=64)
 
 
+class CalendarEventRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=160)
+    starts_at: datetime
+    ends_at: datetime
+    timezone: str = Field(default="America/New_York", min_length=1, max_length=64)
+    category: str = Field(default="PERSONAL", pattern="^(PERSONAL|WORK|FAMILY|SCHOOL|APPOINTMENTS|HOME)$")
+    reminder_minutes: int = Field(default=60, ge=0, le=43_200)
+    location: str = Field(default="", max_length=240)
+    notes: str = Field(default="", max_length=2000)
+    participants: list[str] = Field(default_factory=list, max_length=50)
+    recurrence: str = Field(default="NONE", pattern="^(NONE|DAILY|WEEKLY|WEEKDAYS)$")
+    recurrence_until: date | None = None
+    all_day: bool = False
+
+
+class CalendarDraftRequest(CalendarEventRequest):
+    confirmed: bool = False
+
+
+class CalendarConfirmRequest(BaseModel):
+    draft_id: str = Field(min_length=1, max_length=64)
+    confirmed: bool = False
+
+
 @dataclass(frozen=True)
 class AuthContext:
     mode: str
@@ -380,6 +405,10 @@ def _commerce_store() -> HomeCommerceStore:
     return HomeCommerceStore(os.getenv("ROXY_HOME_COMMERCE_PATH", "data/roxy_home_commerce.json"))
 
 
+def _calendar_store() -> HomeCalendarStore:
+    return HomeCalendarStore(os.getenv("ROXY_HOME_CALENDAR_PATH", "data/roxy_home_calendar.json"))
+
+
 def _commerce_providers(profile: dict[str, Any], activity: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     rows = public_providers()
     favorites = {str(name).casefold(): index for index, name in enumerate(profile.get("favorite_retailers") or [])}
@@ -488,6 +517,21 @@ def _recipe_with_resilience(
 
 def _assistant_shopping_intent(text: str) -> str:
     normalized = text.lower().strip()
+    plain = unicodedata.normalize("NFKD", normalized).encode("ascii", "ignore").decode("ascii")
+    if re.fullmatch(r"(?:(?:si|sí)(?:,?\s+confirmo)?|confirmo|confirmar|confirmalo|confírmalo|hazlo|correcto)[.! ]*", normalized):
+        return "calendar_confirm"
+    if re.fullmatch(r"(?:no|cancelar|cancelalo|cancélalo|olvidalo|olvídalo)[.! ]*", normalized):
+        return "calendar_discard"
+    if re.search(r"\b(que tengo|mi agenda|mis eventos|mis citas|que hay)\b.*\b(hoy|manana|semana|lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b", plain):
+        return "calendar_query"
+    if re.search(r"\b(cancela|cancelar|elimina|eliminar|borra|borrar)\b.*\b(evento|cita|reunion|llamada|calendario|agenda)\b", plain):
+        return "calendar_cancel"
+    if (
+        re.search(r"\b(agenda|agendar|programa|programar|crea|crear|anade|agrega|pon)\b.*\b(evento|cita|reunion|llamada|calendario|escuela|dentista|medico)\b", plain)
+        or re.search(r"\b(dentista|medico|cita|reunion|llamada)\b.*\b(hoy|manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo|\d{1,2})\b", plain)
+        or re.search(r"\b(llevar|recoger)\b.*\b(escuela|colegio)\b", plain)
+    ):
+        return "calendar_create"
     weekly_intent = _assistant_weekly_intent(text)
     if weekly_intent:
         return weekly_intent
@@ -693,6 +737,30 @@ def _timer_seconds(text: str) -> int | None:
     return int(amount * (3600 if unit.startswith("hora") else 60 if unit.startswith("minuto") else 1))
 
 
+def _calendar_command_range(text: str, *, current: date | None = None) -> tuple[datetime, datetime]:
+    today = current or date.today()
+    normalized = unicodedata.normalize("NFKD", str(text or "")).encode("ascii", "ignore").decode("ascii").lower()
+    if "manana" in normalized:
+        target = today + timedelta(days=1)
+        return datetime.combine(target, datetime.min.time()), datetime.combine(target + timedelta(days=1), datetime.min.time())
+    for label, weekday in _WEEKDAY_INDEX.items():
+        if re.search(rf"\b{label}\b", normalized):
+            target = today + timedelta(days=(weekday - today.weekday()) % 7)
+            return datetime.combine(target, datetime.min.time()), datetime.combine(target + timedelta(days=1), datetime.min.time())
+    if "semana" in normalized:
+        return datetime.combine(today, datetime.min.time()), datetime.combine(today + timedelta(days=7), datetime.min.time())
+    return datetime.combine(today, datetime.min.time()), datetime.combine(today + timedelta(days=1), datetime.min.time())
+
+
+def _calendar_spoken_event(event: dict[str, Any]) -> str:
+    starts_at = datetime.fromisoformat(str(event.get("starts_at")))
+    day = starts_at.strftime("%d/%m/%Y")
+    hour = starts_at.strftime("%I:%M %p").lstrip("0").replace("AM", "a. m.").replace("PM", "p. m.")
+    reminder = int(event.get("reminder_minutes") or 0)
+    reminder_copy = "sin recordatorio" if not reminder else f"con aviso {reminder} minutos antes" if reminder < 60 else f"con aviso {reminder // 60} hora{'s' if reminder // 60 != 1 else ''} antes"
+    return f"{event.get('title')}, el {day} a las {hour}, {reminder_copy}"
+
+
 def _voice_item_identity(value: Any) -> str:
     normalized = unicodedata.normalize("NFKD", str(value or ""))
     normalized = re.sub(r"[^a-z0-9]+", " ", normalized.encode("ascii", "ignore").decode("ascii").lower()).strip()
@@ -826,6 +894,12 @@ def _member_for_auth(auth: AuthContext) -> dict[str, Any] | None:
 def _commerce_owner_key(auth: AuthContext, user: str) -> str:
     # Shopping and pantry stay shared by household, while retailer/brand and
     # budget preferences belong to the authenticated person.
+    return f"member:{auth.member_id}" if auth.mode == "member" and auth.member_id else f"legacy:{user}"
+
+
+def _calendar_owner_key(auth: AuthContext, user: str) -> str:
+    # Calendar entries are private to the signed-in person, even though food,
+    # pantry and shopping are intentionally shared by the household.
     return f"member:{auth.member_id}" if auth.mode == "member" and auth.member_id else f"legacy:{user}"
 
 
@@ -1178,6 +1252,8 @@ def assistant_command(
     agent = (
         "shopping"
         if intent.startswith("shopping_")
+        else "home_calendar"
+        if intent.startswith("calendar_")
         else "home_commerce"
         if intent.startswith("commerce_")
         else "home_food"
@@ -1187,7 +1263,64 @@ def assistant_command(
     store = _store()
     rows: list[dict[str, Any]] = []
     extra: dict[str, Any] = {}
-    if intent.startswith("weekly_"):
+    if intent.startswith("calendar_"):
+        calendar_store = _calendar_store()
+        owner_key = _calendar_owner_key(auth, user)
+        if intent == "calendar_create":
+            try:
+                draft_data = parse_calendar_command(command_text)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            if draft_data.pop("needs_clarification", False):
+                message = "Puedo repetir ese evento de lunes a viernes. ¿Desde qué fecha comienza y en qué fecha termina?"
+                extra["calendar_needs_clarification"] = True
+            else:
+                conflicts = calendar_store.conflicts(owner_key, draft_data)
+                draft = calendar_store.save_draft(owner_key, draft_data)
+                message = f"Voy a programar {_calendar_spoken_event(draft)}."
+                if conflicts:
+                    message += f" Atención: coincide con {conflicts[0].get('title')}."
+                message += " ¿Lo confirmo?"
+                extra["calendar_draft"] = draft
+                extra["calendar_conflicts"] = conflicts
+        elif intent == "calendar_confirm":
+            try:
+                event = calendar_store.confirm_draft(owner_key)
+            except KeyError as exc:
+                raise HTTPException(status_code=409, detail="No hay ningún evento pendiente de confirmación.") from exc
+            if event.get("deleted"):
+                message = f"Cancelé {event.get('title')} en tu calendario."
+            else:
+                message = f"Listo. Guardé {_calendar_spoken_event(event)}."
+            extra["calendar_event"] = event
+        elif intent == "calendar_discard":
+            if calendar_store.pending_draft(owner_key) is None:
+                raise HTTPException(status_code=409, detail="No hay ningún cambio de calendario pendiente.")
+            calendar_store.discard_draft(owner_key)
+            message = "De acuerdo. No hice ningún cambio en tu calendario."
+        elif intent == "calendar_query":
+            start, end = _calendar_command_range(command_text)
+            events = calendar_store.list_events(owner_key, start=start, end=end)
+            if events:
+                message = "En tu agenda tienes: " + "; ".join(_calendar_spoken_event(event) for event in events[:8]) + "."
+            else:
+                message = "No tienes compromisos programados para ese periodo."
+            extra["calendar_events"] = events
+        else:
+            start = datetime.combine(date.today() - timedelta(days=1), datetime.min.time())
+            end = datetime.combine(date.today() + timedelta(days=366), datetime.min.time())
+            events = calendar_store.list_events(owner_key, start=start, end=end)
+            command_words = {
+                word for word in re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKD", command_text).encode("ascii", "ignore").decode("ascii").lower())
+                if len(word) > 3 and word not in {"cancelar", "cancela", "eliminar", "elimina", "evento", "calendario", "agenda"}
+            }
+            candidates = [event for event in events if command_words & set(re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKD", str(event.get("title") or "")).encode("ascii", "ignore").decode("ascii").lower()))]
+            if not candidates:
+                raise HTTPException(status_code=404, detail="No encontré ese evento en tu calendario.")
+            draft = calendar_store.save_delete_draft(owner_key, candidates[0]["id"])
+            message = f"Voy a cancelar {candidates[0].get('title')}. ¿Lo confirmo?"
+            extra["calendar_draft"] = draft
+    elif intent.startswith("weekly_"):
         home_store = _home_food_store()
         if intent == "weekly_create":
             snapshot = home_store.snapshot(user)
@@ -1454,6 +1587,141 @@ def assistant_command(
         "data": {"items": rows, **extra},
         "snapshot": store.snapshot(user, limit=100),
     }
+
+
+@app.get("/v1/home-calendar/{user_id}")
+def read_home_calendar(
+    user_id: str,
+    start: datetime,
+    end: datetime,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    owner = _calendar_owner_key(auth, user)
+    try:
+        events = _calendar_store().list_events(owner, start=start, end=end)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    google_client_id = str(os.getenv("ROXY_HOME_GOOGLE_CALENDAR_CLIENT_ID") or "").strip()
+    return {
+        "status": "READY",
+        "events": events,
+        "pending_draft": _calendar_store().pending_draft(owner),
+        "sync": {
+            "native_export": True,
+            "provider": "ICS",
+            "google_calendar": {"configured": bool(google_client_id), "connected": False},
+            "message": "Los archivos .ics se abren en Apple Calendar. Google Calendar estará disponible al conectar OAuth.",
+        },
+    }
+
+
+@app.post("/v1/home-calendar/{user_id}/drafts", status_code=201)
+def create_calendar_draft(
+    user_id: str,
+    payload: CalendarDraftRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    owner = _calendar_owner_key(auth, user)
+    raw = payload.model_dump(exclude={"confirmed"})
+    try:
+        conflicts = _calendar_store().conflicts(owner, raw)
+        draft = _calendar_store().save_draft(owner, raw)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "CONFIRMATION_REQUIRED", "draft": draft, "conflicts": conflicts}
+
+
+@app.post("/v1/home-calendar/{user_id}/drafts/confirm", status_code=201)
+def confirm_calendar_draft(
+    user_id: str,
+    payload: CalendarConfirmRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    if not payload.confirmed:
+        raise HTTPException(status_code=409, detail="Confirma el evento antes de guardarlo.")
+    try:
+        event = _calendar_store().confirm_draft(_calendar_owner_key(auth, user), payload.draft_id, source="ui")
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="La propuesta de calendario ya no está disponible.") from exc
+    return {"status": "CREATED", "event": event}
+
+
+@app.delete("/v1/home-calendar/{user_id}/drafts", status_code=204)
+def discard_calendar_draft(
+    user_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> Response:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    _calendar_store().discard_draft(_calendar_owner_key(auth, user))
+    return Response(status_code=204)
+
+
+@app.put("/v1/home-calendar/{user_id}/events/{event_id}")
+def update_calendar_event(
+    user_id: str,
+    event_id: str,
+    payload: CalendarEventRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    owner = _calendar_owner_key(auth, user)
+    try:
+        conflicts = _calendar_store().conflicts(owner, payload.model_dump(), exclude_id=event_id)
+        event = _calendar_store().update(owner, event_id, payload.model_dump())
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Evento no encontrado.") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "UPDATED", "event": event, "conflicts": conflicts}
+
+
+@app.delete("/v1/home-calendar/{user_id}/events/{event_id}", status_code=204)
+def delete_calendar_event(
+    user_id: str,
+    event_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> Response:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        _calendar_store().delete(_calendar_owner_key(auth, user), event_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Evento no encontrado.") from exc
+    return Response(status_code=204)
+
+
+@app.get("/v1/home-calendar/{user_id}/events/{event_id}.ics")
+def export_calendar_event(
+    user_id: str,
+    event_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> Response:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        content = _calendar_store().export_ics(_calendar_owner_key(auth, user), event_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Evento no encontrado.") from exc
+    return Response(
+        content=content,
+        media_type="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="roxy-evento-{event_id[:8]}.ics"'},
+    )
 
 
 @app.get("/v1/shopping/{user_id}")
