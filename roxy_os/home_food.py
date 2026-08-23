@@ -132,14 +132,16 @@ class HomeFoodStore:
         searchable = _identity(" ".join(steps))
         incomplete = len(steps) < 5 or any(
             phrase in searchable
-            for phrase in ("metodo indicado", "segun corresponda", "orden indicado", "punto correcto", "cocina u hornea")
+            for phrase in (
+                "metodo indicado", "segun corresponda", "orden indicado", "punto correcto", "cocina u hornea",
+                "proporcion indicada", "guarnicion indicada", "salsa indicada", "cuando corresponda", "segun la receta",
+            )
         )
-        if not incomplete:
-            return
         from roxy_os.home_recipe_fallback import exact_local_recipe
 
         current = exact_local_recipe(recipe.get("title") or "")
-        if not current:
+        catalog_owned = str(recipe.get("generation_source") or "") in {"", "local_recipe_catalog"}
+        if not current or (not incomplete and not catalog_owned):
             return
         old_servings = float(recipe.get("servings") or current.get("servings") or 1)
         catalog_servings = float(current.get("servings") or 1)
@@ -153,7 +155,7 @@ class HomeFoodStore:
         for key in ("description", "kind", "drink_type", "category", "subcategory", "steps"):
             recipe[key] = deepcopy(current.get(key))
         recipe["ingredients"] = ingredients
-        recipe["editorial_version"] = 2
+        recipe["editorial_version"] = 3
 
     @staticmethod
     def _infer_drink_type(recipe: dict[str, Any]) -> str:

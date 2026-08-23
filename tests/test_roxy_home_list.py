@@ -17,7 +17,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="65"' in page.text
+    assert 'name="roxy-home-version" content="66"' in page.text
     assert 'href="/assets/roxy_list.css?v=56"' in page.text
     assert 'src="/assets/roxy_list.js?v=62"' in page.text
     assert '/assets/roxy_list.css?v=56' in worker.text

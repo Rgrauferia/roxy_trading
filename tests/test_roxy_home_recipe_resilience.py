@@ -149,6 +149,11 @@ def test_every_local_recipe_is_editorially_complete_and_has_no_placeholder_instr
         "punto correcto",
         "cocina u hornea",
         "ingrediente principal",
+        "según la receta",
+        "cuando corresponda",
+        "salsa indicada",
+        "guarnición indicada",
+        "proporción indicada",
     )
     assert len(rows) >= 500
     for recipe in rows:
@@ -212,7 +217,7 @@ def test_saved_old_catalog_recipe_is_upgraded_without_losing_user_metadata(tmp_p
     assert upgraded["id"] == saved["id"]
     assert upgraded["favorite"] is False
     assert upgraded["user_notes"] == ""
-    assert upgraded["editorial_version"] == 2
+    assert upgraded["editorial_version"] == 3
     assert len(upgraded["steps"]) == 8
     assert upgraded["ingredients"][0]["quantity"] == 0.5
 
