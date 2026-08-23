@@ -274,7 +274,7 @@ def _recipe_photo_queue() -> RecipePhotoGenerationQueue:
                 _recipe_photo_store(), RecipePhotoGenerationConfig.from_env()
             )
             _RECIPE_PHOTO_QUEUES[path] = queue
-            queue.populate(local_recipe_catalog({"profile": {"allergies": []}}))
+            queue.prewarm(local_recipe_catalog({"profile": {"allergies": []}}))
     return _RECIPE_PHOTO_QUEUES[path]
 
 

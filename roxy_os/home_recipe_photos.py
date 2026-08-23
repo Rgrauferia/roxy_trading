@@ -223,7 +223,7 @@ class RecipePhotoGenerationQueue:
         except (OSError, ValueError):
             payload = {}
         today = date.today().isoformat()
-        return payload if payload.get("date") == today else {"date": today, "count": 0}
+        return payload if payload.get("date") == today and payload.get("version") == 2 else {"version": 2, "date": today, "count": 0}
 
     def _reserve(self) -> bool:
         payload = self._budget()
@@ -251,12 +251,26 @@ class RecipePhotoGenerationQueue:
         self._executor.submit(self._generate, key, dict(recipe))
         return "PENDING"
 
-    def populate(self, recipes: list[dict[str, Any]]) -> dict[str, int]:
-        counts: dict[str, int] = {}
+    def prewarm(self, recipes: list[dict[str, Any]]) -> str:
+        """Use one worker for the library and leave the other free for visible cards."""
+        if not self.config.enabled:
+            return "DISABLED"
+        self._executor.submit(self._prewarm, [dict(recipe) for recipe in recipes])
+        return "STARTED"
+
+    def _prewarm(self, recipes: list[dict[str, Any]]) -> None:
         for recipe in recipes:
-            state = self.schedule(recipe)
-            counts[state] = counts.get(state, 0) + 1
-        return counts
+            title = str(recipe.get("title") or "")
+            if not title or self.store.resolve(title) is not None:
+                continue
+            key = self.store._key(title)
+            with self._lock:
+                if key in self._pending:
+                    continue
+                if not self._reserve():
+                    return
+                self._pending.add(key)
+            self._generate(key, recipe)
 
     def _openai(self):
         if self._client is None:
