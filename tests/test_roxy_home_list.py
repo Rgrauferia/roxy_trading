@@ -17,8 +17,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=53"' in page.text
-    assert '/assets/roxy_list.js?v=53' in worker.text
+    assert 'src="/assets/roxy_list.js?v=54"' in page.text
+    assert '/assets/roxy_list.js?v=54' in worker.text
     assert 'id="todayPanel"' in page.text
     assert 'data-tab-link="today"' in page.text
     assert page.text.index('id="todayPanel"') < page.text.index('id="shoppingPanel"') < page.text.index('id="recipesPanel"')
@@ -184,6 +184,9 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "ROXY_HOME_RECIPE_PHOTO_DIR=/var/data/roxy_home/recipe_photos" in dockerfile
     assert "/v1/home-food/recipe-photo?v=4&title=" in script.text
     assert "icon:'salad'" not in script.text
+    assert "hydrateRecipeImage" in script.text
+    assert "seenSavedTitles" in script.text
+    assert "recetas disponibles" in script.text
     for asset in ("pan-cubano.jpg", "cafe-americano.jpg", "cafe-con-canela.jpg", "affogato.jpg"):
         assert (roxy_home_service.ASSETS_DIR / "roxy_home" / "recipe_custom" / asset).is_file()
     assert "/assets/roxy_home/recipe_categories/" not in script.text

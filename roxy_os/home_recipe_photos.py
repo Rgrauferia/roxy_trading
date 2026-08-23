@@ -9,12 +9,15 @@ users and cached once, while personal recipe data remains private.
 from __future__ import annotations
 
 import base64
+import concurrent.futures
 import hashlib
 import json
 import os
 import re
 import threading
 import unicodedata
+from dataclasses import dataclass
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -77,6 +80,36 @@ def recipe_photo_prompt(recipe: dict[str, Any]) -> str:
 def recipe_photo_query(title: str) -> str:
     """Backward-compatible name for callers that previously built a search."""
     return recipe_photo_prompt({"title": title})
+
+
+@dataclass(frozen=True)
+class RecipePhotoGenerationConfig:
+    api_key: str
+    model: str = "gpt-5.6-luna"
+    enabled: bool = False
+    daily_limit: int = 600
+    quality: str = "low"
+
+    @classmethod
+    def from_env(cls) -> "RecipePhotoGenerationConfig":
+        api_key = str(os.getenv("ROXY_HOME_OPENAI_API_KEY") or "").strip()
+        enabled = str(os.getenv("ROXY_HOME_RECIPE_IMAGE_GENERATION_ENABLED") or "1").strip().lower() in {
+            "1", "true", "yes", "on"
+        }
+        try:
+            daily_limit = max(1, min(600, int(os.getenv("ROXY_HOME_RECIPE_IMAGE_DAILY_LIMIT") or 600)))
+        except ValueError:
+            daily_limit = 600
+        quality = str(os.getenv("ROXY_HOME_RECIPE_IMAGE_QUALITY") or "low").strip().lower()
+        if quality not in {"low", "medium", "high"}:
+            quality = "low"
+        return cls(
+            api_key=api_key,
+            model=str(os.getenv("ROXY_HOME_OPENAI_ROUTINE_MODEL") or "gpt-5.6-luna").strip(),
+            enabled=enabled and bool(api_key),
+            daily_limit=daily_limit,
+            quality=quality,
+        )
 
 
 class RecipePhotoStore:
@@ -158,3 +191,113 @@ class RecipePhotoStore:
             saved["approved"] = True
             self._save_manifest(manifest)
         return True
+
+
+class RecipePhotoGenerationQueue:
+    """Small bounded queue that creates each missing catalog image only once."""
+
+    def __init__(self, store: RecipePhotoStore, config: RecipePhotoGenerationConfig, *, client: Any | None = None) -> None:
+        self.store = store
+        self.config = config
+        self._client = client
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="roxy-recipe-image")
+        self._pending: set[str] = set()
+        self._lock = threading.Lock()
+        self.budget_path = store.root / "image-generation-budget.json"
+        self.failures_path = store.root / "image-generation-failures.json"
+
+    def public_status(self) -> dict[str, Any]:
+        budget = self._budget()
+        with self._lock:
+            pending = len(self._pending)
+        return {
+            "enabled": self.config.enabled,
+            "pending": pending,
+            "generated_today": int(budget.get("count") or 0),
+            "daily_limit": self.config.daily_limit,
+        }
+
+    def _budget(self) -> dict[str, Any]:
+        try:
+            payload = json.loads(self.budget_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            payload = {}
+        today = date.today().isoformat()
+        return payload if payload.get("date") == today else {"date": today, "count": 0}
+
+    def _reserve(self) -> bool:
+        payload = self._budget()
+        if int(payload.get("count") or 0) >= self.config.daily_limit:
+            return False
+        payload["count"] = int(payload.get("count") or 0) + 1
+        temporary = self.budget_path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(payload), encoding="utf-8")
+        temporary.replace(self.budget_path)
+        return True
+
+    def schedule(self, recipe: dict[str, Any]) -> str:
+        title = re.sub(r"\s+", " ", str(recipe.get("title") or "")).strip()
+        if not title or not self.config.enabled:
+            return "DISABLED"
+        if self.store.resolve(title) is not None:
+            return "READY"
+        key = self.store._key(title)
+        with self._lock:
+            if key in self._pending:
+                return "PENDING"
+            if not self._reserve():
+                return "LIMIT_REACHED"
+            self._pending.add(key)
+        self._executor.submit(self._generate, key, dict(recipe))
+        return "PENDING"
+
+    def populate(self, recipes: list[dict[str, Any]]) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for recipe in recipes:
+            state = self.schedule(recipe)
+            counts[state] = counts.get(state, 0) + 1
+        return counts
+
+    def _openai(self):
+        if self._client is None:
+            from openai import OpenAI
+
+            self._client = OpenAI(api_key=self.config.api_key)
+        return self._client
+
+    @staticmethod
+    def _image_result(response: Any) -> str:
+        for item in getattr(response, "output", []) or []:
+            if getattr(item, "type", "") == "image_generation_call" and getattr(item, "result", None):
+                return str(item.result)
+        raise RuntimeError("OpenAI no devolvió una imagen")
+
+    def _record_failure(self, title: str, error: Exception) -> None:
+        try:
+            payload = json.loads(self.failures_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            payload = {"failures": {}}
+        payload.setdefault("failures", {})[self.store._key(title)] = {
+            "title": title,
+            "at": datetime.now(timezone.utc).isoformat(),
+            "error_type": type(error).__name__,
+        }
+        temporary = self.failures_path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary.replace(self.failures_path)
+
+    def _generate(self, key: str, recipe: dict[str, Any]) -> None:
+        title = str(recipe.get("title") or "")
+        try:
+            response = self._openai().responses.create(
+                model=self.config.model,
+                input=recipe_photo_prompt(recipe),
+                tools=[{"type": "image_generation", "quality": self.config.quality, "size": "1024x1024"}],
+                store=False,
+            )
+            self.store.save_generated(title, self._image_result(response), approved=True)
+        except Exception as exc:  # Failure metadata intentionally excludes secret/provider text.
+            self._record_failure(title, exc)
+        finally:
+            with self._lock:
+                self._pending.discard(key)

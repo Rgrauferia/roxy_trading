@@ -254,6 +254,8 @@ textarea { resize: vertical; line-height: 1.45; }
 .recipe-category-grid .category-empty { grid-column: 1 / -1; }
 .recipe-card { overflow: hidden; padding: 0; border: 1px solid #dfe2dc; border-radius: 19px; text-align: left; background: white; }
 .recipe-card img { display: block; width: 100%; aspect-ratio: 1.7 / 1; object-fit: cover; }
+.recipe-image-loading { background: linear-gradient(100deg,#f1eee6 20%,#faf8f2 40%,#f1eee6 60%); background-size: 220% 100%; animation: recipe-image-loading 1.4s ease-in-out infinite; }
+@keyframes recipe-image-loading { to { background-position-x: -220%; } }
 .recipe-card.no-photo { grid-template-columns: 1fr; }
 .recipe-card.no-photo span { min-height: 92px; }
 .recipe-card span { display: block; padding: 13px; }

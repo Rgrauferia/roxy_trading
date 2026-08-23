@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import os
 import re
+import threading
 import time
 import unicodedata
 from dataclasses import dataclass
@@ -26,6 +27,7 @@ from roxy_os.home_ai import (
     RoxyHomeAI,
 )
 from roxy_os.home_recipe_fallback import (
+    exact_local_recipe,
     find_local_recipe,
     generate_local_recipe,
     local_recipe_catalog,
@@ -37,7 +39,11 @@ from roxy_os.home_recipe_library import (
     requested_servings,
     scale_recipe_payload,
 )
-from roxy_os.home_recipe_photos import RecipePhotoStore
+from roxy_os.home_recipe_photos import (
+    RecipePhotoGenerationConfig,
+    RecipePhotoGenerationQueue,
+    RecipePhotoStore,
+)
 from roxy_os.home_accounts import HomeAccountStore
 from roxy_os.home_commerce import (
     AFFILIATE_DISCLOSURE,
@@ -249,6 +255,8 @@ def _recipe_library_store() -> HomeRecipeLibraryStore:
 
 
 _RECIPE_PHOTO_STORES: dict[str, RecipePhotoStore] = {}
+_RECIPE_PHOTO_QUEUES: dict[str, RecipePhotoGenerationQueue] = {}
+_RECIPE_PHOTO_QUEUE_LOCK = threading.Lock()
 
 
 def _recipe_photo_store() -> RecipePhotoStore:
@@ -256,6 +264,18 @@ def _recipe_photo_store() -> RecipePhotoStore:
     if path not in _RECIPE_PHOTO_STORES:
         _RECIPE_PHOTO_STORES[path] = RecipePhotoStore(path)
     return _RECIPE_PHOTO_STORES[path]
+
+
+def _recipe_photo_queue() -> RecipePhotoGenerationQueue:
+    path = os.getenv("ROXY_HOME_RECIPE_PHOTO_DIR", "data/roxy_home_recipe_photos")
+    with _RECIPE_PHOTO_QUEUE_LOCK:
+        if path not in _RECIPE_PHOTO_QUEUES:
+            queue = RecipePhotoGenerationQueue(
+                _recipe_photo_store(), RecipePhotoGenerationConfig.from_env()
+            )
+            _RECIPE_PHOTO_QUEUES[path] = queue
+            queue.populate(local_recipe_catalog({"profile": {"allergies": []}}))
+    return _RECIPE_PHOTO_QUEUES[path]
 
 
 def _recipe_video_store() -> HomeRecipeVideoStore:
@@ -905,6 +925,15 @@ def recipe_photo(title: str, request: Request) -> Response:
     except (OSError, ValueError):
         resolved = None
     if resolved is None:
+        recipe = exact_local_recipe(clean_title)
+        state = _recipe_photo_queue().schedule(recipe) if recipe else "NOT_IN_CATALOG"
+        if state == "PENDING":
+            response = JSONResponse(
+                {"status": "GENERATING", "detail": "Roxy está creando la imagen exacta de esta receta"},
+                status_code=202,
+                headers={"Retry-After": "5", "Cache-Control": "no-store"},
+            )
+            return _security_headers(response)
         raise HTTPException(status_code=404, detail="Aún no hay una imagen exacta y aprobada para esta receta")
     path, metadata = resolved
     response = FileResponse(path, media_type=str(metadata.get("media_type") or "image/jpeg"))
@@ -1599,6 +1628,7 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
         "local_catalog": local_recipe_catalog_summary(),
         "local_recipes": local_recipe_catalog(snapshot),
         "shared_recipe_library": _recipe_library_store().summary(),
+        "recipe_image_service": _recipe_photo_queue().public_status(),
         "recipe_video_service": _recipe_video_public_status(),
         "voice_service": _home_voice_config().public_status(),
     }

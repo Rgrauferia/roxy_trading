@@ -172,6 +172,12 @@ services:
         value: gpt-5.6-luna
       - key: ROXY_HOME_OPENAI_DEEP_MODEL
         value: gpt-5.6-terra
+      - key: ROXY_HOME_RECIPE_IMAGE_GENERATION_ENABLED
+        value: "1"
+      - key: ROXY_HOME_RECIPE_IMAGE_DAILY_LIMIT
+        value: "600"
+      - key: ROXY_HOME_RECIPE_IMAGE_QUALITY
+        value: low
       - key: ROXY_HOME_AI_DAILY_REQUEST_LIMIT
         value: "100"
       - key: ROXY_HOME_AI_DAILY_OUTPUT_TOKEN_LIMIT

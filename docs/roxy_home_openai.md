@@ -39,9 +39,16 @@ Cada imagen nueva queda pendiente de revisión salvo que se use `--approve`.
 La generación usa únicamente `ROXY_HOME_OPENAI_API_KEY`, nunca secretos de
 Study, Trading o Finanzas.
 
+En la aplicación, las imágenes que falten entran automáticamente en una cola
+de dos trabajos. El navegador reintenta la tarjeta y la imagen se reutiliza
+desde el disco persistente para todos los usuarios. El límite diario se define
+con `ROXY_HOME_RECIPE_IMAGE_DAILY_LIMIT` (600 durante la creación inicial);
+nunca se genera dos veces el mismo
+título ni se utiliza una imagen de otra receta.
+
 ### Recetario local antes de OpenAI
 
-Las recetas comunes se resuelven primero con el recetario instalado de Roxy Home, que actualmente contiene 387 preparaciones organizadas por categoría. Solo una solicitud sin coincidencia confiable se envía a OpenAI. Esto reduce costo y latencia y mantiene las recetas habituales disponibles aunque el proveedor o la clave dedicada fallen.
+Las recetas comunes se resuelven primero con el recetario instalado de Roxy Home, que actualmente contiene 517 preparaciones organizadas por categoría. Solo una solicitud sin coincidencia confiable se envía a OpenAI. Esto reduce costo y latencia y mantiene las recetas habituales disponibles aunque el proveedor o la clave dedicada fallen.
 
 La respuesta local indica `generation_mode: local_recipe_catalog`, se guarda en la misma biblioteca y puede convertirse en lista o guía paso a paso. No se presenta como una respuesta de OpenAI. Sustituciones, planes semanales e investigación vigente siguen requiriendo la conexión OpenAI dedicada y responden `503` si no está disponible.
 

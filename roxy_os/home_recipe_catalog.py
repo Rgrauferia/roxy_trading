@@ -62,6 +62,26 @@ GROUPS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 )
 
 
+# Second installed volume: familiar recipes requested frequently by households.
+# They use the same offline deterministic recipe builder and exact-image queue.
+EXPANDED_GROUPS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("breakfast", "Desayunos internacionales", ("Burrito de desayuno", "Arepa con huevo y queso", "Sándwich de desayuno", "Croissant de jamón y queso", "Quiche de vegetales", "Hash de papas con huevo", "Bagel con huevo", "Huevos a la mexicana")),
+    ("chicken", "Más recetas de pollo", ("Pollo cordon bleu", "Pollo marsala", "Pollo piccata", "Pollo tikka masala", "Pollo con champiñones", "Pollo a la naranja", "Pollo cajún", "Wrap de pollo", "Sopa cremosa de pollo", "Brochetas de pollo")),
+    ("meat", "Más carnes", ("Vaca frita", "Boliche cubano", "Carne mechada", "Filete mignon", "Stroganoff de res", "Carne mongoliana", "Sloppy joe", "Pernil asado", "Chuletas en salsa", "Cerdo con mojo", "Carnitas de cerdo", "Solomillo de cerdo")),
+    ("seafood", "Más pescados y mariscos", ("Salmón teriyaki", "Salmón con miel", "Bacalao al horno", "Pescado en salsa de coco", "Camarones a la criolla", "Camarones al limón", "Tostadas de atún", "Sopa de mariscos", "Pulpo a la gallega", "Langosta al ajillo")),
+    ("rice", "Arroces del mundo", ("Arroz basmati", "Arroz jazmín", "Arroz con coco", "Arroz valenciano", "Jambalaya", "Biryani de pollo", "Arroz chaufa", "Arroz a la cubana")),
+    ("pasta", "Más pastas", ("Penne arrabbiata", "Penne con vodka", "Linguine con almejas", "Gnocchi con tomate", "Tortellini de queso", "Canelones de carne", "Pasta puttanesca", "Pasta cuatro quesos", "Orzo con vegetales", "Sopa minestrone con pasta")),
+    ("soups", "Sopas internacionales", ("Sopa de cebolla francesa", "Minestrone", "Sopa de papa con puerro", "Sopa de calabaza y coco", "Pozole rojo", "Menudo", "Sancocho", "Ramen de pollo", "Tom yum de camarones", "Sopa miso")),
+    ("bowls_salads", "Más bowls y ensaladas", ("Ensalada Cobb", "Ensalada Waldorf", "Ensalada de remolacha", "Ensalada de espinaca y fresa", "Ensalada de salmón", "Bowl de falafel", "Bowl de camarones", "Bowl de tofu", "Bowl de desayuno", "Bowl de frutas tropicales")),
+    ("vegetarian", "Más vegetarianas", ("Tofu teriyaki", "Berenjena rellena", "Calabacines rellenos", "Risotto de vegetales", "Pimientos rellenos", "Coliflor al curry", "Tacos de coliflor", "Pasta con garbanzos")),
+    ("baked", "Más horno y panadería", ("Pan de masa madre", "Pan de leche", "Pan de papa", "Pan de cebolla", "Pan de calabaza", "Nudos de ajo", "Pizza napolitana", "Pizza cuatro quesos", "Pizza de salami", "Empanada gallega")),
+    ("desserts", "Más postres", ("Crème brûlée", "Panna cotta", "Profiteroles", "Milhojas", "Pastel red velvet", "Pastel de coco", "Galletas de mantequilla", "Crumble de manzana", "Key lime pie", "Dulce de leche cortada")),
+    ("coffee_hot", "Más café y calientes", ("Café bombón", "Café vienés", "Café irlandés sin alcohol", "Latte de vainilla", "Latte de caramelo", "Mocha blanco", "Chocolate caliente mexicano", "Té chai helado")),
+    ("juices", "Más bebidas frescas", ("Agua de tamarindo", "Agua de mango", "Limonada de maracuyá", "Jugo de apio", "Jugo de tomate", "Ponche de frutas sin alcohol", "Refresco de jengibre casero", "Agua de coco con limón")),
+    ("smoothies", "Más batidos", ("Smoothie de durazno", "Smoothie de piña y coco", "Smoothie de manzana y canela", "Batido de galleta", "Batido de coco", "Smoothie de aguacate", "Smoothie de matcha", "Smoothie tropical")),
+)
+
+
 def _slug(value: str) -> str:
     text = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii").lower()
     return re.sub(r"[^a-z0-9]+", "_", text).strip("_")
@@ -240,7 +260,7 @@ def _base_for(category: str, title: str) -> tuple[str, float, list[dict[str, Any
 @lru_cache(maxsize=1)
 def installed_recipe_templates() -> dict[str, dict[str, Any]]:
     rows: dict[str, dict[str, Any]] = {}
-    for category, subcategory, titles in GROUPS:
+    for category, subcategory, titles in (*GROUPS, *EXPANDED_GROUPS):
         for title in titles:
             key = f"installed_{_slug(title)}"
             if key in rows:

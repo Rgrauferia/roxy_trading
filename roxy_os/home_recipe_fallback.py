@@ -300,6 +300,15 @@ def local_recipe_catalog(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def exact_local_recipe(title: str) -> dict[str, Any] | None:
+    """Return one installed recipe only when its normalized title is exact."""
+    wanted = _identity(title)
+    for key, recipe in _unique_catalog_templates().items():
+        if _identity(recipe.get("title")) == wanted:
+            return {"catalog_key": key, **deepcopy(recipe)}
+    return None
+
+
 def _unique_catalog_templates() -> dict[str, dict[str, Any]]:
     """Prefer the new categorized edition when a legacy title is duplicated."""
     templates = _templates()

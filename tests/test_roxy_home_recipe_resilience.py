@@ -47,10 +47,10 @@ def test_expanded_catalog_covers_common_drinks_meals_and_desserts_before_openai(
     assert find_local_recipe("Quiero preparar injera etíope tradicional", snapshot) is None
 
     summary = local_recipe_catalog_summary()
-    assert summary["total"] >= 380
+    assert summary["total"] >= 500
     assert summary["categories"] == 16
-    assert summary["meals"] >= 240
-    assert summary["desserts"] >= 25
+    assert summary["meals"] >= 340
+    assert summary["desserts"] >= 35
     assert summary["alcoholic_drinks"] >= 24
     assert summary["non_alcoholic_drinks"] >= 80
 
@@ -102,7 +102,7 @@ def test_recipe_endpoint_uses_real_local_catalog_when_home_openai_is_not_connect
     assert response.json()["recipe"]["title"] == "Pan casero sencillo"
     saved = client.get("/v1/home-food/robert", headers={"Authorization": "Bearer home-test-key"}).json()
     assert saved["recipes"]
-    assert saved["local_catalog"]["total"] >= 380
+    assert saved["local_catalog"]["total"] >= 500
 
 
 def test_installed_catalog_has_requested_categories_and_real_recipe_payloads():
@@ -126,6 +126,10 @@ def test_installed_catalog_has_requested_categories_and_real_recipe_payloads():
         "Café cubano": "coffee_hot",
         "Agua de jamaica": "juices",
         "Smoothie bowl de açaí": "smoothies",
+        "Vaca frita": "meat",
+        "Pollo marsala": "chicken",
+        "Pizza napolitana": "baked",
+        "Crème brûlée": "desserts",
     }
     for title, category in expected.items():
         assert title in by_title
