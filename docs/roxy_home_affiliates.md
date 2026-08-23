@@ -37,6 +37,7 @@ ROXY_HOME_PRICE_FEED_URL=
 ROXY_HOME_PRICE_FEED_API_KEY=
 ROXY_HOME_PRICE_MAX_AGE_MINUTES=180
 ROXY_HOME_PRICE_TIMEOUT_SECONDS=12
+ROXY_HOME_PRICE_CACHE_SECONDS=900
 ```
 
 Las plantillas de Walmart, Target y Thrive deben ser exactamente las entregadas
@@ -115,6 +116,11 @@ existencia. Solo calcula ahorro entre ofertas con el mismo
 de tamaño desconocido. Si la preferencia orgánica es obligatoria, una oferta
 solo puede mostrarse como orgánica cuando la fuente entregue
 `organic_certified: true`.
+
+Las consultas iguales se conservan 15 minutos en memoria
+(`ROXY_HOME_PRICE_CACHE_SECONDS=900`) para reducir costo y límites de las APIs.
+Cada perfil, código postal y lista genera una clave de caché distinta; la clave
+secreta del proveedor no forma parte de ella ni se guarda en el navegador.
 
 Amazon Creators API puede aportar título, imagen y precio una vez que la cuenta
 cumpla los requisitos de acceso. Walmart, Instacart y los demás comercios deben

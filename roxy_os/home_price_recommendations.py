@@ -3,18 +3,24 @@ from __future__ import annotations
 import json
 import os
 import re
+import hashlib
+import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from copy import deepcopy
 
 
 PRICE_NOTICE = (
     "Precios consultados en comercios externos. Pueden cambiar por ubicación, membresía, "
     "impuestos o disponibilidad; confirma el total en la tienda antes de pagar."
 )
+_FEED_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+_FEED_CACHE_LOCK = threading.Lock()
 
 
 def _text(value: Any, limit: int = 180) -> str:
@@ -119,6 +125,13 @@ def fetch_price_offers(
             if _text(row.get("name"), 120)
         ],
     }
+    cache_seconds = max(0, min(int(os.getenv("ROXY_HOME_PRICE_CACHE_SECONDS", "900")), 3600))
+    cache_key = hashlib.sha256(f"{endpoint}\0{json.dumps(payload, ensure_ascii=False, sort_keys=True)}".encode()).hexdigest()
+    if cache_seconds:
+        with _FEED_CACHE_LOCK:
+            cached = _FEED_CACHE.get(cache_key)
+            if cached and cached[0] > time.monotonic():
+                return deepcopy(cached[1])
     request = urllib.request.Request(
         endpoint,
         data=json.dumps(payload).encode("utf-8"),
@@ -138,7 +151,15 @@ def fetch_price_offers(
     offers = result.get("offers") if isinstance(result, dict) else None
     if not isinstance(offers, list):
         raise ConnectionError("La fuente de precios respondió con un formato no compatible.")
-    return offers[:1000]
+    offers = offers[:1000]
+    if cache_seconds:
+        with _FEED_CACHE_LOCK:
+            _FEED_CACHE[cache_key] = (time.monotonic() + cache_seconds, deepcopy(offers))
+            if len(_FEED_CACHE) > 500:
+                expired = [key for key, value in _FEED_CACHE.items() if value[0] <= time.monotonic()]
+                for key in expired:
+                    _FEED_CACHE.pop(key, None)
+    return offers
 
 
 def _normalize_offer(raw: dict[str, Any], max_age_minutes: int) -> dict[str, Any] | None:
