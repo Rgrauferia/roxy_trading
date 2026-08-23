@@ -1,4 +1,4 @@
-# Design QA — Plan de comidas v59
+# Design QA — Plan de comidas v60
 
 ## Source
 
@@ -29,4 +29,4 @@
 
 ## Status
 
-Passed locally. Production deployment and persistent photo coverage are the remaining release checks.
+Passed locally. Production release check requires the v60 cache-busted stylesheet and app shell.
