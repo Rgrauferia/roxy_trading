@@ -5,6 +5,7 @@
 - Reference: `/tmp/codex-remote-attachments/01a00902-6774-7450-965e-15f74386c916/0A27AEC7-4709-4390-8CB9-1E5D33295887/2-Ideas-para-monetizar-Roxy-Home.png`
 - Implementation capture: `/tmp/roxy-home-plan-v59-final.png`
 - Side-by-side comparison: `/tmp/roxy-home-plan-comparison-v59-final.jpg`
+- Production capture: `/tmp/roxy-home-plan-v60-production.png`
 - Viewport: 390 × 844 (mobile Safari/iPhone class)
 
 ## Visual review
@@ -29,4 +30,4 @@
 
 ## Status
 
-Passed locally. Production release check requires the v60 cache-busted stylesheet and app shell.
+Passed. The public v60 app shell serves the cache-busted stylesheet, the mobile layout matches the selected reference, and production photo coverage is complete at 539/539 with no failures.
