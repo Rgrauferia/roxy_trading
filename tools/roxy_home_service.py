@@ -55,6 +55,12 @@ from roxy_os.home_commerce import (
     public_providers,
 )
 from roxy_os.home_food import HomeFoodStore, HomePermissionPolicy
+from roxy_os.home_price_recommendations import (
+    PRICE_NOTICE,
+    PriceFeedConfig,
+    fetch_price_offers,
+    recommend_prices,
+)
 from roxy_os.home_weekly_plans import (
     MEALS,
     create_local_weekly_plan,
@@ -560,6 +566,8 @@ def _assistant_shopping_intent(text: str) -> str:
     weekly_intent = _assistant_weekly_intent(text)
     if weekly_intent:
         return weekly_intent
+    if re.search(r"\b(donde|dónde|compara|comparar|economico|económico|barato|precio|precios|oferta|ofertas)\b.*\b(comprar|compra|producto|productos|lista|tienda|comercio|walmart|amazon|instacart)\b", normalized):
+        return "commerce_compare"
     if re.search(r"\b(prepara|preparar|busca|buscar|encuentra|encontrar)\b.*\b(compra|carrito)\b", normalized):
         return "commerce_prepare"
     if re.search(r"\b(agrega|añade|anade|pon|pasa|mete|incluye|echa)\b.*\bingredientes?\b.*\b(lista|carrito)\b", normalized):
@@ -1426,6 +1434,34 @@ def assistant_command(
             extra["weekly_plan"] = plan
             extra["day_index"] = day_index
             extra["shopping_preview"] = weekly_plan_shopping_items(plan)
+    elif intent == "commerce_compare":
+        owner_key = _commerce_owner_key(auth, user)
+        commerce_store = _commerce_store()
+        profile = commerce_store.profile(owner_key)
+        raw_items = store.list_items(user, statuses={"PENDING"}, limit=100)
+        if not raw_items:
+            raise HTTPException(status_code=409, detail="No hay productos pendientes para comparar.")
+        food_snapshot = _home_food_store().snapshot(user)
+        items = personalize_items(raw_items, profile, food_snapshot.get("profile", {}).get("allergies", []))
+        config = PriceFeedConfig.from_env()
+        if not config.configured:
+            message = "Aún no tengo una fuente autorizada de precios en tiempo real. Puedo abrir las búsquedas en los comercios conectados, pero no inventaré precios ni ahorros."
+            extra["price_recommendations"] = {"status": "PRICE_SOURCE_NOT_CONNECTED", "recommendations": []}
+        else:
+            try:
+                offers = fetch_price_offers(items, profile, config=config)
+            except ConnectionError as exc:
+                raise HTTPException(status_code=502, detail=str(exc)) from exc
+            result = recommend_prices(items, offers, profile, max_age_minutes=config.max_age_minutes)
+            recommendations = result.get("recommendations") or []
+            if recommendations:
+                message = "Estas son mis mejores opciones verificadas: " + "; ".join(
+                    f"{row['shopping_item']} en {row['retailer_name']} por ${row['price']:.2f}"
+                    for row in recommendations[:5]
+                ) + ". Confirma el precio final dentro de la tienda."
+            else:
+                message = "No encontré precios vigentes y comparables para los productos de tu lista. No voy a inventar una recomendación."
+            extra["price_recommendations"] = result
     elif intent == "commerce_prepare":
         food_snapshot = _home_food_store().snapshot(user)
         use_recipe = bool(re.search(r"\bingredientes?\b|\breceta\b", command_text.lower()))
@@ -1868,6 +1904,52 @@ def update_home_commerce_profile(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"status": "UPDATED", "profile": profile}
+
+
+@app.get("/v1/home-commerce/{user_id}/recommendations")
+def read_home_price_recommendations(
+    user_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    """Compare only fresh, retailer-supplied offers for the authenticated member."""
+
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    owner_key = _commerce_owner_key(auth, user)
+    profile = _commerce_store().profile(owner_key)
+    raw_items = _store().list_items(user, statuses={"PENDING"}, limit=100)
+    if not raw_items:
+        return {
+            "status": "EMPTY_LIST",
+            "configured": PriceFeedConfig.from_env().configured,
+            "recommendations": [],
+            "unpriced_items": [],
+            "updated_at": "",
+            "notice": PRICE_NOTICE,
+        }
+    food_snapshot = _home_food_store().snapshot(user)
+    items = personalize_items(raw_items, profile, food_snapshot.get("profile", {}).get("allergies", []))
+    config = PriceFeedConfig.from_env()
+    if not config.configured:
+        return {
+            "status": "PRICE_SOURCE_NOT_CONNECTED",
+            "configured": False,
+            "recommendations": [],
+            "unpriced_items": [row["name"] for row in items],
+            "updated_at": "",
+            "notice": PRICE_NOTICE,
+            "message": (
+                "Roxy aún no tiene una fuente autorizada de precios en tiempo real. "
+                "Puedes buscar los productos en los comercios disponibles, pero no mostraré precios inventados."
+            ),
+        }
+    try:
+        offers = fetch_price_offers(items, profile, config=config)
+    except ConnectionError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    result = recommend_prices(items, offers, profile, max_age_minutes=config.max_age_minutes)
+    return {"configured": True, **result}
 
 
 @app.post("/v1/home-commerce/{user_id}/preparations", status_code=201)

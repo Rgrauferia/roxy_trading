@@ -33,6 +33,10 @@ ROXY_HOME_AMAZON_ASSOCIATE_TAG=
 ROXY_HOME_WALMART_AFFILIATE_LINK_TEMPLATE=
 ROXY_HOME_TARGET_AFFILIATE_LINK_TEMPLATE=
 ROXY_HOME_THRIVE_AFFILIATE_LINK_TEMPLATE=
+ROXY_HOME_PRICE_FEED_URL=
+ROXY_HOME_PRICE_FEED_API_KEY=
+ROXY_HOME_PRICE_MAX_AGE_MINUTES=180
+ROXY_HOME_PRICE_TIMEOUT_SECONDS=12
 ```
 
 Las plantillas de Walmart, Target y Thrive deben ser exactamente las entregadas
@@ -70,6 +74,53 @@ https://enlace-aprobado-del-proveedor.example/click?dest={destination}
 - **Thrive Market:** solicita el programa y usa la plantilla oficial cuando sea
   aprobada.
 
+## Comparación personalizada de precios
+
+La tarjeta **Dónde conviene comprar** usa una fuente de catálogo aprobada y
+servidor-a-servidor. `ROXY_HOME_PRICE_FEED_URL` debe ser HTTPS y
+`ROXY_HOME_PRICE_FEED_API_KEY` permanece solo en Render. Al abrir Compra o tocar
+**Actualizar**, Roxy envía nombres, cantidades, unidades, código postal y
+preferencias; no envía correo, contraseña, dirección ni tarjeta.
+
+Contrato de respuesta esperado:
+
+```json
+{
+  "offers": [{
+    "item_name": "Leche",
+    "retailer_id": "walmart",
+    "retailer_name": "Walmart",
+    "product_title": "Leche entera, 1 galón",
+    "brand": "Marca",
+    "price": 3.48,
+    "currency": "USD",
+    "package_label": "1 galón",
+    "unit_price": 0.027,
+    "comparison_unit": "fl oz",
+    "organic_certified": false,
+    "dietary_labels": [],
+    "availability": "available",
+    "product_url": "https://enlace-afiliado-aprobado.example/producto",
+    "observed_at": "2026-08-23T16:00:00Z",
+    "source": "retailer_api"
+  }]
+}
+```
+
+La URL del producto debe ser el enlace oficial o afiliado devuelto por el
+proveedor, no uno construido con parámetros inventados. Roxy rechaza HTTP,
+precios inválidos, monedas distintas de USD, ofertas vencidas y productos sin
+existencia. Solo calcula ahorro entre ofertas con el mismo
+`comparison_unit`; nunca compara un paquete con precio por unidad contra otro
+de tamaño desconocido. Si la preferencia orgánica es obligatoria, una oferta
+solo puede mostrarse como orgánica cuando la fuente entregue
+`organic_certified: true`.
+
+Amazon Creators API puede aportar título, imagen y precio una vez que la cuenta
+cumpla los requisitos de acceso. Walmart, Instacart y los demás comercios deben
+entrar mediante sus APIs/feeds aprobados o mediante un agregador autorizado.
+Los enlaces de búsqueda afiliados existentes no cuentan como fuente de precio.
+
 Después de guardar variables, vuelve a desplegar `roxy-home`. En **Preparar mi
 compra**, cada proveedor cambiará de “pendiente” a “listo”.
 
@@ -90,6 +141,8 @@ de Impact, Amazon Associates o el portal del proveedor.
 
 - Sin aprobación o credencial, el proveedor aparece como **pendiente** y no hay
   botón decorativo ni catálogo simulado.
+- Sin feed de precios, la tarjeta explica que falta conectar una fuente y no
+  muestra cantidades ni ahorros simulados.
 - Con el enlace aprobado, Roxy abre la tienda con atribución y el usuario paga
   allí.
 - Con una API de carrito aprobada, Roxy puede entregar la lista completa para

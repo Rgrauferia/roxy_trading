@@ -1,8 +1,10 @@
+from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
 
 from roxy_os.home_commerce import HomeCommerceStore
+from roxy_os.home_price_recommendations import recommend_prices
 
 
 def _client(tmp_path, monkeypatch):
@@ -248,13 +250,181 @@ def test_home_commerce_controls_are_connected_to_real_endpoints():
     assert 'id="commerceConfirmButton"' in page
     assert 'id="commerceRecent"' in page
     assert 'id="commerceProviderDisclosure"' in page
+    assert 'id="priceRecommendations"' in page
+    assert 'id="refreshPricesButton"' in page
     assert "/v1/home-commerce/" in script
+    assert "/recommendations" in script
+    assert "reviewRetailOffer" in script
     assert "preparePurchase('recipe'" in script
     assert "confirmed:true" in script
     assert "confirmProviderHandoff" in script
     assert "dataset.externalCheckout" in script
     assert "Revisar productos y pagar en" in script
     assert "Última compra preparada" in script
+
+
+def test_price_recommendations_only_claim_savings_for_comparable_units():
+    observed_at = datetime.now(timezone.utc).isoformat()
+    items = [{"name": "Leche", "quantity": 1, "unit": "galón"}]
+    offers = [
+        {
+            "item_name": "Leche",
+            "retailer_id": "walmart",
+            "retailer_name": "Walmart",
+            "product_title": "Leche entera",
+            "price": 3.50,
+            "unit_price": 0.22,
+            "comparison_unit": "fl oz",
+            "currency": "USD",
+            "product_url": "https://www.walmart.com/ip/1",
+            "observed_at": observed_at,
+            "availability": "available",
+        },
+        {
+            "item_name": "Leche",
+            "retailer_id": "target",
+            "retailer_name": "Target",
+            "product_title": "Leche entera",
+            "price": 4.30,
+            "unit_price": 0.27,
+            "comparison_unit": "fl oz",
+            "currency": "USD",
+            "product_url": "https://www.target.com/p/1",
+            "observed_at": observed_at,
+            "availability": "available",
+        },
+        {
+            "item_name": "Leche",
+            "retailer_id": "other",
+            "retailer_name": "Otra",
+            "product_title": "Leche individual",
+            "price": 1.00,
+            "unit_price": 1.00,
+            "comparison_unit": "count",
+            "currency": "USD",
+            "product_url": "https://example.com/leche",
+            "observed_at": observed_at,
+            "availability": "available",
+        },
+    ]
+    result = recommend_prices(
+        items,
+        offers,
+        {"objective": "lowest_price", "organic_preference": "no_preference"},
+    )
+
+    recommendation = result["recommendations"][0]
+    assert recommendation["retailer_name"] == "Walmart"
+    assert recommendation["savings_per_unit"] == 0.05
+    assert recommendation["comparison_retailer"] == "Target"
+    assert "Otra" not in " ".join(recommendation["reasons"])
+
+
+def test_required_organic_never_falls_back_to_conventional_offer():
+    result = recommend_prices(
+        [{"name": "Pan", "quantity": 1, "unit": "paquete"}],
+        [
+            {
+                "item_name": "Pan",
+                "retailer_id": "walmart",
+                "retailer_name": "Walmart",
+                "product_title": "Pan blanco",
+                "price": 2,
+                "currency": "USD",
+                "product_url": "https://www.walmart.com/ip/2",
+                "observed_at": datetime.now(timezone.utc).isoformat(),
+                "availability": "available",
+                "organic_certified": False,
+            }
+        ],
+        {"objective": "organic", "organic_preference": "required"},
+    )
+
+    assert result["status"] == "NO_VERIFIED_PRICES"
+    assert result["recommendations"] == []
+    assert result["unpriced_items"] == ["Pan"]
+
+
+def test_price_endpoint_returns_no_fake_prices_without_authorized_feed(tmp_path, monkeypatch):
+    client, headers = _client(tmp_path, monkeypatch)
+    monkeypatch.delenv("ROXY_HOME_PRICE_FEED_URL", raising=False)
+    monkeypatch.delenv("ROXY_HOME_PRICE_FEED_API_KEY", raising=False)
+    client.post(
+        "/v1/shopping/robert",
+        headers=headers,
+        json={"name": "Leche", "quantity": 1, "unit": "galón", "category": "FOOD"},
+    )
+
+    response = client.get("/v1/home-commerce/robert/recommendations", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "PRICE_SOURCE_NOT_CONNECTED"
+    assert response.json()["recommendations"] == []
+    assert "precios inventados" in response.json()["message"]
+
+
+def test_roxy_voice_can_explain_when_price_feed_is_not_connected(tmp_path, monkeypatch):
+    client, headers = _client(tmp_path, monkeypatch)
+    monkeypatch.delenv("ROXY_HOME_PRICE_FEED_URL", raising=False)
+    monkeypatch.delenv("ROXY_HOME_PRICE_FEED_API_KEY", raising=False)
+    client.post(
+        "/v1/shopping/robert",
+        headers=headers,
+        json={"name": "Pan", "quantity": 1, "unit": "paquete", "category": "FOOD"},
+    )
+
+    response = client.post(
+        "/v1/assistant/command/robert",
+        headers=headers,
+        json={"text": "Roxy, ¿dónde está más barato comprar lo de mi lista?"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["intent"] == "commerce_compare"
+    assert response.json()["data"]["price_recommendations"]["recommendations"] == []
+    assert "no inventaré precios" in response.json()["message"]
+
+
+def test_price_endpoint_returns_ranked_live_offer_from_server_side_feed(tmp_path, monkeypatch):
+    client, headers = _client(tmp_path, monkeypatch)
+    from tools import roxy_home_service
+
+    monkeypatch.setenv("ROXY_HOME_PRICE_FEED_URL", "https://prices.example.com/search")
+    monkeypatch.setenv("ROXY_HOME_PRICE_FEED_API_KEY", "server-only-secret")
+    monkeypatch.setattr(
+        roxy_home_service,
+        "fetch_price_offers",
+        lambda items, profile, config: [
+            {
+                "item_name": "Aguacate",
+                "retailer_id": "walmart",
+                "retailer_name": "Walmart",
+                "product_title": "Aguacate Hass orgánico",
+                "brand": "Fresh",
+                "price": 1.25,
+                "unit_price": 1.25,
+                "comparison_unit": "unidad",
+                "currency": "USD",
+                "organic_certified": True,
+                "product_url": "https://www.walmart.com/ip/avocado",
+                "observed_at": datetime.now(timezone.utc).isoformat(),
+                "availability": "available",
+            }
+        ],
+    )
+    client.post(
+        "/v1/shopping/robert",
+        headers=headers,
+        json={"name": "Aguacate", "quantity": 2, "unit": "unidad", "category": "FOOD"},
+    )
+
+    response = client.get("/v1/home-commerce/robert/recommendations", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "READY"
+    assert response.json()["recommendations"][0]["retailer_name"] == "Walmart"
+    assert response.json()["recommendations"][0]["price"] == 1.25
+    assert "server-only-secret" not in response.text
 
 
 def test_impact_template_supports_anonymous_sub_id(tmp_path, monkeypatch):

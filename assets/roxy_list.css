@@ -416,6 +416,20 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
 
 .commerce-card { background: linear-gradient(145deg, #fffdf8 0%, #edf4ec 100%); border-color: rgba(181, 141, 55, .28); }
 .commerce-card > p { color: var(--muted); line-height: 1.55; }
+.price-refresh { align-self: start; min-height: 40px; padding: .5rem .72rem; border: 1px solid rgba(23, 63, 43, .2); border-radius: 999px; background: #fff; color: var(--forest); font-weight: 800; }
+.price-refresh:disabled { opacity: .55; }
+.price-recommendation-status { margin-top: .8rem; padding: .72rem .8rem; border-radius: 14px; color: var(--muted); background: rgba(255,255,255,.7); font-size: .82rem; line-height: 1.45; }
+.price-recommendations { display: grid; gap: .7rem; margin-top: .75rem; }
+.price-recommendations:empty { display: none; }
+.price-offer { display: grid; grid-template-columns: 52px minmax(0,1fr) auto; gap: .7rem; align-items: center; padding: .75rem; border: 1px solid rgba(23,63,43,.13); border-radius: 18px; background: #fff; box-shadow: 0 8px 20px rgba(25,48,36,.05); }
+.price-offer img { width: 52px; height: 52px; object-fit: cover; border-radius: 13px; background: #f5efe4; }
+.price-offer-copy { min-width: 0; display: grid; gap: .14rem; }
+.price-offer-copy > strong { color: var(--forest); line-height: 1.15; }
+.price-offer-copy > span { color: #1d2b25; font-weight: 760; }
+.price-offer-copy small { color: var(--muted); line-height: 1.3; }
+.price-offer-reason { color: #7f6523 !important; font-weight: 700; }
+.price-offer button { min-height: 44px; padding: .55rem .65rem; border: 0; border-radius: 13px; color: #fff; background: var(--forest); font-weight: 800; }
+@media (max-width: 430px) { .price-offer { grid-template-columns: 48px minmax(0,1fr); } .price-offer button { grid-column: 1 / -1; width: 100%; } }
 .provider-badges { display: flex; flex-wrap: wrap; gap: .45rem; margin: .8rem 0 1rem; }
 .provider-badge { border-radius: 999px; padding: .4rem .65rem; font-size: .76rem; font-weight: 750; }
 .provider-badge.ready { color: var(--forest); background: rgba(32, 102, 65, .1); }
