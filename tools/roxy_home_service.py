@@ -37,6 +37,7 @@ from roxy_os.home_recipe_library import (
     requested_servings,
     scale_recipe_payload,
 )
+from roxy_os.home_recipe_photos import RecipePhotoStore
 from roxy_os.home_accounts import HomeAccountStore
 from roxy_os.home_commerce import (
     AFFILIATE_DISCLOSURE,
@@ -245,6 +246,16 @@ def _recipe_library_store() -> HomeRecipeLibraryStore:
     return HomeRecipeLibraryStore(
         os.getenv("ROXY_HOME_RECIPE_LIBRARY_PATH", "data/roxy_home_recipe_library.sqlite")
     )
+
+
+_RECIPE_PHOTO_STORES: dict[str, RecipePhotoStore] = {}
+
+
+def _recipe_photo_store() -> RecipePhotoStore:
+    path = os.getenv("ROXY_HOME_RECIPE_PHOTO_DIR", "data/roxy_home_recipe_photos")
+    if path not in _RECIPE_PHOTO_STORES:
+        _RECIPE_PHOTO_STORES[path] = RecipePhotoStore(path)
+    return _RECIPE_PHOTO_STORES[path]
 
 
 def _recipe_video_store() -> HomeRecipeVideoStore:
@@ -870,6 +881,54 @@ def shopping_service_worker() -> Response:
         headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/lista"},
     )
     return _security_headers(response)
+
+
+@app.get("/v1/home-food/recipe-photo")
+def recipe_photo(title: str, request: Request) -> Response:
+    _rate_limit(request)
+    clean_title = re.sub(r"\s+", " ", str(title or "")).strip()
+    if not clean_title or len(clean_title) > 160:
+        raise HTTPException(status_code=422, detail="Nombre de receta inválido")
+    try:
+        resolved = _recipe_photo_store().resolve(clean_title)
+    except (OSError, ValueError, requests.RequestException):
+        resolved = None
+    if resolved is None:
+        raise HTTPException(status_code=404, detail="Aún no hay una fotografía real verificada para esta receta")
+    path, metadata = resolved
+    response = FileResponse(path, media_type=str(metadata.get("media_type") or "image/jpeg"))
+    response.headers["Cache-Control"] = "public, max-age=2592000, immutable"
+    response.headers["X-Roxy-Photo-Source"] = "Openverse"
+    response.headers["X-Roxy-Photo-License"] = str(metadata.get("license") or "unknown")[:64]
+    return _security_headers(response)
+
+
+@app.get("/v1/home-food/recipe-photo-info")
+def recipe_photo_info(title: str, request: Request) -> Response:
+    _rate_limit(request)
+    clean_title = re.sub(r"\s+", " ", str(title or "")).strip()
+    if not clean_title or len(clean_title) > 160:
+        raise HTTPException(status_code=422, detail="Nombre de receta inválido")
+    try:
+        resolved = _recipe_photo_store().resolve(clean_title)
+    except (OSError, ValueError, requests.RequestException):
+        resolved = None
+    if resolved is None:
+        return _security_headers(JSONResponse({"available": False}))
+    _, metadata = resolved
+    return _security_headers(
+        JSONResponse(
+            {
+                "available": True,
+                "title": str(metadata.get("title") or clean_title),
+                "creator": str(metadata.get("creator") or ""),
+                "license": str(metadata.get("license") or ""),
+                "license_url": str(metadata.get("license_url") or ""),
+                "source_url": str(metadata.get("source_url") or ""),
+                "provider": "Openverse",
+            }
+        )
+    )
 
 
 @app.get("/home-sw.js")

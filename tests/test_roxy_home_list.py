@@ -17,8 +17,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=48"' in page.text
-    assert '/assets/roxy_list.js?v=48' in worker.text
+    assert 'src="/assets/roxy_list.js?v=49"' in page.text
+    assert '/assets/roxy_list.js?v=49' in worker.text
     assert 'id="todayPanel"' in page.text
     assert 'data-tab-link="today"' in page.text
     assert page.text.index('id="todayPanel"') < page.text.index('id="shoppingPanel"') < page.text.index('id="recipesPanel"')
@@ -180,12 +180,14 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "ROXY_HOME_RECIPE_LIBRARY_PATH=/var/data/roxy_home/recipe_library.sqlite" in dockerfile
     assert "COPY assets/roxy_home/home-hero-plant.png ./assets/roxy_home/home-hero-plant.png" in dockerfile
     assert "COPY assets/roxy_avatar_card.jpg ./assets/roxy_avatar_card.jpg" in dockerfile
+    assert "ROXY_HOME_RECIPE_PHOTO_DIR=/var/data/roxy_home/recipe_photos" in dockerfile
+    assert "/v1/home-food/recipe-photo?title=" in script.text
+    assert "/assets/roxy_home/recipe_categories/" not in script.text
     for asset in ("pizza.png", "pasta.png", "bread.png", "soup-salad.png", "dessert.png", "drinks.png"):
-        assert f"/assets/roxy_home/recipes/{asset}" in script.text
         assert f"/assets/roxy_home/recipes/{asset}" in worker.text
         assert client.get(f"/assets/roxy_home/recipes/{asset}").status_code == 200
     for asset in ("breakfast.jpg", "proteins.jpg", "rice-pasta.jpg", "soups-bowls.jpg", "baked.jpg", "desserts.jpg", "coffee.jpg", "juices-smoothies.jpg"):
-        assert f"/assets/roxy_home/recipe_categories/{asset}?v=1" in worker.text
+        assert f"/assets/roxy_home/recipe_categories/{asset}?v=1" not in worker.text
         assert client.get(f"/assets/roxy_home/recipe_categories/{asset}").status_code == 200
 
 

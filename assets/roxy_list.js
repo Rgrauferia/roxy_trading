@@ -127,21 +127,8 @@
   };
   const recipeImage = recipe => {
     if (recipe && /^data:image\/(jpeg|png|webp);base64,/.test(String(recipe.photo_data_url || ''))) return recipe.photo_data_url;
-    const searchable=normalize(`${recipe&&recipe.title||''} ${recipe&&recipe.description||''} ${(recipe&&recipe.ingredients||[]).map(row=>row&&row.name||'').join(' ')}`);
-    if(/\b(pizza|pizzeta|calzone)\b/.test(searchable))return'/assets/roxy_home/recipes/pizza.png';
-    if(/\b(pasta|espagueti|spaghetti|macarron|fideo|lasana|ravioli)\b/.test(searchable))return'/assets/roxy_home/recipes/pasta.png';
-    if(/\b(pan|baguette|focaccia|brioche|bollo|masa madre)\b/.test(searchable))return'/assets/roxy_home/recipes/bread.png';
-    if(/\b(postre|pastel|tarta|bizcocho|flan|arroz con leche|galleta|helado)\b/.test(searchable))return'/assets/roxy_home/recipes/dessert.png';
-    if(/\b(sopa|caldo|crema|ensalada|aguacate|vegetal|verdura)\b/.test(searchable))return'/assets/roxy_home/recipes/soup-salad.png';
-    if(/\b(bebida|limonada|jugo|zumo|batido|smoothie|mojito|coctel|cocktail)\b/.test(searchable))return'/assets/roxy_home/recipes/drinks.png';
-    const category=recipeCategoryId(recipe||{});
-    const categoryImages={breakfast:'breakfast.jpg',chicken:'proteins.jpg',meat:'proteins.jpg',seafood:'proteins.jpg',rice:'rice-pasta.jpg',pasta:'rice-pasta.jpg',soups:'soups-bowls.jpg',bowls_salads:'soups-bowls.jpg',vegetarian:'soups-bowls.jpg',baked:'baked.jpg',sides_sauces:'soups-bowls.jpg',desserts:'desserts.jpg',coffee_hot:'coffee.jpg',juices:'juices-smoothies.jpg',smoothies:'juices-smoothies.jpg',cocktails:'drinks.png'};
-    if(categoryImages[category])return category==='cocktails'?'/assets/roxy_home/recipes/drinks.png':`/assets/roxy_home/recipe_categories/${categoryImages[category]}?v=1`;
-    const kind = recipe && recipe.kind;
-    if (kind === 'bread') return '/assets/roxy_home/recipes/bread.png';
-    if (kind === 'drink') return '/assets/roxy_home/recipes/drinks.png';
-    if (kind === 'dessert') return '/assets/roxy_home/recipes/dessert.png';
-    return imagePath((recipe && recipe.ingredients && recipe.ingredients[0] && recipe.ingredients[0].name) || 'pollo','FOOD');
+    const title=String(recipe&&recipe.title||'').trim();
+    return title?`/v1/home-food/recipe-photo?title=${encodeURIComponent(title)}`:'';
   };
 
   const dbPromise = new Promise((resolve,reject) => {
@@ -488,7 +475,7 @@
   }
   function recipeCard(recipe){
     const button=document.createElement('button');button.type='button';button.className='recipe-card';
-    const img=document.createElement('img');img.src=recipeImage(recipe);img.alt=`Foto de ${recipe.title||'la receta'}`;img.loading='lazy';
+    const img=document.createElement('img');img.src=recipeImage(recipe);img.alt=`Fotografía real de ${recipe.title||'la receta'}`;img.loading='lazy';img.decoding='async';img.addEventListener('error',()=>{img.remove();button.classList.add('no-photo')},{once:true});
     const copy=document.createElement('span');const strong=document.createElement('strong');strong.textContent=recipe.title;
     const drinkLabel=recipe.kind==='drink'?(recipe.drink_type==='alcoholic'?'Con alcohol':'Sin alcohol'):'';
     const small=document.createElement('small');small.textContent=`${recipe.favorite?'Favorita · ':''}${drinkLabel||recipeCategoryLabels[recipeCategoryId(recipe)]||kindLabels[recipe.kind]||'Receta'} · ${recipe.servings||1} porciones · ${(recipe.steps||[]).length} pasos`;
@@ -532,12 +519,17 @@
   }
   function openRecipeByTitle(title){const key=normalize(title);const rows=[...(homeFood.recipes||[]),...(homeFood.local_recipes||[])];const recipe=rows.find(row=>normalize(row.title||'')===key)||rows.find(row=>{const candidate=normalize(row.title||'');return candidate.length>7&&(key.includes(candidate)||candidate.includes(key))});if(recipe){recipe.catalog_key?openCatalogRecipe(recipe):openRecipe(recipe)}else{selectPanel('recipes');$('recipeSearch').value=title;recipeSearch=key;renderRecipes()}}
   function addTextList(root,rows,ordered=false){const list=document.createElement(ordered?'ol':'ul');(rows||[]).forEach(row=>{const item=document.createElement('li');item.textContent=typeof row==='string'?row:`${row.quantity||''} ${row.unit||''} de ${row.name||''}${row.notes?` · ${row.notes}`:''}`.trim();list.append(item)});root.append(list);}
+  async function addRecipePhotoCredit(recipe,intro){
+    if(recipe.photo_data_url)return;
+    try{const response=await fetch(`/v1/home-food/recipe-photo-info?title=${encodeURIComponent(recipe.title||'')}`,{credentials:'same-origin'});if(!response.ok)return;const photo=await response.json();if(!photo.available||!photo.source_url)return;const credit=document.createElement('a');credit.className='recipe-photo-credit';credit.href=photo.source_url;credit.target='_blank';credit.rel='noopener noreferrer';credit.textContent=`Foto real: ${photo.creator||photo.title} · ${String(photo.license||'CC').toUpperCase()}`;intro.append(credit)}catch(error){}
+  }
   function openRecipe(recipe){
     currentRecipe=recipe;$('recipeDialogTitle').textContent=recipe.title||'Receta de Roxy';
     const root=$('recipeDialogContent');root.replaceChildren();
-    const hero=document.createElement('div');hero.className='recipe-detail-hero';const img=document.createElement('img');img.src=recipeImage(recipe);img.alt=`Foto de ${recipe.title||'la receta'}`;
+    const hero=document.createElement('div');hero.className='recipe-detail-hero';const img=document.createElement('img');img.src=recipeImage(recipe);img.alt=`Fotografía real de ${recipe.title||'la receta'}`;img.addEventListener('error',()=>{img.remove();hero.classList.add('no-photo')},{once:true});
     const intro=document.createElement('div');const meta=document.createElement('strong');const recipeLabel=recipe.kind==='drink'?(recipe.drink_type==='alcoholic'?'Bebida con alcohol':'Bebida sin alcohol'):(kindLabels[recipe.kind]||'Receta');meta.textContent=`${recipeLabel} · ${recipe.servings||1} porciones`;
     const description=document.createElement('p');description.textContent=recipe.description||'Receta guardada por Roxy.';intro.append(meta,description);hero.append(img,intro);
+    addRecipePhotoCredit(recipe,intro);
     const videoArea=document.createElement('section');videoArea.className='recipe-video-area';videoArea.setAttribute('aria-live','polite');
     const columns=document.createElement('div');columns.className='recipe-columns';
     const ingredients=document.createElement('section');const ingTitle=document.createElement('h3');ingTitle.textContent='Ingredientes';ingredients.append(ingTitle);addTextList(ingredients,recipe.ingredients||[]);
@@ -756,7 +748,7 @@
     $('cookingTitle').textContent=data.recipe.title;
     $('cookingProgress').textContent=data.session.status==='COMPLETED'?'Receta terminada':`Paso ${data.step_number} de ${total}`;
     $('cookingStep').textContent=data.session.status==='COMPLETED'?'¡Listo! Terminaste la receta. Quedará guardada para cuando quieras repetirla.':data.current_step;
-    $('cookingImage').src=recipeImage(data.recipe);
+    $('cookingImage').hidden=false;$('cookingImage').src=recipeImage(data.recipe);$('cookingImage').onerror=()=>{$('cookingImage').hidden=true};
     $('previousStepButton').disabled=data.step_number<=1||data.session.status==='COMPLETED';
     $('nextStepButton').textContent=data.step_number>=total?'Terminar':'Siguiente';
     $('nextStepButton').disabled=data.session.status==='COMPLETED';
@@ -933,6 +925,7 @@
 
   function render(){renderShopping();renderRecipes();const latest=(homeFood.weekly_plans||[]).slice(-1)[0]||null;renderMealPlan(latest)}
   function bind(){
+    document.addEventListener('error',event=>{const image=event.target;if(!(image instanceof HTMLImageElement)||!image.src.includes('/v1/home-food/recipe-photo'))return;const card=image.closest('.recipe-card,.recipe-detail-hero,.meal-plan-meal');if(card)card.classList.add('no-photo');image.remove()},true);
     $('searchInput').addEventListener('input',event=>{search=event.target.value;renderShopping()});
     $('toggleStaples').addEventListener('click',()=>{showAllStaples=!showAllStaples;renderShopping()});
     $('focusListButton').addEventListener('click',()=>$('shoppingList').scrollIntoView({behavior:'smooth',block:'start'}));
