@@ -39,6 +39,22 @@ def test_home_food_isolates_profiles_pantry_and_recipes_by_user(tmp_path):
         raise AssertionError("Una receta privada fue visible para otro usuario")
 
 
+def test_shared_artwork_inventory_deduplicates_saved_recipe_titles(tmp_path):
+    store = HomeFoodStore(tmp_path / "home.json")
+    first = sample_recipe()
+    second = {**sample_recipe(), "title": "Pizza cubana clásica"}
+    store.save_recipe("robert", first)
+    store.save_recipe("roxy", first)
+    store.save_recipe("roxy", second)
+
+    assert [row["title"] for row in store.all_saved_recipes()] == [
+        "Arroz con tomate",
+        "Pizza cubana clásica",
+    ]
+    assert store.find_saved_recipe_by_title("  PIZZA CUBANA CLÁSICA ")["title"] == "Pizza cubana clásica"
+    assert store.find_saved_recipe_by_title("No existe") is None
+
+
 def test_scaling_pantry_subtraction_and_confirmed_shopping_conversion(tmp_path):
     store = HomeFoodStore(tmp_path / "home.json")
     shopping = ShoppingListStore(tmp_path / "shopping.json")

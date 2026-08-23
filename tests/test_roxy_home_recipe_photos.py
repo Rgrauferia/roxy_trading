@@ -116,6 +116,34 @@ def test_missing_catalog_photo_endpoint_starts_generation(monkeypatch):
     assert response.json()["status"] == "GENERATING"
 
 
+def test_missing_saved_recipe_photo_endpoint_starts_generation(monkeypatch):
+    from tools import roxy_home_service
+
+    class _MissingStore:
+        def resolve(self, title):
+            return None
+
+    class _FoodStore:
+        def find_saved_recipe_by_title(self, title):
+            return {"title": title, "ingredients": [{"name": "Jamón"}, {"name": "Queso"}]}
+
+    class _Queue:
+        def schedule(self, recipe):
+            assert recipe["title"] == "Pizza cubana clásica"
+            return "PENDING"
+
+    monkeypatch.setattr(roxy_home_service, "exact_local_recipe", lambda _title: None)
+    monkeypatch.setattr(roxy_home_service, "_recipe_photo_store", lambda: _MissingStore())
+    monkeypatch.setattr(roxy_home_service, "_home_food_store", lambda: _FoodStore())
+    monkeypatch.setattr(roxy_home_service, "_recipe_photo_queue", lambda: _Queue())
+    roxy_home_service._RATE_STATE.clear()
+
+    response = TestClient(roxy_home_service.app).get(
+        "/v1/home-food/recipe-photo", params={"title": "Pizza cubana clásica"}
+    )
+    assert response.status_code == 202
+
+
 def test_public_recipe_photo_endpoint_serves_roxy_image(tmp_path, monkeypatch):
     from tools import roxy_home_service
 

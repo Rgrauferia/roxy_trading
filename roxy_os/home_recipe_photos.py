@@ -200,7 +200,9 @@ class RecipePhotoGenerationQueue:
         self.store = store
         self.config = config
         self._client = client
-        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="roxy-recipe-image")
+        # Six workers build the shared library while two remain available for
+        # recipes currently visible on a user's screen.
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix="roxy-recipe-image")
         self._pending: set[str] = set()
         self._lock = threading.Lock()
         self.budget_path = store.root / "image-generation-budget.json"
@@ -252,10 +254,14 @@ class RecipePhotoGenerationQueue:
         return "PENDING"
 
     def prewarm(self, recipes: list[dict[str, Any]]) -> str:
-        """Use one worker for the library and leave the other free for visible cards."""
+        """Build the shared library concurrently without blocking visible cards."""
         if not self.config.enabled:
             return "DISABLED"
-        self._executor.submit(self._prewarm, [dict(recipe) for recipe in recipes])
+        rows = [dict(recipe) for recipe in recipes]
+        for offset in range(6):
+            shard = rows[offset::6]
+            if shard:
+                self._executor.submit(self._prewarm, shard)
         return "STARTED"
 
     def _prewarm(self, recipes: list[dict[str, Any]]) -> None:

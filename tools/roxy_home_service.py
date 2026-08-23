@@ -259,6 +259,22 @@ _RECIPE_PHOTO_QUEUES: dict[str, RecipePhotoGenerationQueue] = {}
 _RECIPE_PHOTO_QUEUE_LOCK = threading.Lock()
 
 
+def _all_recipe_photo_rows() -> list[dict[str, Any]]:
+    rows = [
+        *local_recipe_catalog({"profile": {"allergies": []}}),
+        *_home_food_store().all_saved_recipes(),
+    ]
+    unique: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for recipe in rows:
+        title = re.sub(r"\s+", " ", str(recipe.get("title") or "")).strip()
+        key = unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode("ascii").casefold()
+        if title and key not in seen:
+            seen.add(key)
+            unique.append(recipe)
+    return unique
+
+
 def _recipe_photo_store() -> RecipePhotoStore:
     path = os.getenv("ROXY_HOME_RECIPE_PHOTO_DIR", "data/roxy_home_recipe_photos")
     if path not in _RECIPE_PHOTO_STORES:
@@ -274,7 +290,7 @@ def _recipe_photo_queue() -> RecipePhotoGenerationQueue:
                 _recipe_photo_store(), RecipePhotoGenerationConfig.from_env()
             )
             _RECIPE_PHOTO_QUEUES[path] = queue
-            queue.prewarm(local_recipe_catalog({"profile": {"allergies": []}}))
+            queue.prewarm(_all_recipe_photo_rows())
     return _RECIPE_PHOTO_QUEUES[path]
 
 
@@ -927,7 +943,7 @@ def recipe_photo(title: str, request: Request) -> Response:
     except (OSError, ValueError):
         resolved = None
     if resolved is None:
-        recipe = exact_local_recipe(clean_title)
+        recipe = exact_local_recipe(clean_title) or _home_food_store().find_saved_recipe_by_title(clean_title)
         state = _recipe_photo_queue().schedule(recipe) if recipe else "NOT_IN_CATALOG"
         if state == "PENDING":
             response = JSONResponse(
@@ -942,6 +958,19 @@ def recipe_photo(title: str, request: Request) -> Response:
     response.headers["Cache-Control"] = "public, max-age=2592000, immutable"
     response.headers["X-Roxy-Photo-Source"] = str(metadata.get("provider") or "Roxy Home")[:64]
     return _security_headers(response)
+
+
+@app.get("/v1/home-food/recipe-photo-coverage")
+def recipe_photo_coverage() -> dict[str, Any]:
+    rows = _all_recipe_photo_rows()
+    ready = sum(1 for recipe in rows if _recipe_photo_store().resolve(str(recipe.get("title") or "")) is not None)
+    return {
+        "status": "COMPLETE" if ready == len(rows) else "GENERATING",
+        "expected": len(rows),
+        "ready": ready,
+        "missing": max(0, len(rows) - ready),
+        "queue": _recipe_photo_queue().public_status(),
+    }
 
 
 @app.get("/v1/home-food/recipe-photo-info")
@@ -1625,6 +1654,8 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
     _rate_limit(request)
     user = _authorize_user(user_id, auth)
     snapshot = _home_food_store().snapshot(user)
+    for recipe in snapshot.get("recipes", []):
+        _recipe_photo_queue().schedule(recipe)
     return {
         **snapshot,
         "local_catalog": local_recipe_catalog_summary(),
@@ -1688,6 +1719,7 @@ def generate_home_recipe(
         recipe = store.save_recipe(user, recipe_data, mode=payload.mode)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail="Roxy devolvió una receta incompleta.") from exc
+    _recipe_photo_queue().schedule(recipe)
     return {"status": "CREATED", "recipe": recipe, "generation_mode": generation_mode}
 
 

@@ -191,6 +191,32 @@ class HomeFoodStore:
         record = self._normalized_user_record(self._read_unlocked().get("users", {}).get(user))
         return {"user_id": user, **record}
 
+    def all_saved_recipes(self) -> list[dict[str, Any]]:
+        """Return unique Home recipes for shared artwork generation only."""
+        payload = self._read_unlocked()
+        recipes: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for raw_record in payload.get("users", {}).values():
+            record = self._normalized_user_record(raw_record)
+            for recipe in reversed(record.get("recipes", [])):
+                if not isinstance(recipe, dict):
+                    continue
+                key = _identity(recipe.get("title"))
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                recipes.append(deepcopy(recipe))
+        return recipes
+
+    def find_saved_recipe_by_title(self, title: Any) -> dict[str, Any] | None:
+        target = _identity(title)
+        if not target:
+            return None
+        return next(
+            (recipe for recipe in self.all_saved_recipes() if _identity(recipe.get("title")) == target),
+            None,
+        )
+
     def update_profile(
         self,
         user_id: Any,
