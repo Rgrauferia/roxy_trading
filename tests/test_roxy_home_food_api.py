@@ -176,7 +176,8 @@ def test_roxy_conversation_controls_days_and_reuses_available_recipes(tmp_path, 
         json={"text": "Roxy, el martes no voy a cocinar"},
     )
     assert skipped.status_code == 200
-    assert skipped.json()["data"]["weekly_plan"]["days"][1]["status"] == "skipped"
+    skipped_plan = skipped.json()["data"]["weekly_plan"]
+    assert skipped_plan["days"][roxy_home_service._weekly_day_index("martes", skipped_plan)]["status"] == "skipped"
 
     leftovers = client.post(
         "/v1/assistant/command/robert",
@@ -184,7 +185,8 @@ def test_roxy_conversation_controls_days_and_reuses_available_recipes(tmp_path, 
         json={"text": "Roxy, el miércoles comeremos las sobras"},
     )
     assert leftovers.status_code == 200
-    assert leftovers.json()["data"]["weekly_plan"]["days"][2]["status"] == "leftovers"
+    leftovers_plan = leftovers.json()["data"]["weekly_plan"]
+    assert leftovers_plan["days"][roxy_home_service._weekly_day_index("miércoles", leftovers_plan)]["status"] == "leftovers"
 
     recipe = client.post(
         "/v1/assistant/command/robert",
@@ -205,9 +207,10 @@ def test_roxy_conversation_controls_days_and_reuses_available_recipes(tmp_path, 
     assert adapted.json()["intent"] == "weekly_from_pantry"
     assert adapted.json()["data"]["recipe"]["generation_source"] == "local_recipe_catalog"
     assert "No añadí nada a compras" in adapted.json()["speech"]
+    adapted_plan = adapted.json()["data"]["weekly_plan"]
     assert any(
         meal.get("recipe_id") == adapted.json()["data"]["recipe"]["id"]
-        for meal in adapted.json()["data"]["weekly_plan"]["days"][roxy_home_service._weekly_day_index("hoy")]["meals"]
+        for meal in adapted_plan["days"][roxy_home_service._weekly_day_index("hoy", adapted_plan)]["meals"]
     )
 
     cookbook = client.get("/v1/home-food/robert", headers=headers).json()

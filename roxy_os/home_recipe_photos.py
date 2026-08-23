@@ -25,7 +25,7 @@ import requests
 OPENVERSE_SEARCH_URL = "https://api.openverse.org/v1/images/"
 ALLOWED_IMAGE_HOSTS = {"api.openverse.org"}
 USER_AGENT = "RoxyHome/1.0 (recipe photo resolver)"
-RESOLVER_VERSION = 2
+RESOLVER_VERSION = 3
 
 
 PHRASES = {
@@ -105,6 +105,12 @@ DISH_FORMS = {
     "coffee": {"coffee", "espresso", "latte", "cappuccino", "mocha"},
 }
 
+STRICT_MODIFIERS = {
+    "garlic", "onion", "lemon", "lime", "mustard", "honey", "teriyaki",
+    "curry", "avocado", "chickpeas", "mushroom", "mushrooms", "pepperoni",
+    "pineapple", "coconut", "strawberry", "caramel", "vanilla",
+}
+
 
 def _identity(value: str) -> str:
     text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii").lower()
@@ -139,6 +145,10 @@ def _conflicting_protein(query_tokens: set[str], candidate_tokens: set[str]) -> 
 def _missing_dish_form(query_tokens: set[str], candidate_title_tokens: set[str]) -> bool:
     requested = [forms for forms in DISH_FORMS.values() if query_tokens & forms]
     return any(not (forms & candidate_title_tokens) for forms in requested)
+
+
+def _missing_strict_modifier(query_tokens: set[str], candidate_title_tokens: set[str]) -> bool:
+    return bool((query_tokens & STRICT_MODIFIERS) - candidate_title_tokens)
 
 
 class RecipePhotoStore:
@@ -215,7 +225,11 @@ class RecipePhotoStore:
                 if not exact_name:
                     if len(title_overlap) < required_title_overlap:
                         continue
-                    if _conflicting_protein(query_tokens, candidate_tokens) or _missing_dish_form(query_tokens, candidate_title_tokens):
+                    if (
+                        _conflicting_protein(query_tokens, candidate_tokens)
+                        or _missing_dish_form(query_tokens, candidate_title_tokens)
+                        or _missing_strict_modifier(query_tokens, candidate_title_tokens)
+                    ):
                         continue
                 # A result rejected for the Spanish query may still be an exact
                 # semantic match for the translated culinary query.  Deduplicate

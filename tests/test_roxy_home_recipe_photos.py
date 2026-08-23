@@ -107,6 +107,27 @@ def test_recipe_photo_store_rejects_related_ingredient_but_wrong_dish(tmp_path, 
     assert RecipePhotoStore(tmp_path).resolve("Avena con banana y mantequilla de maní") is None
 
 
+def test_recipe_photo_store_requires_named_flavor_modifier(tmp_path, monkeypatch):
+    def fake_get(url, **kwargs):
+        return _Response(
+            payload={
+                "results": [
+                    {
+                        "id": "chicken-rice-without-garlic",
+                        "title": "Steamed rice with chicken",
+                        "thumbnail": "https://api.openverse.org/v1/images/chicken-rice-without-garlic/thumb/",
+                        "width": 1200,
+                        "height": 800,
+                        "tags": [{"name": "garlic"}, {"name": "food"}],
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr("roxy_os.home_recipe_photos.requests.get", fake_get)
+    assert RecipePhotoStore(tmp_path).resolve("Pollo al ajo con arroz") is None
+
+
 def test_public_recipe_photo_endpoint_serves_cached_image(tmp_path, monkeypatch):
     from tools import roxy_home_service
 

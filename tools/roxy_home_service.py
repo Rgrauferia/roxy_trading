@@ -8,7 +8,7 @@ import re
 import time
 import unicodedata
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -535,13 +535,24 @@ _WEEKDAY_INDEX = {
 }
 
 
-def _weekly_day_index(text: str) -> int:
+def _weekly_day_index(text: str, plan: dict[str, Any] | None = None, *, current: date | None = None) -> int:
     normalized = unicodedata.normalize("NFKD", str(text or ""))
     normalized = re.sub(r"[^a-z0-9]+", " ", normalized.encode("ascii", "ignore").decode("ascii").lower()).strip()
+    today = current or date.today()
+    target = today + timedelta(days=1 if re.search(r"\bmanana\b", normalized) else 0)
     for label, index in _WEEKDAY_INDEX.items():
         if re.search(rf"\b{label}\b", normalized):
-            return index
-    return (date.today().weekday() + (1 if re.search(r"\bmanana\b", normalized) else 0)) % 7
+            target = today + timedelta(days=(index - today.weekday()) % 7)
+            break
+    for day_index, day in enumerate((plan or {}).get("days") or []):
+        try:
+            if date.fromisoformat(str(day.get("date") or "")) == target:
+                return day_index
+        except ValueError:
+            continue
+    # Legacy plans began the following Monday. Their first row is rebased to
+    # today by the UI, so conversational commands use the same relative index.
+    return min((target - today).days, max(len((plan or {}).get("days") or []) - 1, 0))
 
 
 def _weekly_meal_type(text: str) -> str:
@@ -573,7 +584,7 @@ def _weekly_plan_for_conversation(home_store: HomeFoodStore, user: str) -> tuple
 
 
 def _weekly_meal_for_command(plan: dict[str, Any], text: str) -> tuple[int, dict[str, Any], dict[str, Any]]:
-    day_index = _weekly_day_index(text)
+    day_index = _weekly_day_index(text, plan)
     days = plan.get("days") or []
     if not days:
         raise ValueError("El plan semanal no tiene días disponibles.")

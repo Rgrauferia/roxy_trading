@@ -1,6 +1,7 @@
 from datetime import date
 
 from roxy_os.home_weekly_plans import create_local_weekly_plan, update_weekly_plan_day, weekly_plan_shopping_items
+from tools.roxy_home_service import _weekly_day_index
 
 
 def test_weekly_styles_generate_complete_real_meals_without_openai():
@@ -12,12 +13,24 @@ def test_weekly_styles_generate_complete_real_meals_without_openai():
             people=2,
             max_minutes=20 if style == "quick" else 40,
             weekly_budget=85,
+            start_date=date(2026, 8, 22),
         )
         assert plan["style"] == style
         assert len(plan["days"]) == 7
         assert all(len(day["meals"]) == 3 for day in plan["days"])
         assert all(meal["ingredients"] or meal["key"] == "leftovers" for day in plan["days"] for meal in day["meals"])
-        assert date.fromisoformat(plan["days"][0]["date"]).weekday() == 0
+        assert plan["days"][0]["date"] == "2026-08-22"
+        assert plan["days"][0]["day"] == "Sábado"
+
+
+def test_spoken_weekly_days_follow_plan_starting_today():
+    plan = create_local_weekly_plan(
+        {}, style="normal", people=2, max_minutes=40, weekly_budget=85,
+        start_date=date(2026, 8, 22),
+    )
+    assert _weekly_day_index("hoy", plan, current=date(2026, 8, 22)) == 0
+    assert _weekly_day_index("mañana", plan, current=date(2026, 8, 22)) == 1
+    assert _weekly_day_index("el lunes", plan, current=date(2026, 8, 22)) == 2
 
 
 def test_weekly_plan_scales_household_and_can_exclude_ready_days():

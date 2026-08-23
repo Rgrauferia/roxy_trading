@@ -81,11 +81,6 @@ STYLE_META = {
 SPANISH_WEEKDAYS = ("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo")
 
 
-def _next_monday(today: date | None = None) -> date:
-    current = today or date.today()
-    return current + timedelta(days=(7 - current.weekday()) % 7)
-
-
 def _compatible(meal: dict[str, Any], exclusions: set[str]) -> bool:
     haystack = _identity(meal.get("title")) + " " + " ".join(_identity(row.get("name")) for row in meal.get("ingredients") or [])
     return not any(exclusion and exclusion in haystack for exclusion in exclusions)
@@ -100,7 +95,7 @@ def _meal(key: str, exclusions: set[str], alternatives: list[str], max_minutes: 
 
 def create_local_weekly_plan(
     snapshot: dict[str, Any], *, style: str, people: int, max_minutes: int, weekly_budget: float,
-    cook_days: int = 2, meal_scope: str = "all"
+    cook_days: int = 2, meal_scope: str = "all", start_date: date | None = None,
 ) -> dict[str, Any]:
     selected_style = style if style in STYLE_SCHEDULES else "normal"
     profile = (snapshot or {}).get("profile") or {}
@@ -126,7 +121,8 @@ def create_local_weekly_plan(
         for meal in day.get("meals") or []
         if meal.get("favorite") and meal.get("key") in MEALS
     ]
-    start = _next_monday()
+    # "Hoy" begins with the household's actual day, not the next Monday.
+    start = start_date or date.today()
     days = []
     for index, keys in enumerate(STYLE_SCHEDULES[selected_style]):
         current = start + timedelta(days=index)
@@ -154,7 +150,7 @@ def create_local_weekly_plan(
             meal["servings"] = people
             meal["ingredients"] = [{**row, "quantity": round(float(row["quantity"]) * people, 3)} for row in meal["ingredients"]]
         days.append({
-            "day": SPANISH_WEEKDAYS[index],
+            "day": SPANISH_WEEKDAYS[current.weekday()],
             "date": current.isoformat(),
             "meals": meals,
             "ingredients_ready": False,
