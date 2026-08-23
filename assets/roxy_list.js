@@ -2,7 +2,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '55';
+  const APP_VERSION = '56';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',HOUSEHOLD:'Hogar',PERSONAL:'Aseo',HEALTH:'Salud',OTHER:'Otros',GENERAL:'General'};
   const staples = [
@@ -139,7 +139,7 @@
     for(let attempt=0;attempt<20;attempt+=1){
       try{
         const response=await fetch(`${url}&attempt=${attempt}`,{credentials:'same-origin',cache:'no-store'});
-        if(response.ok){const blob=await response.blob();image.src=URL.createObjectURL(blob);image.classList.remove('recipe-image-loading');host&&host.classList.remove('no-photo');return}
+        if(response.ok){const blob=await response.blob();const objectUrl=URL.createObjectURL(blob);image.addEventListener('load',()=>URL.revokeObjectURL(objectUrl),{once:true});image.src=objectUrl;image.classList.remove('recipe-image-loading');host&&host.classList.remove('no-photo');return}
         if(response.status!==202)break;
       }catch(error){if(!navigator.onLine)break}
       await waitForRecipeImage(15000);

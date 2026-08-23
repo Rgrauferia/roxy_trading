@@ -874,7 +874,7 @@ def shopping_page() -> Response:
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; img-src 'self' data:; style-src 'self' https://fonts.googleapis.com; "
+        "default-src 'self'; img-src 'self' data: blob:; style-src 'self' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "script-src 'self' blob: https://esm.sh https://cdn.jsdelivr.net https://esm.run; "
         "connect-src 'self' https://api.elevenlabs.io https://*.elevenlabs.io "
