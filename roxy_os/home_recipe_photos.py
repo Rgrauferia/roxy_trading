@@ -267,18 +267,27 @@ class RecipePhotoGenerationQueue:
         return "STARTED"
 
     def _prewarm(self, recipes: list[dict[str, Any]]) -> None:
-        for recipe in recipes:
-            title = str(recipe.get("title") or "")
-            if not title or self.store.resolve(title) is not None:
-                continue
-            key = self.store._key(title)
-            with self._lock:
-                if key in self._pending:
+        remaining = list(recipes)
+        while remaining:
+            retry: list[dict[str, Any]] = []
+            for recipe in remaining:
+                title = str(recipe.get("title") or "")
+                if not title or self.store.resolve(title) is not None:
                     continue
-                if not self._reserve():
-                    return
-                self._pending.add(key)
-            self._generate(key, recipe)
+                key = self.store._key(title)
+                with self._lock:
+                    if key in self._pending:
+                        continue
+                    if not self._reserve():
+                        return
+                    self._pending.add(key)
+                self._generate(key, recipe)
+                if self.store.resolve(title) is None:
+                    retry.append(recipe)
+            if not retry:
+                return
+            time.sleep(20)
+            remaining = retry
 
     def _openai(self):
         if self._client is None:
