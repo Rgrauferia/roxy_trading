@@ -201,9 +201,9 @@ class RecipePhotoGenerationQueue:
         self.store = store
         self.config = config
         self._client = client
-        # Four workers build the shared library while two remain available for
+        # Eight workers build the shared library while two remain available for
         # recipes currently visible on a user's screen.
-        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=6, thread_name_prefix="roxy-recipe-image")
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10, thread_name_prefix="roxy-recipe-image")
         self._pending: set[str] = set()
         self._lock = threading.Lock()
         self._metadata_lock = threading.Lock()
@@ -260,8 +260,8 @@ class RecipePhotoGenerationQueue:
         if not self.config.enabled:
             return "DISABLED"
         rows = [dict(recipe) for recipe in recipes]
-        for offset in range(4):
-            shard = rows[offset::4]
+        for offset in range(8):
+            shard = rows[offset::8]
             if shard:
                 self._executor.submit(self._prewarm, shard)
         return "STARTED"
