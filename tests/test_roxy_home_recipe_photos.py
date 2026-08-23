@@ -86,6 +86,27 @@ def test_recipe_photo_store_rejects_wrong_protein(tmp_path, monkeypatch):
     assert RecipePhotoStore(tmp_path).resolve("Camarones al ajillo") is None
 
 
+def test_recipe_photo_store_rejects_related_ingredient_but_wrong_dish(tmp_path, monkeypatch):
+    def fake_get(url, **kwargs):
+        return _Response(
+            payload={
+                "results": [
+                    {
+                        "id": "wrong-muffin",
+                        "title": "Peanut Butter Banana muffins",
+                        "thumbnail": "https://api.openverse.org/v1/images/wrong-muffin/thumb/",
+                        "width": 1200,
+                        "height": 800,
+                        "tags": [{"name": "oats"}, {"name": "breakfast"}],
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr("roxy_os.home_recipe_photos.requests.get", fake_get)
+    assert RecipePhotoStore(tmp_path).resolve("Avena con banana y mantequilla de maní") is None
+
+
 def test_public_recipe_photo_endpoint_serves_cached_image(tmp_path, monkeypatch):
     from tools import roxy_home_service
 

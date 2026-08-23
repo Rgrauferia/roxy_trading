@@ -17,8 +17,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'src="/assets/roxy_list.js?v=49"' in page.text
-    assert '/assets/roxy_list.js?v=49' in worker.text
+    assert 'src="/assets/roxy_list.js?v=50"' in page.text
+    assert '/assets/roxy_list.js?v=50' in worker.text
     assert 'id="todayPanel"' in page.text
     assert 'data-tab-link="today"' in page.text
     assert page.text.index('id="todayPanel"') < page.text.index('id="shoppingPanel"') < page.text.index('id="recipesPanel"')

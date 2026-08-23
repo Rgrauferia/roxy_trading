@@ -25,6 +25,7 @@ import requests
 OPENVERSE_SEARCH_URL = "https://api.openverse.org/v1/images/"
 ALLOWED_IMAGE_HOSTS = {"api.openverse.org"}
 USER_AGENT = "RoxyHome/1.0 (recipe photo resolver)"
+RESOLVER_VERSION = 2
 
 
 PHRASES = {
@@ -83,6 +84,27 @@ PROTEIN_GROUPS = {
     "fish": {"fish", "salmon", "tilapia", "tuna", "seafood", "crab", "mackerel"},
 }
 
+# When the recipe names a recognizable dish format, the photo title must name
+# that format too.  This prevents ingredient-adjacent but incorrect matches
+# such as a banana muffin for banana oatmeal or apple crumble for apple oats.
+DISH_FORMS = {
+    "oats": {"oat", "oats", "oatmeal"},
+    "bowl": {"bowl"},
+    "crepe": {"crepe", "crepes"},
+    "pancake": {"pancake", "pancakes"},
+    "waffle": {"waffle", "waffles"},
+    "omelette": {"omelet", "omelette", "tortilla"},
+    "pizza": {"pizza"},
+    "bread": {"bread", "loaf", "roll", "rolls"},
+    "rice": {"rice", "risotto", "paella"},
+    "pasta": {"pasta", "spaghetti", "lasagna", "noodle", "noodles", "ravioli"},
+    "soup": {"soup", "stew", "chowder", "broth"},
+    "salad": {"salad"},
+    "smoothie": {"smoothie"},
+    "juice": {"juice", "lemonade"},
+    "coffee": {"coffee", "espresso", "latte", "cappuccino", "mocha"},
+}
+
 
 def _identity(value: str) -> str:
     text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii").lower()
@@ -112,6 +134,11 @@ def _conflicting_protein(query_tokens: set[str], candidate_tokens: set[str]) -> 
     requested = {name for name, tokens in PROTEIN_GROUPS.items() if query_tokens & tokens}
     found = {name for name, tokens in PROTEIN_GROUPS.items() if candidate_tokens & tokens}
     return bool(requested and found and requested.isdisjoint(found))
+
+
+def _missing_dish_form(query_tokens: set[str], candidate_title_tokens: set[str]) -> bool:
+    requested = [forms for forms in DISH_FORMS.values() if query_tokens & forms]
+    return any(not (forms & candidate_title_tokens) for forms in requested)
 
 
 class RecipePhotoStore:
@@ -146,10 +173,11 @@ class RecipePhotoStore:
             manifest = self._manifest()
             saved = (manifest.get("photos") or {}).get(key)
             if isinstance(saved, dict):
-                if saved.get("missing") and time.time() - float(saved.get("checked_at") or 0) < 7 * 24 * 60 * 60:
+                current = int(saved.get("resolver_version") or 0) == RESOLVER_VERSION
+                if current and saved.get("missing") and time.time() - float(saved.get("checked_at") or 0) < 7 * 24 * 60 * 60:
                     return None
                 path = self.root / str(saved.get("filename") or "")
-                if path.is_file():
+                if current and path.is_file():
                     return path, saved
 
             translated_query = recipe_photo_query(title)
@@ -179,11 +207,16 @@ class RecipePhotoStore:
                 candidate_title = _identity(str(row.get("title") or ""))
                 exact_name = len(recipe_identity) >= 5 and recipe_identity in candidate_title
                 query_tokens = _tokens(query)
+                candidate_title_tokens = _tokens(str(row.get("title") or ""))
                 candidate_tokens = _tokens(_candidate_text(row))
                 overlap = query_tokens & candidate_tokens
-                required_overlap = 2 if len(query_tokens) >= 2 else 1
-                if not exact_name and (len(overlap) < required_overlap or _conflicting_protein(query_tokens, candidate_tokens)):
-                    continue
+                title_overlap = query_tokens & candidate_title_tokens
+                required_title_overlap = 2 if len(query_tokens) >= 2 else 1
+                if not exact_name:
+                    if len(title_overlap) < required_title_overlap:
+                        continue
+                    if _conflicting_protein(query_tokens, candidate_tokens) or _missing_dish_form(query_tokens, candidate_title_tokens):
+                        continue
                 # A result rejected for the Spanish query may still be an exact
                 # semantic match for the translated culinary query.  Deduplicate
                 # only after it has passed validation.
@@ -192,32 +225,39 @@ class RecipePhotoStore:
                 score = (200 if exact_name else 0) + len(overlap) * 10 + (4 if dimensions_ok else 0)
                 ranked.append((score, row, query))
             if not ranked:
-                manifest.setdefault("photos", {})[key] = {"missing": True, "checked_at": time.time()}
+                manifest.setdefault("photos", {})[key] = {"missing": True, "checked_at": time.time(), "resolver_version": RESOLVER_VERSION}
                 self._save_manifest(manifest)
                 return None
-            _, selected, selected_query = max(ranked, key=lambda item: item[0])
-            thumbnail = str(selected["thumbnail"])
-            if urlparse(thumbnail).hostname not in ALLOWED_IMAGE_HOSTS:
-                return None
-            image = requests.get(thumbnail, headers={"User-Agent": USER_AGENT}, timeout=15)
-            image.raise_for_status()
-            media_type = str(image.headers.get("content-type") or "").split(";", 1)[0]
-            if media_type not in {"image/jpeg", "image/png", "image/webp"} or len(image.content) > 8_000_000:
-                return None
-            extension = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}[media_type]
-            path = self.root / f"{key}{extension}"
-            path.write_bytes(image.content)
-            metadata = {
-                "filename": path.name,
-                "media_type": media_type,
-                "title": str(selected.get("title") or title),
-                "creator": str(selected.get("creator") or ""),
-                "license": str(selected.get("license") or ""),
-                "license_url": str(selected.get("license_url") or ""),
-                "source_url": str(selected.get("foreign_landing_url") or ""),
-                "openverse_id": str(selected.get("id") or ""),
-                "query": selected_query,
-            }
-            manifest.setdefault("photos", {})[key] = metadata
+            for _, selected, selected_query in sorted(ranked, key=lambda item: item[0], reverse=True):
+                thumbnail = str(selected["thumbnail"])
+                if urlparse(thumbnail).hostname not in ALLOWED_IMAGE_HOSTS:
+                    continue
+                try:
+                    image = requests.get(thumbnail, headers={"User-Agent": USER_AGENT}, timeout=15)
+                    image.raise_for_status()
+                except requests.RequestException:
+                    continue
+                media_type = str(image.headers.get("content-type") or "").split(";", 1)[0]
+                if media_type not in {"image/jpeg", "image/png", "image/webp"} or len(image.content) > 8_000_000:
+                    continue
+                extension = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}[media_type]
+                path = self.root / f"{key}{extension}"
+                path.write_bytes(image.content)
+                metadata = {
+                    "filename": path.name,
+                    "media_type": media_type,
+                    "title": str(selected.get("title") or title),
+                    "creator": str(selected.get("creator") or ""),
+                    "license": str(selected.get("license") or ""),
+                    "license_url": str(selected.get("license_url") or ""),
+                    "source_url": str(selected.get("foreign_landing_url") or ""),
+                    "openverse_id": str(selected.get("id") or ""),
+                    "query": selected_query,
+                    "resolver_version": RESOLVER_VERSION,
+                }
+                manifest.setdefault("photos", {})[key] = metadata
+                self._save_manifest(manifest)
+                return path, metadata
+            manifest.setdefault("photos", {})[key] = {"missing": True, "checked_at": time.time(), "resolver_version": RESOLVER_VERSION}
             self._save_manifest(manifest)
-            return path, metadata
+            return None
