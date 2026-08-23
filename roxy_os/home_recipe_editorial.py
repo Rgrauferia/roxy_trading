@@ -145,6 +145,14 @@ def _replacement(name: str, title: str, category: str) -> list[dict[str, Any]]:
 
 
 def concretize_ingredients(title: str, category: str, ingredients: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if _plain(title) == "avena con manzana":
+        return [
+            _ingredient("Avena en hojuelas", .5, "taza"),
+            _ingredient("Leche o agua", 1, "taza"),
+            _ingredient("Manzana", .5, "unidad", "picada en cubos pequeños"),
+            _ingredient("Canela molida", .5, "cucharadita"),
+            _ingredient("Miel o azúcar", 1, "cucharadita", "al gusto"),
+        ]
     output: list[dict[str, Any]] = []
     for row in ingredients:
         replacement = _replacement(str(row.get("name") or ""), title, category)
@@ -154,7 +162,9 @@ def concretize_ingredients(title: str, category: str, ingredients: list[dict[str
             output.extend(replacement)
     lower = _plain(title)
     additions: list[dict[str, Any]] = []
-    if category == "breakfast" and any(word in lower for word in ("pancake", "waffle", "crepe")):
+    if category == "breakfast" and "avena con manzana" in lower:
+        additions = [_ingredient("Manzana", .5, "unidad"), _ingredient("Canela molida", .5, "cucharadita"), _ingredient("Miel", 1, "cucharadita", "o azúcar al gusto")]
+    elif category == "breakfast" and any(word in lower for word in ("pancake", "waffle", "crepe")):
         additions = [_ingredient("Polvo de hornear", 2, "cucharadita"), _ingredient("Azúcar", 2, "cucharada"), _ingredient("Mantequilla", 2, "cucharada")]
     elif category == "breakfast" and any(word in lower for word in ("sandwich", "bagel", "burrito", "arepa")):
         additions = [_ingredient("Huevo", 2, "unidad"), _ingredient("Queso", 80, "gramo"), _ingredient("Pan, bagel, tortilla o arepa", 2, "unidad")]
@@ -230,12 +240,35 @@ def detailed_steps(category: str, title: str, ingredients: list[dict[str, Any]])
             "Incorpora el fettuccine, mezcla durante 1 minuto y ajusta sal y pimienta. Rebana el pollo, colócalo encima y sirve inmediatamente.",
         ]
     if category == "breakfast":
+        if "avena con manzana" in lower:
+            return [
+                "Pela media manzana y córtala en cubos pequeños de aproximadamente 1 cm.",
+                "Vierte 1 taza de leche o agua en una olla pequeña y llévala a ebullición a fuego medio-alto.",
+                "Añade 1/2 taza de avena en hojuelas y los cubos de manzana.",
+                "Baja el fuego a medio-bajo en cuanto la mezcla vuelva a hervir.",
+                "Cocina de 5 a 7 minutos y remueve cada minuto para que la avena no se pegue.",
+                "Apaga el fuego cuando la avena esté cremosa y la manzana se pueda atravesar fácilmente con un tenedor.",
+                "Sirve la avena en un tazón y espolvorea 1/2 cucharadita de canela.",
+                "Termina con miel o azúcar al gusto y deja reposar 1 minuto antes de comer.",
+            ]
+        if "avena con leche y canela" in lower:
+            return ["Vierte la leche en una olla pequeña y caliéntala a fuego medio hasta que comience a humear.", "Añade la avena en hojuelas y baja el fuego a medio-bajo.", "Cocina de 5 a 7 minutos, removiendo cada minuto para evitar que se pegue.", "Agrega la canela y mezcla durante 30 segundos.", "Apaga cuando la avena esté cremosa pero aún conserve algo de textura.", "Sirve en un tazón, endulza al gusto y deja reposar 1 minuto."]
+        if "avena con banana" in lower:
+            return ["Pela la banana; machaca una mitad y corta la otra en rodajas.", "Calienta la leche en una olla pequeña hasta que empiece a humear.", "Añade la avena y la banana machacada; baja a fuego medio-bajo.", "Cocina de 5 a 7 minutos y remueve cada minuto.", "Retira del fuego cuando la mezcla esté cremosa y añade la mantequilla de maní.", "Sirve en un tazón, coloca las rodajas de banana encima y deja reposar 1 minuto."]
+        if "avena nocturna" in lower:
+            return ["Lava la fruta, sécala y córtala en trozos pequeños.", "Coloca la avena, la leche y la mitad de la fruta en un frasco con tapa.", "Remueve durante 30 segundos hasta que toda la avena quede humedecida.", "Tapa el frasco y refrigera durante al menos 6 horas.", "Al día siguiente, remueve y añade 1 o 2 cucharadas de leche si está demasiado espesa.", "Termina con la fruta restante y sirve fría."]
+        if "pudin de chia" in lower:
+            return ["Vierte la leche en un frasco y añade las semillas de chía.", "Remueve durante 1 minuto para separar todas las semillas.", "Deja reposar 10 minutos y vuelve a remover para romper cualquier grumo.", "Tapa y refrigera durante al menos 4 horas.", "Comprueba que la mezcla tenga textura de pudín; añade una cucharada de leche si está muy firme.", "Sirve con la fruta por encima."]
+        if "granola" in lower and "yogur" not in lower and "parfait" not in lower:
+            return ["Calienta el horno a 160 °C y cubre una bandeja con papel de hornear.", "Mezcla la avena, los frutos secos, la canela y una pizca de sal.", "Añade miel y aceite; remueve hasta humedecer todas las hojuelas.", "Extiende la mezcla en una capa uniforme y presiónala ligeramente.", "Hornea de 22 a 28 minutos y remueve una vez a mitad de cocción.", "Enfría por completo en la bandeja antes de romperla y guardarla."]
+        if any(word in lower for word in ("yogur", "parfait")):
+            return ["Lava, seca y corta la fruta en trozos pequeños.", "Coloca la mitad del yogur en el fondo de un vaso o tazón.", "Añade la mitad de la fruta y una capa fina de granola.", "Repite las capas con el yogur y la fruta restantes.", "Termina con granola y miel justo antes de servir.", "Sirve inmediatamente para que la granola se mantenga crujiente."]
+        if "bowl de frutas" in lower:
+            return ["Lava toda la fruta bajo agua corriente y sécala.", "Pela la fruta que lo necesite y retira semillas y tallos.", "Corta cada fruta en piezas de tamaño parecido.", "Coloca primero las frutas firmes y después las más delicadas en un tazón.", "Añade unas gotas de limón y mezcla una sola vez.", "Sirve inmediatamente o refrigera tapado hasta 2 horas."]
         if "huevos hervidos" in lower:
             return ["Coloca los huevos en una olla y cúbrelos con 3 cm de agua fría.", "Lleva el agua a ebullición; apaga el fuego, tapa y deja 10 a 12 minutos para yemas firmes.", "Prepara un recipiente con agua y hielo.", "Pasa los huevos al agua helada durante 5 minutos para detener la cocción.", "Golpea suavemente la cáscara, pela bajo agua corriente y sazona al servir."]
         if any(word in lower for word in ("huevo", "omelette", "tortilla", "shakshuka", "quiche", "hash")):
             return ["Lava, corta y mide los vegetales y rellenos antes de encender el fuego.", "Calienta una sartén a fuego medio con el aceite; cocina los vegetales de 4 a 6 minutos hasta que estén tiernos.", "Bate los huevos con la sal durante 30 segundos para integrar claras y yemas.", "Vierte los huevos y cocina a fuego medio-bajo, moviendo o doblando según la forma del plato.", "Cocina hasta que el huevo esté completamente cuajado y el centro alcance 71 °C.", "Retira del fuego, deja reposar 1 minuto y sirve caliente con sus acompañamientos."]
-        if any(word in lower for word in ("avena", "yogur", "chia", "granola", "parfait", "bowl de frutas")):
-            return ["Lava y seca la fruta; córtala en trozos de 2 cm.", "Mide la avena o granola y la leche o yogur para conservar la proporción indicada.", "Si lleva avena caliente, cocina a fuego medio de 5 a 7 minutos, removiendo; si es nocturna, mezcla en un frasco.", "Añade canela, miel o mantequilla de maní y mezcla hasta distribuirlos.", "Para la versión nocturna, tapa y refrigera al menos 6 horas; para yogur o parfait, arma las capas justo antes de comer.", "Termina con la fruta y sirve fría o tibia, según la receta."]
         if any(word in lower for word in ("pancake", "waffle", "crepe")):
             return ["Mezcla harina, sal y polvo de hornear en un recipiente.", "Bate aparte leche y huevo; vierte sobre los secos y mezcla solo hasta desaparecer la harina visible.", "Deja reposar la masa 5 minutos mientras calientas la plancha o waflera.", "Engrasa ligeramente y vierte porciones iguales.", "Cocina de 2 a 3 minutos hasta ver burbujas; voltea y dora 1 a 2 minutos, o cierra la waflera hasta que deje de salir vapor.", "Mantén calientes las piezas terminadas y sirve con la cobertura indicada."]
         return ["Prepara el relleno y corta los ingredientes en porciones uniformes.", "Tuesta o calienta el pan, tortilla o arepa hasta que esté dorado por fuera.", "Cocina el huevo hasta que clara y yema estén firmes.", "Distribuye el relleno caliente y añade queso o vegetales.", "Cierra, cocina 1 minuto más para fundir el queso y corta por la mitad.", "Sirve de inmediato para conservar la textura crujiente."]

@@ -174,6 +174,49 @@ def test_pollo_alfredo_explains_the_complete_recipe_instead_of_a_generic_method(
     assert "método indicado" not in instructions
 
 
+def test_avena_con_manzana_matches_the_atomic_step_by_step_standard():
+    from roxy_os.home_recipe_fallback import exact_local_recipe
+
+    recipe = exact_local_recipe("Avena con manzana")
+    assert recipe is not None
+    assert [(row["name"], row["quantity"], row["unit"]) for row in recipe["ingredients"]] == [
+        ("Avena en hojuelas", 0.5, "taza"),
+        ("Leche o agua", 1, "taza"),
+        ("Manzana", 0.5, "unidad"),
+        ("Canela molida", 0.5, "cucharadita"),
+        ("Miel o azúcar", 1, "cucharadita"),
+    ]
+    assert len(recipe["steps"]) == 8
+    assert "5 a 7 minutos" in " ".join(recipe["steps"])
+    assert "textura cremosa" not in " ".join(recipe["steps"])
+    assert "esté cremosa" in " ".join(recipe["steps"])
+
+
+def test_saved_old_catalog_recipe_is_upgraded_without_losing_user_metadata(tmp_path):
+    from roxy_os.home_food import HomeFoodStore
+
+    store = HomeFoodStore(tmp_path / "home.json")
+    saved = store.save_recipe(
+        "robert",
+        {
+            "title": "Avena con manzana",
+            "kind": "meal",
+            "servings": 2,
+            "ingredients": [{"name": "Avena", "quantity": 1, "unit": "taza"}],
+            "steps": ["Prepara todo.", "Cocina según corresponda.", "Sirve."],
+        },
+    )
+
+    upgraded = store.get_recipe("robert", saved["id"])
+
+    assert upgraded["id"] == saved["id"]
+    assert upgraded["favorite"] is False
+    assert upgraded["user_notes"] == ""
+    assert upgraded["editorial_version"] == 2
+    assert len(upgraded["steps"]) == 8
+    assert upgraded["ingredients"][0]["quantity"] == 0.5
+
+
 def test_shopping_voice_understands_more_natural_vocabulary():
     from tools.roxy_home_service import _assistant_shopping_intent, _assistant_shopping_requests
     assert _assistant_shopping_intent("échame dos yogures en la lista") == "shopping_add"

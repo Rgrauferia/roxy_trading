@@ -115,12 +115,45 @@ class HomeFoodStore:
         for key, value in defaults.items():
             record.setdefault(key, deepcopy(value))
         for recipe in record.get("recipes", []):
+            cls._upgrade_installed_recipe(recipe)
             if isinstance(recipe, dict) and recipe.get("kind") == "drink" and recipe.get("drink_type") not in {
                 "alcoholic",
                 "non_alcoholic",
             }:
                 recipe["drink_type"] = cls._infer_drink_type(recipe)
         return record
+
+    @staticmethod
+    def _upgrade_installed_recipe(recipe: Any) -> None:
+        """Refresh old catalog copies while preserving user-owned metadata."""
+        if not isinstance(recipe, dict):
+            return
+        steps = [str(step or "") for step in recipe.get("steps") or []]
+        searchable = _identity(" ".join(steps))
+        incomplete = len(steps) < 5 or any(
+            phrase in searchable
+            for phrase in ("metodo indicado", "segun corresponda", "orden indicado", "punto correcto", "cocina u hornea")
+        )
+        if not incomplete:
+            return
+        from roxy_os.home_recipe_fallback import exact_local_recipe
+
+        current = exact_local_recipe(recipe.get("title") or "")
+        if not current:
+            return
+        old_servings = float(recipe.get("servings") or current.get("servings") or 1)
+        catalog_servings = float(current.get("servings") or 1)
+        factor = old_servings / catalog_servings if catalog_servings else 1.0
+        ingredients = deepcopy(current.get("ingredients") or [])
+        if factor != 1.0:
+            for ingredient in ingredients:
+                quantity = ingredient.get("quantity")
+                if isinstance(quantity, (int, float)):
+                    ingredient["quantity"] = round(float(quantity) * factor, 2)
+        for key in ("description", "kind", "drink_type", "category", "subcategory", "steps"):
+            recipe[key] = deepcopy(current.get(key))
+        recipe["ingredients"] = ingredients
+        recipe["editorial_version"] = 2
 
     @staticmethod
     def _infer_drink_type(recipe: dict[str, Any]) -> str:
