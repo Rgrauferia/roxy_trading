@@ -188,6 +188,8 @@ services:
         value: "100000"
       - key: ROXY_HOME_AI_MAX_OUTPUT_TOKENS
         value: "4000"
+      - key: ROXY_HOME_REQUIRE_VERIFIED_RECIPES
+        value: "1"
       - key: ROXY_HOME_INSTACART_API_KEY
         sync: false
       - key: ROXY_HOME_INSTACART_API_URL

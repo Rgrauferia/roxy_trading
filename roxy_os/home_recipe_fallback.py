@@ -283,7 +283,7 @@ def _prepare_local_recipe(key: str, snapshot: dict[str, Any]) -> dict[str, Any]:
     if allergies:
         notes.append("Alergias registradas: " + ", ".join(str(value) for value in profile.get("allergies") or []) + ". Evita contaminación cruzada.")
     recipe["allergen_notes"] = notes
-    recipe["sources"] = []
+    recipe["sources"] = [deepcopy(row) for row in recipe.get("sources") or [] if isinstance(row, dict)]
     recipe["generation_source"] = "local_recipe_catalog"
     return recipe
 

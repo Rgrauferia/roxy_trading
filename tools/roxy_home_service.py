@@ -33,6 +33,7 @@ from roxy_os.home_recipe_fallback import (
     local_recipe_catalog,
     local_recipe_catalog_summary,
 )
+from roxy_os.home_recipe_editorial import recipe_quality_issues
 from roxy_os.home_recipe_library import (
     HomeRecipeLibraryStore,
     recipe_is_compatible,
@@ -476,22 +477,42 @@ def _recipe_with_resilience(
     recipe_type: str = "general",
 ) -> tuple[dict[str, Any], str]:
     """Use the curated catalog first and reserve OpenAI for uncommon recipes."""
+    strict_editorial = str(os.getenv("ROXY_HOME_REQUIRE_VERIFIED_RECIPES") or "0").strip().lower() in {"1", "true", "yes", "on"}
     local_recipe = find_local_recipe(prompt, snapshot)
-    if local_recipe is not None:
+    if local_recipe is not None and (
+        not strict_editorial or str(local_recipe.get("editorial_status") or "").startswith("verified")
+    ):
         return scale_recipe_payload(local_recipe, requested_servings(prompt)), "local_recipe_catalog"
     shared_recipe = _recipe_library_store().find(prompt, snapshot, recipe_type=recipe_type)
-    if shared_recipe is not None:
+    if shared_recipe is not None and (
+        not strict_editorial or str(shared_recipe.get("editorial_status") or "").startswith("verified")
+    ):
         return _with_private_allergy_notes(shared_recipe, snapshot), "shared_recipe_library"
     try:
         # Canonical content is generated without any household profile, pantry,
         # name or preference. Only that sanitized base may enter the global DB.
-        generated = _home_ai().generate_recipe(
-            prompt,
-            {"profile": {}, "pantry": []},
-            deep=deep,
+        expected_title = str((local_recipe or {}).get("title") or prompt).strip()
+        generated = (
+            _home_ai().curate_recipe(expected_title, {"profile": {}, "pantry": []})
+            if strict_editorial
+            else _home_ai().generate_recipe(prompt, {"profile": {}, "pantry": []}, deep=deep)
         )
+        if strict_editorial:
+            issues = recipe_quality_issues(generated, expected_title)
+            if issues:
+                raise ValueError("La revisión editorial rechazó la receta: " + " ".join(issues))
+            generated = {**generated, "editorial_status": "verified_with_sources"}
         if not recipe_is_compatible(generated, snapshot):
-            private_recipe = _home_ai().generate_recipe(prompt, snapshot, deep=deep)
+            private_recipe = (
+                _home_ai().curate_recipe(expected_title, snapshot)
+                if strict_editorial
+                else _home_ai().generate_recipe(prompt, snapshot, deep=deep)
+            )
+            if strict_editorial:
+                issues = recipe_quality_issues(private_recipe, expected_title)
+                if issues:
+                    raise ValueError("La revisión editorial rechazó la variante privada: " + " ".join(issues))
+                private_recipe = {**private_recipe, "editorial_status": "verified_with_sources"}
             return {
                 **scale_recipe_payload(private_recipe, requested_servings(prompt)),
                 "shared_recipe_id": "",
@@ -510,8 +531,12 @@ def _recipe_with_resilience(
         }, snapshot)
         return generated, "openai"
     except (HomeAIConfigurationError, HomeAIBudgetExceeded, ValueError, KeyError):
+        if strict_editorial:
+            raise
         return scale_recipe_payload(generate_local_recipe(prompt, snapshot), requested_servings(prompt)), "local_recipe_catalog"
     except Exception:
+        if strict_editorial:
+            raise
         return scale_recipe_payload(generate_local_recipe(prompt, snapshot), requested_servings(prompt)), "local_recipe_catalog"
 
 
@@ -1986,12 +2011,12 @@ def generate_home_recipe(
     user = _authorize_user(user_id, auth)
     store = _home_food_store()
     snapshot = store.snapshot(user)
-    recipe_data, generation_mode = _recipe_with_resilience(
+    recipe_data, generation_mode = _ai_call(lambda: _recipe_with_resilience(
         payload.prompt,
         snapshot,
         deep=payload.mode == "deep",
         recipe_type=payload.recipe_type,
-    )
+    ))
     if payload.recipe_type != "general":
         recipe_data = {**recipe_data, "kind": "drink", "drink_type": payload.recipe_type}
     try:

@@ -153,6 +153,26 @@ Para seguridad alimentaria o retiros usa las fuentes web vigentes proporcionadas
 prioriza autoridades como FDA, USDA y CDC, indica fecha y expresa incertidumbre cuando falte información."""
 
 
+RECIPE_RESPONSE_SCHEMA: dict[str, Any] = {
+    "type": "object", "additionalProperties": False,
+    "required": ["title", "description", "kind", "drink_type", "category", "subcategory", "servings", "ingredients", "steps", "allergen_notes"],
+    "properties": {
+        "title": {"type": "string"}, "description": {"type": "string"},
+        "kind": {"type": "string", "enum": ["meal", "bread", "dessert", "drink", "other"]},
+        "drink_type": {"type": "string", "enum": ["", "alcoholic", "non_alcoholic"]},
+        "category": {"type": "string", "enum": ["breakfast", "chicken", "meat", "seafood", "rice", "pasta", "soups", "bowls_salads", "vegetarian", "baked", "sides_sauces", "desserts", "coffee_hot", "juices", "smoothies", "cocktails"]},
+        "subcategory": {"type": "string"},
+        "servings": {"type": "number", "exclusiveMinimum": 0, "maximum": 100},
+        "ingredients": {"type": "array", "minItems": 3, "maxItems": 40, "items": {
+            "type": "object", "additionalProperties": False, "required": ["name", "quantity", "unit", "notes"],
+            "properties": {"name": {"type": "string"}, "quantity": {"type": "number", "minimum": 0}, "unit": {"type": "string"}, "notes": {"type": "string"}},
+        }},
+        "steps": {"type": "array", "minItems": 5, "maxItems": 40, "items": {"type": "string"}},
+        "allergen_notes": {"type": "array", "maxItems": 20, "items": {"type": "string"}},
+    },
+}
+
+
 def _extract_json(text: str) -> dict[str, Any]:
     value = str(text or "").strip()
     if value.startswith("```"):
@@ -229,7 +249,15 @@ class RoxyHomeAI:
             output_token_limit=config.daily_output_token_limit,
         )
 
-    def _respond(self, task: str, context: dict[str, Any], *, deep: bool, current: bool = False) -> dict[str, Any]:
+    def _respond(
+        self,
+        task: str,
+        context: dict[str, Any],
+        *,
+        deep: bool,
+        current: bool = False,
+        response_schema: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         self.budget.reserve_request()
         request: dict[str, Any] = {
             "model": self.config.deep_model if deep else self.config.routine_model,
@@ -241,6 +269,8 @@ class RoxyHomeAI:
         if current:
             request["tools"] = [{"type": "web_search"}]
             request["tool_choice"] = "required"
+        if response_schema is not None:
+            request["text"] = {"format": {"type": "json_schema", "name": "roxy_home_recipe", "strict": True, "schema": response_schema}}
         response = self.client.responses.create(**request)
         self.budget.record_output_tokens(_usage_output_tokens(response))
         result = _extract_json(_field(response, "output_text", ""))
@@ -273,6 +303,19 @@ class RoxyHomeAI:
             "voz alta como una instrucción clara. Solicitud: " + str(prompt),
             self._context(snapshot),
             deep=deep,
+        )
+
+    def curate_recipe(self, title: str, snapshot: dict[str, Any]) -> dict[str, Any]:
+        """Create one source-backed canonical edition; callers validate before saving."""
+        return self._respond(
+            "Investiga y redacta una ficha culinaria canónica para el título exacto indicado. Consulta fuentes "
+            "culinarias reconocidas y, cuando exista, una autoridad cultural u oficial de esa preparación. No copies "
+            "texto: contrasta las fuentes y parafrasea. Elige una variante concreta y nómbrala en la descripción; no "
+            "mezcles técnicas de recetas parecidas. Da cantidades completas, equipo implícito en los pasos, tiempos, "
+            "temperaturas cuando correspondan, señales observables de cocción y pasos atómicos que una persona sin "
+            "experiencia pueda seguir. No uses frases como 'método indicado', 'según corresponda' o 'al gusto' sin una "
+            "cantidad inicial. El campo title debe coincidir exactamente. Título: " + str(title),
+            self._context(snapshot), deep=True, current=True, response_schema=RECIPE_RESPONSE_SCHEMA,
         )
 
     def substitutions(self, prompt: str, snapshot: dict[str, Any]) -> dict[str, Any]:

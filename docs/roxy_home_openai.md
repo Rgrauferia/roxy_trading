@@ -17,6 +17,7 @@ Roxy Home comparte la identidad y el tono de Roxy, pero funciona como un dominio
    ROXY_HOME_AI_DAILY_REQUEST_LIMIT=100
    ROXY_HOME_AI_DAILY_OUTPUT_TOKEN_LIMIT=100000
    ROXY_HOME_AI_MAX_OUTPUT_TOKENS=4000
+   ROXY_HOME_REQUIRE_VERIFIED_RECIPES=1
    ```
 
 5. Guarda los cambios y despliega nuevamente `roxy-home`.
@@ -48,7 +49,9 @@ título ni se utiliza una imagen de otra receta.
 
 ### Recetario local antes de OpenAI
 
-Las recetas comunes se resuelven primero con el recetario instalado de Roxy Home, que actualmente contiene 517 preparaciones organizadas por categoría. Solo una solicitud sin coincidencia confiable se envía a OpenAI. Esto reduce costo y latencia y mantiene las recetas habituales disponibles aunque el proveedor o la clave dedicada fallen.
+El recetario instalado contiene más de 500 títulos organizados por categoría, pero un título no se considera por sí solo una receta verificada. Con `ROXY_HOME_REQUIRE_VERIFIED_RECIPES=1`, Roxy solo usa directamente las fichas revisadas de manera individual. La primera vez que se abre un título pendiente, Terra ejecuta búsqueda web obligatoria, genera una edición canónica con salida estructurada, y el servidor rechaza instrucciones genéricas o incompletas. La ficha aprobada se guarda en la biblioteca compartida y se reutiliza para los demás usuarios, sin volver a pagar su generación. Si la investigación o la validación falla, la aplicación devuelve un error y no muestra la plantilla general como si fuera confiable.
+
+Las fuentes encontradas por la Responses API se guardan con la ficha y se muestran en el detalle. Este mecanismo no convierte ninguna fuente individual en una verdad absoluta: para platos con variantes regionales, Roxy identifica la variante concreta elegida y mantiene cantidades y técnica coherentes con ella.
 
 La respuesta local indica `generation_mode: local_recipe_catalog`, se guarda en la misma biblioteca y puede convertirse en lista o guía paso a paso. No se presenta como una respuesta de OpenAI. Sustituciones, planes semanales e investigación vigente siguen requiriendo la conexión OpenAI dedicada y responden `503` si no está disponible.
 

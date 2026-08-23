@@ -17,9 +17,24 @@ class FakeResponses:
 
     def create(self, **kwargs):
         self.calls.append(kwargs)
+        is_recipe_review = "text" in kwargs
         is_safety = "tool_choice" in kwargs
         output = []
-        if is_safety:
+        if is_recipe_review:
+            output = [{"type": "web_search_call", "action": {"sources": [{"title": "Fuente culinaria", "url": "https://example.com/recipe"}]}}]
+            payload = {
+                "title": "Café cubano", "description": "Versión canónica", "kind": "drink",
+                "drink_type": "non_alcoholic", "category": "coffee_hot", "subcategory": "Cafés calientes",
+                "servings": 4,
+                "ingredients": [
+                    {"name": "Agua", "quantity": 1.25, "unit": "taza", "notes": ""},
+                    {"name": "Café", "quantity": .33, "unit": "taza", "notes": ""},
+                    {"name": "Azúcar", "quantity": .25, "unit": "taza", "notes": ""},
+                ],
+                "steps": ["Paso 1 durante 2 minutos.", "Paso 2 durante 2 minutos.", "Paso 3 durante 2 minutos.", "Paso 4 durante 2 minutos.", "Paso 5 durante 2 minutos."],
+                "allergen_notes": [],
+            }
+        elif is_safety:
             output = [
                 {
                     "type": "web_search_call",
@@ -106,6 +121,20 @@ def test_current_food_safety_forces_terra_required_web_search_and_sources(tmp_pa
     assert call["tool_choice"] == "required"
     assert result["used_current_web_search"] is True
     assert result["sources"][0]["url"] == "https://www.fda.gov/safety/recalls"
+
+
+def test_recipe_curation_uses_terra_required_search_and_strict_schema(tmp_path):
+    client = FakeClient()
+    ai = RoxyHomeAI(config(tmp_path), client=client)
+    result = ai.curate_recipe("Café cubano", {"profile": {}, "pantry": []})
+    call = client.responses.calls[0]
+
+    assert call["model"] == "gpt-5.6-terra"
+    assert call["tools"] == [{"type": "web_search"}]
+    assert call["tool_choice"] == "required"
+    assert call["text"]["format"]["type"] == "json_schema"
+    assert call["text"]["format"]["strict"] is True
+    assert result["sources"][0]["url"] == "https://example.com/recipe"
 
 
 def test_home_budget_is_enforced_independently(tmp_path):

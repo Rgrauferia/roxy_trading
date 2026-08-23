@@ -197,6 +197,26 @@ def test_avena_con_manzana_matches_the_atomic_step_by_step_standard():
     assert "esté cremosa" in " ".join(recipe["steps"])
 
 
+def test_cafe_cubano_is_a_verified_moka_recipe_with_espumita_and_no_other_drinks():
+    from roxy_os.home_recipe_editorial import recipe_quality_issues
+    from roxy_os.home_recipe_fallback import exact_local_recipe
+
+    recipe = exact_local_recipe("Café cubano")
+    assert recipe is not None
+    assert recipe["servings"] == 4
+    assert recipe["editorial_status"] == "verified"
+    assert recipe["sources"][0]["url"] == "https://www.cafebustelo.com/coffee/recipes/hot-coffee/cafecito"
+    assert {row["name"] for row in recipe["ingredients"]} == {
+        "Agua", "Café espresso molido de tueste oscuro", "Azúcar blanca",
+    }
+    instructions = " ".join(recipe["steps"])
+    assert "cafetera moka" in instructions
+    assert "espumita" in instructions
+    assert "1 a 2 minutos" in instructions
+    assert all(word not in instructions.casefold() for word in ("matcha", "cacao", "espuma de leche"))
+    assert recipe_quality_issues(recipe, "Café cubano") == []
+
+
 def test_saved_old_catalog_recipe_is_upgraded_without_losing_user_metadata(tmp_path):
     from roxy_os.home_food import HomeFoodStore
 

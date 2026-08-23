@@ -13,7 +13,7 @@ import unicodedata
 from functools import lru_cache
 from typing import Any
 
-from roxy_os.home_recipe_editorial import editorialize_recipe
+from roxy_os.home_recipe_editorial import canonical_recipe_metadata, editorialize_recipe
 
 
 CATEGORY_META: dict[str, dict[str, str]] = {
@@ -280,5 +280,6 @@ def installed_recipe_templates() -> dict[str, dict[str, Any]]:
                 "ingredients": ingredients,
                 "steps": steps,
                 "drink_type": "non_alcoholic" if category in {"coffee_hot", "juices", "smoothies"} else "",
+                **canonical_recipe_metadata(title),
             }
     return rows

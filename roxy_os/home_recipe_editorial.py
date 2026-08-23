@@ -145,6 +145,15 @@ def _replacement(name: str, title: str, category: str) -> list[dict[str, Any]]:
 
 
 def concretize_ingredients(title: str, category: str, ingredients: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if _plain(title) == "cafe cubano":
+        # Canonical cafecito brewed in a moka pot.  Keep this separate from
+        # café con leche, espresso, matcha and the rest of the hot-drink
+        # family: they do not share ingredients or preparation technique.
+        return [
+            _ingredient("Agua", 1.25, "taza", "para la base de una cafetera moka"),
+            _ingredient("Café espresso molido de tueste oscuro", 1 / 3, "taza", "sin compactarlo en el filtro"),
+            _ingredient("Azúcar blanca", .25, "taza", "usa hasta 1/3 de taza si lo prefieres más dulce"),
+        ]
     if _plain(title) == "avena con manzana":
         return [
             _ingredient("Avena en hojuelas", .5, "taza"),
@@ -231,6 +240,17 @@ def _protein_finish(category: str, lower: str) -> str:
 def detailed_steps(category: str, title: str, ingredients: list[dict[str, Any]]) -> list[str]:
     lower = _plain(title)
     ingredient_names = ", ".join(str(row.get("name") or "").strip() for row in ingredients if row.get("name"))
+    if lower == "cafe cubano":
+        return [
+            "Desenrosca una cafetera moka limpia. Llena la cámara inferior con 1 1/4 tazas de agua, sin sobrepasar la válvula de seguridad.",
+            "Coloca el embudo y llénalo con 1/3 de taza de café espresso molido de tueste oscuro; nivela la superficie sin prensar el café.",
+            "Limpia cualquier grano del borde, enrosca bien la parte superior y pon la moka destapada a fuego medio.",
+            "Coloca 1/4 de taza de azúcar en una jarrita resistente al calor. Cuando salgan las primeras gotas de café, retira aproximadamente media cucharada y viértela sobre el azúcar.",
+            "Devuelve la moka al fuego. Bate enérgicamente el azúcar con esas primeras gotas durante 1 a 2 minutos, hasta formar una crema espesa de color beige claro llamada espumita.",
+            "Retira la moka del fuego cuando el flujo se aclare y empiece a borbotear; cierra la tapa para evitar salpicaduras y no dejes que el café hierva.",
+            "Vierte lentamente el café terminado sobre la espumita y remueve con suavidad hasta que una capa fina de espuma quede en la superficie.",
+            "Reparte de inmediato en cuatro tacitas pequeñas de espresso, procurando que cada porción reciba un poco de espumita.",
+        ]
     if title == "Pollo Alfredo":
         return [
             "Corta el pollo en filetes de grosor parejo, sécalo y sazónalo con sal y pimienta; pica finamente el ajo.",
@@ -378,3 +398,61 @@ def editorialize_recipe(category: str, title: str, kind: str, ingredients: list[
     steps = detailed_steps(category, title, exact)
     description = f"{title} explicado de principio a fin, con tiempos, señales de cocción y porciones claras."
     return exact, steps, description
+
+
+def canonical_recipe_metadata(title: str) -> dict[str, Any]:
+    """Return provenance only for individually reviewed, canonical recipes."""
+    if _plain(title) == "cafe cubano":
+        return {
+            "description": "Cafecito cubano fuerte y dulce, preparado en cafetera moka y terminado con su espumita tradicional.",
+            "servings": 4,
+            "editorial_status": "verified",
+            "canonical_variant": "Cafecito cubano en cafetera moka con espumita",
+            "prep_minutes": 8,
+            "cook_minutes": 7,
+            "sources": [
+                {
+                    "title": "Cafecito (Cuban Coffee)",
+                    "url": "https://www.cafebustelo.com/coffee/recipes/hot-coffee/cafecito",
+                    "authority": "Café Bustelo",
+                }
+            ],
+        }
+    if _plain(title) in {"avena con manzana", "pollo alfredo"}:
+        return {"editorial_status": "reviewed"}
+    return {"editorial_status": "needs_canonical_review"}
+
+
+_GENERIC_RECIPE_PHRASES = (
+    "método indicado", "según corresponda", "orden indicado", "punto correcto",
+    "cocina u hornea", "ingrediente principal", "según la receta", "cuando corresponda",
+    "salsa indicada", "guarnición indicada", "proporción indicada", "equipo indicado",
+)
+
+
+def recipe_quality_issues(recipe: dict[str, Any], expected_title: str = "") -> list[str]:
+    """Reject structurally complete but editorially generic recipe payloads."""
+    issues: list[str] = []
+    title = str(recipe.get("title") or "").strip()
+    ingredients = [row for row in recipe.get("ingredients") or [] if isinstance(row, dict) and row.get("name")]
+    steps = [str(step or "").strip() for step in recipe.get("steps") or [] if str(step or "").strip()]
+    instructions = " ".join(steps).casefold()
+    if expected_title and _plain(title) != _plain(expected_title):
+        issues.append("El título no coincide exactamente con la receta solicitada.")
+    if len(ingredients) < 3:
+        issues.append("Faltan ingredientes medidos.")
+    if len(steps) < 5:
+        issues.append("Faltan pasos atómicos de preparación.")
+    if any(phrase in instructions for phrase in _GENERIC_RECIPE_PHRASES):
+        issues.append("La preparación contiene instrucciones genéricas.")
+    if steps and not any(re.search(r"\b\d+(?:[.,]\d+)?\b", step) for step in steps):
+        issues.append("La preparación no incluye ningún tiempo, cantidad o temperatura verificable.")
+    if _plain(expected_title) == "cafe cubano":
+        ingredient_text = _plain(" ".join(str(row.get("name") or "") for row in ingredients))
+        if not all(value in ingredient_text for value in ("cafe", "agua", "azucar")):
+            issues.append("El café cubano requiere café, agua y azúcar.")
+        if not all(value in _plain(instructions) for value in ("moka", "espumita")):
+            issues.append("Faltan la cafetera moka o la técnica de la espumita.")
+        if any(value in _plain(instructions) for value in ("matcha", "cacao", "espuma de leche")):
+            issues.append("La preparación mezcla técnicas ajenas al café cubano.")
+    return issues

@@ -145,14 +145,22 @@ class HomeFoodStore:
             return
         old_servings = float(recipe.get("servings") or current.get("servings") or 1)
         catalog_servings = float(current.get("servings") or 1)
-        factor = old_servings / catalog_servings if catalog_servings else 1.0
+        canonical_verified = str(current.get("editorial_status") or "").startswith("verified")
+        if canonical_verified:
+            recipe["servings"] = catalog_servings
+            factor = 1.0
+        else:
+            factor = old_servings / catalog_servings if catalog_servings else 1.0
         ingredients = deepcopy(current.get("ingredients") or [])
         if factor != 1.0:
             for ingredient in ingredients:
                 quantity = ingredient.get("quantity")
                 if isinstance(quantity, (int, float)):
                     ingredient["quantity"] = round(float(quantity) * factor, 2)
-        for key in ("description", "kind", "drink_type", "category", "subcategory", "steps"):
+        for key in (
+            "description", "kind", "drink_type", "category", "subcategory", "steps", "sources",
+            "editorial_status", "canonical_variant", "prep_minutes", "cook_minutes",
+        ):
             recipe[key] = deepcopy(current.get(key))
         recipe["ingredients"] = ingredients
         recipe["editorial_version"] = 3
@@ -392,6 +400,10 @@ class HomeFoodStore:
             "sources": [row for row in (raw.get("sources") or [])[:20] if isinstance(row, dict)],
             "shared_recipe_id": _text(raw.get("shared_recipe_id"), 64),
             "generation_source": _text(raw.get("generation_source"), 64),
+            "editorial_status": _text(raw.get("editorial_status"), 40),
+            "canonical_variant": _text(raw.get("canonical_variant"), 240),
+            "prep_minutes": max(0, int(raw.get("prep_minutes") or 0)),
+            "cook_minutes": max(0, int(raw.get("cook_minutes") or 0)),
         }
 
     def save_recipe(self, user_id: Any, recipe: dict[str, Any], *, mode: str = "routine") -> dict[str, Any]:

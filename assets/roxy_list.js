@@ -595,7 +595,8 @@
     const copy=document.createElement('span');const strong=document.createElement('strong');strong.textContent=recipe.title;
     const drinkLabel=recipe.kind==='drink'?(recipe.drink_type==='alcoholic'?'Con alcohol':'Sin alcohol'):'';
     const small=document.createElement('small');small.textContent=`${recipe.favorite?'Favorita · ':''}${drinkLabel||recipeCategoryLabels[recipeCategoryId(recipe)]||kindLabels[recipe.kind]||'Receta'} · ${recipe.servings||1} porciones · ${(recipe.steps||[]).length} pasos`;
-    copy.append(strong,small);button.append(img,copy);button.addEventListener('click',()=>recipe.catalog_key?openCatalogRecipe(recipe):openRecipe(recipe));return button;
+    const editorialStatus=String(recipe.editorial_status||'');const requiresReview=Boolean(editorialStatus)&&!editorialStatus.startsWith('verified');
+    copy.append(strong,small);button.append(img,copy);button.addEventListener('click',()=>recipe.catalog_key||requiresReview?openCatalogRecipe(recipe):openRecipe(recipe));return button;
   }
   function renderRecipes() {
     const root=$('recipeLibrary'); root.replaceChildren();
@@ -645,6 +646,14 @@
     const columns=document.createElement('div');columns.className='recipe-columns';
     const ingredients=document.createElement('section');const ingTitle=document.createElement('h3');ingTitle.textContent='Ingredientes';ingredients.append(ingTitle);addTextList(ingredients,recipe.ingredients||[]);
     const steps=document.createElement('section');const stepTitle=document.createElement('h3');stepTitle.textContent='Preparación';steps.append(stepTitle);addTextList(steps,recipe.steps||[],true);columns.append(ingredients,steps);
+    if(String(recipe.editorial_status||'').startsWith('verified')){
+      const review=document.createElement('section');review.className='recipe-editorial-review';
+      const reviewTitle=document.createElement('strong');reviewTitle.textContent='Receta verificada';review.append(reviewTitle);
+      if(recipe.canonical_variant){const variant=document.createElement('p');variant.textContent=recipe.canonical_variant;review.append(variant)}
+      const sources=(recipe.sources||[]).filter(source=>/^https:\/\//.test(String(source.url||'')));
+      if(sources.length){const sourceLabel=document.createElement('span');sourceLabel.textContent='Fuente: ';review.append(sourceLabel);sources.slice(0,3).forEach((source,index)=>{const link=document.createElement('a');link.href=source.url;link.target='_blank';link.rel='noopener noreferrer';link.textContent=source.title||source.authority||'Referencia culinaria';if(index)review.append(document.createTextNode(' · '));review.append(link)})}
+      columns.append(review);
+    }
     const actions=document.createElement('div');actions.className='recipe-detail-actions';
     const add=makeButton('Agregar ingredientes','secondary',()=>previewRecipe(recipe.id,Number(recipe.servings||1)));
     const buy=makeButton('Buscar para comprar','secondary',()=>preparePurchase('recipe',recipe.id));
