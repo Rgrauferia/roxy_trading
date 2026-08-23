@@ -128,7 +128,7 @@
   const recipeImage = recipe => {
     if (recipe && /^data:image\/(jpeg|png|webp);base64,/.test(String(recipe.photo_data_url || ''))) return recipe.photo_data_url;
     const title=String(recipe&&recipe.title||'').trim();
-    return title?`/v1/home-food/recipe-photo?title=${encodeURIComponent(title)}`:'';
+    return title?`/v1/home-food/recipe-photo?v=2&title=${encodeURIComponent(title)}`:'';
   };
 
   const dbPromise = new Promise((resolve,reject) => {
@@ -521,7 +521,7 @@
   function addTextList(root,rows,ordered=false){const list=document.createElement(ordered?'ol':'ul');(rows||[]).forEach(row=>{const item=document.createElement('li');item.textContent=typeof row==='string'?row:`${row.quantity||''} ${row.unit||''} de ${row.name||''}${row.notes?` · ${row.notes}`:''}`.trim();list.append(item)});root.append(list);}
   async function addRecipePhotoCredit(recipe,intro){
     if(recipe.photo_data_url)return;
-    try{const response=await fetch(`/v1/home-food/recipe-photo-info?title=${encodeURIComponent(recipe.title||'')}`,{credentials:'same-origin'});if(!response.ok)return;const photo=await response.json();if(!photo.available||!photo.source_url)return;const credit=document.createElement('a');credit.className='recipe-photo-credit';credit.href=photo.source_url;credit.target='_blank';credit.rel='noopener noreferrer';credit.textContent=`Foto real: ${photo.creator||photo.title} · ${String(photo.license||'CC').toUpperCase()}`;intro.append(credit)}catch(error){}
+    try{const response=await fetch(`/v1/home-food/recipe-photo-info?v=2&title=${encodeURIComponent(recipe.title||'')}`,{credentials:'same-origin'});if(!response.ok)return;const photo=await response.json();if(!photo.available||!photo.source_url)return;const credit=document.createElement('a');credit.className='recipe-photo-credit';credit.href=photo.source_url;credit.target='_blank';credit.rel='noopener noreferrer';credit.textContent=`Foto real: ${photo.creator||photo.title} · ${String(photo.license||'CC').toUpperCase()}`;intro.append(credit)}catch(error){}
   }
   function openRecipe(recipe){
     currentRecipe=recipe;$('recipeDialogTitle').textContent=recipe.title||'Receta de Roxy';
