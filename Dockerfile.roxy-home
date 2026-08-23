@@ -27,6 +27,7 @@ COPY assets/roxy_avatar.jpg ./assets/roxy_avatar.jpg
 COPY assets/roxy_home/products ./assets/roxy_home/products
 COPY assets/roxy_home/recipes ./assets/roxy_home/recipes
 COPY assets/roxy_home/recipe_categories ./assets/roxy_home/recipe_categories
+COPY assets/roxy_home/recipe_custom ./assets/roxy_home/recipe_custom
 COPY assets/roxy_home/home-hero-plant.png ./assets/roxy_home/home-hero-plant.png
 
 RUN mkdir -p /var/data/roxy_home

@@ -174,6 +174,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "COPY assets/roxy_home/products ./assets/roxy_home/products" in dockerfile
     assert "COPY assets/roxy_home/recipes ./assets/roxy_home/recipes" in dockerfile
     assert "COPY assets/roxy_home/recipe_categories ./assets/roxy_home/recipe_categories" in dockerfile
+    assert "COPY assets/roxy_home/recipe_custom ./assets/roxy_home/recipe_custom" in dockerfile
     assert "ROXY_HOME_ACCOUNTS_PATH=/var/data/roxy_home/accounts.json" in dockerfile
     assert "ROXY_HOME_VIDEO_LIBRARY_PATH=/var/data/roxy_home/recipe_video_library.json" in dockerfile
     assert "ROXY_HOME_VIDEO_MEDIA_DIR=/var/data/roxy_home/recipe_videos" in dockerfile
@@ -184,7 +185,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "/v1/home-food/recipe-photo?v=4&title=" in script.text
     assert "icon:'salad'" not in script.text
     for asset in ("pan-cubano.jpg", "cafe-americano.jpg", "cafe-con-canela.jpg", "affogato.jpg"):
-        assert (assets / "roxy_home" / "recipe_custom" / asset).is_file()
+        assert (roxy_home_service.ASSETS_DIR / "roxy_home" / "recipe_custom" / asset).is_file()
     assert "/assets/roxy_home/recipe_categories/" not in script.text
     for asset in ("pizza.png", "pasta.png", "bread.png", "soup-salad.png", "dessert.png", "drinks.png"):
         assert f"/assets/roxy_home/recipes/{asset}" in worker.text
