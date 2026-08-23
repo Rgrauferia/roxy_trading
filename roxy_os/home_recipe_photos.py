@@ -15,6 +15,7 @@ import json
 import os
 import re
 import threading
+import time
 import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
@@ -200,11 +201,12 @@ class RecipePhotoGenerationQueue:
         self.store = store
         self.config = config
         self._client = client
-        # Six workers build the shared library while two remain available for
+        # Four workers build the shared library while two remain available for
         # recipes currently visible on a user's screen.
-        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix="roxy-recipe-image")
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=6, thread_name_prefix="roxy-recipe-image")
         self._pending: set[str] = set()
         self._lock = threading.Lock()
+        self._metadata_lock = threading.Lock()
         self.budget_path = store.root / "image-generation-budget.json"
         self.failures_path = store.root / "image-generation-failures.json"
 
@@ -225,7 +227,7 @@ class RecipePhotoGenerationQueue:
         except (OSError, ValueError):
             payload = {}
         today = date.today().isoformat()
-        return payload if payload.get("date") == today and payload.get("version") == 2 else {"version": 2, "date": today, "count": 0}
+        return payload if payload.get("date") == today and payload.get("version") == 3 else {"version": 3, "date": today, "count": 0}
 
     def _reserve(self) -> bool:
         payload = self._budget()
@@ -258,8 +260,8 @@ class RecipePhotoGenerationQueue:
         if not self.config.enabled:
             return "DISABLED"
         rows = [dict(recipe) for recipe in recipes]
-        for offset in range(6):
-            shard = rows[offset::6]
+        for offset in range(4):
+            shard = rows[offset::4]
             if shard:
                 self._executor.submit(self._prewarm, shard)
         return "STARTED"
@@ -293,31 +295,67 @@ class RecipePhotoGenerationQueue:
         raise RuntimeError("OpenAI no devolvió una imagen")
 
     def _record_failure(self, title: str, error: Exception) -> None:
+        with self._metadata_lock:
+            try:
+                payload = json.loads(self.failures_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                payload = {"failures": {}}
+            payload.setdefault("failures", {})[self.store._key(title)] = {
+                "title": title,
+                "at": datetime.now(timezone.utc).isoformat(),
+                "error_type": type(error).__name__,
+            }
+            temporary = self.failures_path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            temporary.replace(self.failures_path)
+
+    def _clear_failure(self, title: str) -> None:
+        with self._metadata_lock:
+            try:
+                payload = json.loads(self.failures_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return
+            failures = payload.get("failures") or {}
+            if failures.pop(self.store._key(title), None) is None:
+                return
+            temporary = self.failures_path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            temporary.replace(self.failures_path)
+
+    def failure_summary(self) -> dict[str, int]:
         try:
             payload = json.loads(self.failures_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             payload = {"failures": {}}
-        payload.setdefault("failures", {})[self.store._key(title)] = {
-            "title": title,
-            "at": datetime.now(timezone.utc).isoformat(),
-            "error_type": type(error).__name__,
-        }
-        temporary = self.failures_path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-        temporary.replace(self.failures_path)
+        summary: dict[str, int] = {}
+        for row in (payload.get("failures") or {}).values():
+            name = str(row.get("error_type") or "UnknownError")
+            summary[name] = summary.get(name, 0) + 1
+        return summary
 
     def _generate(self, key: str, recipe: dict[str, Any]) -> None:
         title = str(recipe.get("title") or "")
         try:
-            response = self._openai().responses.create(
-                model=self.config.model,
-                input=recipe_photo_prompt(recipe),
-                tools=[{"type": "image_generation", "quality": self.config.quality, "size": "1024x1024"}],
-                store=False,
-            )
-            self.store.save_generated(title, self._image_result(response), approved=True)
-        except Exception as exc:  # Failure metadata intentionally excludes secret/provider text.
-            self._record_failure(title, exc)
+            last_error: Exception | None = None
+            transient = {"APIConnectionError", "APITimeoutError", "InternalServerError", "RateLimitError", "RuntimeError"}
+            for attempt in range(4):
+                try:
+                    response = self._openai().responses.create(
+                        model=self.config.model,
+                        input=recipe_photo_prompt(recipe),
+                        tools=[{"type": "image_generation", "quality": self.config.quality, "size": "1024x1024"}],
+                        store=False,
+                    )
+                    self.store.save_generated(title, self._image_result(response), approved=True)
+                    self._clear_failure(title)
+                    return
+                except Exception as exc:  # Failure metadata intentionally excludes provider text.
+                    last_error = exc
+                    if type(exc).__name__ not in transient or attempt == 3:
+                        break
+                    time.sleep(2 ** attempt)
+            if last_error is not None:
+                self._record_failure(title, last_error)
         finally:
             with self._lock:
                 self._pending.discard(key)

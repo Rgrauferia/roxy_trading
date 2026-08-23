@@ -970,6 +970,7 @@ def recipe_photo_coverage() -> dict[str, Any]:
         "ready": ready,
         "missing": max(0, len(rows) - ready),
         "queue": _recipe_photo_queue().public_status(),
+        "failures": _recipe_photo_queue().failure_summary(),
     }
 
 
