@@ -22,7 +22,7 @@ CATEGORY_META: dict[str, dict[str, str]] = {
     "rice": {"title": "Arroces", "description": "Arroces, risottos y paellas", "icon": "rice_bowl"},
     "pasta": {"title": "Pastas y fideos", "description": "Pastas, lasañas y fideos", "icon": "ramen_dining"},
     "soups": {"title": "Sopas, cremas y guisos", "description": "Platos de cuchara reconfortantes", "icon": "soup_kitchen"},
-    "bowls_salads": {"title": "Bowls y ensaladas", "description": "Comidas frescas y completas", "icon": "salad"},
+    "bowls_salads": {"title": "Bowls y ensaladas", "description": "Comidas frescas y completas", "icon": ""},
     "vegetarian": {"title": "Vegetarianas", "description": "Recetas sin carne", "icon": "eco"},
     "baked": {"title": "Horneados", "description": "Pizzas, panes, masas y gratinados", "icon": "bakery_dining"},
     "sides_sauces": {"title": "Acompañamientos y salsas", "description": "Guarniciones y básicos caseros", "icon": "tapas"},

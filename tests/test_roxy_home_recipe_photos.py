@@ -1,151 +1,75 @@
 from __future__ import annotations
 
-from pathlib import Path
+import base64
 
 from fastapi.testclient import TestClient
 
-from roxy_os.home_recipe_photos import RecipePhotoStore, recipe_photo_query
+from roxy_os.home_recipe_photos import RecipePhotoStore, recipe_photo_prompt
 
 
-class _Response:
-    def __init__(self, *, payload=None, content=b"", content_type="application/json"):
-        self._payload = payload
-        self.content = content
-        self.headers = {"content-type": content_type}
-
-    def raise_for_status(self):
-        return None
-
-    def json(self):
-        return self._payload
+def test_recipe_photo_prompt_names_exact_dish_and_ingredients():
+    prompt = recipe_photo_prompt(
+        {"title": "Camarones al ajillo", "ingredients": [{"name": "Camarones"}, {"name": "Ajo"}]}
+    )
+    assert "Camarones al ajillo" in prompt
+    assert "Camarones, Ajo" in prompt
+    assert "prepared final result" in prompt
+    assert "not a generic category platter" in prompt
+    assert "no text" in prompt
 
 
-def test_recipe_photo_query_translates_common_recipe_terms():
-    assert "garlic shrimp" in recipe_photo_query("Camarones al ajillo")
-    assert "overnight oats" in recipe_photo_query("Avena nocturna con frutas")
-    assert "beef steak with onions" in recipe_photo_query("Bistec encebollado")
+def test_recipe_photo_prompt_distinguishes_cuban_bread():
+    prompt = recipe_photo_prompt({"title": "Pan cubano"})
+    assert "traditional Cuban bread" in prompt
+    assert "not brioche" in prompt
+    assert "not a soft sandwich loaf" in prompt
 
 
-def test_recipe_photo_store_downloads_real_match_once_and_caches(tmp_path, monkeypatch):
-    calls = []
-
-    def fake_get(url, **kwargs):
-        calls.append(url)
-        if url.endswith("/v1/images/"):
-            return _Response(
-                payload={
-                    "results": [
-                        {
-                            "id": "real-shrimp-photo",
-                            "title": "Garlic shrimp dinner",
-                            "thumbnail": "https://api.openverse.org/v1/images/real-shrimp-photo/thumb/",
-                            "creator": "Food photographer",
-                            "license": "by",
-                            "license_url": "https://creativecommons.org/licenses/by/4.0/",
-                            "foreign_landing_url": "https://example.test/photo",
-                            "width": 1200,
-                            "height": 800,
-                            "tags": [{"name": "garlic"}, {"name": "shrimp"}, {"name": "food"}],
-                        }
-                    ]
-                }
-            )
-        return _Response(content=b"\xff\xd8\xff\xe0real-jpeg", content_type="image/jpeg")
-
-    monkeypatch.setattr("roxy_os.home_recipe_photos.requests.get", fake_get)
-    store = RecipePhotoStore(tmp_path)
-    first = store.resolve("Camarones al ajillo")
-    second = store.resolve("Camarones al ajillo")
-
-    assert first is not None
-    assert second is not None
-    assert first[0] == second[0]
-    assert first[0].read_bytes().startswith(b"\xff\xd8")
-    assert first[1]["openverse_id"] == "real-shrimp-photo"
-    assert len(calls) == 3
+def test_store_never_searches_or_returns_a_generic_fallback(tmp_path):
+    store = RecipePhotoStore(tmp_path, built_in_root=tmp_path / "built-ins")
+    assert store.resolve("Camarones al ajillo") is None
+    assert list(tmp_path.iterdir()) == []
 
 
-def test_recipe_photo_store_rejects_wrong_protein(tmp_path, monkeypatch):
-    def fake_get(url, **kwargs):
-        return _Response(
-            payload={
-                "results": [
-                    {
-                        "id": "wrong-fish",
-                        "title": "Garlic fish dinner",
-                        "thumbnail": "https://api.openverse.org/v1/images/wrong-fish/thumb/",
-                        "width": 1200,
-                        "height": 800,
-                        "tags": [{"name": "garlic"}, {"name": "fish"}],
-                    }
-                ]
-            }
-        )
-
-    monkeypatch.setattr("roxy_os.home_recipe_photos.requests.get", fake_get)
-    assert RecipePhotoStore(tmp_path).resolve("Camarones al ajillo") is None
+def test_store_serves_only_exact_built_in_title(tmp_path):
+    built_ins = tmp_path / "built-ins"
+    built_ins.mkdir()
+    photo = built_ins / "pan-cubano.jpg"
+    photo.write_bytes(b"exact-cuban-bread")
+    store = RecipePhotoStore(tmp_path / "generated", built_in_root=built_ins)
+    exact = store.resolve("Pan cubano")
+    assert exact is not None and exact[0] == photo
+    assert store.resolve("Pan blanco") is None
 
 
-def test_recipe_photo_store_rejects_related_ingredient_but_wrong_dish(tmp_path, monkeypatch):
-    def fake_get(url, **kwargs):
-        return _Response(
-            payload={
-                "results": [
-                    {
-                        "id": "wrong-muffin",
-                        "title": "Peanut Butter Banana muffins",
-                        "thumbnail": "https://api.openverse.org/v1/images/wrong-muffin/thumb/",
-                        "width": 1200,
-                        "height": 800,
-                        "tags": [{"name": "oats"}, {"name": "breakfast"}],
-                    }
-                ]
-            }
-        )
-
-    monkeypatch.setattr("roxy_os.home_recipe_photos.requests.get", fake_get)
-    assert RecipePhotoStore(tmp_path).resolve("Avena con banana y mantequilla de maní") is None
+def test_generated_photo_requires_approval_and_exact_title(tmp_path):
+    png = b"\x89PNG\r\n\x1a\ncustom"
+    store = RecipePhotoStore(tmp_path, built_in_root=tmp_path / "built-ins")
+    store.save_generated("Pollo al ajo", base64.b64encode(png).decode("ascii"))
+    assert store.resolve("Pollo al ajo") is None
+    assert store.approve("Pollo al ajo") is True
+    assert store.resolve("Pollo al ajo") is not None
+    assert store.resolve("Pollo al ajo con arroz") is None
 
 
-def test_recipe_photo_store_requires_named_flavor_modifier(tmp_path, monkeypatch):
-    def fake_get(url, **kwargs):
-        return _Response(
-            payload={
-                "results": [
-                    {
-                        "id": "chicken-rice-without-garlic",
-                        "title": "Steamed rice with chicken",
-                        "thumbnail": "https://api.openverse.org/v1/images/chicken-rice-without-garlic/thumb/",
-                        "width": 1200,
-                        "height": 800,
-                        "tags": [{"name": "garlic"}, {"name": "food"}],
-                    }
-                ]
-            }
-        )
-
-    monkeypatch.setattr("roxy_os.home_recipe_photos.requests.get", fake_get)
-    assert RecipePhotoStore(tmp_path).resolve("Pollo al ajo con arroz") is None
-
-
-def test_public_recipe_photo_endpoint_serves_cached_image(tmp_path, monkeypatch):
+def test_public_recipe_photo_endpoint_serves_roxy_image(tmp_path, monkeypatch):
     from tools import roxy_home_service
 
     photo = tmp_path / "photo.jpg"
-    photo.write_bytes(b"\xff\xd8\xff\xe0cached")
+    photo.write_bytes(b"\xff\xd8\xff\xe0custom")
 
     class _Store:
         def resolve(self, title):
-            assert title == "Camarones al ajillo"
-            return photo, {"media_type": "image/jpeg", "license": "by"}
+            assert title == "Café americano"
+            return photo, {"media_type": "image/jpeg", "provider": "Roxy Home"}
 
     monkeypatch.setattr(roxy_home_service, "_recipe_photo_store", lambda: _Store())
     roxy_home_service._RATE_STATE.clear()
     response = TestClient(roxy_home_service.app).get(
-        "/v1/home-food/recipe-photo", params={"title": "Camarones al ajillo"}
+        "/v1/home-food/recipe-photo", params={"title": "Café americano"}
     )
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("image/jpeg")
-    assert response.headers["x-roxy-photo-source"] == "Openverse"
+    assert response.headers["x-roxy-photo-source"] == "Roxy Home"
     assert response.content.startswith(b"\xff\xd8")

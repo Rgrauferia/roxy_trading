@@ -902,15 +902,14 @@ def recipe_photo(title: str, request: Request) -> Response:
         raise HTTPException(status_code=422, detail="Nombre de receta inválido")
     try:
         resolved = _recipe_photo_store().resolve(clean_title)
-    except (OSError, ValueError, requests.RequestException):
+    except (OSError, ValueError):
         resolved = None
     if resolved is None:
-        raise HTTPException(status_code=404, detail="Aún no hay una fotografía real verificada para esta receta")
+        raise HTTPException(status_code=404, detail="Aún no hay una imagen exacta y aprobada para esta receta")
     path, metadata = resolved
     response = FileResponse(path, media_type=str(metadata.get("media_type") or "image/jpeg"))
     response.headers["Cache-Control"] = "public, max-age=2592000, immutable"
-    response.headers["X-Roxy-Photo-Source"] = "Openverse"
-    response.headers["X-Roxy-Photo-License"] = str(metadata.get("license") or "unknown")[:64]
+    response.headers["X-Roxy-Photo-Source"] = str(metadata.get("provider") or "Roxy Home")[:64]
     return _security_headers(response)
 
 
@@ -922,7 +921,7 @@ def recipe_photo_info(title: str, request: Request) -> Response:
         raise HTTPException(status_code=422, detail="Nombre de receta inválido")
     try:
         resolved = _recipe_photo_store().resolve(clean_title)
-    except (OSError, ValueError, requests.RequestException):
+    except (OSError, ValueError):
         resolved = None
     if resolved is None:
         return _security_headers(JSONResponse({"available": False}))
@@ -932,11 +931,11 @@ def recipe_photo_info(title: str, request: Request) -> Response:
             {
                 "available": True,
                 "title": str(metadata.get("title") or clean_title),
-                "creator": str(metadata.get("creator") or ""),
-                "license": str(metadata.get("license") or ""),
-                "license_url": str(metadata.get("license_url") or ""),
-                "source_url": str(metadata.get("source_url") or ""),
-                "provider": "Openverse",
+                "creator": "Roxy Home",
+                "license": "Imagen propia",
+                "license_url": "",
+                "source_url": "",
+                "provider": str(metadata.get("provider") or "Roxy Home"),
             }
         )
     )

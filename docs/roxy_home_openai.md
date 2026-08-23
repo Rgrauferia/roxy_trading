@@ -23,9 +23,25 @@ Roxy Home comparte la identidad y el tono de Roxy, pero funciona como un dominio
 
 La clave permanece en el servidor. La PWA usa la cookie segura de Roxy Home y nunca recibe ni almacena la clave de OpenAI. No hay fallback a claves genéricas ni se reutilizan secretos de otros productos.
 
+### Imágenes exactas del recetario
+
+Roxy Home no usa fotos generales de buscadores para las tarjetas. Una receta
+solo muestra una imagen creada y aprobada para su título exacto. Si todavía no
+existe, la interfaz deja el espacio limpio en vez de enseñar otro plato.
+
+La biblioteca compartida puede completarse por lotes mediante Responses API:
+
+```bash
+.venv/bin/python tools/generate_roxy_home_recipe_images.py --category breakfast --limit 10
+```
+
+Cada imagen nueva queda pendiente de revisión salvo que se use `--approve`.
+La generación usa únicamente `ROXY_HOME_OPENAI_API_KEY`, nunca secretos de
+Study, Trading o Finanzas.
+
 ### Recetario local antes de OpenAI
 
-Las recetas comunes se resuelven primero con un recetario local real y validado de Roxy Home. El catálogo contiene 62 preparaciones: 18 comidas o panes, 11 postres y 33 bebidas, de las cuales 24 son alcohólicas y 9 sin alcohol. Solo una solicitud sin coincidencia confiable se envía a OpenAI. Esto reduce costo y latencia y mantiene las recetas habituales disponibles aunque el proveedor o la clave dedicada fallen.
+Las recetas comunes se resuelven primero con el recetario instalado de Roxy Home, que actualmente contiene 387 preparaciones organizadas por categoría. Solo una solicitud sin coincidencia confiable se envía a OpenAI. Esto reduce costo y latencia y mantiene las recetas habituales disponibles aunque el proveedor o la clave dedicada fallen.
 
 La respuesta local indica `generation_mode: local_recipe_catalog`, se guarda en la misma biblioteca y puede convertirse en lista o guía paso a paso. No se presenta como una respuesta de OpenAI. Sustituciones, planes semanales e investigación vigente siguen requiriendo la conexión OpenAI dedicada y responden `503` si no está disponible.
 
@@ -74,6 +90,7 @@ Los endpoints de identidad son `POST /v1/home-account/login`, `GET /v1/home-acco
 ## Referencias oficiales
 
 - [Migración y uso de Responses API](https://developers.openai.com/api/docs/guides/migrate-to-responses/)
+- [Generación de imágenes con Responses API](https://developers.openai.com/api/docs/guides/image-generation/)
 - [Web search en Responses API](https://developers.openai.com/api/docs/guides/tools-web-search/)
 - [Crear una Response](https://developers.openai.com/api/reference/resources/responses/methods/create/)
 
