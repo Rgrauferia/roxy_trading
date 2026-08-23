@@ -43,6 +43,7 @@ Previous fixes preserved in this iteration:
 - Responsive: filtros con desplazamiento horizontal y tarjetas sin desbordamiento lateral.
 - Despliegue público comprobado en `https://roxy-home.onrender.com/lista#recetas` con el mismo viewport móvil.
 - Se verificaron 16 categorías, búsqueda global con “Café cubano”, cambio a la categoría Pollo, fotografías visibles, navegación inferior y ausencia de errores de consola.
+- Corrección v48: se detectó que el contenedor de producción omitía `recipe_categories`; el Dockerfile ahora copia el directorio, el PWA invalida el caché anterior y las imágenes públicas responden 200. Se comprobaron dimensiones naturales 900 × 900 en las tarjetas, también en viewport 390 × 844.
 - Estado actual: **aprobado en el despliegue público**.
 
 ## Follow-up polish
