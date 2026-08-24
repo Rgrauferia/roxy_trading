@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -18,11 +19,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="80"' in page.text
-    assert 'href="/assets/roxy_list.css?v=64"' in page.text
-    assert 'src="/assets/roxy_list.js?v=80"' in page.text
-    assert '/assets/roxy_list.css?v=64' in worker.text
-    assert '/assets/roxy_list.js?v=80' in worker.text
+    assert 'name="roxy-home-version" content="81"' in page.text
+    assert 'href="/assets/roxy_list.css?v=65"' in page.text
+    assert 'src="/assets/roxy_list.js?v=81"' in page.text
+    assert '/assets/roxy_list.css?v=65' in worker.text
+    assert '/assets/roxy_list.js?v=81' in worker.text
     assert '/assets/roxy_home_avatar.jpg' in page.text
     assert '/assets/roxy_home_avatar.jpg' in worker.text
     assert manifest.json()["icons"][0]["src"] == "/assets/roxy_home_avatar.jpg"
@@ -37,7 +38,10 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert nav.index('data-tab-link="recipes"') < nav.index('data-tab-link="design"') < nav.index('data-tab-link="calendar"')
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
-    assert 'Buscar productos reales' in script.text
+    assert 'Comparar productos reales' in script.text
+    assert 'Analizar mi espacio' in script.text
+    assert 'Pídele un cambio a Roxy' in script.text
+    assert "economy|balanced|complete" in Path("tools/roxy_home_service.py").read_text(encoding="utf-8")
     assert "CLEANING:'Limpieza'" in script.text
     assert "FOOD:'Alimentos'" in script.text
     assert "HOUSEHOLD:'Hogar y accesorios'" in script.text

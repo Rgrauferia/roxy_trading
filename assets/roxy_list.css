@@ -534,11 +534,26 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
 .design-project-heading h3 { margin: 0; color: var(--forest); font-family: Georgia,'Times New Roman',serif; font-size: 25px; }
 .design-project-heading p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
 .design-budget { color: var(--forest); font-weight: 850; white-space: nowrap; }
+.design-tier-tabs { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; }
+.design-tier-tabs button { display: grid; gap: 2px; min-height: 58px; padding: 8px 6px; border: 1px solid rgba(23,63,43,.16); border-radius: 15px; color: var(--forest); background: #fffdf8; }
+.design-tier-tabs button.active { border-color: var(--forest); color: #fff; background: var(--forest); box-shadow: 0 7px 18px rgba(23,63,43,.16); }
+.design-tier-tabs strong { font-size: 11px; }
+.design-tier-tabs small { color: inherit; font-size: 10px; opacity: .82; }
+.design-analysis { display: grid; gap: 8px; padding: 13px; border-radius: 17px; background: linear-gradient(145deg,#edf4ea,#faf7ef); color: var(--forest); }
+.design-analysis > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.design-analysis > div > strong { font-family: Georgia,'Times New Roman',serif; font-size: 18px; }
+.design-analysis button { min-height: 34px; padding: 6px 10px; font-size: 10px; }
+.design-analysis p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.design-analysis ul { display: grid; gap: 5px; margin: 0; padding-left: 18px; color: #3e5848; font-size: 11px; line-height: 1.4; }
 .design-product-list { display: grid; gap: 6px; }
 .design-product-list label { display: grid; grid-template-columns: 22px minmax(0,1fr) auto; align-items: center; gap: 8px; min-height: 42px; padding: 7px 9px; border-radius: 13px; background: #f4f7f1; color: var(--forest); font-size: 12px; }
 .design-product-list em { color: var(--muted); font-style: normal; font-size: 10px; }
 .design-project-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .design-project-actions .danger-button { grid-column: 1 / -1; min-height: 38px; }
+.design-revision { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: 8px; }
+.design-revision label { display: grid; gap: 5px; min-width: 0; color: var(--forest); font-size: 11px; font-weight: 800; }
+.design-revision input { width: 100%; min-height: 43px; border: 1px solid rgba(23,63,43,.18); border-radius: 13px; padding: 9px 11px; color: var(--ink); background: #fff; font: inherit; font-weight: 500; }
+.design-revision button { min-height: 43px; }
 .design-dialog form > label small { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; }
 
 @media (max-width: 580px) {
@@ -548,6 +563,7 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
   .design-visual { min-height: 145px; }
   .design-visual img,.design-proposal-placeholder { min-height: 145px; }
   .design-project-actions { grid-template-columns: 1fr; }
+  .design-revision { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 580px) {

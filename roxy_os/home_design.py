@@ -66,6 +66,23 @@ ROOM_PRODUCTS = {
     "other": ["lámpara decorativa", "alfombra", "organizador", "arte de pared"],
 }
 
+BUDGET_TIERS = {
+    "economy": {"label": "Económica", "multiplier": 0.65},
+    "balanced": {"label": "Equilibrada", "multiplier": 1.0},
+    "complete": {"label": "Completa", "multiplier": 1.35},
+}
+
+ROOM_OBSERVATIONS = {
+    "living_room": ["Define una zona de conversación clara.", "Aprovecha la iluminación en capas y deja libres las rutas de paso."],
+    "bedroom": ["Prioriza descanso, circulación y almacenamiento accesible.", "Usa luz cálida junto a la cama y evita saturar las superficies."],
+    "dining_room": ["Centra la composición alrededor de la mesa.", "Deja espacio suficiente para retirar las sillas con comodidad."],
+    "kitchen": ["Mantén despejadas las superficies de trabajo.", "Agrupa almacenamiento, preparación y limpieza en zonas prácticas."],
+    "bathroom": ["Favorece materiales resistentes a la humedad.", "Añade almacenamiento cerrado sin bloquear la ventilación."],
+    "office": ["Controla reflejos y coloca luz de tarea regulable.", "Mantén cables y almacenamiento fuera de la superficie principal."],
+    "patio": ["Elige piezas aptas para exterior y fáciles de mantener.", "Organiza sombra, iluminación y circulación antes de decorar."],
+    "other": ["Conserva una circulación clara.", "Introduce primero función e iluminación y después decoración."],
+}
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -105,9 +122,11 @@ def _decode_image(data_url: str) -> tuple[bytes, str, str]:
     return raw, media_type, suffix
 
 
-def _product_plan(room_type: str, style: str, budget: float) -> list[dict[str, Any]]:
+def _product_plan(room_type: str, style: str, budget: float, tier: str = "balanced") -> list[dict[str, Any]]:
     names = ROOM_PRODUCTS.get(room_type, ROOM_PRODUCTS["other"])
     style_label = STYLE_LABELS.get(style, STYLE_LABELS["surprise_me"])
+    tier = tier if tier in BUDGET_TIERS else "balanced"
+    available = round(max(0, budget) * float(BUDGET_TIERS[tier]["multiplier"]), 2)
     shares = (0.38, 0.27, 0.20, 0.15)
     return [
         {
@@ -116,11 +135,37 @@ def _product_plan(room_type: str, style: str, budget: float) -> list[dict[str, A
             "quantity": 1,
             "unit": "unidad",
             "category": "HOUSEHOLD",
-            "budget_target": round(max(0, budget) * shares[index], 2),
+            "budget_target": round(available * shares[index], 2),
+            "tier": tier,
             "selected": True,
         }
         for index, name in enumerate(names)
     ]
+
+
+def _budget_tiers(room_type: str, style: str, budget: float) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": tier,
+            "label": values["label"],
+            "budget": round(max(0, budget) * float(values["multiplier"]), 2),
+            "products": _product_plan(room_type, style, budget, tier),
+        }
+        for tier, values in BUDGET_TIERS.items()
+    ]
+
+
+def _initial_analysis(room_type: str, priorities: list[str], keep_items: list[str]) -> dict[str, Any]:
+    opportunities = list(ROOM_OBSERVATIONS.get(room_type, ROOM_OBSERVATIONS["other"]))
+    if priorities:
+        opportunities.insert(0, f"La prioridad principal será: {priorities[0]}.")
+    return {
+        "status": "READY_LOCAL",
+        "summary": "Roxy preparó una lectura inicial con tus objetivos. Puedes pedir un análisis visual más detallado.",
+        "strengths": [f"Conservar: {', '.join(keep_items)}."] if keep_items else ["La propuesta conservará la arquitectura y los elementos fijos del espacio."],
+        "opportunities": opportunities,
+        "questions": ["Confirma las medidas principales para validar que los productos caben."] if not priorities else [],
+    }
 
 
 class HomeDesignStore:
@@ -198,6 +243,8 @@ class HomeDesignStore:
         photo_path.write_bytes(raw)
         os.chmod(photo_path, 0o600)
         budget = round(float(values.get("budget") or 0), 2)
+        keep_items = _list(values.get("keep_items"))
+        priorities = _list(values.get("priorities"))
         now = _now()
         row = {
             "id": project_id,
@@ -210,15 +257,20 @@ class HomeDesignStore:
             "budget": budget,
             "currency": "USD",
             "measurements": _text(values.get("measurements"), 500),
-            "keep_items": _list(values.get("keep_items")),
-            "priorities": _list(values.get("priorities")),
+            "keep_items": keep_items,
+            "priorities": priorities,
             "notes": _text(values.get("notes"), 1200),
             "photo_path": str(photo_path),
             "photo_media_type": media_type,
             "proposal_path": "",
             "proposal_status": "NOT_STARTED",
             "proposal_error": "",
+            "selected_tier": "balanced",
+            "budget_tiers": _budget_tiers(room_type, style, budget),
             "products": _product_plan(room_type, style, budget),
+            "analysis": _initial_analysis(room_type, priorities, keep_items),
+            "analysis_status": "READY_LOCAL",
+            "revision_notes": [],
             "created_at": now,
             "updated_at": now,
         }
@@ -227,6 +279,50 @@ class HomeDesignStore:
             payload["projects"].setdefault(owner_key, {})[project_id] = row
             return deepcopy(row)
 
+        return self._mutate(apply)
+
+    def select_tier(self, owner_key: str, project_id: str, tier: str) -> dict[str, Any]:
+        if tier not in BUDGET_TIERS:
+            raise ValueError("Selecciona un nivel de presupuesto válido.")
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            row = payload.get("projects", {}).get(owner_key, {}).get(project_id)
+            if not isinstance(row, dict):
+                raise KeyError(project_id)
+            variants = row.get("budget_tiers") or _budget_tiers(row["room_type"], row["style"], float(row.get("budget") or 0))
+            selected = next(item for item in variants if item["id"] == tier)
+            row.update({"budget_tiers": variants, "selected_tier": tier, "products": deepcopy(selected["products"]), "updated_at": _now()})
+            return deepcopy(row)
+        return self._mutate(apply)
+
+    def save_analysis(self, owner_key: str, project_id: str, analysis: dict[str, Any]) -> dict[str, Any]:
+        clean = {
+            "status": "READY_AI",
+            "summary": _text(analysis.get("summary"), 700),
+            "strengths": _list(analysis.get("strengths"), limit=6),
+            "opportunities": _list(analysis.get("opportunities"), limit=8),
+            "questions": _list(analysis.get("questions"), limit=5),
+        }
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            row = payload.get("projects", {}).get(owner_key, {}).get(project_id)
+            if not isinstance(row, dict):
+                raise KeyError(project_id)
+            row.update({"analysis": clean, "analysis_status": "READY_AI", "updated_at": _now()})
+            return deepcopy(row)
+        return self._mutate(apply)
+
+    def request_revision(self, owner_key: str, project_id: str, instruction: str, tier: str) -> dict[str, Any]:
+        instruction = _text(instruction, 500)
+        if not instruction:
+            raise ValueError("Dile a Roxy qué quieres cambiar.")
+        self.select_tier(owner_key, project_id, tier)
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            row = payload.get("projects", {}).get(owner_key, {}).get(project_id)
+            if not isinstance(row, dict):
+                raise KeyError(project_id)
+            notes = list(row.get("revision_notes") or [])[-11:]
+            notes.append({"instruction": instruction, "created_at": _now()})
+            row.update({"revision_notes": notes, "proposal_status": "NOT_STARTED", "proposal_error": "", "updated_at": _now()})
+            return deepcopy(row)
         return self._mutate(apply)
 
     def mark_generating(self, owner_key: str, project_id: str) -> dict[str, Any]:
@@ -248,7 +344,7 @@ class HomeDesignStore:
         os.chmod(path, 0o600)
         def apply(payload: dict[str, Any]) -> dict[str, Any]:
             target = payload["projects"][owner_key][project_id]
-            target.update({"proposal_path": str(path), "proposal_status": "READY", "proposal_error": "", "updated_at": _now()})
+            target.update({"proposal_path": str(path), "proposal_status": "READY", "proposal_tier": target.get("selected_tier") or "balanced", "proposal_error": "", "updated_at": _now()})
             return deepcopy(target)
         return self._mutate(apply)
 
@@ -305,6 +401,35 @@ class HomeDesignGenerator:
                 return str(item.result)
         raise RuntimeError("OpenAI no devolvió una propuesta visual.")
 
+    @staticmethod
+    def _analysis_result(response: Any) -> dict[str, Any]:
+        raw = str(getattr(response, "output_text", "") or "").strip()
+        value = json.loads(raw)
+        if not isinstance(value, dict):
+            raise RuntimeError("OpenAI no devolvió un análisis válido.")
+        return value
+
+    def analyze(self, project: dict[str, Any]) -> dict[str, Any]:
+        if not self.configured:
+            raise RuntimeError("El análisis visual de Roxy Renueva todavía no está conectado.")
+        photo = Path(project["photo_path"]).read_bytes()
+        media_type = str(project["photo_media_type"])
+        image_url = f"data:{media_type};base64,{base64.b64encode(photo).decode('ascii')}"
+        prompt = (
+            f"Analyze this real {project['room_label']} for a practical {project['style_label']} refresh within about ${project['budget']:.2f} USD. "
+            f"The household wants to keep: {', '.join(project.get('keep_items') or []) or 'fixed architecture and useful existing pieces'}. "
+            f"Priorities: {', '.join(project.get('priorities') or []) or 'comfort, order, lighting and circulation'}. "
+            "Describe only what is visibly supportable or explicitly provided. Do not invent measurements, damage, brands or prices. "
+            "Give concise Spanish advice and ask for missing measurements when product fit cannot be verified."
+        )
+        response = self._openai().responses.create(
+            model=self.model,
+            input=[{"role": "user", "content": [{"type": "input_text", "text": prompt}, {"type": "input_image", "image_url": image_url}]}],
+            text={"format": {"type": "json_schema", "name": "roxy_home_space_analysis", "strict": True, "schema": {"type": "object", "properties": {"summary": {"type": "string"}, "strengths": {"type": "array", "items": {"type": "string"}}, "opportunities": {"type": "array", "items": {"type": "string"}}, "questions": {"type": "array", "items": {"type": "string"}}}, "required": ["summary", "strengths", "opportunities", "questions"], "additionalProperties": False}}},
+            store=False,
+        )
+        return self._analysis_result(response)
+
     def generate(self, project: dict[str, Any]) -> str:
         if not self.configured:
             raise RuntimeError("La generación visual de Roxy Renueva todavía no está conectada.")
@@ -314,11 +439,14 @@ class HomeDesignGenerator:
         kept = ", ".join(project.get("keep_items") or []) or "the room architecture and existing fixed elements"
         priorities = ", ".join(project.get("priorities") or []) or "comfort, visual harmony and practical circulation"
         products = ", ".join(row.get("name", "") for row in (project.get("products") or []))
+        tier = BUDGET_TIERS.get(str(project.get("selected_tier") or "balanced"), BUDGET_TIERS["balanced"])
+        revision_notes = "; ".join(str(row.get("instruction") or "") for row in (project.get("revision_notes") or [])[-4:])
         prompt = (
             f"Edit this exact photograph of a {project['room_label']} into a realistic {project['style_label']} redesign. "
             f"Preserve the exact architecture, camera angle, windows, doors, floor plan and these requested items: {kept}. "
-            f"Prioritize {priorities}. Respect a total furnishing budget near ${project['budget']:.2f} USD, so the result must be attainable, not luxury fantasy. "
+            f"Prioritize {priorities}. Create the {tier['label']} option and respect a total furnishing budget near ${project['budget'] * float(tier['multiplier']):.2f} USD, so the result must be attainable, not luxury fantasy. "
             f"Use a coherent version of these shoppable decor concepts so the visualization and shopping plan agree: {products}. "
+            f"Apply these latest household revision requests exactly when compatible with the room: {revision_notes or 'no additional revisions'}. "
             "Show one photorealistic finished-room visualization. Do not change the room into another property. "
             "No people, text, labels, logos, watermarks, before-and-after split or impossible construction."
         )
@@ -333,6 +461,12 @@ class HomeDesignGenerator:
 
 def public_project(row: dict[str, Any], user_id: str) -> dict[str, Any]:
     result = {key: deepcopy(value) for key, value in row.items() if key not in {"photo_path", "proposal_path", "photo_media_type"}}
+    result.setdefault("selected_tier", "balanced")
+    result.setdefault("budget_tiers", _budget_tiers(str(row.get("room_type") or "other"), str(row.get("style") or "surprise_me"), float(row.get("budget") or 0)))
+    if not result.get("analysis"):
+        result["analysis"] = _initial_analysis(str(row.get("room_type") or "other"), list(row.get("priorities") or []), list(row.get("keep_items") or []))
+    result.setdefault("analysis_status", str((result.get("analysis") or {}).get("status") or "READY_LOCAL"))
+    result.setdefault("revision_notes", [])
     project_id = row["id"]
     result["photo_url"] = f"/v1/home-design/{user_id}/projects/{project_id}/image/original"
     result["proposal_url"] = f"/v1/home-design/{user_id}/projects/{project_id}/image/proposal" if row.get("proposal_path") else ""

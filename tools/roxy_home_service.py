@@ -168,6 +168,15 @@ class HomeDesignProjectRequest(BaseModel):
 class HomeDesignCommerceRequest(BaseModel):
     product_ids: list[str] = Field(default_factory=list, max_length=20)
     provider_ids: list[str] = Field(default_factory=list, max_length=10)
+    tier: str = Field(default="balanced", pattern="^(economy|balanced|complete)$")
+
+
+class HomeDesignProposalRequest(BaseModel):
+    tier: str = Field(default="balanced", pattern="^(economy|balanced|complete)$")
+
+
+class HomeDesignRevisionRequest(HomeDesignProposalRequest):
+    instruction: str = Field(min_length=2, max_length=500)
 
 
 class PantryItemRequest(BaseModel):
@@ -2421,6 +2430,7 @@ def create_home_design_project(
 def generate_home_design_proposal(
     user_id: str,
     project_id: str,
+    payload: HomeDesignProposalRequest,
     background_tasks: BackgroundTasks,
     request: Request,
     auth: AuthContext = Depends(_authenticate),
@@ -2432,9 +2442,62 @@ def generate_home_design_proposal(
     if not generator.configured:
         raise HTTPException(status_code=503, detail="La generación visual de Roxy Renueva todavía no está conectada.")
     try:
-        project = _design_store().mark_generating(owner_key, project_id)
+        store = _design_store()
+        store.select_tier(owner_key, project_id, payload.tier)
+        project = store.mark_generating(owner_key, project_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado") from exc
+    background_tasks.add_task(_generate_home_design, owner_key, project_id)
+    return {"status": "GENERATING", "project": public_project(project, user)}
+
+
+@app.post("/v1/home-design/{user_id}/projects/{project_id}/analysis")
+def analyze_home_design_project(
+    user_id: str,
+    project_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    owner_key = _commerce_owner_key(auth, user)
+    store = _design_store()
+    generator = HomeDesignGenerator.from_env()
+    if not generator.configured:
+        raise HTTPException(status_code=503, detail="El análisis visual de Roxy Renueva todavía no está conectado.")
+    try:
+        project = store.project(owner_key, project_id)
+        project = store.save_analysis(owner_key, project_id, generator.analyze(project))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado") from exc
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=502, detail="Roxy no pudo analizar esta foto. Inténtalo nuevamente.") from exc
+    return {"status": "ANALYZED", "project": public_project(project, user)}
+
+
+@app.post("/v1/home-design/{user_id}/projects/{project_id}/revision", status_code=202)
+def revise_home_design_project(
+    user_id: str,
+    project_id: str,
+    payload: HomeDesignRevisionRequest,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    owner_key = _commerce_owner_key(auth, user)
+    generator = HomeDesignGenerator.from_env()
+    if not generator.configured:
+        raise HTTPException(status_code=503, detail="La generación visual de Roxy Renueva todavía no está conectada.")
+    try:
+        store = _design_store()
+        store.request_revision(owner_key, project_id, payload.instruction, payload.tier)
+        project = store.mark_generating(owner_key, project_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     background_tasks.add_task(_generate_home_design, owner_key, project_id)
     return {"status": "GENERATING", "project": public_project(project, user)}
 
@@ -2492,7 +2555,8 @@ def prepare_home_design_purchase(
     user = _authorize_user(user_id, auth)
     owner_key = _commerce_owner_key(auth, user)
     try:
-        project = _design_store().project(owner_key, project_id)
+        store = _design_store()
+        project = store.select_tier(owner_key, project_id, payload.tier)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado") from exc
     products = project.get("products") or []
@@ -2512,7 +2576,7 @@ def prepare_home_design_purchase(
         owner_key,
         user,
         source="design",
-        source_title=f"Productos para {project['name']}",
+        source_title=f"Opción {payload.tier} para {project['name']}",
         items=prepared_items,
         providers=requested,
     )

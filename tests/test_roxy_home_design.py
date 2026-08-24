@@ -36,6 +36,31 @@ def test_design_store_isolates_projects_and_private_images(tmp_path):
     assert Path(project["photo_path"]).read_bytes() == PNG
     assert project["products"][0]["name"].endswith("estilo moderno cálido")
     assert sum(row["budget_target"] for row in project["products"]) == 800
+    assert [row["id"] for row in project["budget_tiers"]] == ["economy", "balanced", "complete"]
+    assert [row["budget"] for row in project["budget_tiers"]] == [520, 800, 1080]
+    assert project["analysis_status"] == "READY_LOCAL"
+
+
+def test_design_store_changes_budget_tier_and_remembers_conversational_revisions(tmp_path):
+    store = HomeDesignStore(tmp_path / "design.json", tmp_path / "images")
+    project = store.create("member:robert", "home", _values())
+
+    economy = store.select_tier("member:robert", project["id"], "economy")
+    revised = store.request_revision(
+        "member:robert", project["id"], "Conserva el sofá y usa paredes beige", "economy"
+    )
+    analyzed = store.save_analysis("member:robert", project["id"], {
+        "summary": "La distribución funciona, pero puede ganar luz.",
+        "strengths": ["Buena circulación"],
+        "opportunities": ["Añadir luz de pie"],
+        "questions": ["¿Cuánto mide la pared?"],
+    })
+
+    assert economy["selected_tier"] == "economy"
+    assert sum(row["budget_target"] for row in economy["products"]) == 520
+    assert revised["revision_notes"][-1]["instruction"] == "Conserva el sofá y usa paredes beige"
+    assert analyzed["analysis_status"] == "READY_AI"
+    assert analyzed["analysis"]["questions"] == ["¿Cuánto mide la pared?"]
 
 
 def test_design_generation_uses_responses_api_image_edit_and_never_stores_request(tmp_path):
@@ -59,6 +84,24 @@ def test_design_generation_uses_responses_api_image_edit_and_never_stores_reques
     assert any(row["type"] == "input_image" and row["image_url"].startswith("data:image/png;base64,") for row in content)
     assert "sofá gris" in content[0]["text"]
     assert "exact architecture" in content[0]["text"]
+
+
+def test_design_visual_analysis_uses_private_photo_and_structured_responses_output(tmp_path):
+    store = HomeDesignStore(tmp_path / "design.json", tmp_path / "images")
+    project = store.create("member:robert", "home", _values())
+    captured = {}
+
+    class Responses:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(output_text='{"summary":"Buena base","strengths":["Luz natural"],"opportunities":["Ordenar cables"],"questions":["¿Cuánto mide la pared?"]}')
+
+    result = HomeDesignGenerator("home-only-key", "gpt-5.6-terra", client=SimpleNamespace(responses=Responses())).analyze(project)
+
+    assert result["summary"] == "Buena base"
+    assert captured["store"] is False
+    assert captured["text"]["format"]["type"] == "json_schema"
+    assert captured["input"][0]["content"][1]["image_url"].startswith("data:image/png;base64,")
 
 
 def test_design_api_creates_private_project_and_prepares_real_store_searches(tmp_path, monkeypatch):
@@ -95,3 +138,44 @@ def test_design_api_creates_private_project_and_prepares_real_store_searches(tmp
     assert prepared.json()["preparation"]["items"][0]["category"] == "HOUSEHOLD"
     assert blocked_generation.status_code == 503
 
+
+def test_design_api_analyzes_revises_and_generates_only_the_selected_budget_option(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "home-test-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert")
+    monkeypatch.setenv("ROXY_HOME_DESIGN_PATH", str(tmp_path / "design.json"))
+    monkeypatch.setenv("ROXY_HOME_DESIGN_IMAGE_DIR", str(tmp_path / "images"))
+    roxy_home_service._RATE_STATE.clear()
+
+    class Generator:
+        configured = True
+
+        def analyze(self, _project):
+            return {"summary": "Buena base", "strengths": ["Luz natural"], "opportunities": ["Más orden"], "questions": []}
+
+        def generate(self, project):
+            assert project["selected_tier"] in {"economy", "complete"}
+            return base64.b64encode(PNG).decode("ascii")
+
+    monkeypatch.setattr(roxy_home_service.HomeDesignGenerator, "from_env", staticmethod(lambda: Generator()))
+    client = TestClient(roxy_home_service.app)
+    headers = {"Authorization": "Bearer home-test-key"}
+    project = client.post("/v1/home-design/robert/projects", headers=headers, json=_values()).json()["project"]
+
+    analyzed = client.post(f"/v1/home-design/robert/projects/{project['id']}/analysis", headers=headers, json={})
+    generated = client.post(f"/v1/home-design/robert/projects/{project['id']}/proposal", headers=headers, json={"tier": "economy"})
+    revised = client.post(
+        f"/v1/home-design/robert/projects/{project['id']}/revision",
+        headers=headers,
+        json={"tier": "complete", "instruction": "Conserva el sofá y usa tonos beige"},
+    )
+    snapshot = client.get("/v1/home-design/robert", headers=headers).json()["projects"][0]
+
+    assert analyzed.status_code == 200
+    assert analyzed.json()["project"]["analysis_status"] == "READY_AI"
+    assert generated.status_code == 202
+    assert revised.status_code == 202
+    assert snapshot["selected_tier"] == "complete"
+    assert snapshot["proposal_tier"] == "complete"
+    assert snapshot["revision_notes"][-1]["instruction"] == "Conserva el sofá y usa tonos beige"
