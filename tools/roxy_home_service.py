@@ -921,7 +921,15 @@ _SHOPPING_AMBIGUITIES: tuple[dict[str, Any], ...] = (
 def _canonical_shopping_request(row: dict[str, Any]) -> dict[str, Any]:
     result = dict(row)
     plain = _plain_home_text(result.get("name"))
-    if re.fullmatch(r"(?:pasta|crema)\s+(?:de|para)?\s*dientes?", plain) or plain in {"dentifrico", "toothpaste"}:
+    if re.fullmatch(r"(?:h?elado|ice cream)\s+(?:de\s+)?(?:dulce de leche|arequipe|cajeta)", plain):
+        result["name"] = "Helado de dulce de leche"
+        if str(result.get("unit") or "unidad") == "unidad":
+            result["unit"] = "envase"
+    elif plain in {"dulce de leche", "arequipe", "cajeta"}:
+        result["name"] = "Dulce de leche"
+        if str(result.get("unit") or "unidad") == "unidad":
+            result["unit"] = "lata"
+    elif re.fullmatch(r"(?:pasta|crema)\s+(?:de|para)?\s*dientes?", plain) or plain in {"dentifrico", "toothpaste"}:
         result["name"] = "Pasta dental"
         if str(result.get("unit") or "unidad") == "unidad":
             result["unit"] = "tubo"

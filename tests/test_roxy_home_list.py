@@ -17,11 +17,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="78"' in page.text
+    assert 'name="roxy-home-version" content="79"' in page.text
     assert 'href="/assets/roxy_list.css?v=64"' in page.text
-    assert 'src="/assets/roxy_list.js?v=78"' in page.text
+    assert 'src="/assets/roxy_list.js?v=79"' in page.text
     assert '/assets/roxy_list.css?v=64' in worker.text
-    assert '/assets/roxy_list.js?v=78' in worker.text
+    assert '/assets/roxy_list.js?v=79' in worker.text
     assert 'id="designPanel"' in page.text
     assert 'class="renueva-entry"' not in page.text
     assert 'id="openDesignFromToday"' not in page.text
@@ -655,3 +655,27 @@ def test_old_calendar_voice_rows_are_removed_from_shopping_snapshot(tmp_path):
     snapshot = ShoppingListStore(state_path).snapshot("robert")
 
     assert [item["name"] for item in snapshot["items"]] == ["Pan"]
+
+
+def test_dulce_de_leche_and_ice_cream_are_distinct_products(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "shopping-dessert-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert")
+    monkeypatch.setenv("ROXY_SHOPPING_LIST_PATH", str(tmp_path / "shopping.json"))
+    monkeypatch.setenv("ROXY_HOME_CONVERSATION_PATH", str(tmp_path / "conversation.json"))
+    roxy_home_service._RATE_STATE.clear()
+    client = TestClient(roxy_home_service.app, base_url="https://roxy.test")
+    client.post("/v1/shopping/session/robert", headers={"Authorization": "Bearer shopping-dessert-key"})
+
+    caramel = client.post("/v1/assistant/command/robert", json={"text": "Roxy agrega dulce de leche"})
+    ice_cream = client.post("/v1/assistant/command/robert", json={"text": "Roxy agrega elado de dulce de leche"})
+    items = client.get("/v1/shopping/robert").json()["items"]
+    by_name = {item["name"]: item for item in items}
+
+    assert caramel.json()["intent"] == "shopping_add"
+    assert ice_cream.json()["intent"] == "shopping_add"
+    assert by_name["Dulce de leche"]["unit"] == "lata"
+    assert by_name["Dulce de leche"]["category"] == "PANTRY"
+    assert by_name["Helado de dulce de leche"]["unit"] == "envase"
+    assert by_name["Helado de dulce de leche"]["category"] == "FROZEN"

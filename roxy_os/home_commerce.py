@@ -49,6 +49,7 @@ AMAZON_PRODUCT_TERMS = {
     "cereal": "breakfast cereal",
     "detergente": "laundry detergent",
     "dulce de leche": "dulce de leche",
+    "helado de dulce de leche": "dulce de leche ice cream",
     "galletas": "cookies",
     "harina": "all purpose flour",
     "harina de trigo": "all purpose flour",
@@ -86,8 +87,10 @@ AMAZON_UNIT_TERMS = {
     "bolsa": "bag",
     "botella": "bottle",
     "caja": "box",
+    "envase": "container",
     "galon": "gallon",
     "litro": "liter",
+    "lata": "can",
     "paquete": "pack",
     "rollo": "roll",
 }

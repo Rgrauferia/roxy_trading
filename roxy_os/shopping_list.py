@@ -238,6 +238,10 @@ def classify_shopping_category(name: Any, requested: Any = "GENERAL") -> str:
     """Infer a stable aisle while preserving explicit categories for unknown products."""
 
     identity = _classification_identity(name)
+    # Product form outranks flavor ingredients: "helado de dulce de leche" is
+    # frozen even though "dulce de leche" alone belongs in the pantry.
+    if re.search(r"\b(?:helado|ice cream|mantecado)\b", identity):
+        return "FROZEN"
     padded = f" {identity} "
     matches: list[tuple[int, str]] = []
     for category, terms in _SHOPPING_CATEGORY_TERMS:

@@ -2,7 +2,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '74';
+  const APP_VERSION = '79';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -37,7 +37,7 @@
     clementina:'mandarin.png', citrico:'mandarin.png', citricos:'mandarin.png',
     'dulce de leche':'dulce-de-leche.png', cajeta:'dulce-de-leche.png', arequipe:'dulce-de-leche.png',
     'ninja ice cream':'ice-cream.png', 'ninja creami':'ice-cream.png',
-    'helado de dulce de leche':'ice-cream.png', helado:'ice-cream.png', 'ice cream':'ice-cream.png', mantecado:'ice-cream.png',
+    'helado de dulce de leche':'ice-cream.png', 'elado de dulce de leche':'ice-cream.png', 'helado dulce de leche':'ice-cream.png', helado:'ice-cream.png', elado:'ice-cream.png', 'ice cream':'ice-cream.png', mantecado:'ice-cream.png',
     azucar:'sugar.png', sugar:'sugar.png',
     'gel de cejas':'eyebrow-gel.png', cejas:'eyebrow-gel.png', 'eyebrow gel':'eyebrow-gel.png',
     medicamento:'medicine.png', medicamentos:'medicine.png', medicina:'medicine.png', medicinas:'medicine.png',
