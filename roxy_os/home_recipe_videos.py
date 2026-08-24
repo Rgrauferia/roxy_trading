@@ -118,7 +118,7 @@ class HomeRecipeVideoConfig:
             ),
             media_dir=Path(os.getenv("ROXY_HOME_VIDEO_MEDIA_DIR", "data/roxy_home_recipe_videos")),
             admin_key=str(os.getenv("ROXY_HOME_VIDEO_ADMIN_KEY", "")).strip(),
-            roxy_reference_url=str(os.getenv("ROXY_HOME_VIDEO_ROXY_REFERENCE_URL", "https://roxy-home.onrender.com/assets/roxy_avatar.jpg")).strip(),
+            roxy_reference_url=str(os.getenv("ROXY_HOME_VIDEO_ROXY_REFERENCE_URL", "https://roxy-home.onrender.com/assets/roxy_home_avatar.jpg")).strip(),
         )
 
     @property

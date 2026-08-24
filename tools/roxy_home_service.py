@@ -1336,7 +1336,7 @@ def shopping_manifest() -> Response:
             "orientation": "portrait-primary",
             "background_color": "#f7f4ed",
             "theme_color": "#173f2b",
-            "icons": [{"src": "/assets/roxy_avatar_icon.jpg", "sizes": "512x512", "type": "image/jpeg"}],
+            "icons": [{"src": "/assets/roxy_home_avatar.jpg", "sizes": "768x768", "type": "image/jpeg"}],
         },
         headers={"Cache-Control": "public, max-age=3600"},
     )

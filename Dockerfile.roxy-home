@@ -22,7 +22,7 @@ RUN python -m pip install --upgrade pip \
 COPY roxy_os ./roxy_os
 COPY tools/roxy_home_service.py ./tools/roxy_home_service.py
 COPY tools/roxy_home_video_pilot.py ./tools/roxy_home_video_pilot.py
-COPY assets/roxy_list.html assets/roxy_list.css assets/roxy_list_overrides.css assets/roxy_home_food.css assets/roxy_list.js assets/roxy_list_sw.js assets/roxy_avatar_icon.jpg ./assets/
+COPY assets/roxy_list.html assets/roxy_list.css assets/roxy_list_overrides.css assets/roxy_home_food.css assets/roxy_list.js assets/roxy_list_sw.js assets/roxy_avatar_icon.jpg assets/roxy_home_avatar.jpg ./assets/
 COPY assets/roxy_avatar_card.jpg ./assets/roxy_avatar_card.jpg
 COPY assets/roxy_avatar.jpg ./assets/roxy_avatar.jpg
 COPY assets/roxy_home/products ./assets/roxy_home/products

@@ -42,7 +42,7 @@ def video_config(tmp_path):
         max_recipe_cost_usd=1.5,
         media_dir=tmp_path / "media",
         admin_key="review-secret",
-        roxy_reference_url="https://roxy-home.onrender.com/assets/roxy_avatar.jpg",
+        roxy_reference_url="https://roxy-home.onrender.com/assets/roxy_home_avatar.jpg",
     )
 
 
@@ -230,7 +230,7 @@ def test_provider_does_not_replace_instructional_choreography(tmp_path):
     FalHailuoVideoProvider(video_config(tmp_path), session=Session()).submit("show hands mixing")
 
     assert captured["json"]["prompt_optimizer"] is False
-    assert captured["json"]["subject_reference_image_url"].endswith("/assets/roxy_avatar.jpg")
+    assert captured["json"]["subject_reference_image_url"].endswith("/assets/roxy_home_avatar.jpg")
 
 
 def test_shared_video_is_generated_once_then_reused_without_leaking_owner(tmp_path):
@@ -304,7 +304,7 @@ def test_subject_video_price_ignores_stale_generic_provider_price(monkeypatch):
 def test_home_container_includes_the_official_roxy_subject_reference():
     dockerfile = Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
 
-    assert "assets/roxy_avatar.jpg" in dockerfile
+    assert "assets/roxy_home_avatar.jpg" in dockerfile
     assert "tools/roxy_home_video_pilot.py" in dockerfile
 
 

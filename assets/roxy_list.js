@@ -2,7 +2,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '79';
+  const APP_VERSION = '80';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -454,7 +454,7 @@
     (homeCalendar.events||[]).forEach(event=>{
       const delay=new Date(event.starts_at).getTime()-Number(event.reminder_minutes||0)*60000-Date.now();
       if(delay<=0||delay>2147483647)return;
-      calendarReminderTimers.set(event.occurrence_id||event.id,setTimeout(()=>new Notification('Roxy Home',{body:`${event.title} · ${formatCalendarTime(event.starts_at)}`,icon:'/assets/roxy_avatar_icon.jpg'}),delay));
+      calendarReminderTimers.set(event.occurrence_id||event.id,setTimeout(()=>new Notification('Roxy Home',{body:`${event.title} · ${formatCalendarTime(event.starts_at)}`,icon:'/assets/roxy_home_avatar.jpg'}),delay));
     });
   }
 
@@ -769,7 +769,7 @@
     const active=[...sessions].reverse().find(row=>row.status==='ACTIVE');
     if(active){
       const resume=document.createElement('button'); resume.type='button'; resume.className='recipe-card resume-card';
-      const img=document.createElement('img'); img.src='/assets/roxy_avatar_card.jpg'; img.alt='';
+      const img=document.createElement('img'); img.src='/assets/roxy_home_avatar.jpg'; img.alt='';
       const copy=document.createElement('span'); const strong=document.createElement('strong'); strong.textContent=`Continuar: ${active.recipe_title}`;
       const small=document.createElement('small'); small.textContent=`Paso ${Number(active.step_index||0)+1} de ${active.step_count}`;
       copy.append(strong,small); resume.append(img,copy); resume.addEventListener('click',()=>resumeCooking(active.id)); root.append(resume);

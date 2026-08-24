@@ -8,14 +8,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="79" />
+  <meta name="roxy-home-version" content="80" />
   <title>Roxy Home</title>
-  <link rel="icon" href="/assets/roxy_avatar_icon.jpg" />
-  <link rel="apple-touch-icon" href="/assets/roxy_avatar_icon.jpg" />
+  <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
+  <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
   <link rel="stylesheet" href="/assets/roxy_list.css?v=64" />
-  <script src="/assets/roxy_list.js?v=79" defer></script>
+  <script src="/assets/roxy_list.js?v=80" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -123,7 +123,7 @@
       </section>
       <section class="calendar-hero">
         <div><h3>Tu semana,<br />organizada</h3><span aria-hidden="true"></span><p>Cuéntale a Roxy qué tienes planificado y ella lo organiza por ti.</p></div>
-        <div class="calendar-roxy-action"><img src="/assets/roxy_avatar_icon.jpg" alt="Roxy" /><button id="calendarVoiceButton" class="primary" type="button"><span class="material-symbols-rounded" aria-hidden="true">mic</span> Agregar hablando</button></div>
+        <div class="calendar-roxy-action"><img src="/assets/roxy_home_avatar.jpg" alt="Roxy" /><button id="calendarVoiceButton" class="primary" type="button"><span class="material-symbols-rounded" aria-hidden="true">mic</span> Agregar hablando</button></div>
       </section>
       <section id="calendarWeekStrip" class="calendar-week-strip" aria-label="Navegar por la semana"></section>
       <section id="calendarAgenda" class="calendar-agenda" aria-live="polite"></section>
@@ -281,7 +281,7 @@
   <nav class="bottom-nav" aria-label="Secciones de Roxy Home">
     <button class="active" type="button" data-tab-link="today"><span class="material-symbols-rounded" aria-hidden="true">today</span><strong>Hoy</strong></button>
     <button type="button" data-tab-link="shopping"><span class="material-symbols-rounded" aria-hidden="true">shopping_cart</span><strong>Compra</strong></button>
-    <button id="roxyVoiceLauncher" class="roxy-nav" type="button" aria-controls="roxyVoicePanel" aria-expanded="false"><img src="/assets/roxy_avatar_icon.jpg" alt="" /><strong>Roxy</strong></button>
+    <button id="roxyVoiceLauncher" class="roxy-nav" type="button" aria-controls="roxyVoicePanel" aria-expanded="false"><img src="/assets/roxy_home_avatar.jpg" alt="" /><strong>Roxy</strong></button>
     <button type="button" data-tab-link="recipes"><span class="material-symbols-rounded" aria-hidden="true">menu_book</span><strong>Recetas</strong></button>
     <button type="button" data-tab-link="design"><span class="material-symbols-rounded" aria-hidden="true">chair</span><strong>Renueva</strong></button>
     <button type="button" data-tab-link="calendar"><span class="material-symbols-rounded" aria-hidden="true">calendar_month</span><strong>Calendario</strong></button>
@@ -317,7 +317,7 @@
   <dialog id="cookingDialog" class="cooking-dialog" aria-labelledby="cookingTitle">
     <article>
       <div class="dialog-heading"><div><p id="cookingProgress" class="eyebrow">Paso 1</p><h2 id="cookingTitle">Cocinando con Roxy</h2></div><button type="button" data-close-dialog="cookingDialog" aria-label="Cerrar">Pausar</button></div>
-      <div class="cooking-visual"><img id="cookingImage" src="/assets/roxy_avatar_card.jpg" alt="" /></div>
+      <div class="cooking-visual"><img id="cookingImage" src="/assets/roxy_home_avatar.jpg" alt="" /></div>
       <section id="cookingVideo" class="cooking-video" aria-live="polite" hidden></section>
       <p id="cookingStep" class="cooking-step" aria-live="polite"></p>
       <div class="timer-box">
@@ -463,7 +463,7 @@
   </dialog>
 
   <section id="roxyVoicePanel" class="roxy-voice-panel" aria-labelledby="roxyVoiceTitle" hidden>
-    <header><img src="/assets/roxy_avatar_icon.jpg" alt="Roxy" /><div><strong id="roxyVoiceTitle">Roxy</strong><small>Contigo en tu lista</small></div><button id="roxyVoiceClose" type="button" aria-label="Cerrar conversación">Cerrar</button></header>
+    <header><img src="/assets/roxy_home_avatar.jpg" alt="Roxy" /><div><strong id="roxyVoiceTitle">Roxy</strong><small>Contigo en tu lista</small></div><button id="roxyVoiceClose" type="button" aria-label="Cerrar conversación">Cerrar</button></header>
     <p id="roxyVoiceStatus" class="roxy-voice-status" role="status" aria-live="polite">Lista para conversar</p>
     <div id="roxyVoiceTranscript" class="roxy-voice-transcript" aria-live="polite">Puedes pedirme una receta, cambiar tu lista o decir “guíame paso a paso”.</div>
     <div class="roxy-voice-actions"><button id="roxyVoiceStart" class="primary" type="button">Iniciar</button><button id="roxyVoiceEnd" class="secondary" type="button" disabled>Terminar</button></div>

@@ -14,14 +14,21 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     worker = client.get("/lista-sw.js")
     script = client.get("/assets/roxy_list.js")
     style = client.get("/assets/roxy_list.css")
+    home_avatar = client.get("/assets/roxy_home_avatar.jpg")
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="79"' in page.text
+    assert 'name="roxy-home-version" content="80"' in page.text
     assert 'href="/assets/roxy_list.css?v=64"' in page.text
-    assert 'src="/assets/roxy_list.js?v=79"' in page.text
+    assert 'src="/assets/roxy_list.js?v=80"' in page.text
     assert '/assets/roxy_list.css?v=64' in worker.text
-    assert '/assets/roxy_list.js?v=79' in worker.text
+    assert '/assets/roxy_list.js?v=80' in worker.text
+    assert '/assets/roxy_home_avatar.jpg' in page.text
+    assert '/assets/roxy_home_avatar.jpg' in worker.text
+    assert manifest.json()["icons"][0]["src"] == "/assets/roxy_home_avatar.jpg"
+    assert home_avatar.status_code == 200
+    assert home_avatar.headers["content-type"] == "image/jpeg"
+    assert home_avatar.content.startswith(b"\xff\xd8\xff")
     assert 'id="designPanel"' in page.text
     assert 'class="renueva-entry"' not in page.text
     assert 'id="openDesignFromToday"' not in page.text
