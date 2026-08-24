@@ -100,6 +100,25 @@ def test_spanish_calendar_parser_understands_confirmation_details_and_recurrence
     assert recurring["needs_clarification"] is True
 
 
+def test_calendar_parser_removes_voice_controls_from_professional_title():
+    current = datetime.fromisoformat("2026-08-24T10:00:00-04:00")
+
+    work = parse_calendar_command(
+        "Roxy, pon en el calendario que hoy trabajo a las 2:00 p. m.",
+        current=current,
+    )
+    appointment = parse_calendar_command(
+        "Agrega al calendario una cita con el dentista mañana a las 10:30 a. m.",
+        current=current,
+    )
+
+    assert work["title"] == "Trabajo"
+    assert work["category"] == "WORK"
+    assert work["starts_at"].startswith("2026-08-24T14:00:00")
+    assert appointment["title"] == "Cita con el dentista"
+    assert appointment["category"] == "APPOINTMENTS"
+
+
 def test_calendar_api_and_voice_are_private_and_persistent(tmp_path, monkeypatch):
     from tools import roxy_home_service
 

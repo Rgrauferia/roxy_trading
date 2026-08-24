@@ -345,6 +345,42 @@ def _plain(value: Any) -> str:
     return re.sub(r"\s+", " ", normalized.encode("ascii", "ignore").decode("ascii").lower()).strip()
 
 
+def _calendar_title(command: str) -> str:
+    """Turn a spoken scheduling instruction into a concise event title.
+
+    Calendar controls, destinations, dates and times belong in structured
+    fields, not in the title shown by Google or Apple Calendar.
+    """
+    title = str(command or "").strip(" ,.-")
+    title = re.sub(r"^(?:hola\s+)?roxy\s*[,.:;-]?\s*", "", title)
+    title = re.sub(r"^(?:por favor\s+)?(?:quiero|necesito)\s+que\s+", "", title)
+    title = re.sub(
+        r"^(?:por favor\s+)?(?:agrega(?:me)?|anade(?:me)?|programa(?:me)?|crea(?:me)?|pon(?:me)?|agenda(?:me)?|apunta(?:me)?|anota(?:me)?|registra(?:me)?)\s+",
+        "",
+        title,
+    )
+    title = re.sub(
+        r"^(?:(?:un|una|el|la)\s+)?(?:(?:evento|recordatorio|cita)\s+)?(?:en|a|al|para)\s+(?:mi\s+|el\s+)?(?:calendario|agenda)(?:\s+que)?\s+",
+        "",
+        title,
+    )
+    title = re.sub(r"^(?:en|a|al|para)\s+(?:mi\s+|el\s+)?(?:calendario|agenda)(?:\s+que)?\s+", "", title)
+    title = re.sub(r"^(?:que\s+)?(?:hoy|manana|pasado manana)\s+", "", title)
+    title = re.sub(r"^(?:que\s+)", "", title)
+    title = re.sub(r"^(?:un|una|el|la)\s+", "", title)
+    title = re.split(
+        r"\s+\b(?:hoy|manana|pasado manana)\b"
+        r"|\s+\b(?:el|para)\s+(?:lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b"
+        r"|\s+\b(?:a\s+las?|a\s+la)\s+(?:\d{1,2}|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)\b"
+        r"|\s+\bde lunes a viernes\b",
+        title,
+        maxsplit=1,
+    )[0].strip(" ,.-")
+    if not title:
+        return "Nuevo evento"
+    return (title[:1].upper() + title[1:])[:160]
+
+
 def parse_calendar_command(text: str, *, current: datetime | None = None, timezone_name: str = DEFAULT_TIMEZONE) -> dict[str, Any]:
     """Parse common Spanish scheduling commands without sending private calendar data to AI."""
     zone = _timezone(timezone_name)
@@ -396,12 +432,9 @@ def parse_calendar_command(text: str, *, current: datetime | None = None, timezo
     if recurrence != "NONE" and until_match:
         month = SPANISH_MONTHS.get(until_match.group(2) or "", target.month)
         recurrence_until = date(int(until_match.group(3) or target.year), month, int(until_match.group(1))).isoformat()
-    title = re.sub(r"^(?:roxy[, ]+)?(?:agrega|anade|añade|programa|crea|pon|agenda)\s+", "", clean).strip()
-    title = re.sub(r"^(?:un|una|el|la)\s+", "", title).strip()
-    title = re.split(r"\b(?:el|para)\s+(?:lunes|martes|miercoles|jueves|viernes|sabado|domingo|hoy|manana)\b|\b(?:a\s+las?|a\s+la)\s+\d|\bde lunes a viernes\b", title, maxsplit=1)[0].strip(" ,.-")
-    title = title or "Nuevo evento"
+    title = _calendar_title(clean)
     return {
-        "title": title[:160].capitalize(), "starts_at": starts_at.isoformat(), "ends_at": (starts_at + timedelta(hours=1)).isoformat(),
+        "title": title, "starts_at": starts_at.isoformat(), "ends_at": (starts_at + timedelta(hours=1)).isoformat(),
         "timezone": timezone_name, "category": "SCHOOL" if "escuela" in clean else "WORK" if "trabajo" in clean else "APPOINTMENTS" if re.search(r"dentista|medico|cita", clean) else "FAMILY" if re.search(r"familia|ninos|niños", text.lower()) else "PERSONAL",
         "reminder_minutes": reminder, "location": "", "notes": "", "participants": [], "recurrence": recurrence, "recurrence_until": recurrence_until,
         "needs_clarification": recurrence != "NONE" and not recurrence_until,

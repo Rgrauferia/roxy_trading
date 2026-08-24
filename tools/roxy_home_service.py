@@ -1342,6 +1342,10 @@ def assistant_command(
             sync_result = _sync_calendar_event(owner_key, event)
             if sync_result.get("synced"):
                 message += " También quedó sincronizado con Google Calendar."
+            elif sync_result.get("reason") == "not_connected":
+                message += " Quedó guardado en Roxy Home, pero todavía debes conectar Google Calendar para recibirlo en el teléfono."
+            else:
+                message += " Quedó guardado en Roxy Home, pero Google Calendar no pudo sincronizarlo. Puedes reintentar desde Calendario."
             extra["calendar_event"] = event
             extra["calendar_sync"] = sync_result
         elif intent == "calendar_discard":

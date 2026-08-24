@@ -41,6 +41,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="calendarConfirmDialog"' in page.text
     assert 'id="upcomingEventCard"' in page.text
     assert '/v1/home-calendar/' in script.text
+    assert 'Hola, ${person}. ¿Qué hacemos hoy?' in script.text
+    assert 'Evento guardado y sincronizado con el calendario de tu teléfono' in script.text
     assert "Notification.requestPermission" in script.text
     assert "data-calendar-view" in page.text
     assert ".calendar-agenda[hidden]" in style.text
