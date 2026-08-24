@@ -162,6 +162,7 @@ def test_explicit_recipe_measurement_is_never_overridden_by_name_parser(tmp_path
         ("detergente de lavar", "CLEANING"), ("papel toalla", "CLEANING"),
         ("papel higiénico", "PERSONAL"), ("gel de cejas", "PERSONAL"),
         ("ibuprofeno", "HEALTH"), ("bombillos LED", "HOUSEHOLD"),
+        ("cargador USB", "HOUSEHOLD"), ("destornillador", "HOUSEHOLD"),
         ("arena para gato", "PETS"),
     ],
 )

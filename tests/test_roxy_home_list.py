@@ -17,11 +17,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="76"' in page.text
+    assert 'name="roxy-home-version" content="77"' in page.text
     assert 'href="/assets/roxy_list.css?v=64"' in page.text
-    assert 'src="/assets/roxy_list.js?v=76"' in page.text
+    assert 'src="/assets/roxy_list.js?v=77"' in page.text
     assert '/assets/roxy_list.css?v=64' in worker.text
-    assert '/assets/roxy_list.js?v=76' in worker.text
+    assert '/assets/roxy_list.js?v=77' in worker.text
     assert 'id="designPanel"' in page.text
     assert 'class="renueva-entry"' not in page.text
     assert 'id="openDesignFromToday"' not in page.text
@@ -32,10 +32,12 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert '/v1/home-design/' in script.text
     assert 'Buscar productos reales' in script.text
     assert "CLEANING:'Limpieza'" in script.text
+    assert "FOOD:'Alimentos'" in script.text
+    assert "HOUSEHOLD:'Hogar y accesorios'" in script.text
     assert "PRODUCE:'Frutas y vegetales'" in script.text
     assert "DAIRY_EGGS:'Lácteos y huevos'" in script.text
-    assert "MEAT_SEAFOOD:'Carnes y pescados'" in script.text
-    assert "BABY:'Bebé'" in script.text
+    assert "BABY:'Cuidado del bebé'" in script.text
+    assert "['Iluminación y electricidad'" in script.text
     assert "shopping-category-group" in script.text
     assert "Automática (recomendada)" in page.text
     assert 'class="meal-plan-limits"' not in page.text

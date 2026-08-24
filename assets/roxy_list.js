@@ -2,10 +2,13 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '73';
+  const APP_VERSION = '74';
   const now = () => new Date().toISOString();
-  const categories = {ALL:'Todo',PRODUCE:'Frutas y vegetales',DAIRY_EGGS:'Lácteos y huevos',MEAT_SEAFOOD:'Carnes y pescados',BAKERY:'Panadería',PANTRY:'Despensa',BEVERAGES:'Bebidas',FROZEN:'Congelados',FOOD:'Otros alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar',BABY:'Bebé',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
-  const categoryOrder = ['PRODUCE','DAIRY_EGGS','MEAT_SEAFOOD','BAKERY','PANTRY','BEVERAGES','FROZEN','FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','BABY','PETS','OTHER'];
+  const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
+  const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
+  const aisleOrder = ['PRODUCE','DAIRY_EGGS','MEAT_SEAFOOD','BAKERY','PANTRY','BEVERAGES','FROZEN','FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','BABY','PETS','OTHER'];
+  const aisleToCategory = {PRODUCE:'FOOD',DAIRY_EGGS:'FOOD',MEAT_SEAFOOD:'FOOD',BAKERY:'FOOD',PANTRY:'FOOD',BEVERAGES:'FOOD',FROZEN:'FOOD',FOOD:'FOOD',CLEANING:'CLEANING',PERSONAL:'PERSONAL',HEALTH:'HEALTH',HOUSEHOLD:'HOUSEHOLD',BABY:'PERSONAL',PETS:'PETS',OTHER:'OTHER'};
+  const aisleLabels = {PRODUCE:'Frutas y vegetales',DAIRY_EGGS:'Lácteos y huevos',MEAT_SEAFOOD:'Carnes y pescados',BAKERY:'Panadería',PANTRY:'Despensa',BEVERAGES:'Bebidas',FROZEN:'Congelados',FOOD:'Otros alimentos',CLEANING:'Limpieza general',PERSONAL:'Cuidado personal',HEALTH:'Farmacia',HOUSEHOLD:'Accesorios del hogar',BABY:'Cuidado del bebé',PETS:'Mascotas',OTHER:'Sin clasificar'};
   const staples = [
     ['Leche','DAIRY_EGGS','litro'],['Huevos','DAIRY_EGGS','docena'],['Queso','DAIRY_EGGS','paquete'],
     ['Pollo','MEAT_SEAFOOD','paquete'],['Tomate','PRODUCE','unidad'],['Aguacate','PRODUCE','unidad'],
@@ -119,24 +122,51 @@
     PERSONAL:['papel higienico','jabon','champu','shampoo','acondicionador','desodorante','pasta dental','crema dental','cepillo dental','hilo dental','enjuague bucal','gel de bano','gel de ducha','toalla sanitaria','tampon','afeitadora','rasuradora','crema de afeitar','locion','protector solar','crema corporal','gel de cejas','maquillaje','algodon','hisopo','toallitas humedas','toothpaste','deodorant','toilet paper'],
     HEALTH:['medicamento','medicina','pastilla','analgesico','ibuprofeno','acetaminofen','paracetamol','aspirina','vitamina','suplemento','jarabe','curita','vendaje','termometro','farmacia','antialergico','antibiotico','medicine','vitamin','supplement','bandage'],
     PETS:['comida de perro','comida para perro','comida de gato','comida para gato','alimento de perro','alimento para perro','alimento de gato','alimento para gato','arena de gato','arena para gato','premio de perro','premio de gato','croquetas de perro','croquetas de gato','mascota','dog food','cat food','pet food','cat litter'],
-    BABY:['panal','panales','toallitas de bebe','toallitas para bebe','formula de bebe','formula infantil','comida de bebe','champu de bebe','jabon de bebe','baby wipes','baby formula','diaper','diapers'],
-    HOUSEHOLD:['papel aluminio','papel encerado','papel pergamino','film plastico','servilleta','vaso desechable','plato desechable','cubierto desechable','bombillo','bombilla','bateria','pilas','vela','fosforo','encendedor','filtro de cafe','bolsa ziploc','recipiente','percha','gancho de ropa','aluminum foil','light bulb','battery','napkin'],
-    DAIRY_EGGS:['leche','huevo','queso','yogur','yogurt','mantequilla','crema de leche','half and half','nata','milk','egg','cheese','butter'],
+    BABY:['panal','panales','toallitas de bebe','toallitas para bebe','champu de bebe','jabon de bebe','baby wipes','diaper','diapers'],
+    HOUSEHOLD:['papel aluminio','papel encerado','papel pergamino','film plastico','servilleta','vaso desechable','plato desechable','cubierto desechable','bombillo','bombilla','bateria','pilas','vela','fosforo','encendedor','filtro de cafe','bolsa ziploc','recipiente','percha','gancho de ropa','organizador','cargador','cable usb','extension electrica','adaptador','regleta','martillo','destornillador','tornillo','clavo','taladro','cinta metrica','utensilio','espatula','abrelatas','aluminum foil','light bulb','battery','napkin','charger','usb cable','extension cord','tool'],
+    DAIRY_EGGS:['leche','huevo','queso','yogur','yogurt','mantequilla','crema de leche','half and half','nata','formula de bebe','formula infantil','baby formula','milk','egg','cheese','butter'],
     MEAT_SEAFOOD:['pollo','carne','res','cerdo','pescado','salmon','atun','camaron','marisco','bistec','jamon','tocino','pavo','chicken','beef','pork','fish','steak','shrimp','turkey','ham','bacon'],
     PRODUCE:['tomate','aguacate','platano','banana','mandarina','naranja','manzana','fruta','vegetal','verdura','cebolla','ajo','papa','patata','zanahoria','lechuga','pepino','pimiento','brocoli','coliflor','espinaca','cilantro','perejil','limon','lima','fresa','uva','mango','pina','vegetable','fruit','apple','orange'],
     BAKERY:['pan','bagel','croissant','tortilla','arepa','panecillo','bollo','pastelito','bread','bun','roll','bakery'],
     BEVERAGES:['cafe','te','matcha','agua','jugo','zumo','refresco','soda','bebida','leche de almendra','leche de avena','agua de coco','bebida energetica','coffee','water','juice','drink','beverage'],
-    PANTRY:['arroz','pasta','espagueti','macarron','fideo','harina','avena','cereal','aceite','sal','azucar','levadura','vainilla','canela','especia','salsa','frijol','garbanzo','lenteja','maiz','maicena','dulce de leche','conserva','lata','galleta','chocolate','miel','mermelada','mayonesa','ketchup','mostaza','rice','flour','sugar','salt','oil','oat','spice','sauce'],
+    PANTRY:['arroz','pasta','espagueti','macarron','fideo','harina','avena','cereal','aceite','sal','azucar','levadura','vainilla','canela','especia','salsa','frijol','garbanzo','lenteja','maiz','maicena','dulce de leche','conserva','lata','galleta','chocolate','miel','mermelada','mayonesa','ketchup','mostaza','comida de bebe','rice','flour','sugar','salt','oil','oat','spice','sauce'],
     FOOD:['alimento','comida','snack','aperitivo','ingrediente','food','grocery']
   };
-  const inferShoppingCategory = (name,requested='GENERAL') => {
+  const inferShoppingAisle = (name,requested='GENERAL') => {
     const identity=` ${categoryIdentity(productLabel(name))} `;
     const matches=[];
-    for(const group of categoryOrder){
+    for(const group of aisleOrder){
       (shoppingCategoryTerms[group]||[]).forEach(term=>{const key=categoryIdentity(term);if(identity.includes(` ${key} `))matches.push([key.length,group])});
     }
     if(matches.length)return matches.sort((left,right)=>right[0]-left[0])[0][1];
-    return categoryOrder.includes(requested)?requested:'OTHER';
+    return aisleOrder.includes(requested)?requested:'OTHER';
+  };
+  const inferShoppingCategory = (name,requested='GENERAL') => aisleToCategory[inferShoppingAisle(name,requested)]||'OTHER';
+  const shoppingSubcategoryTerms = [
+    ['Ropa',['detergente','suavizante','oxiclean','blanqueador','laundry']],
+    ['Cocina',['lavaplatos','lavavajillas','jabon de platos','esponja','estropajo','dish soap']],
+    ['Baño',['limpiador de bano','limpiador de inodoro','toilet cleaner']],
+    ['Papel y basura',['papel toalla','papel de cocina','toalla de papel','bolsa de basura','trash bag']],
+    ['Cabello',['champu','shampoo','acondicionador']],
+    ['Cuidado oral',['pasta dental','crema dental','cepillo dental','hilo dental','enjuague bucal','toothpaste']],
+    ['Belleza y piel',['gel de cejas','maquillaje','crema corporal','protector solar','locion']],
+    ['Medicamentos',['medicamento','medicina','pastilla','analgesico','ibuprofeno','acetaminofen','paracetamol','aspirina','jarabe']],
+    ['Vitaminas y suplementos',['vitamina','suplemento','vitamin','supplement']],
+    ['Primeros auxilios',['curita','vendaje','termometro','agua oxigenada','alcohol isopropilico','bandage']],
+    ['Iluminación y electricidad',['bombillo','bombilla','bateria','pilas','cargador','cable usb','extension electrica','adaptador','regleta','light bulb','battery','charger','usb cable','extension cord']],
+    ['Herramientas',['martillo','destornillador','tornillo','clavo','taladro','cinta metrica','tool']],
+    ['Organización',['organizador','percha','gancho de ropa','recipiente']],
+    ['Accesorios de cocina',['papel aluminio','papel encerado','papel pergamino','film plastico','filtro de cafe','bolsa ziploc','utensilio','espatula','abrelatas']],
+    ['Aromas',['vela','ambientador','aromatizante','bolsitas de olor','sachet']],
+    ['Desechables',['servilleta','vaso desechable','plato desechable','cubierto desechable','napkin']],
+    ['Alimentación de mascotas',['comida de perro','comida de gato','alimento de perro','alimento de gato','dog food','cat food','pet food']],
+    ['Higiene de mascotas',['arena de gato','cat litter']],
+    ['Accesorios de mascotas',['correa de perro','premio de perro','premio de gato']]
+  ];
+  const inferShoppingSubcategory = (name,requested='GENERAL') => {
+    const identity=` ${categoryIdentity(productLabel(name))} `;const matches=[];
+    shoppingSubcategoryTerms.forEach(([label,terms])=>terms.forEach(term=>{const key=categoryIdentity(term);if(identity.includes(` ${key} `))matches.push([key.length,label])}));
+    return matches.length?matches.sort((left,right)=>right[0]-left[0])[0][1]:aisleLabels[inferShoppingAisle(name,requested)]||'Sin clasificar';
   };
   const productLabel = value => {
     let label=String(value||'').replace(/\s+/g,' ').trim();
@@ -592,7 +622,8 @@
       const img=makeImage(label,itemCategory,''); img.className='product-thumb';
       const copy=document.createElement('div'); copy.className='shopping-copy';
       const strong=document.createElement('strong'); strong.textContent=label;
-      const small=document.createElement('small'); small.textContent=`${categories[itemCategory]||'Otros'} · ${item.unit||'unidad'}`;
+      const subcategory=inferShoppingSubcategory(label,item.category);
+      const small=document.createElement('small'); small.textContent=`${categories[itemCategory]||'Otros'} · ${subcategory} · ${item.unit||'unidad'}`;
       copy.append(strong,small);
       const stepper=document.createElement('div'); stepper.className='stepper';
       const minus=makeButton('−','',()=>changeQuantity(item,-1),`Disminuir cantidad de ${label}`); minus.disabled=Number(item.quantity)<=1;

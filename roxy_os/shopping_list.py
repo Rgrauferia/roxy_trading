@@ -64,20 +64,23 @@ _SHOPPING_CATEGORY_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "correa de perro", "mascota", "dog food", "cat food", "pet food", "cat litter",
     )),
     ("BABY", (
-        "panal", "panales", "toallitas de bebe", "toallitas para bebe", "formula de bebe",
-        "formula infantil", "comida de bebe", "champu de bebe", "jabon de bebe", "baby wipes",
-        "baby formula", "diaper", "diapers",
+        "panal", "panales", "toallitas de bebe", "toallitas para bebe", "champu de bebe",
+        "jabon de bebe", "baby wipes", "diaper", "diapers",
     )),
     ("HOUSEHOLD", (
         "papel aluminio", "papel encerado", "papel pergamino", "film plastico", "envoltura plastica",
         "servilleta", "vaso desechable", "plato desechable", "cubierto desechable", "bombillo",
         "bombilla", "bateria", "pilas", "vela", "fosforo", "encendedor", "filtro de cafe",
         "bolsa ziploc", "bolsas ziploc", "recipiente", "percha", "gancho de ropa", "storage bag",
-        "aluminum foil", "light bulb", "battery", "napkin", "paper plate",
+        "organizador", "cargador", "cable usb", "extension electrica", "adaptador", "regleta",
+        "martillo", "destornillador", "tornillo", "clavo", "taladro", "cinta metrica", "utensilio",
+        "espatula", "abrelatas", "aluminum foil", "light bulb", "battery", "napkin", "paper plate",
+        "charger", "usb cable", "extension cord", "tool",
     )),
     ("DAIRY_EGGS", (
         "leche", "huevo", "queso", "yogur", "yogurt", "mantequilla", "crema de leche",
-        "half and half", "nata", "milk", "egg", "cheese", "butter", "yogurt",
+        "half and half", "nata", "formula de bebe", "formula infantil", "baby formula",
+        "milk", "egg", "cheese", "butter", "yogurt",
     )),
     ("MEAT_SEAFOOD", (
         "pollo", "carne", "res", "cerdo", "pescado", "salmon", "atun", "camaron", "marisco",
@@ -102,7 +105,7 @@ _SHOPPING_CATEGORY_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("PANTRY", (
         "arroz", "pasta", "espagueti", "macarron", "fideo", "harina", "avena", "cereal",
         "aceite", "sal", "azucar", "levadura", "vainilla", "canela", "especia", "salsa",
-        "frijol", "garbanzo", "lenteja", "maiz", "maicena", "dulce de leche", "conserva", "lata",
+        "frijol", "garbanzo", "lenteja", "maiz", "maicena", "dulce de leche", "conserva", "lata", "comida de bebe",
         "galleta", "chocolate", "miel", "mermelada", "mayonesa", "ketchup", "mostaza",
         "rice", "flour", "sugar", "salt", "oil", "pasta", "oat", "cereal", "spice", "sauce",
     )),
