@@ -2,16 +2,16 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '72';
+  const APP_VERSION = '73';
   const now = () => new Date().toISOString();
-  const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud',HOUSEHOLD:'Hogar',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
-  const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
+  const categories = {ALL:'Todo',PRODUCE:'Frutas y vegetales',DAIRY_EGGS:'Lácteos y huevos',MEAT_SEAFOOD:'Carnes y pescados',BAKERY:'Panadería',PANTRY:'Despensa',BEVERAGES:'Bebidas',FROZEN:'Congelados',FOOD:'Otros alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar',BABY:'Bebé',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
+  const categoryOrder = ['PRODUCE','DAIRY_EGGS','MEAT_SEAFOOD','BAKERY','PANTRY','BEVERAGES','FROZEN','FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','BABY','PETS','OTHER'];
   const staples = [
-    ['Leche','FOOD','litro'],['Huevos','FOOD','docena'],['Queso','FOOD','paquete'],
-    ['Pollo','FOOD','paquete'],['Tomate','FOOD','unidad'],['Aguacate','FOOD','unidad'],
-    ['Plátanos','FOOD','racimo'],['Pan','FOOD','paquete'],['Arroz','FOOD','bolsa'],
-    ['Café','FOOD','bolsa'],['Aceite','FOOD','botella'],['Papel higiénico','PERSONAL','paquete'],
-    ['Agua','FOOD','paquete'],['Detergente','CLEANING','botella'],['Jabón','PERSONAL','unidad']
+    ['Leche','DAIRY_EGGS','litro'],['Huevos','DAIRY_EGGS','docena'],['Queso','DAIRY_EGGS','paquete'],
+    ['Pollo','MEAT_SEAFOOD','paquete'],['Tomate','PRODUCE','unidad'],['Aguacate','PRODUCE','unidad'],
+    ['Plátanos','PRODUCE','racimo'],['Pan','BAKERY','paquete'],['Arroz','PANTRY','bolsa'],
+    ['Café','BEVERAGES','bolsa'],['Aceite','PANTRY','botella'],['Papel higiénico','PERSONAL','paquete'],
+    ['Agua','BEVERAGES','paquete'],['Detergente','CLEANING','botella'],['Jabón','PERSONAL','unidad']
   ];
   const productImages = {
     leche:'milk.png', milk:'milk.png', huevos:'eggs.png', huevo:'eggs.png',
@@ -114,18 +114,28 @@
   const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
   const categoryIdentity = value => normalize(value).split(' ').map(word=>word.length>4&&word.endsWith('s')?word.slice(0,-1):word).join(' ');
   const shoppingCategoryTerms = {
+    FROZEN:['helado','pizza congelada','vegetales congelados','fruta congelada','comida congelada','papas congeladas','nuggets congelados','ice cream','frozen pizza','frozen food'],
     CLEANING:['detergente','suavizante','lavaplatos','lavavajillas','jabon de platos','jabon para platos','limpiador','desinfectante','cloro','lejia','oxiclean','oxi clean','esponja','estropajo','trapeador','mopa','escoba','recogedor','bolsa de basura','papel toalla','papel de cocina','toalla de papel','ambientador','aromatizante','bolsitas de olor','insecticida','limpiavidrios','dish soap','cleaner','trash bag'],
-    PERSONAL:['papel higienico','jabon','champu','shampoo','acondicionador','desodorante','pasta dental','crema dental','cepillo dental','hilo dental','enjuague bucal','gel de bano','gel de ducha','toalla sanitaria','tampon','panal','afeitadora','rasuradora','crema de afeitar','locion','protector solar','crema corporal','gel de cejas','maquillaje','algodon','hisopo','toallitas humedas','toothpaste','deodorant','toilet paper'],
+    PERSONAL:['papel higienico','jabon','champu','shampoo','acondicionador','desodorante','pasta dental','crema dental','cepillo dental','hilo dental','enjuague bucal','gel de bano','gel de ducha','toalla sanitaria','tampon','afeitadora','rasuradora','crema de afeitar','locion','protector solar','crema corporal','gel de cejas','maquillaje','algodon','hisopo','toallitas humedas','toothpaste','deodorant','toilet paper'],
     HEALTH:['medicamento','medicina','pastilla','analgesico','ibuprofeno','acetaminofen','paracetamol','aspirina','vitamina','suplemento','jarabe','curita','vendaje','termometro','farmacia','antialergico','antibiotico','medicine','vitamin','supplement','bandage'],
     PETS:['comida de perro','comida para perro','comida de gato','comida para gato','alimento de perro','alimento para perro','alimento de gato','alimento para gato','arena de gato','arena para gato','premio de perro','premio de gato','croquetas de perro','croquetas de gato','mascota','dog food','cat food','pet food','cat litter'],
+    BABY:['panal','panales','toallitas de bebe','toallitas para bebe','formula de bebe','formula infantil','comida de bebe','champu de bebe','jabon de bebe','baby wipes','baby formula','diaper','diapers'],
     HOUSEHOLD:['papel aluminio','papel encerado','papel pergamino','film plastico','servilleta','vaso desechable','plato desechable','cubierto desechable','bombillo','bombilla','bateria','pilas','vela','fosforo','encendedor','filtro de cafe','bolsa ziploc','recipiente','percha','gancho de ropa','aluminum foil','light bulb','battery','napkin'],
-    FOOD:['leche','huevo','queso','yogur','yogurt','mantequilla','half and half','pollo','carne','res','cerdo','pescado','salmon','atun','camaron','marisco','pan','arroz','pasta','espagueti','macarron','fideo','harina','avena','cereal','tomate','aguacate','platano','banana','mandarina','naranja','manzana','fruta','vegetal','verdura','cebolla','ajo','papa','patata','zanahoria','lechuga','cafe','matcha','agua','jugo','zumo','refresco','bebida','aceite','sal','azucar','levadura','vainilla','canela','especia','salsa','frijol','garbanzo','lenteja','maiz','maicena','dulce de leche','helado','galleta','chocolate','miel','mermelada','mayonesa','ketchup','mostaza','milk','egg','cheese','chicken','beef','pork','fish','bread','rice','coffee','water','juice','flour','sugar','salt','oil','vegetable','fruit']
+    DAIRY_EGGS:['leche','huevo','queso','yogur','yogurt','mantequilla','crema de leche','half and half','nata','milk','egg','cheese','butter'],
+    MEAT_SEAFOOD:['pollo','carne','res','cerdo','pescado','salmon','atun','camaron','marisco','bistec','jamon','tocino','pavo','chicken','beef','pork','fish','steak','shrimp','turkey','ham','bacon'],
+    PRODUCE:['tomate','aguacate','platano','banana','mandarina','naranja','manzana','fruta','vegetal','verdura','cebolla','ajo','papa','patata','zanahoria','lechuga','pepino','pimiento','brocoli','coliflor','espinaca','cilantro','perejil','limon','lima','fresa','uva','mango','pina','vegetable','fruit','apple','orange'],
+    BAKERY:['pan','bagel','croissant','tortilla','arepa','panecillo','bollo','pastelito','bread','bun','roll','bakery'],
+    BEVERAGES:['cafe','te','matcha','agua','jugo','zumo','refresco','soda','bebida','leche de almendra','leche de avena','agua de coco','bebida energetica','coffee','water','juice','drink','beverage'],
+    PANTRY:['arroz','pasta','espagueti','macarron','fideo','harina','avena','cereal','aceite','sal','azucar','levadura','vainilla','canela','especia','salsa','frijol','garbanzo','lenteja','maiz','maicena','dulce de leche','conserva','lata','galleta','chocolate','miel','mermelada','mayonesa','ketchup','mostaza','rice','flour','sugar','salt','oil','oat','spice','sauce'],
+    FOOD:['alimento','comida','snack','aperitivo','ingrediente','food','grocery']
   };
   const inferShoppingCategory = (name,requested='GENERAL') => {
     const identity=` ${categoryIdentity(productLabel(name))} `;
+    const matches=[];
     for(const group of categoryOrder){
-      if((shoppingCategoryTerms[group]||[]).some(term=>identity.includes(` ${categoryIdentity(term)} `)))return group;
+      (shoppingCategoryTerms[group]||[]).forEach(term=>{const key=categoryIdentity(term);if(identity.includes(` ${key} `))matches.push([key.length,group])});
     }
+    if(matches.length)return matches.sort((left,right)=>right[0]-left[0])[0][1];
     return categoryOrder.includes(requested)?requested:'OTHER';
   };
   const productLabel = value => {
@@ -144,8 +154,18 @@
     ? '/assets/roxy_home/products/soap.png'
     : itemCategory === 'CLEANING'
       ? '/assets/roxy_home/products/detergent.png'
-      : itemCategory === 'HEALTH'
-        ? '/assets/roxy_home/products/pain-relief.png'
+        : itemCategory === 'HEALTH'
+          ? '/assets/roxy_home/products/pain-relief.png'
+          : itemCategory === 'DAIRY_EGGS'
+            ? '/assets/roxy_home/products/milk.png'
+            : itemCategory === 'MEAT_SEAFOOD'
+              ? '/assets/roxy_home/products/beef.png'
+              : itemCategory === 'BAKERY'
+                ? '/assets/roxy_home/products/bread.png'
+                : itemCategory === 'BEVERAGES'
+                  ? '/assets/roxy_home/products/juice.png'
+                  : itemCategory === 'FROZEN'
+                    ? '/assets/roxy_home/products/ice-cream.png'
         : '/assets/roxy_home/products/groceries.png';
   const imagePath = (name, itemCategory='GENERAL') => {
     const identity = normalize(productLabel(name));
@@ -491,9 +511,7 @@
     const root = $('categoryFilters');
     root.replaceChildren();
     const counts=activeItems().reduce((result,item)=>{const aisle=inferShoppingCategory(item.name,item.category);result[aisle]=(result[aisle]||0)+1;return result;},{});
-    if(category!=='ALL'&&!counts[category])category='ALL';
     ['ALL',...categoryOrder].forEach(value => {
-      if(value!=='ALL'&&!counts[value])return;
       const count=value==='ALL'?activeItems().length:counts[value]||0;
       const button = makeButton(`${categories[value]} ${count}`,'chip',() => { category=value; renderShopping(); });
       button.classList.toggle('active',category===value);
@@ -508,9 +526,9 @@
     const activeNames = new Set(activeItems().map(item => normalize(item.name)));
     const remembered = (Array.isArray(snapshot.habitual_products) ? snapshot.habitual_products : [])
       .filter(item => item && item.name && !activeNames.has(normalize(item.name)))
-      .map(item => [item.name,item.category||'GENERAL',item.unit||'unidad',Number(item.purchase_count||item.times_used||1)]);
+      .map(item => [item.name,inferShoppingCategory(item.name,item.category),item.unit||'unidad',Number(item.purchase_count||item.times_used||1)]);
     const seen = new Set(remembered.map(row => normalize(row[0])));
-    return [...remembered,...staples.filter(row => !seen.has(normalize(row[0])) )];
+    return [...remembered,...staples.filter(row => !seen.has(normalize(row[0]))).map(row=>[row[0],inferShoppingCategory(row[0],row[1]),row[2],row[3]])];
   }
   function renderStaples() {
     const root = $('usualProducts');

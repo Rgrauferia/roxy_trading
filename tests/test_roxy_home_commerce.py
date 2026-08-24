@@ -64,7 +64,7 @@ def test_affiliate_purchase_requires_confirmation_and_uses_personal_profile(tmp_
     assert profile.status_code == 200
     assert prepared.status_code == 201
     assert preparation["items"][0]["query"] == "orgánico Pan sin gluten"
-    assert preparation["items"][0]["category"] == "FOOD"
+    assert preparation["items"][0]["category"] == "BAKERY"
     assert blocked.status_code == 409
     assert blocked.json()["detail"] == "CONFIRMATION_REQUIRED"
     assert checkout.status_code == 200
@@ -74,7 +74,7 @@ def test_affiliate_purchase_requires_confirmation_and_uses_personal_profile(tmp_
     assert query["k"] == ["organic gluten free bread 2 pack"]
     assert checkout.json()["links"][0]["quantity"] == 2
     assert checkout.json()["links"][0]["unit"] == "paquete"
-    assert checkout.json()["links"][0]["category"] == "FOOD"
+    assert checkout.json()["links"][0]["category"] == "BAKERY"
     assert "Amazon.com" in checkout.json()["guidance"]
     assert checkout.json()["status"] == "READY_FOR_REVIEW"
     assert checkout.json()["handoff"]["status"] == "READY_FOR_REVIEW"

@@ -17,11 +17,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="75"' in page.text
+    assert 'name="roxy-home-version" content="76"' in page.text
     assert 'href="/assets/roxy_list.css?v=64"' in page.text
-    assert 'src="/assets/roxy_list.js?v=75"' in page.text
+    assert 'src="/assets/roxy_list.js?v=76"' in page.text
     assert '/assets/roxy_list.css?v=64' in worker.text
-    assert '/assets/roxy_list.js?v=75' in worker.text
+    assert '/assets/roxy_list.js?v=76' in worker.text
     assert 'id="designPanel"' in page.text
     assert 'class="renueva-entry"' not in page.text
     assert 'id="openDesignFromToday"' not in page.text
@@ -32,6 +32,10 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert '/v1/home-design/' in script.text
     assert 'Buscar productos reales' in script.text
     assert "CLEANING:'Limpieza'" in script.text
+    assert "PRODUCE:'Frutas y vegetales'" in script.text
+    assert "DAIRY_EGGS:'Lácteos y huevos'" in script.text
+    assert "MEAT_SEAFOOD:'Carnes y pescados'" in script.text
+    assert "BABY:'Bebé'" in script.text
     assert "shopping-category-group" in script.text
     assert "Automática (recomendada)" in page.text
     assert 'class="meal-plan-limits"' not in page.text
@@ -501,11 +505,12 @@ def test_roxy_voice_preserves_natural_quantities_and_units(tmp_path, monkeypatch
 
     assert response.status_code == 200
     rows = response.json()["snapshot"]["items"]
-    assert [(row["name"].lower(), row["quantity"], row["unit"]) for row in rows] == [
-        ("agua", 2, "paquete"),
-        ("arroz", 0.5, "kilo"),
-        ("huevos", 1, "docena"),
-    ]
+    structured = {row["name"].lower(): (row["quantity"], row["unit"], row["category"]) for row in rows}
+    assert structured == {
+        "agua": (2, "paquete", "BEVERAGES"),
+        "arroz": (0.5, "kilo", "PANTRY"),
+        "huevos": (1, "docena", "DAIRY_EGGS"),
+    }
 
 
 def test_roxy_voice_saves_recipe_adds_ingredients_and_guides_steps(tmp_path, monkeypatch):

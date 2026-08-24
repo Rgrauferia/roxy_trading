@@ -23,7 +23,7 @@ def test_roxy_os_adds_and_recalls_shopping_items(tmp_path):
     assert "pan" in followup.message
     assert "cafe" in followup.message
     assert "leche" in followup.message
-    assert [item["name"] for item in roxy.shopping_list.list_items("robert")] == ["cafe", "leche", "pan"]
+    assert [item["name"] for item in roxy.shopping_list.list_items("robert")] == ["pan", "cafe", "leche"]
 
 
 def test_roxy_os_splits_common_grocery_voice_dictation_without_commas(tmp_path):

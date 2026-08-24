@@ -76,7 +76,7 @@ def test_shopping_revision_rejects_stale_device_replace(tmp_path):
 
     assert conflict["conflict"] is True
     assert conflict["current_revision"] == 2
-    assert [row["name"] for row in store.list_items("robert")] == ["Leche", "Pan"]
+    assert [row["name"] for row in store.list_items("robert")] == ["Pan", "Leche"]
 
 
 def test_shopping_device_replace_forces_user_namespace(tmp_path):
@@ -156,7 +156,9 @@ def test_explicit_recipe_measurement_is_never_overridden_by_name_parser(tmp_path
 @pytest.mark.parametrize(
     ("product", "expected"),
     [
-        ("café", "FOOD"), ("aceite de oliva", "FOOD"), ("agua", "FOOD"),
+        ("café", "BEVERAGES"), ("aceite de oliva", "PANTRY"), ("agua", "BEVERAGES"),
+        ("tomates", "PRODUCE"), ("leche", "DAIRY_EGGS"), ("pollo", "MEAT_SEAFOOD"),
+        ("pan cubano", "BAKERY"), ("helado", "FROZEN"), ("pañales", "BABY"),
         ("detergente de lavar", "CLEANING"), ("papel toalla", "CLEANING"),
         ("papel higiénico", "PERSONAL"), ("gel de cejas", "PERSONAL"),
         ("ibuprofeno", "HEALTH"), ("bombillos LED", "HOUSEHOLD"),
@@ -169,7 +171,7 @@ def test_shopping_category_classifier_uses_product_meaning(product, expected):
 
 def test_category_classifier_prefers_specific_product_over_stale_client_category():
     assert classify_shopping_category("detergente", "HOUSEHOLD") == "CLEANING"
-    assert classify_shopping_category("café", "HOUSEHOLD") == "FOOD"
+    assert classify_shopping_category("café", "HOUSEHOLD") == "BEVERAGES"
     assert classify_shopping_category("organizador de zapatos", "HOUSEHOLD") == "HOUSEHOLD"
     assert classify_shopping_category("artículo desconocido") == "OTHER"
 
@@ -187,7 +189,7 @@ def test_existing_items_are_reclassified_without_losing_user_data(tmp_path):
     rows = ShoppingListStore(path).list_items("robert")
 
     assert [(row["name"], row["quantity"], row["category"]) for row in rows] == [
-        ("Detergente", 1, "CLEANING"), ("Café", 2, "FOOD")
+        ("Café", 2, "BEVERAGES"), ("Detergente", 1, "CLEANING")
     ]
 
 
@@ -198,4 +200,4 @@ def test_add_auto_classifies_voice_and_ui_products(tmp_path):
     fruit = store.add("robert", "manzanas", category="GENERAL", source="roxy_home_pwa")
 
     assert soap["category"] == "CLEANING"
-    assert fruit["category"] == "FOOD"
+    assert fruit["category"] == "PRODUCE"

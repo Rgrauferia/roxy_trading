@@ -17,16 +17,22 @@ except ImportError:  # pragma: no cover - Windows fallback
     fcntl = None
 
 
-SHOPPING_STORE_VERSION = 4
+SHOPPING_STORE_VERSION = 5
 SHOPPING_STATUSES = {"PENDING", "PURCHASED", "ARCHIVED"}
 SHOPPING_CATEGORIES = {
-    "GENERAL", "FOOD", "CLEANING", "PERSONAL", "HEALTH", "HOUSEHOLD", "PETS", "OTHER"
+    "GENERAL", "PRODUCE", "DAIRY_EGGS", "MEAT_SEAFOOD", "BAKERY", "PANTRY",
+    "BEVERAGES", "FROZEN", "FOOD", "CLEANING", "PERSONAL", "HEALTH",
+    "HOUSEHOLD", "BABY", "PETS", "OTHER",
 }
 
 # Classification stays deterministic and local so adding an item also works
 # offline and never depends on an AI call. Specific categories come first:
 # "jabón de platos" is cleaning, while an unqualified "jabón" is personal.
 _SHOPPING_CATEGORY_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("FROZEN", (
+        "helado", "pizza congelada", "vegetales congelados", "fruta congelada", "comida congelada",
+        "papas congeladas", "nuggets congelados", "ice cream", "frozen pizza", "frozen food",
+    )),
     ("CLEANING", (
         "detergente", "suavizante", "lavaplatos", "lavavajillas", "jabon de platos",
         "jabon para platos", "limpiador", "desinfectante", "cloro", "lejia", "bleach",
@@ -39,8 +45,8 @@ _SHOPPING_CATEGORY_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("PERSONAL", (
         "papel higienico", "jabon", "champu", "shampoo", "acondicionador", "desodorante",
         "pasta dental", "crema dental", "cepillo dental", "hilo dental", "enjuague bucal",
-        "gel de bano", "gel de ducha", "toalla sanitaria", "tampon", "tampones", "panal",
-        "panales", "afeitadora", "rasuradora", "crema de afeitar", "locion", "protector solar",
+        "gel de bano", "gel de ducha", "toalla sanitaria", "tampon", "tampones",
+        "afeitadora", "rasuradora", "crema de afeitar", "locion", "protector solar",
         "crema corporal", "gel de cejas", "maquillaje", "algodon", "hisopo", "toallitas humedas",
         "body wash", "toothpaste", "toothbrush", "deodorant", "toilet paper", "skincare",
     )),
@@ -57,6 +63,11 @@ _SHOPPING_CATEGORY_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "premio de gato", "premio para gato", "croquetas de perro", "croquetas de gato",
         "correa de perro", "mascota", "dog food", "cat food", "pet food", "cat litter",
     )),
+    ("BABY", (
+        "panal", "panales", "toallitas de bebe", "toallitas para bebe", "formula de bebe",
+        "formula infantil", "comida de bebe", "champu de bebe", "jabon de bebe", "baby wipes",
+        "baby formula", "diaper", "diapers",
+    )),
     ("HOUSEHOLD", (
         "papel aluminio", "papel encerado", "papel pergamino", "film plastico", "envoltura plastica",
         "servilleta", "vaso desechable", "plato desechable", "cubierto desechable", "bombillo",
@@ -64,18 +75,39 @@ _SHOPPING_CATEGORY_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "bolsa ziploc", "bolsas ziploc", "recipiente", "percha", "gancho de ropa", "storage bag",
         "aluminum foil", "light bulb", "battery", "napkin", "paper plate",
     )),
-    ("FOOD", (
-        "leche", "huevo", "queso", "yogur", "yogurt", "mantequilla", "crema", "half and half",
+    ("DAIRY_EGGS", (
+        "leche", "huevo", "queso", "yogur", "yogurt", "mantequilla", "crema de leche",
+        "half and half", "nata", "milk", "egg", "cheese", "butter", "yogurt",
+    )),
+    ("MEAT_SEAFOOD", (
         "pollo", "carne", "res", "cerdo", "pescado", "salmon", "atun", "camaron", "marisco",
-        "pan", "arroz", "pasta", "espagueti", "macarron", "fideo", "harina", "avena", "cereal",
+        "bistec", "jamon", "tocino", "pavo", "chicken", "beef", "pork", "fish", "steak",
+        "shrimp", "turkey", "ham", "bacon",
+    )),
+    ("PRODUCE", (
         "tomate", "aguacate", "platano", "banana", "mandarina", "naranja", "manzana", "fruta",
         "vegetal", "verdura", "cebolla", "ajo", "papa", "patata", "zanahoria", "lechuga",
+        "pepino", "pimiento", "brocoli", "coliflor", "espinaca", "cilantro", "perejil", "limon",
+        "lima", "fresa", "uva", "mango", "pina", "vegetable", "fruit", "apple", "orange",
+    )),
+    ("BAKERY", (
+        "pan", "bagel", "croissant", "tortilla", "arepa", "panecillo", "bollo", "pastelito",
+        "bread", "bun", "roll", "bakery",
+    )),
+    ("BEVERAGES", (
         "cafe", "te", "matcha", "agua", "jugo", "zumo", "refresco", "soda", "bebida",
+        "leche de almendra", "leche de avena", "agua de coco", "bebida energetica", "coffee",
+        "water", "juice", "drink", "beverage",
+    )),
+    ("PANTRY", (
+        "arroz", "pasta", "espagueti", "macarron", "fideo", "harina", "avena", "cereal",
         "aceite", "sal", "azucar", "levadura", "vainilla", "canela", "especia", "salsa",
-        "frijol", "garbanzo", "lenteja", "maiz", "maicena", "dulce de leche", "helado",
+        "frijol", "garbanzo", "lenteja", "maiz", "maicena", "dulce de leche", "conserva", "lata",
         "galleta", "chocolate", "miel", "mermelada", "mayonesa", "ketchup", "mostaza",
-        "milk", "egg", "cheese", "chicken", "beef", "pork", "fish", "bread", "rice",
-        "coffee", "water", "juice", "flour", "sugar", "salt", "oil", "vegetable", "fruit",
+        "rice", "flour", "sugar", "salt", "oil", "pasta", "oat", "cereal", "spice", "sauce",
+    )),
+    ("FOOD", (
+        "alimento", "comida", "snack", "aperitivo", "ingrediente", "food", "grocery",
     )),
 )
 
@@ -186,10 +218,14 @@ def classify_shopping_category(name: Any, requested: Any = "GENERAL") -> str:
 
     identity = _classification_identity(name)
     padded = f" {identity} "
+    matches: list[tuple[int, str]] = []
     for category, terms in _SHOPPING_CATEGORY_TERMS:
         for term in terms:
-            if f" {_classification_identity(term)} " in padded:
-                return category
+            normalized_term = _classification_identity(term)
+            if f" {normalized_term} " in padded:
+                matches.append((len(normalized_term), category))
+    if matches:
+        return max(matches, key=lambda row: row[0])[1]
     explicit = str(requested or "GENERAL").strip().upper()
     if explicit in SHOPPING_CATEGORIES and explicit != "GENERAL":
         return explicit
