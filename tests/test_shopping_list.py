@@ -1,6 +1,6 @@
 import pytest
 
-from roxy_os.shopping_list import ShoppingListStore
+from roxy_os.shopping_list import ShoppingListStore, normalize_shopping_item, normalize_shopping_name
 
 
 def test_shopping_list_is_durable_isolated_and_deduplicates_pending_items(tmp_path):
@@ -113,3 +113,36 @@ def test_complete_purchase_is_idempotent_when_list_is_empty(tmp_path):
 
     assert result == {"completed": False, "trip": None, "count": 0, "total_quantity": 0.0}
     assert store.history("robert") == []
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("agrega pan a mi lista de compras", "pan"),
+        ("gel de cejas a la lista", "gel de cejas"),
+        ("por favor añade detergente en la lista de compra", "detergente"),
+    ],
+)
+def test_shopping_name_removes_voice_destination_prefixes_and_suffixes(raw, expected):
+    assert normalize_shopping_name(raw) == expected
+
+
+def test_inline_voice_quantity_and_unit_are_structured_before_storage(tmp_path):
+    assert normalize_shopping_item("dos paquetes de agua a mi lista") == ("agua", 2.0, "paquete")
+    store = ShoppingListStore(tmp_path / "shopping.json")
+
+    item = store.add("robert", "3 botellas de leche a la lista de compras")
+
+    assert item["name"] == "leche"
+    assert item["quantity"] == 3.0
+    assert item["unit"] == "botella"
+
+
+def test_explicit_recipe_measurement_is_never_overridden_by_name_parser(tmp_path):
+    store = ShoppingListStore(tmp_path / "shopping.json")
+
+    item = store.add("robert", "2 paquetes de levadura", quantity=500, unit="gramos")
+
+    assert item["name"] == "2 paquetes de levadura"
+    assert item["quantity"] == 500.0
+    assert item["unit"] == "gramo"

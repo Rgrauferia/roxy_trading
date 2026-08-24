@@ -591,8 +591,50 @@ def test_kroger_public_api_returns_real_store_offer_without_exposing_secret(monk
     assert result["status"] == "READY"
     assert result["recommendations"][0]["retailer_name"] == "Kroger"
     assert result["recommendations"][0]["price"] == 3.79
+    assert result["recommendations"][0]["unit_price"] == 0.03
+    assert result["recommendations"][0]["comparison_unit"] == "fl oz"
     assert result["recommendations"][0]["image_url"].endswith("milk.jpg")
     assert "server-only-kroger-secret" not in str(result)
+
+
+def test_kroger_rejects_cheaper_unrelated_catalog_result(monkeypatch):
+    monkeypatch.delenv("ROXY_HOME_PRICE_FEED_URL", raising=False)
+    monkeypatch.delenv("ROXY_HOME_PRICE_FEED_API_KEY", raising=False)
+    monkeypatch.setenv("ROXY_HOME_KROGER_CLIENT_ID", "client-id")
+    monkeypatch.setenv("ROXY_HOME_KROGER_CLIENT_SECRET", "secret")
+
+    class Response:
+        def __init__(self, payload):
+            import json
+
+            self.payload = json.dumps(payload).encode("utf-8")
+        def __enter__(self):
+            return self
+        def __exit__(self, *_args):
+            return False
+        def read(self):
+            return self.payload
+
+    def fake_urlopen(request, timeout):
+        if request.full_url.endswith("/connect/oauth2/token"):
+            return Response({"access_token": "token"})
+        if "/locations?" in request.full_url:
+            return Response({"data": [{"locationId": "1", "chain": "Kroger"}]})
+        return Response({"data": [
+            {"productId": "starch", "description": "Corn Starch", "items": [{"size": "14 oz", "price": {"regular": 1.99}}]},
+            {"productId": "flour", "description": "Whole Wheat Flour", "items": [{"size": "5 lb", "price": {"regular": 4.49}}]},
+        ]})
+
+    monkeypatch.setattr("roxy_os.home_price_recommendations.urllib.request.urlopen", fake_urlopen)
+    offers = fetch_price_offers(
+        [{"name": "Harina de trigo", "query": "Harina de trigo", "quantity": 1, "unit": "bolsa"}],
+        {"postal_code": "33101"},
+        config=PriceFeedConfig.from_env(),
+    )
+
+    assert [row["product_title"] for row in offers] == ["Whole Wheat Flour"]
+    assert offers[0]["unit_price"] == 0.0561
+    assert offers[0]["comparison_unit"] == "oz"
 
 
 def test_impact_template_supports_anonymous_sub_id(tmp_path, monkeypatch):

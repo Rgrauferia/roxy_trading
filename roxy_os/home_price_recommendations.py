@@ -22,6 +22,16 @@ PRICE_NOTICE = (
 )
 _FEED_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 _FEED_CACHE_LOCK = threading.Lock()
+_PRODUCT_TERM_ALIASES = {
+    "aceite": {"oil"}, "agua": {"water"}, "arroz": {"rice"}, "azucar": {"sugar"},
+    "cafe": {"coffee"}, "camarones": {"shrimp"}, "detergente": {"detergent"},
+    "harina": {"flour"}, "huevos": {"egg", "eggs"}, "jabon": {"soap"},
+    "leche": {"milk"}, "levadura": {"yeast"}, "mantequilla": {"butter"},
+    "pan": {"bread"}, "papel": {"paper"}, "pasta": {"pasta"}, "pollo": {"chicken"},
+    "queso": {"cheese"}, "sal": {"salt"}, "suavizante": {"softener"},
+    "trigo": {"wheat"}, "vainilla": {"vanilla"},
+}
+_PRODUCT_STOPWORDS = {"a", "al", "con", "de", "del", "el", "en", "la", "las", "los", "para", "sin", "y"}
 
 
 def _text(value: Any, limit: int = 180) -> str:
@@ -164,6 +174,42 @@ def _kroger_product_url(description: str, product_id: str) -> str:
     return _https_url(f"https://www.kroger.com/p/{slug}/{urllib.parse.quote(product_id, safe='')}")
 
 
+def _product_match_score(requested_name: Any, product_title: Any) -> float:
+    requested = [word for word in _fold(requested_name).split() if word not in _PRODUCT_STOPWORDS]
+    product_words = set(_fold(product_title).split())
+    if not requested or not product_words:
+        return 0.0
+    groups = [{word, *_PRODUCT_TERM_ALIASES.get(word, set())} for word in requested]
+    return sum(bool(group & product_words) for group in groups) / len(groups)
+
+
+def _package_unit_price(price: float, package_label: Any) -> tuple[float | None, str]:
+    """Convert common US package sizes into comparable base-unit prices."""
+
+    label = _fold(package_label)
+    match = re.search(
+        r"(?P<amount>\d+(?:\.\d+)?)\s*(?P<unit>fl oz|fluid ounce|oz|ounce|lb|pound|gal|gallon|qt|quart|pt|pint|kg|kilogram|g|gram|l|liter|ml|milliliter|ct|count)\b",
+        label,
+    )
+    if not match:
+        return None, ""
+    amount = float(match.group("amount"))
+    unit = match.group("unit")
+    conversions = {
+        "gal": (128, "fl oz"), "gallon": (128, "fl oz"),
+        "qt": (32, "fl oz"), "quart": (32, "fl oz"),
+        "pt": (16, "fl oz"), "pint": (16, "fl oz"),
+        "fl oz": (1, "fl oz"), "fluid ounce": (1, "fl oz"),
+        "lb": (16, "oz"), "pound": (16, "oz"), "oz": (1, "oz"), "ounce": (1, "oz"),
+        "kg": (1000, "g"), "kilogram": (1000, "g"), "g": (1, "g"), "gram": (1, "g"),
+        "l": (1000, "ml"), "liter": (1000, "ml"), "ml": (1, "ml"), "milliliter": (1, "ml"),
+        "ct": (1, "count"), "count": (1, "count"),
+    }
+    multiplier, comparison_unit = conversions[unit]
+    base_amount = amount * multiplier
+    return (round(price / base_amount, 4), comparison_unit) if base_amount > 0 else (None, "")
+
+
 def _kroger_offers(
     items: list[dict[str, Any]], profile: dict[str, Any], config: PriceFeedConfig
 ) -> list[dict[str, Any]]:
@@ -223,6 +269,9 @@ def _kroger_offers(
             product_id = _text(product.get("productId"), 80)
             if not description or not product_id:
                 continue
+            match_score = _product_match_score(row.get("name"), description)
+            if match_score < 0.6:
+                continue
             images = product.get("images") if isinstance(product.get("images"), list) else []
             image_url = ""
             for image in images:
@@ -236,6 +285,8 @@ def _kroger_offers(
                             image_url = ""
                         break
             folded = _fold(f"{description} {product.get('categories') or ''}")
+            package_label = _text(variant.get("size"), 80)
+            unit_price, comparison_unit = _package_unit_price(price, package_label)
             offers.append(
                 {
                     "item_name": _text(row.get("name"), 120),
@@ -245,13 +296,16 @@ def _kroger_offers(
                     "brand": _text(product.get("brand"), 80),
                     "price": price,
                     "currency": "USD",
-                    "package_label": _text(variant.get("size"), 80),
+                    "package_label": package_label,
+                    "unit_price": unit_price,
+                    "comparison_unit": comparison_unit,
                     "organic_certified": "organic" in folded,
                     "availability": "available",
                     "product_url": _kroger_product_url(description, product_id),
                     "image_url": image_url,
                     "observed_at": observed_at,
                     "source": "Kroger Products API",
+                    "match_score": match_score,
                 }
             )
     return offers

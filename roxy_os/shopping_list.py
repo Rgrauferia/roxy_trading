@@ -21,6 +21,25 @@ SHOPPING_STORE_VERSION = 3
 SHOPPING_STATUSES = {"PENDING", "PURCHASED", "ARCHIVED"}
 SHOPPING_CATEGORIES = {"GENERAL", "FOOD", "HOUSEHOLD", "HEALTH", "PERSONAL", "OTHER"}
 
+_SHOPPING_NUMBER_WORDS = {
+    "un": 1, "una": 1, "uno": 1, "dos": 2, "tres": 3, "cuatro": 4,
+    "cinco": 5, "seis": 6, "siete": 7, "ocho": 8, "nueve": 9,
+    "diez": 10, "once": 11, "doce": 12,
+}
+_SHOPPING_UNIT_ALIASES = {
+    "botella": "botella", "botellas": "botella", "bolsa": "bolsa", "bolsas": "bolsa",
+    "caja": "caja", "cajas": "caja", "docena": "docena", "docenas": "docena",
+    "galon": "galón", "galones": "galón", "galón": "galón",
+    "gramo": "gramo", "gramos": "gramo", "g": "gramo",
+    "kilogramo": "kilogramo", "kilogramos": "kilogramo", "kg": "kilogramo",
+    "lata": "lata", "latas": "lata", "libra": "libra", "libras": "libra", "lb": "libra",
+    "litro": "litro", "litros": "litro", "l": "litro",
+    "mililitro": "mililitro", "mililitros": "mililitro", "ml": "mililitro",
+    "onza": "onza", "onzas": "onza", "oz": "onza",
+    "paquete": "paquete", "paquetes": "paquete", "pomo": "pomo", "pomos": "pomo",
+    "unidad": "unidad", "unidades": "unidad",
+}
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -42,6 +61,10 @@ def normalize_shopping_name(value: Any) -> str:
         r"(?i)^(?:a|en)\s+(?:mi|la)\s+lista(?:\s+de\s+compras?)?\s+",
         r"(?i)^(?:mi|la)\s+lista(?:\s+de\s+compras?)?\s+",
         r"(?i)^lista\s+de\s+compras?\s+",
+        r"(?i)\s+(?:a|en)\s+(?:mi|la)\s+lista(?:\s+de\s+compras?)?$",
+        r"(?i)\s+(?:a|en)\s+lista(?:\s+de\s+compras?)?$",
+        r"(?i)\s+para\s+(?:mi|la)\s+lista(?:\s+de\s+compras?)?$",
+        r"(?i)\s+por\s+favor$",
     )
     previous = None
     while name and name != previous:
@@ -51,6 +74,43 @@ def normalize_shopping_name(value: Any) -> str:
     if not name:
         raise ValueError("El articulo necesita un nombre.")
     return name[:120]
+
+
+def normalize_shopping_item(
+    name: Any,
+    *,
+    quantity: Any = 1,
+    unit: Any = "unidad",
+) -> tuple[str, float, str]:
+    """Structure conservative voice measurements without changing recipe data."""
+
+    display_name = normalize_shopping_name(name)
+    amount = normalize_quantity(quantity)
+    raw_unit = " ".join(str(unit or "unidad").strip().split())[:32] or "unidad"
+    normalized_unit = _SHOPPING_UNIT_ALIASES.get(raw_unit.casefold(), raw_unit)
+    if amount != 1 or normalized_unit.casefold() != "unidad":
+        return display_name, amount, normalized_unit
+
+    number_pattern = r"\d+(?:[.,]\d+)?|" + "|".join(_SHOPPING_NUMBER_WORDS)
+    unit_pattern = "|".join(sorted((re.escape(value) for value in _SHOPPING_UNIT_ALIASES), key=len, reverse=True))
+    match = re.match(
+        rf"(?i)^\s*(?P<number>{number_pattern})\s+(?P<unit>{unit_pattern})\s+(?:de\s+)?(?P<product>.+?)\s*$",
+        display_name,
+    )
+    if not match:
+        return display_name, amount, normalized_unit
+    raw_number = match.group("number").casefold().replace(",", ".")
+    parsed_amount = _SHOPPING_NUMBER_WORDS.get(raw_number)
+    if parsed_amount is None:
+        try:
+            parsed_amount = float(raw_number)
+        except ValueError:
+            return display_name, amount, normalized_unit
+    return (
+        normalize_shopping_name(match.group("product")),
+        normalize_quantity(parsed_amount),
+        _SHOPPING_UNIT_ALIASES.get(match.group("unit").casefold(), match.group("unit").casefold()),
+    )
 
 
 def _identity(value: Any) -> str:
@@ -186,13 +246,15 @@ class ShoppingListStore:
         source: Any = "ui",
     ) -> dict[str, Any]:
         user = normalize_shopping_user(user_id)
-        display_name = normalize_shopping_name(name)
+        display_name, amount, normalized_unit = normalize_shopping_item(
+            name,
+            quantity=quantity,
+            unit=unit,
+        )
         item_identity = _identity(display_name)
-        amount = normalize_quantity(quantity)
         normalized_category = str(category or "GENERAL").strip().upper()
         if normalized_category not in SHOPPING_CATEGORIES:
             raise ValueError("Categoria de compra no valida.")
-        normalized_unit = " ".join(str(unit or "unidad").strip().split())[:32] or "unidad"
 
         def apply(payload: dict[str, Any]) -> dict[str, Any]:
             now = _now_iso()
