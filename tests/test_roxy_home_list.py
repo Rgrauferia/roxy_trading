@@ -28,6 +28,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert '/assets/roxy_home_avatar.jpg' in worker.text
     assert '/assets/roxy_avatar_icon.jpg' in worker.text
     assert '/assets/roxy_home/avatars/monogram.svg' in worker.text
+    assert "COPY assets/roxy_home/avatars ./assets/roxy_home/avatars" in Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert manifest.json()["icons"][0]["src"] == "/assets/roxy_home_avatar.jpg"
     assert home_avatar.status_code == 200
     assert home_avatar.headers["content-type"] == "image/jpeg"
