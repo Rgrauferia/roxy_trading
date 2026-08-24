@@ -4,6 +4,7 @@ import json
 import os
 import re
 import hashlib
+import base64
 import threading
 import time
 import urllib.error
@@ -47,6 +48,15 @@ def _https_url(value: Any) -> str:
     return url
 
 
+def _optional_https_url(value: Any) -> str:
+    if not _text(value, 2000):
+        return ""
+    try:
+        return _https_url(value)
+    except ValueError:
+        return ""
+
+
 def _timestamp(value: Any) -> datetime:
     raw = _text(value, 80)
     if not raw:
@@ -74,6 +84,9 @@ class PriceFeedConfig:
     api_key: str
     max_age_minutes: int = 180
     timeout_seconds: int = 12
+    kroger_client_id: str = ""
+    kroger_client_secret: str = ""
+    kroger_base_url: str = "https://api.kroger.com/v1"
 
     @classmethod
     def from_env(cls) -> "PriceFeedConfig":
@@ -82,10 +95,17 @@ class PriceFeedConfig:
             api_key=_text(os.getenv("ROXY_HOME_PRICE_FEED_API_KEY"), 1000),
             max_age_minutes=max(5, min(int(os.getenv("ROXY_HOME_PRICE_MAX_AGE_MINUTES", "180")), 1440)),
             timeout_seconds=max(2, min(int(os.getenv("ROXY_HOME_PRICE_TIMEOUT_SECONDS", "12")), 30)),
+            kroger_client_id=_text(os.getenv("ROXY_HOME_KROGER_CLIENT_ID"), 500),
+            kroger_client_secret=_text(os.getenv("ROXY_HOME_KROGER_CLIENT_SECRET"), 1000),
+            kroger_base_url=_text(os.getenv("ROXY_HOME_KROGER_API_URL") or "https://api.kroger.com/v1", 2000),
         )
 
     @property
     def configured(self) -> bool:
+        return self.generic_configured or self.kroger_configured
+
+    @property
+    def generic_configured(self) -> bool:
         if not self.url or not self.api_key:
             return False
         try:
@@ -93,6 +113,148 @@ class PriceFeedConfig:
         except ValueError:
             return False
         return True
+
+    @property
+    def kroger_configured(self) -> bool:
+        if not self.kroger_client_id or not self.kroger_client_secret:
+            return False
+        try:
+            _https_url(self.kroger_base_url)
+        except ValueError:
+            return False
+        return True
+
+
+def _kroger_json(request: urllib.request.Request, timeout: int) -> dict[str, Any]:
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310
+            payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+        raise ConnectionError("Kroger no pudo actualizar precios en este momento.") from exc
+    if not isinstance(payload, dict):
+        raise ConnectionError("Kroger respondió con un formato no compatible.")
+    return payload
+
+
+def _kroger_token(config: PriceFeedConfig) -> str:
+    credential = base64.b64encode(
+        f"{config.kroger_client_id}:{config.kroger_client_secret}".encode("utf-8")
+    ).decode("ascii")
+    request = urllib.request.Request(
+        _https_url(f"{config.kroger_base_url.rstrip('/')}/connect/oauth2/token"),
+        data=urllib.parse.urlencode(
+            {"grant_type": "client_credentials", "scope": "product.compact"}
+        ).encode("ascii"),
+        headers={
+            "Authorization": f"Basic {credential}",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
+            "User-Agent": "Roxy-Home/1.0",
+        },
+        method="POST",
+    )
+    token = _text(_kroger_json(request, config.timeout_seconds).get("access_token"), 4000)
+    if not token:
+        raise ConnectionError("Kroger no entregó una sesión de catálogo válida.")
+    return token
+
+
+def _kroger_product_url(description: str, product_id: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", _fold(description)).strip("-") or "producto"
+    return _https_url(f"https://www.kroger.com/p/{slug}/{urllib.parse.quote(product_id, safe='')}")
+
+
+def _kroger_offers(
+    items: list[dict[str, Any]], profile: dict[str, Any], config: PriceFeedConfig
+) -> list[dict[str, Any]]:
+    postal_code = _text(profile.get("postal_code"), 12)
+    if not postal_code:
+        return []
+    token = _kroger_token(config)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+        "User-Agent": "Roxy-Home/1.0",
+    }
+    base = config.kroger_base_url.rstrip("/")
+    location_url = _https_url(
+        f"{base}/locations?" + urllib.parse.urlencode(
+            {"filter.zipCode.near": postal_code, "filter.limit": 1}
+        )
+    )
+    locations = _kroger_json(
+        urllib.request.Request(location_url, headers=headers), config.timeout_seconds
+    ).get("data")
+    if not isinstance(locations, list) or not locations:
+        return []
+    location_id = _text(locations[0].get("locationId"), 80)
+    if not location_id:
+        return []
+
+    observed_at = datetime.now(timezone.utc).isoformat()
+    offers: list[dict[str, Any]] = []
+    # A short bounded list keeps voice and mobile requests responsive and stays
+    # comfortably below Kroger's public API quota. The surrounding cache avoids
+    # repeating identical lookups.
+    for row in items[:12]:
+        query = _text(row.get("query") or row.get("name"), 120)
+        product_url = _https_url(
+            f"{base}/products?" + urllib.parse.urlencode(
+                {"filter.term": query, "filter.locationId": location_id, "filter.limit": 6}
+            )
+        )
+        products = _kroger_json(
+            urllib.request.Request(product_url, headers=headers), config.timeout_seconds
+        ).get("data")
+        if not isinstance(products, list):
+            continue
+        for product in products[:6]:
+            variants = product.get("items") if isinstance(product, dict) else None
+            variant = variants[0] if isinstance(variants, list) and variants else {}
+            price_data = variant.get("price") if isinstance(variant, dict) else {}
+            if not isinstance(price_data, dict):
+                continue
+            regular = price_data.get("promo") or price_data.get("regular")
+            try:
+                price = _money(regular)
+            except ValueError:
+                continue
+            description = _text(product.get("description"), 180)
+            product_id = _text(product.get("productId"), 80)
+            if not description or not product_id:
+                continue
+            images = product.get("images") if isinstance(product.get("images"), list) else []
+            image_url = ""
+            for image in images:
+                sizes = image.get("sizes") if isinstance(image, dict) else []
+                if isinstance(sizes, list):
+                    candidate = next((entry.get("url") for entry in reversed(sizes) if isinstance(entry, dict) and entry.get("url")), "")
+                    if candidate:
+                        try:
+                            image_url = _https_url(candidate)
+                        except ValueError:
+                            image_url = ""
+                        break
+            folded = _fold(f"{description} {product.get('categories') or ''}")
+            offers.append(
+                {
+                    "item_name": _text(row.get("name"), 120),
+                    "retailer_id": "kroger",
+                    "retailer_name": _text(locations[0].get("chain") or "Kroger", 80),
+                    "product_title": description,
+                    "brand": _text(product.get("brand"), 80),
+                    "price": price,
+                    "currency": "USD",
+                    "package_label": _text(variant.get("size"), 80),
+                    "organic_certified": "organic" in folded,
+                    "availability": "available",
+                    "product_url": _kroger_product_url(description, product_id),
+                    "image_url": image_url,
+                    "observed_at": observed_at,
+                    "source": "Kroger Products API",
+                }
+            )
+    return offers
 
 
 def fetch_price_offers(
@@ -110,7 +272,7 @@ def fetch_price_offers(
     config = config or PriceFeedConfig.from_env()
     if not config.configured:
         return []
-    endpoint = _https_url(config.url)
+    endpoint = _https_url(config.url) if config.generic_configured else _https_url(config.kroger_base_url)
     payload = {
         "postal_code": _text(profile.get("postal_code"), 12),
         "currency": "USD",
@@ -132,25 +294,28 @@ def fetch_price_offers(
             cached = _FEED_CACHE.get(cache_key)
             if cached and cached[0] > time.monotonic():
                 return deepcopy(cached[1])
-    request = urllib.request.Request(
-        endpoint,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {config.api_key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": "Roxy-Home/1.0",
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=config.timeout_seconds) as response:  # nosec B310
-            result = json.loads(response.read().decode("utf-8"))
-    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
-        raise ConnectionError("No pude actualizar los precios en este momento.") from exc
-    offers = result.get("offers") if isinstance(result, dict) else None
-    if not isinstance(offers, list):
-        raise ConnectionError("La fuente de precios respondió con un formato no compatible.")
+    if config.generic_configured:
+        request = urllib.request.Request(
+            endpoint,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {config.api_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": "Roxy-Home/1.0",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=config.timeout_seconds) as response:  # nosec B310
+                result = json.loads(response.read().decode("utf-8"))
+        except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+            raise ConnectionError("No pude actualizar los precios en este momento.") from exc
+        offers = result.get("offers") if isinstance(result, dict) else None
+        if not isinstance(offers, list):
+            raise ConnectionError("La fuente de precios respondió con un formato no compatible.")
+    else:
+        offers = _kroger_offers(items, profile, config)
     offers = offers[:1000]
     if cache_seconds:
         with _FEED_CACHE_LOCK:
@@ -193,6 +358,7 @@ def _normalize_offer(raw: dict[str, Any], max_age_minutes: int) -> dict[str, Any
         "product_url": _https_url(raw.get("product_url")),
         "observed_at": observed.isoformat(),
         "source": _text(raw.get("source") or "retailer_api", 80),
+        "image_url": _optional_https_url(raw.get("image_url")),
     }
 
 

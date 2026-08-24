@@ -300,6 +300,16 @@ def public_providers() -> list[dict[str, Any]]:
             ),
         },
         {
+            "id": "kroger",
+            "name": "Kroger",
+            "mode": "product_links",
+            "configured": bool(
+                _text(os.getenv("ROXY_HOME_KROGER_CLIENT_ID"))
+                and _text(os.getenv("ROXY_HOME_KROGER_CLIENT_SECRET"))
+            ),
+            "description": "Consulta catálogo y precios reales de la tienda Kroger más cercana y abre el producto para revisarlo.",
+        },
+        {
             "id": "amazon",
             "name": "Amazon",
             "mode": "product_links",
@@ -441,6 +451,18 @@ def create_purchase_links(provider_id: str, preparation: dict[str, Any]) -> dict
             for row in items
         ]
         return {"provider": provider, "mode": "product_links", "links": links, "provider_disclosure": provider.get("disclosure", "")}
+
+    if provider_id == "kroger":
+        links = [
+            {
+                "label": row["name"],
+                "url": _safe_https(
+                    "https://www.kroger.com/search?" + urllib.parse.urlencode({"query": row["query"]})
+                ),
+            }
+            for row in items
+        ]
+        return {"provider": provider, "mode": "product_links", "links": links, "provider_disclosure": ""}
 
     configs = {
         "walmart": ("ROXY_HOME_WALMART_AFFILIATE_LINK_TEMPLATE", "https://www.walmart.com/search?q={query}"),

@@ -29,6 +29,9 @@ ROXY_HOME_COMMERCE_PATH=/var/data/roxy_home/commerce.json
 ROXY_HOME_INSTACART_API_KEY=
 ROXY_HOME_INSTACART_API_URL=https://connect.instacart.com/idp/v1/products/products_link
 ROXY_HOME_INSTACART_AFFILIATE_URL=
+ROXY_HOME_KROGER_CLIENT_ID=
+ROXY_HOME_KROGER_CLIENT_SECRET=
+ROXY_HOME_KROGER_API_URL=https://api.kroger.com/v1
 ROXY_HOME_AMAZON_ASSOCIATE_TAG=
 ROXY_HOME_WALMART_AFFILIATE_LINK_TEMPLATE=
 ROXY_HOME_TARGET_AFFILIATE_LINK_TEMPLATE=
@@ -76,6 +79,19 @@ https://enlace-aprobado-del-proveedor.example/click?dest={destination}
   aprobada.
 
 ## Comparación personalizada de precios
+
+### Kroger Public APIs
+
+Roxy Home puede consultar directamente `Products (Public)` y `Locations
+(Public)` con las credenciales de producción de Kroger. La ubicación se elige
+con el código postal guardado en el perfil de compra; si falta, Roxy no atribuye
+un precio a una tienda ni inventa una recomendación. El identificador y el
+secreto permanecen únicamente en Render y nunca llegan al navegador.
+
+Cada resultado conserva el nombre exacto del producto, su presentación, imagen
+oficial cuando Kroger la ofrece, precio observado, comercio y enlace para
+revisarlo. Las búsquedas repetidas se sirven desde la caché durante 15 minutos
+para reducir latencia y respetar la cuota pública.
 
 La tarjeta **Dónde conviene comprar** usa una fuente de catálogo aprobada y
 servidor-a-servidor. `ROXY_HOME_PRICE_FEED_URL` debe ser HTTPS y

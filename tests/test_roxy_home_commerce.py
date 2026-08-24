@@ -4,7 +4,7 @@ from urllib.parse import parse_qs, urlparse
 from fastapi.testclient import TestClient
 
 from roxy_os.home_commerce import HomeCommerceStore
-from roxy_os.home_price_recommendations import recommend_prices
+from roxy_os.home_price_recommendations import PriceFeedConfig, fetch_price_offers, recommend_prices
 
 
 def _client(tmp_path, monkeypatch):
@@ -255,6 +255,7 @@ def test_home_commerce_controls_are_connected_to_real_endpoints():
     assert "/v1/home-commerce/" in script
     assert "/recommendations" in script
     assert "reviewRetailOffer" in script
+    assert "offer.image_url" in script
     assert "preparePurchase('recipe'" in script
     assert "confirmed:true" in script
     assert "confirmProviderHandoff" in script
@@ -425,6 +426,70 @@ def test_price_endpoint_returns_ranked_live_offer_from_server_side_feed(tmp_path
     assert response.json()["recommendations"][0]["retailer_name"] == "Walmart"
     assert response.json()["recommendations"][0]["price"] == 1.25
     assert "server-only-secret" not in response.text
+
+
+def test_kroger_public_api_returns_real_store_offer_without_exposing_secret(monkeypatch):
+    monkeypatch.delenv("ROXY_HOME_PRICE_FEED_URL", raising=False)
+    monkeypatch.delenv("ROXY_HOME_PRICE_FEED_API_KEY", raising=False)
+    monkeypatch.setenv("ROXY_HOME_KROGER_CLIENT_ID", "client-id")
+    monkeypatch.setenv("ROXY_HOME_KROGER_CLIENT_SECRET", "server-only-kroger-secret")
+
+    class Response:
+        def __init__(self, payload):
+            import json
+
+            self.payload = json.dumps(payload).encode("utf-8")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return self.payload
+
+    def fake_urlopen(request, timeout):
+        assert timeout == 12
+        if request.full_url.endswith("/connect/oauth2/token"):
+            assert request.headers["Authorization"].startswith("Basic ")
+            return Response({"access_token": "short-lived-token"})
+        assert request.headers["Authorization"] == "Bearer short-lived-token"
+        if "/locations?" in request.full_url:
+            return Response({"data": [{"locationId": "01100479", "chain": "Kroger"}]})
+        assert "/products?" in request.full_url
+        return Response(
+            {
+                "data": [
+                    {
+                        "productId": "0001111041700",
+                        "description": "Kroger Whole Milk",
+                        "brand": "Kroger",
+                        "categories": ["Dairy"],
+                        "images": [{"sizes": [{"url": "https://www.kroger.com/product/images/small/milk.jpg"}]}],
+                        "items": [{"size": "1 gal", "price": {"regular": 3.79}}],
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr("roxy_os.home_price_recommendations.urllib.request.urlopen", fake_urlopen)
+    offers = fetch_price_offers(
+        [{"name": "Leche", "query": "Leche", "quantity": 1, "unit": "galón"}],
+        {"postal_code": "33101"},
+        config=PriceFeedConfig.from_env(),
+    )
+    result = recommend_prices(
+        [{"name": "Leche", "quantity": 1, "unit": "galón"}],
+        offers,
+        {"objective": "lowest_price", "organic_preference": "no_preference"},
+    )
+
+    assert result["status"] == "READY"
+    assert result["recommendations"][0]["retailer_name"] == "Kroger"
+    assert result["recommendations"][0]["price"] == 3.79
+    assert result["recommendations"][0]["image_url"].endswith("milk.jpg")
+    assert "server-only-kroger-secret" not in str(result)
 
 
 def test_impact_template_supports_anonymous_sub_id(tmp_path, monkeypatch):

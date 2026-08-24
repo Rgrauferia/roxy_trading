@@ -569,7 +569,7 @@
     const updated=priceRecommendations.updated_at?new Intl.DateTimeFormat('es',{dateStyle:'short',timeStyle:'short'}).format(new Date(priceRecommendations.updated_at)):'';
     status.textContent=`${rows.length} ${rows.length===1?'recomendación verificada':'recomendaciones verificadas'}${updated?` · actualizado ${updated}`:''}. Confirma el total en la tienda.`;
     rows.forEach(offer=>{
-      const article=document.createElement('article');article.className='price-offer';const img=makeImage(offer.shopping_item,'FOOD',offer.shopping_item);const copy=document.createElement('div');copy.className='price-offer-copy';
+      const article=document.createElement('article');article.className='price-offer';const img=makeImage(offer.shopping_item,'FOOD',offer.product_title||offer.shopping_item);if(offer.image_url){img.src=offer.image_url;img.referrerPolicy='no-referrer'}const copy=document.createElement('div');copy.className='price-offer-copy';
       const title=document.createElement('strong');title.textContent=offer.shopping_item;const retailer=document.createElement('span');retailer.textContent=`${offer.retailer_name} · ${money(offer.price,offer.currency)}`;const product=document.createElement('small');product.textContent=[offer.product_title,offer.package_label].filter(Boolean).join(' · ');copy.append(title,retailer,product);
       if(offer.unit_price&&offer.comparison_unit){const unit=document.createElement('small');unit.textContent=`${money(offer.unit_price,offer.currency)} por ${offer.comparison_unit}`;copy.append(unit)}
       const reason=document.createElement('small');reason.className='price-offer-reason';reason.textContent=(offer.reasons||[])[0]||'Mejor opción según tu perfil';copy.append(reason);
