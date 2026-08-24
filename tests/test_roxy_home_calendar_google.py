@@ -100,3 +100,22 @@ def test_event_sync_uses_exact_payload_reminder_and_mapping(tmp_path):
     deleted = google.delete_event("member:robert", event_payload()["id"])
     assert deleted["synced"] is True
     assert any(call[0] == "DELETE" for call in session.calls)
+
+
+def test_status_requires_a_token_decryptable_with_current_server_key(tmp_path):
+    original = GoogleCalendarSync(config(tmp_path), session=FakeSession())
+    state = parse_qs(urlparse(original.authorization_url("member:robert")).query)["state"][0]
+    original.exchange_code(state, "oauth-code")
+    rotated = GoogleCalendarSync(
+        GoogleCalendarConfig(
+            **{**config(tmp_path).__dict__, "encryption_key": "a-different-private-server-key"}
+        ),
+        session=FakeSession(),
+    )
+
+    status = rotated.status("member:robert")
+
+    assert status["configured"] is True
+    assert status["connected"] is False
+    assert status["reconnect_required"] is True
+    assert "Vuelve a conectar" in status["message"]

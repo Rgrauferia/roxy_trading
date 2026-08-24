@@ -14,6 +14,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 import requests
+from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 try:
@@ -110,12 +111,21 @@ class GoogleCalendarSync:
     def status(self, owner: str) -> dict[str, Any]:
         connection = self._read().get("connections", {}).get(str(owner)) or {}
         connected = bool(self.config.configured and connection.get("token"))
+        reconnect_required = False
+        if connected:
+            try:
+                token = self._open(str(owner), str(connection["token"]))
+                connected = bool(token.get("access_token") or token.get("refresh_token"))
+            except (InvalidTag, ValueError, TypeError, KeyError):
+                connected = False
+                reconnect_required = True
         return {
             "configured": self.config.configured,
             "connected": connected,
+            "reconnect_required": reconnect_required,
             "provider": "Google Calendar",
             "last_synced_at": connection.get("last_synced_at"),
-            "message": "Google Calendar está conectado y enviará los avisos al teléfono." if connected else ("Conecta Google Calendar una sola vez para recibir avisos sin abrir Roxy." if self.config.configured else "La conexión con Google Calendar necesita configuración del servidor."),
+            "message": "Google Calendar está conectado y enviará los avisos al teléfono." if connected else ("Vuelve a conectar Google Calendar para renovar el acceso seguro de este perfil." if reconnect_required else "Conecta Google Calendar una sola vez para recibir avisos sin abrir Roxy." if self.config.configured else "La conexión con Google Calendar necesita configuración del servidor."),
         }
 
     def authorization_url(self, owner: str) -> str:
