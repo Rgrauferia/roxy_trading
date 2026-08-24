@@ -9,9 +9,10 @@ import threading
 import time
 import unicodedata
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -46,7 +47,7 @@ from roxy_os.home_recipe_photos import (
     RecipePhotoStore,
 )
 from roxy_os.home_accounts import HomeAccountStore
-from roxy_os.home_calendar import HomeCalendarStore, parse_calendar_command
+from roxy_os.home_calendar import DEFAULT_TIMEZONE, HomeCalendarStore, parse_calendar_command
 from roxy_os.home_calendar_google import GoogleCalendarConfig, GoogleCalendarSync
 from roxy_os.home_commerce import (
     AFFILIATE_DISCLOSURE,
@@ -55,6 +56,7 @@ from roxy_os.home_commerce import (
     personalize_items,
     public_providers,
 )
+from roxy_os.home_daily import build_home_daily_brief
 from roxy_os.home_food import HomeFoodStore, HomePermissionPolicy
 from roxy_os.home_price_recommendations import (
     PRICE_NOTICE,
@@ -567,6 +569,8 @@ def _assistant_shopping_intent(text: str) -> str:
         return "calendar_confirm"
     if re.fullmatch(r"(?:no|cancelar|cancelalo|cancélalo|olvidalo|olvídalo)[.! ]*", normalized):
         return "calendar_discard"
+    if re.search(r"\b(que tengo hoy|que hay hoy|resumen de hoy|como esta mi dia|que es importante hoy)\b", plain):
+        return "daily_query"
     if re.search(r"\b(que tengo|mi agenda|mis eventos|mis citas|que hay)\b.*\b(hoy|manana|semana|lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b", plain):
         return "calendar_query"
     if re.search(r"\b(cancela|cancelar|elimina|eliminar|borra|borrar)\b.*\b(evento|cita|reunion|llamada|calendario|agenda)\b", plain):
@@ -577,6 +581,18 @@ def _assistant_shopping_intent(text: str) -> str:
         or re.search(r"\b(llevar|recoger)\b.*\b(escuela|colegio)\b", plain)
     ):
         return "calendar_create"
+    if re.search(r"\b(que hay|que tengo|inventario|muestrame|revisa)\b.*\b(despensa|alacena)\b", plain):
+        return "pantry_query"
+    if (
+        re.search(r"\b(se acabo|se terminaron|no queda|quita|elimina|borra|saca)\b.*\b(despensa|alacena)\b", plain)
+        or re.search(r"\b(se acabo|se terminaron|ya no queda)\b", plain)
+    ):
+        return "pantry_remove"
+    if (
+        re.search(r"\b(compre|compramos|acabo de comprar)\b", plain)
+        or re.search(r"\b(guarda|registra|anota|agrega|pon)\b.*\b(despensa|alacena)\b", plain)
+    ):
+        return "pantry_add"
     weekly_intent = _assistant_weekly_intent(text)
     if weekly_intent:
         return weekly_intent
@@ -646,6 +662,8 @@ def _assistant_weekly_intent(text: str) -> str:
         return "weekly_from_pantry" if re.search(r"\btengo\b", normalized) else "weekly_skip"
     if re.search(r"\b(no cocino|no cocinare|no voy a cocinar|no cocine|no podremos cocinar)\b.*\b(hoy|manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b", normalized):
         return "weekly_from_pantry" if re.search(r"\btengo\b", normalized) else "weekly_skip"
+    if re.search(r"\b(que podemos cocinar|que cocinar|que preparo)\b.*\b(lo que hay|despensa|alacena)\b", normalized):
+        return "weekly_from_pantry"
     if re.search(r"\b(tengo|nos queda|me queda)\b", normalized) and re.search(r"\b(que hago|que preparo|que cocino|comer|cena|almuerzo|hoy)\b", normalized):
         return "weekly_from_pantry"
     if re.search(r"\b(sobras|sobro|sobraron|comeremos lo de ayer|comemos lo de ayer)\b", normalized):
@@ -767,6 +785,17 @@ def _assistant_shopping_requests(text: str) -> list[dict[str, Any]]:
         if value:
             requests.append({"name": value[:120], "quantity": quantity, "unit": unit})
     return requests
+
+
+def _assistant_pantry_requests(text: str) -> list[dict[str, Any]]:
+    cleaned = unicodedata.normalize("NFKD", str(text or "")).encode("ascii", "ignore").decode("ascii")
+    cleaned = re.sub(
+        r"(?i)^.*?\b(?:compre|compramos|acabo de comprar|guarda|registrar|registra|anota|agrega|pon|se acabo|se terminaron|ya no queda|quita|elimina|borra|saca)\b\s+",
+        "",
+        cleaned,
+    )
+    cleaned = re.sub(r"(?i)\s+(?:en|a|de)\s+(?:mi|la)\s+(?:despensa|alacena)\s*$", "", cleaned).strip()
+    return _assistant_shopping_requests(f"agrega {cleaned}")
 
 
 def _timer_seconds(text: str) -> int | None:
@@ -948,6 +977,26 @@ def _calendar_owner_key(auth: AuthContext, user: str) -> str:
     # Calendar entries are private to the signed-in person, even though food,
     # pantry and shopping are intentionally shared by the household.
     return f"member:{auth.member_id}" if auth.mode == "member" and auth.member_id else f"legacy:{user}"
+
+
+def _daily_brief(user: str, auth: AuthContext) -> dict[str, Any]:
+    moment = datetime.now(ZoneInfo(os.getenv("ROXY_HOME_TIMEZONE", DEFAULT_TIMEZONE)))
+    try:
+        events = _calendar_store().list_events(
+            _calendar_owner_key(auth, user),
+            start=moment - timedelta(days=1),
+            end=moment + timedelta(days=369),
+        )
+    except ValueError:
+        events = []
+    member = _member_for_auth(auth)
+    return build_home_daily_brief(
+        display_name=str(member.get("display_name") or "") if member else "",
+        shopping=_store().snapshot(user, limit=100),
+        food=_home_food_store().snapshot(user),
+        calendar={"events": events},
+        now=moment,
+    )
 
 
 def _set_session_cookie(response: Response, value: str) -> None:
@@ -1299,18 +1348,65 @@ def assistant_command(
     agent = (
         "shopping"
         if intent.startswith("shopping_")
+        else "home_daily"
+        if intent == "daily_query"
         else "home_calendar"
         if intent.startswith("calendar_")
         else "home_commerce"
         if intent.startswith("commerce_")
         else "home_food"
-        if intent.startswith("recipe_") or intent.startswith("cooking_") or intent.startswith("weekly_")
+        if intent.startswith("recipe_") or intent.startswith("cooking_") or intent.startswith("weekly_") or intent.startswith("pantry_")
         else "general"
     )
     store = _store()
     rows: list[dict[str, Any]] = []
     extra: dict[str, Any] = {}
-    if intent.startswith("calendar_"):
+    if intent == "daily_query":
+        brief = _daily_brief(user, auth)
+        message = str(brief.get("summary") or "Aquí tienes lo importante de hoy.")
+        details = [
+            str(card.get("title") or "").strip()
+            for card in (brief.get("cards") or [])[1:]
+            if str(card.get("title") or "").strip()
+        ]
+        if details:
+            message += " Además: " + "; ".join(details) + "."
+        extra["daily_brief"] = brief
+    elif intent.startswith("pantry_"):
+        home_store = _home_food_store()
+        if intent == "pantry_query":
+            pantry = home_store.snapshot(user).get("pantry") or []
+            rows = pantry
+            message = (
+                "En la despensa tienes: "
+                + ", ".join(f"{row.get('quantity'):g} {row.get('unit')} de {row.get('name')}" for row in pantry[:30])
+                + "."
+                if pantry
+                else "La despensa está vacía. Puedes decirme qué acabas de comprar."
+            )
+        elif intent == "pantry_add":
+            requests = _assistant_pantry_requests(command_text)
+            if not requests:
+                raise HTTPException(status_code=422, detail="Dime qué producto compraste o quieres guardar en la despensa.")
+            pantry = home_store.upsert_pantry(user, requests)
+            rows = requests
+            message = "Actualicé la despensa con: " + ", ".join(str(row.get("name")) for row in requests) + "."
+            extra["pantry"] = pantry
+        else:
+            requests = _assistant_pantry_requests(command_text)
+            if not requests:
+                raise HTTPException(status_code=422, detail="Dime qué producto ya no queda en la despensa.")
+            removed, missing = home_store.remove_pantry(user, [row["name"] for row in requests])
+            rows = removed
+            message = (
+                "Quité de la despensa: " + ", ".join(str(row.get("name")) for row in removed) + "."
+                if removed
+                else "No encontré esos productos en la despensa."
+            )
+            if missing:
+                message += " No encontré: " + ", ".join(missing) + "."
+            extra["pantry"] = home_store.snapshot(user).get("pantry") or []
+    elif intent.startswith("calendar_"):
         calendar_store = _calendar_store()
         owner_key = _calendar_owner_key(auth, user)
         if intent == "calendar_create":
@@ -1423,7 +1519,20 @@ def assistant_command(
                 recipe_prompt = str(meal.get("title") or command_text)
                 if intent == "weekly_from_pantry":
                     pantry_match = re.search(r"(?i)\btengo\b\s+(.+)$", command_text)
-                    pantry_words = pantry_match.group(1).strip(" .") if pantry_match else command_text
+                    pantry_words = (
+                        pantry_match.group(1).strip(" .")
+                        if pantry_match
+                        else ", ".join(
+                            str(row.get("name") or "").strip()
+                            for row in (food_snapshot.get("pantry") or [])
+                            if str(row.get("name") or "").strip()
+                        )
+                    )
+                    if not pantry_words:
+                        raise HTTPException(
+                            status_code=409,
+                            detail="Tu despensa está vacía. Dime qué tienes en casa y te propongo una receta.",
+                        )
                     recipe_prompt = f"Receta sencilla para hoy con {pantry_words}"
                 recipe_data = find_local_recipe(recipe_prompt, food_snapshot)
                 generation_mode = "local_recipe_catalog"
@@ -1670,6 +1779,18 @@ def assistant_command(
         "data": {"items": rows, **extra},
         "snapshot": store.snapshot(user, limit=100),
     }
+
+
+@app.get("/v1/home-daily/{user_id}")
+def read_home_daily(
+    user_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    """Return one private, deterministic briefing for the signed-in person."""
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    return _daily_brief(user, auth)
 
 
 @app.get("/v1/home-calendar/{user_id}")

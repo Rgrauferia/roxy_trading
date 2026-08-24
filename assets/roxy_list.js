@@ -2,7 +2,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '67';
+  const APP_VERSION = '71';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',HOUSEHOLD:'Hogar',PERSONAL:'Aseo',HEALTH:'Salud',OTHER:'Otros',GENERAL:'General'};
   const staples = [
@@ -81,6 +81,7 @@
   let greetingName=String(localStorage.getItem('roxyHomeGreetingName')||'').trim().slice(0,32);
   let account={mode:'unknown',display_name:'',storage_user_id:user,role:''};
   let homeCalendar={events:[],pending_draft:null,sync:{native_export:true,provider:'ICS'}};
+  let homeDaily=null;
   let calendarView='today';
   let calendarSelectedDate=new Date();
   let calendarDisplayMonth=new Date(calendarSelectedDate.getFullYear(),calendarSelectedDate.getMonth(),1);
@@ -220,20 +221,23 @@
       if(account.storage_user_id){user=account.storage_user_id;localStorage.setItem('roxyShoppingUser',user)}
       const rangeStart=new Date();rangeStart.setHours(0,0,0,0);rangeStart.setDate(rangeStart.getDate()-7);
       const rangeEnd=new Date(rangeStart);rangeEnd.setDate(rangeEnd.getDate()+370);
-      const [shopping,food,shoppingCommerce,calendarData] = await Promise.all([
+      const [shopping,food,shoppingCommerce,calendarData,dailyData] = await Promise.all([
         api(`/v1/shopping/${encodeURIComponent(user)}`),
         api(`/v1/home-food/${encodeURIComponent(user)}`),
         api(`/v1/home-commerce/${encodeURIComponent(user)}`),
-        api(`/v1/home-calendar/${encodeURIComponent(user)}?start=${encodeURIComponent(rangeStart.toISOString())}&end=${encodeURIComponent(rangeEnd.toISOString())}`)
+        api(`/v1/home-calendar/${encodeURIComponent(user)}?start=${encodeURIComponent(rangeStart.toISOString())}&end=${encodeURIComponent(rangeEnd.toISOString())}`),
+        api(`/v1/home-daily/${encodeURIComponent(user)}`).catch(()=>null)
       ]);
       snapshot = shopping;
       homeFood = food;
       commerce = shoppingCommerce;
       homeCalendar = calendarData;
+      homeDaily = dailyData;
       await cacheSnapshot();
       await dbSet(`home-food:${user}`,homeFood);
       await dbSet(`home-commerce:${user}`,commerce);
       await dbSet(`home-calendar:${user}`,homeCalendar);
+      if(homeDaily)await dbSet(`home-daily:${user}`,homeDaily);
       await flushQueue();
       setConnection('Sincronizado ahora','online');
       populateHomeForms();
@@ -248,11 +252,13 @@
       const cachedFood = await dbGet(`home-food:${user}`).catch(() => null);
       const cachedCommerce = await dbGet(`home-commerce:${user}`).catch(() => null);
       const cachedCalendar = await dbGet(`home-calendar:${user}`).catch(() => null);
+      const cachedDaily = await dbGet(`home-daily:${user}`).catch(() => null);
       if (cached) snapshot = cached;
       if (cachedFood) homeFood = cachedFood;
       if (cachedCommerce) commerce = cachedCommerce;
       if (cachedCalendar) homeCalendar = cachedCalendar;
-      if (cached || cachedFood || cachedCommerce || cachedCalendar) {
+      if (cachedDaily) homeDaily = cachedDaily;
+      if (cached || cachedFood || cachedCommerce || cachedCalendar || cachedDaily) {
         setConnection('Sin conexión · mostrando lo guardado','offline');
         populateHomeForms();
         render();
@@ -353,9 +359,18 @@
 
   function renderUpcomingEvent(){
     const upcoming=(homeCalendar.events||[]).filter(event=>new Date(event.ends_at)>new Date()).sort((a,b)=>new Date(a.starts_at)-new Date(b.starts_at))[0];
-    const card=$('upcomingEventCard');card.hidden=!upcoming;if(!upcoming)return;
+    const card=$('upcomingEventCard');card.hidden=!upcoming||Boolean(homeDaily);if(!upcoming||homeDaily)return;
     $('upcomingEventTitle').textContent=upcoming.title;
     $('upcomingEventTime').textContent=`${formatCalendarDay(new Date(upcoming.starts_at))} · ${formatCalendarTime(upcoming.starts_at)} · Te avisaré ${Number(upcoming.reminder_minutes||0)===60?'una hora':`${Number(upcoming.reminder_minutes||0)} min`} antes`;
+  }
+
+  function renderHomeDaily(){
+    const section=$('homeDailyBrief');const cardsRoot=$('homeDailyCards');const suggestions=$('homeDailySuggestions');
+    cardsRoot.replaceChildren();suggestions.replaceChildren();
+    if(!homeDaily||!Array.isArray(homeDaily.cards)){section.hidden=true;return}
+    section.hidden=false;$('homeDailySummary').textContent=homeDaily.summary||'Roxy reunió lo más importante de tu hogar.';
+    homeDaily.cards.forEach(card=>{const button=document.createElement('button');button.type='button';button.className='home-daily-card';const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.textContent=card.icon||'check_circle';icon.setAttribute('aria-hidden','true');const copy=document.createElement('span');const title=document.createElement('strong');title.textContent=card.title||'';const detail=document.createElement('small');detail.textContent=card.kind==='calendar'&&card.detail?`${formatCalendarDay(new Date(card.detail))} · ${formatCalendarTime(card.detail)}`:card.detail||'';copy.append(title,detail);const arrow=document.createElement('span');arrow.className='material-symbols-rounded';arrow.textContent='arrow_forward';arrow.setAttribute('aria-hidden','true');button.append(icon,copy,arrow);button.addEventListener('click',()=>{const panel=card.action&&card.action.panel||'today';selectPanel(panel);if(card.kind==='meal')$('mealPlanStudio').scrollIntoView({behavior:'smooth',block:'start'});if(card.kind==='ready')openRoxyVoice()});cardsRoot.append(button)});
+    (homeDaily.suggested_phrases||[]).slice(0,3).forEach(phrase=>{const button=document.createElement('button');button.type='button';button.textContent=phrase;button.addEventListener('click',()=>{$('roxyCommand').value=phrase;$('roxyCommand').focus()});suggestions.append(button)});
   }
 
   function scheduleCalendarReminders(){
@@ -1119,7 +1134,7 @@
   async function startRoxyVoice(){if(roxyVoiceConversation||roxyVoiceStarting)return;openRoxyVoice();roxyVoiceStarting=true;roxyLastAgentMessage='';roxyLastAgentMessageAt=0;$('roxyVoiceStart').disabled=true;let phase='configuración';roxyVoiceStatus('Conectando con ElevenLabs…');try{if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new DOMException('Micrófono no disponible','NotFoundError');phase='permiso del micrófono';roxyVoicePermissionStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});const config=await api(`/v1/assistant/session/${encodeURIComponent(user)}`);phase='carga del agente';const eleven=await loadElevenLabs();const Conversation=eleven.Conversation||(eleven.default&&eleven.default.Conversation);if(!Conversation||!Conversation.startSession)throw new Error('SDK de ElevenLabs no disponible');phase='conexión de voz';const options={connectionType:'websocket',overrides:roxyHomeOverrides(),dynamicVariables:{...(config.dynamic_variables||{}),shopping_list_json:JSON.stringify(currentShoppingSummary())},clientTools:roxyHomeClientTools(),onConnect:()=>{roxyVoiceStarting=false;roxyVoiceStatus('Roxy te está escuchando');$('roxyVoiceStart').disabled=true;$('roxyVoiceEnd').disabled=false},onDisconnect:details=>{console.info('Roxy Home ElevenLabs disconnected',details||'normal');stopRoxyPermissionStream();roxyVoiceConversation=null;roxyVoiceStarting=false;const endedByAgent=details&&details.reason==='agent';roxyVoiceStatus(endedByAgent?'Roxy terminó la llamada antes de tiempo. Pulsa iniciar para reconectar.':'Conversación terminada',endedByAgent);$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true},onError:error=>{console.warn('Roxy Home ElevenLabs error',error);stopRoxyPermissionStream();roxyVoiceStarting=false;roxyVoiceStatus(roxyVoiceError(error,'conversación'),true);$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true},onModeChange:mode=>{const state=String(mode&&mode.mode||mode||'').toLowerCase();if(state.includes('speaking'))roxyVoiceStatus('Roxy está respondiendo');else if(state.includes('listening'))roxyVoiceStatus('Roxy te está escuchando')},onMessage:message=>{const source=String(message&&((message.source||message.role||message.type))||'').toLowerCase();const text=message&&(message.message||message.text||message.transcript||message.content||(message.agent_response_event&&message.agent_response_event.agent_response)||(message.user_transcription_event&&message.user_transcription_event.user_transcript));if(typeof text==='string'&&text.trim()){const fromUser=source.includes('user');if(!fromUser){roxyLastAgentMessage=text.trim();roxyLastAgentMessageAt=Date.now()}roxyVoiceTranscript(text.trim(),fromUser?'Tú':'Roxy')}}};if(config.conversation_token)options.conversationToken=config.conversation_token;else options.agentId=config.agent_id;roxyVoiceConversation=await Conversation.startSession(options);stopRoxyPermissionStream()}catch(error){console.warn('Roxy Home ElevenLabs start failed',error);stopRoxyPermissionStream();roxyVoiceConversation=null;roxyVoiceStarting=false;roxyVoiceStatus(roxyVoiceError(error,phase),true);$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true}}
   async function endRoxyVoice(){const conversation=roxyVoiceConversation;roxyVoiceConversation=null;stopRoxyPermissionStream();if(conversation&&typeof conversation.endSession==='function'){try{await conversation.endSession()}catch(error){console.warn('Roxy Home ElevenLabs end failed',error)}}roxyVoiceStarting=false;roxyVoiceStatus('Conversación terminada');$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true}
 
-  function render(){renderShopping();renderRecipes();renderCalendar();const latest=(homeFood.weekly_plans||[]).slice(-1)[0]||null;renderMealPlan(latest)}
+  function render(){renderShopping();renderRecipes();renderCalendar();renderHomeDaily();const latest=(homeFood.weekly_plans||[]).slice(-1)[0]||null;renderMealPlan(latest)}
   function bind(){
     document.addEventListener('error',event=>{const image=event.target;if(!(image instanceof HTMLImageElement)||!image.src.includes('/v1/home-food/recipe-photo'))return;const card=image.closest('.recipe-card,.recipe-detail-hero,.meal-plan-meal');if(card)card.classList.add('no-photo');image.remove()},true);
     $('searchInput').addEventListener('input',event=>{search=event.target.value;renderShopping()});

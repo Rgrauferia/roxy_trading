@@ -308,6 +308,51 @@ class HomeFoodStore:
 
         return self._mutate(apply)
 
+    def upsert_pantry(self, user_id: Any, items: Any) -> list[dict[str, Any]]:
+        if not isinstance(items, list):
+            raise ValueError("La despensa debe ser una lista.")
+        additions = items
+
+        def apply(payload: dict[str, Any]) -> list[dict[str, Any]]:
+            record = self._user(payload, user_id)
+            pantry = record.setdefault("pantry", [])
+            for raw in additions[:100]:
+                if not isinstance(raw, dict) or not _text(raw.get("name")):
+                    continue
+                name = _text(raw.get("name"), 120)
+                identity = _identity(name)
+                quantity = _positive_number(raw.get("quantity") or 1)
+                unit = _text(raw.get("unit") or "unidad", 32) or "unidad"
+                existing = next(
+                    (row for row in pantry if row.get("identity") == identity and _identity(row.get("unit")) == _identity(unit)),
+                    None,
+                )
+                if existing:
+                    existing["quantity"] = round(float(existing.get("quantity") or 0) + quantity, 4)
+                    existing["name"] = name
+                else:
+                    pantry.append({"name": name, "identity": identity, "quantity": quantity, "unit": unit})
+            record["revision"] = int(record.get("revision") or 0) + 1
+            return deepcopy(pantry)
+
+        return self._mutate(apply)
+
+    def remove_pantry(self, user_id: Any, names: Any) -> tuple[list[dict[str, Any]], list[str]]:
+        targets = [_identity(name) for name in (names or []) if _text(name)]
+
+        def apply(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], list[str]]:
+            record = self._user(payload, user_id)
+            pantry = record.setdefault("pantry", [])
+            removed = [deepcopy(row) for row in pantry if row.get("identity") in targets]
+            found = {str(row.get("identity") or "") for row in removed}
+            record["pantry"] = [row for row in pantry if row.get("identity") not in targets]
+            if removed:
+                record["revision"] = int(record.get("revision") or 0) + 1
+            missing = [name for name, target in zip(names or [], targets) if target not in found]
+            return removed, missing
+
+        return self._mutate(apply)
+
     def update_meal_planning(
         self,
         user_id: Any,

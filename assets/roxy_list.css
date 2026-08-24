@@ -315,6 +315,7 @@ textarea { resize: vertical; line-height: 1.45; }
 .bottom-nav .roxy-nav::before { display: none; }
 
 .upcoming-event-card { display: grid; grid-template-columns: 44px minmax(0,1fr); align-items: center; gap: 12px; padding: 13px 15px; border: 1px solid rgba(23,77,54,.13); border-radius: 20px; background: var(--paper); box-shadow: 0 7px 20px rgba(28,49,39,.06); }
+.upcoming-event-card[hidden] { display: none; }
 .upcoming-event-card > .material-symbols-rounded { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; color: var(--forest); background: var(--sage-soft); }
 .upcoming-event-card button { min-width: 0; padding: 0; border: 0; color: var(--forest); background: transparent; text-align: left; }
 .upcoming-event-card small,.upcoming-event-card strong,.upcoming-event-card em { display: block; }
@@ -487,6 +488,24 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
 .commerce-confirmation[hidden] { display: none; }
 .commerce-confirmation > strong { color: var(--forest); font-family: Georgia, 'Times New Roman', serif; font-size: 1.12rem; }
 .commerce-confirmation > p { margin: 0; color: var(--muted); line-height: 1.45; }
+
+.home-daily-brief { display: grid; gap: 13px; padding: 19px; border: 1px solid rgba(23,63,43,.12); border-radius: 25px; background: linear-gradient(145deg,#fffdf8 0%,#eef5ec 100%); box-shadow: 0 14px 34px rgba(25,51,37,.08); }
+.home-daily-brief[hidden] { display: none; }
+.home-daily-brief > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.home-daily-brief > header h2 { margin: 2px 0 0; color: var(--forest); font-family: Georgia,'Times New Roman',serif; font-size: clamp(25px,7vw,36px); line-height: 1; }
+.home-daily-brief > header > .material-symbols-rounded { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: var(--forest); color: #fff; }
+.home-daily-brief > p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+.home-daily-cards { display: grid; gap: 9px; }
+.home-daily-card { display: grid; grid-template-columns: 42px minmax(0,1fr) 24px; align-items: center; gap: 11px; width: 100%; min-height: 70px; padding: 10px 12px; border: 1px solid rgba(23,63,43,.1); border-radius: 17px; background: rgba(255,255,255,.82); color: var(--forest); text-align: left; }
+.home-daily-card:hover,.home-daily-card:focus-visible { border-color: rgba(23,63,43,.35); background: #fff; }
+.home-daily-card > .material-symbols-rounded:first-child { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: #e6efe4; }
+.home-daily-card > span:nth-child(2) { display: grid; gap: 3px; min-width: 0; }
+.home-daily-card strong { font-size: 14px; line-height: 1.25; }
+.home-daily-card small { overflow: hidden; color: var(--muted); font-size: 11px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.home-daily-card > .material-symbols-rounded:last-child { font-size: 19px; }
+.home-daily-suggestions { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.home-daily-suggestions::-webkit-scrollbar { display: none; }
+.home-daily-suggestions button { flex: 0 0 auto; min-height: 36px; padding: 0 12px; border: 1px solid rgba(23,63,43,.16); border-radius: 999px; background: #fff; color: var(--forest); font-size: 11px; font-weight: 750; }
 
 @media (max-width: 580px) {
   .shopping-commerce-shortcut { grid-template-columns: 42px minmax(0,1fr); }

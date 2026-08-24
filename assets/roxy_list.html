@@ -8,14 +8,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="70" />
+  <meta name="roxy-home-version" content="71" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=60" />
-  <script src="/assets/roxy_list.js?v=70" defer></script>
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=61" />
+  <script src="/assets/roxy_list.js?v=71" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -31,6 +31,12 @@
       <section id="upcomingEventCard" class="upcoming-event-card" hidden>
         <span class="material-symbols-rounded" aria-hidden="true">event_upcoming</span>
         <button id="upcomingEventButton" type="button" data-tab-link="calendar"><small>Próximo evento</small><strong id="upcomingEventTitle">Tu agenda está libre</strong><em id="upcomingEventTime"></em></button>
+      </section>
+      <section id="homeDailyBrief" class="home-daily-brief" aria-labelledby="homeDailyTitle" hidden>
+        <header><div><p class="eyebrow">Roxy organizó tu día</p><h2 id="homeDailyTitle">Lo importante ahora</h2></div><span class="material-symbols-rounded" aria-hidden="true">auto_awesome</span></header>
+        <p id="homeDailySummary"></p>
+        <div id="homeDailyCards" class="home-daily-cards"></div>
+        <div id="homeDailySuggestions" class="home-daily-suggestions" aria-label="Ideas para preguntarle a Roxy"></div>
       </section>
       <section id="mealPlanStudio" class="meal-plan-studio" aria-labelledby="mealPlanTitle">
         <div class="meal-plan-heading"><p class="eyebrow">Tu semana, organizada</p><h2 id="mealPlanTitle">Plan de comidas</h2><p>Roxy adapta desayuno, comida y cena al ritmo real de tu hogar.</p></div>

@@ -243,11 +243,15 @@ def test_saved_old_catalog_recipe_is_upgraded_without_losing_user_metadata(tmp_p
 
 
 def test_shopping_voice_understands_more_natural_vocabulary():
-    from tools.roxy_home_service import _assistant_shopping_intent, _assistant_shopping_requests
+    from tools.roxy_home_service import _assistant_pantry_requests, _assistant_shopping_intent, _assistant_shopping_requests
     assert _assistant_shopping_intent("échame dos yogures en la lista") == "shopping_add"
     assert _assistant_shopping_intent("retira el champú") == "shopping_remove"
     assert _assistant_shopping_intent("qué tenemos pendiente") == "shopping_query"
     assert _assistant_shopping_requests("anota dos paquetes de pasta en mi lista") == [{"name": "pasta", "quantity": 2, "unit": "paquete"}]
+    assert _assistant_shopping_intent("Compré dos litros de leche") == "pantry_add"
+    assert _assistant_shopping_intent("¿Qué hay en la despensa?") == "pantry_query"
+    assert _assistant_shopping_intent("Se acabó la leche") == "pantry_remove"
+    assert _assistant_pantry_requests("Compré dos litros de leche") == [{"name": "leche", "quantity": 2, "unit": "litro"}]
 
 
 def test_voice_recognizes_natural_drink_and_dessert_requests_without_recipe_word():

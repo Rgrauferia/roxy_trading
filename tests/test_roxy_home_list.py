@@ -17,11 +17,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="70"' in page.text
-    assert 'href="/assets/roxy_list.css?v=60"' in page.text
-    assert 'src="/assets/roxy_list.js?v=70"' in page.text
-    assert '/assets/roxy_list.css?v=60' in worker.text
-    assert '/assets/roxy_list.js?v=70' in worker.text
+    assert 'name="roxy-home-version" content="71"' in page.text
+    assert 'href="/assets/roxy_list.css?v=61"' in page.text
+    assert 'src="/assets/roxy_list.js?v=71"' in page.text
+    assert '/assets/roxy_list.css?v=61' in worker.text
+    assert '/assets/roxy_list.js?v=71' in worker.text
     assert 'class="meal-plan-limits"' not in page.text
     assert page.headers["cache-control"] == "no-store, no-cache, must-revalidate, max-age=0"
     assert page.headers["pragma"] == "no-cache"
@@ -42,6 +42,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="calendarEventDialog"' in page.text
     assert 'id="calendarConfirmDialog"' in page.text
     assert 'id="upcomingEventCard"' in page.text
+    assert 'id="homeDailyBrief"' in page.text
+    assert '/v1/home-daily/' in script.text
     assert '/v1/home-calendar/' in script.text
     assert 'Hola, ${person}. ¿Qué hacemos hoy?' in script.text
     assert 'Evento guardado y sincronizado con el calendario de tu teléfono' in script.text
