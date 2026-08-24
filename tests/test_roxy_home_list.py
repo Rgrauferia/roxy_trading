@@ -19,13 +19,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="82"' in page.text
-    assert 'href="/assets/roxy_list.css?v=66"' in page.text
-    assert 'src="/assets/roxy_list.js?v=82"' in page.text
-    assert '/assets/roxy_list.css?v=66' in worker.text
-    assert '/assets/roxy_list.js?v=82' in worker.text
+    assert 'name="roxy-home-version" content="83"' in page.text
+    assert 'href="/assets/roxy_list.css?v=67"' in page.text
+    assert 'src="/assets/roxy_list.js?v=83"' in page.text
+    assert '/assets/roxy_list.css?v=67' in worker.text
+    assert '/assets/roxy_list.js?v=83' in worker.text
     assert '/assets/roxy_home_avatar.jpg' in page.text
     assert '/assets/roxy_home_avatar.jpg' in worker.text
+    assert '/assets/roxy_avatar_icon.jpg' in worker.text
+    assert '/assets/roxy_home/avatars/monogram.svg' in worker.text
     assert manifest.json()["icons"][0]["src"] == "/assets/roxy_home_avatar.jpg"
     assert home_avatar.status_code == 200
     assert home_avatar.headers["content-type"] == "image/jpeg"
@@ -122,8 +124,21 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="loginForm"' in page.text
     assert 'id="accountDialog"' in page.text
     assert 'id="addMemberForm"' in page.text
+    assert 'id="personalizationDialog"' in page.text
+    assert 'id="personalizationForm"' in page.text
+    assert 'Mi Roxy y apariencia' in page.text
+    assert 'Roxy clásico' in page.text
+    assert 'Olivo natural' in page.text
+    assert 'Costa serena' in page.text
+    assert 'Terracota' in page.text
+    assert '/assets/roxy_home/avatars/monogram.svg' in page.text
     assert "/v1/home-account/login" in script.text
     assert "/v1/home-account/members" in script.text
+    assert "/v1/home-account/preferences" in script.text
+    assert "data-roxy-avatar" in page.text
+    assert "applyAppearance" in script.text
+    assert ':root[data-theme="coastal"]' in style.text
+    assert ':root[data-background="linen"]' in style.text
     assert "activePersonName" in script.text
     assert 'home-hero-plant.png' in page.text
     assert "Intl.DateTimeFormat('es'" in script.text

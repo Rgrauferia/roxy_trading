@@ -22,6 +22,11 @@ except ImportError:  # pragma: no cover
 
 ACCOUNT_STORE_VERSION = 1
 PASSWORD_ITERATIONS = 600_000
+MEMBER_THEMES = {"classic", "olive", "coastal", "terracotta"}
+MEMBER_BACKGROUNDS = {"plant", "linen", "clean", "warm"}
+MEMBER_AVATARS = {"home", "professional", "monogram"}
+MEMBER_RESPONSE_STYLES = {"balanced", "brief", "close", "explanatory"}
+MEMBER_TEXT_SCALES = {"compact", "standard", "large"}
 
 
 def _now_iso() -> str:
@@ -47,6 +52,34 @@ def validate_password(value: Any) -> str:
     if not 8 <= len(password) <= 128:
         raise ValueError("La contraseña debe tener entre 8 y 128 caracteres.")
     return password
+
+
+def default_member_preferences() -> dict[str, str]:
+    return {
+        "theme": "classic",
+        "background": "plant",
+        "avatar": "home",
+        "response_style": "balanced",
+        "text_scale": "standard",
+    }
+
+
+def normalize_member_preferences(values: Any) -> dict[str, str]:
+    source = values if isinstance(values, dict) else {}
+    result = default_member_preferences()
+    allowed = {
+        "theme": MEMBER_THEMES,
+        "background": MEMBER_BACKGROUNDS,
+        "avatar": MEMBER_AVATARS,
+        "response_style": MEMBER_RESPONSE_STYLES,
+        "text_scale": MEMBER_TEXT_SCALES,
+    }
+    for key, choices in allowed.items():
+        value = str(source.get(key) or result[key]).strip().lower()
+        if value not in choices:
+            raise ValueError(f"La preferencia {key} no es válida.")
+        result[key] = value
+    return result
 
 
 def hash_password(password: Any) -> str:
@@ -86,6 +119,7 @@ def public_member(member: dict[str, Any], household: dict[str, Any]) -> dict[str
         "household_name": household["name"],
         "storage_user_id": household["storage_user_id"],
         "active": bool(member.get("active", True)),
+        "preferences": normalize_member_preferences(member.get("preferences")),
     }
 
 
@@ -190,6 +224,7 @@ class HomeAccountStore:
                 "password_hash": encoded_password,
                 "role": "OWNER",
                 "active": True,
+                "preferences": default_member_preferences(),
                 "created_at": _now_iso(),
             }
             payload["households"][household_id] = household
@@ -261,9 +296,41 @@ class HomeAccountStore:
                 "password_hash": encoded_password,
                 "role": "MEMBER",
                 "active": True,
+                "preferences": default_member_preferences(),
                 "created_at": _now_iso(),
             }
             payload["members"][member_id] = member
+            return public_member(member, household)
+
+        return self._mutate(apply)
+
+    def update_personalization(
+        self,
+        member_id: str,
+        *,
+        display_name: Any,
+        preferences: dict[str, Any],
+        household_name: Any | None = None,
+    ) -> dict[str, Any]:
+        normalized_name = normalize_display_name(display_name)
+        normalized_preferences = normalize_member_preferences(preferences)
+        requested_household_name = None if household_name is None else normalize_display_name(household_name)
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            member = payload["members"].get(member_id)
+            if not member or not member.get("active", True):
+                raise KeyError(member_id)
+            household = payload["households"].get(member.get("household_id"))
+            if household is None:
+                raise KeyError(member.get("household_id"))
+            if requested_household_name is not None and requested_household_name != household.get("name"):
+                if member.get("role") != "OWNER":
+                    raise PermissionError("Solo la persona administradora puede cambiar el nombre del hogar.")
+                household["name"] = requested_household_name
+                household["updated_at"] = _now_iso()
+            member["display_name"] = normalized_name
+            member["preferences"] = normalized_preferences
+            member["updated_at"] = _now_iso()
             return public_member(member, household)
 
         return self._mutate(apply)

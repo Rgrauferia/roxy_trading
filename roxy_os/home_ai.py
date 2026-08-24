@@ -408,6 +408,8 @@ class RoxyHomeAI:
             "La respuesta debe ser original y conversacional. answer responde directamente; reasoning_summary "
             "explica en una frase la razón principal sin revelar razonamiento interno; recommendation ofrece una "
             "recomendación concreta solo si aporta valor; follow_up contiene como máximo una pregunta breve y útil. "
+            "Respeta profile.communication_style: brief es conciso, close es cálido, explanatory aporta contexto y "
+            "balanced combina claridad y cercanía. "
             "No saludes salvo que la persona haya saludado. Intervención: " + str(prompt),
             home_context,
             deep=deep,

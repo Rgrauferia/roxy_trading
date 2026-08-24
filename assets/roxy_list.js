@@ -2,7 +2,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '82';
+  const APP_VERSION = '83';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -83,7 +83,12 @@
   let cookingTimerTick = null;
   const announcedTimers = new Set();
   let greetingName=String(localStorage.getItem('roxyHomeGreetingName')||'').trim().slice(0,32);
-  let account={mode:'unknown',display_name:'',storage_user_id:user,role:''};
+  const appearanceDefaults={theme:'classic',background:'plant',avatar:'home',response_style:'balanced',text_scale:'standard'};
+  const appearanceChoices={theme:['classic','olive','coastal','terracotta'],background:['plant','linen','clean','warm'],avatar:['home','professional','monogram'],response_style:['balanced','brief','close','explanatory'],text_scale:['compact','standard','large']};
+  const avatarSources={home:'/assets/roxy_home_avatar.jpg',professional:'/assets/roxy_avatar_icon.jpg',monogram:'/assets/roxy_home/avatars/monogram.svg'};
+  function cachedAppearance(){try{const value=JSON.parse(localStorage.getItem('roxyHomeAppearance')||'{}');return value&&typeof value==='object'?value:{}}catch(_error){return{}}}
+  let appearance={...appearanceDefaults,...cachedAppearance()};
+  let account={mode:'unknown',display_name:'',storage_user_id:user,role:'',preferences:appearance};
   let homeCalendar={events:[],pending_draft:null,sync:{native_export:true,provider:'ICS'}};
   let homeDaily=null;
   let homeDesign={projects:[],generation_configured:false};
@@ -96,6 +101,32 @@
   let calendarAutoSyncRunning=false;
 
   const activePersonName=()=>String(account.mode==='member'?account.display_name:greetingName||'').trim();
+  const safeAppearance=(values={})=>Object.fromEntries(Object.entries(appearanceChoices).map(([key,choices])=>{const value=String(values[key]||appearanceDefaults[key]);return[key,choices.includes(value)?value:appearanceDefaults[key]]}));
+  const avatarSrc=()=>avatarSources[appearance.avatar]||avatarSources.home;
+
+  function applyAppearance(values=appearance){
+    appearance=safeAppearance(values);localStorage.setItem('roxyHomeAppearance',JSON.stringify(appearance));
+    const root=document.documentElement;root.dataset.theme=appearance.theme;root.dataset.background=appearance.background;root.dataset.textScale=appearance.text_scale;
+    const themeColors={classic:'#173f2b',olive:'#425d3a',coastal:'#285969',terracotta:'#754533'};const meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.content=themeColors[appearance.theme]||themeColors.classic;
+    document.querySelectorAll('[data-roxy-avatar]').forEach(image=>{image.src=avatarSrc()});
+    const subtitle=$('homeBrandSubtitle');if(subtitle)subtitle.textContent=account.household_name||'Tu hogar, organizado';
+  }
+
+  function renderPersonalizationPreview(){
+    const form=$('personalizationForm');if(!form)return;const selected=name=>form.querySelector(`input[name="${name}"]:checked`)?.value;
+    const theme=selected('personalizationTheme')||appearance.theme;const background=selected('personalizationBackground')||appearance.background;const avatar=selected('personalizationAvatar')||appearance.avatar;
+    const palettes={classic:['#eef3eb','#fffdfa','#174d36'],olive:['#f0f3e9','#fffdf7','#425d3a'],coastal:['#edf5f5','#fffefa','#285969'],terracotta:['#f7eee8','#fffaf5','#754533']};const colors=palettes[theme]||palettes.classic;const preview=$('personalizationPreview');const backgrounds={plant:`linear-gradient(120deg,${colors[1]} 28%,${colors[0]})`,linen:`repeating-linear-gradient(90deg,${colors[0]} 0 2px,${colors[1]} 2px 7px)`,warm:`radial-gradient(circle at 85% 10%,#e8c98f,${colors[1]} 55%)`,clean:colors[1]};preview.style.background=backgrounds[background];preview.style.borderColor=colors[2];$('personalizationPreviewAvatar').src=avatarSources[avatar]||avatarSources.home;$('personalizationPreviewGreeting').textContent=`Hola, ${$('personalizationDisplayName').value.trim()||activePersonName()||'bienvenido'}`;$('personalizationPreviewHome').textContent=$('personalizationHouseholdName').value.trim()||account.household_name||'Nuestro hogar';
+  }
+
+  function openPersonalization(){
+    if(account.mode!=='member'){openAccountDialog();return}const prefs=safeAppearance(account.preferences||appearance);$('personalizationDisplayName').value=account.display_name||'';$('personalizationHouseholdName').value=account.household_name||'Nuestro hogar';$('personalizationHouseholdName').disabled=account.role!=='OWNER';$('personalizationHouseholdLabel').hidden=account.role!=='OWNER';
+    Object.entries({personalizationTheme:prefs.theme,personalizationBackground:prefs.background,personalizationAvatar:prefs.avatar}).forEach(([name,value])=>{const input=document.querySelector(`input[name="${name}"][value="${value}"]`);if(input)input.checked=true});$('personalizationResponseStyle').value=prefs.response_style;$('personalizationTextScale').value=prefs.text_scale;$('personalizationError').textContent='';renderPersonalizationPreview();$('personalizationDialog').showModal();
+  }
+
+  async function savePersonalization(event){
+    event.preventDefault();const form=event.currentTarget;const submit=form.querySelector('button[type="submit"]');const selected=name=>form.querySelector(`input[name="${name}"]:checked`)?.value;submit.disabled=true;$('personalizationError').textContent='';
+    try{const result=await api('/v1/home-account/preferences',{method:'PUT',body:JSON.stringify({display_name:$('personalizationDisplayName').value.trim(),household_name:account.role==='OWNER'?$('personalizationHouseholdName').value.trim():null,theme:selected('personalizationTheme'),background:selected('personalizationBackground'),avatar:selected('personalizationAvatar'),response_style:$('personalizationResponseStyle').value,text_scale:$('personalizationTextScale').value})});account=result;appearance=safeAppearance(result.preferences);applyAppearance();renderHomeMoment();renderAccount();$('personalizationDialog').close();announce('Tu Roxy Home quedó personalizada en todos tus dispositivos')}catch(error){$('personalizationError').textContent=error.message}finally{submit.disabled=false}
+  }
 
   function renderHomeMoment(){
     const moment=new Date();
@@ -288,6 +319,7 @@
     try {
       account=await api('/v1/home-account/me');
       if(account.storage_user_id){user=account.storage_user_id;localStorage.setItem('roxyShoppingUser',user)}
+      appearance=safeAppearance(account.preferences||appearance);applyAppearance();
       const rangeStart=new Date();rangeStart.setHours(0,0,0,0);rangeStart.setDate(rangeStart.getDate()-7);
       const rangeEnd=new Date(rangeStart);rangeEnd.setDate(rangeEnd.getDate()+370);
       const [shopping,food,shoppingCommerce,calendarData,dailyData,designData] = await Promise.all([
@@ -454,7 +486,7 @@
     (homeCalendar.events||[]).forEach(event=>{
       const delay=new Date(event.starts_at).getTime()-Number(event.reminder_minutes||0)*60000-Date.now();
       if(delay<=0||delay>2147483647)return;
-      calendarReminderTimers.set(event.occurrence_id||event.id,setTimeout(()=>new Notification('Roxy Home',{body:`${event.title} · ${formatCalendarTime(event.starts_at)}`,icon:'/assets/roxy_home_avatar.jpg'}),delay));
+      calendarReminderTimers.set(event.occurrence_id||event.id,setTimeout(()=>new Notification('Roxy Home',{body:`${event.title} · ${formatCalendarTime(event.starts_at)}`,icon:avatarSrc()}),delay));
     });
   }
 
@@ -769,7 +801,7 @@
     const active=[...sessions].reverse().find(row=>row.status==='ACTIVE');
     if(active){
       const resume=document.createElement('button'); resume.type='button'; resume.className='recipe-card resume-card';
-      const img=document.createElement('img'); img.src='/assets/roxy_home_avatar.jpg'; img.alt='';
+      const img=document.createElement('img'); img.src=avatarSrc(); img.alt='';
       const copy=document.createElement('span'); const strong=document.createElement('strong'); strong.textContent=`Continuar: ${active.recipe_title}`;
       const small=document.createElement('small'); small.textContent=`Paso ${Number(active.step_index||0)+1} de ${active.step_count}`;
       copy.append(strong,small); resume.append(img,copy); resume.addEventListener('click',()=>resumeCooking(active.id)); root.append(resume);
@@ -1307,6 +1339,10 @@
     $('pairForm').addEventListener('submit',pair);
     $('loginForm').addEventListener('submit',login);
     $('accountButton').addEventListener('click',openAccountDialog);
+    $('personalizationButton').addEventListener('click',openPersonalization);
+    $('personalizationForm').addEventListener('submit',savePersonalization);
+    $('personalizationForm').addEventListener('input',renderPersonalizationPreview);
+    $('personalizationForm').addEventListener('change',renderPersonalizationPreview);
     $('bootstrapAccountForm').addEventListener('submit',bootstrapAccount);
     $('addMemberForm').addEventListener('submit',addHouseholdMember);
     $('completeButton').addEventListener('click',complete);
@@ -1336,7 +1372,7 @@
     $('mealPlanPrepare').addEventListener('click',toggleWeeklyPrep);
     $('foodSafetyForm').addEventListener('submit',researchFoodSafety);
     $('roxyCommandForm').addEventListener('submit',submitRoxyCommand);
-    $('greetingSettingsButton').addEventListener('click',()=>account.mode==='member'?openAccountDialog():openGreetingSettings());
+    $('greetingSettingsButton').addEventListener('click',()=>account.mode==='member'?openPersonalization():openGreetingSettings());
     $('greetingForm').addEventListener('submit',saveGreeting);
     $('clearGreetingButton').addEventListener('click',clearGreeting);
     $('roxyVoiceLauncher').addEventListener('click',openRoxyVoice);
@@ -1366,7 +1402,7 @@
     window.addEventListener('online',()=>load({quiet:true}));
   }
 
-  bind();renderHomeMoment();setInterval(renderHomeMoment,30000);render();
+  applyAppearance();bind();renderHomeMoment();setInterval(renderHomeMoment,30000);render();
   window.addEventListener('pageshow',event=>{if(event.persisted)location.reload()});
   if('scrollRestoration'in history)history.scrollRestoration='manual';
   const initialPanels={hoy:'today',compra:'shopping',recetas:'recipes',despensa:'pantry',calendario:'calendar',renueva:'design',mas:'more'};

@@ -30,6 +30,7 @@ def test_account_store_hashes_passwords_and_limits_member_creation_to_owner(tmp_
     assert verify_password("una-clave-segura", members_by_username["robert"]["password_hash"])
     assert store.authenticate("ROBERT", "una-clave-segura")["display_name"] == "Robert"
     assert store.authenticate("robert", "incorrecta") is None
+    assert owner["preferences"]["theme"] == "classic"
 
     try:
         store.add_member(partner["id"], username="third", display_name="Third", password="third-password")
@@ -37,6 +38,75 @@ def test_account_store_hashes_passwords_and_limits_member_creation_to_owner(tmp_
         pass
     else:  # pragma: no cover
         raise AssertionError("A non-owner created a household member")
+
+
+def test_personalization_is_private_but_household_name_is_owner_managed(tmp_path):
+    store = HomeAccountStore(tmp_path / "accounts.json")
+    owner = store.bootstrap(
+        "local_user", household_name="Nuestro hogar", username="robert", display_name="Robert", password="owner-password"
+    )
+    partner = store.add_member(
+        owner["id"], username="partner", display_name="Roxy", password="partner-password"
+    )
+
+    updated_owner = store.update_personalization(
+        owner["id"],
+        display_name="Roberto",
+        household_name="Casa Grau",
+        preferences={"theme": "coastal", "background": "linen", "avatar": "home", "response_style": "brief", "text_scale": "large"},
+    )
+    updated_partner = store.update_personalization(
+        partner["id"],
+        display_name="Roxy",
+        preferences={"theme": "terracotta", "background": "warm", "avatar": "professional", "response_style": "close", "text_scale": "standard"},
+    )
+
+    assert updated_owner["household_name"] == updated_partner["household_name"] == "Casa Grau"
+    assert updated_owner["preferences"]["theme"] == "coastal"
+    assert updated_partner["preferences"]["theme"] == "terracotta"
+    assert store.authenticate("robert", "owner-password")["display_name"] == "Roberto"
+
+    try:
+        store.update_personalization(
+            partner["id"], display_name="Roxy", household_name="Otra casa", preferences=updated_partner["preferences"]
+        )
+    except PermissionError:
+        pass
+    else:  # pragma: no cover
+        raise AssertionError("A non-owner changed the shared household name")
+
+
+def test_personalization_api_persists_for_the_signed_in_member(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "home-account-test-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "local_user")
+    monkeypatch.setenv("ROXY_HOME_ACCOUNTS_PATH", str(tmp_path / "accounts.json"))
+    store = HomeAccountStore(tmp_path / "accounts.json")
+    store.bootstrap(
+        "local_user", household_name="Nuestro hogar", username="robert", display_name="Robert", password="owner-password"
+    )
+    client = TestClient(roxy_home_service.app, base_url="https://roxy.test")
+    assert client.post("/v1/home-account/login", json={"username": "robert", "password": "owner-password"}).status_code == 200
+
+    response = client.put(
+        "/v1/home-account/preferences",
+        json={
+            "display_name": "Roberto",
+            "household_name": "Casa Grau",
+            "theme": "olive",
+            "background": "clean",
+            "avatar": "monogram",
+            "response_style": "explanatory",
+            "text_scale": "large",
+        },
+    )
+    current = client.get("/v1/home-account/me")
+
+    assert response.status_code == 200
+    assert current.json()["display_name"] == "Roberto"
+    assert current.json()["household_name"] == "Casa Grau"
+    assert current.json()["preferences"] == response.json()["preferences"]
 
 
 def test_two_personal_sessions_share_existing_home_data_and_personalize_roxy(tmp_path, monkeypatch):

@@ -279,6 +279,16 @@ class HomeMemberRequest(HomeLoginRequest):
     display_name: str = Field(min_length=1, max_length=64)
 
 
+class HomePersonalizationRequest(BaseModel):
+    display_name: str = Field(min_length=1, max_length=64)
+    household_name: str | None = Field(default=None, min_length=1, max_length=64)
+    theme: str = Field(default="classic", pattern="^(classic|olive|coastal|terracotta)$")
+    background: str = Field(default="plant", pattern="^(plant|linen|clean|warm)$")
+    avatar: str = Field(default="home", pattern="^(home|professional|monogram)$")
+    response_style: str = Field(default="balanced", pattern="^(balanced|brief|close|explanatory)$")
+    text_scale: str = Field(default="standard", pattern="^(compact|standard|large)$")
+
+
 class CalendarEventRequest(BaseModel):
     title: str = Field(min_length=1, max_length=160)
     starts_at: datetime
@@ -1197,6 +1207,8 @@ def _conversation_needs_deep_reasoning(text: str) -> bool:
 
 def _conversation_snapshot(user: str, auth: AuthContext) -> dict[str, Any]:
     food = _home_food_store().snapshot(user)
+    member = _member_for_auth(auth)
+    personal_preferences = (member or {}).get("preferences") or {}
     moment = datetime.now(ZoneInfo(os.getenv("ROXY_HOME_TIMEZONE", DEFAULT_TIMEZONE)))
     try:
         events = _calendar_store().list_events(
@@ -1214,7 +1226,10 @@ def _conversation_snapshot(user: str, auth: AuthContext) -> dict[str, Any]:
         now=moment,
     )
     return {
-        "profile": food.get("profile") or {},
+        "profile": {
+            **(food.get("profile") or {}),
+            "communication_style": personal_preferences.get("response_style") or "balanced",
+        },
         "pantry": food.get("pantry") or [],
         "shopping": _store().list_items(user, statuses={"PENDING"}, limit=100),
         "today_meals": brief.get("today_meals") or [],
@@ -1549,6 +1564,36 @@ def home_account_add_member(
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return {"status": "CREATED", "member": created}
+
+
+@app.put("/v1/home-account/preferences")
+def home_account_preferences(
+    payload: HomePersonalizationRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    member = _member_for_auth(auth)
+    if member is None:
+        raise HTTPException(status_code=409, detail="Primero entra con tu perfil personal")
+    try:
+        updated = _account_store().update_personalization(
+            member["id"],
+            display_name=payload.display_name,
+            household_name=payload.household_name,
+            preferences={
+                "theme": payload.theme,
+                "background": payload.background,
+                "avatar": payload.avatar,
+                "response_style": payload.response_style,
+                "text_scale": payload.text_scale,
+            },
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "UPDATED", "mode": "member", "requires_profile_setup": False, **updated}
 
 
 @app.get("/v1/assistant/session/{user_id}")

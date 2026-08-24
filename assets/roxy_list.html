@@ -8,20 +8,20 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="82" />
+  <meta name="roxy-home-version" content="83" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=66" />
-  <script src="/assets/roxy_list.js?v=82" defer></script>
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=67" />
+  <script src="/assets/roxy_list.js?v=83" defer></script>
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#hoy" data-tab-link="today" aria-label="Inicio de Roxy Home">
       <span class="brand-mark" aria-hidden="true">R</span>
-      <span><strong>Roxy Home</strong><small>Tu hogar, organizado</small></span>
+      <span><strong>Roxy Home</strong><small id="homeBrandSubtitle">Tu hogar, organizado</small></span>
     </a>
     <button id="shareButton" class="quiet-button" type="button">Compartir</button>
   </header>
@@ -123,7 +123,7 @@
       </section>
       <section class="calendar-hero">
         <div><h3>Tu semana,<br />organizada</h3><span aria-hidden="true"></span><p>Cuéntale a Roxy qué tienes planificado y ella lo organiza por ti.</p></div>
-        <div class="calendar-roxy-action"><img src="/assets/roxy_home_avatar.jpg" alt="Roxy" /><button id="calendarVoiceButton" class="primary" type="button"><span class="material-symbols-rounded" aria-hidden="true">mic</span> Agregar hablando</button></div>
+        <div class="calendar-roxy-action"><img data-roxy-avatar src="/assets/roxy_home_avatar.jpg" alt="Roxy" /><button id="calendarVoiceButton" class="primary" type="button"><span class="material-symbols-rounded" aria-hidden="true">mic</span> Agregar hablando</button></div>
       </section>
       <section id="calendarWeekStrip" class="calendar-week-strip" aria-label="Navegar por la semana"></section>
       <section id="calendarAgenda" class="calendar-agenda" aria-live="polite"></section>
@@ -268,6 +268,7 @@
       <section class="account-card card" aria-labelledby="accountTitle">
         <p class="eyebrow">Hogar compartido</p><h3 id="accountTitle">Personas de esta casa</h3>
         <p id="accountSummary">Comprobando quién está conectado…</p>
+        <button id="personalizationButton" class="primary full" type="button">Mi Roxy y apariencia</button>
         <button id="accountButton" class="secondary full" type="button">Administrar perfiles</button>
       </section>
       <details class="history-card card" open>
@@ -281,7 +282,7 @@
   <nav class="bottom-nav" aria-label="Secciones de Roxy Home">
     <button class="active" type="button" data-tab-link="today"><span class="material-symbols-rounded" aria-hidden="true">today</span><strong>Hoy</strong></button>
     <button type="button" data-tab-link="shopping"><span class="material-symbols-rounded" aria-hidden="true">shopping_cart</span><strong>Compra</strong></button>
-    <button id="roxyVoiceLauncher" class="roxy-nav" type="button" aria-controls="roxyVoicePanel" aria-expanded="false"><img src="/assets/roxy_home_avatar.jpg" alt="" /><strong>Roxy</strong></button>
+    <button id="roxyVoiceLauncher" class="roxy-nav" type="button" aria-controls="roxyVoicePanel" aria-expanded="false"><img data-roxy-avatar src="/assets/roxy_home_avatar.jpg" alt="" /><strong>Roxy</strong></button>
     <button type="button" data-tab-link="recipes"><span class="material-symbols-rounded" aria-hidden="true">menu_book</span><strong>Recetas</strong></button>
     <button type="button" data-tab-link="design"><span class="material-symbols-rounded" aria-hidden="true">chair</span><strong>Renueva</strong></button>
     <button type="button" data-tab-link="calendar"><span class="material-symbols-rounded" aria-hidden="true">calendar_month</span><strong>Calendario</strong></button>
@@ -418,6 +419,44 @@
     </article>
   </dialog>
 
+  <dialog id="personalizationDialog" class="personalization-dialog" aria-labelledby="personalizationTitle">
+    <form id="personalizationForm">
+      <div class="dialog-heading"><div><p class="eyebrow">Tu espacio personal</p><h2 id="personalizationTitle">Mi Roxy</h2></div><button type="button" data-close-dialog="personalizationDialog" aria-label="Cerrar">Cerrar</button></div>
+      <section id="personalizationPreview" class="personalization-preview" aria-label="Vista previa de tu Roxy Home">
+        <img id="personalizationPreviewAvatar" src="/assets/roxy_home_avatar.jpg" alt="Vista previa de Roxy" />
+        <span><small id="personalizationPreviewHome">Nuestro hogar</small><strong id="personalizationPreviewGreeting">Hola, Robert</strong><em>Tu hogar, a tu manera</em></span>
+      </section>
+      <div class="personalization-fields">
+        <label><span>Cómo quieres que te llame Roxy</span><input id="personalizationDisplayName" maxlength="64" autocomplete="name" required /></label>
+        <label id="personalizationHouseholdLabel"><span>Nombre de esta casa</span><input id="personalizationHouseholdName" maxlength="64" required /></label>
+      </div>
+      <fieldset class="personalization-options theme-options"><legend>Colores de la aplicación</legend>
+        <label data-choice="classic"><input type="radio" name="personalizationTheme" value="classic" /><span><i></i><strong>Roxy clásico</strong><small>Verde bosque y crema</small></span></label>
+        <label data-choice="olive"><input type="radio" name="personalizationTheme" value="olive" /><span><i></i><strong>Olivo natural</strong><small>Salvia y lino</small></span></label>
+        <label data-choice="coastal"><input type="radio" name="personalizationTheme" value="coastal" /><span><i></i><strong>Costa serena</strong><small>Azul, arena y blanco</small></span></label>
+        <label data-choice="terracotta"><input type="radio" name="personalizationTheme" value="terracotta" /><span><i></i><strong>Terracota</strong><small>Arcilla y crema</small></span></label>
+      </fieldset>
+      <fieldset class="personalization-options"><legend>Fondo de Inicio</legend>
+        <label><input type="radio" name="personalizationBackground" value="plant" /><span><strong>Ventana y planta</strong><small>El fondo familiar original</small></span></label>
+        <label><input type="radio" name="personalizationBackground" value="linen" /><span><strong>Lino natural</strong><small>Suave y acogedor</small></span></label>
+        <label><input type="radio" name="personalizationBackground" value="warm" /><span><strong>Luz cálida</strong><small>Crema y dorado</small></span></label>
+        <label><input type="radio" name="personalizationBackground" value="clean" /><span><strong>Limpio</strong><small>Sin fotografía</small></span></label>
+      </fieldset>
+      <fieldset class="personalization-options avatar-options"><legend>Cómo se ve Roxy</legend>
+        <label><input type="radio" name="personalizationAvatar" value="home" /><span><img src="/assets/roxy_home_avatar.jpg" alt="" /><strong>Roxy Hogar</strong><small>Cálida y natural</small></span></label>
+        <label><input type="radio" name="personalizationAvatar" value="professional" /><span><img src="/assets/roxy_avatar_icon.jpg" alt="" /><strong>Profesional</strong><small>Clara y elegante</small></span></label>
+        <label><input type="radio" name="personalizationAvatar" value="monogram" /><span><img src="/assets/roxy_home/avatars/monogram.svg" alt="" /><strong>Símbolo R</strong><small>Simple y discreto</small></span></label>
+      </fieldset>
+      <div class="personalization-fields split">
+        <label><span>Estilo de respuestas</span><select id="personalizationResponseStyle"><option value="balanced">Equilibrada</option><option value="brief">Directa y breve</option><option value="close">Cercana</option><option value="explanatory">Explicativa</option></select></label>
+        <label><span>Tamaño del texto</span><select id="personalizationTextScale"><option value="compact">Compacto</option><option value="standard">Normal</option><option value="large">Grande</option></select></label>
+      </div>
+      <p class="personalization-note"><span class="material-symbols-rounded" aria-hidden="true">lock</span>Estas preferencias pertenecen a tu perfil. No cambian la experiencia de las demás personas del hogar.</p>
+      <p id="personalizationError" class="error" role="alert"></p>
+      <button class="primary full" type="submit">Guardar mi Roxy</button>
+    </form>
+  </dialog>
+
   <dialog id="greetingDialog" aria-labelledby="greetingTitle">
     <form id="greetingForm">
       <div class="dialog-heading"><div><p class="eyebrow">Este dispositivo</p><h2 id="greetingTitle">¿Cómo te saludo?</h2></div><button type="button" data-close-dialog="greetingDialog" aria-label="Cerrar">Cerrar</button></div>
@@ -463,7 +502,7 @@
   </dialog>
 
   <section id="roxyVoicePanel" class="roxy-voice-panel" aria-labelledby="roxyVoiceTitle" hidden>
-    <header><img src="/assets/roxy_home_avatar.jpg" alt="Roxy" /><div><strong id="roxyVoiceTitle">Roxy</strong><small>Contigo en tu lista</small></div><button id="roxyVoiceClose" type="button" aria-label="Cerrar conversación">Cerrar</button></header>
+    <header><img data-roxy-avatar src="/assets/roxy_home_avatar.jpg" alt="Roxy" /><div><strong id="roxyVoiceTitle">Roxy</strong><small>Contigo en tu lista</small></div><button id="roxyVoiceClose" type="button" aria-label="Cerrar conversación">Cerrar</button></header>
     <p id="roxyVoiceStatus" class="roxy-voice-status" role="status" aria-live="polite">Lista para conversar</p>
     <div id="roxyVoiceTranscript" class="roxy-voice-transcript" aria-live="polite">Puedes pedirme una receta, cambiar tu lista o decir “guíame paso a paso”.</div>
     <div class="roxy-voice-actions"><button id="roxyVoiceStart" class="primary" type="button">Iniciar</button><button id="roxyVoiceEnd" class="secondary" type="button" disabled>Terminar</button></div>
