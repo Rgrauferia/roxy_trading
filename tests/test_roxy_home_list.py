@@ -17,11 +17,14 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="72"' in page.text
-    assert 'href="/assets/roxy_list.css?v=61"' in page.text
-    assert 'src="/assets/roxy_list.js?v=72"' in page.text
-    assert '/assets/roxy_list.css?v=61' in worker.text
-    assert '/assets/roxy_list.js?v=72' in worker.text
+    assert 'name="roxy-home-version" content="73"' in page.text
+    assert 'href="/assets/roxy_list.css?v=62"' in page.text
+    assert 'src="/assets/roxy_list.js?v=73"' in page.text
+    assert '/assets/roxy_list.css?v=62' in worker.text
+    assert '/assets/roxy_list.js?v=73' in worker.text
+    assert "CLEANING:'Limpieza'" in script.text
+    assert "shopping-category-group" in script.text
+    assert "Automática (recomendada)" in page.text
     assert 'class="meal-plan-limits"' not in page.text
     assert page.headers["cache-control"] == "no-store, no-cache, must-revalidate, max-age=0"
     assert page.headers["pragma"] == "no-cache"

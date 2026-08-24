@@ -1,6 +1,11 @@
 import pytest
 
-from roxy_os.shopping_list import ShoppingListStore, normalize_shopping_item, normalize_shopping_name
+from roxy_os.shopping_list import (
+    ShoppingListStore,
+    classify_shopping_category,
+    normalize_shopping_item,
+    normalize_shopping_name,
+)
 
 
 def test_shopping_list_is_durable_isolated_and_deduplicates_pending_items(tmp_path):
@@ -146,3 +151,51 @@ def test_explicit_recipe_measurement_is_never_overridden_by_name_parser(tmp_path
     assert item["name"] == "2 paquetes de levadura"
     assert item["quantity"] == 500.0
     assert item["unit"] == "gramo"
+
+
+@pytest.mark.parametrize(
+    ("product", "expected"),
+    [
+        ("café", "FOOD"), ("aceite de oliva", "FOOD"), ("agua", "FOOD"),
+        ("detergente de lavar", "CLEANING"), ("papel toalla", "CLEANING"),
+        ("papel higiénico", "PERSONAL"), ("gel de cejas", "PERSONAL"),
+        ("ibuprofeno", "HEALTH"), ("bombillos LED", "HOUSEHOLD"),
+        ("arena para gato", "PETS"),
+    ],
+)
+def test_shopping_category_classifier_uses_product_meaning(product, expected):
+    assert classify_shopping_category(product) == expected
+
+
+def test_category_classifier_prefers_specific_product_over_stale_client_category():
+    assert classify_shopping_category("detergente", "HOUSEHOLD") == "CLEANING"
+    assert classify_shopping_category("café", "HOUSEHOLD") == "FOOD"
+    assert classify_shopping_category("organizador de zapatos", "HOUSEHOLD") == "HOUSEHOLD"
+    assert classify_shopping_category("artículo desconocido") == "OTHER"
+
+
+def test_existing_items_are_reclassified_without_losing_user_data(tmp_path):
+    path = tmp_path / "shopping.json"
+    path.write_text(
+        '{"items": ['
+        '{"id":"1","user_id":"robert","name":"Café","quantity":2,"unit":"bolsa","category":"HOUSEHOLD"},'
+        '{"id":"2","user_id":"robert","name":"Detergente","quantity":1,"unit":"botella","category":"HOUSEHOLD"}'
+        '], "trips": [], "product_memory": {}, "user_revisions": {}}',
+        encoding="utf-8",
+    )
+
+    rows = ShoppingListStore(path).list_items("robert")
+
+    assert [(row["name"], row["quantity"], row["category"]) for row in rows] == [
+        ("Detergente", 1, "CLEANING"), ("Café", 2, "FOOD")
+    ]
+
+
+def test_add_auto_classifies_voice_and_ui_products(tmp_path):
+    store = ShoppingListStore(tmp_path / "shopping.json")
+
+    soap = store.add("robert", "jabón de platos", source="voice_or_text")
+    fruit = store.add("robert", "manzanas", category="GENERAL", source="roxy_home_pwa")
+
+    assert soap["category"] == "CLEANING"
+    assert fruit["category"] == "FOOD"

@@ -17,9 +17,67 @@ except ImportError:  # pragma: no cover - Windows fallback
     fcntl = None
 
 
-SHOPPING_STORE_VERSION = 3
+SHOPPING_STORE_VERSION = 4
 SHOPPING_STATUSES = {"PENDING", "PURCHASED", "ARCHIVED"}
-SHOPPING_CATEGORIES = {"GENERAL", "FOOD", "HOUSEHOLD", "HEALTH", "PERSONAL", "OTHER"}
+SHOPPING_CATEGORIES = {
+    "GENERAL", "FOOD", "CLEANING", "PERSONAL", "HEALTH", "HOUSEHOLD", "PETS", "OTHER"
+}
+
+# Classification stays deterministic and local so adding an item also works
+# offline and never depends on an AI call. Specific categories come first:
+# "jabón de platos" is cleaning, while an unqualified "jabón" is personal.
+_SHOPPING_CATEGORY_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("CLEANING", (
+        "detergente", "suavizante", "lavaplatos", "lavavajillas", "jabon de platos",
+        "jabon para platos", "limpiador", "desinfectante", "cloro", "lejia", "bleach",
+        "oxiclean", "oxi clean", "esponja", "estropajo", "trapeador", "mopa", "escoba",
+        "recogedor", "guantes de limpieza", "bolsa de basura", "bolsas de basura",
+        "papel toalla", "papel de cocina", "toalla de papel", "ambientador", "aromatizante",
+        "bolsitas de olor", "sachet", "insecticida", "limpia vidrios", "limpiavidrios",
+        "laundry", "dish soap", "dishwasher", "cleaner", "disinfectant", "trash bag",
+    )),
+    ("PERSONAL", (
+        "papel higienico", "jabon", "champu", "shampoo", "acondicionador", "desodorante",
+        "pasta dental", "crema dental", "cepillo dental", "hilo dental", "enjuague bucal",
+        "gel de bano", "gel de ducha", "toalla sanitaria", "tampon", "tampones", "panal",
+        "panales", "afeitadora", "rasuradora", "crema de afeitar", "locion", "protector solar",
+        "crema corporal", "gel de cejas", "maquillaje", "algodon", "hisopo", "toallitas humedas",
+        "body wash", "toothpaste", "toothbrush", "deodorant", "toilet paper", "skincare",
+    )),
+    ("HEALTH", (
+        "medicamento", "medicina", "pastilla", "analgesico", "ibuprofeno", "acetaminofen",
+        "paracetamol", "aspirina", "vitamina", "suplemento", "jarabe", "curita", "vendaje",
+        "termometro", "alcohol isopropilico", "agua oxigenada", "farmacia", "antialergico",
+        "antibiotico", "pain relief", "medicine", "vitamin", "supplement", "bandage",
+    )),
+    ("PETS", (
+        "comida de perro", "comida para perro", "comida de gato", "comida para gato",
+        "alimento de perro", "alimento para perro", "alimento de gato", "alimento para gato",
+        "arena de gato", "arena para gato", "premio de perro", "premio para perro",
+        "premio de gato", "premio para gato", "croquetas de perro", "croquetas de gato",
+        "correa de perro", "mascota", "dog food", "cat food", "pet food", "cat litter",
+    )),
+    ("HOUSEHOLD", (
+        "papel aluminio", "papel encerado", "papel pergamino", "film plastico", "envoltura plastica",
+        "servilleta", "vaso desechable", "plato desechable", "cubierto desechable", "bombillo",
+        "bombilla", "bateria", "pilas", "vela", "fosforo", "encendedor", "filtro de cafe",
+        "bolsa ziploc", "bolsas ziploc", "recipiente", "percha", "gancho de ropa", "storage bag",
+        "aluminum foil", "light bulb", "battery", "napkin", "paper plate",
+    )),
+    ("FOOD", (
+        "leche", "huevo", "queso", "yogur", "yogurt", "mantequilla", "crema", "half and half",
+        "pollo", "carne", "res", "cerdo", "pescado", "salmon", "atun", "camaron", "marisco",
+        "pan", "arroz", "pasta", "espagueti", "macarron", "fideo", "harina", "avena", "cereal",
+        "tomate", "aguacate", "platano", "banana", "mandarina", "naranja", "manzana", "fruta",
+        "vegetal", "verdura", "cebolla", "ajo", "papa", "patata", "zanahoria", "lechuga",
+        "cafe", "te", "matcha", "agua", "jugo", "zumo", "refresco", "soda", "bebida",
+        "aceite", "sal", "azucar", "levadura", "vainilla", "canela", "especia", "salsa",
+        "frijol", "garbanzo", "lenteja", "maiz", "maicena", "dulce de leche", "helado",
+        "galleta", "chocolate", "miel", "mermelada", "mayonesa", "ketchup", "mostaza",
+        "milk", "egg", "cheese", "chicken", "beef", "pork", "fish", "bread", "rice",
+        "coffee", "water", "juice", "flour", "sugar", "salt", "oil", "vegetable", "fruit",
+    )),
+)
 
 _SHOPPING_NUMBER_WORDS = {
     "un": 1, "una": 1, "uno": 1, "dos": 2, "tres": 3, "cuatro": 4,
@@ -118,6 +176,26 @@ def _identity(value: Any) -> str:
     return " ".join(normalized.encode("ascii", "ignore").decode("ascii").lower().split())
 
 
+def _classification_identity(value: Any) -> str:
+    words = _identity(value).split()
+    return " ".join(word[:-1] if len(word) > 4 and word.endswith("s") else word for word in words)
+
+
+def classify_shopping_category(name: Any, requested: Any = "GENERAL") -> str:
+    """Infer a stable aisle while preserving explicit categories for unknown products."""
+
+    identity = _classification_identity(name)
+    padded = f" {identity} "
+    for category, terms in _SHOPPING_CATEGORY_TERMS:
+        for term in terms:
+            if f" {_classification_identity(term)} " in padded:
+                return category
+    explicit = str(requested or "GENERAL").strip().upper()
+    if explicit in SHOPPING_CATEGORIES and explicit != "GENERAL":
+        return explicit
+    return "OTHER"
+
+
 def normalize_quantity(value: Any) -> float:
     try:
         quantity = float(value)
@@ -161,6 +239,7 @@ class ShoppingListStore:
                 continue
             item["name"] = cleaned_name
             item["identity"] = _identity(cleaned_name)
+            item["category"] = classify_shopping_category(cleaned_name, item.get("category"))
         if not isinstance(payload.get("trips"), list):
             payload["trips"] = []
         payload["trips"] = [trip for trip in payload["trips"] if isinstance(trip, dict)]
@@ -252,9 +331,10 @@ class ShoppingListStore:
             unit=unit,
         )
         item_identity = _identity(display_name)
-        normalized_category = str(category or "GENERAL").strip().upper()
-        if normalized_category not in SHOPPING_CATEGORIES:
+        requested_category = str(category or "GENERAL").strip().upper()
+        if requested_category not in SHOPPING_CATEGORIES:
             raise ValueError("Categoria de compra no valida.")
+        normalized_category = classify_shopping_category(display_name, requested_category)
 
         def apply(payload: dict[str, Any]) -> dict[str, Any]:
             now = _now_iso()
@@ -280,6 +360,7 @@ class ShoppingListStore:
                     item["quantity"] = round(float(item.get("quantity") or 0) + amount, 4)
                     item["updated_at"] = now
                     item["source"] = str(source or "ui")[:64]
+                    item["category"] = normalized_category
                     if str(notes or "").strip():
                         item["notes"] = str(notes).strip()[:1000]
                     self._bump_revision(payload, user)
@@ -482,12 +563,12 @@ class ShoppingListStore:
                     name = normalize_shopping_name(row.get("name") or identity)
                 except ValueError:
                     continue
-                category = str(row.get("category") or "GENERAL").strip().upper()
+                category = classify_shopping_category(name, row.get("category"))
                 learned[str(identity)] = {
                     "identity": str(identity),
                     "name": name,
                     "unit": " ".join(str(row.get("unit") or "unidad").strip().split())[:32] or "unidad",
-                    "category": category if category in SHOPPING_CATEGORIES else "GENERAL",
+                    "category": category,
                     "times_used": max(0, int(row.get("times_added") or 0)),
                     "purchase_count": 0,
                     "last_used_at": str(row.get("last_added_at") or "")[:64],
@@ -523,8 +604,7 @@ class ShoppingListStore:
             if timestamp >= str(entry.get("last_used_at") or ""):
                 entry["name"] = name
                 entry["unit"] = " ".join(str(row.get("unit") or "unidad").strip().split())[:32] or "unidad"
-                category = str(row.get("category") or "GENERAL").strip().upper()
-                entry["category"] = category if category in SHOPPING_CATEGORIES else "GENERAL"
+                entry["category"] = classify_shopping_category(name, row.get("category"))
                 entry["last_used_at"] = timestamp
 
         for trip in payload.get("trips", []):
@@ -558,7 +638,7 @@ class ShoppingListStore:
         except ValueError:
             return None
         status = str(row.get("status") or "PENDING").upper()
-        category = str(row.get("category") or "GENERAL").upper()
+        category = classify_shopping_category(name, row.get("category"))
         if status not in SHOPPING_STATUSES or category not in SHOPPING_CATEGORIES:
             return None
         item_id = str(row.get("id") or "").lower()

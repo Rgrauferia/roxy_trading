@@ -4,13 +4,14 @@
   const $ = id => document.getElementById(id);
   const APP_VERSION = '72';
   const now = () => new Date().toISOString();
-  const categories = {ALL:'Todo',FOOD:'Alimentos',HOUSEHOLD:'Hogar',PERSONAL:'Aseo',HEALTH:'Salud',OTHER:'Otros',GENERAL:'General'};
+  const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud',HOUSEHOLD:'Hogar',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
+  const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
   const staples = [
     ['Leche','FOOD','litro'],['Huevos','FOOD','docena'],['Queso','FOOD','paquete'],
     ['Pollo','FOOD','paquete'],['Tomate','FOOD','unidad'],['Aguacate','FOOD','unidad'],
     ['Plátanos','FOOD','racimo'],['Pan','FOOD','paquete'],['Arroz','FOOD','bolsa'],
-    ['Café','HOUSEHOLD','bolsa'],['Aceite','HOUSEHOLD','botella'],['Papel higiénico','PERSONAL','paquete'],
-    ['Agua','HOUSEHOLD','paquete'],['Detergente','HOUSEHOLD','botella'],['Jabón','PERSONAL','unidad']
+    ['Café','FOOD','bolsa'],['Aceite','FOOD','botella'],['Papel higiénico','PERSONAL','paquete'],
+    ['Agua','FOOD','paquete'],['Detergente','CLEANING','botella'],['Jabón','PERSONAL','unidad']
   ];
   const productImages = {
     leche:'milk.png', milk:'milk.png', huevos:'eggs.png', huevo:'eggs.png',
@@ -109,6 +110,22 @@
   function clearGreeting(){greetingName='';localStorage.removeItem('roxyHomeGreetingName');renderHomeMoment();$('greetingDialog').close();announce('Saludo sin nombre en este dispositivo')}
 
   const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const categoryIdentity = value => normalize(value).split(' ').map(word=>word.length>4&&word.endsWith('s')?word.slice(0,-1):word).join(' ');
+  const shoppingCategoryTerms = {
+    CLEANING:['detergente','suavizante','lavaplatos','lavavajillas','jabon de platos','jabon para platos','limpiador','desinfectante','cloro','lejia','oxiclean','oxi clean','esponja','estropajo','trapeador','mopa','escoba','recogedor','bolsa de basura','papel toalla','papel de cocina','toalla de papel','ambientador','aromatizante','bolsitas de olor','insecticida','limpiavidrios','dish soap','cleaner','trash bag'],
+    PERSONAL:['papel higienico','jabon','champu','shampoo','acondicionador','desodorante','pasta dental','crema dental','cepillo dental','hilo dental','enjuague bucal','gel de bano','gel de ducha','toalla sanitaria','tampon','panal','afeitadora','rasuradora','crema de afeitar','locion','protector solar','crema corporal','gel de cejas','maquillaje','algodon','hisopo','toallitas humedas','toothpaste','deodorant','toilet paper'],
+    HEALTH:['medicamento','medicina','pastilla','analgesico','ibuprofeno','acetaminofen','paracetamol','aspirina','vitamina','suplemento','jarabe','curita','vendaje','termometro','farmacia','antialergico','antibiotico','medicine','vitamin','supplement','bandage'],
+    PETS:['comida de perro','comida para perro','comida de gato','comida para gato','alimento de perro','alimento para perro','alimento de gato','alimento para gato','arena de gato','arena para gato','premio de perro','premio de gato','croquetas de perro','croquetas de gato','mascota','dog food','cat food','pet food','cat litter'],
+    HOUSEHOLD:['papel aluminio','papel encerado','papel pergamino','film plastico','servilleta','vaso desechable','plato desechable','cubierto desechable','bombillo','bombilla','bateria','pilas','vela','fosforo','encendedor','filtro de cafe','bolsa ziploc','recipiente','percha','gancho de ropa','aluminum foil','light bulb','battery','napkin'],
+    FOOD:['leche','huevo','queso','yogur','yogurt','mantequilla','half and half','pollo','carne','res','cerdo','pescado','salmon','atun','camaron','marisco','pan','arroz','pasta','espagueti','macarron','fideo','harina','avena','cereal','tomate','aguacate','platano','banana','mandarina','naranja','manzana','fruta','vegetal','verdura','cebolla','ajo','papa','patata','zanahoria','lechuga','cafe','matcha','agua','jugo','zumo','refresco','bebida','aceite','sal','azucar','levadura','vainilla','canela','especia','salsa','frijol','garbanzo','lenteja','maiz','maicena','dulce de leche','helado','galleta','chocolate','miel','mermelada','mayonesa','ketchup','mostaza','milk','egg','cheese','chicken','beef','pork','fish','bread','rice','coffee','water','juice','flour','sugar','salt','oil','vegetable','fruit']
+  };
+  const inferShoppingCategory = (name,requested='GENERAL') => {
+    const identity=` ${categoryIdentity(productLabel(name))} `;
+    for(const group of categoryOrder){
+      if((shoppingCategoryTerms[group]||[]).some(term=>identity.includes(` ${categoryIdentity(term)} `)))return group;
+    }
+    return categoryOrder.includes(requested)?requested:'OTHER';
+  };
   const productLabel = value => {
     let label=String(value||'').replace(/\s+/g,' ').trim();
     const wrappers=[
@@ -123,7 +140,7 @@
   };
   const fallbackImage = itemCategory => itemCategory === 'PERSONAL'
     ? '/assets/roxy_home/products/soap.png'
-    : itemCategory === 'HOUSEHOLD'
+    : itemCategory === 'CLEANING'
       ? '/assets/roxy_home/products/detergent.png'
       : itemCategory === 'HEALTH'
         ? '/assets/roxy_home/products/pain-relief.png'
@@ -465,8 +482,12 @@
   function renderFilters() {
     const root = $('categoryFilters');
     root.replaceChildren();
-    ['ALL','FOOD','HOUSEHOLD','PERSONAL','OTHER'].forEach(value => {
-      const button = makeButton(categories[value],'chip',() => { category=value; renderShopping(); });
+    const counts=activeItems().reduce((result,item)=>{const aisle=inferShoppingCategory(item.name,item.category);result[aisle]=(result[aisle]||0)+1;return result;},{});
+    if(category!=='ALL'&&!counts[category])category='ALL';
+    ['ALL',...categoryOrder].forEach(value => {
+      if(value!=='ALL'&&!counts[value])return;
+      const count=value==='ALL'?activeItems().length:counts[value]||0;
+      const button = makeButton(`${categories[value]} ${count}`,'chip',() => { category=value; renderShopping(); });
       button.classList.toggle('active',category===value);
       button.setAttribute('aria-pressed',String(category===value));
       root.append(button);
@@ -515,6 +536,7 @@
     $('toggleStaples').textContent = showAllStaples ? 'Ver menos' : 'Ver todos';
   }
   function addItem(payload) {
+    payload={...payload,category:inferShoppingCategory(payload.name,payload.category)};
     const tempId = `offline-${crypto.randomUUID()}`;
     const item = {id:tempId,status:'PENDING',source:'roxy_home_pwa',created_at:now(),updated_at:now(),...payload};
     mutate({tempId,path:`/v1/shopping/${encodeURIComponent(user)}`,options:{method:'POST',body:JSON.stringify(payload)}},() => {
@@ -537,24 +559,14 @@
       snapshot.items=snapshot.items.filter(row=>row.id!==item.id); announce(`${item.name} eliminado`);
     });
   }
-  function renderList() {
-    const root = $('shoppingList');
-    root.replaceChildren();
-    const rows = activeItems().filter(item => (category==='ALL'||item.category===category) && (!search||normalize(item.name).includes(normalize(search))));
-    $('rowCount').textContent = `${rows.length} ${rows.length===1?'producto':'productos'}`;
-    if (!rows.length) {
-      const empty=document.createElement('div'); empty.className='empty';
-      const strong=document.createElement('strong'); strong.textContent=activeItems().length?'Sin coincidencias':'Tu lista está lista para empezar';
-      empty.append(strong,document.createTextNode(activeItems().length?' Prueba otra búsqueda.':' Agrega un producto o pídeselo a Roxy.'));
-      root.append(empty); return;
-    }
-    rows.forEach(item => {
+  function makeShoppingRow(item) {
       const article=document.createElement('article'); article.className='shopping-item';
       const label=productLabel(item.name);
-      const img=makeImage(label,item.category,''); img.className='product-thumb';
+      const itemCategory=inferShoppingCategory(label,item.category); item.category=itemCategory;
+      const img=makeImage(label,itemCategory,''); img.className='product-thumb';
       const copy=document.createElement('div'); copy.className='shopping-copy';
       const strong=document.createElement('strong'); strong.textContent=label;
-      const small=document.createElement('small'); small.textContent=`${categories[item.category]||'General'} · ${item.unit||'unidad'}`;
+      const small=document.createElement('small'); small.textContent=`${categories[itemCategory]||'Otros'} · ${item.unit||'unidad'}`;
       copy.append(strong,small);
       const stepper=document.createElement('div'); stepper.className='stepper';
       const minus=makeButton('−','',()=>changeQuantity(item,-1),`Disminuir cantidad de ${label}`); minus.disabled=Number(item.quantity)<=1;
@@ -563,7 +575,28 @@
       stepper.append(minus,output,plus);
       const remove=makeButton('Eliminar','delete',()=>removeItem(item),`Eliminar ${label}`);
       const controls=document.createElement('div'); controls.className='item-controls'; controls.append(stepper,remove);
-      article.append(img,copy,controls); root.append(article);
+      article.append(img,copy,controls);
+      return article;
+  }
+  function renderList() {
+    const root = $('shoppingList');
+    root.replaceChildren();
+    const rows = activeItems().map(item=>{item.category=inferShoppingCategory(item.name,item.category);return item;}).filter(item => (category==='ALL'||item.category===category) && (!search||normalize(item.name).includes(normalize(search))));
+    $('rowCount').textContent = `${rows.length} ${rows.length===1?'producto':'productos'}`;
+    if (!rows.length) {
+      const empty=document.createElement('div'); empty.className='empty';
+      const strong=document.createElement('strong'); strong.textContent=activeItems().length?'Sin coincidencias':'Tu lista está lista para empezar';
+      empty.append(strong,document.createTextNode(activeItems().length?' Prueba otra búsqueda.':' Agrega un producto o pídeselo a Roxy.'));
+      root.append(empty); return;
+    }
+    categoryOrder.forEach(group=>{
+      const grouped=rows.filter(item=>item.category===group);
+      if(!grouped.length)return;
+      const section=document.createElement('section'); section.className='shopping-category-group';
+      const heading=document.createElement('header');
+      const title=document.createElement('strong'); title.textContent=categories[group];
+      const count=document.createElement('span'); count.textContent=String(grouped.length); count.setAttribute('aria-label',`${grouped.length} productos`);
+      heading.append(title,count); section.append(heading,...grouped.map(makeShoppingRow)); root.append(section);
     });
   }
   function renderHistory() {

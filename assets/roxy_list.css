@@ -108,7 +108,11 @@ h3 { margin: 0 0 12px; color: var(--forest); font: 600 22px/1.1 Georgia, serif; 
 .chip { flex: 0 0 auto; min-height: 40px; padding: 0 15px; border: 1px solid #cdd3cc; border-radius: 999px; color: var(--forest); background: transparent; font-size: 13px; font-weight: 750; }
 .chip.active { border-color: var(--forest); color: white; background: var(--forest); }
 
-.shopping-list { display: grid; gap: 8px; }
+.shopping-list { display: grid; gap: 14px; }
+.shopping-category-group { display: grid; gap: 8px; }
+.shopping-category-group > header { display: flex; align-items: center; justify-content: space-between; min-height: 34px; padding: 0 4px; color: var(--forest); }
+.shopping-category-group > header strong { font: 600 18px/1.1 Georgia, serif; }
+.shopping-category-group > header span { display: grid; place-items: center; min-width: 28px; height: 28px; padding: 0 8px; border-radius: 999px; background: var(--sage-soft); font-size: 11px; font-weight: 850; }
 .shopping-item { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 70px; padding: 8px; border: 1px solid #e4e5df; border-radius: 17px; background: #fff; }
 .product-thumb { width: 52px; height: 52px; border-radius: 13px; object-fit: cover; background: var(--cream); }
 .shopping-copy { min-width: 0; }

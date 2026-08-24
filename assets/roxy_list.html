@@ -8,14 +8,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="72" />
+  <meta name="roxy-home-version" content="73" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=61" />
-  <script src="/assets/roxy_list.js?v=72" defer></script>
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=62" />
+  <script src="/assets/roxy_list.js?v=73" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -280,7 +280,7 @@
         <label><span>Cantidad</span><input id="customQuantity" type="number" min="0.01" max="100000" step="1" value="1" required /></label>
         <label><span>Unidad</span><input id="customUnit" maxlength="32" value="unidad" required /></label>
       </div>
-      <label><span>Categoría</span><select id="customCategory"><option value="FOOD">Alimentos</option><option value="HOUSEHOLD">Despensa y hogar</option><option value="PERSONAL">Aseo personal</option><option value="HEALTH">Salud</option><option value="OTHER">Otros</option><option value="GENERAL">General</option></select></label>
+      <label><span>Categoría</span><select id="customCategory"><option value="GENERAL">Automática (recomendada)</option><option value="FOOD">Alimentos</option><option value="CLEANING">Limpieza</option><option value="PERSONAL">Aseo personal</option><option value="HEALTH">Salud</option><option value="HOUSEHOLD">Hogar</option><option value="PETS">Mascotas</option><option value="OTHER">Otros</option></select></label>
       <button id="customSubmit" class="primary full" type="submit">Agregar a la lista</button>
     </form>
   </dialog>
