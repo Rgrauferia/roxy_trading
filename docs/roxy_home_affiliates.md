@@ -82,8 +82,14 @@ https://enlace-aprobado-del-proveedor.example/click?dest={destination}
   codifica manualmente porque duplicarlos puede romper la atribución.
 - **Amazon:** registra Roxy Home como propiedad aprobada en Associates y coloca
   el tracking ID en `ROXY_HOME_AMAZON_ASSOCIATE_TAG`. Esta fase abre una búsqueda
-  afiliada por artículo; no muestra precios sin Product Advertising API. Roxy
-  muestra junto a esos enlaces la divulgación exigida por Amazon Associates.
+  afiliada por artículo. Roxy traduce productos cotidianos escritos en español
+  a términos de catálogo útiles para Amazon.com, conserva cantidad y formato,
+  y aplica la preferencia orgánica, etiquetas alimentarias y marca favorita del
+  miembro. Cada resultado se muestra como una tarjeta individual antes de salir
+  de Roxy. Las marcas evitadas y las alergias aparecen como advertencias para
+  que la persona revise la ficha y la etiqueta. No muestra precios sin Creators
+  API/Product Advertising API y siempre incluye la divulgación exigida por
+  Amazon Associates.
 - **Walmart:** solicita Affiliate/Impact y pega la plantilla oficial en
   `ROXY_HOME_WALMART_AFFILIATE_LINK_TEMPLATE`.
 - **Target:** solicita Target Partners/Impact y usa su plantilla oficial.

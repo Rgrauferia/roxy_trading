@@ -7,6 +7,7 @@ import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
+import unicodedata
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -35,6 +36,60 @@ AFFILIATE_CONNECTION_STATES = {
     ),
     "unavailable": ("Sin acceso disponible", "El proveedor no está aceptando esta integración actualmente."),
     "needs_setup": ("Falta solicitar", "Todavía falta solicitar o conectar este programa."),
+}
+
+AMAZON_PRODUCT_TERMS = {
+    "aceite": "cooking oil",
+    "aceite de oliva": "olive oil",
+    "agua": "bottled water",
+    "aguacate": "avocado",
+    "arroz": "rice",
+    "azucar": "sugar",
+    "cafe": "ground coffee",
+    "cereal": "breakfast cereal",
+    "detergente": "laundry detergent",
+    "dulce de leche": "dulce de leche",
+    "galletas": "cookies",
+    "harina": "all purpose flour",
+    "harina de trigo": "all purpose flour",
+    "huevos": "eggs",
+    "jabon": "soap",
+    "leche": "milk",
+    "levadura": "active dry yeast",
+    "mantequilla": "butter",
+    "papel higienico": "toilet paper",
+    "papel toalla": "paper towels",
+    "pan": "bread",
+    "pasta": "pasta",
+    "platano": "banana",
+    "pollo": "chicken",
+    "queso": "cheese",
+    "sal": "salt",
+    "suavizante": "fabric softener",
+    "tomate": "tomato",
+    "vainilla": "vanilla extract",
+    "yogur": "yogurt",
+}
+
+AMAZON_DIETARY_TERMS = {
+    "bajo sodio": "low sodium",
+    "keto": "keto",
+    "organico": "organic",
+    "sin azucar": "sugar free",
+    "sin gluten": "gluten free",
+    "sin lactosa": "lactose free",
+    "vegano": "vegan",
+    "vegetariano": "vegetarian",
+}
+
+AMAZON_UNIT_TERMS = {
+    "bolsa": "bag",
+    "botella": "bottle",
+    "caja": "box",
+    "galon": "gallon",
+    "litro": "liter",
+    "paquete": "pack",
+    "rollo": "roll",
 }
 
 
@@ -66,6 +121,43 @@ def _safe_https(value: Any) -> str:
     if parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password:
         raise ValueError("El proveedor devolvió un enlace de compra no seguro.")
     return url
+
+
+def _fold(value: Any) -> str:
+    normalized = unicodedata.normalize("NFKD", _text(value, 160))
+    return normalized.encode("ascii", "ignore").decode("ascii").casefold()
+
+
+def _amazon_catalog_term(name: Any) -> str:
+    folded = _fold(name)
+    if folded in AMAZON_PRODUCT_TERMS:
+        return AMAZON_PRODUCT_TERMS[folded]
+    for source, target in sorted(AMAZON_PRODUCT_TERMS.items(), key=lambda row: len(row[0]), reverse=True):
+        if re.search(rf"\b{re.escape(source)}\b", folded):
+            remainder = re.sub(rf"\b{re.escape(source)}\b", "", folded).strip()
+            return " ".join(part for part in (remainder, target) if part)
+    return _text(name, 120)
+
+
+def _amazon_search_query(row: dict[str, Any]) -> str:
+    preferences = row.get("shopping_preferences") or {}
+    parts: list[str] = []
+    organic = str(preferences.get("organic_preference") or "")
+    if organic in {"required", "preferred"}:
+        parts.append("organic")
+    for label in preferences.get("dietary_labels") or []:
+        translated = AMAZON_DIETARY_TERMS.get(_fold(label), _text(label, 50))
+        if translated and translated.casefold() not in {part.casefold() for part in parts}:
+            parts.append(translated)
+    brand = _text(preferences.get("favorite_brand"), 80)
+    if brand:
+        parts.append(brand)
+    parts.append(_amazon_catalog_term(row.get("name")))
+    unit_term = AMAZON_UNIT_TERMS.get(_fold(row.get("unit")))
+    quantity = float(row.get("quantity") or 1)
+    if unit_term:
+        parts.append(f"{int(quantity) if quantity.is_integer() else quantity:g} {unit_term}")
+    return " ".join(part for part in parts if part)
 
 
 class HomeCommerceStore:
@@ -401,10 +493,16 @@ def personalize_items(raw_items: list[dict[str, Any]], profile: dict[str, Any], 
                 "name": name,
                 "quantity": float(raw.get("quantity") or 1),
                 "unit": _text(raw.get("unit") or "unidad", 32) or "unidad",
+                "category": _text(raw.get("category") or "GENERAL", 32) or "GENERAL",
                 "query": " ".join(query_parts),
                 "reason": reasons.get(str(objective), reasons["balanced"]),
                 "allergen_review_required": bool(allergies),
                 "avoided_brands": list(profile.get("avoided_brands") or []),
+                "shopping_preferences": {
+                    "organic_preference": organic,
+                    "dietary_labels": list(profile.get("dietary_labels") or [])[:3],
+                    "favorite_brand": brand if objective == "favorites" else "",
+                },
             }
         )
     return rows
@@ -473,16 +571,34 @@ def create_purchase_links(provider_id: str, preparation: dict[str, Any]) -> dict
         tag = _text(os.getenv("ROXY_HOME_AMAZON_ASSOCIATE_TAG"), 80)
         if not re.fullmatch(r"[A-Za-z0-9_-]{2,80}", tag):
             raise RuntimeError("El identificador de Amazon Associates no es válido.")
-        links = [
-            {
-                "label": row["name"],
-                "url": _safe_https(
-                    "https://www.amazon.com/s?" + urllib.parse.urlencode({"k": row["query"], "tag": tag})
-                ),
-            }
-            for row in items
-        ]
-        return {"provider": provider, "mode": "product_links", "links": links, "provider_disclosure": provider.get("disclosure", "")}
+        links = []
+        for row in items:
+            query = _amazon_search_query(row)
+            links.append(
+                {
+                    "label": row["name"],
+                    "quantity": row.get("quantity") or 1,
+                    "unit": row.get("unit") or "unidad",
+                    "category": row.get("category") or "GENERAL",
+                    "query": query,
+                    "reason": row.get("reason") or "Búsqueda adaptada a tu perfil de compra.",
+                    "allergen_review_required": bool(row.get("allergen_review_required")),
+                    "avoided_brands": list(row.get("avoided_brands") or []),
+                    "url": _safe_https(
+                        "https://www.amazon.com/s?" + urllib.parse.urlencode({"k": query, "tag": tag})
+                    ),
+                }
+            )
+        return {
+            "provider": provider,
+            "mode": "product_links",
+            "links": links,
+            "provider_disclosure": provider.get("disclosure", ""),
+            "guidance": (
+                "Roxy convirtió cada artículo en una búsqueda específica para Amazon.com. "
+                "Amazon confirmará marca, tamaño, disponibilidad y precio final."
+            ),
+        }
 
     if provider_id == "kroger":
         links = [

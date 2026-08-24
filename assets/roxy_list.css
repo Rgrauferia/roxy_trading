@@ -445,6 +445,16 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
 .commerce-items em { color: #8c4c30; font-size: .76rem; font-style: normal; font-weight: 700; }
 .commerce-actions { display: grid; gap: .65rem; margin-top: 1rem; }
 .commerce-actions > strong { color: var(--forest); }
+.commerce-guidance { margin: 0; color: var(--muted); line-height: 1.5; }
+.commerce-product-link { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: .75rem; align-items: center; padding: .75rem; border: 1px solid rgba(23, 63, 43, .14); border-radius: 18px; background: #fff; }
+.commerce-product-link > img { width: 64px; height: 64px; border-radius: 14px; object-fit: cover; background: #f5efe4; }
+.commerce-product-link > div { display: grid; gap: .16rem; min-width: 0; }
+.commerce-product-link > div > strong { color: var(--forest); }
+.commerce-product-link > div > span { color: #4f5d54; font-size: .82rem; font-weight: 750; }
+.commerce-product-link small { color: var(--muted); line-height: 1.35; }
+.commerce-product-link em { color: #8c4c30; font-size: .76rem; font-style: normal; font-weight: 750; }
+.commerce-product-link .commerce-avoid { color: #7f6523; }
+.commerce-product-link .commerce-link { min-height: 44px; padding: .55rem .75rem; border-radius: 13px; white-space: nowrap; }
 .commerce-link { display: flex; min-height: 48px; align-items: center; justify-content: center; text-align: center; text-decoration: none; }
 .commerce-safety { margin-top: 1rem; color: var(--muted); font-size: .82rem; line-height: 1.45; }
 .commerce-recent { display: grid; gap: .15rem; margin-top: .8rem; color: var(--forest); }
@@ -466,6 +476,9 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
 .commerce-confirmation > p { margin: 0; color: var(--muted); line-height: 1.45; }
 
 @media (max-width: 580px) {
+  .commerce-product-link { grid-template-columns: 56px minmax(0,1fr); }
+  .commerce-product-link > img { width: 56px; height: 56px; }
+  .commerce-product-link .commerce-link { grid-column: 1 / -1; width: 100%; }
   main { padding-right: 14px; padding-left: 14px; }
   .topbar { min-height: 62px; padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: 8px; }
   .brand-mark { width: 34px; height: 34px; font-size: 24px; }

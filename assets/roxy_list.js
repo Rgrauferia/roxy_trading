@@ -840,9 +840,23 @@
       const result=await api(`/v1/home-commerce/${encodeURIComponent(user)}/preparations/${encodeURIComponent(currentPreparation.id)}/checkout`,{method:'POST',body:JSON.stringify({provider_id:provider.id,confirmed:true})});
       $('commerceConfirmation').hidden=true;
       const actions=$('commerceActions');actions.replaceChildren();
-      const heading=document.createElement('strong');heading.textContent=`Pago protegido por ${provider.name}`;actions.append(heading);
+      const heading=document.createElement('strong');heading.textContent=`Productos preparados para ${provider.name}`;actions.append(heading);
+      if(result.guidance){const guidance=document.createElement('p');guidance.className='commerce-guidance';guidance.textContent=result.guidance;actions.append(guidance)}
       const providerDisclosure=$('commerceProviderDisclosure');providerDisclosure.textContent=result.provider_disclosure||'';providerDisclosure.hidden=!result.provider_disclosure;
-      (result.links||[]).slice(0,100).forEach(row=>{const link=document.createElement('a');link.className='primary commerce-link';link.href=row.url;link.target='_blank';link.rel='noopener sponsored';link.dataset.externalCheckout=provider.id;link.textContent=result.mode==='full_list'?`Revisar productos y pagar en ${provider.name}`:result.mode==='affiliate_link'?`Abrir ${provider.name} para seleccionar y pagar`:`Revisar ${row.label} en ${provider.name}`;actions.append(link)});
+      (result.links||[]).slice(0,100).forEach(row=>{
+        if(result.mode!=='product_links'){
+          const link=document.createElement('a');link.className='primary commerce-link';link.href=row.url;link.target='_blank';link.rel='noopener sponsored';link.dataset.externalCheckout=provider.id;link.textContent=result.mode==='full_list'?`Revisar productos y pagar en ${provider.name}`:`Abrir ${provider.name} para seleccionar y pagar`;actions.append(link);return;
+        }
+        const article=document.createElement('article');article.className='commerce-product-link';
+        const img=makeImage(row.label,row.category||'GENERAL','');
+        const copy=document.createElement('div');const title=document.createElement('strong');title.textContent=row.label;
+        const amount=document.createElement('span');amount.textContent=`${row.quantity||1} ${row.unit||'unidad'}`;
+        const reason=document.createElement('small');reason.textContent=row.reason||'Búsqueda adaptada a tu lista.';copy.append(title,amount,reason);
+        if((row.avoided_brands||[]).length){const avoided=document.createElement('small');avoided.className='commerce-avoid';avoided.textContent=`Evita: ${row.avoided_brands.join(', ')}`;copy.append(avoided)}
+        if(row.allergen_review_required){const warning=document.createElement('em');warning.textContent='Comprueba ingredientes y alérgenos en la etiqueta';copy.append(warning)}
+        const link=document.createElement('a');link.className='primary commerce-link';link.href=row.url;link.target='_blank';link.rel='noopener sponsored';link.dataset.externalCheckout=provider.id;link.setAttribute('aria-label',`Buscar ${row.label} en ${provider.name}`);link.textContent=`Buscar en ${provider.name}`;
+        article.append(img,copy,link);actions.append(article);
+      });
       $('commerceHandoffNote').textContent=`La cuenta, dirección y método de pago permanecen protegidos por ${provider.name}. Puedes regresar a Roxy al terminar.`;
       commerce.activity=commerce.activity||{handoff_count:0,provider_counts:{},recent:[]};if(result.handoff&&!commerce.activity.recent.some(row=>row.id===result.handoff.id)){commerce.activity.handoff_count=Number(commerce.activity.handoff_count||0)+1;commerce.activity.recent=[result.handoff,...(commerce.activity.recent||[])].slice(0,10);commerce.activity.provider_counts[result.handoff.provider_id]=Number(commerce.activity.provider_counts[result.handoff.provider_id]||0)+1;const providerRow=(commerce.providers||[]).find(row=>row.id===result.handoff.provider_id);if(providerRow)providerRow.handoff_count=Number(providerRow.handoff_count||0)+1;renderCommerceSummary()}
       announce('Enlaces preparados. Tú confirmas la compra en el comercio.');

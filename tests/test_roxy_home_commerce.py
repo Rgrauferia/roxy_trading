@@ -64,13 +64,18 @@ def test_affiliate_purchase_requires_confirmation_and_uses_personal_profile(tmp_
     assert profile.status_code == 200
     assert prepared.status_code == 201
     assert preparation["items"][0]["query"] == "orgánico Pan sin gluten"
+    assert preparation["items"][0]["category"] == "FOOD"
     assert blocked.status_code == 409
     assert blocked.json()["detail"] == "CONFIRMATION_REQUIRED"
     assert checkout.status_code == 200
     link = checkout.json()["links"][0]["url"]
     query = parse_qs(urlparse(link).query)
     assert query["tag"] == ["roxyhome-20"]
-    assert query["k"] == ["orgánico Pan sin gluten"]
+    assert query["k"] == ["organic gluten free bread 2 pack"]
+    assert checkout.json()["links"][0]["quantity"] == 2
+    assert checkout.json()["links"][0]["unit"] == "paquete"
+    assert checkout.json()["links"][0]["category"] == "FOOD"
+    assert "Amazon.com" in checkout.json()["guidance"]
     assert checkout.json()["status"] == "READY_FOR_REVIEW"
     assert checkout.json()["handoff"]["status"] == "READY_FOR_REVIEW"
 
@@ -261,7 +266,77 @@ def test_home_commerce_controls_are_connected_to_real_endpoints():
     assert "confirmProviderHandoff" in script
     assert "dataset.externalCheckout" in script
     assert "Revisar productos y pagar en" in script
+    assert "commerce-product-link" in script
+    assert "Buscar en ${provider.name}" in script
+    assert "result.guidance" in script
     assert "Última compra preparada" in script
+
+
+def test_amazon_searches_translate_common_spanish_products_and_keep_tag(tmp_path, monkeypatch):
+    client, headers = _client(tmp_path, monkeypatch)
+    monkeypatch.setenv("ROXY_HOME_AMAZON_ASSOCIATE_TAG", "roxyhomeapp-20")
+    client.post(
+        "/v1/shopping/robert",
+        headers=headers,
+        json={"name": "Harina de trigo", "quantity": 1, "unit": "bolsa", "category": "FOOD"},
+    )
+    preparation = client.post(
+        "/v1/home-commerce/robert/preparations",
+        headers=headers,
+        json={"source": "shopping", "provider_ids": ["amazon"]},
+    ).json()["preparation"]
+    checkout = client.post(
+        f"/v1/home-commerce/robert/preparations/{preparation['id']}/checkout",
+        headers=headers,
+        json={"provider_id": "amazon", "confirmed": True},
+    )
+
+    assert checkout.status_code == 200
+    link = checkout.json()["links"][0]
+    query = parse_qs(urlparse(link["url"]).query)
+    assert query["tag"] == ["roxyhomeapp-20"]
+    assert query["k"] == ["all purpose flour 1 bag"]
+    assert link["label"] == "Harina de trigo"
+
+
+def test_amazon_favorite_brand_and_dietary_preferences_shape_search(tmp_path, monkeypatch):
+    client, headers = _client(tmp_path, monkeypatch)
+    monkeypatch.setenv("ROXY_HOME_AMAZON_ASSOCIATE_TAG", "roxyhomeapp-20")
+    client.put(
+        "/v1/home-commerce/robert/profile",
+        headers=headers,
+        json={
+            "objective": "favorites",
+            "organic_preference": "preferred",
+            "favorite_retailers": ["Amazon"],
+            "favorite_brands": ["365 Everyday Value"],
+            "avoided_brands": ["Marca X"],
+            "dietary_labels": ["sin lactosa"],
+            "allow_substitutions": True,
+            "postal_code": "33101",
+        },
+    )
+    client.post(
+        "/v1/shopping/robert",
+        headers=headers,
+        json={"name": "Leche", "quantity": 1, "unit": "galón", "category": "FOOD"},
+    )
+    preparation = client.post(
+        "/v1/home-commerce/robert/preparations",
+        headers=headers,
+        json={"source": "shopping", "provider_ids": ["amazon"]},
+    ).json()["preparation"]
+    checkout = client.post(
+        f"/v1/home-commerce/robert/preparations/{preparation['id']}/checkout",
+        headers=headers,
+        json={"provider_id": "amazon", "confirmed": True},
+    ).json()
+
+    link = checkout["links"][0]
+    assert parse_qs(urlparse(link["url"]).query)["k"] == [
+        "organic lactose free 365 Everyday Value milk 1 gallon"
+    ]
+    assert link["avoided_brands"] == ["Marca X"]
 
 
 def test_affiliate_application_status_is_visible_but_does_not_enable_provider(monkeypatch):
