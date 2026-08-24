@@ -555,6 +555,7 @@
     const recent=$('commerceRecent');recent.replaceChildren();const activity=commerce.activity||{};const latest=(activity.recent||[])[0];
     if(latest){const strong=document.createElement('strong');strong.textContent='Última compra preparada';const small=document.createElement('small');small.textContent=`${latest.provider_name} · ${latest.item_count} ${latest.item_count===1?'artículo':'artículos'} · falta confirmar en la tienda`;recent.append(strong,small)}
     $('prepareShoppingButton').disabled=!activeItems().length;
+    $('prepareAmazonButton').disabled=!activeItems().length||!(commerce.providers||[]).some(provider=>provider.id==='amazon'&&provider.configured);
     renderPriceRecommendations();
   }
 
@@ -802,8 +803,9 @@
       announce('Ingredientes agregados a la lista');await load({quiet:true});
     }catch(error){announce(error.message);}
   }
-  async function preparePurchase(source='shopping',recipeId=null){
-    const button=source==='shopping'?$('prepareShoppingButton'):null;
+  async function preparePurchase(source='shopping',recipeId=null,preferredProviderId=null){
+    const button=source==='shopping'?(preferredProviderId==='amazon'?$('prepareAmazonButton'):$('prepareShoppingButton')):null;
+    const originalLabel=button&&button.textContent;
     if(button){button.disabled=true;button.textContent='Roxy está preparando…'}
     try{
       const data=await api(`/v1/home-commerce/${encodeURIComponent(user)}/preparations`,{method:'POST',body:JSON.stringify({source,recipe_id:recipeId,provider_ids:[]})});
@@ -811,7 +813,8 @@
       renderCommercePreparation(data.preparation,data.providers||commerce.providers||[]);
       if($('recipeDialog').open)$('recipeDialog').close();
       if(!$('commerceDialog').open)$('commerceDialog').showModal();
-    }catch(error){announce(error.message)}finally{if(button){button.disabled=false;button.textContent='Buscar productos de mi lista'}}
+      if(preferredProviderId){requestProviderLinks(preferredProviderId);setTimeout(()=>$('commerceConfirmation').scrollIntoView({behavior:'smooth',block:'center'}),50)}
+    }catch(error){announce(error.message)}finally{if(button){button.disabled=false;button.textContent=originalLabel}}
   }
   function renderCommercePreparation(preparation,providers){
     $('commerceDialogTitle').textContent=preparation.source_title||'Tu compra personalizada';
@@ -1115,6 +1118,7 @@
     $('homeProfileForm').addEventListener('submit',saveHomeProfile);
     $('commerceProfileForm').addEventListener('submit',saveCommerceProfile);
     $('refreshPricesButton').addEventListener('click',()=>loadPriceRecommendations());
+    $('prepareAmazonButton').addEventListener('click',()=>preparePurchase('shopping',null,'amazon'));
     $('prepareShoppingButton').addEventListener('click',()=>preparePurchase('shopping'));
     $('commerceConfirmCheck').addEventListener('change',()=>{$('commerceConfirmButton').disabled=!$('commerceConfirmCheck').checked});
     $('commerceConfirmCancel').addEventListener('click',()=>{pendingCommerceProvider=null;$('commerceConfirmation').hidden=true});

@@ -249,6 +249,7 @@ def test_home_commerce_controls_are_connected_to_real_endpoints():
     script = open("assets/roxy_list.js", encoding="utf-8").read()
 
     assert 'id="prepareShoppingButton"' in page
+    assert 'id="prepareAmazonButton"' in page
     assert 'id="commerceProfileForm"' in page
     assert 'id="commerceDialog"' in page
     assert 'id="commerceConfirmCheck"' in page
@@ -264,6 +265,7 @@ def test_home_commerce_controls_are_connected_to_real_endpoints():
     assert "preparePurchase('recipe'" in script
     assert "confirmed:true" in script
     assert "confirmProviderHandoff" in script
+    assert "preparePurchase('shopping',null,'amazon')" in script
     assert "dataset.externalCheckout" in script
     assert "Revisar productos y pagar en" in script
     assert "commerce-product-link" in script
