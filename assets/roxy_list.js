@@ -399,7 +399,16 @@
     document.querySelectorAll('[data-calendar-view]').forEach(button=>button.classList.toggle('active',button.dataset.calendarView===calendarView));
     const agendaVisible=calendarView==='today'||calendarView==='week';$('calendarWeekStrip').hidden=!agendaVisible;$('calendarAgenda').hidden=!agendaVisible;$('calendarMonth').hidden=calendarView!=='month';$('calendarYear').hidden=calendarView!=='year';
     if(agendaVisible){renderCalendarWeekStrip();renderCalendarAgenda()}else if(calendarView==='month')renderCalendarMonth();else renderCalendarYear();
-    const sync=homeCalendar.sync||{};$('calendarSyncStatus').lastChild.textContent=sync.google_calendar&&sync.google_calendar.connected?' Google Calendar conectado':' Listo para agregar eventos al teléfono';renderUpcomingEvent();scheduleCalendarReminders();
+    const sync=homeCalendar.sync||{};const google=sync.google_calendar||{};$('calendarSyncStatus').lastChild.textContent=google.connected?' Google Calendar conectado':' Recordatorios del teléfono pendientes de conectar';$('calendarGoogleMessage').textContent=google.message||'Conecta Google Calendar una sola vez.';$('calendarGoogleConnect').hidden=google.connected||!google.configured;$('calendarGoogleConnect').href=`/v1/home-calendar/${encodeURIComponent(user)}/google/connect`;$('calendarGoogleSync').hidden=!google.connected;$('calendarGoogleDisconnect').hidden=!google.connected;if(!google.configured)$('calendarGoogleMessage').textContent='La conexión segura todavía necesita las credenciales de Google en el servidor.';renderUpcomingEvent();scheduleCalendarReminders();
+  }
+
+  async function syncGoogleCalendar(){
+    const button=$('calendarGoogleSync');button.disabled=true;try{const result=await api(`/v1/home-calendar/${encodeURIComponent(user)}/google/sync`,{method:'POST'});announce(`${result.synced||0} eventos sincronizados con tu teléfono`);await load({quiet:true})}catch(error){announce(error.message)}finally{button.disabled=false}
+  }
+
+  async function disconnectGoogleCalendar(){
+    if(!confirm('¿Desconectar Google Calendar de esta cuenta de Roxy?'))return;
+    try{await api(`/v1/home-calendar/${encodeURIComponent(user)}/google/connection`,{method:'DELETE'});announce('Google Calendar desconectado');await load({quiet:true})}catch(error){announce(error.message)}
   }
 
   function calendarFormPayload(){
@@ -1145,6 +1154,8 @@
     $('roxyVoiceEnd').addEventListener('click',endRoxyVoice);
     $('calendarAddButton').addEventListener('click',()=>openCalendarEvent());
     $('calendarVoiceButton').addEventListener('click',openRoxyVoice);
+    $('calendarGoogleSync').addEventListener('click',syncGoogleCalendar);
+    $('calendarGoogleDisconnect').addEventListener('click',disconnectGoogleCalendar);
     $('calendarEventForm').addEventListener('submit',submitCalendarEvent);
     $('calendarEventRecurrence').addEventListener('change',event=>{$('calendarRecurrenceUntilLabel').hidden=event.target.value==='NONE'});
     $('calendarConfirmSave').addEventListener('click',confirmCalendarEvent);
@@ -1168,7 +1179,7 @@
   window.addEventListener('pageshow',event=>{if(event.persisted)location.reload()});
   if('scrollRestoration'in history)history.scrollRestoration='manual';
   const initialPanels={hoy:'today',compra:'shopping',recetas:'recipes',despensa:'pantry',calendario:'calendar',mas:'more'};
-  selectPanel(initialPanels[location.hash.slice(1)]||'today',{smooth:false});load();
+  selectPanel(initialPanels[location.hash.slice(1)]||'today',{smooth:false});const calendarSyncResult=new URLSearchParams(location.search).get('calendar_sync');if(calendarSyncResult){sessionStorage.setItem('roxyCalendarSyncNotice',calendarSyncResult);history.replaceState(null,'',`${location.pathname}${location.hash||'#calendario'}`)}load().then(()=>{const notice=sessionStorage.getItem('roxyCalendarSyncNotice');if(notice){sessionStorage.removeItem('roxyCalendarSyncNotice');announce(notice==='connected'?'Google Calendar quedó conectado. Tus próximos eventos ya se están sincronizando.':notice==='denied'?'No se autorizó Google Calendar. No hice cambios.':'No pude terminar la conexión con Google Calendar. Inténtalo de nuevo.')}});
   if('serviceWorker'in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){
     const homeRoute=location.pathname.startsWith('/home');
     navigator.serviceWorker.register(homeRoute?'/home-sw.js':'/lista-sw.js',{scope:homeRoute?'/home':'/lista',updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});

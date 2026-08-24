@@ -8,14 +8,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="69" />
+  <meta name="roxy-home-version" content="70" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_avatar_icon.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=59" />
-  <script src="/assets/roxy_list.js?v=68" defer></script>
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=60" />
+  <script src="/assets/roxy_list.js?v=69" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -94,6 +94,13 @@
         <button type="button" data-calendar-view="month">Mes</button>
         <button type="button" data-calendar-view="year">Año</button>
       </nav>
+      <section id="calendarGoogleCard" class="calendar-google-card" aria-labelledby="calendarGoogleTitle">
+        <span class="material-symbols-rounded" aria-hidden="true">event_available</span>
+        <div><strong id="calendarGoogleTitle">Recordatorios en tu teléfono</strong><small id="calendarGoogleMessage">Conecta tu calendario una sola vez.</small></div>
+        <a id="calendarGoogleConnect" class="primary" href="#">Conectar</a>
+        <button id="calendarGoogleSync" type="button" hidden>Sincronizar</button>
+        <button id="calendarGoogleDisconnect" type="button" aria-label="Desconectar Google Calendar" hidden><span class="material-symbols-rounded" aria-hidden="true">link_off</span></button>
+      </section>
       <section class="calendar-hero">
         <div><h3>Tu semana,<br />organizada</h3><span aria-hidden="true"></span><p>Cuéntale a Roxy qué tienes planificado y ella lo organiza por ti.</p></div>
         <div class="calendar-roxy-action"><img src="/assets/roxy_avatar_icon.jpg" alt="Roxy" /><button id="calendarVoiceButton" class="primary" type="button"><span class="material-symbols-rounded" aria-hidden="true">mic</span> Agregar hablando</button></div>

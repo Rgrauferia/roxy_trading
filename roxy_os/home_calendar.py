@@ -226,6 +226,12 @@ class HomeCalendarStore:
             raise KeyError(event_id)
         return deepcopy(row)
 
+    def owned_events(self, owner_id: str) -> list[dict[str, Any]]:
+        """Return the owner's base events without expanding recurrence."""
+        owner = str(owner_id)
+        rows = [row for row in self._read_unlocked()["events"] if row.get("owner_id") == owner]
+        return deepcopy(sorted(rows, key=lambda row: str(row.get("starts_at") or "")))
+
     def update(self, owner_id: str, event_id: str, raw: dict[str, Any]) -> dict[str, Any]:
         owner = str(owner_id)
 

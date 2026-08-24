@@ -47,6 +47,7 @@ from roxy_os.home_recipe_photos import (
 )
 from roxy_os.home_accounts import HomeAccountStore
 from roxy_os.home_calendar import HomeCalendarStore, parse_calendar_command
+from roxy_os.home_calendar_google import GoogleCalendarConfig, GoogleCalendarSync
 from roxy_os.home_commerce import (
     AFFILIATE_DISCLOSURE,
     HomeCommerceStore,
@@ -414,6 +415,19 @@ def _commerce_store() -> HomeCommerceStore:
 
 def _calendar_store() -> HomeCalendarStore:
     return HomeCalendarStore(os.getenv("ROXY_HOME_CALENDAR_PATH", "data/roxy_home_calendar.json"))
+
+
+def _calendar_google() -> GoogleCalendarSync:
+    return GoogleCalendarSync(GoogleCalendarConfig.from_env())
+
+
+def _sync_calendar_event(owner: str, event: dict[str, Any]) -> dict[str, Any]:
+    try:
+        if event.get("deleted"):
+            return _calendar_google().delete_event(owner, str(event.get("id") or ""))
+        return _calendar_google().upsert_event(owner, event)
+    except Exception as exc:
+        return {"synced": False, "reason": "provider_error", "message": str(exc)[:240]}
 
 
 def _commerce_providers(profile: dict[str, Any], activity: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -1325,7 +1339,11 @@ def assistant_command(
                 message = f"Cancelé {event.get('title')} en tu calendario."
             else:
                 message = f"Listo. Guardé {_calendar_spoken_event(event)}."
+            sync_result = _sync_calendar_event(owner_key, event)
+            if sync_result.get("synced"):
+                message += " También quedó sincronizado con Google Calendar."
             extra["calendar_event"] = event
+            extra["calendar_sync"] = sync_result
         elif intent == "calendar_discard":
             if calendar_store.pending_draft(owner_key) is None:
                 raise HTTPException(status_code=409, detail="No hay ningún cambio de calendario pendiente.")
@@ -1665,7 +1683,7 @@ def read_home_calendar(
         events = _calendar_store().list_events(owner, start=start, end=end)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    google_client_id = str(os.getenv("ROXY_HOME_GOOGLE_CALENDAR_CLIENT_ID") or "").strip()
+    google_status = _calendar_google().status(owner)
     return {
         "status": "READY",
         "events": events,
@@ -1673,8 +1691,8 @@ def read_home_calendar(
         "sync": {
             "native_export": True,
             "provider": "ICS",
-            "google_calendar": {"configured": bool(google_client_id), "connected": False},
-            "message": "Los archivos .ics se abren en Apple Calendar. Google Calendar estará disponible al conectar OAuth.",
+            "google_calendar": google_status,
+            "message": google_status["message"],
         },
     }
 
@@ -1713,7 +1731,8 @@ def confirm_calendar_draft(
         event = _calendar_store().confirm_draft(_calendar_owner_key(auth, user), payload.draft_id, source="ui")
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="La propuesta de calendario ya no está disponible.") from exc
-    return {"status": "CREATED", "event": event}
+    sync_result = _sync_calendar_event(_calendar_owner_key(auth, user), event)
+    return {"status": "CREATED", "event": event, "sync": sync_result}
 
 
 @app.delete("/v1/home-calendar/{user_id}/drafts", status_code=204)
@@ -1746,7 +1765,8 @@ def update_calendar_event(
         raise HTTPException(status_code=404, detail="Evento no encontrado.") from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return {"status": "UPDATED", "event": event, "conflicts": conflicts}
+    sync_result = _sync_calendar_event(owner, event)
+    return {"status": "UPDATED", "event": event, "conflicts": conflicts, "sync": sync_result}
 
 
 @app.delete("/v1/home-calendar/{user_id}/events/{event_id}", status_code=204)
@@ -1759,9 +1779,67 @@ def delete_calendar_event(
     _rate_limit(request)
     user = _authorize_user(user_id, auth)
     try:
-        _calendar_store().delete(_calendar_owner_key(auth, user), event_id)
+        owner = _calendar_owner_key(auth, user)
+        _calendar_store().delete(owner, event_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Evento no encontrado.") from exc
+    _sync_calendar_event(owner, {"id": event_id, "deleted": True})
+    return Response(status_code=204)
+
+
+@app.get("/v1/home-calendar/{user_id}/google/connect")
+def connect_google_calendar(
+    user_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> RedirectResponse:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        url = _calendar_google().authorization_url(_calendar_owner_key(auth, user))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return RedirectResponse(url, status_code=303)
+
+
+@app.get("/v1/home-calendar/google/callback")
+def google_calendar_callback(state: str, code: str = "", error: str = "") -> RedirectResponse:
+    if error or not code:
+        return RedirectResponse("/lista?calendar_sync=denied#calendario", status_code=303)
+    google = _calendar_google()
+    try:
+        owner = google.exchange_code(state, code)
+        google.sync_all(owner, _calendar_store().owned_events(owner))
+    except Exception:
+        return RedirectResponse("/lista?calendar_sync=error#calendario", status_code=303)
+    return RedirectResponse("/lista?calendar_sync=connected#calendario", status_code=303)
+
+
+@app.post("/v1/home-calendar/{user_id}/google/sync")
+def sync_google_calendar(
+    user_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    owner = _calendar_owner_key(auth, user)
+    try:
+        result = _calendar_google().sync_all(owner, _calendar_store().owned_events(owner))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"status": "SYNCED", **result}
+
+
+@app.delete("/v1/home-calendar/{user_id}/google/connection", status_code=204)
+def disconnect_google_calendar(
+    user_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> Response:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    _calendar_google().disconnect(_calendar_owner_key(auth, user))
     return Response(status_code=204)
 
 

@@ -134,6 +134,16 @@ services:
         value: /var/data/roxy_home/accounts.json
       - key: ROXY_HOME_CALENDAR_PATH
         value: /var/data/roxy_home/calendar.json
+      - key: ROXY_HOME_CALENDAR_SYNC_PATH
+        value: /var/data/roxy_home/calendar_sync.json
+      - key: ROXY_HOME_CALENDAR_ENCRYPTION_KEY
+        generateValue: true
+      - key: ROXY_HOME_GOOGLE_CALENDAR_CLIENT_ID
+        sync: false
+      - key: ROXY_HOME_GOOGLE_CALENDAR_CLIENT_SECRET
+        sync: false
+      - key: ROXY_HOME_GOOGLE_CALENDAR_REDIRECT_URI
+        value: https://roxy-home.onrender.com/v1/home-calendar/google/callback
       - key: ROXY_HOME_COMMERCE_PATH
         value: /var/data/roxy_home/commerce.json
       - key: ROXY_HOME_VIDEO_LIBRARY_PATH
