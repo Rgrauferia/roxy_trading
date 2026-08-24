@@ -293,6 +293,11 @@ textarea { resize: vertical; line-height: 1.45; }
 .kitchen-tools summary, .history-card summary { color: var(--forest); font-weight: 850; cursor: pointer; }
 .kitchen-form { display: grid; gap: 12px; margin-top: 17px; }
 .kitchen-form + .kitchen-form { padding-top: 17px; border-top: 1px solid var(--line); }
+.commerce-location { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 18px; background: var(--sage-soft); }
+.commerce-location > span { color: var(--green); font-weight: 800; }
+.commerce-location > small { color: var(--muted); line-height: 1.4; }
+.commerce-location > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.commerce-location button { min-height: 44px; padding: 9px 14px; }
 .source-list a { color: var(--forest); }
 .recipe-video-area { display: grid; gap: 13px; margin: 18px 0; padding: 15px; border: 1px solid #d8e2d7; border-radius: 18px; background: linear-gradient(145deg,#f5f8f1,#fffaf2); }
 .recipe-video-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -486,11 +491,21 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
 .price-recommendation-status { margin-top: .8rem; padding: .72rem .8rem; border-radius: 14px; color: var(--muted); background: rgba(255,255,255,.7); font-size: .82rem; line-height: 1.45; }
 .price-recommendations { display: grid; gap: .7rem; margin-top: .75rem; }
 .price-recommendations:empty { display: none; }
+.price-alerts,.nearby-retailers { display: grid; gap: .5rem; margin-top: .65rem; }
+.price-alerts:empty,.nearby-retailers:empty { display: none; }
+.price-alert { display: grid; grid-template-columns: 36px minmax(0,1fr); gap: .6rem; align-items: center; padding: .68rem .75rem; border: 1px solid rgba(181,139,61,.3); border-radius: 15px; color: var(--forest-dark); background: #fff8e9; }
+.price-alert .material-symbols-rounded { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; color: #fff; background: var(--gold); }
+.price-alert strong,.price-alert small { display: block; }
+.price-alert small { margin-top: .12rem; color: var(--muted); }
+.nearby-retailers { grid-template-columns: repeat(auto-fit,minmax(108px,1fr)); }
+.nearby-retailer { min-width: 0; padding: .58rem .65rem; border: 1px solid rgba(23,63,43,.12); border-radius: 14px; color: var(--forest); background: var(--sage-soft); font-size: .74rem; font-weight: 800; text-align: center; }
+.nearby-retailers-title { grid-column: 1 / -1; color: var(--muted); font-size: .76rem; line-height: 1.4; }
 .price-offer { display: grid; grid-template-columns: 52px minmax(0,1fr) auto; gap: .7rem; align-items: center; padding: .75rem; border: 1px solid rgba(23,63,43,.13); border-radius: 18px; background: #fff; box-shadow: 0 8px 20px rgba(25,48,36,.05); }
 .price-offer img { width: 52px; height: 52px; object-fit: cover; border-radius: 13px; background: #f5efe4; }
 .price-offer-copy { min-width: 0; display: grid; gap: .14rem; }
 .price-offer-copy > strong { color: var(--forest); line-height: 1.15; }
 .price-offer-copy > span { color: #1d2b25; font-weight: 760; }
+.price-offer-copy del { margin-left: .35rem; color: var(--muted); font-size: .78rem; font-weight: 500; }
 .price-offer-copy small { color: var(--muted); line-height: 1.3; }
 .price-offer-reason { color: #7f6523 !important; font-weight: 700; }
 .price-offer button { min-height: 44px; padding: .55rem .65rem; border: 0; border-radius: 13px; color: #fff; background: var(--forest); font-weight: 800; }

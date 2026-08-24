@@ -204,6 +204,8 @@ services:
         sync: false
       - key: ROXY_HOME_INSTACART_API_URL
         value: https://connect.instacart.com/idp/v1/products/products_link
+      - key: ROXY_HOME_INSTACART_RETAILERS_URL
+        value: https://connect.instacart.com/idp/v1/retailers
       - key: ROXY_HOME_INSTACART_AFFILIATE_URL
         sync: false
       - key: ROXY_HOME_AMAZON_ASSOCIATE_TAG

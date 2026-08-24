@@ -28,6 +28,7 @@ en JavaScript, en la URL NFC ni en variables de Trading.
 ROXY_HOME_COMMERCE_PATH=/var/data/roxy_home/commerce.json
 ROXY_HOME_INSTACART_API_KEY=
 ROXY_HOME_INSTACART_API_URL=https://connect.instacart.com/idp/v1/products/products_link
+ROXY_HOME_INSTACART_RETAILERS_URL=https://connect.instacart.com/idp/v1/retailers
 ROXY_HOME_INSTACART_AFFILIATE_URL=
 ROXY_HOME_INSTACART_AFFILIATE_STATUS=in_review
 ROXY_HOME_KROGER_CLIENT_ID=
@@ -156,6 +157,21 @@ Las consultas iguales se conservan 15 minutos en memoria
 Cada perfil, código postal y lista genera una clave de caché distinta; la clave
 secreta del proveedor no forma parte de ella ni se guarda en el navegador.
 
+Roxy también usa la API autorizada de comercios cercanos de Instacart para
+mostrar qué supermercados están disponibles para el código postal del miembro.
+Ese resultado no se presenta como una comparación de precios: el precio y la
+existencia se confirman dentro de Instacart. Las recomendaciones con importe,
+descuento o aviso de bajada aparecen únicamente cuando Kroger o el feed
+autorizado entregan un precio vigente. Roxy conserva por miembro un historial
+limitado de observaciones comparables y puede avisar cuando el precio por la
+misma unidad cae el porcentaje elegido en el perfil.
+
+No se deben crear adaptadores mediante scraping contra tiendas que lo prohíben.
+Para añadir Publix, Walmart, Target u otro supermercado al comparador se exige
+una API, feed o agregador autorizado que devuelva precio, tamaño, disponibilidad,
+fecha de observación y enlace oficial. Un enlace afiliado por sí solo sirve para
+abrir la tienda, pero no demuestra que un precio sea vigente.
+
 Amazon Creators API puede aportar título, imagen y precio una vez que la cuenta
 cumpla los requisitos de acceso. Walmart, Instacart y los demás comercios deben
 entrar mediante sus APIs/feeds aprobados o mediante un agregador autorizado.
@@ -176,6 +192,13 @@ El historial local conserva únicamente que Roxy preparó una salida, el comerci
 la cantidad de artículos, el origen (lista o receta) y la fecha. No afirma que
 hubo una compra. Las ventas y comisiones reales siguen siendo la fuente de verdad
 de Impact, Amazon Associates o el portal del proveedor.
+
+La ubicación es opcional y requiere tocar **Usar mi ubicación** y aceptar el
+permiso del navegador. Roxy usa `getCurrentPosition`, nunca `watchPosition`,
+redondea latitud y longitud a tres decimales y la guarda únicamente en el perfil
+privado del miembro. No existe rastreo continuo ni en segundo plano. El usuario
+puede borrarla desde el mismo perfil; el código postal sigue disponible como
+alternativa. Solo los feeds autorizados reciben esa ubicación aproximada.
 
 ## Estado real de la integración
 

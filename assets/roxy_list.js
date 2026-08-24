@@ -2,7 +2,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '83';
+  const APP_VERSION = '84';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -59,7 +59,8 @@
 
   let snapshot = {items:[],history:[],habitual_products:[],revision:0};
   let homeFood = {profile:{preferences:[],allergies:[],dislikes:[],household_size:1},meal_planning:{style:'normal',cook_days:2,meal_scope:'all',people:2,max_minutes:25,weekly_budget:85},pantry:[],recipes:[],local_recipes:[],cooking_sessions:[],weekly_plans:[]};
-  let commerce = {profile:{objective:'balanced',organic_preference:'no_preference',favorite_retailers:[],favorite_brands:[],avoided_brands:[],dietary_labels:[],allow_substitutions:true,postal_code:''},providers:[],activity:{handoff_count:0,provider_counts:{},recent:[]},disclosure:''};
+  let commerce = {profile:{objective:'balanced',organic_preference:'no_preference',favorite_retailers:[],favorite_brands:[],avoided_brands:[],dietary_labels:[],allow_substitutions:true,postal_code:'',location_enabled:false},providers:[],activity:{handoff_count:0,provider_counts:{},recent:[]},disclosure:''};
+  let commerceLocation={enabled:false,latitude:null,longitude:null,accuracy:null};
   let priceRecommendations = null;
   let priceRecommendationsLoading = false;
   let pendingCommerceProvider = null;
@@ -717,18 +718,24 @@
   }
 
   function money(value,currency='USD'){return new Intl.NumberFormat('es-US',{style:'currency',currency,maximumFractionDigits:2}).format(Number(value||0))}
+  function renderPriceCoverage(){
+    const alertRoot=$('priceAlerts');const retailerRoot=$('nearbyRetailers');alertRoot.replaceChildren();retailerRoot.replaceChildren();
+    const result=priceRecommendations||{};const activity=result.price_activity||commerce.price_activity||{};const alerts=(activity.new_alerts&&activity.new_alerts.length?activity.new_alerts:activity.recent_alerts)||[];
+    alerts.slice(0,3).forEach(alert=>{const row=document.createElement('article');row.className='price-alert';const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.textContent='trending_down';const copy=document.createElement('span');const strong=document.createElement('strong');strong.textContent=alert.message||`${alert.item_name} bajó de precio`;const small=document.createElement('small');small.textContent=`${alert.retailer_name} · ${money(alert.price,alert.currency||'USD')} · comprobado ${new Intl.DateTimeFormat('es',{dateStyle:'short'}).format(new Date(alert.observed_at))}`;copy.append(strong,small);row.append(icon,copy);alertRoot.append(row)});
+    const retailers=result.nearby_retailers||[];if(retailers.length){const title=document.createElement('span');title.className='nearby-retailers-title';title.textContent=`Supermercados disponibles cerca de ti (${retailers.length}). Instacart confirma precio y disponibilidad al abrir la compra.`;retailerRoot.append(title);retailers.slice(0,12).forEach(retailer=>{const chip=document.createElement('span');chip.className='nearby-retailer';chip.textContent=retailer.name;retailerRoot.append(chip)})}
+  }
   function renderPriceRecommendations(){
-    const root=$('priceRecommendations');root.replaceChildren();const status=$('priceRecommendationStatus');const refresh=$('refreshPricesButton');refresh.disabled=priceRecommendationsLoading||!activeItems().length;
+    const root=$('priceRecommendations');root.replaceChildren();const status=$('priceRecommendationStatus');const refresh=$('refreshPricesButton');refresh.disabled=priceRecommendationsLoading||!activeItems().length;renderPriceCoverage();
     if(priceRecommendationsLoading){status.textContent='Roxy está consultando precios vigentes cerca de ti…';return}
     if(!activeItems().length){status.textContent='Agrega productos a tu lista para comparar dónde conviene comprarlos.';return}
     if(!priceRecommendations){status.textContent='Roxy compara únicamente precios reales, tamaños compatibles y ofertas vigentes.';return}
     const rows=priceRecommendations.recommendations||[];
     if(!rows.length){status.textContent=priceRecommendations.message||'Todavía no hay precios verificables para estos productos. Puedes buscar en los comercios disponibles sin que Roxy invente una comparación.';return}
     const updated=priceRecommendations.updated_at?new Intl.DateTimeFormat('es',{dateStyle:'short',timeStyle:'short'}).format(new Date(priceRecommendations.updated_at)):'';
-    status.textContent=`${rows.length} ${rows.length===1?'recomendación verificada':'recomendaciones verificadas'}${updated?` · actualizado ${updated}`:''}. Confirma el total en la tienda.`;
+    const checked=priceRecommendations.retailers_checked||[];status.textContent=`${rows.length} ${rows.length===1?'recomendación verificada':'recomendaciones verificadas'}${checked.length?` · ${checked.length} ${checked.length===1?'comercio consultado':'comercios consultados'}`:''}${updated?` · actualizado ${updated}`:''}. Confirma el total en la tienda.`;
     rows.forEach(offer=>{
       const article=document.createElement('article');article.className='price-offer';const img=makeImage(offer.shopping_item,'FOOD',offer.product_title||offer.shopping_item);if(offer.image_url){img.src=offer.image_url;img.referrerPolicy='no-referrer'}const copy=document.createElement('div');copy.className='price-offer-copy';
-      const title=document.createElement('strong');title.textContent=offer.shopping_item;const retailer=document.createElement('span');retailer.textContent=`${offer.retailer_name} · ${money(offer.price,offer.currency)}`;const product=document.createElement('small');product.textContent=[offer.product_title,offer.package_label].filter(Boolean).join(' · ');copy.append(title,retailer,product);
+      const title=document.createElement('strong');title.textContent=offer.shopping_item;const retailer=document.createElement('span');retailer.append(document.createTextNode(`${offer.retailer_name} · ${money(offer.price,offer.currency)}`));if(offer.regular_price){const regular=document.createElement('del');regular.textContent=money(offer.regular_price,offer.currency);retailer.append(regular)}const product=document.createElement('small');product.textContent=[offer.product_title,offer.package_label].filter(Boolean).join(' · ');copy.append(title,retailer,product);
       if(offer.unit_price&&offer.comparison_unit){const unit=document.createElement('small');unit.textContent=`${money(offer.unit_price,offer.currency)} por ${offer.comparison_unit}`;copy.append(unit)}
       const reason=document.createElement('small');reason.className='price-offer-reason';reason.textContent=(offer.reasons||[])[0]||'Mejor opción según tu perfil';copy.append(reason);
       const button=makeButton(`Ver en ${offer.retailer_name}`,'',()=>reviewRetailOffer(offer),`Revisar ${offer.shopping_item} en ${offer.retailer_name}`);article.append(img,copy,button);root.append(article);
@@ -1237,10 +1244,17 @@
     $('commerceDietary').value=(shoppingProfile.dietary_labels||[]).join(', ');
     $('commercePostalCode').value=shoppingProfile.postal_code||'';
     $('commerceSubstitutions').checked=shoppingProfile.allow_substitutions!==false;
+    $('commercePriceAlerts').checked=shoppingProfile.price_alerts_enabled!==false;
+    $('commercePriceDrop').value=String(shoppingProfile.price_drop_percent||10);
+    commerceLocation={enabled:shoppingProfile.location_enabled===true,latitude:shoppingProfile.latitude??null,longitude:shoppingProfile.longitude??null,accuracy:shoppingProfile.location_accuracy_m??null};
+    renderCommerceLocation();
   }
   const commaList=value=>String(value||'').split(',').map(row=>row.trim()).filter(Boolean);
+  function renderCommerceLocation(){const active=commerceLocation.enabled&&commerceLocation.latitude!==null&&commerceLocation.longitude!==null;$('commerceLocationStatus').textContent=active?`Ubicación aproximada guardada${commerceLocation.accuracy?` · precisión del dispositivo ${Math.round(commerceLocation.accuracy)} m`:''}. Solo se usa al consultar ofertas.`:'No guardada. Roxy no rastrea tu ubicación en segundo plano.';$('commerceClearLocation').hidden=!active;$('commerceUseLocation').textContent=active?'Actualizar ubicación':'Usar mi ubicación'}
+  function captureCommerceLocation(){if(!navigator.geolocation){announce('Este navegador no permite compartir ubicación');return}$('commerceUseLocation').disabled=true;$('commerceLocationStatus').textContent='Esperando tu autorización…';navigator.geolocation.getCurrentPosition(position=>{commerceLocation={enabled:true,latitude:Number(position.coords.latitude.toFixed(3)),longitude:Number(position.coords.longitude.toFixed(3)),accuracy:Math.round(position.coords.accuracy||0)};renderCommerceLocation();$('commerceUseLocation').disabled=false;announce('Ubicación aproximada lista. Guarda el perfil para usarla.')},error=>{$('commerceUseLocation').disabled=false;renderCommerceLocation();announce(error.code===1?'No autorizaste la ubicación. Puedes seguir usando el código postal.':'No pude obtener la ubicación. Intenta nuevamente.')},{enableHighAccuracy:false,timeout:10000,maximumAge:300000})}
+  function clearCommerceLocation(){commerceLocation={enabled:false,latitude:null,longitude:null,accuracy:null};renderCommerceLocation();announce('La ubicación se borrará cuando guardes el perfil')}
   async function saveHomeProfile(event){event.preventDefault();try{await api(`/v1/home-food/${encodeURIComponent(user)}/profile`,{method:'PUT',body:JSON.stringify({preferences:commaList($('homePreferences').value),allergies:commaList($('homeAllergies').value),dislikes:commaList($('homeDislikes').value),household_size:Number($('homeHousehold').value||1)})});announce('Preferencias guardadas en Roxy Home');await load({quiet:true});}catch(error){announce(error.message)}}
-  async function saveCommerceProfile(event){event.preventDefault();try{await api(`/v1/home-commerce/${encodeURIComponent(user)}/profile`,{method:'PUT',body:JSON.stringify({objective:$('commerceObjective').value,organic_preference:$('commerceOrganic').value,favorite_retailers:commaList($('commerceRetailers').value),favorite_brands:commaList($('commerceBrands').value),avoided_brands:commaList($('commerceAvoidedBrands').value),dietary_labels:commaList($('commerceDietary').value),allow_substitutions:$('commerceSubstitutions').checked,postal_code:$('commercePostalCode').value.trim()})});priceRecommendations=null;announce('Tu perfil personal de compra quedó guardado');await load({quiet:true})}catch(error){announce(error.message)}}
+  async function saveCommerceProfile(event){event.preventDefault();try{await api(`/v1/home-commerce/${encodeURIComponent(user)}/profile`,{method:'PUT',body:JSON.stringify({objective:$('commerceObjective').value,organic_preference:$('commerceOrganic').value,favorite_retailers:commaList($('commerceRetailers').value),favorite_brands:commaList($('commerceBrands').value),avoided_brands:commaList($('commerceAvoidedBrands').value),dietary_labels:commaList($('commerceDietary').value),allow_substitutions:$('commerceSubstitutions').checked,postal_code:$('commercePostalCode').value.trim(),price_alerts_enabled:$('commercePriceAlerts').checked,price_drop_percent:Number($('commercePriceDrop').value||10),location_enabled:commerceLocation.enabled,latitude:commerceLocation.latitude,longitude:commerceLocation.longitude,location_accuracy_m:commerceLocation.accuracy})});priceRecommendations=null;announce('Tu perfil personal de compra quedó guardado');await load({quiet:true})}catch(error){announce(error.message)}}
   async function savePantry(event){event.preventDefault();const items=$('pantryItems').value.split('\n').map(line=>{const [name,quantity='1',unit='unidad']=line.split(',').map(value=>value.trim());return{name,quantity:Number(quantity)||1,unit:unit||'unidad'}}).filter(row=>row.name);try{await api(`/v1/home-food/${encodeURIComponent(user)}/pantry`,{method:'PUT',body:JSON.stringify({items})});announce('Despensa actualizada');await load({quiet:true});}catch(error){announce(error.message)}}
   async function createRecipe(event){
     event.preventDefault();const button=$('recipeSubmit');button.disabled=true;button.textContent='Roxy está creando…';
@@ -1351,6 +1365,8 @@
     $('disconnectButton').addEventListener('click',disconnect);
     $('homeProfileForm').addEventListener('submit',saveHomeProfile);
     $('commerceProfileForm').addEventListener('submit',saveCommerceProfile);
+    $('commerceUseLocation').addEventListener('click',captureCommerceLocation);
+    $('commerceClearLocation').addEventListener('click',clearCommerceLocation);
     $('refreshPricesButton').addEventListener('click',()=>loadPriceRecommendations());
     $('prepareAmazonButton').addEventListener('click',()=>preparePurchase('shopping',null,'amazon'));
     $('prepareShoppingButton').addEventListener('click',()=>preparePurchase('shopping'));

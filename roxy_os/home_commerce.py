@@ -20,7 +20,7 @@ except ImportError:  # pragma: no cover
     fcntl = None
 
 
-COMMERCE_STORE_VERSION = 2
+COMMERCE_STORE_VERSION = 3
 SHOPPING_OBJECTIVES = {"balanced", "lowest_price", "organic", "favorites"}
 ORGANIC_PREFERENCES = {"required", "preferred", "no_preference"}
 AFFILIATE_DISCLOSURE = (
@@ -177,6 +177,8 @@ class HomeCommerceStore:
             "profiles": {},
             "preparations": {},
             "handoffs": {},
+            "price_history": {},
+            "price_alerts": {},
         }
 
     def _read_unlocked(self) -> dict[str, Any]:
@@ -190,6 +192,8 @@ class HomeCommerceStore:
         payload.setdefault("profiles", {})
         payload.setdefault("preparations", {})
         payload.setdefault("handoffs", {})
+        payload.setdefault("price_history", {})
+        payload.setdefault("price_alerts", {})
         return payload
 
     def _write_unlocked(self, payload: dict[str, Any]) -> None:
@@ -238,6 +242,13 @@ class HomeCommerceStore:
             "dietary_labels": [],
             "allow_substitutions": True,
             "postal_code": "",
+            "price_alerts_enabled": True,
+            "price_drop_percent": 10,
+            "location_enabled": False,
+            "latitude": None,
+            "longitude": None,
+            "location_accuracy_m": None,
+            "location_updated_at": "",
         }
 
     def profile(self, owner_key: str) -> dict[str, Any]:
@@ -252,6 +263,27 @@ class HomeCommerceStore:
         if organic not in ORGANIC_PREFERENCES:
             raise ValueError("Preferencia orgánica no válida.")
         postal_code = re.sub(r"[^A-Za-z0-9 -]", "", _text(values.get("postal_code"), 12))
+        try:
+            price_drop_percent = int(values.get("price_drop_percent", 10))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("El porcentaje de alerta no es válido.") from exc
+        if not 5 <= price_drop_percent <= 50:
+            raise ValueError("La alerta de precio debe estar entre 5 % y 50 %.")
+        location_enabled = values.get("location_enabled") is True
+        latitude = values.get("latitude")
+        longitude = values.get("longitude")
+        accuracy = values.get("location_accuracy_m")
+        if location_enabled:
+            try:
+                latitude = round(float(latitude), 3)
+                longitude = round(float(longitude), 3)
+                accuracy = round(max(0.0, float(accuracy or 0)), 0)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("La ubicación autorizada no es válida.") from exc
+            if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+                raise ValueError("La ubicación autorizada no es válida.")
+        else:
+            latitude = longitude = accuracy = None
         profile = {
             "objective": objective,
             "organic_preference": organic,
@@ -261,6 +293,13 @@ class HomeCommerceStore:
             "dietary_labels": _string_list(values.get("dietary_labels")),
             "allow_substitutions": values.get("allow_substitutions") is True,
             "postal_code": postal_code,
+            "price_alerts_enabled": values.get("price_alerts_enabled", True) is True,
+            "price_drop_percent": price_drop_percent,
+            "location_enabled": location_enabled,
+            "latitude": latitude,
+            "longitude": longitude,
+            "location_accuracy_m": accuracy,
+            "location_updated_at": _now_iso() if location_enabled else "",
             "updated_at": _now_iso(),
         }
 
@@ -269,6 +308,109 @@ class HomeCommerceStore:
             return deepcopy(profile)
 
         return self._mutate(apply)
+
+    def record_price_recommendations(
+        self,
+        owner_key: str,
+        recommendations: list[dict[str, Any]],
+        *,
+        alert_percent: int = 10,
+        alerts_enabled: bool = True,
+    ) -> dict[str, Any]:
+        """Keep a bounded private history and detect comparable price drops."""
+
+        threshold = max(5, min(int(alert_percent), 50))
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            history = payload["price_history"].setdefault(owner_key, [])
+            alert_rows = payload["price_alerts"].setdefault(owner_key, [])
+            created: list[dict[str, Any]] = []
+            for offer in recommendations[:100]:
+                item_name = _text(offer.get("shopping_item"), 120)
+                retailer_name = _text(offer.get("retailer_name"), 80)
+                observed_at = _text(offer.get("observed_at"), 80) or _now_iso()
+                unit_price = offer.get("unit_price")
+                comparison_unit = _text(offer.get("comparison_unit"), 32)
+                price = round(float(offer.get("price") or 0), 2)
+                if not item_name or not retailer_name or price <= 0:
+                    continue
+                metric = round(float(unit_price), 4) if unit_price not in (None, "") and comparison_unit else price
+                metric_unit = comparison_unit or _text(offer.get("package_label"), 80)
+                previous = (
+                    next(
+                        (
+                            row for row in reversed(history)
+                            if _fold(row.get("item_name")) == _fold(item_name)
+                            and row.get("metric_unit") == metric_unit
+                            and float(row.get("metric") or 0) > 0
+                        ),
+                        None,
+                    )
+                    if metric_unit
+                    else None
+                )
+                history_row = {
+                    "item_name": item_name,
+                    "retailer_name": retailer_name,
+                    "product_title": _text(offer.get("product_title"), 180),
+                    "package_label": _text(offer.get("package_label"), 80),
+                    "price": price,
+                    "metric": metric,
+                    "metric_unit": metric_unit,
+                    "currency": _text(offer.get("currency") or "USD", 3),
+                    "observed_at": observed_at,
+                    "product_url": _text(offer.get("product_url"), 2000),
+                }
+                duplicate = next(
+                    (
+                        row for row in reversed(history[-30:])
+                        if row.get("item_name") == item_name
+                        and row.get("retailer_name") == retailer_name
+                        and row.get("metric") == metric
+                        and row.get("observed_at") == observed_at
+                    ),
+                    None,
+                )
+                if duplicate is None:
+                    history.append(history_row)
+                baseline = float(previous.get("metric") or 0) if previous else 0
+                drop = round((baseline - metric) / baseline * 100, 1) if baseline > metric > 0 else 0
+                if alerts_enabled and drop >= threshold:
+                    alert = {
+                        "id": uuid4().hex,
+                        **history_row,
+                        "previous_metric": baseline,
+                        "drop_percent": drop,
+                        "message": f"{item_name} bajó {drop:g} % y ahora conviene en {retailer_name}.",
+                        "created_at": _now_iso(),
+                    }
+                    already_alerted = any(
+                        row.get("item_name") == item_name
+                        and row.get("retailer_name") == retailer_name
+                        and row.get("metric") == metric
+                        for row in alert_rows[-30:]
+                    )
+                    if not already_alerted:
+                        alert_rows.append(alert)
+                        created.append(deepcopy(alert))
+            payload["price_history"][owner_key] = history[-1500:]
+            payload["price_alerts"][owner_key] = alert_rows[-100:]
+            return {
+                "new_alerts": created,
+                "recent_alerts": deepcopy(list(reversed(alert_rows[-10:]))),
+                "observation_count": len(payload["price_history"][owner_key]),
+            }
+
+        return self._mutate(apply)
+
+    def price_activity(self, owner_key: str) -> dict[str, Any]:
+        payload = self._read_unlocked()
+        history = payload.get("price_history", {}).get(owner_key, [])
+        alerts = payload.get("price_alerts", {}).get(owner_key, [])
+        return {
+            "observation_count": len(history) if isinstance(history, list) else 0,
+            "recent_alerts": deepcopy(list(reversed(alerts[-10:]))) if isinstance(alerts, list) else [],
+        }
 
     def save_preparation(
         self,

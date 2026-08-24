@@ -8,14 +8,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="83" />
+  <meta name="roxy-home-version" content="84" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=67" />
-  <script src="/assets/roxy_list.js?v=83" defer></script>
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=68" />
+  <script src="/assets/roxy_list.js?v=84" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -155,6 +155,8 @@
       <section class="content-section commerce-card" aria-labelledby="commerceTitle">
         <div class="section-heading"><div><p>Roxy compra contigo</p><h2 id="commerceTitle">Dónde conviene comprar</h2><small id="commerceSummary">Personalizada según tus preferencias.</small></div><button id="refreshPricesButton" class="price-refresh" type="button">Actualizar</button></div>
         <div id="priceRecommendationStatus" class="price-recommendation-status" role="status">Roxy compara únicamente precios reales y vigentes.</div>
+        <div id="priceAlerts" class="price-alerts" aria-live="polite"></div>
+        <div id="nearbyRetailers" class="nearby-retailers" aria-label="Supermercados disponibles cerca de ti"></div>
         <div id="priceRecommendations" class="price-recommendations" aria-live="polite"></div>
         <p>Roxy organiza los productos y te lleva al comercio elegido. Tú siempre revisas precios, sustituciones y confirmas el pago.</p>
         <div id="commerceProviderBadges" class="provider-badges" aria-label="Comercios disponibles"></div>
@@ -248,7 +250,14 @@
         <label><span>Marcas que no quiero</span><input id="commerceAvoidedBrands" placeholder="Separadas por comas" /></label>
         <label><span>Etiquetas o dieta</span><input id="commerceDietary" placeholder="Sin gluten, vegano, bajo sodio…" /></label>
         <label><span>Código postal</span><input id="commercePostalCode" inputmode="text" autocomplete="postal-code" maxlength="12" placeholder="Para disponibilidad local" /></label>
+        <div class="commerce-location" aria-labelledby="commerceLocationTitle">
+          <span id="commerceLocationTitle">Ubicación para ofertas cercanas</span>
+          <small id="commerceLocationStatus">No guardada. Roxy no rastrea tu ubicación en segundo plano.</small>
+          <div><button id="commerceUseLocation" class="secondary" type="button">Usar mi ubicación</button><button id="commerceClearLocation" class="ghost" type="button" hidden>Borrar</button></div>
+        </div>
         <label class="favorite-check"><input id="commerceSubstitutions" type="checkbox" checked /> Permitir que Roxy sugiera sustituciones</label>
+        <label class="favorite-check"><input id="commercePriceAlerts" type="checkbox" checked /> Avisarme cuando bajen mis productos</label>
+        <label><span>Avisarme cuando el precio baje</span><select id="commercePriceDrop"><option value="5">5 % o más</option><option value="10">10 % o más</option><option value="15">15 % o más</option><option value="20">20 % o más</option><option value="30">30 % o más</option></select></label>
         <button class="primary full" type="submit">Guardar perfil de compra</button>
       </form>
     </section>

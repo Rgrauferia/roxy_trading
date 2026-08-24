@@ -22,6 +22,7 @@ PRICE_NOTICE = (
 )
 _FEED_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 _FEED_CACHE_LOCK = threading.Lock()
+_RETAILER_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 _PRODUCT_TERM_ALIASES = {
     "aceite": {"oil"}, "agua": {"water"}, "arroz": {"rice"}, "azucar": {"sugar"},
     "cafe": {"coffee"}, "camarones": {"shrimp"}, "detergente": {"detergent"},
@@ -97,6 +98,8 @@ class PriceFeedConfig:
     kroger_client_id: str = ""
     kroger_client_secret: str = ""
     kroger_base_url: str = "https://api.kroger.com/v1"
+    instacart_api_key: str = ""
+    instacart_retailers_url: str = "https://connect.instacart.com/idp/v1/retailers"
 
     @classmethod
     def from_env(cls) -> "PriceFeedConfig":
@@ -108,6 +111,12 @@ class PriceFeedConfig:
             kroger_client_id=_text(os.getenv("ROXY_HOME_KROGER_CLIENT_ID"), 500),
             kroger_client_secret=_text(os.getenv("ROXY_HOME_KROGER_CLIENT_SECRET"), 1000),
             kroger_base_url=_text(os.getenv("ROXY_HOME_KROGER_API_URL") or "https://api.kroger.com/v1", 2000),
+            instacart_api_key=_text(os.getenv("ROXY_HOME_INSTACART_API_KEY"), 1000),
+            instacart_retailers_url=_text(
+                os.getenv("ROXY_HOME_INSTACART_RETAILERS_URL")
+                or "https://connect.instacart.com/idp/v1/retailers",
+                2000,
+            ),
         )
 
     @property
@@ -133,6 +142,74 @@ class PriceFeedConfig:
         except ValueError:
             return False
         return True
+
+    @property
+    def retailer_discovery_configured(self) -> bool:
+        if not self.instacart_api_key:
+            return False
+        try:
+            _https_url(self.instacart_retailers_url)
+        except ValueError:
+            return False
+        return True
+
+
+def fetch_nearby_retailers(
+    profile: dict[str, Any], *, config: PriceFeedConfig | None = None
+) -> list[dict[str, Any]]:
+    """Discover nearby Instacart retailers without claiming their prices are exposed."""
+
+    config = config or PriceFeedConfig.from_env()
+    postal_code = _text(profile.get("postal_code"), 12)
+    if not config.retailer_discovery_configured or not postal_code:
+        return []
+    endpoint = _https_url(
+        config.instacart_retailers_url
+        + "?"
+        + urllib.parse.urlencode({"postal_code": postal_code, "country_code": "US"})
+    )
+    cache_key = hashlib.sha256(endpoint.encode("utf-8")).hexdigest()
+    with _FEED_CACHE_LOCK:
+        cached = _RETAILER_CACHE.get(cache_key)
+        if cached and cached[0] > time.monotonic():
+            return deepcopy(cached[1])
+    request = urllib.request.Request(
+        endpoint,
+        headers={
+            "Authorization": f"Bearer {config.instacart_api_key}",
+            "Accept": "application/json",
+            "User-Agent": "Roxy-Home/1.0",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=config.timeout_seconds) as response:  # nosec B310
+            payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+        raise ConnectionError("Instacart no pudo consultar los supermercados cercanos.") from exc
+    rows = payload.get("retailers") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        raise ConnectionError("Instacart respondió con una lista de comercios no compatible.")
+    retailers: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for raw in rows[:100]:
+        name = _text(raw.get("name") if isinstance(raw, dict) else "", 80)
+        key = _text(raw.get("retailer_key") if isinstance(raw, dict) else "", 80)
+        folded = _fold(name)
+        if not name or folded in seen:
+            continue
+        seen.add(folded)
+        retailers.append(
+            {
+                "id": key or folded.replace(" ", "-"),
+                "name": name,
+                "logo_url": _optional_https_url(raw.get("retailer_logo_url")),
+                "source": "Instacart Nearby Retailers API",
+                "price_access": "in_instacart",
+            }
+        )
+    with _FEED_CACHE_LOCK:
+        _RETAILER_CACHE[cache_key] = (time.monotonic() + 3600, deepcopy(retailers))
+    return retailers
 
 
 def _kroger_json(request: urllib.request.Request, timeout: int) -> dict[str, Any]:
@@ -260,11 +337,19 @@ def _kroger_offers(
             price_data = variant.get("price") if isinstance(variant, dict) else {}
             if not isinstance(price_data, dict):
                 continue
-            regular = price_data.get("promo") or price_data.get("regular")
+            regular_raw = price_data.get("regular")
+            promo_raw = price_data.get("promo")
+            regular = promo_raw or regular_raw
             try:
                 price = _money(regular)
             except ValueError:
                 continue
+            try:
+                regular_price = _money(regular_raw) if regular_raw not in (None, "") else None
+            except ValueError:
+                regular_price = None
+            if regular_price is not None and regular_price <= price:
+                regular_price = None
             description = _text(product.get("description"), 180)
             product_id = _text(product.get("productId"), 80)
             if not description or not product_id:
@@ -295,6 +380,8 @@ def _kroger_offers(
                     "product_title": description,
                     "brand": _text(product.get("brand"), 80),
                     "price": price,
+                    "regular_price": regular_price,
+                    "promotion": "Precio promocional de Kroger" if regular_price is not None else "",
                     "currency": "USD",
                     "package_label": package_label,
                     "unit_price": unit_price,
@@ -329,6 +416,17 @@ def fetch_price_offers(
     endpoint = _https_url(config.url) if config.generic_configured else _https_url(config.kroger_base_url)
     payload = {
         "postal_code": _text(profile.get("postal_code"), 12),
+        "approximate_location": (
+            {
+                "latitude": round(float(profile.get("latitude")), 3),
+                "longitude": round(float(profile.get("longitude")), 3),
+                "accuracy_m": round(float(profile.get("location_accuracy_m") or 0)),
+            }
+            if profile.get("location_enabled") is True
+            and profile.get("latitude") is not None
+            and profile.get("longitude") is not None
+            else None
+        ),
         "currency": "USD",
         "items": [
             {
@@ -395,13 +493,23 @@ def _normalize_offer(raw: dict[str, Any], max_age_minutes: int) -> dict[str, Any
     if normalized_unit_price is None:
         comparison_unit = ""
     labels = [_text(value, 60) for value in (raw.get("dietary_labels") or []) if _text(value, 60)]
+    regular_price = raw.get("regular_price")
+    try:
+        normalized_regular = _money(regular_price) if regular_price not in (None, "") else None
+    except ValueError:
+        normalized_regular = None
+    current_price = _money(raw.get("price"))
+    if normalized_regular is not None and normalized_regular <= current_price:
+        normalized_regular = None
     return {
         "item_name": _text(raw.get("item_name"), 120),
         "retailer_id": _text(raw.get("retailer_id"), 32),
         "retailer_name": _text(raw.get("retailer_name"), 80),
         "product_title": _text(raw.get("product_title"), 180),
         "brand": _text(raw.get("brand"), 80),
-        "price": _money(raw.get("price")),
+        "price": current_price,
+        "regular_price": normalized_regular,
+        "promotion": _text(raw.get("promotion"), 120),
         "currency": currency,
         "package_label": _text(raw.get("package_label"), 80),
         "unit_price": normalized_unit_price,
@@ -505,6 +613,9 @@ def recommend_prices(
         second = min(comparable, key=lambda offer: offer["unit_price"]) if comparable else None
         savings = round(second["unit_price"] - selected["unit_price"], 2) if second else 0
         reasons: list[str] = []
+        if selected.get("regular_price") and selected["regular_price"] > selected["price"]:
+            saved = round(selected["regular_price"] - selected["price"], 2)
+            reasons.append(f"Oferta verificada: ahorra ${saved:.2f} frente al precio regular")
         if selected["organic_certified"]:
             reasons.append("Orgánico verificado por la fuente")
         if _contains(favorite_retailers, selected["retailer_name"]):
@@ -528,11 +639,17 @@ def recommend_prices(
         )
 
     updated_at = max((row["observed_at"] for row in recommendations), default="")
+    retailers_checked = sorted(
+        {row["retailer_name"] for row in normalized if row.get("retailer_name")},
+        key=str.casefold,
+    )
     return {
         "status": "READY" if recommendations else "NO_VERIFIED_PRICES",
         "recommendations": recommendations,
         "unpriced_items": missing,
         "updated_at": updated_at,
         "rejected_offer_count": rejected,
+        "retailers_checked": retailers_checked,
+        "verified_offer_count": len(normalized),
         "notice": PRICE_NOTICE,
     }

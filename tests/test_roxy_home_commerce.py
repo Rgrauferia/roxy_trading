@@ -4,7 +4,12 @@ from urllib.parse import parse_qs, urlparse
 from fastapi.testclient import TestClient
 
 from roxy_os.home_commerce import HomeCommerceStore, public_providers
-from roxy_os.home_price_recommendations import PriceFeedConfig, fetch_price_offers, recommend_prices
+from roxy_os.home_price_recommendations import (
+    PriceFeedConfig,
+    fetch_nearby_retailers,
+    fetch_price_offers,
+    recommend_prices,
+)
 
 
 def _client(tmp_path, monkeypatch):
@@ -258,6 +263,12 @@ def test_home_commerce_controls_are_connected_to_real_endpoints():
     assert 'id="commerceProviderDisclosure"' in page
     assert 'id="priceRecommendations"' in page
     assert 'id="refreshPricesButton"' in page
+    assert 'id="priceAlerts"' in page
+    assert 'id="nearbyRetailers"' in page
+    assert 'id="commercePriceAlerts"' in page
+    assert 'id="commercePriceDrop"' in page
+    assert 'id="commerceUseLocation"' in page
+    assert 'id="commerceClearLocation"' in page
     assert "/v1/home-commerce/" in script
     assert "/recommendations" in script
     assert "reviewRetailOffer" in script
@@ -272,6 +283,185 @@ def test_home_commerce_controls_are_connected_to_real_endpoints():
     assert "Buscar en ${provider.name}" in script
     assert "result.guidance" in script
     assert "Última compra preparada" in script
+    assert "renderPriceCoverage" in script
+    assert "price_drop_percent" in script
+    assert "retailers_checked" in script
+    assert "navigator.geolocation.getCurrentPosition" in script
+    assert "enableHighAccuracy:false" in script
+
+
+def test_price_alert_preferences_and_history_are_private(tmp_path):
+    store = HomeCommerceStore(tmp_path / "commerce.json")
+    profile = store.update_profile(
+        "member:robert",
+        {
+            "objective": "lowest_price",
+            "organic_preference": "no_preference",
+            "favorite_retailers": [],
+            "favorite_brands": [],
+            "avoided_brands": [],
+            "dietary_labels": [],
+            "allow_substitutions": True,
+            "postal_code": "33101",
+            "price_alerts_enabled": True,
+            "price_drop_percent": 10,
+        },
+    )
+    base = {
+        "shopping_item": "Leche",
+        "retailer_name": "Kroger",
+        "product_title": "Leche entera 1 gal",
+        "package_label": "1 gal",
+        "comparison_unit": "fl oz",
+        "currency": "USD",
+        "product_url": "https://www.kroger.com/p/milk/1",
+    }
+    first = store.record_price_recommendations(
+        "member:robert",
+        [{**base, "price": 4.00, "unit_price": 0.04, "observed_at": "2026-08-23T12:00:00+00:00"}],
+        alert_percent=10,
+    )
+    second = store.record_price_recommendations(
+        "member:robert",
+        [{**base, "price": 3.00, "unit_price": 0.03, "observed_at": "2026-08-24T12:00:00+00:00"}],
+        alert_percent=10,
+    )
+
+    assert profile["price_alerts_enabled"] is True
+    assert profile["price_drop_percent"] == 10
+    assert first["new_alerts"] == []
+    assert second["new_alerts"][0]["drop_percent"] == 25.0
+    assert "Leche bajó 25 %" in second["new_alerts"][0]["message"]
+    assert store.price_activity("member:robert")["observation_count"] == 2
+    assert store.price_activity("member:roxy")["observation_count"] == 0
+
+
+def test_approximate_location_requires_consent_and_is_rounded(tmp_path):
+    store = HomeCommerceStore(tmp_path / "commerce.json")
+    common = {
+        "objective": "balanced",
+        "organic_preference": "no_preference",
+        "favorite_retailers": [],
+        "favorite_brands": [],
+        "avoided_brands": [],
+        "dietary_labels": [],
+        "allow_substitutions": True,
+        "postal_code": "33101",
+    }
+    enabled = store.update_profile(
+        "member:robert",
+        {
+            **common,
+            "location_enabled": True,
+            "latitude": 25.761681,
+            "longitude": -80.191788,
+            "location_accuracy_m": 18.6,
+        },
+    )
+    disabled = store.update_profile("member:roxy", common)
+
+    assert enabled["latitude"] == 25.762
+    assert enabled["longitude"] == -80.192
+    assert enabled["location_accuracy_m"] == 19
+    assert enabled["location_updated_at"]
+    assert disabled["location_enabled"] is False
+    assert disabled["latitude"] is None
+
+
+def test_price_alert_does_not_compare_different_package_metrics(tmp_path):
+    store = HomeCommerceStore(tmp_path / "commerce.json")
+    common = {
+        "shopping_item": "Huevos",
+        "retailer_name": "Tienda",
+        "product_title": "Huevos",
+        "currency": "USD",
+        "product_url": "https://example.com/eggs",
+    }
+    store.record_price_recommendations(
+        "member:robert",
+        [{**common, "package_label": "12 count", "price": 6, "observed_at": "2026-08-23T12:00:00+00:00"}],
+    )
+    result = store.record_price_recommendations(
+        "member:robert",
+        [{**common, "package_label": "6 count", "price": 2, "observed_at": "2026-08-24T12:00:00+00:00"}],
+    )
+
+    assert result["new_alerts"] == []
+
+
+def test_instacart_discovers_nearby_retailers_without_exposing_key(monkeypatch):
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return b'{"retailers":[{"retailer_key":"publix","name":"Publix","retailer_logo_url":"https://example.com/publix.png"},{"retailer_key":"aldi","name":"ALDI"}]}'
+
+    def fake_urlopen(request, timeout):
+        assert timeout == 7
+        assert "postal_code=90210" in request.full_url
+        assert request.headers["Authorization"] == "Bearer instacart-server-secret"
+        return Response()
+
+    monkeypatch.setattr("roxy_os.home_price_recommendations.urllib.request.urlopen", fake_urlopen)
+    retailers = fetch_nearby_retailers(
+        {"postal_code": "90210"},
+        config=PriceFeedConfig(
+            url="",
+            api_key="",
+            timeout_seconds=7,
+            instacart_api_key="instacart-server-secret",
+        ),
+    )
+
+    assert [row["name"] for row in retailers] == ["Publix", "ALDI"]
+    assert all(row["price_access"] == "in_instacart" for row in retailers)
+    assert "instacart-server-secret" not in str(retailers)
+
+
+def test_authorized_price_feed_receives_only_approximate_location(monkeypatch):
+    import json
+
+    captured = {}
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return b'{"offers":[]}'
+
+    def fake_urlopen(request, timeout):
+        captured.update(json.loads(request.data.decode("utf-8")))
+        return Response()
+
+    monkeypatch.setenv("ROXY_HOME_PRICE_CACHE_SECONDS", "0")
+    monkeypatch.setattr("roxy_os.home_price_recommendations.urllib.request.urlopen", fake_urlopen)
+    offers = fetch_price_offers(
+        [{"name": "Leche", "quantity": 1, "unit": "galón"}],
+        {
+            "postal_code": "33101",
+            "location_enabled": True,
+            "latitude": 25.761681,
+            "longitude": -80.191788,
+            "location_accuracy_m": 18.6,
+        },
+        config=PriceFeedConfig(url="https://prices.example.com/search", api_key="secret"),
+    )
+
+    assert offers == []
+    assert captured["approximate_location"] == {
+        "latitude": 25.762,
+        "longitude": -80.192,
+        "accuracy_m": 19,
+    }
+    assert set(captured) == {"postal_code", "approximate_location", "currency", "items"}
 
 
 def test_amazon_searches_translate_common_spanish_products_and_keep_tag(tmp_path, monkeypatch):

@@ -63,6 +63,7 @@ from roxy_os.home_food import HomeFoodStore, HomePermissionPolicy
 from roxy_os.home_price_recommendations import (
     PRICE_NOTICE,
     PriceFeedConfig,
+    fetch_nearby_retailers,
     fetch_price_offers,
     recommend_prices,
 )
@@ -140,6 +141,12 @@ class CommerceProfileRequest(BaseModel):
     dietary_labels: list[str] = Field(default_factory=list, max_length=30)
     allow_substitutions: bool = True
     postal_code: str = Field(default="", max_length=12)
+    price_alerts_enabled: bool = True
+    price_drop_percent: int = Field(default=10, ge=5, le=50)
+    location_enabled: bool = False
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    location_accuracy_m: float | None = Field(default=None, ge=0, le=100_000)
 
 
 class CommercePrepareRequest(BaseModel):
@@ -2673,12 +2680,14 @@ def read_home_commerce(
     owner_key = _commerce_owner_key(auth, user)
     profile = store.profile(owner_key)
     activity = store.activity(owner_key)
+    price_activity = store.price_activity(owner_key)
     providers = _commerce_providers(profile, activity)
     return {
         "status": "READY",
         "profile": profile,
         "providers": providers,
         "activity": activity,
+        "price_activity": price_activity,
         "disclosure": _commerce_disclosure(providers),
     }
 
@@ -2710,26 +2719,40 @@ def read_home_price_recommendations(
     _rate_limit(request)
     user = _authorize_user(user_id, auth)
     owner_key = _commerce_owner_key(auth, user)
-    profile = _commerce_store().profile(owner_key)
+    commerce_store = _commerce_store()
+    profile = commerce_store.profile(owner_key)
+    config = PriceFeedConfig.from_env()
+    nearby_retailers: list[dict[str, Any]] = []
+    retailer_discovery_message = ""
+    if config.retailer_discovery_configured and profile.get("postal_code"):
+        try:
+            nearby_retailers = fetch_nearby_retailers(profile, config=config)
+        except ConnectionError as exc:
+            retailer_discovery_message = str(exc)
     raw_items = _store().list_items(user, statuses={"PENDING"}, limit=100)
     if not raw_items:
         return {
             "status": "EMPTY_LIST",
-            "configured": PriceFeedConfig.from_env().configured,
+            "configured": config.configured,
             "recommendations": [],
             "unpriced_items": [],
+            "nearby_retailers": nearby_retailers,
+            "retailer_discovery_message": retailer_discovery_message,
+            "price_activity": commerce_store.price_activity(owner_key),
             "updated_at": "",
             "notice": PRICE_NOTICE,
         }
     food_snapshot = _home_food_store().snapshot(user)
     items = personalize_items(raw_items, profile, food_snapshot.get("profile", {}).get("allergies", []))
-    config = PriceFeedConfig.from_env()
     if not config.configured:
         return {
             "status": "PRICE_SOURCE_NOT_CONNECTED",
             "configured": False,
             "recommendations": [],
             "unpriced_items": [row["name"] for row in items],
+            "nearby_retailers": nearby_retailers,
+            "retailer_discovery_message": retailer_discovery_message,
+            "price_activity": commerce_store.price_activity(owner_key),
             "updated_at": "",
             "notice": PRICE_NOTICE,
             "message": (
@@ -2742,7 +2765,19 @@ def read_home_price_recommendations(
     except ConnectionError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     result = recommend_prices(items, offers, profile, max_age_minutes=config.max_age_minutes)
-    return {"configured": True, **result}
+    price_activity = commerce_store.record_price_recommendations(
+        owner_key,
+        result.get("recommendations") or [],
+        alert_percent=int(profile.get("price_drop_percent") or 10),
+        alerts_enabled=profile.get("price_alerts_enabled") is not False,
+    )
+    return {
+        "configured": True,
+        **result,
+        "nearby_retailers": nearby_retailers,
+        "retailer_discovery_message": retailer_discovery_message,
+        "price_activity": price_activity,
+    }
 
 
 @app.post("/v1/home-commerce/{user_id}/preparations", status_code=201)
