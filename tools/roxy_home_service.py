@@ -58,6 +58,7 @@ from roxy_os.home_commerce import (
 )
 from roxy_os.home_conversation import HomeConversationStore
 from roxy_os.home_daily import build_home_daily_brief
+from roxy_os.home_design import HomeDesignGenerator, HomeDesignStore, public_project
 from roxy_os.home_food import HomeFoodStore, HomePermissionPolicy
 from roxy_os.home_price_recommendations import (
     PRICE_NOTICE,
@@ -150,6 +151,23 @@ class CommercePrepareRequest(BaseModel):
 class CommerceCheckoutRequest(BaseModel):
     provider_id: str = Field(min_length=1, max_length=32)
     confirmed: bool = False
+
+
+class HomeDesignProjectRequest(BaseModel):
+    name: str = Field(default="", max_length=80)
+    room_type: str = Field(pattern="^(living_room|bedroom|dining_room|kitchen|bathroom|office|patio|other)$")
+    style: str = Field(pattern="^(warm_modern|minimal|natural|classic|bohemian|industrial|coastal|surprise_me)$")
+    budget: float = Field(default=500, ge=0, le=100_000)
+    measurements: str = Field(default="", max_length=500)
+    keep_items: list[str] = Field(default_factory=list, max_length=20)
+    priorities: list[str] = Field(default_factory=list, max_length=20)
+    notes: str = Field(default="", max_length=1200)
+    photo_data_url: str = Field(min_length=32, max_length=8_100_000)
+
+
+class HomeDesignCommerceRequest(BaseModel):
+    product_ids: list[str] = Field(default_factory=list, max_length=20)
+    provider_ids: list[str] = Field(default_factory=list, max_length=10)
 
 
 class PantryItemRequest(BaseModel):
@@ -414,6 +432,24 @@ def _queue_recipe_video_for_cooking(
 
 def _commerce_store() -> HomeCommerceStore:
     return HomeCommerceStore(os.getenv("ROXY_HOME_COMMERCE_PATH", "data/roxy_home_commerce.json"))
+
+
+def _design_store() -> HomeDesignStore:
+    return HomeDesignStore(
+        os.getenv("ROXY_HOME_DESIGN_PATH", "data/roxy_home_design.json"),
+        os.getenv("ROXY_HOME_DESIGN_IMAGE_DIR", "data/roxy_home_design"),
+    )
+
+
+def _generate_home_design(owner_key: str, project_id: str) -> None:
+    store = _design_store()
+    try:
+        project = store.project(owner_key, project_id)
+        result = HomeDesignGenerator.from_env().generate(project)
+        store.save_proposal(owner_key, project_id, result)
+    except Exception:
+        # Provider details and secrets must never be persisted or returned.
+        store.mark_failed(owner_key, project_id)
 
 
 def _calendar_store() -> HomeCalendarStore:
@@ -2165,6 +2201,141 @@ def complete_purchase(
     user = _authorize_user(user_id, auth)
     result = _store().complete_purchase(user)
     return {"status": "COMPLETED" if result.get("completed") else "EMPTY", **result}
+
+
+@app.get("/v1/home-design/{user_id}")
+def read_home_design(
+    user_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    owner_key = _commerce_owner_key(auth, user)
+    generator = HomeDesignGenerator.from_env()
+    return {
+        "status": "READY",
+        "generation_configured": generator.configured,
+        "projects": [public_project(row, user) for row in _design_store().projects(owner_key)],
+    }
+
+
+@app.post("/v1/home-design/{user_id}/projects", status_code=201)
+def create_home_design_project(
+    user_id: str,
+    payload: HomeDesignProjectRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        project = _design_store().create(_commerce_owner_key(auth, user), user, payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "CREATED", "project": public_project(project, user)}
+
+
+@app.post("/v1/home-design/{user_id}/projects/{project_id}/proposal", status_code=202)
+def generate_home_design_proposal(
+    user_id: str,
+    project_id: str,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    owner_key = _commerce_owner_key(auth, user)
+    generator = HomeDesignGenerator.from_env()
+    if not generator.configured:
+        raise HTTPException(status_code=503, detail="La generación visual de Roxy Renueva todavía no está conectada.")
+    try:
+        project = _design_store().mark_generating(owner_key, project_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado") from exc
+    background_tasks.add_task(_generate_home_design, owner_key, project_id)
+    return {"status": "GENERATING", "project": public_project(project, user)}
+
+
+@app.get("/v1/home-design/{user_id}/projects/{project_id}/image/{kind}")
+def read_home_design_image(
+    user_id: str,
+    project_id: str,
+    kind: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> FileResponse:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        project = _design_store().project(_commerce_owner_key(auth, user), project_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado") from exc
+    if kind == "original":
+        path, media_type = project.get("photo_path"), project.get("photo_media_type")
+    elif kind == "proposal":
+        path, media_type = project.get("proposal_path"), "image/png"
+    else:
+        raise HTTPException(status_code=404, detail="Imagen no encontrada")
+    if not path or not Path(path).is_file():
+        raise HTTPException(status_code=404, detail="Imagen no encontrada")
+    return FileResponse(path, media_type=media_type, headers={"Cache-Control": "private, max-age=300"})
+
+
+@app.delete("/v1/home-design/{user_id}/projects/{project_id}")
+def delete_home_design_project(
+    user_id: str,
+    project_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        _design_store().delete(_commerce_owner_key(auth, user), project_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado") from exc
+    return {"status": "DELETED"}
+
+
+@app.post("/v1/home-design/{user_id}/projects/{project_id}/commerce", status_code=201)
+def prepare_home_design_purchase(
+    user_id: str,
+    project_id: str,
+    payload: HomeDesignCommerceRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    owner_key = _commerce_owner_key(auth, user)
+    try:
+        project = _design_store().project(owner_key, project_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado") from exc
+    products = project.get("products") or []
+    wanted = set(payload.product_ids)
+    items = [row for row in products if not wanted or row.get("id") in wanted]
+    if not items:
+        raise HTTPException(status_code=409, detail="Selecciona al menos un producto.")
+    profile = _commerce_store().profile(owner_key)
+    activity = _commerce_store().activity(owner_key)
+    provider_rows = _commerce_providers(profile, activity)
+    known = {row["id"] for row in provider_rows}
+    requested = list(dict.fromkeys(payload.provider_ids)) if payload.provider_ids else [row["id"] for row in provider_rows]
+    if not requested or any(provider not in known for provider in requested):
+        raise HTTPException(status_code=422, detail="Selecciona proveedores compatibles.")
+    prepared_items = personalize_items(items, profile, [])
+    preparation = _commerce_store().save_preparation(
+        owner_key,
+        user,
+        source="design",
+        source_title=f"Productos para {project['name']}",
+        items=prepared_items,
+        providers=requested,
+    )
+    return {"status": "PREPARED", "preparation": preparation, "providers": provider_rows}
 
 
 @app.get("/v1/home-commerce/{user_id}")

@@ -17,11 +17,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="73"' in page.text
-    assert 'href="/assets/roxy_list.css?v=62"' in page.text
-    assert 'src="/assets/roxy_list.js?v=73"' in page.text
-    assert '/assets/roxy_list.css?v=62' in worker.text
-    assert '/assets/roxy_list.js?v=73' in worker.text
+    assert 'name="roxy-home-version" content="74"' in page.text
+    assert 'href="/assets/roxy_list.css?v=63"' in page.text
+    assert 'src="/assets/roxy_list.js?v=74"' in page.text
+    assert '/assets/roxy_list.css?v=63' in worker.text
+    assert '/assets/roxy_list.js?v=74' in worker.text
+    assert 'id="designPanel"' in page.text
+    assert 'id="designProjectForm"' in page.text
+    assert '/v1/home-design/' in script.text
+    assert 'Buscar productos reales' in script.text
     assert "CLEANING:'Limpieza'" in script.text
     assert "shopping-category-group" in script.text
     assert "Automática (recomendada)" in page.text

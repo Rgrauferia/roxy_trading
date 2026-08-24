@@ -83,6 +83,8 @@
   let account={mode:'unknown',display_name:'',storage_user_id:user,role:''};
   let homeCalendar={events:[],pending_draft:null,sync:{native_export:true,provider:'ICS'}};
   let homeDaily=null;
+  let homeDesign={projects:[],generation_configured:false};
+  let designPoll=null;
   let calendarView='today';
   let calendarSelectedDate=new Date();
   let calendarDisplayMonth=new Date(calendarSelectedDate.getFullYear(),calendarSelectedDate.getMonth(),1);
@@ -238,23 +240,26 @@
       if(account.storage_user_id){user=account.storage_user_id;localStorage.setItem('roxyShoppingUser',user)}
       const rangeStart=new Date();rangeStart.setHours(0,0,0,0);rangeStart.setDate(rangeStart.getDate()-7);
       const rangeEnd=new Date(rangeStart);rangeEnd.setDate(rangeEnd.getDate()+370);
-      const [shopping,food,shoppingCommerce,calendarData,dailyData] = await Promise.all([
+      const [shopping,food,shoppingCommerce,calendarData,dailyData,designData] = await Promise.all([
         api(`/v1/shopping/${encodeURIComponent(user)}`),
         api(`/v1/home-food/${encodeURIComponent(user)}`),
         api(`/v1/home-commerce/${encodeURIComponent(user)}`),
         api(`/v1/home-calendar/${encodeURIComponent(user)}?start=${encodeURIComponent(rangeStart.toISOString())}&end=${encodeURIComponent(rangeEnd.toISOString())}`),
-        api(`/v1/home-daily/${encodeURIComponent(user)}`).catch(()=>null)
+        api(`/v1/home-daily/${encodeURIComponent(user)}`).catch(()=>null),
+        api(`/v1/home-design/${encodeURIComponent(user)}`).catch(()=>({projects:[],generation_configured:false}))
       ]);
       snapshot = shopping;
       homeFood = food;
       commerce = shoppingCommerce;
       homeCalendar = calendarData;
       homeDaily = dailyData;
+      homeDesign = designData;
       await cacheSnapshot();
       await dbSet(`home-food:${user}`,homeFood);
       await dbSet(`home-commerce:${user}`,commerce);
       await dbSet(`home-calendar:${user}`,homeCalendar);
       if(homeDaily)await dbSet(`home-daily:${user}`,homeDaily);
+      await dbSet(`home-design:${user}`,homeDesign);
       await flushQueue();
       setConnection('Sincronizado ahora','online');
       populateHomeForms();
@@ -270,12 +275,14 @@
       const cachedCommerce = await dbGet(`home-commerce:${user}`).catch(() => null);
       const cachedCalendar = await dbGet(`home-calendar:${user}`).catch(() => null);
       const cachedDaily = await dbGet(`home-daily:${user}`).catch(() => null);
+      const cachedDesign = await dbGet(`home-design:${user}`).catch(() => null);
       if (cached) snapshot = cached;
       if (cachedFood) homeFood = cachedFood;
       if (cachedCommerce) commerce = cachedCommerce;
       if (cachedCalendar) homeCalendar = cachedCalendar;
       if (cachedDaily) homeDaily = cachedDaily;
-      if (cached || cachedFood || cachedCommerce || cachedCalendar || cachedDaily) {
+      if (cachedDesign) homeDesign = cachedDesign;
+      if (cached || cachedFood || cachedCommerce || cachedCalendar || cachedDaily || cachedDesign) {
         setConnection('Sin conexión · mostrando lo guardado','offline');
         populateHomeForms();
         render();
@@ -359,10 +366,11 @@
     });
     document.querySelectorAll('.bottom-nav [data-tab-link]').forEach(button => button.classList.toggle('active',button.dataset.tabLink === panel));
     $('homeWelcome').hidden=panel!=='today';
-    const hashes={today:'hoy',shopping:'compra',recipes:'recetas',pantry:'despensa',calendar:'calendario',more:'mas'};
+    const hashes={today:'hoy',shopping:'compra',recipes:'recetas',pantry:'despensa',calendar:'calendario',design:'renueva',more:'mas'};
     location.hash=hashes[panel]||'hoy';
     window.scrollTo({top:0,behavior:smooth?'smooth':'auto'});
     if(panel==='shopping'&&account.mode!=='unknown'&&!priceRecommendations&&!priceRecommendationsLoading)void loadPriceRecommendations({quiet:true});
+    if(panel==='design'&&account.mode!=='unknown')void refreshDesignProjects().catch(()=>{});
   }
 
   const calendarCategories={PERSONAL:'Personal',WORK:'Trabajo',FAMILY:'Familia',SCHOOL:'Escuela',APPOINTMENTS:'Citas',HOME:'Hogar'};
@@ -844,6 +852,59 @@
     if(file.size>1_500_000)return Promise.reject(new Error('La foto debe pesar menos de 1.5 MB'));
     return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(new Error('No pude leer la foto'));reader.readAsDataURL(file)});
   }
+
+  async function readDesignPhoto(file){
+    if(!file)throw new Error('Toma o selecciona una foto de la habitación');
+    if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('La foto debe ser JPEG, PNG o WebP');
+    if(file.size>12_000_000)throw new Error('La foto original es demasiado grande');
+    const source=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(new Error('No pude leer la foto'));reader.readAsDataURL(file)});
+    const image=await new Promise((resolve,reject)=>{const node=new Image();node.onload=()=>resolve(node);node.onerror=()=>reject(new Error('No pude procesar la foto'));node.src=source});
+    const maxSide=1800;const scale=Math.min(1,maxSide/Math.max(image.naturalWidth,image.naturalHeight));
+    const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+    canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);
+    return canvas.toDataURL('image/jpeg',.84);
+  }
+
+  const commaValues=value=>String(value||'').split(',').map(row=>row.trim()).filter(Boolean).slice(0,20);
+  async function refreshDesignProjects(){
+    homeDesign=await api(`/v1/home-design/${encodeURIComponent(user)}`);await dbSet(`home-design:${user}`,homeDesign);renderDesign();
+    const pending=(homeDesign.projects||[]).some(project=>project.proposal_status==='GENERATING');
+    if(pending&&!designPoll)designPoll=setTimeout(()=>{designPoll=null;refreshDesignProjects().catch(()=>{})},5000);
+  }
+  function renderDesign(){
+    const root=$('designProjects');if(!root)return;root.replaceChildren();
+    $('designGenerationNotice').textContent=homeDesign.generation_configured?'Roxy usa la foto privada únicamente para crear tu propuesta. Los productos y precios se verifican al abrir el comercio.':'Puedes guardar proyectos; la generación visual necesita conectar la clave privada de OpenAI de Home.';
+    const projects=homeDesign.projects||[];
+    if(!projects.length){const empty=document.createElement('div');empty.className='design-empty';empty.innerHTML='<strong>Aún no tienes proyectos</strong><p>Empieza con una habitación que quieras disfrutar más.</p>';root.append(empty);return}
+    projects.forEach(project=>{
+      const card=document.createElement('article');card.className='design-project';
+      const visuals=document.createElement('div');visuals.className='design-visuals';
+      const before=document.createElement('div');before.className='design-visual';const beforeImage=document.createElement('img');beforeImage.src=project.photo_url;beforeImage.alt=`Foto actual de ${project.name}`;const beforeLabel=document.createElement('span');beforeLabel.textContent='Ahora';before.append(beforeImage,beforeLabel);
+      const after=document.createElement('div');after.className='design-visual';
+      if(project.proposal_url){const afterImage=document.createElement('img');afterImage.src=`${project.proposal_url}?v=${encodeURIComponent(project.updated_at||'')}`;afterImage.alt=`Propuesta de Roxy para ${project.name}`;const afterLabel=document.createElement('span');afterLabel.textContent='Propuesta de Roxy';after.append(afterImage,afterLabel)}
+      else{const placeholder=document.createElement('div');placeholder.className='design-proposal-placeholder';const status=project.proposal_status==='GENERATING'?'Roxy está transformando tu espacio…':project.proposal_status==='FAILED'?'La propuesta no terminó. Puedes intentarlo otra vez.':'Aquí aparecerá tu propuesta visual';placeholder.textContent=status;after.append(placeholder)}
+      visuals.append(before,after);
+      const body=document.createElement('div');body.className='design-project-body';const heading=document.createElement('div');heading.className='design-project-heading';const copy=document.createElement('div');const title=document.createElement('h3');title.textContent=project.name;const meta=document.createElement('p');meta.textContent=`${project.room_label} · ${project.style_label}${project.measurements?` · ${project.measurements}`:''}`;copy.append(title,meta);const budget=document.createElement('span');budget.className='design-budget';budget.textContent=`$${Number(project.budget||0).toLocaleString('en-US')}`;heading.append(copy,budget);
+      const products=document.createElement('div');products.className='design-product-list';(project.products||[]).forEach(row=>{const label=document.createElement('label');const check=document.createElement('input');check.type='checkbox';check.checked=true;check.dataset.designProduct=row.id;const name=document.createElement('span');name.textContent=row.name;const target=document.createElement('em');target.textContent=row.budget_target?`meta $${Number(row.budget_target).toFixed(0)}`:'comparar';label.append(check,name,target);products.append(label)});
+      const actions=document.createElement('div');actions.className='design-project-actions';const generate=makeButton(project.proposal_status==='FAILED'?'Intentar propuesta otra vez':project.proposal_url?'Actualizar propuesta':'Crear propuesta visual','primary',()=>generateDesignProposal(project.id));generate.disabled=project.proposal_status==='GENERATING'||!homeDesign.generation_configured;const buy=makeButton('Buscar productos reales','secondary',()=>prepareDesignPurchase(project,card));const remove=makeButton('Eliminar proyecto','danger-button',()=>deleteDesignProject(project));actions.append(generate,buy,remove);
+      body.append(heading,products,actions);card.append(visuals,body);root.append(card);
+    });
+  }
+  async function submitDesignProject(event){
+    event.preventDefault();const form=event.currentTarget;const button=$('designProjectSubmit');button.disabled=true;button.textContent='Guardando proyecto…';
+    try{const photo=await readDesignPhoto($('designPhoto').files[0]);const data=await api(`/v1/home-design/${encodeURIComponent(user)}/projects`,{method:'POST',body:JSON.stringify({name:$('designName').value,room_type:$('designRoom').value,style:$('designStyle').value,budget:Number($('designBudget').value||0),measurements:$('designMeasurements').value,keep_items:commaValues($('designKeep').value),priorities:commaValues($('designPriorities').value),notes:$('designNotes').value,photo_data_url:photo})});$('designDialog').close();form.reset();$('designBudget').value='500';await refreshDesignProjects();announce('Proyecto guardado. Roxy está lista para crear la propuesta.');if(homeDesign.generation_configured)await generateDesignProposal(data.project.id)}catch(error){announce(error.message)}finally{button.disabled=false;button.textContent='Guardar y crear propuesta'}
+  }
+  async function generateDesignProposal(projectId){
+    try{await api(`/v1/home-design/${encodeURIComponent(user)}/projects/${encodeURIComponent(projectId)}/proposal`,{method:'POST',body:'{}'});announce('Roxy está creando la propuesta sobre tu habitación real');await refreshDesignProjects()}catch(error){announce(error.message)}
+  }
+  async function prepareDesignPurchase(project,card){
+    const ids=[...card.querySelectorAll('[data-design-product]:checked')].map(node=>node.dataset.designProduct);if(!ids.length){announce('Selecciona al menos un producto');return}
+    try{const data=await api(`/v1/home-design/${encodeURIComponent(user)}/projects/${encodeURIComponent(project.id)}/commerce`,{method:'POST',body:JSON.stringify({product_ids:ids,provider_ids:[]})});currentPreparation=data.preparation;renderCommercePreparation(data.preparation,data.providers||commerce.providers||[]);$('commerceDialog').showModal()}catch(error){announce(error.message)}
+  }
+  async function deleteDesignProject(project){
+    if(!window.confirm(`¿Eliminar “${project.name}” y sus imágenes privadas?`))return;
+    try{await api(`/v1/home-design/${encodeURIComponent(user)}/projects/${encodeURIComponent(project.id)}`,{method:'DELETE'});await refreshDesignProjects();announce('Proyecto eliminado')}catch(error){announce(error.message)}
+  }
   async function saveRecipePersonalization(event){
     event.preventDefault();if(!currentRecipe)return;
     const button=event.currentTarget.querySelector('button[type="submit"]');button.disabled=true;
@@ -889,7 +950,7 @@
     $('commerceDisclosureDialog').textContent=preparation.disclosure||commerce.disclosure||'';
     $('commerceProviderDisclosure').hidden=true;$('commerceProviderDisclosure').textContent='';
     const items=$('commerceItems');items.replaceChildren();
-    (preparation.items||[]).forEach(row=>{const article=document.createElement('article');const img=makeImage(row.name,'FOOD','');const copy=document.createElement('div');const strong=document.createElement('strong');strong.textContent=`${row.quantity} ${row.unit} · ${row.name}`;const small=document.createElement('small');small.textContent=row.reason;copy.append(strong,small);if((row.avoided_brands||[]).length){const avoided=document.createElement('small');avoided.textContent=`Evitar: ${row.avoided_brands.join(', ')}`;copy.append(avoided)}if(row.allergen_review_required){const warning=document.createElement('em');warning.textContent='Verifica la etiqueta por tus alergias';copy.append(warning)}article.append(img,copy);items.append(article)});
+    (preparation.items||[]).forEach(row=>{const article=document.createElement('article');const img=makeImage(row.name,row.category||'GENERAL','');const copy=document.createElement('div');const strong=document.createElement('strong');strong.textContent=`${row.quantity} ${row.unit} · ${row.name}`;const small=document.createElement('small');small.textContent=row.reason;copy.append(strong,small);if((row.avoided_brands||[]).length){const avoided=document.createElement('small');avoided.textContent=`Evitar: ${row.avoided_brands.join(', ')}`;copy.append(avoided)}if(row.allergen_review_required){const warning=document.createElement('em');warning.textContent='Verifica la etiqueta por tus alergias';copy.append(warning)}article.append(img,copy);items.append(article)});
     pendingCommerceProvider=null;$('commerceConfirmation').hidden=true;$('commerceConfirmCheck').checked=false;$('commerceConfirmButton').disabled=true;$('commerceHandoffNote').textContent='';
     const actions=$('commerceActions');actions.replaceChildren();
     providers.filter(provider=>(preparation.providers||[]).includes(provider.id)).forEach(provider=>{const button=makeButton(provider.configured?`Continuar con ${provider.name}`:`${provider.name} · ${provider.status_label||'falta conectar'}`,provider.configured?'primary':'secondary',()=>requestProviderLinks(provider.id));button.disabled=!provider.configured;button.title=provider.next_step||provider.description||'';actions.append(button)});
@@ -1167,7 +1228,7 @@
   async function startRoxyVoice(){if(roxyVoiceConversation||roxyVoiceStarting)return;openRoxyVoice();roxyVoiceStarting=true;roxyLastAgentMessage='';roxyLastAgentMessageAt=0;$('roxyVoiceStart').disabled=true;let phase='configuración';roxyVoiceStatus('Conectando con ElevenLabs…');try{if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new DOMException('Micrófono no disponible','NotFoundError');phase='permiso del micrófono';roxyVoicePermissionStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});const config=await api(`/v1/assistant/session/${encodeURIComponent(user)}`);phase='carga del agente';const eleven=await loadElevenLabs();const Conversation=eleven.Conversation||(eleven.default&&eleven.default.Conversation);if(!Conversation||!Conversation.startSession)throw new Error('SDK de ElevenLabs no disponible');phase='conexión de voz';const options={connectionType:'websocket',overrides:roxyHomeOverrides(),dynamicVariables:{...(config.dynamic_variables||{}),shopping_list_json:JSON.stringify(currentShoppingSummary())},clientTools:roxyHomeClientTools(),onConnect:()=>{roxyVoiceStarting=false;roxyVoiceStatus('Roxy te está escuchando');$('roxyVoiceStart').disabled=true;$('roxyVoiceEnd').disabled=false},onDisconnect:details=>{console.info('Roxy Home ElevenLabs disconnected',details||'normal');stopRoxyPermissionStream();roxyVoiceConversation=null;roxyVoiceStarting=false;const endedByAgent=details&&details.reason==='agent';roxyVoiceStatus(endedByAgent?'Roxy terminó la llamada antes de tiempo. Pulsa iniciar para reconectar.':'Conversación terminada',endedByAgent);$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true},onError:error=>{console.warn('Roxy Home ElevenLabs error',error);stopRoxyPermissionStream();roxyVoiceStarting=false;roxyVoiceStatus(roxyVoiceError(error,'conversación'),true);$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true},onModeChange:mode=>{const state=String(mode&&mode.mode||mode||'').toLowerCase();if(state.includes('speaking'))roxyVoiceStatus('Roxy está respondiendo');else if(state.includes('listening'))roxyVoiceStatus('Roxy te está escuchando')},onMessage:message=>{const source=String(message&&((message.source||message.role||message.type))||'').toLowerCase();const text=message&&(message.message||message.text||message.transcript||message.content||(message.agent_response_event&&message.agent_response_event.agent_response)||(message.user_transcription_event&&message.user_transcription_event.user_transcript));if(typeof text==='string'&&text.trim()){const fromUser=source.includes('user');if(!fromUser){roxyLastAgentMessage=text.trim();roxyLastAgentMessageAt=Date.now()}roxyVoiceTranscript(text.trim(),fromUser?'Tú':'Roxy')}}};if(config.conversation_token)options.conversationToken=config.conversation_token;else options.agentId=config.agent_id;roxyVoiceConversation=await Conversation.startSession(options);stopRoxyPermissionStream()}catch(error){console.warn('Roxy Home ElevenLabs start failed',error);stopRoxyPermissionStream();roxyVoiceConversation=null;roxyVoiceStarting=false;roxyVoiceStatus(roxyVoiceError(error,phase),true);$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true}}
   async function endRoxyVoice(){const conversation=roxyVoiceConversation;roxyVoiceConversation=null;stopRoxyPermissionStream();if(conversation&&typeof conversation.endSession==='function'){try{await conversation.endSession()}catch(error){console.warn('Roxy Home ElevenLabs end failed',error)}}roxyVoiceStarting=false;roxyVoiceStatus('Conversación terminada');$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true}
 
-  function render(){renderShopping();renderRecipes();renderCalendar();renderHomeDaily();const latest=(homeFood.weekly_plans||[]).slice(-1)[0]||null;renderMealPlan(latest)}
+  function render(){renderShopping();renderRecipes();renderCalendar();renderHomeDaily();renderDesign();const latest=(homeFood.weekly_plans||[]).slice(-1)[0]||null;renderMealPlan(latest)}
   function bind(){
     document.addEventListener('error',event=>{const image=event.target;if(!(image instanceof HTMLImageElement)||!image.src.includes('/v1/home-food/recipe-photo'))return;const card=image.closest('.recipe-card,.recipe-detail-hero,.meal-plan-meal');if(card)card.classList.add('no-photo');image.remove()},true);
     $('searchInput').addEventListener('input',event=>{search=event.target.value;renderShopping()});
@@ -1191,6 +1252,9 @@
     $('commerceConfirmCheck').addEventListener('change',()=>{$('commerceConfirmButton').disabled=!$('commerceConfirmCheck').checked});
     $('commerceConfirmCancel').addEventListener('click',()=>{pendingCommerceProvider=null;$('commerceConfirmation').hidden=true});
     $('commerceConfirmButton').addEventListener('click',confirmProviderHandoff);
+    $('newDesignProjectButton').addEventListener('click',()=>$('designDialog').showModal());
+    $('openDesignFromToday').addEventListener('click',()=>setTimeout(()=>$('designDialog').showModal(),0));
+    $('designProjectForm').addEventListener('submit',submitDesignProject);
     $('pantryForm').addEventListener('submit',savePantry);
     $('recipeForm').addEventListener('submit',createRecipe);
     $('beverageForm').addEventListener('submit',createBeverage);
@@ -1237,7 +1301,7 @@
   bind();renderHomeMoment();setInterval(renderHomeMoment,30000);render();
   window.addEventListener('pageshow',event=>{if(event.persisted)location.reload()});
   if('scrollRestoration'in history)history.scrollRestoration='manual';
-  const initialPanels={hoy:'today',compra:'shopping',recetas:'recipes',despensa:'pantry',calendario:'calendar',mas:'more'};
+  const initialPanels={hoy:'today',compra:'shopping',recetas:'recipes',despensa:'pantry',calendario:'calendar',renueva:'design',mas:'more'};
   selectPanel(initialPanels[location.hash.slice(1)]||'today',{smooth:false});const calendarSyncResult=new URLSearchParams(location.search).get('calendar_sync');if(calendarSyncResult){sessionStorage.setItem('roxyCalendarSyncNotice',calendarSyncResult);history.replaceState(null,'',`${location.pathname}${location.hash||'#calendario'}`)}load().then(()=>{const notice=sessionStorage.getItem('roxyCalendarSyncNotice');if(notice){sessionStorage.removeItem('roxyCalendarSyncNotice');announce(notice==='connected'?'Google Calendar quedó conectado. Tus próximos eventos ya se están sincronizando.':notice==='denied'?'No se autorizó Google Calendar. No hice cambios.':'No pude terminar la conexión con Google Calendar. Inténtalo de nuevo.')}});
   if('serviceWorker'in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){
     const homeRoute=location.pathname.startsWith('/home');
