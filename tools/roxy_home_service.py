@@ -179,6 +179,12 @@ class HomeDesignRevisionRequest(HomeDesignProposalRequest):
     instruction: str = Field(min_length=2, max_length=500)
 
 
+class HomeDesignFitRequest(BaseModel):
+    wall_width: float = Field(default=0, ge=0, le=2_000)
+    passage_width: float = Field(default=0, ge=0, le=2_000)
+    max_depth: float = Field(default=0, ge=0, le=2_000)
+
+
 class PantryItemRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     quantity: float = Field(default=1, gt=0, le=100_000)
@@ -2502,6 +2508,27 @@ def revise_home_design_project(
     return {"status": "GENERATING", "project": public_project(project, user)}
 
 
+@app.put("/v1/home-design/{user_id}/projects/{project_id}/measurements")
+def update_home_design_measurements(
+    user_id: str,
+    project_id: str,
+    payload: HomeDesignFitRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        project = _design_store().update_fit_constraints(
+            _commerce_owner_key(auth, user), project_id, payload.model_dump()
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "UPDATED", "project": public_project(project, user)}
+
+
 @app.get("/v1/home-design/{user_id}/projects/{project_id}/image/{kind}")
 def read_home_design_image(
     user_id: str,
@@ -2572,6 +2599,12 @@ def prepare_home_design_purchase(
     if not requested or any(provider not in known for provider in requested):
         raise HTTPException(status_code=422, detail="Selecciona proveedores compatibles.")
     prepared_items = personalize_items(items, profile, [])
+    fit = project.get("fit_constraints") or {}
+    if any(float(value or 0) > 0 for value in fit.values()):
+        fit_labels = {"wall_width": "pared", "passage_width": "paso", "max_depth": "profundidad"}
+        limits = ", ".join(f"{fit_labels.get(key, key)} {float(value):g} in" for key, value in fit.items() if float(value or 0) > 0)
+        for row in prepared_items:
+            row["reason"] = f"{row['reason']} Verifica las dimensiones publicadas contra: {limits}."
     preparation = _commerce_store().save_preparation(
         owner_key,
         user,

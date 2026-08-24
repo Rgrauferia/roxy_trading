@@ -63,6 +63,19 @@ def test_design_store_changes_budget_tier_and_remembers_conversational_revisions
     assert analyzed["analysis"]["questions"] == ["¿Cuánto mide la pared?"]
 
 
+def test_design_store_keeps_physical_constraints_separate_and_requires_complete_measurements(tmp_path):
+    from roxy_os.home_design import public_project
+
+    store = HomeDesignStore(tmp_path / "design.json", tmp_path / "images")
+    project = store.create("member:robert", "home", _values())
+    incomplete = store.update_fit_constraints("member:robert", project["id"], {"wall_width": 120, "passage_width": 0, "max_depth": 24})
+    complete = store.update_fit_constraints("member:robert", project["id"], {"wall_width": 120, "passage_width": 36, "max_depth": 24})
+
+    assert public_project(incomplete, "robert")["fit_assessment"]["status"] == "NEEDS_MEASUREMENTS"
+    assert public_project(complete, "robert")["fit_assessment"]["status"] == "READY_TO_COMPARE"
+    assert complete["fit_constraints"]["passage_width"] == 36
+
+
 def test_design_generation_uses_responses_api_image_edit_and_never_stores_request(tmp_path):
     store = HomeDesignStore(tmp_path / "design.json", tmp_path / "images")
     project = store.create("member:robert", "home", _values())
@@ -84,6 +97,7 @@ def test_design_generation_uses_responses_api_image_edit_and_never_stores_reques
     assert any(row["type"] == "input_image" and row["image_url"].startswith("data:image/png;base64,") for row in content)
     assert "sofá gris" in content[0]["text"]
     assert "exact architecture" in content[0]["text"]
+    assert "Physical limits in inches" in content[0]["text"]
 
 
 def test_design_visual_analysis_uses_private_photo_and_structured_responses_output(tmp_path):
@@ -163,6 +177,11 @@ def test_design_api_analyzes_revises_and_generates_only_the_selected_budget_opti
     headers = {"Authorization": "Bearer home-test-key"}
     project = client.post("/v1/home-design/robert/projects", headers=headers, json=_values()).json()["project"]
 
+    measured = client.put(
+        f"/v1/home-design/robert/projects/{project['id']}/measurements",
+        headers=headers,
+        json={"wall_width": 120, "passage_width": 36, "max_depth": 24},
+    )
     analyzed = client.post(f"/v1/home-design/robert/projects/{project['id']}/analysis", headers=headers, json={})
     generated = client.post(f"/v1/home-design/robert/projects/{project['id']}/proposal", headers=headers, json={"tier": "economy"})
     revised = client.post(
@@ -172,6 +191,8 @@ def test_design_api_analyzes_revises_and_generates_only_the_selected_budget_opti
     )
     snapshot = client.get("/v1/home-design/robert", headers=headers).json()["projects"][0]
 
+    assert measured.status_code == 200
+    assert measured.json()["project"]["fit_assessment"]["status"] == "READY_TO_COMPARE"
     assert analyzed.status_code == 200
     assert analyzed.json()["project"]["analysis_status"] == "READY_AI"
     assert generated.status_code == 202

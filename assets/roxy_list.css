@@ -528,6 +528,14 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
 .design-visual { position: relative; min-height: 190px; }
 .design-visual img { display: block; width: 100%; height: 100%; min-height: 190px; object-fit: cover; }
 .design-visual span { position: absolute; left: 10px; bottom: 10px; padding: 5px 9px; border-radius: 999px; color: #fff; background: rgba(9,31,20,.72); font-size: 10px; font-weight: 800; }
+.design-visuals.is-comparison { position: relative; display: block; min-height: 300px; aspect-ratio: 16 / 10; overflow: hidden; }
+.design-visuals.is-comparison .design-visual { position: absolute; inset: 0; min-height: 0; }
+.design-visuals.is-comparison .design-visual img { min-height: 0; }
+.design-visuals.is-comparison .design-visual:nth-child(2) { z-index: 2; border-right: 2px solid rgba(255,255,255,.92); }
+.design-visuals.is-comparison .design-visual:nth-child(2) span { left: auto; right: 10px; }
+.design-comparison-control { position: absolute; z-index: 3; left: 50%; bottom: 12px; display: grid; grid-template-columns: auto minmax(110px,180px) auto; align-items: center; gap: 7px; width: min(88%,390px); padding: 7px 10px; border-radius: 999px; color: #fff; background: rgba(9,31,20,.78); transform: translateX(-50%); backdrop-filter: blur(8px); }
+.design-comparison-control span { font-size: 9px; font-weight: 850; }
+.design-comparison-control input { width: 100%; accent-color: #d9bd80; }
 .design-proposal-placeholder { display: grid; place-items: center; height: 100%; min-height: 190px; padding: 20px; color: var(--forest); background: linear-gradient(145deg,#eaf2e8,#f8f3e9); text-align: center; }
 .design-project-body { display: grid; gap: 13px; padding: 17px; }
 .design-project-heading { display: flex; justify-content: space-between; gap: 12px; }
@@ -545,6 +553,17 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
 .design-analysis button { min-height: 34px; padding: 6px 10px; font-size: 10px; }
 .design-analysis p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
 .design-analysis ul { display: grid; gap: 5px; margin: 0; padding-left: 18px; color: #3e5848; font-size: 11px; line-height: 1.4; }
+.design-fit { border: 1px solid rgba(23,63,43,.14); border-radius: 17px; background: #fffdf8; }
+.design-fit summary { display: grid; grid-template-columns: 38px minmax(0,1fr); align-items: center; gap: 9px; padding: 11px; color: var(--forest); cursor: pointer; list-style: none; }
+.design-fit summary::-webkit-details-marker { display: none; }
+.design-fit summary > .material-symbols-rounded { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; color: #fff; background: var(--forest); }
+.design-fit summary > span:last-child { display: grid; gap: 2px; }
+.design-fit summary strong { font-size: 13px; }
+.design-fit summary small { color: var(--muted); font-size: 10px; line-height: 1.35; }
+.design-fit-form { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; padding: 0 11px 11px; }
+.design-fit-form label { display: grid; gap: 4px; color: var(--forest); font-size: 9px; font-weight: 800; }
+.design-fit-form input { width: 100%; min-height: 40px; border: 1px solid rgba(23,63,43,.16); border-radius: 11px; padding: 7px; color: var(--ink); background: #fff; font: inherit; }
+.design-fit-form button { grid-column: 1 / -1; min-height: 40px; }
 .design-product-list { display: grid; gap: 6px; }
 .design-product-list label { display: grid; grid-template-columns: 22px minmax(0,1fr) auto; align-items: center; gap: 8px; min-height: 42px; padding: 7px 9px; border-radius: 13px; background: #f4f7f1; color: var(--forest); font-size: 12px; }
 .design-product-list em { color: var(--muted); font-style: normal; font-size: 10px; }
@@ -562,8 +581,10 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
   .design-intro .primary { grid-column: 1 / -1; width: 100%; }
   .design-visual { min-height: 145px; }
   .design-visual img,.design-proposal-placeholder { min-height: 145px; }
+  .design-visuals.is-comparison { min-height: 220px; }
   .design-project-actions { grid-template-columns: 1fr; }
   .design-revision { grid-template-columns: 1fr; }
+  .design-fit-form { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 580px) {

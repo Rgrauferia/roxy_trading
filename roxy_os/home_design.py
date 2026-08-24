@@ -168,6 +168,26 @@ def _initial_analysis(room_type: str, priorities: list[str], keep_items: list[st
     }
 
 
+def _fit_assessment(values: Any) -> dict[str, Any]:
+    constraints = values if isinstance(values, dict) else {}
+    clean = {key: round(float(constraints.get(key) or 0), 2) for key in ("wall_width", "passage_width", "max_depth")}
+    missing = [key for key, value in clean.items() if value <= 0]
+    labels = {"wall_width": "ancho disponible de pared", "passage_width": "ancho del paso o puerta", "max_depth": "profundidad máxima"}
+    if missing:
+        return {
+            "status": "NEEDS_MEASUREMENTS",
+            "label": "Faltan medidas",
+            "message": "Añade " + ", ".join(labels[key] for key in missing) + ". Roxy no confirmará compatibilidad sin esos datos.",
+            "constraints": clean,
+        }
+    return {
+        "status": "READY_TO_COMPARE",
+        "label": "Medidas preparadas",
+        "message": "Roxy usará estos límites para la propuesta y los comparará con las dimensiones publicadas por cada comercio. La compatibilidad final depende de la ficha real del producto.",
+        "constraints": clean,
+    }
+
+
 class HomeDesignStore:
     def __init__(self, path: str | Path = "data/roxy_home_design.json", image_root: str | Path = "data/roxy_home_design") -> None:
         self.path = Path(path)
@@ -271,6 +291,7 @@ class HomeDesignStore:
             "analysis": _initial_analysis(room_type, priorities, keep_items),
             "analysis_status": "READY_LOCAL",
             "revision_notes": [],
+            "fit_constraints": {"wall_width": 0, "passage_width": 0, "max_depth": 0},
             "created_at": now,
             "updated_at": now,
         }
@@ -279,6 +300,21 @@ class HomeDesignStore:
             payload["projects"].setdefault(owner_key, {})[project_id] = row
             return deepcopy(row)
 
+        return self._mutate(apply)
+
+    def update_fit_constraints(self, owner_key: str, project_id: str, values: dict[str, Any]) -> dict[str, Any]:
+        constraints: dict[str, float] = {}
+        for key in ("wall_width", "passage_width", "max_depth"):
+            number = round(float(values.get(key) or 0), 2)
+            if number < 0 or number > 2_000:
+                raise ValueError("Las medidas deben estar entre 0 y 2,000 pulgadas.")
+            constraints[key] = number
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            row = payload.get("projects", {}).get(owner_key, {}).get(project_id)
+            if not isinstance(row, dict):
+                raise KeyError(project_id)
+            row.update({"fit_constraints": constraints, "updated_at": _now()})
+            return deepcopy(row)
         return self._mutate(apply)
 
     def select_tier(self, owner_key: str, project_id: str, tier: str) -> dict[str, Any]:
@@ -441,12 +477,15 @@ class HomeDesignGenerator:
         products = ", ".join(row.get("name", "") for row in (project.get("products") or []))
         tier = BUDGET_TIERS.get(str(project.get("selected_tier") or "balanced"), BUDGET_TIERS["balanced"])
         revision_notes = "; ".join(str(row.get("instruction") or "") for row in (project.get("revision_notes") or [])[-4:])
+        fit = _fit_assessment(project.get("fit_constraints"))
+        dimensions = fit["constraints"]
         prompt = (
             f"Edit this exact photograph of a {project['room_label']} into a realistic {project['style_label']} redesign. "
             f"Preserve the exact architecture, camera angle, windows, doors, floor plan and these requested items: {kept}. "
             f"Prioritize {priorities}. Create the {tier['label']} option and respect a total furnishing budget near ${project['budget'] * float(tier['multiplier']):.2f} USD, so the result must be attainable, not luxury fantasy. "
             f"Use a coherent version of these shoppable decor concepts so the visualization and shopping plan agree: {products}. "
             f"Apply these latest household revision requests exactly when compatible with the room: {revision_notes or 'no additional revisions'}. "
+            f"Physical limits in inches, when greater than zero: wall width {dimensions['wall_width']}, passage width {dimensions['passage_width']}, maximum furniture depth {dimensions['max_depth']}. Never depict an item that clearly violates these supplied limits. "
             "Show one photorealistic finished-room visualization. Do not change the room into another property. "
             "No people, text, labels, logos, watermarks, before-and-after split or impossible construction."
         )
@@ -467,6 +506,8 @@ def public_project(row: dict[str, Any], user_id: str) -> dict[str, Any]:
         result["analysis"] = _initial_analysis(str(row.get("room_type") or "other"), list(row.get("priorities") or []), list(row.get("keep_items") or []))
     result.setdefault("analysis_status", str((result.get("analysis") or {}).get("status") or "READY_LOCAL"))
     result.setdefault("revision_notes", [])
+    result.setdefault("fit_constraints", {"wall_width": 0, "passage_width": 0, "max_depth": 0})
+    result["fit_assessment"] = _fit_assessment(result.get("fit_constraints"))
     project_id = row["id"]
     result["photo_url"] = f"/v1/home-design/{user_id}/projects/{project_id}/image/original"
     result["proposal_url"] = f"/v1/home-design/{user_id}/projects/{project_id}/image/proposal" if row.get("proposal_path") else ""
