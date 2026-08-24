@@ -17,12 +17,17 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="74"' in page.text
-    assert 'href="/assets/roxy_list.css?v=63"' in page.text
-    assert 'src="/assets/roxy_list.js?v=74"' in page.text
-    assert '/assets/roxy_list.css?v=63' in worker.text
-    assert '/assets/roxy_list.js?v=74' in worker.text
+    assert 'name="roxy-home-version" content="75"' in page.text
+    assert 'href="/assets/roxy_list.css?v=64"' in page.text
+    assert 'src="/assets/roxy_list.js?v=75"' in page.text
+    assert '/assets/roxy_list.css?v=64' in worker.text
+    assert '/assets/roxy_list.js?v=75' in worker.text
     assert 'id="designPanel"' in page.text
+    assert 'class="renueva-entry"' not in page.text
+    assert 'id="openDesignFromToday"' not in page.text
+    assert "openDesignFromToday" not in script.text
+    nav = page.text[page.text.index('<nav class="bottom-nav"'):]
+    assert nav.index('data-tab-link="recipes"') < nav.index('data-tab-link="design"') < nav.index('data-tab-link="calendar"')
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
     assert 'Buscar productos reales' in script.text

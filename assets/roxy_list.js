@@ -1253,7 +1253,6 @@
     $('commerceConfirmCancel').addEventListener('click',()=>{pendingCommerceProvider=null;$('commerceConfirmation').hidden=true});
     $('commerceConfirmButton').addEventListener('click',confirmProviderHandoff);
     $('newDesignProjectButton').addEventListener('click',()=>$('designDialog').showModal());
-    $('openDesignFromToday').addEventListener('click',()=>setTimeout(()=>$('designDialog').showModal(),0));
     $('designProjectForm').addEventListener('submit',submitDesignProject);
     $('pantryForm').addEventListener('submit',savePantry);
     $('recipeForm').addEventListener('submit',createRecipe);
