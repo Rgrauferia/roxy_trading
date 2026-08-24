@@ -24,6 +24,7 @@ except ImportError:  # pragma: no cover
 
 
 GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events"
+ROXY_HOME_GOOGLE_CLIENT_ID = "377142868759-tk9d5bpbvmdfh1gomda4t2d808cfppke.apps.googleusercontent.com"
 
 
 @dataclass(frozen=True)
@@ -40,7 +41,9 @@ class GoogleCalendarConfig:
     @classmethod
     def from_env(cls) -> "GoogleCalendarConfig":
         return cls(
-            client_id=str(os.getenv("ROXY_HOME_GOOGLE_CALENDAR_CLIENT_ID") or "").strip(),
+            # OAuth client IDs are public identifiers (unlike client secrets),
+            # so keep Home's own ID as a safe deployment fallback.
+            client_id=str(os.getenv("ROXY_HOME_GOOGLE_CALENDAR_CLIENT_ID") or ROXY_HOME_GOOGLE_CLIENT_ID).strip(),
             client_secret=str(os.getenv("ROXY_HOME_GOOGLE_CALENDAR_CLIENT_SECRET") or "").strip(),
             redirect_uri=str(os.getenv("ROXY_HOME_GOOGLE_CALENDAR_REDIRECT_URI") or "https://roxy-home.onrender.com/v1/home-calendar/google/callback").strip(),
             encryption_key=str(os.getenv("ROXY_HOME_CALENDAR_ENCRYPTION_KEY") or "").strip(),
