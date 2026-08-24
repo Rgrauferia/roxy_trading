@@ -86,6 +86,7 @@
   let calendarDisplayMonth=new Date(calendarSelectedDate.getFullYear(),calendarSelectedDate.getMonth(),1);
   let pendingCalendarDraft=null;
   const calendarReminderTimers=new Map();
+  let calendarAutoSyncRunning=false;
 
   const activePersonName=()=>String(account.mode==='member'?account.display_name:greetingName||'').trim();
 
@@ -239,6 +240,7 @@
       render();
       renderAccount();
       renderHomeMoment();
+      void autoSyncGoogleCalendar();
       if(!$('shoppingPanel').hidden)void loadPriceRecommendations({quiet:true});
       if(account.requires_profile_setup&&!sessionStorage.getItem('roxyHomeProfilePrompted')){sessionStorage.setItem('roxyHomeProfilePrompted','1');openAccountDialog()}
     } catch (error) {
@@ -399,7 +401,16 @@
     document.querySelectorAll('[data-calendar-view]').forEach(button=>button.classList.toggle('active',button.dataset.calendarView===calendarView));
     const agendaVisible=calendarView==='today'||calendarView==='week';$('calendarWeekStrip').hidden=!agendaVisible;$('calendarAgenda').hidden=!agendaVisible;$('calendarMonth').hidden=calendarView!=='month';$('calendarYear').hidden=calendarView!=='year';
     if(agendaVisible){renderCalendarWeekStrip();renderCalendarAgenda()}else if(calendarView==='month')renderCalendarMonth();else renderCalendarYear();
-    const sync=homeCalendar.sync||{};const google=sync.google_calendar||{};$('calendarSyncStatus').lastChild.textContent=google.connected?' Google Calendar conectado':' Recordatorios del teléfono pendientes de conectar';$('calendarGoogleMessage').textContent=google.message||'Conecta Google Calendar una sola vez.';$('calendarGoogleConnect').hidden=google.connected||!google.configured;$('calendarGoogleConnect').href=`/v1/home-calendar/${encodeURIComponent(user)}/google/connect`;$('calendarGoogleSync').hidden=!google.connected;$('calendarGoogleDisconnect').hidden=!google.connected;if(!google.configured)$('calendarGoogleMessage').textContent='La conexión segura todavía necesita las credenciales de Google en el servidor.';renderUpcomingEvent();scheduleCalendarReminders();
+    const sync=homeCalendar.sync||{};const google=sync.google_calendar||{};$('calendarSyncStatus').lastChild.textContent=google.connected?' Google Calendar conectado':' Recordatorios del teléfono pendientes de conectar';$('calendarGoogleMessage').textContent=google.connected?'Sincronización automática activa. Confirma el evento una sola vez en Roxy y aparecerá en el calendario del teléfono.':google.message||'Conecta Google Calendar una sola vez.';$('calendarGoogleConnect').hidden=google.connected||!google.configured;$('calendarGoogleConnect').href=`/v1/home-calendar/${encodeURIComponent(user)}/google/connect`;$('calendarGoogleSync').hidden=true;$('calendarGoogleDisconnect').hidden=!google.connected;if(!google.configured)$('calendarGoogleMessage').textContent='La conexión segura todavía necesita las credenciales de Google en el servidor.';renderUpcomingEvent();scheduleCalendarReminders();
+  }
+
+  async function autoSyncGoogleCalendar(){
+    const google=((homeCalendar.sync||{}).google_calendar||{});const events=homeCalendar.events||[];
+    if(calendarAutoSyncRunning||!google.connected||!events.length)return;
+    const lastSync=Date.parse(google.last_synced_at||'');
+    if(Number.isFinite(lastSync)&&Date.now()-lastSync<5*60*1000)return;
+    calendarAutoSyncRunning=true;
+    try{const result=await api(`/v1/home-calendar/${encodeURIComponent(user)}/google/sync`,{method:'POST'});if((result.errors||[]).length){$('calendarGoogleMessage').textContent='Google Calendar está conectado, pero un evento necesita reintentarse. Roxy volverá a intentarlo automáticamente.'}else{homeCalendar.sync.google_calendar.last_synced_at=new Date().toISOString();$('calendarGoogleMessage').textContent='Sincronización automática activa. Confirma el evento una sola vez en Roxy y aparecerá en el calendario del teléfono.'}}catch(_error){$('calendarGoogleMessage').textContent='Google Calendar está conectado. Roxy reintentará la sincronización automáticamente.'}finally{calendarAutoSyncRunning=false}
   }
 
   async function syncGoogleCalendar(){
@@ -417,7 +428,7 @@
   }
 
   function openCalendarEvent(event=null,day=new Date()){
-    const existing=Boolean(event&&!event._draft);$('calendarEventForm').reset();$('calendarEventError').textContent='';const starts=event?new Date(event.starts_at):new Date(day);if(!event){starts.setHours(Math.max(9,new Date().getHours()+1),0,0,0)}const ends=event?new Date(event.ends_at):new Date(starts.getTime()+3600000);$('calendarEventId').value=existing&&event.id||'';$('calendarEventDialogTitle').textContent=existing?'Editar evento':'Nuevo evento';$('calendarEventTitle').value=event&&event.title||'';$('calendarEventDate').value=dateKey(starts);$('calendarEventTime').value=`${String(starts.getHours()).padStart(2,'0')}:${String(starts.getMinutes()).padStart(2,'0')}`;$('calendarEventDuration').value=String(Math.max(30,Math.round((ends-starts)/60000)));$('calendarEventReminder').value=String(event&&event.reminder_minutes!=null?event.reminder_minutes:60);$('calendarEventCategory').value=event&&event.category||'PERSONAL';$('calendarEventRecurrence').value=event&&event.recurrence||'NONE';$('calendarEventRecurrenceUntil').value=event&&event.recurrence_until||'';$('calendarRecurrenceUntilLabel').hidden=$('calendarEventRecurrence').value==='NONE';$('calendarEventLocation').value=event&&event.location||'';$('calendarEventNotes').value=event&&event.notes||'';$('calendarEventParticipants').value=(event&&event.participants||[]).join(', ');$('calendarDeleteButton').hidden=!existing;$('calendarExportButton').hidden=!existing;if(existing)$('calendarExportButton').href=`/v1/home-calendar/${encodeURIComponent(user)}/events/${encodeURIComponent(event.id)}.ics`;$('calendarEventDialog').showModal();
+    const existing=Boolean(event&&!event._draft);const googleConnected=Boolean((((homeCalendar.sync||{}).google_calendar)||{}).connected);$('calendarEventForm').reset();$('calendarEventError').textContent='';const starts=event?new Date(event.starts_at):new Date(day);if(!event){starts.setHours(Math.max(9,new Date().getHours()+1),0,0,0)}const ends=event?new Date(event.ends_at):new Date(starts.getTime()+3600000);$('calendarEventId').value=existing&&event.id||'';$('calendarEventDialogTitle').textContent=existing?'Editar evento':'Nuevo evento';$('calendarEventTitle').value=event&&event.title||'';$('calendarEventDate').value=dateKey(starts);$('calendarEventTime').value=`${String(starts.getHours()).padStart(2,'0')}:${String(starts.getMinutes()).padStart(2,'0')}`;$('calendarEventDuration').value=String(Math.max(30,Math.round((ends-starts)/60000)));$('calendarEventReminder').value=String(event&&event.reminder_minutes!=null?event.reminder_minutes:60);$('calendarEventCategory').value=event&&event.category||'PERSONAL';$('calendarEventRecurrence').value=event&&event.recurrence||'NONE';$('calendarEventRecurrenceUntil').value=event&&event.recurrence_until||'';$('calendarRecurrenceUntilLabel').hidden=$('calendarEventRecurrence').value==='NONE';$('calendarEventLocation').value=event&&event.location||'';$('calendarEventNotes').value=event&&event.notes||'';$('calendarEventParticipants').value=(event&&event.participants||[]).join(', ');$('calendarDeleteButton').hidden=!existing;$('calendarExportButton').hidden=!existing||googleConnected;if(existing&&!googleConnected)$('calendarExportButton').href=`/v1/home-calendar/${encodeURIComponent(user)}/events/${encodeURIComponent(event.id)}.ics`;$('calendarEventDialog').showModal();
   }
 
   function showCalendarConfirmation(draft,conflicts=[],mode='create'){
