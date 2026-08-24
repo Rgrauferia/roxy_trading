@@ -105,3 +105,48 @@ class HomeConversationStore:
 
         return self._mutate(apply)
 
+    def pending_clarification(self, owner_key: Any) -> dict[str, Any] | None:
+        """Return the unresolved Home clarification for one signed-in person."""
+        owner = _clean(owner_key, 160)
+        row = self._read().get("people", {}).get(owner, {}).get("pending_clarification")
+        return deepcopy(row) if isinstance(row, dict) else None
+
+    def save_clarification(self, owner_key: Any, clarification: dict[str, Any]) -> dict[str, Any]:
+        owner = _clean(owner_key, 160)
+        if not owner:
+            raise ValueError("Falta la identidad de la conversación.")
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            people = payload.setdefault("people", {})
+            record = people.setdefault(owner, {"turns": []})
+            cleaned = {
+                "kind": _clean(clarification.get("kind"), 80),
+                "original": _clean(clarification.get("original"), 500),
+                "question": _clean(clarification.get("question"), 500),
+                "options": [
+                    {
+                        "name": _clean(option.get("name"), 120),
+                        "unit": _clean(option.get("unit"), 32),
+                        "aliases": [_clean(alias, 80) for alias in option.get("aliases", [])[:20]],
+                    }
+                    for option in clarification.get("options", [])[:8]
+                    if isinstance(option, dict)
+                ],
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            record["pending_clarification"] = cleaned
+            record["updated_at"] = cleaned["created_at"]
+            return deepcopy(cleaned)
+
+        return self._mutate(apply)
+
+    def clear_clarification(self, owner_key: Any) -> None:
+        owner = _clean(owner_key, 160)
+
+        def apply(payload: dict[str, Any]) -> None:
+            record = payload.get("people", {}).get(owner)
+            if isinstance(record, dict):
+                record.pop("pending_clarification", None)
+                record["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+        self._mutate(apply)

@@ -17,7 +17,7 @@ except ImportError:  # pragma: no cover - Windows fallback
     fcntl = None
 
 
-SHOPPING_STORE_VERSION = 5
+SHOPPING_STORE_VERSION = 6
 SHOPPING_STATUSES = {"PENDING", "PURCHASED", "ARCHIVED"}
 SHOPPING_CATEGORIES = {
     "GENERAL", "PRODUCE", "DAIRY_EGGS", "MEAT_SEAFOOD", "BAKERY", "PANTRY",
@@ -44,10 +44,12 @@ _SHOPPING_CATEGORY_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
     )),
     ("PERSONAL", (
         "papel higienico", "jabon", "champu", "shampoo", "acondicionador", "desodorante",
-        "pasta dental", "crema dental", "cepillo dental", "hilo dental", "enjuague bucal",
+        "pasta dental", "pasta de dientes", "pasta de diente", "pasta para dientes",
+        "dentifrico", "crema dental", "cepillo dental", "hilo dental", "enjuague bucal",
         "gel de bano", "gel de ducha", "toalla sanitaria", "tampon", "tampones",
         "afeitadora", "rasuradora", "crema de afeitar", "locion", "protector solar",
         "crema corporal", "gel de cejas", "maquillaje", "algodon", "hisopo", "toallitas humedas",
+        "aceite para el cabello", "aceite de cabello", "aceite capilar",
         "body wash", "toothpaste", "toothbrush", "deodorant", "toilet paper", "skincare",
     )),
     ("HEALTH", (
@@ -62,6 +64,7 @@ _SHOPPING_CATEGORY_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "arena de gato", "arena para gato", "premio de perro", "premio para perro",
         "premio de gato", "premio para gato", "croquetas de perro", "croquetas de gato",
         "correa de perro", "mascota", "dog food", "cat food", "pet food", "cat litter",
+        "empapador para mascota", "empapadores para mascota", "pad para perro", "pads para perro", "pee pad", "pee pads",
     )),
     ("BABY", (
         "panal", "panales", "toallitas de bebe", "toallitas para bebe", "champu de bebe",
@@ -73,6 +76,7 @@ _SHOPPING_CATEGORY_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "bombilla", "bateria", "pilas", "vela", "fosforo", "encendedor", "filtro de cafe",
         "bolsa ziploc", "bolsas ziploc", "recipiente", "percha", "gancho de ropa", "storage bag",
         "organizador", "cargador", "cable usb", "extension electrica", "adaptador", "regleta",
+        "aceite de motor", "aceite para motor", "motor oil",
         "martillo", "destornillador", "tornillo", "clavo", "taladro", "cinta metrica", "utensilio",
         "espatula", "abrelatas", "aluminum foil", "light bulb", "battery", "napkin", "paper plate",
         "charger", "usb cable", "extension cord", "tool",
@@ -216,6 +220,20 @@ def _classification_identity(value: Any) -> str:
     return " ".join(word[:-1] if len(word) > 4 and word.endswith("s") else word for word in words)
 
 
+def _is_misrouted_calendar_item(item: dict[str, Any]) -> bool:
+    """Hide historical voice commands that an older router saved as products."""
+    if str(item.get("source") or "") != "elevenlabs_voice" or str(item.get("status") or "PENDING") != "PENDING":
+        return False
+    identity = _identity(item.get("name"))
+    return bool(
+        re.search(r"\b(?:calendario|agenda)\b", identity)
+        or (
+            re.search(r"\b(?:hoy|manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo|a las?)\b", identity)
+            and re.search(r"\b(?:evento|cita|reunion|llamada|veterinario|dentista|medico|trabajar|trabajo|turno|llevar|recoger)\b", identity)
+        )
+    )
+
+
 def classify_shopping_category(name: Any, requested: Any = "GENERAL") -> str:
     """Infer a stable aisle while preserving explicit categories for unknown products."""
 
@@ -270,7 +288,10 @@ class ShoppingListStore:
         if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
             return self._empty()
         payload["schema_version"] = SHOPPING_STORE_VERSION
-        payload["items"] = [item for item in payload["items"] if isinstance(item, dict)]
+        payload["items"] = [
+            item for item in payload["items"]
+            if isinstance(item, dict) and not _is_misrouted_calendar_item(item)
+        ]
         for item in payload["items"]:
             try:
                 cleaned_name = normalize_shopping_name(item.get("name"))

@@ -502,8 +502,9 @@ def _account_store() -> HomeAccountStore:
 def _conversation_store() -> HomeConversationStore:
     configured_path = str(os.getenv("ROXY_HOME_CONVERSATION_PATH") or "").strip()
     if not configured_path:
+        state_path = os.getenv("ROXY_SHOPPING_LIST_PATH") or os.getenv("ROXY_HOME_MEMORY_PATH", "data/roxy_home_food.json")
         configured_path = str(
-            Path(os.getenv("ROXY_HOME_MEMORY_PATH", "data/roxy_home_food.json")).with_name(
+            Path(state_path).with_name(
                 "roxy_home_conversations.json"
             )
         )
@@ -628,8 +629,11 @@ def _assistant_shopping_intent(text: str) -> str:
         return "calendar_cancel"
     if (
         re.search(r"\b(agenda|agendar|programa|programar|crea|crear|anade|agrega|pon)\b.*\b(evento|cita|reunion|llamada|calendario|escuela|dentista|medico)\b", plain)
+        or re.search(r"\b(?:evento\s+en|al|en\s+el|para\s+el)\s+(?:mi\s+)?(?:calendario|agenda)\b", plain)
+        or re.search(r"\b(?:calendario|agenda)\b.*\b(?:hoy|manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo|a\s+las?)\b", plain)
         or re.search(r"\b(dentista|medico|cita|reunion|llamada)\b.*\b(hoy|manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo|\d{1,2})\b", plain)
-        or re.search(r"\b(llevar|recoger)\b.*\b(escuela|colegio)\b", plain)
+        or re.search(r"\b(llevar|recoger)\b.*\b(escuela|colegio|veterinario|medico|dentista)\b", plain)
+        or re.search(r"\b(?:hoy|manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b.*\b(?:a\s+las?|\d{1,2}:\d{2})\b.*\b(?:trabajar|trabajo|turno|veterinario|dentista|medico|cita|reunion|llamada)\b", plain)
     ):
         return "calendar_create"
     if re.search(r"\b(que hay|que tengo|inventario|muestrame|revisa)\b.*\b(despensa|alacena)\b", plain):
@@ -836,6 +840,128 @@ def _assistant_shopping_requests(text: str) -> list[dict[str, Any]]:
         if value:
             requests.append({"name": value[:120], "quantity": quantity, "unit": unit})
     return requests
+
+
+def _plain_home_text(value: Any) -> str:
+    normalized = unicodedata.normalize("NFKD", str(value or ""))
+    return re.sub(r"[^a-z0-9]+", " ", normalized.encode("ascii", "ignore").decode("ascii").lower()).strip()
+
+
+def _looks_like_calendar_statement(value: Any) -> bool:
+    """Fail closed before a sentence is allowed to become a shopping item."""
+    plain = _plain_home_text(value)
+    has_schedule_word = bool(re.search(
+        r"\b(calendario|agenda|evento|cita|reunion|llamada|veterinario|dentista|medico|turno)\b",
+        plain,
+    ))
+    has_time = bool(re.search(
+        r"\b(hoy|manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo|a las?|\d{1,2}:\d{2}|[ap] m)\b",
+        plain,
+    ))
+    is_errand = bool(re.search(r"\b(llevar|recoger|trabajar|trabajo)\b", plain))
+    return "calendario" in plain or "agenda" in plain or (has_schedule_word and has_time) or (is_errand and has_time)
+
+
+_SHOPPING_AMBIGUITIES: tuple[dict[str, Any], ...] = (
+    {
+        "pattern": r"^(?:la\s+)?pasta(?:s)?$",
+        "question": "¿Te refieres a un tubo de pasta dental o a pasta para comer?",
+        "options": (
+            {"name": "Pasta dental", "unit": "tubo", "aliases": ("dental", "dientes", "dentifrico", "la de dientes", "pasta dental", "primera", "primero", "opcion 1")},
+            {"name": "Pasta", "unit": "paquete", "aliases": ("comida", "comer", "alimenticia", "espagueti", "macarrones", "pasta para comer", "segunda", "segundo", "opcion 2")},
+        ),
+    },
+    {
+        "pattern": r"^(?:la\s+)?crema$",
+        "question": "¿Te refieres a crema para cocinar o a crema para la piel?",
+        "options": (
+            {"name": "Crema de leche", "unit": "envase", "aliases": ("cocinar", "comida", "leche", "crema para cocinar")},
+            {"name": "Crema corporal", "unit": "envase", "aliases": ("piel", "cuerpo", "corporal", "crema para la piel")},
+        ),
+    },
+    {
+        "pattern": r"^(?:el\s+)?jabon$",
+        "question": "¿Te refieres a jabón para el cuerpo, jabón para lavar platos o detergente para ropa?",
+        "options": (
+            {"name": "Jabón corporal", "unit": "unidad", "aliases": ("cuerpo", "bano", "personal", "jabon corporal", "primera", "opcion 1")},
+            {"name": "Jabón para platos", "unit": "botella", "aliases": ("platos", "fregar", "lavaplatos", "segunda", "opcion 2")},
+            {"name": "Detergente para ropa", "unit": "botella", "aliases": ("ropa", "lavadora", "detergente", "tercera", "opcion 3")},
+        ),
+    },
+    {
+        "pattern": r"^(?:el\s+)?aceite$",
+        "question": "¿Te refieres a aceite para cocinar, aceite para el cabello o aceite para el automóvil?",
+        "options": (
+            {"name": "Aceite de cocina", "unit": "botella", "aliases": ("cocinar", "comida", "cocina", "primera", "opcion 1")},
+            {"name": "Aceite para el cabello", "unit": "botella", "aliases": ("cabello", "pelo", "segunda", "opcion 2")},
+            {"name": "Aceite de motor", "unit": "botella", "aliases": ("carro", "auto", "motor", "tercera", "opcion 3")},
+        ),
+    },
+    {
+        "pattern": r"^(?:el\s+)?papel$",
+        "question": "¿Te refieres a papel higiénico, papel de cocina o papel para imprimir?",
+        "options": (
+            {"name": "Papel higiénico", "unit": "paquete", "aliases": ("higienico", "bano", "papel higienico")},
+            {"name": "Papel de cocina", "unit": "paquete", "aliases": ("cocina", "toalla", "papel toalla")},
+            {"name": "Papel para imprimir", "unit": "paquete", "aliases": ("imprimir", "impresora", "oficina")},
+        ),
+    },
+    {
+        "pattern": r"^(?:el\s+)?(?:pad|pads)$",
+        "question": "¿Te refieres a empapadores para mascota, toallas sanitarias o a un dispositivo electrónico?",
+        "options": (
+            {"name": "Empapadores para mascota", "unit": "paquete", "aliases": ("mascota", "perro", "luna", "empapador", "pee pad")},
+            {"name": "Toallas sanitarias", "unit": "paquete", "aliases": ("sanitaria", "periodo", "menstrual")},
+            {"name": "Tableta electrónica", "unit": "unidad", "aliases": ("electronico", "tableta", "ipad", "dispositivo")},
+        ),
+    },
+)
+
+
+def _canonical_shopping_request(row: dict[str, Any]) -> dict[str, Any]:
+    result = dict(row)
+    plain = _plain_home_text(result.get("name"))
+    if re.fullmatch(r"(?:pasta|crema)\s+(?:de|para)?\s*dientes?", plain) or plain in {"dentifrico", "toothpaste"}:
+        result["name"] = "Pasta dental"
+        if str(result.get("unit") or "unidad") == "unidad":
+            result["unit"] = "tubo"
+    elif re.search(r"\b(?:pad|pads|empapador|empapadores)\b", plain) and re.search(r"\b(?:luna|bella|perro|perra|mascota)\b", plain):
+        result["name"] = "Empapadores para mascota"
+        if str(result.get("unit") or "unidad") == "unidad":
+            result["unit"] = "paquete"
+    return result
+
+
+def _shopping_clarification(rows: list[dict[str, Any]], original: str) -> dict[str, Any] | None:
+    for row in rows:
+        name = _plain_home_text(row.get("name"))
+        for ambiguity in _SHOPPING_AMBIGUITIES:
+            if re.fullmatch(str(ambiguity["pattern"]), name):
+                return {
+                    "kind": "shopping_product",
+                    "original": original,
+                    "question": ambiguity["question"],
+                    "options": [dict(option) for option in ambiguity["options"]],
+                }
+        if name in {"esto", "eso", "aquello", "lo", "lo que dije", "lo de antes"} or len(name.split()) > 10:
+            return {
+                "kind": "shopping_product",
+                "original": original,
+                "question": "No estoy segura de qué producto quieres agregar. ¿Puedes decirme solo el nombre del artículo?",
+                "options": [],
+            }
+    return None
+
+
+def _resolve_shopping_clarification(pending: dict[str, Any], answer: str) -> dict[str, Any] | None:
+    plain = _plain_home_text(answer)
+    if not plain or len(plain.split()) > 10:
+        return None
+    for option in pending.get("options") or []:
+        aliases = [_plain_home_text(alias) for alias in option.get("aliases") or []]
+        if any(alias and (plain == alias or re.search(rf"\b{re.escape(alias)}\b", plain)) for alias in aliases):
+            return {"name": option.get("name"), "quantity": 1, "unit": option.get("unit") or "unidad"}
+    return None
 
 
 def _assistant_pantry_requests(text: str) -> list[dict[str, Any]]:
@@ -1447,6 +1573,30 @@ def assistant_command(
     user = _authorize_user(user_id, auth)
     command_text = payload.text.strip()
     intent = _assistant_shopping_intent(command_text)
+    owner_key = _conversation_owner_key(auth, user)
+    conversation_store = _conversation_store()
+    pending_clarification = conversation_store.pending_clarification(owner_key)
+    resolved_shopping_row: dict[str, Any] | None = None
+    if pending_clarification and pending_clarification.get("kind") == "shopping_product":
+        if not pending_clarification.get("options") and len(_plain_home_text(command_text).split()) <= 10:
+            conversation_store.clear_clarification(owner_key)
+            command_text = f"agrega {command_text}"
+            intent = "shopping_add"
+        else:
+            resolved_shopping_row = _resolve_shopping_clarification(pending_clarification, command_text)
+        if resolved_shopping_row:
+            conversation_store.clear_clarification(owner_key)
+            intent = "shopping_add"
+        elif re.fullmatch(r"(?i)(?:no|ninguna|ninguno|cancelar|olvidalo|olvídalo)[.! ]*", command_text):
+            conversation_store.clear_clarification(owner_key)
+            intent = "shopping_clarify"
+        elif intent == "general" and len(_plain_home_text(command_text).split()) <= 10:
+            intent = "shopping_clarify"
+        else:
+            # A new explicit command replaces the unanswered clarification.
+            conversation_store.clear_clarification(owner_key)
+    if intent == "shopping_add" and resolved_shopping_row is None and _looks_like_calendar_statement(command_text):
+        intent = "calendar_create"
     # Voice naturally says “agrega pan a mi lista de compra”. The shared
     # router also recognizes “lista de compra” as a read query, so remove only
     # this destination suffix when an explicit write verb is present.
@@ -1467,12 +1617,20 @@ def assistant_command(
         if intent.startswith("commerce_")
         else "home_food"
         if intent.startswith("recipe_") or intent.startswith("cooking_") or intent.startswith("weekly_") or intent.startswith("pantry_")
+        else "shopping"
+        if intent == "shopping_clarify"
         else "home_ai"
     )
     store = _store()
     rows: list[dict[str, Any]] = []
     extra: dict[str, Any] = {}
-    if intent == "daily_query":
+    if intent == "shopping_clarify":
+        if pending_clarification and re.fullmatch(r"(?i)(?:no|ninguna|ninguno|cancelar|olvidalo|olvídalo)[.! ]*", command_text):
+            message = "De acuerdo. No agregué nada a la lista."
+        else:
+            message = str((pending_clarification or {}).get("question") or "No estoy segura de cuál producto quieres. ¿Puedes especificarlo?")
+            extra["clarification"] = pending_clarification or {}
+    elif intent == "daily_query":
         brief = _daily_brief(user, auth)
         message = str(brief.get("summary") or "Aquí tienes lo importante de hoy.")
         details = [
@@ -1860,7 +2018,21 @@ def assistant_command(
         if missing:
             message += " No encontré: " + ", ".join(missing) + "."
     elif intent == "shopping_add":
-        for row in _assistant_shopping_requests(command_text):
+        shopping_requests = (
+            [resolved_shopping_row]
+            if resolved_shopping_row is not None
+            else [_canonical_shopping_request(row) for row in _assistant_shopping_requests(command_text)]
+        )
+        ambiguity = None if resolved_shopping_row is not None else _shopping_clarification(shopping_requests, command_text)
+        if ambiguity:
+            pending = conversation_store.save_clarification(owner_key, ambiguity)
+            intent = "shopping_clarify"
+            message = str(pending.get("question") or ambiguity["question"])
+            extra["clarification"] = pending
+            shopping_requests = []
+        for row in shopping_requests:
+            if _looks_like_calendar_statement(row.get("name")):
+                continue
             rows.append(
                 store.add(
                     user,
@@ -1870,14 +2042,15 @@ def assistant_command(
                     source="elevenlabs_voice",
                 )
             )
-        message = (
-            "Listo, agregué a tu lista: " + ", ".join(str(item.get("name")) for item in rows) + "."
-            if rows
-            else "Dime qué artículos quieres agregar a la lista."
-        )
+        if intent == "shopping_add":
+            message = (
+                "Listo, agregué a tu lista: " + ", ".join(
+                    f"{item.get('quantity'):g} {item.get('unit')} de {item.get('name')}" for item in rows
+                ) + "."
+                if rows
+                else "No identifiqué un producto seguro para agregar. Dime el nombre del artículo."
+            )
     else:
-        owner_key = _conversation_owner_key(auth, user)
-        conversation_store = _conversation_store()
         member = _member_for_auth(auth)
         result = _ai_call(
             lambda: _home_ai().converse(

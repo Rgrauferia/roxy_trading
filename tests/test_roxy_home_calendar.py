@@ -175,3 +175,31 @@ def test_calendar_api_and_voice_are_private_and_persistent(tmp_path, monkeypatch
     assert len(still_present.json()["events"]) == 1
     assert cancel_confirmed.json()["intent"] == "calendar_confirm"
     assert removed.json()["events"] == []
+def test_calendar_sentences_never_become_shopping_items(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "calendar-routing-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert")
+    monkeypatch.setenv("ROXY_HOME_CALENDAR_PATH", str(tmp_path / "calendar.json"))
+    monkeypatch.setenv("ROXY_SHOPPING_LIST_PATH", str(tmp_path / "shopping.json"))
+    monkeypatch.setenv("ROXY_HOME_CONVERSATION_PATH", str(tmp_path / "conversation.json"))
+    roxy_home_service._RATE_STATE.clear()
+    client = TestClient(roxy_home_service.app, base_url="https://roxy.test")
+    client.post("/v1/shopping/session/robert", headers={"Authorization": "Bearer calendar-routing-key"})
+
+    veterinarian = client.post(
+        "/v1/assistant/command/robert",
+        json={"text": "agrega al calendario que mañana tengo que llevar a Bella al veterinario a las 2:00 p. m."},
+    )
+    work = client.post(
+        "/v1/assistant/command/robert",
+        json={"text": "evento en calendario: mañana a las 2:00 p. m. tengo que trabajar"},
+    )
+    shopping = client.get("/v1/shopping/robert")
+
+    assert veterinarian.status_code == 200
+    assert veterinarian.json()["intent"] == "calendar_create"
+    assert "veterinario" in veterinarian.json()["data"]["calendar_draft"]["title"].lower()
+    assert work.status_code == 200
+    assert work.json()["intent"] == "calendar_create"
+    assert shopping.json()["items"] == []

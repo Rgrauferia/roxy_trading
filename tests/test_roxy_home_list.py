@@ -17,11 +17,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="77"' in page.text
+    assert 'name="roxy-home-version" content="78"' in page.text
     assert 'href="/assets/roxy_list.css?v=64"' in page.text
-    assert 'src="/assets/roxy_list.js?v=77"' in page.text
+    assert 'src="/assets/roxy_list.js?v=78"' in page.text
     assert '/assets/roxy_list.css?v=64' in worker.text
-    assert '/assets/roxy_list.js?v=77' in worker.text
+    assert '/assets/roxy_list.js?v=78' in worker.text
     assert 'id="designPanel"' in page.text
     assert 'class="renueva-entry"' not in page.text
     assert 'id="openDesignFromToday"' not in page.text
@@ -583,3 +583,75 @@ def test_roxy_voice_saves_recipe_adds_ingredients_and_guides_steps(tmp_path, mon
     assert timer.json()["data"]["timer"]["duration_seconds"] == 300
     assert time_left.json()["intent"] == "cooking_timer_query"
     assert "minutos" in time_left.json()["message"]
+def test_ambiguous_shopping_product_requires_clarification(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "shopping-clarify-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert")
+    monkeypatch.setenv("ROXY_SHOPPING_LIST_PATH", str(tmp_path / "shopping.json"))
+    monkeypatch.setenv("ROXY_HOME_CONVERSATION_PATH", str(tmp_path / "conversation.json"))
+    roxy_home_service._RATE_STATE.clear()
+    client = TestClient(roxy_home_service.app, base_url="https://roxy.test")
+    client.post("/v1/shopping/session/robert", headers={"Authorization": "Bearer shopping-clarify-key"})
+
+    question = client.post("/v1/assistant/command/robert", json={"text": "agrega pasta"})
+    before = client.get("/v1/shopping/robert")
+    answer = client.post("/v1/assistant/command/robert", json={"text": "la de dientes"})
+    after = client.get("/v1/shopping/robert")
+
+    assert question.status_code == 200
+    assert question.json()["intent"] == "shopping_clarify"
+    assert "pasta dental" in question.json()["message"].lower()
+    assert "pasta para comer" in question.json()["message"].lower()
+    assert before.json()["items"] == []
+    assert answer.status_code == 200
+    assert answer.json()["intent"] == "shopping_add"
+    assert after.json()["items"][0]["name"] == "Pasta dental"
+    assert after.json()["items"][0]["unit"] == "tubo"
+    assert after.json()["items"][0]["category"] == "PERSONAL"
+
+
+def test_explicit_toothpaste_is_canonicalized_without_clarification(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "shopping-dental-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert")
+    monkeypatch.setenv("ROXY_SHOPPING_LIST_PATH", str(tmp_path / "shopping.json"))
+    monkeypatch.setenv("ROXY_HOME_CONVERSATION_PATH", str(tmp_path / "conversation.json"))
+    roxy_home_service._RATE_STATE.clear()
+    client = TestClient(roxy_home_service.app, base_url="https://roxy.test")
+    client.post("/v1/shopping/session/robert", headers={"Authorization": "Bearer shopping-dental-key"})
+
+    response = client.post("/v1/assistant/command/robert", json={"text": "agrega pasta de dientes"})
+    item = client.get("/v1/shopping/robert").json()["items"][0]
+
+    assert response.status_code == 200
+    assert response.json()["intent"] == "shopping_add"
+    assert item["name"] == "Pasta dental"
+    assert item["unit"] == "tubo"
+    assert item["category"] == "PERSONAL"
+
+
+def test_old_calendar_voice_rows_are_removed_from_shopping_snapshot(tmp_path):
+    state_path = tmp_path / "shopping.json"
+    state_path.write_text(json.dumps({
+        "schema_version": 5,
+        "items": [
+            {
+                "id": "bad-calendar-row", "user_id": "robert",
+                "name": "al calendario que mañana llevo a Bella al veterinario a las 2:00 p.m.",
+                "quantity": 1, "unit": "unidad", "category": "OTHER",
+                "status": "PENDING", "source": "elevenlabs_voice",
+            },
+            {
+                "id": "real-product", "user_id": "robert", "name": "Pan",
+                "quantity": 1, "unit": "unidad", "category": "BAKERY",
+                "status": "PENDING", "source": "elevenlabs_voice",
+            },
+        ],
+        "trips": [], "product_memory": {}, "user_revisions": {},
+    }), encoding="utf-8")
+
+    snapshot = ShoppingListStore(state_path).snapshot("robert")
+
+    assert [item["name"] for item in snapshot["items"]] == ["Pan"]
