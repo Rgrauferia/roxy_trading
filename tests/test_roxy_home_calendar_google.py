@@ -23,6 +23,8 @@ class FakeSession:
 
     def post(self, url, **kwargs):
         self.calls.append(("POST", url, kwargs))
+        if url.endswith("/events"):
+            return FakeResponse({"id": kwargs["json"]["id"]})
         return FakeResponse({"access_token": "access-secret", "refresh_token": "refresh-secret", "expires_in": 3600})
 
     def put(self, url, **kwargs):
@@ -89,13 +91,19 @@ def test_event_sync_uses_exact_payload_reminder_and_mapping(tmp_path):
     google.exchange_code(state, "oauth-code")
 
     result = google.upsert_event("member:robert", event_payload())
-    put = next(call for call in session.calls if call[0] == "PUT")
+    insert = next(call for call in session.calls if call[0] == "POST" and call[1].endswith("/events"))
 
     assert result["synced"] is True
-    assert put[2]["json"]["summary"] == "Dentista"
-    assert put[2]["json"]["reminders"]["overrides"] == [{"method": "popup", "minutes": 60}]
-    assert "/calendars/primary/events/roabcdef" in put[1]
+    assert insert[2]["json"]["summary"] == "Dentista"
+    assert insert[2]["json"]["reminders"]["overrides"] == [{"method": "popup", "minutes": 60}]
+    assert insert[2]["json"]["id"] == "roabcdef0123456789abcdef0123456789"
+    assert insert[1].endswith("/calendars/primary/events")
     assert "access-secret" not in json.dumps(google._read())
+
+    updated = google.upsert_event("member:robert", event_payload())
+    put = next(call for call in session.calls if call[0] == "PUT")
+    assert updated["synced"] is True
+    assert put[1].endswith("/calendars/primary/events/roabcdef0123456789abcdef0123456789")
 
     deleted = google.delete_event("member:robert", event_payload()["id"])
     assert deleted["synced"] is True

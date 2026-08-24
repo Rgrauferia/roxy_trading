@@ -187,9 +187,29 @@ class GoogleCalendarSync:
     def upsert_event(self, owner: str, event: dict[str, Any]) -> dict[str, Any]:
         if not self.status(owner)["connected"]: return {"synced": False, "reason": "not_connected"}
         token = self._access_token(owner); connection = self._read()["connections"][owner]
-        google_id = (connection.get("events") or {}).get(event["id"]) or f"ro{event['id']}"
-        url = f"{self.config.api_base_url}/calendars/primary/events/{google_id}"
-        response = self.session.put(url, headers={"Authorization": f"Bearer {token}"}, json=self._payload(event), timeout=20)
+        google_id = (connection.get("events") or {}).get(event["id"])
+        payload = self._payload(event)
+        if google_id:
+            url = f"{self.config.api_base_url}/calendars/primary/events/{google_id}"
+            response = self.session.put(
+                url,
+                headers={"Authorization": f"Bearer {token}"},
+                json=payload,
+                timeout=20,
+            )
+        else:
+            # Google Calendar's events.update endpoint returns 404 for a new
+            # event.  Create it first, giving Google a deterministic id so a
+            # retry cannot duplicate the appointment.
+            google_id = f"ro{event['id']}"
+            payload["id"] = google_id
+            url = f"{self.config.api_base_url}/calendars/primary/events"
+            response = self.session.post(
+                url,
+                headers={"Authorization": f"Bearer {token}"},
+                json=payload,
+                timeout=20,
+            )
         response.raise_for_status(); remote = response.json()
         now = datetime.now(timezone.utc).isoformat()
         def save(value):
