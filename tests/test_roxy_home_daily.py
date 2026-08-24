@@ -104,3 +104,58 @@ def test_voice_router_recognizes_cooking_from_saved_pantry():
     from tools.roxy_home_service import _assistant_shopping_intent
 
     assert _assistant_shopping_intent("¿Qué podemos cocinar con lo que hay?") == "weekly_from_pantry"
+
+
+def test_open_question_uses_private_conversational_brain_and_remembers_context(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    class FakeBrain:
+        def __init__(self):
+            self.calls = []
+
+        def converse(self, prompt, snapshot, *, history, display_name, deep):
+            self.calls.append({"prompt": prompt, "snapshot": snapshot, "history": history, "deep": deep})
+            return {
+                "answer": "Yo elegiría una cena ligera.",
+                "reasoning_summary": "Tienes poco tiempo y ya hay pollo en la despensa.",
+                "recommendation": "Haz un bowl de pollo y vegetales.",
+                "follow_up": "¿Quieres que adapte una receta?",
+                "confidence": "high",
+                "model_profile": "terra" if deep else "luna",
+            }
+
+    brain = FakeBrain()
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "conversation-test-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert")
+    monkeypatch.setenv("ROXY_HOME_MEMORY_PATH", str(tmp_path / "food.json"))
+    monkeypatch.setenv("ROXY_SHOPPING_LIST_PATH", str(tmp_path / "shopping.json"))
+    monkeypatch.setenv("ROXY_HOME_CALENDAR_PATH", str(tmp_path / "calendar.json"))
+    monkeypatch.setenv("ROXY_HOME_CONVERSATION_PATH", str(tmp_path / "conversation.json"))
+    monkeypatch.setattr(roxy_home_service, "_home_ai", lambda: brain)
+    roxy_home_service._RATE_STATE.clear()
+    roxy_home_service._home_food_store().upsert_pantry(
+        "robert", [{"name": "Pollo", "quantity": 1, "unit": "paquete"}]
+    )
+    client = TestClient(roxy_home_service.app)
+    headers = {"Authorization": "Bearer conversation-test-key"}
+
+    first = client.post(
+        "/v1/assistant/command/robert",
+        headers=headers,
+        json={"text": "¿Qué cena me recomiendas y por qué?"},
+    )
+    second = client.post(
+        "/v1/assistant/command/robert",
+        headers=headers,
+        json={"text": "¿Y si quiero algo más rápido?"},
+    )
+
+    assert first.status_code == 200
+    assert first.json()["intent"] == "general"
+    assert first.json()["agent"] == "home_ai"
+    assert first.json()["message"].startswith("Yo elegiría")
+    assert first.json()["data"]["conversation"]["confidence"] == "high"
+    assert brain.calls[0]["deep"] is True
+    assert brain.calls[0]["snapshot"]["pantry"][0]["name"] == "Pollo"
+    assert second.status_code == 200
+    assert brain.calls[1]["history"][-2]["content"] == "¿Qué cena me recomiendas y por qué?"

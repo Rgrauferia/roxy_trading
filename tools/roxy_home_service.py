@@ -56,6 +56,7 @@ from roxy_os.home_commerce import (
     personalize_items,
     public_providers,
 )
+from roxy_os.home_conversation import HomeConversationStore
 from roxy_os.home_daily import build_home_daily_brief
 from roxy_os.home_food import HomeFoodStore, HomePermissionPolicy
 from roxy_os.home_price_recommendations import (
@@ -460,6 +461,20 @@ def _commerce_disclosure(providers: list[dict[str, Any]]) -> str:
 
 def _account_store() -> HomeAccountStore:
     return HomeAccountStore(os.getenv("ROXY_HOME_ACCOUNTS_PATH", "data/roxy_home_accounts.json"))
+
+
+def _conversation_store() -> HomeConversationStore:
+    configured_path = str(os.getenv("ROXY_HOME_CONVERSATION_PATH") or "").strip()
+    if not configured_path:
+        configured_path = str(
+            Path(os.getenv("ROXY_HOME_MEMORY_PATH", "data/roxy_home_food.json")).with_name(
+                "roxy_home_conversations.json"
+            )
+        )
+    return HomeConversationStore(
+        configured_path,
+        max_turns=int(os.getenv("ROXY_HOME_CONVERSATION_MAX_TURNS", "12")),
+    )
 
 
 def _home_ai() -> RoxyHomeAI:
@@ -979,6 +994,66 @@ def _calendar_owner_key(auth: AuthContext, user: str) -> str:
     return f"member:{auth.member_id}" if auth.mode == "member" and auth.member_id else f"legacy:{user}"
 
 
+def _conversation_owner_key(auth: AuthContext, user: str) -> str:
+    # Conversation memory belongs to the person, not to the shared household.
+    return f"member:{auth.member_id}" if auth.mode == "member" and auth.member_id else f"legacy:{user}"
+
+
+def _conversation_needs_deep_reasoning(text: str) -> bool:
+    plain = unicodedata.normalize("NFKD", str(text or "")).encode("ascii", "ignore").decode("ascii").lower()
+    return len(plain) > 220 or bool(
+        re.search(
+            r"\b(analiza|comparame|compara|recomienda|recomendacion|por que|conviene|decidir|"
+            r"ventajas|desventajas|mejor opcion|planifica|estrategia|prioriza|argumenta)\b",
+            plain,
+        )
+    )
+
+
+def _conversation_snapshot(user: str, auth: AuthContext) -> dict[str, Any]:
+    food = _home_food_store().snapshot(user)
+    moment = datetime.now(ZoneInfo(os.getenv("ROXY_HOME_TIMEZONE", DEFAULT_TIMEZONE)))
+    try:
+        events = _calendar_store().list_events(
+            _calendar_owner_key(auth, user),
+            start=moment - timedelta(hours=6),
+            end=moment + timedelta(days=31),
+        )
+    except ValueError:
+        events = []
+    brief = build_home_daily_brief(
+        display_name="",
+        shopping=_store().snapshot(user, limit=100),
+        food=food,
+        calendar={"events": events},
+        now=moment,
+    )
+    return {
+        "profile": food.get("profile") or {},
+        "pantry": food.get("pantry") or [],
+        "shopping": _store().list_items(user, statuses={"PENDING"}, limit=100),
+        "today_meals": brief.get("today_meals") or [],
+        "calendar": [
+            {
+                "title": row.get("title"),
+                "starts_at": row.get("starts_at"),
+                "ends_at": row.get("ends_at"),
+                "calendar": row.get("calendar"),
+            }
+            for row in events[:20]
+        ],
+    }
+
+
+def _conversation_speech(result: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for field in ("answer", "reasoning_summary", "recommendation", "follow_up"):
+        value = " ".join(str(result.get(field) or "").split()).strip()
+        if value and not any(value.casefold() in part.casefold() or part.casefold() in value.casefold() for part in parts):
+            parts.append(value)
+    return " ".join(parts).strip()
+
+
 def _daily_brief(user: str, auth: AuthContext) -> dict[str, Any]:
     moment = datetime.now(ZoneInfo(os.getenv("ROXY_HOME_TIMEZONE", DEFAULT_TIMEZONE)))
     try:
@@ -1356,7 +1431,7 @@ def assistant_command(
         if intent.startswith("commerce_")
         else "home_food"
         if intent.startswith("recipe_") or intent.startswith("cooking_") or intent.startswith("weekly_") or intent.startswith("pantry_")
-        else "general"
+        else "home_ai"
     )
     store = _store()
     rows: list[dict[str, Any]] = []
@@ -1765,10 +1840,31 @@ def assistant_command(
             else "Dime qué artículos quieres agregar a la lista."
         )
     else:
-        # General knowledge stays inside the ElevenLabs agent. This endpoint is
-        # deliberately limited to durable Roxy Home actions.
-        message = "La herramienta de Roxy Home solo ejecuta consultas y cambios de la lista de compras."
-    spoken = _personalize(message, auth)
+        owner_key = _conversation_owner_key(auth, user)
+        conversation_store = _conversation_store()
+        member = _member_for_auth(auth)
+        result = _ai_call(
+            lambda: _home_ai().converse(
+                command_text,
+                _conversation_snapshot(user, auth),
+                history=conversation_store.turns(owner_key),
+                display_name=str(member.get("display_name") or "") if member else "",
+                deep=_conversation_needs_deep_reasoning(command_text),
+            )
+        )
+        message = _conversation_speech(result)
+        if not message:
+            raise HTTPException(status_code=502, detail="Roxy Home devolvió una respuesta vacía.")
+        conversation_store.remember(owner_key, user=command_text, assistant=message, topic="home_conversation")
+        extra["conversation"] = {
+            "answer": result.get("answer") or "",
+            "reasoning_summary": result.get("reasoning_summary") or "",
+            "recommendation": result.get("recommendation") or "",
+            "follow_up": result.get("follow_up") or "",
+            "confidence": result.get("confidence") or "medium",
+            "model_profile": result.get("model_profile") or "luna",
+        }
+    spoken = message if intent == "general" else _personalize(message, auth)
     return {
         "ok": True,
         "intent": intent,

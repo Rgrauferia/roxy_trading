@@ -17,7 +17,8 @@ class FakeResponses:
 
     def create(self, **kwargs):
         self.calls.append(kwargs)
-        is_recipe_review = "text" in kwargs
+        is_recipe_review = "text" in kwargs and "tool_choice" in kwargs
+        is_conversation = "text" in kwargs and "tool_choice" not in kwargs
         is_safety = "tool_choice" in kwargs
         output = []
         if is_recipe_review:
@@ -46,6 +47,14 @@ class FakeResponses:
                 }
             ]
             payload = {"answer": "Consulta vigente", "checked_at": "2026-08-19", "sources": []}
+        elif is_conversation:
+            payload = {
+                "answer": "Usaría primero el pollo que ya tienes.",
+                "reasoning_summary": "Aprovecha la despensa y evita una compra innecesaria.",
+                "recommendation": "Prepáralo al ajo con arroz.",
+                "follow_up": "¿Quieres una versión rápida?",
+                "confidence": "high",
+            }
         else:
             payload = {
                 "title": "Sopa",
@@ -104,6 +113,7 @@ def test_routine_uses_luna_store_false_and_only_home_context(tmp_path):
     assert result["model_profile"] == "luna"
     assert call["model"] == "gpt-5.6-luna"
     assert call["store"] is False
+    assert call["reasoning"] == {"effort": "low"}
     assert "tools" not in call
     assert "Nueces" in call["input"]
     assert "positions" not in call["input"]
@@ -135,6 +145,35 @@ def test_recipe_curation_uses_terra_required_search_and_strict_schema(tmp_path):
     assert call["text"]["format"]["type"] == "json_schema"
     assert call["text"]["format"]["strict"] is True
     assert result["sources"][0]["url"] == "https://example.com/recipe"
+
+
+def test_conversation_synthesizes_home_context_and_recent_turns(tmp_path):
+    client = FakeClient()
+    ai = RoxyHomeAI(config(tmp_path), client=client)
+    result = ai.converse(
+        "¿Qué me recomiendas para cenar y por qué?",
+        {
+            "profile": {"diet": "normal"},
+            "pantry": [{"name": "Pollo", "quantity": 1, "unit": "paquete"}],
+            "shopping": [{"name": "Arroz", "quantity": 1, "unit": "bolsa"}],
+            "today_meals": [],
+            "calendar": [],
+            "trading": {"positions": ["secret"]},
+        },
+        history=[{"role": "user", "content": "No quiero pasta"}],
+        display_name="Robert",
+        deep=True,
+    )
+    call = client.responses.calls[0]
+
+    assert result["recommendation"] == "Prepáralo al ajo con arroz."
+    assert call["model"] == "gpt-5.6-terra"
+    assert call["reasoning"] == {"effort": "high"}
+    assert call["store"] is False
+    assert call["text"]["format"]["strict"] is True
+    assert "No quiero pasta" in call["input"]
+    assert "Pollo" in call["input"]
+    assert "positions" not in call["input"]
 
 
 def test_home_budget_is_enforced_independently(tmp_path):

@@ -153,6 +153,25 @@ Para seguridad alimentaria o retiros usa las fuentes web vigentes proporcionadas
 prioriza autoridades como FDA, USDA y CDC, indica fecha y expresa incertidumbre cuando falte información."""
 
 
+CONVERSATION_PROMPT = """Eres Roxy, la inteligencia del hogar. Conversas en español natural, cálido y adulto.
+No eres un buscador ni una voz que copia información: comprende la intención, sintetiza, comenta y recomienda con
+criterio. Empieza por la respuesta útil; después explica brevemente por qué. Cuando existan varias opciones, compara
+las diferencias importantes y elige una recomendación razonada según el contexto real del hogar. Puedes discrepar
+con amabilidad y señalar un riesgo o una alternativa mejor. No repitas el nombre de la persona en cada respuesta,
+no vuelvas a presentarte y evita muletillas como “estoy aquí para ayudarte”. Usa vocabulario variado pero sencillo,
+frases fluidas y respuestas proporcionadas a la pregunta. Nunca muestres razonamiento interno paso a paso: ofrece
+solo una justificación breve y verificable. Distingue hechos, preferencias e inferencias; reconoce cuando no sabes
+algo o cuando faltan datos.
+
+Opera exclusivamente dentro de Roxy Home: comidas, recetas, compras, despensa, organización doméstica y calendario
+personal aportado en el contexto. No uses ni menciones memoria, credenciales o herramientas de Trading, Finanzas o
+Study. No afirmes que añadiste, borraste, compraste, pagaste o programaste algo: las acciones se ejecutan mediante
+herramientas deterministas y requieren su confirmación correspondiente. No inventes precios, disponibilidad,
+eventos, ingredientes, alergias ni resultados de una herramienta. Si la pregunta depende de datos actuales que no
+están en el contexto, dilo y propone verificarlo mediante la función adecuada. Responde exclusivamente con JSON
+válido conforme al esquema solicitado, sin Markdown."""
+
+
 RECIPE_RESPONSE_SCHEMA: dict[str, Any] = {
     "type": "object", "additionalProperties": False,
     "required": ["title", "description", "kind", "drink_type", "category", "subcategory", "servings", "ingredients", "steps", "allergen_notes"],
@@ -169,6 +188,20 @@ RECIPE_RESPONSE_SCHEMA: dict[str, Any] = {
         }},
         "steps": {"type": "array", "minItems": 5, "maxItems": 40, "items": {"type": "string"}},
         "allergen_notes": {"type": "array", "maxItems": 20, "items": {"type": "string"}},
+    },
+}
+
+
+CONVERSATION_RESPONSE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["answer", "reasoning_summary", "recommendation", "follow_up", "confidence"],
+    "properties": {
+        "answer": {"type": "string"},
+        "reasoning_summary": {"type": "string"},
+        "recommendation": {"type": "string"},
+        "follow_up": {"type": "string"},
+        "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
     },
 }
 
@@ -257,20 +290,22 @@ class RoxyHomeAI:
         deep: bool,
         current: bool = False,
         response_schema: dict[str, Any] | None = None,
+        instructions: str = SYSTEM_PROMPT,
     ) -> dict[str, Any]:
         self.budget.reserve_request()
         request: dict[str, Any] = {
             "model": self.config.deep_model if deep else self.config.routine_model,
-            "instructions": SYSTEM_PROMPT,
+            "instructions": instructions,
             "input": json.dumps({"task": task, "home_context": context}, ensure_ascii=False),
             "max_output_tokens": self.config.max_output_tokens,
+            "reasoning": {"effort": "high" if deep else "low"},
             "store": False,
         }
         if current:
             request["tools"] = [{"type": "web_search"}]
             request["tool_choice"] = "required"
         if response_schema is not None:
-            request["text"] = {"format": {"type": "json_schema", "name": "roxy_home_recipe", "strict": True, "schema": response_schema}}
+            request["text"] = {"format": {"type": "json_schema", "name": "roxy_home_response", "strict": True, "schema": response_schema}}
         response = self.client.responses.create(**request)
         self.budget.record_output_tokens(_usage_output_tokens(response))
         result = _extract_json(_field(response, "output_text", ""))
@@ -340,4 +375,42 @@ class RoxyHomeAI:
             self._context(snapshot),
             deep=True,
             current=True,
+        )
+
+    def converse(
+        self,
+        prompt: str,
+        snapshot: dict[str, Any],
+        *,
+        history: list[dict[str, Any]] | None = None,
+        display_name: str = "",
+        deep: bool = False,
+    ) -> dict[str, Any]:
+        """Answer one Home conversation turn without claiming to execute actions."""
+        home_context = {
+            "person": {"display_name": str(display_name or "").strip()},
+            "profile": snapshot.get("profile") or {},
+            "pantry": (snapshot.get("pantry") or [])[:80],
+            "shopping": (snapshot.get("shopping") or [])[:80],
+            "today_meals": (snapshot.get("today_meals") or [])[:12],
+            "calendar": (snapshot.get("calendar") or [])[:20],
+            "recent_conversation": [
+                {
+                    "role": str(row.get("role") or "")[:16],
+                    "content": str(row.get("content") or "")[:1200],
+                }
+                for row in (history or [])[-10:]
+                if isinstance(row, dict)
+            ],
+        }
+        return self._respond(
+            "Responde a la última intervención de la persona usando el contexto y la conversación reciente. "
+            "La respuesta debe ser original y conversacional. answer responde directamente; reasoning_summary "
+            "explica en una frase la razón principal sin revelar razonamiento interno; recommendation ofrece una "
+            "recomendación concreta solo si aporta valor; follow_up contiene como máximo una pregunta breve y útil. "
+            "No saludes salvo que la persona haya saludado. Intervención: " + str(prompt),
+            home_context,
+            deep=deep,
+            response_schema=CONVERSATION_RESPONSE_SCHEMA,
+            instructions=CONVERSATION_PROMPT,
         )

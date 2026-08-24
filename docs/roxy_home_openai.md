@@ -13,6 +13,8 @@ Roxy Home comparte la identidad y el tono de Roxy, pero funciona como un dominio
    ROXY_HOME_OPENAI_ROUTINE_MODEL=gpt-5.6-luna
    ROXY_HOME_OPENAI_DEEP_MODEL=gpt-5.6-terra
    ROXY_HOME_MEMORY_PATH=/var/data/roxy_home/home_food.json
+   ROXY_HOME_CONVERSATION_PATH=/var/data/roxy_home/conversations.json
+   ROXY_HOME_CONVERSATION_MAX_TURNS=12
    ROXY_HOME_AI_BUDGET_PATH=/var/data/roxy_home/openai_budget.json
    ROXY_HOME_AI_DAILY_REQUEST_LIMIT=100
    ROXY_HOME_AI_DAILY_OUTPUT_TOKEN_LIMIT=100000
@@ -63,6 +65,10 @@ La herramienta de voz devuelve además `speech` y `must_speak`. El agente debe e
 
 - Luna atiende recetas rutinarias, sustituciones y planes semanales rápidos.
 - Terra atiende razonamiento profundo.
+- Las preguntas abiertas pasan por un diálogo estructurado: Roxy responde directamente, explica brevemente el motivo, recomienda cuando aporta valor y formula como máximo una pregunta de seguimiento.
+- La conversación reciente se conserva por persona, no por hogar, con un máximo configurable de turnos. Se redactan patrones de claves y contraseñas antes de escribirla y nunca se comparte con otros productos.
+- Preguntas como “¿por qué?”, “compárame estas opciones” o “¿qué me recomiendas?” usan Terra; saludos y consultas rutinarias usan Luna para controlar costo y latencia.
+- La voz recibe el mismo contexto de Home —perfil, despensa, resumen diario, compras y calendario privado— y tiene instrucciones de sintetizar, comentar y diferenciar hechos de inferencias.
 - Consultas vigentes de seguridad alimentaria o retiros fuerzan Terra, `web_search` y `tool_choice="required"`. La respuesta se rechaza si OpenAI no reporta una llamada de búsqueda.
 - Las respuestas se crean mediante Responses API con `store=False`.
 - Solo el contexto Home del hogar autenticado y el nombre del miembro activo se envían al modelo.
@@ -74,7 +80,7 @@ La herramienta de voz devuelve además `speech` y `must_speak`. El agente debe e
 
 ## Datos y endpoints
 
-La memoria privada vive en `ROXY_HOME_MEMORY_PATH`, agrupada por hogar. Incluye preferencias, alergias, productos de despensa, recetas y planes semanales compartidos. Las identidades personales y sus hashes de contraseña viven separadamente en `ROXY_HOME_ACCOUNTS_PATH`. La lista de compras continúa en su almacenamiento existente y solo recibe los ingredientes confirmados.
+La memoria privada vive en `ROXY_HOME_MEMORY_PATH`, agrupada por hogar. Incluye preferencias, alergias, productos de despensa, recetas y planes semanales compartidos. El contexto conversacional breve vive en `ROXY_HOME_CONVERSATION_PATH`, separado por miembro. Las identidades personales y sus hashes de contraseña viven separadamente en `ROXY_HOME_ACCOUNTS_PATH`. La lista de compras continúa en su almacenamiento existente y solo recibe los ingredientes confirmados.
 
 La sesión de miembro proporciona a OpenAI y ElevenLabs únicamente el nombre visible, rol y hogar necesarios para dirigirse correctamente a la persona. No se envían contraseñas, hashes, cookies ni la clave de Home.
 
@@ -100,6 +106,7 @@ Los endpoints de identidad son `POST /v1/home-account/login`, `GET /v1/home-acco
 ## Referencias oficiales
 
 - [Migración y uso de Responses API](https://developers.openai.com/api/docs/guides/migrate-to-responses/)
+- [Estado de conversación en Responses API](https://developers.openai.com/api/docs/guides/conversation-state/)
 - [Generación de imágenes con Responses API](https://developers.openai.com/api/docs/guides/image-generation/)
 - [Web search en Responses API](https://developers.openai.com/api/docs/guides/tools-web-search/)
 - [Crear una Response](https://developers.openai.com/api/reference/resources/responses/methods/create/)
