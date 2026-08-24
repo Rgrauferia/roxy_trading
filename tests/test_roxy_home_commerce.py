@@ -3,7 +3,7 @@ from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
 
-from roxy_os.home_commerce import HomeCommerceStore
+from roxy_os.home_commerce import HomeCommerceStore, public_providers
 from roxy_os.home_price_recommendations import PriceFeedConfig, fetch_price_offers, recommend_prices
 
 
@@ -262,6 +262,32 @@ def test_home_commerce_controls_are_connected_to_real_endpoints():
     assert "dataset.externalCheckout" in script
     assert "Revisar productos y pagar en" in script
     assert "Última compra preparada" in script
+
+
+def test_affiliate_application_status_is_visible_but_does_not_enable_provider(monkeypatch):
+    monkeypatch.delenv("ROXY_HOME_WALMART_AFFILIATE_LINK_TEMPLATE", raising=False)
+    monkeypatch.setenv("ROXY_HOME_WALMART_AFFILIATE_STATUS", "in_review")
+
+    walmart = next(row for row in public_providers() if row["id"] == "walmart")
+
+    assert walmart["configured"] is False
+    assert walmart["connection_status"] == "in_review"
+    assert walmart["status_label"] == "En revisión"
+    assert "aprobarla" in walmart["next_step"]
+
+
+def test_configured_provider_is_ready_even_if_old_status_says_in_review(monkeypatch):
+    monkeypatch.setenv("ROXY_HOME_WALMART_AFFILIATE_STATUS", "in_review")
+    monkeypatch.setenv(
+        "ROXY_HOME_WALMART_AFFILIATE_LINK_TEMPLATE",
+        "https://tracking.example/click?dest={destination}",
+    )
+
+    walmart = next(row for row in public_providers() if row["id"] == "walmart")
+
+    assert walmart["configured"] is True
+    assert walmart["connection_status"] == "ready"
+    assert walmart["status_label"] == "Listo"
 
 
 def test_price_recommendations_only_claim_savings_for_comparable_units():

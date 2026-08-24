@@ -551,7 +551,7 @@
     $('commerceSummary').textContent=`Roxy priorizará ${objectiveLabels[profile.objective]||objectiveLabels.balanced}.`;
     $('affiliateDisclosure').textContent=commerce.disclosure||'';
     const root=$('commerceProviderBadges');root.replaceChildren();
-    (commerce.providers||[]).forEach(provider=>{const badge=document.createElement('span');badge.className=`provider-badge ${provider.configured?'ready':'pending'}`;const used=Number(provider.handoff_count||0);badge.textContent=`${provider.name} · ${provider.configured?'listo':'pendiente'}${used?` · usado ${used}`:''}`;root.append(badge)});
+    (commerce.providers||[]).forEach(provider=>{const badge=document.createElement('span');badge.className=`provider-badge ${provider.configured?'ready':'pending'}`;const used=Number(provider.handoff_count||0);badge.textContent=`${provider.name} · ${provider.status_label||(provider.configured?'Listo':'Pendiente')}${used?` · usado ${used}`:''}`;badge.title=provider.next_step||provider.description||'';root.append(badge)});
     const recent=$('commerceRecent');recent.replaceChildren();const activity=commerce.activity||{};const latest=(activity.recent||[])[0];
     if(latest){const strong=document.createElement('strong');strong.textContent='Última compra preparada';const small=document.createElement('small');small.textContent=`${latest.provider_name} · ${latest.item_count} ${latest.item_count===1?'artículo':'artículos'} · falta confirmar en la tienda`;recent.append(strong,small)}
     $('prepareShoppingButton').disabled=!activeItems().length;
@@ -821,7 +821,7 @@
     (preparation.items||[]).forEach(row=>{const article=document.createElement('article');const img=makeImage(row.name,'FOOD','');const copy=document.createElement('div');const strong=document.createElement('strong');strong.textContent=`${row.quantity} ${row.unit} · ${row.name}`;const small=document.createElement('small');small.textContent=row.reason;copy.append(strong,small);if((row.avoided_brands||[]).length){const avoided=document.createElement('small');avoided.textContent=`Evitar: ${row.avoided_brands.join(', ')}`;copy.append(avoided)}if(row.allergen_review_required){const warning=document.createElement('em');warning.textContent='Verifica la etiqueta por tus alergias';copy.append(warning)}article.append(img,copy);items.append(article)});
     pendingCommerceProvider=null;$('commerceConfirmation').hidden=true;$('commerceConfirmCheck').checked=false;$('commerceConfirmButton').disabled=true;$('commerceHandoffNote').textContent='';
     const actions=$('commerceActions');actions.replaceChildren();
-    providers.filter(provider=>(preparation.providers||[]).includes(provider.id)).forEach(provider=>{const button=makeButton(provider.configured?`Continuar con ${provider.name}`:`${provider.name} · falta conectar cuenta`,provider.configured?'primary':'secondary',()=>requestProviderLinks(provider.id));button.disabled=!provider.configured;actions.append(button)});
+    providers.filter(provider=>(preparation.providers||[]).includes(provider.id)).forEach(provider=>{const button=makeButton(provider.configured?`Continuar con ${provider.name}`:`${provider.name} · ${provider.status_label||'falta conectar'}`,provider.configured?'primary':'secondary',()=>requestProviderLinks(provider.id));button.disabled=!provider.configured;button.title=provider.next_step||provider.description||'';actions.append(button)});
   }
   function requestProviderLinks(providerId){
     if(!currentPreparation)return;

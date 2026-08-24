@@ -29,19 +29,31 @@ ROXY_HOME_COMMERCE_PATH=/var/data/roxy_home/commerce.json
 ROXY_HOME_INSTACART_API_KEY=
 ROXY_HOME_INSTACART_API_URL=https://connect.instacart.com/idp/v1/products/products_link
 ROXY_HOME_INSTACART_AFFILIATE_URL=
+ROXY_HOME_INSTACART_AFFILIATE_STATUS=in_review
 ROXY_HOME_KROGER_CLIENT_ID=
 ROXY_HOME_KROGER_CLIENT_SECRET=
 ROXY_HOME_KROGER_API_URL=https://api.kroger.com/v1
+ROXY_HOME_KROGER_STATUS=needs_setup
 ROXY_HOME_AMAZON_ASSOCIATE_TAG=
+ROXY_HOME_AMAZON_AFFILIATE_STATUS=needs_setup
 ROXY_HOME_WALMART_AFFILIATE_LINK_TEMPLATE=
+ROXY_HOME_WALMART_AFFILIATE_STATUS=in_review
 ROXY_HOME_TARGET_AFFILIATE_LINK_TEMPLATE=
+ROXY_HOME_TARGET_AFFILIATE_STATUS=needs_setup
 ROXY_HOME_THRIVE_AFFILIATE_LINK_TEMPLATE=
+ROXY_HOME_THRIVE_AFFILIATE_STATUS=needs_setup
 ROXY_HOME_PRICE_FEED_URL=
 ROXY_HOME_PRICE_FEED_API_KEY=
 ROXY_HOME_PRICE_MAX_AGE_MINUTES=180
 ROXY_HOME_PRICE_TIMEOUT_SECONDS=12
 ROXY_HOME_PRICE_CACHE_SECONDS=900
 ```
+
+Los campos `*_STATUS` son solamente informativos y nunca activan un comercio.
+Usa `needs_setup`, `in_review`, `approved_needs_configuration` o `unavailable`.
+El estado cambia automáticamente a **Listo** únicamente cuando existe la
+credencial o plantilla oficial exigida; por tanto, Roxy no confunde una
+solicitud enviada con una conexión funcional.
 
 Las plantillas de Walmart, Target y Thrive deben ser exactamente las entregadas
 por el programa afiliado aprobado, usar HTTPS e incluir `{destination}`. Roxy

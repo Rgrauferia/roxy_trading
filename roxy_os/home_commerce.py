@@ -27,6 +27,15 @@ AFFILIATE_DISCLOSURE = (
     "esto no aumenta el precio para ti. Revisa precio, etiqueta y disponibilidad antes de pagar."
 )
 AMAZON_ASSOCIATES_DISCLOSURE = "As an Amazon Associate I earn from qualifying purchases."
+AFFILIATE_CONNECTION_STATES = {
+    "in_review": ("En revisión", "La solicitud fue enviada y el programa todavía debe aprobarla."),
+    "approved_needs_configuration": (
+        "Aprobado · falta conectar",
+        "La cuenta está aprobada; falta guardar el enlace o identificador oficial en Roxy Home.",
+    ),
+    "unavailable": ("Sin acceso disponible", "El proveedor no está aceptando esta integración actualmente."),
+    "needs_setup": ("Falta solicitar", "Todavía falta solicitar o conectar este programa."),
+}
 
 
 def _now_iso() -> str:
@@ -287,6 +296,14 @@ class HomeCommerceStore:
 def public_providers() -> list[dict[str, Any]]:
     instacart_api_configured = bool(_text(os.getenv("ROXY_HOME_INSTACART_API_KEY")))
     instacart_affiliate_configured = bool(_text(os.getenv("ROXY_HOME_INSTACART_AFFILIATE_URL")))
+    def connection(env_name: str, configured: bool) -> tuple[str, str, str]:
+        if configured:
+            return "ready", "Listo", "La conexión está activa."
+        requested = _text(os.getenv(env_name), 48).casefold().replace("-", "_")
+        state = requested if requested in AFFILIATE_CONNECTION_STATES else "needs_setup"
+        label, next_step = AFFILIATE_CONNECTION_STATES[state]
+        return state, label, next_step
+
     definitions = [
         {
             "id": "instacart",
@@ -339,6 +356,21 @@ def public_providers() -> list[dict[str, Any]]:
             "description": "Alternativa especializada para productos orgánicos y dietas específicas.",
         },
     ]
+    status_env = {
+        "instacart": "ROXY_HOME_INSTACART_AFFILIATE_STATUS",
+        "kroger": "ROXY_HOME_KROGER_STATUS",
+        "amazon": "ROXY_HOME_AMAZON_AFFILIATE_STATUS",
+        "walmart": "ROXY_HOME_WALMART_AFFILIATE_STATUS",
+        "target": "ROXY_HOME_TARGET_AFFILIATE_STATUS",
+        "thrive": "ROXY_HOME_THRIVE_AFFILIATE_STATUS",
+    }
+    for provider in definitions:
+        state, label, next_step = connection(
+            status_env[provider["id"]], bool(provider.get("configured"))
+        )
+        provider["connection_status"] = state
+        provider["status_label"] = label
+        provider["next_step"] = next_step
     return definitions
 
 
