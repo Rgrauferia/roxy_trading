@@ -2,7 +2,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '89';
+  const APP_VERSION = '90';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -1094,14 +1094,14 @@
     (preparation.items||[]).forEach(row=>{const article=document.createElement('article');const visual=preparation.source==='design'?makeDesignProductVisual(row.name):makeImage(row.name,row.category||'GENERAL','');const copy=document.createElement('div');const strong=document.createElement('strong');strong.textContent=`${row.quantity} ${row.unit} · ${row.name}`;const small=document.createElement('small');small.textContent=row.reason;copy.append(strong,small);if((row.avoided_brands||[]).length){const avoided=document.createElement('small');avoided.textContent=`Evitar: ${row.avoided_brands.join(', ')}`;copy.append(avoided)}if(row.allergen_review_required){const warning=document.createElement('em');warning.textContent='Verifica la etiqueta por tus alergias';copy.append(warning)}article.append(visual,copy);items.append(article)});
     pendingCommerceProvider=null;$('commerceConfirmation').hidden=true;$('commerceConfirmCheck').checked=false;$('commerceConfirmButton').disabled=true;$('commerceHandoffNote').textContent='';
     const actions=$('commerceActions');actions.replaceChildren();
-    providers.filter(provider=>(preparation.providers||[]).includes(provider.id)).forEach(provider=>{const button=makeButton(provider.configured?`Continuar con ${provider.name}`:`${provider.name} · ${provider.status_label||'falta conectar'}`,provider.configured?'primary':'secondary',()=>requestProviderLinks(provider.id));button.disabled=!provider.configured;button.title=provider.next_step||provider.description||'';actions.append(button)});
+    providers.filter(provider=>(preparation.providers||[]).includes(provider.id)).forEach(provider=>{const designLabel=preparation.source==='design'&&provider.design_only?`Abrir ${provider.name} · ${provider.affiliate_connected?'afiliado':'catálogo oficial'}`:'';const button=makeButton(provider.configured?(designLabel||`Continuar con ${provider.name}`):`${provider.name} · ${provider.status_label||'falta conectar'}`,provider.configured?'primary':'secondary',()=>requestProviderLinks(provider.id));button.disabled=!provider.configured;button.title=provider.next_step||provider.description||'';actions.append(button)});
   }
   function requestProviderLinks(providerId){
     if(!currentPreparation)return;
     const provider=(commerce.providers||[]).find(row=>row.id===providerId)||{id:providerId,name:'el comercio'};
     pendingCommerceProvider=provider;
     $('commerceConfirmTitle').textContent=`Continuar de forma segura con ${provider.name}`;
-    $('commerceConfirmCopy').textContent=`Roxy preparará la entrega de tu lista. ${provider.name} mostrará disponibilidad, sustituciones y precio final antes del pago.`;
+    $('commerceConfirmCopy').textContent=currentPreparation.source==='design'?`Roxy abrirá la búsqueda exacta en el catálogo oficial de ${provider.name}. Allí confirmarás la foto, medidas, disponibilidad y precio real antes de comprar.`:`Roxy preparará la entrega de tu lista. ${provider.name} mostrará disponibilidad, sustituciones y precio final antes del pago.`;
     $('commerceConfirmCheck').checked=false;$('commerceConfirmButton').disabled=true;$('commerceConfirmation').hidden=false;
     $('commerceConfirmCheck').focus();
   }

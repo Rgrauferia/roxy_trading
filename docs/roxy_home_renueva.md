@@ -25,6 +25,18 @@ Prices, stock, brands, and dimensions are not fabricated. They are confirmed
 on the retailer page. Roxy never stores retailer passwords or payment cards and
 never completes payment.
 
+Each furniture source reports one of two truthful connection levels:
+
+- **Catálogo listo**: the official retailer search is active, but no commission
+  tracking is claimed.
+- **Afiliado listo**: an approved server-side link template wraps the official
+  destination. Roxy shows the affiliate disclosure before the handoff.
+
+Wayfair currently offers its official Creator/Affiliate programs and Article
+publishes its program through Awin. IKEA and West Elm remain official-catalog
+searches until Roxy Home receives an approved U.S. partner link. There is no
+screen scraping and no retailer secret is exposed to the browser.
+
 ## Server configuration
 
 ```dotenv
@@ -33,6 +45,10 @@ ROXY_HOME_DESIGN_IMAGE_DIR=data/roxy_home_design
 ROXY_HOME_DESIGN_IMAGE_QUALITY=low
 ROXY_HOME_OPENAI_API_KEY=...
 ROXY_HOME_OPENAI_DEEP_MODEL=gpt-5.6-terra
+ROXY_HOME_IKEA_AFFILIATE_LINK_TEMPLATE=
+ROXY_HOME_WAYFAIR_AFFILIATE_LINK_TEMPLATE=
+ROXY_HOME_WEST_ELM_AFFILIATE_LINK_TEMPLATE=
+ROXY_HOME_ARTICLE_AFFILIATE_LINK_TEMPLATE=
 ```
 
 The OpenAI key is server-only. The implementation uses the Responses API with

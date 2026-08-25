@@ -216,6 +216,14 @@ services:
         sync: false
       - key: ROXY_HOME_THRIVE_AFFILIATE_LINK_TEMPLATE
         sync: false
+      - key: ROXY_HOME_IKEA_AFFILIATE_LINK_TEMPLATE
+        sync: false
+      - key: ROXY_HOME_WAYFAIR_AFFILIATE_LINK_TEMPLATE
+        sync: false
+      - key: ROXY_HOME_WEST_ELM_AFFILIATE_LINK_TEMPLATE
+        sync: false
+      - key: ROXY_HOME_ARTICLE_AFFILIATE_LINK_TEMPLATE
+        sync: false
     disk:
       name: roxy-home-data
       mountPath: /var/data

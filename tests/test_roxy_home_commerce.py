@@ -575,6 +575,56 @@ def test_furniture_catalog_sources_create_official_search_links_without_claiming
         assert "no afirma disponibilidad ni precio" in result["provider_disclosure"]
 
 
+def test_furniture_sources_distinguish_catalog_from_affiliate_connection(monkeypatch):
+    monkeypatch.delenv("ROXY_HOME_WAYFAIR_AFFILIATE_LINK_TEMPLATE", raising=False)
+    catalog = next(row for row in public_providers() if row["id"] == "wayfair")
+
+    assert catalog["configured"] is True
+    assert catalog["affiliate_connected"] is False
+    assert catalog["connection_status"] == "catalog_ready"
+    assert catalog["status_label"] == "Catálogo listo"
+
+    monkeypatch.setenv(
+        "ROXY_HOME_WAYFAIR_AFFILIATE_LINK_TEMPLATE",
+        "https://tracking.example/click?destination={destination}&subid={sub_id}",
+    )
+    affiliate = next(row for row in public_providers() if row["id"] == "wayfair")
+
+    assert affiliate["affiliate_connected"] is True
+    assert affiliate["connection_status"] == "affiliate_ready"
+    assert affiliate["status_label"] == "Afiliado listo"
+
+
+def test_furniture_affiliate_template_wraps_exact_official_destination(monkeypatch):
+    monkeypatch.setenv(
+        "ROXY_HOME_ARTICLE_AFFILIATE_LINK_TEMPLATE",
+        "https://tracking.example/click?destination={destination}&query={query}&subid={sub_id}",
+    )
+    preparation = {
+        "providers": ["article"],
+        "tracking_id": "renueva-project-1",
+        "items": [
+            {
+                "name": "sofá modular de lino",
+                "query": "sofá modular de lino",
+                "quantity": 1,
+                "unit": "unidad",
+                "category": "HOUSEHOLD",
+            }
+        ],
+    }
+
+    result = create_purchase_links("article", preparation)
+    query = parse_qs(urlparse(result["links"][0]["url"]).query)
+    destination = query["destination"][0]
+
+    assert urlparse(destination).netloc == "www.article.com"
+    assert parse_qs(urlparse(destination).query)["q"] == ["sofá modular de lino"]
+    assert query["subid"] == ["renueva-project-1"]
+    assert "comisión" in result["provider_disclosure"]
+    assert "seguimiento afiliado activo" in result["guidance"]
+
+
 def test_price_recommendations_only_claim_savings_for_comparable_units():
     observed_at = datetime.now(timezone.utc).isoformat()
     items = [{"name": "Leche", "quantity": 1, "unit": "galón"}]

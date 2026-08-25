@@ -38,6 +38,13 @@ AFFILIATE_CONNECTION_STATES = {
     "needs_setup": ("Falta solicitar", "Todavía falta solicitar o conectar este programa."),
 }
 
+FURNITURE_AFFILIATE_TEMPLATE_ENVS = {
+    "ikea": "ROXY_HOME_IKEA_AFFILIATE_LINK_TEMPLATE",
+    "wayfair": "ROXY_HOME_WAYFAIR_AFFILIATE_LINK_TEMPLATE",
+    "west_elm": "ROXY_HOME_WEST_ELM_AFFILIATE_LINK_TEMPLATE",
+    "article": "ROXY_HOME_ARTICLE_AFFILIATE_LINK_TEMPLATE",
+}
+
 AMAZON_PRODUCT_TERMS = {
     "aceite": "cooking oil",
     "aceite de oliva": "olive oil",
@@ -597,6 +604,7 @@ def public_providers() -> list[dict[str, Any]]:
             "name": "IKEA",
             "mode": "product_links",
             "configured": True,
+            "affiliate_connected": "{destination}" in str(os.getenv(FURNITURE_AFFILIATE_TEMPLATE_ENVS["ikea"]) or ""),
             "design_only": True,
             "description": "Busca muebles y accesorios en el catálogo oficial de IKEA.",
         },
@@ -605,6 +613,7 @@ def public_providers() -> list[dict[str, Any]]:
             "name": "Wayfair",
             "mode": "product_links",
             "configured": True,
+            "affiliate_connected": "{destination}" in str(os.getenv(FURNITURE_AFFILIATE_TEMPLATE_ENVS["wayfair"]) or ""),
             "design_only": True,
             "description": "Compara una selección amplia de muebles y decoración en Wayfair.",
         },
@@ -613,6 +622,7 @@ def public_providers() -> list[dict[str, Any]]:
             "name": "West Elm",
             "mode": "product_links",
             "configured": True,
+            "affiliate_connected": "{destination}" in str(os.getenv(FURNITURE_AFFILIATE_TEMPLATE_ENVS["west_elm"]) or ""),
             "design_only": True,
             "description": "Explora muebles contemporáneos en el catálogo oficial de West Elm.",
         },
@@ -621,6 +631,7 @@ def public_providers() -> list[dict[str, Any]]:
             "name": "Article",
             "mode": "product_links",
             "configured": True,
+            "affiliate_connected": "{destination}" in str(os.getenv(FURNITURE_AFFILIATE_TEMPLATE_ENVS["article"]) or ""),
             "design_only": True,
             "description": "Busca muebles contemporáneos y modernos en Article.",
         },
@@ -638,6 +649,18 @@ def public_providers() -> list[dict[str, Any]]:
         "article": "ROXY_HOME_ARTICLE_STATUS",
     }
     for provider in definitions:
+        if provider.get("design_only"):
+            if provider.get("affiliate_connected"):
+                provider["connection_status"] = "affiliate_ready"
+                provider["status_label"] = "Afiliado listo"
+                provider["next_step"] = "El catálogo oficial y el seguimiento afiliado están activos."
+            else:
+                provider["connection_status"] = "catalog_ready"
+                provider["status_label"] = "Catálogo listo"
+                provider["next_step"] = (
+                    "La búsqueda oficial funciona. Falta una plantilla afiliada aprobada para atribuir comisiones."
+                )
+            continue
         state, label, next_step = connection(
             status_env[provider["id"]], bool(provider.get("configured"))
         )
@@ -805,23 +828,46 @@ def create_purchase_links(provider_id: str, preparation: dict[str, Any]) -> dict
         "article": "https://www.article.com/search?q={query}",
     }
     if provider_id in furniture_searches:
+        affiliate_template = str(
+            os.getenv(FURNITURE_AFFILIATE_TEMPLATE_ENVS[provider_id]) or ""
+        )
         links = []
         for row in items:
             query = _text(row.get("query") or row.get("name"), 180)
+            destination = _safe_https(
+                furniture_searches[provider_id].replace("{query}", urllib.parse.quote_plus(query))
+            )
+            url = (
+                _affiliate_template_link(
+                    affiliate_template,
+                    destination,
+                    query,
+                    str(preparation.get("tracking_id") or ""),
+                )
+                if provider.get("affiliate_connected")
+                else destination
+            )
             links.append({
                 "label": row["name"],
                 "quantity": row.get("quantity") or 1,
                 "unit": row.get("unit") or "unidad",
                 "category": row.get("category") or "HOUSEHOLD",
                 "reason": row.get("reason") or "Compara materiales, medidas y precio en el comercio.",
-                "url": _safe_https(furniture_searches[provider_id].replace("{query}", urllib.parse.quote_plus(query))),
+                "url": url,
             })
         return {
             "provider": provider,
             "mode": "product_links",
             "links": links,
-            "provider_disclosure": "Roxy no afirma disponibilidad ni precio: revisa la ficha oficial del comercio.",
-            "guidance": f"Roxy preparó búsquedas específicas en el catálogo oficial de {provider['name']}.",
+            "provider_disclosure": (
+                f"{AFFILIATE_DISCLOSURE} Roxy no afirma disponibilidad ni precio: revisa la ficha oficial del comercio."
+                if provider.get("affiliate_connected")
+                else "Roxy no afirma disponibilidad ni precio: revisa la ficha oficial del comercio."
+            ),
+            "guidance": (
+                f"Roxy preparó búsquedas específicas en el catálogo oficial de {provider['name']}"
+                + (" con seguimiento afiliado activo." if provider.get("affiliate_connected") else ".")
+            ),
         }
 
     configs = {
