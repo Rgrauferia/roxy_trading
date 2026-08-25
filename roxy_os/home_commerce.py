@@ -648,6 +648,11 @@ def personalize_items(raw_items: list[dict[str, Any]], profile: dict[str, Any], 
                     "dietary_labels": list(profile.get("dietary_labels") or [])[:3],
                     "favorite_brand": brand if objective == "favorites" else "",
                 },
+                # Design proposals use these fields to keep an honest estimated
+                # budget visible until a retailer supplies the real price.
+                "source_id": _text(raw.get("id"), 64),
+                "budget_target": round(float(raw.get("budget_target") or 0), 2),
+                "priority": _text(raw.get("priority"), 24),
             }
         )
     return rows

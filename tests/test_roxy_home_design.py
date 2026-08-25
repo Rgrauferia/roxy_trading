@@ -38,6 +38,7 @@ def test_design_store_isolates_projects_and_private_images(tmp_path):
     assert sum(row["budget_target"] for row in project["products"]) == 800
     assert [row["id"] for row in project["budget_tiers"]] == ["economy", "balanced", "complete"]
     assert [row["budget"] for row in project["budget_tiers"]] == [520, 800, 1080]
+    assert [row["priority"] for row in project["products"]] == ["essential", "essential", "optional", "optional"]
     assert project["analysis_status"] == "READY_LOCAL"
 
 
@@ -150,6 +151,9 @@ def test_design_api_creates_private_project_and_prepares_real_store_searches(tmp
     assert prepared.status_code == 201
     assert prepared.json()["preparation"]["source"] == "design"
     assert prepared.json()["preparation"]["items"][0]["category"] == "HOUSEHOLD"
+    assert prepared.json()["preparation"]["source_title"] == "Opción Equilibrada para Nuestra sala"
+    assert prepared.json()["preparation"]["items"][0]["budget_target"] == 304
+    assert "precio real" in prepared.json()["preparation"]["items"][0]["reason"]
     assert blocked_generation.status_code == 503
 
 

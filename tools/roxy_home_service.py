@@ -2701,6 +2701,17 @@ def prepare_home_design_purchase(
     if not requested or any(provider not in known for provider in requested):
         raise HTTPException(status_code=422, detail="Selecciona proveedores compatibles.")
     prepared_items = personalize_items(items, profile, [])
+    tier_label = next(
+        (row.get("label") for row in project.get("budget_tiers") or [] if row.get("id") == payload.tier),
+        payload.tier,
+    )
+    for row in prepared_items:
+        target = float(row.get("budget_target") or 0)
+        priority = "pieza principal" if row.get("priority") == "essential" else "complemento opcional"
+        row["reason"] = (
+            f"{priority.capitalize()} · presupuesto estimado ${target:,.0f}. "
+            "El comercio confirmará el producto, sus medidas, disponibilidad y precio real."
+        )
     fit = project.get("fit_constraints") or {}
     if any(float(value or 0) > 0 for value in fit.values()):
         fit_labels = {"wall_width": "pared", "passage_width": "paso", "max_depth": "profundidad"}
@@ -2711,7 +2722,7 @@ def prepare_home_design_purchase(
         owner_key,
         user,
         source="design",
-        source_title=f"Opción {payload.tier} para {project['name']}",
+        source_title=f"Opción {tier_label} para {project['name']}",
         items=prepared_items,
         providers=requested,
     )

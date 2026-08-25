@@ -138,6 +138,7 @@ def _product_plan(room_type: str, style: str, budget: float, tier: str = "balanc
             "budget_target": round(available * shares[index], 2),
             "tier": tier,
             "selected": True,
+            "priority": "essential" if index < 2 else "optional",
         }
         for index, name in enumerate(names)
     ]
