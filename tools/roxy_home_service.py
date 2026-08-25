@@ -74,6 +74,7 @@ from roxy_os.home_weekly_plans import (
     update_weekly_plan_meal,
     weekly_plan_shopping_items,
 )
+from roxy_os.home_weather import HomeWeatherConfig, answer_weather_query, geocode_place, forecast_location, weather_for_profile
 from roxy_os.home_recipe_videos import (
     FalHailuoVideoProvider,
     HomeRecipeVideoConfig,
@@ -653,6 +654,12 @@ def _assistant_shopping_intent(text: str) -> str:
         return "calendar_confirm"
     if re.fullmatch(r"(?:no|cancelar|cancelalo|cancélalo|olvidalo|olvídalo)[.! ]*", normalized):
         return "calendar_discard"
+    if (
+        re.search(r"\b(clima|pronostico|weather|temperatura|lluvia|llover|llovera|soleado|nublado|tormenta|huracan)\b", plain)
+        or re.search(r"\b(que|como)\s+(?:tiempo|dia)\s+(?:hace|hara|estara)\b", plain)
+        or re.search(r"\b(probabilidad|posibilidad)\b.*\b(lluvia|llover|tormenta)\b", plain)
+    ):
+        return "weather_query"
     if re.search(r"\b(que tengo hoy|que hay hoy|resumen de hoy|como esta mi dia|que es importante hoy)\b", plain):
         return "daily_query"
     if re.search(r"\b(que tengo|mi agenda|mis eventos|mis citas|que hay)\b.*\b(hoy|manana|semana|lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b", plain):
@@ -1686,6 +1693,8 @@ def assistant_command(
         if intent.startswith("shopping_")
         else "home_daily"
         if intent == "daily_query"
+        else "home_weather"
+        if intent == "weather_query"
         else "home_calendar"
         if intent.startswith("calendar_")
         else "home_commerce"
@@ -1705,6 +1714,14 @@ def assistant_command(
         else:
             message = str((pending_clarification or {}).get("question") or "No estoy segura de cuál producto quieres. ¿Puedes especificarlo?")
             extra["clarification"] = pending_clarification or {}
+    elif intent == "weather_query":
+        profile = _commerce_store().profile(_commerce_owner_key(auth, user))
+        try:
+            weather = answer_weather_query(command_text, profile, config=HomeWeatherConfig.from_env())
+        except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
+            raise HTTPException(status_code=502, detail="El servicio del clima no respondió. Inténtalo nuevamente en unos minutos.") from exc
+        message = str(weather.get("message") or "No pude interpretar esa consulta del clima.")
+        extra["weather"] = weather
     elif intent == "daily_query":
         brief = _daily_brief(user, auth)
         message = str(brief.get("summary") or "Aquí tienes lo importante de hoy.")
@@ -2171,6 +2188,39 @@ def read_home_daily(
     _rate_limit(request)
     user = _authorize_user(user_id, auth)
     return _daily_brief(user, auth)
+
+
+@app.get("/v1/home-weather/{user_id}")
+def read_home_weather(
+    user_id: str,
+    request: Request,
+    days: int = 16,
+    place: str = "",
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    """Return a server-side forecast without exposing provider credentials."""
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    profile = _commerce_store().profile(_commerce_owner_key(auth, user))
+    config = HomeWeatherConfig.from_env()
+    try:
+        if place.strip():
+            location = geocode_place(place, config=config)
+            if location is None:
+                raise HTTPException(status_code=404, detail="No encontré ese lugar. Prueba con ciudad y estado.")
+            return forecast_location(
+                location["latitude"],
+                location["longitude"],
+                label=location["label"],
+                days=days,
+                timezone_name=location["timezone"],
+                config=config,
+            )
+        return weather_for_profile(profile, days=days, config=config)
+    except HTTPException:
+        raise
+    except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
+        raise HTTPException(status_code=502, detail="El servicio del clima no respondió. Inténtalo nuevamente en unos minutos.") from exc
 
 
 @app.get("/v1/home-calendar/{user_id}")

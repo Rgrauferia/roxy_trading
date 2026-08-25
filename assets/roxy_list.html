@@ -8,14 +8,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="84" />
+  <meta name="roxy-home-version" content="85" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=68" />
-  <script src="/assets/roxy_list.js?v=84" defer></script>
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=69" />
+  <script src="/assets/roxy_list.js?v=85" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -37,6 +37,11 @@
         <p id="homeDailySummary"></p>
         <div id="homeDailyCards" class="home-daily-cards"></div>
         <div id="homeDailySuggestions" class="home-daily-suggestions" aria-label="Ideas para preguntarle a Roxy"></div>
+      </section>
+      <section id="todayWeatherCard" class="weather-card weather-card-home" aria-labelledby="todayWeatherTitle">
+        <span id="todayWeatherIcon" class="material-symbols-rounded weather-card-icon" aria-hidden="true">partly_cloudy_day</span>
+        <div><small id="todayWeatherLocation">Clima en tu zona</small><strong id="todayWeatherTitle">Activa tu ubicación aproximada</strong><em id="todayWeatherDetail">Roxy podrá anticipar lluvia y ayudarte a organizar el día.</em><a class="weather-source" href="https://open-meteo.com/" target="_blank" rel="noopener">Datos: Open-Meteo</a></div>
+        <button id="todayWeatherAction" type="button" data-tab-link="more" aria-label="Configurar ubicación"><span class="material-symbols-rounded" aria-hidden="true">location_on</span></button>
       </section>
       <section id="mealPlanStudio" class="meal-plan-studio" aria-labelledby="mealPlanTitle">
         <div class="meal-plan-heading"><p class="eyebrow">Tu semana, organizada</p><h2 id="mealPlanTitle">Plan de comidas</h2><p>Roxy adapta desayuno, comida y cena al ritmo real de tu hogar.</p></div>
@@ -120,6 +125,11 @@
         <a id="calendarGoogleConnect" class="primary" href="#">Conectar</a>
         <button id="calendarGoogleSync" type="button" hidden>Sincronizar</button>
         <button id="calendarGoogleDisconnect" type="button" aria-label="Desconectar Google Calendar" hidden><span class="material-symbols-rounded" aria-hidden="true">link_off</span></button>
+      </section>
+      <section id="calendarWeatherCard" class="weather-card weather-card-calendar" aria-labelledby="calendarWeatherTitle">
+        <span id="calendarWeatherIcon" class="material-symbols-rounded weather-card-icon" aria-hidden="true">partly_cloudy_day</span>
+        <div><small id="calendarWeatherLocation">Pronóstico local</small><strong id="calendarWeatherTitle">Clima y agenda, juntos</strong><em id="calendarWeatherDetail">Activa tu ubicación aproximada para ver el clima de cada día.</em><a class="weather-source" href="https://open-meteo.com/" target="_blank" rel="noopener">Datos: Open-Meteo</a></div>
+        <button id="calendarWeatherAsk" type="button" aria-label="Preguntarle a Roxy por el clima"><span class="material-symbols-rounded" aria-hidden="true">mic</span></button>
       </section>
       <section class="calendar-hero">
         <div><h3>Tu semana,<br />organizada</h3><span aria-hidden="true"></span><p>Cuéntale a Roxy qué tienes planificado y ella lo organiza por ti.</p></div>
