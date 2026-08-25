@@ -592,6 +592,38 @@ def public_providers() -> list[dict[str, Any]]:
             "configured": "{destination}" in str(os.getenv("ROXY_HOME_THRIVE_AFFILIATE_LINK_TEMPLATE") or ""),
             "description": "Alternativa especializada para productos orgánicos y dietas específicas.",
         },
+        {
+            "id": "ikea",
+            "name": "IKEA",
+            "mode": "product_links",
+            "configured": True,
+            "design_only": True,
+            "description": "Busca muebles y accesorios en el catálogo oficial de IKEA.",
+        },
+        {
+            "id": "wayfair",
+            "name": "Wayfair",
+            "mode": "product_links",
+            "configured": True,
+            "design_only": True,
+            "description": "Compara una selección amplia de muebles y decoración en Wayfair.",
+        },
+        {
+            "id": "west_elm",
+            "name": "West Elm",
+            "mode": "product_links",
+            "configured": True,
+            "design_only": True,
+            "description": "Explora muebles contemporáneos en el catálogo oficial de West Elm.",
+        },
+        {
+            "id": "article",
+            "name": "Article",
+            "mode": "product_links",
+            "configured": True,
+            "design_only": True,
+            "description": "Busca muebles contemporáneos y modernos en Article.",
+        },
     ]
     status_env = {
         "instacart": "ROXY_HOME_INSTACART_AFFILIATE_STATUS",
@@ -600,6 +632,10 @@ def public_providers() -> list[dict[str, Any]]:
         "walmart": "ROXY_HOME_WALMART_AFFILIATE_STATUS",
         "target": "ROXY_HOME_TARGET_AFFILIATE_STATUS",
         "thrive": "ROXY_HOME_THRIVE_AFFILIATE_STATUS",
+        "ikea": "ROXY_HOME_IKEA_STATUS",
+        "wayfair": "ROXY_HOME_WAYFAIR_STATUS",
+        "west_elm": "ROXY_HOME_WEST_ELM_STATUS",
+        "article": "ROXY_HOME_ARTICLE_STATUS",
     }
     for provider in definitions:
         state, label, next_step = connection(
@@ -761,6 +797,32 @@ def create_purchase_links(provider_id: str, preparation: dict[str, Any]) -> dict
             for row in items
         ]
         return {"provider": provider, "mode": "product_links", "links": links, "provider_disclosure": ""}
+
+    furniture_searches = {
+        "ikea": "https://www.ikea.com/us/en/search/?q={query}",
+        "wayfair": "https://www.wayfair.com/keyword.php?keyword={query}",
+        "west_elm": "https://www.westelm.com/search/results.html?words={query}",
+        "article": "https://www.article.com/search?q={query}",
+    }
+    if provider_id in furniture_searches:
+        links = []
+        for row in items:
+            query = _text(row.get("query") or row.get("name"), 180)
+            links.append({
+                "label": row["name"],
+                "quantity": row.get("quantity") or 1,
+                "unit": row.get("unit") or "unidad",
+                "category": row.get("category") or "HOUSEHOLD",
+                "reason": row.get("reason") or "Compara materiales, medidas y precio en el comercio.",
+                "url": _safe_https(furniture_searches[provider_id].replace("{query}", urllib.parse.quote_plus(query))),
+            })
+        return {
+            "provider": provider,
+            "mode": "product_links",
+            "links": links,
+            "provider_disclosure": "Roxy no afirma disponibilidad ni precio: revisa la ficha oficial del comercio.",
+            "guidance": f"Roxy preparó búsquedas específicas en el catálogo oficial de {provider['name']}.",
+        }
 
     configs = {
         "walmart": ("ROXY_HOME_WALMART_AFFILIATE_LINK_TEMPLATE", "https://www.walmart.com/search?q={query}"),

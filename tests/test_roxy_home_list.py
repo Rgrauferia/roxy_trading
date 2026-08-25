@@ -19,11 +19,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="88"' in page.text
-    assert 'href="/assets/roxy_list.css?v=72"' in page.text
-    assert 'src="/assets/roxy_list.js?v=88"' in page.text
-    assert '/assets/roxy_list.css?v=72' in worker.text
-    assert '/assets/roxy_list.js?v=88' in worker.text
+    assert 'name="roxy-home-version" content="89"' in page.text
+    assert 'href="/assets/roxy_list.css?v=73"' in page.text
+    assert 'src="/assets/roxy_list.js?v=89"' in page.text
+    assert '/assets/roxy_list.css?v=73' in worker.text
+    assert '/assets/roxy_list.js?v=89' in worker.text
     assert 'id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle" hidden' in page.text
     assert '/assets/roxy_home_avatar.jpg' in page.text
     assert '/assets/roxy_home_avatar.jpg' in worker.text
@@ -42,10 +42,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert nav.index('data-tab-link="recipes"') < nav.index('data-tab-link="design"') < nav.index('data-tab-link="calendar"')
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
-    assert 'Comparar productos reales' in script.text
-    assert 'Analizar mi espacio' in script.text
+    assert 'Comparar muebles reales' in script.text
+    assert "const APP_VERSION = '89'" in script.text
+    assert 'Analizar y rediseñar' in script.text
     assert 'Pídele un cambio a Roxy' in script.text
-    assert 'Comparar habitación actual y propuesta de Roxy' in script.text
+    assert 'Desliza para comparar la habitación actual y el rediseño' in script.text
     assert 'Guardar medidas' in script.text
     assert '/measurements' in script.text
     assert "economy|balanced|complete" in Path("tools/roxy_home_service.py").read_text(encoding="utf-8")

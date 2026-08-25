@@ -122,8 +122,14 @@ def _decode_image(data_url: str) -> tuple[bytes, str, str]:
     return raw, media_type, suffix
 
 
-def _product_plan(room_type: str, style: str, budget: float, tier: str = "balanced") -> list[dict[str, Any]]:
-    names = ROOM_PRODUCTS.get(room_type, ROOM_PRODUCTS["other"])
+def _product_plan(
+    room_type: str,
+    style: str,
+    budget: float,
+    tier: str = "balanced",
+    names: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    names = (names or ROOM_PRODUCTS.get(room_type, ROOM_PRODUCTS["other"]))[:4]
     style_label = STYLE_LABELS.get(style, STYLE_LABELS["surprise_me"])
     tier = tier if tier in BUDGET_TIERS else "balanced"
     available = round(max(0, budget) * float(BUDGET_TIERS[tier]["multiplier"]), 2)
@@ -144,13 +150,13 @@ def _product_plan(room_type: str, style: str, budget: float, tier: str = "balanc
     ]
 
 
-def _budget_tiers(room_type: str, style: str, budget: float) -> list[dict[str, Any]]:
+def _budget_tiers(room_type: str, style: str, budget: float, names: list[str] | None = None) -> list[dict[str, Any]]:
     return [
         {
             "id": tier,
             "label": values["label"],
             "budget": round(max(0, budget) * float(values["multiplier"]), 2),
-            "products": _product_plan(room_type, style, budget, tier),
+            "products": _product_plan(room_type, style, budget, tier, names),
         }
         for tier, values in BUDGET_TIERS.items()
     ]
@@ -332,18 +338,49 @@ class HomeDesignStore:
         return self._mutate(apply)
 
     def save_analysis(self, owner_key: str, project_id: str, analysis: dict[str, Any]) -> dict[str, Any]:
+        detected_room_type = _text(analysis.get("detected_room_type"), 32)
+        detected_confidence = max(0.0, min(float(analysis.get("detected_room_confidence") or 0), 1.0))
+        recommendations: list[dict[str, str]] = []
+        for value in (analysis.get("furniture_recommendations") or [])[:6]:
+            if not isinstance(value, dict) or not _text(value.get("name"), 120):
+                continue
+            recommendations.append({
+                "name": _text(value.get("name"), 120),
+                "role": _text(value.get("role"), 180),
+                "placement": _text(value.get("placement"), 240),
+                "style_details": _text(value.get("style_details"), 240),
+                "priority": "essential" if value.get("priority") == "essential" else "optional",
+            })
         clean = {
             "status": "READY_AI",
             "summary": _text(analysis.get("summary"), 700),
             "strengths": _list(analysis.get("strengths"), limit=6),
             "opportunities": _list(analysis.get("opportunities"), limit=8),
             "questions": _list(analysis.get("questions"), limit=5),
+            "detected_room_type": detected_room_type if detected_room_type in ROOM_TYPES else "other",
+            "detected_room_confidence": round(detected_confidence, 2),
+            "furniture_recommendations": recommendations,
         }
         def apply(payload: dict[str, Any]) -> dict[str, Any]:
             row = payload.get("projects", {}).get(owner_key, {}).get(project_id)
             if not isinstance(row, dict):
                 raise KeyError(project_id)
-            row.update({"analysis": clean, "analysis_status": "READY_AI", "updated_at": _now()})
+            room_type = str(row.get("room_type") or "other")
+            if detected_room_type in ROOM_TYPES and detected_room_type != "other" and detected_confidence >= 0.72:
+                room_type = detected_room_type
+            names = [value["name"] for value in recommendations[:4]] or None
+            tiers = _budget_tiers(room_type, str(row.get("style") or "surprise_me"), float(row.get("budget") or 0), names)
+            selected_tier = str(row.get("selected_tier") or "balanced")
+            selected = next((value for value in tiers if value["id"] == selected_tier), tiers[1])
+            row.update({
+                "analysis": clean,
+                "analysis_status": "READY_AI",
+                "room_type": room_type,
+                "room_label": ROOM_LABELS[room_type],
+                "budget_tiers": tiers,
+                "products": deepcopy(selected["products"]),
+                "updated_at": _now(),
+            })
             return deepcopy(row)
         return self._mutate(apply)
 
@@ -453,16 +490,18 @@ class HomeDesignGenerator:
         media_type = str(project["photo_media_type"])
         image_url = f"data:{media_type};base64,{base64.b64encode(photo).decode('ascii')}"
         prompt = (
-            f"Analyze this real {project['room_label']} for a practical {project['style_label']} refresh within about ${project['budget']:.2f} USD. "
+            f"Act as an experienced residential interior designer. Analyze this real room for a meaningful {project['style_label']} redesign within about ${project['budget']:.2f} USD. "
             f"The household wants to keep: {', '.join(project.get('keep_items') or []) or 'fixed architecture and useful existing pieces'}. "
             f"Priorities: {', '.join(project.get('priorities') or []) or 'comfort, order, lighting and circulation'}. "
             "Describe only what is visibly supportable or explicitly provided. Do not invent measurements, damage, brands or prices. "
+            "Identify the actual room type from the photograph even if the saved form category is wrong. "
+            "Recommend 4 to 6 specific furniture or decor types, describing function, placement, material, silhouette and color; avoid generic advice. "
             "Give concise Spanish advice and ask for missing measurements when product fit cannot be verified."
         )
         response = self._openai().responses.create(
             model=self.model,
             input=[{"role": "user", "content": [{"type": "input_text", "text": prompt}, {"type": "input_image", "image_url": image_url}]}],
-            text={"format": {"type": "json_schema", "name": "roxy_home_space_analysis", "strict": True, "schema": {"type": "object", "properties": {"summary": {"type": "string"}, "strengths": {"type": "array", "items": {"type": "string"}}, "opportunities": {"type": "array", "items": {"type": "string"}}, "questions": {"type": "array", "items": {"type": "string"}}}, "required": ["summary", "strengths", "opportunities", "questions"], "additionalProperties": False}}},
+            text={"format": {"type": "json_schema", "name": "roxy_home_space_analysis", "strict": True, "schema": {"type": "object", "properties": {"summary": {"type": "string"}, "strengths": {"type": "array", "items": {"type": "string"}}, "opportunities": {"type": "array", "items": {"type": "string"}}, "questions": {"type": "array", "items": {"type": "string"}}, "detected_room_type": {"type": "string", "enum": sorted(ROOM_TYPES)}, "detected_room_confidence": {"type": "number", "minimum": 0, "maximum": 1}, "furniture_recommendations": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "role": {"type": "string"}, "placement": {"type": "string"}, "style_details": {"type": "string"}, "priority": {"type": "string", "enum": ["essential", "optional"]}}, "required": ["name", "role", "placement", "style_details", "priority"], "additionalProperties": False}}}, "required": ["summary", "strengths", "opportunities", "questions", "detected_room_type", "detected_room_confidence", "furniture_recommendations"], "additionalProperties": False}}},
             store=False,
         )
         return self._analysis_result(response)
@@ -473,18 +512,23 @@ class HomeDesignGenerator:
         photo = Path(project["photo_path"]).read_bytes()
         media_type = str(project["photo_media_type"])
         image_url = f"data:{media_type};base64,{base64.b64encode(photo).decode('ascii')}"
-        kept = ", ".join(project.get("keep_items") or []) or "the room architecture and existing fixed elements"
+        kept = ", ".join(project.get("keep_items") or []) or "none; movable furniture may be replaced"
         priorities = ", ".join(project.get("priorities") or []) or "comfort, visual harmony and practical circulation"
         products = ", ".join(row.get("name", "") for row in (project.get("products") or []))
+        recommendations = "; ".join(
+            f"{row.get('name')}: {row.get('style_details')}; place {row.get('placement')}"
+            for row in ((project.get("analysis") or {}).get("furniture_recommendations") or [])
+        )
         tier = BUDGET_TIERS.get(str(project.get("selected_tier") or "balanced"), BUDGET_TIERS["balanced"])
         revision_notes = "; ".join(str(row.get("instruction") or "") for row in (project.get("revision_notes") or [])[-4:])
         fit = _fit_assessment(project.get("fit_constraints"))
         dimensions = fit["constraints"]
         prompt = (
             f"Edit this exact photograph of a {project['room_label']} into a realistic {project['style_label']} redesign. "
-            f"Preserve the exact architecture, camera angle, windows, doors, floor plan and these requested items: {kept}. "
+            f"Preserve the exact architecture, camera angle, windows, doors and floor plan. Preserve only these movable items when explicitly requested: {kept}. "
             f"Prioritize {priorities}. Create the {tier['label']} option and respect a total furnishing budget near ${project['budget'] * float(tier['multiplier']):.2f} USD, so the result must be attainable, not luxury fantasy. "
-            f"Use a coherent version of these shoppable decor concepts so the visualization and shopping plan agree: {products}. "
+            "Make the transformation unmistakable: remove or replace movable furniture that conflicts with the selected style, improve the layout, and add appropriately scaled modern furniture. Do not limit the redesign to cushions, a rug or a lamp. "
+            f"Use a coherent version of these shoppable furniture concepts so the visualization and shopping plan agree: {products}. Designer details: {recommendations or 'choose specific materials, silhouettes and colors appropriate to the room'}. "
             f"Apply these latest household revision requests exactly when compatible with the room: {revision_notes or 'no additional revisions'}. "
             f"Physical limits in inches, when greater than zero: wall width {dimensions['wall_width']}, passage width {dimensions['passage_width']}, maximum furniture depth {dimensions['max_depth']}. Never depict an item that clearly violates these supplied limits. "
             "Show one photorealistic finished-room visualization. Do not change the room into another property. "

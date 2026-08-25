@@ -6,16 +6,20 @@ Study.
 
 ## User flow
 
-1. Open **Hoy → Roxy Renueva → Crear proyecto**.
+1. Open **Renueva → Nuevo proyecto**.
 2. Add a current room photo, room type, style, budget, measurements, objects to
    preserve, and priorities.
 3. Roxy stores the project under the authenticated Home member only.
-4. **Crear propuesta visual** edits the uploaded room photograph. The prompt
-   explicitly preserves the architecture, camera angle, fixed elements, and
-   requested belongings.
-5. Select suggested furnishing categories and choose **Buscar productos
-   reales**. Roxy prepares the existing commerce handoff; the user must confirm
-   before leaving for Amazon, Walmart, Target, or another configured retailer.
+4. **Analizar y rediseñar** detects the actual room type, proposes specific
+   furniture with placement/material guidance, and then edits the uploaded
+   photograph. The prompt preserves architecture, camera angle, doors,
+   windows, and only the movable belongings the member explicitly requests.
+5. The comparison supports full **Antes**, split **Comparar**, and full
+   **Después** views; the slider is optional rather than covering the image.
+6. Select suggested furnishing categories and choose **Comparar muebles
+   reales**. Roxy prepares searches at official furniture catalogs including
+   IKEA, Wayfair, West Elm, and Article, as well as configured commerce
+   providers such as Amazon. The user must confirm before leaving Roxy Home.
 
 Prices, stock, brands, and dimensions are not fabricated. They are confirmed
 on the retailer page. Roxy never stores retailer passwords or payment cards and

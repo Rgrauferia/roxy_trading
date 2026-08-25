@@ -3,7 +3,7 @@ from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
 
-from roxy_os.home_commerce import HomeCommerceStore, public_providers
+from roxy_os.home_commerce import HomeCommerceStore, create_purchase_links, public_providers
 from roxy_os.home_price_recommendations import (
     PriceFeedConfig,
     fetch_nearby_retailers,
@@ -555,6 +555,24 @@ def test_configured_provider_is_ready_even_if_old_status_says_in_review(monkeypa
     assert walmart["configured"] is True
     assert walmart["connection_status"] == "ready"
     assert walmart["status_label"] == "Listo"
+
+
+def test_furniture_catalog_sources_create_official_search_links_without_claiming_prices():
+    preparation = {
+        "providers": ["ikea", "wayfair", "west_elm", "article"],
+        "items": [{"name": "sillón moderno de roble", "query": "sillón moderno de roble", "quantity": 1, "unit": "unidad", "category": "HOUSEHOLD"}],
+    }
+
+    expected_hosts = {
+        "ikea": "www.ikea.com",
+        "wayfair": "www.wayfair.com",
+        "west_elm": "www.westelm.com",
+        "article": "www.article.com",
+    }
+    for provider_id, host in expected_hosts.items():
+        result = create_purchase_links(provider_id, preparation)
+        assert urlparse(result["links"][0]["url"]).netloc == host
+        assert "no afirma disponibilidad ni precio" in result["provider_disclosure"]
 
 
 def test_price_recommendations_only_claim_savings_for_comparable_units():

@@ -502,8 +502,14 @@ def _sync_calendar_event(owner: str, event: dict[str, Any]) -> dict[str, Any]:
         return {"synced": False, "reason": "provider_error", "message": str(exc)[:240]}
 
 
-def _commerce_providers(profile: dict[str, Any], activity: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+def _commerce_providers(
+    profile: dict[str, Any],
+    activity: dict[str, Any] | None = None,
+    *,
+    context: str = "shopping",
+) -> list[dict[str, Any]]:
     rows = public_providers()
+    rows = [row for row in rows if context == "design" or not row.get("design_only")]
     favorites = {str(name).casefold(): index for index, name in enumerate(profile.get("favorite_retailers") or [])}
     counts = (activity or {}).get("provider_counts") or {}
     rows.sort(
@@ -2695,7 +2701,7 @@ def prepare_home_design_purchase(
         raise HTTPException(status_code=409, detail="Selecciona al menos un producto.")
     profile = _commerce_store().profile(owner_key)
     activity = _commerce_store().activity(owner_key)
-    provider_rows = _commerce_providers(profile, activity)
+    provider_rows = _commerce_providers(profile, activity, context="design")
     known = {row["id"] for row in provider_rows}
     requested = list(dict.fromkeys(payload.provider_ids)) if payload.provider_ids else [row["id"] for row in provider_rows]
     if not requested or any(provider not in known for provider in requested):

@@ -64,6 +64,29 @@ def test_design_store_changes_budget_tier_and_remembers_conversational_revisions
     assert analyzed["analysis"]["questions"] == ["¿Cuánto mide la pared?"]
 
 
+def test_design_analysis_reclassifies_room_and_turns_specific_furniture_advice_into_products(tmp_path):
+    store = HomeDesignStore(tmp_path / "design.json", tmp_path / "images")
+    project = store.create("member:robert", "home", _values(name="Cuarto", room_type="living_room"))
+
+    analyzed = store.save_analysis("member:robert", project["id"], {
+        "summary": "La foto muestra un dormitorio.",
+        "strengths": ["Buena luz"],
+        "opportunities": ["Mejorar almacenamiento"],
+        "questions": [],
+        "detected_room_type": "bedroom",
+        "detected_room_confidence": 0.96,
+        "furniture_recommendations": [
+            {"name": "cama plataforma de roble", "role": "descanso", "placement": "pared principal", "style_details": "roble claro y líneas bajas", "priority": "essential"},
+            {"name": "mesita de noche flotante", "role": "apoyo", "placement": "junto a la cama", "style_details": "madera clara", "priority": "optional"},
+        ],
+    })
+
+    assert analyzed["room_type"] == "bedroom"
+    assert analyzed["room_label"] == "dormitorio"
+    assert analyzed["products"][0]["name"].startswith("cama plataforma de roble")
+    assert analyzed["analysis"]["furniture_recommendations"][1]["placement"] == "junto a la cama"
+
+
 def test_design_store_keeps_physical_constraints_separate_and_requires_complete_measurements(tmp_path):
     from roxy_os.home_design import public_project
 
@@ -98,6 +121,8 @@ def test_design_generation_uses_responses_api_image_edit_and_never_stores_reques
     assert any(row["type"] == "input_image" and row["image_url"].startswith("data:image/png;base64,") for row in content)
     assert "sofá gris" in content[0]["text"]
     assert "exact architecture" in content[0]["text"]
+    assert "transformation unmistakable" in content[0]["text"]
+    assert "Preserve only these movable items" in content[0]["text"]
     assert "Physical limits in inches" in content[0]["text"]
 
 
@@ -117,6 +142,7 @@ def test_design_visual_analysis_uses_private_photo_and_structured_responses_outp
     assert captured["store"] is False
     assert captured["text"]["format"]["type"] == "json_schema"
     assert captured["input"][0]["content"][1]["image_url"].startswith("data:image/png;base64,")
+    assert "furniture_recommendations" in captured["text"]["format"]["schema"]["required"]
 
 
 def test_design_api_creates_private_project_and_prepares_real_store_searches(tmp_path, monkeypatch):
@@ -154,6 +180,7 @@ def test_design_api_creates_private_project_and_prepares_real_store_searches(tmp
     assert prepared.json()["preparation"]["source_title"] == "Opción Equilibrada para Nuestra sala"
     assert prepared.json()["preparation"]["items"][0]["budget_target"] == 304
     assert "precio real" in prepared.json()["preparation"]["items"][0]["reason"]
+    assert {"ikea", "wayfair", "west_elm", "article"}.issubset({row["id"] for row in prepared.json()["providers"]})
     assert blocked_generation.status_code == 503
 
 
