@@ -2,7 +2,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '86';
+  const APP_VERSION = '87';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -454,7 +454,10 @@
       node.classList.toggle('active',active);
     });
     document.querySelectorAll('.bottom-nav [data-tab-link]').forEach(button => button.classList.toggle('active',button.dataset.tabLink === panel));
-    $('homeWelcome').hidden=panel!=='today';
+    // The large greeting remains as dormant infrastructure for a future
+    // dedicated welcome experience. Today starts and ends with useful content,
+    // while the center Roxy tab remains the conversation entry point.
+    $('homeWelcome').hidden=true;
     const hashes={today:'hoy',shopping:'compra',recipes:'recetas',pantry:'despensa',calendar:'calendario',design:'renueva',more:'mas'};
     location.hash=hashes[panel]||'hoy';
     window.scrollTo({top:0,behavior:smooth?'smooth':'auto'});
