@@ -125,4 +125,6 @@ def test_weather_ui_and_server_route_are_connected() -> None:
     assert 'id="calendarWeatherCard"' in html
     assert "/v1/home-weather/" in script
     assert "weatherForDay" in script
+    assert "captureCommerceLocation(true)" in script
+    assert "Ubicación aproximada guardada. Roxy ya está cargando el clima real." in script
     assert '@app.get("/v1/home-weather/{user_id}")' in service
