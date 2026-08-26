@@ -16,19 +16,25 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     script = client.get("/assets/roxy_list.js")
     style = client.get("/assets/roxy_list.css")
     home_avatar = client.get("/assets/roxy_home_avatar.jpg")
+    pet_pads = client.get("/assets/roxy_home/products/pet-training-pads.png")
+    scent_beads = client.get("/assets/roxy_home/products/laundry-scent-beads.png")
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="90"' in page.text
+    assert 'name="roxy-home-version" content="91"' in page.text
     assert 'href="/assets/roxy_list.css?v=73"' in page.text
-    assert 'src="/assets/roxy_list.js?v=90"' in page.text
+    assert 'src="/assets/roxy_list.js?v=91"' in page.text
     assert '/assets/roxy_list.css?v=73' in worker.text
-    assert '/assets/roxy_list.js?v=90' in worker.text
+    assert '/assets/roxy_list.js?v=91' in worker.text
     assert 'id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle" hidden' in page.text
     assert '/assets/roxy_home_avatar.jpg' in page.text
     assert '/assets/roxy_home_avatar.jpg' in worker.text
     assert '/assets/roxy_avatar_icon.jpg' in worker.text
     assert '/assets/roxy_home/avatars/monogram.svg' in worker.text
+    assert '/assets/roxy_home/products/pet-training-pads.png' in worker.text
+    assert '/assets/roxy_home/products/laundry-scent-beads.png' in worker.text
+    assert pet_pads.status_code == 200 and pet_pads.content.startswith(b"\x89PNG")
+    assert scent_beads.status_code == 200 and scent_beads.content.startswith(b"\x89PNG")
     assert "COPY assets/roxy_home/avatars ./assets/roxy_home/avatars" in Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert manifest.json()["icons"][0]["src"] == "/assets/roxy_home_avatar.jpg"
     assert home_avatar.status_code == 200
@@ -43,7 +49,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
     assert 'Comparar muebles reales' in script.text
-    assert "const APP_VERSION = '90'" in script.text
+    assert "const APP_VERSION = '91'" in script.text
     assert "provider.affiliate_connected?'afiliado':'catálogo oficial'" in script.text
     assert "la foto, medidas, disponibilidad y precio real" in script.text
     assert 'Analizar y rediseñar' in script.text
@@ -713,3 +719,29 @@ def test_dulce_de_leche_and_ice_cream_are_distinct_products(tmp_path, monkeypatc
     assert by_name["Dulce de leche"]["category"] == "PANTRY"
     assert by_name["Helado de dulce de leche"]["unit"] == "envase"
     assert by_name["Helado de dulce de leche"]["category"] == "FROZEN"
+
+
+def test_roxy_learns_private_shopping_vocabulary_and_reuses_it(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "shopping-vocabulary-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert")
+    monkeypatch.setenv("ROXY_SHOPPING_LIST_PATH", str(tmp_path / "shopping.json"))
+    monkeypatch.setenv("ROXY_HOME_CONVERSATION_PATH", str(tmp_path / "conversation.json"))
+    roxy_home_service._RATE_STATE.clear()
+    client = TestClient(roxy_home_service.app, base_url="https://roxy.test")
+    client.post("/v1/shopping/session/robert", headers={"Authorization": "Bearer shopping-vocabulary-key"})
+
+    taught = client.post(
+        "/v1/assistant/command/robert",
+        json={"text": "Roxy, cuando digo las blancas, me refiero a empapadores absorbentes para mascota"},
+    )
+    added = client.post("/v1/assistant/command/robert", json={"text": "Agrega las blancas"})
+    item = client.get("/v1/shopping/robert").json()["items"][0]
+
+    assert taught.status_code == 200
+    assert taught.json()["intent"] == "shopping_teach_alias"
+    assert taught.json()["data"]["learned_alias"]["source"] == "user_correction"
+    assert added.json()["intent"] == "shopping_add"
+    assert item["name"] == "Empapadores absorbentes para mascota"
+    assert item["category"] == "PETS"

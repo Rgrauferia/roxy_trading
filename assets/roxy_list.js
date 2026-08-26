@@ -2,7 +2,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '90';
+  const APP_VERSION = '91';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -44,6 +44,13 @@
     farmacia:'medicine.png', pastilla:'medicine.png', pastillas:'medicine.png',
     'bolsitas de olor':'scent-sachets.png', 'bolsa de olor':'scent-sachets.png',
     ambientador:'scent-sachets.png', aromatizante:'scent-sachets.png', sachet:'scent-sachets.png',
+    'perlas aromaticas para ropa':'laundry-scent-beads.png', 'perlas aromaticas':'laundry-scent-beads.png',
+    'perlas de olor':'laundry-scent-beads.png', 'bolitas de olor':'laundry-scent-beads.png',
+    'potenciador de aroma':'laundry-scent-beads.png', 'scent booster':'laundry-scent-beads.png',
+    'empapadores absorbentes para mascota':'pet-training-pads.png', 'empapadores para mascota':'pet-training-pads.png',
+    'empapador para mascota':'pet-training-pads.png', 'pad para luna':'pet-training-pads.png',
+    'pads para luna':'pet-training-pads.png', 'pad para bella':'pet-training-pads.png',
+    'pads para bella':'pet-training-pads.png', 'pee pad':'pet-training-pads.png', 'pee pads':'pet-training-pads.png',
     harina:'flour.png', flour:'flour.png', maicena:'flour.png', fecula:'flour.png',
     pasta:'pasta.png', espagueti:'pasta.png', spaghetti:'pasta.png', macarrones:'pasta.png',
     macarron:'pasta.png', fideos:'pasta.png', fideo:'pasta.png', lasana:'pasta.png', ramen:'pasta.png',
@@ -151,10 +158,10 @@
   const categoryIdentity = value => normalize(value).split(' ').map(word=>word.length>4&&word.endsWith('s')?word.slice(0,-1):word).join(' ');
   const shoppingCategoryTerms = {
     FROZEN:['helado','pizza congelada','vegetales congelados','fruta congelada','comida congelada','papas congeladas','nuggets congelados','ice cream','frozen pizza','frozen food'],
-    CLEANING:['detergente','suavizante','lavaplatos','lavavajillas','jabon de platos','jabon para platos','limpiador','desinfectante','cloro','lejia','oxiclean','oxi clean','esponja','estropajo','trapeador','mopa','escoba','recogedor','bolsa de basura','papel toalla','papel de cocina','toalla de papel','ambientador','aromatizante','bolsitas de olor','insecticida','limpiavidrios','dish soap','cleaner','trash bag'],
+    CLEANING:['detergente','suavizante','lavaplatos','lavavajillas','jabon de platos','jabon para platos','limpiador','desinfectante','cloro','lejia','oxiclean','oxi clean','esponja','estropajo','trapeador','mopa','escoba','recogedor','bolsa de basura','papel toalla','papel de cocina','toalla de papel','ambientador','aromatizante','bolsitas de olor','bolitas de olor','perlas aromaticas','perlas de olor','potenciador de aroma','scent booster','insecticida','limpiavidrios','dish soap','cleaner','trash bag'],
     PERSONAL:['papel higienico','jabon','champu','shampoo','acondicionador','desodorante','pasta dental','pasta de dientes','pasta de diente','pasta para dientes','dentifrico','crema dental','cepillo dental','hilo dental','enjuague bucal','gel de bano','gel de ducha','toalla sanitaria','tampon','afeitadora','rasuradora','crema de afeitar','locion','protector solar','crema corporal','gel de cejas','maquillaje','algodon','hisopo','toallitas humedas','aceite para el cabello','aceite de cabello','aceite capilar','toothpaste','deodorant','toilet paper'],
     HEALTH:['medicamento','medicina','pastilla','analgesico','ibuprofeno','acetaminofen','paracetamol','aspirina','vitamina','suplemento','jarabe','curita','vendaje','termometro','farmacia','antialergico','antibiotico','medicine','vitamin','supplement','bandage'],
-    PETS:['comida de perro','comida para perro','comida de gato','comida para gato','alimento de perro','alimento para perro','alimento de gato','alimento para gato','arena de gato','arena para gato','premio de perro','premio de gato','croquetas de perro','croquetas de gato','empapador para mascota','empapadores para mascota','pad para perro','pads para perro','pee pad','pee pads','mascota','dog food','cat food','pet food','cat litter'],
+    PETS:['comida de perro','comida para perro','comida de gato','comida para gato','alimento de perro','alimento para perro','alimento de gato','alimento para gato','arena de gato','arena para gato','premio de perro','premio de gato','croquetas de perro','croquetas de gato','empapador para mascota','empapadores para mascota','empapadores absorbentes','pad para perro','pads para perro','pad para luna','pads para luna','pad para bella','pads para bella','pee pad','pee pads','puppy pad','training pad','mascota','dog food','cat food','pet food','cat litter'],
     BABY:['panal','panales','toallitas de bebe','toallitas para bebe','champu de bebe','jabon de bebe','baby wipes','diaper','diapers'],
     HOUSEHOLD:['papel aluminio','papel encerado','papel pergamino','film plastico','servilleta','vaso desechable','plato desechable','cubierto desechable','bombillo','bombilla','bateria','pilas','vela','fosforo','encendedor','filtro de cafe','bolsa ziploc','recipiente','percha','gancho de ropa','organizador','cargador','cable usb','extension electrica','adaptador','regleta','martillo','destornillador','tornillo','clavo','taladro','cinta metrica','utensilio','espatula','abrelatas','aceite de motor','aceite para motor','motor oil','aluminum foil','light bulb','battery','napkin','charger','usb cable','extension cord','tool'],
     DAIRY_EGGS:['leche','huevo','queso','yogur','yogurt','mantequilla','crema de leche','half and half','nata','formula de bebe','formula infantil','baby formula','milk','egg','cheese','butter'],
@@ -176,7 +183,7 @@
   };
   const inferShoppingCategory = (name,requested='GENERAL') => aisleToCategory[inferShoppingAisle(name,requested)]||'OTHER';
   const shoppingSubcategoryTerms = [
-    ['Ropa',['detergente','suavizante','oxiclean','blanqueador','laundry']],
+    ['Ropa',['detergente','suavizante','oxiclean','blanqueador','bolitas de olor','perlas aromaticas','perlas de olor','potenciador de aroma','scent booster','laundry']],
     ['Cocina',['lavaplatos','lavavajillas','jabon de platos','esponja','estropajo','dish soap']],
     ['Baño',['limpiador de bano','limpiador de inodoro','toilet cleaner']],
     ['Papel y basura',['papel toalla','papel de cocina','toalla de papel','bolsa de basura','trash bag']],
@@ -193,7 +200,7 @@
     ['Aromas',['vela','ambientador','aromatizante','bolsitas de olor','sachet']],
     ['Desechables',['servilleta','vaso desechable','plato desechable','cubierto desechable','napkin']],
     ['Alimentación de mascotas',['comida de perro','comida de gato','alimento de perro','alimento de gato','dog food','cat food','pet food']],
-    ['Higiene de mascotas',['arena de gato','cat litter']],
+    ['Higiene de mascotas',['arena de gato','cat litter','empapador para mascota','empapadores para mascota','empapadores absorbentes','pad para luna','pads para luna','pad para bella','pads para bella','pee pad','pee pads']],
     ['Accesorios de mascotas',['correa de perro','premio de perro','premio de gato']]
   ];
   const inferShoppingSubcategory = (name,requested='GENERAL') => {
@@ -211,6 +218,9 @@
     ];
     let previous='';
     while(label&&label!==previous){previous=label;wrappers.forEach(pattern=>{label=label.replace(pattern,'').trim()})}
+    const identity=normalize(label);
+    if(/\b(?:pad|pads|pas|pass|paz)\b.*\b(?:luna|bella|perro|mascota)\b/.test(identity)||/\b(?:empapador|empapadores|tapete|alfombrilla)\b.*\b(?:absorbente|perro|mascota)\b/.test(identity)||/^(?:pee|puppy|training) pads?$/.test(identity))return'Empapadores absorbentes para mascota';
+    if(/\bbolitas? de olor\b/.test(identity)||/\bperlas? (?:aromaticas?|de olor|para lavar ropa)\b/.test(identity)||/^(?:potenciador de aroma|scent booster|laundry scent beads)$/.test(identity))return'Perlas aromáticas para ropa';
     return label||String(value||'').trim();
   };
   const fallbackImage = itemCategory => itemCategory === 'PERSONAL'
@@ -656,7 +666,7 @@
     $('toggleStaples').textContent = showAllStaples ? 'Ver menos' : 'Ver todos';
   }
   function addItem(payload) {
-    payload={...payload,category:inferShoppingCategory(payload.name,payload.category)};
+    payload={...payload,name:productLabel(payload.name),category:inferShoppingCategory(payload.name,payload.category)};
     const tempId = `offline-${crypto.randomUUID()}`;
     const item = {id:tempId,status:'PENDING',source:'roxy_home_pwa',created_at:now(),updated_at:now(),...payload};
     mutate({tempId,path:`/v1/shopping/${encodeURIComponent(user)}`,options:{method:'POST',body:JSON.stringify(payload)}},() => {

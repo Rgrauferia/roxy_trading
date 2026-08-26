@@ -164,6 +164,8 @@ def test_explicit_recipe_measurement_is_never_overridden_by_name_parser(tmp_path
         ("ibuprofeno", "HEALTH"), ("bombillos LED", "HOUSEHOLD"),
         ("cargador USB", "HOUSEHOLD"), ("destornillador", "HOUSEHOLD"),
         ("arena para gato", "PETS"),
+        ("pass para Bella", "PETS"), ("pads para Luna", "PETS"),
+        ("bolitas de olor", "CLEANING"),
     ],
 )
 def test_shopping_category_classifier_uses_product_meaning(product, expected):
@@ -202,3 +204,38 @@ def test_add_auto_classifies_voice_and_ui_products(tmp_path):
 
     assert soap["category"] == "CLEANING"
     assert fruit["category"] == "PRODUCE"
+
+
+@pytest.mark.parametrize(
+    ("spoken", "canonical"),
+    [
+        ("pad para Luna", "Empapadores absorbentes para mascota"),
+        ("pass para Bella", "Empapadores absorbentes para mascota"),
+        ("bolitas de olor", "Perlas aromáticas para ropa"),
+    ],
+)
+def test_household_vocabulary_uses_real_product_names(spoken, canonical):
+    assert normalize_shopping_name(spoken) == canonical
+
+
+def test_private_product_aliases_are_learned_per_user(tmp_path):
+    store = ShoppingListStore(tmp_path / "shopping.json")
+    learned = store.learn_alias("robert", "las blancas", "Empapadores absorbentes para mascota", unit="paquete")
+    robert_item = store.add("robert", "las blancas")
+    other_item = store.add("otro", "las blancas")
+
+    assert learned["source"] == "user_correction"
+    assert robert_item["name"] == "Empapadores absorbentes para mascota"
+    assert robert_item["category"] == "PETS"
+    assert robert_item["unit"] == "paquete"
+    assert other_item["name"] == "las blancas"
+
+
+def test_known_household_nickname_is_saved_as_real_product(tmp_path):
+    store = ShoppingListStore(tmp_path / "shopping.json")
+
+    item = store.add("robert", "pad para Luna")
+
+    assert item["name"] == "Empapadores absorbentes para mascota"
+    assert item["category"] == "PETS"
+    assert item["unit"] == "paquete"

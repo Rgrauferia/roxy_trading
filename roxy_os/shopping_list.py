@@ -17,7 +17,7 @@ except ImportError:  # pragma: no cover - Windows fallback
     fcntl = None
 
 
-SHOPPING_STORE_VERSION = 6
+SHOPPING_STORE_VERSION = 7
 SHOPPING_STATUSES = {"PENDING", "PURCHASED", "ARCHIVED"}
 SHOPPING_CATEGORIES = {
     "GENERAL", "PRODUCE", "DAIRY_EGGS", "MEAT_SEAFOOD", "BAKERY", "PANTRY",
@@ -39,7 +39,9 @@ _SHOPPING_CATEGORY_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "oxiclean", "oxi clean", "esponja", "estropajo", "trapeador", "mopa", "escoba",
         "recogedor", "guantes de limpieza", "bolsa de basura", "bolsas de basura",
         "papel toalla", "papel de cocina", "toalla de papel", "ambientador", "aromatizante",
-        "bolsitas de olor", "sachet", "insecticida", "limpia vidrios", "limpiavidrios",
+        "bolsitas de olor", "bolitas de olor", "perlas aromaticas", "perlas de olor",
+        "perlas para lavar ropa", "potenciador de aroma", "scent booster", "laundry scent beads",
+        "sachet", "insecticida", "limpia vidrios", "limpiavidrios",
         "laundry", "dish soap", "dishwasher", "cleaner", "disinfectant", "trash bag",
     )),
     ("PERSONAL", (
@@ -64,7 +66,10 @@ _SHOPPING_CATEGORY_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "arena de gato", "arena para gato", "premio de perro", "premio para perro",
         "premio de gato", "premio para gato", "croquetas de perro", "croquetas de gato",
         "correa de perro", "mascota", "dog food", "cat food", "pet food", "cat litter",
-        "empapador para mascota", "empapadores para mascota", "pad para perro", "pads para perro", "pee pad", "pee pads",
+        "empapador para mascota", "empapadores para mascota", "empapador absorbente",
+        "empapadores absorbentes", "pad para perro", "pads para perro", "pad para luna",
+        "pads para luna", "pad para bella", "pads para bella", "tapete absorbente",
+        "alfombrilla absorbente", "puppy pad", "training pad", "pee pad", "pee pads",
     )),
     ("BABY", (
         "panal", "panales", "toallitas de bebe", "toallitas para bebe", "champu de bebe",
@@ -170,7 +175,28 @@ def normalize_shopping_name(value: Any) -> str:
             name = re.sub(pattern, "", name).strip(" .,:;-")
     if not name:
         raise ValueError("El articulo necesita un nombre.")
+    identity = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii").casefold()
+    identity = " ".join(re.sub(r"[^a-z0-9]+", " ", identity).split())
+    if (
+        re.search(r"\b(?:pad|pads|pas|pass|paz)\b.*\b(?:luna|bella|perro|mascota)\b", identity)
+        or re.search(r"\b(?:empapador|empapadores|tapete|alfombrilla)\b.*\b(?:absorbente|perro|mascota)\b", identity)
+        or identity in {"pee pad", "pee pads", "puppy pad", "puppy pads", "training pad", "training pads"}
+    ):
+        return "Empapadores absorbentes para mascota"
+    if (
+        re.search(r"\bbolitas?\s+de\s+olor\b", identity)
+        or re.search(r"\bperlas?\s+(?:aromaticas?|de\s+olor|para\s+lavar\s+ropa)\b", identity)
+        or identity in {"potenciador de aroma", "scent booster", "laundry scent beads"}
+    ):
+        return "Perlas aromáticas para ropa"
     return name[:120]
+
+
+def _alias_identity(value: Any) -> str:
+    """Stable private-vocabulary key without changing the user's phrase."""
+    normalized = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii")
+    normalized = " ".join(re.sub(r"[^a-zA-Z0-9]+", " ", normalized).casefold().split())
+    return re.sub(r"^(?:el|la|los|las|un|una|unos|unas)\s+", "", normalized).strip()[:120]
 
 
 def normalize_shopping_item(
@@ -281,6 +307,7 @@ class ShoppingListStore:
             "items": [],
             "trips": [],
             "product_memory": {},
+            "product_aliases": {},
             "user_revisions": {},
         }
 
@@ -309,6 +336,8 @@ class ShoppingListStore:
         payload["trips"] = [trip for trip in payload["trips"] if isinstance(trip, dict)]
         if not isinstance(payload.get("product_memory"), dict):
             payload["product_memory"] = {}
+        if not isinstance(payload.get("product_aliases"), dict):
+            payload["product_aliases"] = {}
         if not isinstance(payload.get("user_revisions"), dict):
             payload["user_revisions"] = {}
         return payload
@@ -389,19 +418,40 @@ class ShoppingListStore:
         source: Any = "ui",
     ) -> dict[str, Any]:
         user = normalize_shopping_user(user_id)
+        alias_key = _alias_identity(name)
         display_name, amount, normalized_unit = normalize_shopping_item(
             name,
             quantity=quantity,
             unit=unit,
         )
-        item_identity = _identity(display_name)
         requested_category = str(category or "GENERAL").strip().upper()
         if requested_category not in SHOPPING_CATEGORIES:
             raise ValueError("Categoria de compra no valida.")
-        normalized_category = classify_shopping_category(display_name, requested_category)
 
         def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            nonlocal display_name, normalized_unit
+            learned = payload.setdefault("product_aliases", {}).setdefault(user, {}).get(alias_key) or {}
+            if learned:
+                display_name = normalize_shopping_name(learned.get("name") or display_name)
+                normalized_unit = str(learned.get("unit") or normalized_unit)
+            if normalized_unit.casefold() == "unidad":
+                if display_name == "Empapadores absorbentes para mascota":
+                    normalized_unit = "paquete"
+                elif display_name == "Perlas aromáticas para ropa":
+                    normalized_unit = "envase"
+            item_identity = _identity(display_name)
+            remembered_category = learned.get("category") if learned else requested_category
+            normalized_category = classify_shopping_category(display_name, remembered_category)
             now = _now_iso()
+            if alias_key and alias_key != _alias_identity(display_name) and not learned:
+                payload.setdefault("product_aliases", {}).setdefault(user, {})[alias_key] = {
+                    "phrase": " ".join(str(name or "").split())[:120],
+                    "name": display_name,
+                    "category": normalized_category,
+                    "unit": normalized_unit,
+                    "source": "automatic_normalization",
+                    "updated_at": now,
+                }
             user_memory = payload.setdefault("product_memory", {}).setdefault(user, {})
             remembered = user_memory.setdefault(item_identity, {})
             remembered.update(
@@ -447,6 +497,39 @@ class ShoppingListStore:
             payload["items"].append(item)
             self._bump_revision(payload, user)
             return deepcopy(item)
+
+        return self._mutate(apply)
+
+    def learn_alias(
+        self,
+        user_id: Any,
+        phrase: Any,
+        canonical_name: Any,
+        *,
+        category: Any = "GENERAL",
+        unit: Any = "unidad",
+    ) -> dict[str, Any]:
+        """Remember a household phrase only for its owner."""
+        user = normalize_shopping_user(user_id)
+        alias_key = _alias_identity(phrase)
+        if not alias_key:
+            raise ValueError("La frase que quieres enseñar está vacía.")
+        display_name = normalize_shopping_name(canonical_name)
+        normalized_category = classify_shopping_category(display_name, category)
+        normalized_unit = str(unit or "unidad").strip()[:32] or "unidad"
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            row = {
+                "phrase": " ".join(str(phrase or "").split())[:120],
+                "name": display_name,
+                "category": normalized_category,
+                "unit": normalized_unit,
+                "source": "user_correction",
+                "updated_at": _now_iso(),
+            }
+            payload.setdefault("product_aliases", {}).setdefault(user, {})[alias_key] = row
+            self._bump_revision(payload, user)
+            return deepcopy(row)
 
         return self._mutate(apply)
 

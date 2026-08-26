@@ -656,6 +656,8 @@ def _recipe_with_resilience(
 def _assistant_shopping_intent(text: str) -> str:
     normalized = text.lower().strip()
     plain = unicodedata.normalize("NFKD", normalized).encode("ascii", "ignore").decode("ascii")
+    if re.search(r"\bcuando\s+(?:yo\s+)?digo\b.+\b(?:me\s+refiero\s+a|quiero\s+decir|significa)\b", plain):
+        return "shopping_teach_alias"
     if re.fullmatch(r"(?:(?:si|sí)(?:,?\s+confirmo)?|confirmo|confirmar|confirmalo|confírmalo|hazlo|correcto)[.! ]*", normalized):
         return "calendar_confirm"
     if re.fullmatch(r"(?:no|cancelar|cancelalo|cancélalo|olvidalo|olvídalo)[.! ]*", normalized):
@@ -748,6 +750,18 @@ def _assistant_shopping_intent(text: str) -> str:
     if re.search(r"(lista de compras?|qué falta comprar|que falta comprar|qué necesito comprar|que necesito comprar|qué hay que comprar|que hay que comprar|qué tenemos pendiente|que tenemos pendiente|muéstrame la lista|muestrame la lista)", normalized):
         return "shopping_query"
     return "general"
+
+
+def _assistant_product_alias(text: str) -> tuple[str, str] | None:
+    match = re.search(
+        r"(?is)\bcuando\s+(?:yo\s+)?digo\s+(.+?)\s*,?\s*(?:me\s+refiero\s+a|quiero\s+decir|significa)\s+(.+?)\s*[.!?]*$",
+        str(text or "").strip(),
+    )
+    if not match:
+        return None
+    phrase = " ".join(match.group(1).strip(" \"'.,:;-").split())[:120]
+    canonical = " ".join(match.group(2).strip(" \"'.,:;-").split())[:120]
+    return (phrase, canonical) if phrase and canonical else None
 
 
 def _assistant_weekly_intent(text: str) -> str:
@@ -1714,7 +1728,16 @@ def assistant_command(
     store = _store()
     rows: list[dict[str, Any]] = []
     extra: dict[str, Any] = {}
-    if intent == "shopping_clarify":
+    if intent == "shopping_teach_alias":
+        learned = _assistant_product_alias(command_text)
+        if learned is None:
+            message = "Dime la frase y el producto real. Por ejemplo: cuando digo las blancas, me refiero a empapadores absorbentes para mascota."
+        else:
+            phrase, canonical_name = learned
+            learned_row = store.learn_alias(user, phrase, canonical_name)
+            message = f"Entendido. Cuando digas {phrase}, lo guardaré como {learned_row['name']}."
+            extra["learned_alias"] = learned_row
+    elif intent == "shopping_clarify":
         if pending_clarification and re.fullmatch(r"(?i)(?:no|ninguna|ninguno|cancelar|olvidalo|olvídalo)[.! ]*", command_text):
             message = "De acuerdo. No agregué nada a la lista."
         else:
