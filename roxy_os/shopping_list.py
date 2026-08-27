@@ -40,7 +40,10 @@ _SHOPPING_CATEGORY_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "recogedor", "guantes de limpieza", "bolsa de basura", "bolsas de basura",
         "papel toalla", "papel de cocina", "toalla de papel", "ambientador", "aromatizante",
         "bolsitas de olor", "bolitas de olor", "perlas aromaticas", "perlas de olor",
-        "perlas para lavar ropa", "potenciador de aroma", "scent booster", "laundry scent beads",
+        "pastillitas de olor", "pastillas de olor", "pastillas de home", "pastillitas de aroma",
+        "pastillas de aroma", "bolitas para lavar ropa", "perlas para lavar ropa",
+        "potenciador de olor", "potenciador de aroma", "unstoppables", "unstopables",
+        "scent booster", "laundry scent beads",
         "sachet", "insecticida", "limpia vidrios", "limpiavidrios",
         "laundry", "dish soap", "dishwasher", "cleaner", "disinfectant", "trash bag",
     )),
@@ -177,6 +180,11 @@ def normalize_shopping_name(value: Any) -> str:
         raise ValueError("El articulo necesita un nombre.")
     identity = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii").casefold()
     identity = " ".join(re.sub(r"[^a-z0-9]+", " ", identity).split())
+    if identity in {
+        "pasta de dientes", "pasta de diente", "pasta para dientes", "pasta dentifrica",
+        "crema de dientes", "crema para dientes", "crema dental", "dentifrico", "toothpaste",
+    }:
+        return "Pasta dental"
     if (
         re.search(r"\b(?:pad|pads|pas|pass|paz)\b.*\b(?:luna|bella|perro|mascota)\b", identity)
         or re.search(r"\b(?:empapador|empapadores|tapete|alfombrilla)\b.*\b(?:absorbente|perro|mascota)\b", identity)
@@ -184,12 +192,32 @@ def normalize_shopping_name(value: Any) -> str:
     ):
         return "Empapadores absorbentes para mascota"
     if (
-        re.search(r"\bbolitas?\s+de\s+olor\b", identity)
+        re.search(r"\b(?:bolitas?|pastillitas?|pastillas?)\s+(?:de\s+)?(?:olor|aroma|home)\b", identity)
         or re.search(r"\bperlas?\s+(?:aromaticas?|de\s+olor|para\s+lavar\s+ropa)\b", identity)
-        or identity in {"potenciador de aroma", "scent booster", "laundry scent beads"}
+        or identity in {
+            "bolitas para lavar ropa", "potenciador de olor", "potenciador de aroma",
+            "unstoppables", "unstopables", "scent booster", "laundry scent beads",
+        }
     ):
         return "Perlas aromáticas para ropa"
     return name[:120]
+
+
+def _is_meaningful_product_suggestion(value: Any) -> bool:
+    """Keep conversational debris and calendar dictation out of habitual products."""
+
+    try:
+        identity = _identity(value)
+    except ValueError:
+        return False
+    if identity in {"por favor", "gracias", "ok", "okay", "si", "no"}:
+        return False
+    calendar_markers = (
+        "calendario", "evento", "cita", "reunion", "recordatorio", "trabajo a las",
+        "trabajo mañana", "trabajo manana", "hoy trabajo", "mañana tengo que",
+        "manana tengo que", "a m", "p m",
+    )
+    return not any(marker in identity for marker in calendar_markers)
 
 
 def _alias_identity(value: Any) -> str:
@@ -710,6 +738,8 @@ class ShoppingListStore:
                     name = normalize_shopping_name(row.get("name") or identity)
                 except ValueError:
                     continue
+                if not _is_meaningful_product_suggestion(name):
+                    continue
                 category = classify_shopping_category(name, row.get("category"))
                 learned[str(identity)] = {
                     "identity": str(identity),
@@ -729,7 +759,7 @@ class ShoppingListStore:
                 identity = str(row.get("identity") or _identity(name))
             except ValueError:
                 return
-            if not identity:
+            if not identity or not _is_meaningful_product_suggestion(name):
                 return
             entry = learned.setdefault(
                 identity,

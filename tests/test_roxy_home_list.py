@@ -18,14 +18,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     home_avatar = client.get("/assets/roxy_home_avatar.jpg")
     pet_pads = client.get("/assets/roxy_home/products/pet-training-pads.png")
     scent_beads = client.get("/assets/roxy_home/products/laundry-scent-beads.png")
+    toothpaste = client.get("/assets/roxy_home/products/toothpaste.png")
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="91"' in page.text
+    assert 'name="roxy-home-version" content="92"' in page.text
     assert 'href="/assets/roxy_list.css?v=73"' in page.text
-    assert 'src="/assets/roxy_list.js?v=91"' in page.text
+    assert 'src="/assets/roxy_list.js?v=92"' in page.text
     assert '/assets/roxy_list.css?v=73' in worker.text
-    assert '/assets/roxy_list.js?v=91' in worker.text
+    assert '/assets/roxy_list.js?v=92' in worker.text
     assert 'id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle" hidden' in page.text
     assert '/assets/roxy_home_avatar.jpg' in page.text
     assert '/assets/roxy_home_avatar.jpg' in worker.text
@@ -33,8 +34,10 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert '/assets/roxy_home/avatars/monogram.svg' in worker.text
     assert '/assets/roxy_home/products/pet-training-pads.png' in worker.text
     assert '/assets/roxy_home/products/laundry-scent-beads.png' in worker.text
+    assert '/assets/roxy_home/products/toothpaste.png' in worker.text
     assert pet_pads.status_code == 200 and pet_pads.content.startswith(b"\x89PNG")
     assert scent_beads.status_code == 200 and scent_beads.content.startswith(b"\x89PNG")
+    assert toothpaste.status_code == 200 and toothpaste.content.startswith(b"\x89PNG")
     assert "COPY assets/roxy_home/avatars ./assets/roxy_home/avatars" in Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert manifest.json()["icons"][0]["src"] == "/assets/roxy_home_avatar.jpg"
     assert home_avatar.status_code == 200

@@ -31,6 +31,8 @@
     'paper towel':'paper-towels.png', analgésico:'pain-relief.png', analgesico:'pain-relief.png',
     ibuprofeno:'pain-relief.png', acetaminofen:'pain-relief.png', paracetamol:'pain-relief.png',
     'pastillitas de dolor':'pain-relief.png', 'pastillas de dolor':'pain-relief.png',
+    'pasta dental':'toothpaste.png', 'pasta de dientes':'toothpaste.png', 'pasta de diente':'toothpaste.png',
+    'pasta para dientes':'toothpaste.png', dentifrico:'toothpaste.png', 'crema dental':'toothpaste.png', toothpaste:'toothpaste.png',
     sal:'salt.png', salt:'salt.png', suavizante:'fabric-softener.png', 'fabric softener':'fabric-softener.png',
     vainilla:'vanilla.png', vanilla:'vanilla.png',
     mandarina:'mandarin.png', mandarinas:'mandarin.png', naranja:'mandarin.png', naranjas:'mandarin.png',
@@ -46,7 +48,11 @@
     ambientador:'scent-sachets.png', aromatizante:'scent-sachets.png', sachet:'scent-sachets.png',
     'perlas aromaticas para ropa':'laundry-scent-beads.png', 'perlas aromaticas':'laundry-scent-beads.png',
     'perlas de olor':'laundry-scent-beads.png', 'bolitas de olor':'laundry-scent-beads.png',
-    'potenciador de aroma':'laundry-scent-beads.png', 'scent booster':'laundry-scent-beads.png',
+    'pastillitas de olor':'laundry-scent-beads.png', 'pastillas de olor':'laundry-scent-beads.png',
+    'pastillas de home':'laundry-scent-beads.png', 'pastillitas de aroma':'laundry-scent-beads.png',
+    'pastillas de aroma':'laundry-scent-beads.png', 'bolitas para lavar ropa':'laundry-scent-beads.png',
+    'potenciador de olor':'laundry-scent-beads.png', 'potenciador de aroma':'laundry-scent-beads.png',
+    unstoppables:'laundry-scent-beads.png', unstopables:'laundry-scent-beads.png', 'scent booster':'laundry-scent-beads.png',
     'empapadores absorbentes para mascota':'pet-training-pads.png', 'empapadores para mascota':'pet-training-pads.png',
     'empapador para mascota':'pet-training-pads.png', 'pad para luna':'pet-training-pads.png',
     'pads para luna':'pet-training-pads.png', 'pad para bella':'pet-training-pads.png',
@@ -158,7 +164,7 @@
   const categoryIdentity = value => normalize(value).split(' ').map(word=>word.length>4&&word.endsWith('s')?word.slice(0,-1):word).join(' ');
   const shoppingCategoryTerms = {
     FROZEN:['helado','pizza congelada','vegetales congelados','fruta congelada','comida congelada','papas congeladas','nuggets congelados','ice cream','frozen pizza','frozen food'],
-    CLEANING:['detergente','suavizante','lavaplatos','lavavajillas','jabon de platos','jabon para platos','limpiador','desinfectante','cloro','lejia','oxiclean','oxi clean','esponja','estropajo','trapeador','mopa','escoba','recogedor','bolsa de basura','papel toalla','papel de cocina','toalla de papel','ambientador','aromatizante','bolsitas de olor','bolitas de olor','perlas aromaticas','perlas de olor','potenciador de aroma','scent booster','insecticida','limpiavidrios','dish soap','cleaner','trash bag'],
+    CLEANING:['detergente','suavizante','lavaplatos','lavavajillas','jabon de platos','jabon para platos','limpiador','desinfectante','cloro','lejia','oxiclean','oxi clean','esponja','estropajo','trapeador','mopa','escoba','recogedor','bolsa de basura','papel toalla','papel de cocina','toalla de papel','ambientador','aromatizante','bolsitas de olor','bolitas de olor','pastillitas de olor','pastillas de olor','pastillas de home','pastillitas de aroma','pastillas de aroma','bolitas para lavar ropa','perlas aromaticas','perlas de olor','potenciador de olor','potenciador de aroma','unstoppables','unstopables','scent booster','insecticida','limpiavidrios','dish soap','cleaner','trash bag'],
     PERSONAL:['papel higienico','jabon','champu','shampoo','acondicionador','desodorante','pasta dental','pasta de dientes','pasta de diente','pasta para dientes','dentifrico','crema dental','cepillo dental','hilo dental','enjuague bucal','gel de bano','gel de ducha','toalla sanitaria','tampon','afeitadora','rasuradora','crema de afeitar','locion','protector solar','crema corporal','gel de cejas','maquillaje','algodon','hisopo','toallitas humedas','aceite para el cabello','aceite de cabello','aceite capilar','toothpaste','deodorant','toilet paper'],
     HEALTH:['medicamento','medicina','pastilla','analgesico','ibuprofeno','acetaminofen','paracetamol','aspirina','vitamina','suplemento','jarabe','curita','vendaje','termometro','farmacia','antialergico','antibiotico','medicine','vitamin','supplement','bandage'],
     PETS:['comida de perro','comida para perro','comida de gato','comida para gato','alimento de perro','alimento para perro','alimento de gato','alimento para gato','arena de gato','arena para gato','premio de perro','premio de gato','croquetas de perro','croquetas de gato','empapador para mascota','empapadores para mascota','empapadores absorbentes','pad para perro','pads para perro','pad para luna','pads para luna','pad para bella','pads para bella','pee pad','pee pads','puppy pad','training pad','mascota','dog food','cat food','pet food','cat litter'],
@@ -183,7 +189,7 @@
   };
   const inferShoppingCategory = (name,requested='GENERAL') => aisleToCategory[inferShoppingAisle(name,requested)]||'OTHER';
   const shoppingSubcategoryTerms = [
-    ['Ropa',['detergente','suavizante','oxiclean','blanqueador','bolitas de olor','perlas aromaticas','perlas de olor','potenciador de aroma','scent booster','laundry']],
+    ['Ropa',['detergente','suavizante','oxiclean','blanqueador','bolitas de olor','pastillitas de olor','pastillas de olor','pastillas de home','pastillitas de aroma','pastillas de aroma','bolitas para lavar ropa','perlas aromaticas','perlas de olor','potenciador de olor','potenciador de aroma','unstoppables','unstopables','scent booster','laundry']],
     ['Cocina',['lavaplatos','lavavajillas','jabon de platos','esponja','estropajo','dish soap']],
     ['Baño',['limpiador de bano','limpiador de inodoro','toilet cleaner']],
     ['Papel y basura',['papel toalla','papel de cocina','toalla de papel','bolsa de basura','trash bag']],
@@ -219,8 +225,9 @@
     let previous='';
     while(label&&label!==previous){previous=label;wrappers.forEach(pattern=>{label=label.replace(pattern,'').trim()})}
     const identity=normalize(label);
+    if(/^(?:pasta de dientes?|pasta para dientes|pasta dentifrica|crema de dientes|crema para dientes|crema dental|dentifrico|toothpaste)$/.test(identity))return'Pasta dental';
     if(/\b(?:pad|pads|pas|pass|paz)\b.*\b(?:luna|bella|perro|mascota)\b/.test(identity)||/\b(?:empapador|empapadores|tapete|alfombrilla)\b.*\b(?:absorbente|perro|mascota)\b/.test(identity)||/^(?:pee|puppy|training) pads?$/.test(identity))return'Empapadores absorbentes para mascota';
-    if(/\bbolitas? de olor\b/.test(identity)||/\bperlas? (?:aromaticas?|de olor|para lavar ropa)\b/.test(identity)||/^(?:potenciador de aroma|scent booster|laundry scent beads)$/.test(identity))return'Perlas aromáticas para ropa';
+    if(/\b(?:bolitas?|pastillitas?|pastillas?) (?:de )?(?:olor|aroma|home)\b/.test(identity)||/\bperlas? (?:aromaticas?|de olor|para lavar ropa)\b/.test(identity)||/^(?:bolitas para lavar ropa|potenciador de olor|potenciador de aroma|unstoppables|unstopables|scent booster|laundry scent beads)$/.test(identity))return'Perlas aromáticas para ropa';
     return label||String(value||'').trim();
   };
   const fallbackImage = itemCategory => itemCategory === 'PERSONAL'
@@ -628,8 +635,13 @@
   }
   function suggestedProducts() {
     const activeNames = new Set(activeItems().map(item => normalize(item.name)));
+    const isMeaningfulProduct=name=>{
+      const identity=normalize(name);
+      if(['por favor','gracias','ok','okay','si','no'].includes(identity))return false;
+      return !['calendario','evento','cita','reunion','recordatorio','trabajo a las','trabajo manana','hoy trabajo','manana tengo que','a m','p m'].some(marker=>identity.includes(marker));
+    };
     const remembered = (Array.isArray(snapshot.habitual_products) ? snapshot.habitual_products : [])
-      .filter(item => item && item.name && !activeNames.has(normalize(item.name)))
+      .filter(item => item && item.name && isMeaningfulProduct(item.name) && !activeNames.has(normalize(item.name)))
       .map(item => [item.name,inferShoppingCategory(item.name,item.category),item.unit||'unidad',Number(item.purchase_count||item.times_used||1)]);
     const seen = new Set(remembered.map(row => normalize(row[0])));
     return [...remembered,...staples.filter(row => !seen.has(normalize(row[0]))).map(row=>[row[0],inferShoppingCategory(row[0],row[1]),row[2],row[3]])];

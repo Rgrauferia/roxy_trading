@@ -165,7 +165,8 @@ def test_explicit_recipe_measurement_is_never_overridden_by_name_parser(tmp_path
         ("cargador USB", "HOUSEHOLD"), ("destornillador", "HOUSEHOLD"),
         ("arena para gato", "PETS"),
         ("pass para Bella", "PETS"), ("pads para Luna", "PETS"),
-        ("bolitas de olor", "CLEANING"),
+        ("bolitas de olor", "CLEANING"), ("pastillitas de olor", "CLEANING"),
+        ("pastillas de home", "CLEANING"), ("pasta de dientes", "PERSONAL"),
     ],
 )
 def test_shopping_category_classifier_uses_product_meaning(product, expected):
@@ -212,6 +213,9 @@ def test_add_auto_classifies_voice_and_ui_products(tmp_path):
         ("pad para Luna", "Empapadores absorbentes para mascota"),
         ("pass para Bella", "Empapadores absorbentes para mascota"),
         ("bolitas de olor", "Perlas aromáticas para ropa"),
+        ("pastillitas de olor", "Perlas aromáticas para ropa"),
+        ("pastillas de home", "Perlas aromáticas para ropa"),
+        ("pasta de dientes", "Pasta dental"),
     ],
 )
 def test_household_vocabulary_uses_real_product_names(spoken, canonical):
@@ -239,3 +243,17 @@ def test_known_household_nickname_is_saved_as_real_product(tmp_path):
     assert item["name"] == "Empapadores absorbentes para mascota"
     assert item["category"] == "PETS"
     assert item["unit"] == "paquete"
+
+
+def test_habitual_products_exclude_conversation_and_calendar_debris(tmp_path):
+    store = ShoppingListStore(tmp_path / "shopping.json")
+    for phrase in ("por favor", "que hoy trabajo a las 2:00 p.m."):
+        store.add("robert", phrase)
+        store.add("robert", phrase)
+    store.add("robert", "pasta de dientes")
+    store.add("robert", "pasta de dientes")
+
+    habitual = store.habitual_products("robert")
+
+    assert [row["name"] for row in habitual] == ["Pasta dental"]
+    assert habitual[0]["category"] == "PERSONAL"
