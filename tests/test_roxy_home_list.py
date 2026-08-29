@@ -22,11 +22,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="94"' in page.text
-    assert 'href="/assets/roxy_list.css?v=75"' in page.text
-    assert 'src="/assets/roxy_list.js?v=94"' in page.text
-    assert '/assets/roxy_list.css?v=75' in worker.text
-    assert '/assets/roxy_list.js?v=94' in worker.text
+    assert 'name="roxy-home-version" content="95"' in page.text
+    assert 'href="/assets/roxy_list.css?v=76"' in page.text
+    assert 'src="/assets/roxy_list.js?v=95"' in page.text
+    assert '/assets/roxy_list.css?v=76' in worker.text
+    assert '/assets/roxy_list.js?v=95' in worker.text
     assert 'id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle" hidden' in page.text
     assert '/assets/roxy_home_avatar.jpg' in page.text
     assert '/assets/roxy_home_avatar.jpg' in worker.text
@@ -52,7 +52,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
     assert 'Comparar muebles reales' in script.text
-    assert "const APP_VERSION = '94'" in script.text
+    assert "const APP_VERSION = '95'" in script.text
     assert 'data-close-dialog="pairDialog"' in page.text
     assert "recetas listas para guardar, adaptar y cocinar paso a paso" in script.text
     assert "provider.affiliate_connected?'afiliado':'catálogo oficial'" in script.text
@@ -248,9 +248,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "{id:'cocktails',title:'Cócteles'" in script.text
     assert "{id:'juices',title:'Jugos y refrescantes'" in script.text
     assert "recipe-category-grid" in script.text
-    for asset in ("dog-banana-oat-treats.jpg", "cat-cooked-chicken-bites.jpg", "ferret-cooked-turkey-bites.jpg"):
+    for asset in (
+        "dog-banana-oat-treats.jpg", "dog-pumpkin-oat-biscuits.png", "dog-blueberry-yogurt-bites.png", "dog-chicken-carrot-meatballs.png",
+        "cat-cooked-chicken-bites.jpg", "cat-cooked-salmon-flakes.png", "cat-turkey-mini-patties.png", "cat-egg-chicken-bites.png",
+        "ferret-cooked-turkey-bites.jpg", "ferret-chicken-heart-bites.png", "ferret-cooked-egg-bites.png", "ferret-cooked-beef-bites.png",
+    ):
         assert asset in worker.text
         assert client.get(f"/assets/roxy_home/recipes/pets/{asset}").status_code == 200
+    assert ".pet-recipe-context[hidden]" in style.text
+    assert "para perros" in script.text and "para gatos" in script.text and "para hurones" in script.text
     assert "dataset.recipeCategory" in script.text
     assert "Desayunos" in script.text and "Pastas y fideos" in script.text and "Postres" in script.text and "Café y calientes" in script.text
     assert "recipeCategoryId" in script.text
@@ -295,7 +301,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "icon:'salad'" not in script.text
     assert "hydrateRecipeImage" in script.text
     assert "seenSavedTitles" in script.text
-    assert "recetas disponibles" in script.text
+    assert "para personas" in script.text
+    assert "para perros" in script.text
     for asset in ("pan-cubano.jpg", "cafe-americano.jpg", "cafe-con-canela.jpg", "affogato.jpg"):
         assert (roxy_home_service.ASSETS_DIR / "roxy_home" / "recipe_custom" / asset).is_file()
     assert "/assets/roxy_home/recipe_categories/" not in script.text

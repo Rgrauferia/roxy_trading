@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from roxy_os.home_food import cooking_step_timer_seconds
@@ -13,10 +15,15 @@ def test_local_catalog_includes_species_specific_pet_recipes_with_safety_notes()
     from roxy_os.home_recipe_fallback import local_recipe_catalog
 
     rows = [row for row in local_recipe_catalog({}) if row.get("audience") == "pet"]
+    assert len(rows) == 12
     assert {row["pet_species"] for row in rows} == {"dog", "cat", "ferret"}
+    assert {species: sum(row["pet_species"] == species for row in rows) for species in ("dog", "cat", "ferret")} == {"dog": 4, "cat": 4, "ferret": 4}
     assert all(row["safety_class"] == "treat" for row in rows)
     assert all("no sustituye" in row["veterinary_note"].lower() for row in rows)
     assert all(row["photo_asset"].startswith("/assets/roxy_home/recipes/pets/") for row in rows)
+    assert len({row["photo_asset"] for row in rows}) == len(rows)
+    assert all(len(row["steps"]) >= 5 for row in rows)
+    assert all(Path(row["photo_asset"].removeprefix("/")).is_file() for row in rows)
 
 
 class FakeHomeAI:

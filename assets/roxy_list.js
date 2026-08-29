@@ -2,7 +2,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '94';
+  const APP_VERSION = '95';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -874,7 +874,8 @@
     const saved=[];const seenSavedTitles=new Set();(homeFood.recipes||[]).slice().reverse().forEach(recipe=>{const title=normalize(recipe.title||'');if(!title||seenSavedTitles.has(title))return;seenSavedTitles.add(title);saved.push(recipe)});const savedTitles=new Set(saved.map(recipe=>normalize(recipe.title||'')));const included=(homeFood.local_recipes||[]).filter(recipe=>!savedTitles.has(normalize(recipe.title||'')));const allRows=recipeFilter==='favorite'&&recipeAudience==='human'?saved:[...saved,...included];
     const audienceRows=allRows.filter(recipe=>recipeAudience==='pet'?recipe.audience==='pet'&&(!recipe.pet_species||recipe.pet_species===petSpecies):recipe.audience!=='pet');
     const rows=audienceRows.filter(recipe=>{const matchesSearch=!recipeSearch||normalize(`${recipe.title||''} ${recipe.subcategory||''}`).includes(recipeSearch);const matchesCategory=recipeAudience==='pet'||recipeFilter==='favorite'?recipeAudience==='pet'||recipe.favorite:recipeSearch||recipeCategoryId(recipe)===recipeFilter;return matchesSearch&&matchesCategory});
-    $('recipeCount').textContent=recipeSearch||recipeFilter==='favorite'?`${rows.length} ${rows.length===1?'resultado':'resultados'}`:`${audienceRows.length} recetas disponibles`;
+    const speciesLabel={dog:'para perros',cat:'para gatos',ferret:'para hurones',other:'para otras mascotas'}[petSpecies]||'para mascotas';
+    $('recipeCount').textContent=recipeSearch||recipeFilter==='favorite'?`${rows.length} ${rows.length===1?'resultado':'resultados'}`:recipeAudience==='pet'?`${audienceRows.length} ${speciesLabel}`:`${audienceRows.length} para personas`;
     if(recipeAudience==='pet'){
       const section=document.createElement('section');section.className='recipe-category';
       const heading=document.createElement('div');heading.className='recipe-category-heading';const copy=document.createElement('div');const title=document.createElement('h3');title.textContent=({dog:'Recetas para perros',cat:'Recetas para gatos',ferret:'Recetas para hurones',other:'Recetas para otras mascotas'})[petSpecies];const description=document.createElement('p');description.textContent='Premios y complementos claramente separados por especie';copy.append(title,description);const count=document.createElement('span');count.textContent=String(rows.length);heading.append(copy,count);section.append(heading);

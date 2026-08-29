@@ -49,19 +49,86 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         ["Calienta el horno a 175 °C y cubre una bandeja con papel para hornear.", "Tritura el plátano hasta obtener un puré sin trozos grandes.", "Muele una taza de avena hasta formar harina y mézclala con el puré y la avena restante.", "Extiende la masa a 6 milímetros, corta porciones pequeñas y colócalas en la bandeja.", "Hornea de 15 a 18 minutos, hasta que estén firmes; enfría por completo antes de ofrecer una."],
     )
     dog.update(audience="pet", pet_species="dog", safety_class="treat", veterinary_note="Premio ocasional; no sustituye un alimento completo. Confirma la porción con tu veterinario si tu perro tiene alergias o una dieta especial.", photo_asset="/assets/roxy_home/recipes/pets/dog-banana-oat-treats.jpg")
+    dog_pumpkin = _recipe(
+        "Galletas de calabaza y avena para perros", "Premio horneado sencillo con calabaza pura, sin azúcar ni especias.", "other", 20,
+        [("Puré de calabaza 100 % natural", 0.75, "taza"), ("Avena en hojuelas", 2, "taza"), ("Huevo", 1, "unidad")],
+        ["Calienta el horno a 175 °C y cubre una bandeja con papel para hornear.", "Muele la avena hasta obtener una harina gruesa y confirma que el puré no contenga azúcar, xilitol ni especias.", "Bate el huevo con el puré y añade la avena poco a poco hasta formar una masa manejable.", "Extiende la masa a 6 milímetros, corta porciones pequeñas y colócalas separadas en la bandeja.", "Hornea de 18 a 22 minutos, enfría por completo y ofrece una porción acorde con el tamaño de tu perro."],
+    )
+    dog_pumpkin.update(audience="pet", pet_species="dog", safety_class="treat", veterinary_note="Premio ocasional; no sustituye un alimento completo. Usa solo calabaza pura y confirma la porción con tu veterinario.", photo_asset="/assets/roxy_home/recipes/pets/dog-pumpkin-oat-biscuits.png")
+    dog_yogurt = _recipe(
+        "Bocaditos helados de yogur y arándanos para perros", "Premio congelado de yogur natural sin azúcar ni xilitol.", "other", 12,
+        [("Yogur natural sin azúcar ni xilitol", 1, "taza"), ("Arándanos frescos", 0.5, "taza")],
+        ["Lee la etiqueta del yogur y confirma que sea natural, sin azúcar, xilitol, chocolate ni saborizantes.", "Lava los arándanos y tritura la mitad con un tenedor.", "Mezcla el yogur con los arándanos triturados y reparte la mezcla en moldes pequeños.", "Añade uno o dos arándanos enteros a cada molde y congela durante al menos tres horas.", "Desmolda una porción y deja que se suavice uno o dos minutos antes de ofrecerla; no la uses si tu perro no tolera lácteos."],
+    )
+    dog_yogurt.update(audience="pet", pet_species="dog", safety_class="treat", veterinary_note="Premio ocasional; no sustituye un alimento completo. Evítalo si tu perro tiene sensibilidad a los lácteos y consulta al veterinario ante cualquier dieta especial.", photo_asset="/assets/roxy_home/recipes/pets/dog-blueberry-yogurt-bites.png")
+    dog_meatballs = _recipe(
+        "Mini albóndigas de pollo y zanahoria para perros", "Bocaditos de pollo completamente cocidos, sin sal, ajo ni cebolla.", "other", 16,
+        [("Pollo molido sin condimentos", 300, "gramo"), ("Zanahoria", 0.5, "taza", "rallada fina"), ("Huevo", 1, "unidad")],
+        ["Calienta el horno a 190 °C y cubre una bandeja con papel para hornear.", "Revisa que el pollo no contenga sal, ajo, cebolla, salsas ni condimentos añadidos.", "Mezcla el pollo con la zanahoria y el huevo hasta distribuirlos de forma uniforme.", "Forma bolitas pequeñas y hornéalas de 14 a 18 minutos, hasta que el centro alcance 74 °C.", "Enfría por completo, divide según el tamaño de tu perro y refrigera el resto por un máximo de dos días."],
+    )
+    dog_meatballs.update(audience="pet", pet_species="dog", safety_class="treat", veterinary_note="Premio ocasional; no sustituye un alimento completo. Ajusta el tamaño y la cantidad con tu veterinario.", photo_asset="/assets/roxy_home/recipes/pets/dog-chicken-carrot-meatballs.png")
     cat = _recipe(
         "Bocaditos de pollo cocido para gatos", "Pollo simple y completamente cocido para usar como premio ocasional.", "other", 8,
         [("Pechuga de pollo sin piel ni hueso", 120, "gramo"), ("Agua", 2, "taza")],
         ["Revisa que el pollo no tenga piel, huesos, sal, ajo, cebolla ni condimentos.", "Coloca el pollo y el agua en una olla pequeña y lleva a hervor suave.", "Cocina de 12 a 15 minutos, hasta que el centro alcance 74 °C y no quede parte rosada.", "Deja enfriar, desmenuza muy fino y divide en bocados pequeños adecuados para tu gato.", "Ofrece solo una porción pequeña y refrigera el resto por un máximo de dos días."],
     )
     cat.update(audience="pet", pet_species="cat", safety_class="treat", veterinary_note="Premio ocasional; no sustituye una dieta completa para gatos. Consulta al veterinario para alimentación habitual.", photo_asset="/assets/roxy_home/recipes/pets/cat-cooked-chicken-bites.jpg")
+    cat_salmon = _recipe(
+        "Lascas de salmón cocido para gatos", "Salmón simple, sin espinas, piel, sal ni condimentos.", "other", 8,
+        [("Filete de salmón sin piel ni espinas", 120, "gramo")],
+        ["Pasa los dedos por el filete y retira cualquier espina, piel o resto de escama.", "Calienta el horno a 190 °C y coloca el salmón en una fuente sin aceite ni condimentos.", "Hornea de 10 a 14 minutos, hasta que se desmenuce con facilidad y alcance al menos 63 °C en el centro.", "Déjalo enfriar por completo y revisa nuevamente que no haya espinas.", "Separa lascas muy pequeñas, ofrece una porción ocasional y refrigera el resto por un máximo de dos días."],
+    )
+    cat_salmon.update(audience="pet", pet_species="cat", safety_class="treat", veterinary_note="Premio ocasional; no sustituye una dieta completa para gatos. Consulta al veterinario si tu gato tiene enfermedad renal, alergias o una dieta prescrita.", photo_asset="/assets/roxy_home/recipes/pets/cat-cooked-salmon-flakes.png")
+    cat_turkey = _recipe(
+        "Mini tortitas de pavo para gatos", "Pavo completamente cocido y sin condimentos para ofrecer en pequeñas cantidades.", "other", 10,
+        [("Pavo molido sin condimentos", 180, "gramo"), ("Agua", 1, "cucharada")],
+        ["Comprueba que el pavo no incluya sal, ajo, cebolla, salsas, cereales ni especias.", "Forma tortitas pequeñas y finas con las manos ligeramente humedecidas.", "Calienta una sartén antiadherente a fuego medio-bajo, sin aceite ni mantequilla.", "Cocina las tortitas por ambos lados hasta que alcancen 74 °C y no quede carne rosada.", "Enfría por completo, corta un trozo pequeño para servir y refrigera el resto por un máximo de dos días."],
+    )
+    cat_turkey.update(audience="pet", pet_species="cat", safety_class="treat", veterinary_note="Premio ocasional; no sustituye una dieta completa y equilibrada para gatos. Confirma la porción con tu veterinario.", photo_asset="/assets/roxy_home/recipes/pets/cat-turkey-mini-patties.png")
+    cat_egg_chicken = _recipe(
+        "Bocaditos de huevo y pollo para gatos", "Pequeños bocados de huevo y pollo completamente cocidos, sin lácteos ni condimentos.", "other", 10,
+        [("Huevo", 1, "unidad"), ("Pollo cocido sin piel ni hueso", 60, "gramo")],
+        ["Desmenuza el pollo cocido muy fino y confirma que no tenga piel, huesos, sal, ajo ni cebolla.", "Bate el huevo solo, sin leche, mantequilla, sal ni condimentos.", "Cocina el huevo en una sartén antiadherente a fuego bajo hasta que quede completamente cuajado.", "Incorpora el pollo, cocina un minuto más y deja enfriar por completo.", "Corta bocados muy pequeños, ofrece una porción ocasional y refrigera el resto por un máximo de un día."],
+    )
+    cat_egg_chicken.update(audience="pet", pet_species="cat", safety_class="treat", veterinary_note="Premio ocasional; no sustituye una dieta completa para gatos. Consulta al veterinario si existe sensibilidad al huevo o al pollo.", photo_asset="/assets/roxy_home/recipes/pets/cat-egg-chicken-bites.png")
     ferret = _recipe(
         "Bocaditos de pavo cocido para hurones", "Premio pequeño de carne simple y completamente cocida, sin cereales ni condimentos.", "other", 10,
         [("Pavo molido sin condimentos", 150, "gramo")],
         ["Comprueba que el pavo no contenga sal, ajo, cebolla, salsas, vegetales ni cereales añadidos.", "Calienta una sartén antiadherente a fuego medio-bajo, sin aceite ni mantequilla.", "Añade el pavo y sepáralo en trozos muy pequeños mientras se cocina.", "Cocina hasta alcanzar 74 °C y hasta que no quede carne rosada; escurre la grasa sobrante.", "Deja enfriar por completo y ofrece uno o dos trozos pequeños como premio ocasional."],
     )
     ferret.update(audience="pet", pet_species="ferret", safety_class="treat", veterinary_note="Premio ocasional; no sustituye una dieta completa para hurones. Consulta a un veterinario de animales exóticos.", photo_asset="/assets/roxy_home/recipes/pets/ferret-cooked-turkey-bites.jpg")
-    return {"dog_banana_oat_treats": dog, "cat_cooked_chicken_bites": cat, "ferret_cooked_turkey_bites": ferret}
+    ferret_hearts = _recipe(
+        "Bocaditos de corazón de pollo para hurones", "Víscera simple completamente cocida y cortada en porciones muy pequeñas.", "other", 12,
+        [("Corazones de pollo limpios", 150, "gramo")],
+        ["Retira grasa visible y confirma que los corazones no tengan sal, salsas, vegetales ni condimentos.", "Enjuágalos, sécalos y córtalos por la mitad para que se cocinen de manera uniforme.", "Cocínalos en una sartén antiadherente a fuego medio-bajo, sin aceite, durante 8 a 10 minutos.", "Comprueba que el centro alcance 74 °C y que no quede tejido crudo.", "Enfría por completo, corta trozos muy pequeños y ofrece solo uno o dos como premio ocasional."],
+    )
+    ferret_hearts.update(audience="pet", pet_species="ferret", safety_class="treat", veterinary_note="Premio ocasional y en poca cantidad; no sustituye un alimento completo. Las vísceras no deben desplazar su dieta habitual. Consulta a un veterinario de animales exóticos.", photo_asset="/assets/roxy_home/recipes/pets/ferret-chicken-heart-bites.png")
+    ferret_egg = _recipe(
+        "Bocaditos de huevo cocido para hurones", "Huevo completamente cocido, sin leche, mantequilla ni condimentos.", "other", 8,
+        [("Huevo", 1, "unidad")],
+        ["Rompe el huevo en un recipiente limpio y bátelo sin añadir leche, aceite, sal ni especias.", "Calienta una sartén antiadherente a fuego bajo.", "Vierte el huevo y remueve hasta que esté completamente cuajado y no quede parte líquida.", "Déjalo enfriar por completo y divídelo en trozos muy pequeños.", "Ofrece uno o dos trozos como premio ocasional y desecha lo que permanezca a temperatura ambiente más de dos horas."],
+    )
+    ferret_egg.update(audience="pet", pet_species="ferret", safety_class="treat", veterinary_note="Premio ocasional; no sustituye una dieta completa para hurones. Confirma la frecuencia con un veterinario de animales exóticos.", photo_asset="/assets/roxy_home/recipes/pets/ferret-cooked-egg-bites.png")
+    ferret_beef = _recipe(
+        "Bocaditos de res cocida para hurones", "Carne magra completamente cocida y sin vegetales, cereales ni condimentos.", "other", 12,
+        [("Carne molida de res magra sin condimentos", 180, "gramo")],
+        ["Comprueba que la carne no incluya sal, ajo, cebolla, salsas, cereales ni especias.", "Calienta una sartén antiadherente a fuego medio-bajo, sin aceite ni mantequilla.", "Añade la carne y sepárala en trozos pequeños mientras se cocina.", "Cocina hasta que no quede carne rosada y el centro alcance al menos 71 °C; escurre la grasa sobrante.", "Enfría por completo y ofrece uno o dos trozos pequeños como premio ocasional."],
+    )
+    ferret_beef.update(audience="pet", pet_species="ferret", safety_class="treat", veterinary_note="Premio ocasional; no sustituye una dieta completa para hurones. Consulta a un veterinario de animales exóticos.", photo_asset="/assets/roxy_home/recipes/pets/ferret-cooked-beef-bites.png")
+    return {
+        "dog_banana_oat_treats": dog,
+        "dog_pumpkin_oat_biscuits": dog_pumpkin,
+        "dog_blueberry_yogurt_bites": dog_yogurt,
+        "dog_chicken_carrot_meatballs": dog_meatballs,
+        "cat_cooked_chicken_bites": cat,
+        "cat_cooked_salmon_flakes": cat_salmon,
+        "cat_turkey_mini_patties": cat_turkey,
+        "cat_egg_chicken_bites": cat_egg_chicken,
+        "ferret_cooked_turkey_bites": ferret,
+        "ferret_chicken_heart_bites": ferret_hearts,
+        "ferret_cooked_egg_bites": ferret_egg,
+        "ferret_cooked_beef_bites": ferret_beef,
+    }
 
 
 @lru_cache(maxsize=1)

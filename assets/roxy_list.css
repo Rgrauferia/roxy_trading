@@ -284,6 +284,7 @@ textarea { resize: vertical; line-height: 1.45; }
 .recipe-audience-switch button { min-height: 42px; border: 0; border-radius: 999px; color: var(--forest); background: transparent; font-weight: 800; }
 .recipe-audience-switch button.active { color: #fff; background: var(--forest); box-shadow: 0 4px 12px rgba(23,63,43,.18); }
 .pet-recipe-context { display: grid; gap: 12px; padding-top: 3px; }
+.pet-recipe-context[hidden] { display: none !important; }
 .pet-profile-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .pet-profiles { display: flex; flex-wrap: wrap; gap: 7px; }
 .pet-profile,.pet-add { display: inline-flex; align-items: center; gap: 5px; padding: 8px 11px; border: 1px solid #d8ddd5; border-radius: 999px; color: var(--forest); background: #fff; font-weight: 800; }
