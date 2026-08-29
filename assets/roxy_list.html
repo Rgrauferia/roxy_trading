@@ -8,14 +8,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="92" />
+  <meta name="roxy-home-version" content="93" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=73" />
-  <script src="/assets/roxy_list.js?v=92" defer></script>
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=74" />
+  <script src="/assets/roxy_list.js?v=93" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -152,15 +152,15 @@
 
       <section class="content-section" aria-labelledby="shoppingTitle">
         <div class="section-heading"><div><p>Lista activa</p><h2 id="shoppingTitle">Por comprar</h2></div><span id="rowCount">0 productos</span></div>
-        <div class="shopping-commerce-shortcut">
-          <span class="material-symbols-rounded" aria-hidden="true">shopping_bag</span>
-          <span><strong>Comprar con Roxy</strong><small>Búsquedas personalizadas con tu cuenta de Amazon</small></span>
-          <button id="prepareAmazonButton" class="primary" type="button">Buscar en Amazon</button>
-        </div>
         <label class="search"><span>Buscar</span><input id="searchInput" type="search" placeholder="Buscar en tu lista" autocomplete="off" /></label>
         <div id="categoryFilters" class="chips" role="group" aria-label="Categorías"></div>
         <div id="shoppingList" class="shopping-list"></div>
         <div class="finish-row"><span><strong id="pendingTotal">0</strong> artículos pendientes</span><button id="completeButton" class="primary" type="button">Compra hecha</button></div>
+        <div class="shopping-commerce-shortcut">
+          <span class="material-symbols-rounded" aria-hidden="true">shopping_bag</span>
+          <span><strong>Comparar esta lista</strong><small>Busca opciones en Amazon después de revisar tus pendientes</small></span>
+          <button id="prepareAmazonButton" class="secondary" type="button">Comparar</button>
+        </div>
       </section>
 
       <section class="content-section commerce-card" aria-labelledby="commerceTitle">
@@ -392,7 +392,7 @@
 
   <dialog id="pairDialog" aria-labelledby="pairTitle">
     <article>
-      <p class="eyebrow">Acceso privado</p><h2 id="pairTitle">¿Quién está entrando?</h2>
+      <div class="dialog-heading"><div><p class="eyebrow">Acceso privado</p><h2 id="pairTitle">¿Quién está entrando?</h2></div><button type="button" data-close-dialog="pairDialog" aria-label="Cerrar acceso">Cerrar</button></div>
       <p>Usa tu perfil personal. Este dispositivo recordará tu sesión durante un año.</p>
       <form id="loginForm" class="kitchen-form">
         <label><span>Usuario</span><input id="loginUsername" autocomplete="username" required /></label>

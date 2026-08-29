@@ -361,14 +361,15 @@ textarea { resize: vertical; line-height: 1.45; }
 .member-row small { margin-top: 3px; color: var(--muted); }
 .member-row span { flex: 0 0 auto; color: var(--gold); font-size: 10px; font-weight: 850; letter-spacing: .08em; }
 
-.bottom-nav { position: fixed; right: 0; bottom: 0; left: 0; z-index: 25; display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); min-height: 73px; padding: 8px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); border-top: 1px solid rgba(23,77,54,.14); background: rgba(255,253,250,.96); backdrop-filter: blur(18px); }
-.bottom-nav button { min-width: 0; border: 0; color: #737b76; background: transparent; font-size: 11px; }
-.bottom-nav button.active { color: var(--forest); }
+.bottom-nav { position: fixed; right: 0; bottom: 0; left: 0; z-index: 25; display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); min-height: 76px; padding: 7px max(6px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left)); border-top: 1px solid rgba(23,77,54,.14); background: rgba(255,253,250,.96); backdrop-filter: blur(18px); }
+.bottom-nav button { min-width: 0; min-height: 54px; padding: 3px 1px 5px; border: 0; border-radius: 14px; color: #737b76; background: transparent; font-size: clamp(9px,2.7vw,11px); line-height: 1.05; }
+.bottom-nav button.active { color: var(--forest); background: rgba(229,238,226,.58); }
 .bottom-nav button > .material-symbols-rounded { display: block; margin: 0 auto 4px; font-size: 24px; }
 .bottom-nav button::before { content: ""; display: block; width: 22px; height: 3px; margin: 0 auto 8px; border-radius: 5px; background: transparent; }
 .bottom-nav button.active::before { background: var(--gold); }
 .bottom-nav img { display: block; width: 36px; height: 36px; margin: -19px auto 2px; border: 3px solid var(--paper); border-radius: 50%; object-fit: cover; box-shadow: 0 5px 14px rgba(23,77,54,.2); }
 .bottom-nav .roxy-nav::before { display: none; }
+.bottom-nav .roxy-nav.active { background: transparent; }
 
 .upcoming-event-card { display: grid; grid-template-columns: 44px minmax(0,1fr); align-items: center; gap: 12px; padding: 13px 15px; border: 1px solid rgba(23,77,54,.13); border-radius: 20px; background: var(--paper); box-shadow: 0 7px 20px rgba(28,49,39,.06); }
 .upcoming-event-card[hidden] { display: none; }

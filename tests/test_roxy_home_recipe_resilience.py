@@ -138,6 +138,19 @@ def test_installed_catalog_has_requested_categories_and_real_recipe_payloads():
         assert by_title[title]["steps"]
 
 
+def test_banana_pancakes_are_breakfast_and_steps_match_the_ingredients():
+    recipe = find_local_recipe("Pancakes de banana", {"profile": {"allergies": []}})
+
+    assert recipe is not None
+    assert recipe["category"] == "breakfast"
+    assert recipe["title"] == "Pancakes de banana"
+    ingredient_names = " ".join(row["name"].lower() for row in recipe["ingredients"])
+    steps = " ".join(recipe["steps"]).lower()
+    assert "banana" in ingredient_names
+    assert "banana" in steps
+    assert "sal" not in steps
+
+
 def test_every_local_recipe_is_editorially_complete_and_has_no_placeholder_instructions():
     from roxy_os.home_recipe_fallback import local_recipe_catalog
 

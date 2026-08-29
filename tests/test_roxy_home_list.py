@@ -22,11 +22,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="92"' in page.text
-    assert 'href="/assets/roxy_list.css?v=73"' in page.text
-    assert 'src="/assets/roxy_list.js?v=92"' in page.text
-    assert '/assets/roxy_list.css?v=73' in worker.text
-    assert '/assets/roxy_list.js?v=92' in worker.text
+    assert 'name="roxy-home-version" content="93"' in page.text
+    assert 'href="/assets/roxy_list.css?v=74"' in page.text
+    assert 'src="/assets/roxy_list.js?v=93"' in page.text
+    assert '/assets/roxy_list.css?v=74' in worker.text
+    assert '/assets/roxy_list.js?v=93' in worker.text
     assert 'id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle" hidden' in page.text
     assert '/assets/roxy_home_avatar.jpg' in page.text
     assert '/assets/roxy_home_avatar.jpg' in worker.text
@@ -52,7 +52,9 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
     assert 'Comparar muebles reales' in script.text
-    assert "const APP_VERSION = '91'" in script.text
+    assert "const APP_VERSION = '93'" in script.text
+    assert 'data-close-dialog="pairDialog"' in page.text
+    assert "recetas listas para guardar, adaptar y cocinar paso a paso" in script.text
     assert "provider.affiliate_connected?'afiliado':'catálogo oficial'" in script.text
     assert "la foto, medidas, disponibilidad y precio real" in script.text
     assert 'Analizar y rediseñar' in script.text
