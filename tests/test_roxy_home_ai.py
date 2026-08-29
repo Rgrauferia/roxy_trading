@@ -176,6 +176,22 @@ def test_conversation_synthesizes_home_context_and_recent_turns(tmp_path):
     assert "positions" not in call["input"]
 
 
+def test_recipe_scan_uses_luna_vision_and_keeps_pet_safety_context(tmp_path):
+    client = FakeClient()
+    ai = RoxyHomeAI(config(tmp_path), client=client)
+    result = ai.import_recipe(
+        "data:image/jpeg;base64,AA==", {"profile": {"allergies": []}, "pantry": []},
+        source_type="image", audience="pet", pet_species="dog",
+    )
+    call = client.responses.calls[0]
+    content = call["input"][0]["content"]
+    assert call["model"] == "gpt-5.6-luna"
+    assert call["store"] is False
+    assert content[1] == {"type": "input_image", "image_url": "data:image/jpeg;base64,AA=="}
+    assert "especie dog" in content[0]["text"]
+    assert result["model_profile"] == "luna"
+
+
 def test_home_budget_is_enforced_independently(tmp_path):
     client = FakeClient()
     ai = RoxyHomeAI(config(tmp_path, daily_request_limit=1), client=client)

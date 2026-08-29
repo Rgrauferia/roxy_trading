@@ -270,6 +270,35 @@ textarea { resize: vertical; line-height: 1.45; }
 .recipe-filter-card .material-symbols-rounded { font-size: 21px; }
 .recipe-filter-card.active { border-color: var(--forest); color: white; background: var(--forest); box-shadow: 0 8px 17px rgba(23,77,54,.15); }
 .recipe-library { display: grid; gap: 22px; margin-top: 16px; }
+.recipe-import-studio { display: grid; gap: 14px; margin: 0 0 18px; padding: 18px; border: 1px solid #dfe3da; border-radius: 24px; background: #fbfaf6; box-shadow: 0 12px 28px rgba(28,49,39,.06); }
+.recipe-import-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.recipe-import-heading h3 { margin: 2px 0 0; color: var(--forest-dark); font-family: Georgia,serif; font-size: 24px; line-height: 1.05; }
+.recipe-import-heading > .material-symbols-rounded { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: #fff; background: var(--forest); }
+.recipe-import-copy { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.recipe-import-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.recipe-import-actions button { display: grid; grid-template-columns: 38px minmax(0,1fr) 24px; align-items: center; gap: 10px; min-height: 82px; padding: 12px; border: 1px solid #d8ddd5; border-radius: 18px; text-align: left; color: var(--forest); background: #fff; }
+.recipe-import-actions button > .material-symbols-rounded:first-child { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 13px; background: #edf3eb; }
+.recipe-import-actions strong,.recipe-import-actions small { display: block; }
+.recipe-import-actions small { margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.25; }
+.recipe-audience-switch { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); padding: 4px; border-radius: 999px; background: #e8eee7; }
+.recipe-audience-switch button { min-height: 42px; border: 0; border-radius: 999px; color: var(--forest); background: transparent; font-weight: 800; }
+.recipe-audience-switch button.active { color: #fff; background: var(--forest); box-shadow: 0 4px 12px rgba(23,63,43,.18); }
+.pet-recipe-context { display: grid; gap: 12px; padding-top: 3px; }
+.pet-profile-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.pet-profiles { display: flex; flex-wrap: wrap; gap: 7px; }
+.pet-profile,.pet-add { display: inline-flex; align-items: center; gap: 5px; padding: 8px 11px; border: 1px solid #d8ddd5; border-radius: 999px; color: var(--forest); background: #fff; font-weight: 800; }
+.pet-recipe-context > p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.pet-species-filters { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.pet-species-filters button { flex: 0 0 auto; min-height: 38px; padding: 8px 14px; border: 1px solid #d8ddd5; border-radius: 999px; color: var(--forest); background: #fff; font-weight: 800; }
+.pet-species-filters button.active { color: #fff; background: var(--forest); }
+.recipe-import-preview { display: grid; gap: 12px; padding: 15px; border-radius: 18px; background: #edf3eb; }
+.recipe-import-preview h3 { margin: 0; color: var(--forest-dark); font-family: Georgia,serif; font-size: 22px; }
+.recipe-import-preview p { margin: 0; color: var(--muted); }
+.recipe-import-preview dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; margin: 0; }
+.recipe-import-preview dt { color: var(--muted); }.recipe-import-preview dd { margin: 0; font-weight: 800; }
+.recipe-pet-safety { padding: 14px; border: 1px solid #d8e2d7; border-radius: 16px; background: #f2f6ef; }
+.recipe-pet-safety strong { color: var(--forest-dark); }
+.recipe-pet-safety p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .recipe-category { display: grid; gap: 11px; }
 .recipe-category-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; padding: 0 2px; }
 .recipe-category-heading h3 { margin: 0; color: var(--forest-dark); font-family: Georgia, serif; font-size: 24px; }
@@ -680,6 +709,7 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
 .design-dialog form > label small { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; }
 
 @media (max-width: 580px) {
+  .recipe-import-actions { grid-template-columns: 1fr; }
   .personalization-options,.personalization-fields.split { grid-template-columns: 1fr; }
   .personalization-preview { grid-template-columns: 72px minmax(0,1fr); padding: 14px; }
   .personalization-preview img { width: 72px; height: 82px; }

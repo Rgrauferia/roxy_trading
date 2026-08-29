@@ -102,6 +102,7 @@ class HomeFoodStore:
                 "weekly_budget": 85,
             },
             "pantry": [],
+            "pets": [],
             "recipes": [],
             "cooking_sessions": [],
             "weekly_plans": [],
@@ -308,6 +309,29 @@ class HomeFoodStore:
 
         return self._mutate(apply)
 
+    def upsert_pet(self, user_id: Any, *, name: Any, species: Any) -> dict[str, Any]:
+        pet_name = _text(name, 40)
+        pet_species = _identity(species)
+        if not pet_name:
+            raise ValueError("La mascota necesita un nombre.")
+        if pet_species not in {"dog", "cat", "ferret", "other"}:
+            raise ValueError("La especie de la mascota no es válida.")
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            record = self._user(payload, user_id)
+            pets = record.setdefault("pets", [])
+            existing = next((row for row in pets if _identity(row.get("name")) == _identity(pet_name)), None)
+            if existing is None:
+                existing = {"id": uuid4().hex, "name": pet_name, "species": pet_species, "created_at": _now_iso()}
+                pets.append(existing)
+            else:
+                existing.update(name=pet_name, species=pet_species, updated_at=_now_iso())
+            record["pets"] = pets[-20:]
+            record["revision"] = int(record.get("revision") or 0) + 1
+            return deepcopy(existing)
+
+        return self._mutate(apply)
+
     def upsert_pantry(self, user_id: Any, items: Any) -> list[dict[str, Any]]:
         if not isinstance(items, list):
             raise ValueError("La despensa debe ser una lista.")
@@ -442,6 +466,11 @@ class HomeFoodStore:
             "ingredients": ingredients,
             "steps": steps,
             "allergen_notes": _string_list(raw.get("allergen_notes"), limit=20),
+            "audience": "pet" if _identity(raw.get("audience")) == "pet" else "human",
+            "pet_species": _text(raw.get("pet_species"), 32),
+            "safety_class": _text(raw.get("safety_class"), 32),
+            "veterinary_note": _text(raw.get("veterinary_note"), 1000),
+            "photo_asset": _text(raw.get("photo_asset"), 240),
             "sources": [row for row in (raw.get("sources") or [])[:20] if isinstance(row, dict)],
             "shared_recipe_id": _text(raw.get("shared_recipe_id"), 64),
             "generation_source": _text(raw.get("generation_source"), 64),

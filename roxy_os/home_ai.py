@@ -340,6 +340,50 @@ class RoxyHomeAI:
             deep=deep,
         )
 
+    def import_recipe(self, source: str, snapshot: dict[str, Any], *, source_type: str, audience: str = "human", pet_species: str = "") -> dict[str, Any]:
+        """Extract a reviewable recipe without storing household media."""
+        pet_rule = ""
+        if audience == "pet":
+            pet_rule = (
+                f" La receta es para una mascota de especie {pet_species or 'no especificada'}. "
+                "No la presentes como dieta completa ni terapéutica. Rechaza ingredientes peligrosos para esa especie. "
+                "Devuelve audience='pet', pet_species, safety_class (treat, complement o veterinary_plan) y "
+                "veterinary_note. Si la especie, las cantidades o la seguridad no son claras, devuelve "
+                "needs_clarification=true y clarification_question en vez de inventar."
+            )
+        task = (
+            "Extrae fielmente esta receta para que la persona la revise antes de guardarla. Conserva cantidades, "
+            "unidades, porciones y todos los pasos; no completes con suposiciones. Devuelve title, description, kind, "
+            "drink_type si aplica, servings, ingredients (name, quantity, unit, notes), steps y allergen_notes."
+            + pet_rule
+        )
+        context = self._context(snapshot)
+        if source_type == "image":
+            self.budget.reserve_request()
+            response = self.client.responses.create(
+                model=self.config.routine_model,
+                instructions=SYSTEM_PROMPT,
+                input=[{"role": "user", "content": [
+                    {"type": "input_text", "text": json.dumps({"task": task, "home_context": context}, ensure_ascii=False)},
+                    {"type": "input_image", "image_url": source},
+                ]}],
+                max_output_tokens=self.config.max_output_tokens,
+                store=False,
+            )
+            self.budget.record_output_tokens(_usage_output_tokens(response))
+            result = _extract_json(_field(response, "output_text", ""))
+            result["model_profile"] = "luna"
+            result["used_current_web_search"] = False
+            return result
+        return self._respond(
+            task + " Solo usa contenido que realmente puedas leer en el enlace público. Si el sitio es privado, "
+            "bloquea la lectura o faltan cantidades/pasos, devuelve needs_clarification=true y pide una captura; "
+            "no inventes. URL proporcionada por el usuario: " + str(source),
+            context,
+            deep=True,
+            current=True,
+        )
+
     def curate_recipe(self, title: str, snapshot: dict[str, Any]) -> dict[str, Any]:
         """Create one source-backed canonical edition; callers validate before saving."""
         return self._respond(

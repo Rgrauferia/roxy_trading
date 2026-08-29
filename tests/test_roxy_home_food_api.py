@@ -9,6 +9,16 @@ def test_cooking_step_timer_detects_wait_time_without_confusing_oven_temperature
     assert cooking_step_timer_seconds("Mezcla hasta formar una masa uniforme.") == 0
 
 
+def test_local_catalog_includes_species_specific_pet_recipes_with_safety_notes():
+    from roxy_os.home_recipe_fallback import local_recipe_catalog
+
+    rows = [row for row in local_recipe_catalog({}) if row.get("audience") == "pet"]
+    assert {row["pet_species"] for row in rows} == {"dog", "cat", "ferret"}
+    assert all(row["safety_class"] == "treat" for row in rows)
+    assert all("no sustituye" in row["veterinary_note"].lower() for row in rows)
+    assert all(row["photo_asset"].startswith("/assets/roxy_home/recipes/pets/") for row in rows)
+
+
 class FakeHomeAI:
     def generate_recipe(self, prompt, snapshot, *, deep=False):
         return {
@@ -18,6 +28,19 @@ class FakeHomeAI:
             "ingredients": [{"name": "Pasta", "quantity": 1, "unit": "paquete"}],
             "steps": ["Cocinar la pasta"],
             "allergen_notes": [],
+        }
+
+    def import_recipe(self, source, snapshot, *, source_type, audience="human", pet_species=""):
+        return {
+            "title": "Premios de calabaza para perros" if audience == "pet" else "Avena de la abuela",
+            "description": "Receta importada para revisar.",
+            "kind": "other" if audience == "pet" else "meal",
+            "servings": 8 if audience == "pet" else 2,
+            "ingredients": [{"name": "Calabaza" if audience == "pet" else "Avena", "quantity": 1, "unit": "taza"}],
+            "steps": ["Mezcla los ingredientes.", "Cocina hasta que estén listos."],
+            "allergen_notes": [], "audience": audience, "pet_species": pet_species,
+            "safety_class": "treat" if audience == "pet" else "",
+            "veterinary_note": "Premio ocasional; no sustituye una dieta completa." if audience == "pet" else "",
         }
 
 
@@ -66,6 +89,36 @@ def test_home_food_api_requires_confirmation_before_touching_shopping_list(tmp_p
     assert committed.json()["status"] == "ADDED"
     assert after.json()["items"][0]["name"] == "Pasta"
     assert isolated.json()["recipes"] == []
+
+
+def test_recipe_import_is_reviewed_before_save_and_pet_profile_syncs(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "home-test-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert,alice")
+    monkeypatch.setenv("ROXY_HOME_MEMORY_PATH", str(tmp_path / "home.json"))
+    monkeypatch.setattr(roxy_home_service, "_home_ai", lambda: FakeHomeAI())
+    roxy_home_service._RATE_STATE.clear()
+    client = TestClient(roxy_home_service.app)
+    headers = {"Authorization": "Bearer home-test-key"}
+
+    pet = client.post("/v1/home-food/robert/pets", headers=headers, json={"name": "Luna", "species": "dog"})
+    preview = client.post("/v1/home-food/robert/recipe-imports", headers=headers, json={
+        "source_type": "image", "source": "data:image/jpeg;base64,AA==", "audience": "pet", "pet_species": "dog",
+    })
+    blocked = client.post("/v1/home-food/robert/recipe-imports/commit", headers=headers, json={"confirmed": False, "recipe": preview.json()["recipe"]})
+    committed = client.post("/v1/home-food/robert/recipe-imports/commit", headers=headers, json={"confirmed": True, "recipe": preview.json()["recipe"]})
+    robert = client.get("/v1/home-food/robert", headers=headers).json()
+    alice = client.get("/v1/home-food/alice", headers=headers).json()
+
+    assert pet.status_code == 201
+    assert preview.status_code == 200 and preview.json()["status"] == "READY_FOR_REVIEW"
+    assert preview.json()["recipe"]["safety_class"] == "treat"
+    assert blocked.status_code == 409
+    assert committed.status_code == 201
+    assert robert["pets"] == [pet.json()["pet"]]
+    assert robert["recipes"][0]["pet_species"] == "dog"
+    assert alice["pets"] == [] and alice["recipes"] == []
 
 
 def test_weekly_plan_is_local_persistent_and_requires_confirmation_for_shopping(tmp_path, monkeypatch):

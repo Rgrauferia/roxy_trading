@@ -42,6 +42,28 @@ def _recipe(
     return row
 
 
+def _pet_templates() -> dict[str, dict[str, Any]]:
+    dog = _recipe(
+        "Galletas de avena y plátano para perros", "Premio horneado ocasional, sin azúcar, chocolate, pasas ni xilitol.", "other", 18,
+        [("Plátano maduro", 1, "unidad"), ("Avena en hojuelas", 1.5, "taza")],
+        ["Calienta el horno a 175 °C y cubre una bandeja con papel para hornear.", "Tritura el plátano hasta obtener un puré sin trozos grandes.", "Muele una taza de avena hasta formar harina y mézclala con el puré y la avena restante.", "Extiende la masa a 6 milímetros, corta porciones pequeñas y colócalas en la bandeja.", "Hornea de 15 a 18 minutos, hasta que estén firmes; enfría por completo antes de ofrecer una."],
+    )
+    dog.update(audience="pet", pet_species="dog", safety_class="treat", veterinary_note="Premio ocasional; no sustituye un alimento completo. Confirma la porción con tu veterinario si tu perro tiene alergias o una dieta especial.", photo_asset="/assets/roxy_home/recipes/pets/dog-banana-oat-treats.jpg")
+    cat = _recipe(
+        "Bocaditos de pollo cocido para gatos", "Pollo simple y completamente cocido para usar como premio ocasional.", "other", 8,
+        [("Pechuga de pollo sin piel ni hueso", 120, "gramo"), ("Agua", 2, "taza")],
+        ["Revisa que el pollo no tenga piel, huesos, sal, ajo, cebolla ni condimentos.", "Coloca el pollo y el agua en una olla pequeña y lleva a hervor suave.", "Cocina de 12 a 15 minutos, hasta que el centro alcance 74 °C y no quede parte rosada.", "Deja enfriar, desmenuza muy fino y divide en bocados pequeños adecuados para tu gato.", "Ofrece solo una porción pequeña y refrigera el resto por un máximo de dos días."],
+    )
+    cat.update(audience="pet", pet_species="cat", safety_class="treat", veterinary_note="Premio ocasional; no sustituye una dieta completa para gatos. Consulta al veterinario para alimentación habitual.", photo_asset="/assets/roxy_home/recipes/pets/cat-cooked-chicken-bites.jpg")
+    ferret = _recipe(
+        "Bocaditos de pavo cocido para hurones", "Premio pequeño de carne simple y completamente cocida, sin cereales ni condimentos.", "other", 10,
+        [("Pavo molido sin condimentos", 150, "gramo")],
+        ["Comprueba que el pavo no contenga sal, ajo, cebolla, salsas, vegetales ni cereales añadidos.", "Calienta una sartén antiadherente a fuego medio-bajo, sin aceite ni mantequilla.", "Añade el pavo y sepáralo en trozos muy pequeños mientras se cocina.", "Cocina hasta alcanzar 74 °C y hasta que no quede carne rosada; escurre la grasa sobrante.", "Deja enfriar por completo y ofrece uno o dos trozos pequeños como premio ocasional."],
+    )
+    ferret.update(audience="pet", pet_species="ferret", safety_class="treat", veterinary_note="Premio ocasional; no sustituye una dieta completa para hurones. Consulta a un veterinario de animales exóticos.", photo_asset="/assets/roxy_home/recipes/pets/ferret-cooked-turkey-bites.jpg")
+    return {"dog_banana_oat_treats": dog, "cat_cooked_chicken_bites": cat, "ferret_cooked_turkey_bites": ferret}
+
+
 @lru_cache(maxsize=1)
 def _templates() -> dict[str, dict[str, Any]]:
     templates = {
@@ -70,6 +92,7 @@ def _templates() -> dict[str, dict[str, Any]]:
     }
     templates.update(_expanded_templates())
     templates.update(installed_recipe_templates())
+    templates.update(_pet_templates())
     for row in templates.values():
         if row.get("category"):
             continue

@@ -209,6 +209,23 @@ class HomePromptRequest(BaseModel):
     recipe_type: str = Field(default="general", pattern="^(general|alcoholic|non_alcoholic)$")
 
 
+class RecipeImportRequest(BaseModel):
+    source_type: str = Field(pattern="^(image|url)$")
+    source: str = Field(min_length=1, max_length=2_100_000)
+    audience: str = Field(default="human", pattern="^(human|pet)$")
+    pet_species: str = Field(default="", max_length=32)
+
+
+class RecipeImportCommitRequest(BaseModel):
+    recipe: dict[str, Any]
+    confirmed: bool = False
+
+
+class PetProfileRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=40)
+    species: str = Field(pattern="^(dog|cat|ferret|other)$")
+
+
 class WeeklyPlanRequest(BaseModel):
     style: str = Field(default="normal", pattern="^(fitness|normal|quick|weight_loss)$")
     people: int = Field(default=1, ge=1, le=20)
@@ -3025,6 +3042,56 @@ def generate_home_recipe(
         raise HTTPException(status_code=502, detail="Roxy devolvió una receta incompleta.") from exc
     _recipe_photo_queue().schedule(recipe)
     return {"status": "CREATED", "recipe": recipe, "generation_mode": generation_mode}
+
+
+@app.post("/v1/home-food/{user_id}/recipe-imports")
+def preview_recipe_import(user_id: str, payload: RecipeImportRequest, request: Request, auth: str = Depends(_authenticate)) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    if payload.source_type == "image" and not re.match(r"^data:image/(?:jpeg|png|webp);base64,", payload.source):
+        raise HTTPException(status_code=422, detail="La imagen debe ser JPEG, PNG o WebP.")
+    if payload.source_type == "url" and not re.match(r"^https?://", payload.source, flags=re.IGNORECASE):
+        raise HTTPException(status_code=422, detail="Escribe un enlace web completo.")
+    try:
+        result = _ai_call(lambda: _home_ai().import_recipe(
+            payload.source, _home_food_store().snapshot(user), source_type=payload.source_type,
+            audience=payload.audience, pet_species=payload.pet_species,
+        ))
+        if result.get("needs_clarification"):
+            return {"status": "NEEDS_CLARIFICATION", "question": result.get("clarification_question") or "Necesito una captura más clara para importar esta receta con seguridad."}
+        recipe = HomeFoodStore._normalize_recipe({
+            **result, "audience": payload.audience,
+            "pet_species": payload.pet_species if payload.audience == "pet" else "",
+            "generation_source": f"import_{payload.source_type}",
+        })
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "READY_FOR_REVIEW", "recipe": recipe}
+
+
+@app.post("/v1/home-food/{user_id}/recipe-imports/commit", status_code=201)
+def commit_recipe_import(user_id: str, payload: RecipeImportCommitRequest, request: Request, auth: str = Depends(_authenticate)) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    if not payload.confirmed:
+        raise HTTPException(status_code=409, detail="Confirma la receta después de revisarla.")
+    try:
+        recipe = _home_food_store().save_recipe(user, payload.recipe, mode="routine")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    _recipe_photo_queue().schedule(recipe)
+    return {"status": "CREATED", "recipe": recipe}
+
+
+@app.post("/v1/home-food/{user_id}/pets", status_code=201)
+def upsert_home_pet(user_id: str, payload: PetProfileRequest, request: Request, auth: str = Depends(_authenticate)) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        pet = _home_food_store().upsert_pet(user, **payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "SAVED", "pet": pet}
 
 
 @app.patch("/v1/home-food/{user_id}/recipes/{recipe_id}")

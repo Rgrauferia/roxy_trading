@@ -132,20 +132,20 @@ def test_calendar_api_and_voice_are_private_and_persistent(tmp_path, monkeypatch
 
     proposal = client.post(
         "/v1/assistant/command/robert",
-        json={"text": "programa una llamada del trabajo el lunes 24 a las 5:00 p. m. y recuérdame una hora antes"},
+        json={"text": "programa una llamada del trabajo el lunes 31 a las 5:00 p. m. y recuérdame una hora antes"},
     )
     before = client.get(
         "/v1/home-calendar/robert",
-        params={"start": "2026-08-23T00:00:00-04:00", "end": "2026-08-30T00:00:00-04:00"},
+        params={"start": "2026-08-30T00:00:00-04:00", "end": "2026-09-07T00:00:00-04:00"},
     )
     confirmed = client.post("/v1/assistant/command/robert", json={"text": "sí, confirmo"})
     after = client.get(
         "/v1/home-calendar/robert",
-        params={"start": "2026-08-23T00:00:00-04:00", "end": "2026-08-30T00:00:00-04:00"},
+        params={"start": "2026-08-30T00:00:00-04:00", "end": "2026-09-07T00:00:00-04:00"},
     )
     forbidden = client.get(
         "/v1/home-calendar/alice",
-        params={"start": "2026-08-23T00:00:00-04:00", "end": "2026-08-30T00:00:00-04:00"},
+        params={"start": "2026-08-30T00:00:00-04:00", "end": "2026-09-07T00:00:00-04:00"},
     )
 
     assert proposal.status_code == 200
@@ -163,12 +163,12 @@ def test_calendar_api_and_voice_are_private_and_persistent(tmp_path, monkeypatch
     )
     still_present = client.get(
         "/v1/home-calendar/robert",
-        params={"start": "2026-08-23T00:00:00-04:00", "end": "2026-08-30T00:00:00-04:00"},
+        params={"start": "2026-08-30T00:00:00-04:00", "end": "2026-09-07T00:00:00-04:00"},
     )
     cancel_confirmed = client.post("/v1/assistant/command/robert", json={"text": "sí, confirmo"})
     removed = client.get(
         "/v1/home-calendar/robert",
-        params={"start": "2026-08-23T00:00:00-04:00", "end": "2026-08-30T00:00:00-04:00"},
+        params={"start": "2026-08-30T00:00:00-04:00", "end": "2026-09-07T00:00:00-04:00"},
     )
 
     assert cancel_proposal.json()["intent"] == "calendar_cancel"
