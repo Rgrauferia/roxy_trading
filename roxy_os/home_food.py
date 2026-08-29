@@ -314,7 +314,7 @@ class HomeFoodStore:
         pet_species = _identity(species)
         if not pet_name:
             raise ValueError("La mascota necesita un nombre.")
-        if pet_species not in {"dog", "cat", "ferret", "other"}:
+        if pet_species not in {"dog", "cat", "ferret", "rabbit", "guinea_pig", "hamster", "bird", "other"}:
             raise ValueError("La especie de la mascota no es válida.")
 
         def apply(payload: dict[str, Any]) -> dict[str, Any]:
@@ -468,6 +468,7 @@ class HomeFoodStore:
             "allergen_notes": _string_list(raw.get("allergen_notes"), limit=20),
             "audience": "pet" if _identity(raw.get("audience")) == "pet" else "human",
             "pet_species": _text(raw.get("pet_species"), 32),
+            "pet_category": _text(raw.get("pet_category"), 40),
             "safety_class": _text(raw.get("safety_class"), 32),
             "veterinary_note": _text(raw.get("veterinary_note"), 1000),
             "photo_asset": _text(raw.get("photo_asset"), 240),

@@ -115,7 +115,7 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         ["Comprueba que la carne no incluya sal, ajo, cebolla, salsas, cereales ni especias.", "Calienta una sartén antiadherente a fuego medio-bajo, sin aceite ni mantequilla.", "Añade la carne y sepárala en trozos pequeños mientras se cocina.", "Cocina hasta que no quede carne rosada y el centro alcance al menos 71 °C; escurre la grasa sobrante.", "Enfría por completo y ofrece uno o dos trozos pequeños como premio ocasional."],
     )
     ferret_beef.update(audience="pet", pet_species="ferret", safety_class="treat", veterinary_note="Premio ocasional; no sustituye una dieta completa para hurones. Consulta a un veterinario de animales exóticos.", photo_asset="/assets/roxy_home/recipes/pets/ferret-cooked-beef-bites.png")
-    return {
+    recipes = {
         "dog_banana_oat_treats": dog,
         "dog_pumpkin_oat_biscuits": dog_pumpkin,
         "dog_blueberry_yogurt_bites": dog_yogurt,
@@ -129,6 +129,95 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         "ferret_cooked_egg_bites": ferret_egg,
         "ferret_cooked_beef_bites": ferret_beef,
     }
+    rabbit_source = {"title": "Merck Veterinary Manual · Nutrición de conejos", "url": "https://www.merckvetmanual.com/exotic-and-laboratory-animals/rabbits/nutrition-of-rabbits", "authority": "Merck Veterinary Manual"}
+    guinea_source = {"title": "Merck Veterinary Manual · Nutrición de cobayas", "url": "https://www.merckvetmanual.com/exotic-and-laboratory-animals/guinea-pigs/housing-and-nutrition-of-guinea-pigs", "authority": "Merck Veterinary Manual"}
+    hamster_source = {"title": "Merck Veterinary Manual · Hámsteres", "url": "https://www.merckvetmanual.com/exotic-and-laboratory-animals/rodents/hamsters", "authority": "Merck Veterinary Manual"}
+    bird_source = {"title": "Merck Veterinary Manual · Alimentación de aves de compañía", "url": "https://www.merckvetmanual.com/en-us/veterinary/bird-owners/choosing-and-taking-care-of-a-pet-bird/feeding-a-pet-bird", "authority": "Merck Veterinary Manual"}
+    additions = {
+        "rabbit_morning_greens": _recipe(
+            "Verdes frescos de la mañana para conejos", "Complemento fresco de hojas lavadas; el heno sigue siendo la base de la alimentación.", "other", 1,
+            [("Lechuga romana", 1, "hoja"), ("Cilantro", 2, "ramita")],
+            ["Lávate las manos y usa una tabla limpia, sin restos de cebolla, ajo ni condimentos.", "Lava muy bien la lechuga y el cilantro con agua corriente.", "Sacude el exceso de agua y revisa que no haya partes marchitas o dañadas.", "Rompe las hojas con las manos en trozos fáciles de tomar; no añadas sal, aceite ni aderezos.", "Sirve una cantidad acorde con el plan indicado por su veterinario junto con heno y agua fresca; retira lo que no coma en dos horas."],
+        ),
+        "rabbit_pepper_herb_plate": _recipe(
+            "Platito de pimiento y hierbas para conejos", "Pequeño complemento de vegetales frescos, sin fruta ni ingredientes azucarados.", "other", 1,
+            [("Pimiento rojo", 1, "tira pequeña"), ("Perejil", 2, "ramita"), ("Lechuga romana", 1, "hoja")],
+            ["Lávate las manos y limpia la superficie de preparación.", "Lava el pimiento, el perejil y la lechuga con agua corriente.", "Retira del pimiento el tallo, las semillas y las partes blancas; corta una tira pequeña en cubos.", "Rompe la lechuga y mezcla suavemente con el pimiento y el perejil, sin sal ni aderezo.", "Ofrece solo la porción acordada con su veterinario y mantén disponible heno de pasto y agua fresca."],
+        ),
+        "rabbit_cucumber_basil_bites": _recipe(
+            "Bocaditos de pepino y albahaca para conejos", "Premio fresco y pequeño para ofrecer de forma ocasional.", "other", 4,
+            [("Pepino", 2, "rodaja fina"), ("Albahaca fresca", 2, "hoja")],
+            ["Lávate las manos y enjuaga el pepino y la albahaca bajo agua corriente.", "Corta dos rodajas finas de pepino y después divide cada una por la mitad.", "Seca suavemente las hojas de albahaca y córtalas en tiras pequeñas.", "Coloca una pizca de albahaca sobre cada trozo de pepino; no añadas sal, aceite ni especias.", "Ofrece un solo trozo como premio ocasional y retira lo que no coma pronto; no reemplaza heno, pellets apropiados ni agua."],
+        ),
+        "guinea_morning_vitamin_c": _recipe(
+            "Pimiento y hojas de la mañana para cobayas", "Complemento fresco con pimiento; no sustituye pellets formulados ni heno.", "other", 1,
+            [("Pimiento rojo", 2, "tira pequeña"), ("Lechuga romana", 1, "hoja"), ("Cilantro", 2, "ramita")],
+            ["Lávate las manos y usa utensilios limpios.", "Lava el pimiento, la lechuga y el cilantro con agua corriente.", "Retira tallo, semillas y partes blancas del pimiento y córtalo en tiras pequeñas.", "Rompe las hojas y combina los vegetales sin sal, aceite, azúcar ni aderezos.", "Sirve la cantidad indicada para tu cobaya junto con heno, pellets específicos y agua; retira las sobras frescas en dos horas."],
+        ),
+        "guinea_cucumber_pepper_plate": _recipe(
+            "Platito fresco de pepino y pimiento para cobayas", "Complemento vegetal hidratante en una porción controlada.", "other", 1,
+            [("Pepino", 2, "rodaja fina"), ("Pimiento verde", 1, "tira pequeña")],
+            ["Lava tus manos, el cuchillo y la tabla antes de comenzar.", "Enjuaga el pepino y el pimiento con agua corriente.", "Retira el tallo y las semillas del pimiento y córtalo en cubos pequeños.", "Divide las rodajas de pepino en trozos y mézclalas con el pimiento, sin condimentos.", "Ofrece una porción pequeña dentro de su ración habitual de vegetales y retira las sobras en dos horas."],
+        ),
+        "guinea_herb_foraging_cup": _recipe(
+            "Copa de hierbas para explorar para cobayas", "Pequeño enriquecimiento de hojas frescas y seguras.", "other", 1,
+            [("Cilantro", 3, "ramita"), ("Perejil", 1, "ramita"), ("Lechuga romana", 1, "hoja")],
+            ["Consulta el plan alimentario de tu cobaya si tiene antecedentes urinarios o una dieta prescrita.", "Lava todas las hojas con agua corriente y desecha las partes dañadas.", "Sécalas suavemente y corta la lechuga en tiras anchas.", "Coloca las hierbas dentro de la hoja doblada para formar un pequeño paquete de exploración, sin cuerda ni sujetadores.", "Entrégalo bajo supervisión y retira las hojas que no consuma en dos horas; no reemplaza heno ni pellets formulados."],
+        ),
+        "hamster_morning_oat": _recipe(
+            "Avena simple de la mañana para hámsteres", "Porción diminuta y ocasional; el alimento completo para hámster sigue siendo la base.", "other", 1,
+            [("Avena en hojuelas simple", 1, "cucharadita"), ("Agua", 2, "cucharadita")],
+            ["Confirma que la avena sea simple, sin azúcar, saborizantes, chocolate, frutas secas ni edulcorantes.", "Mezcla la avena y el agua en un recipiente pequeño apto para calor.", "Cocina hasta que la avena esté blanda y haya absorbido el agua; no añadas leche, sal ni miel.", "Déjala enfriar completamente y separa una porción del tamaño indicado por su veterinario.", "Ofrece solo una cantidad diminuta y retira las sobras húmedas en una hora para evitar que las almacene."],
+        ),
+        "hamster_egg_crumb": _recipe(
+            "Miguita de huevo cocido para hámsteres", "Premio proteico diminuto y completamente cocido.", "other", 4,
+            [("Huevo", 1, "unidad")],
+            ["Coloca el huevo en una olla, cúbrelo con agua y llévalo a hervor.", "Cocínalo 10 minutos para que la clara y la yema queden completamente firmes.", "Enfríalo en agua, pélalo y corta una miguita muy pequeña, sin sal ni condimentos.", "Deja que la porción alcance temperatura ambiente antes de ofrecerla.", "Entrega solo la cantidad aprobada para su especie y tamaño; refrigera el resto para consumo humano y retira cualquier sobra de la jaula en una hora."],
+        ),
+        "hamster_cucumber_seedless": _recipe(
+            "Cuadrito de pepino para hámsteres", "Premio fresco de tamaño muy pequeño para ofrecer ocasionalmente.", "other", 2,
+            [("Pepino", 1, "rodaja muy fina")],
+            ["Lava tus manos, el cuchillo y el pepino con agua corriente.", "Corta una rodaja muy fina y retira las semillas grandes si las hubiera.", "Divide la rodaja en dos cuadritos diminutos, adecuados al tamaño del hámster.", "Seca la superficie con papel limpio para reducir el exceso de humedad.", "Ofrece un solo cuadrito y retíralo en una hora si lo guarda; no sustituye el alimento completo formulado."],
+        ),
+        "bird_morning_chop": _recipe(
+            "Chop de vegetales de la mañana para aves", "Complemento fresco para aves que ya toleran estos vegetales; la dieta formulada sigue siendo la base.", "other", 2,
+            [("Pimiento rojo", 1, "tira"), ("Brócoli", 1, "florete pequeño"), ("Zanahoria", 1, "rodaja fina")],
+            ["Confirma con un veterinario aviar que estos vegetales sean apropiados para la especie de tu ave.", "Lava tus manos, la tabla y todos los vegetales con agua corriente.", "Retira semillas y tallo del pimiento y pica todos los vegetales en trozos adecuados al tamaño del pico.", "Mézclalos sin sal, aceite, aguacate, ajo, cebolla ni condimentos.", "Sirve una porción pequeña en un recipiente limpio y retírala después de dos horas; no reemplaza pellets formulados ni agua."],
+        ),
+        "bird_quinoa_vegetable": _recipe(
+            "Quinoa tibia con vegetales para aves", "Complemento ocasional de quinoa cocida y vegetales, adaptado a la especie.", "other", 4,
+            [("Quinoa", 2, "cucharada"), ("Agua", 0.25, "taza"), ("Pimiento rojo", 1, "tira pequeña")],
+            ["Enjuaga la quinoa varias veces hasta que el agua salga clara.", "Cocínala en el agua sin sal ni aceite hasta que esté tierna y el líquido se absorba.", "Lava el pimiento, retira tallo y semillas y pícalo muy fino.", "Mezcla una pequeña cantidad de pimiento con la quinoa y deja enfriar por completo.", "Sirve una porción apropiada para la especie y retira las sobras en dos horas; conserva el resto refrigerado por un máximo de un día."],
+        ),
+        "bird_apple_carrot": _recipe(
+            "Picadito de manzana y zanahoria para aves", "Premio fresco ocasional; la manzana se prepara sin semillas ni corazón.", "other", 3,
+            [("Manzana", 1, "gajo pequeño"), ("Zanahoria", 1, "rodaja fina")],
+            ["Confirma con un veterinario aviar que la preparación sea apropiada para la especie de tu ave.", "Lava la manzana y la zanahoria con agua corriente.", "Retira por completo semillas, corazón y tallo de la manzana.", "Pica la fruta y la zanahoria en trozos adecuados al tamaño del pico, sin azúcar, miel ni condimentos.", "Ofrece una porción pequeña como premio y retira las sobras en dos horas; la fruta no debe desplazar su dieta formulada."],
+        ),
+    }
+    species_sources = {"rabbit": rabbit_source, "guinea_pig": guinea_source, "hamster": hamster_source, "bird": bird_source}
+    category_by_key = {
+        "rabbit_morning_greens": "pet_morning", "rabbit_pepper_herb_plate": "pet_fresh", "rabbit_cucumber_basil_bites": "pet_treats",
+        "guinea_morning_vitamin_c": "pet_morning", "guinea_cucumber_pepper_plate": "pet_fresh", "guinea_herb_foraging_cup": "pet_treats",
+        "hamster_morning_oat": "pet_morning", "hamster_egg_crumb": "pet_treats", "hamster_cucumber_seedless": "pet_fresh",
+        "bird_morning_chop": "pet_morning", "bird_quinoa_vegetable": "pet_fresh", "bird_apple_carrot": "pet_treats",
+    }
+    species_by_key = {key: key.split("_", 1)[0] for key in additions}
+    species_by_key.update({key: "guinea_pig" for key in additions if key.startswith("guinea_")})
+    for key, recipe in additions.items():
+        species = species_by_key[key]
+        recipe.update(
+            audience="pet", pet_species=species, pet_category=category_by_key[key], safety_class="treat",
+            veterinary_note="Complemento o premio ocasional; no sustituye una dieta completa. Confirma ingredientes y porción con un veterinario que conozca esta especie.",
+            sources=[species_sources[species]], editorial_status="verified_veterinary_guidance",
+        )
+    recipes.update(additions)
+    for key, recipe in recipes.items():
+        if not recipe.get("pet_category"):
+            title = _identity(recipe.get("title"))
+            recipe["pet_category"] = "pet_morning" if "huevo" in title else "pet_fresh" if re.search(r"helado|yogur|salmon", title) else "pet_treats"
+        recipe.setdefault("editorial_status", "verified_veterinary_guidance")
+    return recipes
 
 
 @lru_cache(maxsize=1)
@@ -382,6 +471,14 @@ def find_local_recipe(prompt: str, snapshot: dict[str, Any]) -> dict[str, Any] |
     """Return a common curated recipe, or ``None`` when OpenAI is warranted."""
     key = _local_recipe_key(prompt)
     return _prepare_local_recipe(key, snapshot) if key else None
+
+
+def local_recipe_by_key(key: str, snapshot: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the exact installed recipe selected by the trusted catalog UI."""
+    catalog_key = str(key or "").strip()
+    if not catalog_key or catalog_key not in _unique_catalog_templates():
+        return None
+    return _prepare_local_recipe(catalog_key, snapshot)
 
 
 def local_recipe_catalog_summary() -> dict[str, int]:

@@ -32,6 +32,7 @@ from roxy_os.home_recipe_fallback import (
     find_local_recipe,
     generate_local_recipe,
     local_recipe_catalog,
+    local_recipe_by_key,
     local_recipe_catalog_summary,
 )
 from roxy_os.home_recipe_editorial import recipe_quality_issues
@@ -59,6 +60,7 @@ from roxy_os.home_commerce import (
 from roxy_os.home_conversation import HomeConversationStore
 from roxy_os.home_daily import build_home_daily_brief
 from roxy_os.home_design import HomeDesignGenerator, HomeDesignStore, public_project
+from roxy_os.home_plants import HomePlantIdentifier, HomePlantStore, PLANT_CATALOG, public_plant
 from roxy_os.home_food import HomeFoodStore, HomePermissionPolicy
 from roxy_os.home_price_recommendations import (
     PRICE_NOTICE,
@@ -193,6 +195,54 @@ class HomeDesignFitRequest(BaseModel):
     max_depth: float = Field(default=0, ge=0, le=2_000)
 
 
+class HomePlantIdentifyRequest(BaseModel):
+    photo_data_url: str = Field(min_length=32, max_length=8_100_000)
+
+
+class HomePlantCreateRequest(BaseModel):
+    display_name: str = Field(default="", max_length=60)
+    species_key: str = Field(default="unknown", max_length=40)
+    room: str = Field(default="", max_length=60)
+    placement: str = Field(default="indoor", pattern="^(indoor|outdoor)$")
+    pot_type: str = Field(default="unknown", max_length=30)
+    drainage: bool = False
+    notes: str = Field(default="", max_length=800)
+    photo_data_url: str = Field(min_length=32, max_length=8_100_000)
+
+
+class HomePlantUpdateRequest(BaseModel):
+    display_name: str | None = Field(default=None, max_length=60)
+    species_key: str | None = Field(default=None, max_length=40)
+    room: str | None = Field(default=None, max_length=60)
+    placement: str | None = Field(default=None, pattern="^(indoor|outdoor)$")
+    pot_type: str | None = Field(default=None, max_length=30)
+    drainage: bool | None = None
+    notes: str | None = Field(default=None, max_length=800)
+
+
+class HomePlantTaskCompleteRequest(BaseModel):
+    observation: str = Field(default="", max_length=300)
+
+
+class HomePlantJournalRequest(BaseModel):
+    notes: str = Field(default="", max_length=600)
+    photo_data_url: str = Field(default="", max_length=8_100_000)
+
+
+class HomePlantVacationRequest(BaseModel):
+    enabled: bool = False
+    starts_on: str = Field(default="", max_length=10)
+    ends_on: str = Field(default="", max_length=10)
+    caregiver: str = Field(default="", max_length=80)
+    notes: str = Field(default="", max_length=500)
+
+
+class HomePlantReminderRequest(BaseModel):
+    task_id: str = Field(min_length=1, max_length=64)
+    time: str = Field(default="09:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    reminder_minutes: int = Field(default=60, ge=0, le=43_200)
+
+
 class PantryItemRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     quantity: float = Field(default=1, gt=0, le=100_000)
@@ -207,6 +257,7 @@ class HomePromptRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=2000)
     mode: str = Field(default="routine", pattern="^(routine|deep)$")
     recipe_type: str = Field(default="general", pattern="^(general|alcoholic|non_alcoholic)$")
+    catalog_key: str = Field(default="", max_length=120)
 
 
 class RecipeImportRequest(BaseModel):
@@ -223,7 +274,7 @@ class RecipeImportCommitRequest(BaseModel):
 
 class PetProfileRequest(BaseModel):
     name: str = Field(min_length=1, max_length=40)
-    species: str = Field(pattern="^(dog|cat|ferret|other)$")
+    species: str = Field(pattern="^(dog|cat|ferret|rabbit|guinea_pig|hamster|bird|other)$")
 
 
 class WeeklyPlanRequest(BaseModel):
@@ -488,6 +539,13 @@ def _design_store() -> HomeDesignStore:
     return HomeDesignStore(
         os.getenv("ROXY_HOME_DESIGN_PATH", "data/roxy_home_design.json"),
         os.getenv("ROXY_HOME_DESIGN_IMAGE_DIR", "data/roxy_home_design"),
+    )
+
+
+def _plant_store() -> HomePlantStore:
+    return HomePlantStore(
+        os.getenv("ROXY_HOME_PLANTS_PATH", "data/roxy_home_plants.json"),
+        os.getenv("ROXY_HOME_PLANTS_IMAGE_DIR", "data/roxy_home_plants"),
     )
 
 
@@ -2236,6 +2294,228 @@ def read_home_daily(
     return _daily_brief(user, auth)
 
 
+@app.get("/v1/home-plants/{user_id}")
+def read_home_plants(
+    user_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    result = _plant_store().snapshot(user, user)
+    result["identification_configured"] = HomePlantIdentifier.from_env().configured
+    result["species"] = [
+        {"key": key, "common_name": value["common_name"], "scientific_name": value["scientific_name"]}
+        for key, value in PLANT_CATALOG.items()
+    ]
+    return result
+
+
+@app.post("/v1/home-plants/{user_id}/identify")
+def identify_home_plant(
+    user_id: str,
+    payload: HomePlantIdentifyRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    _authorize_user(user_id, auth)
+    try:
+        proposal = HomePlantIdentifier.from_env().identify(payload.photo_data_url)
+    except (ValueError, HomeAIConfigurationError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="No pude analizar la foto. Puedes elegir la especie manualmente.") from exc
+    return {"status": "CONFIRMATION_REQUIRED", "proposal": proposal}
+
+
+@app.post("/v1/home-plants/{user_id}", status_code=201)
+def create_home_plant(
+    user_id: str,
+    payload: HomePlantCreateRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    values = payload.model_dump()
+    identification: dict[str, Any] | None = None
+    if values.get("species_key") == "unknown":
+        try:
+            identification = HomePlantIdentifier.from_env().identify(values["photo_data_url"])
+        except Exception:
+            identification = {"status": "UNAVAILABLE", "species_key": "unknown", "confidence": 0, "alternatives": [], "warning": "Elige la especie para confirmar el cuidado."}
+    try:
+        row = _plant_store().create(user, user, values, identification)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "CREATED", "plant": public_plant(row, user), "identification": identification}
+
+
+@app.patch("/v1/home-plants/{user_id}/{plant_id}")
+def update_home_plant(
+    user_id: str,
+    plant_id: str,
+    payload: HomePlantUpdateRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        row = _plant_store().update(user, plant_id, payload.model_dump(exclude_none=True))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Planta no encontrada.") from exc
+    return {"status": "UPDATED", "plant": public_plant(row, user)}
+
+
+@app.delete("/v1/home-plants/{user_id}/{plant_id}", status_code=204)
+def delete_home_plant(
+    user_id: str,
+    plant_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> Response:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        _plant_store().delete(user, plant_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Planta no encontrada.") from exc
+    return Response(status_code=204)
+
+
+@app.get("/v1/home-plants/{user_id}/{plant_id}/image")
+def read_home_plant_image(
+    user_id: str,
+    plant_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> FileResponse:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        row = _plant_store().plant(user, plant_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Imagen no encontrada.") from exc
+    path = Path(str(row.get("photo_path") or ""))
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Imagen no encontrada.")
+    return FileResponse(path, media_type=str(row.get("photo_media_type") or "image/jpeg"))
+
+
+@app.post("/v1/home-plants/{user_id}/{plant_id}/tasks/{task_id}/complete")
+def complete_home_plant_task(
+    user_id: str,
+    plant_id: str,
+    task_id: str,
+    payload: HomePlantTaskCompleteRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    member = _member_for_auth(auth) or {}
+    actor = str(member.get("display_name") or "Miembro del hogar")
+    try:
+        row = _plant_store().complete_task(user, plant_id, task_id, actor, payload.observation)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Tarea o planta no encontrada.") from exc
+    return {"status": "COMPLETED", "plant": public_plant(row, user)}
+
+
+@app.post("/v1/home-plants/{user_id}/{plant_id}/journal", status_code=201)
+def add_home_plant_journal(
+    user_id: str,
+    plant_id: str,
+    payload: HomePlantJournalRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        entry = _plant_store().add_journal(user, plant_id, user, payload.notes, payload.photo_data_url)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Planta no encontrada.") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    entry.pop("photo_path", None)
+    entry.pop("photo_media_type", None)
+    return {"status": "CREATED", "entry": entry}
+
+
+@app.get("/v1/home-plants/{user_id}/{plant_id}/journal/{entry_id}/image")
+def read_home_plant_journal_image(
+    user_id: str,
+    plant_id: str,
+    entry_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> FileResponse:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        row = _plant_store().plant(user, plant_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Imagen no encontrada.") from exc
+    entry = next((item for item in row.get("journal", []) if item.get("id") == entry_id), None)
+    path = Path(str((entry or {}).get("photo_path") or ""))
+    if not entry or not path.is_file():
+        raise HTTPException(status_code=404, detail="Imagen no encontrada.")
+    return FileResponse(path, media_type=str(entry.get("photo_media_type") or "image/jpeg"))
+
+
+@app.put("/v1/home-plants/{user_id}/vacation")
+def update_home_plant_vacation(
+    user_id: str,
+    payload: HomePlantVacationRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    return {"status": "UPDATED", "vacation": _plant_store().set_vacation(user, payload.model_dump())}
+
+
+@app.post("/v1/home-plants/{user_id}/{plant_id}/reminders", status_code=201)
+def create_home_plant_reminder(
+    user_id: str,
+    plant_id: str,
+    payload: HomePlantReminderRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        plant = _plant_store().plant(user, plant_id)
+        task = next(item for item in plant.get("care_tasks", []) if item.get("id") == payload.task_id)
+    except (KeyError, StopIteration) as exc:
+        raise HTTPException(status_code=404, detail="Tarea o planta no encontrada.") from exc
+    try:
+        starts_at = datetime.fromisoformat(f"{task['due_date']}T{payload.time}:00").replace(tzinfo=ZoneInfo(DEFAULT_TIMEZONE))
+        event = _calendar_store().create(
+            _calendar_owner_key(auth, user),
+            {
+                "title": f"Cuidar {plant['display_name']}: {str(task.get('title') or 'revisar planta')}",
+                "starts_at": starts_at.isoformat(),
+                "ends_at": (starts_at + timedelta(minutes=15)).isoformat(),
+                "timezone": DEFAULT_TIMEZONE,
+                "category": "HOME",
+                "reminder_minutes": payload.reminder_minutes,
+                "notes": f"Tarea de Mi jardín en Roxy Home. {plant.get('soil_rule', '')}",
+                "recurrence": "NONE",
+                "all_day": False,
+            },
+            source="home_plants",
+        )
+        _plant_store().link_task_calendar(user, plant_id, payload.task_id, event["id"])
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=422, detail="No pude preparar este recordatorio.") from exc
+    return {"status": "CREATED", "event": event, "sync": _sync_calendar_event(_calendar_owner_key(auth, user), event)}
+
+
 @app.get("/v1/home-weather/{user_id}")
 def read_home_weather(
     user_id: str,
@@ -3028,12 +3308,18 @@ def generate_home_recipe(
     user = _authorize_user(user_id, auth)
     store = _home_food_store()
     snapshot = store.snapshot(user)
-    recipe_data, generation_mode = _ai_call(lambda: _recipe_with_resilience(
-        payload.prompt,
-        snapshot,
-        deep=payload.mode == "deep",
-        recipe_type=payload.recipe_type,
-    ))
+    if payload.catalog_key:
+        recipe_data = local_recipe_by_key(payload.catalog_key, snapshot)
+        if recipe_data is None:
+            raise HTTPException(status_code=404, detail="Esa receta ya no está disponible en el catálogo.")
+        generation_mode = "local_catalog_exact"
+    else:
+        recipe_data, generation_mode = _ai_call(lambda: _recipe_with_resilience(
+            payload.prompt,
+            snapshot,
+            deep=payload.mode == "deep",
+            recipe_type=payload.recipe_type,
+        ))
     if payload.recipe_type != "general":
         recipe_data = {**recipe_data, "kind": "drink", "drink_type": payload.recipe_type}
     try:

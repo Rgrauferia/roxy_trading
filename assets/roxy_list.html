@@ -8,14 +8,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="95" />
+  <meta name="roxy-home-version" content="96" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=76" />
-  <script src="/assets/roxy_list.js?v=95" defer></script>
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=77" />
+  <script src="/assets/roxy_list.js?v=96" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -42,6 +42,11 @@
         <span id="todayWeatherIcon" class="material-symbols-rounded weather-card-icon" aria-hidden="true">partly_cloudy_day</span>
         <div><small id="todayWeatherLocation">Clima en tu zona</small><strong id="todayWeatherTitle">Activa tu ubicación aproximada</strong><em id="todayWeatherDetail">Roxy podrá anticipar lluvia y ayudarte a organizar el día.</em><a class="weather-source" href="https://open-meteo.com/" target="_blank" rel="noopener">Datos: Open-Meteo</a></div>
         <button id="todayWeatherAction" type="button" aria-label="Usar mi ubicación para mostrar el clima"><span class="material-symbols-rounded" aria-hidden="true">location_on</span><b>Activar</b></button>
+      </section>
+      <section id="todayPlantCareCard" class="today-plant-care" aria-labelledby="todayPlantCareTitle" hidden>
+        <span class="material-symbols-rounded" aria-hidden="true">potted_plant</span>
+        <div><small>Mi jardín · cuidado de hoy</small><strong id="todayPlantCareTitle">Tus plantas están al día</strong><em id="todayPlantCareDetail"></em></div>
+        <button type="button" data-tab-link="plants">Ver</button>
       </section>
       <section id="mealPlanStudio" class="meal-plan-studio" aria-labelledby="mealPlanTitle">
         <div class="meal-plan-heading"><p class="eyebrow">Tu semana, organizada</p><h2 id="mealPlanTitle">Plan de comidas</h2><p>Roxy adapta desayuno, comida y cena al ritmo real de tu hogar.</p></div>
@@ -107,6 +112,21 @@
       <p id="designGenerationNotice" class="design-generation-notice" role="status"></p>
       <div class="design-catalog-sources" aria-label="Catálogos de muebles conectados"><span class="material-symbols-rounded" aria-hidden="true">storefront</span><div><strong>Fuentes de muebles</strong><small>IKEA · Wayfair · West Elm · Article · Amazon</small></div></div>
       <div id="designProjects" class="design-projects" aria-live="polite"></div>
+    </section>
+
+    <section id="plantsPanel" class="app-panel plants-panel" data-panel="plants" aria-labelledby="plantsTitle" hidden>
+      <header class="plants-heading">
+        <div><p class="eyebrow">Tu jardín, acompañado</p><h2 id="plantsTitle">Mi jardín</h2><p>Roxy te ayuda a observar cada planta, recordar sus cuidados y aprender con ella.</p></div>
+        <button id="newPlantButton" class="primary" type="button"><span class="material-symbols-rounded" aria-hidden="true">add_a_photo</span> Añadir planta</button>
+      </header>
+      <section id="plantCareToday" class="plant-care-today" aria-labelledby="plantCareTodayTitle">
+        <div><small>Para hoy</small><h3 id="plantCareTodayTitle">Cuidados pendientes</h3></div>
+        <div id="plantTasksToday" class="plant-tasks-today"></div>
+      </section>
+      <section class="plant-guidance-notice"><span class="material-symbols-rounded" aria-hidden="true">verified_user</span><p>Roxy recomienda revisar la tierra y observar la planta antes de regar. La especie, luz, maceta, drenaje y clima cambian sus necesidades.</p></section>
+      <div class="plants-toolbar"><strong id="plantCount">0 plantas</strong><button id="plantVacationButton" type="button"><span class="material-symbols-rounded" aria-hidden="true">flight_takeoff</span> Modo viaje</button></div>
+      <div id="plantCollection" class="plant-collection" aria-live="polite"></div>
+      <footer class="plant-sources"><strong>Fuentes de cuidado</strong><a href="https://extension.illinois.edu/houseplants/watering" target="_blank" rel="noopener">University of Illinois Extension</a><a href="https://www.aspca.org/pet-care/aspca-poison-control/toxic-and-non-toxic-plants" target="_blank" rel="noopener">ASPCA · seguridad para mascotas</a></footer>
     </section>
 
     <section id="calendarPanel" class="app-panel calendar-panel" data-panel="calendar" aria-labelledby="calendarTitle" hidden>
@@ -325,8 +345,31 @@
     <button id="roxyVoiceLauncher" class="roxy-nav" type="button" aria-controls="roxyVoicePanel" aria-expanded="false"><img data-roxy-avatar src="/assets/roxy_home_avatar.jpg" alt="" /><strong>Roxy</strong></button>
     <button type="button" data-tab-link="recipes"><span class="material-symbols-rounded" aria-hidden="true">menu_book</span><strong>Recetas</strong></button>
     <button type="button" data-tab-link="design"><span class="material-symbols-rounded" aria-hidden="true">chair</span><strong>Renueva</strong></button>
+    <button type="button" data-tab-link="plants"><span class="material-symbols-rounded" aria-hidden="true">potted_plant</span><strong>Jardín</strong></button>
     <button type="button" data-tab-link="calendar"><span class="material-symbols-rounded" aria-hidden="true">calendar_month</span><strong>Calendario</strong></button>
   </nav>
+
+  <dialog id="plantDialog" class="plant-dialog" aria-labelledby="plantDialogTitle">
+    <form id="plantForm">
+      <div class="dialog-heading"><div><p class="eyebrow">Una nueva compañera verde</p><h2 id="plantDialogTitle">Añadir planta</h2></div><button type="button" data-close-dialog="plantDialog" aria-label="Cerrar">Cerrar</button></div>
+      <label class="plant-photo-input"><span>Foto actual de la planta</span><input id="plantPhoto" type="file" accept="image/jpeg,image/png,image/webp" required /><small>Roxy propondrá una identificación; tú la confirmas.</small></label>
+      <label><span>Nombre en casa</span><input id="plantName" maxlength="60" placeholder="Ej. Monstera del salón" /></label>
+      <label><span>Especie</span><select id="plantSpecies"><option value="unknown">Que Roxy la proponga</option></select></label>
+      <div id="plantIdentificationNote" class="plant-identification-note" hidden></div>
+      <div class="form-row"><label><span>Habitación o zona</span><input id="plantRoom" maxlength="60" placeholder="Sala, balcón…" /></label><label><span>Ubicación</span><select id="plantPlacement"><option value="indoor">Interior</option><option value="outdoor">Exterior</option></select></label></div>
+      <div class="form-row"><label><span>Maceta</span><select id="plantPot"><option value="unknown">No sé</option><option value="plastic">Plástico</option><option value="terracotta">Terracota</option><option value="ceramic">Cerámica</option></select></label><label class="check-label"><input id="plantDrainage" type="checkbox" /><span>Tiene drenaje</span></label></div>
+      <label><span>Notas</span><textarea id="plantNotes" maxlength="800" placeholder="Cuándo llegó, dónde recibe luz…"></textarea></label>
+      <button id="plantSubmit" class="primary full" type="submit">Analizar y añadir</button>
+    </form>
+  </dialog>
+
+  <dialog id="plantDetailDialog" class="plant-detail-dialog" aria-labelledby="plantDetailTitle">
+    <article><div class="dialog-heading"><div><p class="eyebrow">Ficha de cuidado</p><h2 id="plantDetailTitle">Mi planta</h2></div><button type="button" data-close-dialog="plantDetailDialog" aria-label="Cerrar">Cerrar</button></div><div id="plantDetailContent"></div></article>
+  </dialog>
+
+  <dialog id="plantVacationDialog" class="plant-dialog" aria-labelledby="plantVacationTitle">
+    <form id="plantVacationForm"><div class="dialog-heading"><div><p class="eyebrow">Cuidados compartidos</p><h2 id="plantVacationTitle">Modo viaje</h2></div><button type="button" data-close-dialog="plantVacationDialog">Cerrar</button></div><label class="check-label"><input id="plantVacationEnabled" type="checkbox" /><span>Activar plan de viaje</span></label><div class="form-row"><label><span>Desde</span><input id="plantVacationStart" type="date" /></label><label><span>Hasta</span><input id="plantVacationEnd" type="date" /></label></div><label><span>Quién cuidará</span><input id="plantVacationCaregiver" maxlength="80" /></label><label><span>Notas</span><textarea id="plantVacationNotes" maxlength="500"></textarea></label><button class="primary full" type="submit">Guardar plan</button></form>
+  </dialog>
 
   <dialog id="customDialog" aria-labelledby="customTitle">
     <form id="customForm">
