@@ -114,7 +114,7 @@
   let homePlants={plants:[],due_today:[],vacation:{},species:[],identification_configured:false};
   let homeFamily={status:'UNAVAILABLE',members:[],places:[],alerts:[],capabilities:{}};
   let familyWatchId=null,familyMap=null,familyMapMarkers=[],familyRoute=null,familyMapLoader=null,familyRefreshTimer=null;
-  let familySelectedMemberId='',familyMapStyle='roadmap',familyDirectionsRenderer=null,familyRouteSnapshot=null;
+  let familySelectedMemberId='',familyMapStyle='roadmap',familyDirectionsRenderer=null,familyRouteSnapshot=null,familyRouteMode=false;
   let familyProfilePhotoData='';
   let currentPlant=null;
   let designPoll=null;
@@ -501,6 +501,7 @@
   }
 
   function selectPanel(panel,{smooth=true}={}) {
+    document.body.classList.toggle('family-mode',panel==='family');
     document.querySelectorAll('[data-panel]').forEach(node => {
       const active = node.dataset.panel === panel;
       node.hidden = !active;
@@ -515,7 +516,7 @@
     // dedicated welcome experience. Today starts and ends with useful content,
     // while the center Roxy tab remains the conversation entry point.
     $('homeWelcome').hidden=true;
-    const hashes={today:'hoy',shopping:'compra',recipes:'recetas',pantry:'despensa',calendar:'calendario',design:'renueva',plants:'jardin',family:'familia',more:'mas'};
+    const hashes={today:'hoy',shopping:'compra',recipes:'recetas',pantry:'despensa',calendar:'calendario',design:'renueva',plants:'jardin',family:'nexo',more:'mas'};
     location.hash=hashes[panel]||'hoy';
     window.scrollTo({top:0,behavior:smooth?'smooth':'auto'});
     if(panel==='shopping'&&account.mode!=='unknown'&&!priceRecommendations&&!priceRecommendationsLoading)void loadPriceRecommendations({quiet:true});
@@ -1133,7 +1134,7 @@
       button.append(familyAvatarNode(member,'family-rail-avatar'));
       const name=document.createElement('strong');name.textContent=member.display_name||'Miembro';
       const device=document.createElement('small');device.innerHTML=`<span class="material-symbols-rounded" aria-hidden="true">${Number.isFinite(Number(member?.device?.battery_percent??member?.battery_percent))?'battery_5_bar':'smartphone'}</span>${escapeHtml(familyBatteryLabel(member))}`;
-      button.append(name,device);button.addEventListener('click',()=>{familySelectedMemberId=String(member.id);renderFamilyExperience();void renderFamilyMap()});rail.append(button);
+      button.append(name,device);button.addEventListener('click',()=>{familySelectedMemberId=String(member.id);familyRouteMode=false;renderFamilyExperience();void renderFamilyMap()});rail.append(button);
     });
     if(!member){focus.innerHTML='<div class="family-focus-empty"><strong>Añade a tu primera persona</strong><p>Cuando acepte la invitación y active su ubicación aparecerá aquí.</p></div>';route.hidden=true;return}
     const speed=Number(member.location?.speed_mps||0);const place=(homeFamily.places||[]).find(row=>row.kind==='WORK'&&member.is_viewer)||(homeFamily.places||[]).find(row=>row.kind==='HOME');
@@ -1141,7 +1142,7 @@
     const copy=document.createElement('div');copy.className='family-focus-copy';copy.innerHTML=`<h4>${escapeHtml(member.display_name||'Miembro')}</h4><p>${escapeHtml(member.status||place?.name||'Ubicación compartida')} · ${member.updated_at?`actualizado ${escapeHtml(familyTime(member.updated_at))}`:'esperando señal'}</p><span><span class="material-symbols-rounded" aria-hidden="true">${speed>.5?'directions_car':'schedule'}</span>${speed>.5?`${Math.round(speed*2.23694)} mph`:'Última posición recibida'}</span><span><span class="material-symbols-rounded" aria-hidden="true">smartphone</span>${Number.isFinite(Number(member?.device?.battery_percent??member?.battery_percent))?`Batería ${familyBatteryLabel(member)}`:'Batería disponible en la futura app móvil'}</span>`;
     const actions=document.createElement('div');actions.className='family-focus-actions';actions.innerHTML='<button type="button" class="primary" data-family-leave><span class="material-symbols-rounded" aria-hidden="true">notifications</span>Avisarme cuando salga</button><button type="button" class="secondary" data-family-route><span class="material-symbols-rounded" aria-hidden="true">route</span>Ver camino</button>';
     actions.querySelector('[data-family-leave]').addEventListener('click',()=>{if(!place){$('familySettings').open=true;$('familyPlaceName').focus();announce('Guarda primero Casa o Trabajo para crear este aviso.');return}announce('Roxy usará tus lugares guardados para avisarte dentro de la aplicación.')});
-    actions.querySelector('[data-family-route]').addEventListener('click',()=>openFamilyRoute(member));focus.append(copy,actions);
+    actions.querySelector('[data-family-route]').addEventListener('click',()=>{if(!familyNextCalendarEvent()||!member?.location){announce('Necesito una ubicación compartida y un próximo evento con dirección para preparar el camino.');return}familyRouteMode=true;void renderFamilyRouteCard(member)});focus.append(copy,actions);
     void renderFamilyRouteCard(member);
   }
   function openFamilyRoute(member){
@@ -1150,8 +1151,10 @@
     window.open(`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving`,'_blank','noopener');
   }
   async function renderFamilyRouteCard(member){
-    const root=$('familyRouteCard');const event=familyNextCalendarEvent();
-    if(!root||!event||!member?.location){if(root)root.hidden=true;return}
+    const root=$('familyRouteCard'),focus=$('familyFocusCard'),sheet=root?.closest('.family-presence-card');const event=familyNextCalendarEvent();
+    if(!root||!event||!member?.location){if(root)root.hidden=true;if(focus)focus.hidden=false;sheet?.classList.remove('is-route-mode');return}
+    if(!familyRouteMode){root.hidden=true;if(focus)focus.hidden=false;sheet?.classList.remove('is-route-mode');return}
+    if(focus)focus.hidden=true;sheet?.classList.add('is-route-mode');
     const starts=new Date(event.starts_at||event.start);const margin=Math.max(0,Number(localStorage.getItem('roxy-family-route-margin')||10));
     let durationMinutes=null,trafficText='Ruta lista';
     if(window.google?.maps){
@@ -1159,7 +1162,7 @@
     }
     const eventDate=new Intl.DateTimeFormat('es',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(starts);
     const depart=new Date(starts.getTime()-((durationMinutes||0)+margin)*60000);root.hidden=false;root.innerHTML=`<div class="family-route-person">${member.profile_photo?`<img src="${escapeHtml(member.profile_photo)}" alt="" />`:`<span>${escapeHtml(familyInitials(member.display_name))}</span>`}<div><small>Para llegar tranquilo</small><h4>Sal a las ${durationMinutes?familyClock(depart):'hora sugerida'}</h4><p>${escapeHtml(eventDate)}</p></div></div><div class="family-route-timeline"><span><b>${durationMinutes?familyClock(new Date(depart.getTime()-5*60000)):'—'}</b><i class="material-symbols-rounded">notifications</i><small>Recordatorio</small></span><em></em><span><b>${durationMinutes?familyClock(depart):'—'}</b><i class="material-symbols-rounded">directions_car</i><small>Salir</small></span><em></em><span><b>${escapeHtml(familyClock(starts))}</b><i class="material-symbols-rounded">event</i><small>Cita</small></span></div><dl><div><dt>Evento</dt><dd>${escapeHtml(event.title||event.name||'Próximo evento')} · ${escapeHtml(familyClock(starts))}</dd></div><div><dt>Trayecto</dt><dd>${durationMinutes?`${durationMinutes} min`:'Abrir Google Maps para calcular'}</dd></div><div><dt>Tráfico</dt><dd>${escapeHtml(trafficText)}</dd></div><div><dt>Clima</dt><dd>${escapeHtml($('familyWeatherSummary').textContent)}</dd></div><div><dt>Margen</dt><dd>${margin} min</dd></div></dl><div class="family-route-actions"><button type="button" class="primary" data-route-reminder><span class="material-symbols-rounded">notifications</span>Recordarme</button><button type="button" class="secondary" data-route-open>Ver ruta</button><button type="button" class="secondary" data-route-margin>Cambiar margen</button></div>`;
-    root.querySelector('[data-route-open]').addEventListener('click',()=>openFamilyRoute(member));root.querySelector('[data-route-reminder]').addEventListener('click',()=>announce('El recordatorio se guarda con tu evento de calendario.'));root.querySelector('[data-route-margin]').addEventListener('click',()=>{const value=window.prompt('¿Cuántos minutos de margen quieres? ',String(margin));if(value===null)return;const next=Math.max(0,Math.min(120,Number(value)||0));localStorage.setItem('roxy-family-route-margin',String(next));void renderFamilyRouteCard(member)});
+    root.insertAdjacentHTML('afterbegin','<button type="button" class="family-route-back" data-route-back><span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>Volver a Nexo</button>');root.querySelector('[data-route-back]').addEventListener('click',()=>{familyRouteMode=false;if(familyDirectionsRenderer){familyDirectionsRenderer.setMap(null);familyDirectionsRenderer=null}renderFamilyExperience();void renderFamilyMap()});root.querySelector('[data-route-open]').addEventListener('click',()=>openFamilyRoute(member));root.querySelector('[data-route-reminder]').addEventListener('click',()=>announce('El recordatorio se guarda con tu evento de calendario.'));root.querySelector('[data-route-margin]').addEventListener('click',()=>{const value=window.prompt('¿Cuántos minutos de margen quieres? ',String(margin));if(value===null)return;const next=Math.max(0,Math.min(120,Number(value)||0));localStorage.setItem('roxy-family-route-margin',String(next));void renderFamilyRouteCard(member)});
   }
   async function readFamilyProfilePhoto(file){
     if(!file)throw new Error('Selecciona una foto');
@@ -1178,11 +1181,23 @@
     if(familyMapLoader)return familyMapLoader;
     familyMapLoader=new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=`https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&loading=async`;script.async=true;script.onload=()=>resolve(window.google.maps);script.onerror=()=>reject(new Error('No se pudo cargar Google Maps'));document.head.append(script)});return familyMapLoader;
   }
+  function createFamilyMapPerson(member,point){
+    class PersonOverlay extends google.maps.OverlayView{
+      onAdd(){
+        const node=document.createElement('button');node.type='button';node.className=`family-map-person${String(member.id)===familySelectedMemberId?' active':''}`;node.setAttribute('aria-label',`Ver a ${member.display_name||'miembro'}`);
+        const avatar=familyAvatarNode(member,'family-map-person-avatar');const label=document.createElement('span');const name=document.createElement('strong');name.textContent=member.display_name||'Miembro';const status=document.createElement('small');status.textContent=member.status||((homeFamily.places||[]).find(place=>place.kind==='HOME')?.name?'Casa':'En vivo');label.append(name,status);node.append(avatar,label);
+        node.addEventListener('click',()=>{familySelectedMemberId=String(member.id);familyRouteMode=false;renderFamilyExperience();void renderFamilyMap()});this.node=node;this.getPanes().overlayMouseTarget.append(node);
+      }
+      draw(){const pixel=this.getProjection().fromLatLngToDivPixel(new google.maps.LatLng(point.lat,point.lng));if(!pixel||!this.node)return;this.node.style.transform=`translate(${Math.round(pixel.x)}px,${Math.round(pixel.y)}px) translate(-50%,-50%)`}
+      onRemove(){this.node?.remove();this.node=null}
+    }
+    const overlay=new PersonOverlay();overlay.setMap(familyMap);return overlay;
+  }
   async function renderFamilyMap(){
     const root=$('familyMap');if(!root)return;const located=(homeFamily.members||[]).filter(row=>row.sharing_enabled&&row.location);
     if(homeFamily.map?.provider!=='GOOGLE_MAPS'){root.innerHTML='<div class="family-map-empty"><span class="material-symbols-rounded" aria-hidden="true">map</span><strong>Mapa listo para conectar</strong><p>Configura la clave de navegador exclusiva de Roxy Home para mostrar el mapa real.</p></div>';return}
     try{await loadFamilyGoogleMaps();if(!familyMap){root.replaceChildren();familyMap=new google.maps.Map(root,{center:located.length?{lat:Number(located[0].location.latitude),lng:Number(located[0].location.longitude)}:{lat:28.5383,lng:-81.3792},zoom:located.length?14:9,mapId:homeFamily.map.map_id||undefined,mapTypeId:'roadmap',disableDefaultUI:false,streetViewControl:false,fullscreenControl:false,mapTypeControl:true,zoomControl:true,scaleControl:true,gestureHandling:'greedy',clickableIcons:true})}
-      familyMapMarkers.forEach(marker=>marker.setMap(null));familyMapMarkers=[];const bounds=new google.maps.LatLngBounds();located.forEach(member=>{const point={lat:Number(member.location.latitude),lng:Number(member.location.longitude)};const color=familyMarkerColors[member.marker_color]||familyMarkerColors.FOREST;const icon=member.profile_photo?{url:member.profile_photo,scaledSize:new google.maps.Size(String(member.id)===familySelectedMemberId?66:54,String(member.id)===familySelectedMemberId?66:54),anchor:new google.maps.Point(String(member.id)===familySelectedMemberId?33:27,String(member.id)===familySelectedMemberId?33:27)}:{path:google.maps.SymbolPath.CIRCLE,scale:String(member.id)===familySelectedMemberId?27:22,fillColor:color,fillOpacity:1,strokeColor:'#fff',strokeWeight:4};const marker=new google.maps.Marker({map:familyMap,position:point,title:member.display_name||'Miembro',label:member.profile_photo?null:{text:familyInitials(member.display_name),color:'#fff',fontWeight:'700'},icon});marker.addListener('click',()=>{familySelectedMemberId=String(member.id);renderFamilyExperience();void renderFamilyMap()});familyMapMarkers.push(marker);bounds.extend(point)});if(located.length===1){familyMap.setCenter(bounds.getCenter());familyMap.setZoom(15)}else if(located.length>1)familyMap.fitBounds(bounds,56);
+      familyMapMarkers.forEach(marker=>marker.setMap(null));familyMapMarkers=[];const bounds=new google.maps.LatLngBounds();located.forEach(member=>{const point={lat:Number(member.location.latitude),lng:Number(member.location.longitude)};familyMapMarkers.push(createFamilyMapPerson(member,point));bounds.extend(point)});if(located.length===1){familyMap.setCenter(bounds.getCenter());familyMap.setZoom(15)}else if(located.length>1)familyMap.fitBounds(bounds,76);
       const viewer=located.find(row=>row.is_viewer);if(viewer){const history=await api(`/v1/home-family/members/${encodeURIComponent(viewer.id)}/history?limit=500`).catch(()=>({points:[]}));if(familyRoute)familyRoute.setMap(null);familyRoute=new google.maps.Polyline({map:familyMap,path:(history.points||[]).map(point=>({lat:Number(point.latitude),lng:Number(point.longitude)})),strokeColor:'#b58a2c',strokeOpacity:.9,strokeWeight:5})}void renderFamilyRouteCard(familySelectedMember());
     }catch(error){root.innerHTML=`<div class="family-map-empty"><span class="material-symbols-rounded" aria-hidden="true">wifi_off</span><strong>No pude abrir el mapa</strong><p>${escapeHtml(error.message)}</p></div>`}
   }
@@ -1688,6 +1703,7 @@
     $('familyShareLocation').addEventListener('click',shareFamilyLocation);
     $('familyStopLocation').addEventListener('click',stopFamilyLocation);
     $('familyPrivacyButton').addEventListener('click',()=>{$('familySettings').open=true;$('familySettings').scrollIntoView({behavior:'smooth',block:'start'})});
+    $('familyChatButton').addEventListener('click',()=>$('roxyVoiceLauncher').click());
     $('familyHomeMenu').addEventListener('click',()=>{$('familySettings').open=true;$('familySettings').scrollIntoView({behavior:'smooth',block:'start'})});
     $('familyAddConnection').addEventListener('click',()=>{$('familySettings').open=true;$('familyInviteName').focus();$('familySettings').scrollIntoView({behavior:'smooth',block:'start'})});
     $('familyMapLayers').addEventListener('click',()=>{if(!familyMap)return;familyMapStyle=familyMapStyle==='roadmap'?'satellite':'roadmap';familyMap.setMapTypeId(familyMapStyle);announce(familyMapStyle==='satellite'?'Vista satélite activada':'Vista de mapa activada')});
@@ -1760,7 +1776,7 @@
   applyAppearance();bind();renderHomeMoment();setInterval(renderHomeMoment,30000);render();
   window.addEventListener('pageshow',event=>{if(event.persisted)location.reload()});
   if('scrollRestoration'in history)history.scrollRestoration='manual';
-  const initialPanels={hoy:'today',compra:'shopping',recetas:'recipes',despensa:'pantry',calendario:'calendar',renueva:'design',jardin:'plants',familia:'family',mas:'more'};
+  const initialPanels={hoy:'today',compra:'shopping',recetas:'recipes',despensa:'pantry',calendario:'calendar',renueva:'design',jardin:'plants',familia:'family',nexo:'family',family:'family',mas:'more'};
   selectPanel(initialPanels[location.hash.slice(1)]||'today',{smooth:false});const calendarSyncResult=new URLSearchParams(location.search).get('calendar_sync');if(calendarSyncResult){sessionStorage.setItem('roxyCalendarSyncNotice',calendarSyncResult);history.replaceState(null,'',`${location.pathname}${location.hash||'#calendario'}`)}load().then(()=>{const notice=sessionStorage.getItem('roxyCalendarSyncNotice');if(notice){sessionStorage.removeItem('roxyCalendarSyncNotice');announce(notice==='connected'?'Google Calendar quedó conectado. Tus próximos eventos ya se están sincronizando.':notice==='denied'?'No se autorizó Google Calendar. No hice cambios.':'No pude terminar la conexión con Google Calendar. Inténtalo de nuevo.')}});
   if('serviceWorker'in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){
     const homeRoute=location.pathname.startsWith('/home');

@@ -23,10 +23,10 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
     assert 'name="roxy-home-version" content="102"' in page.text
-    assert 'href="/assets/roxy_list.css?v=84"' in page.text
-    assert 'src="/assets/roxy_list.js?v=105"' in page.text
-    assert '/assets/roxy_list.css?v=84' in worker.text
-    assert '/assets/roxy_list.js?v=105' in worker.text
+    assert 'href="/assets/roxy_list.css?v=85"' in page.text
+    assert 'src="/assets/roxy_list.js?v=106"' in page.text
+    assert '/assets/roxy_list.css?v=85' in worker.text
+    assert '/assets/roxy_list.js?v=106' in worker.text
     assert 'id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle" hidden' in page.text
     assert '/assets/roxy_home_avatar.jpg' in page.text
     assert '/assets/roxy_home_avatar.jpg' in worker.text
@@ -65,6 +65,12 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="plantDetailDialog"' in page.text
     assert '/v1/home-plants/' in script.text
     assert 'Mi jardín' in page.text
+    assert 'id="familyChatButton"' in page.text
+    assert 'class="family-more-nav"' in page.text
+    assert "family-map-person" in script.text
+    assert "familyRouteMode" in script.text
+    assert "data-route-back" in script.text
+    assert "family:'nexo'" in script.text
     assert 'data-close-dialog="pairDialog"' in page.text
     assert "recetas listas para guardar, adaptar y cocinar paso a paso" in script.text
     assert "provider.affiliate_connected?'afiliado':'catálogo oficial'" in script.text
