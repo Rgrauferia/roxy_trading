@@ -28,6 +28,8 @@ except ImportError:  # pragma: no cover
 
 PLACE_KINDS = {"HOME": "Casa", "WORK": "Trabajo", "STORE": "Tienda frecuente", "OTHER": "Otro lugar"}
 MARKER_COLORS = {"FOREST", "GOLD", "OCEAN", "TERRACOTTA", "PLUM", "SLATE"}
+PROFILE_PHOTO_PREFIXES = ("data:image/jpeg;base64,", "data:image/png;base64,", "data:image/webp;base64,")
+PROFILE_PHOTO_MAX_LENGTH = 400_000
 
 
 def _now() -> str:
@@ -161,6 +163,7 @@ class HomeFamilyStore:
                     "display_name": profile.get("display_name") or member.get("display_name"),
                     "role": member.get("role"),
                     "avatar": member.get("avatar") or (member.get("preferences") or {}).get("avatar", ""),
+                    "profile_photo": profile.get("photo_data_url") or "",
                     "marker_color": profile.get("marker_color") or "FOREST",
                     "external": bool(member.get("external")),
                     "relationship": _text(member.get("relationship"), 40),
@@ -373,12 +376,22 @@ class HomeFamilyStore:
         self._locked(apply)
 
     def customize_member(
-        self, household_id: str, member_id: str, *, display_name: str, marker_color: str
+        self, household_id: str, member_id: str, *, display_name: str, marker_color: str, photo_data_url: str = ""
     ) -> dict[str, Any]:
         color = str(marker_color or "FOREST").upper()
         if color not in MARKER_COLORS:
             raise ValueError("Color de marcador inválido")
-        profile = {"display_name": _text(display_name, 80), "marker_color": color, "updated_at": _now()}
+        photo = str(photo_data_url or "").strip()
+        if len(photo) > PROFILE_PHOTO_MAX_LENGTH:
+            raise ValueError("La foto de perfil es demasiado grande")
+        if photo and not photo.startswith(PROFILE_PHOTO_PREFIXES):
+            raise ValueError("La foto de perfil debe ser una imagen válida")
+        profile = {
+            "display_name": _text(display_name, 80),
+            "marker_color": color,
+            "photo_data_url": photo,
+            "updated_at": _now(),
+        }
 
         def apply(value: dict[str, Any]) -> dict[str, Any]:
             household = self._household(value, household_id)

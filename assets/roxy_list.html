@@ -8,14 +8,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="99" />
+  <meta name="roxy-home-version" content="102" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=80" />
-  <script src="/assets/roxy_list.js?v=100" defer></script>
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=82" />
+  <script src="/assets/roxy_list.js?v=103" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -153,9 +153,13 @@
       <section class="family-presence-card">
         <div class="family-section-heading"><div><small>Personas de esta casa</small><h3>Ahora</h3></div></div>
         <form id="familyProfileForm" class="family-profile-form">
-          <div class="family-profile-preview" aria-hidden="true"><span id="familyProfileInitials">R</span></div>
+          <label class="family-profile-photo-control" aria-label="Elegir tu foto para Nexo">
+            <span class="family-profile-preview"><img id="familyProfilePhotoPreview" alt="" hidden /><b id="familyProfileInitials">R</b><i class="material-symbols-rounded" aria-hidden="true">photo_camera</i></span>
+            <input id="familyProfilePhoto" type="file" accept="image/jpeg,image/png,image/webp" />
+          </label>
           <label><span>Cómo apareces en Nexo</span><input id="familyProfileName" maxlength="80" placeholder="Tu nombre" required /></label>
           <fieldset><legend>Tu color en el mapa</legend><label><input type="radio" name="familyMarkerColor" value="FOREST" checked /><span class="forest"></span></label><label><input type="radio" name="familyMarkerColor" value="GOLD" /><span class="gold"></span></label><label><input type="radio" name="familyMarkerColor" value="OCEAN" /><span class="ocean"></span></label><label><input type="radio" name="familyMarkerColor" value="TERRACOTTA" /><span class="terracotta"></span></label><label><input type="radio" name="familyMarkerColor" value="PLUM" /><span class="plum"></span></label><label><input type="radio" name="familyMarkerColor" value="SLATE" /><span class="slate"></span></label></fieldset>
+          <button id="familyProfileRemovePhoto" class="family-profile-remove-photo" type="button" hidden>Quitar foto</button>
           <button type="submit">Guardar identidad</button>
         </form>
         <div id="familyMembers" class="family-members" aria-live="polite"></div>
@@ -253,6 +257,20 @@
         <button id="prepareShoppingButton" class="primary full" type="button">Buscar productos de mi lista</button>
         <small id="affiliateDisclosure" class="affiliate-disclosure"></small>
         <div id="commerceRecent" class="commerce-recent" aria-live="polite"></div>
+      </section>
+
+      <section class="content-section product-identity-card" aria-labelledby="productIdentityTitle">
+        <div class="section-heading"><div><p>Datos reales del producto</p><h2 id="productIdentityTitle">Identificar producto</h2><small>Escanea el código de barras o escribe el nombre.</small></div><span class="material-symbols-rounded" aria-hidden="true">barcode_scanner</span></div>
+        <form id="productLookupForm" class="product-lookup-form">
+          <label><span>Código de barras</span><input id="productLookupBarcode" name="barcode" inputmode="numeric" pattern="[0-9 ]{8,18}" maxlength="18" placeholder="Ej. 3017620422003" /></label>
+          <label><span>O nombre del producto</span><input id="productLookupQuery" name="query" maxlength="160" placeholder="Ej. leche orgánica" /></label>
+          <div class="product-lookup-actions">
+            <label class="secondary product-scan-button"><span class="material-symbols-rounded" aria-hidden="true">photo_camera</span> Escanear<input id="productBarcodeImage" type="file" accept="image/*" capture="environment" /></label>
+            <button id="productLookupButton" class="primary" type="submit">Consultar fuentes</button>
+          </div>
+        </form>
+        <div id="productLookupResult" class="product-lookup-result" aria-live="polite"></div>
+        <small class="product-source-note">Open Food Facts · USDA FoodData Central · CPSC Recalls. La etiqueta y los avisos oficiales prevalecen.</small>
       </section>
 
       <section class="content-section staples-section" aria-labelledby="usualTitle">

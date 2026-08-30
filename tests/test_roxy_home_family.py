@@ -1,3 +1,5 @@
+import pytest
+
 from fastapi.testclient import TestClient
 
 from roxy_os.home_accounts import HomeAccountStore
@@ -124,11 +126,20 @@ def test_family_member_can_personalize_name_and_marker_color(tmp_path):
     members = [{"id": "robert", "display_name": "Robert", "role": "OWNER"}]
     store.remember_household_members("casa-1", members)
 
-    store.customize_member("casa-1", "robert", display_name="Robert G.", marker_color="OCEAN")
+    photo = "data:image/jpeg;base64,aGVsbG8="
+    store.customize_member(
+        "casa-1", "robert", display_name="Robert G.", marker_color="OCEAN", photo_data_url=photo
+    )
     viewer = store.snapshot("casa-1", members, "robert")["members"][0]
 
     assert viewer["display_name"] == "Robert G."
     assert viewer["marker_color"] == "OCEAN"
+    assert viewer["profile_photo"] == photo
+
+    with pytest.raises(ValueError, match="imagen válida"):
+        store.customize_member(
+            "casa-1", "robert", display_name="Robert G.", marker_color="OCEAN", photo_data_url="https://example.com/me.jpg"
+        )
 
 
 def test_family_api_requires_member_and_shares_only_with_explicit_consent(tmp_path, monkeypatch):
@@ -164,6 +175,16 @@ def test_family_api_requires_member_and_shares_only_with_explicit_consent(tmp_pa
     assert refused.status_code == 403
     assert shared.status_code == 200
     assert next(row for row in after.json()["members"] if row["is_viewer"])["sharing_enabled"] is True
+
+    photo = "data:image/png;base64,aGVsbG8="
+    personalized = client.put(
+        "/v1/home-family/profile",
+        json={"display_name": "Robert G.", "marker_color": "GOLD", "photo_data_url": photo},
+    )
+    viewer = next(row for row in client.get("/v1/home-family").json()["members"] if row["is_viewer"])
+    assert personalized.status_code == 200
+    assert viewer["display_name"] == "Robert G."
+    assert viewer["profile_photo"] == photo
 
 
 def test_family_api_syncs_two_household_profiles_and_one_nexo_only_connection(tmp_path, monkeypatch):
@@ -253,7 +274,10 @@ def test_family_ui_is_wired_to_real_endpoints():
     assert "disableDefaultUI:false" in js
     assert "mapTypeId:'roadmap'" in js
     assert 'id="familyProfileForm"' in html
+    assert 'id="familyProfilePhoto"' in html
     assert "/v1/home-family/profile" in js
+    assert "readFamilyProfilePhoto" in js
+    assert "profile_photo" in js
     assert "const form=event.currentTarget" in js
     assert "inferFamilyPlaceKind" in js
 

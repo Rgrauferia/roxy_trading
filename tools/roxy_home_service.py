@@ -62,6 +62,7 @@ from roxy_os.home_daily import build_home_daily_brief
 from roxy_os.home_design import HomeDesignGenerator, HomeDesignStore, public_project
 from roxy_os.home_family import HomeFamilyStore
 from roxy_os.home_plants import HomePlantIdentifier, HomePlantStore, PLANT_CATALOG, public_plant
+from roxy_os.home_product_intelligence import HomeProductIntelligence, ProductIntelligenceConfig
 from roxy_os.home_food import HomeFoodStore, HomePermissionPolicy
 from roxy_os.home_price_recommendations import (
     PRICE_NOTICE,
@@ -164,6 +165,11 @@ class CommerceCheckoutRequest(BaseModel):
     confirmed: bool = False
 
 
+class ProductLookupRequest(BaseModel):
+    barcode: str = Field(default="", max_length=32)
+    query: str = Field(default="", max_length=160)
+
+
 class HomeDesignProjectRequest(BaseModel):
     name: str = Field(default="", max_length=80)
     room_type: str = Field(pattern="^(living_room|bedroom|dining_room|kitchen|bathroom|office|patio|other)$")
@@ -222,6 +228,7 @@ class HomeFamilyPlaceRequest(BaseModel):
 class HomeFamilyProfileRequest(BaseModel):
     display_name: str = Field(min_length=1, max_length=80)
     marker_color: str = Field(default="FOREST", pattern="^(FOREST|GOLD|OCEAN|TERRACOTTA|PLUM|SLATE)$")
+    photo_data_url: str = Field(default="", max_length=400_000)
 
 
 class HomeFamilyInvitationRequest(BaseModel):
@@ -432,6 +439,10 @@ class AuthContext:
 
 def _store() -> ShoppingListStore:
     return ShoppingListStore(os.getenv("ROXY_SHOPPING_LIST_PATH", "data/roxy_shopping_list.json"))
+
+
+def _product_intelligence() -> HomeProductIntelligence:
+    return HomeProductIntelligence(ProductIntelligenceConfig.from_env())
 
 
 def _home_food_store() -> HomeFoodStore:
@@ -1489,7 +1500,8 @@ def shopping_page() -> Response:
     response.headers["Expires"] = "0"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; img-src 'self' data: blob: https://maps.googleapis.com "
-        "https://maps.gstatic.com https://*.googleapis.com https://*.gstatic.com; "
+        "https://maps.gstatic.com https://*.googleapis.com https://*.gstatic.com "
+        "https://images.openfoodfacts.org; "
         "style-src 'self' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "script-src 'self' blob: https://esm.sh https://cdn.jsdelivr.net https://esm.run "
@@ -1818,7 +1830,11 @@ def home_family_customize_profile(
     household_id, _access_scope, _members = _family_context(member)
     try:
         profile = _family_store().customize_member(
-            household_id, member["id"], display_name=payload.display_name, marker_color=payload.marker_color
+            household_id,
+            member["id"],
+            display_name=payload.display_name,
+            marker_color=payload.marker_color,
+            photo_data_url=payload.photo_data_url,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -2987,6 +3003,32 @@ def read_list(user_id: str, request: Request, auth: str = Depends(_authenticate)
     snapshot["items"] = store.list_items(user, include_archived=False, limit=1000)
     snapshot["sync_state"] = "SERVER_SYNCED"
     return snapshot
+
+
+@app.get("/v1/home-products/{user_id}/status")
+def home_product_status(
+    user_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    _authorize_user(user_id, auth)
+    return {"status": "READY", "sources": _product_intelligence().status()}
+
+
+@app.post("/v1/home-products/{user_id}/lookup")
+def home_product_lookup(
+    user_id: str,
+    payload: ProductLookupRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    _authorize_user(user_id, auth)
+    try:
+        return _product_intelligence().lookup(barcode=payload.barcode, query=payload.query)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.post("/v1/shopping/{user_id}", status_code=201)
