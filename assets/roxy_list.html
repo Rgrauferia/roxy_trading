@@ -8,14 +8,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="98" />
+  <meta name="roxy-home-version" content="99" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=79" />
-  <script src="/assets/roxy_list.js?v=99" defer></script>
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=80" />
+  <script src="/assets/roxy_list.js?v=100" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -152,6 +152,12 @@
       </section>
       <section class="family-presence-card">
         <div class="family-section-heading"><div><small>Personas de esta casa</small><h3>Ahora</h3></div></div>
+        <form id="familyProfileForm" class="family-profile-form">
+          <div class="family-profile-preview" aria-hidden="true"><span id="familyProfileInitials">R</span></div>
+          <label><span>Cómo apareces en Nexo</span><input id="familyProfileName" maxlength="80" placeholder="Tu nombre" required /></label>
+          <fieldset><legend>Tu color en el mapa</legend><label><input type="radio" name="familyMarkerColor" value="FOREST" checked /><span class="forest"></span></label><label><input type="radio" name="familyMarkerColor" value="GOLD" /><span class="gold"></span></label><label><input type="radio" name="familyMarkerColor" value="OCEAN" /><span class="ocean"></span></label><label><input type="radio" name="familyMarkerColor" value="TERRACOTTA" /><span class="terracotta"></span></label><label><input type="radio" name="familyMarkerColor" value="PLUM" /><span class="plum"></span></label><label><input type="radio" name="familyMarkerColor" value="SLATE" /><span class="slate"></span></label></fieldset>
+          <button type="submit">Guardar identidad</button>
+        </form>
         <div id="familyMembers" class="family-members" aria-live="polite"></div>
       </section>
       <section class="family-connections-card">

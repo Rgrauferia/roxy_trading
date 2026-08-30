@@ -27,6 +27,7 @@ except ImportError:  # pragma: no cover
 
 
 PLACE_KINDS = {"HOME": "Casa", "WORK": "Trabajo", "STORE": "Tienda frecuente", "OTHER": "Otro lugar"}
+MARKER_COLORS = {"FOREST", "GOLD", "OCEAN", "TERRACOTTA", "PLUM", "SLATE"}
 
 
 def _now() -> str:
@@ -35,6 +36,26 @@ def _now() -> str:
 
 def _text(value: Any, limit: int) -> str:
     return " ".join(str(value or "").strip().split())[:limit]
+
+
+def _place_key(name: Any, kind: Any) -> tuple[str, str]:
+    return (_text(name, 60).casefold(), str(kind or "OTHER").upper())
+
+
+def _place_name_key(name: Any) -> str:
+    return _text(name, 60).casefold()
+
+
+def _inferred_place_kind(name: str, kind: str) -> str:
+    """Correct the common mobile case where the default select was not changed."""
+    words = f" {name.casefold()} "
+    if any(token in words for token in (" trabajo ", " work ", " oficina ", " empleo ")):
+        return "WORK"
+    if any(token in words for token in (" tienda ", " walmart ", " publix ", " supermercado ", " market ")):
+        return "STORE"
+    if any(token in words for token in (" casa ", " hogar ", " home ")):
+        return "HOME"
+    return kind
 
 
 def _distance_m(a_lat: float, a_lon: float, b_lat: float, b_lon: float) -> float:
@@ -132,13 +153,15 @@ class HomeFamilyStore:
         rows = []
         for member in directory.values():
             state = presence.get(str(member.get("id") or ""), {})
+            profile = state.get("profile") or {}
             location = deepcopy(state.get("location")) if state.get("sharing_enabled") else None
             rows.append(
                 {
                     "id": member.get("id"),
-                    "display_name": member.get("display_name"),
+                    "display_name": profile.get("display_name") or member.get("display_name"),
                     "role": member.get("role"),
                     "avatar": member.get("avatar") or (member.get("preferences") or {}).get("avatar", ""),
+                    "marker_color": profile.get("marker_color") or "FOREST",
                     "external": bool(member.get("external")),
                     "relationship": _text(member.get("relationship"), 40),
                     "is_viewer": member.get("id") == viewer_id,
@@ -148,10 +171,13 @@ class HomeFamilyStore:
                     "updated_at": state.get("updated_at"),
                 }
             )
+        unique_places: dict[str, dict[str, Any]] = {}
+        for place in (household.get("places") or {}).values():
+            unique_places[_place_name_key(place.get("name"))] = deepcopy(place)
         return {
             "status": "READY",
             "members": rows,
-            "places": sorted(deepcopy(list(household.get("places", {}).values())), key=lambda row: row.get("name", "")),
+            "places": sorted(unique_places.values(), key=lambda row: row.get("name", "")),
             "alerts": deepcopy((household.get("alerts") or [])[-10:]),
             "connections": sorted(
                 deepcopy(list((household.get("external_members") or {}).values())),
@@ -346,6 +372,25 @@ class HomeFamilyStore:
 
         self._locked(apply)
 
+    def customize_member(
+        self, household_id: str, member_id: str, *, display_name: str, marker_color: str
+    ) -> dict[str, Any]:
+        color = str(marker_color or "FOREST").upper()
+        if color not in MARKER_COLORS:
+            raise ValueError("Color de marcador inválido")
+        profile = {"display_name": _text(display_name, 80), "marker_color": color, "updated_at": _now()}
+
+        def apply(value: dict[str, Any]) -> dict[str, Any]:
+            household = self._household(value, household_id)
+            known = set(household.get("directory") or {}) | set(household.get("external_members") or {})
+            if member_id not in known:
+                raise ValueError("Miembro no encontrado")
+            member = household.setdefault("members", {}).setdefault(member_id, {})
+            member["profile"] = profile
+            return deepcopy(profile)
+
+        return self._locked(apply)
+
     def save_place(
         self,
         household_id: str,
@@ -356,12 +401,13 @@ class HomeFamilyStore:
         longitude: float,
         radius_m: float,
     ) -> dict[str, Any]:
-        kind = str(kind or "OTHER").upper()
+        name = _text(name, 60)
+        kind = _inferred_place_kind(name, str(kind or "OTHER").upper())
         if kind not in PLACE_KINDS:
             raise ValueError("Tipo de lugar inválido")
         place = {
             "id": uuid4().hex,
-            "name": _text(name, 60) or PLACE_KINDS[kind],
+            "name": name or PLACE_KINDS[kind],
             "kind": kind,
             "latitude": round(float(latitude), 4),
             "longitude": round(float(longitude), 4),
@@ -371,13 +417,29 @@ class HomeFamilyStore:
 
         def apply(value: dict[str, Any]) -> dict[str, Any]:
             household = self._household(value, household_id)
-            household.setdefault("places", {})[place["id"]] = place
+            places = household.setdefault("places", {})
+            identity = _place_name_key(place["name"])
+            duplicates = [key for key, row in places.items() if _place_name_key(row.get("name")) == identity]
+            if duplicates:
+                place["id"] = duplicates[0]
+                place["created_at"] = places[duplicates[0]].get("created_at") or place["created_at"]
+                place["updated_at"] = _now()
+                for duplicate in duplicates:
+                    places.pop(duplicate, None)
+            places[place["id"]] = place
             return deepcopy(place)
 
         return self._locked(apply)
 
     def delete_place(self, household_id: str, place_id: str) -> bool:
         def apply(value: dict[str, Any]) -> bool:
-            return self._household(value, household_id).setdefault("places", {}).pop(place_id, None) is not None
+            places = self._household(value, household_id).setdefault("places", {})
+            target = places.get(place_id)
+            if not target:
+                return False
+            identity = _place_name_key(target.get("name"))
+            for key in [key for key, row in places.items() if _place_name_key(row.get("name")) == identity]:
+                places.pop(key, None)
+            return True
 
         return bool(self._locked(apply))

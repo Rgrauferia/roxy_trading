@@ -219,6 +219,11 @@ class HomeFamilyPlaceRequest(BaseModel):
     radius_m: float = Field(default=200, ge=50, le=1000)
 
 
+class HomeFamilyProfileRequest(BaseModel):
+    display_name: str = Field(min_length=1, max_length=80)
+    marker_color: str = Field(default="FOREST", pattern="^(FOREST|GOLD|OCEAN|TERRACOTTA|PLUM|SLATE)$")
+
+
 class HomeFamilyInvitationRequest(BaseModel):
     display_name: str = Field(default="", max_length=80)
     relationship: str = Field(default="Persona de confianza", max_length=40)
@@ -1800,6 +1805,24 @@ def home_family_update_location(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"status": "UPDATED", **result}
+
+
+@app.put("/v1/home-family/profile")
+def home_family_customize_profile(
+    payload: HomeFamilyProfileRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    member = _family_member(auth)
+    household_id, _access_scope, _members = _family_context(member)
+    try:
+        profile = _family_store().customize_member(
+            household_id, member["id"], display_name=payload.display_name, marker_color=payload.marker_color
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "UPDATED", "profile": profile}
 
 
 @app.get("/v1/home-family/members/{member_id}/history")

@@ -103,6 +103,34 @@ def test_family_store_creates_shopping_reminder_after_leaving_work(tmp_path):
     assert "4 artículos" in result["alert"]["message"]
 
 
+def test_family_places_are_inferred_upserted_and_legacy_duplicates_are_hidden(tmp_path):
+    store = HomeFamilyStore(tmp_path / "family.json")
+    first = store.save_place(
+        "casa-1", name="Robert Trabajo", kind="HOME", latitude=28.50, longitude=-81.30, radius_m=200
+    )
+    second = store.save_place(
+        "casa-1", name="Robert Trabajo", kind="HOME", latitude=28.51, longitude=-81.31, radius_m=250
+    )
+
+    snapshot = store.snapshot("casa-1", [], "robert")
+    assert first["kind"] == "WORK"
+    assert second["id"] == first["id"]
+    assert len(snapshot["places"]) == 1
+    assert snapshot["places"][0]["latitude"] == 28.51
+
+
+def test_family_member_can_personalize_name_and_marker_color(tmp_path):
+    store = HomeFamilyStore(tmp_path / "family.json")
+    members = [{"id": "robert", "display_name": "Robert", "role": "OWNER"}]
+    store.remember_household_members("casa-1", members)
+
+    store.customize_member("casa-1", "robert", display_name="Robert G.", marker_color="OCEAN")
+    viewer = store.snapshot("casa-1", members, "robert")["members"][0]
+
+    assert viewer["display_name"] == "Robert G."
+    assert viewer["marker_color"] == "OCEAN"
+
+
 def test_family_api_requires_member_and_shares_only_with_explicit_consent(tmp_path, monkeypatch):
     from tools import roxy_home_service
 
@@ -224,6 +252,10 @@ def test_family_ui_is_wired_to_real_endpoints():
     assert "Google Maps oficial" in html
     assert "disableDefaultUI:false" in js
     assert "mapTypeId:'roadmap'" in js
+    assert 'id="familyProfileForm"' in html
+    assert "/v1/home-family/profile" in js
+    assert "const form=event.currentTarget" in js
+    assert "inferFamilyPlaceKind" in js
 
 
 def test_home_page_csp_allows_only_google_maps_runtime_origins():
