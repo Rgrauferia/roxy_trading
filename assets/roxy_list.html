@@ -14,8 +14,8 @@
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=82" />
-  <script src="/assets/roxy_list.js?v=103" defer></script>
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=84" />
+  <script src="/assets/roxy_list.js?v=105" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -130,19 +130,22 @@
     </section>
 
     <section id="familyPanel" class="app-panel family-panel" data-panel="family" aria-labelledby="familyTitle" hidden>
-      <header class="family-heading">
-        <div><p class="eyebrow">Nuestro hogar, conectado</p><h2 id="familyTitle">Nuestro Nexo</h2><p>Las personas de tu hogar en un mapa real, privado y visible únicamente para quienes autorizas.</p></div>
-        <span class="material-symbols-rounded family-heading-icon" aria-hidden="true">family_restroom</span>
+      <header class="family-cockpit">
+        <span class="family-cockpit-brand" aria-hidden="true">R</span>
+        <button id="familyHomeMenu" class="family-home-menu" type="button"><span class="material-symbols-rounded" aria-hidden="true">home</span><strong id="familyHouseholdName">Nuestro hogar</strong><span class="material-symbols-rounded" aria-hidden="true">expand_more</span></button>
+        <button id="familyPrivacyButton" class="family-circle-button" type="button" aria-label="Abrir privacidad de Nexo"><span class="material-symbols-rounded" aria-hidden="true">shield_lock</span></button>
       </header>
-      <section class="family-privacy-card">
-        <span class="material-symbols-rounded" aria-hidden="true">privacy_tip</span>
-        <div><strong>Activa una vez; tú decides cuándo detenerla</strong><p id="familyPrivacyNotice">Al activarla, Roxy recordará tu elección y reanudará la actualización cada vez que abras la aplicación.</p></div>
-      </section>
       <section class="family-live-card">
-        <div class="family-live-heading"><div><small>Google Maps oficial</small><h3>Mapa en vivo</h3></div><span id="familyLiveState" class="family-live-state">Sin compartir</span></div>
+        <div class="family-live-heading"><div><small>Google Maps oficial</small><h2 id="familyTitle">Mapa en vivo</h2></div><span id="familyLiveState" class="family-live-state">Sin compartir</span></div>
+        <div id="familyContextStrip" class="family-context-strip"><span class="material-symbols-rounded" aria-hidden="true">partly_cloudy_day</span><strong id="familyWeatherSummary">Clima local</strong><i></i><span class="material-symbols-rounded" aria-hidden="true">directions_car</span><strong id="familyTrafficSummary">Rutas listas</strong></div>
         <div class="family-map-stage">
           <div id="familyMap" class="family-map" role="region" aria-label="Mapa Google de ubicaciones compartidas"><div class="family-map-empty"><span class="material-symbols-rounded" aria-hidden="true">map</span><strong>El mapa real aparecerá aquí</strong><p>Activa la ubicación y mantén Roxy Home abierta para actualizar tu recorrido.</p></div></div>
-          <div class="family-map-badge" aria-hidden="true"><span class="material-symbols-rounded">shield_lock</span><span><strong>Solo tu hogar</strong><small>Ubicación privada</small></span></div>
+          <div class="family-map-actions">
+            <button id="familyMapWeather" type="button" aria-label="Ver el clima"><span class="material-symbols-rounded" aria-hidden="true">rainy</span></button>
+            <button id="familyMapLayers" type="button" aria-label="Cambiar estilo del mapa"><span class="material-symbols-rounded" aria-hidden="true">layers</span></button>
+            <button id="familyMapLocate" type="button" aria-label="Centrar mi ubicación"><span class="material-symbols-rounded" aria-hidden="true">my_location</span></button>
+          </div>
+          <div class="family-map-badge" aria-hidden="true"><span class="material-symbols-rounded">shield_lock</span><span><strong>Solo tu Nexo</strong><small>Ubicación privada</small></span></div>
         </div>
         <div class="family-map-controls">
           <button id="familyShareLocation" class="primary" type="button"><span class="material-symbols-rounded" aria-hidden="true">near_me</span> Activar ubicación permanente</button>
@@ -151,7 +154,20 @@
         <p id="familyMapStatus" class="family-map-status">Roxy recordará tu elección y actualizará tu posición al abrir la aplicación y mientras esté en uso.</p>
       </section>
       <section class="family-presence-card">
-        <div class="family-section-heading"><div><small>Personas de esta casa</small><h3>Ahora</h3></div></div>
+        <div class="family-sheet-handle" aria-hidden="true"></div>
+        <div class="family-section-heading"><div><small id="familyTodayLabel">Privado y en vivo</small><h3>Tu Nexo ahora</h3></div><button id="familyAddConnection" class="family-circle-button" type="button" aria-label="Añadir una conexión"><span class="material-symbols-rounded" aria-hidden="true">person_add</span></button></div>
+        <div id="familyMemberRail" class="family-member-rail" aria-label="Personas de tu Nexo"></div>
+        <article id="familyFocusCard" class="family-focus-card" aria-live="polite"></article>
+        <article id="familyRouteCard" class="family-route-card" aria-live="polite" hidden></article>
+      </section>
+      <details id="familySettings" class="family-settings">
+        <summary><span class="material-symbols-rounded" aria-hidden="true">tune</span><span><strong>Privacidad y ajustes</strong><small>Tu identidad, conexiones, lugares y avisos</small></span><span class="material-symbols-rounded" aria-hidden="true">expand_more</span></summary>
+        <section class="family-privacy-card">
+          <span class="material-symbols-rounded" aria-hidden="true">privacy_tip</span>
+          <div><strong>Activa una vez; tú decides cuándo detenerla</strong><p id="familyPrivacyNotice">Al activarla, Roxy recordará tu elección y reanudará la actualización cada vez que abras la aplicación.</p></div>
+        </section>
+        <section class="family-profile-settings">
+          <div class="family-section-heading"><div><small>Tu identidad</small><h3>Cómo apareces</h3></div></div>
         <form id="familyProfileForm" class="family-profile-form">
           <label class="family-profile-photo-control" aria-label="Elegir tu foto para Nexo">
             <span class="family-profile-preview"><img id="familyProfilePhotoPreview" alt="" hidden /><b id="familyProfileInitials">R</b><i class="material-symbols-rounded" aria-hidden="true">photo_camera</i></span>
@@ -162,9 +178,8 @@
           <button id="familyProfileRemovePhoto" class="family-profile-remove-photo" type="button" hidden>Quitar foto</button>
           <button type="submit">Guardar identidad</button>
         </form>
-        <div id="familyMembers" class="family-members" aria-live="polite"></div>
-      </section>
-      <section class="family-connections-card">
+        </section>
+        <section class="family-connections-card">
         <div class="family-section-heading"><div><small>Solo para Nuestro Nexo</small><h3>Conexiones de confianza</h3></div><span class="material-symbols-rounded" aria-hidden="true">person_add</span></div>
         <p>Comparte el mapa con alguien que no pertenece a tu casa. Esa persona no podrá abrir tus compras, recetas, calendario ni otros módulos.</p>
         <form id="familyInviteForm" class="family-invite-form">
@@ -174,8 +189,8 @@
         </form>
         <div id="familyInviteResult" class="family-invite-result" hidden></div>
         <div id="familyConnections" class="family-connections" aria-live="polite"></div>
-      </section>
-      <section class="family-places-card">
+        </section>
+        <section class="family-places-card">
         <div class="family-section-heading"><div><small>Lugares útiles</small><h3>Casa, trabajo y tiendas</h3></div></div>
         <p>Guarda un lugar desde tu ubicación actual para que Roxy entienda el contexto.</p>
         <form id="familyPlaceForm" class="family-place-form">
@@ -184,12 +199,14 @@
           <button class="primary" type="submit"><span class="material-symbols-rounded" aria-hidden="true">add_location_alt</span> Guardar ubicación actual</button>
         </form>
         <div id="familyPlaces" class="family-places"></div>
-      </section>
-      <section class="family-alerts-card">
+        </section>
+        <section class="family-alerts-card">
         <div class="family-section-heading"><div><small>Recordatorios de Roxy</small><h3>En el momento oportuno</h3></div></div>
         <div id="familyAlerts" class="family-alerts" aria-live="polite"></div>
-      </section>
-      <p class="family-limit"><span class="material-symbols-rounded" aria-hidden="true">info</span> El navegador no puede rastrear de forma confiable con la app cerrada. La futura app móvil añadirá ubicación en segundo plano, batería, viajes completos y tags compatibles, siempre con permiso independiente.</p>
+        </section>
+        <div id="familyMembers" class="family-members" aria-live="polite" hidden></div>
+        <p class="family-limit"><span class="material-symbols-rounded" aria-hidden="true">info</span> En la web, Roxy actualiza la ubicación al abrir la aplicación y mientras permanece en uso. La futura app móvil añadirá ubicación en segundo plano y batería con permisos independientes.</p>
+      </details>
     </section>
 
     <section id="calendarPanel" class="app-panel calendar-panel" data-panel="calendar" aria-labelledby="calendarTitle" hidden>

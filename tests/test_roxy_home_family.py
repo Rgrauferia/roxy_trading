@@ -280,6 +280,13 @@ def test_family_ui_is_wired_to_real_endpoints():
     assert "profile_photo" in js
     assert "const form=event.currentTarget" in js
     assert "inferFamilyPlaceKind" in js
+    assert 'id="familyMemberRail"' in html
+    assert 'id="familyFocusCard"' in html
+    assert 'id="familyRouteCard"' in html
+    assert 'id="familyWeatherSummary"' in html
+    assert "DirectionsService" in js
+    assert "battery_percent" in js
+    assert "navigator.getBattery" not in js
 
 
 def test_home_page_csp_allows_only_google_maps_runtime_origins():

@@ -114,6 +114,7 @@
   let homePlants={plants:[],due_today:[],vacation:{},species:[],identification_configured:false};
   let homeFamily={status:'UNAVAILABLE',members:[],places:[],alerts:[],capabilities:{}};
   let familyWatchId=null,familyMap=null,familyMapMarkers=[],familyRoute=null,familyMapLoader=null,familyRefreshTimer=null;
+  let familySelectedMemberId='',familyMapStyle='roadmap',familyDirectionsRenderer=null,familyRouteSnapshot=null;
   let familyProfilePhotoData='';
   let currentPlant=null;
   let designPoll=null;
@@ -1095,6 +1096,71 @@
     if(member.profile_photo){const image=document.createElement('img');image.src=member.profile_photo;image.alt='';avatar.append(image)}else avatar.textContent=familyInitials(member.display_name);
     return avatar;
   }
+  const familyFriendlyDate=()=>new Intl.DateTimeFormat('es',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date());
+  const familyClock=value=>{const date=new Date(value);return Number.isNaN(date.getTime())?'':new Intl.DateTimeFormat('es',{hour:'numeric',minute:'2-digit'}).format(date)};
+  function familyBatteryLabel(member){
+    const raw=member?.device?.battery_percent??member?.battery_percent;
+    const value=Number(raw);
+    return Number.isFinite(value)&&value>=0&&value<=100?`${Math.round(value)}%`:'Activo';
+  }
+  function familySelectedMember(){
+    const rows=(homeFamily.members||[]).filter(row=>row.sharing_enabled);
+    if(!rows.length)return null;
+    let member=rows.find(row=>String(row.id)===String(familySelectedMemberId));
+    if(!member)member=rows.find(row=>row.is_viewer)||rows[0];
+    familySelectedMemberId=String(member.id||'');
+    return member;
+  }
+  function familyNextCalendarEvent(){
+    const now=Date.now();
+    return (homeCalendar.events||[]).filter(event=>event.location&&new Date(event.starts_at||event.start||0).getTime()>now).sort((a,b)=>new Date(a.starts_at||a.start)-new Date(b.starts_at||b.start))[0]||null;
+  }
+  function renderFamilyExperience(){
+    const rail=$('familyMemberRail'),focus=$('familyFocusCard'),route=$('familyRouteCard');
+    if(!rail||!focus||!route)return;
+    const accountName=homeFamily.account?.household_name||homeFamily.household_name||'Nuestro hogar';
+    $('familyHouseholdName').textContent=accountName;
+    $('familyTodayLabel').textContent=`${familyFriendlyDate()} · Privado y en vivo`;
+    const weatherDay=(homeWeather.daily||[])[0];
+    const weatherReady=homeWeather.status==='READY';
+    $('familyWeatherSummary').textContent=weatherReady?(weatherDay?.summary||weatherDay?.condition||`${Math.round(Number(weatherDay?.temperature_max_c??weatherDay?.temperature_c??0))}° · clima local`):'Clima sin activar';
+    $('familyTrafficSummary').textContent=familyRouteSnapshot?.traffic||'Selecciona una ruta';
+    rail.replaceChildren();
+    const rows=(homeFamily.members||[]).filter(member=>member.sharing_enabled);
+    const member=familySelectedMember();
+    rows.forEach(member=>{
+      const button=document.createElement('button');button.type='button';button.className=`family-rail-person${String(member.id)===familySelectedMemberId?' active':''}`;
+      button.append(familyAvatarNode(member,'family-rail-avatar'));
+      const name=document.createElement('strong');name.textContent=member.display_name||'Miembro';
+      const device=document.createElement('small');device.innerHTML=`<span class="material-symbols-rounded" aria-hidden="true">${Number.isFinite(Number(member?.device?.battery_percent??member?.battery_percent))?'battery_5_bar':'smartphone'}</span>${escapeHtml(familyBatteryLabel(member))}`;
+      button.append(name,device);button.addEventListener('click',()=>{familySelectedMemberId=String(member.id);renderFamilyExperience();void renderFamilyMap()});rail.append(button);
+    });
+    if(!member){focus.innerHTML='<div class="family-focus-empty"><strong>Añade a tu primera persona</strong><p>Cuando acepte la invitación y active su ubicación aparecerá aquí.</p></div>';route.hidden=true;return}
+    const speed=Number(member.location?.speed_mps||0);const place=(homeFamily.places||[]).find(row=>row.kind==='WORK'&&member.is_viewer)||(homeFamily.places||[]).find(row=>row.kind==='HOME');
+    focus.replaceChildren();focus.append(familyAvatarNode(member,'family-focus-avatar'));
+    const copy=document.createElement('div');copy.className='family-focus-copy';copy.innerHTML=`<h4>${escapeHtml(member.display_name||'Miembro')}</h4><p>${escapeHtml(member.status||place?.name||'Ubicación compartida')} · ${member.updated_at?`actualizado ${escapeHtml(familyTime(member.updated_at))}`:'esperando señal'}</p><span><span class="material-symbols-rounded" aria-hidden="true">${speed>.5?'directions_car':'schedule'}</span>${speed>.5?`${Math.round(speed*2.23694)} mph`:'Última posición recibida'}</span><span><span class="material-symbols-rounded" aria-hidden="true">smartphone</span>${Number.isFinite(Number(member?.device?.battery_percent??member?.battery_percent))?`Batería ${familyBatteryLabel(member)}`:'Batería disponible en la futura app móvil'}</span>`;
+    const actions=document.createElement('div');actions.className='family-focus-actions';actions.innerHTML='<button type="button" class="primary" data-family-leave><span class="material-symbols-rounded" aria-hidden="true">notifications</span>Avisarme cuando salga</button><button type="button" class="secondary" data-family-route><span class="material-symbols-rounded" aria-hidden="true">route</span>Ver camino</button>';
+    actions.querySelector('[data-family-leave]').addEventListener('click',()=>{if(!place){$('familySettings').open=true;$('familyPlaceName').focus();announce('Guarda primero Casa o Trabajo para crear este aviso.');return}announce('Roxy usará tus lugares guardados para avisarte dentro de la aplicación.')});
+    actions.querySelector('[data-family-route]').addEventListener('click',()=>openFamilyRoute(member));focus.append(copy,actions);
+    void renderFamilyRouteCard(member);
+  }
+  function openFamilyRoute(member){
+    const event=familyNextCalendarEvent();const origin=member?.location?`${member.location.latitude},${member.location.longitude}`:'';const destination=event?.location||'';
+    if(!origin||!destination){announce('Necesito una ubicación compartida y un próximo evento con dirección para calcular el camino.');return}
+    window.open(`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving`,'_blank','noopener');
+  }
+  async function renderFamilyRouteCard(member){
+    const root=$('familyRouteCard');const event=familyNextCalendarEvent();
+    if(!root||!event||!member?.location){if(root)root.hidden=true;return}
+    const starts=new Date(event.starts_at||event.start);const margin=Math.max(0,Number(localStorage.getItem('roxy-family-route-margin')||10));
+    let durationMinutes=null,trafficText='Ruta lista';
+    if(window.google?.maps){
+      try{const service=new google.maps.DirectionsService();const result=await service.route({origin:{lat:Number(member.location.latitude),lng:Number(member.location.longitude)},destination:event.location,travelMode:google.maps.TravelMode.DRIVING,drivingOptions:{departureTime:new Date(Math.max(Date.now()+60000,starts.getTime()-3600000)),trafficModel:google.maps.TrafficModel.BEST_GUESS}});const leg=result.routes?.[0]?.legs?.[0];durationMinutes=Math.ceil(Number((leg?.duration_in_traffic||leg?.duration)?.value||0)/60);const base=Math.ceil(Number(leg?.duration?.value||0)/60);const delay=Math.max(0,durationMinutes-base);trafficText=delay?`+${delay} min de tráfico`:'Sin retraso relevante';familyRouteSnapshot={result,traffic:delay?`${durationMinutes} min · tráfico +${delay}`:`${durationMinutes} min · tráfico normal`};$('familyTrafficSummary').textContent=familyRouteSnapshot.traffic;if(familyDirectionsRenderer)familyDirectionsRenderer.setMap(null);familyDirectionsRenderer=new google.maps.DirectionsRenderer({map:familyMap,directions:result,suppressMarkers:false,polylineOptions:{strokeColor:'#c09232',strokeWeight:6,strokeOpacity:.9}})}catch(_error){durationMinutes=null}
+    }
+    const eventDate=new Intl.DateTimeFormat('es',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(starts);
+    const depart=new Date(starts.getTime()-((durationMinutes||0)+margin)*60000);root.hidden=false;root.innerHTML=`<div class="family-route-person">${member.profile_photo?`<img src="${escapeHtml(member.profile_photo)}" alt="" />`:`<span>${escapeHtml(familyInitials(member.display_name))}</span>`}<div><small>Para llegar tranquilo</small><h4>Sal a las ${durationMinutes?familyClock(depart):'hora sugerida'}</h4><p>${escapeHtml(eventDate)}</p></div></div><div class="family-route-timeline"><span><b>${durationMinutes?familyClock(new Date(depart.getTime()-5*60000)):'—'}</b><i class="material-symbols-rounded">notifications</i><small>Recordatorio</small></span><em></em><span><b>${durationMinutes?familyClock(depart):'—'}</b><i class="material-symbols-rounded">directions_car</i><small>Salir</small></span><em></em><span><b>${escapeHtml(familyClock(starts))}</b><i class="material-symbols-rounded">event</i><small>Cita</small></span></div><dl><div><dt>Evento</dt><dd>${escapeHtml(event.title||event.name||'Próximo evento')} · ${escapeHtml(familyClock(starts))}</dd></div><div><dt>Trayecto</dt><dd>${durationMinutes?`${durationMinutes} min`:'Abrir Google Maps para calcular'}</dd></div><div><dt>Tráfico</dt><dd>${escapeHtml(trafficText)}</dd></div><div><dt>Clima</dt><dd>${escapeHtml($('familyWeatherSummary').textContent)}</dd></div><div><dt>Margen</dt><dd>${margin} min</dd></div></dl><div class="family-route-actions"><button type="button" class="primary" data-route-reminder><span class="material-symbols-rounded">notifications</span>Recordarme</button><button type="button" class="secondary" data-route-open>Ver ruta</button><button type="button" class="secondary" data-route-margin>Cambiar margen</button></div>`;
+    root.querySelector('[data-route-open]').addEventListener('click',()=>openFamilyRoute(member));root.querySelector('[data-route-reminder]').addEventListener('click',()=>announce('El recordatorio se guarda con tu evento de calendario.'));root.querySelector('[data-route-margin]').addEventListener('click',()=>{const value=window.prompt('¿Cuántos minutos de margen quieres? ',String(margin));if(value===null)return;const next=Math.max(0,Math.min(120,Number(value)||0));localStorage.setItem('roxy-family-route-margin',String(next));void renderFamilyRouteCard(member)});
+  }
   async function readFamilyProfilePhoto(file){
     if(!file)throw new Error('Selecciona una foto');
     if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('La foto debe ser JPEG, PNG o WebP');
@@ -1116,8 +1182,8 @@
     const root=$('familyMap');if(!root)return;const located=(homeFamily.members||[]).filter(row=>row.sharing_enabled&&row.location);
     if(homeFamily.map?.provider!=='GOOGLE_MAPS'){root.innerHTML='<div class="family-map-empty"><span class="material-symbols-rounded" aria-hidden="true">map</span><strong>Mapa listo para conectar</strong><p>Configura la clave de navegador exclusiva de Roxy Home para mostrar el mapa real.</p></div>';return}
     try{await loadFamilyGoogleMaps();if(!familyMap){root.replaceChildren();familyMap=new google.maps.Map(root,{center:located.length?{lat:Number(located[0].location.latitude),lng:Number(located[0].location.longitude)}:{lat:28.5383,lng:-81.3792},zoom:located.length?14:9,mapId:homeFamily.map.map_id||undefined,mapTypeId:'roadmap',disableDefaultUI:false,streetViewControl:false,fullscreenControl:false,mapTypeControl:true,zoomControl:true,scaleControl:true,gestureHandling:'greedy',clickableIcons:true})}
-      familyMapMarkers.forEach(marker=>marker.setMap(null));familyMapMarkers=[];const bounds=new google.maps.LatLngBounds();located.forEach(member=>{const point={lat:Number(member.location.latitude),lng:Number(member.location.longitude)};const color=familyMarkerColors[member.marker_color]||familyMarkerColors.FOREST;const icon=member.profile_photo?{url:member.profile_photo,scaledSize:new google.maps.Size(52,52),anchor:new google.maps.Point(26,26)}:{path:google.maps.SymbolPath.CIRCLE,scale:22,fillColor:color,fillOpacity:1,strokeColor:'#fff',strokeWeight:4};const marker=new google.maps.Marker({map:familyMap,position:point,title:member.display_name||'Miembro',label:member.profile_photo?null:{text:familyInitials(member.display_name),color:'#fff',fontWeight:'700'},icon});familyMapMarkers.push(marker);bounds.extend(point)});if(located.length===1){familyMap.setCenter(bounds.getCenter());familyMap.setZoom(15)}else if(located.length>1)familyMap.fitBounds(bounds,56);
-      const viewer=located.find(row=>row.is_viewer);if(viewer){const history=await api(`/v1/home-family/members/${encodeURIComponent(viewer.id)}/history?limit=500`).catch(()=>({points:[]}));if(familyRoute)familyRoute.setMap(null);familyRoute=new google.maps.Polyline({map:familyMap,path:(history.points||[]).map(point=>({lat:Number(point.latitude),lng:Number(point.longitude)})),strokeColor:'#b58a2c',strokeOpacity:.9,strokeWeight:5})}
+      familyMapMarkers.forEach(marker=>marker.setMap(null));familyMapMarkers=[];const bounds=new google.maps.LatLngBounds();located.forEach(member=>{const point={lat:Number(member.location.latitude),lng:Number(member.location.longitude)};const color=familyMarkerColors[member.marker_color]||familyMarkerColors.FOREST;const icon=member.profile_photo?{url:member.profile_photo,scaledSize:new google.maps.Size(String(member.id)===familySelectedMemberId?66:54,String(member.id)===familySelectedMemberId?66:54),anchor:new google.maps.Point(String(member.id)===familySelectedMemberId?33:27,String(member.id)===familySelectedMemberId?33:27)}:{path:google.maps.SymbolPath.CIRCLE,scale:String(member.id)===familySelectedMemberId?27:22,fillColor:color,fillOpacity:1,strokeColor:'#fff',strokeWeight:4};const marker=new google.maps.Marker({map:familyMap,position:point,title:member.display_name||'Miembro',label:member.profile_photo?null:{text:familyInitials(member.display_name),color:'#fff',fontWeight:'700'},icon});marker.addListener('click',()=>{familySelectedMemberId=String(member.id);renderFamilyExperience();void renderFamilyMap()});familyMapMarkers.push(marker);bounds.extend(point)});if(located.length===1){familyMap.setCenter(bounds.getCenter());familyMap.setZoom(15)}else if(located.length>1)familyMap.fitBounds(bounds,56);
+      const viewer=located.find(row=>row.is_viewer);if(viewer){const history=await api(`/v1/home-family/members/${encodeURIComponent(viewer.id)}/history?limit=500`).catch(()=>({points:[]}));if(familyRoute)familyRoute.setMap(null);familyRoute=new google.maps.Polyline({map:familyMap,path:(history.points||[]).map(point=>({lat:Number(point.latitude),lng:Number(point.longitude)})),strokeColor:'#b58a2c',strokeOpacity:.9,strokeWeight:5})}void renderFamilyRouteCard(familySelectedMember());
     }catch(error){root.innerHTML=`<div class="family-map-empty"><span class="material-symbols-rounded" aria-hidden="true">wifi_off</span><strong>No pude abrir el mapa</strong><p>${escapeHtml(error.message)}</p></div>`}
   }
   async function refreshFamily(){homeFamily=await api('/v1/home-family');await dbSet(`home-family:${user}`,homeFamily);renderFamily()}
@@ -1135,6 +1201,7 @@
     saved.forEach(place=>{const row=document.createElement('article');row.className='family-place';const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.textContent=familyPlaceIcons[place.kind]||'location_on';const copy=document.createElement('span');copy.innerHTML=`<strong>${escapeHtml(place.name)}</strong><small>${escapeHtml(familyPlaceLabels[place.kind]||'Lugar')} · radio ${Number(place.radius_m||200)} m</small>`;const remove=document.createElement('button');remove.type='button';remove.className='family-place-remove';remove.innerHTML='<span class="material-symbols-rounded" aria-hidden="true">delete</span>';remove.setAttribute('aria-label',`Eliminar ${place.name}`);remove.addEventListener('click',()=>deleteFamilyPlace(place));row.append(icon,copy,remove);places.append(row)});
     const notices=[...(homeFamily.alerts||[])].reverse();if(!notices.length){const empty=document.createElement('p');empty.className='family-empty';empty.textContent='Cuando haya un recordatorio contextual aparecerá aquí.';alerts.append(empty)}
     notices.forEach(alert=>{const row=document.createElement('article');row.className='family-alert';row.innerHTML=`<span class="material-symbols-rounded" aria-hidden="true">${alert.kind==='SHOPPING_AFTER_WORK'?'shopping_cart':'notifications'}</span><div><strong>${escapeHtml(alert.title||'Recordatorio')}</strong><p>${escapeHtml(alert.message||'')}</p><small>${escapeHtml(familyTime(alert.created_at))}</small></div>`;alerts.append(row)});
+    renderFamilyExperience();
   }
   async function sendFamilyPosition(position){const result=await api('/v1/home-family/location',{method:'PUT',body:JSON.stringify(browserLocationPayload(position))});homeFamily=await api('/v1/home-family');renderFamily();if(result.alert){announce(result.alert.message);if('Notification'in window&&Notification.permission==='granted')new Notification('Roxy Home',{body:result.alert.message})}}
   async function startFamilyLocationWatcher({automatic=false}={}){
@@ -1620,6 +1687,12 @@
     $('plantVacationForm').addEventListener('submit',savePlantVacation);
     $('familyShareLocation').addEventListener('click',shareFamilyLocation);
     $('familyStopLocation').addEventListener('click',stopFamilyLocation);
+    $('familyPrivacyButton').addEventListener('click',()=>{$('familySettings').open=true;$('familySettings').scrollIntoView({behavior:'smooth',block:'start'})});
+    $('familyHomeMenu').addEventListener('click',()=>{$('familySettings').open=true;$('familySettings').scrollIntoView({behavior:'smooth',block:'start'})});
+    $('familyAddConnection').addEventListener('click',()=>{$('familySettings').open=true;$('familyInviteName').focus();$('familySettings').scrollIntoView({behavior:'smooth',block:'start'})});
+    $('familyMapLayers').addEventListener('click',()=>{if(!familyMap)return;familyMapStyle=familyMapStyle==='roadmap'?'satellite':'roadmap';familyMap.setMapTypeId(familyMapStyle);announce(familyMapStyle==='satellite'?'Vista satélite activada':'Vista de mapa activada')});
+    $('familyMapLocate').addEventListener('click',()=>{const member=(homeFamily.members||[]).find(row=>row.is_viewer&&row.location);if(!familyMap||!member){announce('Activa tu ubicación para centrar el mapa.');return}familyMap.panTo({lat:Number(member.location.latitude),lng:Number(member.location.longitude)});familyMap.setZoom(16)});
+    $('familyMapWeather').addEventListener('click',()=>{if(homeWeather.status==='READY')announce($('familyWeatherSummary').textContent);else{selectPanel('calendar');announce('Activa el clima desde Calendario para verlo también en Nexo.')}});
     $('familyPlaceForm').addEventListener('submit',saveFamilyPlace);
     $('familyPlaceName').addEventListener('input',inferFamilyPlaceKind);
     $('familyProfileForm').addEventListener('submit',saveFamilyProfile);
@@ -1628,8 +1701,8 @@
     $('familyProfileRemovePhoto').addEventListener('click',()=>{renderFamilyProfilePhoto('');$('familyProfilePhoto').value='';announce('La foto se quitará cuando guardes tu identidad.')});
     $('familyProfileForm').querySelectorAll('[name="familyMarkerColor"]').forEach(input=>input.addEventListener('change',()=>{$('familyProfileForm').querySelector('.family-profile-preview').style.background=familyMarkerColors[input.value]}));
     $('familyInviteForm').addEventListener('submit',createFamilyInvitation);
-    window.addEventListener('pageshow',()=>{if(familyData)void resumeFamilyLocationIfEnabled()});
-    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&familyData)void resumeFamilyLocationIfEnabled()});
+    window.addEventListener('pageshow',()=>{if(homeFamily.members?.length)void resumeFamilyLocationIfEnabled()});
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&homeFamily.members?.length)void resumeFamilyLocationIfEnabled()});
     $('pantryForm').addEventListener('submit',savePantry);
     $('recipeForm').addEventListener('submit',createRecipe);
     $('scanRecipeButton').addEventListener('click',()=>openRecipeImporter('image'));
