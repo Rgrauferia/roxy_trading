@@ -954,3 +954,33 @@ body.family-mode .bottom-nav button{min-width:0;flex:none}
 body.family-mode .bottom-nav [data-tab-link="recipes"],body.family-mode .bottom-nav [data-tab-link="design"],body.family-mode .bottom-nav [data-tab-link="plants"],body.family-mode .bottom-nav [data-tab-link="calendar"]{display:none}
 body.family-mode .bottom-nav .family-more-nav{display:flex!important}
 @media(min-width:700px){body.family-mode .family-panel{left:50%;width:min(100%,620px);transform:translateX(-50%);box-shadow:0 0 45px rgba(20,43,31,.18)}body.family-mode .family-live-card{height:620px}body.family-mode .family-map-stage,body.family-mode .family-map{min-height:620px}}
+
+/* Nexo v2: mapa editorial, controles propios y hoja compacta como una sola experiencia. */
+body.family-mode .family-live-card{height:64svh;min-height:560px;max-height:700px;background:#e7ece3}
+body.family-mode .family-map-stage,body.family-mode .family-map{min-height:560px}
+body.family-mode .family-cockpit{top:calc(env(safe-area-inset-top) + 12px);left:18px;right:18px;grid-template-columns:44px minmax(0,1fr) 42px 42px;gap:9px}
+body.family-mode .family-cockpit-brand{width:42px;height:42px;font-size:23px}
+body.family-mode .family-home-menu{min-height:44px;padding-inline:14px;font-size:12px}
+body.family-mode .family-circle-button{width:42px;height:42px}
+body.family-mode .family-context-strip{top:calc(env(safe-area-inset-top) + 66px);max-width:calc(100% - 72px);min-height:41px;padding-inline:13px}
+body.family-mode .family-context-strip strong{font-size:9px}
+body.family-mode .family-map-actions{top:auto;right:17px;bottom:82px;gap:9px}
+body.family-mode .family-map-actions button{width:43px;height:43px;background:rgba(255,253,248,.94);box-shadow:0 8px 22px rgba(25,52,38,.15);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+body.family-mode .family-map-badge{left:18px;bottom:25px}
+body.family-mode .family-map-status{bottom:24px;max-width:48%;padding:7px 9px;background:rgba(255,253,248,.9)}
+body.family-mode .family-map-controls{right:17px;bottom:24px}
+body.family-mode .family-map-person-avatar{width:62px;height:62px;border-width:4px}
+body.family-mode .family-map-person>span{min-width:78px;padding:7px 11px 6px;border-radius:15px}
+body.family-mode .family-map-person strong{font-size:11px}
+body.family-mode .family-map-person small{font-size:8px}
+body.family-mode .family-presence-card{min-height:42svh;margin:-46px 0 0;padding:17px 20px calc(25px + env(safe-area-inset-bottom));border-radius:34px 34px 0 0}
+body.family-mode .family-sheet-handle{width:48px;height:4px;margin:-6px auto 12px}
+body.family-mode .family-section-heading h3{font-size:29px;line-height:1}
+body.family-mode .family-member-rail{gap:10px;margin:15px -4px 12px}
+body.family-mode .family-rail-person{flex-basis:64px}
+body.family-mode .family-rail-avatar{width:54px;height:54px}
+body.family-mode .family-focus-card{grid-template-columns:64px minmax(0,1fr);gap:11px;padding:14px;border-radius:22px}
+body.family-mode .family-focus-avatar{width:64px;height:64px}
+body.family-mode .family-focus-copy h4{font-size:22px}
+body.family-mode .family-focus-actions button{min-height:43px}
+@media(max-height:720px){body.family-mode .family-live-card{height:61svh;min-height:500px}body.family-mode .family-map-stage,body.family-mode .family-map{min-height:500px}body.family-mode .family-presence-card{margin-top:-40px}}

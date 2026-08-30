@@ -284,7 +284,8 @@ def test_family_ui_is_wired_to_real_endpoints():
     assert 'id="familyMap"' in html
     assert "Nuestro Nexo" in html
     assert "Google Maps oficial" in html
-    assert "disableDefaultUI:false" in js
+    assert "disableDefaultUI:true" in js
+    assert "clickableIcons:false" in js
     assert "mapTypeId:'roadmap'" in js
     assert 'id="familyProfileForm"' in html
     assert 'id="familyProfilePhoto"' in html
@@ -292,6 +293,8 @@ def test_family_ui_is_wired_to_real_endpoints():
     assert 'name="familyProfileEmoji"' in html
     assert "/v1/home-family/profile" in js
     assert "readFamilyProfilePhoto" in js
+    assert "persistFamilyProfile" in js
+    assert "Tu foto ya está guardada y visible en Nexo" in js
     assert "profile_photo" in js
     assert "profile_emoji" in js
     assert "familyWeatherMode" in js
