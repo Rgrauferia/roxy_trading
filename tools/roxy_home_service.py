@@ -60,6 +60,7 @@ from roxy_os.home_commerce import (
 from roxy_os.home_conversation import HomeConversationStore
 from roxy_os.home_daily import build_home_daily_brief
 from roxy_os.home_design import HomeDesignGenerator, HomeDesignStore, public_project
+from roxy_os.home_family import HomeFamilyStore
 from roxy_os.home_plants import HomePlantIdentifier, HomePlantStore, PLANT_CATALOG, public_plant
 from roxy_os.home_food import HomeFoodStore, HomePermissionPolicy
 from roxy_os.home_price_recommendations import (
@@ -197,6 +198,34 @@ class HomeDesignFitRequest(BaseModel):
 
 class HomePlantIdentifyRequest(BaseModel):
     photo_data_url: str = Field(min_length=32, max_length=8_100_000)
+
+
+class HomeFamilyLocationRequest(BaseModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    accuracy_m: float | None = Field(default=None, ge=0, le=100_000)
+    altitude_m: float | None = Field(default=None, ge=-500, le=20_000)
+    speed_mps: float | None = Field(default=None, ge=0, le=120)
+    heading_deg: float | None = Field(default=None, ge=0, le=360)
+    recorded_at: str | None = Field(default=None, max_length=40)
+    consent: bool = False
+
+
+class HomeFamilyPlaceRequest(BaseModel):
+    name: str = Field(default="", max_length=60)
+    kind: str = Field(default="OTHER", pattern="^(HOME|WORK|STORE|OTHER)$")
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    radius_m: float = Field(default=200, ge=50, le=1000)
+
+
+class HomeFamilyInvitationRequest(BaseModel):
+    display_name: str = Field(default="", max_length=80)
+    relationship: str = Field(default="Persona de confianza", max_length=40)
+
+
+class HomeFamilyInvitationRedeemRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
 
 
 class HomePlantCreateRequest(BaseModel):
@@ -547,6 +576,10 @@ def _plant_store() -> HomePlantStore:
         os.getenv("ROXY_HOME_PLANTS_PATH", "data/roxy_home_plants.json"),
         os.getenv("ROXY_HOME_PLANTS_IMAGE_DIR", "data/roxy_home_plants"),
     )
+
+
+def _family_store() -> HomeFamilyStore:
+    return HomeFamilyStore(os.getenv("ROXY_HOME_FAMILY_PATH", "data/roxy_home_family.json"))
 
 
 def _generate_home_design(owner_key: str, project_id: str) -> None:
@@ -1428,7 +1461,7 @@ def _login_rate_limit(request: Request, username: str) -> None:
 def _security_headers(response: Response) -> Response:
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=(self), geolocation=()"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(self), geolocation=(self)"
     return response
 
 
@@ -1450,11 +1483,16 @@ def shopping_page() -> Response:
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; img-src 'self' data: blob:; style-src 'self' https://fonts.googleapis.com; "
+        "default-src 'self'; img-src 'self' data: blob: https://maps.googleapis.com "
+        "https://maps.gstatic.com https://*.googleapis.com https://*.gstatic.com; "
+        "style-src 'self' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
-        "script-src 'self' blob: https://esm.sh https://cdn.jsdelivr.net https://esm.run; "
+        "script-src 'self' blob: https://esm.sh https://cdn.jsdelivr.net https://esm.run "
+        "https://maps.googleapis.com https://maps.gstatic.com; "
         "connect-src 'self' https://api.elevenlabs.io https://*.elevenlabs.io "
-        "wss://api.elevenlabs.io wss://*.elevenlabs.io; media-src 'self' blob:; "
+        "wss://api.elevenlabs.io wss://*.elevenlabs.io https://maps.googleapis.com "
+        "https://maps.gstatic.com https://*.googleapis.com https://*.gstatic.com; "
+        "media-src 'self' blob:; "
         "worker-src 'self' blob:; "
         "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
     )
@@ -1703,6 +1741,179 @@ def home_account_preferences(
     except (KeyError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"status": "UPDATED", "mode": "member", "requires_profile_setup": False, **updated}
+
+
+def _family_member(auth: AuthContext) -> dict[str, Any]:
+    member = _member_for_auth(auth)
+    if member is None:
+        raise HTTPException(status_code=409, detail="Mi familia requiere un perfil personal de esta casa")
+    return member
+
+
+def _family_context(member: dict[str, Any]) -> tuple[str, str, list[dict[str, Any]]]:
+    store = _family_store()
+    household_id, access_scope = store.resolve_household(member["household_id"], member["id"])
+    household_members = _account_store().members(member["id"])
+    if access_scope == "HOUSEHOLD":
+        store.remember_household_members(household_id, household_members)
+    return household_id, access_scope, household_members
+
+
+@app.get("/v1/home-family")
+def home_family_snapshot(request: Request, auth: AuthContext = Depends(_authenticate)) -> dict[str, Any]:
+    _rate_limit(request)
+    member = _family_member(auth)
+    household_id, access_scope, household_members = _family_context(member)
+    result = _family_store().snapshot(
+        household_id, household_members if access_scope == "HOUSEHOLD" else [], member["id"]
+    )
+    result["access_scope"] = access_scope
+    result["can_manage_connections"] = access_scope == "HOUSEHOLD" and member.get("role") == "OWNER"
+    result["map"] = {
+        "provider": "GOOGLE_MAPS" if os.getenv("ROXY_HOME_GOOGLE_MAPS_BROWSER_KEY", "").strip() else "UNCONFIGURED",
+        "browser_key": os.getenv("ROXY_HOME_GOOGLE_MAPS_BROWSER_KEY", "").strip(),
+        "map_id": os.getenv("ROXY_HOME_GOOGLE_MAP_ID", "").strip(),
+    }
+    return result
+
+
+@app.put("/v1/home-family/location")
+def home_family_update_location(
+    payload: HomeFamilyLocationRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    member = _family_member(auth)
+    household_id, _access_scope, _members = _family_context(member)
+    try:
+        result = _family_store().update_location(
+            household_id, member["id"],
+            latitude=payload.latitude, longitude=payload.longitude,
+            accuracy_m=payload.accuracy_m, altitude_m=payload.altitude_m,
+            speed_mps=payload.speed_mps, heading_deg=payload.heading_deg,
+            recorded_at=payload.recorded_at, consent=payload.consent,
+            shopping_pending=int(_store().snapshot(member["storage_user_id"]).get("pending_count") or 0),
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "UPDATED", **result}
+
+
+@app.get("/v1/home-family/members/{member_id}/history")
+def home_family_history(
+    member_id: str,
+    request: Request,
+    limit: int = 500,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    viewer = _family_member(auth)
+    household_id, access_scope, household_members = _family_context(viewer)
+    family = _family_store().snapshot(household_id, household_members if access_scope == "HOUSEHOLD" else [], viewer["id"])
+    allowed = {str(row.get("id")) for row in family.get("members") or []}
+    if member_id not in allowed:
+        raise HTTPException(status_code=404, detail="Miembro no encontrado en esta casa")
+    return {"status": "READY", "member_id": member_id, "points": _family_store().history(household_id, member_id, limit=limit)}
+
+
+@app.delete("/v1/home-family/location", status_code=204)
+def home_family_stop_location(
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> Response:
+    _rate_limit(request)
+    member = _family_member(auth)
+    household_id, _access_scope, _members = _family_context(member)
+    _family_store().stop_sharing(household_id, member["id"])
+    return _security_headers(Response(status_code=204))
+
+
+@app.post("/v1/home-family/places", status_code=201)
+def home_family_save_place(
+    payload: HomeFamilyPlaceRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    member = _family_member(auth)
+    household_id, access_scope, _members = _family_context(member)
+    if access_scope != "HOUSEHOLD":
+        raise HTTPException(status_code=403, detail="Una conexión externa no puede modificar los lugares de esta casa")
+    try:
+        place = _family_store().save_place(
+            household_id, name=payload.name, kind=payload.kind,
+            latitude=payload.latitude, longitude=payload.longitude, radius_m=payload.radius_m,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "CREATED", "place": place}
+
+
+@app.delete("/v1/home-family/places/{place_id}", status_code=204)
+def home_family_delete_place(
+    place_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> Response:
+    _rate_limit(request)
+    member = _family_member(auth)
+    household_id, access_scope, _members = _family_context(member)
+    if access_scope != "HOUSEHOLD":
+        raise HTTPException(status_code=403, detail="Una conexión externa no puede modificar los lugares de esta casa")
+    if not _family_store().delete_place(household_id, place_id):
+        raise HTTPException(status_code=404, detail="Lugar no encontrado")
+    return _security_headers(Response(status_code=204))
+
+
+@app.post("/v1/home-family/invitations", status_code=201)
+def home_family_create_invitation(
+    payload: HomeFamilyInvitationRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    member = _family_member(auth)
+    household_id, access_scope, _members = _family_context(member)
+    if access_scope != "HOUSEHOLD" or member.get("role") != "OWNER":
+        raise HTTPException(status_code=403, detail="Solo la persona propietaria de la casa puede invitar conexiones")
+    invitation = _family_store().create_invitation(
+        household_id, actor_id=member["id"], display_name=payload.display_name, relationship=payload.relationship
+    )
+    return {"status": "CREATED", "invitation": invitation, "access_scope": "NEXO_ONLY"}
+
+
+@app.post("/v1/home-family/invitations/redeem")
+def home_family_redeem_invitation(
+    payload: HomeFamilyInvitationRedeemRequest,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    member = _family_member(auth)
+    try:
+        result = _family_store().redeem_invitation(payload.token, member)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "CONNECTED", **result}
+
+
+@app.delete("/v1/home-family/connections/{member_id}", status_code=204)
+def home_family_revoke_connection(
+    member_id: str,
+    request: Request,
+    auth: AuthContext = Depends(_authenticate),
+) -> Response:
+    _rate_limit(request)
+    member = _family_member(auth)
+    household_id, access_scope, _members = _family_context(member)
+    if access_scope != "HOUSEHOLD" or member.get("role") != "OWNER":
+        raise HTTPException(status_code=403, detail="Solo la persona propietaria de la casa puede retirar conexiones")
+    if not _family_store().revoke_connection(household_id, member_id):
+        raise HTTPException(status_code=404, detail="Conexión no encontrada")
+    return _security_headers(Response(status_code=204))
 
 
 @app.get("/v1/assistant/session/{user_id}")

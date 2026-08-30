@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '96';
+  const APP_VERSION = '97';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -112,6 +112,8 @@
   let homeDaily=null;
   let homeDesign={projects:[],generation_configured:false};
   let homePlants={plants:[],due_today:[],vacation:{},species:[],identification_configured:false};
+  let homeFamily={status:'UNAVAILABLE',members:[],places:[],alerts:[],capabilities:{}};
+  let familyWatchId=null,familyMap=null,familyMapMarkers=[],familyRoute=null,familyMapLoader=null,familyRefreshTimer=null;
   let currentPlant=null;
   let designPoll=null;
   let calendarView='today';
@@ -363,7 +365,7 @@
       appearance=safeAppearance(account.preferences||appearance);applyAppearance();
       const rangeStart=new Date();rangeStart.setHours(0,0,0,0);rangeStart.setDate(rangeStart.getDate()-7);
       const rangeEnd=new Date(rangeStart);rangeEnd.setDate(rangeEnd.getDate()+370);
-      const [shopping,food,shoppingCommerce,calendarData,dailyData,designData,weatherData,plantsData] = await Promise.all([
+      const [shopping,food,shoppingCommerce,calendarData,dailyData,designData,weatherData,plantsData,familyData] = await Promise.all([
         api(`/v1/shopping/${encodeURIComponent(user)}`),
         api(`/v1/home-food/${encodeURIComponent(user)}`),
         api(`/v1/home-commerce/${encodeURIComponent(user)}`),
@@ -371,7 +373,8 @@
         api(`/v1/home-daily/${encodeURIComponent(user)}`).catch(()=>null),
         api(`/v1/home-design/${encodeURIComponent(user)}`).catch(()=>({projects:[],generation_configured:false})),
         api(`/v1/home-weather/${encodeURIComponent(user)}?days=16`).catch(()=>null),
-        api(`/v1/home-plants/${encodeURIComponent(user)}`).catch(()=>({plants:[],due_today:[],vacation:{},species:[],identification_configured:false}))
+        api(`/v1/home-plants/${encodeURIComponent(user)}`).catch(()=>({plants:[],due_today:[],vacation:{},species:[],identification_configured:false})),
+        account.mode==='member'?api('/v1/home-family').catch(()=>null):Promise.resolve(null)
       ]);
       snapshot = shopping;
       homeFood = food;
@@ -380,6 +383,7 @@
       homeDaily = dailyData;
       homeDesign = designData;
       homePlants = plantsData;
+      if(familyData)homeFamily=familyData;
       if(weatherData)homeWeather=weatherData;
       await cacheSnapshot();
       await dbSet(`home-food:${user}`,homeFood);
@@ -388,6 +392,7 @@
       if(homeDaily)await dbSet(`home-daily:${user}`,homeDaily);
       await dbSet(`home-design:${user}`,homeDesign);
       await dbSet(`home-plants:${user}`,homePlants);
+      if(familyData)await dbSet(`home-family:${user}`,homeFamily);
       if(weatherData)await dbSet(`home-weather:${user}`,homeWeather);
       await flushQueue();
       setConnection('Sincronizado ahora','online');
@@ -395,6 +400,7 @@
       render();
       renderAccount();
       renderHomeMoment();
+      if(familyData){void redeemNexoInvitationFromUrl();void resumeFamilyLocationIfEnabled()}
       void autoSyncGoogleCalendar();
       if(!$('shoppingPanel').hidden)void loadPriceRecommendations({quiet:true});
       if(account.requires_profile_setup&&!sessionStorage.getItem('roxyHomeProfilePrompted')){sessionStorage.setItem('roxyHomeProfilePrompted','1');openAccountDialog()}
@@ -406,6 +412,7 @@
       const cachedDaily = await dbGet(`home-daily:${user}`).catch(() => null);
       const cachedDesign = await dbGet(`home-design:${user}`).catch(() => null);
       const cachedWeather = await dbGet(`home-weather:${user}`).catch(() => null);
+      const cachedFamily = await dbGet(`home-family:${user}`).catch(() => null);
       if (cached) snapshot = cached;
       if (cachedFood) homeFood = cachedFood;
       if (cachedCommerce) commerce = cachedCommerce;
@@ -413,7 +420,8 @@
       if (cachedDaily) homeDaily = cachedDaily;
       if (cachedDesign) homeDesign = cachedDesign;
       if (cachedWeather) homeWeather = cachedWeather;
-      if (cached || cachedFood || cachedCommerce || cachedCalendar || cachedDaily || cachedDesign || cachedWeather) {
+      if (cachedFamily) homeFamily = cachedFamily;
+      if (cached || cachedFood || cachedCommerce || cachedCalendar || cachedDaily || cachedDesign || cachedWeather || cachedFamily) {
         setConnection('Sin conexión · mostrando lo guardado','offline');
         populateHomeForms();
         render();
@@ -495,17 +503,22 @@
       node.hidden = !active;
       node.classList.toggle('active',active);
     });
-    document.querySelectorAll('.bottom-nav [data-tab-link]').forEach(button => button.classList.toggle('active',button.dataset.tabLink === panel));
+    document.querySelectorAll('.bottom-nav [data-tab-link]').forEach(button => {
+      const active=button.dataset.tabLink === panel;
+      button.classList.toggle('active',active);
+      if(active)requestAnimationFrame(()=>button.scrollIntoView({behavior:smooth?'smooth':'auto',block:'nearest',inline:'center'}));
+    });
     // The large greeting remains as dormant infrastructure for a future
     // dedicated welcome experience. Today starts and ends with useful content,
     // while the center Roxy tab remains the conversation entry point.
     $('homeWelcome').hidden=true;
-    const hashes={today:'hoy',shopping:'compra',recipes:'recetas',pantry:'despensa',calendar:'calendario',design:'renueva',plants:'jardin',more:'mas'};
+    const hashes={today:'hoy',shopping:'compra',recipes:'recetas',pantry:'despensa',calendar:'calendario',design:'renueva',plants:'jardin',family:'familia',more:'mas'};
     location.hash=hashes[panel]||'hoy';
     window.scrollTo({top:0,behavior:smooth?'smooth':'auto'});
     if(panel==='shopping'&&account.mode!=='unknown'&&!priceRecommendations&&!priceRecommendationsLoading)void loadPriceRecommendations({quiet:true});
     if(panel==='design'&&account.mode!=='unknown')void refreshDesignProjects().catch(()=>{});
     if(panel==='plants'&&account.mode!=='unknown')void refreshPlants().catch(()=>{});
+    if(panel==='family'&&account.mode==='member')void refreshFamily().catch(()=>{});
   }
 
   const calendarCategories={PERSONAL:'Personal',WORK:'Trabajo',FAMILY:'Familia',SCHOOL:'Escuela',APPOINTMENTS:'Citas',HOME:'Hogar'};
@@ -1065,6 +1078,66 @@
   async function readPlantPhoto(file){return readDesignPhoto(file)}
   async function submitPlant(event){event.preventDefault();const button=$('plantSubmit');button.disabled=true;button.textContent='Roxy está observando…';try{const photo=await readPlantPhoto($('plantPhoto').files[0]);let speciesKey=$('plantSpecies').value;if(speciesKey==='unknown'&&homePlants.identification_configured){const identified=await api(`/v1/home-plants/${encodeURIComponent(user)}/identify`,{method:'POST',body:JSON.stringify({photo_data_url:photo})});const proposal=identified.proposal||{};if(proposal.species_key&&proposal.species_key!=='unknown'){const label=plantSpeciesLabel(proposal.species_key);const confidence=Math.round(Number(proposal.confidence||0)*100);const confirmed=window.confirm(`Roxy propone que es ${label} (${confidence}% de confianza). La foto no sustituye una identificación experta. ¿Confirmas esta especie?`);$('plantSpecies').value=proposal.species_key;if(!confirmed){announce('Revisa la especie propuesta y pulsa Añadir cuando esté correcta');return}speciesKey=proposal.species_key}}const data=await api(`/v1/home-plants/${encodeURIComponent(user)}`,{method:'POST',body:JSON.stringify({display_name:$('plantName').value,species_key:speciesKey,room:$('plantRoom').value,placement:$('plantPlacement').value,pot_type:$('plantPot').value,drainage:$('plantDrainage').checked,notes:$('plantNotes').value,photo_data_url:photo})});$('plantDialog').close();event.currentTarget.reset();await refreshPlants();if(data.plant?.identification?.status==='CONFIRMED')announce('Planta confirmada y añadida a Mi jardín');else announce('Planta añadida. Abre su ficha para confirmar la especie.')}catch(error){announce(error.message)}finally{button.disabled=false;button.textContent='Analizar y añadir'}}
   async function savePlantVacation(event){event.preventDefault();try{await api(`/v1/home-plants/${encodeURIComponent(user)}/vacation`,{method:'PUT',body:JSON.stringify({enabled:$('plantVacationEnabled').checked,starts_on:$('plantVacationStart').value,ends_on:$('plantVacationEnd').value,caregiver:$('plantVacationCaregiver').value,notes:$('plantVacationNotes').value})});$('plantVacationDialog').close();await refreshPlants();announce('Plan de viaje guardado para el hogar')}catch(error){announce(error.message)}}
+
+  const familyPlaceIcons={HOME:'home',WORK:'work',STORE:'storefront',OTHER:'location_on'};
+  const familyPlaceLabels={HOME:'Casa',WORK:'Trabajo',STORE:'Tienda frecuente',OTHER:'Otro lugar'};
+  const familyInitials=name=>String(name||'?').trim().split(/\s+/).slice(0,2).map(row=>row[0]||'').join('').toUpperCase();
+  const familyTime=value=>{if(!value)return'';const date=new Date(value);return Number.isNaN(date.getTime())?'':new Intl.DateTimeFormat('es',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}).format(date)};
+  function currentBrowserPosition(){
+    if(!navigator.geolocation)return Promise.reject(new Error('Este navegador no permite compartir ubicación'));
+    return new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(position=>resolve({latitude:position.coords.latitude,longitude:position.coords.longitude,accuracy_m:position.coords.accuracy}),error=>{const messages={1:'No autorizaste la ubicación. Puedes activarla en los ajustes del navegador.',2:'No pude determinar tu ubicación ahora.',3:'La ubicación tardó demasiado. Inténtalo nuevamente.'};reject(new Error(messages[error.code]||'No pude obtener tu ubicación'))},{enableHighAccuracy:false,maximumAge:60000,timeout:12000}));
+  }
+  const browserLocationPayload=position=>({latitude:position.coords.latitude,longitude:position.coords.longitude,accuracy_m:position.coords.accuracy,altitude_m:position.coords.altitude,speed_mps:position.coords.speed,heading_deg:position.coords.heading,recorded_at:new Date(position.timestamp).toISOString(),consent:true});
+  function loadFamilyGoogleMaps(){
+    const key=homeFamily.map?.browser_key;if(!key)return Promise.reject(new Error('Falta configurar Google Maps para Roxy Home'));
+    if(window.google?.maps)return Promise.resolve(window.google.maps);
+    if(familyMapLoader)return familyMapLoader;
+    familyMapLoader=new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=`https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&loading=async`;script.async=true;script.onload=()=>resolve(window.google.maps);script.onerror=()=>reject(new Error('No se pudo cargar Google Maps'));document.head.append(script)});return familyMapLoader;
+  }
+  async function renderFamilyMap(){
+    const root=$('familyMap');if(!root)return;const located=(homeFamily.members||[]).filter(row=>row.sharing_enabled&&row.location);
+    if(homeFamily.map?.provider!=='GOOGLE_MAPS'){root.innerHTML='<div class="family-map-empty"><span class="material-symbols-rounded" aria-hidden="true">map</span><strong>Mapa listo para conectar</strong><p>Configura la clave de navegador exclusiva de Roxy Home para mostrar el mapa real.</p></div>';return}
+    try{await loadFamilyGoogleMaps();if(!familyMap){root.replaceChildren();familyMap=new google.maps.Map(root,{center:located.length?{lat:Number(located[0].location.latitude),lng:Number(located[0].location.longitude)}:{lat:28.5383,lng:-81.3792},zoom:located.length?14:9,mapId:homeFamily.map.map_id||undefined,mapTypeId:'roadmap',disableDefaultUI:false,streetViewControl:false,fullscreenControl:false,mapTypeControl:true,zoomControl:true,scaleControl:true,gestureHandling:'greedy',clickableIcons:true})}
+      familyMapMarkers.forEach(marker=>marker.setMap(null));familyMapMarkers=[];const bounds=new google.maps.LatLngBounds();located.forEach(member=>{const point={lat:Number(member.location.latitude),lng:Number(member.location.longitude)};const marker=new google.maps.Marker({map:familyMap,position:point,title:member.display_name||'Miembro',label:{text:familyInitials(member.display_name),color:'#fff',fontWeight:'700'},icon:{path:google.maps.SymbolPath.CIRCLE,scale:22,fillColor:member.is_viewer?'#155a3d':'#b58a2c',fillOpacity:1,strokeColor:'#fff',strokeWeight:4}});familyMapMarkers.push(marker);bounds.extend(point)});if(located.length===1){familyMap.setCenter(bounds.getCenter());familyMap.setZoom(15)}else if(located.length>1)familyMap.fitBounds(bounds,56);
+      const viewer=located.find(row=>row.is_viewer);if(viewer){const history=await api(`/v1/home-family/members/${encodeURIComponent(viewer.id)}/history?limit=500`).catch(()=>({points:[]}));if(familyRoute)familyRoute.setMap(null);familyRoute=new google.maps.Polyline({map:familyMap,path:(history.points||[]).map(point=>({lat:Number(point.latitude),lng:Number(point.longitude)})),strokeColor:'#b58a2c',strokeOpacity:.9,strokeWeight:5})}
+    }catch(error){root.innerHTML=`<div class="family-map-empty"><span class="material-symbols-rounded" aria-hidden="true">wifi_off</span><strong>No pude abrir el mapa</strong><p>${escapeHtml(error.message)}</p></div>`}
+  }
+  async function refreshFamily(){homeFamily=await api('/v1/home-family');await dbSet(`home-family:${user}`,homeFamily);renderFamily()}
+  function renderFamily(){
+    const members=$('familyMembers');const places=$('familyPlaces');const alerts=$('familyAlerts');const connections=$('familyConnections');if(!members||!places||!alerts||!connections)return;
+    members.replaceChildren();places.replaceChildren();alerts.replaceChildren();connections.replaceChildren();$('familyPrivacyNotice').textContent=homeFamily.privacy_notice||'La ubicación solo se comparte con tu permiso.';
+    $('familyInviteForm').hidden=!homeFamily.can_manage_connections;
+    const rows=homeFamily.members||[];const viewer=rows.find(row=>row.is_viewer);const enabled=Boolean(viewer?.sharing_enabled);$('familyStopLocation').hidden=!enabled;$('familyLiveState').textContent=familyWatchId!==null?'En vivo':enabled?'Activada · esperando señal':'Desactivada';$('familyLiveState').classList.toggle('is-live',familyWatchId!==null);$('familyShareLocation').innerHTML=familyWatchId!==null?'<span class="material-symbols-rounded" aria-hidden="true">near_me</span> Ubicación en vivo activa':enabled?'<span class="material-symbols-rounded" aria-hidden="true">sync</span> Reanudar actualización':'<span class="material-symbols-rounded" aria-hidden="true">near_me</span> Activar ubicación permanente';void renderFamilyMap();
+    if(!rows.length){const empty=document.createElement('p');empty.className='family-empty';empty.textContent=account.mode==='member'?'Añade personas desde Administrar perfiles.':'Entra con tu perfil para usar Nuestro Nexo.';members.append(empty)}
+    rows.forEach(member=>{const row=document.createElement('article');row.className=`family-member${member.sharing_enabled?'':' is-private'}${member.external?' is-external':''}`;const avatar=document.createElement('span');avatar.className='family-member-avatar';avatar.textContent=familyInitials(member.display_name);const copy=document.createElement('span');const title=document.createElement('strong');title.textContent=`${member.display_name||'Miembro'}${member.is_viewer?' · Tú':''}`;const status=document.createElement('small');status.textContent=member.sharing_enabled?(member.status||'Ubicación compartida'):'Ubicación privada';const speed=Number(member.location?.speed_mps||0);const updated=document.createElement('em');updated.textContent=member.updated_at?`${speed>.5?`${Math.round(speed*2.23694)} mph · `:''}Actualizado ${familyTime(member.updated_at)}`:'Sin ubicación compartida';copy.append(title,status,updated);if(member.external){const badge=document.createElement('b');badge.className='family-trust-badge';badge.textContent=member.relationship||'Conexión de confianza';copy.append(badge)}row.append(avatar,copy);members.append(row)});
+    const trusted=homeFamily.connections||[];if(!trusted.length){const empty=document.createElement('p');empty.className='family-empty';empty.textContent=homeFamily.can_manage_connections?'Todavía no has conectado a nadie fuera de esta casa.':'No hay conexiones externas en este Nexo.';connections.append(empty)}
+    trusted.forEach(member=>{const row=document.createElement('article');row.className='family-connection';const avatar=document.createElement('span');avatar.className='family-member-avatar';avatar.textContent=familyInitials(member.display_name);const copy=document.createElement('span');copy.innerHTML=`<strong>${escapeHtml(member.display_name||'Conexión')}</strong><small>${escapeHtml(member.relationship||'Persona de confianza')} · acceso solo a Nexo</small>`;row.append(avatar,copy);if(homeFamily.can_manage_connections){const remove=document.createElement('button');remove.type='button';remove.setAttribute('aria-label',`Retirar a ${member.display_name}`);remove.innerHTML='<span class="material-symbols-rounded" aria-hidden="true">person_remove</span>';remove.addEventListener('click',()=>revokeFamilyConnection(member));row.append(remove)}connections.append(row)});
+    const saved=homeFamily.places||[];if(!saved.length){const empty=document.createElement('p');empty.className='family-empty';empty.textContent='Guarda Casa o Trabajo para recibir recordatorios con contexto.';places.append(empty)}
+    saved.forEach(place=>{const row=document.createElement('article');row.className='family-place';const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.textContent=familyPlaceIcons[place.kind]||'location_on';const copy=document.createElement('span');copy.innerHTML=`<strong>${escapeHtml(place.name)}</strong><small>${escapeHtml(familyPlaceLabels[place.kind]||'Lugar')} · radio ${Number(place.radius_m||200)} m</small>`;const remove=document.createElement('button');remove.type='button';remove.className='family-place-remove';remove.innerHTML='<span class="material-symbols-rounded" aria-hidden="true">delete</span>';remove.setAttribute('aria-label',`Eliminar ${place.name}`);remove.addEventListener('click',()=>deleteFamilyPlace(place));row.append(icon,copy,remove);places.append(row)});
+    const notices=[...(homeFamily.alerts||[])].reverse();if(!notices.length){const empty=document.createElement('p');empty.className='family-empty';empty.textContent='Cuando haya un recordatorio contextual aparecerá aquí.';alerts.append(empty)}
+    notices.forEach(alert=>{const row=document.createElement('article');row.className='family-alert';row.innerHTML=`<span class="material-symbols-rounded" aria-hidden="true">${alert.kind==='SHOPPING_AFTER_WORK'?'shopping_cart':'notifications'}</span><div><strong>${escapeHtml(alert.title||'Recordatorio')}</strong><p>${escapeHtml(alert.message||'')}</p><small>${escapeHtml(familyTime(alert.created_at))}</small></div>`;alerts.append(row)});
+  }
+  async function sendFamilyPosition(position){const result=await api('/v1/home-family/location',{method:'PUT',body:JSON.stringify(browserLocationPayload(position))});homeFamily=await api('/v1/home-family');renderFamily();if(result.alert){announce(result.alert.message);if('Notification'in window&&Notification.permission==='granted')new Notification('Roxy Home',{body:result.alert.message})}}
+  async function startFamilyLocationWatcher({automatic=false}={}){
+    const button=$('familyShareLocation');if(familyWatchId!==null)return true;
+    if(!navigator.geolocation){if(!automatic)announce('Este navegador no permite compartir ubicación');return false}
+    button.disabled=true;button.innerHTML=`<span class="material-symbols-rounded" aria-hidden="true">progress_activity</span> ${automatic?'Reanudando…':'Solicitando permiso…'}`;
+    try{
+      await new Promise((resolve,reject)=>{let settled=false;familyWatchId=navigator.geolocation.watchPosition(async position=>{try{await sendFamilyPosition(position);$('familyMapStatus').textContent='Preferencia permanente activa. Roxy actualiza tu posición al abrir la aplicación y mientras permanece en uso.';if(!settled){settled=true;resolve()}}catch(error){if(!settled){settled=true;reject(error)}}},error=>{if(!settled){settled=true;reject(new Error(({1:'El permiso de ubicación está bloqueado. Actívalo en los ajustes de Safari para reanudar.',2:'No pude determinar tu ubicación ahora.',3:'La ubicación tardó demasiado.'})[error.code]||'No pude obtener tu ubicación'))}},{enableHighAccuracy:true,maximumAge:5000,timeout:15000})});
+      if(!automatic)announce('Ubicación activada. Roxy la reanudará automáticamente cada vez que abras la aplicación.');
+      return true;
+    }catch(error){if(familyWatchId!==null)navigator.geolocation.clearWatch(familyWatchId);familyWatchId=null;$('familyMapStatus').textContent='La preferencia sigue activa, pero el navegador necesita permiso para volver a actualizar.';if(!automatic)announce(error.message);return false}
+    finally{button.disabled=false;renderFamily()}
+  }
+  async function shareFamilyLocation(){return startFamilyLocationWatcher({automatic:false})}
+  async function resumeFamilyLocationIfEnabled(){const viewer=(homeFamily.members||[]).find(row=>row.is_viewer);if(!viewer?.sharing_enabled||familyWatchId!==null)return false;return startFamilyLocationWatcher({automatic:true})}
+  async function stopFamilyLocation(){if(!window.confirm('¿Desactivar la ubicación? Roxy dejará de reanudarla al abrir la aplicación y borrará el recorrido compartido.'))return;try{if(familyWatchId!==null)navigator.geolocation.clearWatch(familyWatchId);familyWatchId=null;await api('/v1/home-family/location',{method:'DELETE'});$('familyMapStatus').textContent='La ubicación permanente está desactivada y el recorrido compartido fue borrado.';await refreshFamily();announce('Ubicación desactivada hasta que decidas volver a activarla')}catch(error){announce(error.message)}}
+  async function createFamilyInvitation(event){event.preventDefault();const button=event.currentTarget.querySelector('button[type="submit"]');button.disabled=true;try{const data=await api('/v1/home-family/invitations',{method:'POST',body:JSON.stringify({display_name:$('familyInviteName').value.trim(),relationship:$('familyInviteRelationship').value.trim()||'Persona de confianza'})});const url=new URL('/lista',location.origin);url.searchParams.set('nexo_invite',data.invitation.token);url.hash='family';const result=$('familyInviteResult');result.hidden=false;result.replaceChildren();const copy=document.createElement('p');copy.innerHTML=`<strong>Invitación lista para ${escapeHtml(data.invitation.display_name||'tu conexión')}</strong><small>Caduca en 7 días y solo permite entrar a Nuestro Nexo.</small>`;const share=makeButton('Compartir invitación','primary',async()=>{try{if(navigator.share)await navigator.share({title:'Invitación a Nuestro Nexo',text:'Te invito a compartir ubicación conmigo de forma privada en Roxy Home.',url:url.toString()});else{await navigator.clipboard.writeText(url.toString());announce('Enlace copiado')}}catch(error){if(error.name!=='AbortError')announce('No pude compartir el enlace')}});result.append(copy,share);event.currentTarget.reset();await refreshFamily()}catch(error){announce(error.message)}finally{button.disabled=false}}
+  async function redeemNexoInvitationFromUrl(){const url=new URL(location.href);const token=url.searchParams.get('nexo_invite');if(!token||sessionStorage.getItem(`nexo-invite:${token}`))return;try{await api('/v1/home-family/invitations/redeem',{method:'POST',body:JSON.stringify({token})});sessionStorage.setItem(`nexo-invite:${token}`,'1');url.searchParams.delete('nexo_invite');history.replaceState(null,'',`${url.pathname}${url.search}#family`);await refreshFamily();selectPanel('family');announce('Ya formas parte de este Nexo. Solo compartes esta sección.')}catch(error){announce(error.message)}}
+  async function revokeFamilyConnection(member){if(!window.confirm(`¿Retirar a ${member.display_name} de Nuestro Nexo? También se borrará su recorrido compartido aquí.`))return;try{await api(`/v1/home-family/connections/${encodeURIComponent(member.id)}`,{method:'DELETE'});await refreshFamily();announce('Conexión retirada de Nuestro Nexo')}catch(error){announce(error.message)}}
+  async function saveFamilyPlace(event){event.preventDefault();const button=event.currentTarget.querySelector('button[type="submit"]');button.disabled=true;try{const position=await currentBrowserPosition();await api('/v1/home-family/places',{method:'POST',body:JSON.stringify({name:$('familyPlaceName').value.trim(),kind:$('familyPlaceKind').value,...position,radius_m:200})});event.currentTarget.reset();await refreshFamily();announce('Lugar guardado para esta casa')}catch(error){announce(error.message)}finally{button.disabled=false}}
+  async function deleteFamilyPlace(place){if(!window.confirm(`¿Eliminar ${place.name} de los lugares del hogar?`))return;try{await api(`/v1/home-family/places/${encodeURIComponent(place.id)}`,{method:'DELETE'});await refreshFamily();announce('Lugar eliminado')}catch(error){announce(error.message)}}
+
   async function refreshDesignProjects(){
     homeDesign=await api(`/v1/home-design/${encodeURIComponent(user)}`);await dbSet(`home-design:${user}`,homeDesign);renderDesign();
     const pending=(homeDesign.projects||[]).some(project=>project.proposal_status==='GENERATING');
@@ -1458,7 +1531,7 @@
   async function startRoxyVoice(){if(roxyVoiceConversation||roxyVoiceStarting)return;openRoxyVoice();roxyVoiceStarting=true;roxyLastAgentMessage='';roxyLastAgentMessageAt=0;$('roxyVoiceStart').disabled=true;let phase='configuración';roxyVoiceStatus('Conectando con ElevenLabs…');try{if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new DOMException('Micrófono no disponible','NotFoundError');phase='permiso del micrófono';roxyVoicePermissionStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});const config=await api(`/v1/assistant/session/${encodeURIComponent(user)}`);phase='carga del agente';const eleven=await loadElevenLabs();const Conversation=eleven.Conversation||(eleven.default&&eleven.default.Conversation);if(!Conversation||!Conversation.startSession)throw new Error('SDK de ElevenLabs no disponible');phase='conexión de voz';const options={connectionType:'websocket',overrides:roxyHomeOverrides(),dynamicVariables:{...(config.dynamic_variables||{}),shopping_list_json:JSON.stringify(currentShoppingSummary())},clientTools:roxyHomeClientTools(),onConnect:()=>{roxyVoiceStarting=false;roxyVoiceStatus('Roxy te está escuchando');$('roxyVoiceStart').disabled=true;$('roxyVoiceEnd').disabled=false},onDisconnect:details=>{console.info('Roxy Home ElevenLabs disconnected',details||'normal');stopRoxyPermissionStream();roxyVoiceConversation=null;roxyVoiceStarting=false;const endedByAgent=details&&details.reason==='agent';roxyVoiceStatus(endedByAgent?'Roxy terminó la llamada antes de tiempo. Pulsa iniciar para reconectar.':'Conversación terminada',endedByAgent);$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true},onError:error=>{console.warn('Roxy Home ElevenLabs error',error);stopRoxyPermissionStream();roxyVoiceStarting=false;roxyVoiceStatus(roxyVoiceError(error,'conversación'),true);$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true},onModeChange:mode=>{const state=String(mode&&mode.mode||mode||'').toLowerCase();if(state.includes('speaking'))roxyVoiceStatus('Roxy está respondiendo');else if(state.includes('listening'))roxyVoiceStatus('Roxy te está escuchando')},onMessage:message=>{const source=String(message&&((message.source||message.role||message.type))||'').toLowerCase();const text=message&&(message.message||message.text||message.transcript||message.content||(message.agent_response_event&&message.agent_response_event.agent_response)||(message.user_transcription_event&&message.user_transcription_event.user_transcript));if(typeof text==='string'&&text.trim()){const fromUser=source.includes('user');if(!fromUser){roxyLastAgentMessage=text.trim();roxyLastAgentMessageAt=Date.now()}roxyVoiceTranscript(text.trim(),fromUser?'Tú':'Roxy')}}};if(config.conversation_token)options.conversationToken=config.conversation_token;else options.agentId=config.agent_id;roxyVoiceConversation=await Conversation.startSession(options);stopRoxyPermissionStream()}catch(error){console.warn('Roxy Home ElevenLabs start failed',error);stopRoxyPermissionStream();roxyVoiceConversation=null;roxyVoiceStarting=false;roxyVoiceStatus(roxyVoiceError(error,phase),true);$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true}}
   async function endRoxyVoice(){const conversation=roxyVoiceConversation;roxyVoiceConversation=null;stopRoxyPermissionStream();if(conversation&&typeof conversation.endSession==='function'){try{await conversation.endSession()}catch(error){console.warn('Roxy Home ElevenLabs end failed',error)}}roxyVoiceStarting=false;roxyVoiceStatus('Conversación terminada');$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true}
 
-  function render(){renderShopping();renderRecipes();renderWeather();renderCalendar();renderHomeDaily();renderDesign();renderPlants();const latest=(homeFood.weekly_plans||[]).slice(-1)[0]||null;renderMealPlan(latest)}
+  function render(){renderShopping();renderRecipes();renderWeather();renderCalendar();renderHomeDaily();renderDesign();renderPlants();renderFamily();const latest=(homeFood.weekly_plans||[]).slice(-1)[0]||null;renderMealPlan(latest)}
   function bind(){
     document.addEventListener('error',event=>{const image=event.target;if(!(image instanceof HTMLImageElement)||!image.src.includes('/v1/home-food/recipe-photo'))return;const card=image.closest('.recipe-card,.recipe-detail-hero,.meal-plan-meal');if(card)card.classList.add('no-photo');image.remove()},true);
     $('searchInput').addEventListener('input',event=>{search=event.target.value;renderShopping()});
@@ -1494,6 +1567,12 @@
     $('plantForm').addEventListener('submit',submitPlant);
     $('plantVacationButton').addEventListener('click',()=>{const value=homePlants.vacation||{};$('plantVacationEnabled').checked=Boolean(value.enabled);$('plantVacationStart').value=value.starts_on||'';$('plantVacationEnd').value=value.ends_on||'';$('plantVacationCaregiver').value=value.caregiver||'';$('plantVacationNotes').value=value.notes||'';$('plantVacationDialog').showModal()});
     $('plantVacationForm').addEventListener('submit',savePlantVacation);
+    $('familyShareLocation').addEventListener('click',shareFamilyLocation);
+    $('familyStopLocation').addEventListener('click',stopFamilyLocation);
+    $('familyPlaceForm').addEventListener('submit',saveFamilyPlace);
+    $('familyInviteForm').addEventListener('submit',createFamilyInvitation);
+    window.addEventListener('pageshow',()=>{if(familyData)void resumeFamilyLocationIfEnabled()});
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&familyData)void resumeFamilyLocationIfEnabled()});
     $('pantryForm').addEventListener('submit',savePantry);
     $('recipeForm').addEventListener('submit',createRecipe);
     $('scanRecipeButton').addEventListener('click',()=>openRecipeImporter('image'));
@@ -1551,7 +1630,7 @@
   applyAppearance();bind();renderHomeMoment();setInterval(renderHomeMoment,30000);render();
   window.addEventListener('pageshow',event=>{if(event.persisted)location.reload()});
   if('scrollRestoration'in history)history.scrollRestoration='manual';
-  const initialPanels={hoy:'today',compra:'shopping',recetas:'recipes',despensa:'pantry',calendario:'calendar',renueva:'design',jardin:'plants',mas:'more'};
+  const initialPanels={hoy:'today',compra:'shopping',recetas:'recipes',despensa:'pantry',calendario:'calendar',renueva:'design',jardin:'plants',familia:'family',mas:'more'};
   selectPanel(initialPanels[location.hash.slice(1)]||'today',{smooth:false});const calendarSyncResult=new URLSearchParams(location.search).get('calendar_sync');if(calendarSyncResult){sessionStorage.setItem('roxyCalendarSyncNotice',calendarSyncResult);history.replaceState(null,'',`${location.pathname}${location.hash||'#calendario'}`)}load().then(()=>{const notice=sessionStorage.getItem('roxyCalendarSyncNotice');if(notice){sessionStorage.removeItem('roxyCalendarSyncNotice');announce(notice==='connected'?'Google Calendar quedó conectado. Tus próximos eventos ya se están sincronizando.':notice==='denied'?'No se autorizó Google Calendar. No hice cambios.':'No pude terminar la conexión con Google Calendar. Inténtalo de nuevo.')}});
   if('serviceWorker'in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){
     const homeRoute=location.pathname.startsWith('/home');

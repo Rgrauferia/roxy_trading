@@ -22,11 +22,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="96"' in page.text
-    assert 'href="/assets/roxy_list.css?v=77"' in page.text
-    assert 'src="/assets/roxy_list.js?v=96"' in page.text
-    assert '/assets/roxy_list.css?v=77' in worker.text
-    assert '/assets/roxy_list.js?v=96' in worker.text
+    assert 'name="roxy-home-version" content="98"' in page.text
+    assert 'href="/assets/roxy_list.css?v=79"' in page.text
+    assert 'src="/assets/roxy_list.js?v=99"' in page.text
+    assert '/assets/roxy_list.css?v=79' in worker.text
+    assert '/assets/roxy_list.js?v=99' in worker.text
     assert 'id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle" hidden' in page.text
     assert '/assets/roxy_home_avatar.jpg' in page.text
     assert '/assets/roxy_home_avatar.jpg' in worker.text
@@ -52,7 +52,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
     assert 'Comparar muebles reales' in script.text
-    assert "const APP_VERSION = '96'" in script.text
+    assert "const APP_VERSION = '97'" in script.text
     assert 'id="plantsPanel"' in page.text
     assert 'data-tab-link="plants"' in page.text
     assert 'id="plantDialog"' in page.text

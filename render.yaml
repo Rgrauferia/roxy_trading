@@ -178,12 +178,18 @@ services:
         value: /var/data/roxy_home/voice
       - key: ROXY_HOME_AI_BUDGET_PATH
         value: /var/data/roxy_home/openai_budget.json
+      - key: ROXY_HOME_FAMILY_PATH
+        value: /var/data/roxy_home/family.json
       - key: ROXY_HOME_OPENAI_API_KEY
         sync: false
       - key: ROXY_HOME_OPENAI_ROUTINE_MODEL
         value: gpt-5.6-luna
       - key: ROXY_HOME_OPENAI_DEEP_MODEL
         value: gpt-5.6-terra
+      - key: ROXY_HOME_GOOGLE_MAPS_BROWSER_KEY
+        sync: false
+      - key: ROXY_HOME_GOOGLE_MAP_ID
+        sync: false
       - key: ROXY_HOME_RECIPE_IMAGE_GENERATION_ENABLED
         value: "1"
       - key: ROXY_HOME_RECIPE_IMAGE_DAILY_LIMIT
