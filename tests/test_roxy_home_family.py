@@ -298,6 +298,12 @@ def test_family_ui_is_wired_to_real_endpoints():
     assert "profile_photo" in js
     assert "profile_emoji" in js
     assert "familyWeatherMode" in js
+    assert "familyWeatherMapStyles" in js
+    assert "familyMapViewportInitialized" in js
+    assert "if(!familyMapViewportInitialized)" in js
+    assert "familyHistorySegments" in js
+    assert "Trayecto real" in js
+    assert "Trayecto aproximado" in js
     assert "const form=event.currentTarget" in js
     assert "inferFamilyPlaceKind" in js
     assert 'id="familyMemberRail"' in html

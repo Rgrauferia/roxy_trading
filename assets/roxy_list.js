@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '102';
+  const APP_VERSION = '104';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -113,7 +113,8 @@
   let homeDesign={projects:[],generation_configured:false};
   let homePlants={plants:[],due_today:[],vacation:{},species:[],identification_configured:false};
   let homeFamily={status:'UNAVAILABLE',members:[],places:[],alerts:[],capabilities:{}};
-  let familyWatchId=null,familyMap=null,familyMapMarkers=[],familyRoute=null,familyMapLoader=null,familyRefreshTimer=null;
+  let familyWatchId=null,familyMap=null,familyMapMarkers=[],familyRoutes=[],familyMapLoader=null,familyRefreshTimer=null;
+  let familyMapViewportInitialized=false;
   let familySelectedMemberId='',familyMapStyle='roadmap',familyDirectionsRenderer=null,familyRouteSnapshot=null,familyRouteMode=false;
   let familyProfilePhotoData='';
   let familyProfileEmoji='';
@@ -1120,6 +1121,46 @@
     const count={rain:42,storm:55,snow:32,fog:4,cloudy:3,sunny:1,'clear-night':1,cold:8}[mode]||0;
     for(let index=0;index<count;index+=1){const particle=document.createElement('i');particle.style.setProperty('--x',`${(index*37)%101}%`);particle.style.setProperty('--delay',`${-((index*0.19)%4).toFixed(2)}s`);particle.style.setProperty('--duration',`${(1.15+(index%7)*0.17).toFixed(2)}s`);particle.style.setProperty('--size',`${5+(index%6)*2}px`);root.append(particle)}
   }
+  function familyWeatherMapStyles(baseStyles){
+    const mode=familyWeatherMode();
+    const atmosphere={
+      sunny:[{elementType:'geometry',stylers:[{saturation:10},{lightness:4}]}],
+      cloudy:[{elementType:'geometry',stylers:[{saturation:-38},{lightness:-5},{gamma:.92}]}],
+      fog:[{elementType:'geometry',stylers:[{saturation:-58},{lightness:10},{gamma:1.08}]}],
+      rain:[{elementType:'geometry',stylers:[{saturation:-52},{lightness:-10},{gamma:.86}]}],
+      storm:[{elementType:'geometry',stylers:[{saturation:-70},{lightness:-18},{gamma:.78}]}],
+      snow:[{elementType:'geometry',stylers:[{saturation:-50},{lightness:13},{gamma:1.12}]}],
+      'clear-night':[{elementType:'geometry',stylers:[{saturation:-44},{lightness:-19},{gamma:.76}]}],
+      cold:[{elementType:'geometry',stylers:[{saturation:-22},{lightness:5},{gamma:1.02}]}]
+    };
+    return [...baseStyles,...(atmosphere[mode]||[])];
+  }
+  function familyHistorySegments(points=[]){
+    const valid=points.map(point=>({
+      lat:Number(point.latitude),lng:Number(point.longitude),accuracy:Number(point.accuracy_m||0),
+      recordedAt:new Date(point.recorded_at||point.received_at||0).getTime()
+    })).filter(point=>Number.isFinite(point.lat)&&Number.isFinite(point.lng)&&(!point.accuracy||point.accuracy<=250));
+    const segments=[];
+    valid.forEach(point=>{
+      const segment=segments[segments.length-1];const previous=segment?.[segment.length-1];
+      const gap=previous&&Number.isFinite(previous.recordedAt)&&Number.isFinite(point.recordedAt)?point.recordedAt-previous.recordedAt:0;
+      if(!segment||gap>120000||gap<0)segments.push([point]);else segment.push(point);
+    });
+    return segments;
+  }
+  function clearFamilyRoutes(){familyRoutes.forEach(route=>route.setMap(null));familyRoutes=[]}
+  function renderFamilyHistory(points=[]){
+    clearFamilyRoutes();
+    const segments=familyHistorySegments(points);const usable=segments.filter(segment=>segment.length>=2);const samples=usable.reduce((total,segment)=>total+segment.length,0);const realSamples=usable.filter(segment=>segment.length>=3).reduce((total,segment)=>total+segment.length,0);
+    usable.forEach(segment=>{
+      const exact=segment.length>=3;
+      familyRoutes.push(new google.maps.Polyline({map:familyMap,path:segment.map(point=>({lat:point.lat,lng:point.lng})),strokeColor:'#b58a2c',strokeOpacity:exact ? .92 : 0,strokeWeight:6,icons:exact?undefined:[{icon:{path:'M 0,-1 0,1',strokeOpacity:.9,strokeWeight:5,scale:4},offset:'0',repeat:'18px'}]}));
+    });
+    const status=$('familyMapStatus');if(!status)return;
+    if(realSamples>=3)status.textContent=`Trayecto real · ${realSamples} puntos GPS guardados. Puedes mover y alejar el mapa libremente.`;
+    else if(samples===2)status.textContent='Trayecto aproximado: solo recibí inicio y final. Mantén Roxy abierta durante el viaje para guardar el camino real.';
+    else if(familyWatchId!==null)status.textContent='Grabando tu recorrido real… Puedes mover y alejar el mapa libremente.';
+  }
   const familyFriendlyDate=()=>new Intl.DateTimeFormat('es',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date());
   const familyClock=value=>{const date=new Date(value);return Number.isNaN(date.getTime())?'':new Intl.DateTimeFormat('es',{hour:'numeric',minute:'2-digit'}).format(date)};
   function familyBatteryLabel(member){
@@ -1221,9 +1262,9 @@
     const root=$('familyMap');if(!root)return;const located=(homeFamily.members||[]).filter(row=>row.sharing_enabled&&row.location);
     if(homeFamily.map?.provider!=='GOOGLE_MAPS'){root.innerHTML='<div class="family-map-empty"><span class="material-symbols-rounded" aria-hidden="true">map</span><strong>Mapa listo para conectar</strong><p>Configura la clave de navegador exclusiva de Roxy Home para mostrar el mapa real.</p></div>';return}
     const nexoMapStyles=[{elementType:'geometry',stylers:[{color:'#edf0e7'}]},{elementType:'labels.icon',stylers:[{visibility:'off'}]},{elementType:'labels.text.fill',stylers:[{color:'#596b5f'}]},{elementType:'labels.text.stroke',stylers:[{color:'#fbfaf5'},{weight:3}]},{featureType:'administrative.locality',elementType:'labels.text.fill',stylers:[{color:'#40594a'}]},{featureType:'poi',stylers:[{visibility:'off'}]},{featureType:'transit',stylers:[{visibility:'off'}]},{featureType:'road',elementType:'geometry',stylers:[{color:'#fffdf8'}]},{featureType:'road',elementType:'geometry.stroke',stylers:[{color:'#d9dfd5'}]},{featureType:'road',elementType:'labels.icon',stylers:[{visibility:'off'}]},{featureType:'road.highway',elementType:'geometry',stylers:[{color:'#e7ddc4'}]},{featureType:'road.highway',elementType:'geometry.stroke',stylers:[{color:'#c9b57d'}]},{featureType:'landscape.natural',elementType:'geometry',stylers:[{color:'#e5ecdf'}]},{featureType:'landscape.man_made',elementType:'geometry',stylers:[{color:'#f2f0e8'}]},{featureType:'water',elementType:'geometry',stylers:[{color:'#d8e8e5'}]},{featureType:'water',elementType:'labels.text.fill',stylers:[{color:'#688682'}]}];
-    try{await loadFamilyGoogleMaps();const mapOptions={styles:nexoMapStyles,disableDefaultUI:true,keyboardShortcuts:false,streetViewControl:false,fullscreenControl:false,mapTypeControl:false,zoomControl:false,scaleControl:false,gestureHandling:'greedy',clickableIcons:false,backgroundColor:'#e7ece3'};if(!familyMap){root.replaceChildren();familyMap=new google.maps.Map(root,{center:located.length?{lat:Number(located[0].location.latitude),lng:Number(located[0].location.longitude)}:{lat:28.5383,lng:-81.3792},zoom:located.length?14:9,mapTypeId:'roadmap',...mapOptions})}else familyMap.setOptions(mapOptions);
-      familyMapMarkers.forEach(marker=>marker.setMap(null));familyMapMarkers=[];const bounds=new google.maps.LatLngBounds();located.forEach(member=>{const point={lat:Number(member.location.latitude),lng:Number(member.location.longitude)};familyMapMarkers.push(createFamilyMapPerson(member,point));bounds.extend(point)});if(located.length===1){familyMap.setCenter(bounds.getCenter());familyMap.setZoom(15)}else if(located.length>1)familyMap.fitBounds(bounds,76);
-      const viewer=located.find(row=>row.is_viewer);if(viewer){const history=await api(`/v1/home-family/members/${encodeURIComponent(viewer.id)}/history?limit=500`).catch(()=>({points:[]}));if(familyRoute)familyRoute.setMap(null);familyRoute=new google.maps.Polyline({map:familyMap,path:(history.points||[]).map(point=>({lat:Number(point.latitude),lng:Number(point.longitude)})),strokeColor:'#b58a2c',strokeOpacity:.9,strokeWeight:5})}void renderFamilyRouteCard(familySelectedMember());
+    try{await loadFamilyGoogleMaps();const mapOptions={styles:familyWeatherMapStyles(nexoMapStyles),disableDefaultUI:true,keyboardShortcuts:false,streetViewControl:false,fullscreenControl:false,mapTypeControl:false,zoomControl:true,zoomControlOptions:{position:google.maps.ControlPosition.RIGHT_BOTTOM},scaleControl:true,gestureHandling:'greedy',clickableIcons:false,backgroundColor:'#e7ece3'};if(!familyMap){root.replaceChildren();familyMap=new google.maps.Map(root,{center:located.length?{lat:Number(located[0].location.latitude),lng:Number(located[0].location.longitude)}:{lat:28.5383,lng:-81.3792},zoom:located.length?14:9,mapTypeId:'roadmap',...mapOptions})}else familyMap.setOptions(mapOptions);
+      familyMapMarkers.forEach(marker=>marker.setMap(null));familyMapMarkers=[];const bounds=new google.maps.LatLngBounds();located.forEach(member=>{const point={lat:Number(member.location.latitude),lng:Number(member.location.longitude)};familyMapMarkers.push(createFamilyMapPerson(member,point));bounds.extend(point)});if(!familyMapViewportInitialized){if(located.length===1){familyMap.setCenter(bounds.getCenter());familyMap.setZoom(15)}else if(located.length>1)familyMap.fitBounds(bounds,76);familyMapViewportInitialized=true}
+      const viewer=located.find(row=>row.is_viewer);if(viewer){const history=await api(`/v1/home-family/members/${encodeURIComponent(viewer.id)}/history?limit=500`).catch(()=>({points:[]}));renderFamilyHistory(history.points||[])}else clearFamilyRoutes();void renderFamilyRouteCard(familySelectedMember());
     }catch(error){root.innerHTML=`<div class="family-map-empty"><span class="material-symbols-rounded" aria-hidden="true">wifi_off</span><strong>No pude abrir el mapa</strong><p>${escapeHtml(error.message)}</p></div>`}
   }
   async function refreshFamily(){homeFamily=await api('/v1/home-family');await dbSet(`home-family:${user}`,homeFamily);renderFamily()}
@@ -1249,7 +1290,7 @@
     if(!navigator.geolocation){if(!automatic)announce('Este navegador no permite compartir ubicación');return false}
     button.disabled=true;button.innerHTML=`<span class="material-symbols-rounded" aria-hidden="true">progress_activity</span> ${automatic?'Reanudando…':'Solicitando permiso…'}`;
     try{
-      await new Promise((resolve,reject)=>{let settled=false;familyWatchId=navigator.geolocation.watchPosition(async position=>{try{await sendFamilyPosition(position);$('familyMapStatus').textContent='Preferencia permanente activa. Roxy actualiza tu posición al abrir la aplicación y mientras permanece en uso.';if(!settled){settled=true;resolve()}}catch(error){if(!settled){settled=true;reject(error)}}},error=>{if(!settled){settled=true;reject(new Error(({1:'El permiso de ubicación está bloqueado. Actívalo en los ajustes de Safari para reanudar.',2:'No pude determinar tu ubicación ahora.',3:'La ubicación tardó demasiado.'})[error.code]||'No pude obtener tu ubicación'))}},{enableHighAccuracy:true,maximumAge:5000,timeout:15000})});
+      await new Promise((resolve,reject)=>{let settled=false;familyWatchId=navigator.geolocation.watchPosition(async position=>{try{await sendFamilyPosition(position);if(!settled){settled=true;resolve()}}catch(error){if(!settled){settled=true;reject(error)}}},error=>{if(!settled){settled=true;reject(new Error(({1:'El permiso de ubicación está bloqueado. Actívalo en los ajustes de Safari para reanudar.',2:'No pude determinar tu ubicación ahora.',3:'La ubicación tardó demasiado.'})[error.code]||'No pude obtener tu ubicación'))}},{enableHighAccuracy:true,maximumAge:0,timeout:20000})});
       if(!automatic)announce('Ubicación activada. Roxy la reanudará automáticamente cada vez que abras la aplicación.');
       return true;
     }catch(error){if(familyWatchId!==null)navigator.geolocation.clearWatch(familyWatchId);familyWatchId=null;$('familyMapStatus').textContent='La preferencia sigue activa, pero el navegador necesita permiso para volver a actualizar.';if(!automatic)announce(error.message);return false}
