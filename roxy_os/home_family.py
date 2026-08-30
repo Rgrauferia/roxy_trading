@@ -164,6 +164,7 @@ class HomeFamilyStore:
                     "role": member.get("role"),
                     "avatar": member.get("avatar") or (member.get("preferences") or {}).get("avatar", ""),
                     "profile_photo": profile.get("photo_data_url") or "",
+                    "profile_emoji": profile.get("emoji") or "",
                     "marker_color": profile.get("marker_color") or "FOREST",
                     "external": bool(member.get("external")),
                     "relationship": _text(member.get("relationship"), 40),
@@ -376,7 +377,7 @@ class HomeFamilyStore:
         self._locked(apply)
 
     def customize_member(
-        self, household_id: str, member_id: str, *, display_name: str, marker_color: str, photo_data_url: str = ""
+        self, household_id: str, member_id: str, *, display_name: str, marker_color: str, photo_data_url: str = "", profile_emoji: str = ""
     ) -> dict[str, Any]:
         color = str(marker_color or "FOREST").upper()
         if color not in MARKER_COLORS:
@@ -386,10 +387,15 @@ class HomeFamilyStore:
             raise ValueError("La foto de perfil es demasiado grande")
         if photo and not photo.startswith(PROFILE_PHOTO_PREFIXES):
             raise ValueError("La foto de perfil debe ser una imagen válida")
+        emoji = str(profile_emoji or "").strip()
+        allowed_emojis = {"", "🙂", "😊", "😎", "🌿", "🏡", "✨", "🧭", "🌻"}
+        if emoji not in allowed_emojis:
+            raise ValueError("Emoji de perfil inválido")
         profile = {
             "display_name": _text(display_name, 80),
             "marker_color": color,
             "photo_data_url": photo,
+            "emoji": "" if photo else emoji,
             "updated_at": _now(),
         }
 

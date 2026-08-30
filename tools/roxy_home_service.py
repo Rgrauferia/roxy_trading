@@ -229,6 +229,7 @@ class HomeFamilyProfileRequest(BaseModel):
     display_name: str = Field(min_length=1, max_length=80)
     marker_color: str = Field(default="FOREST", pattern="^(FOREST|GOLD|OCEAN|TERRACOTTA|PLUM|SLATE)$")
     photo_data_url: str = Field(default="", max_length=400_000)
+    profile_emoji: str = Field(default="", max_length=8)
 
 
 class HomeFamilyInvitationRequest(BaseModel):
@@ -1835,6 +1836,7 @@ def home_family_customize_profile(
             display_name=payload.display_name,
             marker_color=payload.marker_color,
             photo_data_url=payload.photo_data_url,
+            profile_emoji=payload.profile_emoji,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

@@ -135,10 +135,23 @@ def test_family_member_can_personalize_name_and_marker_color(tmp_path):
     assert viewer["display_name"] == "Robert G."
     assert viewer["marker_color"] == "OCEAN"
     assert viewer["profile_photo"] == photo
+    assert viewer["profile_emoji"] == ""
+
+    store.customize_member(
+        "casa-1", "robert", display_name="Robert G.", marker_color="OCEAN", profile_emoji="🌿"
+    )
+    viewer = store.snapshot("casa-1", members, "robert")["members"][0]
+    assert viewer["profile_photo"] == ""
+    assert viewer["profile_emoji"] == "🌿"
 
     with pytest.raises(ValueError, match="imagen válida"):
         store.customize_member(
             "casa-1", "robert", display_name="Robert G.", marker_color="OCEAN", photo_data_url="https://example.com/me.jpg"
+        )
+
+    with pytest.raises(ValueError, match="Emoji de perfil inválido"):
+        store.customize_member(
+            "casa-1", "robert", display_name="Robert G.", marker_color="OCEAN", profile_emoji="👹"
         )
 
 
@@ -275,9 +288,13 @@ def test_family_ui_is_wired_to_real_endpoints():
     assert "mapTypeId:'roadmap'" in js
     assert 'id="familyProfileForm"' in html
     assert 'id="familyProfilePhoto"' in html
+    assert 'id="familyWeatherFx"' in html
+    assert 'name="familyProfileEmoji"' in html
     assert "/v1/home-family/profile" in js
     assert "readFamilyProfilePhoto" in js
     assert "profile_photo" in js
+    assert "profile_emoji" in js
+    assert "familyWeatherMode" in js
     assert "const form=event.currentTarget" in js
     assert "inferFamilyPlaceKind" in js
     assert 'id="familyMemberRail"' in html
