@@ -284,6 +284,11 @@ def test_family_ui_is_wired_to_real_endpoints():
     assert 'id="familyHistoryButton"' in html
     assert 'id="familyHistoryPanel"' in html
     assert "showFamilyTripOnMap" in js
+    assert "familyHistoryDays" in js
+    assert "familyHistoryTripCard" in js
+    assert "Trayectos reales y lugares visitados" in js
+    assert "Ver recorrido" in js
+    assert "Pico GPS" in js
     assert 'id="familyMap"' in html
     assert "Nuestro Nexo" in html
     assert "Google Maps oficial" in html
@@ -330,6 +335,23 @@ def test_home_page_csp_allows_only_google_maps_runtime_origins():
     assert "https://*.googleapis.com" in policy
     assert "https://*.gstatic.com" in policy
     assert "unsafe-eval" not in policy
+
+
+def test_private_viewer_can_activate_location_from_own_member_card():
+    script = open("assets/roxy_list.js", encoding="utf-8").read()
+
+    assert "member.is_viewer&&!member.sharing_enabled" in script
+    assert "Compartir mi ubicación" in script
+    assert "Activar mi ubicación en Nexo" in script
+    assert "shareFamilyLocation()" in script
+
+
+def test_live_map_does_not_draw_accumulated_history_by_default():
+    script = open("assets/roxy_list.js", encoding="utf-8").read()
+
+    assert "clearFamilyRoutes();if(familyHistoryOpen&&selected?.location)" in script
+    assert "renderFamilyHistory(familyHistoryPoints);renderFamilyHistoryPanel" not in script
+    assert "showFamilyTripOnMap(segment)" in script
 
 
 def test_home_deployment_persists_family_state_and_keeps_maps_key_separate():
