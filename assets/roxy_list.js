@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '104';
+  const APP_VERSION = '105';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -114,7 +114,7 @@
   let homePlants={plants:[],due_today:[],vacation:{},species:[],identification_configured:false};
   let homeFamily={status:'UNAVAILABLE',members:[],places:[],alerts:[],capabilities:{}};
   let familyWatchId=null,familyMap=null,familyMapMarkers=[],familyRoutes=[],familyMapLoader=null,familyRefreshTimer=null;
-  let familyMapViewportInitialized=false;
+  let familyMapViewportInitialized=false,familyHistoryOpen=false,familyHistoryPoints=[];
   let familySelectedMemberId='',familyMapStyle='roadmap',familyDirectionsRenderer=null,familyRouteSnapshot=null,familyRouteMode=false;
   let familyProfilePhotoData='';
   let familyProfileEmoji='';
@@ -1144,7 +1144,7 @@
     valid.forEach(point=>{
       const segment=segments[segments.length-1];const previous=segment?.[segment.length-1];
       const gap=previous&&Number.isFinite(previous.recordedAt)&&Number.isFinite(point.recordedAt)?point.recordedAt-previous.recordedAt:0;
-      if(!segment||gap>120000||gap<0)segments.push([point]);else segment.push(point);
+      if(!segment||gap>300000||gap<0)segments.push([point]);else segment.push(point);
     });
     return segments;
   }
@@ -1160,6 +1160,27 @@
     if(realSamples>=3)status.textContent=`Trayecto real · ${realSamples} puntos GPS guardados. Puedes mover y alejar el mapa libremente.`;
     else if(samples===2)status.textContent='Trayecto aproximado: solo recibí inicio y final. Mantén Roxy abierta durante el viaje para guardar el camino real.';
     else if(familyWatchId!==null)status.textContent='Grabando tu recorrido real… Puedes mover y alejar el mapa libremente.';
+  }
+  function familyTripDistance(segment=[]){
+    const radians=value=>value*Math.PI/180;let meters=0;
+    for(let index=1;index<segment.length;index+=1){const previous=segment[index-1],current=segment[index];const lat=radians(current.lat-previous.lat),lng=radians(current.lng-previous.lng);const a=Math.sin(lat/2)**2+Math.cos(radians(previous.lat))*Math.cos(radians(current.lat))*Math.sin(lng/2)**2;meters+=6371000*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))}
+    return meters;
+  }
+  function showFamilyTripOnMap(segment=[]){
+    if(!familyMap||segment.length<2)return;
+    clearFamilyRoutes();const path=segment.map(point=>({lat:point.lat,lng:point.lng}));familyRoutes.push(new google.maps.Polyline({map:familyMap,path,strokeColor:'#b58a2c',strokeOpacity:.95,strokeWeight:7}));const bounds=new google.maps.LatLngBounds();path.forEach(point=>bounds.extend(point));familyMap.fitBounds(bounds,70);$('familyMapStatus').textContent=`Recorrido seleccionado · ${segment.length} puntos GPS. Puedes mover y alejar el mapa libremente.`;$('familyPanel').scrollTo({top:0,behavior:'smooth'});
+  }
+  function renderFamilyHistoryPanel(points=[]){
+    const panel=$('familyHistoryPanel'),list=$('familyHistoryList'),summary=$('familyHistorySummary');if(!panel||!list||!summary)return;
+    panel.hidden=!familyHistoryOpen;$('familyHistoryButton')?.setAttribute('aria-expanded',String(familyHistoryOpen));if(!familyHistoryOpen)return;
+    const member=familySelectedMember();const segments=familyHistorySegments(points).filter(segment=>segment.length>=2).reverse();list.replaceChildren();summary.textContent=member?`Recorridos reales guardados para ${member.display_name||'esta persona'}. Solo las personas autorizadas de tu Nexo pueden verlos.`:'Selecciona una persona para ver sus recorridos reales.';
+    if(!segments.length){const empty=document.createElement('div');empty.className='family-history-empty';empty.textContent='Aún no hay un recorrido completo. Mantén “Ubicación en vivo” activa mientras te desplazas y Roxy guardará los puntos reales del camino.';list.append(empty);return}
+    segments.forEach(segment=>{const first=segment[0],last=segment[segment.length-1];const started=new Date(first.recordedAt),ended=new Date(last.recordedAt);const minutes=Math.max(1,Math.round((last.recordedAt-first.recordedAt)/60000));const miles=familyTripDistance(segment)/1609.344;const row=document.createElement('article');row.className='family-history-trip';row.innerHTML=`<span class="material-symbols-rounded" aria-hidden="true">route</span><div><strong>${escapeHtml(new Intl.DateTimeFormat('es',{weekday:'short',day:'numeric',month:'short'}).format(started))} · ${escapeHtml(familyClock(started))}</strong><small>${minutes} min · ${miles<.1?'menos de 0.1':miles.toFixed(1)} mi · ${segment.length} puntos GPS</small></div>`;const button=document.createElement('button');button.type='button';button.textContent='Ver en mapa';button.addEventListener('click',()=>showFamilyTripOnMap(segment));row.append(button);list.append(row)});
+  }
+  async function loadFamilyHistoryPanel(open=true){
+    familyHistoryOpen=open;const member=familySelectedMember();if(!member){familyHistoryPoints=[];renderFamilyHistoryPanel([]);return}
+    if(open){$('familyHistoryPanel').hidden=false;$('familyHistoryList').innerHTML='<div class="family-history-empty">Cargando recorridos reales…</div>'}
+    try{const history=await api(`/v1/home-family/members/${encodeURIComponent(member.id)}/history?limit=1000`);familyHistoryPoints=history.points||[]}catch(error){familyHistoryPoints=[];if(open)announce(error.message)}renderFamilyHistoryPanel(familyHistoryPoints);
   }
   const familyFriendlyDate=()=>new Intl.DateTimeFormat('es',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date());
   const familyClock=value=>{const date=new Date(value);return Number.isNaN(date.getTime())?'':new Intl.DateTimeFormat('es',{hour:'numeric',minute:'2-digit'}).format(date)};
@@ -1199,7 +1220,7 @@
       button.append(familyAvatarNode(member,'family-rail-avatar'));
       const name=document.createElement('strong');name.textContent=member.display_name||'Miembro';
       const device=document.createElement('small');device.innerHTML=`<span class="material-symbols-rounded" aria-hidden="true">${Number.isFinite(Number(member?.device?.battery_percent??member?.battery_percent))?'battery_5_bar':'smartphone'}</span>${escapeHtml(familyBatteryLabel(member))}`;
-      button.append(name,device);button.addEventListener('click',()=>{familySelectedMemberId=String(member.id);familyRouteMode=false;renderFamilyExperience();void renderFamilyMap()});rail.append(button);
+      button.append(name,device);button.addEventListener('click',()=>{familySelectedMemberId=String(member.id);familyRouteMode=false;familyHistoryPoints=[];renderFamilyExperience();void renderFamilyMap();if(familyHistoryOpen)void loadFamilyHistoryPanel(true)});rail.append(button);
     });
     if(!member){focus.innerHTML='<div class="family-focus-empty"><strong>Añade a tu primera persona</strong><p>Cuando acepte la invitación y active su ubicación aparecerá aquí.</p></div>';route.hidden=true;return}
     const speed=Number(member.location?.speed_mps||0);const place=(homeFamily.places||[]).find(row=>row.kind==='WORK'&&member.is_viewer)||(homeFamily.places||[]).find(row=>row.kind==='HOME');
@@ -1264,7 +1285,7 @@
     const nexoMapStyles=[{elementType:'geometry',stylers:[{color:'#edf0e7'}]},{elementType:'labels.icon',stylers:[{visibility:'off'}]},{elementType:'labels.text.fill',stylers:[{color:'#596b5f'}]},{elementType:'labels.text.stroke',stylers:[{color:'#fbfaf5'},{weight:3}]},{featureType:'administrative.locality',elementType:'labels.text.fill',stylers:[{color:'#40594a'}]},{featureType:'poi',stylers:[{visibility:'off'}]},{featureType:'transit',stylers:[{visibility:'off'}]},{featureType:'road',elementType:'geometry',stylers:[{color:'#fffdf8'}]},{featureType:'road',elementType:'geometry.stroke',stylers:[{color:'#d9dfd5'}]},{featureType:'road',elementType:'labels.icon',stylers:[{visibility:'off'}]},{featureType:'road.highway',elementType:'geometry',stylers:[{color:'#e7ddc4'}]},{featureType:'road.highway',elementType:'geometry.stroke',stylers:[{color:'#c9b57d'}]},{featureType:'landscape.natural',elementType:'geometry',stylers:[{color:'#e5ecdf'}]},{featureType:'landscape.man_made',elementType:'geometry',stylers:[{color:'#f2f0e8'}]},{featureType:'water',elementType:'geometry',stylers:[{color:'#d8e8e5'}]},{featureType:'water',elementType:'labels.text.fill',stylers:[{color:'#688682'}]}];
     try{await loadFamilyGoogleMaps();const mapOptions={styles:familyWeatherMapStyles(nexoMapStyles),disableDefaultUI:true,keyboardShortcuts:false,streetViewControl:false,fullscreenControl:false,mapTypeControl:false,zoomControl:true,zoomControlOptions:{position:google.maps.ControlPosition.RIGHT_BOTTOM},scaleControl:true,gestureHandling:'greedy',clickableIcons:false,backgroundColor:'#e7ece3'};if(!familyMap){root.replaceChildren();familyMap=new google.maps.Map(root,{center:located.length?{lat:Number(located[0].location.latitude),lng:Number(located[0].location.longitude)}:{lat:28.5383,lng:-81.3792},zoom:located.length?14:9,mapTypeId:'roadmap',...mapOptions})}else familyMap.setOptions(mapOptions);
       familyMapMarkers.forEach(marker=>marker.setMap(null));familyMapMarkers=[];const bounds=new google.maps.LatLngBounds();located.forEach(member=>{const point={lat:Number(member.location.latitude),lng:Number(member.location.longitude)};familyMapMarkers.push(createFamilyMapPerson(member,point));bounds.extend(point)});if(!familyMapViewportInitialized){if(located.length===1){familyMap.setCenter(bounds.getCenter());familyMap.setZoom(15)}else if(located.length>1)familyMap.fitBounds(bounds,76);familyMapViewportInitialized=true}
-      const viewer=located.find(row=>row.is_viewer);if(viewer){const history=await api(`/v1/home-family/members/${encodeURIComponent(viewer.id)}/history?limit=500`).catch(()=>({points:[]}));renderFamilyHistory(history.points||[])}else clearFamilyRoutes();void renderFamilyRouteCard(familySelectedMember());
+      const selected=familySelectedMember();if(selected?.location){const history=await api(`/v1/home-family/members/${encodeURIComponent(selected.id)}/history?limit=1000`).catch(()=>({points:[]}));familyHistoryPoints=history.points||[];renderFamilyHistory(familyHistoryPoints);renderFamilyHistoryPanel(familyHistoryPoints)}else clearFamilyRoutes();void renderFamilyRouteCard(selected);
     }catch(error){root.innerHTML=`<div class="family-map-empty"><span class="material-symbols-rounded" aria-hidden="true">wifi_off</span><strong>No pude abrir el mapa</strong><p>${escapeHtml(error.message)}</p></div>`}
   }
   async function refreshFamily(){homeFamily=await api('/v1/home-family');await dbSet(`home-family:${user}`,homeFamily);renderFamily()}
@@ -1773,6 +1794,8 @@
     $('familyChatButton').addEventListener('click',()=>$('roxyVoiceLauncher').click());
     $('familyHomeMenu').addEventListener('click',()=>{$('familySettings').open=true;$('familySettings').scrollIntoView({behavior:'smooth',block:'start'})});
     $('familyAddConnection').addEventListener('click',()=>{$('familySettings').open=true;$('familyInviteName').focus();$('familySettings').scrollIntoView({behavior:'smooth',block:'start'})});
+    $('familyHistoryButton').addEventListener('click',()=>void loadFamilyHistoryPanel(!familyHistoryOpen));
+    $('familyHistoryClose').addEventListener('click',()=>{familyHistoryOpen=false;renderFamilyHistoryPanel(familyHistoryPoints)});
     $('familyMapLayers').addEventListener('click',()=>{if(!familyMap)return;familyMapStyle=familyMapStyle==='roadmap'?'satellite':'roadmap';familyMap.setMapTypeId(familyMapStyle);announce(familyMapStyle==='satellite'?'Vista satélite activada':'Vista de mapa activada')});
     $('familyMapLocate').addEventListener('click',()=>{const member=(homeFamily.members||[]).find(row=>row.is_viewer&&row.location);if(!familyMap||!member){announce('Activa tu ubicación para centrar el mapa.');return}familyMap.panTo({lat:Number(member.location.latitude),lng:Number(member.location.longitude)});familyMap.setZoom(16)});
     $('familyMapWeather').addEventListener('click',()=>{if(homeWeather.status==='READY')announce($('familyWeatherSummary').textContent);else{selectPanel('calendar');announce('Activa el clima desde Calendario para verlo también en Nexo.')}});

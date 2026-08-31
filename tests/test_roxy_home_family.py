@@ -280,7 +280,10 @@ def test_family_ui_is_wired_to_real_endpoints():
     assert 'id="familyInviteForm"' in html
     assert "/v1/home-family/invitations" in js
     assert "acceso solo a Nexo" in js
-    assert "/history?limit=500" in js
+    assert "/history?limit=1000" in js
+    assert 'id="familyHistoryButton"' in html
+    assert 'id="familyHistoryPanel"' in html
+    assert "showFamilyTripOnMap" in js
     assert 'id="familyMap"' in html
     assert "Nuestro Nexo" in html
     assert "Google Maps oficial" in html
