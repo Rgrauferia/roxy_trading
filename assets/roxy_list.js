@@ -118,6 +118,7 @@
   let familySelectedMemberId='',familyMapStyle='roadmap',familyDirectionsRenderer=null,familyRouteSnapshot=null,familyRouteMode=false;
   let familyProfilePhotoData='';
   let familyProfileEmoji='';
+  let familyRadarEnabled=true,familyRadarLayer=null,familyRadarTimer=null,familyRadarFrameIndex=0,familyRadarLoadId=0,familyRadarMetadata=null,familyRadarFetchedAt=0,familyRadarSignature='';
   let currentPlant=null;
   let designPoll=null;
   let calendarView='today';
@@ -1118,8 +1119,42 @@
   }
   function renderFamilyWeatherFx(){
     const root=$('familyWeatherFx');if(!root)return;const mode=familyWeatherMode();root.className=`family-weather-fx${mode?` is-${mode}`:''}`;root.replaceChildren();
-    const count={rain:42,storm:55,snow:32,fog:4,cloudy:3,sunny:1,'clear-night':1,cold:8}[mode]||0;
-    for(let index=0;index<count;index+=1){const particle=document.createElement('i');particle.style.setProperty('--x',`${(index*37)%101}%`);particle.style.setProperty('--delay',`${-((index*0.19)%4).toFixed(2)}s`);particle.style.setProperty('--duration',`${(1.15+(index%7)*0.17).toFixed(2)}s`);particle.style.setProperty('--size',`${5+(index%6)*2}px`);root.append(particle)}
+  }
+  function clearFamilyRadar({resetSignature=true}={}){
+    if(familyRadarTimer){clearInterval(familyRadarTimer);familyRadarTimer=null}
+    if(familyRadarLayer&&familyMap?.overlayMapTypes){const index=familyMap.overlayMapTypes.getArray().indexOf(familyRadarLayer);if(index>=0)familyMap.overlayMapTypes.removeAt(index)}
+    familyRadarLayer=null;if(resetSignature)familyRadarSignature='';
+  }
+  function familyRadarTileLayer(metadata,frame){
+    return {tileSize:new google.maps.Size(256,256),minZoom:0,maxZoom:22,name:'Radar meteorológico',getTile(coord,zoom,ownerDocument){
+      const tile=ownerDocument.createElement('div');tile.className='family-radar-tile';tile.style.cssText='position:relative;width:256px;height:256px;overflow:hidden;';
+      const radarZoom=Math.min(Number(zoom)||0,7),factor=2**Math.max(0,(Number(zoom)||0)-radarZoom),world=2**radarZoom;
+      let parentX=Math.floor(coord.x/factor);parentX=((parentX%world)+world)%world;const parentY=Math.floor(coord.y/factor);if(parentY<0||parentY>=world)return tile;
+      const offsetX=((coord.x%factor)+factor)%factor,offsetY=((coord.y%factor)+factor)%factor,image=ownerDocument.createElement('img');
+      image.alt='';image.decoding='async';image.draggable=false;image.style.cssText=`position:absolute;width:${256*factor}px;height:${256*factor}px;max-width:none;left:${-offsetX*256}px;top:${-offsetY*256}px;pointer-events:none;`;
+      image.src=`${metadata.host}${frame.path}/256/${radarZoom}/${parentX}/${parentY}/2/1_1.png`;tile.appendChild(image);return tile;
+    },releaseTile(tile){tile.replaceChildren()}};
+  }
+  async function loadFamilyRadarMetadata(force=false){
+    if(!force&&familyRadarMetadata&&Date.now()-familyRadarFetchedAt<300000)return familyRadarMetadata;
+    const response=await fetch('https://api.rainviewer.com/public/weather-maps.json',{cache:'no-store'});if(!response.ok)throw new Error(`Radar HTTP ${response.status}`);
+    const metadata=await response.json(),frames=(metadata.radar?.past||[]).slice(-8);if(!metadata.host||!frames.length)throw new Error('Radar sin fotogramas disponibles');
+    familyRadarMetadata={host:metadata.host,frames};familyRadarFetchedAt=Date.now();return familyRadarMetadata;
+  }
+  function showFamilyRadarFrame(metadata,frame){
+    if(!familyMap||!frame)return;if(familyRadarLayer){const index=familyMap.overlayMapTypes.getArray().indexOf(familyRadarLayer);if(index>=0)familyMap.overlayMapTypes.removeAt(index)}familyRadarLayer=familyRadarTileLayer(metadata,frame);familyMap.overlayMapTypes.insertAt(0,familyRadarLayer);
+  }
+  async function refreshFamilyRadar(force=false){
+    const button=$('familyMapWeather');button?.classList.toggle('is-active',familyRadarEnabled);button?.setAttribute('aria-pressed',String(familyRadarEnabled));
+    if(!familyMap||!familyRadarEnabled||homeWeather.status!=='READY'){clearFamilyRadar();return}
+    const loadId=++familyRadarLoadId;
+    try{
+      const metadata=await loadFamilyRadarMetadata(force);if(loadId!==familyRadarLoadId)return;const signature=metadata.frames.map(frame=>frame.time).join(':');
+      if(signature===familyRadarSignature&&familyRadarTimer&&!force)return;clearFamilyRadar({resetSignature:false});familyRadarSignature=signature;familyRadarFrameIndex=0;
+      const frames=[...metadata.frames,metadata.frames[metadata.frames.length-1],metadata.frames[metadata.frames.length-1]];showFamilyRadarFrame(metadata,frames[familyRadarFrameIndex]);
+      familyRadarTimer=setInterval(()=>{familyRadarFrameIndex=(familyRadarFrameIndex+1)%frames.length;showFamilyRadarFrame(metadata,frames[familyRadarFrameIndex]);},900);
+      const latest=metadata.frames[metadata.frames.length-1];const status=$('familyMapStatus');if(status&&latest?.time)status.textContent=`Radar real actualizado ${new Intl.DateTimeFormat('es-US',{hour:'numeric',minute:'2-digit'}).format(new Date(latest.time*1000))}. Puedes mover y alejar el mapa libremente.`;
+    }catch(error){clearFamilyRadar();button?.classList.remove('is-active');const status=$('familyMapStatus');if(status)status.textContent='El clima actual está disponible; el radar de precipitación no respondió. Roxy volverá a intentarlo.';console.warn('Radar meteorológico no disponible',error)}
   }
   function familyWeatherMapStyles(baseStyles){
     const mode=familyWeatherMode();
@@ -1298,7 +1333,7 @@
     const nexoMapStyles=[{elementType:'geometry',stylers:[{color:'#edf0e7'}]},{elementType:'labels.icon',stylers:[{visibility:'off'}]},{elementType:'labels.text.fill',stylers:[{color:'#596b5f'}]},{elementType:'labels.text.stroke',stylers:[{color:'#fbfaf5'},{weight:3}]},{featureType:'administrative.locality',elementType:'labels.text.fill',stylers:[{color:'#40594a'}]},{featureType:'poi',stylers:[{visibility:'off'}]},{featureType:'transit',stylers:[{visibility:'off'}]},{featureType:'road',elementType:'geometry',stylers:[{color:'#fffdf8'}]},{featureType:'road',elementType:'geometry.stroke',stylers:[{color:'#d9dfd5'}]},{featureType:'road',elementType:'labels.icon',stylers:[{visibility:'off'}]},{featureType:'road.highway',elementType:'geometry',stylers:[{color:'#e7ddc4'}]},{featureType:'road.highway',elementType:'geometry.stroke',stylers:[{color:'#c9b57d'}]},{featureType:'landscape.natural',elementType:'geometry',stylers:[{color:'#e5ecdf'}]},{featureType:'landscape.man_made',elementType:'geometry',stylers:[{color:'#f2f0e8'}]},{featureType:'water',elementType:'geometry',stylers:[{color:'#d8e8e5'}]},{featureType:'water',elementType:'labels.text.fill',stylers:[{color:'#688682'}]}];
     try{await loadFamilyGoogleMaps();const mapOptions={styles:familyWeatherMapStyles(nexoMapStyles),disableDefaultUI:true,keyboardShortcuts:false,streetViewControl:false,fullscreenControl:false,mapTypeControl:false,zoomControl:true,zoomControlOptions:{position:google.maps.ControlPosition.RIGHT_BOTTOM},scaleControl:true,gestureHandling:'greedy',clickableIcons:false,backgroundColor:'#e7ece3'};if(!familyMap){root.replaceChildren();familyMap=new google.maps.Map(root,{center:located.length?{lat:Number(located[0].location.latitude),lng:Number(located[0].location.longitude)}:{lat:28.5383,lng:-81.3792},zoom:located.length?14:9,mapTypeId:'roadmap',...mapOptions})}else familyMap.setOptions(mapOptions);
       familyMapMarkers.forEach(marker=>marker.setMap(null));familyMapMarkers=[];const bounds=new google.maps.LatLngBounds();located.forEach(member=>{const point={lat:Number(member.location.latitude),lng:Number(member.location.longitude)};familyMapMarkers.push(createFamilyMapPerson(member,point));bounds.extend(point)});if(!familyMapViewportInitialized){if(located.length===1){familyMap.setCenter(bounds.getCenter());familyMap.setZoom(15)}else if(located.length>1)familyMap.fitBounds(bounds,76);familyMapViewportInitialized=true}
-      const selected=familySelectedMember();clearFamilyRoutes();if(familyHistoryOpen&&selected?.location){const history=await api(`/v1/home-family/members/${encodeURIComponent(selected.id)}/history?limit=1000`).catch(()=>({points:[]}));familyHistoryPoints=history.points||[];renderFamilyHistoryPanel(familyHistoryPoints)}void renderFamilyRouteCard(selected);
+      const selected=familySelectedMember();clearFamilyRoutes();if(familyHistoryOpen&&selected?.location){const history=await api(`/v1/home-family/members/${encodeURIComponent(selected.id)}/history?limit=1000`).catch(()=>({points:[]}));familyHistoryPoints=history.points||[];renderFamilyHistoryPanel(familyHistoryPoints)}void renderFamilyRouteCard(selected);void refreshFamilyRadar();
     }catch(error){root.innerHTML=`<div class="family-map-empty"><span class="material-symbols-rounded" aria-hidden="true">wifi_off</span><strong>No pude abrir el mapa</strong><p>${escapeHtml(error.message)}</p></div>`}
   }
   async function refreshFamily(){homeFamily=await api('/v1/home-family');await dbSet(`home-family:${user}`,homeFamily);renderFamily()}
@@ -1811,7 +1846,7 @@
     $('familyHistoryClose').addEventListener('click',()=>{familyHistoryOpen=false;renderFamilyHistoryPanel(familyHistoryPoints)});
     $('familyMapLayers').addEventListener('click',()=>{if(!familyMap)return;familyMapStyle=familyMapStyle==='roadmap'?'satellite':'roadmap';familyMap.setMapTypeId(familyMapStyle);announce(familyMapStyle==='satellite'?'Vista satélite activada':'Vista de mapa activada')});
     $('familyMapLocate').addEventListener('click',()=>{const member=(homeFamily.members||[]).find(row=>row.is_viewer&&row.location);if(!familyMap||!member){announce('Activa tu ubicación para centrar el mapa.');return}familyMap.panTo({lat:Number(member.location.latitude),lng:Number(member.location.longitude)});familyMap.setZoom(16)});
-    $('familyMapWeather').addEventListener('click',()=>{if(homeWeather.status==='READY')announce($('familyWeatherSummary').textContent);else{selectPanel('calendar');announce('Activa el clima desde Calendario para verlo también en Nexo.')}});
+    $('familyMapWeather').addEventListener('click',()=>{if(homeWeather.status!=='READY'){selectPanel('calendar');announce('Activa el clima desde Calendario para verlo también en Nexo.');return}familyRadarEnabled=!familyRadarEnabled;if(familyRadarEnabled){void refreshFamilyRadar(true);announce('Radar meteorológico en vivo activado.')}else{clearFamilyRadar();$('familyMapWeather').classList.remove('is-active');announce('Radar meteorológico oculto.')}});
     $('familyPlaceForm').addEventListener('submit',saveFamilyPlace);
     $('familyPlaceName').addEventListener('input',inferFamilyPlaceKind);
     $('familyProfileForm').addEventListener('submit',saveFamilyProfile);

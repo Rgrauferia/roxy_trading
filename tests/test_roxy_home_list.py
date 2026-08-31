@@ -23,10 +23,10 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
     assert 'name="roxy-home-version" content="106"' in page.text
-    assert 'href="/assets/roxy_list.css?v=90"' in page.text
-    assert 'src="/assets/roxy_list.js?v=111"' in page.text
-    assert '/assets/roxy_list.css?v=90' in worker.text
-    assert '/assets/roxy_list.js?v=111' in worker.text
+    assert 'href="/assets/roxy_list.css?v=91"' in page.text
+    assert 'src="/assets/roxy_list.js?v=114"' in page.text
+    assert '/assets/roxy_list.css?v=91' in worker.text
+    assert '/assets/roxy_list.js?v=114' in worker.text
     assert 'id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle" hidden' in page.text
     assert '/assets/roxy_home_avatar.jpg' in page.text
     assert '/assets/roxy_home_avatar.jpg' in worker.text
@@ -335,6 +335,20 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     for asset in ("breakfast.jpg", "proteins.jpg", "rice-pasta.jpg", "soups-bowls.jpg", "baked.jpg", "desserts.jpg", "coffee.jpg", "juices-smoothies.jpg"):
         assert f"/assets/roxy_home/recipe_categories/{asset}?v=1" not in worker.text
         assert client.get(f"/assets/roxy_home/recipe_categories/{asset}").status_code == 200
+
+
+def test_roxy_home_nexo_radar_uses_safari_compatible_image_tiles():
+    script = Path("assets/roxy_list.js").read_text(encoding="utf-8")
+    radar_layer = script.split("function familyRadarTileLayer", 1)[1].split(
+        "async function loadFamilyRadarMetadata", 1
+    )[0]
+
+    assert "https://api.rainviewer.com/public/weather-maps.json" in script
+    assert "metadata.host" in radar_layer
+    assert "frame.path" in radar_layer
+    assert "ownerDocument.createElement('img')" in radar_layer
+    assert "ownerDocument.createElement('canvas')" not in radar_layer
+    assert "Radar real actualizado" in script
 
 
 def test_shopping_api_crud_complete_history_and_user_isolation(tmp_path, monkeypatch):
