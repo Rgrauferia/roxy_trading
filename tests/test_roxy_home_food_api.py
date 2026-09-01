@@ -31,6 +31,34 @@ def test_local_catalog_includes_species_specific_pet_recipes_with_safety_notes()
     assert all(Path(row["photo_asset"].removeprefix("/")).is_file() for row in illustrated)
 
 
+def test_catalog_recipe_save_survives_optional_photo_queue_failure(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    class BrokenPhotoQueue:
+        def schedule(self, recipe):
+            raise OSError("artwork storage unavailable")
+
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "home-test-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert")
+    monkeypatch.setenv("ROXY_HOME_MEMORY_PATH", str(tmp_path / "home-food.json"))
+    monkeypatch.setattr(roxy_home_service, "_recipe_photo_queue", lambda: BrokenPhotoQueue())
+    roxy_home_service._RATE_STATE.clear()
+    client = TestClient(roxy_home_service.app)
+    response = client.post(
+        "/v1/home-food/robert/recipes",
+        headers={"Authorization": "Bearer home-test-key"},
+        json={
+            "prompt": "Bocaditos de corazón de pollo para hurones",
+            "mode": "routine",
+            "recipe_type": "general",
+            "catalog_key": "ferret_chicken_heart_bites",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["recipe"]["audience"] == "pet"
+
+
 class FakeHomeAI:
     def generate_recipe(self, prompt, snapshot, *, deep=False):
         return {

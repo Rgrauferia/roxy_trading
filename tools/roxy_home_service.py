@@ -546,6 +546,14 @@ def _recipe_photo_queue() -> RecipePhotoGenerationQueue:
     return _RECIPE_PHOTO_QUEUES[path]
 
 
+def _schedule_recipe_photo(recipe: dict[str, Any]) -> str:
+    """Keep optional artwork generation from blocking core recipe actions."""
+    try:
+        return _recipe_photo_queue().schedule(recipe)
+    except (OSError, RuntimeError):
+        return "UNAVAILABLE"
+
+
 def _recipe_video_store() -> HomeRecipeVideoStore:
     return HomeRecipeVideoStore(
         os.getenv("ROXY_HOME_VIDEO_LIBRARY_PATH", "data/roxy_home_recipe_video_library.json")
@@ -3578,11 +3586,11 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
     user = _authorize_user(user_id, auth)
     snapshot = _home_food_store().snapshot(user)
     for recipe in snapshot.get("recipes", []):
-        _recipe_photo_queue().schedule(recipe)
+        _schedule_recipe_photo(recipe)
     for plan in snapshot.get("weekly_plans", []):
         for day in plan.get("days", []):
             for meal in day.get("meals", []):
-                _recipe_photo_queue().schedule({**meal, "kind": "meal"})
+                _schedule_recipe_photo({**meal, "kind": "meal"})
     pets = snapshot.get("pets") or []
     return {
         **snapshot,
@@ -3663,7 +3671,7 @@ def generate_home_recipe(
         recipe = store.save_recipe(user, recipe_data, mode=payload.mode)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail="Roxy devolvió una receta incompleta.") from exc
-    _recipe_photo_queue().schedule(recipe)
+    _schedule_recipe_photo(recipe)
     return {"status": "CREATED", "recipe": recipe, "generation_mode": generation_mode}
 
 
@@ -3702,7 +3710,7 @@ def commit_recipe_import(user_id: str, payload: RecipeImportCommitRequest, reque
         recipe = _home_food_store().save_recipe(user, payload.recipe, mode="routine")
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    _recipe_photo_queue().schedule(recipe)
+    _schedule_recipe_photo(recipe)
     return {"status": "CREATED", "recipe": recipe}
 
 

@@ -891,9 +891,9 @@
     const copy=document.createElement('span');const strong=document.createElement('strong');strong.textContent=recipe.title;
     const drinkLabel=recipe.kind==='drink'?(recipe.drink_type==='alcoholic'?'Con alcohol':'Sin alcohol'):'';
     const petLabel=recipe.audience==='pet'?({treat:'Premio ocasional',complement:'Complemento',feeding_guide:'Guía de alimentación',veterinary_plan:'Plan veterinario'}[recipe.safety_class]||'Receta para mascota'):'';
-    const servings=Number(recipe.servings||1);const small=document.createElement('small');small.textContent=`${recipe.favorite?'Favorita · ':''}${petLabel||drinkLabel||recipeCategoryLabels[recipeCategoryId(recipe)]||kindLabels[recipe.kind]||'Receta'} · ${servings} ${servings===1?'porción':'porciones'} · ${(recipe.steps||[]).length} pasos`;
+    const servings=Number(recipe.servings||1);const yieldLabel=recipe.audience==='pet'?(recipe.safety_class==='feeding_guide'?'1 guía':`${servings} ${servings===1?'pieza preparada':'piezas preparadas'}`):`${servings} ${servings===1?'porción':'porciones'}`;const small=document.createElement('small');small.textContent=`${recipe.favorite?'Favorita · ':''}${petLabel||drinkLabel||recipeCategoryLabels[recipeCategoryId(recipe)]||kindLabels[recipe.kind]||'Receta'} · ${yieldLabel} · ${(recipe.steps||[]).length} pasos`;
     const editorialStatus=String(recipe.editorial_status||'');const requiresReview=Boolean(editorialStatus)&&!editorialStatus.startsWith('verified');
-    copy.append(strong,small);button.append(img,copy);button.addEventListener('click',()=>recipe.catalog_key||requiresReview?openCatalogRecipe(recipe):openRecipe(recipe));return button;
+    copy.append(strong,small);button.append(img,copy);button.addEventListener('click',()=>recipe.catalog_key?openRecipe(recipe):requiresReview?openCatalogRecipe(recipe):openRecipe(recipe));return button;
   }
   function renderRecipes() {
     const root=$('recipeLibrary'); root.replaceChildren();
@@ -1022,10 +1022,10 @@
   function recipeQuantity(value){const number=Number(value);if(!Number.isFinite(number))return String(value||'');const whole=Math.floor(number);const fraction=number-whole;const matches=[[.25,'1/4'],[1/3,'1/3'],[.5,'1/2'],[2/3,'2/3'],[.75,'3/4']];const match=matches.find(([candidate])=>Math.abs(fraction-candidate)<.015);if(match)return`${whole?`${whole} `:''}${match[1]}`;return new Intl.NumberFormat('es',{maximumFractionDigits:2}).format(number)}
   function addTextList(root,rows,ordered=false){const list=document.createElement(ordered?'ol':'ul');(rows||[]).forEach(row=>{const item=document.createElement('li');item.textContent=typeof row==='string'?row:`${recipeQuantity(row.quantity)} ${row.unit||''} de ${row.name||''}${row.notes?` · ${row.notes}`:''}`.trim();list.append(item)});root.append(list);}
   function openRecipe(recipe){
-    currentRecipe=recipe;$('recipeDialogTitle').textContent=recipe.title||'Receta de Roxy';
+    const catalogPreview=Boolean(recipe.catalog_key&&!recipe.id);currentRecipe=recipe;$('recipeDialogTitle').textContent=recipe.title||'Receta de Roxy';$('recipeDialogEyebrow').textContent=catalogPreview?'Vista previa segura':'Receta guardada';
     const root=$('recipeDialogContent');root.replaceChildren();
     const hero=document.createElement('div');hero.className='recipe-detail-hero';const img=document.createElement('img');img.alt=`Resultado final de ${recipe.title||'la receta'}`;hydrateRecipeImage(img,recipe,hero);
-    const intro=document.createElement('div');const meta=document.createElement('strong');const recipeLabel=recipe.audience==='pet'?`Receta para ${({dog:'perros',cat:'gatos',ferret:'hurones',other:'mascotas'})[recipe.pet_species]||'mascotas'}`:recipe.kind==='drink'?(recipe.drink_type==='alcoholic'?'Bebida con alcohol':'Bebida sin alcohol'):(recipeCategoryLabels[recipeCategoryId(recipe)]||kindLabels[recipe.kind]||'Receta');const servings=Number(recipe.servings||1);meta.textContent=`${recipeLabel} · ${servings} ${servings===1?'porción':'porciones'}`;
+    const intro=document.createElement('div');const meta=document.createElement('strong');const recipeLabel=recipe.audience==='pet'?`${recipe.safety_class==='feeding_guide'?'Guía':'Preparación'} para ${({dog:'perros',cat:'gatos',ferret:'hurones',rabbit:'conejos',guinea_pig:'cobayas',hamster:'hámsteres',small_mammal:'pequeños mamíferos',bird:'aves',fish:'peces',reptile:'reptiles',amphibian:'anfibios',invertebrate:'invertebrados',farm_pet:'mascotas de granja',other:'mascotas'})[recipe.pet_species]||'mascotas'}`:recipe.kind==='drink'?(recipe.drink_type==='alcoholic'?'Bebida con alcohol':'Bebida sin alcohol'):(recipeCategoryLabels[recipeCategoryId(recipe)]||kindLabels[recipe.kind]||'Receta');const servings=Number(recipe.servings||1);const yieldLabel=recipe.audience==='pet'?(recipe.safety_class==='feeding_guide'?'orientación sin porción automática':`${servings} ${servings===1?'pieza preparada':'piezas preparadas'}; no equivalen a porciones diarias`):`${servings} ${servings===1?'porción':'porciones'}`;meta.textContent=`${recipeLabel} · ${yieldLabel}`;
     const description=document.createElement('p');description.textContent=recipe.description||'Receta guardada por Roxy.';intro.append(meta,description);hero.append(img,intro);
     const videoArea=document.createElement('section');videoArea.className='recipe-video-area';videoArea.setAttribute('aria-live','polite');
     const columns=document.createElement('div');columns.className='recipe-columns';
@@ -1046,16 +1046,13 @@
       columns.append(review);
     }
     const actions=document.createElement('div');actions.className='recipe-detail-actions';
-    const add=makeButton('Agregar ingredientes','secondary',()=>previewRecipe(recipe.id,Number(recipe.servings||1)));
-    const buy=makeButton('Buscar para comprar','secondary',()=>preparePurchase('recipe',recipe.id));
-    const guide=makeButton('Cocinar paso a paso','primary',()=>startCooking(recipe.id));actions.append(add,guide);
-    actions.insertBefore(buy,guide);
+    if(catalogPreview){const save=makeButton('Guardar en mi recetario','primary',()=>openCatalogRecipe(recipe));actions.append(save)}else{const add=makeButton('Agregar ingredientes','secondary',()=>previewRecipe(recipe.id,Number(recipe.servings||1)));const buy=makeButton('Buscar para comprar','secondary',()=>preparePurchase('recipe',recipe.id));const guide=makeButton('Cocinar paso a paso','primary',()=>startCooking(recipe.id));actions.append(add,buy,guide)}
     root.append(hero,columns,actions);
-    $('recipeFavorite').checked=Boolean(recipe.favorite);
+    $('recipePersonalForm').hidden=catalogPreview;$('recipeFavorite').checked=Boolean(recipe.favorite);
     $('recipeNotes').value=recipe.user_notes||'';
     $('recipePhoto').value='';
     if(!$('recipeDialog').open)$('recipeDialog').showModal();
-    loadRecipeVideo(recipe,videoArea);
+    if(catalogPreview)videoArea.hidden=true;else loadRecipeVideo(recipe,videoArea);
   }
 
   function recipeVideoStatusLabel(status){return({QUEUED:'En cola',PROCESSING:'Roxy está creando las demostraciones',REVIEW:'Pendiente de revisión',READY:'Video disponible',FAILED:'La generación no terminó',REJECTED:'No pasó la revisión'})[status]||'Video de la receta'}

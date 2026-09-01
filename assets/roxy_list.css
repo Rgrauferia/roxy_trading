@@ -276,6 +276,7 @@ textarea { resize: vertical; line-height: 1.45; }
 .recipe-import-studio.pet-profile-mode{padding:6px;border:0;background:transparent;box-shadow:none}
 .recipe-import-studio.pet-profile-mode .recipe-import-heading,.recipe-import-studio.pet-profile-mode .recipe-import-copy,.recipe-import-studio.pet-profile-mode .recipe-import-actions{display:none}
 .app-panel.pet-mode .hero-heading{align-items:center}.app-panel.pet-mode .hero-heading>span{color:var(--forest);background:#edf4ea}.app-panel.pet-mode>.lead{max-width:640px}.app-panel.pet-mode .human-recipe-only{display:none!important}
+.recipe-personal-form[hidden]{display:none!important}
 .recipe-import-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .recipe-import-heading h3 { margin: 2px 0 0; color: var(--forest-dark); font-family: Georgia,serif; font-size: 24px; line-height: 1.05; }
 .recipe-import-heading > .material-symbols-rounded { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: #fff; background: var(--forest); }
