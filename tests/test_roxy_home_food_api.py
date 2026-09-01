@@ -15,11 +15,12 @@ def test_local_catalog_includes_species_specific_pet_recipes_with_safety_notes()
     from roxy_os.home_recipe_fallback import local_recipe_catalog
 
     rows = [row for row in local_recipe_catalog({}) if row.get("audience") == "pet"]
-    assert len(rows) == 45
+    assert len(rows) == 52
     assert {row["pet_species"] for row in rows} == {
-        "dog", "cat", "ferret", "bird", "rabbit", "hamster", "guinea_pig", "fish", "reptile", "amphibian"
+        "dog", "cat", "ferret", "bird", "rabbit", "hamster", "guinea_pig", "fish", "reptile", "amphibian",
+        "small_mammal", "invertebrate", "farm_pet", "other",
     }
-    assert {species: sum(row["pet_species"] == species for row in rows) for species in ("dog", "cat", "ferret", "fish")} == {"dog": 10, "cat": 9, "ferret": 8, "fish": 3}
+    assert {species: sum(row["pet_species"] == species for row in rows) for species in ("dog", "cat", "ferret", "fish")} == {"dog": 10, "cat": 9, "ferret": 8, "fish": 4}
     assert {row["safety_class"] for row in rows} == {"treat", "feeding_guide"}
     assert all("no sustituye" in row["veterinary_note"].lower() for row in rows if row["safety_class"] == "treat")
     illustrated = [row for row in rows if row.get("photo_asset")]
