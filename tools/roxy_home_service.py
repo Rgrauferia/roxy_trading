@@ -64,7 +64,7 @@ from roxy_os.home_family import HomeFamilyStore
 from roxy_os.home_plants import HomePlantIdentifier, HomePlantStore, PLANT_CATALOG, public_plant
 from roxy_os.home_product_intelligence import HomeProductIntelligence, ProductIntelligenceConfig
 from roxy_os.home_food import HomeFoodStore, HomePermissionPolicy
-from roxy_os.home_pet_catalog import personalized_pet_products, pet_profile_options
+from roxy_os.home_pet_catalog import personalized_pet_care_plan, personalized_pet_products, pet_profile_options
 from roxy_os.home_price_recommendations import (
     PRICE_NOTICE,
     PriceFeedConfig,
@@ -317,7 +317,7 @@ class RecipeImportCommitRequest(BaseModel):
 
 class PetProfileRequest(BaseModel):
     name: str = Field(min_length=1, max_length=40)
-    species: str = Field(pattern="^(dog|cat|ferret|rabbit|guinea_pig|hamster|bird|fish|reptile|amphibian|other)$")
+    species: str = Field(pattern="^(dog|cat|ferret|rabbit|guinea_pig|hamster|small_mammal|bird|fish|reptile|amphibian|invertebrate|farm_pet|other)$")
     exact_species: str = Field(default="", max_length=100)
     breed: str = Field(default="", max_length=100)
     age_years: float | None = Field(default=None, ge=0, le=200)
@@ -3573,6 +3573,9 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
         "pet_options": pet_profile_options(),
         "pet_recommendations": {
             str(pet.get("id")): personalized_pet_products(pet) for pet in pets if pet.get("id")
+        },
+        "pet_care_plans": {
+            str(pet.get("id")): personalized_pet_care_plan(pet) for pet in pets if pet.get("id")
         },
         "local_catalog": local_recipe_catalog_summary(),
         "local_recipes": local_recipe_catalog(snapshot),

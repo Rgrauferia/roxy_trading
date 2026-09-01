@@ -322,7 +322,7 @@ class HomeFoodStore:
         pet_species = _identity(species)
         if not pet_name:
             raise ValueError("La mascota necesita un nombre.")
-        if pet_species not in {"dog", "cat", "ferret", "rabbit", "guinea_pig", "hamster", "bird", "fish", "reptile", "amphibian", "other"}:
+        if pet_species not in {"dog", "cat", "ferret", "rabbit", "guinea_pig", "hamster", "small_mammal", "bird", "fish", "reptile", "amphibian", "invertebrate", "farm_pet", "other"}:
             raise ValueError("La especie de la mascota no es válida.")
         stage = _identity(life_stage) or "unknown"
         if stage not in {"baby", "young", "adult", "senior", "unknown"}:

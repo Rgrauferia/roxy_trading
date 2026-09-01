@@ -22,15 +22,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="113"' in page.text
+    assert 'name="roxy-home-version" content="114"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' in page.text
-    assert 'href="/assets/roxy_list.css?v=96"' in page.text
-    assert 'src="/assets/roxy_list.js?v=121"' in page.text
+    assert 'href="/assets/roxy_list.css?v=97"' in page.text
+    assert 'src="/assets/roxy_list.js?v=122"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
-    assert '/assets/roxy_list.css?v=96' in worker.text
-    assert '/assets/roxy_list.js?v=121' in worker.text
+    assert '/assets/roxy_list.css?v=97' in worker.text
+    assert '/assets/roxy_list.js?v=122' in worker.text
     assert '/assets/roxy_home/pet-onboarding-hero.png' in worker.text
     assert 'id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle" hidden' in page.text
     assert '/assets/roxy_home_avatar.jpg' in page.text
@@ -57,7 +57,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
     assert 'Comparar muebles reales' in script.text
-    assert "const APP_VERSION = '113'" in script.text
+    assert "const APP_VERSION = '114'" in script.text
     assert 'id="familyHistoryButton"' in page.text
     assert 'id="familyHistoryPanel"' in page.text
     assert 'loadFamilyHistoryPanel' in script.text
@@ -239,6 +239,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="petOnboardingEmpty"' in page.text
     assert 'id="petProfileDialog"' in page.text
     assert 'id="petPersonalizedHub"' in page.text
+    assert 'id="petCarePlan"' in page.text
+    assert 'data-pet-hub-tab="care"' in page.text
     assert 'id="petProductRecommendations"' in page.text
     assert 'id="petMedicalDialog"' in page.text
     assert 'id="petBreedOptions"' in page.text
@@ -251,6 +253,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "selectedPetProfile" in script.text
     assert "blockedIngredients" in script.text
     assert "renderPetProducts" in script.text
+    assert "renderPetCare" in script.text
+    assert "pet_care_plans" in script.text
     assert "savePetMedical" in script.text
     assert "pet_recommendations" in script.text
     assert "/recipe-imports" in script.text

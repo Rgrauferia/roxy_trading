@@ -8,16 +8,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="113" />
+  <meta name="roxy-home-version" content="114" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
   <link rel="stylesheet" href="/assets/vendor/maplibre-gl.css?v=1" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=96" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=97" />
   <script src="/assets/vendor/maplibre-gl.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=121" defer></script>
+  <script src="/assets/roxy_list.js?v=122" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -359,10 +359,16 @@
       <section id="petPersonalizedHub" class="pet-personalized-hub" hidden aria-labelledby="petHubTitle">
         <div class="pet-hub-heading"><div><p class="eyebrow">Perfil activo</p><h2 id="petHubTitle">Todo para tu mascota</h2><p id="petHubSummary"></p></div><button id="editPetProfile" class="secondary" type="button">Editar perfil</button></div>
         <div class="pet-hub-tabs" role="tablist" aria-label="Información personalizada de la mascota">
-          <button class="active" type="button" data-pet-hub-tab="recipes">Recetas</button>
+          <button class="active" type="button" data-pet-hub-tab="care">Cuidados</button>
+          <button id="petFoodTab" type="button" data-pet-hub-tab="recipes">Recetas</button>
           <button type="button" data-pet-hub-tab="products">Productos</button>
           <button type="button" data-pet-hub-tab="medical">Historial médico</button>
         </div>
+        <section id="petCarePanel" class="pet-hub-panel" data-pet-hub-panel="care">
+          <div class="pet-panel-heading"><div><h3 id="petCareTitle">Plan de cuidado</h3><p id="petCareIntro">Rutina construida para la especie exacta y el perfil guardado.</p></div></div>
+          <div id="petCarePlan" class="pet-care-plan"></div>
+          <p class="pet-product-method"><strong>Importante:</strong> los rangos y la convivencia cambian entre especies. Roxy conserva las indicaciones de tu veterinario y marca lo que necesita confirmación profesional.</p>
+        </section>
         <section id="petProductsPanel" class="pet-hub-panel" data-pet-hub-panel="products" hidden>
           <div class="pet-panel-heading"><div><h3>Productos elegidos para su perfil</h3><p>Marca y producto concretos, ordenados por coincidencia. Roxy no inventa precio ni disponibilidad.</p></div></div>
           <div id="petProductRecommendations" class="pet-product-recommendations"></div>
@@ -569,7 +575,7 @@
       <fieldset class="pet-profile-step" data-pet-step="1">
         <legend>¿Quién vive contigo?</legend>
         <label class="pet-photo-field"><input id="petProfilePhoto" type="file" accept="image/jpeg,image/png,image/webp" /><span id="petPhotoPreview"><span class="material-symbols-rounded" aria-hidden="true">add_a_photo</span><strong>Añadir foto</strong></span></label>
-        <label><span>Tipo de mascota</span><select id="petProfileSpecies" required><option value="">Selecciona</option><option value="dog">Perro</option><option value="cat">Gato</option><option value="bird">Ave</option><option value="fish">Pez</option><option value="reptile">Reptil</option><option value="amphibian">Anfibio</option><option value="rabbit">Conejo</option><option value="guinea_pig">Cobaya</option><option value="hamster">Hámster</option><option value="ferret">Hurón</option><option value="other">Otra</option></select></label>
+        <label><span>Tipo de mascota</span><select id="petProfileSpecies" required><option value="">Selecciona</option><option value="dog">Perro</option><option value="cat">Gato</option><option value="ferret">Hurón</option><option value="rabbit">Conejo</option><option value="guinea_pig">Cobaya</option><option value="hamster">Hámster</option><option value="small_mammal">Otro pequeño mamífero</option><option value="bird">Ave</option><option value="fish">Pez</option><option value="reptile">Reptil</option><option value="amphibian">Anfibio</option><option value="invertebrate">Invertebrado</option><option value="farm_pet">Mascota de granja</option><option value="other">Otra especie</option></select></label>
         <label><span>Nombre</span><input id="petProfileName" maxlength="40" required placeholder="Ej. Luna" /></label>
         <label><span id="petExactSpeciesLabel">Especie exacta</span><input id="petProfileExactSpecies" list="petExactSpeciesOptions" maxlength="100" placeholder="Ej. Betta splendens" /></label>
         <datalist id="petExactSpeciesOptions"></datalist>

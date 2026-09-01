@@ -201,6 +201,45 @@ def test_pet_profile_exposes_breeds_products_and_private_medical_history(tmp_pat
     assert snapshot["pets"][0]["goals"] == ["Piel y pelaje"]
 
 
+def test_pet_care_supports_companion_animals_beyond_dogs_and_cats(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "home-test-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert")
+    monkeypatch.setenv("ROXY_HOME_MEMORY_PATH", str(tmp_path / "home-food.json"))
+    roxy_home_service._RATE_STATE.clear()
+    client = TestClient(roxy_home_service.app)
+    headers = {"Authorization": "Bearer home-test-key"}
+    animals = [
+        ("ferret", "Hurón doméstico"), ("rabbit", "Holland Lop"),
+        ("guinea_pig", "American"), ("hamster", "Sirio"),
+        ("small_mammal", "Chinchilla"), ("bird", "Ninfa / cockatiel"),
+        ("fish", "Betta splendens"), ("reptile", "Gecko leopardo"),
+        ("amphibian", "Ajolote"), ("invertebrate", "Tarántula"),
+        ("farm_pet", "Cerdo miniatura"), ("other", "Otra especie doméstica"),
+    ]
+    for index, (species, exact_species) in enumerate(animals):
+        response = client.post(
+            "/v1/home-food/robert/pets",
+            headers=headers,
+            json={"name": f"Mascota {index}", "species": species, "exact_species": exact_species},
+        )
+        assert response.status_code == 201
+
+    snapshot = client.get("/v1/home-food/robert", headers=headers).json()
+    assert len(snapshot["pets"]) == len(animals)
+    assert len(snapshot["pet_care_plans"]) == len(animals)
+    assert all(len(plan["sections"]) >= 5 for plan in snapshot["pet_care_plans"].values())
+    assert "Chinchilla" in snapshot["pet_options"]["exact_species"]["small_mammal"]
+    assert "Tarántula" in snapshot["pet_options"]["exact_species"]["invertebrate"]
+    assert "Cerdo miniatura" in snapshot["pet_options"]["exact_species"]["farm_pet"]
+    assert any(
+        row["brand"] == "Mazuri"
+        for pet in snapshot["pets"] if pet["species"] == "ferret"
+        for row in snapshot["pet_recommendations"][pet["id"]]
+    )
+
+
 def test_weekly_plan_is_local_persistent_and_requires_confirmation_for_shopping(tmp_path, monkeypatch):
     from tools import roxy_home_service
 

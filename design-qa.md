@@ -45,6 +45,31 @@ final result: passed
 
 ---
 
+# Multispecies pet care design QA
+
+## Evidence
+
+- Mobile render for an axolotl profile: `/private/tmp/roxy-nexo-fix.1La6Ve/.playwright-cli/page-2026-09-01T19-24-19-834Z.png` (390 × 844 px).
+- Browser profiles tested: Milo (adult domestic ferret) and Azul (adult axolotl in a cycled aquarium).
+
+## Behavior verified
+
+- The pet selector changes the full care plan rather than only changing the displayed species name.
+- Ferret care prioritizes species-specific commercial nutrition, heat safety, supervised exercise, compatibility and exotic-vet warning signs.
+- Axolotl care switches the recipe label to “Alimentación” and prioritizes water quality, temperature, limited handling, aquatic maintenance and species isolation.
+- The new care-first navigation remains readable with four tabs at 390 px.
+- Profiles support dogs, cats, ferrets, rabbits, guinea pigs, hamsters, other small mammals, birds, fish, reptiles, amphibians, invertebrates, farm pets and a free-form other-species path.
+- When no verified product matches an exact species, the interface says so instead of inventing a brand.
+
+## Validation
+
+- `node --check assets/roxy_list.js` passed.
+- 44 Home list/family/food tests passed.
+
+final result: passed
+
+---
+
 # Deep pet personalization design QA
 
 ## Evidence

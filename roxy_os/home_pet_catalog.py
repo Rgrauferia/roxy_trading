@@ -41,6 +41,10 @@ EXACT_SPECIES = {
     "guinea_pig": ["American", "Abyssinian", "Peruvian", "Silkie", "Teddy", "Texel", "Skinny", "Mestiza / no sé"],
     "hamster": ["Sirio", "Enano ruso Campbell", "Enano Winter White", "Roborovski", "Chino", "No sé"],
     "ferret": ["Hurón doméstico", "No sé"],
+    "small_mammal": ["Rata doméstica", "Ratón doméstico", "Gerbo de Mongolia", "Chinchilla", "Degú", "Erizo pigmeo africano", "Petauro del azúcar", "Perrito de la pradera", "Otro pequeño mamífero"],
+    "invertebrate": ["Tarántula", "Escorpión", "Milpiés", "Mantis religiosa", "Insecto palo", "Cucaracha de Madagascar", "Cangrejo ermitaño", "Camarón de acuario", "Caracol terrestre", "Caracol acuático", "Isópodos", "Otro invertebrado"],
+    "farm_pet": ["Cerdo miniatura", "Cabra", "Oveja", "Gallina", "Pato", "Ganso", "Pavo", "Codorniz", "Alpaca", "Otro animal de granja"],
+    "other": ["Otra especie doméstica", "Especie exótica con permiso", "No sé la especie exacta"],
 }
 
 COMMON_ALLERGIES = {
@@ -55,6 +59,10 @@ COMMON_CONDITIONS = {
     "fish": ["Ninguna observada", "Problema de aletas", "Puntos blancos", "Estrés", "Problema de flotación", "Tratamiento activo", "Otra"],
     "reptile": ["Ninguna diagnosticada", "Problemas de muda", "Bajo peso", "Enfermedad metabólica ósea", "Parásitos", "Tratamiento activo", "Otra"],
     "bird": ["Ninguna diagnosticada", "Picaje de plumas", "Sobrepeso", "Problema respiratorio", "Problema del pico", "Tratamiento activo", "Otra"],
+    "small_mammal": ["Ninguna diagnosticada", "Problema dental", "Problema respiratorio", "Piel o pelaje", "Sobrepeso", "Problema digestivo", "Tratamiento activo", "Otra"],
+    "amphibian": ["Ninguna observada", "Problema de piel", "Pérdida de apetito", "Problema de flotación", "Calidad del agua", "Tratamiento activo", "Otra"],
+    "invertebrate": ["Ninguna observada", "Problema de muda", "Pérdida de apetito", "Lesión", "Parámetros del hábitat", "Tratamiento activo", "Otra"],
+    "farm_pet": ["Ninguna diagnosticada", "Sobrepeso", "Problema digestivo", "Pezuñas o patas", "Piel o plumaje", "Parásitos", "Tratamiento activo", "Otra"],
     "default": ["Ninguna diagnosticada", "Sobrepeso", "Bajo peso", "Problema digestivo", "Problema dental", "Tratamiento activo", "Otra"],
 }
 
@@ -63,6 +71,11 @@ GOALS = {
     "cat": ["Mantener peso", "Bajar peso", "Subir peso", "Hidratación", "Bolas de pelo", "Digestión", "Tracto urinario", "Enriquecimiento"],
     "fish": ["Agua estable", "Coloración", "Crecimiento", "Compatibilidad", "Reducir estrés", "Rutina de alimentación"],
     "reptile": ["Temperatura correcta", "Humedad correcta", "UVB", "Muda", "Peso", "Enriquecimiento"],
+    "bird": ["Alimentación equilibrada", "Enriquecimiento", "Socialización", "Plumaje", "Peso", "Rutina diaria"],
+    "small_mammal": ["Salud dental", "Peso", "Enriquecimiento", "Hábitat", "Socialización", "Rutina diaria"],
+    "amphibian": ["Calidad del agua", "Temperatura", "Humedad", "Alimentación", "Muda", "Reducir estrés"],
+    "invertebrate": ["Muda segura", "Humedad", "Temperatura", "Alimentación", "Hábitat", "Reducir estrés"],
+    "farm_pet": ["Peso", "Alimentación", "Pezuñas o patas", "Enriquecimiento", "Refugio", "Convivencia"],
     "default": ["Mantener peso", "Mejorar alimentación", "Rutina diaria", "Hábitat", "Enriquecimiento", "Seguimiento de salud"],
 }
 
@@ -95,12 +108,12 @@ PRODUCTS = {
         {"brand": "Niteangel", "name": "Multi-Chamber Hamster House", "category": "Hábitat", "goals": ["hábitat", "enriquecimiento"], "reason": "Refugio de múltiples cámaras para conducta de anidación; confirma medidas y material.", "source_url": "https://www.niteangelpet.com/collections/hamster-hideouts", "source_label": "Niteangel · catálogo oficial"},
     ],
     "bird": [
-        {"brand": "Mazuri", "name": "Mini Bird Diet", "category": "Alimento formulado", "reason": "Dieta formulada para aves pequeñas no reproductoras; la transición debe ser gradual.", "source_url": "https://mazuri.com/products/mazuri-mini-bird-diets", "source_label": "Mazuri · producto oficial"},
-        {"brand": "Harrison's", "name": "Adult Lifetime Fine", "category": "Alimento formulado", "reason": "Alternativa para determinadas aves adultas; confirma especie y tamaño de partícula con un veterinario aviar.", "source_url": "https://www.harrisonsbirdfoods.com/product/adult-lifetime-fine/", "source_label": "Harrison's · producto oficial"},
+        {"brand": "Mazuri", "name": "Mini Bird Diet", "category": "Alimento formulado", "exact_terms": ["periquito", "canario", "ninfa", "cockatiel", "agapornis", "pinzón"], "reason": "Dieta formulada para aves pequeñas no reproductoras; la transición debe ser gradual.", "source_url": "https://mazuri.com/products/mazuri-mini-bird-diets", "source_label": "Mazuri · producto oficial"},
+        {"brand": "Harrison's", "name": "Adult Lifetime Fine", "category": "Alimento formulado", "exact_terms": ["periquito", "canario", "ninfa", "cockatiel", "agapornis", "conure", "pinzón"], "reason": "Alternativa para determinadas aves adultas; confirma especie y tamaño de partícula con un veterinario aviar.", "source_url": "https://www.harrisonsbirdfoods.com/product/adult-lifetime-fine/", "source_label": "Harrison's · producto oficial"},
     ],
     "fish": [
         {"brand": "Hikari", "name": "Betta Bio-Gold", "category": "Alimento específico", "exact_terms": ["betta"], "reason": "Pellet flotante formulado para bettas; la cantidad depende del tamaño y se evita sobrealimentar.", "source_url": "https://www.hikariusa.com/tropical_folder/betta_bio_gold.html", "source_label": "Hikari · producto oficial"},
-        {"brand": "Hikari", "name": "Micro Pellets", "category": "Alimento para peces pequeños", "reason": "Opción para peces tropicales pequeños; confirma especie, tamaño de boca y zona de alimentación.", "source_url": "https://www.hikariusa.com/tropical.html", "source_label": "Hikari · catálogo oficial"},
+        {"brand": "Hikari", "name": "Micro Pellets", "category": "Alimento para peces pequeños", "exact_terms": ["guppy", "molly", "platy", "tetra", "danio"], "reason": "Opción para peces tropicales pequeños; confirma especie, tamaño de boca y zona de alimentación.", "source_url": "https://www.hikariusa.com/tropical.html", "source_label": "Hikari · catálogo oficial"},
         {"brand": "API", "name": "Freshwater Master Test Kit", "category": "Control del agua", "goals": ["agua estable", "reducir estrés"], "reason": "Kit para medir parámetros básicos; interpreta los resultados según la especie y el ciclado.", "source_url": "https://apifishcare.com/product/freshwater-master-test-kit", "source_label": "API · producto oficial"},
         {"brand": "Seachem", "name": "Prime", "category": "Acondicionador de agua", "reason": "Acondicionador concentrado; usa solo la dosis de la etiqueta para el volumen real.", "source_url": "https://www.seachem.com/prime.php", "source_label": "Seachem · producto oficial"},
     ],
@@ -111,6 +124,25 @@ PRODUCTS = {
     ],
     "ferret": [
         {"brand": "Mazuri", "name": "Ferret Diet", "category": "Alimento formulado", "reason": "Alimento formulado para hurones; confirma etapa, condición corporal e historial digestivo.", "source_url": "https://mazuri.com/products/mazuri-ferret-diet", "source_label": "Mazuri · producto oficial"},
+    ],
+    "small_mammal": [
+        {"brand": "Oxbow", "name": "Essentials Adult Rat Food", "category": "Alimento uniforme", "exact_terms": ["rata"], "reason": "Alimento uniforme específico para ratas adultas; evita depender de mezclas que permitan selección.", "source_url": "https://oxbowanimalhealth.com/our-products/fortified-food/", "source_label": "Oxbow · catálogo oficial"},
+        {"brand": "Oxbow", "name": "Essentials Chinchilla Food", "category": "Alimento específico", "exact_terms": ["chinchilla"], "reason": "Pellet formulado para chinchillas; el heno de pasto y el agua siguen siendo esenciales.", "source_url": "https://oxbowanimalhealth.com/our-products/fortified-food/", "source_label": "Oxbow · catálogo oficial"},
+        {"brand": "Oxbow", "name": "Western Timothy Hay", "category": "Heno", "exact_terms": ["chinchilla", "degú"], "reason": "Heno de pasto para especies herbívoras; confirma el plan según la especie exacta.", "source_url": "https://oxbowanimalhealth.com/our-products/hay/", "source_label": "Oxbow · catálogo oficial"},
+        {"brand": "Mazuri", "name": "Hedgehog Diet", "category": "Alimento específico", "exact_terms": ["erizo"], "reason": "Dieta formulada para erizos; revisa etapa, peso y transición gradual.", "source_url": "https://mazuri.com/collections/exotic-pets", "source_label": "Mazuri · catálogo oficial"},
+    ],
+    "amphibian": [
+        {"brand": "Hikari", "name": "Sinking Carnivore Pellets", "category": "Alimento acuático", "exact_terms": ["ajolote"], "reason": "Pellet hundible para carnívoros acuáticos; confirma tamaño de bocado y cantidad para el ajolote.", "source_url": "https://www.hikariusa.com/tropical.html", "source_label": "Hikari · catálogo oficial"},
+        {"brand": "API", "name": "Freshwater Master Test Kit", "category": "Control del agua", "exact_terms": ["ajolote", "tritón"], "reason": "Ayuda a vigilar amoníaco, nitrito, nitrato y pH en hábitats acuáticos ciclado.", "source_url": "https://apifishcare.com/product/freshwater-master-test-kit", "source_label": "API · producto oficial"},
+        {"brand": "Zoo Med", "name": "Digital Thermometer Humidity Gauge", "category": "Monitoreo de hábitat", "reason": "Permite vigilar temperatura y humedad; el rango correcto depende de la especie exacta.", "source_url": "https://zoomed.com/digital-combo-thermometer-humidity-gauge/", "source_label": "Zoo Med · producto oficial"},
+    ],
+    "invertebrate": [
+        {"brand": "Zoo Med", "name": "Eco Earth", "category": "Sustrato", "reason": "Sustrato de fibra de coco; profundidad y humedad deben adaptarse a la especie y a la muda.", "source_url": "https://zoomed.com/eco-earth-loose-coconut-fiber-substrate/", "source_label": "Zoo Med · producto oficial"},
+        {"brand": "Zoo Med", "name": "Digital Thermometer Humidity Gauge", "category": "Monitoreo de hábitat", "reason": "Monitoreo básico del microclima; confirma los rangos para la especie exacta.", "source_url": "https://zoomed.com/digital-combo-thermometer-humidity-gauge/", "source_label": "Zoo Med · producto oficial"},
+    ],
+    "farm_pet": [
+        {"brand": "Mazuri", "name": "Mini Pig Active Adult", "category": "Alimento específico", "exact_terms": ["cerdo"], "reason": "Alimento formulado para cerdos miniatura adultos; ajusta ración a condición corporal y actividad.", "source_url": "https://mazuri.com/collections/mini-pig", "source_label": "Mazuri · catálogo oficial"},
+        {"brand": "Purina Animal Nutrition", "name": "Poultry Feeds", "category": "Alimento por etapa", "exact_terms": ["gallina", "pato", "ganso", "pavo", "codorniz"], "reason": "Líneas por especie y etapa; confirma que la fórmula corresponda al ave y su fase de vida.", "source_url": "https://www.purinamills.com/chicken-feed", "source_label": "Purina · catálogo oficial"},
     ],
 }
 
@@ -178,3 +210,149 @@ def personalized_pet_products(pet: dict[str, Any]) -> list[dict[str, Any]]:
         )
         rows.append(row)
     return sorted(rows, key=lambda item: (-int(item["score"]), item["brand"], item["name"]))
+
+
+CARE_LIBRARY = {
+    "dog": {
+        "feeding": "Alimento completo para su etapa, tamaño y condición corporal; los premios deben ser una parte pequeña del día.",
+        "habitat": "Agua fresca, descanso cómodo, ejercicio y un espacio seguro adaptado a su movilidad.",
+        "routine": "Comidas medidas, paseos, juego, higiene dental y control periódico de peso.",
+        "social": "Presentaciones graduales y supervisadas con personas y otros animales.",
+        "watch": "Cambios de apetito, sed, peso, vómitos, diarrea, dolor o dificultad para respirar requieren atención.",
+    },
+    "cat": {
+        "feeding": "Alimento completo felino por etapa, agua accesible y control de porciones; evita cambios bruscos.",
+        "habitat": "Areneros limpios, escondites, zonas altas, rascadores y recursos separados en hogares con varios gatos.",
+        "routine": "Juego de caza, cepillado según pelaje, cuidado dental y seguimiento de peso e hidratación.",
+        "social": "La convivencia se introduce con separación inicial, intercambio de olores y acceso gradual.",
+        "watch": "No comer, esfuerzo al orinar, respiración anormal o letargo marcado son señales de atención urgente.",
+    },
+    "ferret": {
+        "feeding": "Dieta comercial específica para hurones, alta en proteína animal y baja en carbohidratos; agua y alimento disponibles.",
+        "habitat": "Zona segura, fresca y bien ventilada, con refugio, bandeja higiénica y protección contra escapes.",
+        "routine": "Necesita varias horas diarias de juego supervisado fuera del recinto y enriquecimiento rotativo.",
+        "social": "Puede convivir con hurones compatibles tras presentación; no se deja sin supervisión con presas pequeñas.",
+        "watch": "Debilidad repentina, salivación, convulsiones, falta de apetito o sobrecalentamiento requieren veterinario de exóticos.",
+    },
+    "rabbit": {
+        "feeding": "Heno de pasto como base, agua, verduras apropiadas y pellet medido según etapa y condición.",
+        "habitat": "Espacio amplio con suelo firme, escondite, bandeja, objetos seguros para roer y ejercicio diario.",
+        "routine": "Revisa a diario apetito, heces y dientes; cepilla según pelaje y controla uñas y peso.",
+        "social": "La convivencia entre conejos requiere emparejamiento gradual y supervisado; protege de perros y gatos.",
+        "watch": "Dejar de comer o producir heces, abdomen distendido o dificultad respiratoria es una urgencia.",
+    },
+    "guinea_pig": {
+        "feeding": "Heno de pasto ilimitado, pellet específico con vitamina C, verduras apropiadas y agua fresca.",
+        "habitat": "Recinto ventilado de suelo sólido, refugios, cama seca y espacio para moverse.",
+        "routine": "Retira alimento fresco sobrante, limpia agua diariamente y vigila peso, dientes, uñas y vitamina C.",
+        "social": "Son sociales; la pareja o grupo debe ser compatible, con espacio y recursos suficientes.",
+        "watch": "No comer, heces reducidas, respiración ruidosa o pérdida de peso requiere atención rápida.",
+    },
+    "hamster": {
+        "feeding": "Alimento uniforme apropiado para hámster, agua y extras seguros en cantidades pequeñas.",
+        "habitat": "Recinto seguro con suelo sólido, cama profunda, material de nido, escondites y rueda del tamaño correcto.",
+        "routine": "Respeta su ciclo nocturno, limpia por zonas y revisa reservas de comida, agua y peso.",
+        "social": "La mayoría se mantiene individualmente; juntar adultos puede provocar peleas graves.",
+        "watch": "Diarrea, respiración dificultosa, bultos, heridas o dejar de comer requiere veterinario de exóticos.",
+    },
+    "small_mammal": {
+        "feeding": "La dieta cambia entre rata, ratón, gerbo, chinchilla, degú, erizo y petauro; usa alimento específico de especie.",
+        "habitat": "Recinto seguro con ventilación, sustrato, refugios y enriquecimiento adecuados a su forma de trepar, excavar o correr.",
+        "routine": "Controla agua, apetito, peso, dientes, piel y limpieza sin eliminar constantemente todos sus olores familiares.",
+        "social": "La necesidad de compañía varía mucho: confirma sexo, especie y compatibilidad antes de juntarlos.",
+        "watch": "Pérdida de peso, dientes largos, dificultad respiratoria, diarrea o lesiones necesitan veterinario de exóticos.",
+    },
+    "bird": {
+        "feeding": "La dieta debe corresponder a la especie; una mezcla solo de semillas suele ser insuficiente para muchas aves de compañía.",
+        "habitat": "Espacio para extender alas, perchas variadas, luz, sueño protegido y aire libre de humo y aerosoles.",
+        "routine": "Agua y recipientes limpios, alimento fresco, tiempo seguro de vuelo o actividad y enriquecimiento diario.",
+        "social": "Necesita interacción acorde a su especie; las presentaciones con otras aves son graduales y con cuarentena veterinaria.",
+        "watch": "Respirar con esfuerzo, permanecer embolado, caídas, sangrado o dejar de comer requiere veterinario aviar.",
+    },
+    "fish": {
+        "feeding": "Alimento específico por especie, tamaño de boca y zona de alimentación; evita sobrealimentar.",
+        "habitat": "Acuario ciclado con volumen, temperatura, filtración y parámetros adecuados a la especie exacta.",
+        "routine": "Comprueba temperatura y conducta a diario; mide agua y realiza cambios parciales según resultados, nunca por calendario ciego.",
+        "social": "Compatibilidad depende de especie, sexo, temperamento, volumen y número; no añadas compañeros sin verificar todo el conjunto.",
+        "watch": "Boqueo, aletas pegadas, puntos, heridas, hinchazón o amoníaco/nitrito detectables requieren corrección inmediata.",
+    },
+    "reptile": {
+        "feeding": "La dieta y suplementación dependen de si es insectívoro, herbívoro o carnívoro y de la especie exacta.",
+        "habitat": "Terrario con gradiente térmico, humedad, iluminación/UVB, sustrato y refugios específicos; mide, no adivines.",
+        "routine": "Registra temperaturas, humedad, alimentación, heces, peso y mudas; limpia sin alterar el microclima necesario.",
+        "social": "Muchos reptiles viven mejor solos; no mezcles especies y evita presas vivas que puedan lesionarlos.",
+        "watch": "Respiración con boca abierta, quemaduras, muda retenida grave, debilidad o rechazo prolongado de alimento requiere veterinario ARAV.",
+    },
+    "amphibian": {
+        "feeding": "Presas o alimento apropiados por especie y tamaño; cualquier suplemento debe corresponder al plan del especialista.",
+        "habitat": "Temperatura, humedad y calidad de agua exactas; evita químicos, metales y manipulación innecesaria de la piel.",
+        "routine": "Mide los parámetros relevantes, retira residuos y usa agua tratada con cambios parciales ajustados al sistema.",
+        "social": "No mezcles especies; compañeros y densidad solo se consideran tras confirmar compatibilidad y riesgo de depredación.",
+        "watch": "Lesiones de piel, flotación anormal, pérdida de apetito, hinchazón o cambios bruscos de conducta requieren especialista.",
+    },
+    "invertebrate": {
+        "feeding": "La frecuencia, presa y suplementación dependen de la especie; retira alimento vivo que pueda molestar durante la muda.",
+        "habitat": "Recinto a prueba de escapes con ventilación, sustrato, humedad, temperatura y refugio propios de la especie.",
+        "routine": "Revisa agua, microclima, restos y señales de premuda; evita manipular durante o después de la muda.",
+        "social": "La mayoría no debe mezclarse salvo especies coloniales conocidas; confirma riesgos de canibalismo y toxinas.",
+        "watch": "Caídas, muda fallida, pérdida de extremidades, deshidratación o inmovilidad fuera del patrón normal requieren especialista.",
+    },
+    "farm_pet": {
+        "feeding": "Usa alimento formulado para especie, etapa y función; evita raciones de otra especie y controla condición corporal.",
+        "habitat": "Refugio seco, ventilación, sombra, agua, cercado seguro y espacio apropiado para moverse y descansar.",
+        "routine": "Revisa apetito, agua, patas o pezuñas, piel/plumaje, heces, peso y prevención veterinaria.",
+        "social": "Muchas especies son gregarias, pero sexo, tamaño, cuernos y jerarquía exigen espacio y presentaciones seguras.",
+        "watch": "No levantarse, distensión, dificultad respiratoria, heridas, cojera severa o no comer requiere veterinario.",
+    },
+    "other": {
+        "feeding": "Identifica primero la especie exacta; no uses una dieta de otra mascota como sustituto.",
+        "habitat": "Roxy necesita especie, origen legal y requisitos ambientales antes de sugerir un hábitat concreto.",
+        "routine": "Registra alimentación, agua, peso o tamaño, conducta, eliminación y condiciones del entorno.",
+        "social": "No juntes especies o individuos hasta confirmar compatibilidad con una fuente veterinaria especializada.",
+        "watch": "Ante signos anormales, contacta a un veterinario con experiencia en esa especie.",
+    },
+}
+
+
+CARE_SOURCES = {
+    "ferret": ("Manual Veterinario Merck · hurones", "https://www.merckvetmanual.com/all-other-pets/ferrets/providing-a-home-for-a-ferret"),
+    "rabbit": ("Manual Veterinario Merck · conejos", "https://www.merckvetmanual.com/all-other-pets/rabbits/providing-a-home-for-a-rabbit"),
+    "guinea_pig": ("Manual Veterinario Merck · cobayas", "https://www.merckvetmanual.com/all-other-pets/guinea-pigs/diet-for-a-guinea-pig"),
+    "hamster": ("Manual Veterinario Merck · hámsteres", "https://www.merckvetmanual.com/all-other-pets/hamsters/providing-a-home-for-a-hamster"),
+    "small_mammal": ("Manual Veterinario Merck · roedores", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/rodents/rodents"),
+    "bird": ("Association of Avian Veterinarians · cuidado básico", "https://www.aav.org/resource/resmgr/pdf_2019/AAV_Basic-Care-for-Companion.pdf"),
+    "reptile": ("Manual Veterinario Merck · reptiles", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/reptiles/management-and-husbandry-of-reptiles"),
+    "amphibian": ("ARAV · veterinarios de reptiles y anfibios", "https://arav.org/"),
+    "fish": ("Manual Veterinario Merck · peces", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/aquarium-fishes/management-of-aquarium-fish"),
+}
+
+
+def personalized_pet_care_plan(pet: dict[str, Any]) -> dict[str, Any]:
+    species = str(pet.get("species") or "other")
+    exact = str(pet.get("exact_species") or pet.get("breed") or "").strip()
+    template = CARE_LIBRARY.get(species, CARE_LIBRARY["other"])
+    source_label, source_url = CARE_SOURCES.get(
+        species,
+        ("Manual Veterinario Merck · bienestar de mascotas no tradicionales", "https://www.merckvetmanual.com/special-subjects/animal-welfare/animal-welfare"),
+    )
+    sections = [
+        {"id": "feeding", "icon": "nutrition", "title": "Alimentación", "text": template["feeding"]},
+        {"id": "habitat", "icon": "home_and_garden", "title": "Hábitat", "text": template["habitat"]},
+        {"id": "routine", "icon": "event_repeat", "title": "Rutina", "text": template["routine"]},
+        {"id": "social", "icon": "diversity_1", "title": "Convivencia", "text": template["social"]},
+        {"id": "watch", "icon": "health_and_safety", "title": "Qué vigilar", "text": template["watch"], "urgent": True},
+    ]
+    if pet.get("veterinarian_instructions"):
+        sections.insert(0, {
+            "id": "vet", "icon": "medical_information", "title": "Indicación veterinaria guardada",
+            "text": str(pet["veterinarian_instructions"]), "protected": True,
+        })
+    return {
+        "title": f"Plan de {str(pet.get('name') or 'tu mascota')}",
+        "intro": f"Cuidado para {exact or 'la especie pendiente de identificar'}." if exact else "Completa la especie exacta para afinar rangos, alimentación y convivencia.",
+        "sections": sections,
+        "source_label": source_label,
+        "source_url": source_url,
+        "needs_exact_species": species in {"bird", "fish", "reptile", "amphibian", "small_mammal", "invertebrate", "farm_pet", "other"} and not exact,
+        "legal_note": "Las especies silvestres o reguladas pueden requerir permisos; Roxy no recomienda capturar fauna ni mantener una especie ilegal.",
+    }
