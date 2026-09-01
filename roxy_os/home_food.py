@@ -390,7 +390,8 @@ class HomeFoodStore:
     def add_pet_medical_record(
         self, user_id: Any, pet_id: Any, *, occurred_on: Any = None, record_type: Any = "note",
         title: Any, provider: Any = "", notes: Any = "", medications: Any = None,
-        next_due_on: Any = None, weight_kg: Any = None,
+        next_due_on: Any = None, weight_kg: Any = None, attachment_name: Any = "",
+        attachment_type: Any = "", attachment_data_url: Any = "",
     ) -> dict[str, Any]:
         pet_key = _text(pet_id, 80)
         clean_title = _text(title, 120)
@@ -405,11 +406,22 @@ class HomeFoodStore:
             raise ValueError("El peso del registro no es válido.") from exc
         if clean_weight is not None and not 0 < clean_weight <= 2_000:
             raise ValueError("El peso del registro no es válido.")
+        clean_attachment = str(attachment_data_url or "").strip()
+        clean_attachment_type = _identity(attachment_type)
+        allowed_attachments = {"application/pdf", "image/jpeg", "image/png", "image/webp"}
+        if clean_attachment:
+            if clean_attachment_type not in allowed_attachments or not clean_attachment.startswith(f"data:{clean_attachment_type};base64,"):
+                raise ValueError("El documento debe ser PDF, JPEG, PNG o WebP.")
+            if len(clean_attachment) > 1_500_000:
+                raise ValueError("El documento es demasiado grande. Usa un archivo de hasta 1 MB.")
         record = {
             "id": uuid4().hex, "occurred_on": str(occurred_on or "")[:10], "record_type": clean_type,
             "title": clean_title, "provider": _text(provider, 120), "notes": _text(notes, 2_000),
             "medications": _string_list(medications), "next_due_on": str(next_due_on or "")[:10],
             "weight_kg": clean_weight, "created_at": _now_iso(),
+            "attachment_name": _text(attachment_name, 120) if clean_attachment else "",
+            "attachment_type": clean_attachment_type if clean_attachment else "",
+            "attachment_data_url": clean_attachment,
         }
 
         def apply(payload: dict[str, Any]) -> dict[str, Any]:

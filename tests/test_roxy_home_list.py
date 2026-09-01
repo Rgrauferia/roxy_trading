@@ -22,15 +22,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="121"' in page.text
+    assert 'name="roxy-home-version" content="122"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' in page.text
-    assert 'href="/assets/roxy_list.css?v=103"' in page.text
-    assert 'src="/assets/roxy_list.js?v=128"' in page.text
+    assert 'href="/assets/roxy_list.css?v=104"' in page.text
+    assert 'src="/assets/roxy_list.js?v=129"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
-    assert '/assets/roxy_list.css?v=103' in worker.text
-    assert '/assets/roxy_list.js?v=128' in worker.text
+    assert '/assets/roxy_list.css?v=104' in worker.text
+    assert '/assets/roxy_list.js?v=129' in worker.text
     assert '/assets/roxy_home/pet-onboarding-hero.png' in worker.text
     assert 'id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle" hidden' in page.text
     assert '/assets/roxy_home_avatar.jpg' in page.text
@@ -240,6 +240,10 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="petProfileDialog"' in page.text
     assert 'id="petPersonalizedHub"' in page.text
     assert 'id="petProfileCompletion"' in page.text
+    assert 'id="petProductFilters"' in page.text
+    assert 'id="petMedicalAttachment"' in page.text
+    assert "choosePetMedicalAttachment" in script.text
+    assert "pet-medical-attachment" in style.text
     assert 'id="petCarePlan"' in page.text
     assert 'id="petDailySummary"' in page.text
     assert 'id="petNutritionPanel"' in page.text

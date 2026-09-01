@@ -355,6 +355,9 @@ class PetMedicalRecordRequest(BaseModel):
     medications: list[str] = Field(default_factory=list, max_length=30)
     next_due_on: date | None = None
     weight_kg: float | None = Field(default=None, gt=0, le=2_000)
+    attachment_name: str = Field(default="", max_length=120)
+    attachment_type: str = Field(default="", max_length=40)
+    attachment_data_url: str = Field(default="", max_length=1_500_000)
 
 
 class PetCareCompletionRequest(BaseModel):

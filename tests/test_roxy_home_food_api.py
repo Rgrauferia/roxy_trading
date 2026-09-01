@@ -249,6 +249,8 @@ def test_pet_profile_exposes_breeds_products_and_private_medical_history(tmp_pat
             "occurred_on": "2026-08-20", "record_type": "checkup", "title": "Revisión anual",
             "provider": "Clínica Central", "notes": "Peso estable.", "medications": ["Ninguno"],
             "next_due_on": "2026-09-20", "weight_kg": 28.4,
+            "attachment_name": "resultado.pdf", "attachment_type": "application/pdf",
+            "attachment_data_url": "data:application/pdf;base64,JVBERi0xLjQK",
         },
     )
     completed = client.post(
@@ -273,6 +275,8 @@ def test_pet_profile_exposes_breeds_products_and_private_medical_history(tmp_pat
     assert snapshot["pets"][0]["medical_history"][0]["title"] == "Revisión anual"
     assert snapshot["pets"][0]["medical_history"][0]["next_due_on"] == "2026-09-20"
     assert snapshot["pets"][0]["medical_history"][0]["weight_kg"] == 28.4
+    assert snapshot["pets"][0]["medical_history"][0]["attachment_name"] == "resultado.pdf"
+    assert snapshot["pets"][0]["medical_history"][0]["attachment_data_url"].startswith("data:application/pdf;base64,")
     assert snapshot["pets"][0]["care_log"][0]["routine_id"] == "morning_meal"
     assert snapshot["pet_care_plans"][pet_id]["routines"][0]["completed_today"] is True
     assert snapshot["pet_nutrition_plans"][pet_id]["amount"] == 280
