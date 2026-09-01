@@ -898,12 +898,25 @@
   function renderRecipes() {
     const root=$('recipeLibrary'); root.replaceChildren();
     const catalog=homeFood.local_catalog||{};
-    const imageService=homeFood.recipe_image_service||{};$('recipeCatalogHint').textContent=catalog.total?`Roxy incluye ${catalog.total} recetas listas para guardar, adaptar y cocinar paso a paso.${imageService.pending?` Está completando ${imageService.pending} fotos para que cada plato se reconozca a primera vista.`:''}`:'';
+    const imageService=homeFood.recipe_image_service||{};const petMode=recipeAudience==='pet';
+    $('recipesPanel').classList.toggle('pet-mode',petMode);
+    $('recipeHeroEyebrow').textContent=petMode?'Bienestar personalizado':'Roxy cocina contigo';
+    $('recipesTitle').textContent=petMode?'Mascotas':'Recetas';
+    $('recipeHeroBadge').textContent=petMode?'Perfil privado':'Guardado automático';
+    $('recipeImportTitle').textContent=petMode?'Tus mascotas':'Trae cualquier receta a Roxy';
+    $('recipeLead').firstChild.textContent=petMode?'Cuidados, alimentación y salud organizados para cada mascota. ':'Elige una categoría o busca tu plato. Cada receta está lista para abrirse, guardarse y cocinarse paso a paso. ';
+    $('recipeCatalogHint').textContent=petMode?'':catalog.total?`Roxy incluye ${catalog.total} recetas listas para guardar, adaptar y cocinar paso a paso.${imageService.pending?` Está completando ${imageService.pending} fotos para que cada plato se reconozca a primera vista.`:''}`:'';
     const filters=$('recipeFilters');filters.replaceChildren();filters.hidden=recipeAudience==='pet';
     const pets=savedPets();const onboarding=$('petOnboardingEmpty');const catalogSection=$('recipeCatalogSection');const importStudio=$('recipeImportStudio');const petHub=$('petPersonalizedHub');
+    catalogSection.setAttribute('role',petMode?'tabpanel':'region');catalogSection.setAttribute('aria-labelledby',petMode?'petFoodTab':'libraryTitle');
+    importStudio.classList.toggle('pet-profile-mode',petMode);
     if(recipeAudience==='pet'&&!pets.length){onboarding.hidden=false;catalogSection.hidden=true;petHub.hidden=true;importStudio.classList.add('pet-onboarding-mode');return}
     onboarding.hidden=true;importStudio.classList.remove('pet-onboarding-mode');petHub.hidden=recipeAudience!=='pet';
     if(recipeAudience==='pet'){renderPetHub();catalogSection.hidden=petHubTab!=='recipes';if(petHubTab!=='recipes')return}else catalogSection.hidden=false;
+    $('recipeLibraryEyebrow').textContent=petMode?'Seguro para su perfil':'Incluidas y disponibles';
+    $('libraryTitle').textContent=petMode?'Alimentación complementaria':'Recetario de Roxy';
+    $('recipeLibraryHint').textContent=petMode?'Premios, complementos o guías claramente separados de su alimento completo':'Toca una receta incluida para guardarla en tu carpeta';
+    $('recipeSearch').placeholder=petMode?'Buscar premio o guía segura…':'Buscar huevos, pollo, café…';
     if(recipeAudience==='human')[...recipeCategories,{id:'favorite',title:'Favoritas',icon:'favorite'}].forEach(category=>{const button=document.createElement('button');button.type='button';button.className=`recipe-filter-card${recipeFilter===category.id?' active':''}`;button.dataset.recipeFilter=category.id;if(category.icon){const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.setAttribute('aria-hidden','true');icon.textContent=category.icon;button.append(icon)}const label=document.createElement('span');label.textContent=category.title;button.append(label);button.addEventListener('click',()=>{recipeFilter=category.id;renderRecipes()});filters.append(button)});
     const sessions=homeFood.cooking_sessions||[];
     const active=[...sessions].reverse().find(row=>row.status==='ACTIVE');
@@ -923,7 +936,7 @@
     if(recipeAudience==='pet'){
       const feedingHub=['fish','reptile','amphibian','invertebrate','farm_pet','other'].includes(petSpecies);const section=document.createElement('section');section.className='recipe-category';
       const heading=document.createElement('div');heading.className='recipe-category-heading';const copy=document.createElement('div');const title=document.createElement('h3');title.textContent=`${feedingHub?'Alimentación':'Recetario'} de ${pet?.name||'tu mascota'}`;const description=document.createElement('p');description.textContent=blockedIngredients.length?`Filtrado según su especie y ${blockedIngredients.length} ${blockedIngredients.length===1?'restricción':'restricciones'} registradas`:feedingHub?'Guías específicas; la etiqueta y el especialista determinan cantidad y frecuencia':'Premios y complementos separados de su alimento completo';copy.append(title,description);const count=document.createElement('span');count.textContent=String(rows.length);heading.append(copy,count);section.append(heading);
-      const grid=document.createElement('div');grid.className='recipe-category-grid';rows.forEach(recipe=>grid.append(recipeCard(recipe)));if(!rows.length){const empty=document.createElement('div');empty.className='empty category-empty';empty.innerHTML='<strong>No hay una receta segura disponible todavía</strong>Roxy no mostrará recetas genéricas. Puedes completar más detalles del perfil o importar una receta para revisión.';grid.append(empty)}section.append(grid);root.append(section);return;
+      const grid=document.createElement('div');grid.className='recipe-category-grid';rows.forEach(recipe=>grid.append(recipeCard(recipe)));if(!rows.length){const empty=document.createElement('div');empty.className='empty category-empty';empty.innerHTML='<strong>No hay una receta segura disponible todavía</strong>Roxy no mostrará recetas genéricas. Completa los detalles de alimentación y salud del perfil para afinar las opciones.';grid.append(empty)}section.append(grid);root.append(section);return;
     }
     const visibleCategories=recipeSearch?recipeCategories.filter(category=>rows.some(recipe=>recipeCategoryId(recipe)===category.id)):recipeCategories.filter(category=>category.id===recipeFilter);
     visibleCategories.forEach(category=>{

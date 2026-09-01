@@ -273,6 +273,9 @@ textarea { resize: vertical; line-height: 1.45; }
 .recipe-import-studio { display: grid; gap: 14px; margin: 0 0 18px; padding: 18px; scroll-margin-top:82px; border: 1px solid #dfe3da; border-radius: 24px; background: #fbfaf6; box-shadow: 0 12px 28px rgba(28,49,39,.06); }
 .recipe-import-studio.pet-onboarding-mode{padding:4px;border:0;background:transparent;box-shadow:none}
 .recipe-import-studio.pet-onboarding-mode .recipe-import-heading,.recipe-import-studio.pet-onboarding-mode .recipe-import-copy,.recipe-import-studio.pet-onboarding-mode .recipe-import-actions,.recipe-import-studio.pet-onboarding-mode .pet-recipe-context{display:none}
+.recipe-import-studio.pet-profile-mode{padding:6px;border:0;background:transparent;box-shadow:none}
+.recipe-import-studio.pet-profile-mode .recipe-import-heading,.recipe-import-studio.pet-profile-mode .recipe-import-copy,.recipe-import-studio.pet-profile-mode .recipe-import-actions{display:none}
+.app-panel.pet-mode .hero-heading{align-items:center}.app-panel.pet-mode .hero-heading>span{color:var(--forest);background:#edf4ea}.app-panel.pet-mode>.lead{max-width:640px}.app-panel.pet-mode .human-recipe-only{display:none!important}
 .recipe-import-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .recipe-import-heading h3 { margin: 2px 0 0; color: var(--forest-dark); font-family: Georgia,serif; font-size: 24px; line-height: 1.05; }
 .recipe-import-heading > .material-symbols-rounded { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: #fff; background: var(--forest); }

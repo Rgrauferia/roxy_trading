@@ -22,15 +22,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="117"' in page.text
+    assert 'name="roxy-home-version" content="118"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' in page.text
-    assert 'href="/assets/roxy_list.css?v=100"' in page.text
-    assert 'src="/assets/roxy_list.js?v=125"' in page.text
+    assert 'href="/assets/roxy_list.css?v=101"' in page.text
+    assert 'src="/assets/roxy_list.js?v=126"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
-    assert '/assets/roxy_list.css?v=100' in worker.text
-    assert '/assets/roxy_list.js?v=125' in worker.text
+    assert '/assets/roxy_list.css?v=101' in worker.text
+    assert '/assets/roxy_list.js?v=126' in worker.text
     assert '/assets/roxy_home/pet-onboarding-hero.png' in worker.text
     assert 'id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle" hidden' in page.text
     assert '/assets/roxy_home_avatar.jpg' in page.text
@@ -249,8 +249,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'role="tab"' in page.text
     assert 'role="tabpanel"' in page.text
     assert 'aria-controls="petCarePanel"' in page.text
+    assert "catalogSection.setAttribute('role',petMode?'tabpanel':'region')" in script.text
     assert 'id="petProductRecommendations"' in page.text
     assert 'id="petMedicalDialog"' in page.text
+    assert 'id="recipeHeroEyebrow"' in page.text
+    assert 'human-recipe-only' in page.text
     assert 'id="petBreedOptions"' in page.text
     assert 'id="petConditionChoices"' in page.text
     assert 'id="petProfileProgress"' in page.text
@@ -269,6 +272,9 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "renderPetNutrition" in script.text
     assert "logPetFeeding" in script.text
     assert "exportPetMedicalSummary" in script.text
+    assert "classList.toggle('pet-mode',petMode)" in script.text
+    assert ".classList.toggle('pet-mode',petMode)" in script.text
+    assert "'Mascotas':'Recetas'" in script.text
     assert "Añadir a mi lista" in script.text
     assert "/care-log" in script.text
     assert "pet_care_plans" in script.text
