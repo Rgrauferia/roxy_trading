@@ -176,7 +176,10 @@ def test_pet_profile_exposes_breeds_products_and_private_medical_history(tmp_pat
             "name": "Luna", "species": "dog", "breed": "Golden Retriever", "life_stage": "adult",
             "sex": "female", "sterilized": "yes", "size_class": "large", "activity_level": "moderate",
             "body_condition": "ideal", "goals": ["Piel y pelaje"], "conditions": ["Piel sensible"],
-            "allergies": ["Pollo"], "current_food": "Alimento seco actual",
+            "allergies": ["Pollo"], "current_food": "Alimento seco actual", "current_food_kind": "complete",
+            "feeding_amount": 280, "feeding_unit": "g", "feeding_frequency": 2,
+            "feeding_times": ["07:30", "18:30"], "feeding_amount_source": "veterinarian",
+            "feeding_notes": "Transición completada.",
         },
     )
     pet_id = created.json()["pet"]["id"]
@@ -186,6 +189,7 @@ def test_pet_profile_exposes_breeds_products_and_private_medical_history(tmp_pat
         json={
             "occurred_on": "2026-08-20", "record_type": "checkup", "title": "Revisión anual",
             "provider": "Clínica Central", "notes": "Peso estable.", "medications": ["Ninguno"],
+            "next_due_on": "2026-09-20", "weight_kg": 28.4,
         },
     )
     completed = client.post(
@@ -193,9 +197,14 @@ def test_pet_profile_exposes_breeds_products_and_private_medical_history(tmp_pat
         headers=headers,
         json={"routine_id": "morning_meal", "title": "Alimentación de la mañana"},
     )
+    feeding = client.post(
+        f"/v1/home-food/robert/pets/{pet_id}/care-log",
+        headers=headers,
+        json={"routine_id": "feeding_observation", "title": "Registro de alimentación", "outcome": "partial"},
+    )
     snapshot = client.get("/v1/home-food/robert", headers=headers).json()
 
-    assert created.status_code == 201 and medical.status_code == 201 and completed.status_code == 201
+    assert created.status_code == 201 and medical.status_code == 201 and completed.status_code == 201 and feeding.status_code == 201
     assert "Golden Retriever" in snapshot["pet_options"]["breeds"]["dog"]
     assert "Betta splendens" in snapshot["pet_options"]["exact_species"]["fish"]
     assert len(snapshot["pet_options"]["breeds"]["dog"]) >= 80
@@ -203,8 +212,13 @@ def test_pet_profile_exposes_breeds_products_and_private_medical_history(tmp_pat
     assert all(row["name"] != "Adult Perfect Weight" for row in snapshot["pet_recommendations"][pet_id])
     assert any(row["brand"] == "Royal Canin" and row["select_before_cart"] for row in snapshot["pet_recommendations"][pet_id])
     assert snapshot["pets"][0]["medical_history"][0]["title"] == "Revisión anual"
+    assert snapshot["pets"][0]["medical_history"][0]["next_due_on"] == "2026-09-20"
+    assert snapshot["pets"][0]["medical_history"][0]["weight_kg"] == 28.4
     assert snapshot["pets"][0]["care_log"][0]["routine_id"] == "morning_meal"
     assert snapshot["pet_care_plans"][pet_id]["routines"][0]["completed_today"] is True
+    assert snapshot["pet_nutrition_plans"][pet_id]["amount"] == 280
+    assert snapshot["pet_nutrition_plans"][pet_id]["frequency"] == 2
+    assert snapshot["pet_nutrition_plans"][pet_id]["last_feeding"]["outcome"] == "partial"
     assert snapshot["pets"][0]["goals"] == ["Piel y pelaje"]
 
 

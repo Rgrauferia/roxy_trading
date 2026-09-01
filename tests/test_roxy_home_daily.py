@@ -42,8 +42,31 @@ def test_daily_brief_prioritizes_real_home_data():
 
     assert brief["summary"].startswith("Robert,")
     assert [card["kind"] for card in brief["cards"]] == ["calendar", "meal", "shopping", "pantry"]
-    assert brief["counts"] == {"shopping_pending": 2, "pantry": 1, "events_upcoming": 1, "meals_today": 1}
+    assert brief["counts"] == {"shopping_pending": 2, "pantry": 1, "events_upcoming": 1, "meals_today": 1, "pet_tasks": 0, "pet_followups": 0}
     assert brief["today_meals"][0]["title"] == "Pollo al ajo"
+
+
+def test_daily_brief_includes_pet_care_and_followup():
+    brief = build_home_daily_brief(
+        display_name="Robert",
+        shopping={"items": []},
+        food={
+            "pantry": [], "weekly_plans": [],
+            "pets": [{
+                "id": "pet-1", "name": "Luna", "species": "ferret", "exact_species": "Hurón doméstico",
+                "care_log": [],
+                "medical_history": [{"title": "Control anual", "next_due_on": "2026-09-05"}],
+            }],
+        },
+        calendar={"events": []},
+        now=datetime(2026, 9, 1, 12, tzinfo=timezone.utc),
+    )
+
+    pet_cards = [card for card in brief["cards"] if card["kind"] == "pet"]
+    assert [card["id"] for card in pet_cards] == ["pet-followup", "pet-care"]
+    assert pet_cards[0]["action"] == {"panel": "recipes", "audience": "pet", "pet_id": "pet-1", "tab": "medical"}
+    assert brief["counts"]["pet_tasks"] == 4
+    assert brief["counts"]["pet_followups"] == 1
 
 
 def test_pantry_voice_memory_adds_merges_and_removes_items(tmp_path):

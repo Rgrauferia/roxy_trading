@@ -64,7 +64,7 @@ from roxy_os.home_family import HomeFamilyStore
 from roxy_os.home_plants import HomePlantIdentifier, HomePlantStore, PLANT_CATALOG, public_plant
 from roxy_os.home_product_intelligence import HomeProductIntelligence, ProductIntelligenceConfig
 from roxy_os.home_food import HomeFoodStore, HomePermissionPolicy
-from roxy_os.home_pet_catalog import personalized_pet_care_plan, personalized_pet_products, pet_profile_options
+from roxy_os.home_pet_catalog import personalized_pet_care_plan, personalized_pet_nutrition_plan, personalized_pet_products, pet_profile_options
 from roxy_os.home_price_recommendations import (
     PRICE_NOTICE,
     PriceFeedConfig,
@@ -332,6 +332,13 @@ class PetProfileRequest(BaseModel):
     allergies: list[str] = Field(default_factory=list, max_length=30)
     conditions: list[str] = Field(default_factory=list, max_length=30)
     current_food: str = Field(default="", max_length=160)
+    current_food_kind: str = Field(default="unknown", pattern="^(complete|veterinary|complementary|unknown)$")
+    feeding_amount: float | None = Field(default=None, gt=0, le=100_000)
+    feeding_unit: str = Field(default="", max_length=32)
+    feeding_frequency: int = Field(default=0, ge=0, le=24)
+    feeding_times: list[str] = Field(default_factory=list, max_length=24)
+    feeding_amount_source: str = Field(default="unknown", pattern="^(label|veterinarian|specialist|unknown)$")
+    feeding_notes: str = Field(default="", max_length=1_000)
     veterinarian_instructions: str = Field(default="", max_length=2_000)
     habitat_type: str = Field(default="", max_length=100)
     environment_notes: str = Field(default="", max_length=1_000)
@@ -341,16 +348,20 @@ class PetProfileRequest(BaseModel):
 
 class PetMedicalRecordRequest(BaseModel):
     occurred_on: date | None = None
-    record_type: str = Field(default="note", pattern="^(checkup|vaccine|diagnosis|treatment|surgery|lab|allergy|note)$")
+    record_type: str = Field(default="note", pattern="^(checkup|vaccine|diagnosis|treatment|surgery|lab|allergy|medication|weight|note)$")
     title: str = Field(min_length=1, max_length=120)
     provider: str = Field(default="", max_length=120)
     notes: str = Field(default="", max_length=2_000)
     medications: list[str] = Field(default_factory=list, max_length=30)
+    next_due_on: date | None = None
+    weight_kg: float | None = Field(default=None, gt=0, le=2_000)
 
 
 class PetCareCompletionRequest(BaseModel):
     routine_id: str = Field(min_length=1, max_length=80, pattern=r"^[a-z0-9_\-]+$")
     title: str = Field(min_length=1, max_length=120)
+    outcome: str = Field(default="completed", pattern="^(completed|all|partial|refused)$")
+    notes: str = Field(default="", max_length=500)
 
 
 class WeeklyPlanRequest(BaseModel):
@@ -3581,6 +3592,9 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
         },
         "pet_care_plans": {
             str(pet.get("id")): personalized_pet_care_plan(pet) for pet in pets if pet.get("id")
+        },
+        "pet_nutrition_plans": {
+            str(pet.get("id")): personalized_pet_nutrition_plan(pet) for pet in pets if pet.get("id")
         },
         "local_catalog": local_recipe_catalog_summary(),
         "local_recipes": local_recipe_catalog(snapshot),

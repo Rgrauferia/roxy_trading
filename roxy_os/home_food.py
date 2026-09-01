@@ -316,7 +316,9 @@ class HomeFoodStore:
         habitat_type: Any = "", environment_notes: Any = "", routine_notes: Any = "",
         photo_data_url: Any = "", sex: Any = "unknown", sterilized: Any = "unknown",
         size_class: Any = "unknown", activity_level: Any = "unknown", body_condition: Any = "unknown",
-        goals: Any = None,
+        goals: Any = None, current_food_kind: Any = "unknown", feeding_amount: Any = None,
+        feeding_unit: Any = "", feeding_frequency: Any = 0, feeding_times: Any = None,
+        feeding_amount_source: Any = "unknown", feeding_notes: Any = "",
     ) -> dict[str, Any]:
         pet_name = _text(name, 40)
         pet_species = _identity(species)
@@ -330,12 +332,18 @@ class HomeFoodStore:
         try:
             normalized_age = None if age_years in {None, ""} else round(float(age_years), 2)
             normalized_weight = None if weight_kg in {None, ""} else round(float(weight_kg), 3)
+            normalized_feeding_amount = None if feeding_amount in {None, ""} else round(float(feeding_amount), 3)
+            normalized_feeding_frequency = int(feeding_frequency or 0)
         except (TypeError, ValueError) as exc:
-            raise ValueError("La edad y el peso deben ser valores válidos.") from exc
+            raise ValueError("La edad, el peso y la alimentación deben usar valores válidos.") from exc
         if normalized_age is not None and not 0 <= normalized_age <= 200:
             raise ValueError("La edad de la mascota no es válida.")
         if normalized_weight is not None and not 0 < normalized_weight <= 2_000:
             raise ValueError("El peso de la mascota no es válido.")
+        if normalized_feeding_amount is not None and not 0 < normalized_feeding_amount <= 100_000:
+            raise ValueError("La cantidad de alimento no es válida.")
+        if not 0 <= normalized_feeding_frequency <= 24:
+            raise ValueError("La frecuencia de alimentación no es válida.")
         photo = str(photo_data_url or "")
         if photo and not re.match(r"^data:image/(?:jpeg|png|webp);base64,", photo):
             raise ValueError("La foto de la mascota debe ser JPEG, PNG o WebP.")
@@ -348,6 +356,13 @@ class HomeFoodStore:
             "activity_level": _identity(activity_level) or "unknown",
             "body_condition": _identity(body_condition) or "unknown", "goals": _string_list(goals),
             "current_food": _text(current_food, 160),
+            "current_food_kind": _identity(current_food_kind) or "unknown",
+            "feeding_amount": normalized_feeding_amount,
+            "feeding_unit": _text(feeding_unit, 32),
+            "feeding_frequency": normalized_feeding_frequency,
+            "feeding_times": _string_list(feeding_times, limit=24),
+            "feeding_amount_source": _identity(feeding_amount_source) or "unknown",
+            "feeding_notes": _text(feeding_notes, 1_000),
             "veterinarian_instructions": _text(veterinarian_instructions, 2_000),
             "habitat_type": _text(habitat_type, 100), "environment_notes": _text(environment_notes, 1_000),
             "routine_notes": _text(routine_notes, 1_000), "profile_complete": True,
@@ -373,18 +388,26 @@ class HomeFoodStore:
     def add_pet_medical_record(
         self, user_id: Any, pet_id: Any, *, occurred_on: Any = None, record_type: Any = "note",
         title: Any, provider: Any = "", notes: Any = "", medications: Any = None,
+        next_due_on: Any = None, weight_kg: Any = None,
     ) -> dict[str, Any]:
         pet_key = _text(pet_id, 80)
         clean_title = _text(title, 120)
         if not clean_title:
             raise ValueError("El registro médico necesita un título.")
         clean_type = _identity(record_type) or "note"
-        if clean_type not in {"checkup", "vaccine", "diagnosis", "treatment", "surgery", "lab", "allergy", "note"}:
+        if clean_type not in {"checkup", "vaccine", "diagnosis", "treatment", "surgery", "lab", "allergy", "medication", "weight", "note"}:
             raise ValueError("El tipo de registro médico no es válido.")
+        try:
+            clean_weight = None if weight_kg in {None, ""} else round(float(weight_kg), 3)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("El peso del registro no es válido.") from exc
+        if clean_weight is not None and not 0 < clean_weight <= 2_000:
+            raise ValueError("El peso del registro no es válido.")
         record = {
             "id": uuid4().hex, "occurred_on": str(occurred_on or "")[:10], "record_type": clean_type,
             "title": clean_title, "provider": _text(provider, 120), "notes": _text(notes, 2_000),
-            "medications": _string_list(medications), "created_at": _now_iso(),
+            "medications": _string_list(medications), "next_due_on": str(next_due_on or "")[:10],
+            "weight_kg": clean_weight, "created_at": _now_iso(),
         }
 
         def apply(payload: dict[str, Any]) -> dict[str, Any]:
@@ -402,7 +425,7 @@ class HomeFoodStore:
         return self._mutate(apply)
 
     def complete_pet_care_routine(
-        self, user_id: Any, pet_id: Any, *, routine_id: Any, title: Any,
+        self, user_id: Any, pet_id: Any, *, routine_id: Any, title: Any, outcome: Any = "completed", notes: Any = "",
     ) -> dict[str, Any]:
         pet_key = _text(pet_id, 80)
         clean_routine = _identity(routine_id).replace(" ", "_")
@@ -411,10 +434,15 @@ class HomeFoodStore:
             raise ValueError("La rutina no es válida.")
         if not clean_title:
             raise ValueError("La rutina necesita un título.")
+        clean_outcome = _identity(outcome) or "completed"
+        if clean_outcome not in {"completed", "all", "partial", "refused"}:
+            raise ValueError("El resultado del cuidado no es válido.")
         entry = {
             "id": uuid4().hex,
             "routine_id": clean_routine,
             "title": clean_title,
+            "outcome": clean_outcome,
+            "notes": _text(notes, 500),
             "completed_at": _now_iso(),
         }
 

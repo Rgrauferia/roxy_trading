@@ -8,16 +8,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="116" />
+  <meta name="roxy-home-version" content="117" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
   <link rel="stylesheet" href="/assets/vendor/maplibre-gl.css?v=1" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=99" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=100" />
   <script src="/assets/vendor/maplibre-gl.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=124" defer></script>
+  <script src="/assets/roxy_list.js?v=125" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -360,6 +360,7 @@
         <div class="pet-hub-heading"><div><p class="eyebrow">Perfil activo</p><h2 id="petHubTitle">Todo para tu mascota</h2><p id="petHubSummary"></p></div><button id="editPetProfile" class="secondary" type="button">Editar perfil</button></div>
         <div class="pet-hub-tabs" role="tablist" aria-label="Información personalizada de la mascota">
           <button id="petCareTab" class="active" type="button" role="tab" aria-selected="true" aria-controls="petCarePanel" tabindex="0" data-pet-hub-tab="care">Cuidados</button>
+          <button id="petNutritionTab" type="button" role="tab" aria-selected="false" aria-controls="petNutritionPanel" tabindex="-1" data-pet-hub-tab="nutrition">Alimentación</button>
           <button id="petFoodTab" type="button" role="tab" aria-selected="false" aria-controls="recipeCatalogSection" tabindex="-1" data-pet-hub-tab="recipes">Recetas</button>
           <button id="petProductsTab" type="button" role="tab" aria-selected="false" aria-controls="petProductsPanel" tabindex="-1" data-pet-hub-tab="products">Productos</button>
           <button id="petMedicalTab" type="button" role="tab" aria-selected="false" aria-controls="petMedicalPanel" tabindex="-1" data-pet-hub-tab="medical">Historial médico</button>
@@ -370,13 +371,17 @@
           <div id="petCarePlan" class="pet-care-plan"></div>
           <p class="pet-product-method"><strong>Importante:</strong> los rangos y la convivencia cambian entre especies. Roxy conserva las indicaciones de tu veterinario y marca lo que necesita confirmación profesional.</p>
         </section>
+        <section id="petNutritionPanel" class="pet-hub-panel" role="tabpanel" aria-labelledby="petNutritionTab" data-pet-hub-panel="nutrition" hidden>
+          <div class="pet-panel-heading"><div><h3 id="petNutritionTitle">Plan de alimentación</h3><p>Alimento, horario y seguimiento separados de los premios ocasionales.</p></div><button id="editPetNutrition" class="secondary" type="button">Editar plan</button></div>
+          <div id="petNutritionPlan" class="pet-nutrition-plan"></div>
+        </section>
         <section id="petProductsPanel" class="pet-hub-panel" role="tabpanel" aria-labelledby="petProductsTab" data-pet-hub-panel="products" hidden>
           <div class="pet-panel-heading"><div><h3>Productos elegidos para su perfil</h3><p>Marca y producto concretos, ordenados por coincidencia. Roxy no inventa precio ni disponibilidad.</p></div></div>
           <div id="petProductRecommendations" class="pet-product-recommendations"></div>
           <p class="pet-product-method"><strong>Cómo decide Roxy:</strong> etapa de vida, especie o raza, tamaño, objetivos, alergias y condiciones guardadas. La etiqueta, tu veterinario y cualquier dieta prescrita siempre prevalecen.</p>
         </section>
         <section id="petMedicalPanel" class="pet-hub-panel" role="tabpanel" aria-labelledby="petMedicalTab" data-pet-hub-panel="medical" hidden>
-          <div class="pet-panel-heading"><div><h3>Expediente de salud</h3><p>Consultas, vacunas, diagnósticos, tratamientos y notas en orden cronológico.</p></div><button id="addPetMedical" class="primary" type="button">Añadir registro</button></div>
+          <div class="pet-panel-heading"><div><h3>Expediente de salud</h3><p>Consultas, vacunas, diagnósticos, tratamientos y notas en orden cronológico.</p></div><div class="pet-medical-actions"><button id="exportPetMedical" class="secondary" type="button">Descargar resumen</button><button id="addPetMedical" class="primary" type="button">Añadir registro</button></div></div>
           <div id="petMedicalHistory" class="pet-medical-history"></div>
         </section>
       </section>
@@ -600,6 +605,13 @@
         <legend>Alimentación</legend>
         <label><span id="petActivityLabel">Nivel de actividad</span><select id="petProfileActivity"><option value="unknown">No estoy seguro</option><option value="low">Bajo</option><option value="moderate">Moderado</option><option value="high">Alto</option><option value="working">Trabajo o deporte</option></select></label>
         <label><span>Alimento actual</span><input id="petProfileCurrentFood" maxlength="160" placeholder="Marca y variedad, si la conoces" /></label>
+        <label><span>Tipo de alimento</span><select id="petProfileFoodKind"><option value="unknown">No estoy seguro</option><option value="complete">Completo para su especie</option><option value="veterinary">Dieta veterinaria</option><option value="complementary">Complemento o premio</option></select></label>
+        <label><span>Cantidad total indicada</span><input id="petProfileFeedingAmount" type="number" min="0.001" max="100000" step="0.001" inputmode="decimal" placeholder="Solo si aparece en etiqueta o plan" /></label>
+        <label><span>Unidad</span><select id="petProfileFeedingUnit"><option value="">Selecciona</option><option value="g">gramos</option><option value="kg">kilogramos</option><option value="oz">onzas</option><option value="cup">tazas</option><option value="portion">porciones</option><option value="pellets">pellets o unidades</option></select></label>
+        <label><span>Veces al día o ciclo</span><input id="petProfileFeedingFrequency" type="number" min="0" max="24" step="1" inputmode="numeric" placeholder="Ej. 2" /></label>
+        <label><span>Horarios</span><input id="petProfileFeedingTimes" maxlength="160" placeholder="Ej. 7:30 a. m., 6:30 p. m." /></label>
+        <label><span>Fuente de la cantidad</span><select id="petProfileFeedingSource"><option value="unknown">Pendiente de confirmar</option><option value="label">Etiqueta del alimento</option><option value="veterinarian">Veterinario</option><option value="specialist">Especialista de la especie</option></select></label>
+        <label><span>Observaciones de alimentación</span><textarea id="petProfileFeedingNotes" rows="3" maxlength="1000" placeholder="Transición, textura, apetito, días sin alimentación indicados…"></textarea></label>
         <div class="pet-choice-field"><span>¿Qué quieres que Roxy priorice?</span><div id="petGoalChoices" class="pet-choice-grid"></div></div>
         <label><span>Indicaciones de su veterinario</span><textarea id="petProfileVetInstructions" rows="5" maxlength="2000" placeholder="Dieta prescrita, ingredientes prohibidos, porciones…"></textarea></label>
         <p class="pet-profile-note"><span class="material-symbols-rounded" aria-hidden="true">nutrition</span>Roxy distinguirá alimento completo, complemento y premio ocasional. Nunca modificará una dieta prescrita.</p>
@@ -623,11 +635,13 @@
   <dialog id="petMedicalDialog" class="pet-medical-dialog" aria-labelledby="petMedicalTitle">
     <form id="petMedicalForm" method="dialog">
       <div class="dialog-heading"><div><p class="eyebrow">Expediente privado</p><h2 id="petMedicalTitle">Añadir registro médico</h2></div><button type="button" data-close-dialog="petMedicalDialog" aria-label="Cerrar">Cerrar</button></div>
-      <label><span>Tipo</span><select id="petMedicalType"><option value="checkup">Consulta</option><option value="vaccine">Vacuna</option><option value="diagnosis">Diagnóstico</option><option value="treatment">Tratamiento</option><option value="surgery">Cirugía</option><option value="lab">Laboratorio</option><option value="allergy">Alergia</option><option value="note">Nota</option></select></label>
+      <label><span>Tipo</span><select id="petMedicalType"><option value="checkup">Consulta</option><option value="vaccine">Vacuna</option><option value="diagnosis">Diagnóstico</option><option value="treatment">Tratamiento</option><option value="medication">Medicamento</option><option value="surgery">Cirugía</option><option value="lab">Laboratorio</option><option value="allergy">Alergia</option><option value="weight">Peso</option><option value="note">Nota</option></select></label>
       <label><span>Fecha</span><input id="petMedicalDate" type="date" /></label>
       <label><span>Título</span><input id="petMedicalRecordTitle" maxlength="120" required placeholder="Ej. Revisión anual" /></label>
       <label><span>Veterinario o clínica</span><input id="petMedicalProvider" maxlength="120" /></label>
       <label><span>Medicamentos</span><input id="petMedicalMedications" maxlength="500" placeholder="Separados por comas" /></label>
+      <label><span>Próximo control</span><input id="petMedicalNextDue" type="date" /></label>
+      <label><span>Peso registrado en kg</span><input id="petMedicalWeight" type="number" min="0.001" max="2000" step="0.001" inputmode="decimal" /></label>
       <label><span>Notas</span><textarea id="petMedicalNotes" rows="5" maxlength="2000"></textarea></label>
       <p id="petMedicalError" class="form-error" role="alert"></p>
       <button class="primary full" type="submit">Guardar en su historial</button>

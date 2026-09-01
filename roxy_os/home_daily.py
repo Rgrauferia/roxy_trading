@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
+
+from roxy_os.home_pet_catalog import personalized_pet_routines
 
 
 _MEAL_LABELS = {"breakfast": "Desayuno", "lunch": "Comida", "dinner": "Cena"}
@@ -63,6 +65,29 @@ def build_home_daily_brief(
     events.sort(key=lambda item: item[0])
     upcoming = events[0][1] if events else None
     cards: list[dict[str, Any]] = []
+    pet_tasks: list[dict[str, Any]] = []
+    pet_followups: list[dict[str, Any]] = []
+    for pet in food.get("pets") or []:
+        if not isinstance(pet, dict) or not pet.get("id"):
+            continue
+        routines = personalized_pet_routines(pet)
+        for routine in routines:
+            completed_at = _as_datetime(routine.get("last_completed_at"))
+            completed_local = completed_at.astimezone(moment.tzinfo) if completed_at else None
+            if routine.get("cadence") == "weekly":
+                done = bool(completed_local and 0 <= (moment - completed_local).total_seconds() < 7 * 86400)
+            else:
+                done = bool(completed_local and completed_local.date() == today)
+            if not done:
+                pet_tasks.append({"pet": pet, "routine": routine})
+        for record in pet.get("medical_history") or []:
+            due_text = str(record.get("next_due_on") or "")
+            try:
+                due = date.fromisoformat(due_text)
+            except ValueError:
+                continue
+            if due <= today + timedelta(days=14):
+                pet_followups.append({"pet": pet, "record": record, "due": due})
 
     if upcoming:
         starts_at = events[0][0]
@@ -88,6 +113,34 @@ def build_home_daily_brief(
                 "detail": f"{next_meal['label']} de hoy" + (f" · {next_meal['minutes']} min" if next_meal["minutes"] else ""),
                 "action": {"panel": "today", "label": "Ver plan"},
                 "priority": 90,
+            }
+        )
+    if pet_followups:
+        followup = sorted(pet_followups, key=lambda row: row["due"])[0]
+        pet = followup["pet"]
+        cards.append(
+            {
+                "id": "pet-followup",
+                "kind": "pet",
+                "icon": "medical_services",
+                "title": f"Seguimiento de {pet.get('name') or 'tu mascota'}",
+                "detail": f"{followup['record'].get('title') or 'Control pendiente'} · {followup['due'].isoformat()}",
+                "action": {"panel": "recipes", "audience": "pet", "pet_id": str(pet.get("id")), "tab": "medical"},
+                "priority": 98,
+            }
+        )
+    if pet_tasks:
+        task = pet_tasks[0]
+        pet, routine = task["pet"], task["routine"]
+        cards.append(
+            {
+                "id": "pet-care",
+                "kind": "pet",
+                "icon": str(routine.get("icon") or "pets"),
+                "title": f"{pet.get('name') or 'Tu mascota'} · {routine.get('title') or 'Cuidado pendiente'}",
+                "detail": str(routine.get("detail") or "Abre su ficha para registrarlo."),
+                "action": {"panel": "recipes", "audience": "pet", "pet_id": str(pet.get("id")), "tab": "care"},
+                "priority": 95,
             }
         )
     if pending:
@@ -143,10 +196,13 @@ def build_home_daily_brief(
             "pantry": len(pantry),
             "events_upcoming": len(events),
             "meals_today": len(meals),
+            "pet_tasks": len(pet_tasks),
+            "pet_followups": len(pet_followups),
         },
         "suggested_phrases": [
             "¿Qué tengo hoy?",
             "¿Qué podemos cocinar con lo que hay?",
             "¿Qué falta comprar?",
+            "¿Qué necesitan mis mascotas hoy?",
         ],
     }

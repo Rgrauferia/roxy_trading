@@ -425,6 +425,55 @@ def personalized_pet_routines(pet: dict[str, Any]) -> list[dict[str, Any]]:
     return routines
 
 
+NUTRITION_FRAMEWORKS = {
+    "dog": "Usa un alimento completo para su etapa y tamaño. La cantidad debe venir de la etiqueta, el fabricante o su veterinario y ajustarse con la condición corporal.",
+    "cat": "Usa un alimento completo para gatos y su etapa. Divide la cantidad diaria indicada sin compensar premios con reducciones improvisadas.",
+    "ferret": "Usa un alimento completo específico para hurones, alto en proteína animal y bajo en carbohidratos. No sustituyas su dieta con premios caseros.",
+    "rabbit": "El heno apropiado debe ser la base continua; hojas, pellets y premios dependen de edad, peso y criterio veterinario.",
+    "guinea_pig": "Necesita heno continuo y una fuente diaria fiable de vitamina C; confirma pellets y vegetales apropiados con su veterinario.",
+    "hamster": "Usa una dieta completa para su especie y vigila el alimento almacenado; no calcules consumo solo por el recipiente vacío.",
+    "small_mammal": "La dieta cambia mucho entre roedores y otros pequeños mamíferos. Confirma especie exacta antes de fijar ingredientes o frecuencia.",
+    "bird": "La proporción de alimento formulado, vegetales y otros componentes depende de la especie. Evita dietas basadas solo en semillas.",
+    "fish": "Alimento, tamaño de partícula, días y frecuencia dependen de la especie, temperatura y sistema. Retira sobrantes y no sobrealimentes.",
+    "reptile": "Presa, vegetales, suplementos y frecuencia dependen de especie, edad, temperatura y UVB. Roxy no presupone alimentación diaria.",
+    "amphibian": "Tipo de presa, suplementación y frecuencia dependen de especie, etapa y temperatura. Retira alimento no consumido.",
+    "invertebrate": "La presa y frecuencia dependen de especie, tamaño y muda. No dejes alimento vivo molestando a un animal en premuda.",
+    "farm_pet": "Usa una ración formulada para especie, etapa y función; nunca intercambies alimento entre especies sin indicación profesional.",
+    "other": "Identifica la especie exacta antes de establecer dieta, ingredientes o frecuencia.",
+}
+
+
+def personalized_pet_nutrition_plan(pet: dict[str, Any]) -> dict[str, Any]:
+    species = str(pet.get("species") or "other")
+    source_label, source_url = CARE_SOURCES.get(
+        species,
+        ("Manual Veterinario Merck · bienestar animal", "https://www.merckvetmanual.com/special-subjects/animal-welfare/animal-welfare"),
+    )
+    amount = pet.get("feeding_amount")
+    unit = str(pet.get("feeding_unit") or "").strip()
+    frequency = int(pet.get("feeding_frequency") or 0)
+    times = [str(value) for value in pet.get("feeding_times") or [] if str(value).strip()]
+    logs = [row for row in pet.get("care_log", []) if isinstance(row, dict) and row.get("routine_id") == "feeding_observation"]
+    return {
+        "title": f"Alimentación de {str(pet.get('name') or 'tu mascota')}",
+        "current_food": str(pet.get("current_food") or "").strip(),
+        "food_kind": str(pet.get("current_food_kind") or "unknown"),
+        "framework": NUTRITION_FRAMEWORKS.get(species, NUTRITION_FRAMEWORKS["other"]),
+        "amount": amount,
+        "unit": unit,
+        "frequency": frequency,
+        "times": times,
+        "amount_source": str(pet.get("feeding_amount_source") or "unknown"),
+        "feeding_notes": str(pet.get("feeding_notes") or "").strip(),
+        "configured": bool(pet.get("current_food") and (amount or frequency or times)),
+        "needs_professional_amount": not bool(amount),
+        "last_feeding": deepcopy(logs[-1]) if logs else None,
+        "source_label": source_label,
+        "source_url": source_url,
+        "safety_note": "Las indicaciones veterinarias y la etiqueta del alimento siempre prevalecen. Roxy no calcula dosis médicas ni inventa porciones.",
+    }
+
+
 def personalized_pet_care_plan(pet: dict[str, Any]) -> dict[str, Any]:
     species = str(pet.get("species") or "other")
     exact = str(pet.get("exact_species") or pet.get("breed") or "").strip()
