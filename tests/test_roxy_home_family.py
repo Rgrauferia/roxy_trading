@@ -298,6 +298,7 @@ def test_family_ui_is_wired_to_real_endpoints():
     assert 'id="familyProfileForm"' in html
     assert 'id="familyProfilePhoto"' in html
     assert 'id="familyWeatherFx"' in html
+    assert 'id="familyWeatherGlobePanel"' in html
     assert 'name="familyProfileEmoji"' in html
     assert "/v1/home-family/profile" in js
     assert "readFamilyProfilePhoto" in js
@@ -307,6 +308,8 @@ def test_family_ui_is_wired_to_real_endpoints():
     assert "profile_emoji" in js
     assert "familyWeatherMode" in js
     assert "familyWeatherMapStyles" in js
+    assert "activateFamilyWeatherGlobe" in js
+    assert "Number(familyMap.getZoom())<=5" in js
     assert "familyMapViewportInitialized" in js
     assert "if(!familyMapViewportInitialized)" in js
     assert "familyHistorySegments" in js
