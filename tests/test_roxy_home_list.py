@@ -22,15 +22,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="120"' in page.text
+    assert 'name="roxy-home-version" content="121"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' in page.text
-    assert 'href="/assets/roxy_list.css?v=102"' in page.text
-    assert 'src="/assets/roxy_list.js?v=127"' in page.text
+    assert 'href="/assets/roxy_list.css?v=103"' in page.text
+    assert 'src="/assets/roxy_list.js?v=128"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
-    assert '/assets/roxy_list.css?v=102' in worker.text
-    assert '/assets/roxy_list.js?v=127' in worker.text
+    assert '/assets/roxy_list.css?v=103' in worker.text
+    assert '/assets/roxy_list.js?v=128' in worker.text
     assert '/assets/roxy_home/pet-onboarding-hero.png' in worker.text
     assert 'id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle" hidden' in page.text
     assert '/assets/roxy_home_avatar.jpg' in page.text
@@ -239,6 +239,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="petOnboardingEmpty"' in page.text
     assert 'id="petProfileDialog"' in page.text
     assert 'id="petPersonalizedHub"' in page.text
+    assert 'id="petProfileCompletion"' in page.text
     assert 'id="petCarePlan"' in page.text
     assert 'id="petDailySummary"' in page.text
     assert 'id="petNutritionPanel"' in page.text
@@ -270,6 +271,10 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "renderPetCare" in script.text
     assert "completePetRoutine" in script.text
     assert "renderPetNutrition" in script.text
+    assert "renderPetProfileCompletion" in script.text
+    assert "pet_profile_completions" in script.text
+    assert "petRecipeFilter" in script.text
+    assert "title:'Premios'" in script.text
     assert "logPetFeeding" in script.text
     assert "exportPetMedicalSummary" in script.text
     assert "recipe.catalog_key?openRecipe(recipe)" in script.text

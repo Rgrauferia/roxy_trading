@@ -64,7 +64,7 @@ from roxy_os.home_family import HomeFamilyStore
 from roxy_os.home_plants import HomePlantIdentifier, HomePlantStore, PLANT_CATALOG, public_plant
 from roxy_os.home_product_intelligence import HomeProductIntelligence, ProductIntelligenceConfig
 from roxy_os.home_food import HomeFoodStore, HomePermissionPolicy
-from roxy_os.home_pet_catalog import personalized_pet_care_plan, personalized_pet_nutrition_plan, personalized_pet_products, pet_profile_options
+from roxy_os.home_pet_catalog import pet_profile_completion, personalized_pet_care_plan, personalized_pet_nutrition_plan, personalized_pet_products, pet_profile_options
 from roxy_os.home_price_recommendations import (
     PRICE_NOTICE,
     PriceFeedConfig,
@@ -3603,6 +3603,9 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
         },
         "pet_nutrition_plans": {
             str(pet.get("id")): personalized_pet_nutrition_plan(pet) for pet in pets if pet.get("id")
+        },
+        "pet_profile_completions": {
+            str(pet.get("id")): pet_profile_completion(pet) for pet in pets if pet.get("id")
         },
         "local_catalog": local_recipe_catalog_summary(),
         "local_recipes": local_recipe_catalog(snapshot),

@@ -158,6 +158,52 @@ PRODUCTS = {
 }
 
 
+def pet_profile_completion(pet: dict[str, Any]) -> dict[str, Any]:
+    """Return a species-aware, explainable checklist without inventing care data."""
+    species = str(pet.get("species") or "other")
+    checks: list[dict[str, Any]] = []
+
+    def add(field: str, label: str, step: int, complete: bool, reason: str) -> None:
+        checks.append({"field": field, "label": label, "step": step, "complete": bool(complete), "reason": reason})
+
+    def known_identity(value: Any) -> bool:
+        text = str(value or "").strip().lower()
+        return bool(text) and not text.startswith(("no sé", "no se", "otro", "otra", "especie exótica", "especie exotica"))
+
+    if species in {"dog", "cat"}:
+        breed = str(pet.get("breed") or "").strip()
+        add("breed", "Raza o mezcla", 1, known_identity(breed) or "mestiz" in breed.lower(), "Afina tamaño, etapa y productos compatibles.")
+    else:
+        add("exact_species", "Especie exacta", 1, known_identity(pet.get("exact_species")), "Evita aplicar cuidados genéricos a especies diferentes.")
+    add("life_stage", "Etapa de vida", 2, str(pet.get("life_stage") or "unknown") != "unknown", "Cambia alimentación, frecuencia y señales que deben vigilarse.")
+    if species not in {"fish", "amphibian", "invertebrate"}:
+        add("weight_kg", "Peso actual", 2, pet.get("weight_kg") not in {None, ""}, "Permite seguir cambios y conversar con el veterinario con datos concretos.")
+    add("health", "Alergias y condiciones confirmadas", 2, bool(pet.get("allergies")) and bool(pet.get("conditions")), "Confirma aunque no haya ninguna conocida para filtrar recomendaciones.")
+    add("current_food", "Alimento actual", 3, bool(str(pet.get("current_food") or "").strip()), "Separa la dieta habitual de premios y complementos.")
+    add("current_food_kind", "Tipo de alimento", 3, str(pet.get("current_food_kind") or "unknown") != "unknown", "Aclara si es completo, veterinario o complementario.")
+    add("feeding_frequency", "Frecuencia y horarios", 3, int(pet.get("feeding_frequency") or 0) > 0 and bool(pet.get("feeding_times")), "Organiza el seguimiento sin inventar una frecuencia.")
+    add("feeding_amount_source", "Fuente de la cantidad", 3, str(pet.get("feeding_amount_source") or "unknown") != "unknown", "La cantidad debe venir de la etiqueta, veterinario o especialista.")
+    measured_species = {"dog", "cat", "ferret", "rabbit", "guinea_pig", "hamster", "small_mammal", "bird", "farm_pet"}
+    if species in measured_species:
+        add("feeding_amount", "Cantidad y unidad", 3, pet.get("feeding_amount") not in {None, ""} and bool(str(pet.get("feeding_unit") or "").strip()), "Registra la cantidad indicada; Roxy no la calcula automáticamente.")
+    environment_species = {"ferret", "rabbit", "guinea_pig", "hamster", "small_mammal", "bird", "fish", "reptile", "amphibian", "invertebrate", "farm_pet", "other"}
+    if species in environment_species:
+        add("habitat_type", "Tipo de hábitat", 4, bool(str(pet.get("habitat_type") or "").strip()), "Personaliza limpieza, agua, temperatura o seguridad del recinto.")
+        add("environment_notes", "Datos del entorno", 4, bool(str(pet.get("environment_notes") or "").strip()), "Conserva volumen, temperatura, humedad u otros parámetros relevantes.")
+    add("routine_notes", "Rutina del hogar", 5, bool(str(pet.get("routine_notes") or "").strip()), "Adapta los recordatorios a la vida real de la mascota.")
+    completed = sum(1 for item in checks if item["complete"])
+    percent = round(completed / len(checks) * 100) if checks else 100
+    missing = [{key: value for key, value in item.items() if key != "complete"} for item in checks if not item["complete"]]
+    return {
+        "percent": percent,
+        "completed": completed,
+        "total": len(checks),
+        "status": "complete" if not missing else "nearly_ready" if percent >= 75 else "needs_details",
+        "next_step": int(missing[0]["step"]) if missing else 1,
+        "missing": missing,
+    }
+
+
 def pet_profile_options() -> dict[str, Any]:
     return {
         "breeds": {"dog": DOG_BREEDS, "cat": CAT_BREEDS},

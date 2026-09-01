@@ -185,8 +185,38 @@ def test_pet_profile_supports_species_specific_private_care_context(tmp_path, mo
     pet = response.json()["pet"]
     assert pet["species"] == "fish"
     assert pet["exact_species"] == "Betta splendens"
-    assert pet["profile_complete"] is True
-    assert client.get("/v1/home-food/robert", headers=headers).json()["pets"][0]["habitat_type"] == "Acuario de agua dulce"
+    assert pet["profile_complete"] is False
+    snapshot = client.get("/v1/home-food/robert", headers=headers).json()
+    assert snapshot["pets"][0]["habitat_type"] == "Acuario de agua dulce"
+    assert snapshot["pet_profile_completions"][pet["id"]]["percent"] < 100
+    assert snapshot["pet_profile_completions"][pet["id"]]["next_step"] == 2
+
+
+def test_pet_profile_completion_is_species_aware_and_explainable():
+    from roxy_os.home_pet_catalog import pet_profile_completion
+
+    dog = pet_profile_completion({
+        "species": "dog", "breed": "Golden Retriever", "life_stage": "adult", "weight_kg": 28,
+        "allergies": ["Ninguna conocida"], "conditions": ["Ninguna diagnosticada"],
+        "current_food": "Alimento completo adulto", "current_food_kind": "complete",
+        "feeding_frequency": 2, "feeding_times": ["07:30", "18:30"],
+        "feeding_amount_source": "label", "feeding_amount": 280, "feeding_unit": "g",
+        "routine_notes": "Paseo por la mañana y por la tarde",
+    })
+    fish = pet_profile_completion({
+        "species": "fish", "exact_species": "Betta splendens", "life_stage": "adult",
+        "allergies": ["Ninguna conocida"], "conditions": ["Ninguna observada"],
+        "current_food": "Pellets para betta", "current_food_kind": "complete",
+        "feeding_frequency": 2, "feeding_times": ["09:00", "18:00"],
+        "feeding_amount_source": "specialist", "habitat_type": "Acuario de agua dulce",
+        "environment_notes": "20 litros, filtrado y ciclado; 26 °C", "routine_notes": "Revisión semanal del agua",
+    })
+    unidentified = pet_profile_completion({"species": "other", "exact_species": "Especie exótica con permiso"})
+
+    assert dog["status"] == "complete" and dog["percent"] == 100
+    assert fish["status"] == "complete" and fish["percent"] == 100
+    assert unidentified["missing"][0]["field"] == "exact_species"
+    assert all({"field", "label", "step", "reason"} <= item.keys() for item in unidentified["missing"])
 
 
 def test_pet_profile_exposes_breeds_products_and_private_medical_history(tmp_path, monkeypatch):

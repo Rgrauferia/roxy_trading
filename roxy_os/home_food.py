@@ -12,6 +12,7 @@ from typing import Any, Callable
 from uuid import uuid4
 
 from roxy_os.home_recipe_catalog import CATEGORY_META, infer_recipe_category
+from roxy_os.home_pet_catalog import pet_profile_completion
 
 try:
     import fcntl
@@ -365,8 +366,9 @@ class HomeFoodStore:
             "feeding_notes": _text(feeding_notes, 1_000),
             "veterinarian_instructions": _text(veterinarian_instructions, 2_000),
             "habitat_type": _text(habitat_type, 100), "environment_notes": _text(environment_notes, 1_000),
-            "routine_notes": _text(routine_notes, 1_000), "profile_complete": True,
+            "routine_notes": _text(routine_notes, 1_000),
         }
+        profile["profile_complete"] = pet_profile_completion(profile)["status"] == "complete"
         if photo:
             profile["photo_data_url"] = photo
 
