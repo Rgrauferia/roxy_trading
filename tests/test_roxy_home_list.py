@@ -19,10 +19,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     pet_pads = client.get("/assets/roxy_home/products/pet-training-pads.png")
     scent_beads = client.get("/assets/roxy_home/products/laundry-scent-beads.png")
     toothpaste = client.get("/assets/roxy_home/products/toothpaste.png")
+    plant_meter = client.get("/assets/roxy_home/plants-soil-meter.png")
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="123"' in page.text
+    assert 'name="roxy-home-version" content="124"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' in page.text
     assert 'href="/assets/roxy_list.css?v=105"' in page.text
@@ -44,7 +45,9 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert pet_pads.status_code == 200 and pet_pads.content.startswith(b"\x89PNG")
     assert scent_beads.status_code == 200 and scent_beads.content.startswith(b"\x89PNG")
     assert toothpaste.status_code == 200 and toothpaste.content.startswith(b"\x89PNG")
+    assert plant_meter.status_code == 200 and plant_meter.content.startswith(b"\x89PNG")
     assert "COPY assets/roxy_home/avatars ./assets/roxy_home/avatars" in Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
+    assert "COPY assets/roxy_home/plants-soil-meter.png ./assets/roxy_home/plants-soil-meter.png" in Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert manifest.json()["icons"][0]["src"] == "/assets/roxy_home_avatar.jpg"
     assert home_avatar.status_code == 200
     assert home_avatar.headers["content-type"] == "image/jpeg"
