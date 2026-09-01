@@ -344,6 +344,7 @@ def test_signed_out_nexo_requests_profile_login_without_claiming_missing_api_or_
     script = open("assets/roxy_list.js", encoding="utf-8").read()
 
     assert "mode:'signed_out'" in script
+    assert "account.mode!=='member'&&!account.requires_profile_setup" in script
     assert "Nexo está protegido" in script
     assert "Tu sesión personal está cerrada" in script
     assert "No necesitas configurar una API" in script
