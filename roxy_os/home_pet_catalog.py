@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import datetime, timezone
 from typing import Any
 
 
@@ -340,6 +341,90 @@ CARE_SOURCES = {
 }
 
 
+PET_DAILY_ROUTINES = {
+    "dog": [
+        ("morning_meal", "07:30", "Alimentación de la mañana", "Servir la porción habitual guardada.", "nutrition", "daily"),
+        ("morning_walk", "08:00", "Paseo y necesidades", "Paseo adaptado a su edad, movilidad y clima.", "directions_walk", "daily"),
+        ("evening_meal", "18:30", "Alimentación de la tarde", "Mantener agua fresca y la porción indicada.", "nutrition", "daily"),
+        ("daily_check", "20:00", "Revisión rápida", "Apetito, agua, heces, energía y cualquier cambio visible.", "health_and_safety", "daily"),
+    ],
+    "cat": [
+        ("morning_meal", "07:30", "Alimentación de la mañana", "Servir la porción habitual y renovar el agua.", "nutrition", "daily"),
+        ("litter_check", "09:00", "Revisar arenero", "Retirar residuos y observar cambios en orina o heces.", "cleaning_services", "daily"),
+        ("evening_meal", "18:30", "Alimentación de la tarde", "Seguir su alimento completo e indicaciones guardadas.", "nutrition", "daily"),
+        ("enrichment", "20:00", "Juego y enriquecimiento", "Juego breve según su movilidad y temperamento.", "toys", "daily"),
+    ],
+    "ferret": [
+        ("morning_check", "08:00", "Comida, agua y estado general", "Comprobar alimento completo, agua, apetito y energía.", "nutrition", "daily"),
+        ("safe_play", "12:00", "Juego supervisado", "Tiempo fuera del recinto en una zona segura para hurones.", "toys", "daily"),
+        ("evening_check", "19:00", "Revisión de la tarde", "Revisar alimento, agua, arenero y conducta habitual.", "health_and_safety", "daily"),
+        ("habitat_clean", "10:00", "Limpieza del recinto", "Limpieza parcial y revisión de cama, refugios y arenero.", "cleaning_services", "weekly"),
+    ],
+    "rabbit": [
+        ("hay_water", "07:30", "Heno y agua", "Confirmar heno disponible, agua fresca y apetito normal.", "grass", "daily"),
+        ("litter_check", "09:00", "Revisar zona de eliminación", "Retirar residuos y observar cantidad y aspecto de las heces.", "cleaning_services", "daily"),
+        ("movement", "18:00", "Movimiento y enriquecimiento", "Acceso seguro a ejercicio, escondites y objetos para roer.", "directions_run", "daily"),
+        ("health_check", "20:00", "Revisión rápida", "Apetito, postura, dientes visibles y conducta habitual.", "health_and_safety", "daily"),
+    ],
+    "guinea_pig": [
+        ("hay_water", "07:30", "Heno, agua y alimento", "Confirmar heno continuo, agua y su alimento habitual.", "grass", "daily"),
+        ("vitamin_food", "18:00", "Alimento fresco planificado", "Seguir la fuente de vitamina C y porciones indicadas.", "nutrition", "daily"),
+        ("habitat_check", "19:00", "Revisar recinto", "Retirar zonas húmedas y observar heces, apetito y convivencia.", "home_and_garden", "daily"),
+        ("weight_check", "10:00", "Control de peso", "Registrar el peso con el mismo método para detectar tendencias.", "monitor_weight", "weekly"),
+    ],
+    "hamster": [
+        ("evening_food", "19:00", "Comida y agua", "Reponer su alimento habitual y confirmar que el bebedero funciona.", "nutrition", "daily"),
+        ("evening_check", "20:00", "Revisión al despertar", "Observar ojos, movilidad, respiración y conducta nocturna.", "health_and_safety", "daily"),
+        ("spot_clean", "10:00", "Limpieza por zonas", "Retirar únicamente áreas húmedas o sucias y conservar olores familiares.", "cleaning_services", "weekly"),
+    ],
+    "bird": [
+        ("morning_food", "08:00", "Comida y agua fresca", "Renovar recipientes y seguir la dieta propia de su especie.", "nutrition", "daily"),
+        ("social_time", "12:00", "Actividad y convivencia", "Vuelo o enriquecimiento seguro según especie y confianza.", "flutter_dash", "daily"),
+        ("evening_check", "19:00", "Revisión del día", "Observar apetito, heces, plumaje, respiración y postura.", "health_and_safety", "daily"),
+        ("habitat_clean", "10:00", "Limpieza del espacio", "Limpiar superficies y revisar perchas, juguetes y seguridad.", "cleaning_services", "weekly"),
+    ],
+    "fish": [
+        ("morning_observation", "08:30", "Observar acuario", "Revisar conducta, respiración, temperatura y equipos.", "water", "daily"),
+        ("feeding_plan", "09:00", "Alimentación planificada", "Usar únicamente el alimento y la frecuencia definidos para la especie.", "nutrition", "daily"),
+        ("evening_observation", "19:00", "Revisión de la tarde", "Observar apetito, flotación, lesiones y funcionamiento del filtro.", "visibility", "daily"),
+        ("water_maintenance", "10:00", "Mantenimiento del agua", "Medir parámetros y hacer solo el cambio parcial previsto para el sistema.", "science", "weekly"),
+    ],
+    "reptile": [
+        ("environment_check", "08:00", "Temperatura, luz y humedad", "Comprobar el gradiente y equipos según la especie exacta.", "device_thermostat", "daily"),
+        ("feeding_plan", "10:00", "Revisar plan de alimentación", "Alimentar únicamente si corresponde hoy según especie, edad y plan guardado.", "nutrition", "daily"),
+        ("evening_check", "19:00", "Revisión del animal", "Observar postura, ojos, respiración, piel, heces y actividad.", "health_and_safety", "daily"),
+        ("habitat_clean", "10:00", "Mantenimiento del terrario", "Retirar residuos y revisar sustrato, refugios y equipos.", "cleaning_services", "weekly"),
+    ],
+    "amphibian": [
+        ("environment_check", "08:00", "Agua, temperatura y humedad", "Comprobar los parámetros propios de la especie sin manipularla.", "water", "daily"),
+        ("feeding_plan", "18:00", "Revisar plan de alimentación", "Alimentar solo si corresponde y retirar presas no consumidas.", "nutrition", "daily"),
+        ("health_check", "20:00", "Observación sin manipular", "Revisar piel, postura, apetito y comportamiento desde fuera.", "visibility", "daily"),
+        ("habitat_maintenance", "10:00", "Mantenimiento del hábitat", "Realizar el cuidado parcial programado para agua o sustrato.", "cleaning_services", "weekly"),
+    ],
+}
+
+
+def personalized_pet_routines(pet: dict[str, Any]) -> list[dict[str, Any]]:
+    species = str(pet.get("species") or "other")
+    fallback = [
+        ("morning_check", "08:00", "Revisión de la mañana", "Comprobar agua, alimento, entorno y conducta habitual.", "pets", "daily"),
+        ("evening_check", "19:00", "Revisión de la tarde", "Registrar apetito, actividad, eliminación y cualquier cambio.", "health_and_safety", "daily"),
+        ("habitat_maintenance", "10:00", "Mantenimiento del hábitat", "Realizar la limpieza parcial apropiada para la especie.", "cleaning_services", "weekly"),
+    ]
+    logs = [row for row in pet.get("care_log", []) if isinstance(row, dict)]
+    today = datetime.now(timezone.utc).date().isoformat()
+    routines = []
+    for routine_id, time, title, detail, icon, cadence in PET_DAILY_ROUTINES.get(species, fallback):
+        latest = next((row for row in reversed(logs) if row.get("routine_id") == routine_id), None)
+        completed_at = str((latest or {}).get("completed_at") or "")
+        routines.append({
+            "id": routine_id, "time": time, "title": title, "detail": detail, "icon": icon,
+            "cadence": cadence, "completed_today": completed_at[:10] == today,
+            "last_completed_at": completed_at,
+        })
+    return routines
+
+
 def personalized_pet_care_plan(pet: dict[str, Any]) -> dict[str, Any]:
     species = str(pet.get("species") or "other")
     exact = str(pet.get("exact_species") or pet.get("breed") or "").strip()
@@ -364,6 +449,8 @@ def personalized_pet_care_plan(pet: dict[str, Any]) -> dict[str, Any]:
         "title": f"Plan de {str(pet.get('name') or 'tu mascota')}",
         "intro": f"Cuidado para {exact or 'la especie pendiente de identificar'}." if exact else "Completa la especie exacta para afinar rangos, alimentación y convivencia.",
         "sections": sections,
+        "routines": personalized_pet_routines(pet),
+        "routine_notes": str(pet.get("routine_notes") or "").strip(),
         "source_label": source_label,
         "source_url": source_url,
         "needs_exact_species": species in {"bird", "fish", "reptile", "amphibian", "small_mammal", "invertebrate", "farm_pet", "other"} and not exact,

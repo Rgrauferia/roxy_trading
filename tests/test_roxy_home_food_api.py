@@ -188,9 +188,14 @@ def test_pet_profile_exposes_breeds_products_and_private_medical_history(tmp_pat
             "provider": "Clínica Central", "notes": "Peso estable.", "medications": ["Ninguno"],
         },
     )
+    completed = client.post(
+        f"/v1/home-food/robert/pets/{pet_id}/care-log",
+        headers=headers,
+        json={"routine_id": "morning_meal", "title": "Alimentación de la mañana"},
+    )
     snapshot = client.get("/v1/home-food/robert", headers=headers).json()
 
-    assert created.status_code == 201 and medical.status_code == 201
+    assert created.status_code == 201 and medical.status_code == 201 and completed.status_code == 201
     assert "Golden Retriever" in snapshot["pet_options"]["breeds"]["dog"]
     assert "Betta splendens" in snapshot["pet_options"]["exact_species"]["fish"]
     assert len(snapshot["pet_options"]["breeds"]["dog"]) >= 80
@@ -198,6 +203,8 @@ def test_pet_profile_exposes_breeds_products_and_private_medical_history(tmp_pat
     assert all(row["name"] != "Adult Perfect Weight" for row in snapshot["pet_recommendations"][pet_id])
     assert any(row["brand"] == "Royal Canin" and row["select_before_cart"] for row in snapshot["pet_recommendations"][pet_id])
     assert snapshot["pets"][0]["medical_history"][0]["title"] == "Revisión anual"
+    assert snapshot["pets"][0]["care_log"][0]["routine_id"] == "morning_meal"
+    assert snapshot["pet_care_plans"][pet_id]["routines"][0]["completed_today"] is True
     assert snapshot["pets"][0]["goals"] == ["Piel y pelaje"]
 
 
@@ -230,6 +237,7 @@ def test_pet_care_supports_companion_animals_beyond_dogs_and_cats(tmp_path, monk
     assert len(snapshot["pets"]) == len(animals)
     assert len(snapshot["pet_care_plans"]) == len(animals)
     assert all(len(plan["sections"]) >= 5 for plan in snapshot["pet_care_plans"].values())
+    assert all(len(plan["routines"]) >= 3 for plan in snapshot["pet_care_plans"].values())
     assert "Chinchilla" in snapshot["pet_options"]["exact_species"]["small_mammal"]
     assert "Tarántula" in snapshot["pet_options"]["exact_species"]["invertebrate"]
     assert "Cerdo miniatura" in snapshot["pet_options"]["exact_species"]["farm_pet"]

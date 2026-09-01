@@ -348,6 +348,11 @@ class PetMedicalRecordRequest(BaseModel):
     medications: list[str] = Field(default_factory=list, max_length=30)
 
 
+class PetCareCompletionRequest(BaseModel):
+    routine_id: str = Field(min_length=1, max_length=80, pattern=r"^[a-z0-9_\-]+$")
+    title: str = Field(min_length=1, max_length=120)
+
+
 class WeeklyPlanRequest(BaseModel):
     style: str = Field(default="normal", pattern="^(fitness|normal|quick|weight_loss)$")
     people: int = Field(default=1, ge=1, le=20)
@@ -3715,6 +3720,25 @@ def add_home_pet_medical_record(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"status": "CREATED", "record": record}
+
+
+@app.post("/v1/home-food/{user_id}/pets/{pet_id}/care-log", status_code=201)
+def complete_home_pet_care_routine(
+    user_id: str,
+    pet_id: str,
+    payload: PetCareCompletionRequest,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        entry = _home_food_store().complete_pet_care_routine(user, pet_id, **payload.model_dump())
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Mascota no encontrada") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "COMPLETED", "entry": entry}
 
 
 @app.patch("/v1/home-food/{user_id}/recipes/{recipe_id}")

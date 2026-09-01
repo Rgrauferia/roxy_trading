@@ -401,6 +401,37 @@ class HomeFoodStore:
 
         return self._mutate(apply)
 
+    def complete_pet_care_routine(
+        self, user_id: Any, pet_id: Any, *, routine_id: Any, title: Any,
+    ) -> dict[str, Any]:
+        pet_key = _text(pet_id, 80)
+        clean_routine = _identity(routine_id).replace(" ", "_")
+        clean_title = _text(title, 120)
+        if not re.fullmatch(r"[a-z0-9_\-]{1,80}", clean_routine):
+            raise ValueError("La rutina no es válida.")
+        if not clean_title:
+            raise ValueError("La rutina necesita un título.")
+        entry = {
+            "id": uuid4().hex,
+            "routine_id": clean_routine,
+            "title": clean_title,
+            "completed_at": _now_iso(),
+        }
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            owner = self._user(payload, user_id)
+            pet = next((row for row in owner.setdefault("pets", []) if _text(row.get("id"), 80) == pet_key), None)
+            if pet is None:
+                raise KeyError(pet_key)
+            log = pet.setdefault("care_log", [])
+            log.append(entry)
+            pet["care_log"] = log[-500:]
+            pet["updated_at"] = _now_iso()
+            owner["revision"] = int(owner.get("revision") or 0) + 1
+            return deepcopy(entry)
+
+        return self._mutate(apply)
+
     def upsert_pantry(self, user_id: Any, items: Any) -> list[dict[str, Any]]:
         if not isinstance(items, list):
             raise ValueError("La despensa debe ser una lista.")
