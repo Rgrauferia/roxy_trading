@@ -334,6 +334,9 @@ def test_home_page_csp_allows_only_google_maps_runtime_origins():
     assert "https://maps.gstatic.com" in policy
     assert "https://*.googleapis.com" in policy
     assert "https://*.gstatic.com" in policy
+    assert "https://api.rainviewer.com" in policy
+    assert "https://*.rainviewer.com" in policy
+    assert "https://*.basemaps.cartocdn.com" in policy
     assert "unsafe-eval" not in policy
 
 

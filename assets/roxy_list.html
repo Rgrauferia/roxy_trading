@@ -8,14 +8,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="106" />
+  <meta name="roxy-home-version" content="107" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=91" />
-  <script src="/assets/roxy_list.js?v=114" defer></script>
+  <link rel="stylesheet" href="/assets/vendor/maplibre-gl.css?v=1" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=92" />
+  <script src="/assets/vendor/maplibre-gl.js?v=1" defer></script>
+  <script src="/assets/roxy_list.js?v=115" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -143,7 +145,7 @@
           <div id="familyMap" class="family-map" role="region" aria-label="Mapa Google de ubicaciones compartidas"><div class="family-map-empty"><span class="material-symbols-rounded" aria-hidden="true">map</span><strong>El mapa real aparecerá aquí</strong><p>Activa la ubicación y mantén Roxy Home abierta para actualizar tu recorrido.</p></div></div>
           <div id="familyWeatherFx" class="family-weather-fx" aria-hidden="true"></div>
           <div class="family-map-actions">
-            <button id="familyMapWeather" type="button" aria-label="Ver el clima"><span class="material-symbols-rounded" aria-hidden="true">rainy</span></button>
+            <button id="familyMapWeather" type="button" aria-label="Abrir globo de radar meteorológico"><span class="material-symbols-rounded" aria-hidden="true">rainy</span></button>
             <button id="familyMapLayers" type="button" aria-label="Cambiar estilo del mapa"><span class="material-symbols-rounded" aria-hidden="true">layers</span></button>
             <button id="familyMapLocate" type="button" aria-label="Centrar mi ubicación"><span class="material-symbols-rounded" aria-hidden="true">my_location</span></button>
           </div>
@@ -452,6 +454,27 @@
     <button type="button" data-tab-link="calendar"><span class="material-symbols-rounded" aria-hidden="true">calendar_month</span><strong>Calendario</strong></button>
     <button class="family-more-nav" type="button" data-tab-link="more"><span class="material-symbols-rounded" aria-hidden="true">more_horiz</span><strong>Más</strong></button>
   </nav>
+
+  <dialog id="familyWeatherGlobeDialog" class="family-weather-globe-dialog" aria-labelledby="familyWeatherGlobeTitle">
+    <article class="family-weather-globe-shell">
+      <div id="familyWeatherGlobe" class="family-weather-globe" role="region" aria-label="Globo 3D con radar real de precipitación"></div>
+      <header class="family-weather-globe-heading">
+        <div><small>RainViewer · observación meteorológica</small><h2 id="familyWeatherGlobeTitle">Radar real de precipitación</h2><p id="familyWeatherGlobeCurrent">Cargando clima actual de Open-Meteo…</p></div>
+        <button id="familyWeatherGlobeClose" type="button" aria-label="Cerrar radar"><span class="material-symbols-rounded" aria-hidden="true">close</span></button>
+      </header>
+      <div class="family-weather-globe-legend" aria-label="Intensidad de precipitación"><span>Ligera</span><i></i><span>Intensa</span></div>
+      <section class="family-weather-globe-controls" aria-label="Controles del radar">
+        <div class="family-weather-globe-status-row"><strong id="familyWeatherGlobeStatus">Conectando con RainViewer…</strong><span id="familyWeatherGlobeTime">—</span></div>
+        <input id="familyWeatherGlobeTimeline" type="range" min="0" max="0" value="0" step="1" aria-label="Línea de tiempo del radar" disabled />
+        <div class="family-weather-globe-actions">
+          <button id="familyWeatherGlobePlay" type="button" aria-label="Pausar animación" disabled><span class="material-symbols-rounded" aria-hidden="true">pause</span><b>Pausar</b></button>
+          <button id="familyWeatherGlobeLocate" type="button"><span class="material-symbols-rounded" aria-hidden="true">my_location</span><b>Mi ubicación</b></button>
+          <span><i class="family-weather-live-dot" aria-hidden="true"></i><b>Precipitación observada</b></span>
+        </div>
+        <p id="familyWeatherGlobeNotice">Las manchas de color son mediciones de radar de RainViewer, no nubes ni lluvia simuladas. El clima actual proviene de Open-Meteo.</p>
+      </section>
+    </article>
+  </dialog>
 
   <dialog id="plantDialog" class="plant-dialog" aria-labelledby="plantDialogTitle">
     <form id="plantForm">

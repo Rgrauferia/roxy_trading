@@ -22,11 +22,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="106"' in page.text
-    assert 'href="/assets/roxy_list.css?v=91"' in page.text
-    assert 'src="/assets/roxy_list.js?v=114"' in page.text
-    assert '/assets/roxy_list.css?v=91' in worker.text
-    assert '/assets/roxy_list.js?v=114' in worker.text
+    assert 'name="roxy-home-version" content="107"' in page.text
+    assert 'href="/assets/vendor/maplibre-gl.css?v=1"' in page.text
+    assert 'src="/assets/vendor/maplibre-gl.js?v=1"' in page.text
+    assert 'href="/assets/roxy_list.css?v=92"' in page.text
+    assert 'src="/assets/roxy_list.js?v=115"' in page.text
+    assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
+    assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
+    assert '/assets/roxy_list.css?v=92' in worker.text
+    assert '/assets/roxy_list.js?v=115' in worker.text
     assert 'id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle" hidden' in page.text
     assert '/assets/roxy_home_avatar.jpg' in page.text
     assert '/assets/roxy_home_avatar.jpg' in worker.text
@@ -52,7 +56,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
     assert 'Comparar muebles reales' in script.text
-    assert "const APP_VERSION = '106'" in script.text
+    assert "const APP_VERSION = '107'" in script.text
     assert 'id="familyHistoryButton"' in page.text
     assert 'id="familyHistoryPanel"' in page.text
     assert 'loadFamilyHistoryPanel' in script.text
@@ -337,18 +341,40 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
         assert client.get(f"/assets/roxy_home/recipe_categories/{asset}").status_code == 200
 
 
-def test_roxy_home_nexo_radar_uses_safari_compatible_image_tiles():
+def test_roxy_home_nexo_weather_opens_separate_real_radar_globe():
+    page = Path("assets/roxy_list.html").read_text(encoding="utf-8")
     script = Path("assets/roxy_list.js").read_text(encoding="utf-8")
-    radar_layer = script.split("function familyRadarTileLayer", 1)[1].split(
-        "async function loadFamilyRadarMetadata", 1
-    )[0]
+    style = Path("assets/roxy_list.css").read_text(encoding="utf-8")
+    dockerfile = Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
 
+    assert 'id="familyMap"' in page
+    assert 'aria-label="Mapa Google de ubicaciones compartidas"' in page
+    assert 'id="familyWeatherGlobeDialog"' in page
+    assert 'id="familyWeatherGlobeTimeline"' in page
+    assert 'id="familyWeatherGlobePlay"' in page
+    assert 'id="familyWeatherGlobeLocate"' in page
+    assert "openFamilyWeatherGlobe()" in script
+    assert "projection:{type:'globe'}" in script
+    assert "setProjection?.({type:'globe'})" in script
+    assert "renderWorldCopies:false" in script
+    assert "https://a.basemaps.cartocdn.com/dark_all/" in script
     assert "https://api.rainviewer.com/public/weather-maps.json" in script
-    assert "metadata.host" in radar_layer
-    assert "frame.path" in radar_layer
-    assert "ownerDocument.createElement('img')" in radar_layer
-    assert "ownerDocument.createElement('canvas')" not in radar_layer
-    assert "Radar real actualizado" in script
+    assert "rainviewer-radar" in script
+    assert "no se muestran datos simulados" in script
+    assert "Radar real de precipitación" in page
+    assert "no nubes ni lluvia simuladas" in page
+    assert ".family-weather-globe-dialog" in style
+    assert "COPY assets/vendor/maplibre-gl.js assets/vendor/maplibre-gl.css" in dockerfile
+
+
+def test_roxy_home_nexo_weather_provider_csp_is_explicit():
+    from tools import roxy_home_service
+
+    policy = roxy_home_service.shopping_page().headers["Content-Security-Policy"]
+
+    assert "https://api.rainviewer.com" in policy
+    assert "https://*.rainviewer.com" in policy
+    assert "https://*.basemaps.cartocdn.com" in policy
 
 
 def test_shopping_api_crud_complete_history_and_user_isolation(tmp_path, monkeypatch):
