@@ -15,13 +15,13 @@ def test_local_catalog_includes_species_specific_pet_recipes_with_safety_notes()
     from roxy_os.home_recipe_fallback import local_recipe_catalog
 
     rows = [row for row in local_recipe_catalog({}) if row.get("audience") == "pet"]
-    assert len(rows) == 35
+    assert len(rows) == 45
     assert {row["pet_species"] for row in rows} == {
-        "dog", "cat", "ferret", "bird", "rabbit", "hamster", "guinea_pig"
+        "dog", "cat", "ferret", "bird", "rabbit", "hamster", "guinea_pig", "fish", "reptile", "amphibian"
     }
-    assert {species: sum(row["pet_species"] == species for row in rows) for species in ("dog", "cat", "ferret")} == {"dog": 10, "cat": 9, "ferret": 4}
-    assert all(row["safety_class"] == "treat" for row in rows)
-    assert all("no sustituye" in row["veterinary_note"].lower() for row in rows)
+    assert {species: sum(row["pet_species"] == species for row in rows) for species in ("dog", "cat", "ferret", "fish")} == {"dog": 10, "cat": 9, "ferret": 8, "fish": 3}
+    assert {row["safety_class"] for row in rows} == {"treat", "feeding_guide"}
+    assert all("no sustituye" in row["veterinary_note"].lower() for row in rows if row["safety_class"] == "treat")
     illustrated = [row for row in rows if row.get("photo_asset")]
     assert len(illustrated) == 12
     assert all(row["photo_asset"].startswith("/assets/roxy_home/recipes/pets/") for row in illustrated)
@@ -196,7 +196,7 @@ def test_pet_profile_exposes_breeds_products_and_private_medical_history(tmp_pat
     assert len(snapshot["pet_options"]["breeds"]["dog"]) >= 80
     assert len(snapshot["pet_recommendations"][pet_id]) >= 3
     assert all(row["name"] != "Adult Perfect Weight" for row in snapshot["pet_recommendations"][pet_id])
-    assert any(row["brand"] == "Royal Canin" and "Golden Retriever" in row["name"] for row in snapshot["pet_recommendations"][pet_id])
+    assert any(row["brand"] == "Royal Canin" and row["select_before_cart"] for row in snapshot["pet_recommendations"][pet_id])
     assert snapshot["pets"][0]["medical_history"][0]["title"] == "Revisión anual"
     assert snapshot["pets"][0]["goals"] == ["Piel y pelaje"]
 
@@ -238,6 +238,10 @@ def test_pet_care_supports_companion_animals_beyond_dogs_and_cats(tmp_path, monk
         for pet in snapshot["pets"] if pet["species"] == "ferret"
         for row in snapshot["pet_recommendations"][pet["id"]]
     )
+    ferret = next(pet for pet in snapshot["pets"] if pet["species"] == "ferret")
+    assert {row["brand"] for row in snapshot["pet_recommendations"][ferret["id"]]} >= {"Mazuri", "Oxbow", "Wysong"}
+    assert "Insulinoma o hipoglucemia" in snapshot["pet_options"]["conditions"]["ferret"]
+    assert "Vitamina C" in snapshot["pet_options"]["goals"]["guinea_pig"]
 
 
 def test_weekly_plan_is_local_persistent_and_requires_confirmation_for_shopping(tmp_path, monkeypatch):

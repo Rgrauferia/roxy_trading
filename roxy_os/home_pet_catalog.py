@@ -56,6 +56,10 @@ COMMON_ALLERGIES = {
 COMMON_CONDITIONS = {
     "dog": ["Ninguna diagnosticada", "Piel sensible", "Estómago sensible", "Sobrepeso", "Articulaciones", "Enfermedad renal", "Diabetes", "Alergia alimentaria", "Otra"],
     "cat": ["Ninguna diagnosticada", "Bolas de pelo", "Tracto urinario", "Sobrepeso", "Enfermedad renal", "Diabetes", "Alergia alimentaria", "Otra"],
+    "ferret": ["Ninguna diagnosticada", "Enfermedad suprarrenal", "Insulinoma o hipoglucemia", "Problema dental", "Problema digestivo", "Enfermedad cardíaca", "Tratamiento activo", "Otra"],
+    "rabbit": ["Ninguna diagnosticada", "Problema dental", "Estasis gastrointestinal", "Problema urinario", "Pododermatitis", "Problema respiratorio", "Tratamiento activo", "Otra"],
+    "guinea_pig": ["Ninguna diagnosticada", "Deficiencia de vitamina C", "Problema dental", "Problema respiratorio", "Pododermatitis", "Problema urinario", "Tratamiento activo", "Otra"],
+    "hamster": ["Ninguna diagnosticada", "Problema dental", "Problema de abazones", "Problema respiratorio", "Diarrea o cola mojada", "Lesión", "Tratamiento activo", "Otra"],
     "fish": ["Ninguna observada", "Problema de aletas", "Puntos blancos", "Estrés", "Problema de flotación", "Tratamiento activo", "Otra"],
     "reptile": ["Ninguna diagnosticada", "Problemas de muda", "Bajo peso", "Enfermedad metabólica ósea", "Parásitos", "Tratamiento activo", "Otra"],
     "bird": ["Ninguna diagnosticada", "Picaje de plumas", "Sobrepeso", "Problema respiratorio", "Problema del pico", "Tratamiento activo", "Otra"],
@@ -69,6 +73,10 @@ COMMON_CONDITIONS = {
 GOALS = {
     "dog": ["Mantener peso", "Bajar peso", "Subir peso", "Piel y pelaje", "Digestión", "Articulaciones", "Energía", "Premios de entrenamiento"],
     "cat": ["Mantener peso", "Bajar peso", "Subir peso", "Hidratación", "Bolas de pelo", "Digestión", "Tracto urinario", "Enriquecimiento"],
+    "ferret": ["Mantener peso", "Proteína animal", "Digestión", "Piel y pelaje", "Salud dental", "Juego diario", "Enriquecimiento", "Seguimiento de glucosa"],
+    "rabbit": ["Heno y salud dental", "Digestión", "Mantener peso", "Hidratación", "Enriquecimiento", "Convivencia"],
+    "guinea_pig": ["Vitamina C", "Heno y salud dental", "Digestión", "Mantener peso", "Enriquecimiento", "Convivencia"],
+    "hamster": ["Alimentación equilibrada", "Salud dental", "Mantener peso", "Forrajeo", "Hábitat", "Enriquecimiento"],
     "fish": ["Agua estable", "Coloración", "Crecimiento", "Compatibilidad", "Reducir estrés", "Rutina de alimentación"],
     "reptile": ["Temperatura correcta", "Humedad correcta", "UVB", "Muda", "Peso", "Enriquecimiento"],
     "bird": ["Alimentación equilibrada", "Enriquecimiento", "Socialización", "Plumaje", "Peso", "Rutina diaria"],
@@ -124,6 +132,8 @@ PRODUCTS = {
     ],
     "ferret": [
         {"brand": "Mazuri", "name": "Ferret Diet", "category": "Alimento formulado", "reason": "Alimento formulado para hurones; confirma etapa, condición corporal e historial digestivo.", "source_url": "https://mazuri.com/products/mazuri-ferret-diet", "source_label": "Mazuri · producto oficial"},
+        {"brand": "Oxbow", "name": "Essentials Ferret Food", "category": "Alimento completo", "reason": "Fórmula uniforme para hurones de todas las edades; ajusta la cantidad para mantener una condición corporal adecuada.", "source_url": "https://oxbowanimalhealth.com/product/essentials-ferret-food/?_species=ferrets", "source_label": "Oxbow · producto oficial"},
+        {"brand": "Wysong", "name": "Ferret Epigen 90", "category": "Alimento formulado", "reason": "Alimento seco concentrado para hurones; requiere una transición gradual y control de tolerancia digestiva.", "source_url": "https://www.wysong.net/products/ferret-epigen-90", "source_label": "Wysong · producto oficial"},
     ],
     "small_mammal": [
         {"brand": "Oxbow", "name": "Essentials Adult Rat Food", "category": "Alimento uniforme", "exact_terms": ["rata"], "reason": "Alimento uniforme específico para ratas adultas; evita depender de mezclas que permitan selección.", "source_url": "https://oxbowanimalhealth.com/our-products/fortified-food/", "source_label": "Oxbow · catálogo oficial"},
@@ -195,7 +205,8 @@ def personalized_pet_products(pet: dict[str, Any]) -> list[dict[str, Any]]:
             score += 15
         if row.get("requires_breed") and str(pet.get("breed") or "").strip():
             score += 15
-            row["name"] = f"{row['name']} · buscar {pet['breed']}"
+            row["select_before_cart"] = True
+            row["reason"] = f"{row['reason']} Busca una fórmula que indique compatibilidad con {pet['breed']}; Roxy no la añadirá sin elegir el producto exacto."
         requires_vet = bool(row.get("requires_vet"))
         if vet_context and row.get("category") in {
             "Alimento completo", "Control de peso", "Alimento especializado", "Alimento específico por raza"
@@ -315,6 +326,8 @@ CARE_LIBRARY = {
 
 
 CARE_SOURCES = {
+    "dog": ("Manual Veterinario Merck · perros", "https://www.merckvetmanual.com/dog-owners"),
+    "cat": ("Manual Veterinario Merck · gatos", "https://www.merckvetmanual.com/cat-owners"),
     "ferret": ("Manual Veterinario Merck · hurones", "https://www.merckvetmanual.com/all-other-pets/ferrets/providing-a-home-for-a-ferret"),
     "rabbit": ("Manual Veterinario Merck · conejos", "https://www.merckvetmanual.com/all-other-pets/rabbits/providing-a-home-for-a-rabbit"),
     "guinea_pig": ("Manual Veterinario Merck · cobayas", "https://www.merckvetmanual.com/all-other-pets/guinea-pigs/diet-for-a-guinea-pig"),

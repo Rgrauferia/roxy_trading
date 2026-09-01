@@ -8,16 +8,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="114" />
+  <meta name="roxy-home-version" content="115" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
   <link rel="stylesheet" href="/assets/vendor/maplibre-gl.css?v=1" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=97" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=98" />
   <script src="/assets/vendor/maplibre-gl.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=122" defer></script>
+  <script src="/assets/roxy_list.js?v=123" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -359,22 +359,22 @@
       <section id="petPersonalizedHub" class="pet-personalized-hub" hidden aria-labelledby="petHubTitle">
         <div class="pet-hub-heading"><div><p class="eyebrow">Perfil activo</p><h2 id="petHubTitle">Todo para tu mascota</h2><p id="petHubSummary"></p></div><button id="editPetProfile" class="secondary" type="button">Editar perfil</button></div>
         <div class="pet-hub-tabs" role="tablist" aria-label="Información personalizada de la mascota">
-          <button class="active" type="button" data-pet-hub-tab="care">Cuidados</button>
-          <button id="petFoodTab" type="button" data-pet-hub-tab="recipes">Recetas</button>
-          <button type="button" data-pet-hub-tab="products">Productos</button>
-          <button type="button" data-pet-hub-tab="medical">Historial médico</button>
+          <button id="petCareTab" class="active" type="button" role="tab" aria-selected="true" aria-controls="petCarePanel" tabindex="0" data-pet-hub-tab="care">Cuidados</button>
+          <button id="petFoodTab" type="button" role="tab" aria-selected="false" aria-controls="recipeCatalogSection" tabindex="-1" data-pet-hub-tab="recipes">Recetas</button>
+          <button id="petProductsTab" type="button" role="tab" aria-selected="false" aria-controls="petProductsPanel" tabindex="-1" data-pet-hub-tab="products">Productos</button>
+          <button id="petMedicalTab" type="button" role="tab" aria-selected="false" aria-controls="petMedicalPanel" tabindex="-1" data-pet-hub-tab="medical">Historial médico</button>
         </div>
-        <section id="petCarePanel" class="pet-hub-panel" data-pet-hub-panel="care">
+        <section id="petCarePanel" class="pet-hub-panel" role="tabpanel" aria-labelledby="petCareTab" data-pet-hub-panel="care">
           <div class="pet-panel-heading"><div><h3 id="petCareTitle">Plan de cuidado</h3><p id="petCareIntro">Rutina construida para la especie exacta y el perfil guardado.</p></div></div>
           <div id="petCarePlan" class="pet-care-plan"></div>
           <p class="pet-product-method"><strong>Importante:</strong> los rangos y la convivencia cambian entre especies. Roxy conserva las indicaciones de tu veterinario y marca lo que necesita confirmación profesional.</p>
         </section>
-        <section id="petProductsPanel" class="pet-hub-panel" data-pet-hub-panel="products" hidden>
+        <section id="petProductsPanel" class="pet-hub-panel" role="tabpanel" aria-labelledby="petProductsTab" data-pet-hub-panel="products" hidden>
           <div class="pet-panel-heading"><div><h3>Productos elegidos para su perfil</h3><p>Marca y producto concretos, ordenados por coincidencia. Roxy no inventa precio ni disponibilidad.</p></div></div>
           <div id="petProductRecommendations" class="pet-product-recommendations"></div>
           <p class="pet-product-method"><strong>Cómo decide Roxy:</strong> etapa de vida, especie o raza, tamaño, objetivos, alergias y condiciones guardadas. La etiqueta, tu veterinario y cualquier dieta prescrita siempre prevalecen.</p>
         </section>
-        <section id="petMedicalPanel" class="pet-hub-panel" data-pet-hub-panel="medical" hidden>
+        <section id="petMedicalPanel" class="pet-hub-panel" role="tabpanel" aria-labelledby="petMedicalTab" data-pet-hub-panel="medical" hidden>
           <div class="pet-panel-heading"><div><h3>Expediente de salud</h3><p>Consultas, vacunas, diagnósticos, tratamientos y notas en orden cronológico.</p></div><button id="addPetMedical" class="primary" type="button">Añadir registro</button></div>
           <div id="petMedicalHistory" class="pet-medical-history"></div>
         </section>
@@ -582,22 +582,22 @@
         <label><span id="petBreedLabel">Raza o variedad</span><input id="petProfileBreed" list="petBreedOptions" maxlength="100" placeholder="Busca o escribe la raza exacta" /></label>
         <datalist id="petBreedOptions"></datalist>
         <label><span>Edad aproximada en años</span><input id="petProfileAge" type="number" min="0" max="200" step="0.1" inputmode="decimal" /></label>
-        <label><span>Sexo</span><select id="petProfileSex"><option value="unknown">No estoy seguro</option><option value="female">Hembra</option><option value="male">Macho</option></select></label>
-        <label><span>Esterilización</span><select id="petProfileSterilized"><option value="unknown">No estoy seguro</option><option value="yes">Sí</option><option value="no">No</option></select></label>
+        <label id="petSexField"><span>Sexo</span><select id="petProfileSex"><option value="unknown">No estoy seguro</option><option value="female">Hembra</option><option value="male">Macho</option></select></label>
+        <label id="petSterilizedField"><span>Esterilización</span><select id="petProfileSterilized"><option value="unknown">No estoy seguro</option><option value="yes">Sí</option><option value="no">No</option></select></label>
       </fieldset>
       <fieldset class="pet-profile-step" data-pet-step="2" hidden>
         <legend>Salud y etapa de vida</legend>
         <label><span>Etapa de vida</span><select id="petProfileLifeStage"><option value="unknown">No estoy seguro</option><option value="baby">Bebé</option><option value="young">Joven</option><option value="adult">Adulto</option><option value="senior">Senior</option></select></label>
-        <label><span>Peso actual en kg, si aplica</span><input id="petProfileWeight" type="number" min="0.001" max="2000" step="0.001" inputmode="decimal" /></label>
-        <label><span>Tamaño adulto</span><select id="petProfileSize"><option value="unknown">No estoy seguro</option><option value="toy">Mini / toy</option><option value="small">Pequeño</option><option value="medium">Mediano</option><option value="large">Grande</option><option value="giant">Gigante</option></select></label>
-        <label><span>Condición corporal</span><select id="petProfileBody"><option value="unknown">No estoy seguro</option><option value="underweight">Bajo peso</option><option value="ideal">Ideal</option><option value="overweight">Sobrepeso</option></select></label>
+        <label id="petWeightField"><span id="petWeightLabel">Peso actual en kg, si aplica</span><input id="petProfileWeight" type="number" min="0.001" max="2000" step="0.001" inputmode="decimal" /></label>
+        <label id="petSizeField"><span id="petSizeLabel">Tamaño adulto</span><select id="petProfileSize"><option value="unknown">No estoy seguro</option><option value="toy">Mini / toy</option><option value="small">Pequeño</option><option value="medium">Mediano</option><option value="large">Grande</option><option value="giant">Gigante</option></select></label>
+        <label id="petBodyField"><span id="petBodyLabel">Condición corporal</span><select id="petProfileBody"><option value="unknown">No estoy seguro</option><option value="underweight">Bajo peso</option><option value="ideal">Ideal</option><option value="overweight">Sobrepeso</option></select></label>
         <div class="pet-choice-field"><span>Alergias o intolerancias confirmadas</span><div id="petAllergyChoices" class="pet-choice-grid"></div><input id="petProfileAllergies" maxlength="500" placeholder="Otra alergia, separada por comas" /></div>
         <div class="pet-choice-field"><span>Condiciones diagnosticadas</span><div id="petConditionChoices" class="pet-choice-grid"></div><input id="petProfileConditions" maxlength="500" placeholder="Otra condición confirmada" /></div>
         <p class="pet-profile-note"><span class="material-symbols-rounded" aria-hidden="true">shield</span>Roxy no diagnostica. Esta información solo evita sugerencias incompatibles.</p>
       </fieldset>
       <fieldset class="pet-profile-step" data-pet-step="3" hidden>
         <legend>Alimentación</legend>
-        <label><span>Nivel de actividad</span><select id="petProfileActivity"><option value="unknown">No estoy seguro</option><option value="low">Bajo</option><option value="moderate">Moderado</option><option value="high">Alto</option><option value="working">Trabajo o deporte</option></select></label>
+        <label><span id="petActivityLabel">Nivel de actividad</span><select id="petProfileActivity"><option value="unknown">No estoy seguro</option><option value="low">Bajo</option><option value="moderate">Moderado</option><option value="high">Alto</option><option value="working">Trabajo o deporte</option></select></label>
         <label><span>Alimento actual</span><input id="petProfileCurrentFood" maxlength="160" placeholder="Marca y variedad, si la conoces" /></label>
         <div class="pet-choice-field"><span>¿Qué quieres que Roxy priorice?</span><div id="petGoalChoices" class="pet-choice-grid"></div></div>
         <label><span>Indicaciones de su veterinario</span><textarea id="petProfileVetInstructions" rows="5" maxlength="2000" placeholder="Dieta prescrita, ingredientes prohibidos, porciones…"></textarea></label>

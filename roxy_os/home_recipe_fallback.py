@@ -91,30 +91,52 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         ["Desmenuza el pollo cocido muy fino y confirma que no tenga piel, huesos, sal, ajo ni cebolla.", "Bate el huevo solo, sin leche, mantequilla, sal ni condimentos.", "Cocina el huevo en una sartén antiadherente a fuego bajo hasta que quede completamente cuajado.", "Incorpora el pollo, cocina un minuto más y deja enfriar por completo.", "Corta bocados muy pequeños, ofrece una porción ocasional y refrigera el resto por un máximo de un día."],
     )
     cat_egg_chicken.update(audience="pet", pet_species="cat", safety_class="treat", veterinary_note="Premio ocasional; no sustituye una dieta completa para gatos. Consulta al veterinario si existe sensibilidad al huevo o al pollo.", photo_asset="/assets/roxy_home/recipes/pets/cat-egg-chicken-bites.png")
+    ferret_source = {"title": "Oxbow · guía de cuidado del hurón", "url": "https://oxbowanimalhealth.com/wp-content/uploads/2023/10/Ferret-Care-Guide-Jul-2022.pdf", "authority": "Oxbow Animal Health"}
     ferret = _recipe(
         "Bocaditos de pavo cocido para hurones", "Premio pequeño de carne simple y completamente cocida, sin cereales ni condimentos.", "other", 10,
         [("Pavo molido sin condimentos", 150, "gramo")],
         ["Comprueba que el pavo no contenga sal, ajo, cebolla, salsas, vegetales ni cereales añadidos.", "Calienta una sartén antiadherente a fuego medio-bajo, sin aceite ni mantequilla.", "Añade el pavo y sepáralo en trozos muy pequeños mientras se cocina.", "Cocina hasta alcanzar 74 °C y hasta que no quede carne rosada; escurre la grasa sobrante.", "Deja enfriar por completo y ofrece uno o dos trozos pequeños como premio ocasional."],
     )
-    ferret.update(audience="pet", pet_species="ferret", safety_class="treat", veterinary_note="Premio ocasional; no sustituye una dieta completa para hurones. Consulta a un veterinario de animales exóticos.", photo_asset="/assets/roxy_home/recipes/pets/ferret-cooked-turkey-bites.jpg")
+    ferret.update(audience="pet", pet_species="ferret", safety_class="treat", veterinary_note="Premio ocasional; no sustituye una dieta completa para hurones. Consulta a un veterinario de animales exóticos.", photo_asset="/assets/roxy_home/recipes/pets/ferret-cooked-turkey-bites.jpg", sources=[ferret_source])
     ferret_hearts = _recipe(
         "Bocaditos de corazón de pollo para hurones", "Víscera simple completamente cocida y cortada en porciones muy pequeñas.", "other", 12,
         [("Corazones de pollo limpios", 150, "gramo")],
         ["Retira grasa visible y confirma que los corazones no tengan sal, salsas, vegetales ni condimentos.", "Enjuágalos, sécalos y córtalos por la mitad para que se cocinen de manera uniforme.", "Cocínalos en una sartén antiadherente a fuego medio-bajo, sin aceite, durante 8 a 10 minutos.", "Comprueba que el centro alcance 74 °C y que no quede tejido crudo.", "Enfría por completo, corta trozos muy pequeños y ofrece solo uno o dos como premio ocasional."],
     )
-    ferret_hearts.update(audience="pet", pet_species="ferret", safety_class="treat", veterinary_note="Premio ocasional y en poca cantidad; no sustituye un alimento completo. Las vísceras no deben desplazar su dieta habitual. Consulta a un veterinario de animales exóticos.", photo_asset="/assets/roxy_home/recipes/pets/ferret-chicken-heart-bites.png")
+    ferret_hearts.update(audience="pet", pet_species="ferret", safety_class="treat", veterinary_note="Premio ocasional y en poca cantidad; no sustituye un alimento completo. Las vísceras no deben desplazar su dieta habitual. Consulta a un veterinario de animales exóticos.", photo_asset="/assets/roxy_home/recipes/pets/ferret-chicken-heart-bites.png", sources=[ferret_source])
     ferret_egg = _recipe(
         "Bocaditos de huevo cocido para hurones", "Huevo completamente cocido, sin leche, mantequilla ni condimentos.", "other", 8,
         [("Huevo", 1, "unidad")],
         ["Rompe el huevo en un recipiente limpio y bátelo sin añadir leche, aceite, sal ni especias.", "Calienta una sartén antiadherente a fuego bajo.", "Vierte el huevo y remueve hasta que esté completamente cuajado y no quede parte líquida.", "Déjalo enfriar por completo y divídelo en trozos muy pequeños.", "Ofrece uno o dos trozos como premio ocasional y desecha lo que permanezca a temperatura ambiente más de dos horas."],
     )
-    ferret_egg.update(audience="pet", pet_species="ferret", safety_class="treat", veterinary_note="Premio ocasional; no sustituye una dieta completa para hurones. Confirma la frecuencia con un veterinario de animales exóticos.", photo_asset="/assets/roxy_home/recipes/pets/ferret-cooked-egg-bites.png")
+    ferret_egg.update(audience="pet", pet_species="ferret", safety_class="treat", veterinary_note="Premio ocasional; no sustituye una dieta completa para hurones. Confirma la frecuencia con un veterinario de animales exóticos.", photo_asset="/assets/roxy_home/recipes/pets/ferret-cooked-egg-bites.png", sources=[ferret_source])
     ferret_beef = _recipe(
         "Bocaditos de res cocida para hurones", "Carne magra completamente cocida y sin vegetales, cereales ni condimentos.", "other", 12,
         [("Carne molida de res magra sin condimentos", 180, "gramo")],
         ["Comprueba que la carne no incluya sal, ajo, cebolla, salsas, cereales ni especias.", "Calienta una sartén antiadherente a fuego medio-bajo, sin aceite ni mantequilla.", "Añade la carne y sepárala en trozos pequeños mientras se cocina.", "Cocina hasta que no quede carne rosada y el centro alcance al menos 71 °C; escurre la grasa sobrante.", "Enfría por completo y ofrece uno o dos trozos pequeños como premio ocasional."],
     )
-    ferret_beef.update(audience="pet", pet_species="ferret", safety_class="treat", veterinary_note="Premio ocasional; no sustituye una dieta completa para hurones. Consulta a un veterinario de animales exóticos.", photo_asset="/assets/roxy_home/recipes/pets/ferret-cooked-beef-bites.png")
+    ferret_beef.update(audience="pet", pet_species="ferret", safety_class="treat", veterinary_note="Premio ocasional; no sustituye una dieta completa para hurones. Consulta a un veterinario de animales exóticos.", photo_asset="/assets/roxy_home/recipes/pets/ferret-cooked-beef-bites.png", sources=[ferret_source])
+    ferret_extra_specs = {
+        "ferret_poached_chicken": ("Hebras de pollo cocido para hurones", "Pechuga de pollo sin piel ni hueso", 150, "gramo", "Cocina el pollo en agua a hervor suave hasta que el centro alcance 74 °C.", "Desmenúzalo en hebras muy cortas y ofrece una cantidad pequeña cuando esté completamente frío."),
+        "ferret_baked_duck": ("Mini bocados de pato para hurones", "Pechuga de pato sin piel ni hueso", 150, "gramo", "Hornea el pato sin aceite ni condimentos hasta que el centro alcance 74 °C.", "Retira la grasa visible, deja enfriar y corta uno o dos bocados muy pequeños."),
+        "ferret_cooked_lamb": ("Miguitas de cordero para hurones", "Cordero magro molido sin condimentos", 150, "gramo", "Cocina el cordero en una sartén antiadherente, sin aceite, hasta alcanzar 71 °C.", "Escurre la grasa, enfría por completo y separa una porción mínima."),
+        "ferret_turkey_medallions": ("Mini medallones de pavo para hurones", "Pavo molido sin condimentos", 150, "gramo", "Forma medallones muy pequeños y hornéalos a 190 °C hasta que el centro alcance 74 °C.", "Déjalos enfriar, divide cada medallón y ofrece solo uno o dos trozos."),
+    }
+    ferret_extras = {}
+    for key, (title, ingredient, quantity, unit, cooking, serving) in ferret_extra_specs.items():
+        row = _recipe(
+            title, "Premio de proteína animal simple, completamente cocida y sin cereales ni condimentos.", "other", 12,
+            [(ingredient, quantity, unit)],
+            [
+                "Lávate las manos y limpia la superficie antes de manipular la carne.",
+                "Confirma que el ingrediente no contenga sal, ajo, cebolla, salsas, vegetales ni cereales añadidos.",
+                cooking,
+                serving,
+                "Refrigera el resto por un máximo de dos días y úsalo solo como premio ocasional.",
+            ],
+        )
+        row.update(audience="pet", pet_species="ferret", pet_category="pet_treats", safety_class="treat", veterinary_note="Premio ocasional; no sustituye el alimento completo de un hurón. Confirma ingredientes y porción con un veterinario de animales exóticos.", sources=[ferret_source], editorial_status="verified_veterinary_guidance")
+        ferret_extras[key] = row
     recipes = {
         "dog_banana_oat_treats": dog,
         "dog_pumpkin_oat_biscuits": dog_pumpkin,
@@ -129,6 +151,7 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         "ferret_cooked_egg_bites": ferret_egg,
         "ferret_cooked_beef_bites": ferret_beef,
     }
+    recipes.update(ferret_extras)
     rabbit_source = {"title": "Merck Veterinary Manual · Nutrición de conejos", "url": "https://www.merckvetmanual.com/exotic-and-laboratory-animals/rabbits/nutrition-of-rabbits", "authority": "Merck Veterinary Manual"}
     guinea_source = {"title": "Merck Veterinary Manual · Nutrición de cobayas", "url": "https://www.merckvetmanual.com/exotic-and-laboratory-animals/guinea-pigs/housing-and-nutrition-of-guinea-pigs", "authority": "Merck Veterinary Manual"}
     hamster_source = {"title": "Merck Veterinary Manual · Hámsteres", "url": "https://www.merckvetmanual.com/exotic-and-laboratory-animals/rodents/hamsters", "authority": "Merck Veterinary Manual"}
@@ -251,6 +274,28 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
             sources=[pet_food_source], editorial_status="verified_veterinary_guidance",
         )
         recipes[key] = recipe
+    feeding_guide_specs = {
+        "fish_betta_feeding": ("fish", ["betta"], "Rutina de alimentación para betta", "Alimento completo específico para betta", "Observa que coma cada porción y retira lo que quede sin consumir.", "Manual Veterinario Merck · peces de acuario", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/aquarium-fishes/management-of-aquarium-fish"),
+        "fish_goldfish_feeding": ("fish", ["goldfish", "carassius"], "Rutina de alimentación para goldfish", "Alimento completo específico para goldfish", "Ajusta la presentación del alimento al tamaño de la boca y evita que queden restos en el agua.", "Manual Veterinario Merck · peces de acuario", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/aquarium-fishes/management-of-aquarium-fish"),
+        "fish_tropical_feeding": ("fish", ["guppy", "molly", "platy", "tetra", "danio", "corydora", "gourami"], "Rutina para peces tropicales pequeños", "Alimento completo para la especie y tamaño de boca", "Comprueba que los habitantes alcancen el alimento sin sobrealimentar el acuario.", "Manual Veterinario Merck · peces de acuario", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/aquarium-fishes/management-of-aquarium-fish"),
+        "reptile_leopard_gecko_feeding": ("reptile", ["gecko leopardo"], "Rutina alimentaria para gecko leopardo", "Insectos alimentadores apropiados para la especie", "Registra apetito, muda y peso; la suplementación depende del UVB, la dieta y la indicación profesional.", "Manual Veterinario Merck · reptiles", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/reptiles/management-and-husbandry-of-reptiles"),
+        "reptile_bearded_dragon_feeding": ("reptile", ["dragon barbudo"], "Rutina alimentaria para dragón barbudo", "Alimento apropiado para su etapa de vida", "Separa alimento animal y vegetal según etapa y confirma calcio, UVB y porciones con un veterinario de exóticos.", "Manual Veterinario Merck · reptiles", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/reptiles/management-and-husbandry-of-reptiles"),
+        "amphibian_axolotl_feeding": ("amphibian", ["ajolote"], "Rutina de alimentación para ajolote", "Alimento hundible apropiado para ajolote", "Retira sobrantes y registra apetito junto con temperatura, amoníaco, nitrito, nitrato y pH.", "ARAV · cuidado de reptiles y anfibios", "https://arav.org/"),
+    }
+    for key, (species, exact_terms, title, ingredient, observation, source_title, source_url) in feeding_guide_specs.items():
+        guide = _recipe(
+            title, "Guía de alimentación que se ajusta a la especie exacta, el producto y las condiciones del hábitat.", "other", 1,
+            [(ingredient, 1, "porción según etiqueta")],
+            [
+                "Confirma la especie exacta, la etapa de vida y cualquier indicación veterinaria guardada.",
+                "Lee la etiqueta del alimento y usa la cantidad indicada para el tamaño y la etapa de la mascota.",
+                "Ofrece una porción controlada y observa que la mascota pueda ingerirla normalmente.",
+                observation,
+                "Registra cambios de apetito, peso, conducta o calidad del entorno y consulta a un especialista ante cualquier señal anormal.",
+            ],
+        )
+        guide.update(audience="pet", pet_species=species, pet_exact_terms=exact_terms, pet_category="pet_feeding", safety_class="feeding_guide", veterinary_note="Guía orientativa; la etiqueta y el veterinario de exóticos determinan alimento, cantidad y frecuencia.", sources=[{"title": source_title, "url": source_url, "authority": source_title.split(" · ", 1)[0]}], editorial_status="verified_veterinary_guidance")
+        recipes[key] = guide
     for key, recipe in recipes.items():
         if not recipe.get("pet_category"):
             title = _identity(recipe.get("title"))

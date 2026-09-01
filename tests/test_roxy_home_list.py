@@ -22,15 +22,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="114"' in page.text
+    assert 'name="roxy-home-version" content="115"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' in page.text
-    assert 'href="/assets/roxy_list.css?v=97"' in page.text
-    assert 'src="/assets/roxy_list.js?v=122"' in page.text
+    assert 'href="/assets/roxy_list.css?v=98"' in page.text
+    assert 'src="/assets/roxy_list.js?v=123"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
-    assert '/assets/roxy_list.css?v=97' in worker.text
-    assert '/assets/roxy_list.js?v=122' in worker.text
+    assert '/assets/roxy_list.css?v=98' in worker.text
+    assert '/assets/roxy_list.js?v=123' in worker.text
     assert '/assets/roxy_home/pet-onboarding-hero.png' in worker.text
     assert 'id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle" hidden' in page.text
     assert '/assets/roxy_home_avatar.jpg' in page.text
@@ -241,6 +241,9 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="petPersonalizedHub"' in page.text
     assert 'id="petCarePlan"' in page.text
     assert 'data-pet-hub-tab="care"' in page.text
+    assert 'role="tab"' in page.text
+    assert 'role="tabpanel"' in page.text
+    assert 'aria-controls="petCarePanel"' in page.text
     assert 'id="petProductRecommendations"' in page.text
     assert 'id="petMedicalDialog"' in page.text
     assert 'id="petBreedOptions"' in page.text
@@ -251,6 +254,9 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'Primero, conozcamos a tu mascota' in page.text
     assert 'nunca sustituye una dieta completa' in page.text
     assert "selectedPetProfile" in script.text
+    assert "active&&recipeAudience==='human'" in script.text
+    assert "adaptPetHealthFields" in script.text
+    assert "Elige primero la fórmula exacta" in script.text
     assert "blockedIngredients" in script.text
     assert "renderPetProducts" in script.text
     assert "renderPetCare" in script.text
