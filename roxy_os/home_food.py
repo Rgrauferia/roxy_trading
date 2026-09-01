@@ -429,7 +429,9 @@ class HomeFoodStore:
             pet = next((row for row in owner.setdefault("pets", []) if _text(row.get("id"), 80) == pet_key), None)
             if pet is None:
                 raise KeyError(pet_key)
-            history = pet.setdefault("medical_history", [])
+            history = pet.get("medical_history")
+            if not isinstance(history, list):
+                history = []
             history.append(record)
             pet["medical_history"] = history[-100:]
             pet["updated_at"] = _now_iso()
@@ -465,7 +467,11 @@ class HomeFoodStore:
             pet = next((row for row in owner.setdefault("pets", []) if _text(row.get("id"), 80) == pet_key), None)
             if pet is None:
                 raise KeyError(pet_key)
-            log = pet.setdefault("care_log", [])
+            # Older profiles may contain an explicit null here. ``setdefault``
+            # keeps that null and ``append`` then escapes as an HTTP 500.
+            log = pet.get("care_log")
+            if not isinstance(log, list):
+                log = []
             log.append(entry)
             pet["care_log"] = log[-500:]
             pet["updated_at"] = _now_iso()

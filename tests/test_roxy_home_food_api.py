@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -283,6 +284,37 @@ def test_pet_profile_exposes_breeds_products_and_private_medical_history(tmp_pat
     assert snapshot["pet_nutrition_plans"][pet_id]["frequency"] == 2
     assert snapshot["pet_nutrition_plans"][pet_id]["last_feeding"]["outcome"] == "partial"
     assert snapshot["pets"][0]["goals"] == ["Piel y pelaje"]
+
+
+def test_pet_care_repairs_legacy_null_log_instead_of_returning_http_500(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    memory_path = tmp_path / "home-food.json"
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "home-test-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert")
+    monkeypatch.setenv("ROXY_HOME_MEMORY_PATH", str(memory_path))
+    roxy_home_service._RATE_STATE.clear()
+    client = TestClient(roxy_home_service.app)
+    headers = {"Authorization": "Bearer home-test-key"}
+    created = client.post(
+        "/v1/home-food/robert/pets",
+        headers=headers,
+        json={"name": "Bella", "species": "dog", "life_stage": "young"},
+    )
+    pet_id = created.json()["pet"]["id"]
+    legacy = json.loads(memory_path.read_text(encoding="utf-8"))
+    legacy["users"]["robert"]["pets"][0]["care_log"] = None
+    memory_path.write_text(json.dumps(legacy), encoding="utf-8")
+
+    completed = client.post(
+        f"/v1/home-food/robert/pets/{pet_id}/care-log",
+        headers=headers,
+        json={"routine_id": "morning_meal", "title": "Alimentación de la mañana"},
+    )
+
+    assert completed.status_code == 201
+    snapshot = client.get("/v1/home-food/robert", headers=headers).json()
+    assert snapshot["pets"][0]["care_log"][0]["routine_id"] == "morning_meal"
 
 
 def test_pet_care_supports_companion_animals_beyond_dogs_and_cats(tmp_path, monkeypatch):
