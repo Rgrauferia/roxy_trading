@@ -42,3 +42,51 @@ The heading, globe/radar layer, timeline card, close control, and bottom navigat
 The local QA session had no authenticated household or valid Google Maps browser key, so the automatic visual crossfade was verified by implementation/tests while the final globe, controls, responsive layout, network tiles, and runtime console were verified in-browser.
 
 final result: passed
+
+---
+
+# Nexo person and place marker design QA
+
+## Evidence
+
+- Source visual truth (selected option 1): `/Users/robertograu/.codex/generated_images/01a05d3b-8e50-7f90-bb0a-4df5de364216/exec-24a6163f-b9fe-4326-b197-1b8a206ab6ed.png` (853 × 1844 px). The selected people-only option is `/Users/robertograu/.codex/generated_images/01a05d3b-8e50-7f90-bb0a-4df5de364216/exec-352410f6-9472-4b8a-b2ec-b9022bc44313.png` (853 × 1844 px).
+- Browser-rendered implementation: `/Users/robertograu/.codex/visualizations/2026/09/01/01a05d3b-8e50-7f90-bb0a-4df5de364216/nexo-markers-implementation.png` (1280 × 720 px, CSS viewport 1280 × 720, device pixel ratio 1).
+- Side-by-side comparison: `/Users/robertograu/.codex/visualizations/2026/09/01/01a05d3b-8e50-7f90-bb0a-4df5de364216/nexo-markers-comparison.png`.
+- State: two live people markers, Home selected, Work collapsed, Store selected during the interaction check.
+
+## Full-view comparison
+
+The implementation preserves the selected option's hierarchy: people remain the strongest elements through real profile photos, a clean cream/white halo, a small green live-state icon, and a detached cream label. Saved locations use smaller architectural badges with type-specific Material Symbols and only the selected place exposes its name.
+
+## Focused-region comparison
+
+The person portraits, live indicator, label cards, Home badge, Work badge, Store badge, and expanded/collapsed label states are all readable in the browser render and side-by-side evidence. No additional crop was needed because the implementation evidence renders these components at full browser density and the comparison clearly distinguishes their hierarchy.
+
+## Required fidelity surfaces
+
+- Fonts and typography: compact sans-serif labels match the existing Nexo map UI; names are stronger than status text and place names remain short and scannable.
+- Spacing and layout rhythm: portrait and label are separated by 7 px; place badges are 42 px with a minimum 44 px target; markers do not overlap their own labels.
+- Colors and visual tokens: cream/white surfaces, forest text, gold active state, green live state, slate Work, and terracotta Store preserve Roxy Home's palette.
+- Image quality and asset fidelity: production continues to use each member's real stored profile photo. The QA harness used existing Roxy image assets; no placeholder shape replaces avatars in production.
+- Copy and content: live people use `Ubicación compartida` when no richer status exists. Place labels use the saved user name and are not permanently expanded.
+- Icons: all live and place symbols come from the existing Material Symbols Rounded library; there are no handcrafted SVG or emoji substitutes.
+- Accessibility and interaction: overlays are semantic buttons, expose descriptive labels, keep 44 px minimum place targets, and update `aria-expanded` when a place is selected.
+
+## Browser checks
+
+- Verified two people markers and three saved-place marker types render.
+- Verified selecting Store expands Store and collapses Home.
+- Browser console: no warnings or errors.
+- Automated tests: 33 Home/Nexo tests passed; `node --check assets/roxy_list.js` passed.
+
+## Comparison history
+
+- First pass P2: saved-place targets rendered at 38 px, below the practical 44 px mobile target.
+- Fix: increased architectural badges to 42 px and the semantic button target to a minimum of 44 × 44 px.
+- Post-fix evidence: source CSS and browser-rendered component hierarchy; no actionable P0/P1/P2 issue remains.
+
+## Residual test gap
+
+The local browser has no authenticated household Google Maps key, so marker visuals and interactions were verified in a MapLibre QA harness using the exact production classes. Google OverlayView placement and saved-place data wiring are covered by implementation and automated tests; final public asset/version verification is still required after deployment.
+
+final result: passed
