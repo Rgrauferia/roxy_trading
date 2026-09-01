@@ -132,6 +132,34 @@ def test_recipe_import_is_reviewed_before_save_and_pet_profile_syncs(tmp_path, m
     assert alice["pets"] == [] and alice["recipes"] == []
 
 
+def test_pet_profile_supports_species_specific_private_care_context(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "home-test-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert")
+    monkeypatch.setenv("ROXY_HOME_MEMORY_PATH", str(tmp_path / "home-food.json"))
+    roxy_home_service._RATE_STATE.clear()
+    client = TestClient(roxy_home_service.app)
+    headers = {"Authorization": "Bearer home-test-key"}
+    response = client.post(
+        "/v1/home-food/robert/pets",
+        headers=headers,
+        json={
+            "name": "Azul", "species": "fish", "exact_species": "Betta splendens", "age_years": 1.5,
+            "life_stage": "adult", "current_food": "Pellets para betta", "habitat_type": "Acuario de agua dulce",
+            "environment_notes": "20 litros, filtrado y ciclado; 26 °C", "routine_notes": "Revisar agua cada semana",
+            "allergies": [], "conditions": [], "veterinarian_instructions": "No cambiar el tratamiento sin consultar.",
+        },
+    )
+
+    assert response.status_code == 201
+    pet = response.json()["pet"]
+    assert pet["species"] == "fish"
+    assert pet["exact_species"] == "Betta splendens"
+    assert pet["profile_complete"] is True
+    assert client.get("/v1/home-food/robert", headers=headers).json()["pets"][0]["habitat_type"] == "Acuario de agua dulce"
+
+
 def test_weekly_plan_is_local_persistent_and_requires_confirmation_for_shopping(tmp_path, monkeypatch):
     from tools import roxy_home_service
 

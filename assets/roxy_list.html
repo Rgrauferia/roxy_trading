@@ -8,16 +8,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="111" />
+  <meta name="roxy-home-version" content="112" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
   <link rel="stylesheet" href="/assets/vendor/maplibre-gl.css?v=1" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=94" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=95" />
   <script src="/assets/vendor/maplibre-gl.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=119" defer></script>
+  <script src="/assets/roxy_list.js?v=120" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -331,7 +331,7 @@
       <div class="section-heading hero-heading"><div><p>Roxy cocina contigo</p><h2 id="recipesTitle">Recetas</h2></div><span>Guardado automático</span></div>
       <p class="lead">Elige una categoría o busca tu plato. Cada receta está lista para abrirse, guardarse y cocinarse paso a paso. <span id="recipeCatalogHint"></span></p>
 
-      <section class="recipe-import-studio" aria-labelledby="recipeImportTitle">
+      <section id="recipeImportStudio" class="recipe-import-studio" aria-labelledby="recipeImportTitle">
         <div class="recipe-import-heading"><div><p class="eyebrow">Tus recetas, en un solo lugar</p><h3 id="recipeImportTitle">Trae cualquier receta a Roxy</h3></div><span class="material-symbols-rounded" aria-hidden="true">auto_awesome</span></div>
         <p class="recipe-import-copy">Escanea una página de un libro o una captura, o pega un enlace público de Instagram, YouTube, Facebook, TikTok, Pinterest o una web.</p>
         <div class="recipe-import-actions">
@@ -344,14 +344,19 @@
         </div>
         <section id="petRecipeContext" class="pet-recipe-context" hidden>
           <div class="pet-profile-row"><div id="petProfiles" class="pet-profiles"></div><button id="addPetButton" class="pet-add" type="button"><span class="material-symbols-rounded" aria-hidden="true">add</span> Añadir mascota</button></div>
-          <p>Roxy separa premios, complementos y planes veterinarios. Estas recetas no sustituyen la recomendación de tu veterinario.</p>
-          <div class="pet-species-filters" role="group" aria-label="Especie de la mascota">
-            <button class="active" type="button" data-pet-species="dog">Perros</button><button type="button" data-pet-species="cat">Gatos</button><button type="button" data-pet-species="ferret">Hurones</button><button type="button" data-pet-species="other">Otros</button>
-          </div>
+          <p id="petSafetySummary">Roxy separa premios, complementos y alimentos completos. Las indicaciones de tu veterinario siempre tienen prioridad.</p>
         </section>
       </section>
 
-      <section class="content-section recipe-catalog-section" aria-labelledby="libraryTitle">
+      <section id="petOnboardingEmpty" class="pet-onboarding-empty" hidden aria-labelledby="petOnboardingTitle">
+        <div class="pet-onboarding-copy"><p class="eyebrow">Cuidado realmente personal</p><h2 id="petOnboardingTitle">Primero, conozcamos a tu mascota</h2><p>Roxy adaptará alimentación, premios caseros, rutinas, hábitat, agua o terrario y convivencia segura según su especie.</p></div>
+        <img src="/assets/roxy_home/pet-onboarding-hero.png" alt="Perro, gato, conejo, gecko, pez y ave en un hogar" />
+        <div class="pet-onboarding-steps" aria-label="Cinco partes del perfil"><span><b>1</b><strong>Identidad</strong></span><span><b>2</b><strong>Salud</strong></span><span><b>3</b><strong>Alimentación</strong></span><span><b>4</b><strong>Entorno</strong></span><span><b>5</b><strong>Rutinas</strong></span></div>
+        <aside><span class="material-symbols-rounded" aria-hidden="true">health_and_safety</span><p><strong>La seguridad es lo primero</strong>Roxy conserva las indicaciones veterinarias. Una receta casera nunca sustituye una dieta completa salvo que haya sido formulada por un profesional.</p></aside>
+        <button id="startPetProfile" class="primary full" type="button"><span class="material-symbols-rounded" aria-hidden="true">add_circle</span>Añadir mi mascota</button>
+      </section>
+
+      <section id="recipeCatalogSection" class="content-section recipe-catalog-section" aria-labelledby="libraryTitle">
         <div class="section-heading"><div><p>Incluidas y disponibles</p><h2 id="libraryTitle">Recetario de Roxy</h2><small>Toca una receta incluida para guardarla en tu carpeta</small></div><span id="recipeCount">0 recetas</span></div>
         <label class="recipe-search"><span class="material-symbols-rounded" aria-hidden="true">search</span><input id="recipeSearch" type="search" placeholder="Buscar huevos, pollo, café…" autocomplete="off" /></label>
         <div id="recipeFilters" class="recipe-filters" role="group" aria-label="Categorías de recetas"></div>
@@ -536,6 +541,50 @@
         <button id="recipeImportSave" class="primary full" type="button" hidden>Guardar y abrir receta</button>
       </form>
     </article>
+  </dialog>
+
+  <dialog id="petProfileDialog" class="pet-profile-dialog" aria-labelledby="petProfileTitle">
+    <form id="petProfileForm" method="dialog">
+      <div class="pet-profile-heading"><button id="closePetProfile" type="button" aria-label="Cerrar"><span class="material-symbols-rounded" aria-hidden="true">arrow_back</span></button><div><h2 id="petProfileTitle">Conozcamos a tu mascota</h2><p id="petProfileStepLabel">Paso 1 de 5 · Identidad</p></div></div>
+      <progress id="petProfileProgress" max="5" value="1">1 de 5</progress>
+      <p id="petProfileError" class="form-error" role="alert"></p>
+      <fieldset class="pet-profile-step" data-pet-step="1">
+        <legend>¿Quién vive contigo?</legend>
+        <label class="pet-photo-field"><input id="petProfilePhoto" type="file" accept="image/jpeg,image/png,image/webp" /><span id="petPhotoPreview"><span class="material-symbols-rounded" aria-hidden="true">add_a_photo</span><strong>Añadir foto</strong></span></label>
+        <label><span>Tipo de mascota</span><select id="petProfileSpecies" required><option value="">Selecciona</option><option value="dog">Perro</option><option value="cat">Gato</option><option value="bird">Ave</option><option value="fish">Pez</option><option value="reptile">Reptil</option><option value="amphibian">Anfibio</option><option value="rabbit">Conejo</option><option value="guinea_pig">Cobaya</option><option value="hamster">Hámster</option><option value="ferret">Hurón</option><option value="other">Otra</option></select></label>
+        <label><span>Nombre</span><input id="petProfileName" maxlength="40" required placeholder="Ej. Luna" /></label>
+        <label><span>Especie exacta</span><input id="petProfileExactSpecies" maxlength="100" placeholder="Ej. Betta splendens" /></label>
+        <label><span>Raza o variedad, si la conoces</span><input id="petProfileBreed" maxlength="100" placeholder="Ej. Golden retriever" /></label>
+        <label><span>Edad aproximada en años</span><input id="petProfileAge" type="number" min="0" max="200" step="0.1" inputmode="decimal" /></label>
+      </fieldset>
+      <fieldset class="pet-profile-step" data-pet-step="2" hidden>
+        <legend>Salud y etapa de vida</legend>
+        <label><span>Etapa de vida</span><select id="petProfileLifeStage"><option value="unknown">No estoy seguro</option><option value="baby">Bebé</option><option value="young">Joven</option><option value="adult">Adulto</option><option value="senior">Senior</option></select></label>
+        <label><span>Peso actual en kg, si aplica</span><input id="petProfileWeight" type="number" min="0.001" max="2000" step="0.001" inputmode="decimal" /></label>
+        <label><span>Alergias o intolerancias confirmadas</span><input id="petProfileAllergies" maxlength="500" placeholder="Sepáralas con comas" /></label>
+        <label><span>Condiciones diagnosticadas</span><input id="petProfileConditions" maxlength="500" placeholder="Solo diagnósticos confirmados" /></label>
+        <p class="pet-profile-note"><span class="material-symbols-rounded" aria-hidden="true">shield</span>Roxy no diagnostica. Esta información solo evita sugerencias incompatibles.</p>
+      </fieldset>
+      <fieldset class="pet-profile-step" data-pet-step="3" hidden>
+        <legend>Alimentación</legend>
+        <label><span>Alimento actual</span><input id="petProfileCurrentFood" maxlength="160" placeholder="Marca y variedad, si la conoces" /></label>
+        <label><span>Indicaciones de su veterinario</span><textarea id="petProfileVetInstructions" rows="5" maxlength="2000" placeholder="Dieta prescrita, ingredientes prohibidos, porciones…"></textarea></label>
+        <p class="pet-profile-note"><span class="material-symbols-rounded" aria-hidden="true">nutrition</span>Roxy distinguirá alimento completo, complemento y premio ocasional. Nunca modificará una dieta prescrita.</p>
+      </fieldset>
+      <fieldset class="pet-profile-step" data-pet-step="4" hidden>
+        <legend id="petEnvironmentLegend">Entorno y bienestar</legend>
+        <label><span id="petHabitatLabel">Tipo de hábitat</span><input id="petProfileHabitat" maxlength="100" placeholder="Casa, acuario, terrario, jaula…" /></label>
+        <label><span id="petEnvironmentLabel">Detalles importantes del entorno</span><textarea id="petProfileEnvironment" rows="6" maxlength="1000" placeholder="Tamaño, temperatura, humedad, agua, filtración, compañeros…"></textarea></label>
+        <p id="petAdaptiveHint" class="pet-profile-note"><span class="material-symbols-rounded" aria-hidden="true">tune</span>Estas preguntas se adaptan automáticamente a la especie seleccionada.</p>
+      </fieldset>
+      <fieldset class="pet-profile-step" data-pet-step="5" hidden>
+        <legend>Rutinas y confirmación</legend>
+        <label><span>Horarios, cuidados y observaciones</span><textarea id="petProfileRoutine" rows="7" maxlength="1000" placeholder="Cuántas veces come, paseos, cambios de agua, limpieza, medicación indicada…"></textarea></label>
+        <div class="pet-profile-safety"><span class="material-symbols-rounded" aria-hidden="true">health_and_safety</span><p><strong>Tu mascota tendrá un perfil privado</strong>Roxy usará estos datos para filtrar recetas y organizar cuidados. No sustituye a un veterinario ni a un especialista en animales exóticos.</p></div>
+      </fieldset>
+      <div class="pet-profile-actions"><button id="petProfileBack" class="secondary" type="button" hidden>Anterior</button><button id="petProfileNext" class="primary" type="button">Continuar</button><button id="petProfileSave" class="primary" type="submit" hidden>Guardar perfil</button></div>
+      <button id="petProfileLater" class="link-button" type="button">Completar después</button>
+    </form>
   </dialog>
 
   <dialog id="cookingDialog" class="cooking-dialog" aria-labelledby="cookingTitle">

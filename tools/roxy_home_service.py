@@ -316,7 +316,20 @@ class RecipeImportCommitRequest(BaseModel):
 
 class PetProfileRequest(BaseModel):
     name: str = Field(min_length=1, max_length=40)
-    species: str = Field(pattern="^(dog|cat|ferret|rabbit|guinea_pig|hamster|bird|other)$")
+    species: str = Field(pattern="^(dog|cat|ferret|rabbit|guinea_pig|hamster|bird|fish|reptile|amphibian|other)$")
+    exact_species: str = Field(default="", max_length=100)
+    breed: str = Field(default="", max_length=100)
+    age_years: float | None = Field(default=None, ge=0, le=200)
+    weight_kg: float | None = Field(default=None, gt=0, le=2_000)
+    life_stage: str = Field(default="unknown", pattern="^(baby|young|adult|senior|unknown)$")
+    allergies: list[str] = Field(default_factory=list, max_length=30)
+    conditions: list[str] = Field(default_factory=list, max_length=30)
+    current_food: str = Field(default="", max_length=160)
+    veterinarian_instructions: str = Field(default="", max_length=2_000)
+    habitat_type: str = Field(default="", max_length=100)
+    environment_notes: str = Field(default="", max_length=1_000)
+    routine_notes: str = Field(default="", max_length=1_000)
+    photo_data_url: str = Field(default="", max_length=1_500_000)
 
 
 class WeeklyPlanRequest(BaseModel):

@@ -309,23 +309,55 @@ class HomeFoodStore:
 
         return self._mutate(apply)
 
-    def upsert_pet(self, user_id: Any, *, name: Any, species: Any) -> dict[str, Any]:
+    def upsert_pet(
+        self, user_id: Any, *, name: Any, species: Any, exact_species: Any = "", breed: Any = "",
+        age_years: Any = None, weight_kg: Any = None, life_stage: Any = "unknown", allergies: Any = None,
+        conditions: Any = None, current_food: Any = "", veterinarian_instructions: Any = "",
+        habitat_type: Any = "", environment_notes: Any = "", routine_notes: Any = "",
+        photo_data_url: Any = "",
+    ) -> dict[str, Any]:
         pet_name = _text(name, 40)
         pet_species = _identity(species)
         if not pet_name:
             raise ValueError("La mascota necesita un nombre.")
-        if pet_species not in {"dog", "cat", "ferret", "rabbit", "guinea_pig", "hamster", "bird", "other"}:
+        if pet_species not in {"dog", "cat", "ferret", "rabbit", "guinea_pig", "hamster", "bird", "fish", "reptile", "amphibian", "other"}:
             raise ValueError("La especie de la mascota no es válida.")
+        stage = _identity(life_stage) or "unknown"
+        if stage not in {"baby", "young", "adult", "senior", "unknown"}:
+            stage = "unknown"
+        try:
+            normalized_age = None if age_years in {None, ""} else round(float(age_years), 2)
+            normalized_weight = None if weight_kg in {None, ""} else round(float(weight_kg), 3)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("La edad y el peso deben ser valores válidos.") from exc
+        if normalized_age is not None and not 0 <= normalized_age <= 200:
+            raise ValueError("La edad de la mascota no es válida.")
+        if normalized_weight is not None and not 0 < normalized_weight <= 2_000:
+            raise ValueError("El peso de la mascota no es válido.")
+        photo = str(photo_data_url or "")
+        if photo and not re.match(r"^data:image/(?:jpeg|png|webp);base64,", photo):
+            raise ValueError("La foto de la mascota debe ser JPEG, PNG o WebP.")
+        profile = {
+            "name": pet_name, "species": pet_species, "exact_species": _text(exact_species, 100),
+            "breed": _text(breed, 100), "age_years": normalized_age, "weight_kg": normalized_weight,
+            "life_stage": stage, "allergies": _string_list(allergies), "conditions": _string_list(conditions),
+            "current_food": _text(current_food, 160),
+            "veterinarian_instructions": _text(veterinarian_instructions, 2_000),
+            "habitat_type": _text(habitat_type, 100), "environment_notes": _text(environment_notes, 1_000),
+            "routine_notes": _text(routine_notes, 1_000), "profile_complete": True,
+        }
+        if photo:
+            profile["photo_data_url"] = photo
 
         def apply(payload: dict[str, Any]) -> dict[str, Any]:
             record = self._user(payload, user_id)
             pets = record.setdefault("pets", [])
             existing = next((row for row in pets if _identity(row.get("name")) == _identity(pet_name)), None)
             if existing is None:
-                existing = {"id": uuid4().hex, "name": pet_name, "species": pet_species, "created_at": _now_iso()}
+                existing = {"id": uuid4().hex, "created_at": _now_iso(), **profile}
                 pets.append(existing)
             else:
-                existing.update(name=pet_name, species=pet_species, updated_at=_now_iso())
+                existing.update(**profile, updated_at=_now_iso())
             record["pets"] = pets[-20:]
             record["revision"] = int(record.get("revision") or 0) + 1
             return deepcopy(existing)

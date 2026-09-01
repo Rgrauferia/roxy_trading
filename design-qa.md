@@ -45,6 +45,50 @@ final result: passed
 
 ---
 
+# Personalized pet care and recipe onboarding design QA
+
+## Evidence
+
+- Source visual truth (selected option 1): `/Users/robertograu/.codex/generated_images/01a05d3b-8e50-7f90-bb0a-4df5de364216/exec-6114c5b3-1a8f-4f49-8fb2-bac4ebe0f997.png`.
+- Production hero asset: `/Users/robertograu/.codex/generated_images/01a05d3b-8e50-7f90-bb0a-4df5de364216/exec-c25a30d7-5fe7-4e45-afcd-d0e0f0c8ac00.png`.
+- Browser-rendered onboarding: `/Users/robertograu/.codex/visualizations/2026/09/01/01a05d3b-8e50-7f90-bb0a-4df5de364216/pet-onboarding-implemented-390.png` (390 px application surface captured in the in-app browser).
+- Browser-rendered questionnaire: `/Users/robertograu/.codex/visualizations/2026/09/01/01a05d3b-8e50-7f90-bb0a-4df5de364216/pet-profile-step1-implemented-390.png`.
+- Same-input comparison: `/Users/robertograu/.codex/visualizations/2026/09/01/01a05d3b-8e50-7f90-bb0a-4df5de364216/pet-onboarding-comparison.png`.
+
+## Full-view comparison
+
+The implementation keeps the selected direction's cream, forest and gold identity, large editorial headline, multi-species household image, five-part care journey, veterinary safety promise, and one clear add-pet action. It intentionally uses the existing Roxy Home header and bottom navigation rather than replacing product chrome with mock-only navigation.
+
+## Focused-region comparison
+
+The empty state no longer competes with recipe-import cards or a generic pet catalog. The five profile stages remain readable at 390 px, the generated animal image has an intentional crop, and the questionnaire opens as a compact mobile sheet with full-width fields and controls.
+
+## Required fidelity surfaces
+
+- Typography and hierarchy: Georgia display headings and existing sans-serif operational copy match Roxy Home.
+- Spacing and layout: the onboarding card, hero, steps, safety message, and CTA follow one continuous vertical rhythm with mobile-safe targets.
+- Colors and assets: production uses the approved cream/forest/gold palette and a real generated bitmap asset; no emoji, CSS animal art, placeholder boxes, or handcrafted SVGs are used.
+- Product behavior: pet mode with no profile shows only onboarding. The five steps cover identity, health, food, environment, and routines; environment prompts adapt for aquarium, terrarium, amphibian habitat, bird space, or household context.
+- Safety and personalization: allergies filter matching recipes, veterinarian instructions remain explicit, and homemade recipes are not represented as complete medical diets.
+
+## Interaction and runtime checks
+
+- Verified audience switching, no-profile gating, opening and closing the questionnaire, required-field validation, step navigation, fish-specific aquarium copy, and persisted species-specific profile fields.
+- Browser console: no warnings or errors during the onboarding and questionnaire journey.
+- Automated tests: 42 Home/list/family/food tests passed; `node --check assets/roxy_list.js` passed.
+
+## Comparison history
+
+- First pass P2: recipe-import content remained above the onboarding, weakening the selected option's single primary action.
+- Fix: pet no-profile mode now reduces that area to the audience selector and hides the recipe import and generic catalog until a pet exists.
+- First pass P2: collapsing the import area could preserve a stale scroll offset after selecting pet mode.
+- Fix: the audience control receives a scroll margin and the no-profile transition recenters it before presenting onboarding.
+- Post-fix result: no actionable P0/P1/P2 visual or interaction issue remains.
+
+final result: passed
+
+---
+
 # Nexo person and place marker design QA
 
 ## Evidence
