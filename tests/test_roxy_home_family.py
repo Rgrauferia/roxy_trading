@@ -340,6 +340,17 @@ def test_home_page_csp_allows_only_google_maps_runtime_origins():
     assert "unsafe-eval" not in policy
 
 
+def test_signed_out_nexo_requests_profile_login_without_claiming_missing_api_or_people():
+    script = open("assets/roxy_list.js", encoding="utf-8").read()
+
+    assert "mode:'signed_out'" in script
+    assert "Nexo está protegido" in script
+    assert "Tu sesión personal está cerrada" in script
+    assert "No necesitas configurar una API" in script
+    assert "Roxy no ha ejecutado ningún borrado de personas ni recorridos" in script
+    assert "data-nexo-sign-in" in script
+
+
 def test_private_viewer_can_activate_location_from_own_member_card():
     script = open("assets/roxy_list.js", encoding="utf-8").read()
 
