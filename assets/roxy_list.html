@@ -8,16 +8,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="122" />
+  <meta name="roxy-home-version" content="123" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
   <link rel="stylesheet" href="/assets/vendor/maplibre-gl.css?v=1" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=104" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=105" />
   <script src="/assets/vendor/maplibre-gl.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=129" defer></script>
+  <script src="/assets/roxy_list.js?v=130" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -118,16 +118,23 @@
 
     <section id="plantsPanel" class="app-panel plants-panel" data-panel="plants" aria-labelledby="plantsTitle" hidden>
       <header class="plants-heading">
-        <div><p class="eyebrow">Tu jardín, acompañado</p><h2 id="plantsTitle">Mi jardín</h2><p>Roxy te ayuda a observar cada planta, recordar sus cuidados y aprender con ella.</p></div>
+        <div><p class="eyebrow">Roxy te acompaña</p><h2 id="plantsTitle">Tu jardín está bajo control</h2><p>Te aviso solo cuando una planta necesita atención.</p><time id="plantTodayDate"></time></div>
         <button id="newPlantButton" class="primary" type="button"><span class="material-symbols-rounded" aria-hidden="true">add_a_photo</span> Añadir planta</button>
       </header>
+      <section class="plant-environment-brief" aria-label="Condiciones que Roxy está observando">
+        <div><span id="plantWeatherIcon" class="material-symbols-rounded" aria-hidden="true">partly_cloudy_day</span><strong id="plantWeatherTitle">Clima local sin activar</strong><small id="plantWeatherDetail">Activa tu ubicación para adaptar los cuidados.</small></div>
+        <div><span class="material-symbols-rounded" aria-hidden="true">device_thermostat</span><strong id="plantSensorTitle">Sensor interior opcional</strong><small id="plantSensorDetail">No conectado · Roxy no inventará temperatura ni humedad.</small></div>
+      </section>
       <section id="plantCareToday" class="plant-care-today" aria-labelledby="plantCareTodayTitle">
-        <div><small>Para hoy</small><h3 id="plantCareTodayTitle">Cuidados pendientes</h3></div>
+        <div><small>Necesita tu atención</small><h3 id="plantCareTodayTitle">Roxy está revisando tu jardín</h3><p id="plantWeatherAdvice">Comprueba la tierra y las hojas antes de decidir qué hacer.</p></div>
         <div id="plantTasksToday" class="plant-tasks-today"></div>
       </section>
-      <section class="plant-guidance-notice"><span class="material-symbols-rounded" aria-hidden="true">verified_user</span><p>Roxy recomienda revisar la tierra y observar la planta antes de regar. La especie, luz, maceta, drenaje y clima cambian sus necesidades.</p></section>
+      <section class="plant-upcoming-section" aria-labelledby="plantUpcomingTitle"><div class="plant-section-heading"><div><p class="eyebrow">Próximos cuidados</p><h3 id="plantUpcomingTitle">Roxy te lo recordará</h3></div><button id="plantCalendarButton" type="button"><span class="material-symbols-rounded" aria-hidden="true">calendar_month</span> Ver calendario</button></div><div id="plantUpcomingCare" class="plant-upcoming-care"></div></section>
+      <section class="plant-health-section" aria-labelledby="plantHealthTitle"><div><p class="eyebrow">Resumen de salud</p><h3 id="plantHealthTitle">Tu jardín</h3></div><div id="plantHealthSummary" class="plant-health-summary"></div></section>
+      <section id="plantShoppingSuggestion" class="plant-shopping-suggestion" hidden></section>
       <div class="plants-toolbar"><strong id="plantCount">0 plantas</strong><button id="plantVacationButton" type="button"><span class="material-symbols-rounded" aria-hidden="true">flight_takeoff</span> Modo viaje</button></div>
       <div id="plantCollection" class="plant-collection" aria-live="polite"></div>
+      <section class="plant-guidance-notice"><span class="material-symbols-rounded" aria-hidden="true">verified_user</span><p>Roxy adapta recordatorios al clima y a tus observaciones. Nunca riega, fertiliza ni compra automáticamente.</p></section>
       <footer class="plant-sources"><strong>Fuentes de cuidado</strong><a href="https://extension.illinois.edu/houseplants/watering" target="_blank" rel="noopener">University of Illinois Extension</a><a href="https://www.aspca.org/pet-care/aspca-poison-control/toxic-and-non-toxic-plants" target="_blank" rel="noopener">ASPCA · seguridad para mascotas</a></footer>
     </section>
 
@@ -520,6 +527,7 @@
       <label><span>Especie</span><select id="plantSpecies"><option value="unknown">Que Roxy la proponga</option></select></label>
       <div id="plantIdentificationNote" class="plant-identification-note" hidden></div>
       <div class="form-row"><label><span>Habitación o zona</span><input id="plantRoom" maxlength="60" placeholder="Sala, balcón…" /></label><label><span>Ubicación</span><select id="plantPlacement"><option value="indoor">Interior</option><option value="outdoor">Exterior</option></select></label></div>
+      <label><span>Luz habitual</span><select id="plantLightExposure"><option value="unknown">No estoy seguro</option><option value="low">Poca luz</option><option value="indirect">Luz indirecta</option><option value="bright_indirect">Luz indirecta brillante</option><option value="direct_morning">Sol directo de mañana</option><option value="direct_afternoon">Sol directo de tarde</option></select><small>Esto ayuda a detectar si el lugar es compatible con la especie.</small></label>
       <div class="form-row"><label><span>Maceta</span><select id="plantPot"><option value="unknown">No sé</option><option value="plastic">Plástico</option><option value="terracotta">Terracota</option><option value="ceramic">Cerámica</option></select></label><label class="check-label"><input id="plantDrainage" type="checkbox" /><span>Tiene drenaje</span></label></div>
       <label><span>Notas</span><textarea id="plantNotes" maxlength="800" placeholder="Cuándo llegó, dónde recibe luz…"></textarea></label>
       <button id="plantSubmit" class="primary full" type="submit">Analizar y añadir</button>

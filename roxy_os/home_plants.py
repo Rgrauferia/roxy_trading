@@ -26,7 +26,9 @@ IMAGE_TYPES = {
     "image/png": (b"\x89PNG\r\n\x1a\n", ".png"),
     "image/webp": (b"RIFF", ".webp"),
 }
+VIDEO_TYPES = {"video/mp4": (b"", ".mp4")}
 MAX_IMAGE_BYTES = 6_000_000
+MAX_JOURNAL_MEDIA_BYTES = 12_000_000
 
 CARE_SOURCES = [
     {"label": "University of Illinois Extension · Riego", "url": "https://extension.illinois.edu/houseplants/watering"},
@@ -107,6 +109,19 @@ PLANT_CATALOG: dict[str, dict[str, Any]] = {
     },
 }
 
+PLANT_ENVIRONMENT = {
+    "pothos": {"plant_type": "Trepadora tropical", "temperature": "65–85 °F (18–29 °C)", "humidity": "Media; agradece humedad moderada"},
+    "monstera": {"plant_type": "Trepadora tropical", "temperature": "65–85 °F (18–29 °C)", "humidity": "Media a alta, con circulación de aire"},
+    "snake_plant": {"plant_type": "Suculenta tropical", "temperature": "60–85 °F (16–29 °C)", "humidity": "Normal del hogar; evita humedad constante"},
+    "spider_plant": {"plant_type": "Herbácea perenne", "temperature": "60–80 °F (16–27 °C)", "humidity": "Media"},
+    "aloe": {"plant_type": "Suculenta", "temperature": "55–80 °F (13–27 °C)", "humidity": "Baja; necesita sustrato aireado"},
+    "peace_lily": {"plant_type": "Tropical de sotobosque", "temperature": "65–80 °F (18–27 °C)", "humidity": "Media a alta"},
+    "basil": {"plant_type": "Hierba aromática anual", "temperature": "65–85 °F (18–29 °C)", "humidity": "Media; evita hojas mojadas por mucho tiempo"},
+    "orchid": {"plant_type": "Orquídea epífita", "temperature": "65–80 °F (18–27 °C)", "humidity": "Media a alta con buena ventilación"},
+    "succulent": {"plant_type": "Suculenta por confirmar", "temperature": "Depende de la especie exacta", "humidity": "Generalmente baja; confirma la especie"},
+    "unknown": {"plant_type": "Tipo por confirmar", "temperature": "Pendiente de identificación", "humidity": "Pendiente de identificación"},
+}
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -127,6 +142,18 @@ def _decode_image(data_url: str) -> tuple[bytes, str, str]:
     if not valid or not raw or len(raw) > MAX_IMAGE_BYTES:
         raise ValueError("La foto no es válida o supera 6 MB.")
     return raw, media_type, suffix
+
+
+def _decode_journal_media(data_url: str) -> tuple[bytes, str, str]:
+    if str(data_url or "").startswith("data:image/"):
+        return _decode_image(data_url)
+    match = re.fullmatch(r"data:(video/mp4);base64,([A-Za-z0-9+/=\s]+)", str(data_url or ""))
+    if not match:
+        raise ValueError("La revisión debe ser una foto JPEG, PNG o WebP, o un video MP4.")
+    raw = base64.b64decode(match.group(2), validate=True)
+    if not raw or len(raw) > MAX_JOURNAL_MEDIA_BYTES or b"ftyp" not in raw[:32]:
+        raise ValueError("El video no es válido o supera 12 MB.")
+    return raw, match.group(1), VIDEO_TYPES[match.group(1)][1]
 
 
 class HomePlantStore:
@@ -177,12 +204,25 @@ class HomePlantStore:
         plants.sort(key=lambda row: (row.get("room", ""), row.get("display_name", "").casefold()))
         today = date.today().isoformat()
         due = []
+        upcoming = []
         for plant in plants:
             for task in plant.get("care_tasks", []):
-                if task.get("status") == "PENDING" and str(task.get("due_date") or "") <= today:
-                    due.append({**task, "plant_id": plant["id"], "plant_name": plant["display_name"], "photo_url": plant["photo_url"]})
+                if task.get("status") != "PENDING":
+                    continue
+                enriched = {**task, "plant_id": plant["id"], "plant_name": plant["display_name"], "photo_url": plant["photo_url"]}
+                upcoming.append(enriched)
+                if str(task.get("due_date") or "") <= today:
+                    due.append(enriched)
         due.sort(key=lambda row: (row.get("due_date", ""), row.get("plant_name", "")))
-        return {"status": "READY", "plants": plants, "due_today": due, "vacation": deepcopy(household.get("vacation") or {}), "care_sources": CARE_SOURCES}
+        upcoming.sort(key=lambda row: (row.get("due_date", ""), row.get("plant_name", ""), row.get("title", "")))
+        identification_pending = sum(1 for row in plants if row.get("species_key") == "unknown" or row.get("identification", {}).get("status") != "CONFIRMED")
+        watched_ids = {row["plant_id"] for row in due}
+        return {
+            "status": "READY", "plants": plants, "due_today": due, "upcoming_care": upcoming[:30],
+            "health_summary": {"total": len(plants), "good": max(0, len(plants) - len(watched_ids) - identification_pending), "watch": len(watched_ids), "needs_identification": identification_pending},
+            "environment": {"sensor_status": "not_connected", "temperature_c": None, "humidity_percent": None},
+            "vacation": deepcopy(household.get("vacation") or {}), "care_sources": CARE_SOURCES,
+        }
 
     def plant(self, owner: str, plant_id: str) -> dict[str, Any]:
         row = self._household(self._read(), owner).get("plants", {}).get(plant_id)
@@ -207,7 +247,8 @@ class HomePlantStore:
         row = {
             "id": plant_id, "owner_id": owner, "created_by": user_id, "display_name": _text(values.get("display_name"), 60) or profile["common_name"],
             "species_key": key, **profile, "room": _text(values.get("room"), 60) or "Sin ubicación", "placement": _text(values.get("placement"), 20) or "indoor",
-            "pot_type": _text(values.get("pot_type"), 30) or "unknown", "drainage": bool(values.get("drainage")), "notes": _text(values.get("notes"), 800),
+            "pot_type": _text(values.get("pot_type"), 30) or "unknown", "drainage": bool(values.get("drainage")),
+            "light_exposure": _text(values.get("light_exposure"), 40) or "unknown", "notes": _text(values.get("notes"), 800),
             "photo_path": str(photo_path), "photo_media_type": media_type,
             "identification": {
                 "status": "CONFIRMED"
@@ -217,7 +258,11 @@ class HomePlantStore:
                 else "NEEDS_CONFIRMATION",
                 **identification,
             },
-            "care_tasks": [{"id": uuid4().hex, "action": "CHECK_SOIL", "title": "Revisar la tierra", "due_date": first_due, "cadence_days": profile["soil_check_days"], "status": "PENDING", "calendar_event_id": ""}],
+            "care_tasks": [
+                {"id": uuid4().hex, "action": "CHECK_SOIL", "title": "Revisar tierra y hojas", "due_date": first_due, "cadence_days": profile["soil_check_days"], "status": "PENDING", "calendar_event_id": ""},
+                {"id": uuid4().hex, "action": "ROTATE", "title": "Rotar la maceta", "due_date": (date.today() + timedelta(days=14)).isoformat(), "cadence_days": 14, "status": "PENDING", "calendar_event_id": ""},
+                {"id": uuid4().hex, "action": "FERTILIZE", "title": "Revisar si necesita fertilizante", "due_date": (date.today() + timedelta(days=30)).isoformat(), "cadence_days": 30, "status": "PENDING", "calendar_event_id": ""},
+            ],
             "journal": [], "created_at": created, "updated_at": created, "archived": False,
         }
         def apply(value: dict[str, Any]) -> dict[str, Any]:
@@ -228,7 +273,7 @@ class HomePlantStore:
         def apply(value: dict[str, Any]) -> dict[str, Any]:
             row = self._household(value, owner).get("plants", {}).get(plant_id)
             if not row or row.get("archived"): raise KeyError(plant_id)
-            for key, limit in (("display_name", 60), ("room", 60), ("placement", 20), ("pot_type", 30), ("notes", 800)):
+            for key, limit in (("display_name", 60), ("room", 60), ("placement", 20), ("pot_type", 30), ("light_exposure", 40), ("notes", 800)):
                 if key in values: row[key] = _text(values[key], limit)
             if "drainage" in values: row["drainage"] = bool(values["drainage"])
             species_key = _text(values.get("species_key"), 40)
@@ -270,7 +315,7 @@ class HomePlantStore:
     def add_journal(self, owner: str, plant_id: str, user_id: str, notes: str, photo_data_url: str = "") -> dict[str, Any]:
         photo_path = ""; media_type = ""
         if photo_data_url:
-            raw, media_type, suffix = _decode_image(photo_data_url)
+            raw, media_type, suffix = _decode_journal_media(photo_data_url)
             directory = self.image_root / re.sub(r"[^a-zA-Z0-9_.-]+", "_", owner) / plant_id / "journal"; directory.mkdir(parents=True, exist_ok=True)
             photo_path = str(directory / f"{uuid4().hex}{suffix}"); Path(photo_path).write_bytes(raw)
         entry = {"id": uuid4().hex, "created_at": _now(), "created_by": user_id, "notes": _text(notes, 600), "photo_path": photo_path, "photo_media_type": media_type}
@@ -322,9 +367,12 @@ class HomePlantIdentifier:
 def public_plant(row: dict[str, Any], user_id: str) -> dict[str, Any]:
     result = {key: deepcopy(value) for key, value in row.items() if key not in {"photo_path", "photo_media_type"}}
     result["photo_url"] = f"/v1/home-plants/{user_id}/{row['id']}/image"
+    for key, value in PLANT_ENVIRONMENT.get(str(row.get("species_key") or "unknown"), PLANT_ENVIRONMENT["unknown"]).items():
+        result.setdefault(key, value)
     for entry in result.get("journal", []):
         if entry.get("photo_path"):
             entry["photo_url"] = f"/v1/home-plants/{user_id}/{row['id']}/journal/{entry['id']}/image"
+        entry["media_type"] = entry.get("photo_media_type") or ""
         entry.pop("photo_path", None); entry.pop("photo_media_type", None)
     result["sources"] = CARE_SOURCES
     result["product_queries"] = [f"sustrato para {row.get('common_name')}", f"fertilizante para {row.get('common_name')}", "medidor de humedad para plantas"]

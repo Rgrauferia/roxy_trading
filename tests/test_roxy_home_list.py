@@ -22,15 +22,16 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="122"' in page.text
+    assert 'name="roxy-home-version" content="123"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' in page.text
-    assert 'href="/assets/roxy_list.css?v=104"' in page.text
-    assert 'src="/assets/roxy_list.js?v=129"' in page.text
+    assert 'href="/assets/roxy_list.css?v=105"' in page.text
+    assert 'src="/assets/roxy_list.js?v=130"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
-    assert '/assets/roxy_list.css?v=104' in worker.text
-    assert '/assets/roxy_list.js?v=129' in worker.text
+    assert '/assets/roxy_list.css?v=105' in worker.text
+    assert '/assets/roxy_list.js?v=130' in worker.text
+    assert '/assets/roxy_home/plants-soil-meter.png' in worker.text
     assert '/assets/roxy_home/pet-onboarding-hero.png' in worker.text
     assert 'id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle" hidden' in page.text
     assert '/assets/roxy_home_avatar.jpg' in page.text
@@ -75,6 +76,13 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="plantDetailDialog"' in page.text
     assert '/v1/home-plants/' in script.text
     assert 'Mi jardín' in page.text
+    assert 'Tu jardín está bajo control' in page.text
+    assert 'id="plantUpcomingCare"' in page.text
+    assert 'id="plantHealthSummary"' in page.text
+    assert 'id="plantLightExposure"' in page.text
+    assert "plantWeatherContext" in script.text
+    assert "readPlantReviewMedia" in script.text
+    assert "Revisar antes de agregar" in script.text
     assert 'id="familyChatButton"' in page.text
     assert 'class="family-more-nav"' in page.text
     assert "family-map-person" in script.text

@@ -249,6 +249,7 @@ class HomePlantCreateRequest(BaseModel):
     placement: str = Field(default="indoor", pattern="^(indoor|outdoor)$")
     pot_type: str = Field(default="unknown", max_length=30)
     drainage: bool = False
+    light_exposure: str = Field(default="unknown", pattern="^(unknown|low|indirect|bright_indirect|direct_morning|direct_afternoon)$")
     notes: str = Field(default="", max_length=800)
     photo_data_url: str = Field(min_length=32, max_length=8_100_000)
 
@@ -260,6 +261,7 @@ class HomePlantUpdateRequest(BaseModel):
     placement: str | None = Field(default=None, pattern="^(indoor|outdoor)$")
     pot_type: str | None = Field(default=None, max_length=30)
     drainage: bool | None = None
+    light_exposure: str | None = Field(default=None, pattern="^(unknown|low|indirect|bright_indirect|direct_morning|direct_afternoon)$")
     notes: str | None = Field(default=None, max_length=800)
 
 
@@ -269,7 +271,7 @@ class HomePlantTaskCompleteRequest(BaseModel):
 
 class HomePlantJournalRequest(BaseModel):
     notes: str = Field(default="", max_length=600)
-    photo_data_url: str = Field(default="", max_length=8_100_000)
+    photo_data_url: str = Field(default="", max_length=16_100_000)
 
 
 class HomePlantVacationRequest(BaseModel):

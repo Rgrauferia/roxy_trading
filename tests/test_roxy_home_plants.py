@@ -7,6 +7,8 @@ from roxy_os.home_plants import HomePlantIdentifier, HomePlantStore
 
 PHOTO_BYTES = b"\xff\xd8\xff" + (b"roxy-home-plant" * 2) + b"\xff\xd9"
 PHOTO = "data:image/jpeg;base64," + base64.b64encode(PHOTO_BYTES).decode("ascii")
+VIDEO_BYTES = b"\x00\x00\x00\x18ftypmp42" + (b"roxy-home-plant-video" * 2)
+VIDEO = "data:video/mp4;base64," + base64.b64encode(VIDEO_BYTES).decode("ascii")
 
 
 def plant_payload(**overrides):
@@ -17,6 +19,7 @@ def plant_payload(**overrides):
         "placement": "indoor",
         "pot_type": "terracotta",
         "drainage": True,
+        "light_exposure": "direct_morning",
         "notes": "Cerca de la ventana, sin sol fuerte de tarde.",
         "photo_data_url": PHOTO,
     }
@@ -52,8 +55,24 @@ def test_plant_care_records_observation_and_schedules_next_check(tmp_path):
     assert updated["care_tasks"][0]["status"] == "DONE"
     assert updated["care_tasks"][0]["completed_by"] == "Robert"
     assert updated["care_tasks"][0]["result"] == "WATERED"
-    assert updated["care_tasks"][1]["status"] == "PENDING"
-    assert updated["care_tasks"][1]["action"] == "CHECK_SOIL"
+    next_checks = [row for row in updated["care_tasks"] if row["status"] == "PENDING" and row["action"] == "CHECK_SOIL"]
+    assert len(next_checks) == 1
+    assert {row["action"] for row in updated["care_tasks"] if row["status"] == "PENDING"} >= {"CHECK_SOIL", "ROTATE", "FERTILIZE"}
+
+
+def test_plant_snapshot_includes_preventive_health_upcoming_care_and_video_followup(tmp_path):
+    store = HomePlantStore(tmp_path / "plants.json", tmp_path / "images")
+    plant = store.create("hogar-1", "robert", plant_payload(species_key="monstera"))
+    entry = store.add_journal("hogar-1", plant["id"], "robert", "Nueva hoja visible", VIDEO)
+    snapshot = store.snapshot("hogar-1", "robert")
+
+    assert {row["action"] for row in snapshot["upcoming_care"]} == {"CHECK_SOIL", "ROTATE", "FERTILIZE"}
+    assert snapshot["health_summary"]["total"] == 1
+    assert snapshot["environment"]["sensor_status"] == "not_connected"
+    assert entry["photo_media_type"] == "video/mp4"
+    assert snapshot["plants"][0]["journal"][0]["media_type"] == "video/mp4"
+    assert snapshot["plants"][0]["plant_type"] == "Trepadora tropical"
+    assert snapshot["plants"][0]["light_exposure"] == "direct_morning"
 
 
 def test_plant_identifier_has_safe_manual_fallback_without_home_key():
