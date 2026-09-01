@@ -212,6 +212,45 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
             sources=[species_sources[species]], editorial_status="verified_veterinary_guidance",
         )
     recipes.update(additions)
+    pet_food_source = {
+        "title": "FDA · Alimento completo y equilibrado",
+        "url": "https://www.fda.gov/animal-veterinary/animal-health-literacy/complete-and-balanced-pet-food",
+        "authority": "U.S. Food and Drug Administration",
+    }
+    extra_treats = {
+        "dog_sweet_potato_chews": ("dog", "Tiritas horneadas de batata para perros", "Batata", 1, "unidad", "Lava, pela y corta la batata en tiras delgadas.", "Hornea las tiras a 120 °C de dos a tres horas, girándolas a mitad de cocción."),
+        "dog_apple_carrot_oat": ("dog", "Mini bocados de manzana, zanahoria y avena", "Manzana sin semillas ni corazón", 0.5, "unidad", "Ralla la manzana y la zanahoria después de retirar semillas y corazón.", "Mezcla con avena molida, forma bocados pequeños y hornea a 175 °C hasta que estén firmes."),
+        "dog_turkey_pumpkin": ("dog", "Bocaditos de pavo y calabaza", "Pavo molido sin condimentos", 250, "gramo", "Mezcla el pavo con puré de calabaza 100 % natural, sin especias.", "Forma porciones pequeñas y hornea a 190 °C hasta que el centro alcance 74 °C."),
+        "dog_beef_green_bean": ("dog", "Mini albóndigas de res y judías verdes", "Res molida magra sin condimentos", 250, "gramo", "Pica muy fino las judías verdes simples y mézclalas con la carne.", "Forma bolitas pequeñas y hornea hasta que la carne alcance 71 °C."),
+        "dog_frozen_banana_pumpkin": ("dog", "Cubitos fríos de plátano y calabaza", "Plátano maduro", 1, "unidad", "Tritura el plátano con puré de calabaza simple, sin azúcar ni especias.", "Reparte en moldes pequeños y congela por al menos tres horas."),
+        "dog_chicken_training_bits": ("dog", "Daditos de pollo para entrenamiento", "Pechuga de pollo sin piel ni hueso", 200, "gramo", "Corta el pollo sin condimentos en dados muy pequeños.", "Hornea a 190 °C hasta que todos los dados alcancen 74 °C en el centro."),
+        "cat_whitefish_flakes": ("cat", "Lascas de pescado blanco para gatos", "Filete de bacalao sin piel ni espinas", 120, "gramo", "Revisa cuidadosamente el pescado y elimina piel y espinas.", "Hornea sin aceite ni condimentos hasta que se desmenuce y esté completamente cocido."),
+        "cat_beef_crumbles": ("cat", "Miguitas de res cocida para gatos", "Res molida magra sin condimentos", 120, "gramo", "Separa la carne en miguitas pequeñas en una sartén antiadherente.", "Cocina sin aceite ni condimentos hasta alcanzar 71 °C y escurre la grasa."),
+        "cat_plain_shrimp": ("cat", "Trocitos de camarón cocido para gatos", "Camarón crudo pelado y desvenado", 80, "gramo", "Confirma que el camarón esté pelado, desvenado y sin sal ni aditivos.", "Hiérvelo en agua simple hasta que quede opaco y completamente cocido."),
+        "cat_turkey_flakes": ("cat", "Lascas de pavo cocido para gatos", "Pechuga de pavo sin piel ni hueso", 120, "gramo", "Revisa que el pavo no contenga salmuera, ajo, cebolla ni condimentos.", "Hornéalo sin aceite hasta que alcance 74 °C y desmenúzalo muy fino."),
+        "cat_rabbit_morsels": ("cat", "Bocaditos de conejo cocido para gatos", "Carne de conejo deshuesada sin condimentos", 120, "gramo", "Retira por completo huesos, grasa visible y cualquier condimento.", "Cocina la carne hasta que esté completamente hecha y córtala en bocados mínimos."),
+    }
+    for key, (species, title, ingredient_name, quantity, unit, prep, cooking) in extra_treats.items():
+        recipe = _recipe(
+            title,
+            "Premio casero ocasional preparado sin sal, ajo, cebolla, azúcar ni condimentos.",
+            "other",
+            10,
+            [(ingredient_name, quantity, unit)],
+            [
+                "Lávate las manos y limpia la superficie y los utensilios antes de comenzar.",
+                prep,
+                cooking,
+                "Deja enfriar por completo y divide en porciones muy pequeñas adecuadas al tamaño de la mascota.",
+                "Ofrece solo como premio ocasional y refrigera el resto por un máximo de dos días; no sustituye su alimento completo.",
+            ],
+        )
+        recipe.update(
+            audience="pet", pet_species=species, pet_category="pet_treats", safety_class="treat",
+            veterinary_note="Premio ocasional; no sustituye una dieta completa y equilibrada. Confirma ingredientes y porción con tu veterinario si existen alergias, enfermedad o dieta prescrita.",
+            sources=[pet_food_source], editorial_status="verified_veterinary_guidance",
+        )
+        recipes[key] = recipe
     for key, recipe in recipes.items():
         if not recipe.get("pet_category"):
             title = _identity(recipe.get("title"))

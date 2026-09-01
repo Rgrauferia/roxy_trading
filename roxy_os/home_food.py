@@ -314,7 +314,9 @@ class HomeFoodStore:
         age_years: Any = None, weight_kg: Any = None, life_stage: Any = "unknown", allergies: Any = None,
         conditions: Any = None, current_food: Any = "", veterinarian_instructions: Any = "",
         habitat_type: Any = "", environment_notes: Any = "", routine_notes: Any = "",
-        photo_data_url: Any = "",
+        photo_data_url: Any = "", sex: Any = "unknown", sterilized: Any = "unknown",
+        size_class: Any = "unknown", activity_level: Any = "unknown", body_condition: Any = "unknown",
+        goals: Any = None,
     ) -> dict[str, Any]:
         pet_name = _text(name, 40)
         pet_species = _identity(species)
@@ -341,6 +343,10 @@ class HomeFoodStore:
             "name": pet_name, "species": pet_species, "exact_species": _text(exact_species, 100),
             "breed": _text(breed, 100), "age_years": normalized_age, "weight_kg": normalized_weight,
             "life_stage": stage, "allergies": _string_list(allergies), "conditions": _string_list(conditions),
+            "sex": _identity(sex) or "unknown", "sterilized": _identity(sterilized) or "unknown",
+            "size_class": _identity(size_class) or "unknown",
+            "activity_level": _identity(activity_level) or "unknown",
+            "body_condition": _identity(body_condition) or "unknown", "goals": _string_list(goals),
             "current_food": _text(current_food, 160),
             "veterinarian_instructions": _text(veterinarian_instructions, 2_000),
             "habitat_type": _text(habitat_type, 100), "environment_notes": _text(environment_notes, 1_000),
@@ -361,6 +367,37 @@ class HomeFoodStore:
             record["pets"] = pets[-20:]
             record["revision"] = int(record.get("revision") or 0) + 1
             return deepcopy(existing)
+
+        return self._mutate(apply)
+
+    def add_pet_medical_record(
+        self, user_id: Any, pet_id: Any, *, occurred_on: Any = None, record_type: Any = "note",
+        title: Any, provider: Any = "", notes: Any = "", medications: Any = None,
+    ) -> dict[str, Any]:
+        pet_key = _text(pet_id, 80)
+        clean_title = _text(title, 120)
+        if not clean_title:
+            raise ValueError("El registro médico necesita un título.")
+        clean_type = _identity(record_type) or "note"
+        if clean_type not in {"checkup", "vaccine", "diagnosis", "treatment", "surgery", "lab", "allergy", "note"}:
+            raise ValueError("El tipo de registro médico no es válido.")
+        record = {
+            "id": uuid4().hex, "occurred_on": str(occurred_on or "")[:10], "record_type": clean_type,
+            "title": clean_title, "provider": _text(provider, 120), "notes": _text(notes, 2_000),
+            "medications": _string_list(medications), "created_at": _now_iso(),
+        }
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            owner = self._user(payload, user_id)
+            pet = next((row for row in owner.setdefault("pets", []) if _text(row.get("id"), 80) == pet_key), None)
+            if pet is None:
+                raise KeyError(pet_key)
+            history = pet.setdefault("medical_history", [])
+            history.append(record)
+            pet["medical_history"] = history[-100:]
+            pet["updated_at"] = _now_iso()
+            owner["revision"] = int(owner.get("revision") or 0) + 1
+            return deepcopy(record)
 
         return self._mutate(apply)
 

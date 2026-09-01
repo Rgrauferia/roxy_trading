@@ -45,6 +45,32 @@ final result: passed
 
 ---
 
+# Deep pet personalization design QA
+
+## Evidence
+
+- Mobile browser render: `/private/tmp/roxy-nexo-fix.1La6Ve/.playwright-cli/page-2026-09-01T19-15-08-990Z.png` (390 × 844 px).
+- Tested profile: Luna, adult Golden Retriever, large size, ideal body condition, moderate activity, current food and a maintain-weight goal.
+
+## Interaction and runtime checks
+
+- Verified the five-step profile flow uses dog-specific allergy, condition and goal choices and exposes a searchable exact-breed list.
+- Verified the saved profile opens a dedicated hub with 10 dog recipes, concrete branded products with official-source links, and a private medical-history tab.
+- Verified adding a product writes the exact brand and product to the existing shopping list without inventing price or completing a purchase.
+- Verified a dated veterinary record persists and renders in the pet's medical timeline.
+- Mobile layout at 390 px preserves readable hierarchy, 44 px-class controls, a reachable tab bar and the existing cream/forest/gold Roxy Home identity.
+- Product filtering was tightened after QA so goal- or condition-specific products are omitted unless the pet profile actually matches them.
+- “Ninguna alergia conocida” is no longer counted or presented as a dietary restriction.
+
+## Validation
+
+- `node --check assets/roxy_list.js` passed.
+- 43 Home list/family/food tests passed before the final precision adjustment; the full suite is rerun before deployment.
+
+final result: passed
+
+---
+
 # Personalized pet care and recipe onboarding design QA
 
 ## Evidence

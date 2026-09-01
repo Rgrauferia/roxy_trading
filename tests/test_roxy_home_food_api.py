@@ -15,11 +15,11 @@ def test_local_catalog_includes_species_specific_pet_recipes_with_safety_notes()
     from roxy_os.home_recipe_fallback import local_recipe_catalog
 
     rows = [row for row in local_recipe_catalog({}) if row.get("audience") == "pet"]
-    assert len(rows) == 24
+    assert len(rows) == 35
     assert {row["pet_species"] for row in rows} == {
         "dog", "cat", "ferret", "bird", "rabbit", "hamster", "guinea_pig"
     }
-    assert {species: sum(row["pet_species"] == species for row in rows) for species in ("dog", "cat", "ferret")} == {"dog": 4, "cat": 4, "ferret": 4}
+    assert {species: sum(row["pet_species"] == species for row in rows) for species in ("dog", "cat", "ferret")} == {"dog": 10, "cat": 9, "ferret": 4}
     assert all(row["safety_class"] == "treat" for row in rows)
     assert all("no sustituye" in row["veterinary_note"].lower() for row in rows)
     illustrated = [row for row in rows if row.get("photo_asset")]
@@ -158,6 +158,47 @@ def test_pet_profile_supports_species_specific_private_care_context(tmp_path, mo
     assert pet["exact_species"] == "Betta splendens"
     assert pet["profile_complete"] is True
     assert client.get("/v1/home-food/robert", headers=headers).json()["pets"][0]["habitat_type"] == "Acuario de agua dulce"
+
+
+def test_pet_profile_exposes_breeds_products_and_private_medical_history(tmp_path, monkeypatch):
+    from tools import roxy_home_service
+
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "home-test-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert")
+    monkeypatch.setenv("ROXY_HOME_MEMORY_PATH", str(tmp_path / "home-food.json"))
+    roxy_home_service._RATE_STATE.clear()
+    client = TestClient(roxy_home_service.app)
+    headers = {"Authorization": "Bearer home-test-key"}
+    created = client.post(
+        "/v1/home-food/robert/pets",
+        headers=headers,
+        json={
+            "name": "Luna", "species": "dog", "breed": "Golden Retriever", "life_stage": "adult",
+            "sex": "female", "sterilized": "yes", "size_class": "large", "activity_level": "moderate",
+            "body_condition": "ideal", "goals": ["Piel y pelaje"], "conditions": ["Piel sensible"],
+            "allergies": ["Pollo"], "current_food": "Alimento seco actual",
+        },
+    )
+    pet_id = created.json()["pet"]["id"]
+    medical = client.post(
+        f"/v1/home-food/robert/pets/{pet_id}/medical-history",
+        headers=headers,
+        json={
+            "occurred_on": "2026-08-20", "record_type": "checkup", "title": "Revisión anual",
+            "provider": "Clínica Central", "notes": "Peso estable.", "medications": ["Ninguno"],
+        },
+    )
+    snapshot = client.get("/v1/home-food/robert", headers=headers).json()
+
+    assert created.status_code == 201 and medical.status_code == 201
+    assert "Golden Retriever" in snapshot["pet_options"]["breeds"]["dog"]
+    assert "Betta splendens" in snapshot["pet_options"]["exact_species"]["fish"]
+    assert len(snapshot["pet_options"]["breeds"]["dog"]) >= 80
+    assert len(snapshot["pet_recommendations"][pet_id]) >= 3
+    assert all(row["name"] != "Adult Perfect Weight" for row in snapshot["pet_recommendations"][pet_id])
+    assert any(row["brand"] == "Royal Canin" and "Golden Retriever" in row["name"] for row in snapshot["pet_recommendations"][pet_id])
+    assert snapshot["pets"][0]["medical_history"][0]["title"] == "Revisión anual"
+    assert snapshot["pets"][0]["goals"] == ["Piel y pelaje"]
 
 
 def test_weekly_plan_is_local_persistent_and_requires_confirmation_for_shopping(tmp_path, monkeypatch):

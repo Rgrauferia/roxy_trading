@@ -64,6 +64,7 @@ from roxy_os.home_family import HomeFamilyStore
 from roxy_os.home_plants import HomePlantIdentifier, HomePlantStore, PLANT_CATALOG, public_plant
 from roxy_os.home_product_intelligence import HomeProductIntelligence, ProductIntelligenceConfig
 from roxy_os.home_food import HomeFoodStore, HomePermissionPolicy
+from roxy_os.home_pet_catalog import personalized_pet_products, pet_profile_options
 from roxy_os.home_price_recommendations import (
     PRICE_NOTICE,
     PriceFeedConfig,
@@ -322,6 +323,12 @@ class PetProfileRequest(BaseModel):
     age_years: float | None = Field(default=None, ge=0, le=200)
     weight_kg: float | None = Field(default=None, gt=0, le=2_000)
     life_stage: str = Field(default="unknown", pattern="^(baby|young|adult|senior|unknown)$")
+    sex: str = Field(default="unknown", pattern="^(female|male|unknown)$")
+    sterilized: str = Field(default="unknown", pattern="^(yes|no|unknown)$")
+    size_class: str = Field(default="unknown", pattern="^(toy|small|medium|large|giant|unknown)$")
+    activity_level: str = Field(default="unknown", pattern="^(low|moderate|high|working|unknown)$")
+    body_condition: str = Field(default="unknown", pattern="^(underweight|ideal|overweight|unknown)$")
+    goals: list[str] = Field(default_factory=list, max_length=30)
     allergies: list[str] = Field(default_factory=list, max_length=30)
     conditions: list[str] = Field(default_factory=list, max_length=30)
     current_food: str = Field(default="", max_length=160)
@@ -330,6 +337,15 @@ class PetProfileRequest(BaseModel):
     environment_notes: str = Field(default="", max_length=1_000)
     routine_notes: str = Field(default="", max_length=1_000)
     photo_data_url: str = Field(default="", max_length=1_500_000)
+
+
+class PetMedicalRecordRequest(BaseModel):
+    occurred_on: date | None = None
+    record_type: str = Field(default="note", pattern="^(checkup|vaccine|diagnosis|treatment|surgery|lab|allergy|note)$")
+    title: str = Field(min_length=1, max_length=120)
+    provider: str = Field(default="", max_length=120)
+    notes: str = Field(default="", max_length=2_000)
+    medications: list[str] = Field(default_factory=list, max_length=30)
 
 
 class WeeklyPlanRequest(BaseModel):
@@ -3551,8 +3567,13 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
         for day in plan.get("days", []):
             for meal in day.get("meals", []):
                 _recipe_photo_queue().schedule({**meal, "kind": "meal"})
+    pets = snapshot.get("pets") or []
     return {
         **snapshot,
+        "pet_options": pet_profile_options(),
+        "pet_recommendations": {
+            str(pet.get("id")): personalized_pet_products(pet) for pet in pets if pet.get("id")
+        },
         "local_catalog": local_recipe_catalog_summary(),
         "local_recipes": local_recipe_catalog(snapshot),
         "shared_recipe_library": _recipe_library_store().summary(),
@@ -3672,6 +3693,25 @@ def upsert_home_pet(user_id: str, payload: PetProfileRequest, request: Request, 
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"status": "SAVED", "pet": pet}
+
+
+@app.post("/v1/home-food/{user_id}/pets/{pet_id}/medical-history", status_code=201)
+def add_home_pet_medical_record(
+    user_id: str,
+    pet_id: str,
+    payload: PetMedicalRecordRequest,
+    request: Request,
+    auth: str = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        record = _home_food_store().add_pet_medical_record(user, pet_id, **payload.model_dump())
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Mascota no encontrada") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "CREATED", "record": record}
 
 
 @app.patch("/v1/home-food/{user_id}/recipes/{recipe_id}")

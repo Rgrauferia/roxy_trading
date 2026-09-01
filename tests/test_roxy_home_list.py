@@ -22,15 +22,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="112"' in page.text
+    assert 'name="roxy-home-version" content="113"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' in page.text
-    assert 'href="/assets/roxy_list.css?v=95"' in page.text
-    assert 'src="/assets/roxy_list.js?v=120"' in page.text
+    assert 'href="/assets/roxy_list.css?v=96"' in page.text
+    assert 'src="/assets/roxy_list.js?v=121"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
-    assert '/assets/roxy_list.css?v=95' in worker.text
-    assert '/assets/roxy_list.js?v=120' in worker.text
+    assert '/assets/roxy_list.css?v=96' in worker.text
+    assert '/assets/roxy_list.js?v=121' in worker.text
     assert '/assets/roxy_home/pet-onboarding-hero.png' in worker.text
     assert 'id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle" hidden' in page.text
     assert '/assets/roxy_home_avatar.jpg' in page.text
@@ -57,7 +57,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
     assert 'Comparar muebles reales' in script.text
-    assert "const APP_VERSION = '112'" in script.text
+    assert "const APP_VERSION = '113'" in script.text
     assert 'id="familyHistoryButton"' in page.text
     assert 'id="familyHistoryPanel"' in page.text
     assert 'loadFamilyHistoryPanel' in script.text
@@ -238,6 +238,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'data-recipe-audience="pet"' in page.text
     assert 'id="petOnboardingEmpty"' in page.text
     assert 'id="petProfileDialog"' in page.text
+    assert 'id="petPersonalizedHub"' in page.text
+    assert 'id="petProductRecommendations"' in page.text
+    assert 'id="petMedicalDialog"' in page.text
+    assert 'id="petBreedOptions"' in page.text
+    assert 'id="petConditionChoices"' in page.text
     assert 'id="petProfileProgress"' in page.text
     assert 'id="petProfileSpecies"' in page.text
     assert 'value="fish"' in page.text and 'value="reptile"' in page.text
@@ -245,9 +250,12 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'nunca sustituye una dieta completa' in page.text
     assert "selectedPetProfile" in script.text
     assert "blockedIngredients" in script.text
+    assert "renderPetProducts" in script.text
+    assert "savePetMedical" in script.text
+    assert "pet_recommendations" in script.text
     assert "/recipe-imports" in script.text
     assert "/recipe-imports/commit" in script.text
-    assert "/pets`" in script.text
+    assert "'/pets'" in script.text
     assert page.text.index('id="recipeLibrary"') < page.text.index('id="recipeForm"')
     assert 'Pídele a Roxy algo diferente' in page.text
     assert 'id="recipeCatalogHint"' in page.text
