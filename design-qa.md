@@ -185,3 +185,26 @@ The person portraits, live indicator, label cards, Home badge, Work badge, Store
 The local browser has no authenticated household Google Maps key, so marker visuals and interactions were verified in a MapLibre QA harness using the exact production classes. Google OverlayView placement and saved-place data wiring are covered by implementation and automated tests; final public asset/version verification is still required after deployment.
 
 final result: passed
+
+---
+
+# Módulo Mascotas separado · design QA
+
+## Comparación visual
+
+- Fuente de verdad: referencia seleccionada por Roberto (`1-Photo-1.jpg`).
+- Implementación: `reports/qa/roxy-pets-v125-mobile.png` a 390 × 844.
+- Comparación conjunta: `reports/qa/roxy-pets-comparison.png`.
+
+## Criterios verificados
+
+- **Jerarquía:** perfil y nombre de mascota antes de las acciones; el siguiente cuidado domina el flujo.
+- **Densidad:** solo la acción inmediata está abierta; rutina y guía se consultan bajo demanda.
+- **Navegación:** cinco categorías caben en una fila; Mascotas queda centrado en la barra inferior junto a Jardín.
+- **Consistencia:** crema, verde bosque y acentos dorados conservan la identidad de Roxy Home.
+- **Legibilidad móvil:** títulos, botones y estados no se cortan a 390 px.
+- **Separación conceptual:** Recetas familiares y Mascotas son destinos distintos.
+- **Interacción:** pestañas, desplegables, navegación y registro de cuidado validados en navegador real.
+- **Consola:** sin errores ni advertencias durante el recorrido.
+
+Final result: passed

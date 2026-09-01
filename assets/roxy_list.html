@@ -8,16 +8,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="124" />
+  <meta name="roxy-home-version" content="125" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
   <link rel="stylesheet" href="/assets/vendor/maplibre-gl.css?v=1" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=105" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=107" />
   <script src="/assets/vendor/maplibre-gl.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=130" defer></script>
+  <script src="/assets/roxy_list.js?v=132" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -345,7 +345,7 @@
           <button id="scanRecipeButton" type="button"><span class="material-symbols-rounded" aria-hidden="true">document_scanner</span><span><strong>Escanear receta</strong><small>Foto, libro o captura de pantalla</small></span><span class="material-symbols-rounded" aria-hidden="true">chevron_right</span></button>
           <button id="importRecipeUrlButton" type="button"><span class="material-symbols-rounded" aria-hidden="true">link</span><span><strong>Importar enlace</strong><small>Instagram, YouTube, Facebook y más</small></span><span class="material-symbols-rounded" aria-hidden="true">chevron_right</span></button>
         </div>
-        <div class="recipe-audience-switch" role="group" aria-label="Recetas para personas o mascotas">
+        <div class="recipe-audience-switch" role="group" aria-label="Recetas para personas o mascotas" hidden>
           <button class="active" type="button" data-recipe-audience="human">Para nosotros</button>
           <button type="button" data-recipe-audience="pet">Para mascotas</button>
         </div>
@@ -364,14 +364,14 @@
       </section>
 
       <section id="petPersonalizedHub" class="pet-personalized-hub" hidden aria-labelledby="petHubTitle">
-        <div class="pet-hub-heading"><div><p class="eyebrow">Perfil activo</p><h2 id="petHubTitle">Todo para tu mascota</h2><p id="petHubSummary"></p></div><button id="editPetProfile" class="secondary" type="button">Editar perfil</button></div>
+        <div class="pet-hub-heading"><div class="pet-hub-identity"><span id="petHubAvatar" class="pet-hub-avatar" aria-hidden="true"></span><div><p class="eyebrow">Su espacio en Roxy</p><h2 id="petHubTitle">Todo para tu mascota</h2><p id="petHubSummary"></p></div></div><button id="editPetProfile" class="secondary" type="button"><span class="material-symbols-rounded" aria-hidden="true">edit</span><span>Editar</span></button></div>
         <section id="petProfileCompletion" class="pet-profile-completion" aria-label="Progreso del perfil"></section>
         <div class="pet-hub-tabs" role="tablist" aria-label="Información personalizada de la mascota">
-          <button id="petCareTab" class="active" type="button" role="tab" aria-selected="true" aria-controls="petCarePanel" tabindex="0" data-pet-hub-tab="care">Cuidados</button>
-          <button id="petNutritionTab" type="button" role="tab" aria-selected="false" aria-controls="petNutritionPanel" tabindex="-1" data-pet-hub-tab="nutrition">Alimentación</button>
-          <button id="petFoodTab" type="button" role="tab" aria-selected="false" aria-controls="recipeCatalogSection" tabindex="-1" data-pet-hub-tab="recipes">Recetas</button>
-          <button id="petProductsTab" type="button" role="tab" aria-selected="false" aria-controls="petProductsPanel" tabindex="-1" data-pet-hub-tab="products">Productos</button>
-          <button id="petMedicalTab" type="button" role="tab" aria-selected="false" aria-controls="petMedicalPanel" tabindex="-1" data-pet-hub-tab="medical">Historial médico</button>
+          <button id="petCareTab" class="active" type="button" role="tab" aria-selected="true" aria-controls="petCarePanel" tabindex="0" data-pet-hub-tab="care"><span class="material-symbols-rounded" aria-hidden="true">today</span><span>Hoy</span></button>
+          <button id="petNutritionTab" type="button" role="tab" aria-selected="false" aria-controls="petNutritionPanel" tabindex="-1" data-pet-hub-tab="nutrition"><span class="material-symbols-rounded" aria-hidden="true">nutrition</span><span>Comida</span></button>
+          <button id="petFoodTab" type="button" role="tab" aria-selected="false" aria-controls="recipeCatalogSection" tabindex="-1" data-pet-hub-tab="recipes"><span class="material-symbols-rounded" aria-hidden="true">menu_book</span><span id="petFoodTabLabel">Recetas</span></button>
+          <button id="petMedicalTab" type="button" role="tab" aria-selected="false" aria-controls="petMedicalPanel" tabindex="-1" data-pet-hub-tab="medical"><span class="material-symbols-rounded" aria-hidden="true">medical_information</span><span>Salud</span></button>
+          <button id="petProductsTab" type="button" role="tab" aria-selected="false" aria-controls="petProductsPanel" tabindex="-1" data-pet-hub-tab="products"><span class="material-symbols-rounded" aria-hidden="true">shopping_bag</span><span>Productos</span></button>
         </div>
         <section id="petCarePanel" class="pet-hub-panel" role="tabpanel" aria-labelledby="petCareTab" data-pet-hub-panel="care">
           <div class="pet-panel-heading"><div><h3 id="petCareTitle">Plan de cuidado</h3><p id="petCareIntro">Rutina construida para la especie exacta y el perfil guardado.</p></div></div>
@@ -514,6 +514,7 @@
     <button type="button" data-tab-link="recipes"><span class="material-symbols-rounded" aria-hidden="true">menu_book</span><strong>Recetas</strong></button>
     <button type="button" data-tab-link="design"><span class="material-symbols-rounded" aria-hidden="true">chair</span><strong>Renueva</strong></button>
     <button type="button" data-tab-link="plants"><span class="material-symbols-rounded" aria-hidden="true">potted_plant</span><strong>Jardín</strong></button>
+    <button type="button" data-tab-link="pets"><span class="material-symbols-rounded" aria-hidden="true">pets</span><strong>Mascotas</strong></button>
     <button type="button" data-tab-link="family"><span class="material-symbols-rounded" aria-hidden="true">hub</span><strong>Nexo</strong></button>
     <button type="button" data-tab-link="calendar"><span class="material-symbols-rounded" aria-hidden="true">calendar_month</span><strong>Calendario</strong></button>
     <button class="family-more-nav" type="button" data-tab-link="more"><span class="material-symbols-rounded" aria-hidden="true">more_horiz</span><strong>Más</strong></button>

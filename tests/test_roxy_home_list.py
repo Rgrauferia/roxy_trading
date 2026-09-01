@@ -23,15 +23,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="124"' in page.text
+    assert 'name="roxy-home-version" content="125"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' in page.text
-    assert 'href="/assets/roxy_list.css?v=105"' in page.text
-    assert 'src="/assets/roxy_list.js?v=130"' in page.text
+    assert 'href="/assets/roxy_list.css?v=107"' in page.text
+    assert 'src="/assets/roxy_list.js?v=132"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
-    assert '/assets/roxy_list.css?v=105' in worker.text
-    assert '/assets/roxy_list.js?v=130' in worker.text
+    assert '/assets/roxy_list.css?v=107' in worker.text
+    assert '/assets/roxy_list.js?v=132' in worker.text
     assert '/assets/roxy_home/plants-soil-meter.png' in worker.text
     assert '/assets/roxy_home/pet-onboarding-hero.png' in worker.text
     assert 'id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle" hidden' in page.text
@@ -58,6 +58,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "openDesignFromToday" not in script.text
     nav = page.text[page.text.index('<nav class="bottom-nav"'):]
     assert nav.index('data-tab-link="recipes"') < nav.index('data-tab-link="design"') < nav.index('data-tab-link="calendar"')
+    assert nav.index('data-tab-link="plants"') < nav.index('data-tab-link="pets"') < nav.index('data-tab-link="family"')
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
     assert 'Comparar muebles reales' in script.text
@@ -247,6 +248,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="importRecipeUrlButton"' in page.text
     assert 'id="recipeImportDialog"' in page.text
     assert 'data-recipe-audience="pet"' in page.text
+    assert 'data-tab-link="pets"' in page.text
+    assert "mascotas:'pets'" in script.text
     assert 'id="petOnboardingEmpty"' in page.text
     assert 'id="petProfileDialog"' in page.text
     assert 'id="petPersonalizedHub"' in page.text
@@ -285,6 +288,9 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "renderPetProducts" in script.text
     assert "renderPetCare" in script.text
     assert "completePetRoutine" in script.text
+    assert "await refreshHomeFood()" in script.text
+    assert "pet-routine-details" in script.text
+    assert "pet-care-guide" in script.text
     assert "renderPetNutrition" in script.text
     assert "renderPetProfileCompletion" in script.text
     assert "pet_profile_completions" in script.text
