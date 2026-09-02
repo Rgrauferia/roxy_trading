@@ -1151,7 +1151,11 @@ body.pet-module-mode .pet-panel-heading h3{margin:0 0 7px;font-size:32px}
 .pet-product-recommendations{gap:16px}
 .pet-product-card{display:grid;grid-template-columns:128px minmax(0,1fr);gap:14px;padding:14px;border-color:#e4dfd5;border-radius:22px;overflow:hidden}
 .pet-product-photo{grid-row:1 / span 3;width:128px;height:156px;align-self:start;object-fit:contain;border-radius:17px;background:#f5f2e9}
+.pet-product-photo-missing{display:grid;align-content:center;justify-items:center;gap:7px;padding:12px;color:#789080;text-align:center}
+.pet-product-photo-missing .material-symbols-rounded{font-size:32px}
+.pet-product-photo-missing small{font-size:8px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
 .pet-product-card .pet-product-copy{min-width:0;padding-top:25px}
+.pet-product-profile{display:block;margin-top:8px;color:#6e786f;font-size:9px;font-style:normal;font-weight:750}
 .pet-product-card .pet-product-copy>b{display:block;margin-top:12px;color:var(--forest);font-size:9px}
 .pet-product-card .pet-product-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr 1.3fr;gap:9px;align-items:center}
 .pet-product-card .pet-product-actions a{display:grid;min-height:42px;place-items:center;border:1px solid #cfd8cf;border-radius:13px;text-align:center;text-decoration:none;font-weight:800}

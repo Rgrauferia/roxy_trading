@@ -102,7 +102,7 @@ PRODUCTS = {
         {"brand": "Purina Pro Plan", "name": "Complete Essentials Adult Chicken & Rice", "category": "Alimento completo", "life_stages": ["adult"], "reason": "Fórmula completa para mantenimiento adulto; confirma en la etiqueta la declaración de adecuación nutricional.", "source_url": "https://www.purina.com/pro-plan/dogs/adult-dog-food", "source_label": "Purina · línea oficial"},
         {"brand": "Purina Pro Plan", "name": "Sensitive Skin & Stomach Salmon & Rice", "category": "Alimento completo", "conditions": ["piel sensible", "estómago sensible"], "reason": "Opción comercial formulada para sistemas sensibles y disponible por etapa y tamaño.", "source_url": "https://www.purina.com/pro-plan/dogs/sensitive-stomach-skin-dog-food", "source_label": "Purina · producto oficial"},
         {"brand": "Royal Canin", "name": "Breed Health Nutrition", "category": "Alimento específico por raza", "requires_breed": True, "reason": "Línea que permite buscar una fórmula por raza y tamaño; la coincidencia exacta depende del catálogo vigente del fabricante.", "source_url": "https://www.royalcanin.com/us/dogs/products/breed-health-nutrition", "source_label": "Royal Canin · catálogo oficial"},
-        {"brand": "Hill's Science Diet", "name": "Adult Perfect Weight", "category": "Control de peso", "goals": ["bajar peso"], "reason": "Alternativa para conversar con el veterinario cuando el objetivo es controlar peso.", "source_url": "https://www.hillspet.com/dog-food", "source_label": "Hill's · catálogo oficial"},
+        {"brand": "Hill's Science Diet", "name": "Adult Perfect Weight", "category": "Control de peso", "goals": ["bajar peso"], "goal_required": True, "reason": "Alternativa para conversar con el veterinario cuando el objetivo es controlar peso.", "source_url": "https://www.hillspet.com/dog-food", "source_label": "Hill's · catálogo oficial"},
         {"brand": "KONG", "name": "Classic", "category": "Enriquecimiento", "goals": ["premios de entrenamiento", "energía"], "reason": "Juguete rellenable para enriquecimiento y entrega controlada de parte de su ración.", "source_url": "https://www.kongcompany.com/catalogue/K1/", "source_label": "KONG · producto oficial"},
     ],
     "cat": [
@@ -249,9 +249,9 @@ def personalized_pet_products(pet: dict[str, Any]) -> list[dict[str, Any]]:
         life_stages = set(row.pop("life_stages", []))
         if life_stages and stage != "unknown" and stage not in life_stages:
             continue
-        if row_goals and not row_goals.intersection(goals):
-            continue
         if row_conditions and not row_conditions.intersection(conditions):
+            continue
+        if row.pop("goal_required", False) and not row_goals.intersection(goals):
             continue
         score = 50
         if row_goals & goals:
@@ -263,6 +263,13 @@ def personalized_pet_products(pet: dict[str, Any]) -> list[dict[str, Any]]:
         if exact_terms:
             score += 20
             row["identity_specific"] = True
+            personalization_scope = "exact_identity"
+        elif life_stages and stage in life_stages:
+            personalization_scope = "life_stage"
+        elif row_goals & goals:
+            personalization_scope = "selected_goal"
+        else:
+            personalization_scope = "species_essential"
         if row.get("requires_breed") and str(pet.get("breed") or "").strip():
             score += 15
             row["select_before_cart"] = True
@@ -278,11 +285,17 @@ def personalized_pet_products(pet: dict[str, Any]) -> list[dict[str, Any]]:
             requires_vet=requires_vet,
             shopping_name=f"{row['brand']} {row['name']}",
             disclosure="Revisa etiqueta, tamaño, disponibilidad y precio. Roxy no sustituye una prescripción veterinaria.",
+            personalization_scope=personalization_scope,
         )
-        row["reason"] = str(row.get("reason") or "").format(
-            pet_name=str(pet.get("name") or "esta mascota"),
-            breed=str(pet.get("breed") or pet.get("exact_species") or "su especie"),
+        pet_name = str(pet.get("name") or "esta mascota")
+        identity = str(pet.get("breed") or pet.get("exact_species") or species).strip()
+        stage_label = {"baby": "bebé", "young": "joven", "adult": "adulta", "senior": "senior"}.get(stage, "etapa pendiente")
+        reason = str(row.get("reason") or "").format(
+            pet_name=pet_name,
+            breed=identity or "su especie",
         )
+        row["profile_label"] = f"Para {pet_name} · {identity} · {stage_label}"
+        row["reason"] = reason if pet_name.lower() in reason.lower() else f"Para {pet_name}, según su perfil {identity} y etapa {stage_label}: {reason}"
         rows.append(row)
     return sorted(rows, key=lambda item: (-int(item["score"]), item["brand"], item["name"]))
 

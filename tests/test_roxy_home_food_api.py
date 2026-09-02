@@ -391,6 +391,36 @@ def test_bella_products_are_concrete_illustrated_and_never_use_adult_food():
     assert not any("Adult Chicken" in row["name"] for row in rows)
 
 
+def test_products_keep_each_supported_pet_identity_and_do_not_require_a_goal_for_safe_essentials():
+    from roxy_os.home_pet_catalog import personalized_pet_products
+
+    profiles = [
+        ("dog", "Bernese Mountain"), ("cat", "Maine Coon"), ("ferret", "Hurón doméstico"),
+        ("rabbit", "Holland Lop"), ("guinea_pig", "American"), ("hamster", "Sirio"),
+        ("bird", "Periquito australiano"), ("fish", "Betta splendens"),
+        ("reptile", "Gecko leopardo"), ("amphibian", "Ajolote"),
+        ("small_mammal", "Chinchilla"), ("invertebrate", "Tarántula"),
+        ("farm_pet", "Cerdo miniatura"),
+    ]
+    for index, (species, identity) in enumerate(profiles, start=1):
+        pet = {
+            "name": f"Mascota {index}", "species": species, "life_stage": "adult", "goals": [],
+            "breed": identity if species in {"dog", "cat"} else "",
+            "exact_species": identity if species not in {"dog", "cat"} else "",
+        }
+        rows = personalized_pet_products(pet)
+        assert rows, (species, identity)
+        assert all(row["profile_label"].startswith(f"Para Mascota {index} · {identity}") for row in rows)
+        assert all(f"Mascota {index}" in row["reason"] for row in rows)
+        assert not any(row["name"] == "Adult Perfect Weight" for row in rows)
+
+    weight_rows = personalized_pet_products({
+        "name": "Max", "species": "dog", "breed": "Labrador Retriever", "life_stage": "adult",
+        "goals": ["Bajar peso"],
+    })
+    assert any(row["name"] == "Adult Perfect Weight" for row in weight_rows)
+
+
 def test_pet_care_supports_companion_animals_beyond_dogs_and_cats(tmp_path, monkeypatch):
     from tools import roxy_home_service
 
