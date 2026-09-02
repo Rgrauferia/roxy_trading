@@ -347,6 +347,25 @@ def test_pet_care_compacts_in_place_when_persistent_disk_cannot_allocate_temp_fi
     assert "\n" not in memory_path.read_text(encoding="utf-8")
 
 
+def test_pet_information_uses_exact_breed_profile_instead_of_generic_dog_copy(tmp_path):
+    from roxy_os.home_food import HomeFoodStore
+    from roxy_os.home_pet_catalog import personalized_pet_care_plan
+
+    store = HomeFoodStore(tmp_path / "home-food.json")
+    bella = store.upsert_pet(
+        "local_user", name="Bella", species="dog", breed="Bernese Mountain", life_stage="young"
+    )
+    plan = personalized_pet_care_plan(bella)
+
+    assert plan["information"]["scope"] == "breed"
+    assert plan["information"]["display_name"] == "Bernese Mountain Dog"
+    assert plan["information"]["life_expectancy"] == "7–10 años"
+    assert "Bella" in plan["information"]["characteristics"]
+    assert "sarcoma histiocítico" in plan["information"]["common_health"]
+    assert plan["information"]["frequency"].startswith("Joven:")
+    assert plan["source_label"] == "AKC y BMDCA · Bernese Mountain Dog"
+
+
 def test_pet_care_supports_companion_animals_beyond_dogs_and_cats(tmp_path, monkeypatch):
     from tools import roxy_home_service
 

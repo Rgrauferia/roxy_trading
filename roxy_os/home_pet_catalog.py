@@ -404,6 +404,22 @@ PET_INFORMATION = {
     "other": {"life_expectancy": "Confirma primero la especie exacta", "characteristics": "Roxy necesita una identificación exacta para ofrecer información responsable y evitar cuidados incompatibles.", "common_health": "Las enfermedades y señales de alerta dependen de la especie.", "feeding": "No uses la dieta de otra mascota; confirma alimento, cantidad y frecuencia con una fuente especializada.", "fun_fact": "Cada especie ocupa un nicho distinto; identificarla correctamente es el primer paso de un buen cuidado."},
 }
 
+
+PET_BREED_INFORMATION = {
+    "bernesemountain": {
+        "display_name": "Bernese Mountain Dog",
+        "life_expectancy": "7–10 años",
+        "characteristics": "Los Bernese Mountain Dog suelen ser dulces, afectuosos, inteligentes y muy unidos a su familia. Para Bella, registrada como joven, son importantes la socialización temprana, el entrenamiento con refuerzo positivo y el ejercicio diario moderado; su personalidad individual puede variar.",
+        "common_health": "Por predisposición de raza conviene vigilar displasia de cadera o codo, cáncer —incluido el sarcoma histiocítico—, dilatación-torsión gástrica, problemas cardíacos y de tiroides. Esto no significa que Bella tenga estas condiciones.",
+        "feeding": "Bella es una Bernese Mountain Dog joven: necesita alimento completo para perros jóvenes de raza grande, porciones medidas y un crecimiento gradual. La etiqueta del alimento y su veterinario determinan la cantidad y la frecuencia.",
+        "frequency": "Joven: 2–3 comidas según edad y plan",
+        "fun_fact": "La raza nació como perro de trabajo en granjas suizas y se hizo conocida por ayudar a mover ganado y tirar de carros.",
+        "source_label": "AKC y BMDCA · Bernese Mountain Dog",
+        "source_url": "https://www.bmdca.org/diseases-and-conditions",
+    },
+}
+PET_BREED_INFORMATION["bernesemountaindog"] = PET_BREED_INFORMATION["bernesemountain"]
+
 PET_FEEDING_FREQUENCY = {
     "dog": "Adultos: normalmente 2 veces al día",
     "cat": "2–4 porciones pequeñas al día",
@@ -577,6 +593,13 @@ def personalized_pet_care_plan(pet: dict[str, Any]) -> dict[str, Any]:
         })
     information = deepcopy(PET_INFORMATION.get(species, PET_INFORMATION["other"]))
     information["frequency"] = PET_FEEDING_FREQUENCY.get(species, PET_FEEDING_FREQUENCY["other"])
+    breed_key = "".join(character for character in exact.casefold() if character.isalnum())
+    breed_information = PET_BREED_INFORMATION.get(breed_key)
+    if breed_information:
+        information.update({key: value for key, value in breed_information.items() if key not in {"source_label", "source_url"}})
+        information["scope"] = "breed"
+        source_label = str(breed_information["source_label"])
+        source_url = str(breed_information["source_url"])
     return {
         "title": f"Plan de {str(pet.get('name') or 'tu mascota')}",
         "intro": f"Cuidado para {exact or 'la especie pendiente de identificar'}." if exact else "Completa la especie exacta para afinar rangos, alimentación y convivencia.",
