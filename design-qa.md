@@ -43,6 +43,58 @@ The local QA session had no authenticated household or valid Google Maps browser
 
 final result: passed
 
+## Mascotas simplificado · versión 135
+
+**Source visual truth**
+
+- `/tmp/codex-remote-attachments/01a05d3b-8e50-7f90-bb0a-4df5de364216/163538BC-E0A6-4B2C-B93C-A73F5FA898BC/1-Photo-1.jpg`
+- La referencia se usa para identidad visual, jerarquía editorial, fotografía circular, crema/verde/dorado y navegación compacta. Los controles del editor y el navegador presentes en la imagen no pertenecen al producto.
+
+**Implementation evidence**
+
+- `artifacts/pet-information-fold-v135.png`
+- `artifacts/pet-products-fold-v135.png`
+- `artifacts/pet-reference-vs-information-fold-v135.png`
+- Viewport CSS: 390 × 844, device scale factor 1.
+- Source: 589 × 1280 px; normalizada a 390 × 844 para la comparación del área visible.
+- Implementation: 390 × 844 px. Estado: Luna / Información y Luna / Productos.
+
+**Full-view comparison**
+
+- Se comparó la referencia y la ficha Información juntas en `pet-reference-vs-information-fold-v135.png`.
+- La nueva pantalla conserva el retrato circular, tipografía editorial, paleta y navegación en cuatro áreas, pero elimina deliberadamente progreso, rutina y pasaporte porque el nuevo alcance pide únicamente información, historial, recetas y productos.
+
+**Focused evidence**
+
+- `pet-products-fold-v135.png` y la captura larga `pet-products-mobile-v135.png` verifican fotografías oficiales, marca, nombre, motivo de recomendación, fuente oficial y CTA de carrito para los tres productos de hurón.
+
+**Fidelity surfaces**
+
+- Typography: jerarquía Georgia + sans existente, peso y saltos legibles; sin truncamiento.
+- Spacing: ritmo compacto, tarjetas alineadas, cuatro pestañas iguales y navegación persistente sin ocultar controles en viewport.
+- Colors: crema, verde bosque y dorado del sistema actual; contraste suficiente en seleccionado y CTA.
+- Images: fotografía de mascota cuando existe; las recomendaciones visibles de hurón usan imágenes oficiales de Mazuri, Oxbow y Wysong con `object-fit: contain`.
+- Copy: términos claros y personalizados; riesgo veterinario y decisión de compra quedan explícitos.
+
+**Interactions tested**
+
+- Información, Historial, Recetas y Productos cambian de estado y `aria-selected` correctamente.
+- Añadir al carrito creó el artículo de prueba y mostró confirmación.
+- Historial presenta descargas separadas para expediente completo y vacunas, alta de registros y documentos.
+- Consola: sin errores.
+
+**Findings**
+
+- No quedan diferencias P0, P1 o P2 dentro del alcance aprobado.
+- P3: el perfil de QA sin foto usa el icono oficial del módulo; un perfil real conserva su fotografía guardada.
+
+**Comparison history**
+
+- Primera captura larga: la barra fija aparecía intercalada por el mecanismo de captura full-page, no por el layout del viewport.
+- Corrección de evidencia: se recapturó a 390 × 844 y se comparó el mismo pliegue visual; la barra permanece correctamente anclada al borde inferior.
+
+final result: passed
+
 ---
 
 # Pet passport redesign QA · version 134

@@ -23,15 +23,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="134"' in page.text
+    assert 'name="roxy-home-version" content="135"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' in page.text
-    assert 'href="/assets/roxy_list.css?v=110"' in page.text
-    assert 'src="/assets/roxy_list.js?v=135"' in page.text
+    assert 'href="/assets/roxy_list.css?v=111"' in page.text
+    assert 'src="/assets/roxy_list.js?v=136"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
-    assert '/assets/roxy_list.css?v=110' in worker.text
-    assert '/assets/roxy_list.js?v=135' in worker.text
+    assert '/assets/roxy_list.css?v=111' in worker.text
+    assert '/assets/roxy_list.js?v=136' in worker.text
     assert '/assets/roxy_home/plants-soil-meter.png' in worker.text
     assert '/assets/roxy_home/pet-onboarding-hero.png' in worker.text
     assert 'id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle" hidden' in page.text
@@ -253,14 +253,17 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="petOnboardingEmpty"' in page.text
     assert 'id="petProfileDialog"' in page.text
     assert 'id="petPersonalizedHub"' in page.text
-    assert 'id="petProfileCompletion"' in page.text
+    assert 'data-pet-hub-tab="care"' in page.text
+    assert 'data-pet-hub-tab="medical"' in page.text
+    assert 'data-pet-hub-tab="recipes"' in page.text
+    assert 'data-pet-hub-tab="products"' in page.text
     assert 'id="petProductFilters"' in page.text
     assert 'id="petMedicalAttachment"' in page.text
     assert "choosePetMedicalAttachment" in script.text
     assert "pet-medical-attachment" in style.text
     assert 'id="petCarePlan"' in page.text
-    assert 'id="petDailySummary"' in page.text
-    assert 'id="petNutritionPanel"' in page.text
+    assert 'id="exportPetVaccines"' in page.text
+    assert 'id="petDocuments"' in page.text
     assert 'id="petProfileFeedingAmount"' in page.text
     assert 'id="petMedicalNextDue"' in page.text
     assert 'id="exportPetMedical"' in page.text
@@ -287,17 +290,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "blockedIngredients" in script.text
     assert "renderPetProducts" in script.text
     assert "renderPetCare" in script.text
-    assert "completePetRoutine" in script.text
     assert "await refreshHomeFood()" in script.text
-    assert "pet-routine-timeline" in script.text
-    assert "pet-care-guide" in script.text
-    assert "renderPetNutrition" in script.text
-    assert "renderPetProfileCompletion" in script.text
-    assert "pet_profile_completions" in script.text
+    assert "pet-info-stats" in script.text
+    assert "Por qué lo recomienda Roxy" in script.text
+    assert "Añadir al carrito" in script.text
     assert "petRecipeFilter" in script.text
     assert "title:'Premios'" in script.text
     assert "logPetFeeding" in script.text
     assert "exportPetMedicalSummary" in script.text
+    assert "exportPetVaccines" in script.text
     assert "recipe.catalog_key?openRecipe(recipe)" in script.text
     assert "Guardar en mi recetario" in script.text
     assert "no equivalen a porciones diarias" in script.text
@@ -305,7 +306,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "classList.toggle('pet-mode',petMode)" in script.text
     assert ".classList.toggle('pet-mode',petMode)" in script.text
     assert "'Mascotas':'Recetas'" in script.text
-    assert "Añadir a mi lista" in script.text
+    assert "Añadir al carrito" in script.text
     assert "/care-log" in script.text
     assert "pet_care_plans" in script.text
     assert "savePetMedical" in script.text

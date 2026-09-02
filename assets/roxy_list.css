@@ -1126,3 +1126,41 @@ body.pet-module-mode .pet-routine-row small{display:block;margin-top:3px;color:v
 .pet-passport-shortcuts>button>.material-symbols-rounded:first-child{display:grid;width:44px;height:44px;place-items:center;border-radius:50%;background:#edf2e8;font-size:23px}.pet-passport-shortcuts>button>.material-symbols-rounded:last-child{font-size:25px}.pet-passport-shortcuts strong,.pet-passport-shortcuts small{display:block}.pet-passport-shortcuts strong{font:600 18px/1.15 Georgia,serif}.pet-passport-shortcuts small{margin-top:4px;color:var(--muted);font-size:9px;line-height:1.35}
 .pet-documents{display:grid;gap:10px}.pet-document-card{display:grid;grid-template-columns:44px minmax(0,1fr) 24px;gap:12px;align-items:center;padding:14px;border:1px solid #dfe3da;border-radius:18px;color:var(--forest);background:#fff;text-decoration:none}.pet-document-card>span:first-child{display:grid;width:44px;height:44px;place-items:center;border-radius:14px;background:#edf3e9}.pet-document-card strong,.pet-document-card small{display:block}.pet-document-card small{margin-top:4px;color:var(--muted);font-size:9px}.pet-documents-empty{display:grid;justify-items:center;gap:7px;padding:28px 18px;border:1px dashed #cfd8cd;border-radius:20px;text-align:center;background:#fafbf7}.pet-documents-empty>.material-symbols-rounded{font-size:34px;color:var(--forest)}.pet-documents-empty strong{color:var(--forest)}.pet-documents-empty p{max-width:300px;margin:0;color:var(--muted);font-size:10px;line-height:1.5}
 @media(max-width:560px){body.pet-module-mode #recipesPanel{gap:14px;padding-inline:12px}body.pet-module-mode .pet-hub-heading{min-height:168px;padding:20px 12px 18px 126px}body.pet-module-mode .pet-hub-avatar{left:10px;top:11px;width:98px;height:98px}body.pet-module-mode .pet-hub-identity h2{font-size:29px}body.pet-module-mode .pet-profile-completion,body.pet-module-mode .pet-profile-completion.complete{margin:-38px 12px 9px 126px}body.pet-module-mode .pet-profile-completion>button{display:none}.pet-share-vet{width:calc(100% - 126px);margin:-2px 12px 2px 126px}body.pet-module-mode .pet-hub-tabs{grid-template-columns:repeat(4,minmax(0,1fr));gap:2px}body.pet-module-mode .pet-hub-tabs button{min-height:74px;font-size:8px}body.pet-module-mode .pet-hub-tabs button>.material-symbols-rounded{font-size:25px}body.pet-module-mode .pet-panel-heading h3{font-size:27px}body.pet-module-mode .pet-routine-row{grid-template-columns:36px 48px minmax(0,1fr) 36px;gap:7px}body.pet-module-mode .pet-routine-row>.material-symbols-rounded,.pet-routine-check{width:36px;height:36px}body.pet-module-mode .pet-routine-row strong{font-size:16px}.pet-next-routine-featured{grid-template-columns:42px minmax(0,1fr) auto}.pet-next-routine-featured .pet-next-action{grid-column:auto;justify-self:auto;white-space:nowrap}.pet-passport-shortcuts strong{font-size:17px}}
+
+/* Mascotas · ficha esencial, historial, recetas y productos. */
+body.pet-module-mode .pet-personalized-hub{gap:20px;padding:16px 18px 24px;border-color:#e5dfd1;border-radius:28px;background:#fffdf8}
+body.pet-module-mode .pet-hub-heading{min-height:118px;padding:18px 54px 18px 122px;border-bottom:1px solid #e9e2d4}
+body.pet-module-mode .pet-hub-avatar{left:2px;top:9px;width:96px;height:96px}
+body.pet-module-mode .pet-hub-identity h2{font-size:38px}
+body.pet-module-mode .pet-hub-tabs{padding:5px;border:1px solid #e2e0d8;border-radius:19px;background:#f4f5ef}
+body.pet-module-mode .pet-hub-tabs button{min-height:68px;border-radius:15px;font-size:9px}
+body.pet-module-mode .pet-hub-tabs button>.material-symbols-rounded{font-size:25px}
+body.pet-module-mode .pet-panel-heading{align-items:start}
+body.pet-module-mode .pet-panel-heading .eyebrow{margin:0 0 6px;color:var(--gold-dark);font-size:9px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}
+body.pet-module-mode .pet-panel-heading h3{margin:0 0 7px;font-size:32px}
+.pet-info-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pet-info-stats article{display:grid;align-content:start;min-height:132px;padding:16px;border:1px solid #e4dfd3;border-radius:21px;background:#f8f6ed}
+.pet-info-stats .material-symbols-rounded{display:grid;width:38px;height:38px;place-items:center;margin-bottom:15px;border-radius:12px;color:#fff;background:var(--forest)}
+.pet-info-stats small{color:var(--gold-dark);font-size:8px;font-weight:900;letter-spacing:.09em;text-transform:uppercase}
+.pet-info-stats strong{margin-top:5px;color:var(--forest-dark);font:600 17px/1.25 Georgia,serif}
+.pet-info-card{display:grid;grid-template-columns:46px minmax(0,1fr);gap:13px;padding:16px;border:1px solid #e1e3db;border-radius:20px;background:#fff}
+.pet-info-card>.material-symbols-rounded{display:grid;width:46px;height:46px;place-items:center;border-radius:15px;color:var(--forest);background:#edf3e9;font-size:24px}
+.pet-info-card h4{margin:1px 0 5px;color:var(--forest);font:600 19px/1.15 Georgia,serif}
+.pet-info-card p{margin:0;color:var(--muted);font-size:11px;line-height:1.55}
+.pet-info-card:nth-of-type(5){border-color:#e2d3ad;background:#fffaf0}
+.pet-product-recommendations{gap:16px}
+.pet-product-card{display:grid;grid-template-columns:128px minmax(0,1fr);gap:14px;padding:14px;border-color:#e4dfd5;border-radius:22px;overflow:hidden}
+.pet-product-photo{grid-row:1 / span 3;width:128px;height:156px;align-self:start;object-fit:contain;border-radius:17px;background:#f5f2e9}
+.pet-product-card .pet-product-copy{min-width:0;padding-top:25px}
+.pet-product-card .pet-product-copy>b{display:block;margin-top:12px;color:var(--forest);font-size:9px}
+.pet-product-card .pet-product-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr 1.3fr;gap:9px;align-items:center}
+.pet-product-card .pet-product-actions a{display:grid;min-height:42px;place-items:center;border:1px solid #cfd8cf;border-radius:13px;text-align:center;text-decoration:none;font-weight:800}
+.pet-product-card .pet-product-actions button{width:100%;min-height:42px}
+.pet-product-rank{top:13px;right:14px}
+.pet-medical-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.pet-medical-actions button{display:flex;align-items:center;justify-content:center;gap:7px;min-height:46px}
+.pet-medical-actions .primary{grid-column:1/-1}
+.pet-history-documents{display:grid;gap:11px;margin-top:8px;padding-top:18px;border-top:1px solid #e5e2d9}
+.pet-history-documents h4{margin:0 0 4px;color:var(--forest);font:600 21px/1.15 Georgia,serif}
+.pet-history-documents p{margin:0;color:var(--muted);font-size:10px}
+@media(max-width:560px){body.pet-module-mode .pet-personalized-hub{padding:12px 12px 22px}body.pet-module-mode .pet-hub-heading{min-height:116px;padding:17px 42px 17px 108px}body.pet-module-mode .pet-hub-avatar{left:0;top:8px;width:88px;height:88px}body.pet-module-mode .pet-hub-identity h2{font-size:34px}body.pet-module-mode .pet-hub-tabs button{min-height:66px;font-size:8px}.pet-product-card{grid-template-columns:106px minmax(0,1fr);padding:12px}.pet-product-photo{width:106px;height:138px}.pet-product-card h4{font-size:16px}.pet-product-card .pet-product-copy p{font-size:10px}.pet-product-card .pet-product-actions{grid-template-columns:1fr}.pet-info-stats strong{font-size:15px}}

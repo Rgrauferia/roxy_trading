@@ -8,16 +8,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="134" />
+  <meta name="roxy-home-version" content="135" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
   <link rel="stylesheet" href="/assets/vendor/maplibre-gl.css?v=1" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=110" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=111" />
   <script src="/assets/vendor/maplibre-gl.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=135" defer></script>
+  <script src="/assets/roxy_list.js?v=136" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -364,39 +364,31 @@
       </section>
 
       <section id="petPersonalizedHub" class="pet-personalized-hub" hidden aria-labelledby="petHubTitle">
-        <div class="pet-hub-heading"><div class="pet-hub-identity"><span id="petHubAvatar" class="pet-hub-avatar" aria-hidden="true"></span><div><p class="eyebrow">Pasaporte de cuidado</p><h2 id="petHubTitle">Tu mascota</h2><p id="petHubSummary"></p></div></div><button id="editPetProfile" class="secondary" type="button"><span class="material-symbols-rounded" aria-hidden="true">edit</span><span>Editar</span></button></div>
-        <section id="petProfileCompletion" class="pet-profile-completion" aria-label="Progreso del perfil"></section>
-        <button id="sharePetVet" class="pet-share-vet" type="button"><span class="material-symbols-rounded" aria-hidden="true">ios_share</span>Compartir con veterinario</button>
+        <div class="pet-hub-heading"><div class="pet-hub-identity"><span id="petHubAvatar" class="pet-hub-avatar" aria-hidden="true"></span><div><p class="eyebrow">Su vida, bien cuidada</p><h2 id="petHubTitle">Tu mascota</h2><p id="petHubSummary"></p></div></div><button id="editPetProfile" class="secondary" type="button"><span class="material-symbols-rounded" aria-hidden="true">edit</span><span>Editar</span></button></div>
         <div class="pet-hub-tabs" role="tablist" aria-label="Información personalizada de la mascota">
-          <button id="petCareTab" class="active" type="button" role="tab" aria-selected="true" aria-controls="petCarePanel" tabindex="0" data-pet-hub-tab="care"><span class="material-symbols-rounded" aria-hidden="true">badge</span><span>Resumen</span></button>
-          <button id="petNutritionTab" type="button" role="tab" aria-selected="false" aria-controls="petNutritionPanel" tabindex="-1" data-pet-hub-tab="nutrition"><span class="material-symbols-rounded" aria-hidden="true">nutrition</span><span>Alimentación</span></button>
-          <button id="petMedicalTab" type="button" role="tab" aria-selected="false" aria-controls="petMedicalPanel" tabindex="-1" data-pet-hub-tab="medical"><span class="material-symbols-rounded" aria-hidden="true">health_and_safety</span><span>Salud</span></button>
-          <button id="petDocumentsTab" type="button" role="tab" aria-selected="false" aria-controls="petDocumentsPanel" tabindex="-1" data-pet-hub-tab="documents"><span class="material-symbols-rounded" aria-hidden="true">description</span><span>Documentos</span></button>
+          <button id="petCareTab" class="active" type="button" role="tab" aria-selected="true" aria-controls="petCarePanel" tabindex="0" data-pet-hub-tab="care"><span class="material-symbols-rounded" aria-hidden="true">pets</span><span>Información</span></button>
+          <button id="petMedicalTab" type="button" role="tab" aria-selected="false" aria-controls="petMedicalPanel" tabindex="-1" data-pet-hub-tab="medical"><span class="material-symbols-rounded" aria-hidden="true">medical_information</span><span>Historial</span></button>
+          <button id="petRecipesTab" type="button" role="tab" aria-selected="false" aria-controls="recipeCatalogSection" tabindex="-1" data-pet-hub-tab="recipes"><span class="material-symbols-rounded" aria-hidden="true">menu_book</span><span>Recetas</span></button>
+          <button id="petProductsTab" type="button" role="tab" aria-selected="false" aria-controls="petProductsPanel" tabindex="-1" data-pet-hub-tab="products"><span class="material-symbols-rounded" aria-hidden="true">shopping_bag</span><span>Productos</span></button>
         </div>
         <section id="petCarePanel" class="pet-hub-panel" role="tabpanel" aria-labelledby="petCareTab" data-pet-hub-panel="care">
-          <div class="pet-panel-heading"><div><h3 id="petCareTitle">Plan de cuidado</h3><p id="petCareIntro">Rutina construida para la especie exacta y el perfil guardado.</p></div></div>
-          <div id="petDailySummary" class="pet-daily-summary"></div>
+          <div class="pet-panel-heading"><div><p class="eyebrow">Conoce a tu mascota</p><h3 id="petCareTitle">Información esencial</h3><p id="petCareIntro">Una guía clara basada en su especie, raza y etapa de vida.</p></div></div>
           <div id="petCarePlan" class="pet-care-plan"></div>
-          <p class="pet-product-method"><strong>Importante:</strong> los rangos y la convivencia cambian entre especies. Roxy conserva las indicaciones de tu veterinario y marca lo que necesita confirmación profesional.</p>
-        </section>
-        <section id="petNutritionPanel" class="pet-hub-panel" role="tabpanel" aria-labelledby="petNutritionTab" data-pet-hub-panel="nutrition" hidden>
-          <div class="pet-panel-heading"><div><h3 id="petNutritionTitle">Plan de alimentación</h3><p>Alimento, horario y seguimiento separados de los premios ocasionales.</p></div><button id="editPetNutrition" class="secondary" type="button">Editar plan</button></div>
-          <div id="petNutritionPlan" class="pet-nutrition-plan"></div>
         </section>
         <section id="petProductsPanel" class="pet-hub-panel" role="tabpanel" aria-labelledby="petProductsTab" data-pet-hub-panel="products" hidden>
-          <div class="pet-panel-heading"><div><h3>Productos elegidos para su perfil</h3><p>Marca y producto concretos, ordenados por coincidencia. Roxy no inventa precio ni disponibilidad.</p></div></div>
+          <div class="pet-panel-heading"><div><p class="eyebrow">Elegidos para esta mascota</p><h3>Productos recomendados</h3><p>Marcas y artículos concretos explicados por Roxy. Tú siempre confirmas la compra.</p></div></div>
           <div id="petProductFilters" class="pet-product-filters" role="group" aria-label="Filtrar productos recomendados"></div>
           <div id="petProductRecommendations" class="pet-product-recommendations"></div>
           <p class="pet-product-method"><strong>Cómo decide Roxy:</strong> etapa de vida, especie o raza, tamaño, objetivos, alergias y condiciones guardadas. La etiqueta, tu veterinario y cualquier dieta prescrita siempre prevalecen.</p>
         </section>
         <section id="petMedicalPanel" class="pet-hub-panel" role="tabpanel" aria-labelledby="petMedicalTab" data-pet-hub-panel="medical" hidden>
-          <div class="pet-panel-heading"><div><h3>Expediente de salud</h3><p>Consultas, vacunas, diagnósticos, tratamientos y notas en orden cronológico.</p></div><div class="pet-medical-actions"><button id="exportPetMedical" class="secondary" type="button">Descargar resumen</button><button id="addPetMedical" class="primary" type="button">Añadir registro</button></div></div>
+          <div class="pet-panel-heading"><div><p class="eyebrow">Expediente privado</p><h3>Historial médico y vacunas</h3><p>Consultas, vacunas, diagnósticos, tratamientos y documentos en orden cronológico.</p></div></div>
+          <div class="pet-medical-actions"><button id="exportPetMedical" class="secondary" type="button"><span class="material-symbols-rounded" aria-hidden="true">download</span>Historial completo</button><button id="exportPetVaccines" class="secondary" type="button"><span class="material-symbols-rounded" aria-hidden="true">vaccines</span>Vacunas</button><button id="addPetMedical" class="primary" type="button"><span class="material-symbols-rounded" aria-hidden="true">add</span>Añadir registro</button></div>
           <div id="petMedicalHistory" class="pet-medical-history"></div>
-        </section>
-        <section id="petDocumentsPanel" class="pet-hub-panel" role="tabpanel" aria-labelledby="petDocumentsTab" data-pet-hub-panel="documents" hidden>
-          <div class="pet-panel-heading"><div><h3>Documentos de su pasaporte</h3><p>Informes, resultados, recetas médicas e imágenes guardados en su expediente privado.</p></div><button id="exportPetPassport" class="secondary" type="button"><span class="material-symbols-rounded" aria-hidden="true">download</span>Descargar resumen</button></div>
+          <div class="pet-history-documents"><div class="pet-panel-heading"><div><h4>Documentos guardados</h4><p>Resultados, informes e imágenes vinculados a su historial.</p></div></div>
           <div id="petDocuments" class="pet-documents"></div>
           <button id="addPetDocument" class="primary full" type="button"><span class="material-symbols-rounded" aria-hidden="true">note_add</span>Añadir documento o registro</button>
+          </div>
         </section>
       </section>
 

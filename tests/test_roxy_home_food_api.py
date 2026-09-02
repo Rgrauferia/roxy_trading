@@ -280,6 +280,8 @@ def test_pet_profile_exposes_breeds_products_and_private_medical_history(tmp_pat
     assert snapshot["pets"][0]["medical_history"][0]["attachment_data_url"].startswith("data:application/pdf;base64,")
     assert snapshot["pets"][0]["care_log"][0]["routine_id"] == "morning_meal"
     assert snapshot["pet_care_plans"][pet_id]["routines"][0]["completed_today"] is True
+    assert snapshot["pet_care_plans"][pet_id]["information"]["life_expectancy"] == "10–15 años"
+    assert "comidas al día" in snapshot["pet_care_plans"][pet_id]["information"]["feeding"]
     assert snapshot["pet_nutrition_plans"][pet_id]["amount"] == 280
     assert snapshot["pet_nutrition_plans"][pet_id]["frequency"] == 2
     assert snapshot["pet_nutrition_plans"][pet_id]["last_feeding"]["outcome"] == "partial"
@@ -385,6 +387,8 @@ def test_pet_care_supports_companion_animals_beyond_dogs_and_cats(tmp_path, monk
     )
     ferret = next(pet for pet in snapshot["pets"] if pet["species"] == "ferret")
     assert {row["brand"] for row in snapshot["pet_recommendations"][ferret["id"]]} >= {"Mazuri", "Oxbow", "Wysong"}
+    assert all(row.get("image_url", "").startswith("https://") for row in snapshot["pet_recommendations"][ferret["id"]])
+    assert snapshot["pet_care_plans"][ferret["id"]]["information"]["life_expectancy"] == "5–10 años"
     assert "Insulinoma o hipoglucemia" in snapshot["pet_options"]["conditions"]["ferret"]
     assert "Vitamina C" in snapshot["pet_options"]["goals"]["guinea_pig"]
 
