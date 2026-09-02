@@ -404,6 +404,23 @@ PET_INFORMATION = {
     "other": {"life_expectancy": "Confirma primero la especie exacta", "characteristics": "Roxy necesita una identificación exacta para ofrecer información responsable y evitar cuidados incompatibles.", "common_health": "Las enfermedades y señales de alerta dependen de la especie.", "feeding": "No uses la dieta de otra mascota; confirma alimento, cantidad y frecuencia con una fuente especializada.", "fun_fact": "Cada especie ocupa un nicho distinto; identificarla correctamente es el primer paso de un buen cuidado."},
 }
 
+PET_FEEDING_FREQUENCY = {
+    "dog": "Adultos: normalmente 2 veces al día",
+    "cat": "2–4 porciones pequeñas al día",
+    "ferret": "Varias tomas o alimento disponible",
+    "rabbit": "Heno siempre; pellet y verduras medidos",
+    "guinea_pig": "Heno siempre; alimento fresco diario",
+    "hamster": "1 ración medida al día",
+    "bird": "Alimento diario; frecuencia según especie",
+    "fish": "1–2 tomas pequeñas según especie",
+    "reptile": "Desde diario hasta semanal según especie",
+    "small_mammal": "Frecuencia específica para su especie",
+    "amphibian": "Según edad, especie y temperatura",
+    "invertebrate": "Según especie y ciclo de muda",
+    "farm_pet": "Ración diaria según especie y etapa",
+    "other": "Pendiente de identificar la especie",
+}
+
 
 PET_DAILY_ROUTINES = {
     "dog": [
@@ -558,11 +575,13 @@ def personalized_pet_care_plan(pet: dict[str, Any]) -> dict[str, Any]:
             "id": "vet", "icon": "medical_information", "title": "Indicación veterinaria guardada",
             "text": str(pet["veterinarian_instructions"]), "protected": True,
         })
+    information = deepcopy(PET_INFORMATION.get(species, PET_INFORMATION["other"]))
+    information["frequency"] = PET_FEEDING_FREQUENCY.get(species, PET_FEEDING_FREQUENCY["other"])
     return {
         "title": f"Plan de {str(pet.get('name') or 'tu mascota')}",
         "intro": f"Cuidado para {exact or 'la especie pendiente de identificar'}." if exact else "Completa la especie exacta para afinar rangos, alimentación y convivencia.",
         "sections": sections,
-        "information": deepcopy(PET_INFORMATION.get(species, PET_INFORMATION["other"])),
+        "information": information,
         "routines": personalized_pet_routines(pet),
         "routine_notes": str(pet.get("routine_notes") or "").strip(),
         "source_label": source_label,
