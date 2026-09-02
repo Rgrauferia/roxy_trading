@@ -389,7 +389,7 @@ def test_pet_care_supports_companion_animals_beyond_dogs_and_cats(tmp_path, monk
     assert {row["brand"] for row in snapshot["pet_recommendations"][ferret["id"]]} >= {"Mazuri", "Oxbow", "Wysong"}
     assert all(row.get("image_url", "").startswith("https://") for row in snapshot["pet_recommendations"][ferret["id"]])
     assert snapshot["pet_care_plans"][ferret["id"]]["information"]["life_expectancy"] == "5–10 años"
-    assert snapshot["pet_care_plans"][ferret["id"]]["information"]["frequency"] == "Varias tomas o alimento disponible"
+    assert snapshot["pet_care_plans"][ferret["id"]]["information"]["frequency"] == "Varias tomas al día"
     assert "Insulinoma o hipoglucemia" in snapshot["pet_options"]["conditions"]["ferret"]
     assert "Vitamina C" in snapshot["pet_options"]["goals"]["guinea_pig"]
 
