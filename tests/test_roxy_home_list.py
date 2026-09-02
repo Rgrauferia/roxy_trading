@@ -23,15 +23,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="131"' in page.text
+    assert 'name="roxy-home-version" content="134"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' in page.text
-    assert 'href="/assets/roxy_list.css?v=107"' in page.text
-    assert 'src="/assets/roxy_list.js?v=132"' in page.text
+    assert 'href="/assets/roxy_list.css?v=110"' in page.text
+    assert 'src="/assets/roxy_list.js?v=135"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
-    assert '/assets/roxy_list.css?v=107' in worker.text
-    assert '/assets/roxy_list.js?v=132' in worker.text
+    assert '/assets/roxy_list.css?v=110' in worker.text
+    assert '/assets/roxy_list.js?v=135' in worker.text
     assert '/assets/roxy_home/plants-soil-meter.png' in worker.text
     assert '/assets/roxy_home/pet-onboarding-hero.png' in worker.text
     assert 'id="homeWelcome" class="welcome today-welcome" aria-labelledby="pageTitle" hidden' in page.text
@@ -268,7 +268,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'role="tab"' in page.text
     assert 'role="tabpanel"' in page.text
     assert 'aria-controls="petCarePanel"' in page.text
-    assert "catalogSection.setAttribute('role',petMode?'tabpanel':'region')" in script.text
+    assert "catalogSection.setAttribute('role','region')" in script.text
     assert 'id="petProductRecommendations"' in page.text
     assert 'id="petMedicalDialog"' in page.text
     assert 'id="recipeHeroEyebrow"' in page.text
@@ -289,7 +289,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "renderPetCare" in script.text
     assert "completePetRoutine" in script.text
     assert "await refreshHomeFood()" in script.text
-    assert "pet-routine-details" in script.text
+    assert "pet-routine-timeline" in script.text
     assert "pet-care-guide" in script.text
     assert "renderPetNutrition" in script.text
     assert "renderPetProfileCompletion" in script.text

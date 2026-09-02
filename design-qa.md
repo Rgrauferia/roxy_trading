@@ -45,6 +45,53 @@ final result: passed
 
 ---
 
+# Pet passport redesign QA · version 134
+
+## Evidence
+
+- Source visual truth: `/tmp/codex-remote-attachments/01a05d3b-8e50-7f90-bb0a-4df5de364216/163538BC-E0A6-4B2C-B93C-A73F5FA898BC/1-Photo-1.jpg` (589 × 1280 px).
+- Secondary source: `/tmp/codex-remote-attachments/01a05d3b-8e50-7f90-bb0a-4df5de364216/163538BC-E0A6-4B2C-B93C-A73F5FA898BC/2-Photo-2.jpg` (589 × 1280 px).
+- Browser-rendered implementation: `/private/tmp/roxy-nexo-fix.1La6Ve/artifacts/pet-passport-mobile-fold-v134.png` (390 × 844 px, CSS viewport 390 × 844, device pixel ratio 1).
+- Full-page implementation: `/private/tmp/roxy-nexo-fix.1La6Ve/artifacts/pet-passport-mobile-v134.png` (390 × 2154 px).
+- Side-by-side comparison: `/private/tmp/roxy-nexo-fix.1La6Ve/artifacts/pet-passport-reference-vs-v134.png` (800 × 892 px). The source was normalized to 390 px wide; the implementation remained at its native 390 px width.
+- State: authenticated local QA profile for Bella, young Bernese Mountain dog, 70% profile completion, four daily routines, one weight record, no profile photo.
+
+## Full-view comparison
+
+The new screen follows the reference's passport hierarchy: large circular identity area, serif pet name, visible profile progress, veterinary share action, four primary destinations, weekly strip, daily timeline and emphasized next action. Roxy Home's multi-pet selector remains above the passport intentionally because it is required to switch between saved animals. The test profile intentionally uses the real no-photo fallback; production profiles continue to render their saved photo in the same circular frame.
+
+## Focused-region comparison
+
+The identity/progress region and the four-tab navigation were checked at 390 px after the first QA pass. The first pass exposed an overlap between the wrapped title, breed and profile progress. The final capture shows these elements separated, readable and aligned. The weekly strip and beginning of the daily timeline are visible above the persistent navigation without horizontal overflow.
+
+## Required fidelity surfaces
+
+- Fonts and typography: Georgia display type and compact sans-serif labels reproduce the editorial passport hierarchy; the two-line pet name, metadata and progress remain readable at 390 px.
+- Spacing and layout rhythm: the circular portrait, progress, veterinary share action, four equal tabs and weekly card use the reference's visual cadence. The multi-pet selector is an intentional product extension.
+- Colors and visual tokens: cream canvas, forest green, white surfaces and restrained gold accents stay within the existing Roxy Home identity.
+- Image quality and asset fidelity: saved pet photos render as real cropped images; the QA profile had no image and therefore correctly displayed the existing Material Symbols fallback rather than a fabricated pet photo.
+- Copy and content: labels are concise and task-based—Resumen, Alimentación, Salud and Documentos—and personalized with the saved pet name, breed, life stage, food plan and medical records.
+
+## Interaction and runtime checks
+
+- Resumen, Alimentación, Salud and Documentos each reached a selected tab state in the in-app browser.
+- The summary links preserve access to species-filtered recipes and product recommendations.
+- No browser warnings or errors were recorded in the final pass.
+- `node --check assets/roxy_list.js` passed.
+- 33 Home list/family tests passed.
+
+## Comparison history
+
+- First pass P1: pet name, breed and progress overlapped on the mobile breakpoint.
+- Fix: increased the identity block height, moved the progress region below metadata and simplified the active weekday label.
+- Second pass P2: the reference's veterinary sharing action was missing from the passport header.
+- Fix: added a dedicated `Compartir con veterinario` action using the saved profile and recent medical history.
+- Post-fix evidence: `/private/tmp/roxy-nexo-fix.1La6Ve/artifacts/pet-passport-reference-vs-v134.png`; no actionable P0/P1/P2 issue remains.
+
+final result: passed
+
+---
+
 # Multispecies pet care design QA
 
 ## Evidence
