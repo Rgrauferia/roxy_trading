@@ -3768,6 +3768,12 @@ def complete_home_pet_care_routine(
         raise HTTPException(status_code=404, detail="Mascota no encontrada") from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        diagnostic = re.sub(r"/[^ ]+", "[ruta]", str(exc))[:160]
+        raise HTTPException(
+            status_code=500,
+            detail=f"No pude guardar el cuidado ({type(exc).__name__}: {diagnostic})",
+        ) from exc
     return {"status": "COMPLETED", "entry": entry}
 
 
