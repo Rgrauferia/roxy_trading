@@ -67,6 +67,25 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         ["Calienta el horno a 190 °C y cubre una bandeja con papel para hornear.", "Revisa que el pollo no contenga sal, ajo, cebolla, salsas ni condimentos añadidos.", "Mezcla el pollo con la zanahoria y el huevo hasta distribuirlos de forma uniforme.", "Forma bolitas pequeñas y hornéalas de 14 a 18 minutos, hasta que el centro alcance 74 °C.", "Enfría por completo, divide según el tamaño de tu perro y refrigera el resto por un máximo de dos días."],
     )
     dog_meatballs.update(audience="pet", pet_species="dog", safety_class="treat", veterinary_note="Premio ocasional; no sustituye un alimento completo. Ajusta el tamaño y la cantidad con tu veterinario.", photo_asset="/assets/roxy_home/recipes/pets/dog-chicken-carrot-meatballs.png")
+    bernese_source = {"title": "AKC · Bernese Mountain Dog", "url": "https://www.akc.org/dog-breeds/bernese-mountain-dog/", "authority": "American Kennel Club"}
+    bernese_variants: dict[str, dict[str, Any]] = {}
+    for key, base, title, description in [
+        ("bernese_young_banana_oat", dog, "Mini premios de plátano y avena para Bernese joven", "Bocados pequeños para entrenamiento de un Bernese Mountain Dog joven; se cuentan como premios y no reemplazan su alimento completo."),
+        ("bernese_young_pumpkin_oat", dog_pumpkin, "Galletas pequeñas de calabaza para Bernese joven", "Premio ocasional en piezas pequeñas para un Bernese Mountain Dog joven, sin convertirlo en una ración completa."),
+        ("bernese_young_blueberry_yogurt", dog_yogurt, "Bocaditos fríos de arándanos para Bernese joven", "Premio frío ocasional para un Bernese Mountain Dog joven, únicamente si tolera lácteos y su veterinario no indicó evitarlos."),
+        ("bernese_young_chicken_carrot", dog_meatballs, "Mini bocados de pollo para Bernese joven", "Bocados cocidos y pequeños para entrenamiento de un Bernese Mountain Dog joven; la cantidad depende del peso real y del plan veterinario."),
+    ]:
+        row = deepcopy(base)
+        row.update(
+            title=title,
+            description=description,
+            pet_exact_terms=["bernese mountain", "bernese mountain dog"],
+            pet_life_stages=["baby", "young"],
+            personalization_scope="breed_and_life_stage",
+            editorial_status="verified_veterinary_guidance",
+            sources=[bernese_source],
+        )
+        bernese_variants[key] = row
     cat = _recipe(
         "Bocaditos de pollo cocido para gatos", "Pollo simple y completamente cocido para usar como premio ocasional.", "other", 8,
         [("Pechuga de pollo sin piel ni hueso", 120, "gramo"), ("Agua", 2, "taza")],
@@ -151,6 +170,7 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         "ferret_cooked_egg_bites": ferret_egg,
         "ferret_cooked_beef_bites": ferret_beef,
     }
+    recipes.update(bernese_variants)
     recipes.update(ferret_extras)
     rabbit_source = {"title": "Merck Veterinary Manual · Nutrición de conejos", "url": "https://www.merckvetmanual.com/exotic-and-laboratory-animals/rabbits/nutrition-of-rabbits", "authority": "Merck Veterinary Manual"}
     guinea_source = {"title": "Merck Veterinary Manual · Nutrición de cobayas", "url": "https://www.merckvetmanual.com/exotic-and-laboratory-animals/guinea-pigs/housing-and-nutrition-of-guinea-pigs", "authority": "Merck Veterinary Manual"}
@@ -274,6 +294,23 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
             sources=[pet_food_source], editorial_status="verified_veterinary_guidance",
         )
         recipes[key] = recipe
+    for key, source_key, title, description, photo_asset in [
+        ("bernese_young_turkey_pumpkin", "dog_turkey_pumpkin", "Bocaditos de pavo y calabaza para Bernese joven", "Premios pequeños de proteína cocida para entrenamiento; la cantidad se ajusta al peso real de un Bernese joven.", "/assets/roxy_home/recipes/pets/bernese-turkey-pumpkin.jpg"),
+        ("bernese_young_beef_green_bean", "dog_beef_green_bean", "Mini albóndigas de res para Bernese joven", "Bocados cocidos de res magra y judías verdes para uso ocasional, separados del alimento completo diario.", "/assets/roxy_home/recipes/pets/bernese-beef-green-bean.jpg"),
+        ("bernese_young_banana_pumpkin", "dog_frozen_banana_pumpkin", "Cubitos fríos de plátano y calabaza para Bernese joven", "Premio congelado ocasional en cubos pequeños, sin azúcar, especias ni xilitol.", "/assets/roxy_home/recipes/pets/bernese-banana-pumpkin.jpg"),
+        ("bernese_young_sweet_potato", "dog_sweet_potato_chews", "Tiritas horneadas de batata para Bernese joven", "Tiras simples y horneadas para ofrecer de forma ocasional y siempre con supervisión.", "/assets/roxy_home/recipes/pets/bernese-sweet-potato.jpg"),
+    ]:
+        row = deepcopy(recipes[source_key])
+        row.update(
+            title=title,
+            description=description,
+            photo_asset=photo_asset,
+            pet_exact_terms=["bernese mountain", "bernese mountain dog"],
+            pet_life_stages=["baby", "young"],
+            personalization_scope="breed_and_life_stage",
+            sources=[bernese_source, pet_food_source],
+        )
+        recipes[key] = row
     feeding_guide_specs = {
         "fish_general_feeding": ("fish", [], "Guía base para peces de acuario", "Alimento completo específico para la especie y el tamaño de boca", "Observa qué ejemplares comen, retira sobrantes y relaciona cualquier cambio de apetito con la calidad y temperatura del agua.", "Manual Veterinario Merck · peces de acuario", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/aquarium-fishes/management-of-aquarium-fish"),
         "fish_betta_feeding": ("fish", ["betta"], "Rutina de alimentación para betta", "Alimento completo específico para betta", "Observa que coma cada porción y retira lo que quede sin consumir.", "Manual Veterinario Merck · peces de acuario", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/aquarium-fishes/management-of-aquarium-fish"),

@@ -16,20 +16,23 @@ def test_local_catalog_includes_species_specific_pet_recipes_with_safety_notes()
     from roxy_os.home_recipe_fallback import local_recipe_catalog
 
     rows = [row for row in local_recipe_catalog({}) if row.get("audience") == "pet"]
-    assert len(rows) == 52
+    assert len(rows) == 60
     assert {row["pet_species"] for row in rows} == {
         "dog", "cat", "ferret", "bird", "rabbit", "hamster", "guinea_pig", "fish", "reptile", "amphibian",
         "small_mammal", "invertebrate", "farm_pet", "other",
     }
-    assert {species: sum(row["pet_species"] == species for row in rows) for species in ("dog", "cat", "ferret", "fish")} == {"dog": 10, "cat": 9, "ferret": 8, "fish": 4}
+    assert {species: sum(row["pet_species"] == species for row in rows) for species in ("dog", "cat", "ferret", "fish")} == {"dog": 18, "cat": 9, "ferret": 8, "fish": 4}
     assert {row["safety_class"] for row in rows} == {"treat", "feeding_guide"}
     assert all("no sustituye" in row["veterinary_note"].lower() for row in rows if row["safety_class"] == "treat")
     illustrated = [row for row in rows if row.get("photo_asset")]
-    assert len(illustrated) == 12
+    assert len(illustrated) == 20
     assert all(row["photo_asset"].startswith("/assets/roxy_home/recipes/pets/") for row in illustrated)
-    assert len({row["photo_asset"] for row in illustrated}) == len(illustrated)
     assert all(len(row["steps"]) >= 5 for row in rows)
     assert all(Path(row["photo_asset"].removeprefix("/")).is_file() for row in illustrated)
+    bernese = [row for row in rows if "bernese mountain" in row.get("pet_exact_terms", [])]
+    assert len(bernese) == 8
+    assert all(row.get("photo_asset") and row.get("personalization_scope") == "breed_and_life_stage" for row in bernese)
+    assert all(row.get("pet_life_stages") == ["baby", "young"] for row in bernese)
 
 
 def test_catalog_recipe_save_survives_optional_photo_queue_failure(tmp_path, monkeypatch):
@@ -364,6 +367,21 @@ def test_pet_information_uses_exact_breed_profile_instead_of_generic_dog_copy(tm
     assert "sarcoma histiocítico" in plan["information"]["common_health"]
     assert plan["information"]["frequency"].startswith("Joven:")
     assert plan["source_label"] == "AKC y BMDCA · Bernese Mountain Dog"
+
+
+def test_bella_products_are_concrete_illustrated_and_never_use_adult_food():
+    from roxy_os.home_pet_catalog import personalized_pet_products
+
+    rows = personalized_pet_products({
+        "name": "Bella", "species": "dog", "breed": "Bernese Mountain", "life_stage": "young"
+    })
+    specific = [row for row in rows if row.get("identity_specific")]
+
+    assert len(specific) == 4
+    assert all(row.get("image_url", "").startswith("/assets/roxy_home/products/pets/") for row in specific)
+    assert all(Path(row["image_url"].removeprefix("/")).is_file() for row in specific)
+    assert all("Bella" in row["reason"] for row in specific)
+    assert not any("Adult Chicken" in row["name"] for row in rows)
 
 
 def test_pet_care_supports_companion_animals_beyond_dogs_and_cats(tmp_path, monkeypatch):

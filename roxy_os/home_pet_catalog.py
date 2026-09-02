@@ -91,6 +91,10 @@ GOALS = {
 
 PRODUCTS = {
     "dog": [
+        {"brand": "Royal Canin", "name": "Large Puppy Dry", "category": "Alimento para crecimiento", "exact_terms": ["bernese mountain"], "life_stages": ["baby", "young"], "image_url": "/assets/roxy_home/products/pets/royal-canin-large-puppy.jpg", "reason": "{pet_name} está registrada como Bernese Mountain Dog joven, una raza grande. Esta fórmula completa está indicada por el fabricante para cachorros de razas grandes de 25 a 45 kg de peso adulto y hasta 15 meses; confirma su edad y peso actuales antes de cambiar su alimento.", "source_url": "https://www.royalcanin.com/us/dogs/products/retail-products/large-puppy-3006", "source_label": "Royal Canin · producto oficial"},
+        {"brand": "Hill's Science Diet", "name": "Puppy Large Breed Chicken & Brown Rice", "category": "Alimento para crecimiento", "exact_terms": ["bernese mountain"], "life_stages": ["baby", "young"], "image_url": "/assets/roxy_home/products/pets/hills-large-breed-puppy.jpg", "reason": "Coincide con el perfil joven y de raza grande de {pet_name}. Hill's lo recomienda para cachorros que superarán 55 lb de adultos y hasta 18 meses; su edad, peso, tolerancias y alimento actual siguen pendientes de confirmar.", "source_url": "https://www.hillspet.com/dog-food/science-diet-puppy-large-breed-dry", "source_label": "Hill's · producto oficial"},
+        {"brand": "FURminator", "name": "Undercoat deShedding Tool Large Dog Long Hair", "category": "Cuidado del doble manto", "exact_terms": ["bernese mountain"], "image_url": "/assets/roxy_home/products/pets/furminator-large-long-hair.jpg", "reason": "El Bernese Mountain Dog tiene manto doble, largo y abundante. Esta herramienta está diseñada para perros de pelo largo de más de 50 lb; comprueba el peso actual de {pet_name} y úsala suavemente sobre piel sana.", "source_url": "https://www.furminator.com/products/tools/deshedding-tools/undercoat-deshedding-tool-large-dog-long-hair", "source_label": "FURminator · producto oficial", "requires_vet": True},
+        {"brand": "KONG", "name": "Classic X-Large", "category": "Enriquecimiento", "exact_terms": ["bernese mountain"], "image_url": "/assets/roxy_home/products/pets/kong-classic.webp", "reason": "La talla X-Large está publicada para perros de 60 a 90 lb y permite usar parte de la ración como enriquecimiento. Confirma primero el peso y la forma de morder de {pet_name}; supervisa el uso y retíralo si se daña.", "source_url": "https://www.kongcompany.com/catalogue/KXL/", "source_label": "KONG · producto oficial", "requires_vet": True},
         {"brand": "Purina Pro Plan", "name": "Complete Essentials Adult Chicken & Rice", "category": "Alimento completo", "life_stages": ["adult"], "reason": "Fórmula completa para mantenimiento adulto; confirma en la etiqueta la declaración de adecuación nutricional.", "source_url": "https://www.purina.com/pro-plan/dogs/adult-dog-food", "source_label": "Purina · línea oficial"},
         {"brand": "Purina Pro Plan", "name": "Sensitive Skin & Stomach Salmon & Rice", "category": "Alimento completo", "conditions": ["piel sensible", "estómago sensible"], "reason": "Opción comercial formulada para sistemas sensibles y disponible por etapa y tamaño.", "source_url": "https://www.purina.com/pro-plan/dogs/sensitive-stomach-skin-dog-food", "source_label": "Purina · producto oficial"},
         {"brand": "Royal Canin", "name": "Breed Health Nutrition", "category": "Alimento específico por raza", "requires_breed": True, "reason": "Línea que permite buscar una fórmula por raza y tamaño; la coincidencia exacta depende del catálogo vigente del fabricante.", "source_url": "https://www.royalcanin.com/us/dogs/products/breed-health-nutrition", "source_label": "Royal Canin · catálogo oficial"},
@@ -239,6 +243,8 @@ def personalized_pet_products(pet: dict[str, Any]) -> list[dict[str, Any]]:
         row_goals = {str(value).lower() for value in row.pop("goals", [])}
         row_conditions = {str(value).lower() for value in row.pop("conditions", [])}
         life_stages = set(row.pop("life_stages", []))
+        if life_stages and stage != "unknown" and stage not in life_stages:
+            continue
         if row_goals and not row_goals.intersection(goals):
             continue
         if row_conditions and not row_conditions.intersection(conditions):
@@ -250,6 +256,9 @@ def personalized_pet_products(pet: dict[str, Any]) -> list[dict[str, Any]]:
             score += 30
         if life_stages and stage in life_stages:
             score += 15
+        if exact_terms:
+            score += 20
+            row["identity_specific"] = True
         if row.get("requires_breed") and str(pet.get("breed") or "").strip():
             score += 15
             row["select_before_cart"] = True
@@ -265,6 +274,10 @@ def personalized_pet_products(pet: dict[str, Any]) -> list[dict[str, Any]]:
             requires_vet=requires_vet,
             shopping_name=f"{row['brand']} {row['name']}",
             disclosure="Revisa etiqueta, tamaño, disponibilidad y precio. Roxy no sustituye una prescripción veterinaria.",
+        )
+        row["reason"] = str(row.get("reason") or "").format(
+            pet_name=str(pet.get("name") or "esta mascota"),
+            breed=str(pet.get("breed") or pet.get("exact_species") or "su especie"),
         )
         rows.append(row)
     return sorted(rows, key=lambda item: (-int(item["score"]), item["brand"], item["name"]))
