@@ -115,13 +115,15 @@ class HomeFoodStore:
         record = deepcopy(raw) if isinstance(raw, dict) else {}
         defaults = cls._new_user()
         for key, value in defaults.items():
-            record.setdefault(key, deepcopy(value))
+            if key == "revision":
+                continue
+            if not isinstance(record.get(key), type(value)):
+                record[key] = deepcopy(value)
         try:
             record["revision"] = max(0, int(record.get("revision") or 0))
         except (TypeError, ValueError):
             record["revision"] = 0
-        if not isinstance(record.get("pets"), list):
-            record["pets"] = []
+        record["pets"] = [pet for pet in record["pets"] if isinstance(pet, dict)]
         for pet in record["pets"]:
             if not isinstance(pet, dict):
                 continue
@@ -129,7 +131,8 @@ class HomeFoodStore:
                 pet["care_log"] = []
             if not isinstance(pet.get("medical_history"), list):
                 pet["medical_history"] = []
-        for recipe in record.get("recipes", []):
+        record["recipes"] = [recipe for recipe in record["recipes"] if isinstance(recipe, dict)]
+        for recipe in record["recipes"]:
             cls._upgrade_installed_recipe(recipe)
             if isinstance(recipe, dict) and recipe.get("kind") == "drink" and recipe.get("drink_type") not in {
                 "alcoholic",

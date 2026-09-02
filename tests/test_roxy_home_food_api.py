@@ -304,7 +304,10 @@ def test_pet_care_repairs_legacy_null_log_instead_of_returning_http_500(tmp_path
     pet_id = created.json()["pet"]["id"]
     legacy = json.loads(memory_path.read_text(encoding="utf-8"))
     legacy["users"]["robert"]["revision"] = "legacy"
+    legacy["users"]["robert"]["recipes"] = None
+    legacy["users"]["robert"]["pantry"] = None
     legacy["users"]["robert"]["pets"][0]["care_log"] = None
+    legacy["users"]["robert"]["pets"].append(None)
     memory_path.write_text(json.dumps(legacy), encoding="utf-8")
 
     completed = client.post(
