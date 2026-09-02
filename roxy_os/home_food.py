@@ -116,6 +116,19 @@ class HomeFoodStore:
         defaults = cls._new_user()
         for key, value in defaults.items():
             record.setdefault(key, deepcopy(value))
+        try:
+            record["revision"] = max(0, int(record.get("revision") or 0))
+        except (TypeError, ValueError):
+            record["revision"] = 0
+        if not isinstance(record.get("pets"), list):
+            record["pets"] = []
+        for pet in record["pets"]:
+            if not isinstance(pet, dict):
+                continue
+            if not isinstance(pet.get("care_log"), list):
+                pet["care_log"] = []
+            if not isinstance(pet.get("medical_history"), list):
+                pet["medical_history"] = []
         for recipe in record.get("recipes", []):
             cls._upgrade_installed_recipe(recipe)
             if isinstance(recipe, dict) and recipe.get("kind") == "drink" and recipe.get("drink_type") not in {
@@ -377,7 +390,10 @@ class HomeFoodStore:
             pets = record.setdefault("pets", [])
             existing = next((row for row in pets if _identity(row.get("name")) == _identity(pet_name)), None)
             if existing is None:
-                existing = {"id": uuid4().hex, "created_at": _now_iso(), **profile}
+                existing = {
+                    "id": uuid4().hex, "created_at": _now_iso(),
+                    "care_log": [], "medical_history": [], **profile,
+                }
                 pets.append(existing)
             else:
                 existing.update(**profile, updated_at=_now_iso())
