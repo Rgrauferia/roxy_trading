@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '115';
+  const APP_VERSION = '116';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -898,7 +898,7 @@
     const img=document.createElement('img');img.alt=`Resultado final de ${recipe.title||'la receta'}`;img.loading='lazy';img.decoding='async';hydrateRecipeImage(img,recipe,button);
     const copy=document.createElement('span');const strong=document.createElement('strong');strong.textContent=recipe.title;
     const drinkLabel=recipe.kind==='drink'?(recipe.drink_type==='alcoholic'?'Con alcohol':'Sin alcohol'):'';
-    const petLabel=recipe.audience==='pet'?({treat:'Premio ocasional',complement:'Complemento',feeding_guide:'Guía de alimentación',veterinary_plan:'Plan veterinario'}[recipe.safety_class]||'Receta para mascota'):'';
+    const petLabel=recipe.audience==='pet'?[recipe.pet_variety,({treat:'Premio ocasional',complement:'Complemento',feeding_guide:'Guía de alimentación',veterinary_plan:'Plan veterinario'}[recipe.safety_class]||'Receta para mascota')].filter(Boolean).join(' · '):'';
     const servings=Number(recipe.servings||1);const yieldLabel=recipe.audience==='pet'?(recipe.safety_class==='feeding_guide'?'1 guía':`${servings} ${servings===1?'pieza preparada':'piezas preparadas'}`):`${servings} ${servings===1?'porción':'porciones'}`;const small=document.createElement('small');small.textContent=`${recipe.favorite?'Favorita · ':''}${petLabel||drinkLabel||recipeCategoryLabels[recipeCategoryId(recipe)]||kindLabels[recipe.kind]||'Receta'} · ${yieldLabel} · ${(recipe.steps||[]).length} pasos`;
     const editorialStatus=String(recipe.editorial_status||'');const requiresReview=Boolean(editorialStatus)&&!editorialStatus.startsWith('verified');
     copy.append(strong,small);button.append(img,copy);button.addEventListener('click',()=>recipe.catalog_key?openRecipe(recipe):requiresReview?openCatalogRecipe(recipe):openRecipe(recipe));return button;

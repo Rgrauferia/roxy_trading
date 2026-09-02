@@ -16,23 +16,26 @@ def test_local_catalog_includes_species_specific_pet_recipes_with_safety_notes()
     from roxy_os.home_recipe_fallback import local_recipe_catalog
 
     rows = [row for row in local_recipe_catalog({}) if row.get("audience") == "pet"]
-    assert len(rows) == 60
+    assert len(rows) == 64
     assert {row["pet_species"] for row in rows} == {
         "dog", "cat", "ferret", "bird", "rabbit", "hamster", "guinea_pig", "fish", "reptile", "amphibian",
         "small_mammal", "invertebrate", "farm_pet", "other",
     }
-    assert {species: sum(row["pet_species"] == species for row in rows) for species in ("dog", "cat", "ferret", "fish")} == {"dog": 18, "cat": 9, "ferret": 8, "fish": 4}
+    assert {species: sum(row["pet_species"] == species for row in rows) for species in ("dog", "cat", "ferret", "fish")} == {"dog": 22, "cat": 9, "ferret": 8, "fish": 4}
     assert {row["safety_class"] for row in rows} == {"treat", "feeding_guide"}
     assert all("no sustituye" in row["veterinary_note"].lower() for row in rows if row["safety_class"] == "treat")
     illustrated = [row for row in rows if row.get("photo_asset")]
-    assert len(illustrated) == 20
+    assert len(illustrated) == 24
     assert all(row["photo_asset"].startswith("/assets/roxy_home/recipes/pets/") for row in illustrated)
     assert all(len(row["steps"]) >= 5 for row in rows)
     assert all(Path(row["photo_asset"].removeprefix("/")).is_file() for row in illustrated)
     bernese = [row for row in rows if "bernese mountain" in row.get("pet_exact_terms", [])]
-    assert len(bernese) == 8
+    assert len(bernese) == 12
     assert all(row.get("photo_asset") and row.get("personalization_scope") == "breed_and_life_stage" for row in bernese)
     assert all(row.get("pet_life_stages") == ["baby", "young"] for row in bernese)
+    assert {row.get("pet_variety") for row in bernese} >= {
+        "Horneado", "Proteína simple", "Congelado fresco", "Horneado crujiente"
+    }
 
 
 def test_catalog_recipe_save_survives_optional_photo_queue_failure(tmp_path, monkeypatch):
@@ -377,10 +380,14 @@ def test_bella_products_are_concrete_illustrated_and_never_use_adult_food():
     })
     specific = [row for row in rows if row.get("identity_specific")]
 
-    assert len(specific) == 4
+    assert len(specific) == 8
     assert all(row.get("image_url", "").startswith("/assets/roxy_home/products/pets/") for row in specific)
     assert all(Path(row["image_url"].removeprefix("/")).is_file() for row in specific)
     assert all("Bella" in row["reason"] for row in specific)
+    assert {row["category"] for row in specific} >= {
+        "Alimento para crecimiento", "Higiene dental", "Paseo diario", "Comedero interactivo",
+        "Cepillado del manto",
+    }
     assert not any("Adult Chicken" in row["name"] for row in rows)
 
 

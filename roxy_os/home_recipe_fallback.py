@@ -69,11 +69,11 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
     dog_meatballs.update(audience="pet", pet_species="dog", safety_class="treat", veterinary_note="Premio ocasional; no sustituye un alimento completo. Ajusta el tamaño y la cantidad con tu veterinario.", photo_asset="/assets/roxy_home/recipes/pets/dog-chicken-carrot-meatballs.png")
     bernese_source = {"title": "AKC · Bernese Mountain Dog", "url": "https://www.akc.org/dog-breeds/bernese-mountain-dog/", "authority": "American Kennel Club"}
     bernese_variants: dict[str, dict[str, Any]] = {}
-    for key, base, title, description in [
-        ("bernese_young_banana_oat", dog, "Mini premios de plátano y avena para Bernese joven", "Bocados pequeños para entrenamiento de un Bernese Mountain Dog joven; se cuentan como premios y no reemplazan su alimento completo."),
-        ("bernese_young_pumpkin_oat", dog_pumpkin, "Galletas pequeñas de calabaza para Bernese joven", "Premio ocasional en piezas pequeñas para un Bernese Mountain Dog joven, sin convertirlo en una ración completa."),
-        ("bernese_young_blueberry_yogurt", dog_yogurt, "Bocaditos fríos de arándanos para Bernese joven", "Premio frío ocasional para un Bernese Mountain Dog joven, únicamente si tolera lácteos y su veterinario no indicó evitarlos."),
-        ("bernese_young_chicken_carrot", dog_meatballs, "Mini bocados de pollo para Bernese joven", "Bocados cocidos y pequeños para entrenamiento de un Bernese Mountain Dog joven; la cantidad depende del peso real y del plan veterinario."),
+    for key, base, title, description, variety in [
+        ("bernese_young_banana_oat", dog, "Mini premios de plátano y avena para Bernese joven", "Bocados pequeños para entrenamiento de un Bernese Mountain Dog joven; se cuentan como premios y no reemplazan su alimento completo.", "Horneado"),
+        ("bernese_young_pumpkin_oat", dog_pumpkin, "Galletas pequeñas de calabaza para Bernese joven", "Premio ocasional en piezas pequeñas para un Bernese Mountain Dog joven, sin convertirlo en una ración completa.", "Horneado"),
+        ("bernese_young_blueberry_yogurt", dog_yogurt, "Bocaditos fríos de arándanos para Bernese joven", "Premio frío ocasional para un Bernese Mountain Dog joven, únicamente si tolera lácteos y su veterinario no indicó evitarlos.", "Frío"),
+        ("bernese_young_chicken_carrot", dog_meatballs, "Mini bocados de pollo para Bernese joven", "Bocados cocidos y pequeños para entrenamiento de un Bernese Mountain Dog joven; la cantidad depende del peso real y del plan veterinario.", "Proteína horneada"),
     ]:
         row = deepcopy(base)
         row.update(
@@ -81,6 +81,7 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
             description=description,
             pet_exact_terms=["bernese mountain", "bernese mountain dog"],
             pet_life_stages=["baby", "young"],
+            pet_variety=variety,
             personalization_scope="breed_and_life_stage",
             editorial_status="verified_veterinary_guidance",
             sources=[bernese_source],
@@ -260,6 +261,11 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         "url": "https://www.fda.gov/animal-veterinary/animal-health-literacy/complete-and-balanced-pet-food",
         "authority": "U.S. Food and Drug Administration",
     }
+    watermelon_source = {
+        "title": "AKC · sandía para perros",
+        "url": "https://www.akc.org/expert-advice/nutrition/can-dogs-eat-watermelon/",
+        "authority": "American Kennel Club",
+    }
     extra_treats = {
         "dog_sweet_potato_chews": ("dog", "Tiritas horneadas de batata para perros", "Batata", 1, "unidad", "Lava, pela y corta la batata en tiras delgadas.", "Hornea las tiras a 120 °C de dos a tres horas, girándolas a mitad de cocción."),
         "dog_apple_carrot_oat": ("dog", "Mini bocados de manzana, zanahoria y avena", "Manzana sin semillas ni corazón", 0.5, "unidad", "Ralla la manzana y la zanahoria después de retirar semillas y corazón.", "Mezcla con avena molida, forma bocados pequeños y hornea a 175 °C hasta que estén firmes."),
@@ -294,12 +300,15 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
             sources=[pet_food_source], editorial_status="verified_veterinary_guidance",
         )
         recipes[key] = recipe
-    for key, source_key, title, description, photo_asset in [
-        ("bernese_young_turkey_pumpkin", "dog_turkey_pumpkin", "Bocaditos de pavo y calabaza para Bernese joven", "Premios pequeños de proteína cocida para entrenamiento; la cantidad se ajusta al peso real de un Bernese joven.", "/assets/roxy_home/recipes/pets/bernese-turkey-pumpkin.jpg"),
-        ("bernese_young_beef_green_bean", "dog_beef_green_bean", "Mini albóndigas de res para Bernese joven", "Bocados cocidos de res magra y judías verdes para uso ocasional, separados del alimento completo diario.", "/assets/roxy_home/recipes/pets/bernese-beef-green-bean.jpg"),
-        ("bernese_young_banana_pumpkin", "dog_frozen_banana_pumpkin", "Cubitos fríos de plátano y calabaza para Bernese joven", "Premio congelado ocasional en cubos pequeños, sin azúcar, especias ni xilitol.", "/assets/roxy_home/recipes/pets/bernese-banana-pumpkin.jpg"),
-        ("bernese_young_sweet_potato", "dog_sweet_potato_chews", "Tiritas horneadas de batata para Bernese joven", "Tiras simples y horneadas para ofrecer de forma ocasional y siempre con supervisión.", "/assets/roxy_home/recipes/pets/bernese-sweet-potato.jpg"),
-    ]:
+    bernese_exact_specs = [
+        ("bernese_young_turkey_pumpkin", "dog_turkey_pumpkin", "Bocaditos de pavo y calabaza para Bernese joven", "Premios pequeños de proteína cocida para entrenamiento; la cantidad se ajusta al peso real de un Bernese joven.", "/assets/roxy_home/recipes/pets/bernese-turkey-pumpkin.jpg", "Proteína horneada"),
+        ("bernese_young_beef_green_bean", "dog_beef_green_bean", "Mini albóndigas de res para Bernese joven", "Bocados cocidos de res magra y judías verdes para uso ocasional, separados del alimento completo diario.", "/assets/roxy_home/recipes/pets/bernese-beef-green-bean.jpg", "Proteína horneada"),
+        ("bernese_young_banana_pumpkin", "dog_frozen_banana_pumpkin", "Cubitos fríos de plátano y calabaza para Bernese joven", "Premio congelado ocasional en cubos pequeños, sin azúcar, especias ni xilitol.", "/assets/roxy_home/recipes/pets/bernese-banana-pumpkin.jpg", "Congelado"),
+        ("bernese_young_sweet_potato", "dog_sweet_potato_chews", "Tiritas horneadas de batata para Bernese joven", "Tiras simples y horneadas para ofrecer de forma ocasional y siempre con supervisión.", "/assets/roxy_home/recipes/pets/bernese-sweet-potato.jpg", "Horneado crujiente"),
+        ("bernese_young_apple_carrot", "dog_apple_carrot_oat", "Bocaditos de manzana y zanahoria para Bernese joven", "Alternativa horneada con fruta sin semillas ni corazón; se ofrece en piezas pequeñas y solo como premio.", "/assets/roxy_home/recipes/pets/bernese-apple-carrot.jpg", "Horneado frutal"),
+        ("bernese_young_chicken_training", "dog_chicken_training_bits", "Daditos de pollo para entrenamiento de Bernese joven", "Proteína simple completamente cocida, cortada en dados pequeños y contabilizada dentro de sus premios diarios.", "/assets/roxy_home/recipes/pets/bernese-chicken-training.jpg", "Proteína simple"),
+    ]
+    for key, source_key, title, description, photo_asset, variety in bernese_exact_specs:
         row = deepcopy(recipes[source_key])
         row.update(
             title=title,
@@ -307,8 +316,52 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
             photo_asset=photo_asset,
             pet_exact_terms=["bernese mountain", "bernese mountain dog"],
             pet_life_stages=["baby", "young"],
+            pet_variety=variety,
             personalization_scope="breed_and_life_stage",
             sources=[bernese_source, pet_food_source],
+        )
+        recipes[key] = row
+    bernese_fresh_specs = {
+        "bernese_young_watermelon": _recipe(
+            "Cubitos congelados de sandía para Bernese joven",
+            "Premio fresco ocasional preparado solo con sandía sin semillas, sin cáscara y en cubos pequeños.",
+            "other", 12,
+            [("Sandía sin semillas ni cáscara", 1, "taza")],
+            [
+                "Lávate las manos, limpia la superficie y enjuaga el exterior de la sandía antes de cortarla.",
+                "Retira por completo la cáscara, la parte blanca y cualquier semilla visible.",
+                "Corta la pulpa en cubos pequeños apropiados para entrenamiento; no añadas azúcar ni endulzantes.",
+                "Congela los cubos separados durante al menos tres horas y deja suavizar una pieza uno o dos minutos antes de ofrecerla.",
+                "Ofrece solo una pequeña cantidad ocasional y evita esta preparación si existe diabetes, intolerancia o una dieta veterinaria que limite fruta.",
+            ],
+        ),
+        "bernese_young_egg_oat": _recipe(
+            "Mini bocados de huevo y avena para Bernese joven",
+            "Premio horneado suave con huevo completamente cocido, sin leche, mantequilla, sal ni condimentos.",
+            "other", 14,
+            [("Huevo", 1, "unidad"), ("Avena en hojuelas", 0.75, "taza")],
+            [
+                "Calienta el horno a 175 °C y cubre una bandeja con papel para hornear.",
+                "Muele la mitad de la avena y confirma que no tenga azúcar, saborizantes ni xilitol.",
+                "Bate el huevo sin leche ni condimentos y mézclalo con toda la avena.",
+                "Forma bocados muy pequeños y hornéalos de 12 a 15 minutos, hasta que el huevo esté completamente cocido.",
+                "Enfría por completo, ofrece una sola porción ocasional y refrigera el resto por un máximo de dos días.",
+            ],
+        ),
+    }
+    for key, row in bernese_fresh_specs.items():
+        row.update(
+            audience="pet", pet_species="dog", pet_category="pet_treats", safety_class="treat",
+            veterinary_note="Premio ocasional; no sustituye un alimento completo. Si el perfil aún no tiene alergias, peso o alimento actual confirmados, revisa el ingrediente y la porción con su veterinario antes de incorporarlo.",
+            photo_asset={
+                "bernese_young_watermelon": "/assets/roxy_home/recipes/pets/bernese-watermelon-frozen.jpg",
+                "bernese_young_egg_oat": "/assets/roxy_home/recipes/pets/bernese-egg-oat.jpg",
+            }[key],
+            pet_exact_terms=["bernese mountain", "bernese mountain dog"], pet_life_stages=["baby", "young"],
+            pet_variety={"bernese_young_watermelon": "Congelado fresco", "bernese_young_egg_oat": "Horneado suave"}[key],
+            personalization_scope="breed_and_life_stage",
+            sources=[bernese_source, pet_food_source] + ([watermelon_source] if key == "bernese_young_watermelon" else []),
+            editorial_status="verified_veterinary_guidance",
         )
         recipes[key] = row
     feeding_guide_specs = {
