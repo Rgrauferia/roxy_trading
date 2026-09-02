@@ -43,7 +43,7 @@ The local QA session had no authenticated household or valid Google Maps browser
 
 final result: passed
 
-## Mascotas simplificado · versión 135
+## Mascotas simplificado · versión 136
 
 **Source visual truth**
 
@@ -82,6 +82,7 @@ final result: passed
 - Añadir al carrito creó el artículo de prueba y mostró confirmación.
 - Historial presenta descargas separadas para expediente completo y vacunas, alta de registros y documentos.
 - Consola: sin errores.
+- Verificación pública: versión 136 cargada; Luna y su información persistieron después de recargar.
 
 **Findings**
 
