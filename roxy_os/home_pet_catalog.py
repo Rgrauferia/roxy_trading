@@ -407,7 +407,7 @@ PET_INFORMATION = {
 PET_FEEDING_FREQUENCY = {
     "dog": "Adultos: normalmente 2 veces al día",
     "cat": "2–4 porciones pequeñas al día",
-    "ferret": "Varias tomas al día",
+    "ferret": "Varias comidas pequeñas al día",
     "rabbit": "Heno siempre; pellet y verduras medidos",
     "guinea_pig": "Heno siempre; alimento fresco diario",
     "hamster": "1 ración medida al día",
