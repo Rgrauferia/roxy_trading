@@ -380,7 +380,7 @@ def test_bella_products_are_concrete_illustrated_and_never_use_adult_food():
     })
     specific = [row for row in rows if row.get("identity_specific")]
 
-    assert len(specific) == 8
+    assert len(specific) == 10
     assert all(row.get("image_url", "").startswith("/assets/roxy_home/products/pets/") for row in specific)
     assert all(Path(row["image_url"].removeprefix("/")).is_file() for row in specific)
     assert all("Bella" in row["reason"] for row in specific)
@@ -388,6 +388,7 @@ def test_bella_products_are_concrete_illustrated_and_never_use_adult_food():
         "Alimento para crecimiento", "Higiene dental", "Paseo diario", "Comedero interactivo",
         "Cepillado del manto",
     }
+    assert any(row["name"] == "Front Range Harness" and row["requires_measurement"] for row in specific)
     assert not any("Adult Chicken" in row["name"] for row in rows)
 
 
