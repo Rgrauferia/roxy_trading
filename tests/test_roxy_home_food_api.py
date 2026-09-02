@@ -321,6 +321,30 @@ def test_pet_care_repairs_legacy_null_log_instead_of_returning_http_500(tmp_path
     assert snapshot["pets"][0]["care_log"][0]["routine_id"] == "morning_meal"
 
 
+def test_pet_care_compacts_in_place_when_persistent_disk_cannot_allocate_temp_file(tmp_path, monkeypatch):
+    import errno
+
+    from roxy_os import atomic_json
+    from roxy_os.home_food import HomeFoodStore
+
+    memory_path = tmp_path / "home-food.json"
+    store = HomeFoodStore(memory_path)
+    pet = store.upsert_pet("local_user", name="Bella", species="dog")
+
+    def disk_full(*_args, **_kwargs):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(atomic_json.tempfile, "mkstemp", disk_full)
+    entry = store.complete_pet_care_routine(
+        "local_user", pet["id"], routine_id="morning_meal", title="Alimentación de la mañana"
+    )
+
+    saved = json.loads(memory_path.read_text(encoding="utf-8"))
+    assert entry["routine_id"] == "morning_meal"
+    assert saved["users"]["local_user"]["pets"][0]["care_log"][0]["routine_id"] == "morning_meal"
+    assert "\n" not in memory_path.read_text(encoding="utf-8")
+
+
 def test_pet_care_supports_companion_animals_beyond_dogs_and_cats(tmp_path, monkeypatch):
     from tools import roxy_home_service
 

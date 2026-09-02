@@ -11,14 +11,14 @@ from __future__ import annotations
 import json
 import hashlib
 import math
-import os
 import secrets
-import tempfile
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 from uuid import uuid4
+
+from roxy_os.atomic_json import write_compact_json
 
 try:
     import fcntl
@@ -86,19 +86,7 @@ class HomeFamilyStore:
         return value if isinstance(value, dict) else self._empty()
 
     def _write(self, value: dict[str, Any]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        handle, temp_name = tempfile.mkstemp(prefix=f".{self.path.name}.", suffix=".tmp", dir=str(self.path.parent))
-        try:
-            with os.fdopen(handle, "w", encoding="utf-8") as stream:
-                json.dump(value, stream, ensure_ascii=False, indent=2, sort_keys=True)
-                stream.flush()
-                os.fsync(stream.fileno())
-            os.replace(temp_name, self.path)
-        finally:
-            try:
-                os.unlink(temp_name)
-            except FileNotFoundError:
-                pass
+        write_compact_json(self.path, value)
 
     def _locked(self, callback: Callable[[dict[str, Any]], Any]) -> Any:
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)

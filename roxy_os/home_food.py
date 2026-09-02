@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import json
-import os
 import re
-import tempfile
 import unicodedata
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
@@ -13,6 +11,7 @@ from uuid import uuid4
 
 from roxy_os.home_recipe_catalog import CATEGORY_META, infer_recipe_category
 from roxy_os.home_pet_catalog import pet_profile_completion
+from roxy_os.atomic_json import write_compact_json
 
 try:
     import fcntl
@@ -210,21 +209,9 @@ class HomeFoodStore:
         return payload
 
     def _write_unlocked(self, payload: dict[str, Any]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         payload["schema_version"] = HOME_FOOD_STORE_VERSION
         payload["updated_at"] = _now_iso()
-        handle, temp_name = tempfile.mkstemp(prefix=f".{self.path.name}.", suffix=".tmp", dir=str(self.path.parent))
-        try:
-            with os.fdopen(handle, "w", encoding="utf-8") as stream:
-                json.dump(payload, stream, ensure_ascii=False, indent=2, sort_keys=True)
-                stream.flush()
-                os.fsync(stream.fileno())
-            os.replace(temp_name, self.path)
-        finally:
-            try:
-                os.unlink(temp_name)
-            except FileNotFoundError:
-                pass
+        write_compact_json(self.path, payload)
 
     def _mutate(self, callback: Callable[[dict[str, Any]], Any]) -> Any:
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)
