@@ -1583,6 +1583,17 @@ def shopping_page() -> Response:
     return _security_headers(response)
 
 
+@app.get("/privacy", response_class=FileResponse)
+def privacy_page() -> Response:
+    response = FileResponse(ASSETS_DIR / "roxy_privacy.html", media_type="text/html")
+    response.headers["Cache-Control"] = "public, max-age=300"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'none'; "
+        "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+    )
+    return _security_headers(response)
+
+
 @app.get("/lista-manifest.json")
 def shopping_manifest() -> Response:
     response = JSONResponse(

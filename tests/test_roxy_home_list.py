@@ -11,6 +11,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     client = TestClient(roxy_home_service.app)
     page = client.get("/lista")
+    privacy = client.get("/privacy")
     manifest = client.get("/lista-manifest.json")
     worker = client.get("/lista-sw.js")
     script = client.get("/assets/roxy_list.js")
@@ -22,16 +23,21 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     plant_meter = client.get("/assets/roxy_home/plants-soil-meter.png")
 
     assert page.status_code == 200
+    assert privacy.status_code == 200
+    assert "Política de privacidad" in privacy.text
+    assert "No vende datos personales" in privacy.text
+    assert "script-src 'none'" in privacy.headers["content-security-policy"]
+    assert "roxy_privacy.html assets/roxy_privacy.css" in Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="155"' in page.text
+    assert 'name="roxy-home-version" content="156"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' in page.text
     assert 'href="/assets/roxy_list.css?v=115"' in page.text
-    assert 'src="/assets/roxy_list.js?v=156"' in page.text
+    assert 'src="/assets/roxy_list.js?v=157"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
     assert '/assets/roxy_list.css?v=115' in worker.text
-    assert '/assets/roxy_list.js?v=156' in worker.text
+    assert '/assets/roxy_list.js?v=157' in worker.text
     assert '/assets/roxy_home/renueva-living-room-hero.webp' in worker.text
     assert '/assets/roxy_home/plants-soil-meter.png' in worker.text
     assert '/assets/roxy_home/pet-onboarding-hero.png' in worker.text
@@ -63,7 +69,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
     assert 'Revisar productos' in script.text
-    assert "const APP_VERSION = '155'" in script.text
+    assert "const APP_VERSION = '156'" in script.text
     assert 'id="designTrendSignal"' in page.text
     assert 'Datos reales de Pinterest' in script.text
     assert 'id="familyHistoryButton"' in page.text
