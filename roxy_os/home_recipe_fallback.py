@@ -432,6 +432,55 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         )
         guide.update(audience="pet", pet_species=species, pet_exact_terms=exact_terms, pet_category="pet_feeding", safety_class="feeding_guide", veterinary_note="Guía orientativa; la etiqueta y el veterinario de exóticos determinan alimento, cantidad y frecuencia.", sources=[{"title": source_title, "url": source_url, "authority": source_title.split(" · ", 1)[0]}], editorial_status="verified_veterinary_guidance")
         recipes[key] = guide
+    broader_guide_sources = {
+        "dog": ("Manual Veterinario Merck · perros", "https://www.merckvetmanual.com/dog-owners"),
+        "cat": ("Manual Veterinario Merck · gatos", "https://www.merckvetmanual.com/cat-owners"),
+        "ferret": ("Manual Veterinario Merck · hurones", "https://www.merckvetmanual.com/all-other-pets/ferrets/providing-a-home-for-a-ferret"),
+        "rabbit": ("Manual Veterinario Merck · conejos", "https://www.merckvetmanual.com/all-other-pets/rabbits/providing-a-home-for-a-rabbit"),
+        "guinea_pig": ("Manual Veterinario Merck · cobayas", "https://www.merckvetmanual.com/all-other-pets/guinea-pigs/diet-for-a-guinea-pig"),
+        "hamster": ("Manual Veterinario Merck · hámsteres", "https://www.merckvetmanual.com/all-other-pets/hamsters/providing-a-home-for-a-hamster"),
+        "bird": ("Manual Veterinario Merck · aves", "https://www.merckvetmanual.com/bird-owners/choosing-and-taking-care-of-a-pet-bird/feeding-a-pet-bird"),
+        "fish": ("Manual Veterinario Merck · peces", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/aquarium-fish/nutritional-diseases-of-fish"),
+        "reptile": ("Manual Veterinario Merck · reptiles", "https://www.merckvetmanual.com/all-other-pets/reptiles/providing-a-home-for-a-reptile"),
+        "amphibian": ("ARAV · anfibios", "https://arav.org/"),
+        "small_mammal": ("Manual Veterinario Merck · pequeños mamíferos", "https://www.merckvetmanual.com/management-and-nutrition/nutrition-exotic-and-zoo-animals/nutrition-in-rodents-and-lagomorphs"),
+        "invertebrate": ("Manual Veterinario Merck · animales exóticos", "https://www.merckvetmanual.com/management-and-nutrition/nutrition-exotic-and-zoo-animals/overview-of-nutrition-exotic-and-zoo-animals"),
+        "farm_pet": ("Manual Veterinario Merck · animales de traspatio", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/backyard-poultry/management-of-backyard-poultry"),
+    }
+    species_labels = {
+        "dog": "perros", "cat": "gatos", "ferret": "hurones", "rabbit": "conejos",
+        "guinea_pig": "cobayas", "hamster": "hámsteres", "bird": "aves", "fish": "peces",
+        "reptile": "reptiles", "amphibian": "anfibios", "small_mammal": "pequeños mamíferos",
+        "invertebrate": "invertebrados", "farm_pet": "mascotas de granja",
+    }
+    guide_variants = (
+        ("appetite_log", "Registro de apetito para {label}", "Alimento habitual específico para la especie", "Registra cuánto ofreciste, cuánto consumió y cualquier cambio de conducta o heces."),
+        ("food_storage", "Conservación segura del alimento para {label}", "Alimento habitual y su envase original", "Anota fecha de apertura, lote y caducidad; desecha alimento húmedo, contaminado o con olor anormal."),
+        ("hydration_check", "Revisión de hidratación para {label}", "Agua limpia o medio acuático correspondiente", "Comprueba disponibilidad, limpieza y consumo visible; en especies acuáticas registra también los parámetros del agua."),
+        ("weekly_tolerance", "Control semanal de peso y tolerancia para {label}", "Registro de peso, apetito y alimento actual", "Compara la tendencia con registros anteriores sin cambiar dosis ni dieta por una sola medición."),
+    )
+    for species, label in species_labels.items():
+        source_title, source_url = broader_guide_sources[species]
+        for suffix, title_template, ingredient, observation in guide_variants:
+            guide = _recipe(
+                title_template.format(label=label),
+                "Guía práctica para observar la respuesta individual de la mascota sin inventar porciones ni sustituir su plan profesional.",
+                "other", 1, [(ingredient, 1, "revisión")],
+                [
+                    "Confirma la especie exacta, etapa, alimento actual y cualquier indicación veterinaria guardada.",
+                    "Usa la etiqueta original y prepara únicamente la cantidad ya definida para esta mascota.",
+                    "Observa apetito, conducta, postura y facilidad para comer o beber sin forzarla.",
+                    observation,
+                    "Guarda el registro y consulta a un profesional ante pérdida de apetito, peso, dolor o un cambio persistente.",
+                ],
+            )
+            guide.update(
+                audience="pet", pet_species=species, pet_category="pet_feeding", safety_class="feeding_guide",
+                veterinary_note="Guía de seguimiento; no modifica alimento, dosis ni frecuencia sin la etiqueta o el profesional correspondiente.",
+                sources=[{"title": source_title, "url": source_url, "authority": source_title.split(" · ", 1)[0]}],
+                editorial_status="verified_veterinary_guidance",
+            )
+            recipes[f"{species}_{suffix}"] = guide
     default_pet_photos = {
         "dog": "/assets/roxy_home/recipes/pets/dog-treat-variety.webp",
         "cat": "/assets/roxy_home/recipes/pets/cat-protein-variety.webp",
@@ -784,7 +833,7 @@ def personalized_pet_recipe_catalog(pet: dict[str, Any], snapshot: dict[str, Any
             reason = f"Coincide con {identity} y con la etapa {stage_label} guardada para {pet_name}."
         elif row.get("safety_class") == "feeding_guide":
             scope = "species_feeding_protocol"
-            reason = f"Es una guía compatible con {identity}; la cantidad y frecuencia se mantienen ligadas a su etiqueta, entorno y especialista."
+            reason = f"Es una guía para {pet_name}, compatible con {identity}; la cantidad y frecuencia se mantienen ligadas a su etiqueta, entorno y especialista."
         else:
             scope = "species_safe_treat"
             reason = f"Es un premio compatible con la especie de {pet_name}, filtrado por su etapa y restricciones guardadas."

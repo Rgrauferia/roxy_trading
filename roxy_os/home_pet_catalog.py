@@ -175,6 +175,10 @@ PRODUCTS = {
 PRODUCTS["dog"].extend([
     {"brand": "Virbac", "name": "C.E.T. Enzymatic Toothpaste", "category": "Higiene dental", "reason": "Apoya la rutina dental de {pet_name}; usa únicamente pasta formulada para perros y confirma la técnica con su veterinario.", "source_url": "https://us.virbac.com/home/our-products/pagecontent/product-selector/cet-enzymatic-toothpaste-dog-cat.html", "source_label": "Virbac · producto oficial"},
     {"brand": "Ruffwear", "name": "Front Range Harness", "category": "Paseo", "reason": "Arnés acolchado con cuatro puntos de ajuste para {pet_name}; la talla depende del contorno real del pecho, no de la raza.", "requires_measurement": True, "source_url": "https://ruffwear.com/products/front-range-everyday-dog-harness", "source_label": "Ruffwear · producto oficial"},
+    {"brand": "KONG", "name": "Classic", "category": "Enriquecimiento alimentario", "reason": "Permite usar parte de la ración o premios de {pet_name} como actividad; selecciona la talla por peso y forma de morder y supervisa su estado.", "requires_measurement": True, "source_url": "https://www.kongcompany.com/catalogue/K1/", "source_label": "KONG · producto oficial"},
+    {"brand": "Ruffwear", "name": "Front Range Leash 5 ft", "category": "Paseo diario", "reason": "Correa con asa acolchada para los paseos de {pet_name}; no reemplaza un arnés bien ajustado ni el entrenamiento con manejo seguro.", "source_url": "https://ruffwear.com/products/front-range-lightweight-dog-leash", "source_label": "Ruffwear · producto oficial"},
+    {"brand": "earthbath", "name": "Oatmeal & Aloe Shampoo Fragrance Free", "category": "Baño y pelaje", "reason": "Champú sin fragancia formulado para perros; para {pet_name}, evita ojos, oídos y piel lesionada y suspende ante irritación.", "source_url": "https://www.earthbath.com/products/oatmeal-aloe-shampoo-fragrance-free", "source_label": "earthbath · producto oficial"},
+    {"brand": "FURminator", "name": "Undercoat deShedding Tool", "category": "Cuidado del manto", "reason": "Línea con tamaños y tipos de pelo diferentes; elige la variante de {pet_name} según peso y longitud real del manto, no solo por raza.", "select_before_cart": True, "source_url": "https://www.furminator.com/products/deshed/dog.aspx", "source_label": "FURminator · catálogo oficial"},
 ])
 PRODUCTS["cat"].extend([
     {"brand": "Catit", "name": "Senses 2.0 Food Tree", "category": "Enriquecimiento alimentario", "reason": "Permite que {pet_name} trabaje por parte de su ración y ayuda a reducir la velocidad al comer; úsalo con su alimento habitual medido.", "source_url": "https://catit.us/products/catit-senses-2-0-food-tree", "source_label": "Catit · producto oficial"},
@@ -211,6 +215,8 @@ PRODUCTS["bird"].extend([
     {"brand": "Lafeber", "name": "Classic Nutri-Berries", "category": "Forrajeo alimentario", "reason": "Formato de alimento para manipular y explorar; selecciona la versión que corresponda al tamaño y especie de {pet_name}.", "select_before_cart": True, "source_url": "https://lafeber.com/product/classic-nutri-berries/", "source_label": "Lafeber · catálogo oficial"},
     {"brand": "Lafeber", "name": "Avi-Cakes", "category": "Forrajeo alimentario", "reason": "Formato que combina nutrición y manipulación; para {pet_name}, elige la presentación de su especie y tamaño de pico antes de añadirla.", "select_before_cart": True, "source_url": "https://lafeber.com/product/avi-cakes/", "source_label": "Lafeber · catálogo oficial"},
     {"brand": "Lafeber", "name": "Premium Daily Diet Pellets", "category": "Alimento formulado", "reason": "Línea de pellets en tamaños distintos; selecciona la fórmula exacta de la especie y tamaño de pico de {pet_name}, no una presentación genérica.", "select_before_cart": True, "source_url": "https://lafeber.com/product/premium-daily-diet-pellets/", "source_label": "Lafeber · catálogo oficial"},
+    {"brand": "Kaytee", "name": "Come Along Carrier", "category": "Transporte", "reason": "Transportador ventilado compatible con aves pequeñas; mide a {pet_name}, confirma su tamaño y úsalo solo para traslados seguros.", "requires_measurement": True, "source_url": "https://www.kaytee.com/all-products/small-animal/come-along-carrier", "source_label": "Kaytee · producto oficial"},
+    {"brand": "Harrison's", "name": "Adult Lifetime Fine", "category": "Alimento de mantenimiento", "exact_terms": ["periquito", "ninfa", "cockatiel", "agapornis", "paloma"], "life_stages": ["adult", "senior"], "reason": "Fórmula de mantenimiento para aves pequeñas y medianas después de la conversión indicada; confirma con el veterinario aviar si corresponde a {pet_name}.", "requires_vet": True, "image_url": "https://www.harrisonsbirdfoods.com/wp-content/uploads/2025/08/ALF1.png", "source_url": "https://www.harrisonsbirdfoods.com/product/adult-lifetime-fine/", "source_label": "Harrison's · producto oficial"},
 ])
 PRODUCTS["fish"].extend([
     {"brand": "Hikari", "name": "Freeze Dried Daphnia", "category": "Rotación alimentaria", "exact_terms": ["betta", "guppy", "molly", "platy", "tetra", "danio"], "reason": "Opción de rotación para peces pequeños compatibles; para {pet_name}, ajusta al tamaño de boca y retira sobrantes.", "source_url": "https://www.hikariusa.com/freeze_dried_folder/fd_daphnia.html", "source_label": "Hikari · producto oficial"},
@@ -243,11 +249,14 @@ PRODUCTS["small_mammal"].extend([
     {"brand": "Zoo Med", "name": "Digital Terrarium Thermometer", "category": "Control del entorno", "reason": "Permite registrar la temperatura del espacio de {pet_name}; el rango correcto depende de su especie exacta y su veterinario de exóticos.", "source_url": "https://zoomed.com/digital-terrarium-thermometer/", "source_label": "Zoo Med · producto oficial"},
     {"brand": "Kaytee", "name": "Come Along Small Animal Carrier", "category": "Transporte", "reason": "Transportador ventilado para pequeños animales; mide a {pet_name}, confirma material y talla, y úsalo solo para traslados supervisados.", "requires_measurement": True, "source_url": "https://www.kaytee.com/all-products/small-animal/kaytee-come-along-carrier", "source_label": "Kaytee · producto oficial"},
     {"brand": "Exotic Nutrition", "name": "Digital Small Animal Scale", "category": "Seguimiento de peso", "reason": "Permite registrar cambios de peso de {pet_name} en casa; confirma capacidad y precisión adecuadas para su especie y comparte tendencias con su veterinario.", "requires_measurement": True, "source_url": "https://exoticnutrition.com/", "source_label": "Exotic Nutrition · fabricante oficial"},
+    {"brand": "Oxbow", "name": "Timothy CLUB Tunnel", "category": "Refugio y forrajeo", "exact_terms": ["chinchilla", "degu"], "reason": "Túnel de heno para refugio y exploración; comprueba que las dimensiones sean seguras para {pet_name} y reemplázalo si se humedece o deteriora.", "requires_measurement": True, "source_url": "https://oxbowanimalhealth.com/product/timothy-club-tunnel/", "source_label": "Oxbow · producto oficial"},
 ])
 PRODUCTS["amphibian"].extend([
     {"brand": "Seachem", "name": "Prime", "category": "Acondicionador de agua", "exact_terms": ["ajolote", "triton"], "reason": "Acondiciona agua dulce; para el sistema acuático de {pet_name}, usa únicamente la dosis de etiqueta para el volumen real.", "source_url": "https://www.seachem.com/prime.php", "source_label": "Seachem · producto oficial"},
     {"brand": "Zoo Med", "name": "Digital Terrarium Thermometer", "category": "Temperatura", "reason": "Ayuda a vigilar la temperatura del entorno de {pet_name}; el rango correcto depende de su especie exacta y no se debe adivinar.", "source_url": "https://zoomed.com/digital-terrarium-thermometer/", "source_label": "Zoo Med · producto oficial"},
     {"brand": "Zoo Med", "name": "Digital Combo Thermometer Humidity Gauge", "category": "Microclima", "reason": "Registra temperatura y humedad del hábitat de {pet_name}; interpreta ambos valores según su especie exacta, no con un rango genérico.", "source_url": "https://zoomed.com/digital-combo-thermometer-humidity-gauge/", "source_label": "Zoo Med · producto oficial"},
+    {"brand": "API", "name": "Freshwater Master Test Kit", "category": "Pruebas del agua", "exact_terms": ["ajolote", "triton", "salamandra"], "reason": "Permite medir parámetros básicos del sistema acuático de {pet_name}; registra resultados y corrige el mantenimiento según el ciclado y su especie.", "source_url": "https://apifishcare.com/product/freshwater-master-test-kit", "source_label": "API · producto oficial"},
+    {"brand": "Hikari", "name": "Sinking Carnivore Pellets", "category": "Alimento hundible", "exact_terms": ["ajolote"], "reason": "Pellet hundible para carnívoros acuáticos; para {pet_name}, confirma tamaño, ingrediente, cantidad y frecuencia con un veterinario de exóticos.", "requires_vet": True, "source_url": "https://www.hikariusa.com/tropical_folder/sinking_carnivore_pellets.html", "source_label": "Hikari · producto oficial"},
 ])
 PRODUCTS["invertebrate"].extend([
     {"brand": "Zoo Med", "name": "Digital Terrarium Thermometer", "category": "Temperatura", "reason": "Permite registrar la temperatura del microhábitat de {pet_name}; interpreta el valor según su especie y etapa.", "source_url": "https://zoomed.com/digital-terrarium-thermometer/", "source_label": "Zoo Med · producto oficial"},
@@ -255,12 +264,15 @@ PRODUCTS["invertebrate"].extend([
     {"brand": "Zoo Med", "name": "Creature Habitat Kit", "category": "Hábitat", "exact_terms": ["tarantula", "escorpion", "mantis", "insecto palo", "escarabajo"], "reason": "Recinto para pequeños invertebrados; selecciona el tamaño y la ventilación según la especie exacta de {pet_name}, nunca solo por apariencia.", "requires_measurement": True, "source_url": "https://zoomed.com/creature-habitat-kit/", "source_label": "Zoo Med · producto oficial"},
     {"brand": "Zoo Med", "name": "Digital Combo Thermometer Humidity Gauge", "category": "Microclima", "reason": "Permite registrar temperatura y humedad del microhábitat de {pet_name}; usa los rangos de su especie y etapa exactas.", "source_url": "https://zoomed.com/digital-combo-thermometer-humidity-gauge/", "source_label": "Zoo Med · producto oficial"},
     {"brand": "Zoo Med", "name": "Creature Soil", "category": "Sustrato", "reason": "Sustrato para invertebrados; confirma para {pet_name} profundidad, humedad, riesgo de ingestión y compatibilidad con la muda.", "select_before_cart": True, "source_url": "https://zoomed.com/creature-soil/", "source_label": "Zoo Med · producto oficial"},
+    {"brand": "Exo Terra", "name": "Water Dish", "category": "Hidratación", "exact_terms": ["tarantula", "escorpion", "milpies", "mantis", "insecto palo"], "reason": "Recipiente estable disponible en varios tamaños; elige para {pet_name} uno poco profundo, accesible y compatible con su especie.", "requires_measurement": True, "source_url": "https://exo-terra.com/products/nutrition/water-dishes/water-dish-small/", "source_label": "Exo Terra · producto oficial"},
 ])
 PRODUCTS["farm_pet"].extend([
     {"brand": "Mazuri", "name": "Mini Pig Treats", "category": "Premio medido", "exact_terms": ["cerdo miniatura"], "reason": "Premio formulado para cerdo miniatura; para {pet_name}, debe contarse dentro de su plan calórico y control de condición corporal.", "source_url": "https://mazuri.com/collections/mini-pig", "source_label": "Mazuri · catálogo oficial"},
     {"brand": "Mazuri", "name": "Mini Pig Active Adult", "category": "Alimento por etapa", "exact_terms": ["cerdo miniatura"], "life_stages": ["adult"], "reason": "Fórmula completa para cerdo miniatura adulto activo; confirma peso, condición corporal y porción de {pet_name} antes de cualquier transición.", "requires_vet": True, "source_url": "https://mazuri.com/collections/mini-pig", "source_label": "Mazuri · catálogo oficial"},
     {"brand": "Mazuri", "name": "Mini Pig Youth", "category": "Alimento por etapa", "exact_terms": ["cerdo miniatura"], "life_stages": ["baby", "young"], "reason": "Fórmula para la etapa de crecimiento de un cerdo miniatura; úsala para {pet_name} únicamente si su edad y condición coinciden con la etiqueta.", "requires_vet": True, "source_url": "https://mazuri.com/collections/mini-pig", "source_label": "Mazuri · catálogo oficial"},
     {"brand": "Jolly Pets", "name": "Push-N-Play Ball", "category": "Enriquecimiento", "exact_terms": ["cerdo miniatura"], "reason": "Pelota rígida para empujar y explorar; selecciona un diámetro que {pet_name} no pueda ingerir y supervisa cada sesión.", "requires_measurement": True, "source_url": "https://jollypets.com/products/push-n-play-dog-toy", "source_label": "Jolly Pets · producto oficial"},
+    {"brand": "Pig Gear", "name": "Cotton Mini Pig Harness", "category": "Arnés específico", "exact_terms": ["cerdo miniatura"], "reason": "Arnés diseñado para la anatomía del cerdo miniatura; mide cuello y contorno de {pet_name}, elige la talla exacta e introdúcelo gradualmente.", "requires_measurement": True, "source_url": "https://www.piggear.com/", "source_label": "Pig Gear · producto oficial"},
+    {"brand": "Pig Gear", "name": "Snuffle Ball", "category": "Forrajeo y enriquecimiento", "exact_terms": ["cerdo miniatura"], "reason": "Pelota de olfato para esconder una parte medida de la ración de {pet_name}; supervisa y retírala si intenta ingerir el material.", "source_url": "https://www.piggear.com/product_index.asp", "source_label": "Pig Gear · catálogo oficial"},
     {"brand": "Mazuri", "name": "Waterfowl Maintenance Diet", "category": "Alimento por especie", "exact_terms": ["pato", "ganso"], "life_stages": ["adult", "senior"], "reason": "Fórmula de mantenimiento para aves acuáticas adultas; confirma que especie, etapa y acceso al agua de {pet_name} coincidan con la etiqueta.", "source_url": "https://mazuri.com/collections/waterfowl", "source_label": "Mazuri · catálogo oficial"},
     {"brand": "Little Giant", "name": "DuraFlex Rubber Feed Pan", "category": "Comedero resistente", "reason": "Recipiente flexible y resistente para servir la porción medida de {pet_name}; elige capacidad según su especie, cantidad real y forma de alimentación, y lávalo después de cada uso.", "requires_measurement": True, "source_url": "https://miller-mfg.com/products/rubber-feed-pan", "source_label": "Miller Manufacturing · producto oficial"},
     {"brand": "Little Giant", "name": "Flat Back Bucket", "category": "Agua y rutina", "reason": "Recipiente de pared plana para organizar agua o alimento de {pet_name}; confirma capacidad, anclaje seguro y limpieza diaria según su especie antes de elegirlo.", "requires_measurement": True, "source_url": "https://miller-mfg.com/collections/buckets", "source_label": "Miller Manufacturing · catálogo oficial"},
@@ -556,13 +568,145 @@ PET_BREED_INFORMATION = {
     "bernesemountain": {
         "display_name": "Bernese Mountain Dog",
         "life_expectancy": "7–10 años",
-        "characteristics": "Los Bernese Mountain Dog suelen ser dulces, afectuosos, inteligentes y muy unidos a su familia. Para Bella, registrada como joven, son importantes la socialización temprana, el entrenamiento con refuerzo positivo y el ejercicio diario moderado; su personalidad individual puede variar.",
-        "common_health": "Por predisposición de raza conviene vigilar displasia de cadera o codo, cáncer —incluido el sarcoma histiocítico—, dilatación-torsión gástrica, problemas cardíacos y de tiroides. Esto no significa que Bella tenga estas condiciones.",
-        "feeding": "Bella es una Bernese Mountain Dog joven: necesita alimento completo para perros jóvenes de raza grande, porciones medidas y un crecimiento gradual. La etiqueta del alimento y su veterinario determinan la cantidad y la frecuencia.",
+        "characteristics": "Los Bernese Mountain Dog suelen ser dulces, afectuosos, inteligentes y muy unidos a su familia. Para {pet_name} son importantes la socialización, el entrenamiento con refuerzo positivo y el ejercicio moderado adaptado a su etapa; su personalidad individual puede variar.",
+        "common_health": "Por predisposición de raza conviene vigilar displasia de cadera o codo, cáncer —incluido el sarcoma histiocítico—, dilatación-torsión gástrica, problemas cardíacos y de tiroides. Esto no significa que {pet_name} tenga estas condiciones.",
+        "feeding": "{pet_name} es Bernese Mountain Dog: necesita un alimento completo correspondiente a su etapa y tamaño, porciones medidas y control de condición corporal. La etiqueta y su veterinario determinan cantidad y frecuencia.",
         "frequency": "Joven: 2–3 comidas según edad y plan",
         "fun_fact": "La raza nació como perro de trabajo en granjas suizas y se hizo conocida por ayudar a mover ganado y tirar de carros.",
         "source_label": "AKC y BMDCA · Bernese Mountain Dog",
         "source_url": "https://www.bmdca.org/diseases-and-conditions",
+    },
+    "hurondomestico": {
+        "display_name": "Hurón doméstico",
+        "life_expectancy": "5–10 años",
+        "characteristics": "{pet_name} es un hurón doméstico: carnívoro estricto, curioso, sociable y muy hábil para entrar en espacios pequeños. Necesita varias sesiones de juego supervisado, refugios para dormir y una casa protegida contra escapes y objetos ingeribles.",
+        "common_health": "En hurones domésticos conviene vigilar enfermedad suprarrenal, insulinoma o hipoglucemia, obstrucciones digestivas, enfermedad dental y cardiopatías. Un cambio repentino de apetito, energía, heces o coordinación en {pet_name} requiere valoración veterinaria.",
+        "feeding": "{pet_name} necesita alimento completo específico para hurón, alto en proteína y grasa de origen animal. Los premios deben ser pequeños y de base animal; fruta, vegetales y productos azucarados no forman parte de su alimentación apropiada.",
+        "frequency": "Varias comidas pequeñas o acceso frecuente según su alimento y veterinario",
+        "fun_fact": "Los hurones pueden dormir gran parte del día y después concentrar mucha energía en cortos periodos de exploración conocidos como su ‘danza de guerra’.",
+        "source_label": "Manual Veterinario Merck y Oxbow · hurón doméstico",
+        "source_url": "https://www.merckvetmanual.com/all-other-pets/ferrets/providing-a-home-for-a-ferret",
+    },
+    "mainecoon": {
+        "display_name": "Maine Coon",
+        "life_expectancy": "12.5+ años",
+        "characteristics": "{pet_name} es Maine Coon: una raza grande, de maduración lenta, generalmente gentil, sociable y juguetona. Su manto semilargo necesita peinado regular y el juego diario ayuda a mantener movilidad y condición corporal.",
+        "common_health": "En Maine Coon conviene vigilar cardiomiopatía hipertrófica, displasia de cadera, luxación de rótula, atrofia muscular espinal y deficiencia de piruvato quinasa. Esto no significa que {pet_name} tenga estas condiciones; su veterinario define el seguimiento apropiado.",
+        "feeding": "{pet_name} necesita alimento completo para gato ajustado a su etapa, peso y condición corporal. Por su tamaño no se debe calcular la ración solo por raza: divide la cantidad diaria indicada en porciones pequeñas y registra peso, apetito y tolerancia.",
+        "frequency": "2–4 porciones pequeñas al día, dentro de su ración medida",
+        "fun_fact": "Muchos Maine Coon se comunican con trinos y chirridos, y la raza puede tardar entre tres y cinco años en alcanzar su tamaño adulto.",
+        "source_label": "TICA · Maine Coon",
+        "source_url": "https://tica.org/breed/maine-coon/",
+    },
+    "bettasplendens": {
+        "display_name": "Betta splendens",
+        "life_expectancy": "3–5 años con cuidado adecuado",
+        "characteristics": "{pet_name} es un betta tropical de agua dulce que respira también aire de la superficie mediante su órgano laberinto. Necesita agua estable, calentada, filtración suave, refugios y acceso libre a la superficie.",
+        "common_health": "Vigila aletas pegadas o erosionadas, puntos blancos, hinchazón, respiración anormal y pérdida de apetito. En {pet_name}, primero se revisan temperatura, amoníaco, nitrito y nitrato antes de asumir una enfermedad.",
+        "feeding": "Ofrece a {pet_name} alimento completo específico para betta en porciones pequeñas que pueda consumir sin dejar restos; los extras compatibles son ocasionales y no sustituyen la dieta base.",
+        "frequency": "1–2 porciones pequeñas al día, ajustadas al alimento y condición corporal",
+        "fun_fact": "Su órgano laberinto permite tomar oxígeno atmosférico, pero no reemplaza una buena calidad del agua.",
+        "source_label": "Manual Veterinario Merck · peces de acuario",
+        "source_url": "https://www.merckvetmanual.com/exotic-and-laboratory-animals/aquarium-fishes/management-of-aquarium-fish",
+    },
+    "periquitoaustraliano": {
+        "display_name": "Periquito australiano",
+        "life_expectancy": "7–15 años según salud y manejo",
+        "characteristics": "{pet_name} es un periquito social, activo y muy inteligente. Necesita vuelo o ejercicio seguro, perchas de distintos diámetros, interacción diaria, juguetes de forrajeo y sueño nocturno constante.",
+        "common_health": "Vigila cambios en heces, respiración con esfuerzo, plumaje erizado, pérdida de peso, sobrecrecimiento de pico o uñas y permanencia en el fondo. Las aves suelen ocultar enfermedad, así que un cambio en {pet_name} requiere atención temprana.",
+        "feeding": "La alimentación de {pet_name} no debe depender solo de semillas: usa una base formulada apropiada para periquitos y vegetales seguros, con transición gradual y control de peso.",
+        "frequency": "Alimento y agua frescos cada día; porción medida según producto y veterinario aviar",
+        "fun_fact": "Los periquitos pueden aprender palabras y asociar sonidos con rutinas y personas.",
+        "source_label": "Manual Veterinario Merck · aves de compañía",
+        "source_url": "https://www.merckvetmanual.com/all-other-pets/pet-birds/routine-care-and-breeding-of-birds",
+    },
+    "geckoleopardo": {
+        "display_name": "Gecko leopardo",
+        "life_expectancy": "10–20 años con manejo adecuado",
+        "characteristics": "{pet_name} es un reptil terrestre y crepuscular. Necesita gradiente térmico controlado, escondite cálido, fresco y húmedo, sustrato seguro y enriquecimiento sin caídas peligrosas.",
+        "common_health": "Vigila muda retenida en dedos u ojos, pérdida de reserva en la cola, estreñimiento, quemaduras, debilidad mandibular o de extremidades y falta de apetito. Revisa siempre temperatura y suplementación de {pet_name}.",
+        "feeding": "{pet_name} consume insectos de tamaño apropiado, bien alimentados y suplementados según edad y plan veterinario; retira los insectos no consumidos.",
+        "frequency": "Adulto: normalmente 2–3 veces por semana; jóvenes con mayor frecuencia",
+        "fun_fact": "Puede desprender la cola para escapar y regenerarla, aunque la nueva cola no queda idéntica.",
+        "source_label": "Manual Veterinario Merck · reptiles",
+        "source_url": "https://www.merckvetmanual.com/exotic-and-laboratory-animals/reptiles/management-of-reptiles",
+    },
+    "hollandlop": {
+        "display_name": "Holland Lop",
+        "life_expectancy": "8–12 años",
+        "characteristics": "{pet_name} es un conejo pequeño de orejas caídas. Necesita mucho espacio horizontal, suelo con tracción, escondites, ejercicio diario y revisión frecuente de orejas, dientes y uñas.",
+        "common_health": "Vigila estasis gastrointestinal, problemas dentales, sobrepeso, pododermatitis y acumulación o infección en los oídos. Que {pet_name} deje de comer o producir heces es una urgencia.",
+        "feeding": "La base de {pet_name} es heno de pasto ilimitado; completa con hojas seguras y pellet medido apropiado para su edad y peso.",
+        "frequency": "Heno y agua siempre; verduras y pellet medidos cada día",
+        "fun_fact": "Sus orejas caídas requieren observación adicional porque ventilan menos que las orejas erguidas.",
+        "source_label": "Manual Veterinario Merck · conejos",
+        "source_url": "https://www.merckvetmanual.com/all-other-pets/rabbits/routine-health-care-of-rabbits",
+    },
+    "american": {
+        "display_name": "Cobaya American",
+        "life_expectancy": "5–7 años",
+        "characteristics": "{pet_name} es una cobaya de pelo corto, social y rutinaria. Necesita compañía compatible, refugios múltiples, espacio para moverse y observación diaria de apetito, heces y vocalización.",
+        "common_health": "Vigila déficit de vitamina C, problemas dentales, respiratorios, urinarios y pododermatitis. Pesa a {pet_name} semanalmente porque la pérdida temprana puede pasar desapercibida.",
+        "feeding": "{pet_name} necesita heno de pasto ilimitado, pellet específico fortificado y verduras apropiadas que aporten vitamina C; no puede producir esta vitamina por sí misma.",
+        "frequency": "Heno y agua siempre; pellet medido y vegetales frescos cada día",
+        "fun_fact": "Las cobayas usan muchos silbidos y sonidos distintos para comunicarse con su grupo y cuidadores.",
+        "source_label": "Manual Veterinario Merck · cobayas",
+        "source_url": "https://www.merckvetmanual.com/all-other-pets/guinea-pigs/routine-health-care-of-guinea-pigs",
+    },
+    "sirio": {
+        "display_name": "Hámster sirio",
+        "life_expectancy": "2–3 años",
+        "characteristics": "{pet_name} es nocturno, excavador y territorial. Los sirios adultos se mantienen individualmente y necesitan recinto amplio, sustrato profundo, rueda sólida del tamaño correcto y refugios.",
+        "common_health": "Vigila diarrea o cola mojada, problemas respiratorios, dientes sobrecrecidos, bultos, heridas y cambios de actividad. No despiertes bruscamente a {pet_name} para manipularlo.",
+        "feeding": "Ofrece a {pet_name} alimento completo específico en cantidad medida, agua permanente y extras seguros muy pequeños; revisa periódicamente sus escondites de comida.",
+        "frequency": "1 ración medida al atardecer o noche, con agua siempre disponible",
+        "fun_fact": "Puede transportar alimento en sus abazones hasta un escondite varias veces mayor que su boca.",
+        "source_label": "Manual Veterinario Merck · hámsteres",
+        "source_url": "https://www.merckvetmanual.com/all-other-pets/hamsters/routine-health-care-of-hamsters",
+    },
+    "ajolote": {
+        "display_name": "Ajolote (Ambystoma mexicanum)",
+        "life_expectancy": "10–15 años con cuidado adecuado",
+        "characteristics": "{pet_name} es un anfibio acuático de agua fría que conserva branquias externas. Necesita acuario ciclado, corriente suave, escondites, baja iluminación y temperatura estable sin grava ingerible.",
+        "common_health": "Vigila branquias encogidas o curvadas, lesiones de piel, hongos, flotación anormal, falta de apetito y deterioro del agua. Amoníaco y nitrito deben permanecer en cero para {pet_name}.",
+        "feeding": "{pet_name} necesita presas o alimento hundible apropiado y del tamaño correcto; retira restos para proteger la calidad del agua.",
+        "frequency": "Adulto: generalmente 2–3 veces por semana; jóvenes con mayor frecuencia",
+        "fun_fact": "Puede regenerar extremidades y otros tejidos, una capacidad que se estudia ampliamente en ciencia.",
+        "source_label": "Manual Veterinario Merck · anfibios",
+        "source_url": "https://www.merckvetmanual.com/exotic-and-laboratory-animals/amphibians/management-of-amphibians",
+    },
+    "chinchilla": {
+        "display_name": "Chinchilla",
+        "life_expectancy": "10–20 años",
+        "characteristics": "{pet_name} tiene pelaje extremadamente denso, es activa al atardecer y sensible al calor y la humedad. Necesita ambiente fresco, plataformas seguras, materiales para roer y baños de polvo controlados.",
+        "common_health": "Vigila golpe de calor, problemas dentales, estasis digestiva, anillos de pelo y lesiones en patas. Una disminución de apetito o heces de {pet_name} necesita valoración rápida.",
+        "feeding": "La base de {pet_name} es heno de pasto ilimitado y pellet específico medido; evita premios azucarados y cambios bruscos.",
+        "frequency": "Heno y agua siempre; pellet específico medido cada día",
+        "fun_fact": "Cada folículo puede producir decenas de pelos, lo que explica la extraordinaria densidad de su manto.",
+        "source_label": "Manual Veterinario Merck · chinchillas",
+        "source_url": "https://www.merckvetmanual.com/all-other-pets/chinchillas/routine-health-care-of-chinchillas",
+    },
+    "tarantula": {
+        "display_name": "Tarántula",
+        "life_expectancy": "Varía por especie y sexo: varios años a décadas",
+        "characteristics": "{pet_name} necesita un recinto cuya orientación, ventilación, sustrato y humedad correspondan a su especie exacta. Se observa más de lo que se manipula, para evitar caídas y estrés.",
+        "common_health": "Vigila abdomen encogido, lesiones por caída, deshidratación, ácaros y problemas de muda. No dejes presas vivas con {pet_name} durante la premuda o muda.",
+        "feeding": "Ofrece a {pet_name} presas apropiadas y bien nutridas según especie y tamaño; retira restos y registra rechazos, especialmente alrededor de la muda.",
+        "frequency": "Según especie, tamaño y ciclo de muda; nunca forzar la alimentación",
+        "fun_fact": "Muchas tarántulas renuevan partes dañadas gradualmente a través de mudas sucesivas.",
+        "source_label": "Manual Veterinario Merck · invertebrados",
+        "source_url": "https://www.merckvetmanual.com/exotic-and-laboratory-animals/invertebrates/overview-of-invertebrates",
+    },
+    "cerdominiatura": {
+        "display_name": "Cerdo miniatura",
+        "life_expectancy": "12–18 años",
+        "characteristics": "{pet_name} es inteligente, social, fuerte y motivada por la comida. Necesita espacio, enriquecimiento para hozar, límites consistentes, suelo seguro y control de peso durante toda su vida.",
+        "common_health": "Vigila obesidad, sobrecrecimiento de pezuñas o colmillos, parásitos, problemas de piel, artritis y estreñimiento. El tamaño adulto de {pet_name} no se puede garantizar con etiquetas como ‘micro’ o ‘teacup’.",
+        "feeding": "{pet_name} necesita alimento completo formulado para cerdo miniatura, ración medida según peso y condición corporal, agua permanente y vegetales apropiados como complemento controlado.",
+        "frequency": "Ración diaria medida y normalmente dividida en 2 comidas",
+        "fun_fact": "Los cerdos aprenden rutinas, rompecabezas y señales con rapidez y pueden reconocer a individuos.",
+        "source_label": "Manual Veterinario Merck · cerdos miniatura",
+        "source_url": "https://www.merckvetmanual.com/all-other-pets/potbellied-pigs/routine-health-care-of-potbellied-pigs",
     },
 }
 PET_BREED_INFORMATION["bernesemountaindog"] = PET_BREED_INFORMATION["bernesemountain"]
@@ -740,11 +884,18 @@ def personalized_pet_care_plan(pet: dict[str, Any]) -> dict[str, Any]:
         })
     information = deepcopy(PET_INFORMATION.get(species, PET_INFORMATION["other"]))
     information["frequency"] = PET_FEEDING_FREQUENCY.get(species, PET_FEEDING_FREQUENCY["other"])
-    breed_key = "".join(character for character in exact.casefold() if character.isalnum())
+    breed_key = "".join(
+        character for character in unicodedata.normalize("NFKD", exact).encode("ascii", "ignore").decode("ascii").casefold()
+        if character.isalnum()
+    )
     breed_information = PET_BREED_INFORMATION.get(breed_key)
     if breed_information:
-        information.update({key: value for key, value in breed_information.items() if key not in {"source_label", "source_url"}})
-        information["scope"] = "breed"
+        information.update({
+            key: str(value).format(pet_name=str(pet.get("name") or "tu mascota"))
+            for key, value in breed_information.items()
+            if key not in {"source_label", "source_url"}
+        })
+        information["scope"] = "breed" if species in {"dog", "cat"} else "exact_species"
         source_label = str(breed_information["source_label"])
         source_url = str(breed_information["source_url"])
     return {
