@@ -331,6 +331,7 @@ textarea { resize: vertical; line-height: 1.45; }
 .recipe-card strong, .recipe-card small { display: block; }
 .recipe-card strong { color: var(--forest-dark); font-family: Georgia, serif; font-size: 17px; }
 .recipe-card small { margin-top: 6px; color: var(--muted); }
+.recipe-card .pet-recipe-match{display:block;margin-top:8px;color:#176246;font-size:11px;font-style:normal;font-weight:700;line-height:1.35}
 .recipe-result { padding: 18px; border: 1px solid #d3ded4; border-radius: 20px; background: var(--sage-soft); }
 .recipe-result h3 { margin-bottom: 8px; }
 .recipe-result li { margin: 7px 0; line-height: 1.45; }

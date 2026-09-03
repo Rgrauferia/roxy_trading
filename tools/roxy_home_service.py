@@ -34,6 +34,7 @@ from roxy_os.home_recipe_fallback import (
     local_recipe_catalog,
     local_recipe_by_key,
     local_recipe_catalog_summary,
+    personalized_pet_recipe_catalog,
 )
 from roxy_os.home_recipe_editorial import recipe_quality_issues
 from roxy_os.home_recipe_library import (
@@ -3603,6 +3604,9 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
         "pet_options": pet_profile_options(),
         "pet_recommendations": {
             str(pet.get("id")): personalized_pet_products(pet) for pet in pets if pet.get("id")
+        },
+        "pet_recipe_recommendations": {
+            str(pet.get("id")): personalized_pet_recipe_catalog(pet, snapshot) for pet in pets if pet.get("id")
         },
         "pet_care_plans": {
             str(pet.get("id")): personalized_pet_care_plan(pet) for pet in pets if pet.get("id")

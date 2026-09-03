@@ -267,6 +267,9 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         "authority": "American Kennel Club",
     }
     extra_treats = {
+        "dog_dehydrated_chicken": ("dog", "Tiritas deshidratadas de pollo para perros", "Pechuga de pollo sin piel ni hueso", 250, "gramo", "Corta el pollo en tiras finas y uniformes, sin aceite, sal ni condimentos.", "Deshidrata a 74 °C hasta que las tiras estén completamente cocidas y secas; comprueba primero que el centro haya alcanzado 74 °C."),
+        "dog_hard_boiled_egg": ("dog", "Bocaditos de huevo hervido para perros", "Huevo", 1, "unidad", "Hierve el huevo durante 10 minutos, enfríalo y retira toda la cáscara.", "Corta una porción pequeña de clara y yema completamente firmes, sin sal, aceite, mayonesa ni condimentos."),
+        "dog_dehydrated_turkey": ("dog", "Láminas deshidratadas de pavo para perros", "Pechuga de pavo sin piel ni hueso", 250, "gramo", "Corta el pavo en láminas finas y confirma que no contenga salmuera, ajo, cebolla ni condimentos.", "Deshidrata a 74 °C hasta que esté completamente cocido y seco, sin zonas blandas o rosadas."),
         "dog_sweet_potato_chews": ("dog", "Tiritas horneadas de batata para perros", "Batata", 1, "unidad", "Lava, pela y corta la batata en tiras delgadas.", "Hornea las tiras a 120 °C de dos a tres horas, girándolas a mitad de cocción."),
         "dog_apple_carrot_oat": ("dog", "Mini bocados de manzana, zanahoria y avena", "Manzana sin semillas ni corazón", 0.5, "unidad", "Ralla la manzana y la zanahoria después de retirar semillas y corazón.", "Mezcla con avena molida, forma bocados pequeños y hornea a 175 °C hasta que estén firmes."),
         "dog_turkey_pumpkin": ("dog", "Bocaditos de pavo y calabaza", "Pavo molido sin condimentos", 250, "gramo", "Mezcla el pavo con puré de calabaza 100 % natural, sin especias.", "Forma porciones pequeñas y hornea a 190 °C hasta que el centro alcance 74 °C."),
@@ -278,6 +281,9 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         "cat_plain_shrimp": ("cat", "Trocitos de camarón cocido para gatos", "Camarón crudo pelado y desvenado", 80, "gramo", "Confirma que el camarón esté pelado, desvenado y sin sal ni aditivos.", "Hiérvelo en agua simple hasta que quede opaco y completamente cocido."),
         "cat_turkey_flakes": ("cat", "Lascas de pavo cocido para gatos", "Pechuga de pavo sin piel ni hueso", 120, "gramo", "Revisa que el pavo no contenga salmuera, ajo, cebolla ni condimentos.", "Hornéalo sin aceite hasta que alcance 74 °C y desmenúzalo muy fino."),
         "cat_rabbit_morsels": ("cat", "Bocaditos de conejo cocido para gatos", "Carne de conejo deshuesada sin condimentos", 120, "gramo", "Retira por completo huesos, grasa visible y cualquier condimento.", "Cocina la carne hasta que esté completamente hecha y córtala en bocados mínimos."),
+        "cat_dehydrated_chicken": ("cat", "Miguitas deshidratadas de pollo para gatos", "Pechuga de pollo sin piel ni hueso", 180, "gramo", "Corta el pollo en láminas muy finas y uniformes, sin aceite ni condimentos.", "Deshidrata a 74 °C hasta que esté completamente cocido y seco; al enfriar, separa miguitas muy pequeñas."),
+        "cat_hard_boiled_egg": ("cat", "Miguitas de huevo hervido para gatos", "Huevo", 1, "unidad", "Hierve el huevo durante 10 minutos, enfríalo y retira toda la cáscara.", "Separa una miguita de clara y yema totalmente firmes, sin leche, aceite, sal ni condimentos."),
+        "cat_dehydrated_whitefish": ("cat", "Lascas deshidratadas de pescado blanco para gatos", "Filete de pescado blanco sin piel ni espinas", 160, "gramo", "Revisa el filete con cuidado, retira piel y todas las espinas y córtalo en láminas finas.", "Deshidrata hasta que el pescado esté completamente cocido y seco; vuelve a revisar espinas antes de desmenuzar."),
     }
     for key, (species, title, ingredient_name, quantity, unit, prep, cooking) in extra_treats.items():
         recipe = _recipe(
@@ -299,6 +305,10 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
             veterinary_note="Premio ocasional; no sustituye una dieta completa y equilibrada. Confirma ingredientes y porción con tu veterinario si existen alergias, enfermedad o dieta prescrita.",
             sources=[pet_food_source], editorial_status="verified_veterinary_guidance",
         )
+        if "dehydrated" in key:
+            recipe["pet_variety"] = "Deshidratado"
+        elif "hard_boiled" in key:
+            recipe["pet_variety"] = "Hervido"
         recipes[key] = recipe
     bernese_exact_specs = [
         ("bernese_young_turkey_pumpkin", "dog_turkey_pumpkin", "Bocaditos de pavo y calabaza para Bernese joven", "Premios pequeños de proteína cocida para entrenamiento; la cantidad se ajusta al peso real de un Bernese joven.", "/assets/roxy_home/recipes/pets/bernese-turkey-pumpkin.jpg", "Proteína horneada"),
@@ -378,6 +388,35 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         "invertebrate_general_feeding": ("invertebrate", [], "Plan seguro para invertebrados", "Alimento o presas apropiadas para la especie exacta", "No uses una dieta genérica: confirma especie, etapa, tipo de presa, agua, temperatura, humedad y relación con la muda antes de definir la rutina.", "Manual Veterinario Merck · nutrición de animales exóticos", "https://www.merckvetmanual.com/management-and-nutrition/nutrition-exotic-and-zoo-animals/overview-of-nutrition-exotic-and-zoo-animals"),
         "farm_pet_general_feeding": ("farm_pet", [], "Plan por especie y etapa para mascotas de granja", "Alimento completo correspondiente a la especie, etapa y función", "No intercambies alimentos entre especies o etapas; sigue la etiqueta y confirma con un veterinario o nutricionista animal el acceso a agua, forraje y minerales.", "Manual Veterinario Merck · animales de traspatio", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/backyard-poultry/management-of-backyard-poultry"),
         "other_species_identification": ("other", [], "Identificar la especie antes de definir su alimentación", "Plan pendiente de identificar la especie exacta", "Roxy no propondrá ingredientes, cantidades ni frecuencia hasta guardar la especie exacta y confirmar que su tenencia y cuidado sean apropiados.", "Manual Veterinario Merck · bienestar de mascotas no tradicionales", "https://www.merckvetmanual.com/special-subjects/animal-welfare/animal-welfare"),
+        "bird_budgie_pellet_rotation": ("bird", ["periquito"], "Rotación de pellets y vegetales para periquito", "Pellet formulado para periquito y vegetales aprobados", "Registra qué pellets y vegetales acepta; no permitas que seleccione únicamente semillas y retira el alimento fresco antes de que se estropee.", "Manual Veterinario Merck · alimentación de aves", "https://www.merckvetmanual.com/bird-owners/choosing-and-taking-care-of-a-pet-bird/feeding-a-pet-bird"),
+        "bird_cockatiel_fresh_rotation": ("bird", ["ninfa", "cockatiel"], "Rotación fresca para ninfa o cockatiel", "Pellet del tamaño adecuado y vegetales ricos en vitamina A", "Introduce un vegetal cada vez, registra aceptación y heces, y evita aguacate, alcohol, chocolate, cafeína y alimentos salados.", "Manual Veterinario Merck · alimentación de aves", "https://www.merckvetmanual.com/bird-owners/choosing-and-taking-care-of-a-pet-bird/feeding-a-pet-bird"),
+        "fish_betta_frozen_rotation": ("fish", ["betta"], "Rotación de alimento congelado para betta", "Alimento congelado comercial compatible con betta", "Descongela únicamente la porción indicada, comprueba que el betta la ingiera y retira cualquier resto para proteger la calidad del agua.", "Manual Veterinario Merck · peces de acuario", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/aquarium-fish/nutritional-diseases-of-fish"),
+        "fish_goldfish_fresh_rotation": ("fish", ["goldfish", "carassius"], "Rotación alimentaria para goldfish", "Alimento completo para goldfish en formato adecuado", "Alterna solo formatos compatibles con el tamaño y la flotabilidad del pez; observa abdomen, heces y parámetros del agua antes de repetir.", "Manual Veterinario Merck · peces de acuario", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/aquarium-fish/nutritional-diseases-of-fish"),
+        "reptile_leopard_gecko_live_rotation": ("reptile", ["gecko leopardo"], "Rotación de insectos para gecko leopardo", "Insectos alimentadores del tamaño apropiado y correctamente nutridos", "Usa variedad de presas criadas como alimento, nunca insectos silvestres; registra la suplementación indicada, el apetito, el peso y cada muda.", "Manual Veterinario Merck · reptiles", "https://www.merckvetmanual.com/all-other-pets/reptiles/providing-a-home-for-a-reptile"),
+        "reptile_bearded_dragon_greens": ("reptile", ["dragon barbudo"], "Rotación de hojas para dragón barbudo", "Hojas y vegetales aprobados para su etapa", "La proporción vegetal y animal cambia con la edad; registra cada ingrediente por separado y no añadas suplementos sin revisar dieta, calcio y UVB.", "Manual Veterinario Merck · reptiles", "https://www.merckvetmanual.com/all-other-pets/reptiles/providing-a-home-for-a-reptile"),
+        "amphibian_axolotl_earthworm": ("amphibian", ["ajolote", "axolotl"], "Servicio de lombriz para ajolote", "Lombriz criada como alimento y del tamaño apropiado", "Ofrece con pinzas limpias sin lastimar al ajolote, confirma que trague con normalidad y retira restos mientras registras temperatura y parámetros del agua.", "ARAV · reptiles y anfibios", "https://arav.org/"),
+        "amphibian_frog_insect_rotation": ("amphibian", ["rana", "sapo"], "Rotación de insectos para rana o sapo", "Insectos alimentadores apropiados para la especie y tamaño", "No uses insectos silvestres; relaciona apetito con temperatura y humedad, y confirma cualquier suplementación con el veterinario de exóticos.", "ARAV · reptiles y anfibios", "https://arav.org/"),
+        "small_mammal_chinchilla_hay": ("small_mammal", ["chinchilla"], "Selección diaria de heno para chinchilla", "Heno de pasto limpio, seco y aromático", "Renueva el heno contaminado, registra consumo y heces, y no conviertas fruta seca, semillas o premios azucarados en parte habitual.", "Oxbow · guía de alimentos fortificados", "https://oxbowanimalhealth.com/wp-content/uploads/2023/07/Oxbow-All-About-Fortified-Foods-Apr-2022.pdf"),
+        "small_mammal_rat_fresh_rotation": ("small_mammal", ["rata domestica"], "Rotación fresca para rata doméstica", "Alimento uniforme para rata y complemento fresco aprobado", "Presenta un complemento a la vez, en cantidad pequeña, y registra aceptación, peso y heces sin desplazar el alimento formulado.", "Oxbow · guía de alimentos fortificados", "https://oxbowanimalhealth.com/wp-content/uploads/2023/07/Oxbow-All-About-Fortified-Foods-Apr-2022.pdf"),
+        "invertebrate_tarantula_feeder": ("invertebrate", ["tarantula"], "Rutina de presa para tarántula", "Presa criada como alimento y del tamaño apropiado", "Retira cualquier presa no consumida, especialmente antes de una muda; no fuerces la alimentación y registra humedad, abdomen y fecha de muda.", "Manual Veterinario Merck · animales exóticos", "https://www.merckvetmanual.com/management-and-nutrition/nutrition-exotic-and-zoo-animals/overview-of-nutrition-exotic-and-zoo-animals"),
+        "invertebrate_hermit_crab_station": ("invertebrate", ["cangrejo ermitano"], "Estación variada para cangrejo ermitaño", "Alimento específico y fuentes minerales aprobadas para la especie", "Mantén recipientes separados de agua dulce y salada correctamente preparada, retira sobrantes y registra actividad, muda y humedad.", "Manual Veterinario Merck · animales exóticos", "https://www.merckvetmanual.com/management-and-nutrition/nutrition-exotic-and-zoo-animals/overview-of-nutrition-exotic-and-zoo-animals"),
+        "farm_pet_mini_pig_enrichment": ("farm_pet", ["cerdo miniatura"], "Enriquecimiento alimentario para cerdo miniatura", "Parte medida de su alimento completo para cerdo miniatura", "Reserva parte de la ración indicada para una búsqueda supervisada; registra peso y condición corporal y no añadas calorías fuera del plan.", "Mazuri · nutrición para cerdo miniatura", "https://mazuri.com/collections/mini-pig"),
+        "farm_pet_poultry_foraging": ("farm_pet", ["gallina", "pato", "ganso", "pavo", "codorniz"], "Forrajeo medido para ave de traspatio", "Parte de su alimento completo correspondiente a especie y etapa", "Distribuye una parte medida en un área limpia y segura; no sustituyas la fórmula de su especie ni ofrezcas alimento mohoso o contaminado.", "Manual Veterinario Merck · aves de traspatio", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/backyard-poultry/management-of-backyard-poultry"),
+        "rabbit_hay_quality_check": ("rabbit", [], "Selección de heno diario para conejo", "Heno de pasto limpio, seco y aromático", "Mantén heno disponible, retira partes húmedas o contaminadas y relaciona cualquier descenso de consumo o de heces con atención veterinaria rápida.", "Manual Veterinario Merck · nutrición de conejos", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/rabbits/nutrition-of-rabbits"),
+        "rabbit_pellet_label_plan": ("rabbit", [], "Plan de pellet por etapa para conejo", "Pellet uniforme correspondiente a su etapa", "Mide solo la cantidad indicada por etiqueta o veterinario, registra el peso y evita mezclas que permitan seleccionar semillas o piezas.", "Manual Veterinario Merck · nutrición de conejos", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/rabbits/nutrition-of-rabbits"),
+        "guinea_vitamin_c_rotation": ("guinea_pig", [], "Rotación fresca de vitamina C para cobaya", "Vegetal fresco aprobado rico en vitamina C", "Introduce un vegetal a la vez, registra tolerancia y retira sobrantes; no añadas vitamina C al agua sin indicación porque la dosis y estabilidad son impredecibles.", "Manual Veterinario Merck · nutrición de cobayas", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/guinea-pigs/housing-and-nutrition-of-guinea-pigs"),
+        "guinea_hay_pellet_plan": ("guinea_pig", [], "Plan de heno y pellet para cobaya", "Heno de pasto y pellet uniforme específico para cobaya", "Mantén heno disponible, mide el pellet por etiqueta y registra peso, apetito, heces y desgaste dental.", "Manual Veterinario Merck · nutrición de cobayas", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/guinea-pigs/housing-and-nutrition-of-guinea-pigs"),
+        "hamster_uniform_food_foraging": ("hamster", [], "Forrajeo con alimento uniforme para hámster", "Parte medida de su alimento completo para hámster", "Esconde una parte de la ración en zonas limpias, revisa reservas húmedas y registra consumo sin añadir mezcla de semillas no contabilizada.", "Manual Veterinario Merck · hámsteres", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/rodents/hamsters"),
+        "hamster_protein_rotation": ("hamster", [], "Rotación proteica segura para hámster", "Complemento proteico aprobado para su especie exacta", "Confirma el ingrediente y una porción diminuta, introdúcelo solo y retira lo que almacene antes de que se deteriore.", "Manual Veterinario Merck · hámsteres", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/rodents/hamsters"),
+        "fish_betta_pellet_observation": ("fish", ["betta"], "Prueba de pellet por pellet para betta", "Pellet completo específico para betta y tamaño de boca", "Entrega la cantidad indicada de forma gradual, observa cada ingestión y detente si quedan restos o el abdomen cambia de forma.", "Manual Veterinario Merck · peces de acuario", "https://www.merckvetmanual.com/exotic-and-laboratory-animals/aquarium-fish/nutritional-diseases-of-fish"),
+        "reptile_leopard_gecko_calcium_log": ("reptile", ["gecko leopardo"], "Registro de calcio para gecko leopardo", "Suplemento de calcio elegido según dieta y exposición UVB", "No determines D3 o frecuencia por intuición; registra producto, fecha, presas, UVB y la indicación exacta del especialista.", "Manual Veterinario Merck · reptiles", "https://www.merckvetmanual.com/all-other-pets/reptiles/providing-a-home-for-a-reptile"),
+        "amphibian_axolotl_pellet_rotation": ("amphibian", ["ajolote", "axolotl"], "Rotación de pellet hundible para ajolote", "Pellet hundible completo del tamaño apropiado", "Ofrece una porción controlada, confirma que llegue al fondo y sea ingerida, y retira todo sobrante mientras registras los parámetros del agua.", "ARAV · reptiles y anfibios", "https://arav.org/"),
+        "small_mammal_chinchilla_pellet": ("small_mammal", ["chinchilla"], "Plan de pellet uniforme para chinchilla", "Pellet uniforme específico para chinchilla", "Mide la porción de etiqueta, mantén el heno como base y registra peso, apetito y heces antes de cualquier cambio.", "Oxbow · guía de alimentos fortificados", "https://oxbowanimalhealth.com/wp-content/uploads/2023/07/Oxbow-All-About-Fortified-Foods-Apr-2022.pdf"),
+        "small_mammal_chinchilla_foraging": ("small_mammal", ["chinchilla"], "Forrajeo seco para chinchilla", "Parte de su heno y pellet habituales", "Distribuye solo alimento ya contabilizado en lugares secos y limpios; evita frutas secas y premios azucarados.", "Oxbow · guía de alimentos fortificados", "https://oxbowanimalhealth.com/wp-content/uploads/2023/07/Oxbow-All-About-Fortified-Foods-Apr-2022.pdf"),
+        "invertebrate_tarantula_molt_pause": ("invertebrate", ["tarantula"], "Pausa alimentaria segura durante la muda de tarántula", "Agua limpia; presas suspendidas mientras existan señales de muda", "Retira presas vivas, no manipules ni fuerces la alimentación y registra postura, humedad y fecha hasta que se recupere por completo.", "Manual Veterinario Merck · animales exóticos", "https://www.merckvetmanual.com/management-and-nutrition/nutrition-exotic-and-zoo-animals/overview-of-nutrition-exotic-and-zoo-animals"),
+        "invertebrate_tarantula_water_check": ("invertebrate", ["tarantula"], "Revisión de agua para tarántula", "Agua limpia en recipiente estable y poco profundo", "Limpia y rellena sin humedecer todo el recinto a ciegas; registra consumo visible, humedad y cualquier cambio del abdomen.", "Manual Veterinario Merck · animales exóticos", "https://www.merckvetmanual.com/management-and-nutrition/nutrition-exotic-and-zoo-animals/overview-of-nutrition-exotic-and-zoo-animals"),
+        "farm_pet_mini_pig_label_plan": ("farm_pet", ["cerdo miniatura"], "Plan de alimento completo para cerdo miniatura", "Alimento completo de cerdo miniatura para su etapa", "Pesa la porción según etiqueta o veterinario, divídela en sus horarios guardados y registra peso y condición corporal semanalmente.", "Mazuri · nutrición para cerdo miniatura", "https://mazuri.com/collections/mini-pig"),
+        "farm_pet_mini_pig_fresh_rotation": ("farm_pet", ["cerdo miniatura"], "Rotación fresca medida para cerdo miniatura", "Vegetal aprobado contabilizado dentro de su plan", "Introduce un vegetal simple, sin sal ni aderezos, registra tolerancia y evita convertir sobras humanas en parte de la dieta.", "Mazuri · nutrición para cerdo miniatura", "https://mazuri.com/collections/mini-pig"),
     }
     for key, (species, exact_terms, title, ingredient, observation, source_title, source_url) in feeding_guide_specs.items():
         guide = _recipe(
@@ -681,6 +720,71 @@ def local_recipe_catalog(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
         {"catalog_key": key, **_prepare_local_recipe(key, snapshot)}
         for key in sorted(_unique_catalog_templates(), key=lambda value: str(_templates()[value].get("title") or value).casefold())
     ]
+
+
+def personalized_pet_recipe_catalog(pet: dict[str, Any], snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build a pet-owned view of the curated catalog without pretending treats are complete diets."""
+    species = str(pet.get("species") or "other")
+    pet_name = str(pet.get("name") or "esta mascota").strip()
+    identity = str(pet.get("breed") or pet.get("exact_species") or species).strip()
+    identity_key = _identity(identity)
+    stage = str(pet.get("life_stage") or "unknown")
+    stage_label = {"baby": "bebé", "young": "joven", "adult": "adulta", "senior": "senior"}.get(stage, "etapa pendiente")
+    allergy_aliases = {
+        "pollo": {"pollo", "chicken"}, "pavo": {"pavo", "turkey"}, "res": {"res", "beef"},
+        "pescado": {"pescado", "salmon", "bacalao", "camaron", "fish", "shrimp"},
+        "huevo": {"huevo", "egg"}, "lacteos": {"yogur", "leche", "queso", "lacteo", "dairy"},
+        "trigo": {"trigo", "harina", "wheat"}, "avena": {"avena", "oat"},
+    }
+    blocked: set[str] = set()
+    for allergy in pet.get("allergies") or []:
+        normalized = _identity(allergy)
+        if normalized.startswith("ninguna"):
+            continue
+        blocked.update(allergy_aliases.get(normalized, {normalized}))
+    rows: list[dict[str, Any]] = []
+    for source in local_recipe_catalog(snapshot):
+        if source.get("audience") != "pet" or source.get("pet_species") != species:
+            continue
+        exact_terms = [_identity(value) for value in source.get("pet_exact_terms") or [] if _identity(value)]
+        if exact_terms and not any(term in identity_key for term in exact_terms):
+            continue
+        life_stages = [str(value) for value in source.get("pet_life_stages") or []]
+        if life_stages and stage != "unknown" and stage not in life_stages:
+            continue
+        ingredient_text = _identity(" ".join(str(item.get("name") or "") for item in source.get("ingredients") or [] if isinstance(item, dict)))
+        matched_allergies = sorted(value for value in blocked if value and value in ingredient_text)
+        if matched_allergies:
+            continue
+        row = deepcopy(source)
+        dimensions = [identity]
+        if stage != "unknown":
+            dimensions.append(f"etapa {stage_label}")
+        if blocked:
+            dimensions.append(f"sin {len(blocked)} ingrediente(s) bloqueado(s)")
+        if exact_terms:
+            scope = row.get("personalization_scope") or "exact_identity"
+            reason = f"Coincide con {identity} y con la etapa {stage_label} guardada para {pet_name}."
+        elif row.get("safety_class") == "feeding_guide":
+            scope = "species_feeding_protocol"
+            reason = f"Es una guía compatible con {identity}; la cantidad y frecuencia se mantienen ligadas a su etiqueta, entorno y especialista."
+        else:
+            scope = "species_safe_treat"
+            reason = f"Es un premio compatible con la especie de {pet_name}, filtrado por su etapa y restricciones guardadas."
+        row.update(
+            pet_id=str(pet.get("id") or ""), pet_name=pet_name, profile_label=f"Para {pet_name} · {' · '.join(dimensions)}",
+            personalization_scope=scope, personalization_reason=reason,
+            excluded_allergies=sorted(blocked),
+        )
+        rows.append(row)
+    return sorted(
+        rows,
+        key=lambda row: (
+            0 if row.get("pet_exact_terms") else 1,
+            0 if row.get("pet_variety") in {"Deshidratado", "Hervido"} else 1,
+            str(row.get("title") or "").casefold(),
+        ),
+    )
 
 
 def exact_local_recipe(title: str) -> dict[str, Any] | None:

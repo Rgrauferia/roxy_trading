@@ -16,12 +16,12 @@ def test_local_catalog_includes_species_specific_pet_recipes_with_safety_notes()
     from roxy_os.home_recipe_fallback import local_recipe_catalog
 
     rows = [row for row in local_recipe_catalog({}) if row.get("audience") == "pet"]
-    assert len(rows) == 64
+    assert len(rows) == 99
     assert {row["pet_species"] for row in rows} == {
         "dog", "cat", "ferret", "bird", "rabbit", "hamster", "guinea_pig", "fish", "reptile", "amphibian",
         "small_mammal", "invertebrate", "farm_pet", "other",
     }
-    assert {species: sum(row["pet_species"] == species for row in rows) for species in ("dog", "cat", "ferret", "fish")} == {"dog": 22, "cat": 9, "ferret": 8, "fish": 4}
+    assert {species: sum(row["pet_species"] == species for row in rows) for species in ("dog", "cat", "ferret", "fish")} == {"dog": 25, "cat": 12, "ferret": 8, "fish": 7}
     assert {row["safety_class"] for row in rows} == {"treat", "feeding_guide"}
     assert all("no sustituye" in row["veterinary_note"].lower() for row in rows if row["safety_class"] == "treat")
     illustrated = [row for row in rows if row.get("photo_asset")]
@@ -36,6 +36,78 @@ def test_local_catalog_includes_species_specific_pet_recipes_with_safety_notes()
     assert {row.get("pet_variety") for row in bernese} >= {
         "Horneado", "Proteína simple", "Congelado fresco", "Horneado crujiente"
     }
+    assert {row["title"] for row in rows} >= {
+        "Tiritas deshidratadas de pollo para perros",
+        "Bocaditos de huevo hervido para perros",
+        "Miguitas deshidratadas de pollo para gatos",
+        "Miguitas de huevo hervido para gatos",
+        "Rotación de alimento congelado para betta",
+        "Rotación de insectos para gecko leopardo",
+    }
+
+
+def test_pet_recipe_catalog_is_owned_by_the_selected_profile_and_filters_allergies():
+    from roxy_os.home_recipe_fallback import personalized_pet_recipe_catalog
+
+    bella = {
+        "id": "bella", "name": "Bella", "species": "dog", "breed": "Bernese Mountain Dog",
+        "life_stage": "young", "allergies": ["Pollo"],
+    }
+    rows = personalized_pet_recipe_catalog(bella, {})
+
+    assert len(rows) >= 10
+    assert all(row["pet_id"] == "bella" for row in rows)
+    assert all(row["profile_label"].startswith("Para Bella · Bernese Mountain Dog · etapa joven") for row in rows)
+    assert all(row["personalization_reason"] for row in rows)
+    assert not any("pollo" in " ".join(item["name"] for item in row["ingredients"]).lower() for row in rows)
+    assert any(row.get("pet_variety") == "Deshidratado" for row in rows)
+    assert any(row.get("pet_variety") == "Hervido" for row in rows)
+
+
+def test_common_pet_identities_receive_broad_specific_recipe_and_product_choices():
+    from roxy_os.home_pet_catalog import personalized_pet_products
+    from roxy_os.home_recipe_fallback import personalized_pet_recipe_catalog
+
+    profiles = [
+        ("dog", "Bernese Mountain"), ("cat", "Maine Coon"), ("ferret", "Hurón doméstico"),
+        ("rabbit", "Holland Lop"), ("guinea_pig", "American"), ("hamster", "Sirio"),
+        ("bird", "Periquito australiano"), ("fish", "Betta splendens"),
+        ("reptile", "Gecko leopardo"), ("amphibian", "Ajolote"),
+        ("small_mammal", "Chinchilla"), ("invertebrate", "Tarántula"),
+        ("farm_pet", "Cerdo miniatura"),
+    ]
+    for species, identity in profiles:
+        pet = {
+            "id": species, "name": f"Perfil {species}", "species": species, "life_stage": "adult",
+            "breed": identity if species in {"dog", "cat"} else "",
+            "exact_species": identity if species not in {"dog", "cat"} else "",
+            "allergies": [], "goals": [],
+        }
+        recipes = personalized_pet_recipe_catalog(pet, {})
+        products = personalized_pet_products(pet)
+        assert len(recipes) >= 4, (species, identity, len(recipes))
+        assert len(products) >= 4, (species, identity, len(products))
+        assert all(identity in row["profile_label"] for row in recipes)
+        assert all(identity in row["profile_label"] for row in products)
+
+
+def test_every_named_companion_species_has_a_nonempty_specific_shelf():
+    from roxy_os.home_pet_catalog import EXACT_SPECIES, personalized_pet_products
+    from roxy_os.home_recipe_fallback import personalized_pet_recipe_catalog
+
+    for species, identities in EXACT_SPECIES.items():
+        if species == "other":
+            continue
+        for identity in identities:
+            if identity.lower().startswith(("otro", "otra", "no sé", "especie exótica")):
+                continue
+            pet = {"id": identity, "name": "Mi mascota", "species": species, "exact_species": identity, "life_stage": "adult"}
+            recipes = personalized_pet_recipe_catalog(pet, {})
+            products = personalized_pet_products(pet)
+            assert recipes, (species, identity)
+            assert len(products) >= 3, (species, identity, len(products))
+            assert all(row["profile_label"].startswith(f"Para Mi mascota · {identity}") for row in recipes)
+            assert all("Mi mascota" in row["reason"] for row in products)
 
 
 def test_catalog_recipe_save_survives_optional_photo_queue_failure(tmp_path, monkeypatch):
@@ -450,6 +522,7 @@ def test_pet_care_supports_companion_animals_beyond_dogs_and_cats(tmp_path, monk
     snapshot = client.get("/v1/home-food/robert", headers=headers).json()
     assert len(snapshot["pets"]) == len(animals)
     assert len(snapshot["pet_care_plans"]) == len(animals)
+    assert len(snapshot["pet_recipe_recommendations"]) == len(animals)
     assert all(len(plan["sections"]) >= 5 for plan in snapshot["pet_care_plans"].values())
     assert all(len(plan["routines"]) >= 3 for plan in snapshot["pet_care_plans"].values())
     assert "Chinchilla" in snapshot["pet_options"]["exact_species"]["small_mammal"]
@@ -463,6 +536,7 @@ def test_pet_care_supports_companion_animals_beyond_dogs_and_cats(tmp_path, monk
     ferret = next(pet for pet in snapshot["pets"] if pet["species"] == "ferret")
     assert {row["brand"] for row in snapshot["pet_recommendations"][ferret["id"]]} >= {"Mazuri", "Oxbow", "Wysong"}
     assert all(row.get("image_url", "").startswith("https://") for row in snapshot["pet_recommendations"][ferret["id"]])
+    assert all(row["pet_id"] == ferret["id"] for row in snapshot["pet_recipe_recommendations"][ferret["id"]])
     assert snapshot["pet_care_plans"][ferret["id"]]["information"]["life_expectancy"] == "5–10 años"
     assert snapshot["pet_care_plans"][ferret["id"]]["information"]["frequency"] == "Varias comidas pequeñas al día"
     assert "Insulinoma o hipoglucemia" in snapshot["pet_options"]["conditions"]["ferret"]

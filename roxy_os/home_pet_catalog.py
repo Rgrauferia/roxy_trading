@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
+import re
 from typing import Any
+import unicodedata
 
 
 DOG_BREEDS = [
@@ -168,6 +170,77 @@ PRODUCTS = {
 }
 
 
+# A broader verified shelf. These are species-specific essentials, not paid rankings;
+# exact identity, life stage, conditions and selected goals still gate the rows below.
+PRODUCTS["dog"].extend([
+    {"brand": "Virbac", "name": "C.E.T. Enzymatic Toothpaste", "category": "Higiene dental", "reason": "Apoya la rutina dental de {pet_name}; usa únicamente pasta formulada para perros y confirma la técnica con su veterinario.", "source_url": "https://us.virbac.com/home/our-products/pagecontent/product-selector/cet-enzymatic-toothpaste-dog-cat.html", "source_label": "Virbac · producto oficial"},
+    {"brand": "Ruffwear", "name": "Front Range Harness", "category": "Paseo", "reason": "Arnés acolchado con cuatro puntos de ajuste para {pet_name}; la talla depende del contorno real del pecho, no de la raza.", "requires_measurement": True, "source_url": "https://ruffwear.com/products/front-range-everyday-dog-harness", "source_label": "Ruffwear · producto oficial"},
+])
+PRODUCTS["cat"].extend([
+    {"brand": "Catit", "name": "Senses 2.0 Food Tree", "category": "Enriquecimiento alimentario", "reason": "Permite que {pet_name} trabaje por parte de su ración y ayuda a reducir la velocidad al comer; úsalo con su alimento habitual medido.", "source_url": "https://catit.us/products/catit-senses-2-0-food-tree", "source_label": "Catit · producto oficial"},
+    {"brand": "Virbac", "name": "C.E.T. Enzymatic Toothpaste", "category": "Higiene dental", "reason": "Producto dental formulado para gatos que puede integrarse a la rutina de {pet_name}; la aceptación y técnica deben introducirse gradualmente.", "source_url": "https://us.virbac.com/home/our-products/pagecontent/product-selector/cet-enzymatic-toothpaste-dog-cat.html", "source_label": "Virbac · producto oficial"},
+])
+PRODUCTS["rabbit"].extend([
+    {"brand": "Oxbow", "name": "Garden Select Adult Rabbit Food", "category": "Pellet uniforme", "life_stages": ["adult", "senior"], "reason": "Fórmula adulta específica para conejo que evita la selección de piezas; para {pet_name}, el heno de pasto continúa siendo la base.", "source_url": "https://oxbowanimalhealth.com/product/garden-select-adult-rabbit-food/", "source_label": "Oxbow · producto oficial"},
+    {"brand": "Oxbow", "name": "Enriched Life Crazy Hay Ball", "category": "Forrajeo y masticación", "reason": "Accesorio de Timothy para explorar, rodar y masticar, conductas naturales que enriquecen el día de {pet_name}.", "source_url": "https://oxbowanimalhealth.com/product/enriched-life-crazy-hay-ball/", "source_label": "Oxbow · producto oficial"},
+])
+PRODUCTS["guinea_pig"].extend([
+    {"brand": "Oxbow", "name": "Natural Science Vitamin C", "category": "Vitamina C", "reason": "Suplemento específico para pequeños herbívoros; para {pet_name}, la dosis solo debe seguir la etiqueta o la indicación veterinaria.", "requires_vet": True, "source_url": "https://oxbowanimalhealth.com/product/natural-science-vitamin-c-support/", "source_label": "Oxbow · producto oficial"},
+    {"brand": "Oxbow", "name": "Enriched Life Crazy Hay Ball", "category": "Forrajeo y masticación", "reason": "Combina heno Timothy con exploración y masticación para {pet_name}; no sustituye el acceso continuo a heno limpio.", "source_url": "https://oxbowanimalhealth.com/product/enriched-life-crazy-hay-ball/", "source_label": "Oxbow · producto oficial"},
+])
+PRODUCTS["hamster"].extend([
+    {"brand": "Niteangel", "name": "Super-Silent Hamster Exercise Wheel", "category": "Ejercicio", "reason": "Rueda de superficie sólida para la actividad nocturna de {pet_name}; selecciona diámetro según su especie exacta y comprueba que corra sin arquear la espalda.", "requires_measurement": True, "source_url": "https://www.niteangelpet.com/collections/hamster-wheels", "source_label": "Niteangel · catálogo oficial"},
+    {"brand": "Oxbow", "name": "Enriched Life Crazy Hay Ball", "category": "Forrajeo", "reason": "Añade exploración y manipulación al entorno de {pet_name}; úsalo como enriquecimiento, no como reemplazo de su alimento formulado.", "source_url": "https://oxbowanimalhealth.com/product/enriched-life-crazy-hay-ball/", "source_label": "Oxbow · producto oficial"},
+])
+PRODUCTS["bird"].extend([
+    {"brand": "Harrison's", "name": "High Potency Fine", "category": "Transición alimentaria", "exact_terms": ["periquito", "canario", "ninfa", "cockatiel", "agapornis", "pinzón"], "reason": "Fórmula fina que el fabricante utiliza en determinadas transiciones y etapas; para {pet_name}, confirma especie, etapa y duración con un veterinario aviar.", "requires_vet": True, "source_url": "https://www.harrisonsbirdfoods.com/product/high-potency-fine/", "source_label": "Harrison's · producto oficial"},
+    {"brand": "Lafeber", "name": "Classic Nutri-Berries", "category": "Forrajeo alimentario", "reason": "Formato de alimento para manipular y explorar; selecciona la versión que corresponda al tamaño y especie de {pet_name}.", "select_before_cart": True, "source_url": "https://lafeber.com/product/classic-nutri-berries/", "source_label": "Lafeber · catálogo oficial"},
+    {"brand": "Lafeber", "name": "Avi-Cakes", "category": "Forrajeo alimentario", "reason": "Formato que combina nutrición y manipulación; para {pet_name}, elige la presentación de su especie y tamaño de pico antes de añadirla.", "select_before_cart": True, "source_url": "https://lafeber.com/product/avi-cakes/", "source_label": "Lafeber · catálogo oficial"},
+    {"brand": "Lafeber", "name": "Premium Daily Diet Pellets", "category": "Alimento formulado", "reason": "Línea de pellets en tamaños distintos; selecciona la fórmula exacta de la especie y tamaño de pico de {pet_name}, no una presentación genérica.", "select_before_cart": True, "source_url": "https://lafeber.com/product/premium-daily-diet-pellets/", "source_label": "Lafeber · catálogo oficial"},
+])
+PRODUCTS["fish"].extend([
+    {"brand": "Hikari", "name": "Freeze Dried Daphnia", "category": "Rotación alimentaria", "exact_terms": ["betta", "guppy", "molly", "platy", "tetra", "danio"], "reason": "Opción de rotación para peces pequeños compatibles; para {pet_name}, ajusta al tamaño de boca y retira sobrantes.", "source_url": "https://www.hikariusa.com/freeze_dried_folder/fd_daphnia.html", "source_label": "Hikari · producto oficial"},
+    {"brand": "Seachem", "name": "Ammonia Alert", "category": "Vigilancia del agua", "reason": "Monitor continuo de amoníaco libre para el acuario de {pet_name}; no reemplaza las pruebas completas ni el mantenimiento del sistema.", "source_url": "https://www.seachem.com/ammonia-alert.php", "source_label": "Seachem · producto oficial"},
+])
+PRODUCTS["reptile"].extend([
+    {"brand": "Zoo Med", "name": "ReptiTemp Digital Infrared Thermometer", "category": "Temperatura", "reason": "Permite medir superficies concretas del gradiente térmico de {pet_name}; compara las lecturas con el rango de su especie exacta.", "source_url": "https://zoomed.com/reptitemp-digital-infrared-thermometer/", "source_label": "Zoo Med · producto oficial"},
+    {"brand": "Zoo Med", "name": "ReptiSafe Water Conditioner", "category": "Agua segura", "reason": "Acondicionador para el agua usada con reptiles; calcula la dosis con el volumen real del recipiente de {pet_name}.", "source_url": "https://zoomed.com/reptisafe-water-conditioner/", "source_label": "Zoo Med · producto oficial"},
+])
+PRODUCTS["ferret"].extend([
+    {"brand": "Oxbow", "name": "Enriched Life Play Garden", "category": "Enriquecimiento", "image_url": "https://oxbowanimalhealth.com/wp-content/uploads/2022/04/744845-96649_6_Enriched_Life_Play_Garden_main.png", "reason": "Actividad de exploración compatible con hurones para la rutina diaria de {pet_name}; supervisa para evitar ingestión o desgaste peligroso.", "source_url": "https://oxbowanimalhealth.com/product/enriched-life-play-garden/", "source_label": "Oxbow · producto oficial"},
+    {"brand": "Oxbow", "name": "Enriched Life Woven Hideout", "category": "Refugio", "image_url": "https://oxbowanimalhealth.com/wp-content/uploads/2022/04/744845-96537_6_Enriched_Life_Woven_Hideout_-_M_main.png", "reason": "Refugio de acceso abierto compatible con hurones para que {pet_name} descanse y se esconda; selecciona el tamaño correcto y revisa su estado con frecuencia.", "requires_measurement": True, "source_url": "https://oxbowanimalhealth.com/product/enriched-life-woven-hideout/", "source_label": "Oxbow · producto oficial"},
+])
+PRODUCTS["small_mammal"].extend([
+    {"brand": "Oxbow", "name": "Poof! Chinchilla Dust Bath", "category": "Baño de polvo", "exact_terms": ["chinchilla"], "reason": "Polvo de baño específico para el cuidado del manto de una chinchilla como {pet_name}; ofrece sesiones controladas y mantén el material seco.", "source_url": "https://oxbowanimalhealth.com/product/poof-chinchilla-dust-bath/", "source_label": "Oxbow · producto oficial"},
+    {"brand": "Oxbow", "name": "Enriched Life Crazy Hay Ball", "category": "Forrajeo y masticación", "exact_terms": ["chinchilla", "rata", "raton", "gerbo", "degu"], "reason": "Favorece exploración, juego y masticación en especies compatibles; para {pet_name}, confirma que el material encaje con su especie y dieta.", "source_url": "https://oxbowanimalhealth.com/product/enriched-life-crazy-hay-ball/", "source_label": "Oxbow · producto oficial"},
+    {"brand": "Mazuri", "name": "Rat & Mouse Diet", "category": "Alimento formulado", "exact_terms": ["rata", "raton"], "reason": "Fórmula uniforme para ratas y ratones; para {pet_name}, verifica etapa, peso y la tabla de alimentación antes de cambiar su dieta.", "source_url": "https://mazuri.com/collections/rat-mouse", "source_label": "Mazuri · catálogo oficial"},
+    {"brand": "Oxbow", "name": "Essentials Hamster & Gerbil Food", "category": "Alimento formulado", "exact_terms": ["gerbo"], "reason": "Alimento uniforme para hámsteres y gerbos que reduce la selección de piezas; ajusta la cantidad al perfil de {pet_name}.", "source_url": "https://oxbowanimalhealth.com/our-products/fortified-food/", "source_label": "Oxbow · catálogo oficial"},
+    {"brand": "Oxbow", "name": "Western Timothy Hay", "category": "Heno", "exact_terms": ["perrito de la pradera"], "reason": "Heno de pasto como recurso de fibra y forrajeo para {pet_name}; confirma el resto del plan con un veterinario de exóticos.", "source_url": "https://oxbowanimalhealth.com/our-products/hay/", "source_label": "Oxbow · catálogo oficial"},
+    {"brand": "Zoo Med", "name": "Digital Terrarium Thermometer", "category": "Control del entorno", "reason": "Permite registrar la temperatura del espacio de {pet_name}; el rango correcto depende de su especie exacta y su veterinario de exóticos.", "source_url": "https://zoomed.com/digital-terrarium-thermometer/", "source_label": "Zoo Med · producto oficial"},
+    {"brand": "Kaytee", "name": "Come Along Small Animal Carrier", "category": "Transporte", "reason": "Transportador ventilado para pequeños animales; mide a {pet_name}, confirma material y talla, y úsalo solo para traslados supervisados.", "requires_measurement": True, "source_url": "https://www.kaytee.com/all-products/small-animal/kaytee-come-along-carrier", "source_label": "Kaytee · producto oficial"},
+    {"brand": "Exotic Nutrition", "name": "Digital Small Animal Scale", "category": "Seguimiento de peso", "reason": "Permite registrar cambios de peso de {pet_name} en casa; confirma capacidad y precisión adecuadas para su especie y comparte tendencias con su veterinario.", "requires_measurement": True, "source_url": "https://exoticnutrition.com/", "source_label": "Exotic Nutrition · fabricante oficial"},
+])
+PRODUCTS["amphibian"].extend([
+    {"brand": "Seachem", "name": "Prime", "category": "Acondicionador de agua", "exact_terms": ["ajolote", "triton"], "reason": "Acondiciona agua dulce; para el sistema acuático de {pet_name}, usa únicamente la dosis de etiqueta para el volumen real.", "source_url": "https://www.seachem.com/prime.php", "source_label": "Seachem · producto oficial"},
+    {"brand": "Zoo Med", "name": "Digital Terrarium Thermometer", "category": "Temperatura", "reason": "Ayuda a vigilar la temperatura del entorno de {pet_name}; el rango correcto depende de su especie exacta y no se debe adivinar.", "source_url": "https://zoomed.com/digital-terrarium-thermometer/", "source_label": "Zoo Med · producto oficial"},
+    {"brand": "Zoo Med", "name": "Digital Combo Thermometer Humidity Gauge", "category": "Microclima", "reason": "Registra temperatura y humedad del hábitat de {pet_name}; interpreta ambos valores según su especie exacta, no con un rango genérico.", "source_url": "https://zoomed.com/digital-combo-thermometer-humidity-gauge/", "source_label": "Zoo Med · producto oficial"},
+])
+PRODUCTS["invertebrate"].extend([
+    {"brand": "Zoo Med", "name": "Digital Terrarium Thermometer", "category": "Temperatura", "reason": "Permite registrar la temperatura del microhábitat de {pet_name}; interpreta el valor según su especie y etapa.", "source_url": "https://zoomed.com/digital-terrarium-thermometer/", "source_label": "Zoo Med · producto oficial"},
+    {"brand": "Zoo Med", "name": "Angled Stainless Steel Feeding Tongs", "category": "Alimentación segura", "exact_terms": ["tarantula", "escorpion", "mantis", "insecto palo"], "reason": "Ayuda a manipular alimento y retirar restos manteniendo distancia; no fuerces a {pet_name} a comer ni dejes presas durante la muda.", "source_url": "https://zoomed.com/", "source_label": "Zoo Med · fabricante oficial"},
+])
+PRODUCTS["farm_pet"].extend([
+    {"brand": "Mazuri", "name": "Mini Pig Treats", "category": "Premio medido", "exact_terms": ["cerdo miniatura"], "reason": "Premio formulado para cerdo miniatura; para {pet_name}, debe contarse dentro de su plan calórico y control de condición corporal.", "source_url": "https://mazuri.com/collections/mini-pig", "source_label": "Mazuri · catálogo oficial"},
+    {"brand": "Mazuri", "name": "Waterfowl Maintenance Diet", "category": "Alimento por especie", "exact_terms": ["pato", "ganso"], "life_stages": ["adult", "senior"], "reason": "Fórmula de mantenimiento para aves acuáticas adultas; confirma que especie, etapa y acceso al agua de {pet_name} coincidan con la etiqueta.", "source_url": "https://mazuri.com/collections/waterfowl", "source_label": "Mazuri · catálogo oficial"},
+    {"brand": "Little Giant", "name": "DuraFlex Rubber Feed Pan", "category": "Comedero resistente", "reason": "Recipiente flexible y resistente para servir la porción medida de {pet_name}; elige capacidad según su especie, cantidad real y forma de alimentación, y lávalo después de cada uso.", "requires_measurement": True, "source_url": "https://miller-mfg.com/products/rubber-feed-pan", "source_label": "Miller Manufacturing · producto oficial"},
+    {"brand": "Little Giant", "name": "Flat Back Bucket", "category": "Agua y rutina", "reason": "Recipiente de pared plana para organizar agua o alimento de {pet_name}; confirma capacidad, anclaje seguro y limpieza diaria según su especie antes de elegirlo.", "requires_measurement": True, "source_url": "https://miller-mfg.com/collections/buckets", "source_label": "Miller Manufacturing · catálogo oficial"},
+    {"brand": "Mazuri", "name": "Mini Pig Mature Maintenance", "category": "Alimento de mantenimiento", "exact_terms": ["cerdo miniatura"], "conditions": ["sobrepeso"], "reason": "Fórmula de mantenimiento para cerdos miniatura maduros o menos activos; para {pet_name}, solo se muestra porque su perfil registra control de peso y requiere confirmar edad y condición corporal.", "requires_vet": True, "source_url": "https://mazuri.com/collections/mini-pig", "source_label": "Mazuri · catálogo oficial"},
+    {"brand": "Purina Animal Nutrition", "name": "Goat Feed", "category": "Alimento por especie", "exact_terms": ["cabra"], "reason": "Línea formulada para cabras; la opción de {pet_name} debe elegirse según edad, función, condición corporal y forraje disponible.", "select_before_cart": True, "source_url": "https://www.purinamills.com/goat-feed", "source_label": "Purina · catálogo oficial"},
+    {"brand": "Purina Animal Nutrition", "name": "Sheep Feed", "category": "Alimento por especie", "exact_terms": ["oveja"], "reason": "Línea específica para ovejas; selecciona la fórmula de {pet_name} por etapa y evita intercambiar minerales destinados a otras especies.", "select_before_cart": True, "source_url": "https://www.purinamills.com/sheep-feed", "source_label": "Purina · catálogo oficial"},
+    {"brand": "Mazuri", "name": "Alpaca Maintenance Diet", "category": "Alimento por especie", "exact_terms": ["alpaca"], "reason": "Dieta formulada para camélidos; para {pet_name}, confirma etapa, forraje, peso y cantidad con su veterinario o nutricionista animal.", "requires_vet": True, "source_url": "https://mazuri.com/collections/alpaca-llama", "source_label": "Mazuri · catálogo oficial"},
+])
+
+
 def pet_profile_completion(pet: dict[str, Any]) -> dict[str, Any]:
     """Return a species-aware, explainable checklist without inventing care data."""
     species = str(pet.get("species") or "other")
@@ -232,10 +305,18 @@ def pet_profile_options() -> dict[str, Any]:
 
 def personalized_pet_products(pet: dict[str, Any]) -> list[dict[str, Any]]:
     species = str(pet.get("species") or "other")
-    exact = f"{pet.get('exact_species', '')} {pet.get('breed', '')}".lower()
+    normalize = lambda value: re.sub(r"[^a-z0-9]+", " ", unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii").lower()).strip()
+    exact = normalize(f"{pet.get('exact_species', '')} {pet.get('breed', '')}")
     stage = str(pet.get("life_stage") or "unknown")
     conditions = {str(value).lower() for value in pet.get("conditions") or []}
     goals = {str(value).lower() for value in pet.get("goals") or []}
+    allergies = {normalize(value) for value in pet.get("allergies") or [] if not normalize(value).startswith("ninguna")}
+    allergen_aliases = {
+        "pollo": {"pollo", "chicken", "poultry"}, "res": {"res", "beef"},
+        "pescado": {"pescado", "fish", "salmon", "tuna"}, "huevo": {"huevo", "egg"},
+        "trigo": {"trigo", "wheat"}, "maiz": {"maiz", "corn"}, "soya": {"soya", "soy"},
+        "lacteos": {"leche", "milk", "dairy", "cheese", "yogurt"},
+    }
     vet_context = bool(
         conditions - {"ninguna diagnosticada", "ninguna observada"}
         or str(pet.get("veterinarian_instructions") or "").strip()
@@ -243,7 +324,10 @@ def personalized_pet_products(pet: dict[str, Any]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for source in PRODUCTS.get(species, []):
         row = deepcopy(source)
-        exact_terms = [str(value).lower() for value in row.pop("exact_terms", [])]
+        product_text = normalize(f"{row.get('brand', '')} {row.get('name', '')}")
+        if any(any(alias in product_text for alias in allergen_aliases.get(allergy, {allergy})) for allergy in allergies):
+            continue
+        exact_terms = [normalize(value) for value in row.pop("exact_terms", [])]
         if exact_terms and not any(term in exact for term in exact_terms):
             continue
         row_goals = {str(value).lower() for value in row.pop("goals", [])}
