@@ -166,6 +166,7 @@ class CommercePrepareRequest(BaseModel):
 class CommerceCheckoutRequest(BaseModel):
     provider_id: str = Field(min_length=1, max_length=32)
     confirmed: bool = False
+    task_ids: list[str] = Field(default_factory=list, max_length=10)
 
 
 class ProductLookupRequest(BaseModel):
@@ -3569,7 +3570,7 @@ def create_home_purchase_link(
     owner_key = _commerce_owner_key(auth, user)
     try:
         preparation = _commerce_store().preparation(owner_key, preparation_id)
-        result = create_purchase_links(payload.provider_id, preparation)
+        result = create_purchase_links(payload.provider_id, preparation, task_ids=payload.task_ids)
         handoff = _commerce_store().record_handoff(
             owner_key,
             preparation_id,

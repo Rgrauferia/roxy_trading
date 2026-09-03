@@ -1121,3 +1121,23 @@ def test_impact_tracking_failure_uses_product_destination_without_claiming_affil
 
     assert result["links"][0]["url"] == "https://brand.example/curtain"
     assert result["links"][0]["affiliate_connected"] is False
+
+
+def test_dataforseo_charges_once_then_reuses_task_id_for_results(monkeypatch):
+    from roxy_os import home_commerce
+    monkeypatch.setenv("ROXY_HOME_DATAFORSEO_LOGIN", "home-login")
+    monkeypatch.setenv("ROXY_HOME_DATAFORSEO_PASSWORD", "home-password")
+    calls = []
+    def fake_urlopen(request, timeout):
+        calls.append(request)
+        if request.get_method() == "POST":
+            return _CatalogResponse({"tasks": [{"id": "06181608-2806-0179-0000-aff47b17cd54", "status_code": 20100}]})
+        return _CatalogResponse({"tasks": [{"result": [{"keyword": "floor lamp", "check_url": "https://google.com/search?q=floor+lamp", "items": [{"items": [{"title": "Modern Floor Lamp", "seller": "Lamp Shop", "price": 59.99, "currency": "USD", "product_images": ["https://images.example/lamp.jpg"], "shopping_url": "https://google.com/search?q=modern+lamp"}]}]}]}]})
+    monkeypatch.setattr(home_commerce.urllib.request, "urlopen", fake_urlopen)
+    preparation = {"providers": ["dataforseo"], "items": [{"name": "lámpara", "query": "floor lamp"}]}
+    queued = create_purchase_links("dataforseo", preparation)
+    ready = create_purchase_links("dataforseo", preparation, task_ids=queued["catalog_task_ids"])
+    assert queued["catalog_status"] == "processing"
+    assert ready["catalog_status"] == "ready"
+    assert ready["links"][0]["price"] == 59.99
+    assert [request.get_method() for request in calls] == ["POST", "GET"]

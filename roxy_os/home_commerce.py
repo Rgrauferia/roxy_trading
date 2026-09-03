@@ -303,11 +303,54 @@ def _impact_catalog_links(items: list[dict[str, Any]], tracking_id: str) -> list
     return links
 
 
+def _dataforseo_auth() -> str:
+    login = _text(os.getenv("ROXY_HOME_DATAFORSEO_LOGIN"), 500)
+    password = _text(os.getenv("ROXY_HOME_DATAFORSEO_PASSWORD"), 500)
+    if not login or not password:
+        raise RuntimeError("DataForSEO todavía necesita login y password exclusivos de Home.")
+    return base64.b64encode(f"{login}:{password}".encode()).decode("ascii")
+
+
+def _dataforseo_catalog(items: list[dict[str, Any]], task_ids: list[str] | None = None) -> tuple[list[dict[str, Any]], list[str]]:
+    headers = {"Authorization": f"Basic {_dataforseo_auth()}", "Accept": "application/json", "Content-Type": "application/json"}
+    if not task_ids:
+        body = [{"keyword": _text(row.get("query") or row.get("name"), 180), "location_name": "United States", "language_name": "English", "priority": 1} for row in items[:10]]
+        request = urllib.request.Request("https://api.dataforseo.com/v3/merchant/google/products/task_post", data=json.dumps(body).encode(), headers=headers, method="POST")
+        payload = _provider_json(request, "DataForSEO")
+        ids = [_text(row.get("id"), 80) for row in payload.get("tasks") or [] if isinstance(row, dict) and row.get("id") and int(row.get("status_code") or 0) < 40000]
+        return [], ids
+    links: list[dict[str, Any]] = []
+    for task_id in task_ids[:10]:
+        if not re.fullmatch(r"[0-9a-fA-F-]{20,80}", task_id):
+            continue
+        request = urllib.request.Request(f"https://api.dataforseo.com/v3/merchant/google/products/task_get/advanced/{task_id}", headers=headers)
+        payload = _provider_json(request, "DataForSEO")
+        for task in payload.get("tasks") or []:
+            for result in (task.get("result") or []) if isinstance(task, dict) else []:
+                for block in result.get("items") or []:
+                    candidates = block.get("items") if isinstance(block, dict) and isinstance(block.get("items"), list) else [block]
+                    for product in candidates:
+                        if not isinstance(product, dict) or not product.get("title") or not product.get("price"):
+                            continue
+                        images = product.get("product_images") or []
+                        url = product.get("shopping_url") or (product.get("special_offer_info") or {}).get("url") or result.get("check_url")
+                        try:
+                            url = _safe_https(url)
+                            image_url = _safe_https(images[0]) if images else ""
+                        except ValueError:
+                            continue
+                        links.append({"label": _text(product.get("title"), 180), "shopping_item": _text(result.get("keyword"), 120), "quantity": 1, "unit": "unidad", "category": "HOUSEHOLD", "reason": "Comparación observada en Google Shopping mediante DataForSEO.", "price": float(product.get("price") or 0), "currency": _text(product.get("currency") or "USD", 3), "brand": _text(product.get("seller"), 80), "image_url": image_url, "url": url})
+                        if len(links) >= 30:
+                            return links, []
+    return links, []
+
+
 def _catalog_search_fallback(provider_id: str, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     templates = {
         "ebay": "https://www.ebay.com/sch/i.html?_nkw={query}",
         "best_buy": "https://www.bestbuy.com/site/searchpage.jsp?st={query}",
         "impact": "https://www.google.com/search?tbm=shop&q={query}",
+        "dataforseo": "https://www.google.com/search?tbm=shop&q={query}",
     }
     return [{
         "label": _text(item.get("name"), 180),
@@ -850,6 +893,7 @@ def public_providers() -> list[dict[str, Any]]:
             "design_only": True,
             "description": "Consulta catálogos de las marcas aprobadas y crea enlaces de seguimiento solo al confirmarlos.",
         },
+        {"id": "dataforseo", "name": "DataForSEO", "mode": "product_links", "configured": bool(_text(os.getenv("ROXY_HOME_DATAFORSEO_LOGIN")) and _text(os.getenv("ROXY_HOME_DATAFORSEO_PASSWORD"))), "requires_credentials": True, "design_only": True, "description": "Compara vendedores y precios observados en Google Shopping con consultas de costo controlado."},
     ]
     status_env = {
         "instacart": "ROXY_HOME_INSTACART_AFFILIATE_STATUS",
@@ -865,6 +909,7 @@ def public_providers() -> list[dict[str, Any]]:
         "ebay": "ROXY_HOME_EBAY_STATUS",
         "best_buy": "ROXY_HOME_BEST_BUY_STATUS",
         "impact": "ROXY_HOME_IMPACT_STATUS",
+        "dataforseo": "ROXY_HOME_DATAFORSEO_STATUS",
     }
     for provider in definitions:
         if provider.get("design_only"):
@@ -972,7 +1017,7 @@ def _affiliate_template_link(template: str, destination: str, query: str, tracki
     return _safe_https(value)
 
 
-def create_purchase_links(provider_id: str, preparation: dict[str, Any]) -> dict[str, Any]:
+def create_purchase_links(provider_id: str, preparation: dict[str, Any], *, task_ids: list[str] | None = None) -> dict[str, Any]:
     providers = {row["id"]: row for row in public_providers()}
     provider = providers.get(provider_id)
     if not provider or provider_id not in preparation.get("providers", []):
@@ -980,6 +1025,11 @@ def create_purchase_links(provider_id: str, preparation: dict[str, Any]) -> dict
     if not provider["configured"]:
         raise RuntimeError("Este proveedor todavía necesita su cuenta de afiliación o clave aprobada.")
     items = preparation.get("items") or []
+    if provider_id == "dataforseo":
+        links, pending = _dataforseo_catalog(items, task_ids)
+        if not links:
+            links = _catalog_search_fallback(provider_id, items)
+        return {"provider": provider, "mode": "product_links", "links": links, "catalog_status": "processing" if pending else "ready", "catalog_task_ids": pending, "provider_disclosure": "DataForSEO cobra al crear cada tarea; actualizar resultados con el mismo ID no vuelve a crearla.", "guidance": "La comparación está procesándose; puedes actualizarla sin generar otra consulta." if pending else "Comparación de vendedores recuperada de DataForSEO; confirma el precio final en el comercio."}
     if provider_id in {"ebay", "best_buy", "impact"}:
         catalog_error = False
         try:
