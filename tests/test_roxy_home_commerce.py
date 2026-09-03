@@ -1058,3 +1058,66 @@ def test_connected_catalog_failure_keeps_an_honest_official_search_fallback(monk
     assert result["links"][0].get("price") is None
     assert "no respondió" in result["guidance"]
     assert "sin inventar precios" in result["guidance"]
+
+
+def test_impact_searches_approved_catalogs_and_creates_confirmed_tracking_link(monkeypatch):
+    from roxy_os import home_commerce
+
+    monkeypatch.setenv("ROXY_HOME_IMPACT_ACCOUNT_SID", "IR-home")
+    monkeypatch.setenv("ROXY_HOME_IMPACT_AUTH_TOKEN", "impact-secret")
+    monkeypatch.setenv("ROXY_HOME_IMPACT_MEDIA_PROPERTY_ID", "property-7")
+    assert next(row for row in public_providers() if row["id"] == "impact")["configured"] is True
+    requests = []
+
+    def fake_urlopen(request, timeout):
+        requests.append(request)
+        if "/TrackingLinks?" in request.full_url:
+            return _CatalogResponse({"TrackingURL": "https://brand.sjv.io/c/123/456/789"})
+        return _CatalogResponse({"Items": [{
+            "Name": "Oak reading lamp", "CurrentPrice": "79.99", "OriginalPrice": "99.99",
+            "Currency": "USD", "StockAvailability": "InStock", "Manufacturer": "Home Brand",
+            "CampaignId": "456", "CampaignName": "Home Brand Program",
+            "Url": "https://brand.example/lamp", "ImageUrl": "https://brand.example/lamp.jpg",
+        }]})
+
+    monkeypatch.setattr(home_commerce.urllib.request, "urlopen", fake_urlopen)
+    result = create_purchase_links("impact", {
+        "providers": ["impact"], "tracking_id": "private-random-id",
+        "items": [{"name": "lámpara de lectura", "query": "oak reading lamp", "quantity": 1, "unit": "unidad"}],
+    })
+
+    assert result["links"][0]["url"] == "https://brand.sjv.io/c/123/456/789"
+    assert result["links"][0]["affiliate_connected"] is True
+    assert result["links"][0]["price"] == 79.99
+    assert requests[0].get_header("Authorization").startswith("Basic ")
+    tracking_query = parse_qs(urlparse(requests[1].full_url).query)
+    assert tracking_query["DeepLink"] == ["https://brand.example/lamp"]
+    assert tracking_query["subId1"] == ["private-random-id"]
+    assert tracking_query["MediaPartnerPropertyId"] == ["property-7"]
+
+
+def test_impact_tracking_failure_uses_product_destination_without_claiming_affiliation(monkeypatch):
+    from roxy_os import home_commerce
+
+    monkeypatch.setenv("ROXY_HOME_IMPACT_ACCOUNT_SID", "IR-home")
+    monkeypatch.setenv("ROXY_HOME_IMPACT_AUTH_TOKEN", "impact-secret")
+    calls = 0
+
+    def fake_urlopen(request, timeout):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise home_commerce.urllib.error.URLError("tracking unavailable")
+        return _CatalogResponse({"Items": [{
+            "Name": "Cotton curtain", "CurrentPrice": "45", "CampaignId": "12",
+            "Url": "https://brand.example/curtain",
+        }]})
+
+    monkeypatch.setattr(home_commerce.urllib.request, "urlopen", fake_urlopen)
+    result = create_purchase_links("impact", {
+        "providers": ["impact"], "tracking_id": "anonymous-id",
+        "items": [{"name": "cortina", "query": "cotton curtain"}],
+    })
+
+    assert result["links"][0]["url"] == "https://brand.example/curtain"
+    assert result["links"][0]["affiliate_connected"] is False

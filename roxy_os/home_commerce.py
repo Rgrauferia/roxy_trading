@@ -235,10 +235,79 @@ def _best_buy_catalog_links(items: list[dict[str, Any]]) -> list[dict[str, Any]]
     return links
 
 
+def _impact_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: Any = payload.get("Items", payload.get("items"))
+    if isinstance(rows, dict):
+        rows = rows.get("Item", rows.get("item", []))
+    if isinstance(rows, dict):
+        rows = [rows]
+    if not isinstance(rows, list) and payload.get("Name"):
+        rows = [payload]
+    return [row for row in (rows or []) if isinstance(row, dict)]
+
+
+def _impact_catalog_links(items: list[dict[str, Any]], tracking_id: str) -> list[dict[str, Any]]:
+    account_sid = _text(os.getenv("ROXY_HOME_IMPACT_ACCOUNT_SID"), 500)
+    auth_token = _text(os.getenv("ROXY_HOME_IMPACT_AUTH_TOKEN"), 500)
+    if not account_sid or not auth_token:
+        raise RuntimeError("Impact.com todavía necesita Account SID y Auth Token exclusivos de Home.")
+    basic = base64.b64encode(f"{account_sid}:{auth_token}".encode("utf-8")).decode("ascii")
+    auth_headers = {"Authorization": f"Basic {basic}", "Accept": "application/json"}
+    links: list[dict[str, Any]] = []
+    for item in items[:10]:
+        query = _text(item.get("query") or item.get("name"), 180)
+        params = urllib.parse.urlencode({"Keyword": query, "PageSize": 3})
+        request = urllib.request.Request(
+            f"https://api.impact.com/Mediapartners/{urllib.parse.quote(account_sid, safe='')}/Catalogs/ItemSearch?{params}",
+            headers=auth_headers,
+        )
+        for product in _impact_items(_provider_json(request, "Impact.com"))[:3]:
+            try:
+                destination = _safe_https(product.get("Url"))
+                image_url = _safe_https(product.get("ImageUrl")) if product.get("ImageUrl") else ""
+            except ValueError:
+                continue
+            product_url = destination
+            affiliate_connected = False
+            campaign_id = _text(product.get("CampaignId"), 80)
+            if campaign_id:
+                link_params = {
+                    "Type": "Regular", "DeepLink": destination,
+                    "subId1": _text(tracking_id, 64),
+                }
+                media_property = _text(os.getenv("ROXY_HOME_IMPACT_MEDIA_PROPERTY_ID"), 80)
+                if media_property:
+                    link_params["MediaPartnerPropertyId"] = media_property
+                link_request = urllib.request.Request(
+                    f"https://api.impact.com/Mediapartners/{urllib.parse.quote(account_sid, safe='')}/Programs/{urllib.parse.quote(campaign_id, safe='')}/TrackingLinks?{urllib.parse.urlencode(link_params)}",
+                    headers=auth_headers, method="POST",
+                )
+                try:
+                    tracked = _provider_json(link_request, "Impact.com").get("TrackingURL")
+                    if tracked:
+                        product_url = _safe_https(tracked)
+                        affiliate_connected = True
+                except (ConnectionError, ValueError):
+                    product_url = destination
+            links.append({
+                "label": _text(product.get("Name") or item.get("name"), 180),
+                "shopping_item": _text(item.get("name"), 120),
+                "quantity": item.get("quantity") or 1, "unit": item.get("unit") or "unidad",
+                "category": item.get("category") or "HOUSEHOLD", "reason": item.get("reason") or "Resultado real de Impact.com.",
+                "price": float(product.get("CurrentPrice") or 0), "regular_price": float(product.get("OriginalPrice") or 0),
+                "currency": _text(product.get("Currency") or "USD", 3),
+                "available": _text(product.get("StockAvailability"), 40) not in {"OutofStock", "OutOfStock"},
+                "brand": _text(product.get("Manufacturer") or product.get("CampaignName"), 80),
+                "image_url": image_url, "url": product_url, "affiliate_connected": affiliate_connected,
+            })
+    return links
+
+
 def _catalog_search_fallback(provider_id: str, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     templates = {
         "ebay": "https://www.ebay.com/sch/i.html?_nkw={query}",
         "best_buy": "https://www.bestbuy.com/site/searchpage.jsp?st={query}",
+        "impact": "https://www.google.com/search?tbm=shop&q={query}",
     }
     return [{
         "label": _text(item.get("name"), 180),
@@ -772,6 +841,15 @@ def public_providers() -> list[dict[str, Any]]:
             "design_only": True,
             "description": "Consulta el catálogo de Best Buy para tecnología, electrodomésticos e iluminación inteligente.",
         },
+        {
+            "id": "impact",
+            "name": "Impact.com",
+            "mode": "product_links",
+            "configured": bool(_text(os.getenv("ROXY_HOME_IMPACT_ACCOUNT_SID")) and _text(os.getenv("ROXY_HOME_IMPACT_AUTH_TOKEN"))),
+            "requires_credentials": True,
+            "design_only": True,
+            "description": "Consulta catálogos de las marcas aprobadas y crea enlaces de seguimiento solo al confirmarlos.",
+        },
     ]
     status_env = {
         "instacart": "ROXY_HOME_INSTACART_AFFILIATE_STATUS",
@@ -786,6 +864,7 @@ def public_providers() -> list[dict[str, Any]]:
         "article": "ROXY_HOME_ARTICLE_STATUS",
         "ebay": "ROXY_HOME_EBAY_STATUS",
         "best_buy": "ROXY_HOME_BEST_BUY_STATUS",
+        "impact": "ROXY_HOME_IMPACT_STATUS",
     }
     for provider in definitions:
         if provider.get("design_only"):
@@ -901,10 +980,15 @@ def create_purchase_links(provider_id: str, preparation: dict[str, Any]) -> dict
     if not provider["configured"]:
         raise RuntimeError("Este proveedor todavía necesita su cuenta de afiliación o clave aprobada.")
     items = preparation.get("items") or []
-    if provider_id in {"ebay", "best_buy"}:
+    if provider_id in {"ebay", "best_buy", "impact"}:
         catalog_error = False
         try:
-            links = _ebay_catalog_links(items) if provider_id == "ebay" else _best_buy_catalog_links(items)
+            if provider_id == "ebay":
+                links = _ebay_catalog_links(items)
+            elif provider_id == "best_buy":
+                links = _best_buy_catalog_links(items)
+            else:
+                links = _impact_catalog_links(items, str(preparation.get("tracking_id") or ""))
         except ConnectionError:
             links = []
             catalog_error = True
