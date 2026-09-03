@@ -23,15 +23,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="150"' in page.text
+    assert 'name="roxy-home-version" content="151"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' in page.text
     assert 'href="/assets/roxy_list.css?v=114"' in page.text
-    assert 'src="/assets/roxy_list.js?v=151"' in page.text
+    assert 'src="/assets/roxy_list.js?v=152"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
     assert '/assets/roxy_list.css?v=114' in worker.text
-    assert '/assets/roxy_list.js?v=151' in worker.text
+    assert '/assets/roxy_list.js?v=152' in worker.text
     assert '/assets/roxy_home/renueva-living-room-hero.webp' in worker.text
     assert '/assets/roxy_home/plants-soil-meter.png' in worker.text
     assert '/assets/roxy_home/pet-onboarding-hero.png' in worker.text
@@ -63,7 +63,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
     assert 'Revisar productos' in script.text
-    assert "const APP_VERSION = '150'" in script.text
+    assert "const APP_VERSION = '151'" in script.text
     assert 'id="familyHistoryButton"' in page.text
     assert 'id="familyHistoryPanel"' in page.text
     assert 'loadFamilyHistoryPanel' in script.text

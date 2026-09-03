@@ -280,7 +280,7 @@ def test_home_commerce_controls_are_connected_to_real_endpoints():
     assert "dataset.externalCheckout" in script
     assert "Revisar productos y pagar en" in script
     assert "commerce-product-link" in script
-    assert "Buscar en ${provider.name}" in script
+    assert "Ver en ${provider.name}" in script
     assert "result.guidance" in script
     assert "Última compra preparada" in script
     assert "renderPriceCoverage" in script
@@ -944,3 +944,117 @@ def test_amazon_required_disclosure_is_returned_near_links(tmp_path, monkeypatch
 
     assert result["provider_disclosure"] == "As an Amazon Associate I earn from qualifying purchases."
     assert "As an Amazon Associate I earn from qualifying purchases." in home_commerce["disclosure"]
+
+
+class _CatalogResponse:
+    def __init__(self, payload):
+        import json
+        self.payload = json.dumps(payload).encode("utf-8")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def read(self):
+        return self.payload
+
+
+def test_ebay_browse_uses_server_credentials_and_returns_real_product_cards(monkeypatch):
+    from roxy_os import home_commerce
+
+    monkeypatch.setenv("ROXY_HOME_EBAY_CLIENT_ID", "home-client")
+    monkeypatch.setenv("ROXY_HOME_EBAY_CLIENT_SECRET", "home-secret")
+    monkeypatch.setenv("ROXY_HOME_EBAY_AFFILIATE_CAMPAIGN_ID", "campaign-1")
+    requests = []
+
+    def fake_urlopen(request, timeout):
+        requests.append(request)
+        if "oauth2/token" in request.full_url:
+            return _CatalogResponse({"access_token": "token-123", "expires_in": 7200})
+        return _CatalogResponse({"itemSummaries": [{
+            "title": "Vintage oak side table", "price": {"value": "89.95", "currency": "USD"},
+            "condition": "Pre-Owned", "itemWebUrl": "https://www.ebay.com/itm/123",
+            "image": {"imageUrl": "https://i.ebayimg.com/images/123.jpg"},
+        }]})
+
+    monkeypatch.setattr(home_commerce.urllib.request, "urlopen", fake_urlopen)
+    preparation = {"providers": ["ebay"], "items": [{
+        "name": "mesa auxiliar de roble", "query": "mesa auxiliar roble", "quantity": 1,
+        "unit": "unidad", "category": "HOUSEHOLD", "postal_code": "32801",
+    }]}
+    result = create_purchase_links("ebay", preparation)
+
+    assert result["mode"] == "product_links"
+    assert result["links"][0]["price"] == 89.95
+    assert result["links"][0]["image_url"].startswith("https://i.ebayimg.com/")
+    assert requests[0].get_header("Authorization").startswith("Basic ")
+    assert requests[1].get_header("Authorization") == "Bearer token-123"
+    assert "affiliateCampaignId=campaign-1" in requests[1].get_header("X-ebay-c-enduserctx")
+    assert "zip%3D32801" in requests[1].get_header("X-ebay-c-enduserctx")
+
+
+def test_best_buy_products_returns_price_image_availability_and_brand(monkeypatch):
+    from roxy_os import home_commerce
+
+    monkeypatch.setenv("ROXY_HOME_BEST_BUY_API_KEY", "best-buy-home-key")
+
+    def fake_urlopen(request, timeout):
+        assert request.full_url.startswith("https://api.bestbuy.com/v1/products(search=")
+        assert "apiKey=best-buy-home-key" in request.full_url
+        return _CatalogResponse({"products": [{
+            "name": "Smart floor lamp", "salePrice": 119.99, "regularPrice": 149.99,
+            "url": "https://www.bestbuy.com/site/lamp/1.p", "image": "https://pisces.bbystatic.com/image2/lamp.jpg",
+            "onlineAvailability": True, "manufacturer": "Example Lighting",
+        }]})
+
+    monkeypatch.setattr(home_commerce.urllib.request, "urlopen", fake_urlopen)
+    preparation = {"providers": ["best_buy"], "items": [{
+        "name": "lámpara inteligente", "query": "smart floor lamp", "quantity": 1,
+        "unit": "unidad", "category": "HOUSEHOLD",
+    }]}
+    result = create_purchase_links("best_buy", preparation)
+
+    assert result["links"][0] == {
+        "label": "Smart floor lamp", "shopping_item": "lámpara inteligente", "quantity": 1,
+        "unit": "unidad", "category": "HOUSEHOLD", "reason": "Resultado real de Best Buy.",
+        "price": 119.99, "regular_price": 149.99, "currency": "USD", "available": True,
+        "brand": "Example Lighting", "image_url": "https://pisces.bbystatic.com/image2/lamp.jpg",
+        "url": "https://www.bestbuy.com/site/lamp/1.p",
+    }
+
+
+def test_credential_catalogs_are_only_enabled_when_home_keys_exist(monkeypatch):
+    for key in ("ROXY_HOME_EBAY_CLIENT_ID", "ROXY_HOME_EBAY_CLIENT_SECRET", "ROXY_HOME_BEST_BUY_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+    pending = {row["id"]: row for row in public_providers()}
+    assert pending["ebay"]["configured"] is False
+    assert pending["best_buy"]["configured"] is False
+
+    monkeypatch.setenv("ROXY_HOME_EBAY_CLIENT_ID", "id")
+    monkeypatch.setenv("ROXY_HOME_EBAY_CLIENT_SECRET", "secret")
+    monkeypatch.setenv("ROXY_HOME_BEST_BUY_API_KEY", "key")
+    ready = {row["id"]: row for row in public_providers()}
+    assert ready["ebay"]["configured"] is True
+    assert ready["best_buy"]["configured"] is True
+
+
+def test_connected_catalog_failure_keeps_an_honest_official_search_fallback(monkeypatch):
+    from roxy_os import home_commerce
+
+    monkeypatch.setenv("ROXY_HOME_BEST_BUY_API_KEY", "best-buy-home-key")
+
+    def unavailable(*_args, **_kwargs):
+        raise home_commerce.urllib.error.URLError("offline")
+
+    monkeypatch.setattr(home_commerce.urllib.request, "urlopen", unavailable)
+    result = create_purchase_links("best_buy", {
+        "providers": ["best_buy"],
+        "items": [{"name": "televisor para sala", "query": "televisor sala", "quantity": 1, "unit": "unidad"}],
+    })
+
+    assert result["links"][0]["url"].startswith("https://www.bestbuy.com/site/searchpage.jsp?")
+    assert result["links"][0].get("price") is None
+    assert "no respondió" in result["guidance"]
+    assert "sin inventar precios" in result["guidance"]

@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '150';
+  const APP_VERSION = '151';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -1658,13 +1658,14 @@
           const link=document.createElement('a');link.className='primary commerce-link';link.href=row.url;link.target='_blank';link.rel='noopener sponsored';link.dataset.externalCheckout=provider.id;link.textContent=result.mode==='full_list'?`Revisar productos y pagar en ${provider.name}`:`Abrir ${provider.name} para seleccionar y pagar`;actions.append(link);return;
         }
         const article=document.createElement('article');article.className='commerce-product-link';
-        const img=makeImage(row.label,row.category||'GENERAL','');
+        const img=makeImage(row.label,row.category||'GENERAL','');if(/^https:\/\//.test(String(row.image_url||''))){img.src=row.image_url;img.alt=`${row.label} en ${provider.name}`}
         const copy=document.createElement('div');const title=document.createElement('strong');title.textContent=row.label;
-        const amount=document.createElement('span');amount.textContent=`${row.quantity||1} ${row.unit||'unidad'}`;
-        const reason=document.createElement('small');reason.textContent=row.reason||'Búsqueda adaptada a tu lista.';copy.append(title,amount,reason);
+        const amount=document.createElement('span');amount.textContent=Number(row.price)>0?`${money(row.price,row.currency||'USD')}${row.regular_price&&Number(row.regular_price)>Number(row.price)?` · antes ${money(row.regular_price,row.currency||'USD')}`:''}`:`${row.quantity||1} ${row.unit||'unidad'}`;
+        const context=document.createElement('small');context.textContent=[row.shopping_item?`Para: ${row.shopping_item}`:'',row.brand||'',row.condition||'',row.available===false?'No disponible en línea':''].filter(Boolean).join(' · ');
+        const reason=document.createElement('small');reason.textContent=row.reason||'Búsqueda adaptada a tu lista.';copy.append(title,amount);if(context.textContent)copy.append(context);copy.append(reason);
         if((row.avoided_brands||[]).length){const avoided=document.createElement('small');avoided.className='commerce-avoid';avoided.textContent=`Evita: ${row.avoided_brands.join(', ')}`;copy.append(avoided)}
         if(row.allergen_review_required){const warning=document.createElement('em');warning.textContent='Comprueba ingredientes y alérgenos en la etiqueta';copy.append(warning)}
-        const link=document.createElement('a');link.className='primary commerce-link';link.href=row.url;link.target='_blank';link.rel='noopener sponsored';link.dataset.externalCheckout=provider.id;link.setAttribute('aria-label',`Buscar ${row.label} en ${provider.name}`);link.textContent=`Buscar en ${provider.name}`;
+        const link=document.createElement('a');link.className='primary commerce-link';link.href=row.url;link.target='_blank';link.rel='noopener sponsored';link.dataset.externalCheckout=provider.id;link.setAttribute('aria-label',`Ver ${row.label} en ${provider.name}`);link.textContent=`Ver en ${provider.name}`;
         article.append(img,copy,link);actions.append(article);
       });
       $('commerceHandoffNote').textContent=`La cuenta, dirección y método de pago permanecen protegidos por ${provider.name}. Puedes regresar a Roxy al terminar.`;

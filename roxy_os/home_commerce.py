@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -131,6 +132,124 @@ def _safe_https(value: Any) -> str:
     if parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password:
         raise ValueError("El proveedor devolvió un enlace de compra no seguro.")
     return url
+
+
+def _provider_json(request: urllib.request.Request, provider_name: str) -> dict[str, Any]:
+    """Read one server-side catalog response without leaking credentials or raw errors."""
+    try:
+        with urllib.request.urlopen(request, timeout=12) as response:  # nosec B310: fixed HTTPS providers
+            payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
+        raise ConnectionError(f"{provider_name} no pudo consultar su catálogo en este momento.") from exc
+    if not isinstance(payload, dict):
+        raise ConnectionError(f"{provider_name} devolvió una respuesta de catálogo no válida.")
+    return payload
+
+
+def _ebay_catalog_links(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    client_id = _text(os.getenv("ROXY_HOME_EBAY_CLIENT_ID"), 500)
+    client_secret = _text(os.getenv("ROXY_HOME_EBAY_CLIENT_SECRET"), 500)
+    if not client_id or not client_secret:
+        raise RuntimeError("eBay Browse todavía necesita Client ID y Client Secret exclusivos de Home.")
+    basic = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("ascii")
+    token_request = urllib.request.Request(
+        "https://api.ebay.com/identity/v1/oauth2/token",
+        data=urllib.parse.urlencode({
+            "grant_type": "client_credentials",
+            "scope": "https://api.ebay.com/oauth/api_scope",
+        }).encode("utf-8"),
+        headers={"Authorization": f"Basic {basic}", "Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    token = _text(_provider_json(token_request, "eBay").get("access_token"), 4000)
+    if not token:
+        raise ConnectionError("eBay no entregó un token de catálogo válido.")
+    links: list[dict[str, Any]] = []
+    campaign = _text(os.getenv("ROXY_HOME_EBAY_AFFILIATE_CAMPAIGN_ID"), 100)
+    for item in items[:20]:
+        query = _text(item.get("query") or item.get("name"), 180)
+        params = urllib.parse.urlencode({"q": query, "limit": 3, "filter": "buyingOptions:{FIXED_PRICE}"})
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/json", "X-EBAY-C-MARKETPLACE-ID": "EBAY_US"}
+        context = []
+        if campaign:
+            context.append(f"affiliateCampaignId={campaign}")
+        postal_code = _text(item.get("postal_code"), 12)
+        if postal_code:
+            context.append(f"contextualLocation=country%3DUS%2Czip%3D{urllib.parse.quote(postal_code)}")
+        if context:
+            headers["X-EBAY-C-ENDUSERCTX"] = ",".join(context)
+        request = urllib.request.Request(
+            f"https://api.ebay.com/buy/browse/v1/item_summary/search?{params}", headers=headers,
+        )
+        for product in (_provider_json(request, "eBay").get("itemSummaries") or [])[:3]:
+            if not isinstance(product, dict):
+                continue
+            price = product.get("price") or {}
+            destination = product.get("itemAffiliateWebUrl") or product.get("itemWebUrl")
+            try:
+                url = _safe_https(destination)
+                image_url = _safe_https((product.get("image") or {}).get("imageUrl")) if product.get("image") else ""
+            except ValueError:
+                continue
+            links.append({
+                "label": _text(product.get("title") or item.get("name"), 180),
+                "shopping_item": _text(item.get("name"), 120),
+                "quantity": item.get("quantity") or 1, "unit": item.get("unit") or "unidad",
+                "category": item.get("category") or "HOUSEHOLD", "reason": item.get("reason") or "Resultado real de eBay.",
+                "price": float(price.get("value") or 0), "currency": _text(price.get("currency") or "USD", 3),
+                "condition": _text(product.get("condition"), 80), "image_url": image_url, "url": url,
+            })
+    return links
+
+
+def _best_buy_catalog_links(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    api_key = _text(os.getenv("ROXY_HOME_BEST_BUY_API_KEY"), 500)
+    if not api_key:
+        raise RuntimeError("Best Buy todavía necesita una API key exclusiva de Home.")
+    links: list[dict[str, Any]] = []
+    for item in items[:20]:
+        query = _text(item.get("query") or item.get("name"), 120)
+        search = urllib.parse.quote(query, safe="")
+        params = urllib.parse.urlencode({
+            "apiKey": api_key, "format": "json", "pageSize": 3, "sort": "salePrice.asc",
+            "show": "sku,name,salePrice,regularPrice,url,image,onlineAvailability,manufacturer",
+        })
+        request = urllib.request.Request(f"https://api.bestbuy.com/v1/products(search={search})?{params}", headers={"Accept": "application/json"})
+        for product in (_provider_json(request, "Best Buy").get("products") or [])[:3]:
+            if not isinstance(product, dict):
+                continue
+            try:
+                url = _safe_https(product.get("url"))
+                image_url = _safe_https(product.get("image")) if product.get("image") else ""
+            except ValueError:
+                continue
+            links.append({
+                "label": _text(product.get("name") or item.get("name"), 180),
+                "shopping_item": _text(item.get("name"), 120),
+                "quantity": item.get("quantity") or 1, "unit": item.get("unit") or "unidad",
+                "category": item.get("category") or "HOUSEHOLD", "reason": item.get("reason") or "Resultado real de Best Buy.",
+                "price": float(product.get("salePrice") or 0), "regular_price": float(product.get("regularPrice") or 0),
+                "currency": "USD", "available": product.get("onlineAvailability") is True,
+                "brand": _text(product.get("manufacturer"), 80), "image_url": image_url, "url": url,
+            })
+    return links
+
+
+def _catalog_search_fallback(provider_id: str, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    templates = {
+        "ebay": "https://www.ebay.com/sch/i.html?_nkw={query}",
+        "best_buy": "https://www.bestbuy.com/site/searchpage.jsp?st={query}",
+    }
+    return [{
+        "label": _text(item.get("name"), 180),
+        "shopping_item": _text(item.get("name"), 120),
+        "quantity": item.get("quantity") or 1, "unit": item.get("unit") or "unidad",
+        "category": item.get("category") or "HOUSEHOLD",
+        "reason": "Búsqueda oficial de respaldo; el comercio confirmará producto, imagen, precio y disponibilidad.",
+        "url": _safe_https(templates[provider_id].replace(
+            "{query}", urllib.parse.quote_plus(_text(item.get("query") or item.get("name"), 180))
+        )),
+    } for item in items[:20]]
 
 
 def _fold(value: Any) -> str:
@@ -635,6 +754,24 @@ def public_providers() -> list[dict[str, Any]]:
             "design_only": True,
             "description": "Busca muebles contemporáneos y modernos en Article.",
         },
+        {
+            "id": "ebay",
+            "name": "eBay",
+            "mode": "product_links",
+            "configured": bool(_text(os.getenv("ROXY_HOME_EBAY_CLIENT_ID")) and _text(os.getenv("ROXY_HOME_EBAY_CLIENT_SECRET"))),
+            "requires_credentials": True,
+            "design_only": True,
+            "description": "Consulta eBay Browse para piezas nuevas, usadas y vintage con precio e imagen reales.",
+        },
+        {
+            "id": "best_buy",
+            "name": "Best Buy",
+            "mode": "product_links",
+            "configured": bool(_text(os.getenv("ROXY_HOME_BEST_BUY_API_KEY"))),
+            "requires_credentials": True,
+            "design_only": True,
+            "description": "Consulta el catálogo de Best Buy para tecnología, electrodomésticos e iluminación inteligente.",
+        },
     ]
     status_env = {
         "instacart": "ROXY_HOME_INSTACART_AFFILIATE_STATUS",
@@ -647,9 +784,17 @@ def public_providers() -> list[dict[str, Any]]:
         "wayfair": "ROXY_HOME_WAYFAIR_STATUS",
         "west_elm": "ROXY_HOME_WEST_ELM_STATUS",
         "article": "ROXY_HOME_ARTICLE_STATUS",
+        "ebay": "ROXY_HOME_EBAY_STATUS",
+        "best_buy": "ROXY_HOME_BEST_BUY_STATUS",
     }
     for provider in definitions:
         if provider.get("design_only"):
+            if provider.get("requires_credentials"):
+                state, label, next_step = connection(status_env[provider["id"]], bool(provider.get("configured")))
+                provider["connection_status"] = state
+                provider["status_label"] = label
+                provider["next_step"] = next_step
+                continue
             if provider.get("affiliate_connected"):
                 provider["connection_status"] = "affiliate_ready"
                 provider["status_label"] = "Afiliado listo"
@@ -728,6 +873,7 @@ def personalize_items(raw_items: list[dict[str, Any]], profile: dict[str, Any], 
                     "dietary_labels": list(profile.get("dietary_labels") or [])[:3],
                     "favorite_brand": brand if objective == "favorites" else "",
                 },
+                "postal_code": _text(profile.get("postal_code"), 12),
                 # Design proposals use these fields to keep an honest estimated
                 # budget visible until a retailer supplies the real price.
                 "source_id": _text(raw.get("id"), 64),
@@ -755,6 +901,29 @@ def create_purchase_links(provider_id: str, preparation: dict[str, Any]) -> dict
     if not provider["configured"]:
         raise RuntimeError("Este proveedor todavía necesita su cuenta de afiliación o clave aprobada.")
     items = preparation.get("items") or []
+    if provider_id in {"ebay", "best_buy"}:
+        catalog_error = False
+        try:
+            links = _ebay_catalog_links(items) if provider_id == "ebay" else _best_buy_catalog_links(items)
+        except ConnectionError:
+            links = []
+            catalog_error = True
+        if not links:
+            links = _catalog_search_fallback(provider_id, items)
+        return {
+            "provider": provider,
+            "mode": "product_links",
+            "links": links,
+            "provider_disclosure": (
+                "Resultados consultados directamente en el catálogo del comercio. "
+                "Confirma medidas, condición, disponibilidad, envío y precio final antes de comprar."
+            ),
+            "guidance": (
+                f"Roxy encontró opciones reales en {provider['name']} para comparar con tu propuesta."
+                if not catalog_error and any(float(row.get("price") or 0) > 0 for row in links)
+                else f"El catálogo en vivo de {provider['name']} no respondió o no encontró coincidencias; Roxy conservó búsquedas oficiales de respaldo sin inventar precios."
+            ),
+        }
     if provider_id == "instacart":
         api_key = _text(os.getenv("ROXY_HOME_INSTACART_API_KEY"), 1000)
         if not api_key:
