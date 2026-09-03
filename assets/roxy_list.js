@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '119';
+  const APP_VERSION = '120';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -995,7 +995,7 @@
   }
   function renderPetProducts(pet){
     const root=$('petProductRecommendations');const filters=$('petProductFilters');root.replaceChildren();filters.replaceChildren();
-    const catalogRows=(homeFood.pet_recommendations||{})[String(pet.id)]||[];const exactRows=catalogRows.filter(row=>row.identity_specific);const candidateRows=exactRows.length>=6?exactRows:catalogRows;const allRows=[...candidateRows].sort((left,right)=>Number(Boolean(right.identity_specific))-Number(Boolean(left.identity_specific))||Number(right.score||0)-Number(left.score||0));
+    const catalogRows=(homeFood.pet_recommendations||{})[String(pet.id)]||[];const rankedRows=[...catalogRows].sort((left,right)=>Number(Boolean(right.identity_specific))-Number(Boolean(left.identity_specific))||Number(right.score||0)-Number(left.score||0));const seenProducts=new Set();const allRows=rankedRows.filter(row=>{const key=normalize(`${row.brand||''} ${row.name||''}`);if(!key||seenProducts.has(key))return false;seenProducts.add(key);return true});
     const categories=[...new Set(allRows.map(row=>row.category).filter(Boolean))];
     if(petProductFilter!=='all'&&!categories.includes(petProductFilter))petProductFilter='all';
     [['all','Todos'],...categories.map(value=>[value,value])].forEach(([value,label])=>{const button=document.createElement('button');button.type='button';button.className=value===petProductFilter?'active':'';button.textContent=label;button.addEventListener('click',()=>{petProductFilter=value;renderPetProducts(pet)});filters.append(button)});

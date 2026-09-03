@@ -25,7 +25,8 @@ def test_local_catalog_includes_species_specific_pet_recipes_with_safety_notes()
     assert {row["safety_class"] for row in rows} == {"treat", "feeding_guide"}
     assert all("no sustituye" in row["veterinary_note"].lower() for row in rows if row["safety_class"] == "treat")
     illustrated = [row for row in rows if row.get("photo_asset")]
-    assert len(illustrated) == 24
+    assert len(rows) >= 99
+    assert len(illustrated) == len(rows)
     assert all(row["photo_asset"].startswith("/assets/roxy_home/recipes/pets/") for row in illustrated)
     assert all(len(row["steps"]) >= 5 for row in rows)
     assert all(Path(row["photo_asset"].removeprefix("/")).is_file() for row in illustrated)

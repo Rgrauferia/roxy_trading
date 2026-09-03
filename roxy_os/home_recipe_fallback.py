@@ -432,10 +432,27 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         )
         guide.update(audience="pet", pet_species=species, pet_exact_terms=exact_terms, pet_category="pet_feeding", safety_class="feeding_guide", veterinary_note="Guía orientativa; la etiqueta y el veterinario de exóticos determinan alimento, cantidad y frecuencia.", sources=[{"title": source_title, "url": source_url, "authority": source_title.split(" · ", 1)[0]}], editorial_status="verified_veterinary_guidance")
         recipes[key] = guide
+    default_pet_photos = {
+        "dog": "/assets/roxy_home/recipes/pets/dog-treat-variety.webp",
+        "cat": "/assets/roxy_home/recipes/pets/cat-protein-variety.webp",
+        "ferret": "/assets/roxy_home/recipes/pets/ferret-protein-variety.webp",
+        "rabbit": "/assets/roxy_home/recipes/pets/small-herbivore-feeding.webp",
+        "guinea_pig": "/assets/roxy_home/recipes/pets/small-herbivore-feeding.webp",
+        "hamster": "/assets/roxy_home/recipes/pets/small-omnivore-feeding.webp",
+        "small_mammal": "/assets/roxy_home/recipes/pets/small-omnivore-feeding.webp",
+        "bird": "/assets/roxy_home/recipes/pets/bird-feeding.webp",
+        "fish": "/assets/roxy_home/recipes/pets/aquatic-feeding.webp",
+        "reptile": "/assets/roxy_home/recipes/pets/reptile-amphibian-feeding.webp",
+        "amphibian": "/assets/roxy_home/recipes/pets/reptile-amphibian-feeding.webp",
+        "invertebrate": "/assets/roxy_home/recipes/pets/invertebrate-feeding.webp",
+        "farm_pet": "/assets/roxy_home/recipes/pets/farm-pet-feeding.webp",
+        "other": "/assets/roxy_home/recipes/pets/species-identification.webp",
+    }
     for key, recipe in recipes.items():
         if not recipe.get("pet_category"):
             title = _identity(recipe.get("title"))
             recipe["pet_category"] = "pet_morning" if "huevo" in title else "pet_fresh" if re.search(r"helado|yogur|salmon", title) else "pet_treats"
+        recipe.setdefault("photo_asset", default_pet_photos[recipe["pet_species"]])
         recipe.setdefault("editorial_status", "verified_veterinary_guidance")
     return recipes
 
