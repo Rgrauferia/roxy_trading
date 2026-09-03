@@ -1,8 +1,34 @@
 from time import perf_counter
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from roxy_os.home_recipe_fallback import find_local_recipe, generate_local_recipe, local_recipe_catalog_summary
+
+
+def test_personalized_pet_recipes_use_present_and_identity_appropriate_photos():
+    from roxy_os.home_recipe_fallback import personalized_pet_recipe_catalog
+
+    assets = Path(__file__).resolve().parents[1] / "assets"
+    pets = [
+        {"id": "bella", "name": "Bella", "species": "dog", "breed": "Bernese Mountain", "life_stage": "young"},
+        {"id": "luna", "name": "Luna", "species": "ferret", "breed": "Hurón doméstico", "life_stage": "adult"},
+        {"id": "mia", "name": "Mia", "species": "cat", "breed": "Siamés", "life_stage": "adult"},
+        {"id": "azul", "name": "Azul", "species": "fish", "breed": "Betta", "life_stage": "adult"},
+        {"id": "sol", "name": "Sol", "species": "reptile", "breed": "Gecko leopardo", "life_stage": "adult"},
+    ]
+    rows = [row for pet in pets for row in personalized_pet_recipe_catalog(pet, {})]
+
+    assert rows
+    assert all(row.get("photo_asset", "").startswith("/assets/") for row in rows)
+    assert all((assets / row["photo_asset"].removeprefix("/assets/")).is_file() for row in rows)
+    assert all("betta-feeding.webp" in row["photo_asset"] for row in rows if row["pet_id"] == "azul")
+    assert all("leopard-gecko-feeding.webp" in row["photo_asset"] for row in rows if row["pet_id"] == "sol")
+    assert all(row.get("photo_focus") for row in rows if row["catalog_key"] in {
+        "dog_hard_boiled_egg", "dog_dehydrated_turkey", "dog_dehydrated_chicken",
+        "cat_dehydrated_whitefish", "cat_dehydrated_chicken", "cat_rabbit_morsels",
+        "ferret_poached_chicken", "ferret_cooked_lamb", "ferret_baked_duck", "ferret_turkey_medallions",
+    })
 
 
 def test_local_recipe_catalog_covers_food_bread_and_drinks():

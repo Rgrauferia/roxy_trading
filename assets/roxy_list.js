@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '149';
+  const APP_VERSION = '150';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -896,7 +896,7 @@
   }
   function recipeCard(recipe){
     const button=document.createElement('button');button.type='button';button.className='recipe-card';
-    const img=document.createElement('img');img.alt=`Resultado final de ${recipe.title||'la receta'}`;img.loading='lazy';img.decoding='async';hydrateRecipeImage(img,recipe,button);
+    const img=document.createElement('img');img.alt=`Resultado final de ${recipe.title||'la receta'}`;img.loading='lazy';img.decoding='async';if(recipe.photo_focus)img.style.objectPosition=recipe.photo_focus;hydrateRecipeImage(img,recipe,button);
     const copy=document.createElement('span');const strong=document.createElement('strong');strong.textContent=recipe.title;
     const drinkLabel=recipe.kind==='drink'?(recipe.drink_type==='alcoholic'?'Con alcohol':'Sin alcohol'):'';
     const recipePet=recipe.audience==='pet'?selectedPetProfile():null;const petLabel=recipe.audience==='pet'?[recipe.pet_variety,recipePet?'Para '+recipePet.name:'',({treat:'Premio ocasional',complement:'Complemento',feeding_guide:'Guía de alimentación',veterinary_plan:'Plan veterinario'}[recipe.safety_class]||'Receta para mascota')].filter(Boolean).join(' · '):'';
@@ -1047,7 +1047,7 @@
   function openRecipe(recipe){
     const catalogPreview=Boolean(recipe.catalog_key&&!recipe.id);currentRecipe=recipe;$('recipeDialogTitle').textContent=recipe.title||'Receta de Roxy';$('recipeDialogEyebrow').textContent=catalogPreview?'Vista previa segura':'Receta guardada';
     const root=$('recipeDialogContent');root.replaceChildren();
-    const hero=document.createElement('div');hero.className='recipe-detail-hero';const img=document.createElement('img');img.alt=`Resultado final de ${recipe.title||'la receta'}`;hydrateRecipeImage(img,recipe,hero);
+    const hero=document.createElement('div');hero.className='recipe-detail-hero';const img=document.createElement('img');img.alt=`Resultado final de ${recipe.title||'la receta'}`;if(recipe.photo_focus)img.style.objectPosition=recipe.photo_focus;hydrateRecipeImage(img,recipe,hero);
     const intro=document.createElement('div');const meta=document.createElement('strong');const recipeLabel=recipe.audience==='pet'?`${recipe.safety_class==='feeding_guide'?'Guía':'Preparación'} para ${({dog:'perros',cat:'gatos',ferret:'hurones',rabbit:'conejos',guinea_pig:'cobayas',hamster:'hámsteres',small_mammal:'pequeños mamíferos',bird:'aves',fish:'peces',reptile:'reptiles',amphibian:'anfibios',invertebrate:'invertebrados',farm_pet:'mascotas de granja',other:'mascotas'})[recipe.pet_species]||'mascotas'}`:recipe.kind==='drink'?(recipe.drink_type==='alcoholic'?'Bebida con alcohol':'Bebida sin alcohol'):(recipeCategoryLabels[recipeCategoryId(recipe)]||kindLabels[recipe.kind]||'Receta');const servings=Number(recipe.servings||1);const yieldLabel=recipe.audience==='pet'?(recipe.safety_class==='feeding_guide'?'orientación sin porción automática':`${servings} ${servings===1?'pieza preparada':'piezas preparadas'}; no equivalen a porciones diarias`):`${servings} ${servings===1?'porción':'porciones'}`;meta.textContent=`${recipeLabel} · ${yieldLabel}`;
     const description=document.createElement('p');description.textContent=recipe.description||'Receta guardada por Roxy.';intro.append(meta,description);hero.append(img,intro);
     const videoArea=document.createElement('section');videoArea.className='recipe-video-area';videoArea.setAttribute('aria-live','polite');

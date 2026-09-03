@@ -497,11 +497,38 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         "farm_pet": "/assets/roxy_home/recipes/pets/farm-pet-feeding.webp",
         "other": "/assets/roxy_home/recipes/pets/species-identification.webp",
     }
+    # A recipe card must show the preparation it names. These curated collection
+    # photographs are composed so each preparation can receive its own crop; the
+    # older category-wide images remain only as honest fallbacks for care guides.
+    exact_recipe_photos = {
+        "dog_hard_boiled_egg": ("/assets/roxy_home/recipes/pets/dog-treat-collection.webp", "31% 23%"),
+        "dog_dehydrated_turkey": ("/assets/roxy_home/recipes/pets/dog-treat-collection.webp", "18% 55%"),
+        "dog_dehydrated_chicken": ("/assets/roxy_home/recipes/pets/dog-treat-collection.webp", "80% 28%"),
+        "dog_turkey_pumpkin": ("/assets/roxy_home/recipes/pets/bernese-turkey-pumpkin.jpg", "50% 50%"),
+        "dog_frozen_banana_pumpkin": ("/assets/roxy_home/recipes/pets/bernese-banana-pumpkin.jpg", "50% 50%"),
+        "dog_chicken_training_bits": ("/assets/roxy_home/recipes/pets/bernese-chicken-training.jpg", "50% 50%"),
+        "dog_beef_green_bean": ("/assets/roxy_home/recipes/pets/bernese-beef-green-bean.jpg", "50% 50%"),
+        "dog_apple_carrot_oat": ("/assets/roxy_home/recipes/pets/bernese-apple-carrot.jpg", "50% 50%"),
+        "dog_sweet_potato_chews": ("/assets/roxy_home/recipes/pets/bernese-sweet-potato.jpg", "50% 50%"),
+        "cat_dehydrated_whitefish": ("/assets/roxy_home/recipes/pets/cat-protein-collection.webp", "31% 27%"),
+        "cat_dehydrated_chicken": ("/assets/roxy_home/recipes/pets/cat-protein-collection.webp", "31% 58%"),
+        "cat_rabbit_morsels": ("/assets/roxy_home/recipes/pets/cat-protein-collection.webp", "78% 44%"),
+        "cat_turkey_flakes": ("/assets/roxy_home/recipes/pets/cat-protein-collection.webp", "66% 25%"),
+        "cat_whitefish_flakes": ("/assets/roxy_home/recipes/pets/cat-protein-collection.webp", "31% 27%"),
+        "cat_beef_crumbles": ("/assets/roxy_home/recipes/pets/cat-protein-collection.webp", "39% 78%"),
+        "cat_plain_shrimp": ("/assets/roxy_home/recipes/pets/cat-protein-collection.webp", "72% 78%"),
+        "ferret_poached_chicken": ("/assets/roxy_home/recipes/pets/ferret-protein-collection.webp", "55% 24%"),
+        "ferret_cooked_lamb": ("/assets/roxy_home/recipes/pets/ferret-protein-collection.webp", "27% 54%"),
+        "ferret_baked_duck": ("/assets/roxy_home/recipes/pets/ferret-protein-collection.webp", "76% 48%"),
+        "ferret_turkey_medallions": ("/assets/roxy_home/recipes/pets/ferret-protein-collection.webp", "55% 76%"),
+    }
     for key, recipe in recipes.items():
         if not recipe.get("pet_category"):
             title = _identity(recipe.get("title"))
             recipe["pet_category"] = "pet_morning" if "huevo" in title else "pet_fresh" if re.search(r"helado|yogur|salmon", title) else "pet_treats"
         recipe.setdefault("photo_asset", default_pet_photos[recipe["pet_species"]])
+        if key in exact_recipe_photos:
+            recipe["photo_asset"], recipe["photo_focus"] = exact_recipe_photos[key]
         recipe.setdefault("editorial_status", "verified_veterinary_guidance")
     return recipes
 
@@ -842,6 +869,10 @@ def personalized_pet_recipe_catalog(pet: dict[str, Any], snapshot: dict[str, Any
             personalization_scope=scope, personalization_reason=reason,
             excluded_allergies=sorted(blocked),
         )
+        if species == "fish" and "betta" in identity_key:
+            row.update(photo_asset="/assets/roxy_home/recipes/pets/betta-feeding.webp", photo_focus="50% 48%")
+        elif species == "reptile" and "gecko leopardo" in identity_key:
+            row.update(photo_asset="/assets/roxy_home/recipes/pets/leopard-gecko-feeding.webp", photo_focus="48% 52%")
         rows.append(row)
     return sorted(
         rows,
