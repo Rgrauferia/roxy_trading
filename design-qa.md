@@ -308,3 +308,12 @@ final result: passed
 - **Consola:** sin errores ni advertencias durante el recorrido.
 
 Final result: passed
+# Renueva · remodelación móvil v149 (2026-09-03)
+
+- Referencias: las tres capturas entregadas por Roberto (entrada guiada, análisis del espacio y comparación antes/después con presupuesto).
+- Implementación verificada: `artifacts/renueva-onboarding-v149.png`, viewport móvil 390 × 844 en el navegador integrado.
+- Coincidencias principales: identidad crema/verde/dorado, imagen protagonista, progreso en cuatro etapas, doble entrada cámara/galería, consejos de captura, selector de habitación y CTA primario de ancho completo.
+- Flujo comprobado: “Subir imágenes” abre el formulario; seleccionar “Dormitorio” conserva `bedroom`; no hubo errores de consola.
+- Estados posteriores cubiertos por código y pruebas: marcadores numerados de objetos, conservar/cambiar/añadir, comparación antes/después, presupuesto Esencial/Equilibrado/Completo, medidas, revisión de productos y nueve conexiones con estado honesto.
+- Accesibilidad: títulos y regiones etiquetados, controles con nombre, estados de conexión en texto y no solo color, botones con altura táctil adecuada.
+- Verificación técnica: `node --check`, `git diff --check` y 70 pruebas dirigidas aprobadas.

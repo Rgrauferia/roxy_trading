@@ -34,6 +34,7 @@ COPY assets/roxy_home/recipe_custom ./assets/roxy_home/recipe_custom
 COPY assets/roxy_home/avatars ./assets/roxy_home/avatars
 COPY assets/roxy_home/home-hero-plant.png ./assets/roxy_home/home-hero-plant.png
 COPY assets/roxy_home/pet-onboarding-hero.png ./assets/roxy_home/pet-onboarding-hero.png
+COPY assets/roxy_home/renueva-living-room-hero.webp ./assets/roxy_home/renueva-living-room-hero.webp
 COPY assets/roxy_home/plants-soil-meter.png ./assets/roxy_home/plants-soil-meter.png
 
 RUN mkdir -p /var/data/roxy_home

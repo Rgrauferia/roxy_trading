@@ -8,16 +8,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="148" />
+  <meta name="roxy-home-version" content="149" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
   <link rel="stylesheet" href="/assets/vendor/maplibre-gl.css?v=1" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=113" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=114" />
   <script src="/assets/vendor/maplibre-gl.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=149" defer></script>
+  <script src="/assets/roxy_list.js?v=150" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -104,16 +104,23 @@
     <section id="designPanel" class="app-panel design-panel" data-panel="design" aria-labelledby="designTitle" hidden>
       <header class="design-heading">
         <button class="design-back" type="button" data-tab-link="today" aria-label="Volver a Hoy"><span class="material-symbols-rounded" aria-hidden="true">arrow_back</span></button>
-        <div><p class="eyebrow">Diseño personal, compra consciente</p><h2 id="designTitle">Roxy Renueva</h2><p>Una propuesta sobre tu habitación real, sin borrar su esencia.</p></div>
+        <div><p class="eyebrow">Tu espacio, mejor pensado</p><h2 id="designTitle">Renueva con Roxy</h2><p>Primero entendemos tu espacio. Después lo transformamos.</p></div>
+        <button id="newDesignProjectButton" class="design-new-project" type="button" aria-label="Añadir otro espacio"><span class="material-symbols-rounded" aria-hidden="true">add_a_photo</span></button>
       </header>
-      <section class="design-intro">
-        <span class="material-symbols-rounded" aria-hidden="true">photo_camera</span>
-        <div><strong>Empieza con una foto</strong><p>Incluye medidas, lo que quieres conservar y cuánto deseas gastar.</p></div>
-        <button id="newDesignProjectButton" class="primary" type="button">Nuevo proyecto</button>
+      <ol id="designProgress" class="design-progress" aria-label="Proceso de renovación">
+        <li class="active"><b>1</b><span>Espacio</span></li><li><b>2</b><span>Prioridades</span></li><li><b>3</b><span>Propuestas</span></li><li><b>4</b><span>Plan</span></li>
+      </ol>
+      <section id="designOnboarding" class="design-onboarding" aria-labelledby="designOnboardingTitle">
+        <figure class="design-hero"><img src="/assets/roxy_home/renueva-living-room-hero.webp" alt="Sala cálida y natural preparada como inspiración para una renovación" /><figcaption><span class="material-symbols-rounded" aria-hidden="true">auto_awesome</span> Roxy trabaja sobre la foto real de tu habitación</figcaption></figure>
+        <div class="design-capture-actions"><button id="designTakePhotoButton" class="primary" type="button"><span class="material-symbols-rounded" aria-hidden="true">photo_camera</span> Tomar fotos</button><button id="designUploadButton" class="secondary" type="button"><span class="material-symbols-rounded" aria-hidden="true">add_photo_alternate</span> Subir imágenes</button></div>
+        <div class="design-photo-guide"><h3 id="designOnboardingTitle">Para mejores resultados, captura:</h3><div><span><i class="material-symbols-rounded" aria-hidden="true">living</i><small>Frente</small></span><span><i class="material-symbols-rounded" aria-hidden="true">view_in_ar</i><small>Esquinas</small></span><span><i class="material-symbols-rounded" aria-hidden="true">inventory_2</i><small>Lo que conservarás</small></span></div></div>
+        <section class="design-room-picker" aria-label="Habitación para transformar"><span class="roxy-mini-avatar"><img src="/assets/roxy_home_avatar.jpg" alt="Roxy" /></span><div><strong>¿Qué habitación quieres transformar?</strong><div class="design-room-chips"><button class="active" type="button" data-design-room="living_room">Sala</button><button type="button" data-design-room="bedroom">Dormitorio</button><button type="button" data-design-room="kitchen">Cocina</button><button type="button" data-design-room="bathroom">Baño</button><button type="button" data-design-room="patio">Exterior</button></div></div></section>
+        <button id="designStartAnalysis" class="primary design-start" type="button">Comenzar análisis</button>
+        <p class="design-privacy"><span class="material-symbols-rounded" aria-hidden="true">encrypted</span> Tus fotos son privadas y puedes eliminarlas cuando quieras.</p>
       </section>
       <p id="designGenerationNotice" class="design-generation-notice" role="status"></p>
-      <div class="design-catalog-sources" aria-label="Catálogos de muebles conectados"><span class="material-symbols-rounded" aria-hidden="true">storefront</span><div><strong>Fuentes de muebles</strong><small>IKEA · Wayfair · West Elm · Article · Amazon</small></div></div>
       <div id="designProjects" class="design-projects" aria-live="polite"></div>
+      <details class="design-connections"><summary><span class="material-symbols-rounded" aria-hidden="true">hub</span><span><strong>Conexiones de productos y tendencias</strong><small>Roxy solo afirma datos en vivo cuando la conexión correspondiente está activa.</small></span><span class="material-symbols-rounded" aria-hidden="true">expand_more</span></summary><div id="designConnectionGrid" class="design-connection-grid"></div></details>
     </section>
 
     <section id="plantsPanel" class="app-panel plants-panel" data-panel="plants" aria-labelledby="plantsTitle" hidden>
@@ -694,8 +701,8 @@
 
   <dialog id="designDialog" class="design-dialog" aria-labelledby="designDialogTitle">
     <form id="designProjectForm">
-      <div class="dialog-heading"><div><p class="eyebrow">Tu espacio, a tu manera</p><h2 id="designDialogTitle">Nuevo proyecto</h2></div><button type="button" data-close-dialog="designDialog" aria-label="Cerrar">Cerrar</button></div>
-      <label><span>Foto actual de la habitación</span><input id="designPhoto" type="file" accept="image/jpeg,image/png,image/webp" required /><small>La foto permanece privada en tu cuenta de Home.</small></label>
+      <div class="dialog-heading"><div><p class="eyebrow">Paso 1 de 4 · Espacio</p><h2 id="designDialogTitle">Cuéntame sobre la habitación</h2></div><button type="button" data-close-dialog="designDialog" aria-label="Cerrar"><span class="material-symbols-rounded" aria-hidden="true">close</span></button></div>
+      <label class="design-photo-field"><span>Foto actual de la habitación</span><input id="designPhoto" type="file" accept="image/jpeg,image/png,image/webp" required /><small>JPEG, PNG o WebP. La foto permanece privada en tu cuenta de Home.</small></label>
       <label><span>Nombre del proyecto</span><input id="designName" maxlength="80" placeholder="Ej. Nuestra sala" /></label>
       <div class="form-row">
         <label><span>Habitación</span><select id="designRoom"><option value="living_room">Sala</option><option value="bedroom">Dormitorio</option><option value="dining_room">Comedor</option><option value="kitchen">Cocina</option><option value="bathroom">Baño</option><option value="office">Oficina</option><option value="patio">Patio</option><option value="other">Otro espacio</option></select></label>
@@ -708,7 +715,7 @@
       <label><span>Qué quieres conservar</span><input id="designKeep" maxlength="500" placeholder="Sofá gris, mesa familiar, piso…" /></label>
       <label><span>Qué quieres mejorar</span><input id="designPriorities" maxlength="500" placeholder="Más luz, almacenamiento, espacio para conversar…" /></label>
       <label><span>Otros detalles</span><textarea id="designNotes" rows="3" maxlength="1200" placeholder="Colores que te gustan, niños, mascotas o necesidades especiales"></textarea></label>
-      <button id="designProjectSubmit" class="primary full" type="submit">Guardar y crear propuesta</button>
+      <button id="designProjectSubmit" class="primary full" type="submit">Guardar espacio y analizar</button>
     </form>
   </dialog>
 

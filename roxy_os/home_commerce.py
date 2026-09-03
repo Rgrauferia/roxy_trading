@@ -670,6 +670,27 @@ def public_providers() -> list[dict[str, Any]]:
     return definitions
 
 
+def public_design_connections() -> list[dict[str, str]]:
+    """Describe Renueva integrations without exposing secrets or claiming live data."""
+    definitions = [
+        ("walmart_affiliate", "Walmart Affiliate API", "Productos, imágenes, categorías, promociones, precio y disponibilidad por código postal", "Decoración, lámparas, muebles económicos y artículos del hogar", bool(_text(os.getenv("ROXY_HOME_WALMART_AFFILIATE_API_KEY"))), "Configurar y validar el catálogo afiliado de Walmart."),
+        ("ebay_browse", "eBay Browse API", "Productos nuevos, usados y vintage; búsqueda por texto, categoría, GTIN e imagen", "Piezas únicas, muebles usados y alternativas económicas", bool(_text(os.getenv("ROXY_HOME_EBAY_CLIENT_ID")) and _text(os.getenv("ROXY_HOME_EBAY_CLIENT_SECRET"))), "Registrar Home y autorizar Browse API."),
+        ("best_buy_products", "Best Buy Products API", "Precios, disponibilidad, especificaciones e imágenes actualizadas", "Televisores, electrodomésticos, iluminación y hogar inteligente", bool(_text(os.getenv("ROXY_HOME_BEST_BUY_API_KEY"))), "Añadir la clave exclusiva de Best Buy para Home."),
+        ("impact", "Impact.com", "Catálogos de marcas, promociones y enlaces de afiliado", "Conectar varias tiendas desde una sola plataforma", bool(_text(os.getenv("ROXY_HOME_IMPACT_ACCOUNT_SID")) and _text(os.getenv("ROXY_HOME_IMPACT_AUTH_TOKEN"))), "Conectar la cuenta aprobada de Impact.com."),
+        ("cj_affiliate", "CJ Affiliate", "Búsqueda por precio, país, UPC y comercio", "Ampliar marcas de muebles y decoración", bool(_text(os.getenv("ROXY_HOME_CJ_API_KEY"))), "Solicitar acceso a anunciantes y su catálogo."),
+        ("awin", "Awin", "Catálogos y feeds de anunciantes aprobados", "Productos, promociones y monetización", bool(_text(os.getenv("ROXY_HOME_AWIN_API_TOKEN"))), "Conectar anunciantes aprobados de Awin."),
+        ("amazon_creators", "Amazon Creators API", "Catálogo, imágenes, variaciones, ofertas y enlaces de afiliado", "Decoración, accesorios y alternativas de amplia variedad", bool(_text(os.getenv("ROXY_HOME_AMAZON_CREATORS_CLIENT_ID")) and _text(os.getenv("ROXY_HOME_AMAZON_CREATORS_CLIENT_SECRET"))), "Completar la conexión de catálogo; un enlace afiliado no confirma precio."),
+        ("pinterest_trends", "Pinterest Trends API", "Palabras, estilos y temas con interés creciente", "Detectar colores, estilos y temas en tendencia", bool(_text(os.getenv("ROXY_HOME_PINTEREST_ACCESS_TOKEN"))), "Solicitar acceso autorizado a tendencias de Pinterest."),
+        ("dataforseo_merchant", "DataForSEO Merchant API", "Resultados, vendedores, precios y reseñas de Google Shopping", "Comparar un producto entre diferentes tiendas", bool(_text(os.getenv("ROXY_HOME_DATAFORSEO_LOGIN")) and _text(os.getenv("ROXY_HOME_DATAFORSEO_PASSWORD"))), "Conectar Merchant API y definir presupuesto de consultas."),
+    ]
+    return [{
+        "id": key, "name": name, "capabilities": capabilities, "use": use,
+        "connection_status": "ready" if configured else "needs_setup",
+        "status_label": "Conectada" if configured else "Requiere conexión",
+        "next_step": "Disponible para consultas verificadas." if configured else next_step,
+    } for key, name, capabilities, use, configured, next_step in definitions]
+
+
 def personalize_items(raw_items: list[dict[str, Any]], profile: dict[str, Any], allergies: list[str]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     organic = profile.get("organic_preference")
