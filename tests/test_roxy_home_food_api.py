@@ -117,9 +117,12 @@ def test_luna_domestic_ferret_profile_is_exact_and_personalized():
 
     legacy_luna = {**luna, "exact_species": "", "breed": "Ferret"}
     legacy_information = personalized_pet_care_plan(legacy_luna)["information"]
+    legacy_products = personalized_pet_products(legacy_luna)
     assert legacy_information["scope"] == "exact_species"
     assert legacy_information["display_name"] == "Hurón doméstico"
     assert "Luna" in legacy_information["characteristics"]
+    assert len(legacy_products) >= 8
+    assert all(row.get("image_url", "").startswith("https://") for row in legacy_products)
 
 
 def test_every_named_companion_species_has_a_nonempty_specific_shelf():
