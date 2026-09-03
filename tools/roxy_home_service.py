@@ -57,6 +57,7 @@ from roxy_os.home_commerce import (
     create_purchase_links,
     personalize_items,
     public_design_connections,
+    public_pinterest_design_trends,
     public_providers,
 )
 from roxy_os.home_conversation import HomeConversationStore
@@ -3184,6 +3185,7 @@ def read_home_design(
         "status": "READY",
         "generation_configured": generator.configured,
         "connections": public_design_connections(),
+        "trends": public_pinterest_design_trends(),
         "projects": [public_project(row, user) for row in _design_store().projects(owner_key)],
     }
 

@@ -1141,3 +1141,22 @@ def test_dataforseo_charges_once_then_reuses_task_id_for_results(monkeypatch):
     assert ready["catalog_status"] == "ready"
     assert ready["links"][0]["price"] == 59.99
     assert [request.get_method() for request in calls] == ["POST", "GET"]
+
+
+def test_pinterest_trends_are_live_cached_and_never_fabricated(monkeypatch):
+    from roxy_os import home_commerce
+    monkeypatch.delenv("ROXY_HOME_PINTEREST_ACCESS_TOKEN", raising=False)
+    assert home_commerce.public_pinterest_design_trends()["status"] == "needs_setup"
+    monkeypatch.setenv("ROXY_HOME_PINTEREST_ACCESS_TOKEN", "pinterest-home-token")
+    home_commerce._PINTEREST_TRENDS_CACHE.clear()
+    calls = []
+    def fake_urlopen(request, timeout):
+        calls.append(request)
+        return _CatalogResponse({"items": [{"keyword": "warm minimalism", "pct_growth_mom": 42}]})
+    monkeypatch.setattr(home_commerce.urllib.request, "urlopen", fake_urlopen)
+    first = home_commerce.public_pinterest_design_trends()
+    second = home_commerce.public_pinterest_design_trends()
+    assert first["items"] == [{"keyword": "warm minimalism", "growth_week": None, "growth_month": 42, "growth_year": None}]
+    assert second == first
+    assert len(calls) == 1
+    assert calls[0].get_header("Authorization") == "Bearer pinterest-home-token"

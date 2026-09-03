@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '153';
+  const APP_VERSION = '154';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -1520,6 +1520,7 @@
   }
   function renderDesignConnections(){
     const root=$('designConnectionGrid');if(!root)return;root.replaceChildren();
+    const trend=$('designTrendSignal');const trends=homeDesign.trends||{};if(trend){trend.replaceChildren();trend.hidden=trends.status!=='ready'||!(trends.items||[]).length;if(!trend.hidden){const title=document.createElement('strong');title.textContent='Señales de estilo en crecimiento';const note=document.createElement('small');note.textContent='Datos reales de Pinterest · inspiración, no recomendación de compra.';const chips=document.createElement('div');(trends.items||[]).slice(0,8).forEach(row=>{const chip=document.createElement('span');chip.textContent=`${row.keyword}${Number.isFinite(Number(row.growth_month))?` · ${Number(row.growth_month)>0?'+':''}${Number(row.growth_month)}% mes`:''}`;chips.append(chip)});trend.append(title,note,chips)}}
     const icons={walmart_affiliate:'storefront',ebay_browse:'sell',best_buy_products:'tv',impact:'hub',cj_affiliate:'join_inner',awin:'account_tree',amazon_creators:'package_2',pinterest_trends:'trending_up',dataforseo_merchant:'compare_arrows'};
     (homeDesign.connections||[]).forEach(connection=>{const article=document.createElement('article');article.className=`design-connection ${connection.connection_status==='ready'?'ready':'pending'}`;const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.textContent=icons[connection.id]||'link';const copy=document.createElement('div');const heading=document.createElement('div');const name=document.createElement('strong');name.textContent=connection.name;const status=document.createElement('em');status.textContent=connection.status_label;heading.append(name,status);const capabilities=document.createElement('p');capabilities.textContent=connection.capabilities;const use=document.createElement('small');use.textContent=`En Renueva: ${connection.use}`;const next=document.createElement('span');next.textContent=connection.next_step;copy.append(heading,capabilities,use,next);article.append(icon,copy);root.append(article)});
   }

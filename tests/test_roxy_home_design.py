@@ -155,6 +155,7 @@ def test_design_api_creates_private_project_and_prepares_real_store_searches(tmp
     monkeypatch.setenv("ROXY_HOME_COMMERCE_PATH", str(tmp_path / "commerce.json"))
     monkeypatch.setenv("ROXY_HOME_AMAZON_ASSOCIATE_TAG", "roxyhome-20")
     monkeypatch.setenv("ROXY_HOME_OPENAI_API_KEY", "")
+    monkeypatch.delenv("ROXY_HOME_PINTEREST_ACCESS_TOKEN", raising=False)
     roxy_home_service._RATE_STATE.clear()
     client = TestClient(roxy_home_service.app)
     headers = {"Authorization": "Bearer home-test-key"}
@@ -182,6 +183,9 @@ def test_design_api_creates_private_project_and_prepares_real_store_searches(tmp
         "Pinterest Trends API", "DataForSEO Merchant API",
     }
     assert all(row["status_label"] in {"Conectada", "Requiere conexión"} for row in connections)
+    assert snapshot.json()["trends"] == {
+        "status": "needs_setup", "source": "Pinterest Trends API", "items": []
+    }
     assert prepared.status_code == 201
     assert prepared.json()["preparation"]["source"] == "design"
     assert prepared.json()["preparation"]["items"][0]["category"] == "HOUSEHOLD"

@@ -5,6 +5,7 @@ import json
 import os
 import re
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -343,6 +344,32 @@ def _dataforseo_catalog(items: list[dict[str, Any]], task_ids: list[str] | None 
                         if len(links) >= 30:
                             return links, []
     return links, []
+
+
+_PINTEREST_TRENDS_CACHE: dict[str, Any] = {}
+
+
+def public_pinterest_design_trends(region: str = "US") -> dict[str, Any]:
+    token = _text(os.getenv("ROXY_HOME_PINTEREST_ACCESS_TOKEN"), 4000)
+    if not token:
+        return {"status": "needs_setup", "source": "Pinterest Trends API", "items": []}
+    region = region if re.fullmatch(r"[A-Z]{2}", region) else "US"
+    cached = _PINTEREST_TRENDS_CACHE.get(region) or {}
+    if time.monotonic() - float(cached.get("at") or 0) < 900:
+        return deepcopy(cached["value"])
+    request = urllib.request.Request(
+        f"https://api.pinterest.com/v5/trends/keywords/{region}/top/growing?limit=20",
+        headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+    )
+    try:
+        payload = _provider_json(request, "Pinterest")
+        rows = payload.get("items") or payload.get("trends") or []
+        items = [{"keyword": _text(row.get("keyword") or row.get("term"), 100), "growth_week": row.get("pct_growth_wow"), "growth_month": row.get("pct_growth_mom"), "growth_year": row.get("pct_growth_yoy")} for row in rows if isinstance(row, dict) and (row.get("keyword") or row.get("term"))]
+        value = {"status": "ready", "source": "Pinterest Trends API", "region": region, "items": items[:20]}
+        _PINTEREST_TRENDS_CACHE[region] = {"at": time.monotonic(), "value": value}
+        return deepcopy(value)
+    except ConnectionError:
+        return {"status": "temporarily_unavailable", "source": "Pinterest Trends API", "region": region, "items": [], "message": "Pinterest no respondió; Roxy no inventó tendencias."}
 
 
 def _catalog_search_fallback(provider_id: str, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
