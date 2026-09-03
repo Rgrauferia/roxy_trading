@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlparse
 
@@ -944,6 +945,50 @@ def test_amazon_required_disclosure_is_returned_near_links(tmp_path, monkeypatch
 
     assert result["provider_disclosure"] == "As an Amazon Associate I earn from qualifying purchases."
     assert "As an Amazon Associate I earn from qualifying purchases." in home_commerce["disclosure"]
+
+
+def test_amazon_creators_enriches_associate_links_with_real_catalog_data(monkeypatch):
+    from roxy_os import home_commerce
+
+    monkeypatch.setenv("ROXY_HOME_AMAZON_ASSOCIATE_TAG", "roxyhome-20")
+    monkeypatch.setenv("ROXY_HOME_AMAZON_CREATORS_CLIENT_ID", "creator-id")
+    monkeypatch.setenv("ROXY_HOME_AMAZON_CREATORS_CLIENT_SECRET", "creator-secret")
+    monkeypatch.setenv("ROXY_HOME_AMAZON_CREATORS_VERSION", "3.1")
+    home_commerce._AMAZON_CREATORS_TOKEN_CACHE.clear()
+    requests = []
+
+    def fake_urlopen(request, timeout):
+        requests.append(request)
+        if request.full_url == "https://api.amazon.com/auth/o2/token":
+            return _CatalogResponse({"access_token": "creator-token", "expires_in": 3600})
+        return _CatalogResponse({
+            "searchResult": {"items": [{
+                "asin": "B012345678",
+                "detailPageURL": "https://www.amazon.com/dp/B012345678?tag=roxyhome-20&linkCode=osi",
+                "images": {"primary": {"medium": {"url": "https://m.media-amazon.com/images/I/lamp.jpg"}}},
+                "itemInfo": {
+                    "title": {"displayValue": "Lámpara de pie de madera"},
+                    "byLineInfo": {"brand": {"displayValue": "Casa Luz"}},
+                },
+                "offersV2": {"listings": [{"price": {"money": {"amount": 79.99, "currencyCode": "USD"}}}]},
+            }]},
+        })
+
+    monkeypatch.setattr(home_commerce.urllib.request, "urlopen", fake_urlopen)
+    result = home_commerce.create_purchase_links("amazon", {
+        "providers": ["amazon"],
+        "items": [{"name": "Lámpara de pie", "query": "wood floor lamp", "category": "HOUSEHOLD"}],
+    })
+
+    assert result["links"][0]["label"] == "Lámpara de pie de madera"
+    assert result["links"][0]["price"] == 79.99
+    assert result["links"][0]["brand"] == "Casa Luz"
+    assert result["links"][0]["image_url"].startswith("https://m.media-amazon.com/")
+    assert "tag=roxyhome-20" in result["links"][0]["url"]
+    assert requests[1].get_header("Authorization") == "Bearer creator-token"
+    body = json.loads(requests[1].data)
+    assert body["partnerTag"] == "roxyhome-20"
+    assert body["keywords"] == "Lámpara de pie"
 
 
 class _CatalogResponse:

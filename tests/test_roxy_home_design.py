@@ -176,10 +176,10 @@ def test_design_api_creates_private_project_and_prepares_real_store_searches(tmp
     assert snapshot.status_code == 200
     assert snapshot.json()["projects"][0]["photo_url"].endswith("/image/original")
     connections = snapshot.json()["connections"]
-    assert len(connections) == 9
+    assert len(connections) == 10
     assert {row["name"] for row in connections} == {
         "Walmart Affiliate API", "eBay Browse API", "Best Buy Products API",
-        "Impact.com", "CJ Affiliate", "Awin", "Amazon Creators API",
+        "Impact.com", "CJ Affiliate", "Awin", "Amazon Associates", "Amazon Creators API",
         "Pinterest Trends API", "DataForSEO Merchant API",
     }
     assert all(row["status_label"] in {"Conectada", "Requiere conexión"} for row in connections)

@@ -347,6 +347,113 @@ def _dataforseo_catalog(items: list[dict[str, Any]], task_ids: list[str] | None 
 
 
 _PINTEREST_TRENDS_CACHE: dict[str, Any] = {}
+_AMAZON_CREATORS_TOKEN_CACHE: dict[str, Any] = {}
+
+
+def _amazon_creators_token() -> str:
+    client_id = _text(os.getenv("ROXY_HOME_AMAZON_CREATORS_CLIENT_ID"), 500)
+    client_secret = _text(os.getenv("ROXY_HOME_AMAZON_CREATORS_CLIENT_SECRET"), 500)
+    if not client_id or not client_secret:
+        raise RuntimeError("Amazon Creators todavía necesita Credential ID y Secret exclusivos de Home.")
+    cached = _AMAZON_CREATORS_TOKEN_CACHE
+    if cached.get("token") and time.monotonic() < float(cached.get("expires_at") or 0) - 60:
+        return str(cached["token"])
+    version = _text(os.getenv("ROXY_HOME_AMAZON_CREATORS_VERSION") or "3.1", 8)
+    token_host = {
+        "3.1": "https://api.amazon.com/auth/o2/token",
+        "3.2": "https://api.amazon.co.uk/auth/o2/token",
+        "3.3": "https://api.amazon.co.jp/auth/o2/token",
+    }.get(version, "https://api.amazon.com/auth/o2/token")
+    request = urllib.request.Request(
+        token_host,
+        data=json.dumps({
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "scope": "creatorsapi::default",
+        }).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        method="POST",
+    )
+    payload = _provider_json(request, "Amazon Creators")
+    token = _text(payload.get("access_token"), 4000)
+    if not token:
+        raise ConnectionError("Amazon Creators no entregó un token válido.")
+    _AMAZON_CREATORS_TOKEN_CACHE.clear()
+    _AMAZON_CREATORS_TOKEN_CACHE.update({
+        "token": token,
+        "expires_at": time.monotonic() + max(300, int(payload.get("expires_in") or 3600)),
+    })
+    return token
+
+
+def _amazon_creators_catalog_links(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    token = _amazon_creators_token()
+    partner_tag = _text(os.getenv("ROXY_HOME_AMAZON_ASSOCIATE_TAG"), 80)
+    if not re.fullmatch(r"[A-Za-z0-9_-]{2,80}", partner_tag):
+        raise RuntimeError("Amazon Creators necesita el Partner Tag aprobado de Amazon Associates.")
+    marketplace = _text(os.getenv("ROXY_HOME_AMAZON_MARKETPLACE") or "www.amazon.com", 100)
+    if not re.fullmatch(r"www\.amazon\.[A-Za-z.]{2,20}", marketplace):
+        raise RuntimeError("El marketplace configurado para Amazon no es válido.")
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "x-marketplace": marketplace,
+    }
+    links: list[dict[str, Any]] = []
+    for item in items[:10]:
+        query = _amazon_search_query(item)
+        request = urllib.request.Request(
+            "https://creatorsapi.amazon/catalog/v1/searchItems",
+            data=json.dumps({
+                "partnerTag": partner_tag,
+                "marketplace": marketplace,
+                "keywords": query,
+                "searchIndex": "All",
+                "itemCount": 3,
+                "resources": [
+                    "images.primary.medium",
+                    "itemInfo.title",
+                    "itemInfo.byLineInfo",
+                    "offersV2.listings.price",
+                    "offersV2.listings.availability",
+                ],
+            }).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        products = ((_provider_json(request, "Amazon Creators").get("searchResult") or {}).get("items") or [])[:3]
+        for product in products:
+            if not isinstance(product, dict):
+                continue
+            info = product.get("itemInfo") or {}
+            title = ((info.get("title") or {}).get("displayValue") or item.get("name"))
+            brand = (((info.get("byLineInfo") or {}).get("brand") or {}).get("displayValue") or "")
+            image = (((product.get("images") or {}).get("primary") or {}).get("medium") or {}).get("url")
+            offers = ((product.get("offersV2") or {}).get("listings") or [])
+            offer = offers[0] if offers and isinstance(offers[0], dict) else {}
+            money = (offer.get("price") or {}).get("money") or offer.get("price") or {}
+            try:
+                url = _safe_https(product.get("detailPageURL"))
+                image_url = _safe_https(image) if image else ""
+            except ValueError:
+                continue
+            links.append({
+                "label": _text(title, 180),
+                "shopping_item": _text(item.get("name"), 120),
+                "quantity": item.get("quantity") or 1,
+                "unit": item.get("unit") or "unidad",
+                "category": item.get("category") or "HOUSEHOLD",
+                "reason": item.get("reason") or "Resultado real de Amazon Creators.",
+                "price": float(money.get("amount") or money.get("value") or 0),
+                "currency": _text(money.get("currencyCode") or money.get("currency") or "USD", 3),
+                "brand": _text(brand, 80),
+                "image_url": image_url,
+                "url": url,
+                "affiliate_connected": True,
+            })
+    return links
 
 
 def public_pinterest_design_trends(region: str = "US") -> dict[str, Any]:
@@ -833,8 +940,12 @@ def public_providers() -> list[dict[str, Any]]:
             "name": "Amazon",
             "mode": "product_links",
             "configured": bool(_text(os.getenv("ROXY_HOME_AMAZON_ASSOCIATE_TAG"))),
-            "description": "Busca despensa, limpieza y productos recurrentes mediante enlaces de asociado.",
+            "description": "Busca artículos mediante enlaces de asociado y usa el catálogo Creators cuando la cuenta tiene acceso.",
             "disclosure": AMAZON_ASSOCIATES_DISCLOSURE,
+            "catalog_connected": bool(
+                _text(os.getenv("ROXY_HOME_AMAZON_CREATORS_CLIENT_ID"))
+                and _text(os.getenv("ROXY_HOME_AMAZON_CREATORS_CLIENT_SECRET"))
+            ),
         },
         {
             "id": "walmart",
@@ -975,7 +1086,8 @@ def public_design_connections() -> list[dict[str, str]]:
         ("impact", "Impact.com", "Catálogos de marcas, promociones y enlaces de afiliado", "Conectar varias tiendas desde una sola plataforma", bool(_text(os.getenv("ROXY_HOME_IMPACT_ACCOUNT_SID")) and _text(os.getenv("ROXY_HOME_IMPACT_AUTH_TOKEN"))), "Conectar la cuenta aprobada de Impact.com."),
         ("cj_affiliate", "CJ Affiliate", "Búsqueda por precio, país, UPC y comercio", "Ampliar marcas de muebles y decoración", bool(_text(os.getenv("ROXY_HOME_CJ_API_KEY"))), "Solicitar acceso a anunciantes y su catálogo."),
         ("awin", "Awin", "Catálogos y feeds de anunciantes aprobados", "Productos, promociones y monetización", bool(_text(os.getenv("ROXY_HOME_AWIN_API_TOKEN"))), "Conectar anunciantes aprobados de Awin."),
-        ("amazon_creators", "Amazon Creators API", "Catálogo, imágenes, variaciones, ofertas y enlaces de afiliado", "Decoración, accesorios y alternativas de amplia variedad", bool(_text(os.getenv("ROXY_HOME_AMAZON_CREATORS_CLIENT_ID")) and _text(os.getenv("ROXY_HOME_AMAZON_CREATORS_CLIENT_SECRET"))), "Completar la conexión de catálogo; un enlace afiliado no confirma precio."),
+        ("amazon_associates", "Amazon Associates", "Búsquedas específicas con Partner Tag y atribución afiliada", "Comprar decoración y accesorios recomendados por Roxy en Amazon", bool(_text(os.getenv("ROXY_HOME_AMAZON_ASSOCIATE_TAG"))), "Añadir el Partner Tag aprobado de Amazon Associates."),
+        ("amazon_creators", "Amazon Creators API", "Catálogo, imágenes, variaciones, ofertas y enlaces de afiliado", "Añadir fichas verificadas de Amazon a las propuestas", bool(_text(os.getenv("ROXY_HOME_AMAZON_ASSOCIATE_TAG")) and _text(os.getenv("ROXY_HOME_AMAZON_CREATORS_CLIENT_ID")) and _text(os.getenv("ROXY_HOME_AMAZON_CREATORS_CLIENT_SECRET"))), "Solicitar acceso a Creators API desde Tools en Associates Central."),
         ("pinterest_trends", "Pinterest Trends API", "Palabras, estilos y temas con interés creciente", "Detectar colores, estilos y temas en tendencia", bool(_text(os.getenv("ROXY_HOME_PINTEREST_ACCESS_TOKEN"))), "Solicitar acceso autorizado a tendencias de Pinterest."),
         ("dataforseo_merchant", "DataForSEO Merchant API", "Resultados, vendedores, precios y reseñas de Google Shopping", "Comparar un producto entre diferentes tiendas", bool(_text(os.getenv("ROXY_HOME_DATAFORSEO_LOGIN")) and _text(os.getenv("ROXY_HOME_DATAFORSEO_PASSWORD"))), "Conectar Merchant API y definir presupuesto de consultas."),
     ]
@@ -1131,6 +1243,23 @@ def create_purchase_links(provider_id: str, preparation: dict[str, Any], *, task
         tag = _text(os.getenv("ROXY_HOME_AMAZON_ASSOCIATE_TAG"), 80)
         if not re.fullmatch(r"[A-Za-z0-9_-]{2,80}", tag):
             raise RuntimeError("El identificador de Amazon Associates no es válido.")
+        creators_configured = bool(
+            _text(os.getenv("ROXY_HOME_AMAZON_CREATORS_CLIENT_ID"))
+            and _text(os.getenv("ROXY_HOME_AMAZON_CREATORS_CLIENT_SECRET"))
+        )
+        if creators_configured:
+            try:
+                catalog_links = _amazon_creators_catalog_links(items)
+            except (ConnectionError, RuntimeError):
+                catalog_links = []
+            if catalog_links:
+                return {
+                    "provider": provider,
+                    "mode": "product_links",
+                    "links": catalog_links,
+                    "provider_disclosure": provider.get("disclosure", ""),
+                    "guidance": "Productos, imágenes y precios consultados en Amazon Creators. Amazon confirmará la oferta final.",
+                }
         links = []
         for row in items:
             query = _amazon_search_query(row)
