@@ -240,6 +240,12 @@ services:
         sync: false
       - key: ROXY_HOME_CJ_API_KEY
         sync: false
+      - key: ROXY_HOME_CJ_COMPANY_ID
+        sync: false
+      - key: ROXY_HOME_CJ_WEBSITE_ID
+        sync: false
+      - key: ROXY_HOME_CJ_STATUS
+        value: needs_setup
       - key: ROXY_HOME_AWIN_API_TOKEN
         sync: false
       - key: ROXY_HOME_PINTEREST_ACCESS_TOKEN

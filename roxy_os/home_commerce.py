@@ -304,6 +304,96 @@ def _impact_catalog_links(items: list[dict[str, Any]], tracking_id: str) -> list
     return links
 
 
+def _cj_catalog_links(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Search joined CJ advertisers and return server-generated affiliate links."""
+    access_token = _text(os.getenv("ROXY_HOME_CJ_API_KEY"), 4000)
+    company_id = _text(os.getenv("ROXY_HOME_CJ_COMPANY_ID"), 80)
+    website_id = _text(os.getenv("ROXY_HOME_CJ_WEBSITE_ID"), 80)
+    if not access_token or not company_id or not website_id:
+        raise RuntimeError(
+            "CJ Affiliate todavía necesita el token, Company ID y PID exclusivos de Home."
+        )
+
+    links: list[dict[str, Any]] = []
+    for item in items[:10]:
+        query = _text(item.get("query") or item.get("name"), 180)
+        if not query:
+            continue
+        graph_query = """
+        query ProductSearch($companyId: ID!, $keywords: [String!], $pid: ID!) {
+          products(
+            companyId: $companyId
+            keywords: $keywords
+            partnerStatus: JOINED
+            advertiserCountries: ["US"]
+            currency: "USD"
+            includeDeletedProducts: false
+            sortBy: PRICE
+            sortOrder: ASC
+            limit: 3
+          ) {
+            resultList {
+              advertiserId advertiserName id title description brand imageLink
+              price { amount currency }
+              salePrice { amount currency }
+              linkCode(pid: $pid) { clickUrl }
+            }
+          }
+        }
+        """
+        request = urllib.request.Request(
+            "https://ads.api.cj.com/query",
+            data=json.dumps({
+                "query": graph_query,
+                "variables": {
+                    "companyId": company_id,
+                    "keywords": [query],
+                    "pid": website_id,
+                },
+            }).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            method="POST",
+        )
+        payload = _provider_json(request, "CJ Affiliate")
+        if payload.get("errors"):
+            raise ConnectionError("CJ Affiliate no pudo completar la búsqueda de productos.")
+        products = (((payload.get("data") or {}).get("products") or {}).get("resultList") or [])
+        for product in products[:3]:
+            if not isinstance(product, dict):
+                continue
+            price_data = product.get("salePrice") or product.get("price") or {}
+            link_code = product.get("linkCode") or {}
+            try:
+                url = _safe_https(link_code.get("clickUrl"))
+                image_url = _safe_https(product.get("imageLink")) if product.get("imageLink") else ""
+            except ValueError:
+                continue
+            try:
+                price = float(price_data.get("amount") or 0)
+            except (TypeError, ValueError):
+                price = 0.0
+            links.append({
+                "label": _text(product.get("title") or item.get("name"), 180),
+                "shopping_item": _text(item.get("name"), 120),
+                "quantity": item.get("quantity") or 1,
+                "unit": item.get("unit") or "unidad",
+                "category": item.get("category") or "HOUSEHOLD",
+                "reason": item.get("reason") or "Resultado real de un anunciante aprobado en CJ.",
+                "price": price,
+                "currency": _text(price_data.get("currency") or "USD", 3),
+                "brand": _text(product.get("brand") or product.get("advertiserName"), 100),
+                "merchant": _text(product.get("advertiserName"), 120),
+                "image_url": image_url,
+                "url": url,
+                "affiliate_connected": True,
+            })
+    return links
+
+
 def _dataforseo_auth() -> str:
     login = _text(os.getenv("ROXY_HOME_DATAFORSEO_LOGIN"), 500)
     password = _text(os.getenv("ROXY_HOME_DATAFORSEO_PASSWORD"), 500)
@@ -484,6 +574,7 @@ def _catalog_search_fallback(provider_id: str, items: list[dict[str, Any]]) -> l
         "ebay": "https://www.ebay.com/sch/i.html?_nkw={query}",
         "best_buy": "https://www.bestbuy.com/site/searchpage.jsp?st={query}",
         "impact": "https://www.google.com/search?tbm=shop&q={query}",
+        "cj": "https://www.google.com/search?tbm=shop&q={query}",
         "dataforseo": "https://www.google.com/search?tbm=shop&q={query}",
     }
     return [{
@@ -1031,6 +1122,19 @@ def public_providers() -> list[dict[str, Any]]:
             "design_only": True,
             "description": "Consulta catálogos de las marcas aprobadas y crea enlaces de seguimiento solo al confirmarlos.",
         },
+        {
+            "id": "cj",
+            "name": "CJ Affiliate",
+            "mode": "product_links",
+            "configured": bool(
+                _text(os.getenv("ROXY_HOME_CJ_API_KEY"))
+                and _text(os.getenv("ROXY_HOME_CJ_COMPANY_ID"))
+                and _text(os.getenv("ROXY_HOME_CJ_WEBSITE_ID"))
+            ),
+            "requires_credentials": True,
+            "design_only": True,
+            "description": "Busca productos reales de anunciantes aprobados en CJ y genera el enlace afiliado de Roxy Home.",
+        },
         {"id": "dataforseo", "name": "DataForSEO", "mode": "product_links", "configured": bool(_text(os.getenv("ROXY_HOME_DATAFORSEO_LOGIN")) and _text(os.getenv("ROXY_HOME_DATAFORSEO_PASSWORD"))), "requires_credentials": True, "design_only": True, "description": "Compara vendedores y precios observados en Google Shopping con consultas de costo controlado."},
     ]
     status_env = {
@@ -1047,6 +1151,7 @@ def public_providers() -> list[dict[str, Any]]:
         "ebay": "ROXY_HOME_EBAY_STATUS",
         "best_buy": "ROXY_HOME_BEST_BUY_STATUS",
         "impact": "ROXY_HOME_IMPACT_STATUS",
+        "cj": "ROXY_HOME_CJ_STATUS",
         "dataforseo": "ROXY_HOME_DATAFORSEO_STATUS",
     }
     for provider in definitions:
@@ -1084,7 +1189,7 @@ def public_design_connections() -> list[dict[str, str]]:
         ("ebay_browse", "eBay Browse API", "Productos nuevos, usados y vintage; búsqueda por texto, categoría, GTIN e imagen", "Piezas únicas, muebles usados y alternativas económicas", bool(_text(os.getenv("ROXY_HOME_EBAY_CLIENT_ID")) and _text(os.getenv("ROXY_HOME_EBAY_CLIENT_SECRET"))), "Registrar Home y autorizar Browse API."),
         ("best_buy_products", "Best Buy Products API", "Precios, disponibilidad, especificaciones e imágenes actualizadas", "Televisores, electrodomésticos, iluminación y hogar inteligente", bool(_text(os.getenv("ROXY_HOME_BEST_BUY_API_KEY"))), "Añadir la clave exclusiva de Best Buy para Home."),
         ("impact", "Impact.com", "Catálogos de marcas, promociones y enlaces de afiliado", "Conectar varias tiendas desde una sola plataforma", bool(_text(os.getenv("ROXY_HOME_IMPACT_ACCOUNT_SID")) and _text(os.getenv("ROXY_HOME_IMPACT_AUTH_TOKEN"))), "Conectar la cuenta aprobada de Impact.com."),
-        ("cj_affiliate", "CJ Affiliate", "Búsqueda por precio, país, UPC y comercio", "Ampliar marcas de muebles y decoración", bool(_text(os.getenv("ROXY_HOME_CJ_API_KEY"))), "Solicitar acceso a anunciantes y su catálogo."),
+        ("cj_affiliate", "CJ Affiliate", "Búsqueda por precio, país, UPC y comercio", "Ampliar marcas de muebles y decoración", bool(_text(os.getenv("ROXY_HOME_CJ_API_KEY")) and _text(os.getenv("ROXY_HOME_CJ_COMPANY_ID")) and _text(os.getenv("ROXY_HOME_CJ_WEBSITE_ID"))), "Conectar el token, Company ID y PID exclusivos de Roxy Home."),
         ("awin", "Awin", "Catálogos y feeds de anunciantes aprobados", "Productos, promociones y monetización", bool(_text(os.getenv("ROXY_HOME_AWIN_API_TOKEN"))), "Conectar anunciantes aprobados de Awin."),
         ("amazon_associates", "Amazon Associates", "Búsquedas específicas con Partner Tag y atribución afiliada", "Comprar decoración y accesorios recomendados por Roxy en Amazon", bool(_text(os.getenv("ROXY_HOME_AMAZON_ASSOCIATE_TAG"))), "Añadir el Partner Tag aprobado de Amazon Associates."),
         ("amazon_creators", "Amazon Creators API", "Catálogo, imágenes, variaciones, ofertas y enlaces de afiliado", "Añadir fichas verificadas de Amazon a las propuestas", bool(_text(os.getenv("ROXY_HOME_AMAZON_ASSOCIATE_TAG")) and _text(os.getenv("ROXY_HOME_AMAZON_CREATORS_CLIENT_ID")) and _text(os.getenv("ROXY_HOME_AMAZON_CREATORS_CLIENT_SECRET"))), "Solicitar acceso a Creators API desde Tools en Associates Central."),
@@ -1169,13 +1274,15 @@ def create_purchase_links(provider_id: str, preparation: dict[str, Any], *, task
         if not links:
             links = _catalog_search_fallback(provider_id, items)
         return {"provider": provider, "mode": "product_links", "links": links, "catalog_status": "processing" if pending else "ready", "catalog_task_ids": pending, "provider_disclosure": "DataForSEO cobra al crear cada tarea; actualizar resultados con el mismo ID no vuelve a crearla.", "guidance": "La comparación está procesándose; puedes actualizarla sin generar otra consulta." if pending else "Comparación de vendedores recuperada de DataForSEO; confirma el precio final en el comercio."}
-    if provider_id in {"ebay", "best_buy", "impact"}:
+    if provider_id in {"ebay", "best_buy", "impact", "cj"}:
         catalog_error = False
         try:
             if provider_id == "ebay":
                 links = _ebay_catalog_links(items)
             elif provider_id == "best_buy":
                 links = _best_buy_catalog_links(items)
+            elif provider_id == "cj":
+                links = _cj_catalog_links(items)
             else:
                 links = _impact_catalog_links(items, str(preparation.get("tracking_id") or ""))
         except ConnectionError:

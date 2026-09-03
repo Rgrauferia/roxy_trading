@@ -1168,6 +1168,77 @@ def test_impact_tracking_failure_uses_product_destination_without_claiming_affil
     assert result["links"][0]["affiliate_connected"] is False
 
 
+def test_cj_product_feed_uses_home_property_and_returns_affiliate_products(monkeypatch):
+    from roxy_os import home_commerce
+
+    monkeypatch.setenv("ROXY_HOME_CJ_API_KEY", "cj-home-token")
+    monkeypatch.setenv("ROXY_HOME_CJ_COMPANY_ID", "8056369")
+    monkeypatch.setenv("ROXY_HOME_CJ_WEBSITE_ID", "101999999")
+    requests = []
+
+    def fake_urlopen(request, timeout):
+        requests.append(request)
+        return _CatalogResponse({"data": {"products": {"resultList": [{
+            "advertiserId": "321", "advertiserName": "Casa Example", "id": "lamp-1",
+            "title": "Lámpara de lectura de roble", "brand": "Casa Example",
+            "imageLink": "https://images.example/lamp.jpg",
+            "price": {"amount": "89.00", "currency": "USD"},
+            "salePrice": {"amount": "69.00", "currency": "USD"},
+            "linkCode": {"clickUrl": "https://www.anrdoezrs.net/click-101999999-123456?url=https%3A%2F%2Fexample.com%2Flamp"},
+        }]}}})
+
+    monkeypatch.setattr(home_commerce.urllib.request, "urlopen", fake_urlopen)
+    result = create_purchase_links("cj", {
+        "providers": ["cj"],
+        "items": [{"name": "lámpara de lectura", "query": "oak reading lamp", "quantity": 1, "unit": "unidad"}],
+    })
+
+    assert result["links"][0]["price"] == 69.0
+    assert result["links"][0]["merchant"] == "Casa Example"
+    assert result["links"][0]["image_url"] == "https://images.example/lamp.jpg"
+    assert result["links"][0]["affiliate_connected"] is True
+    assert requests[0].full_url == "https://ads.api.cj.com/query"
+    assert requests[0].get_header("Authorization") == "Bearer cj-home-token"
+    body = json.loads(requests[0].data)
+    assert body["variables"] == {
+        "companyId": "8056369", "keywords": ["oak reading lamp"], "pid": "101999999",
+    }
+    assert "partnerStatus: JOINED" in body["query"]
+    assert 'advertiserCountries: ["US"]' in body["query"]
+
+
+def test_cj_requires_a_separate_home_company_and_property(monkeypatch):
+    monkeypatch.setenv("ROXY_HOME_CJ_API_KEY", "token")
+    monkeypatch.delenv("ROXY_HOME_CJ_COMPANY_ID", raising=False)
+    monkeypatch.delenv("ROXY_HOME_CJ_WEBSITE_ID", raising=False)
+
+    provider = next(row for row in public_providers() if row["id"] == "cj")
+    assert provider["configured"] is False
+    assert provider["connection_status"] == "needs_setup"
+
+
+def test_cj_empty_catalog_keeps_an_unpriced_honest_search_fallback(monkeypatch):
+    from roxy_os import home_commerce
+
+    monkeypatch.setenv("ROXY_HOME_CJ_API_KEY", "cj-home-token")
+    monkeypatch.setenv("ROXY_HOME_CJ_COMPANY_ID", "8056369")
+    monkeypatch.setenv("ROXY_HOME_CJ_WEBSITE_ID", "101999999")
+    monkeypatch.setattr(
+        home_commerce.urllib.request,
+        "urlopen",
+        lambda request, timeout: _CatalogResponse({"data": {"products": {"resultList": []}}}),
+    )
+
+    result = create_purchase_links("cj", {
+        "providers": ["cj"],
+        "items": [{"name": "lámpara", "query": "floor lamp"}],
+    })
+
+    assert result["links"][0]["url"].startswith("https://www.google.com/search?tbm=shop")
+    assert result["links"][0].get("price") is None
+    assert "sin inventar precios" in result["guidance"]
+
+
 def test_dataforseo_charges_once_then_reuses_task_id_for_results(monkeypatch):
     from roxy_os import home_commerce
     monkeypatch.setenv("ROXY_HOME_DATAFORSEO_LOGIN", "home-login")
