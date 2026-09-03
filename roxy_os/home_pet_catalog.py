@@ -710,6 +710,7 @@ PET_BREED_INFORMATION = {
     },
 }
 PET_BREED_INFORMATION["bernesemountaindog"] = PET_BREED_INFORMATION["bernesemountain"]
+PET_BREED_INFORMATION["ferret"] = PET_BREED_INFORMATION["hurondomestico"]
 
 PET_FEEDING_FREQUENCY = {
     "dog": "Adultos: normalmente 2 veces al día",
