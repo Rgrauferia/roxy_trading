@@ -210,9 +210,10 @@ class RecipePhotoGenerationQueue:
         self.store = store
         self.config = config
         self._client = client
-        # Eight workers build the shared library while two remain available for
-        # recipes currently visible on a user's screen.
-        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10, thread_name_prefix="roxy-recipe-image")
+        # Image generation is provider-intensive. Two workers keep the queue
+        # responsive without creating a burst that leaves every visible card
+        # throttled at once.
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="roxy-recipe-image")
         self._pending: set[str] = set()
         self._lock = threading.Lock()
         self._metadata_lock = threading.Lock()
@@ -308,7 +309,10 @@ class RecipePhotoGenerationQueue:
         if self._client is None:
             from openai import OpenAI
 
-            self._client = OpenAI(api_key=self.config.api_key)
+            # Manual retries below preserve the recipe title and record a safe
+            # failure. A bounded client timeout prevents one provider request
+            # from freezing the entire visual queue.
+            self._client = OpenAI(api_key=self.config.api_key, timeout=120.0, max_retries=0)
         return self._client
 
     def _wait_for_request_slot(self) -> None:
