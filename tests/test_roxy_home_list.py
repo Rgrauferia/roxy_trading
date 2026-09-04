@@ -12,6 +12,10 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     client = TestClient(roxy_home_service.app)
     page = client.get("/lista")
     privacy = client.get("/privacy")
+    root_head = client.head("/", follow_redirects=False)
+    home_head = client.head("/home")
+    list_head = client.head("/lista")
+    privacy_head = client.head("/privacy")
     manifest = client.get("/lista-manifest.json")
     worker = client.get("/lista-sw.js")
     script = client.get("/assets/roxy_list.js")
@@ -24,6 +28,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
 
     assert page.status_code == 200
     assert privacy.status_code == 200
+    assert root_head.status_code == 307
+    assert root_head.headers["location"] == "/home"
+    assert home_head.status_code == 200
+    assert list_head.status_code == 200
+    assert privacy_head.status_code == 200
     assert "Política de privacidad" in privacy.text
     assert "No vende datos personales" in privacy.text
     assert "script-src 'none'" in privacy.headers["content-security-policy"]

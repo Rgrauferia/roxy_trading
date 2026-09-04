@@ -1544,6 +1544,7 @@ def _security_headers(response: Response) -> Response:
     return response
 
 
+@app.head("/", include_in_schema=False)
 @app.get("/", include_in_schema=False)
 def root() -> RedirectResponse:
     return RedirectResponse("/home", status_code=307)
@@ -1554,6 +1555,8 @@ def health() -> dict[str, str | int]:
     return {"status": "ok", "service": "roxy-home", "video_prompt_version": VIDEO_PROMPT_VERSION}
 
 
+@app.head("/home", response_class=FileResponse, include_in_schema=False)
+@app.head("/lista", response_class=FileResponse, include_in_schema=False)
 @app.get("/home", response_class=FileResponse)
 @app.get("/lista", response_class=FileResponse)
 def shopping_page() -> Response:
@@ -1583,6 +1586,7 @@ def shopping_page() -> Response:
     return _security_headers(response)
 
 
+@app.head("/privacy", response_class=FileResponse, include_in_schema=False)
 @app.get("/privacy", response_class=FileResponse)
 def privacy_page() -> Response:
     response = FileResponse(ASSETS_DIR / "roxy_privacy.html", media_type="text/html")
