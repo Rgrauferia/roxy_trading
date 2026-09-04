@@ -38,15 +38,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "script-src 'none'" in privacy.headers["content-security-policy"]
     assert "roxy_privacy.html assets/roxy_privacy.css" in Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="156"' in page.text
+    assert 'name="roxy-home-version" content="157"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' in page.text
-    assert 'href="/assets/roxy_list.css?v=115"' in page.text
-    assert 'src="/assets/roxy_list.js?v=157"' in page.text
+    assert 'href="/assets/roxy_list.css?v=116"' in page.text
+    assert 'src="/assets/roxy_list.js?v=158"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
-    assert '/assets/roxy_list.css?v=115' in worker.text
-    assert '/assets/roxy_list.js?v=157' in worker.text
+    assert '/assets/roxy_list.css?v=116' in worker.text
+    assert '/assets/roxy_list.js?v=158' in worker.text
     assert '/assets/roxy_home/renueva-living-room-hero.webp' in worker.text
     assert '/assets/roxy_home/plants-soil-meter.png' in worker.text
     assert '/assets/roxy_home/pet-onboarding-hero.png' in worker.text
@@ -265,7 +265,10 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="scanRecipeButton"' in page.text
     assert 'id="importRecipeUrlButton"' in page.text
     assert 'id="recipeImportDialog"' in page.text
-    assert 'data-recipe-audience="pet"' in page.text
+    assert 'data-recipe-audience="pet"' not in page.text
+    assert 'class="recipe-audience-switch"' not in page.text
+    assert page.text.index('id="recipeImportStudio"') < page.text.index('id="petRecipeContext"')
+    assert page.text.index('</section>\n\n      <section id="petRecipeContext"') > page.text.index('id="recipeImportStudio"')
     assert 'data-tab-link="pets"' in page.text
     assert "mascotas:'pets'" in script.text
     assert 'id="petOnboardingEmpty"' in page.text
@@ -388,7 +391,9 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "recipeCategories" in script.text
     assert "coffee_hot" in script.text
     assert "bowls_salads" in script.text
-    assert "setup.open=true" in script.text
+    assert "setup.open=!plan" in script.text
+    assert "#todayPanel > #homeDailyBrief" in style.text
+    assert "body.pet-module-mode #recipeImportStudio{display:none!important}" in style.text
     assert "setup.classList.toggle('has-plan',Boolean(plan))" in script.text
     assert 'id="recipePersonalForm"' in page.text
     assert 'id="deleteRecipeButton"' in page.text
@@ -421,7 +426,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "COPY assets/roxy_home/home-hero-plant.png ./assets/roxy_home/home-hero-plant.png" in dockerfile
     assert "COPY assets/roxy_avatar_card.jpg ./assets/roxy_avatar_card.jpg" in dockerfile
     assert "ROXY_HOME_RECIPE_PHOTO_DIR=/var/data/roxy_home/recipe_photos" in dockerfile
-    assert "/v1/home-food/recipe-photo?v=4&title=" in script.text
+    assert "/v1/home-food/recipe-photo?v=5&title=" in script.text
+    assert "recipe.audience === 'pet'" in script.text
     assert "icon:'salad'" not in script.text
     assert "hydrateRecipeImage" in script.text
     assert "seenSavedTitles" in script.text

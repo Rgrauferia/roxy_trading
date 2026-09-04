@@ -293,9 +293,10 @@
   const makeDesignProductVisual = name => {const visual=document.createElement('span');visual.className='design-product-visual material-symbols-rounded';visual.setAttribute('aria-hidden','true');visual.textContent=designProductIcon(name);return visual};
   const recipeImage = recipe => {
     if (recipe && /^data:image\/(jpeg|png|webp);base64,/.test(String(recipe.photo_data_url || ''))) return recipe.photo_data_url;
-    if (recipe && /^\/assets\//.test(String(recipe.photo_asset || ''))) return recipe.photo_asset;
     const title=String(recipe&&recipe.title||'').trim();
-    return title?`/v1/home-food/recipe-photo?v=4&title=${encodeURIComponent(title)}`:'';
+    if (recipe && recipe.audience === 'pet') return title?`/v1/home-food/recipe-photo?v=5&title=${encodeURIComponent(title)}`:'';
+    if (recipe && /^\/assets\//.test(String(recipe.photo_asset || ''))) return recipe.photo_asset;
+    return title?`/v1/home-food/recipe-photo?v=5&title=${encodeURIComponent(title)}`:'';
   };
   const waitForRecipeImage = delay => new Promise(resolve=>setTimeout(resolve,delay));
   async function hydrateRecipeImage(image,recipe,host,{hideOnMissing=false}={}){
@@ -1854,7 +1855,7 @@
     currentWeeklyPlan=plan||null;const result=$('mealPlanResult');const setup=$('mealPlanSetup');const daysRoot=$('mealPlanDays');daysRoot.replaceChildren();
     const remembered=homeFood.meal_planning||{};
     setup.classList.toggle('has-plan',Boolean(plan));
-    setup.open=true;
+    setup.open=!plan;
     if(!plan){result.hidden=true;$('mealPlanCreate').textContent='Crear mi plan semanal';$('mealPlanCookDays').value=String(remembered.cook_days||2);$('mealPlanScope').value=remembered.meal_scope||'all';const rememberedStyle=document.querySelector(`input[name="mealPlanStyle"][value="${CSS.escape(remembered.style||'normal')}"]`);if(rememberedStyle)rememberedStyle.checked=true;return}
     result.hidden=false;$('mealPlanCreate').textContent='Actualizar mi plan semanal';$('mealPlanFocus').textContent=plan.focus||'Tu semana organizada';$('mealPlanBalance').textContent=plan.balance_note||plan.style_description||'Variado y equilibrado';$('mealPlanPrepTip').textContent=plan.prep_tip||'';
     $('mealPlanCookDays').value=String(plan.cook_days||2);$('mealPlanScope').value=plan.meal_scope||'all';

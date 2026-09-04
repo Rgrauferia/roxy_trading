@@ -8,16 +8,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="156" />
+  <meta name="roxy-home-version" content="157" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
   <link rel="stylesheet" href="/assets/vendor/maplibre-gl.css?v=1" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=115" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=116" />
   <script src="/assets/vendor/maplibre-gl.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=157" defer></script>
+  <script src="/assets/roxy_list.js?v=158" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -52,7 +52,7 @@
       </section>
       <section id="mealPlanStudio" class="meal-plan-studio" aria-labelledby="mealPlanTitle">
         <div class="meal-plan-heading"><p class="eyebrow">Tu semana, organizada</p><h2 id="mealPlanTitle">Plan de comidas</h2><p>Roxy adapta desayuno, comida y cena al ritmo real de tu hogar.</p></div>
-        <details id="mealPlanSetup" class="meal-plan-setup" open>
+        <details id="mealPlanSetup" class="meal-plan-setup">
           <summary><span><strong>Ajustar mi plan</strong><small>Objetivo y ritmo de tu semana</small></span><span class="material-symbols-rounded" aria-hidden="true">tune</span></summary>
           <form id="mealPlanForm">
           <fieldset class="meal-plan-styles"><legend>Elige el ritmo de esta semana</legend>
@@ -352,14 +352,11 @@
           <button id="scanRecipeButton" type="button"><span class="material-symbols-rounded" aria-hidden="true">document_scanner</span><span><strong>Escanear receta</strong><small>Foto, libro o captura de pantalla</small></span><span class="material-symbols-rounded" aria-hidden="true">chevron_right</span></button>
           <button id="importRecipeUrlButton" type="button"><span class="material-symbols-rounded" aria-hidden="true">link</span><span><strong>Importar enlace</strong><small>Instagram, YouTube, Facebook y más</small></span><span class="material-symbols-rounded" aria-hidden="true">chevron_right</span></button>
         </div>
-        <div class="recipe-audience-switch" role="group" aria-label="Recetas para personas o mascotas" hidden>
-          <button class="active" type="button" data-recipe-audience="human">Para nosotros</button>
-          <button type="button" data-recipe-audience="pet">Para mascotas</button>
-        </div>
-        <section id="petRecipeContext" class="pet-recipe-context" hidden>
-          <div class="pet-profile-row"><div id="petProfiles" class="pet-profiles"></div><button id="addPetButton" class="pet-add" type="button"><span class="material-symbols-rounded" aria-hidden="true">add</span> Añadir mascota</button></div>
-          <p id="petSafetySummary">Roxy separa premios, complementos y alimentos completos. Las indicaciones de tu veterinario siempre tienen prioridad.</p>
-        </section>
+      </section>
+
+      <section id="petRecipeContext" class="pet-recipe-context" hidden aria-label="Tus mascotas">
+        <div class="pet-profile-row"><div id="petProfiles" class="pet-profiles"></div><button id="addPetButton" class="pet-add" type="button"><span class="material-symbols-rounded" aria-hidden="true">add</span> Añadir mascota</button></div>
+        <p id="petSafetySummary">Elige un perfil. Información, historial, recetas y productos permanecen separados y personalizados para esa mascota.</p>
       </section>
 
       <section id="petOnboardingEmpty" class="pet-onboarding-empty" hidden aria-labelledby="petOnboardingTitle">
