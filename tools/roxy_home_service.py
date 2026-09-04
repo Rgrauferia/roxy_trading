@@ -551,7 +551,6 @@ def _recipe_photo_queue() -> RecipePhotoGenerationQueue:
                 _recipe_photo_store(), RecipePhotoGenerationConfig.from_env()
             )
             _RECIPE_PHOTO_QUEUES[path] = queue
-            queue.prewarm(_all_recipe_photo_rows())
     return _RECIPE_PHOTO_QUEUES[path]
 
 
@@ -3619,15 +3618,24 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
             for meal in day.get("meals", []):
                 _schedule_recipe_photo({**meal, "kind": "meal"})
     pets = snapshot.get("pets") or []
+    pet_recipe_recommendations = {
+        str(pet.get("id")): personalized_pet_recipe_catalog(pet, snapshot)
+        for pet in pets
+        if pet.get("id")
+    }
+    # Prioritize exact artwork for the pets that actually live in this home.
+    # Generating the entire global cookbook at startup previously starved
+    # these visible cards and amplified provider rate limits.
+    for recipes in pet_recipe_recommendations.values():
+        for recipe in recipes:
+            _schedule_recipe_photo(recipe)
     return {
         **snapshot,
         "pet_options": pet_profile_options(),
         "pet_recommendations": {
             str(pet.get("id")): personalized_pet_products(pet) for pet in pets if pet.get("id")
         },
-        "pet_recipe_recommendations": {
-            str(pet.get("id")): personalized_pet_recipe_catalog(pet, snapshot) for pet in pets if pet.get("id")
-        },
+        "pet_recipe_recommendations": pet_recipe_recommendations,
         "pet_care_plans": {
             str(pet.get("id")): personalized_pet_care_plan(pet) for pet in pets if pet.get("id")
         },

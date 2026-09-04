@@ -241,13 +241,17 @@ class RecipePhotoGenerationQueue:
         return payload if payload.get("date") == today and payload.get("version") == 3 else {"version": 3, "date": today, "count": 0}
 
     def _reserve(self) -> bool:
-        payload = self._budget()
-        if int(payload.get("count") or 0) >= self.config.daily_limit:
-            return False
-        payload["count"] = int(payload.get("count") or 0) + 1
-        temporary = self.budget_path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(payload), encoding="utf-8")
-        temporary.replace(self.budget_path)
+        # Multiple image workers share one daily budget file. Serialize the
+        # read-modify-write operation so one worker cannot replace another
+        # worker's temporary file and leave visible recipes without artwork.
+        with self._metadata_lock:
+            payload = self._budget()
+            if int(payload.get("count") or 0) >= self.config.daily_limit:
+                return False
+            payload["count"] = int(payload.get("count") or 0) + 1
+            temporary = self.budget_path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(payload), encoding="utf-8")
+            temporary.replace(self.budget_path)
         return True
 
     def schedule(self, recipe: dict[str, Any]) -> str:
