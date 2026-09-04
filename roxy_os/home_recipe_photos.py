@@ -210,10 +210,10 @@ class RecipePhotoGenerationQueue:
         self.store = store
         self.config = config
         self._client = client
-        # Image generation is provider-intensive. Two workers keep the queue
-        # responsive without creating a burst that leaves every visible card
-        # throttled at once.
-        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="roxy-recipe-image")
+        # Image generation is provider-intensive. A single worker guarantees
+        # that only one image request is in flight, avoiding account-level
+        # bursts while keeping exact visible recipes in FIFO order.
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="roxy-recipe-image")
         self._pending: set[str] = set()
         self._lock = threading.Lock()
         self._metadata_lock = threading.Lock()
