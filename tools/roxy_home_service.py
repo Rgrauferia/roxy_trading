@@ -3620,7 +3620,9 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
     pets = snapshot.get("pets") or []
     pet_recipe_recommendations = {
         str(pet.get("id")): personalized_pet_recipe_catalog(pet, snapshot)
-        for pet in pets
+        # A newly added pet is the profile the household is most likely
+        # reviewing now, so its exact recipe artwork enters the queue first.
+        for pet in reversed(pets)
         if pet.get("id")
     }
     # Prioritize exact artwork for the pets that actually live in this home.

@@ -38,7 +38,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "script-src 'none'" in privacy.headers["content-security-policy"]
     assert "roxy_privacy.html assets/roxy_privacy.css" in Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="158"' in page.text
+    assert 'name="roxy-home-version" content="159"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' in page.text
     assert 'href="/assets/roxy_list.css?v=116"' in page.text
