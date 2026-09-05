@@ -1,6 +1,6 @@
 # Mascotas: auditoría y mejora por especie
 
-Fecha: 2026-09-05. Exclusivamente Roxy Home. Candidata 163.
+Fecha: 2026-09-05. Exclusivamente Roxy Home. Versión 163 publicada y verificada.
 
 ## Evidencia y cambios
 
@@ -59,3 +59,12 @@ Siguiente paso comercial requiere Roberto: revisar identidad del solicitante y c
 - Verificación veterinaria del contenido y cantidades antes de afirmar seguridad clínica; no basta un filtro de nombres.
 - La importación necesita disponibilidad y presupuesto de OpenAI; tests con cliente falso no equivalen a comprobar todos los enlaces de Instagram.
 - Aprobar afiliaciones/feeds y atender aviso de pago fallido de Render. Nada contratado en este bloque.
+
+## Verificación pública
+
+Commit 37610afd79cad3ef38d73fcacdfff7251a7be664 enviado a codex/roxy-home-nfc.
+HTML163/JS160/CSS117/SW157 y health ok por HTTP. Tras recarga del navegador,
+Bella y Luna presentes; la imagen WebP de medallones devuelve 200 y el elemento
+img tiene naturalWidth >0. Pato también observado en el modal con receta completa.
+Captura: /tmp/roxy-pet-audit-20260905/public-luna-recipe-163.jpg.
+No se escribieron datos de mascotas/carrito en producción.

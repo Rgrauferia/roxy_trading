@@ -9,8 +9,8 @@ No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 - Rama local: `codex/roxy-home-renueva`; destino de despliegue: `origin/codex/roxy-home-nfc`.
 - URL: https://roxy-home.onrender.com/lista#mascotas.
 - Servicio Render: `roxy-home`, `srv-da0l3vs9v7es739kcmd0`, montaje persistente `/var/data`.
-- Versión pública comprobada: 162, commit de implementación `479397228`.
-  La versión anterior era 161 (`477269308`).
+- Versión pública comprobada: 163, commit de implementación `37610afd7`.
+  La versión anterior era 162 (`479397228`).
 
 ## Cambio confirmado en infraestructura
 
@@ -24,7 +24,7 @@ servidor, otros servicios ni se contrataron servicios nuevos.
 Se verificó un respaldo previo de 598K en
 `/var/data/roxy_home/home_food.before-storage-fix-20260905.json` (copia sin sobrescritura).
 
-## Bloque de protección desplegado y verificado
+## Bloque de protección anterior (162), conservado
 
 - Se elimina la escritura destructiva sobre el JSON original cuando falta disco.
 - Un archivo ilegible/corrupto falla de forma explícita (503), no se convierte en
@@ -44,7 +44,7 @@ Se verificó un respaldo previo de 598K en
   sin modificar el comportamiento del calendario. Python: `/Users/robertograu/roxy_trading/.venv/bin/python`
   (solo intérprete; no modifica el checkout Trading).
 
-## Candidata 163 — probada localmente, aún no desplegada
+## Versión 163 — desplegada y comprobada en público
 
 - JS 160, CSS 117, SW/APP 157. 335 tests aprobados (282 Home + 53 compras) y node --check JS/SW.
 - Carrito corregido: productos enviados como PETS no se reclasifican como
@@ -63,6 +63,12 @@ Se verificó un respaldo previo de 598K en
 - QA aislada con seis perfiles sintéticos; ninguno añadido a producción.
 - Auditoría, límites y fuentes: reports/home_pets_audit_20260905.md; prompts de
   imágenes: reports/home_pet_artwork_20260905.md.
+- Push a codex/roxy-home-nfc y autodespliegue Render comprobados. HTTP público:
+  HTML 163, JS 160, CSS 117, SW 157; health ok. Durante reinicio hubo 502
+  transitorios y se verificó recuperación, no se ignoraron.
+- Navegador público tras recargar: Bella y Luna presentes. Recetas separadas;
+  imágenes nuevas de medallones de pavo y pato de Luna cargan y corresponden
+  a sus ingredientes. Evidencia: /tmp/roxy-pet-audit-20260905/public-luna-recipe-163.jpg.
 
 ## Pendientes reales — no declarar módulo terminado
 
@@ -70,7 +76,8 @@ Se verificó un respaldo previo de 598K en
   el perfil/foto original de Luna. La tarea anterior recreó Luna; no confundir esto
   con recuperación. Sus datos de edad/salud ingresados por esa tarea no están verificados.
 - Ferret y hurón doméstico son el mismo animal; Roberto prefiere el nombre Ferret.
-- Publicar y comprobar la candidata 163; hasta entonces público sigue en 162.
+- La frecuencia guardada de Bella muestra 1 vez/día; es dato existente, no una
+  prescripción comprobada. Mejorar etiqueta para distinguir plan guardado de guía.
 - Completar revisión/fotos del resto de recetas y productos. El catálogo todavía
   contiene assets genéricos no autorizados para mostrarse como imagen exacta.
 - Cobertura antes del nuevo despliegue: 558/683 imágenes; 125 faltantes. Errores

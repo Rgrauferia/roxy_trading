@@ -3,10 +3,10 @@
   "updated_on": "2026-09-05",
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#mascotas",
-  "last_verified_public_version": 162,
-  "deployed_implementation_commit": "479397228961462cc5df4c9941057f4ef5719678",
+  "last_verified_public_version": 163,
+  "deployed_implementation_commit": "37610afd79cad3ef38d73fcacdfff7251a7be664",
   "candidate_version": 163,
-  "candidate_status": "locally_tested_not_deployed",
+  "candidate_status": "deployed_publicly_verified",
   "storage": {
     "authorized_gb": 10,
     "render_confirmed_gb": 10,
@@ -18,12 +18,19 @@
   },
   "verification": {
     "node_check": "passed",
-    "pytest_passed": 231,
+    "pytest_passed": 335,
     "public_health": "ok",
     "pets_visible_after_reload": [
       "Bella",
       "Luna"
-    ]
+    ],
+    "public_versions": {
+      "html": 163,
+      "js": 160,
+      "css": 117,
+      "service_worker": 157
+    },
+    "public_recipe_image_loaded": "ferret_turkey_mini_medallions.webp"
   },
   "known_issues": [
     "Luna original profile/photo not recovered; current ferret profile has no photo",
@@ -32,7 +39,7 @@
     "Universal exact-species coverage and remaining recipe/product photos not complete",
     "PetSmart/Petco affiliations and catalog access not approved"
   ],
-  "next_step": "Deploy candidate 163 and verify public version, both real pets and separated care/recipes; then expand reviewed species/catalog/photo coverage",
+  "next_step": "Complete remaining recipe/product photographs and reviewed exact-species content; build structured multi-inhabitant aquarium planning. Recover original Luna photo only from a verified backup or user upload. Affiliate approvals remain pending.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",
