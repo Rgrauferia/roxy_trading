@@ -9,7 +9,8 @@ No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 - Rama local: `codex/roxy-home-renueva`; destino de despliegue: `origin/codex/roxy-home-nfc`.
 - URL: https://roxy-home.onrender.com/lista#mascotas.
 - Servicio Render: `roxy-home`, `srv-da0l3vs9v7es739kcmd0`, montaje persistente `/var/data`.
-- Versión pública comprobada antes de este bloque: 161, commit `477269308`.
+- Versión pública comprobada: 162, commit de implementación `479397228`.
+  La versión anterior era 161 (`477269308`).
 
 ## Cambio confirmado en infraestructura
 
@@ -23,7 +24,7 @@ servidor, otros servicios ni se contrataron servicios nuevos.
 Se verificó un respaldo previo de 598K en
 `/var/data/roxy_home/home_food.before-storage-fix-20260905.json` (copia sin sobrescritura).
 
-## Bloque de protección listo para verificar en producción
+## Bloque de protección desplegado y verificado
 
 - Se elimina la escritura destructiva sobre el JSON original cuando falta disco.
 - Un archivo ilegible/corrupto falla de forma explícita (503), no se convierte en
@@ -33,7 +34,10 @@ Se verificó un respaldo previo de 598K en
   valor. Se conserva foto e historial. La mascota 21 se rechaza sin borrar la primera.
 - La respuesta 202 de fotos no se interpreta como una imagen: se espera el archivo real.
 - La generación de imágenes reserva 512 MiB para datos y respaldos antes de llamar a IA.
-- Candidato: HTML 162, JS 159, CSS 116 (sin cambios), service worker 156.
+- Público: HTML 162, JS 159, CSS 116 (sin cambios), service worker 156.
+- Verificado por HTTP y en el navegador público: versión 162; `/health` devuelve
+  `status: ok`. Tras recargar, Bella y Luna aparecen en la UI. No se alteraron
+  sus datos para realizar esta comprobación.
 - `node --check assets/roxy_list.js`: correcto.
 - 231 pruebas aprobadas: toda la suite `tests/test_roxy_home*.py`. Se corrigió
   un test de calendario que dependía del mes real, fijando la fecha de su escenario
@@ -55,6 +59,8 @@ Se verificó un respaldo previo de 598K en
   históricos: 80 RateLimitError y 45 OSError. El disco lleno se confirmó; la causa
   concreta de RateLimitError no está confirmada. No seguir ajustando concurrencia a ciegas.
 - Probar todas las especies, personalización y fotos de productos/recetas en UI.
+- La carga inicial muestra fugazmente el alta de mascota antes de cargar los
+  perfiles: distinguir estado cargando de un hogar realmente vacío.
 - Plan aprobado en conversación: beta web de cinco días antes de App Store; alcance,
   cupo, presupuesto IA y fecha deben definirse. Ejercicios es una sección solicitada,
   todavía no diseñada ni implementada. PostgreSQL y multimedia separada son
