@@ -66,7 +66,7 @@ from roxy_os.home_design import HomeDesignGenerator, HomeDesignStore, public_pro
 from roxy_os.home_family import HomeFamilyStore
 from roxy_os.home_plants import HomePlantIdentifier, HomePlantStore, PLANT_CATALOG, public_plant
 from roxy_os.home_product_intelligence import HomeProductIntelligence, ProductIntelligenceConfig
-from roxy_os.home_food import HomeFoodStore, HomePermissionPolicy
+from roxy_os.home_food import HomeFoodStore, HomeFoodStorageError, HomePermissionPolicy
 from roxy_os.home_pet_catalog import pet_profile_completion, personalized_pet_care_plan, personalized_pet_nutrition_plan, personalized_pet_products, pet_profile_options
 from roxy_os.home_price_recommendations import (
     PRICE_NOTICE,
@@ -116,6 +116,11 @@ app = FastAPI(
     openapi_url=None,
 )
 app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
+
+
+@app.exception_handler(HomeFoodStorageError)
+async def home_food_storage_error(_request: Request, exc: HomeFoodStorageError) -> JSONResponse:
+    return JSONResponse(status_code=503, content={"detail": str(exc)}, headers={"Retry-After": "30"})
 
 
 class ShoppingCreateRequest(BaseModel):
@@ -322,6 +327,7 @@ class RecipeImportCommitRequest(BaseModel):
 
 
 class PetProfileRequest(BaseModel):
+    pet_id: str = Field(default="", max_length=80)
     name: str = Field(min_length=1, max_length=40)
     species: str = Field(pattern="^(dog|cat|ferret|rabbit|guinea_pig|hamster|small_mammal|bird|fish|reptile|amphibian|invertebrate|farm_pet|other)$")
     exact_species: str = Field(default="", max_length=100)
@@ -3762,7 +3768,7 @@ def upsert_home_pet(user_id: str, payload: PetProfileRequest, request: Request, 
     _rate_limit(request)
     user = _authorize_user(user_id, auth)
     try:
-        pet = _home_food_store().upsert_pet(user, **payload.model_dump())
+        pet = _home_food_store().upsert_pet(user, **payload.model_dump(exclude_unset=True))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"status": "SAVED", "pet": pet}

@@ -1,0 +1,33 @@
+{
+  "product": "roxy-home",
+  "updated_on": "2026-09-05",
+  "deployment_branch": "codex/roxy-home-nfc",
+  "public_url": "https://roxy-home.onrender.com/lista#mascotas",
+  "last_verified_public_version": 161,
+  "candidate_version": 162,
+  "candidate_status": "tested_not_yet_publicly_verified",
+  "storage": {
+    "authorized_gb": 10,
+    "render_confirmed_gb": 10,
+    "filesystem_verified": true,
+    "available_reported": "8.9G",
+    "used_percent": 10,
+    "payment_failed_notice": true,
+    "other_services_changed": false
+  },
+  "verification": {"node_check": "passed", "pytest_passed": 231},
+  "known_issues": [
+    "Luna original profile/photo not recovered; current ferret profile has no photo",
+    "Care guides remain mixed into pet recipes",
+    "Exact local pet images are ignored alongside generic images",
+    "125 of 683 catalog photos were missing before this deployment",
+    "Provider rate-limit cause still unverified"
+  ],
+  "next_step": "Deploy and verify version 162; then finish exact pet artwork and split care guides from recipes",
+  "launch": {
+    "five_day_web_beta": "requested_not_scheduled",
+    "app_store": "target_next_month_not_guaranteed",
+    "exercise_section": "requested_not_implemented",
+    "database_and_media_migration": "recommended_not_performed"
+  }
+}

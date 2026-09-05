@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import threading
 import time
 import unicodedata
@@ -344,6 +345,8 @@ class RecipePhotoGenerationQueue:
                 "title": title,
                 "at": datetime.now(timezone.utc).isoformat(),
                 "error_type": type(error).__name__,
+                "errno": getattr(error, "errno", None),
+                "status_code": getattr(error, "status_code", None),
             }
             temporary = self.failures_path.with_suffix(".tmp")
             temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -376,6 +379,14 @@ class RecipePhotoGenerationQueue:
     def _generate(self, key: str, recipe: dict[str, Any]) -> None:
         title = str(recipe.get("title") or "")
         try:
+            # Profiles and medical records take priority over derived artwork.
+            # Stop before a provider request, not after paying for an image we
+            # cannot store. Reserve room for atomic writes and their backups.
+            if shutil.disk_usage(self.store.root).free < 512 * 1024 * 1024:
+                import errno
+
+                self._record_failure(title, OSError(errno.ENOSPC, "Home storage reserve reached"))
+                return
             last_error: Exception | None = None
             transient = {"APIConnectionError", "APITimeoutError", "InternalServerError", "RateLimitError", "RuntimeError"}
             for attempt in range(4):

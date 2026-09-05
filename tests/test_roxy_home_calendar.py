@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
@@ -121,6 +121,17 @@ def test_calendar_parser_removes_voice_controls_from_professional_title():
 
 def test_calendar_api_and_voice_are_private_and_persistent(tmp_path, monkeypatch):
     from tools import roxy_home_service
+
+    # The spoken date belongs to August, not the month this test happens to run.
+    class FrozenDate(date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 8, 30)
+
+    monkeypatch.setattr(roxy_home_service, "date", FrozenDate)
+    monkeypatch.setattr(roxy_home_service, "parse_calendar_command", lambda text: parse_calendar_command(
+        text, current=datetime.fromisoformat("2026-08-30T10:00:00-04:00")
+    ))
 
     monkeypatch.setenv("ROXY_HOME_API_KEY", "calendar-test-key")
     monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert")

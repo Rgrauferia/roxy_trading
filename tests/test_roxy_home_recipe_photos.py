@@ -116,6 +116,18 @@ def test_missing_catalog_photo_endpoint_starts_generation(monkeypatch):
     assert response.json()["status"] == "GENERATING"
 
 
+def test_image_generation_reserves_storage_for_private_profiles(tmp_path, monkeypatch):
+    from roxy_os import home_recipe_photos
+    store = RecipePhotoStore(tmp_path, built_in_root=tmp_path / "built-ins")
+    queue = RecipePhotoGenerationQueue(store, RecipePhotoGenerationConfig(api_key="home-only", enabled=True))
+    monkeypatch.setattr(home_recipe_photos.shutil, "disk_usage", lambda _path: SimpleNamespace(free=100_000))
+    monkeypatch.setattr(queue, "_openai", lambda: (_ for _ in ()).throw(AssertionError("Must not spend API credits on a full disk")))
+    queue._generate(store._key("Prueba"), {"title": "Prueba"})
+    assert store.resolve("Prueba") is None
+    assert queue.failure_summary() == {"OSError": 1}
+    queue._executor.shutdown(wait=True)
+
+
 def test_missing_saved_recipe_photo_endpoint_starts_generation(monkeypatch):
     from tools import roxy_home_service
 

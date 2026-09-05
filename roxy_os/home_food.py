@@ -74,6 +74,10 @@ def _string_list(values: Any, *, limit: int = 50) -> list[str]:
     return result
 
 
+class HomeFoodStorageError(RuntimeError):
+    """Fail closed instead of replacing an unreadable household with an empty one."""
+
+
 class HomeFoodStore:
     """Private, per-user memory for Roxy Home food features.
 
@@ -84,6 +88,7 @@ class HomeFoodStore:
     def __init__(self, path: str | Path = "data/roxy_home_food.json") -> None:
         self.path = Path(path)
         self.lock_path = self.path.with_suffix(self.path.suffix + ".lock")
+        self.backup_path = self.path.with_suffix(self.path.suffix + ".bak")
 
     @staticmethod
     def _empty() -> dict[str, Any]:
@@ -201,17 +206,28 @@ class HomeFoodStore:
     def _read_unlocked(self) -> dict[str, Any]:
         try:
             payload = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, ValueError, TypeError):
+        except FileNotFoundError as exc:
+            if self.backup_path.exists():
+                raise HomeFoodStorageError("Los datos guardados requieren recuperación. No se han reemplazado.") from exc
             return self._empty()
+        except (OSError, ValueError, TypeError) as exc:
+            raise HomeFoodStorageError("No se pudieron leer tus datos guardados. No se han reemplazado.") from exc
         if not isinstance(payload, dict) or not isinstance(payload.get("users"), dict):
-            return self._empty()
+            raise HomeFoodStorageError("Los datos guardados requieren revisión. No se han reemplazado.")
         payload["schema_version"] = HOME_FOOD_STORE_VERSION
         return payload
 
     def _write_unlocked(self, payload: dict[str, Any]) -> None:
         payload["schema_version"] = HOME_FOOD_STORE_VERSION
         payload["updated_at"] = _now_iso()
-        write_compact_json(self.path, payload)
+        try:
+            if self.path.exists():
+                # Keep the last valid version before replacing the live file.
+                # Never back up a corrupt/empty read over a recoverable copy.
+                write_compact_json(self.backup_path, self._read_unlocked())
+            write_compact_json(self.path, payload)
+        except OSError as exc:
+            raise HomeFoodStorageError("No se pudo guardar el cambio. Tus datos anteriores se conservan; intenta de nuevo más tarde.") from exc
 
     def _mutate(self, callback: Callable[[dict[str, Any]], Any]) -> Any:
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -313,7 +329,11 @@ class HomeFoodStore:
 
         return self._mutate(apply)
 
-    def upsert_pet(
+    def upsert_pet(self, user_id: Any, *, name: Any, species: Any, **fields: Any) -> dict[str, Any]:
+        return self._upsert_pet(user_id, name=name, species=species,
+                                provided_fields={"name", "species", *fields}, **fields)
+
+    def _upsert_pet(
         self, user_id: Any, *, name: Any, species: Any, exact_species: Any = "", breed: Any = "",
         age_years: Any = None, weight_kg: Any = None, life_stage: Any = "unknown", allergies: Any = None,
         conditions: Any = None, current_food: Any = "", veterinarian_instructions: Any = "",
@@ -322,7 +342,8 @@ class HomeFoodStore:
         size_class: Any = "unknown", activity_level: Any = "unknown", body_condition: Any = "unknown",
         goals: Any = None, current_food_kind: Any = "unknown", feeding_amount: Any = None,
         feeding_unit: Any = "", feeding_frequency: Any = 0, feeding_times: Any = None,
-        feeding_amount_source: Any = "unknown", feeding_notes: Any = "",
+        feeding_amount_source: Any = "unknown", feeding_notes: Any = "", pet_id: Any = "",
+        provided_fields: set[str] | None = None,
     ) -> dict[str, Any]:
         pet_name = _text(name, 40)
         pet_species = _identity(species)
@@ -378,16 +399,28 @@ class HomeFoodStore:
         def apply(payload: dict[str, Any]) -> dict[str, Any]:
             record = self._user(payload, user_id)
             pets = record.setdefault("pets", [])
-            existing = next((row for row in pets if _identity(row.get("name")) == _identity(pet_name)), None)
+            pet_key = _text(pet_id, 80)
+            existing = next((row for row in pets if str(row.get("id")) == pet_key), None) if pet_key else next(
+                (row for row in pets if _identity(row.get("name")) == _identity(pet_name)), None
+            )
+            if pet_key and existing is None:
+                raise ValueError("No se encontró esta mascota. Actualiza la página antes de editarla.")
+            if existing and existing.get("species") != pet_species:
+                raise ValueError("Ese perfil pertenece a otra especie. Usa un nombre distinto para añadir otra mascota.")
+            if any(row is not existing and _identity(row.get("name")) == _identity(pet_name) for row in pets):
+                raise ValueError("Ya tienes otra mascota con ese nombre.")
             if existing is None:
+                if len(pets) >= 20:
+                    raise ValueError("Este hogar ya tiene 20 mascotas. No se eliminó ningún perfil.")
                 existing = {
                     "id": uuid4().hex, "created_at": _now_iso(),
                     "care_log": [], "medical_history": [], **profile,
                 }
                 pets.append(existing)
             else:
-                existing.update(**profile, updated_at=_now_iso())
-            record["pets"] = pets[-20:]
+                existing.update(**{key: value for key, value in profile.items() if key in (provided_fields or set())}, updated_at=_now_iso())
+                existing["profile_complete"] = pet_profile_completion(existing)["status"] == "complete"
+            record["pets"] = pets
             record["revision"] = int(record.get("revision") or 0) + 1
             return deepcopy(existing)
 
