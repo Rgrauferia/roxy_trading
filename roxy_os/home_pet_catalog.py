@@ -36,7 +36,7 @@ CAT_BREEDS = [
 ]
 
 EXACT_SPECIES = {
-    "bird": ["Periquito australiano", "Canario", "Cacatúa", "Ninfa / cockatiel", "Agapornis", "Loro gris africano", "Guacamayo", "Conure", "Pinzón", "Paloma", "Otra ave"],
+    "bird": ["Periquito australiano", "Canario", "Cacatúa", "Ninfa / cockatiel", "Agapornis", "Loro gris africano", "Guacamayo", "Conure", "Pinzón", "Paloma", "Lori arcoíris / Trichoglossus moluccanus", "Mina / Gracula religiosa", "Otra ave"],
     "fish": ["Betta splendens", "Goldfish / Carassius auratus", "Guppy", "Molly", "Platy", "Tetra neón", "Disco", "Pez ángel", "Cíclido africano", "Corydora", "Pleco", "Gourami", "Danio cebra", "Koi", "Pez marino", "Otro pez"],
     "reptile": ["Gecko leopardo", "Gecko crestado", "Dragón barbudo", "Iguana verde", "Camaleón velado", "Serpiente del maíz", "Pitón bola", "Boa constrictor", "Tortuga terrestre", "Tortuga acuática", "Uromastyx", "Escinco de lengua azul", "Otro reptil"],
     "amphibian": ["Ajolote", "Rana arborícola", "Rana dardo", "Rana Pacman", "Sapo", "Tritón", "Salamandra", "Otro anfibio"],
@@ -46,7 +46,7 @@ EXACT_SPECIES = {
     "ferret": ["Hurón doméstico", "No sé"],
     "small_mammal": ["Rata doméstica", "Ratón doméstico", "Gerbo de Mongolia", "Chinchilla", "Degú", "Erizo pigmeo africano", "Petauro del azúcar", "Perrito de la pradera", "Otro pequeño mamífero"],
     "invertebrate": ["Tarántula", "Escorpión", "Milpiés", "Mantis religiosa", "Insecto palo", "Cucaracha de Madagascar", "Cangrejo ermitaño", "Camarón de acuario", "Caracol terrestre", "Caracol acuático", "Isópodos", "Otro invertebrado"],
-    "farm_pet": ["Cerdo miniatura", "Cabra", "Oveja", "Gallina", "Pato", "Ganso", "Pavo", "Codorniz", "Alpaca", "Otro animal de granja"],
+    "farm_pet": ["Cerdo miniatura", "Cabra", "Oveja", "Gallina", "Pato", "Ganso", "Pavo", "Codorniz", "Alpaca", "Caballo", "Burro", "Otro animal de granja"],
     "other": ["Otra especie doméstica", "Especie exótica con permiso", "No sé la especie exacta"],
 }
 
@@ -347,6 +347,7 @@ def pet_profile_options() -> dict[str, Any]:
 
 
 def personalized_pet_products(pet: dict[str, Any]) -> list[dict[str, Any]]:
+    from roxy_os.home_pet_habitats import bird_diet_group
     species = str(pet.get("species") or "other")
     normalize = lambda value: re.sub(r"[^a-z0-9]+", " ", unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii").lower()).strip()
     exact = normalize(f"{pet.get('exact_species', '')} {pet.get('breed', '')}")
@@ -361,12 +362,23 @@ def personalized_pet_products(pet: dict[str, Any]) -> list[dict[str, Any]]:
         "lacteos": {"leche", "milk", "dairy", "cheese", "yogurt"},
     }
     vet_context = bool(
-        conditions - {"ninguna diagnosticada", "ninguna observada"}
+        {value for value in conditions if not value.startswith("ninguna")}
         or str(pet.get("veterinarian_instructions") or "").strip()
+        or pet.get("current_food_kind") == "veterinary"
     )
     rows: list[dict[str, Any]] = []
     for source in PRODUCTS.get(species, []):
         row = deepcopy(source)
+        habitat_values = (pet.get("habitat_observations") or {}).get("values") or {}
+        # A named group is not a nutritional match. Nectarivores, unweaned
+        # birds and unidentified species must not inherit a parrot's shelf.
+        if species == "bird" and row.get("category") != "Transporte":
+            if bird_diet_group(pet) not in {"parrot", "canary"} or stage == "baby" or habitat_values.get("weaned") == "No":
+                continue
+        if species == "fish" and "Freshwater" in row.get("name", "") and habitat_values.get("water_type") in {"Marina", "Salobre"}:
+            continue
+        if species == "invertebrate" and any(term in exact for term in ("acuatico", "acuario", "camaron")) and row.get("category") in {"Sustrato", "Hábitat", "Hidratación"}:
+            continue
         product_text = normalize(f"{row.get('brand', '')} {row.get('name', '')}")
         if any(any(alias in product_text for alias in allergen_aliases.get(allergy, {allergy})) for allergy in allergies):
             continue
@@ -376,7 +388,7 @@ def personalized_pet_products(pet: dict[str, Any]) -> list[dict[str, Any]]:
         row_goals = {str(value).lower() for value in row.pop("goals", [])}
         row_conditions = {str(value).lower() for value in row.pop("conditions", [])}
         life_stages = set(row.pop("life_stages", []))
-        if life_stages and stage != "unknown" and stage not in life_stages:
+        if life_stages and stage not in life_stages:
             continue
         if row_conditions and not row_conditions.intersection(conditions):
             continue
@@ -404,9 +416,7 @@ def personalized_pet_products(pet: dict[str, Any]) -> list[dict[str, Any]]:
             row["select_before_cart"] = True
             row["reason"] = f"{row['reason']} Busca una fórmula que indique compatibilidad con {pet['breed']}; Roxy no la añadirá sin elegir el producto exacto."
         requires_vet = bool(row.get("requires_vet"))
-        if vet_context and row.get("category") in {
-            "Alimento completo", "Control de peso", "Alimento especializado", "Alimento específico por raza"
-        }:
+        if vet_context and (str(row.get("category", "")).startswith("Alimento") or row.get("category") == "Control de peso"):
             requires_vet = True
         row.update(
             id=f"{species}:{len(rows)+1}:{row['brand'].lower().replace(' ', '-')}",
@@ -427,7 +437,17 @@ def personalized_pet_products(pet: dict[str, Any]) -> list[dict[str, Any]]:
         row["profile_label"] = f"Para {pet_name} · {identity} · {stage_label}"
         row["reason"] = reason if pet_name.lower() in reason.lower() else f"Para {pet_name}, según su perfil {identity} y etapa {stage_label}: {reason}"
         rows.append(row)
-    return sorted(rows, key=lambda item: (-int(item["score"]), item["brand"], item["name"]))
+    ranked = sorted(rows, key=lambda item: (-int(item["score"]), not bool(item.get("image_url")), item["brand"], item["name"]))
+    # Do not show a generic listing again when a concrete variant is present.
+    result = []
+    for row in ranked:
+        name = normalize(row["name"])
+        if any(normalize(previous["brand"]) == normalize(row["brand"]) and
+               (normalize(previous["name"]) == name or (not row.get("identity_specific") and normalize(previous["name"]).startswith(name + " ")))
+               for previous in result):
+            continue
+        result.append(row)
+    return result
 
 
 CARE_LIBRARY = {
@@ -627,10 +647,10 @@ PET_BREED_INFORMATION = {
         "characteristics": "{pet_name} es un reptil terrestre y crepuscular. Necesita gradiente térmico controlado, escondite cálido, fresco y húmedo, sustrato seguro y enriquecimiento sin caídas peligrosas.",
         "common_health": "Vigila muda retenida en dedos u ojos, pérdida de reserva en la cola, estreñimiento, quemaduras, debilidad mandibular o de extremidades y falta de apetito. Revisa siempre temperatura y suplementación de {pet_name}.",
         "feeding": "{pet_name} consume insectos de tamaño apropiado, bien alimentados y suplementados según edad y plan veterinario; retira los insectos no consumidos.",
-        "frequency": "Adulto: normalmente 2–3 veces por semana; jóvenes con mayor frecuencia",
+        "frequency": "Referencia RSPCA: adulto en días alternos; juvenil a diario. Ajusta con su especialista.",
         "fun_fact": "Puede desprender la cola para escapar y regenerarla, aunque la nueva cola no queda idéntica.",
-        "source_label": "Manual Veterinario Merck · reptiles",
-        "source_url": "https://www.merckvetmanual.com/exotic-and-laboratory-animals/reptiles/management-of-reptiles",
+        "source_label": "RSPCA · gecko leopardo",
+        "source_url": "https://www.rspca.org.uk/adviceandwelfare/pets/other/leopardgecko",
     },
     "hollandlop": {
         "display_name": "Holland Lop",
@@ -721,7 +741,7 @@ PET_FEEDING_FREQUENCY = {
     "guinea_pig": "Heno siempre; alimento fresco diario",
     "hamster": "1 ración medida al día",
     "bird": "Alimento diario; frecuencia según especie",
-    "fish": "1–2 tomas pequeñas según especie",
+    "fish": "Porciones y frecuencia según la especie",
     "reptile": "Desde diario hasta semanal según especie",
     "small_mammal": "Frecuencia específica para su especie",
     "amphibian": "Según edad, especie y temperatura",
@@ -900,6 +920,24 @@ def personalized_pet_care_plan(pet: dict[str, Any]) -> dict[str, Any]:
         information["scope"] = "breed" if species in {"dog", "cat"} else "exact_species"
         source_label = str(breed_information["source_label"])
         source_url = str(breed_information["source_url"])
+    if species == "bird":
+        from roxy_os.home_pet_habitats import bird_diet_group, habitat_plan
+        group = bird_diet_group(pet)
+        if group not in {"parrot", "canary"}:
+            information["life_expectancy"] = "Referencia de longevidad de esta especie pendiente de revisión"
+            information["feeding"] = (
+                "Necesita un plan específico para nectarívoros, no la dieta de semillas o pellets de otro loro. Confirma preparación y frecuencia con un veterinario aviar."
+                if group == "nectar" else
+                "La dieta de esta especie aún necesita revisión especializada. No uses automáticamente la alimentación de un loro o canario."
+            )
+            information["frequency"] = "Por confirmar con un veterinario aviar para esta especie"
+        bird_plan = habitat_plan(pet)
+        diet_section = next((row for row in bird_plan["sections"] if any(term in row["title"].lower() for term in ("alimentación", "néctar", "dieta", "psitácidas"))), None)
+        if diet_section:
+            sections[0 if not pet.get("veterinarian_instructions") else 1]["text"] = diet_section["text"]
+        if group == "nectar":
+            source_label = "VCA · alimentación de loris"
+            source_url = "https://vcahospitals.com/central-park/know-your-pet/lories-and-lorikeets-feeding"
     return {
         "title": f"Plan de {str(pet.get('name') or 'tu mascota')}",
         "intro": f"Cuidado para {exact or 'la especie pendiente de identificar'}." if exact else "Completa la especie exacta para afinar rangos, alimentación y convivencia.",

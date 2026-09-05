@@ -24,6 +24,14 @@ def test_shopping_list_is_durable_isolated_and_deduplicates_pending_items(tmp_pa
     assert reopened.list_items("alice")[0]["name"] == "Articulo privado"
 
 
+@pytest.mark.parametrize("name", ["Marshall High Back Litter Pan", "Oxbow Essentials Ferret Food", "Champú para Luna", "Pavo deshidratado para ferret"])
+def test_explicit_pet_catalog_items_never_become_human_groceries(tmp_path, name):
+    store = ShoppingListStore(tmp_path / "shopping.json")
+    item = store.add("qa", name, category="PETS")
+    assert item["category"] == "PETS"
+    assert ShoppingListStore(tmp_path / "shopping.json").list_items("qa")[0]["category"] == "PETS"
+
+
 def test_shopping_list_lifecycle_is_recoverable(tmp_path):
     store = ShoppingListStore(tmp_path / "shopping.json")
     item = store.add("robert", "Leche")

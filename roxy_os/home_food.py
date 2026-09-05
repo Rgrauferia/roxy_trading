@@ -426,6 +426,28 @@ class HomeFoodStore:
 
         return self._mutate(apply)
 
+    def record_pet_habitat(self, user_id: Any, pet_id: Any, values: dict[str, Any]) -> dict[str, Any]:
+        from roxy_os.home_pet_habitats import validate_observations
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            owner = self._user(payload, user_id)
+            pet = next((row for row in owner.setdefault("pets", []) if row.get("id") == pet_id), None)
+            if pet is None:
+                raise KeyError(pet_id)
+            clean = validate_observations(pet, values)
+            previous = (pet.get("habitat_observations") or {}).get("values") or {}
+            history = pet.setdefault("habitat_history", [])
+            if len(history) >= 1000:
+                raise ValueError("El registro de hábitat alcanzó su límite. No se borró ninguna observación.")
+            observation = {"id": uuid4().hex, "recorded_at": _now_iso(), "values": {**previous, **clean}}
+            pet["habitat_observations"] = deepcopy(observation)
+            history.append(observation)
+            pet["updated_at"] = _now_iso()
+            owner["revision"] = int(owner.get("revision") or 0) + 1
+            return deepcopy(observation)
+
+        return self._mutate(apply)
+
     def add_pet_medical_record(
         self, user_id: Any, pet_id: Any, *, occurred_on: Any = None, record_type: Any = "note",
         title: Any, provider: Any = "", notes: Any = "", medications: Any = None,
@@ -471,8 +493,10 @@ class HomeFoodStore:
             history = pet.get("medical_history")
             if not isinstance(history, list):
                 history = []
+            if len(history) >= 1000:
+                raise ValueError("El expediente alcanzó su límite. Descárgalo y contacta con soporte; no se borró ningún registro.")
             history.append(record)
-            pet["medical_history"] = history[-100:]
+            pet["medical_history"] = history
             pet["updated_at"] = _now_iso()
             owner["revision"] = int(owner.get("revision") or 0) + 1
             return deepcopy(record)
@@ -655,6 +679,8 @@ class HomeFoodStore:
             "allergen_notes": _string_list(raw.get("allergen_notes"), limit=20),
             "audience": "pet" if _identity(raw.get("audience")) == "pet" else "human",
             "pet_species": _text(raw.get("pet_species"), 32),
+            "pet_id": _text(raw.get("pet_id"), 80),
+            "pet_name": _text(raw.get("pet_name"), 40),
             "pet_category": _text(raw.get("pet_category"), 40),
             "safety_class": _text(raw.get("safety_class"), 32),
             "veterinary_note": _text(raw.get("veterinary_note"), 1000),

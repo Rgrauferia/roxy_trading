@@ -1175,6 +1175,23 @@ body.pet-module-mode .pet-panel-heading h3{margin:0 0 7px;font-size:32px}
 .pet-history-documents p{margin:0;color:var(--muted);font-size:10px}
 @media(max-width:560px){body.pet-module-mode .pet-personalized-hub{padding:12px 12px 22px}body.pet-module-mode .pet-hub-heading{min-height:116px;padding:17px 42px 17px 108px}body.pet-module-mode .pet-hub-avatar{left:0;top:8px;width:88px;height:88px}body.pet-module-mode .pet-hub-identity h2{font-size:34px}body.pet-module-mode .pet-hub-tabs button{min-height:66px;font-size:8px}.pet-product-card{grid-template-columns:106px minmax(0,1fr);padding:12px}.pet-product-photo{width:106px;height:138px}.pet-product-card h4{font-size:16px}.pet-product-card .pet-product-copy p{font-size:10px}.pet-product-card .pet-product-actions{grid-template-columns:1fr}.pet-info-stats strong{font-size:15px}}
 
+/* Mascotas · observaciones privadas y guías separadas del recetario. */
+.pet-habitat-plan{display:grid;gap:14px;margin-top:18px}
+.pet-habitat-details,.pet-medical-summary{padding:18px;border:1px solid #d8ddd4;border-radius:20px;background:#fffdf8}
+.pet-habitat-details summary,.pet-medical-summary summary{cursor:pointer;min-height:44px;padding:10px 0;color:var(--forest);font-weight:800}
+.pet-habitat-details details{border-top:1px solid #e2e2d9;margin-top:14px;padding-top:8px}
+.pet-habitat-details p,.pet-habitat-details li,.pet-medical-summary p{font-size:14px;line-height:1.6}
+.pet-habitat-details .pet-info-card{grid-template-columns:1fr;margin:12px 0}
+.pet-habitat-alert{border-left:4px solid #ad7b2e;padding:12px;background:#faf2e3;color:#654614}
+.pet-habitat-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:20px}
+.pet-habitat-form>h4,.pet-habitat-form>p,.pet-habitat-form>button{grid-column:1/-1}
+.pet-habitat-form label{display:grid;gap:7px;font-size:13px;font-weight:700;align-content:start}
+.pet-habitat-form input,.pet-habitat-form select,.pet-habitat-form textarea{min-height:48px;width:100%;min-width:0;font-size:16px}
+.pet-habitat-details dt{font-size:12px;color:#626c64}.pet-habitat-details dd{margin:2px 0 12px;overflow-wrap:anywhere}
+.pet-medical-summary{margin-top:16px}.pet-medical-summary>small{display:block;line-height:1.5;color:#626c64}
+.pet-habitat-plan summary:focus-visible,.pet-habitat-form :focus-visible{outline:3px solid var(--gold-dark);outline-offset:3px}
+@media(max-width:560px){.pet-habitat-form{grid-template-columns:1fr}.pet-habitat-details{padding:14px}}
+
 /* Renueva · flujo guiado, análisis visual y plan de compra. */
 body.design-module-mode main{background:#fbf9f3}
 body.design-module-mode .design-panel{display:grid;gap:22px;max-width:760px;padding-bottom:34px}

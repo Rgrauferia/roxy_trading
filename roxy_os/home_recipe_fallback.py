@@ -517,10 +517,10 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         "cat_whitefish_flakes": ("/assets/roxy_home/recipes/pets/cat-protein-collection.webp", "31% 27%"),
         "cat_beef_crumbles": ("/assets/roxy_home/recipes/pets/cat-protein-collection.webp", "39% 78%"),
         "cat_plain_shrimp": ("/assets/roxy_home/recipes/pets/cat-protein-collection.webp", "72% 78%"),
-        "ferret_poached_chicken": ("/assets/roxy_home/recipes/pets/ferret-protein-collection.webp", "55% 24%"),
-        "ferret_cooked_lamb": ("/assets/roxy_home/recipes/pets/ferret-protein-collection.webp", "27% 54%"),
-        "ferret_baked_duck": ("/assets/roxy_home/recipes/pets/ferret-protein-collection.webp", "76% 48%"),
-        "ferret_turkey_medallions": ("/assets/roxy_home/recipes/pets/ferret-protein-collection.webp", "55% 76%"),
+        "ferret_poached_chicken": ("/assets/roxy_home/recipes/pets/ferret_poached_chicken_shreds.webp", "50% 50%"),
+        "ferret_cooked_lamb": ("/assets/roxy_home/recipes/pets/ferret_cooked_lamb_crumbles.webp", "50% 50%"),
+        "ferret_baked_duck": ("/assets/roxy_home/recipes/pets/ferret_cooked_duck_bites.webp", "50% 50%"),
+        "ferret_turkey_medallions": ("/assets/roxy_home/recipes/pets/ferret_turkey_mini_medallions.webp", "50% 50%"),
     }
     for key, recipe in recipes.items():
         if not recipe.get("pet_category"):
@@ -529,6 +529,12 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         recipe.setdefault("photo_asset", default_pet_photos[recipe["pet_species"]])
         if key in exact_recipe_photos:
             recipe["photo_asset"], recipe["photo_focus"] = exact_recipe_photos[key]
+        # Only standalone, recipe-matched assets may bypass generated artwork.
+        recipe["photo_asset_verified"] = key in {
+            "ferret_poached_chicken", "ferret_cooked_lamb", "ferret_baked_duck", "ferret_turkey_medallions",
+            "ferret_cooked_turkey_bites", "ferret_chicken_heart_bites", "ferret_cooked_egg_bites", "ferret_cooked_beef_bites",
+            "cat_cooked_chicken_bites", "cat_cooked_salmon_flakes", "cat_turkey_mini_patties", "cat_egg_chicken_bites"
+        }
         recipe.setdefault("editorial_status", "verified_veterinary_guidance")
     return recipes
 
@@ -815,14 +821,20 @@ def local_recipe_catalog(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-def personalized_pet_recipe_catalog(pet: dict[str, Any], snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+def personalized_pet_recipe_catalog(pet: dict[str, Any], snapshot: dict[str, Any], *, include_guides: bool = False) -> list[dict[str, Any]]:
     """Build a pet-owned view of the curated catalog without pretending treats are complete diets."""
     species = str(pet.get("species") or "other")
     pet_name = str(pet.get("name") or "esta mascota").strip()
     identity = str(pet.get("breed") or pet.get("exact_species") or species).strip()
-    identity_key = _identity(identity)
+    identity_key = _identity(f"{pet.get('breed', '')} {pet.get('exact_species', '')}")
     stage = str(pet.get("life_stage") or "unknown")
     stage_label = {"baby": "bebé", "young": "joven", "adult": "adulta", "senior": "senior"}.get(stage, "etapa pendiente")
+    from roxy_os.home_pet_recipe_safety import check_import_profile
+    try:
+        check_import_profile(pet)
+        food_profile_reviewed = True
+    except ValueError:
+        food_profile_reviewed = False
     allergy_aliases = {
         "pollo": {"pollo", "chicken"}, "pavo": {"pavo", "turkey"}, "res": {"res", "beef"},
         "pescado": {"pescado", "salmon", "bacalao", "camaron", "fish", "shrimp"},
@@ -839,17 +851,35 @@ def personalized_pet_recipe_catalog(pet: dict[str, Any], snapshot: dict[str, Any
     for source in local_recipe_catalog(snapshot):
         if source.get("audience") != "pet" or source.get("pet_species") != species:
             continue
+        is_guide = source.get("safety_class") == "feeding_guide"
+        if is_guide and not include_guides:
+            continue
+        if species == "bird" and is_guide:
+            from roxy_os.home_pet_habitats import bird_diet_group
+            if bird_diet_group(pet) not in {"parrot", "canary"}:
+                continue  # Habitat module carries the reviewed nectarivore guidance.
+        if not is_guide and not food_profile_reviewed:
+            continue
+        if species == "bird" and not is_guide:
+            from roxy_os.home_pet_habitats import bird_diet_group
+            observations = (pet.get("habitat_observations") or {}).get("values") or {}
+            if bird_diet_group(pet) not in {"parrot", "canary"} or stage == "baby" or observations.get("weaned") == "No":
+                continue
         exact_terms = [_identity(value) for value in source.get("pet_exact_terms") or [] if _identity(value)]
         if exact_terms and not any(term in identity_key for term in exact_terms):
             continue
         life_stages = [str(value) for value in source.get("pet_life_stages") or []]
-        if life_stages and stage != "unknown" and stage not in life_stages:
+        if life_stages and stage not in life_stages:
             continue
         ingredient_text = _identity(" ".join(str(item.get("name") or "") for item in source.get("ingredients") or [] if isinstance(item, dict)))
         matched_allergies = sorted(value for value in blocked if value and value in ingredient_text)
         if matched_allergies:
             continue
         row = deepcopy(source)
+        # The household's human allergy notes are not this animal's profile.
+        row["allergen_notes"] = ["Confirma los ingredientes y evita contaminación cruzada para esta mascota."]
+        if blocked:
+            row["allergen_notes"].append("Restricciones de este perfil: " + ", ".join(str(value) for value in pet.get("allergies") or []))
         dimensions = [identity]
         if stage != "unknown":
             dimensions.append(f"etapa {stage_label}")
@@ -869,11 +899,25 @@ def personalized_pet_recipe_catalog(pet: dict[str, Any], snapshot: dict[str, Any
             personalization_scope=scope, personalization_reason=reason,
             excluded_allergies=sorted(blocked),
         )
-        if species == "fish" and "betta" in identity_key:
-            row.update(photo_asset="/assets/roxy_home/recipes/pets/betta-feeding.webp", photo_focus="50% 48%")
-        elif species == "reptile" and "gecko leopardo" in identity_key:
-            row.update(photo_asset="/assets/roxy_home/recipes/pets/leopard-gecko-feeding.webp", photo_focus="48% 52%")
+        # A habitat/feeding protocol is not a photographed dish. Do not crop
+        # a species collage or a gecko/betta photo and call it recipe artwork.
+        row.pop("photo_focus", None)
+        if is_guide:
+            row.pop("photo_asset", None)
+            row["content_kind"] = "care_guide"
+        else:
+            row["content_kind"] = "recipe"
         rows.append(row)
+    for saved in snapshot.get("recipes") or []:
+        if saved.get("audience") != "pet" or not pet.get("id") or saved.get("pet_id") != pet["id"]:
+            continue
+        from roxy_os.home_pet_recipe_safety import validate_pet_import
+        try:
+            own = validate_pet_import(saved, pet)
+        except ValueError:
+            continue
+        own.update(profile_label=f"Para {pet_name} · {identity}", personalization_reason="Importada para este perfil; vuelve a confirmar ingredientes y cantidad antes de ofrecerla.")
+        rows.append(own)
     return sorted(
         rows,
         key=lambda row: (

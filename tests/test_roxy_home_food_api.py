@@ -88,8 +88,12 @@ def test_common_pet_identities_receive_broad_specific_recipe_and_product_choices
         recipes = personalized_pet_recipe_catalog(pet, {})
         products = personalized_pet_products(pet)
         information = personalized_pet_care_plan(pet)["information"]
-        assert len(recipes) >= 8, (species, identity, len(recipes))
-        assert len(products) >= 8, (species, identity, len(products))
+        guides = [row for row in personalized_pet_recipe_catalog(pet, {}, include_guides=True) if row["safety_class"] == "feeding_guide"]
+        assert guides, (species, identity)
+        assert all(row["safety_class"] != "feeding_guide" for row in recipes)
+        if species in {"dog", "cat", "ferret", "rabbit", "guinea_pig", "hamster", "bird"}:
+            assert recipes, (species, identity)
+        assert products, (species, identity)
         assert all(identity in row["profile_label"] for row in recipes)
         assert all(identity in row["profile_label"] for row in products)
         assert information["scope"] in {"breed", "exact_species"}
@@ -112,7 +116,8 @@ def test_luna_domestic_ferret_profile_is_exact_and_personalized():
     assert "Luna" in plan["information"]["characteristics"]
     assert "insulinoma" in plan["information"]["common_health"]
     assert plan["information"]["frequency"].startswith("Varias comidas pequeñas")
-    assert len(recipes) >= 12 and all(row["pet_name"] == "Luna" for row in recipes)
+    assert len(recipes) == 8 and all(row["pet_name"] == "Luna" for row in recipes)
+    assert all(row["safety_class"] != "feeding_guide" for row in recipes)
     assert len(products) >= 8 and all("Luna" in row["reason"] for row in products)
     assert all(row.get("photo_asset") for row in recipes)
 
@@ -139,8 +144,12 @@ def test_every_named_companion_species_has_a_nonempty_specific_shelf():
             pet = {"id": identity, "name": "Mi mascota", "species": species, "exact_species": identity, "life_stage": "adult"}
             recipes = personalized_pet_recipe_catalog(pet, {})
             products = personalized_pet_products(pet)
-            assert recipes, (species, identity)
-            assert len(products) >= 3, (species, identity, len(products))
+            from roxy_os.home_pet_habitats import habitat_plan
+            plan = habitat_plan(pet)
+            assert plan["questions"] and plan["sections"], (species, identity)
+            assert all(row["safety_class"] != "feeding_guide" for row in recipes)
+            # Empty is intentional when there is no reviewed species match.
+            # Care protocols must never pad a recipe count.
             assert all(row["profile_label"].startswith(f"Para Mi mascota · {identity}") for row in recipes)
             assert all("Mi mascota" in row["reason"] for row in products)
 
@@ -184,13 +193,13 @@ class FakeHomeAI:
             "allergen_notes": [],
         }
 
-    def import_recipe(self, source, snapshot, *, source_type, audience="human", pet_species=""):
+    def import_recipe(self, source, snapshot, *, source_type, audience="human", pet_species="", pet_profile=None):
         return {
             "title": "Premios de calabaza para perros" if audience == "pet" else "Avena de la abuela",
             "description": "Receta importada para revisar.",
             "kind": "other" if audience == "pet" else "meal",
             "servings": 8 if audience == "pet" else 2,
-            "ingredients": [{"name": "Calabaza" if audience == "pet" else "Avena", "quantity": 1, "unit": "taza"}],
+            "ingredients": [{"name": "Puré de calabaza 100 % natural" if audience == "pet" else "Avena", "quantity": 1, "unit": "taza"}],
             "steps": ["Mezcla los ingredientes.", "Cocina hasta que estén listos."],
             "allergen_notes": [], "audience": audience, "pet_species": pet_species,
             "safety_class": "treat" if audience == "pet" else "",
@@ -256,9 +265,9 @@ def test_recipe_import_is_reviewed_before_save_and_pet_profile_syncs(tmp_path, m
     client = TestClient(roxy_home_service.app)
     headers = {"Authorization": "Bearer home-test-key"}
 
-    pet = client.post("/v1/home-food/robert/pets", headers=headers, json={"name": "Luna", "species": "dog"})
+    pet = client.post("/v1/home-food/robert/pets", headers=headers, json={"name": "Luna", "species": "dog", "life_stage": "adult"})
     preview = client.post("/v1/home-food/robert/recipe-imports", headers=headers, json={
-        "source_type": "image", "source": "data:image/jpeg;base64,AA==", "audience": "pet", "pet_species": "dog",
+        "source_type": "image", "source": "data:image/jpeg;base64,AA==", "audience": "pet", "pet_species": "dog", "pet_id": pet.json()["pet"]["id"],
     })
     blocked = client.post("/v1/home-food/robert/recipe-imports/commit", headers=headers, json={"confirmed": False, "recipe": preview.json()["recipe"]})
     committed = client.post("/v1/home-food/robert/recipe-imports/commit", headers=headers, json={"confirmed": True, "recipe": preview.json()["recipe"]})

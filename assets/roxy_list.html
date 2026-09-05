@@ -8,16 +8,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="162" />
+  <meta name="roxy-home-version" content="163" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
   <link rel="stylesheet" href="/assets/vendor/maplibre-gl.css?v=1" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=116" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=117" />
   <script src="/assets/vendor/maplibre-gl.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=159" defer></script>
+  <script src="/assets/roxy_list.js?v=160" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -355,6 +355,7 @@
       </section>
 
       <section id="petRecipeContext" class="pet-recipe-context" hidden aria-label="Tus mascotas">
+        <p id="petLoadingStatus" role="status" aria-live="polite" hidden>Cargando tus mascotas guardadas…</p>
         <div class="pet-profile-row"><div id="petProfiles" class="pet-profiles"></div><button id="addPetButton" class="pet-add" type="button"><span class="material-symbols-rounded" aria-hidden="true">add</span> Añadir mascota</button></div>
         <p id="petSafetySummary">Elige un perfil. Información, historial, recetas y productos permanecen separados y personalizados para esa mascota.</p>
       </section>
@@ -378,6 +379,7 @@
         <section id="petCarePanel" class="pet-hub-panel" role="tabpanel" aria-labelledby="petCareTab" data-pet-hub-panel="care">
           <div class="pet-panel-heading"><div><p class="eyebrow">Conoce a tu mascota</p><h3 id="petCareTitle">Información esencial</h3><p id="petCareIntro">Una guía clara basada en su especie, raza y etapa de vida.</p></div></div>
           <div id="petCarePlan" class="pet-care-plan"></div>
+          <div id="petHabitatPlan" class="pet-habitat-plan"></div>
         </section>
         <section id="petProductsPanel" class="pet-hub-panel" role="tabpanel" aria-labelledby="petProductsTab" data-pet-hub-panel="products" hidden>
           <div class="pet-panel-heading"><div><p class="eyebrow">Elegidos para esta mascota</p><h3>Productos recomendados</h3><p>Marcas y artículos concretos explicados por Roxy. Tú siempre confirmas la compra.</p></div></div>
@@ -389,6 +391,7 @@
           <div class="pet-panel-heading"><div><p class="eyebrow">Expediente privado</p><h3>Historial médico y vacunas</h3><p>Consultas, vacunas, diagnósticos, tratamientos y documentos en orden cronológico.</p></div></div>
           <div class="pet-medical-actions"><button id="exportPetMedical" class="secondary" type="button"><span class="material-symbols-rounded" aria-hidden="true">download</span>Historial completo</button><button id="exportPetVaccines" class="secondary" type="button"><span class="material-symbols-rounded" aria-hidden="true">vaccines</span>Vacunas</button><button id="addPetMedical" class="primary" type="button"><span class="material-symbols-rounded" aria-hidden="true">add</span>Añadir registro</button></div>
           <div id="petMedicalHistory" class="pet-medical-history"></div>
+          <div id="petMedicalSummary" class="pet-medical-summary"></div>
           <div class="pet-history-documents"><div class="pet-panel-heading"><div><h4>Documentos guardados</h4><p>Resultados, informes e imágenes vinculados a su historial.</p></div></div>
           <div id="petDocuments" class="pet-documents"></div>
           <button id="addPetDocument" class="primary full" type="button"><span class="material-symbols-rounded" aria-hidden="true">note_add</span>Añadir documento o registro</button>
@@ -400,6 +403,12 @@
         <div class="section-heading"><div><p id="recipeLibraryEyebrow">Incluidas y disponibles</p><h2 id="libraryTitle">Recetario de Roxy</h2><small id="recipeLibraryHint">Toca una receta incluida para guardarla en tu carpeta</small></div><span id="recipeCount">0 recetas</span></div>
         <label class="recipe-search"><span class="material-symbols-rounded" aria-hidden="true">search</span><input id="recipeSearch" type="search" placeholder="Buscar huevos, pollo, café…" autocomplete="off" /></label>
         <div id="recipeFilters" class="recipe-filters" role="group" aria-label="Categorías de recetas"></div>
+        <div id="petRecipeImportActions" class="pet-medical-actions" hidden>
+          <button id="petImportText" type="button" class="secondary">Pegar receta de una publicación</button>
+          <button id="petImportImage" type="button" class="secondary">Leer una captura</button>
+          <button id="petImportUrl" type="button" class="secondary">Importar enlace público</button>
+          <p>Roxy la revisa para la mascota seleccionada. Nada se guarda ni se añade a Compra hasta que tú confirmes.</p>
+        </div>
         <div id="recipeLibrary" class="recipe-library"></div>
       </section>
 
@@ -576,6 +585,7 @@
       <div class="dialog-heading"><div><p class="eyebrow">Roxy lee la receta</p><h2 id="recipeImportDialogTitle">Escanear receta</h2></div><button type="button" data-close-dialog="recipeImportDialog" aria-label="Cerrar">Cerrar</button></div>
       <form id="recipeImportForm" class="kitchen-form">
         <input id="recipeImportType" type="hidden" value="image" />
+        <label id="recipeTextField" hidden><span>Ingredientes y pasos de la publicación</span><textarea id="recipeImportText" rows="8" maxlength="12000" placeholder="Pega el texto completo, con cantidades y preparación…"></textarea><small>Útil si Instagram no deja leer el enlace. No inventaremos el contenido del video.</small></label>
         <label id="recipeImageField"><span>Foto, página o captura</span><input id="recipeImportImage" type="file" accept="image/jpeg,image/png,image/webp" /><small>Roxy prepara una vista previa. Nada se guarda hasta que tú confirmes.</small></label>
         <label id="recipeUrlField" hidden><span>Enlace público de la receta</span><input id="recipeImportUrl" type="url" inputmode="url" placeholder="https://…" /><small>Si la publicación es privada o no permite lectura, usa una captura de pantalla.</small></label>
         <div id="recipeImportPreview" class="recipe-import-preview" aria-live="polite" hidden></div>

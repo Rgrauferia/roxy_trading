@@ -291,6 +291,8 @@ def _is_misrouted_calendar_item(item: dict[str, Any]) -> bool:
 def classify_shopping_category(name: Any, requested: Any = "GENERAL") -> str:
     """Infer a stable aisle while preserving explicit categories for unknown products."""
 
+    if str(requested or "").strip().upper() == "PETS":
+        return "PETS"  # Explicit pet products must not become human food by name.
     identity = _classification_identity(name)
     # Product form outranks flavor ingredients: "helado de dulce de leche" is
     # frozen even though "dulce de leche" alone belongs in the pantry.
@@ -468,7 +470,7 @@ class ShoppingListStore:
                 elif display_name == "Perlas aromáticas para ropa":
                     normalized_unit = "envase"
             item_identity = _identity(display_name)
-            remembered_category = learned.get("category") if learned else requested_category
+            remembered_category = "PETS" if requested_category == "PETS" else learned.get("category") if learned else requested_category
             normalized_category = classify_shopping_category(display_name, remembered_category)
             now = _now_iso()
             if alias_key and alias_key != _alias_identity(display_name) and not learned:

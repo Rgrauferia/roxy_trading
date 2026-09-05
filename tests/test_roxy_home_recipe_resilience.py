@@ -22,13 +22,10 @@ def test_personalized_pet_recipes_use_present_and_identity_appropriate_photos():
     assert rows
     assert all(row.get("photo_asset", "").startswith("/assets/") for row in rows)
     assert all((assets / row["photo_asset"].removeprefix("/assets/")).is_file() for row in rows)
-    assert all("betta-feeding.webp" in row["photo_asset"] for row in rows if row["pet_id"] == "azul")
-    assert all("leopard-gecko-feeding.webp" in row["photo_asset"] for row in rows if row["pet_id"] == "sol")
-    assert all(row.get("photo_focus") for row in rows if row["catalog_key"] in {
-        "dog_hard_boiled_egg", "dog_dehydrated_turkey", "dog_dehydrated_chicken",
-        "cat_dehydrated_whitefish", "cat_dehydrated_chicken", "cat_rabbit_morsels",
-        "ferret_poached_chicken", "ferret_cooked_lamb", "ferret_baked_duck", "ferret_turkey_medallions",
-    })
+    assert not any(row["pet_id"] in {"azul", "sol"} for row in rows)
+    assert not any(row.get("photo_focus") for row in rows)  # Never crop a collage as a recipe.
+    assert all(row["photo_asset_verified"] for row in rows if row["pet_id"] == "luna")
+    assert not any("collection" in row["photo_asset"] for row in rows if row.get("photo_asset_verified"))
 
 
 def test_local_recipe_catalog_covers_food_bread_and_drinks():

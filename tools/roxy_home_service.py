@@ -68,6 +68,8 @@ from roxy_os.home_plants import HomePlantIdentifier, HomePlantStore, PLANT_CATAL
 from roxy_os.home_product_intelligence import HomeProductIntelligence, ProductIntelligenceConfig
 from roxy_os.home_food import HomeFoodStore, HomeFoodStorageError, HomePermissionPolicy
 from roxy_os.home_pet_catalog import pet_profile_completion, personalized_pet_care_plan, personalized_pet_nutrition_plan, personalized_pet_products, pet_profile_options
+from roxy_os.home_pet_habitats import habitat_plan
+from roxy_os.home_pet_recipe_safety import resolve_pet, pet_import_context, check_import_profile, validate_pet_import
 from roxy_os.home_price_recommendations import (
     PRICE_NOTICE,
     PriceFeedConfig,
@@ -315,10 +317,11 @@ class HomePromptRequest(BaseModel):
 
 
 class RecipeImportRequest(BaseModel):
-    source_type: str = Field(pattern="^(image|url)$")
+    source_type: str = Field(pattern="^(image|url|text)$")
     source: str = Field(min_length=1, max_length=2_100_000)
     audience: str = Field(default="human", pattern="^(human|pet)$")
     pet_species: str = Field(default="", max_length=32)
+    pet_id: str = Field(default="", max_length=80)
 
 
 class RecipeImportCommitRequest(BaseModel):
@@ -356,6 +359,10 @@ class PetProfileRequest(BaseModel):
     environment_notes: str = Field(default="", max_length=1_000)
     routine_notes: str = Field(default="", max_length=1_000)
     photo_data_url: str = Field(default="", max_length=1_500_000)
+
+
+class PetHabitatRequest(BaseModel):
+    values: dict[str, Any] = Field(max_length=30)
 
 
 class PetMedicalRecordRequest(BaseModel):
@@ -562,6 +569,8 @@ def _recipe_photo_queue() -> RecipePhotoGenerationQueue:
 
 def _schedule_recipe_photo(recipe: dict[str, Any]) -> str:
     """Keep optional artwork generation from blocking core recipe actions."""
+    if recipe.get("audience") == "pet" and (recipe.get("safety_class") == "feeding_guide" or recipe.get("photo_asset_verified")):
+        return "NOT_NEEDED"
     try:
         return _recipe_photo_queue().schedule(recipe)
     except (OSError, RuntimeError):
@@ -3644,6 +3653,12 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
             str(pet.get("id")): personalized_pet_products(pet) for pet in pets if pet.get("id")
         },
         "pet_recipe_recommendations": pet_recipe_recommendations,
+        "pet_habitat_plans": {str(pet["id"]): habitat_plan(pet) for pet in pets if pet.get("id")},
+        "pet_care_guides": {
+            str(pet["id"]): [row for row in personalized_pet_recipe_catalog(pet, snapshot, include_guides=True)
+                              if row.get("safety_class") == "feeding_guide"]
+            for pet in pets if pet.get("id")
+        },
         "pet_care_plans": {
             str(pet.get("id")): personalized_pet_care_plan(pet) for pet in pets if pet.get("id")
         },
@@ -3733,17 +3748,26 @@ def preview_recipe_import(user_id: str, payload: RecipeImportRequest, request: R
     if payload.source_type == "url" and not re.match(r"^https?://", payload.source, flags=re.IGNORECASE):
         raise HTTPException(status_code=422, detail="Escribe un enlace web completo.")
     try:
+        snapshot = _home_food_store().snapshot(user)
+        pet = resolve_pet(snapshot, payload.pet_id) if payload.audience == "pet" else None
+        if pet:
+            check_import_profile(pet)
+        if payload.source_type == "text" and len(payload.source) > 12000:
+            raise ValueError("Usa un texto de hasta 12 000 caracteres.")
         result = _ai_call(lambda: _home_ai().import_recipe(
-            payload.source, _home_food_store().snapshot(user), source_type=payload.source_type,
-            audience=payload.audience, pet_species=payload.pet_species,
+            payload.source, snapshot, source_type=payload.source_type,
+            audience=payload.audience, pet_species=pet["species"] if pet else "",
+            **({"pet_profile": pet_import_context(pet)} if pet else {}),
         ))
         if result.get("needs_clarification"):
             return {"status": "NEEDS_CLARIFICATION", "question": result.get("clarification_question") or "Necesito una captura más clara para importar esta receta con seguridad."}
         recipe = HomeFoodStore._normalize_recipe({
             **result, "audience": payload.audience,
-            "pet_species": payload.pet_species if payload.audience == "pet" else "",
+            "pet_species": pet["species"] if pet else "",
             "generation_source": f"import_{payload.source_type}",
         })
+        if pet:
+            recipe = validate_pet_import(recipe, pet)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"status": "READY_FOR_REVIEW", "recipe": recipe}
@@ -3756,7 +3780,11 @@ def commit_recipe_import(user_id: str, payload: RecipeImportCommitRequest, reque
     if not payload.confirmed:
         raise HTTPException(status_code=409, detail="Confirma la receta después de revisarla.")
     try:
-        recipe = _home_food_store().save_recipe(user, payload.recipe, mode="routine")
+        store = _home_food_store()
+        data = payload.recipe
+        if data.get("audience") == "pet":
+            data = validate_pet_import(data, resolve_pet(store.snapshot(user), str(data.get("pet_id") or "")))
+        recipe = store.save_recipe(user, data, mode="routine")
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     _schedule_recipe_photo(recipe)
@@ -3772,6 +3800,20 @@ def upsert_home_pet(user_id: str, payload: PetProfileRequest, request: Request, 
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"status": "SAVED", "pet": pet}
+
+
+@app.put("/v1/home-food/{user_id}/pets/{pet_id}/habitat")
+def update_pet_habitat(user_id: str, pet_id: str, payload: PetHabitatRequest, request: Request,
+                       auth: str = Depends(_authenticate)) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    try:
+        observation = _home_food_store().record_pet_habitat(user, pet_id, payload.values)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Mascota no encontrada en este hogar") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "SAVED", "observation": observation}
 
 
 @app.post("/v1/home-food/{user_id}/pets/{pet_id}/medical-history", status_code=201)

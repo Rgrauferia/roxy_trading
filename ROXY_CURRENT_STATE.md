@@ -44,23 +44,43 @@ Se verificó un respaldo previo de 598K en
   sin modificar el comportamiento del calendario. Python: `/Users/robertograu/roxy_trading/.venv/bin/python`
   (solo intérprete; no modifica el checkout Trading).
 
+## Candidata 163 — probada localmente, aún no desplegada
+
+- JS 160, CSS 117, SW/APP 157. 335 tests aprobados (282 Home + 53 compras) y node --check JS/SW.
+- Carrito corregido: productos enviados como PETS no se reclasifican como
+  alimentos humanos por nombres como Litter Pan. Añadir/ver en Compra probado.
+- Recetas separadas de guías de cuidado. Hábitat por especie con observaciones
+  persistentes para acuarios, aves, reptiles y campos de otros grupos.
+- Diferencia canario/psitácida/nectarívoro y evita dietas de otro grupo. Referencias
+  específicas para betta/gecko; no certifica convivencia ni inventa sensores.
+- Importación texto/captura/URL vinculada a mascota por ID y con gates de salud,
+  etapa e ingredientes; Responses Terra para revisión de mascotas y contexto
+  sanitizado, sin trasladar datos humanos. Requiere confirmar para guardar/comprar.
+- Historial conserva entrada 101 y siguientes (límite explícito 1000), fechas de
+  seguimiento y directorios externos por especie. Descarga real TXT comprobada.
+- Ocho recetas ferret con ocho imágenes individuales; cuatro WebP nuevas. No
+  se reactivan collages. Estados de carga ya no muestran alta de mascota fugaz.
+- QA aislada con seis perfiles sintéticos; ninguno añadido a producción.
+- Auditoría, límites y fuentes: reports/home_pets_audit_20260905.md; prompts de
+  imágenes: reports/home_pet_artwork_20260905.md.
+
 ## Pendientes reales — no declarar módulo terminado
 
 - Luna está guardada como `ferret`, pero sin foto. Bella tiene foto. No se recuperó
   el perfil/foto original de Luna. La tarea anterior recreó Luna; no confundir esto
   con recuperación. Sus datos de edad/salud ingresados por esa tarea no están verificados.
 - Ferret y hurón doméstico son el mismo animal; Roberto prefiere el nombre Ferret.
-- El recetario mezcla `feeding_guide` (peso, conservación, hidratación) con recetas.
-  Separar esos contenidos sin inventar recetas para especies cuya dieta no las admite.
-- El frontend ignora todos los `photo_asset` de mascotas, incluyendo imágenes exactas
-  válidas; el catálogo también contiene collages/repeticiones que no deben restaurarse
-  como si fueran fotos específicas. Auditar y mapear por receta exacta.
+- Publicar y comprobar la candidata 163; hasta entonces público sigue en 162.
+- Completar revisión/fotos del resto de recetas y productos. El catálogo todavía
+  contiene assets genéricos no autorizados para mostrarse como imagen exacta.
 - Cobertura antes del nuevo despliegue: 558/683 imágenes; 125 faltantes. Errores
   históricos: 80 RateLimitError y 45 OSError. El disco lleno se confirmó; la causa
   concreta de RateLimitError no está confirmada. No seguir ajustando concurrencia a ciegas.
 - Probar todas las especies, personalización y fotos de productos/recetas en UI.
-- La carga inicial muestra fugazmente el alta de mascota antes de cargar los
-  perfiles: distinguir estado cargando de un hogar realmente vacío.
+- Cobertura universal NO terminada: ampliar fichas revisadas, acuarios compartidos
+  y compatibilidad estructurada. No toda especie admite recetas caseras.
+- Petco permite solicitar afiliación mediante Impact; PetSmart Creators publica un
+  programa. No hay aprobación ni API pública verificada. No se aceptaron acuerdos.
 - Plan aprobado en conversación: beta web de cinco días antes de App Store; alcance,
   cupo, presupuesto IA y fecha deben definirse. Ejercicios es una sección solicitada,
   todavía no diseñada ni implementada. PostgreSQL y multimedia separada son
