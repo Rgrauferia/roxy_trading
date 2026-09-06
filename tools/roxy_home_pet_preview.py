@@ -23,6 +23,7 @@ def main():
     from roxy_os.home_accounts import HomeAccountStore
     from tools import roxy_home_service as service
     HomeAccountStore("data/roxy_home_accounts.json").bootstrap("qa", household_name="Pruebas locales", username="petsqa", display_name="Prueba", password="LocalPetsQA-2026!")
+    HomeAccountStore("data/roxy_home_accounts.json").register_trial(username="trialqa", display_name="Demo local", password="LocalTrialQA-2026!", admission_hash="synthetic-local-preview")
     store = HomeFoodStore("data/roxy_home_food.json")
     for name, species, exact in [("Ave QA", "bird", "Periquito australiano"), ("Acuario QA", "fish", "Betta splendens"), ("Terrario QA", "reptile", "Gecko leopardo"), ("Ferret QA", "ferret", "Ferret"), ("Canario QA", "bird", "Canario"), ("Lori QA", "bird", "Lori arcoíris"), ("Serpiente QA", "reptile", "Pitón bola"), ("Perro QA", "dog", "Bernese Mountain"), ("Gato QA", "cat", "Maine Coon"), ("Conejo QA", "rabbit", "Holland Lop"), ("Cobaya QA", "guinea_pig", "American"), ("Hámster QA", "hamster", "Sirio"), ("Chinchilla QA", "small_mammal", "Chinchilla"), ("Ajolote QA", "amphibian", "Ajolote"), ("Tarántula QA", "invertebrate", "Tarántula"), ("Granja QA", "farm_pet", "Cerdo miniatura"), ("Por identificar QA", "other", "No sé la especie exacta")]:
         store.upsert_pet("qa", name=name, species=species, exact_species=exact, life_stage="adult")

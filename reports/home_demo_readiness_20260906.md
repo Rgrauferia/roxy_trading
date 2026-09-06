@@ -48,14 +48,62 @@ se abrió. No se cambiaron pagos, claves, acuerdos ni otros productos Roxy.
 
 ## Aún impide considerar completa la demo
 
-1. Registro público, aislamiento, vencimiento y límites antifraude/consumo deben
-   implementarse y comprobarse antes de activarlo. No compartir la clave de Home.
+1. Registro público implementado en candidato 167, desactivado. Falta Turnstile
+   real, comprobar alta de extremo a extremo, recuperación/soporte y alcance
+   final. No compartir la clave de Home ni activar con credenciales de prueba.
 2. ElevenLabs devolvió `payment_issue`; requiere que Roberto resuelva facturación.
 3. 463 recetas humanas pendientes; fotos restantes y correspondencia plato-foto
    requieren revisión. La cuarentena de Aderezo César se mantiene.
 4. Cobertura exacta de todas las especies y variedad de productos con fotos no
    completas. El lori ilustra un hueco real; no sustituir por dieta de otras aves.
 5. Falta completar comprobaciones de integraciones/calendario/Renueva/Jardín.
+
+## Candidato 167 — registro privado por hogar y arranque del mapa
+
+Suite final Home/compras: **517 aprobadas**. JS principal, registro y service
+worker pasan `node --check`; `git diff --check` sin errores. Alta y CAPTCHA están
+probados con dobles en tests, no se afirma verificación real del proveedor.
+
+- Registro abierto aprobado, no por invitación. Crea un namespace aleatorio nuevo;
+  el cliente no puede enviar el hogar de destino. Usuarios existentes conservados.
+- Cinco días desde el alta; después solo consulta, sin borrado ni cobro automático.
+- Hasta 5 solicitudes de Roxy al día por hogar compartidas entre sus miembros.
+  Reserva atómica antes de ejecutar; errores también consumen el intento. Se mantiene
+  el límite global de IA de Home; no se aumentó presupuesto ni facturación.
+- Capacidad conservadora de piloto: 100 hogares totales, 20 altas/día globales,
+  3 por conexión/día, 6 perfiles por hogar. Es abierto hasta esa capacidad, no una
+  promesa de escala ilimitada. Ajustes requieren revisión de carga y gasto.
+- Endpoints revisados para demo; otros quedan no disponibles. Voz, generación de
+  imágenes/vídeo, feeds comerciales y creación IA de Renueva no habilitados en demo.
+  Empezar una sesión de cocina no activa vídeos pagados en cuentas demo.
+- Archivo de cuentas ilegible/corrupto falla de forma cerrada; no lo convierte en
+  un hogar vacío ni lo sobrescribe. API privada no se almacena en caché compartida.
+- Al entrar con otra cuenta se reinicia el estado en memoria. Sesión rechazada no
+  muestra snapshots locales. Cerrar sesión borra el caché local de ese hogar.
+- Las URLs públicas de fotos no generan imágenes ni buscan recetas de todos los
+  hogares por título. Imágenes privadas requieren acceso a la receta del hogar.
+- Turnstile valida servidor, hostname permitido, acción y vigencia. No hay bypass
+  local en producción. Claves oficiales de prueba no permiten activar registro.
+- Navegador local: sesión sintética de prueba accede a “Mi hogar”, muestra vencimiento
+  y cuotas, y Mascotas está vacío; no heredó las 17 mascotas de la otra cuenta QA.
+- Navegador público 166: Bella/Luna conservadas, Ferret en información; Robert/Roxy
+  presentes en Nexo. Se reprodujo fallo `ControlPosition.RIGHT_BOTTOM` al arrancar
+  Google Maps; 167 espera callback y `core/maps/routes`, no el evento script.onload.
+- [Carga asíncrona Google](https://developers.google.com/maps/documentation/javascript/libraries)
+  y [ControlPosition/core](https://developers.google.com/maps/documentation/javascript/reference/control).
+- [Validación Turnstile](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/).
+
+### Configuración pendiente (sin secretos aquí)
+
+`ROXY_HOME_PUBLIC_SIGNUP_ENABLED` queda apagado. Para una activación revisada se
+necesitan `ROXY_HOME_TURNSTILE_SITE_KEY`, `ROXY_HOME_TURNSTILE_SECRET_KEY` exclusivas
+de Home y `ROXY_HOME_SIGNUP_HOSTS` con el hostname público exacto. No pasar la clave
+secreta al navegador ni reutilizar claves de Trading/otros Roxy. Se preguntó a
+Roberto si ya tiene cuenta Cloudflare. No se creó cuenta ni se aceptó contrato.
+
+El agente de ElevenLabs previo es público; bloquear el endpoint de la demo no
+convierte al agente externo en privado. Revisar acceso en el proveedor y resolver
+su `payment_issue` antes de incluir voz en una demo abierta.
 
 ## Colaboraciones: fuentes oficiales comprobadas, no acuerdos cerrados
 

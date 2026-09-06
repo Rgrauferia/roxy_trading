@@ -3,9 +3,9 @@
   "updated_on": "2026-09-06",
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#mascotas",
-  "last_verified_public_version": 165,
-  "deployed_implementation_commit": "9355e6119112116886e8145d63e21d74d2a2af02",
-  "candidate_version": 166,
+  "last_verified_public_version": 166,
+  "deployed_implementation_commit": "fb6b5af2c",
+  "candidate_version": 167,
   "candidate_status": "locally_verified_pending_deploy",
   "storage": {
     "authorized_gb": 10,
@@ -18,21 +18,21 @@
   },
   "verification": {
     "node_check": "passed",
-    "pytest_passed": 352,
+    "pytest_passed": 502,
     "public_health": "ok",
     "pets_visible_after_reload": [
       "Bella",
       "Luna"
     ],
     "public_versions": {
-      "html": 165,
-      "app": 165,
-      "js": 164,
-      "css": 118,
-      "service_worker": 161
+      "html": 166,
+      "app": 166,
+      "js": 165,
+      "css": 119,
+      "service_worker": 162
     },
     "public_recipe_image_loaded": "ferret_turkey_mini_medallions.webp",
-    "public_assets_byte_identical": true,
+    "public_assets_byte_identical": false,
     "public_nexo_members_visible": [
       "Robert",
       "Roxy"
@@ -48,7 +48,9 @@
       "status": "INCOMPLETE",
       "pending": 0,
       "generated_today": 42
-    }
+    },
+    "public_nexo_map": "failed_ControlPosition_RIGHT_BOTTOM_before_async_libraries_ready",
+    "luna_display_name": "Ferret_verified_public_166"
   },
   "known_issues": [
     "Luna thumbnail observed in public selector; original photo/profile recovery still unverified",
@@ -61,33 +63,52 @@
     "Full UI audit still incomplete: garden/design end-to-end, pantry/settings, public integrations",
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed"
   ],
-  "next_step": "Deploy and verify release 166, then implement approved public registration with isolated household namespaces, five-day expiry and abuse/spend controls. Complete content/photos and integrations; ElevenLabs billing action remains required.",
+  "next_step": "Verify and deploy 167 (async Maps loader, account isolation and disabled public signup). Do not enable signup until real Turnstile, end-to-end registration, support and demo feature scope are verified. Resolve ElevenLabs billing/access; finish content/photos and module checks.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",
     "exercise_section": "requested_not_implemented",
     "database_and_media_migration": "recommended_not_performed",
-    "registration": "public_open_approved_by_Roberto_2026-09-06_not_implemented",
+    "registration": "public_open_approved_implemented_167_disabled_pending_real_verification",
     "trial_days": 5
   },
   "candidate_verification": {
     "node_check": "passed",
-    "pytest_passed": 502,
-    "html": 166,
-    "app": 166,
-    "js": 165,
+    "pytest_passed": 517,
+    "html": 167,
+    "app": 167,
+    "js": 166,
     "css": 119,
-    "service_worker": 162,
+    "service_worker": 163,
     "audit": "reports/home_demo_readiness_20260906.md",
     "catalog_audit": "reports/home_catalog_audit_20260905.json",
     "literal_local_assets_checked": 105,
     "qa_text_conversation": "verified",
     "qa_shopping_create": "verified",
     "qa_calendar_create": "verified",
-    "remaining_ui": "public_verification_and_remaining_integrations",
+    "remaining_ui": "public_167_map_and_existing_pets; real_registration_requires_Turnstile",
     "known_wrong_photo_quarantined": "Aderezo César",
-    "qa_server": "local_isolated_8767_running",
+    "qa_server": "isolated_8767_running",
     "qa_profiles": 17,
-    "qa_aquarium_save_reload": "verified_after_null_field_fix"
+    "qa_aquarium_save_reload": "verified_after_null_field_fix",
+    "map_loader_regression": "passed",
+    "qa_trial_login": "verified",
+    "qa_trial_empty_household": "verified",
+    "qa_rejected_session_hides_cache": "verified"
+  },
+  "public_registration": {
+    "enabled": false,
+    "trial_days": 5,
+    "ai_requests_per_household_daily": 5,
+    "max_households": 100,
+    "max_signup_daily": 20,
+    "max_signup_per_connection_daily": 3,
+    "max_members": 6,
+    "captcha": "Turnstile_server_validation_implemented_not_configured",
+    "voice": false,
+    "paid_media_generation": false,
+    "expiry": "read_only_no_auto_charge_no_deletion",
+    "automatic_password_recovery": false,
+    "synthetic_tests_only": true
   }
 }

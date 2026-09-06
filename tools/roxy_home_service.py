@@ -48,7 +48,8 @@ from roxy_os.home_recipe_photos import (
     RecipePhotoGenerationQueue,
     RecipePhotoStore,
 )
-from roxy_os.home_accounts import HomeAccountStore
+from roxy_os.home_accounts import HomeAccountStore, HomeAccountStorageError, HomeTrialLimitError
+from roxy_os.home_demo import registration_config, verify_signup_token, trial_access_mode, DEMO_NOTICE_VERSION
 from roxy_os.home_calendar import DEFAULT_TIMEZONE, HomeCalendarStore, parse_calendar_command
 from roxy_os.home_calendar_google import GoogleCalendarConfig, GoogleCalendarSync
 from roxy_os.home_commerce import (
@@ -119,6 +120,25 @@ app = FastAPI(
     openapi_url=None,
 )
 app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
+
+
+@app.middleware("http")
+async def private_api_cache(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/v1/"):
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["Vary"] = "Cookie, Authorization"
+    return response
+
+
+@app.exception_handler(HomeAccountStorageError)
+async def home_account_storage_error(_request: Request, exc: HomeAccountStorageError) -> JSONResponse:
+    return JSONResponse(status_code=503, content={"detail": str(exc)}, headers={"Retry-After": "30"})
+
+
+@app.exception_handler(HomeTrialLimitError)
+async def home_trial_limit_error(_request: Request, exc: HomeTrialLimitError) -> JSONResponse:
+    return JSONResponse(status_code=429, content={"detail": str(exc), "code": "DEMO_LIMIT"})
 
 
 @app.exception_handler(HomeFoodStorageError)
@@ -460,6 +480,16 @@ class HomeLoginRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128)
 
 
+class HomeSignupRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    username: str = Field(min_length=3, max_length=64, pattern=r"^[a-zA-Z0-9_.@-]+$")
+    display_name: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=12, max_length=128)
+    verification_token: str = Field(min_length=1, max_length=2048)
+    acknowledged: bool = False
+    notice_version: str = Field(min_length=1, max_length=32)
+
+
 class HomeBootstrapRequest(HomeLoginRequest):
     display_name: str = Field(min_length=1, max_length=64)
     household_name: str = Field(default="Nuestro hogar", min_length=1, max_length=64)
@@ -509,6 +539,7 @@ class AuthContext:
     mode: str
     storage_user_id: str | None = None
     member_id: str | None = None
+    trial: dict[str, Any] | None = None
 
 
 def _store() -> ShoppingListStore:
@@ -583,6 +614,29 @@ def _schedule_recipe_photo(recipe: dict[str, Any]) -> str:
         return _recipe_photo_queue().schedule(recipe)
     except (OSError, RuntimeError):
         return "UNAVAILABLE"
+
+
+def _schedule_account_recipe_photo(recipe: dict[str, Any], auth: AuthContext) -> str:
+    return "NOT_INCLUDED_IN_DEMO" if auth.trial else _schedule_recipe_photo(recipe)
+
+
+def _visible_photo_recipe(title: str, request: Request) -> tuple[dict[str, Any] | None, AuthContext | None]:
+    catalog_recipe = exact_local_recipe(title)
+    try:
+        auth = _authenticate(request)
+    except HTTPException:
+        return catalog_recipe, None
+    if catalog_recipe:
+        return catalog_recipe, auth
+    if not auth.storage_user_id:
+        return None, auth
+    snapshot = _home_food_store().snapshot(auth.storage_user_id)
+    rows = list(snapshot.get("recipes", []))
+    for plan in snapshot.get("weekly_plans", []):
+        rows.extend(meal for day in plan.get("days", []) for meal in day.get("meals", []))
+    for pet in snapshot.get("pets", []):
+        rows.extend(personalized_pet_recipe_catalog(pet, snapshot))
+    return next((r for r in rows if str(r.get("title", "")).casefold() == title.casefold()), None), auth
 
 
 def _recipe_video_store() -> HomeRecipeVideoStore:
@@ -1390,7 +1444,7 @@ def _cookie_auth(value: str) -> AuthContext | None:
             member = _account_store().member(member_id)
             if member is None or not hmac.compare_digest(member["storage_user_id"], normalize_shopping_user(storage_user_id)):
                 return None
-            return AuthContext("member", member["storage_user_id"], member["id"])
+            return AuthContext("member", member["storage_user_id"], member["id"], member.get("trial"))
         user_id, raw_expires = decoded.rsplit("|", 1)
         if int(raw_expires) < int(time.time()):
             return None
@@ -1402,6 +1456,14 @@ def _cookie_auth(value: str) -> AuthContext | None:
 def _authenticate(request: Request) -> AuthContext:
     cookie_auth = _cookie_auth(request.cookies.get(SESSION_COOKIE, ""))
     if cookie_auth:
+        if cookie_auth.trial:
+            mode = trial_access_mode(request.method, request.url.path)
+            if cookie_auth.trial["status"] != "ACTIVE" and request.method not in {"GET", "HEAD"}:
+                raise HTTPException(status_code=403, detail="Los cinco días de prueba terminaron. Puedes consultar tus datos; no hay cobro automático.")
+            if mode == "unavailable":
+                raise HTTPException(status_code=403, detail="Esta función no está incluida en la demo. No se realizó ninguna operación ni cargo.")
+            if mode == "ai":
+                _account_store().reserve_trial_request(cookie_auth.member_id)
         return cookie_auth
     authorization = str(request.headers.get("Authorization") or "")
     if not authorization.startswith("Bearer "):
@@ -1413,9 +1475,13 @@ def _authenticate(request: Request) -> AuthContext:
 
 
 def _authorize_user(user_id: str, auth: AuthContext) -> str:
-    user = _allowed_user(user_id)
+    user = normalize_shopping_user(user_id)
     if auth.storage_user_id and not hmac.compare_digest(auth.storage_user_id, user):
         raise HTTPException(status_code=403, detail="La sesión pertenece a otro usuario")
+    # Dynamic namespaces are available only through a verified personal cookie.
+    # A bearer key or a forged legacy namespace cannot enter a demo household.
+    if auth.mode != "member":
+        _allowed_user(user)
     return user
 
 
@@ -1599,7 +1665,7 @@ def shopping_page() -> Response:
         "style-src 'self' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "script-src 'self' blob: https://esm.sh https://cdn.jsdelivr.net https://esm.run "
-        "https://maps.googleapis.com https://maps.gstatic.com; "
+        "https://maps.googleapis.com https://maps.gstatic.com https://challenges.cloudflare.com; "
         "connect-src 'self' https://api.elevenlabs.io https://*.elevenlabs.io "
         "wss://api.elevenlabs.io wss://*.elevenlabs.io https://maps.googleapis.com "
         "https://maps.gstatic.com https://*.googleapis.com https://*.gstatic.com "
@@ -1607,6 +1673,7 @@ def shopping_page() -> Response:
         "https://*.basemaps.cartocdn.com https://tile.openstreetmap.org; "
         "media-src 'self' blob:; "
         "worker-src 'self' blob:; "
+        "frame-src https://challenges.cloudflare.com; "
         "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
     )
     return _security_headers(response)
@@ -1661,13 +1728,17 @@ def recipe_photo(title: str, request: Request) -> Response:
     clean_title = re.sub(r"\s+", " ", str(title or "")).strip()
     if not clean_title or len(clean_title) > 160:
         raise HTTPException(status_code=422, detail="Nombre de receta inválido")
+    recipe, auth = _visible_photo_recipe(clean_title, request)
+    if recipe is None:
+        raise HTTPException(status_code=404, detail="Imagen no disponible")
     try:
         resolved = _recipe_photo_store().resolve(clean_title)
     except (OSError, ValueError):
         resolved = None
     if resolved is None:
-        recipe = exact_local_recipe(clean_title) or _home_food_store().find_saved_recipe_by_title(clean_title)
-        state = _schedule_recipe_photo(recipe) if recipe else "NOT_IN_CATALOG"
+        # A public image URL may serve existing catalog art, never spend credits
+        # or search another household's saved recipes by guessing its title.
+        state = _schedule_account_recipe_photo(recipe, auth) if auth else "NOT_AUTHENTICATED"
         if state == "PENDING":
             response = JSONResponse(
                 {"status": "GENERATING", "detail": "Roxy está creando la imagen exacta de esta receta"},
@@ -1704,6 +1775,9 @@ def recipe_photo_info(title: str, request: Request) -> Response:
     clean_title = re.sub(r"\s+", " ", str(title or "")).strip()
     if not clean_title or len(clean_title) > 160:
         raise HTTPException(status_code=422, detail="Nombre de receta inválido")
+    recipe, _auth = _visible_photo_recipe(clean_title, request)
+    if recipe is None:
+        return _security_headers(JSONResponse({"available": False}))
     try:
         resolved = _recipe_photo_store().resolve(clean_title)
     except (OSError, ValueError):
@@ -1780,6 +1854,37 @@ def home_account_login(payload: HomeLoginRequest, request: Request) -> Response:
     if member is None:
         raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
     response = JSONResponse({"status": "AUTHENTICATED", "mode": "member", **member})
+    _set_session_cookie(response, _member_session_cookie(member))
+    return _security_headers(response)
+
+
+@app.get("/v1/home-account/registration")
+def home_registration_status() -> dict[str, Any]:
+    return registration_config()
+
+
+@app.post("/v1/home-account/register", status_code=201)
+def home_register(payload: HomeSignupRequest, request: Request) -> Response:
+    if not registration_config()["enabled"]:
+        raise HTTPException(status_code=503, detail="El registro público todavía no está abierto.")
+    _rate_limit(request, bucket="signup")
+    _login_rate_limit(request, "__public_signup__")
+    if request.headers.get("origin", "") != str(request.base_url).rstrip("/"):
+        raise HTTPException(status_code=403, detail="Abre el registro desde Roxy Home.")
+    if not payload.acknowledged or payload.notice_version != DEMO_NOTICE_VERSION:
+        raise HTTPException(status_code=422, detail="Revisa y confirma las condiciones de la demo.")
+    if not verify_signup_token(payload.verification_token):
+        raise HTTPException(status_code=422, detail="No se pudo verificar el registro. Repite la comprobación de seguridad.")
+    # Home-specific keyed pseudonym, not the IP itself or another product's secret.
+    admission = hmac.new(_api_key().encode(), (request.client.host if request.client else "unknown").encode(), hashlib.sha256).hexdigest()
+    try:
+        member = _account_store().register_trial(username=payload.username, display_name=payload.display_name,
+                                                password=payload.password, admission_hash=admission)
+    except HomeTrialLimitError:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    response = JSONResponse({"status": "CREATED", "mode": "member", **member}, status_code=201)
     _set_session_cookie(response, _member_session_cookie(member))
     return _security_headers(response)
 
@@ -3640,11 +3745,11 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
     user = _authorize_user(user_id, auth)
     snapshot = _home_food_store().snapshot(user)
     for recipe in snapshot.get("recipes", []):
-        _schedule_recipe_photo(recipe)
+        _schedule_account_recipe_photo(recipe, auth)
     for plan in snapshot.get("weekly_plans", []):
         for day in plan.get("days", []):
             for meal in day.get("meals", []):
-                _schedule_recipe_photo({**meal, "kind": "meal"})
+                _schedule_account_recipe_photo({**meal, "kind": "meal"}, auth)
     pets = snapshot.get("pets") or []
     pet_recipe_recommendations = {
         str(pet.get("id")): pet_display_copy(pet, personalized_pet_recipe_catalog(pet, snapshot))
@@ -3658,7 +3763,7 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
     # these visible cards and amplified provider rate limits.
     for recipes in pet_recipe_recommendations.values():
         for recipe in recipes:
-            _schedule_recipe_photo(recipe)
+            _schedule_account_recipe_photo(recipe, auth)
     return {
         **snapshot,
         "pet_options": pet_profile_options(),
@@ -3754,7 +3859,7 @@ def generate_home_recipe(
         recipe = store.save_recipe(user, recipe_data, mode=payload.mode)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail="Roxy devolvió una receta incompleta.") from exc
-    _schedule_recipe_photo(recipe)
+    _schedule_account_recipe_photo(recipe, auth)
     return {"status": "CREATED", "recipe": recipe, "generation_mode": generation_mode}
 
 
@@ -3806,7 +3911,7 @@ def commit_recipe_import(user_id: str, payload: RecipeImportCommitRequest, reque
         recipe = store.save_recipe(user, data, mode="routine")
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    _schedule_recipe_photo(recipe)
+    _schedule_account_recipe_photo(recipe, auth)
     return {"status": "CREATED", "recipe": recipe}
 
 
@@ -4071,7 +4176,7 @@ def start_home_cooking_session(
     try:
         session = store.start_cooking_session(user, recipe_id)
         detail = store.cooking_session_detail(user, session["id"])
-        video_status, video = _queue_recipe_video_for_cooking(user, detail["recipe"], background_tasks)
+        video_status, video = ("NOT_INCLUDED_IN_DEMO", None) if auth.trial else _queue_recipe_video_for_cooking(user, detail["recipe"], background_tasks)
         return {
             "status": "STARTED",
             **detail,

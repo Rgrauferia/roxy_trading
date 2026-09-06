@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '166';
+  const APP_VERSION = '167';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -357,6 +357,16 @@
     });
   }
 
+  async function clearHouseholdDeviceCache(scope){
+    const db=await dbPromise;
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction('state','readwrite'),store=tx.objectStore('state');
+      const cursor=store.openCursor();
+      cursor.onsuccess=()=>{const row=cursor.result;if(!row)return;if(String(row.key).endsWith(`:${scope}`))row.delete();row.continue()};
+      tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
+    });
+  }
+
   const activeItems = () => snapshot.items.filter(item => item.status !== 'ARCHIVED');
   function announce(text) {
     $('toast').textContent = text;
@@ -396,6 +406,10 @@
     const previousUser=user;
     try {
       account=await api('/v1/home-account/me');
+      $('app').hidden=false;
+      const trial=account.trial;
+      $('demoTrialBanner').hidden=!trial;
+      if(trial)$('demoTrialBanner').textContent=trial.status==='ACTIVE'?`Demo gratis · hasta ${new Date(trial.expires_at).toLocaleString('es')}. Hasta ${trial.ai_daily_limit} solicitudes de Roxy al día por hogar; quedan ${trial.ai_remaining_today}. Voz y generación de imágenes/vídeos no incluidas.`:'Tu prueba de 5 días terminó. Puedes consultar tus datos. No hay cobro automático.';
       if(account.storage_user_id){user=account.storage_user_id;localStorage.setItem('roxyShoppingUser',user)}
       appearance=safeAppearance(account.preferences||appearance);applyAppearance();
       const rangeStart=new Date();rangeStart.setHours(0,0,0,0);rangeStart.setDate(rangeStart.getDate()-7);
@@ -442,6 +456,15 @@
       if(!$('shoppingPanel').hidden)void loadPriceRecommendations({quiet:true});
       if(account.requires_profile_setup&&!sessionStorage.getItem('roxyHomeProfilePrompted')){sessionStorage.setItem('roxyHomeProfilePrompted','1');openAccountDialog()}
     } catch (error) {
+      if(error.status===401||error.status===403){
+        // Do not reveal offline snapshots after the server rejects a session.
+        account={mode:'signed_out',requires_profile_setup:false};
+        $('app').hidden=true;
+        document.querySelectorAll('dialog[open]').forEach(dialog=>dialog.close());
+        renderAccount();
+        $('pairDialog').showModal();
+        return;
+      }
       const cached = await dbGet(`snapshot:${user}`).catch(() => null);
       const cachedFood = await dbGet(`home-food:${user}`).catch(() => null);
       const cachedCommerce = await dbGet(`home-commerce:${user}`).catch(() => null);
@@ -1621,9 +1644,24 @@ rows.forEach(product=>{const card=document.createElement('article');card.classNa
   }
   function loadFamilyGoogleMaps(){
     const key=homeFamily.map?.browser_key;if(!key)return Promise.reject(new Error('Falta configurar Google Maps para Roxy Home'));
-    if(window.google?.maps)return Promise.resolve(window.google.maps);
     if(familyMapLoader)return familyMapLoader;
-    familyMapLoader=new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=`https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&loading=async`;script.async=true;script.onload=()=>resolve(window.google.maps);script.onerror=()=>reject(new Error('No se pudo cargar Google Maps'));document.head.append(script)});return familyMapLoader;
+    const ready=async()=>{
+      const maps=window.google?.maps;
+      if(typeof maps?.importLibrary==='function')await Promise.all(['core','maps','routes'].map(name=>maps.importLibrary(name)));
+      if(!maps?.Map||!maps?.OverlayView||!maps?.ControlPosition)throw new Error('Google Maps todavía no está disponible. Vuelve a intentarlo.');
+      return maps;
+    };
+    if(window.google?.maps?.importLibrary){familyMapLoader=ready().catch(error=>{familyMapLoader=null;throw error});return familyMapLoader}
+    familyMapLoader=new Promise((resolve,reject)=>{
+      const script=document.createElement('script');let finished=false;
+      const done=(error,maps)=>{if(finished)return;finished=true;clearTimeout(timer);delete window.__roxyHomeMapsReady;if(error){script.remove();familyMapLoader=null;reject(error)}else resolve(maps)};
+      const timer=setTimeout(()=>done(new Error('Google Maps tardó demasiado. Revisa la conexión e inténtalo de nuevo.')),15000);
+      // With loading=async, the script load event precedes library readiness.
+      window.__roxyHomeMapsReady=()=>{void ready().then(maps=>done(null,maps),error=>done(error))};
+      script.src=`https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&loading=async&callback=__roxyHomeMapsReady`;
+      script.async=true;script.onerror=()=>done(new Error('No se pudo cargar Google Maps'));
+      document.head.append(script);
+    });return familyMapLoader;
   }
   function createFamilyMapPerson(member,point){
     class PersonOverlay extends google.maps.OverlayView{
@@ -2074,7 +2112,7 @@ rows.forEach(product=>{const card=document.createElement('article');card.classNa
 
   function submitCustom(event){event.preventDefault();const name=$('customName').value.trim();const quantity=Number($('customQuantity').value);const unit=$('customUnit').value.trim();if(!name||!unit||!(quantity>0)){announce('Completa producto, cantidad y unidad');return}addItem({name,quantity,unit,category:$('customCategory').value});$('customForm').reset();$('customQuantity').value='1';$('customUnit').value='unidad';$('customDialog').close()}
   async function pair(event){event.preventDefault();const token=$('apiToken').value;const candidate=$('userId').value.trim()||'local_user';$('pairError').textContent='';try{await api(`/v1/shopping/session/${encodeURIComponent(candidate)}`,{method:'POST',headers:{Authorization:`Bearer ${token}`}});user=candidate;localStorage.setItem('roxyShoppingUser',user);$('apiToken').value='';$('pairDialog').close();await load()}catch(error){$('pairError').textContent=error.message}}
-  async function login(event){event.preventDefault();$('loginError').textContent='';try{const result=await api('/v1/home-account/login',{method:'POST',body:JSON.stringify({username:$('loginUsername').value.trim(),password:$('loginPassword').value})});account=result;user=result.storage_user_id;localStorage.setItem('roxyShoppingUser',user);$('loginPassword').value='';$('pairDialog').close();await load()}catch(error){$('loginError').textContent=error.message}}
+  async function login(event){event.preventDefault();$('loginError').textContent='';try{const result=await api('/v1/home-account/login',{method:'POST',body:JSON.stringify({username:$('loginUsername').value.trim(),password:$('loginPassword').value})});account=result;user=result.storage_user_id;localStorage.setItem('roxyShoppingUser',user);$('loginPassword').value='';location.replace(`${location.pathname}#hoy`)}catch(error){$('loginError').textContent=error.message}}
   function renderAccount(){const person=activePersonName();$('accountSummary').textContent=account.mode==='member'?`${person} · ${account.household_name} · la compra, recetas y despensa son compartidas.`:account.mode==='signed_out'?'Tu sesión personal está cerrada. Entra de nuevo; Roxy no ha ejecutado ningún borrado de personas ni recorridos.':account.requires_profile_setup?'Este dispositivo usa el acceso anterior. Crea los perfiles personales sin perder los datos actuales.':'Entra con tu perfil para que Roxy sepa quién eres.';$('accountButton').textContent=account.mode==='member'?'Administrar personas':account.requires_profile_setup?'Crear perfiles personales':'Entrar con mi perfil'}
   function renderMembers(rows){const root=$('accountMembers');root.replaceChildren();rows.forEach(row=>{const article=document.createElement('article');article.className='member-row';const copy=document.createElement('div');const strong=document.createElement('strong');strong.textContent=row.display_name;const small=document.createElement('small');small.textContent=`@${row.username}`;copy.append(strong,small);const role=document.createElement('span');role.textContent=row.role==='OWNER'?'ADMINISTRA':'MIEMBRO';article.append(copy,role);root.append(article)})}
   async function openAccountDialog(){if(account.mode!=='member'&&!account.requires_profile_setup){$('pairDialog').showModal();return}const bootstrap=account.mode!=='member';$('bootstrapAccountForm').hidden=!bootstrap;$('memberManagement').hidden=bootstrap;$('accountDialog').showModal();if(bootstrap){$('ownerDisplayName').value=greetingName;return}try{const result=await api('/v1/home-account/members');renderMembers(result.members||[]);$('addMemberForm').hidden=account.role!=='OWNER'}catch(error){announce(error.message)}}
@@ -2083,7 +2121,7 @@ rows.forEach(product=>{const card=document.createElement('article');card.classNa
   function complete(){const rows=activeItems();if(!rows.length)return;$('confirmCopy').textContent=`Se archivarán ${rows.length} productos y quedarán en el historial.`;$('confirmDialog').showModal()}
   async function confirmComplete(){const rows=activeItems();$('confirmDialog').close();await mutate({path:`/v1/shopping/${encodeURIComponent(user)}/complete`,options:{method:'POST'}},()=>{snapshot.history=[{id:`offline-${crypto.randomUUID()}`,completed_at:now(),item_count:rows.length,total_quantity:rows.reduce((n,item)=>n+Number(item.quantity||0),0),items:rows},...(snapshot.history||[])];snapshot.items=snapshot.items.filter(item=>!rows.includes(item));announce('Compra archivada')})}
   async function share(){const rows=activeItems();const text='Lista de compras de Roxy\n'+(rows.length?rows.map(item=>`${item.quantity} ${item.unit||'unidad'} · ${item.name}`).join('\n'):'Lista vacía');try{if(navigator.share)await navigator.share({title:'Lista de compras',text,url:location.href});else{await navigator.clipboard.writeText(text);announce('Lista copiada')}}catch(error){if(error.name!=='AbortError')announce('No se pudo compartir')}}
-  async function disconnect(){try{await api('/v1/shopping/session',{method:'DELETE'});}catch(_error){}localStorage.removeItem('roxyShoppingUser');location.reload()}
+  async function disconnect(){try{const pending=await dbGet(`queue:${user}`)||[];if(pending.length){announce('Tienes cambios sin sincronizar. Conéctate y sincronízalos antes de cerrar sesión para no perderlos.');return}await api('/v1/shopping/session',{method:'DELETE'});await clearHouseholdDeviceCache(user);localStorage.removeItem('roxyShoppingUser');location.reload()}catch(error){announce('No se pudo cerrar la sesión de forma segura. Revisa la conexión e inténtalo de nuevo.')}}
 
   async function submitRoxyCommand(event){
     event.preventDefault();const input=$('roxyCommand');const command=input.value.trim();if(!command)return;

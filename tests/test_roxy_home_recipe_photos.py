@@ -93,7 +93,7 @@ def test_generation_queue_creates_and_approves_exact_image_once(tmp_path):
     assert queue.public_status()["generated_today"] == 1
 
 
-def test_missing_catalog_photo_endpoint_starts_generation(monkeypatch):
+def test_missing_catalog_photo_endpoint_requires_authorized_generation(monkeypatch):
     from tools import roxy_home_service
 
     class _MissingStore:
@@ -109,8 +109,9 @@ def test_missing_catalog_photo_endpoint_starts_generation(monkeypatch):
     monkeypatch.setattr(roxy_home_service, "_recipe_photo_queue", lambda: _Queue())
     monkeypatch.setattr(roxy_home_service, "exact_local_recipe", lambda title: {"title": title, "editorial_status": "reviewed"})
     roxy_home_service._RATE_STATE.clear()
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "photo-test-key")
     response = TestClient(roxy_home_service.app).get(
-        "/v1/home-food/recipe-photo", params={"title": "Camarones al ajillo"}
+        "/v1/home-food/recipe-photo", params={"title": "Camarones al ajillo"}, headers={"Authorization":"Bearer photo-test-key"}
     )
     assert response.status_code == 202
     assert response.headers["retry-after"] == "5"
@@ -137,8 +138,9 @@ def test_missing_saved_recipe_photo_endpoint_starts_generation(monkeypatch):
             return None
 
     class _FoodStore:
-        def find_saved_recipe_by_title(self, title):
-            return {"title": title, "ingredients": [{"name": "Jamón"}, {"name": "Queso"}]}
+        def snapshot(self, user):
+            assert user == "local_user"
+            return {"recipes":[{"title":"Pizza cubana clásica", "ingredients":[{"name":"Jamón"}, {"name":"Queso"}]}]}
 
     class _Queue:
         def schedule(self, recipe):
@@ -150,8 +152,10 @@ def test_missing_saved_recipe_photo_endpoint_starts_generation(monkeypatch):
     monkeypatch.setattr(roxy_home_service, "_home_food_store", lambda: _FoodStore())
     monkeypatch.setattr(roxy_home_service, "_recipe_photo_queue", lambda: _Queue())
     roxy_home_service._RATE_STATE.clear()
-
-    response = TestClient(roxy_home_service.app).get(
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "photo-test-key")
+    tester = TestClient(roxy_home_service.app, base_url="https://roxy.test")
+    tester.cookies.set(roxy_home_service.SESSION_COOKIE, roxy_home_service._session_cookie("local_user"))
+    response = tester.get(
         "/v1/home-food/recipe-photo", params={"title": "Pizza cubana clásica"}
     )
     assert response.status_code == 202

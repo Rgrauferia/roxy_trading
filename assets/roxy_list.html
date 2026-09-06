@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="166" />
+  <meta name="roxy-home-version" content="167" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
@@ -17,7 +17,8 @@
   <link rel="stylesheet" href="/assets/vendor/maplibre-gl.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_list.css?v=119" />
   <script src="/assets/vendor/maplibre-gl.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=165" defer></script>
+  <script src="/assets/roxy_list.js?v=166" defer></script>
+  <script src="/assets/roxy_home_registration.js?v=1" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -29,6 +30,7 @@
   </header>
 
   <main id="app" aria-busy="true">
+    <aside id="demoTrialBanner" class="family-privacy-card" role="status" hidden></aside>
     <section id="todayPanel" class="app-panel active" data-panel="today" aria-labelledby="mealPlanTitle">
       <section id="upcomingEventCard" class="upcoming-event-card" hidden>
         <span class="material-symbols-rounded" aria-hidden="true">event_upcoming</span>
@@ -741,6 +743,24 @@
         <p id="loginError" class="error" role="alert"></p>
         <button class="primary full" type="submit">Entrar a nuestro hogar</button>
       </form>
+      <button id="openSignup" class="secondary full" type="button" hidden>Crear mi hogar · 5 días gratis</button>
+      <section id="signupPanel" hidden>
+        <h3>Un hogar solo para ti</h3>
+        <p>Cinco días desde el registro, sin tarjeta ni cobro automático. Después podrás consultar lo guardado, sin crear nuevos registros.</p>
+        <p>La demo incluye hasta 5 solicitudes de Roxy por hogar al día, sujetas a disponibilidad. No incluye voz, vídeos ni imágenes generadas a pedido. Algunas funciones siguen en desarrollo.</p>
+        <form id="signupForm" class="kitchen-form">
+          <label><span>Tu nombre</span><input id="signupName" autocomplete="name" maxlength="64" required /></label>
+          <label><span>Elige tu usuario</span><input id="signupUsername" autocomplete="username" minlength="3" maxlength="64" pattern="[a-zA-Z0-9_.@-]+" required /></label>
+          <label><span>Contraseña · mínimo 12 caracteres</span><input id="signupPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required /></label>
+          <label><span>Repite la contraseña</span><input id="signupPasswordRepeat" type="password" autocomplete="new-password" minlength="12" maxlength="128" required /></label>
+          <p>Guarda tu usuario y contraseña. La recuperación automática por correo todavía no está disponible.</p>
+          <label><input id="signupAcknowledged" type="checkbox" required /> Tengo al menos 18 años, he leído la <a href="/privacy" target="_blank" rel="noopener">privacidad</a> y entiendo los límites de esta demo.</label>
+          <div id="signupChallenge"></div>
+          <p id="signupError" class="error" role="alert"></p>
+          <button id="signupSubmit" class="primary full" type="submit" disabled>Crear mi hogar privado</button>
+        </form>
+        <button id="backToLogin" class="quiet-button" type="button">Ya tengo una cuenta</button>
+      </section>
       <details class="legacy-access">
         <summary>Conectar por primera vez con la clave de Home</summary>
         <form id="pairForm" class="kitchen-form">
