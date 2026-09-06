@@ -69,6 +69,7 @@ from roxy_os.home_product_intelligence import HomeProductIntelligence, ProductIn
 from roxy_os.home_food import HomeFoodStore, HomeFoodStorageError, HomePermissionPolicy, RecipeReviewRequired
 from roxy_os.home_pet_catalog import pet_profile_completion, personalized_pet_care_plan, personalized_pet_nutrition_plan, personalized_pet_products, pet_profile_options
 from roxy_os.home_pet_habitats import habitat_plan
+from roxy_os.home_pet_capabilities import pet_capabilities, pet_display_copy
 from roxy_os.home_pet_recipe_safety import resolve_pet, pet_import_context, check_import_profile, validate_pet_import
 from roxy_os.home_price_recommendations import (
     PRICE_NOTICE,
@@ -3646,7 +3647,7 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
                 _schedule_recipe_photo({**meal, "kind": "meal"})
     pets = snapshot.get("pets") or []
     pet_recipe_recommendations = {
-        str(pet.get("id")): personalized_pet_recipe_catalog(pet, snapshot)
+        str(pet.get("id")): pet_display_copy(pet, personalized_pet_recipe_catalog(pet, snapshot))
         # A newly added pet is the profile the household is most likely
         # reviewing now, so its exact recipe artwork enters the queue first.
         for pet in reversed(pets)
@@ -3662,9 +3663,10 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
         **snapshot,
         "pet_options": pet_profile_options(),
         "pet_recommendations": {
-            str(pet.get("id")): personalized_pet_products(pet) for pet in pets if pet.get("id")
+            str(pet.get("id")): pet_display_copy(pet, personalized_pet_products(pet)) for pet in pets if pet.get("id")
         },
         "pet_recipe_recommendations": pet_recipe_recommendations,
+        "pet_capabilities": {str(pet["id"]): pet_capabilities(pet, pet_recipe_recommendations[str(pet["id"])]) for pet in pets if pet.get("id")},
         "pet_habitat_plans": {str(pet["id"]): habitat_plan(pet) for pet in pets if pet.get("id")},
         "pet_care_guides": {
             str(pet["id"]): [row for row in personalized_pet_recipe_catalog(pet, snapshot, include_guides=True)
@@ -3672,10 +3674,10 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
             for pet in pets if pet.get("id")
         },
         "pet_care_plans": {
-            str(pet.get("id")): personalized_pet_care_plan(pet) for pet in pets if pet.get("id")
+            str(pet.get("id")): pet_display_copy(pet, personalized_pet_care_plan(pet)) for pet in pets if pet.get("id")
         },
         "pet_nutrition_plans": {
-            str(pet.get("id")): personalized_pet_nutrition_plan(pet) for pet in pets if pet.get("id")
+            str(pet.get("id")): pet_display_copy(pet, personalized_pet_nutrition_plan(pet)) for pet in pets if pet.get("id")
         },
         "pet_profile_completions": {
             str(pet.get("id")): pet_profile_completion(pet) for pet in pets if pet.get("id")

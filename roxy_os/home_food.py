@@ -22,6 +22,12 @@ from roxy_os.shopping_list import ShoppingListStore, normalize_shopping_user
 
 
 HOME_FOOD_STORE_VERSION = 3
+HOME_COLLECTION_LIMITS = {"recipes": 1000, "cooking_sessions": 2000, "weekly_plans": 260}
+
+
+def _check_collection_capacity(record: dict, key: str) -> None:
+    if len(record.get(key) or []) >= HOME_COLLECTION_LIMITS[key]:
+        raise ValueError("Se alcanzó el límite de almacenamiento de esta colección. No se borró ningún registro; exporta o elimina solo lo que decidas antes de añadir más.")
 
 
 class RecipeReviewRequired(ValueError):
@@ -710,6 +716,7 @@ class HomeFoodStore:
 
         def apply(payload: dict[str, Any]) -> dict[str, Any]:
             record = self._user(payload, user_id)
+            _check_collection_capacity(record, "recipes")
             row = {
                 "id": uuid4().hex,
                 **normalized,
@@ -721,7 +728,7 @@ class HomeFoodStore:
                 "photo_data_url": "",
             }
             record.setdefault("recipes", []).append(row)
-            record["recipes"] = record["recipes"][-100:]
+            # Saved recipes must not disappear as the cookbook grows.
             record["revision"] = int(record.get("revision") or 0) + 1
             return deepcopy(row)
 
@@ -798,6 +805,7 @@ class HomeFoodStore:
 
         def apply(payload: dict[str, Any]) -> dict[str, Any]:
             record = self._user(payload, user_id)
+            _check_collection_capacity(record, "cooking_sessions")
             timestamp = _now_iso()
             for existing in record.get("cooking_sessions", []):
                 if existing.get("status") == "ACTIVE":
@@ -816,7 +824,7 @@ class HomeFoodStore:
                 "timers": [],
             }
             record.setdefault("cooking_sessions", []).append(session)
-            record["cooking_sessions"] = record["cooking_sessions"][-100:]
+            # Keep past sessions; never silently remove progress.
             record["revision"] = int(record.get("revision") or 0) + 1
             return deepcopy(session)
 
@@ -1031,9 +1039,10 @@ class HomeFoodStore:
 
         def apply(payload: dict[str, Any]) -> dict[str, Any]:
             record = self._user(payload, user_id)
+            _check_collection_capacity(record, "weekly_plans")
             row = {"id": uuid4().hex, "created_at": _now_iso(), **deepcopy(plan)}
             record.setdefault("weekly_plans", []).append(row)
-            record["weekly_plans"] = record["weekly_plans"][-20:]
+            # Preserve older weeks instead of silently evicting them.
             record["revision"] = int(record.get("revision") or 0) + 1
             return deepcopy(row)
 

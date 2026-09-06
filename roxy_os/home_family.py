@@ -294,8 +294,18 @@ class HomeFamilyStore:
         latitude = round(float(latitude), 6)
         longitude = round(float(longitude), 6)
         accuracy = round(float(accuracy_m or 0), 1) or None
-        if accuracy is not None and accuracy > 5_000:
+        if not math.isfinite(latitude) or not math.isfinite(longitude) or not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+            raise ValueError("Las coordenadas no son válidas.")
+        if accuracy is not None and (not math.isfinite(accuracy) or accuracy < 0 or accuracy > 5_000):
             raise ValueError("La ubicación es demasiado imprecisa para compartirla.")
+        measured_at = datetime.now(timezone.utc)
+        if recorded_at:
+            try:
+                measured_at = datetime.fromisoformat(str(recorded_at).replace("Z", "+00:00"))
+                if measured_at.tzinfo is None or measured_at > datetime.now(timezone.utc) + timedelta(minutes=1):
+                    raise ValueError
+            except (ValueError, TypeError):
+                raise ValueError("La fecha de la ubicación no es válida.") from None
         speed = None if speed_mps is None else max(0.0, min(120.0, round(float(speed_mps), 2)))
         heading = None if heading_deg is None else round(float(heading_deg) % 360, 1)
         altitude = None if altitude_m is None else round(float(altitude_m), 1)
@@ -304,10 +314,17 @@ class HomeFamilyStore:
             household = self._household(value, household_id)
             member = household.setdefault("members", {}).setdefault(member_id, {})
             previous = deepcopy(member.get("location"))
-            current_place = self._place_for(household, latitude, longitude)
+            if previous:
+                try:
+                    previous_at = datetime.fromisoformat(str(previous.get("recorded_at", "")).replace("Z", "+00:00"))
+                    if measured_at < previous_at:
+                        return {"location": previous, "alert": None, "ignored": "OLDER_POSITION"}
+                except (ValueError, TypeError):
+                    pass
+            current_place = self._place_for(household, latitude, longitude, accuracy_m=accuracy)
             previous_place = None
             if previous:
-                previous_place = self._place_for(household, float(previous["latitude"]), float(previous["longitude"]))
+                previous_place = self._place_for(household, float(previous["latitude"]), float(previous["longitude"]), accuracy_m=previous.get("accuracy_m"))
             moment = _now()
             point = {
                 "latitude": latitude,
@@ -316,7 +333,7 @@ class HomeFamilyStore:
                 "altitude_m": altitude,
                 "speed_mps": speed,
                 "heading_deg": heading,
-                "recorded_at": _text(recorded_at, 40) or moment,
+                "recorded_at": measured_at.isoformat(),
                 "received_at": moment,
                 "source": "FOREGROUND_WEB",
             }
@@ -329,7 +346,7 @@ class HomeFamilyStore:
                         "place_id": current_place.get("id") if current_place else "",
                         "place_name": current_place.get("name") if current_place else "",
                     },
-                    "status": f"En {current_place['name']}" if current_place else "Ubicación compartida ahora",
+                    "status": f"En {current_place['name']}" if current_place else "Ubicación aproximada" if accuracy is None or accuracy > 100 else "Ubicación compartida ahora",
                     "updated_at": moment,
                 }
             )
@@ -340,7 +357,9 @@ class HomeFamilyStore:
                 history.append(point)
             member["history"] = history[-2_000:]
             alert = None
-            if previous_place and previous_place.get("kind") == "WORK" and not current_place and shopping_pending > 0:
+            definitely_outside = bool(previous_place and accuracy is not None and
+                _distance_m(latitude, longitude, float(previous_place["latitude"]), float(previous_place["longitude"])) - accuracy > float(previous_place.get("radius_m") or 200))
+            if previous_place and previous_place.get("kind") == "WORK" and definitely_outside and not current_place and shopping_pending > 0:
                 alert = {
                     "id": uuid4().hex,
                     "member_id": member_id,
@@ -363,11 +382,13 @@ class HomeFamilyStore:
         return deepcopy((member.get("history") or [])[-max(1, min(int(limit), 2_000)):])
 
     @staticmethod
-    def _place_for(household: dict[str, Any], latitude: float, longitude: float) -> dict[str, Any] | None:
+    def _place_for(household: dict[str, Any], latitude: float, longitude: float, *, accuracy_m: float | None = None) -> dict[str, Any] | None:
+        if accuracy_m is None or not math.isfinite(float(accuracy_m)) or float(accuracy_m) <= 0:
+            return None  # Unknown precision cannot establish entry into a place.
         candidates = []
         for place in household.get("places", {}).values():
             distance = _distance_m(latitude, longitude, float(place["latitude"]), float(place["longitude"]))
-            if distance <= float(place.get("radius_m") or 200):
+            if distance + float(accuracy_m) <= float(place.get("radius_m") or 200):
                 candidates.append((distance, place))
         return deepcopy(min(candidates, key=lambda row: row[0])[1]) if candidates else None
 

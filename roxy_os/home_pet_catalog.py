@@ -43,7 +43,7 @@ EXACT_SPECIES = {
     "rabbit": ["Holland Lop", "Mini Lop", "Netherland Dwarf", "Lionhead", "Rex", "Mini Rex", "Dutch", "Flemish Giant", "English Angora", "Mestizo / no sé"],
     "guinea_pig": ["American", "Abyssinian", "Peruvian", "Silkie", "Teddy", "Texel", "Skinny", "Mestiza / no sé"],
     "hamster": ["Sirio", "Enano ruso Campbell", "Enano Winter White", "Roborovski", "Chino", "No sé"],
-    "ferret": ["Hurón doméstico", "No sé"],
+    "ferret": ["Ferret", "No sé"],
     "small_mammal": ["Rata doméstica", "Ratón doméstico", "Gerbo de Mongolia", "Chinchilla", "Degú", "Erizo pigmeo africano", "Petauro del azúcar", "Perrito de la pradera", "Otro pequeño mamífero"],
     "invertebrate": ["Tarántula", "Escorpión", "Milpiés", "Mantis religiosa", "Insecto palo", "Cucaracha de Madagascar", "Cangrejo ermitaño", "Camarón de acuario", "Caracol terrestre", "Caracol acuático", "Isópodos", "Otro invertebrado"],
     "farm_pet": ["Cerdo miniatura", "Cabra", "Oveja", "Gallina", "Pato", "Ganso", "Pavo", "Codorniz", "Alpaca", "Caballo", "Burro", "Otro animal de granja"],
@@ -732,6 +732,29 @@ PET_BREED_INFORMATION = {
 }
 PET_BREED_INFORMATION["bernesemountaindog"] = PET_BREED_INFORMATION["bernesemountain"]
 PET_BREED_INFORMATION["ferret"] = PET_BREED_INFORMATION["hurondomestico"]
+PET_BREED_INFORMATION["pitonbola"] = {
+    "display_name": "Pitón bola · Python regius",
+    "life_expectancy": "20 años o más en cautividad; no es una predicción individual",
+    "characteristics": "{pet_name} es una pitón de actividad principalmente crepuscular. Necesita refugios, un recinto seguro donde pueda estirarse y zonas con distintas temperaturas; no se aplica el plan de un gecko.",
+    "common_health": "Vigila pérdida de peso, respiración anormal, heridas, quemaduras o muda retenida. Son señales para consultar, no un diagnóstico de {pet_name}.",
+    "feeding": "La base habitual son roedores enteros previamente congelados y descongelados de manera segura. Confirma tamaño de presa e intervalo con el especialista; no se sustituye por platos caseros ni carne suelta.",
+    "frequency": "Adultos: referencia de 7–14 días entre comidas, ajustada al peso y plan profesional",
+    "fun_fact": "Cuando se siente amenazada puede enrollarse en una bola: de ahí el nombre de su especie en el uso cotidiano.",
+    "source_label": "RSPCA · ficha de Python regius",
+    "source_url": "https://www.rspca.org.uk/documents/1494939/7712578/Royal%2Bpython%2Bcare%2Bsheet%2B%28PDF%2B322KB%29.pdf/90f319f3-4349-434c-bf82-6d7a3c4c872e",
+}
+for _alias in ("pythonregius", "ballpython", "royalpython", "pitonreal"):
+    PET_BREED_INFORMATION[_alias] = PET_BREED_INFORMATION["pitonbola"]
+
+INFORMATION_SPECIES = {
+    **dict.fromkeys(("bernesemountain", "bernesemountaindog"), "dog"),
+    **dict.fromkeys(("hurondomestico", "ferret"), "ferret"),
+    "mainecoon": "cat", "bettasplendens": "fish", "periquitoaustraliano": "bird",
+    "geckoleopardo": "reptile", "hollandlop": "rabbit", "american": "guinea_pig",
+    "sirio": "hamster", "ajolote": "amphibian", "chinchilla": "small_mammal",
+    "tarantula": "invertebrate", "cerdominiatura": "farm_pet",
+    **dict.fromkeys(("pitonbola", "pythonregius", "ballpython", "royalpython", "pitonreal"), "reptile"),
+}
 
 PET_FEEDING_FREQUENCY = {
     "dog": "Adultos: normalmente 2 veces al día",
@@ -910,7 +933,7 @@ def personalized_pet_care_plan(pet: dict[str, Any]) -> dict[str, Any]:
         character for character in unicodedata.normalize("NFKD", exact).encode("ascii", "ignore").decode("ascii").casefold()
         if character.isalnum()
     )
-    breed_information = PET_BREED_INFORMATION.get(breed_key)
+    breed_information = PET_BREED_INFORMATION.get(breed_key) if INFORMATION_SPECIES.get(breed_key) == species else None
     if breed_information:
         information.update({
             key: str(value).format(pet_name=str(pet.get("name") or "tu mascota"))
@@ -920,6 +943,14 @@ def personalized_pet_care_plan(pet: dict[str, Any]) -> dict[str, Any]:
         information["scope"] = "breed" if species in {"dog", "cat"} else "exact_species"
         source_label = str(breed_information["source_label"])
         source_url = str(breed_information["source_url"])
+        if breed_key in {"pitonbola", "pythonregius", "ballpython", "royalpython", "pitonreal"} and pet.get("life_stage") != "adult":
+            information["frequency"] = "Intervalo por confirmar para su etapa y peso; no se asigna una frecuencia diaria"
+    else:
+        information["scope"] = "group"
+        information["coverage_notice"] = "Esta ficha ofrece orientación del grupo; la información de esta raza o especie exacta todavía requiere revisión. No son conclusiones individuales sobre su salud."
+        if species not in {"dog", "cat", "ferret", "rabbit", "guinea_pig", "hamster"}:
+            information["life_expectancy"] = "Referencia para la especie exacta pendiente"
+            information["frequency"] = "Plan específico por confirmar; no se fija una frecuencia automática"
     if species == "bird":
         from roxy_os.home_pet_habitats import bird_diet_group, habitat_plan
         group = bird_diet_group(pet)

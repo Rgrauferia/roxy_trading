@@ -81,6 +81,8 @@ QUESTIONS = {
 def habitat_questions(pet: dict) -> list[dict]:
     species = pet.get("species")
     rows = deepcopy(COMMON + QUESTIONS.get(species, QUESTIONS["default"]))
+    if species == "fish":
+        rows.insert(0, {"key": "inhabitants", "label": "Habitantes del acuario", "kind": "inhabitants"})
     if species == "amphibian" or (species == "invertebrate" and any(t in exact_identity(pet) for t in ("acu", "camaron", "shrimp"))):
         rows += deepcopy(QUESTIONS["fish"])
     return list({row["key"]: row for row in rows}.values())
@@ -95,7 +97,10 @@ def validate_observations(pet: dict, values: Any) -> dict:
         if key not in fields:
             raise ValueError("Ese dato no corresponde al hábitat de esta mascota.")
         field = fields[key]
-        if value is None or value == "":
+        if field["kind"] == "inhabitants":
+            from roxy_os.home_aquarium import validate_inhabitants
+            clean[key] = validate_inhabitants(value)
+        elif value is None or value == "":
             clean[key] = None
         elif field["kind"] == "number":
             try:
@@ -140,6 +145,12 @@ def habitat_plan(pet: dict) -> dict:
         source(*SOURCES[species])
     coverage = "group_guidance"
     if species == "fish":
+        from roxy_os.home_aquarium import aquarium_assessment
+        assessment = aquarium_assessment(values)
+        alerts.extend(assessment["alerts"])
+        sources.extend(assessment["sources"])
+        add("Tu población y el espacio", assessment["capacity_note"])
+        add("Antes de añadir compañeros", assessment["compatibility_note"])
         add("Agua y mantenimiento", "Registra mediciones reales: agua transparente no demuestra que esté segura. La filtración biológica y los cambios parciales no se sustituyen entre sí. La frecuencia y el volumen de cada cambio se ajustan a las pruebas, al acuario y a sus habitantes; no vacíes todo ni laves el material biológico con agua clorada.")
         add("Espacio y convivencia", "El tamaño adulto, número de peces, necesidad de cardumen, territorio y filtración importan. Roxy no aplica una regla universal de litros por pez ni confirma compatibilidad con nombres incompletos. Antes de añadir compañeros, confirma sus requisitos y el espacio disponible.")
         add("Productos para el agua", "Antes de elegir acondicionador, filtro o test, confirma agua dulce, marina o salobre y volumen real. No mezcles tratamientos ni añadas sal, medicamentos o reguladores de pH sin una indicación específica.")
@@ -154,7 +165,7 @@ def habitat_plan(pet: dict) -> dict:
             add("Betta: espacio y compañeros", "Planifica al menos 20 L para un betta, con filtración y temperatura estable; más agua no garantiza convivencia. Dos machos no deben compartir acuario. Otros compañeros requieren evaluación individual: no hay una lista universal de compañeros seguros.")
             if values.get("volume_l") is not None and values["volume_l"] < 20:
                 alerts.append("El volumen guardado está por debajo del objetivo de 20 L para un betta. Revisa una ampliación con un especialista.")
-            if values.get("residents", 1) > 1 or values.get("companions"):
+            if (values.get("residents") or assessment["count"] or 1) > 1 or values.get("companions"):
                 alerts.append("Convivencia del betta pendiente de revisión: cantidad, especie y sexo de todos los habitantes son necesarios.")
         elif "goldfish" in exact or "carassius" in exact:
             source("RSPCA · elegir acuario", "https://www.rspca.org.uk/adviceandwelfare/pets/fish/environment")
@@ -186,6 +197,9 @@ def habitat_plan(pet: dict) -> dict:
     elif species == "reptile":
         add("Clima medido, no estimado", "Mide las zonas cálida y fresca por separado, además de humedad. No uses la temperatura exterior del clima como lectura del terrario. Protege las fuentes de calor y contrólalas con termostato.")
         add("Luz, alimento y convivencia", "UVB, distancia, malla, refugios y suplementos dependen de la especie. No copies el plan de una tortuga a una serpiente o un gecko. No mezcles especies ni cambies dosis de calcio o vitaminas sin revisar el plan.")
+        if any(term in exact for term in ("serpiente", "snake", "piton", "python", "boa constrictor", "pantherophis")):
+            add("Serpientes: alimentación, no recetas", "Necesitan una dieta propia de su especie; para muchas serpientes de compañía se utilizan presas enteras apropiadas, no platos caseros ni carne suelta como dieta completa. El tipo, tamaño e intervalo dependen de especie, edad y condición. No se programa automáticamente una comida diaria. Evita presas vivas que puedan lesionarla y confirma el manejo seguro con su veterinario.")
+            source("VCA · alimentación de serpientes", "https://vcahospitals.com/know-your-pet/snakes-feeding")
         if "gecko leopardo" in exact or "eublepharis macularius" in exact:
             coverage = "exact_species"
             source("RSPCA · gecko leopardo", GECKO_SOURCE)

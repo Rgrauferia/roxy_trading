@@ -8,16 +8,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="165" />
+  <meta name="roxy-home-version" content="166" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
   <link rel="stylesheet" href="/assets/vendor/maplibre-gl.css?v=1" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=118" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=119" />
   <script src="/assets/vendor/maplibre-gl.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=164" defer></script>
+  <script src="/assets/roxy_list.js?v=165" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -180,6 +180,7 @@
             </div>
           </section>
           <div class="family-map-actions">
+            <button id="familyTrafficToggle" type="button" aria-label="Mostrar tráfico de Google" aria-pressed="false" title="Tráfico de Google · según cobertura"><span class="material-symbols-rounded" aria-hidden="true">traffic</span></button>
             <button id="familyMapLayers" type="button" aria-label="Cambiar estilo del mapa"><span class="material-symbols-rounded" aria-hidden="true">layers</span></button>
             <button id="familyMapLocate" type="button" aria-label="Centrar mi ubicación"><span class="material-symbols-rounded" aria-hidden="true">my_location</span></button>
           </div>
@@ -402,6 +403,10 @@
       <section id="recipeCatalogSection" class="content-section recipe-catalog-section" role="region" aria-labelledby="libraryTitle">
         <div class="section-heading"><div><p id="recipeLibraryEyebrow">Incluidas y disponibles</p><h2 id="libraryTitle">Recetario de Roxy</h2><small id="recipeLibraryHint">Abre una receta para revisarla antes de guardarla</small></div><span id="recipeCount">0 recetas</span></div>
         <label class="recipe-search"><span class="material-symbols-rounded" aria-hidden="true">search</span><input id="recipeSearch" type="search" aria-label="Buscar recetas" placeholder="Buscar huevos, pollo, café…" autocomplete="off" /></label>
+        <div id="recipeEditorialFilters" class="pet-medical-actions" role="group" aria-label="Estado del recetario">
+          <button id="recipeReadyShelf" type="button" class="secondary" aria-pressed="true">Recetas</button>
+          <button id="recipeDraftShelf" type="button" class="secondary" aria-pressed="false">Propuestas por revisar</button>
+        </div>
         <div id="recipeFilters" class="recipe-filters" role="group" aria-label="Categorías de recetas"></div>
         <div id="petRecipeImportActions" class="pet-medical-actions" hidden>
           <button id="petImportText" type="button" class="secondary">Pegar receta de una publicación</button>
@@ -603,7 +608,7 @@
       <fieldset class="pet-profile-step" data-pet-step="1">
         <legend>¿Quién vive contigo?</legend>
         <label class="pet-photo-field"><input id="petProfilePhoto" type="file" accept="image/jpeg,image/png,image/webp" /><span id="petPhotoPreview"><span class="material-symbols-rounded" aria-hidden="true">add_a_photo</span><strong>Añadir foto</strong></span></label>
-        <label><span>Tipo de mascota</span><select id="petProfileSpecies" required><option value="">Selecciona</option><option value="dog">Perro</option><option value="cat">Gato</option><option value="ferret">Hurón</option><option value="rabbit">Conejo</option><option value="guinea_pig">Cobaya</option><option value="hamster">Hámster</option><option value="small_mammal">Otro pequeño mamífero</option><option value="bird">Ave</option><option value="fish">Pez</option><option value="reptile">Reptil</option><option value="amphibian">Anfibio</option><option value="invertebrate">Invertebrado</option><option value="farm_pet">Mascota de granja</option><option value="other">Otra especie</option></select></label>
+        <label><span>Tipo de mascota</span><select id="petProfileSpecies" required><option value="">Selecciona</option><option value="dog">Perro</option><option value="cat">Gato</option><option value="ferret">Ferret</option><option value="rabbit">Conejo</option><option value="guinea_pig">Cobaya</option><option value="hamster">Hámster</option><option value="small_mammal">Otro pequeño mamífero</option><option value="bird">Ave</option><option value="fish">Pez</option><option value="reptile">Reptil</option><option value="amphibian">Anfibio</option><option value="invertebrate">Invertebrado</option><option value="farm_pet">Mascota de granja</option><option value="other">Otra especie</option></select></label>
         <label><span>Nombre</span><input id="petProfileName" maxlength="40" required placeholder="Ej. Luna" /></label>
         <label><span id="petExactSpeciesLabel">Especie exacta</span><input id="petProfileExactSpecies" list="petExactSpeciesOptions" maxlength="100" placeholder="Ej. Betta splendens" /></label>
         <datalist id="petExactSpeciesOptions"></datalist>

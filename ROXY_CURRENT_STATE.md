@@ -1,9 +1,18 @@
 # Roxy Home — estado operativo
 
-Actualizado: 2026-09-05. Este documento pertenece exclusivamente a la rama Home.
+Actualizado: 2026-09-06. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
 ## Ubicación y despliegue
+
+Bloque 166 implementado y validado localmente, pendiente de comprobar en público:
+capacidades de mascotas, acuario estructurado, fix HTTP 500 por campos vacíos,
+Ferret visible sin renombrar datos, recetas humanas/borradores separados,
+conservación de recetas antiguas, Nexo precisión/tráfico/lluvia/radar.
+502 pruebas Home/compras aprobadas. Ver `reports/home_demo_readiness_20260906.md`.
+Roberto eligió **registro abierto a cualquiera**, hogar privado por participante
+y demo de 5 días; registro/expiración/límites todavía no implementados ni abiertos.
+No aumentar gasto ni cambiar facturación. Voz continúa pendiente por `payment_issue`.
 
 - Worktree: `/Users/robertograu/.codex/worktrees/roxy-home-renueva`.
 - Rama local: `codex/roxy-home-renueva`; destino de despliegue: `origin/codex/roxy-home-nfc`.
