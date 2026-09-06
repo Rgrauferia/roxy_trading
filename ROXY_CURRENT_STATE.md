@@ -27,9 +27,10 @@ No aumentar gasto ni cambiar facturación. Voz continúa pendiente por `payment_
 - Rama local: `codex/roxy-home-renueva`; destino de despliegue: `origin/codex/roxy-home-nfc`.
 - URL: https://roxy-home.onrender.com/lista#mascotas.
 - Servicio Render: `roxy-home`, `srv-da0l3vs9v7es739kcmd0`, montaje persistente `/var/data`.
-- Versión pública comprobada: 167, commit de implementación `ce2fd3f53`.
-  Candidato 168 aún sin desplegar; 517 tests Home/compras aprobados y regresión
-  adicional de botones de zoom, sin llamadas de ubicación.
+- Versión pública comprobada: 168, commit de implementación `4483532ed`.
+  Zoom separado y transición al globo verificados. Candidato 169 corrige validación
+  de rutas opacas de RainViewer: datos recientes existían, pero se rechazaban al
+  esperar rutas con timestamps. Mantiene validación de host, formato y frescura.
 
 ## Cambio confirmado en infraestructura
 

@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '168';
+  const APP_VERSION = '169';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -1441,8 +1441,10 @@ rows.forEach(product=>{const card=document.createElement('article');card.classNa
     }finally{clearTimeout(timeout)}
   }
   function validatedFamilyRadarMetadata(metadata,now=Date.now()){
-    if(metadata.host!=='https://tilecache.rainviewer.com')throw new Error('Servidor de radar no reconocido');
-    const frames=[...new Map((Array.isArray(metadata.radar?.past)?metadata.radar.past:[]).filter(frame=>Number.isFinite(frame.time)&&/^\/v2\/radar\/\d+$/.test(frame.path)&&frame.path===`/v2/radar/${frame.time}`&&frame.time*1000<=now+300000&&now-frame.time*1000<=9000000).map(frame=>[frame.time,{time:frame.time,path:frame.path}])).values()].sort((a,b)=>a.time-b.time).slice(-13);
+    if(metadata?.host!=='https://tilecache.rainviewer.com')throw new Error('Servidor de radar no reconocido');
+    // RainViewer paths are opaque frame IDs, including hashes, not timestamps.
+    // Use the supplied safe path; validate chronology using its separate time.
+    const frames=[...new Map((Array.isArray(metadata.radar?.past)?metadata.radar.past:[]).filter(frame=>frame&&Number.isFinite(frame.time)&&/^\/v2\/radar\/[a-zA-Z0-9_-]{1,128}$/.test(frame.path)&&frame.time*1000<=now+300000&&now-frame.time*1000<=9000000).map(frame=>[frame.time,{time:frame.time,path:frame.path}])).values()].sort((a,b)=>a.time-b.time).slice(-13);
     if(!frames.length||now-frames.at(-1).time*1000>1800000)throw new Error('No hay observaciones recientes de radar');
     return {host:metadata.host,frames};
   }

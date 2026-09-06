@@ -178,6 +178,11 @@ const now=1800000000000, latest=Math.floor(now/1000);
 const frames=Array.from({length:13},(_,i)=>({time:latest-i*600,path:'/v2/radar/'+(latest-i*600)}));
 const valid=validatedFamilyRadarMetadata({host:'https://tilecache.rainviewer.com',radar:{past:frames}},now);
 if(valid.frames.length!==13||valid.frames[0].time>=valid.frames[12].time)throw Error('timeline');
+const hashed=validatedFamilyRadarMetadata({host:'https://tilecache.rainviewer.com',radar:{past:[null,{time:latest,path:'/v2/radar/f31d06902b68'}]}},now);
+if(hashed.frames.length!==1||hashed.frames[0].path!=='/v2/radar/f31d06902b68')throw Error('rejected current opaque API path');
+for(const path of ['/v2/radar/../../private','https://untrusted.example/tile','/v2/radar/123?secret=x','/v2/radar/123/other']){
+ let rejected=false;try{validatedFamilyRadarMetadata({host:'https://tilecache.rainviewer.com',radar:{past:[{time:latest,path}]}},now)}catch(e){rejected=true}if(!rejected)throw Error('accepted unsafe frame path');
+}
 for(const bad of [{host:'https://untrusted.example',radar:{past:frames}},{host:'https://tilecache.rainviewer.com',radar:{past:[{time:latest-7200,path:'/v2/radar/'+(latest-7200)}]}}]){
  let rejected=false;try{validatedFamilyRadarMetadata(bad,now)}catch(e){rejected=true}if(!rejected)throw Error('accepted stale/unknown radar');
 }

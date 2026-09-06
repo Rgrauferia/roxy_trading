@@ -3,9 +3,9 @@
   "updated_on": "2026-09-06",
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#mascotas",
-  "last_verified_public_version": 167,
-  "deployed_implementation_commit": "ce2fd3f53",
-  "candidate_version": 168,
+  "last_verified_public_version": 168,
+  "deployed_implementation_commit": "4483532ed",
+  "candidate_version": 169,
   "candidate_status": "locally_verified_pending_deploy",
   "storage": {
     "authorized_gb": 10,
@@ -25,14 +25,14 @@
       "Luna"
     ],
     "public_versions": {
-      "html": 167,
-      "app": 167,
-      "js": 166,
-      "css": 119,
-      "service_worker": 163
+      "html": 168,
+      "app": 168,
+      "js": 167,
+      "css": 120,
+      "service_worker": 164
     },
     "public_recipe_image_loaded": "ferret_turkey_mini_medallions.webp",
-    "public_assets_byte_identical": false,
+    "public_assets_byte_identical": true,
     "public_nexo_members_visible": [
       "Robert",
       "Roxy"
@@ -49,10 +49,11 @@
       "pending": 0,
       "generated_today": 42
     },
-    "public_nexo_map": "Google_map_and_TrafficLayer_visible_167",
+    "public_nexo_map": "Google_map_custom_zoom_15_to_5_and_automatic_globe_verified",
     "luna_display_name": "Ferret_verified_public_166",
     "public_signup_enabled": false,
-    "gps_test_incident": "Covered_native_zoom_clicked_share; browser_denied; viewer_remained_private; no_saved_preference_or_history_deleted"
+    "gps_test_incident": "Covered_native_zoom_clicked_share; browser_denied; viewer_remained_private; no_saved_preference_or_history_deleted",
+    "radar": "168_rejected_real_opaque_paths; fixed_169_pending_deploy"
   },
   "known_issues": [
     "Luna thumbnail observed in public selector; original photo/profile recovery still unverified",
@@ -65,7 +66,7 @@
     "Full UI audit still incomplete: garden/design end-to-end, pantry/settings, public integrations",
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed"
   ],
-  "next_step": "Deploy and verify 168 (separated map zoom/location controls and compact demo banner). Public registration stays disabled until real Turnstile, full signup/support and feature scope are verified. Resolve ElevenLabs billing/access; finish remaining content/photos and module checks.",
+  "next_step": "Deploy and verify 169 live radar paths, playback and globe roundness. Keep public signup disabled pending real Turnstile, full registration/support and demo scope checks. Remaining photo/editorial work, veterinary partnerships and ElevenLabs billing/access are not complete.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",
@@ -76,19 +77,19 @@
   },
   "candidate_verification": {
     "node_check": "passed",
-    "pytest_passed": 517,
-    "html": 168,
-    "app": 168,
-    "js": 167,
+    "pytest_passed": 518,
+    "html": 169,
+    "app": 169,
+    "js": 168,
     "css": 120,
-    "service_worker": 164,
+    "service_worker": 165,
     "audit": "reports/home_demo_readiness_20260906.md",
     "catalog_audit": "reports/home_catalog_audit_20260905.json",
     "literal_local_assets_checked": 105,
     "qa_text_conversation": "verified",
     "qa_shopping_create": "verified",
     "qa_calendar_create": "verified",
-    "remaining_ui": "public_168_zoom_and_globe; real_registration_requires_Turnstile",
+    "remaining_ui": "public_169_radar_playback_and_return_to_map; real_registration_requires_Turnstile",
     "known_wrong_photo_quarantined": "Aderezo César",
     "qa_server": "isolated_8767_running",
     "qa_profiles": 17,
@@ -98,7 +99,13 @@
     "qa_trial_empty_household": "verified",
     "qa_rejected_session_hides_cache": "verified",
     "qa_trial_banner_screenshot": "/tmp/roxy-demo-proof.rF8h6c/04-private-trial-fixed.png",
-    "zoom_button_regression": "passed"
+    "zoom_button_regression": "passed",
+    "live_radar_contract": {
+      "frames": 13,
+      "latest_age_minutes": 10,
+      "tile_http": 200,
+      "png": true
+    }
   },
   "public_registration": {
     "enabled": false,

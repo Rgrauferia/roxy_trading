@@ -122,6 +122,18 @@ El aviso de demo usa su propio bloque compacto (el componente reutilizado de
 privacidad tenía una primera columna estrecha). Captura local revisada:
 `/tmp/roxy-demo-proof.rF8h6c/04-private-trial-fixed.png`.
 
+168 comprobado públicamente: cinco archivos principales idénticos al worktree;
+botones de zoom y ubicación reciben sus propios clics (`elementFromPoint`). Zoom
+15→14→6→5 verificado; transición automática al globo correcta, sin activar GPS.
+RainViewer se mostraba indisponible por una validación incorrecta introducida en
+166: exigía que `path` contuviese el timestamp. La API real del 6 de septiembre
+entrega rutas opacas como `/v2/radar/f31d06902b68`. 169 acepta segmentos seguros
+alfanuméricos y valida la frescura con `time`, manteniendo host HTTPS y bloqueo de
+traversal/query/hosts alternativos. Regresión con hash real y entradas maliciosas.
+
+Validación 169: **518 pruebas Home/compras aprobadas**, JS/SW válidos. Contrato en
+vivo: 13 fotogramas aceptados, último de 10 minutos, tile HTTP 200 con firma PNG.
+
 ## Colaboraciones: fuentes oficiales comprobadas, no acuerdos cerrados
 
 - [Petco afiliados](https://www.petco.com/affiliate): solicitud mediante Impact.
