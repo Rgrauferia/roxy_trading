@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '164';
+  const APP_VERSION = '165';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -299,6 +299,8 @@
   const recipeImage = recipe => {
     if (recipe && /^data:image\/(jpeg|png|webp);base64,/.test(String(recipe.photo_data_url || ''))) return recipe.photo_data_url;
     const title=String(recipe&&recipe.title||'').trim();
+    // Existing cached artwork shows a salad, not the dressing (audit 2026-09-05).
+    if(title.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()==='aderezo cesar')return'';
     if(recipe?.photo_asset_verified&&/^\/assets\/roxy_home\/recipes\/pets\//.test(String(recipe.photo_asset||'')))return recipe.photo_asset;
     if (recipe && recipe.audience === 'pet') return title?`/v1/home-food/recipe-photo?v=5&title=${encodeURIComponent(title)}`:'';
     if (recipe && /^\/assets\//.test(String(recipe.photo_asset || ''))) return recipe.photo_asset;
@@ -314,7 +316,7 @@
       for(const target of observedRecipeImages.keys()){if(!target.isConnected){recipeImageObserver.unobserve(target);observedRecipeImages.delete(target)}}
       observedRecipeImages.set(image,{recipe,host,hideOnMissing});recipeImageObserver.observe(image);return;
     }
-    const url=recipeImage(recipe);if(!url){if(hideOnMissing)image.hidden=true;else{image.remove();host&&host.classList.add('no-photo')}return}
+    const url=recipeImage(recipe);if(!url){image.hidden=true;if(!hideOnMissing){image.remove();host&&host.classList.add('no-photo')}return}
     const markMissing=()=>{image.classList.remove('recipe-image-loading');if(hideOnMissing)image.hidden=true;else{image.remove();host&&host.classList.add('no-photo')}};
     image.addEventListener('error',markMissing,{once:true});
     if(url.startsWith('data:image/')||url.startsWith('/assets/')){image.src=url;return}
@@ -963,7 +965,7 @@
     }else catalogSection.hidden=false;
     $('recipeLibraryEyebrow').textContent=petMode?'Adaptado a su perfil':'Incluidas y disponibles';
     $('libraryTitle').textContent=petMode?'Alimentación complementaria':'Recetario de Roxy';
-    $('recipeLibraryHint').textContent=petMode?'Solo preparaciones compatibles. Los cuidados y protocolos están en Información; los premios no sustituyen su alimento completo.':'Toca una receta incluida para guardarla en tu carpeta';
+    $('recipeLibraryHint').textContent=petMode?'Solo preparaciones compatibles. Los cuidados y protocolos están en Información; los premios no sustituyen su alimento completo.':'Abre una receta para revisarla antes de guardarla';
     $('recipeSearch').placeholder=petMode?'Buscar una preparación…':'Buscar huevos, pollo, café…';
     if(recipeAudience==='human')[...recipeCategories,{id:'favorite',title:'Favoritas',icon:'favorite'}].forEach(category=>{const button=document.createElement('button');button.type='button';button.className=`recipe-filter-card${recipeFilter===category.id?' active':''}`;button.dataset.recipeFilter=category.id;if(category.icon){const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.setAttribute('aria-hidden','true');icon.textContent=category.icon;button.append(icon)}const label=document.createElement('span');label.textContent=category.title;button.append(label);button.addEventListener('click',()=>{recipeFilter=category.id;renderRecipes()});filters.append(button)});
     else [{id:'all',title:'Todas',icon:'apps'},{id:'treat',title:'Premios',icon:'cookie'},{id:'favorite',title:'Favoritas',icon:'favorite'}].forEach(category=>{const button=document.createElement('button');button.type='button';button.className=`recipe-filter-card${petRecipeFilter===category.id?' active':''}`;const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.setAttribute('aria-hidden','true');icon.textContent=category.icon;const label=document.createElement('span');label.textContent=category.title;button.append(icon,label);button.addEventListener('click',()=>{petRecipeFilter=category.id;renderRecipes()});filters.append(button)});

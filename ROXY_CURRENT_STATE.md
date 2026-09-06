@@ -9,8 +9,8 @@ No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 - Rama local: `codex/roxy-home-renueva`; destino de despliegue: `origin/codex/roxy-home-nfc`.
 - URL: https://roxy-home.onrender.com/lista#mascotas.
 - Servicio Render: `roxy-home`, `srv-da0l3vs9v7es739kcmd0`, montaje persistente `/var/data`.
-- Versión pública comprobada: 163, commit de implementación `37610afd7`.
-  La versión anterior era 162 (`479397228`).
+- Versión pública comprobada: 164, commit de implementación `9ed2afd68`.
+  La versión anterior era 163 (`37610afd7`). Candidato adicional 165 pendiente.
 
 ## Cambio confirmado en infraestructura
 
@@ -94,9 +94,11 @@ Se verificó un respaldo previo de 598K en
   todavía no diseñada ni implementada. PostgreSQL y multimedia separada son
   recomendaciones, no contrataciones ni migraciones realizadas.
 
-## Candidato 164 — auditoría completa solicitada, primer bloque de reparaciones
+## Versión 164 — primer bloque de auditoría desplegado y comprobado
 
-- Aún no desplegado al escribir este bloque. HTML/APP 164, JS 163, CSS 118, SW 160.
+- HTML/APP 164, JS 163, CSS 118, SW 160. Públicos e idénticos a los archivos locales
+  comprobados; health ok. DOM: Bella/Luna presentes, ambos integrantes Nexo y
+  separación de recetas. Capturas y límites en el informe de auditoría.
 - 350 tests Home + Shopping aprobados; node --check JS/SW y git diff --check.
 - Auditoría por módulo y pendientes: reports/home_full_audit_20260905.md.
 - Inventario automatizado completo: 668 fichas (517 humanas, 57 preparaciones para
@@ -112,6 +114,16 @@ Se verificó un respaldo previo de 598K en
 - UI pública inicial recorrida, escrituras sólo en QA aislada. Alta de producto y
   evento verificadas; automatización bloqueada al intentar confirmación nativa de
   eliminar evento ficticio. No dar por completados los recorridos UI restantes.
+
+## Candidato 165 — cuarentena de una foto incorrecta
+
+- En público 164, Aderezo César mostraba una ensalada, no el aderezo. Se bloquea
+  exclusivamente esa asociación en servidor y cliente, sin borrar el archivo ni
+  sustituirlo por otra foto genérica. Requiere imagen revisada antes de desbloquear.
+- Se corrige el aviso de abrir/revisar antes de guardar. HTML/APP 165, JS 164,
+  CSS 118, SW 161. 352 tests aprobados y node --check JS/SW. Pendiente desplegar.
+- Despensa y Más inspeccionados en público después de 164; pendientes sus cambios
+  interactivos. Servidor QA detenido; no se dejaron mascotas ficticias en producción.
 
 ## Continuidad
 

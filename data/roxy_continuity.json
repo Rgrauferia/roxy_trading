@@ -3,9 +3,9 @@
   "updated_on": "2026-09-05",
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#mascotas",
-  "last_verified_public_version": 163,
-  "deployed_implementation_commit": "37610afd79cad3ef38d73fcacdfff7251a7be664",
-  "candidate_version": 164,
+  "last_verified_public_version": 164,
+  "deployed_implementation_commit": "9ed2afd680451974a2912788e6e91c57b692ba59",
+  "candidate_version": 165,
   "candidate_status": "tested_awaiting_deployment",
   "storage": {
     "authorized_gb": 10,
@@ -18,19 +18,26 @@
   },
   "verification": {
     "node_check": "passed",
-    "pytest_passed": 335,
+    "pytest_passed": 350,
     "public_health": "ok",
     "pets_visible_after_reload": [
       "Bella",
       "Luna"
     ],
     "public_versions": {
-      "html": 163,
-      "js": 160,
-      "css": 117,
-      "service_worker": 157
+      "html": 164,
+      "app": 164,
+      "js": 163,
+      "css": 118,
+      "service_worker": 160
     },
-    "public_recipe_image_loaded": "ferret_turkey_mini_medallions.webp"
+    "public_recipe_image_loaded": "ferret_turkey_mini_medallions.webp",
+    "public_assets_byte_identical": true,
+    "public_nexo_members_visible": [
+      "Robert",
+      "Roxy"
+    ],
+    "recipe_search_review_label_verified": true
   },
   "known_issues": [
     "Luna thumbnail observed in public selector; original photo/profile recovery still unverified",
@@ -40,9 +47,10 @@
     "PetSmart/Petco affiliations and catalog access not approved",
     "ElevenLabs voice returned payment_issue; administrator billing action required",
     "463 human catalog templates require editorial review; cooking and shopping now gated",
-    "Full UI audit still incomplete: garden/design end-to-end, pantry/settings, public integrations"
+    "Full UI audit still incomplete: garden/design end-to-end, pantry/settings, public integrations",
+    "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed"
   ],
-  "next_step": "Deploy candidate 164 and verify public release. Complete pending interactive audit, editorial recipe/photo review and genuine integration checks; do not claim beta-ready. See reports/home_full_audit_20260905.md.",
+  "next_step": "Deploy candidate 165 and verify public version/photo quarantine. Then complete remaining recipe/photo review and interactive audit, resolve ElevenLabs billing, and verify genuine integrations before beta.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",
@@ -51,18 +59,20 @@
   },
   "candidate_verification": {
     "node_check": "passed",
-    "pytest_passed": 350,
-    "html": 164,
-    "app": 164,
-    "js": 163,
+    "pytest_passed": 352,
+    "html": 165,
+    "app": 165,
+    "js": 164,
     "css": 118,
-    "service_worker": 160,
+    "service_worker": 161,
     "audit": "reports/home_full_audit_20260905.md",
     "catalog_audit": "reports/home_catalog_audit_20260905.json",
     "literal_local_assets_checked": 105,
     "qa_text_conversation": "verified",
     "qa_shopping_create": "verified",
     "qa_calendar_create": "verified",
-    "remaining_ui": "blocked_after_native_calendar_delete_confirmation"
+    "remaining_ui": "blocked_after_native_calendar_delete_confirmation",
+    "known_wrong_photo_quarantined": "Aderezo César",
+    "qa_server": "stopped"
   }
 }

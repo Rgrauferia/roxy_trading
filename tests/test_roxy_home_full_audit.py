@@ -158,6 +158,22 @@ def test_photo_coverage_does_not_claim_generation_with_empty_queue(monkeypatch):
     assert service.recipe_photo_coverage()["status"] == "INCOMPLETE"
 
 
+def test_known_mismatched_photo_is_quarantined_without_deleting(tmp_path):
+    import base64
+    from roxy_os.home_recipe_photos import RecipePhotoStore
+    store = RecipePhotoStore(tmp_path, built_in_root=tmp_path / "built-in")
+    path = store.save_generated("Aderezo César", base64.b64encode(b"\x89PNG\r\n\x1a\nillustration").decode(), approved=True)
+    assert store.resolve("Aderezo César") is None
+    assert path.exists()
+
+
+def test_client_does_not_reuse_mismatched_cached_photo():
+    source = (ROOT / "assets/roxy_list.js").read_text()
+    function = source[source.index("  const recipeImage ="):source.index("  const waitForRecipeImage =")]
+    result = subprocess.run(["node", "-e", function + "\nconsole.log(JSON.stringify(recipeImage({title:'Aderezo César'})));"], capture_output=True, text=True, check=True)
+    assert json.loads(result.stdout) == ""
+
+
 def test_partial_load_never_overwrites_garden_or_design_cache_with_empty():
     source = (ROOT / "assets/roxy_list.js").read_text()
     assert "if(plantsData)await dbSet" in source

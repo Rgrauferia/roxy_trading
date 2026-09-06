@@ -77,7 +77,8 @@ identifican las capturas inspeccionadas, no promesas de cobertura total.
    Una posición de más de 15 minutos se identifica como última ubicación, no
    “ahora”. El botón que sólo prometía avisar al salir ahora abre lugares guardados
    y explica la limitación; no se afirma crear una alerta inexistente. Falta
-   repetir en público, tras desplegar, radar/globo/recorridos y ambos perfiles.
+   repetir radar/globo/recorridos. Después de desplegar 164 se verificaron en el
+   navegador público ambos integrantes y sus etiquetas (`12-public-nexo-164.jpg`).
 8. **Calendario — alta confirmada en QA; prueba externa pendiente.**
    `08-calendario.jpg`: Google aparece conectado en producción; no se crearon
    eventos reales. En QA se creó, revisó, confirmó y volvió a abrir “Revisión QA
@@ -93,10 +94,13 @@ identifican las capturas inspeccionadas, no promesas de cobertura total.
    `10-roxy-texto.jpg` confirma respuesta con el producto y cantidad reales del
    hogar de prueba. Se libera el micrófono al cerrar y se cancelan conexiones
    tardías; dos tests verifican las carreras de cierre/reconexión.
-10. **Despensa, Más, compartir y permisos — cobertura pendiente en UI.**
-    Hay regresiones automatizadas de datos, sesiones, privacidad y permisos,
-    pero no se completaron sus pantallas finales en esta pasada. No se compartió
-    información, aceptaron contratos ni alteraron permisos reales para probar.
+10. **Despensa y Más — pantallas revisadas; escrituras/permisos pendientes.**
+    Después del despliegue se inspeccionaron `13-public-despensa-164.jpg` y
+    `14-public-mas-164.jpg`: formularios, accesos e historial se muestran. Introducir
+    despensa como texto con comas es poco guiado; conviene pasar a filas validadas.
+    También queda revisar la etiqueta “ubicación aproximada” cuando el dispositivo
+    guarda alta precisión. No se compartió información, aceptaron contratos ni
+    alteraron datos ni permisos reales para probar. No se completó cada formulario.
 
 ## Fallos transversales corregidos
 
@@ -144,3 +148,20 @@ identifican las capturas inspeccionadas, no promesas de cobertura total.
 
 El despliegue y su comprobación final se registran en ROXY_CURRENT_STATE.md y
 data/roxy_continuity.json; este informe no convierte pruebas pendientes en completas.
+
+## Verificación pública y hallazgo visual posterior
+
+- 164 se comprobó por HTTP y DOM, con JS 163/CSS 118/SW 160 idénticos byte a byte
+  a los archivos probados. Health ok; Bella y Luna presentes; navegación por hash
+  operativa, Nexo con ambos integrantes y separación del recetario humano visible.
+- La búsqueda pública de Aderezo César devolvió una ficha con aviso de revisión
+  (`15-public-recetas-164.jpg`). Su fotografía mostraba una ensalada, no el aderezo.
+  Se preparó 165 para poner únicamente esa imagen en cuarentena en servidor y
+  cliente (también evita reutilizar su copia en caché). El archivo se conserva;
+  no se reemplaza por una imagen genérica. La cuarentena requiere una revisión
+  visual explícita de una sustitución antes de levantarla. Se conserva cualquier
+  foto privada que la persona haya añadido a su receta.
+- En 165 también se corrige el texto de la tarjeta: abrir una receta permite
+  revisarla; no significa que ya se guardó automáticamente.
+- Servidor local QA detenido al cerrar el bloque. No se añadieron datos sintéticos
+  a producción. La pestaña local bloqueada puede cerrarse sin afectar datos reales.

@@ -152,6 +152,10 @@ class RecipePhotoStore:
 
     def resolve(self, title: str) -> tuple[Path, dict[str, Any]] | None:
         normalized = _identity(title)
+        # Audit 2026-09-05: the approved dressing image is a complete salad.
+        # Keep the original file recoverable, but quarantine it until visual review.
+        if normalized == "aderezo cesar":
+            return None
         built_in_name = BUILT_IN_PHOTOS.get(normalized)
         if built_in_name:
             path = self.built_in_root / built_in_name
