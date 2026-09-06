@@ -165,3 +165,68 @@ data/roxy_continuity.json; este informe no convierte pruebas pendientes en compl
   revisarla; no significa que ya se guardó automáticamente.
 - Servidor local QA detenido al cerrar el bloque. No se añadieron datos sintéticos
   a producción. La pestaña local bloqueada puede cerrarse sin afectar datos reales.
+
+## Capturas locales del recorrido
+
+Estas imágenes sólo existen en este equipo. No se incluyeron sus archivos en Git.
+
+### 1. Mascotas: perfil y frecuencia antes de corregir la etiqueta
+
+![Mascotas inicial](/tmp/roxy-full-audit-20260905/01-mascotas.jpg)
+
+### 2. Hoy: organización semanal conservada
+
+![Hoy](/tmp/roxy-full-audit-20260905/02-hoy.jpg)
+
+### 3. Compra: estado observado antes del ajuste de cantidades
+
+![Compra](/tmp/roxy-full-audit-20260905/03-compra.jpg)
+
+### 4. Recetas: controles de mascotas filtrados antes de corregir hidden
+
+![Recetas antes](/tmp/roxy-full-audit-20260905/04-recetas.jpg)
+
+### 5. Renueva: inicio y conexiones todavía por verificar
+
+![Renueva](/tmp/roxy-full-audit-20260905/05-renueva.jpg)
+
+### 6. Jardín: estado vacío anterior y corrección móvil
+
+![Jardín antes](/tmp/roxy-full-audit-20260905/06-jardin.jpg)
+
+![Jardín corregido en QA móvil](/tmp/roxy-full-audit-20260905/11-jardin-mobile.jpg)
+
+### 7. Nexo: participantes y privacidad comprobados en público 164
+
+![Nexo corregido](/tmp/roxy-full-audit-20260905/12-public-nexo-164.jpg)
+
+### 8. Calendario: pantalla pública, sin crear eventos reales
+
+![Calendario](/tmp/roxy-full-audit-20260905/08-calendario.jpg)
+
+### 9. Voz: fallo observado y respuesta escrita probada en QA
+
+![Error de voz](/tmp/roxy-full-audit-20260905/09-roxy-error.jpg)
+
+![Respuesta escrita QA](/tmp/roxy-full-audit-20260905/10-roxy-texto.jpg)
+
+### 10. Despensa y Más: revisión de pantallas, no cambios de datos
+
+![Despensa](/tmp/roxy-full-audit-20260905/13-public-despensa-164.jpg)
+
+![Más](/tmp/roxy-full-audit-20260905/14-public-mas-164.jpg)
+
+### 11. Receta pendiente: evidencia que motivó la cuarentena de foto
+
+![Aderezo César con imagen incorrecta, antes de cuarentena](/tmp/roxy-full-audit-20260905/15-public-recetas-164.jpg)
+
+### 12. Cuarentena verificada en público 165
+
+![Aderezo César sin la imagen incorrecta](/tmp/roxy-full-audit-20260905/16-public-recetas-165.jpg)
+
+Versión 165 comprobada por HTTP/DOM y comparación byte a byte de JS/CSS/SW;
+health ok, endpoint de la foto en 404. 352 pruebas aprobadas. Cobertura final
+557/683 listas y 126 pendientes (incluida una imagen en cuarentena), cola 0;
+estado INCOMPLETE. El contador público de generación diaria indica 42; los
+límites y el presupuesto configurados no se aumentaron. No se certifica que
+las otras 557 imágenes correspondan visualmente: todavía deben revisarse.

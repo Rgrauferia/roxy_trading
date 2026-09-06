@@ -3,10 +3,10 @@
   "updated_on": "2026-09-05",
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#mascotas",
-  "last_verified_public_version": 164,
-  "deployed_implementation_commit": "9ed2afd680451974a2912788e6e91c57b692ba59",
+  "last_verified_public_version": 165,
+  "deployed_implementation_commit": "9355e6119112116886e8145d63e21d74d2a2af02",
   "candidate_version": 165,
-  "candidate_status": "tested_awaiting_deployment",
+  "candidate_status": "deployed_publicly_verified",
   "storage": {
     "authorized_gb": 10,
     "render_confirmed_gb": 10,
@@ -18,18 +18,18 @@
   },
   "verification": {
     "node_check": "passed",
-    "pytest_passed": 350,
+    "pytest_passed": 352,
     "public_health": "ok",
     "pets_visible_after_reload": [
       "Bella",
       "Luna"
     ],
     "public_versions": {
-      "html": 164,
-      "app": 164,
-      "js": 163,
+      "html": 165,
+      "app": 165,
+      "js": 164,
       "css": 118,
-      "service_worker": 160
+      "service_worker": 161
     },
     "public_recipe_image_loaded": "ferret_turkey_mini_medallions.webp",
     "public_assets_byte_identical": true,
@@ -37,11 +37,22 @@
       "Robert",
       "Roxy"
     ],
-    "recipe_search_review_label_verified": true
+    "recipe_search_review_label_verified": true,
+    "photo_quarantine_http": 404,
+    "photo_quarantine_visible": true,
+    "photo_coverage": {
+      "expected": 683,
+      "ready": 557,
+      "missing": 126,
+      "quarantined": 1,
+      "status": "INCOMPLETE",
+      "pending": 0,
+      "generated_today": 42
+    }
   },
   "known_issues": [
     "Luna thumbnail observed in public selector; original photo/profile recovery still unverified",
-    "125 of 683 catalog photos were missing before this deployment",
+    "126 of 683 photo slots pending, including one quarantined mismatch",
     "Provider rate-limit cause still unverified",
     "Universal exact-species coverage and remaining recipe/product photos not complete",
     "PetSmart/Petco affiliations and catalog access not approved",
@@ -50,7 +61,7 @@
     "Full UI audit still incomplete: garden/design end-to-end, pantry/settings, public integrations",
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed"
   ],
-  "next_step": "Deploy candidate 165 and verify public version/photo quarantine. Then complete remaining recipe/photo review and interactive audit, resolve ElevenLabs billing, and verify genuine integrations before beta.",
+  "next_step": "Complete remaining recipe/photo editorial and visual review and blocked interactive audit; resolve ElevenLabs payment_issue, verify Google Calendar, radar and store data before beta. Do not remove the Aderezo César image quarantine without an exact visually reviewed replacement.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",

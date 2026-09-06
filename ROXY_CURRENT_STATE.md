@@ -9,8 +9,8 @@ No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 - Rama local: `codex/roxy-home-renueva`; destino de despliegue: `origin/codex/roxy-home-nfc`.
 - URL: https://roxy-home.onrender.com/lista#mascotas.
 - Servicio Render: `roxy-home`, `srv-da0l3vs9v7es739kcmd0`, montaje persistente `/var/data`.
-- Versión pública comprobada: 164, commit de implementación `9ed2afd68`.
-  La versión anterior era 163 (`37610afd7`). Candidato adicional 165 pendiente.
+- Versión pública comprobada: 165, commit de implementación `9355e6119`.
+  La versión anterior era 164 (`9ed2afd68`).
 
 ## Cambio confirmado en infraestructura
 
@@ -115,13 +115,19 @@ Se verificó un respaldo previo de 598K en
   evento verificadas; automatización bloqueada al intentar confirmación nativa de
   eliminar evento ficticio. No dar por completados los recorridos UI restantes.
 
-## Candidato 165 — cuarentena de una foto incorrecta
+## Versión 165 — cuarentena de foto desplegada y verificada
 
 - En público 164, Aderezo César mostraba una ensalada, no el aderezo. Se bloquea
   exclusivamente esa asociación en servidor y cliente, sin borrar el archivo ni
   sustituirlo por otra foto genérica. Requiere imagen revisada antes de desbloquear.
 - Se corrige el aviso de abrir/revisar antes de guardar. HTML/APP 165, JS 164,
-  CSS 118, SW 161. 352 tests aprobados y node --check JS/SW. Pendiente desplegar.
+  CSS 118, SW 161. 352 tests aprobados y node --check JS/SW.
+- HTTP público y DOM confirman 165; JS/CSS/SW idénticos byte a byte a lo probado.
+  Health ok. Endpoint de la imagen devuelve 404 y captura pública confirma ficha
+  de Aderezo César sin la ensalada incorrecta. Archivo original no borrado.
+- Cobertura pública final: 557/683 listas, 126 pendientes (incluye una en cuarentena),
+  cola 0, contador diario 42; se informa INCOMPLETE. Las causas históricas de los
+  límites del proveedor siguen sin verificar; no aumentar concurrencia a ciegas.
 - Despensa y Más inspeccionados en público después de 164; pendientes sus cambios
   interactivos. Servidor QA detenido; no se dejaron mascotas ficticias en producción.
 
