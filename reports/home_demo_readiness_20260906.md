@@ -134,6 +134,31 @@ traversal/query/hosts alternativos. Regresión con hash real y entradas malicios
 Validación 169: **518 pruebas Home/compras aprobadas**, JS/SW válidos. Contrato en
 vivo: 13 fotogramas aceptados, último de 10 minutos, tile HTTP 200 con firma PNG.
 
+### 169 desplegado y comprobado en público
+
+Commit `fbefb85f3`, HTML/APP 169, JS 168, CSS 120, SW 165. `/lista`, JavaScript,
+CSS, service worker y módulo de registro devuelven HTTP 200 y coinciden byte a
+byte con los archivos locales. `/health` correcto; registro sigue apagado.
+
+- Selector público: Bella y Luna, ambas miniaturas cargadas. Esto no prueba
+  recuperación de la foto original de Luna. La información muestra Ferret.
+- Robert y Roxy visibles en Nexo. Zoom hasta 5 abre automáticamente el globo.
+  13 fotogramas disponibles; el índice avanza al reproducir, queda fijo al pausar
+  y vuelve a avanzar al reanudar. Zoom del globo funcional y regreso a Google
+  Maps en zoom 7 comprobado sin activar ubicación ni cambiar perfiles.
+- Capturas revisadas: `/tmp/roxy-demo-proof.rF8h6c/05-public-live-radar.png` y
+  `06-public-live-radar-full.png`. El desplazamiento del panel recorta la parte
+  superior del globo; no son capturas de una vista completa.
+- Roxy por texto respondió a la consulta de la lista de compras. No se añadieron
+  artículos ni se afirma que la voz funcione.
+- Pestaña pública devuelta a Mascotas. Servidor QA aislado detenido; datos y
+  capturas de diagnóstico conservados. No hay mascotas sintéticas en producción.
+
+La demo aún no está lista para anunciarse: CAPTCHA y alta real, soporte/recuperación,
+acceso y facturación de voz, revisión editorial/fotos y auditoría de los módulos
+restantes siguen pendientes. Registro abierto no significa escala ilimitada:
+mantiene los límites de piloto y gasto documentados arriba.
+
 ## Colaboraciones: fuentes oficiales comprobadas, no acuerdos cerrados
 
 - [Petco afiliados](https://www.petco.com/affiliate): solicitud mediante Impact.

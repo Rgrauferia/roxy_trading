@@ -16,9 +16,9 @@ hogares privados, vencimiento a solo lectura, cinco solicitudes de Roxy al día
 por hogar, cuotas de admisión y verificación Turnstile en servidor. No está abierto.
 Falta configurar Turnstile y probar el alta real, recuperación/soporte y revisar
 el alcance de funciones. No habilitar por el simple hecho de pasar los tests.
-167 comprobado en público: arranque de Google Maps corregido, mapa y tráfico
-visibles. Registro devuelve `enabled:false`. Candidato 168 separa controles de
-zoom y ubicación, evita tapar la atribución y corrige aviso de permiso denegado.
+169 comprobado en público: arranque de Google Maps corregido, mapa y tráfico
+visibles. Registro devuelve `enabled:false`. 168 separa controles de zoom y
+ubicación, evita tapar la atribución y corrige aviso de permiso denegado.
 Una prueba de zoom alcanzó el botón superpuesto de ubicación; el navegador denegó
 permiso y Robert siguió privado. No se guardó preferencia ni se borró historial.
 No aumentar gasto ni cambiar facturación. Voz continúa pendiente por `payment_issue`.
@@ -27,10 +27,16 @@ No aumentar gasto ni cambiar facturación. Voz continúa pendiente por `payment_
 - Rama local: `codex/roxy-home-renueva`; destino de despliegue: `origin/codex/roxy-home-nfc`.
 - URL: https://roxy-home.onrender.com/lista#mascotas.
 - Servicio Render: `roxy-home`, `srv-da0l3vs9v7es739kcmd0`, montaje persistente `/var/data`.
-- Versión pública comprobada: 168, commit de implementación `4483532ed`.
-  Zoom separado y transición al globo verificados. Candidato 169 corrige validación
-  de rutas opacas de RainViewer: datos recientes existían, pero se rechazaban al
-  esperar rutas con timestamps. Mantiene validación de host, formato y frescura.
+- Versión pública comprobada: 169, commit de implementación `fbefb85f3`.
+  HTML/APP 169, JS 168, CSS 120, SW 165; cinco archivos públicos idénticos al
+  worktree y health correcto. 518 pruebas Home/compras aprobadas.
+  Zoom separado, transición al globo, 13 fotogramas de radar real animados,
+  pausa/reanudación y regreso al mapa comprobados en navegador público.
+  RainViewer acepta sus rutas opacas manteniendo validación de host y frescura.
+  Bella y Luna aparecen con miniaturas cargadas; Robert/Roxy siguen en Nexo.
+  Roxy por texto respondió sobre la lista sin modificarla. Voz no verificada.
+  Pruebas locales con 17 perfiles sintéticos y hogar demo separado; ninguno se
+  añadió a producción. Servidor QA detenido, evidencia local conservada.
 
 ## Cambio confirmado en infraestructura
 
