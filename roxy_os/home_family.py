@@ -145,6 +145,18 @@ class HomeFamilyStore:
             state = presence.get(str(member.get("id") or ""), {})
             profile = state.get("profile") or {}
             location = deepcopy(state.get("location")) if state.get("sharing_enabled") else None
+            presence_status, presence_label = "PRIVATE", "Ubicación privada"
+            if state.get("sharing_enabled"):
+                presence_status, presence_label = "WAITING", "Esperando ubicación"
+                if location:
+                    presence_status, presence_label = "STALE", "Última ubicación"
+                    try:
+                        recorded = datetime.fromisoformat(str(location.get("recorded_at") or state.get("updated_at") or "").replace("Z", "+00:00"))
+                        age = (datetime.now(timezone.utc) - recorded).total_seconds()
+                        if 0 <= age <= 900:
+                            presence_status, presence_label = "RECENT", "Ubicación reciente"
+                    except (ValueError, TypeError):
+                        pass
             rows.append(
                 {
                     "id": member.get("id"),
@@ -159,7 +171,9 @@ class HomeFamilyStore:
                     "is_viewer": member.get("id") == viewer_id,
                     "sharing_enabled": bool(state.get("sharing_enabled")),
                     "location": location,
-                    "status": _text(state.get("status"), 80),
+                    "status": _text(state.get("status"), 80) if presence_status == "RECENT" else presence_label,
+                    "presence_status": presence_status,
+                    "presence_label": presence_label,
                     "updated_at": state.get("updated_at"),
                 }
             )

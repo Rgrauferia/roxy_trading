@@ -1199,8 +1199,8 @@ def public_design_connections() -> list[dict[str, str]]:
     return [{
         "id": key, "name": name, "capabilities": capabilities, "use": use,
         "connection_status": "ready" if configured else "needs_setup",
-        "status_label": "Conectada" if configured else "Requiere conexión",
-        "next_step": "Disponible para consultas verificadas." if configured else next_step,
+        "status_label": ("Enlaces afiliados" if key == "amazon_associates" else "Configurada · por verificar") if configured else "Requiere conexión",
+        "next_step": (("Partner Tag configurado. Los precios y la disponibilidad se confirman en Amazon; no es acceso al catálogo API." if key == "amazon_associates" else "Credenciales configuradas; una respuesta válida del proveedor debe confirmar el acceso y los datos.") if configured else next_step),
     } for key, name, capabilities, use, configured, next_step in definitions]
 
 

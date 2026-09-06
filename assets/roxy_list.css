@@ -1,3 +1,11 @@
+/* Native hidden state must win over component grid/flex rules in every module. */
+[hidden] { display: none !important; }
+.roxy-text-form { display: grid; gap: 7px; margin: 10px 0; }
+.roxy-text-form label { color: #fff; font-size: 12px; }
+.roxy-text-form > div { display: flex; gap: 8px; }
+.roxy-text-form input { min-width: 0; flex: 1; padding: 10px; border: 1px solid #b7cabc; border-radius: 12px; font: inherit; background: #fff; color: #16211b; }
+.roxy-text-form button { min-height: 44px; }
+
 :root {
   color-scheme: light;
   --forest: #174d36;

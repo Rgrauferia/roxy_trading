@@ -66,7 +66,7 @@ from roxy_os.home_design import HomeDesignGenerator, HomeDesignStore, public_pro
 from roxy_os.home_family import HomeFamilyStore
 from roxy_os.home_plants import HomePlantIdentifier, HomePlantStore, PLANT_CATALOG, public_plant
 from roxy_os.home_product_intelligence import HomeProductIntelligence, ProductIntelligenceConfig
-from roxy_os.home_food import HomeFoodStore, HomeFoodStorageError, HomePermissionPolicy
+from roxy_os.home_food import HomeFoodStore, HomeFoodStorageError, HomePermissionPolicy, RecipeReviewRequired
 from roxy_os.home_pet_catalog import pet_profile_completion, personalized_pet_care_plan, personalized_pet_nutrition_plan, personalized_pet_products, pet_profile_options
 from roxy_os.home_pet_habitats import habitat_plan
 from roxy_os.home_pet_recipe_safety import resolve_pet, pet_import_context, check_import_profile, validate_pet_import
@@ -123,6 +123,11 @@ app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 @app.exception_handler(HomeFoodStorageError)
 async def home_food_storage_error(_request: Request, exc: HomeFoodStorageError) -> JSONResponse:
     return JSONResponse(status_code=503, content={"detail": str(exc)}, headers={"Retry-After": "30"})
+
+
+@app.exception_handler(RecipeReviewRequired)
+async def recipe_review_required(_request: Request, exc: RecipeReviewRequired) -> JSONResponse:
+    return JSONResponse(status_code=409, content={"detail": str(exc), "code": "RECIPE_REVIEW_REQUIRED"})
 
 
 class ShoppingCreateRequest(BaseModel):
@@ -569,6 +574,8 @@ def _recipe_photo_queue() -> RecipePhotoGenerationQueue:
 
 def _schedule_recipe_photo(recipe: dict[str, Any]) -> str:
     """Keep optional artwork generation from blocking core recipe actions."""
+    if recipe.get("editorial_status") == "needs_canonical_review":
+        return "REVIEW_REQUIRED"
     if recipe.get("audience") == "pet" and (recipe.get("safety_class") == "feeding_guide" or recipe.get("photo_asset_verified")):
         return "NOT_NEEDED"
     try:
@@ -789,15 +796,18 @@ def _recipe_with_resilience(
     *,
     deep: bool,
     recipe_type: str = "general",
+    require_editorial_review: bool = False,
 ) -> tuple[dict[str, Any], str]:
     """Use the curated catalog first and reserve OpenAI for uncommon recipes."""
     strict_editorial = str(os.getenv("ROXY_HOME_REQUIRE_VERIFIED_RECIPES") or "0").strip().lower() in {"1", "true", "yes", "on"}
     local_recipe = find_local_recipe(prompt, snapshot)
+    strict_editorial = strict_editorial or require_editorial_review or bool(local_recipe and local_recipe.get("editorial_status") == "needs_canonical_review")
     if local_recipe is not None and (
         not strict_editorial or str(local_recipe.get("editorial_status") or "").startswith("verified")
     ):
         return scale_recipe_payload(local_recipe, requested_servings(prompt)), "local_recipe_catalog"
     shared_recipe = _recipe_library_store().find(prompt, snapshot, recipe_type=recipe_type)
+    strict_editorial = strict_editorial or bool(shared_recipe and shared_recipe.get("editorial_status") == "needs_canonical_review")
     if shared_recipe is not None and (
         not strict_editorial or str(shared_recipe.get("editorial_status") or "").startswith("verified")
     ):
@@ -1527,15 +1537,16 @@ def _personalize(message: str, auth: AuthContext) -> str:
     return f"Claro, {name}. {message}" if name else message
 
 
-def _rate_limit(request: Request) -> None:
-    key = str(request.client.host if request.client else "unknown")
+def _rate_limit(request: Request, *, bucket: str = "api") -> None:
+    # Rendering a recipe grid must not consume the household mutation budget.
+    key = f"{bucket}:{request.client.host if request.client else 'unknown'}"
     now = int(time.time())
     state = _RATE_STATE.get(key)
     if state is None or now - state["start"] >= RATE_LIMIT_WINDOW_SECONDS:
         _RATE_STATE[key] = {"start": now, "count": 1}
         return
     if state["count"] >= RATE_LIMIT_MAX:
-        raise HTTPException(status_code=429, detail="Demasiadas solicitudes; inténtalo de nuevo en un minuto")
+        raise HTTPException(status_code=429, detail="Demasiadas solicitudes; inténtalo de nuevo en un minuto", headers={"Retry-After": str(max(1, RATE_LIMIT_WINDOW_SECONDS - (now - state["start"])))})
     state["count"] += 1
 
 
@@ -1645,7 +1656,7 @@ def shopping_service_worker() -> Response:
 
 @app.get("/v1/home-food/recipe-photo")
 def recipe_photo(title: str, request: Request) -> Response:
-    _rate_limit(request)
+    _rate_limit(request, bucket="recipe-media")
     clean_title = re.sub(r"\s+", " ", str(title or "")).strip()
     if not clean_title or len(clean_title) > 160:
         raise HTTPException(status_code=422, detail="Nombre de receta inválido")
@@ -1655,7 +1666,7 @@ def recipe_photo(title: str, request: Request) -> Response:
         resolved = None
     if resolved is None:
         recipe = exact_local_recipe(clean_title) or _home_food_store().find_saved_recipe_by_title(clean_title)
-        state = _recipe_photo_queue().schedule(recipe) if recipe else "NOT_IN_CATALOG"
+        state = _schedule_recipe_photo(recipe) if recipe else "NOT_IN_CATALOG"
         if state == "PENDING":
             response = JSONResponse(
                 {"status": "GENERATING", "detail": "Roxy está creando la imagen exacta de esta receta"},
@@ -1675,19 +1686,20 @@ def recipe_photo(title: str, request: Request) -> Response:
 def recipe_photo_coverage() -> dict[str, Any]:
     rows = _all_recipe_photo_rows()
     ready = sum(1 for recipe in rows if _recipe_photo_store().resolve(str(recipe.get("title") or "")) is not None)
+    queue = _recipe_photo_queue().public_status()
     return {
-        "status": "COMPLETE" if ready == len(rows) else "GENERATING",
+        "status": "COMPLETE" if ready == len(rows) else "GENERATING" if queue.get("pending") else "INCOMPLETE",
         "expected": len(rows),
         "ready": ready,
         "missing": max(0, len(rows) - ready),
-        "queue": _recipe_photo_queue().public_status(),
+        "queue": queue,
         "failures": _recipe_photo_queue().failure_summary(),
     }
 
 
 @app.get("/v1/home-food/recipe-photo-info")
 def recipe_photo_info(title: str, request: Request) -> Response:
-    _rate_limit(request)
+    _rate_limit(request, bucket="recipe-media")
     clean_title = re.sub(r"\s+", " ", str(title or "")).strip()
     if not clean_title or len(clean_title) > 160:
         raise HTTPException(status_code=422, detail="Nombre de receta inválido")
@@ -3722,6 +3734,11 @@ def generate_home_recipe(
         if recipe_data is None:
             raise HTTPException(status_code=404, detail="Esa receta ya no está disponible en el catálogo.")
         generation_mode = "local_catalog_exact"
+        if recipe_data.get("editorial_status") == "needs_canonical_review":
+            recipe_data, generation_mode = _ai_call(lambda: _recipe_with_resilience(
+                str(recipe_data["title"]), snapshot, deep=True, recipe_type=payload.recipe_type,
+                require_editorial_review=True,
+            ))
     else:
         recipe_data, generation_mode = _ai_call(lambda: _recipe_with_resilience(
             payload.prompt,

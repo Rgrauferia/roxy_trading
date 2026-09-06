@@ -72,9 +72,10 @@ Se verificó un respaldo previo de 598K en
 
 ## Pendientes reales — no declarar módulo terminado
 
-- Luna está guardada como `ferret`, pero sin foto. Bella tiene foto. No se recuperó
-  el perfil/foto original de Luna. La tarea anterior recreó Luna; no confundir esto
-  con recuperación. Sus datos de edad/salud ingresados por esa tarea no están verificados.
+- Luna está guardada como `ferret`. En esta auditoría se observó una miniatura de
+  Luna en el selector público; no se verificó que fuera su foto original ni se
+  restauró su perfil. La tarea anterior recreó Luna; no confundir eso con recuperación.
+  Los datos de edad/salud ingresados por esa tarea no están verificados.
 - Ferret y hurón doméstico son el mismo animal; Roberto prefiere el nombre Ferret.
 - La frecuencia guardada de Bella muestra 1 vez/día; es dato existente, no una
   prescripción comprobada. Mejorar etiqueta para distinguir plan guardado de guía.
@@ -92,6 +93,25 @@ Se verificó un respaldo previo de 598K en
   cupo, presupuesto IA y fecha deben definirse. Ejercicios es una sección solicitada,
   todavía no diseñada ni implementada. PostgreSQL y multimedia separada son
   recomendaciones, no contrataciones ni migraciones realizadas.
+
+## Candidato 164 — auditoría completa solicitada, primer bloque de reparaciones
+
+- Aún no desplegado al escribir este bloque. HTML/APP 164, JS 163, CSS 118, SW 160.
+- 350 tests Home + Shopping aprobados; node --check JS/SW y git diff --check.
+- Auditoría por módulo y pendientes: reports/home_full_audit_20260905.md.
+- Inventario automatizado completo: 668 fichas (517 humanas, 57 preparaciones para
+  mascotas, 94 guías); 463 requieren revisión editorial. Se bloquea cocinar/enviar
+  borradores a Compra y se exige revisión explícita. No se completó su curación.
+- Respeto de hidden, campos numéricos de Compra/presupuesto, carga diferida de
+  fotos, límites separados de medios y operaciones, conservación de caché de
+  Jardín/Renueva, privacidad/antigüedad Nexo, etiquetas reales de afiliación.
+- Comparador de actualización corregido: APP debe coincidir con HTML, no con SW.
+- Voz: ElevenLabs rechazó la llamada pública con payment_issue. Requiere facturación
+  del administrador. Alternativa escrita probada en QA con respuesta real de lista;
+  cierre/cancelación de micrófono protegidos. No se cambió facturación.
+- UI pública inicial recorrida, escrituras sólo en QA aislada. Alta de producto y
+  evento verificadas; automatización bloqueada al intentar confirmación nativa de
+  eliminar evento ficticio. No dar por completados los recorridos UI restantes.
 
 ## Continuidad
 

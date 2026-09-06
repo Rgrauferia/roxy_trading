@@ -107,6 +107,7 @@ def test_missing_catalog_photo_endpoint_starts_generation(monkeypatch):
 
     monkeypatch.setattr(roxy_home_service, "_recipe_photo_store", lambda: _MissingStore())
     monkeypatch.setattr(roxy_home_service, "_recipe_photo_queue", lambda: _Queue())
+    monkeypatch.setattr(roxy_home_service, "exact_local_recipe", lambda title: {"title": title, "editorial_status": "reviewed"})
     roxy_home_service._RATE_STATE.clear()
     response = TestClient(roxy_home_service.app).get(
         "/v1/home-food/recipe-photo", params={"title": "Camarones al ajillo"}

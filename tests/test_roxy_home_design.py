@@ -182,7 +182,7 @@ def test_design_api_creates_private_project_and_prepares_real_store_searches(tmp
         "Impact.com", "CJ Affiliate", "Awin", "Amazon Associates", "Amazon Creators API",
         "Pinterest Trends API", "DataForSEO Merchant API",
     }
-    assert all(row["status_label"] in {"Conectada", "Requiere conexión"} for row in connections)
+    assert all(row["status_label"] in {"Configurada · por verificar", "Enlaces afiliados", "Requiere conexión"} for row in connections)
     assert snapshot.json()["trends"] == {
         "status": "needs_setup", "source": "Pinterest Trends API", "items": []
     }

@@ -24,6 +24,15 @@ from roxy_os.shopping_list import ShoppingListStore, normalize_shopping_user
 HOME_FOOD_STORE_VERSION = 3
 
 
+class RecipeReviewRequired(ValueError):
+    """An editorial draft must not become cooking instructions or a shopping list."""
+
+
+def _require_reviewed_recipe(recipe: dict[str, Any]) -> None:
+    if recipe.get("editorial_status") == "needs_canonical_review":
+        raise RecipeReviewRequired("Esta receta necesita revisar ingredientes y pasos antes de cocinar o añadirla a Compra.")
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -162,6 +171,8 @@ class HomeFoodStore:
         from roxy_os.home_recipe_fallback import exact_local_recipe
 
         current = exact_local_recipe(recipe.get("title") or "")
+        if current and str(recipe.get("editorial_status") or "").startswith("verified") and not str(current.get("editorial_status") or "").startswith("verified"):
+            return  # Never downgrade a sourced recipe to an unreviewed catalog template.
         catalog_owned = str(recipe.get("generation_source") or "") in {"", "local_recipe_catalog"}
         if not current or (not incomplete and not catalog_owned):
             return
@@ -783,6 +794,7 @@ class HomeFoodStore:
 
     def start_cooking_session(self, user_id: Any, recipe_id: str) -> dict[str, Any]:
         recipe = self.get_recipe(user_id, recipe_id)
+        _require_reviewed_recipe(recipe)
 
         def apply(payload: dict[str, Any]) -> dict[str, Any]:
             record = self._user(payload, user_id)
@@ -916,6 +928,7 @@ class HomeFoodStore:
         )
         if recipe is None:
             raise KeyError(session.get("recipe_id"))
+        _require_reviewed_recipe(recipe)
         index = max(0, min(int(session.get("step_index") or 0), len(recipe.get("steps") or []) - 1))
         enriched_session = deepcopy(session)
         now = datetime.now(timezone.utc)
@@ -941,6 +954,7 @@ class HomeFoodStore:
 
     def scale_recipe(self, user_id: Any, recipe_id: str, servings: Any) -> dict[str, Any]:
         recipe = self.get_recipe(user_id, recipe_id)
+        _require_reviewed_recipe(recipe)
         target = _positive_number(servings, maximum=100)
         factor = target / _positive_number(recipe.get("servings") or 1, maximum=100)
         scaled = deepcopy(recipe)
@@ -954,6 +968,7 @@ class HomeFoodStore:
 
     def shopping_preview(self, user_id: Any, recipe_id: str, *, servings: Any | None = None) -> dict[str, Any]:
         recipe = self.scale_recipe(user_id, recipe_id, servings) if servings is not None else self.get_recipe(user_id, recipe_id)
+        _require_reviewed_recipe(recipe)
         pantry = self.snapshot(user_id).get("pantry", [])
         available: dict[tuple[str, str], float] = {}
         for row in pantry:

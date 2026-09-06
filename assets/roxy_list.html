@@ -8,16 +8,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="163" />
+  <meta name="roxy-home-version" content="164" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
   <link rel="stylesheet" href="/assets/vendor/maplibre-gl.css?v=1" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=117" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=118" />
   <script src="/assets/vendor/maplibre-gl.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=160" defer></script>
+  <script src="/assets/roxy_list.js?v=163" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -125,7 +125,7 @@
 
     <section id="plantsPanel" class="app-panel plants-panel" data-panel="plants" aria-labelledby="plantsTitle" hidden>
       <header class="plants-heading">
-        <div><p class="eyebrow">Roxy te acompaña</p><h2 id="plantsTitle">Tu jardín está bajo control</h2><p>Te aviso solo cuando una planta necesita atención.</p><time id="plantTodayDate"></time></div>
+        <div><p class="eyebrow">Roxy te acompaña</p><h2 id="plantsTitle">Tu jardín, paso a paso</h2><p id="plantIntro">Añade una planta para organizar sus cuidados.</p><time id="plantTodayDate"></time></div>
         <button id="newPlantButton" class="primary" type="button"><span class="material-symbols-rounded" aria-hidden="true">add_a_photo</span> Añadir planta</button>
       </header>
       <section class="plant-environment-brief" aria-label="Condiciones que Roxy está observando">
@@ -401,7 +401,7 @@
 
       <section id="recipeCatalogSection" class="content-section recipe-catalog-section" role="region" aria-labelledby="libraryTitle">
         <div class="section-heading"><div><p id="recipeLibraryEyebrow">Incluidas y disponibles</p><h2 id="libraryTitle">Recetario de Roxy</h2><small id="recipeLibraryHint">Toca una receta incluida para guardarla en tu carpeta</small></div><span id="recipeCount">0 recetas</span></div>
-        <label class="recipe-search"><span class="material-symbols-rounded" aria-hidden="true">search</span><input id="recipeSearch" type="search" placeholder="Buscar huevos, pollo, café…" autocomplete="off" /></label>
+        <label class="recipe-search"><span class="material-symbols-rounded" aria-hidden="true">search</span><input id="recipeSearch" type="search" aria-label="Buscar recetas" placeholder="Buscar huevos, pollo, café…" autocomplete="off" /></label>
         <div id="recipeFilters" class="recipe-filters" role="group" aria-label="Categorías de recetas"></div>
         <div id="petRecipeImportActions" class="pet-medical-actions" hidden>
           <button id="petImportText" type="button" class="secondary">Pegar receta de una publicación</button>
@@ -558,7 +558,7 @@
       <div class="dialog-heading"><div><p class="eyebrow">A tu manera</p><h2 id="customTitle">Agregar producto</h2></div><button type="button" data-close-dialog="customDialog" aria-label="Cerrar">Cerrar</button></div>
       <label><span>Producto</span><input id="customName" maxlength="120" required placeholder="Ej. Yogur natural" /></label>
       <div class="form-row">
-        <label><span>Cantidad</span><input id="customQuantity" type="number" min="0.01" max="100000" step="1" value="1" required /></label>
+        <label><span>Cantidad</span><input id="customQuantity" type="number" min="0.01" max="100000" step="0.01" value="1" required /></label>
         <label><span>Unidad</span><input id="customUnit" maxlength="32" value="unidad" required /></label>
       </div>
       <label><span>Categoría</span><select id="customCategory"><option value="GENERAL">Automática (recomendada)</option><option value="FOOD">Alimentos</option><option value="CLEANING">Limpieza</option><option value="PERSONAL">Aseo personal</option><option value="HEALTH">Salud y farmacia</option><option value="HOUSEHOLD">Hogar y accesorios</option><option value="PETS">Mascotas</option><option value="OTHER">Otros</option></select></label>
@@ -716,7 +716,7 @@
         <label><span>Estilo</span><select id="designStyle"><option value="warm_modern">Moderno cálido</option><option value="minimal">Minimalista</option><option value="natural">Natural</option><option value="classic">Clásico</option><option value="bohemian">Bohemio</option><option value="industrial">Industrial</option><option value="coastal">Costero</option><option value="surprise_me">Sorpréndeme</option></select></label>
       </div>
       <div class="form-row">
-        <label><span>Presupuesto máximo</span><input id="designBudget" type="number" min="0" max="100000" step="25" value="500" inputmode="decimal" required /></label>
+        <label><span>Presupuesto máximo</span><input id="designBudget" type="number" min="0" max="100000" step="0.01" value="500" inputmode="decimal" required /></label>
         <label><span>Medidas</span><input id="designMeasurements" maxlength="500" placeholder="Ej. 12 × 14 pies" /></label>
       </div>
       <label><span>Qué quieres conservar</span><input id="designKeep" maxlength="500" placeholder="Sofá gris, mesa familiar, piso…" /></label>
@@ -858,9 +858,13 @@
   </dialog>
 
   <section id="roxyVoicePanel" class="roxy-voice-panel" aria-labelledby="roxyVoiceTitle" hidden>
-    <header><img data-roxy-avatar src="/assets/roxy_home_avatar.jpg" alt="Roxy" /><div><strong id="roxyVoiceTitle">Roxy</strong><small>Contigo en tu lista</small></div><button id="roxyVoiceClose" type="button" aria-label="Cerrar conversación">Cerrar</button></header>
+    <header><img data-roxy-avatar src="/assets/roxy_home_avatar.jpg" alt="Roxy" /><div><strong id="roxyVoiceTitle">Roxy</strong><small>Contigo en tu hogar</small></div><button id="roxyVoiceClose" type="button" aria-label="Cerrar conversación">Cerrar</button></header>
     <p id="roxyVoiceStatus" class="roxy-voice-status" role="status" aria-live="polite">Lista para conversar</p>
     <div id="roxyVoiceTranscript" class="roxy-voice-transcript" aria-live="polite">Puedes pedirme una receta, cambiar tu lista o decir “guíame paso a paso”.</div>
+    <form id="roxyTextForm" class="roxy-text-form">
+      <label for="roxyTextMessage">También puedes escribirle a Roxy</label>
+      <div><input id="roxyTextMessage" name="message" type="text" maxlength="1000" autocomplete="off" placeholder="¿Qué tengo en mi lista?" required /><button id="roxyTextSend" class="secondary" type="submit">Enviar</button></div>
+    </form>
     <div class="roxy-voice-actions"><button id="roxyVoiceStart" class="primary" type="button">Iniciar</button><button id="roxyVoiceEnd" class="secondary" type="button" disabled>Terminar</button></div>
   </section>
 

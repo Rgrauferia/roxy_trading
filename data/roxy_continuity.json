@@ -5,8 +5,8 @@
   "public_url": "https://roxy-home.onrender.com/lista#mascotas",
   "last_verified_public_version": 163,
   "deployed_implementation_commit": "37610afd79cad3ef38d73fcacdfff7251a7be664",
-  "candidate_version": 163,
-  "candidate_status": "deployed_publicly_verified",
+  "candidate_version": 164,
+  "candidate_status": "tested_awaiting_deployment",
   "storage": {
     "authorized_gb": 10,
     "render_confirmed_gb": 10,
@@ -33,13 +33,16 @@
     "public_recipe_image_loaded": "ferret_turkey_mini_medallions.webp"
   },
   "known_issues": [
-    "Luna original profile/photo not recovered; current ferret profile has no photo",
+    "Luna thumbnail observed in public selector; original photo/profile recovery still unverified",
     "125 of 683 catalog photos were missing before this deployment",
     "Provider rate-limit cause still unverified",
     "Universal exact-species coverage and remaining recipe/product photos not complete",
-    "PetSmart/Petco affiliations and catalog access not approved"
+    "PetSmart/Petco affiliations and catalog access not approved",
+    "ElevenLabs voice returned payment_issue; administrator billing action required",
+    "463 human catalog templates require editorial review; cooking and shopping now gated",
+    "Full UI audit still incomplete: garden/design end-to-end, pantry/settings, public integrations"
   ],
-  "next_step": "Complete remaining recipe/product photographs and reviewed exact-species content; build structured multi-inhabitant aquarium planning. Recover original Luna photo only from a verified backup or user upload. Affiliate approvals remain pending.",
+  "next_step": "Deploy candidate 164 and verify public release. Complete pending interactive audit, editorial recipe/photo review and genuine integration checks; do not claim beta-ready. See reports/home_full_audit_20260905.md.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",
@@ -48,15 +51,18 @@
   },
   "candidate_verification": {
     "node_check": "passed",
-    "pytest_passed": 335,
-    "synthetic_ui_species": [
-      "budgerigar",
-      "canary",
-      "lorikeet",
-      "betta",
-      "leopard_gecko",
-      "ferret"
-    ],
-    "vaccine_download_file_verified": true
+    "pytest_passed": 350,
+    "html": 164,
+    "app": 164,
+    "js": 163,
+    "css": 118,
+    "service_worker": 160,
+    "audit": "reports/home_full_audit_20260905.md",
+    "catalog_audit": "reports/home_catalog_audit_20260905.json",
+    "literal_local_assets_checked": 105,
+    "qa_text_conversation": "verified",
+    "qa_shopping_create": "verified",
+    "qa_calendar_create": "verified",
+    "remaining_ui": "blocked_after_native_calendar_delete_confirmation"
   }
 }

@@ -443,6 +443,8 @@ def recipe_quality_issues(recipe: dict[str, Any], expected_title: str = "") -> l
         issues.append("Faltan ingredientes medidos.")
     if len(steps) < 5:
         issues.append("Faltan pasos atómicos de preparación.")
+    if any(_plain(row.get("name")) == _plain(title) for row in ingredients):
+        issues.append("El plato aparece como su propio ingrediente; deben indicarse sus componentes.")
     if any(phrase in instructions for phrase in _GENERIC_RECIPE_PHRASES):
         issues.append("La preparación contiene instrucciones genéricas.")
     if steps and not any(re.search(r"\b\d+(?:[.,]\d+)?\b", step) for step in steps):

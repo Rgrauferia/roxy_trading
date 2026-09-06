@@ -38,15 +38,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "script-src 'none'" in privacy.headers["content-security-policy"]
     assert "roxy_privacy.html assets/roxy_privacy.css" in Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="163"' in page.text
+    assert 'name="roxy-home-version" content="164"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' in page.text
-    assert 'href="/assets/roxy_list.css?v=117"' in page.text
-    assert 'src="/assets/roxy_list.js?v=160"' in page.text
+    assert 'href="/assets/roxy_list.css?v=118"' in page.text
+    assert 'src="/assets/roxy_list.js?v=163"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
-    assert '/assets/roxy_list.css?v=117' in worker.text
-    assert '/assets/roxy_list.js?v=160' in worker.text
+    assert '/assets/roxy_list.css?v=118' in worker.text
+    assert '/assets/roxy_list.js?v=163' in worker.text
     assert '/assets/roxy_home/renueva-living-room-hero.webp' in worker.text
     assert '/assets/roxy_home/plants-soil-meter.png' in worker.text
     assert '/assets/roxy_home/pet-onboarding-hero.png' in worker.text
@@ -78,7 +78,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
     assert 'Revisar productos' in script.text
-    assert "const APP_VERSION = '157'" in script.text
+    assert "const APP_VERSION = '164'" in script.text
     assert 'id="designTrendSignal"' in page.text
     assert 'Datos reales de Pinterest' in script.text
     assert 'id="familyHistoryButton"' in page.text
@@ -98,7 +98,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="plantDetailDialog"' in page.text
     assert '/v1/home-plants/' in script.text
     assert 'Mi jardín' in page.text
-    assert 'Tu jardín está bajo control' in page.text
+    assert 'Tu jardín, paso a paso' in page.text
     assert 'id="plantUpcomingCare"' in page.text
     assert 'id="plantHealthSummary"' in page.text
     assert 'id="plantLightExposure"' in page.text
@@ -116,7 +116,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "data-route-back" in script.text
     assert "family:'nexo'" in script.text
     assert 'data-close-dialog="pairDialog"' in page.text
-    assert "recetas listas para guardar, adaptar y cocinar paso a paso" in script.text
+    assert "propuestas pendientes de revisión" in script.text
     assert "provider.affiliate_connected?'afiliado':'catálogo oficial'" in script.text
     assert "la foto, medidas, disponibilidad y precio real" in script.text
     assert 'Analizar y rediseñar' in script.text
@@ -232,7 +232,9 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "Conversation.startSession" in script.text
     assert "connectionType:'websocket'" in script.text
     assert "await navigator.mediaDevices.getUserMedia" in script.text
-    assert "permissionStream" not in script.text
+    # The SDK must obtain its own stream; our scoped permission probe is stopped.
+    assert "options.permissionStream" not in script.text
+    assert "permissionStream:" not in script.text
     assert "Roxy te está escuchando" in script.text
     assert "handleRoxyShoppingTranscript" not in script.text
     assert "never uses end_call" not in script.text
@@ -320,7 +322,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "logPetFeeding" in script.text
     assert "exportPetMedicalSummary" in script.text
     assert "exportPetVaccines" in script.text
-    assert "recipe.catalog_key?openRecipe(recipe)" in script.text
+    assert "button.addEventListener('click',()=>openRecipe(recipe))" in script.text
     assert "Guardar en mi recetario" in script.text
     assert "no equivalen a porciones diarias" in script.text
     assert ".recipe-personal-form[hidden]" in style.text
