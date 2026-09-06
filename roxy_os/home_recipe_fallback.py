@@ -121,7 +121,7 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
     ferret_hearts = _recipe(
         "Bocaditos de corazón de pollo para hurones", "Víscera simple completamente cocida y cortada en porciones muy pequeñas.", "other", 12,
         [("Corazones de pollo limpios", 150, "gramo")],
-        ["Retira grasa visible y confirma que los corazones no tengan sal, salsas, vegetales ni condimentos.", "Enjuágalos, sécalos y córtalos por la mitad para que se cocinen de manera uniforme.", "Cocínalos en una sartén antiadherente a fuego medio-bajo, sin aceite, durante 8 a 10 minutos.", "Comprueba que el centro alcance 74 °C y que no quede tejido crudo.", "Enfría por completo, corta trozos muy pequeños y ofrece solo uno o dos como premio ocasional."],
+        ["Retira grasa visible y confirma que los corazones no tengan sal, salsas, vegetales ni condimentos.", "No laves los corazones crudos: evita salpicaduras. Córtalos por la mitad sobre una tabla limpia y lava manos, tabla y utensilios después.", "Cocínalos en una sartén antiadherente a fuego medio-bajo, sin aceite, durante 8 a 10 minutos.", "Comprueba que el centro alcance 74 °C y que no quede tejido crudo.", "Enfría por completo, corta trozos muy pequeños y ofrece solo uno o dos como premio ocasional."],
     )
     ferret_hearts.update(audience="pet", pet_species="ferret", safety_class="treat", veterinary_note="Premio ocasional y en poca cantidad; no sustituye un alimento completo. Las vísceras no deben desplazar su dieta habitual. Consulta a un veterinario de animales exóticos.", photo_asset="/assets/roxy_home/recipes/pets/ferret-chicken-heart-bites.png", sources=[ferret_source])
     ferret_egg = _recipe(

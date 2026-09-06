@@ -5,8 +5,8 @@
   "public_url": "https://roxy-home.onrender.com/lista#mascotas",
   "last_verified_public_version": 169,
   "deployed_implementation_commit": "fbefb85f3",
-  "candidate_version": 169,
-  "candidate_status": "deployed_and_publicly_verified",
+  "candidate_version": 170,
+  "candidate_status": "local_photo_and_mobile_verification_pending_deploy",
   "storage": {
     "authorized_gb": 10,
     "render_confirmed_gb": 10,
@@ -51,7 +51,10 @@
     },
     "public_nexo_map": "Google_map_custom_zoom_15_to_5_and_automatic_globe_verified",
     "luna_display_name": "Ferret_verified_public_169",
-    "pet_profile_thumbnails_loaded": ["Bella", "Luna"],
+    "pet_profile_thumbnails_loaded": [
+      "Bella",
+      "Luna"
+    ],
     "public_roxy_text": "shopping_list_read_only_response_verified",
     "public_signup_enabled": false,
     "gps_test_incident": "Covered_native_zoom_clicked_share; browser_denied; viewer_remained_private; no_saved_preference_or_history_deleted",
@@ -68,7 +71,7 @@
     "Full UI audit still incomplete: garden/design end-to-end, pantry/settings, public integrations",
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed"
   ],
-  "next_step": "Keep public signup disabled pending real Turnstile, full registration/support, load/privacy and demo scope checks; Cloudflare account question awaits Roberto. Continue photo/editorial and remaining module audit. Veterinary partnerships and ElevenLabs billing/access are not complete. Do not announce launch yet.",
+  "next_step": "Deploy and verify 170 photo loading and mobile recipes/products on the public page. Keep signup disabled pending real Turnstile, support and demo scope checks. Continue product ingredient allergy safeguards, real variety and remaining module/content audit.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",
@@ -79,21 +82,21 @@
   },
   "candidate_verification": {
     "node_check": "passed",
-    "pytest_passed": 518,
-    "html": 169,
-    "app": 169,
-    "js": 168,
-    "css": 120,
-    "service_worker": 165,
-    "audit": "reports/home_demo_readiness_20260906.md",
+    "pytest_passed": 522,
+    "html": 170,
+    "app": 170,
+    "js": 169,
+    "css": 121,
+    "service_worker": 166,
+    "audit": "reports/home_pet_photo_followup_20260906.md",
     "catalog_audit": "reports/home_catalog_audit_20260905.json",
     "literal_local_assets_checked": 105,
     "qa_text_conversation": "verified",
     "qa_shopping_create": "verified",
     "qa_calendar_create": "verified",
-    "remaining_ui": "real_registration_requires_Turnstile; garden_design_pantry_settings_integrations_audit_incomplete",
+    "remaining_ui": "170_public_recipe_and_product_photo_verification",
     "known_wrong_photo_quarantined": "Aderezo César",
-    "qa_server": "isolated_8767_stopped_evidence_preserved",
+    "qa_server": "isolated_8767_running",
     "qa_profiles": 17,
     "qa_aquarium_save_reload": "verified_after_null_field_fix",
     "map_loader_regression": "passed",
@@ -107,7 +110,9 @@
       "latest_age_minutes": 10,
       "tile_http": 200,
       "png": true
-    }
+    },
+    "recipe_lazy_grid_25": "regression_passed_and_mobile_photos_observed",
+    "product_csp_catalog": "all_remote_origins_match_image_only_allowlist"
   },
   "public_registration": {
     "enabled": false,

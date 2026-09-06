@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '169';
+  const APP_VERSION = '170';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -309,13 +309,25 @@
   };
   const waitForRecipeImage = delay => new Promise(resolve=>setTimeout(resolve,delay));
   const observedRecipeImages=new Map();
+  let recipeImageCleanupScheduled=false;
+  function pruneDetachedRecipeImages(){
+    if(recipeImageCleanupScheduled)return;
+    recipeImageCleanupScheduled=true;
+    // Cards are built in a detached grid. Wait until the synchronous render has
+    // appended the entire grid before deciding which old images were removed.
+    queueMicrotask(()=>{
+      recipeImageCleanupScheduled=false;
+      for(const target of observedRecipeImages.keys()){
+        if(!target.isConnected){recipeImageObserver.unobserve(target);observedRecipeImages.delete(target)}
+      }
+    });
+  }
   const recipeImageObserver=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{
-    entries.forEach(entry=>{if(!entry.isIntersecting)return;const job=observedRecipeImages.get(entry.target);recipeImageObserver.unobserve(entry.target);observedRecipeImages.delete(entry.target);if(job)void hydrateRecipeImage(entry.target,job.recipe,job.host,{hideOnMissing:job.hideOnMissing,immediate:true})});
+    entries.forEach(entry=>{if(!entry.isIntersecting)return;const job=observedRecipeImages.get(entry.target);recipeImageObserver.unobserve(entry.target);observedRecipeImages.delete(entry.target);if(job&&entry.target.isConnected)void hydrateRecipeImage(entry.target,job.recipe,job.host,{hideOnMissing:job.hideOnMissing,immediate:true})});
   },{rootMargin:'160px'}):null;
   async function hydrateRecipeImage(image,recipe,host,{hideOnMissing=false,immediate=false}={}){
     if(recipeImageObserver&&image.loading==='lazy'&&!immediate){
-      for(const target of observedRecipeImages.keys()){if(!target.isConnected){recipeImageObserver.unobserve(target);observedRecipeImages.delete(target)}}
-      observedRecipeImages.set(image,{recipe,host,hideOnMissing});recipeImageObserver.observe(image);return;
+      observedRecipeImages.set(image,{recipe,host,hideOnMissing});recipeImageObserver.observe(image);pruneDetachedRecipeImages();return;
     }
     const url=recipeImage(recipe);if(!url){image.hidden=true;if(!hideOnMissing){image.remove();host&&host.classList.add('no-photo')}return}
     const markMissing=()=>{image.classList.remove('recipe-image-loading');if(hideOnMissing)image.hidden=true;else{image.remove();host&&host.classList.add('no-photo')}};
@@ -988,7 +1000,7 @@
       catalogSection.hidden=petHubTab!=='recipes';if(petHubTab!=='recipes')return;
     }else catalogSection.hidden=false;
     $('recipeLibraryEyebrow').textContent=petMode?'Adaptado a su perfil':'Incluidas y disponibles';
-    $('libraryTitle').textContent=petMode?'Alimentación complementaria':recipeShowDrafts?'Propuestas pendientes':'Recetario de Roxy';
+    $('libraryTitle').textContent=petMode?'Recetas para '+selectedPetProfile().name:recipeShowDrafts?'Propuestas pendientes':'Recetario de Roxy';
     $('recipeLibraryHint').textContent=petMode?'Solo preparaciones compatibles. Los cuidados y protocolos están en Información; los premios no sustituyen su alimento completo.':recipeShowDrafts?'Estas propuestas no están listas para cocinar. Roxy debe revisar ingredientes y pasos antes de guardarlas.':'Ingredientes y pasos separados de las propuestas pendientes. Abre una receta antes de guardarla';
     $('recipeSearch').placeholder=petMode?'Buscar una preparación…':'Buscar huevos, pollo, café…';
     if(recipeAudience==='human')[...recipeCategories,{id:'favorite',title:'Favoritas',icon:'favorite'}].forEach(category=>{const button=document.createElement('button');button.type='button';button.className=`recipe-filter-card${recipeFilter===category.id?' active':''}`;button.dataset.recipeFilter=category.id;if(category.icon){const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.setAttribute('aria-hidden','true');icon.textContent=category.icon;button.append(icon)}const label=document.createElement('span');label.textContent=category.title;button.append(label);button.addEventListener('click',()=>{recipeFilter=category.id;renderRecipes()});filters.append(button)});
@@ -1144,6 +1156,14 @@
     const tracking=document.createElement('section');tracking.className='pet-feeding-tracker';const trackTitle=document.createElement('div');const heading=document.createElement('strong');heading.textContent='¿Cómo comió?';const last=document.createElement('small');const outcomeLabels={all:'Comió todo',partial:'Comió parte',refused:'No quiso comer',completed:'Registrado'};last.textContent=plan.last_feeding?`Último registro: ${outcomeLabels[plan.last_feeding.outcome]||'Registrado'} · ${new Intl.DateTimeFormat('es',{dateStyle:'medium',timeStyle:'short'}).format(new Date(plan.last_feeding.completed_at))}`:'Todavía no hay registros de alimentación';trackTitle.append(heading,last);const actions=document.createElement('div');[['all','Comió todo'],['partial','Comió parte'],['refused','No quiso comer']].forEach(([value,text])=>{const button=document.createElement('button');button.type='button';button.className=value==='refused'?'secondary':'primary';button.textContent=text;button.addEventListener('click',()=>logPetFeeding(pet,value,button));actions.append(button)});tracking.append(trackTitle,actions);root.append(tracking);
     const safety=document.createElement('p');safety.className='pet-product-method';safety.textContent=plan.safety_note||'La etiqueta y las indicaciones profesionales prevalecen.';root.append(safety);if(plan.source_url){const source=document.createElement('a');source.className='pet-care-source';source.href=plan.source_url;source.target='_blank';source.rel='noopener noreferrer';source.textContent='Fuente de cuidado: '+plan.source_label;root.append(source)}
   }
+  function makePetProductPhoto(product){
+    const missing=()=>{const box=document.createElement('div');box.className='pet-product-photo pet-product-photo-missing';box.innerHTML='<span class="material-symbols-rounded" aria-hidden="true">inventory_2</span><small>Foto oficial no disponible</small>';return box};
+    if(!product.image_url)return missing();
+    const image=document.createElement('img');image.className='pet-product-photo';
+    image.alt=`${product.brand} ${product.name}`;image.loading='lazy';image.decoding='async';image.referrerPolicy='no-referrer';
+    image.addEventListener('error',()=>image.replaceWith(missing()),{once:true});
+    image.src=product.image_url;return image;
+  }
   function renderPetProducts(pet){
     const root=$('petProductRecommendations');const filters=$('petProductFilters');root.replaceChildren();filters.replaceChildren();
     const catalogRows=(homeFood.pet_recommendations||{})[String(pet.id)]||[];const rankedRows=[...catalogRows].sort((left,right)=>Number(Boolean(right.identity_specific))-Number(Boolean(left.identity_specific))||Number(right.score||0)-Number(left.score||0));const seenProducts=new Set();const allRows=rankedRows.filter(row=>{const key=normalize(`${row.brand||''} ${row.name||''}`);if(!key||seenProducts.has(key))return false;seenProducts.add(key);return true});
@@ -1151,7 +1171,7 @@
     if(petProductFilter!=='all'&&!categories.includes(petProductFilter))petProductFilter='all';
     [['all','Todos'],...categories.map(value=>[value,value])].forEach(([value,label])=>{const button=document.createElement('button');button.type='button';button.className=value===petProductFilter?'active':'';button.textContent=label;button.addEventListener('click',()=>{petProductFilter=value;renderPetProducts(pet)});filters.append(button)});
     const rows=petProductFilter==='all'?allRows:allRows.filter(row=>row.category===petProductFilter);
-rows.forEach(product=>{const card=document.createElement('article');card.className='pet-product-card';if(product.image_url){const image=document.createElement('img');image.className='pet-product-photo';image.src=product.image_url;image.alt=`${product.brand} ${product.name}`;image.loading='lazy';card.append(image)}else{const missing=document.createElement('div');missing.className='pet-product-photo pet-product-photo-missing';missing.innerHTML='<span class="material-symbols-rounded" aria-hidden="true">inventory_2</span><small>Foto oficial pendiente</small>';card.append(missing)}const badge=document.createElement('span');badge.className='pet-product-rank';badge.textContent=product.identity_specific?'Coincidencia exacta':product.personalization_scope==='life_stage'?'Para su etapa':product.personalization_scope==='selected_goal'?'Para su objetivo':'Esencial para su especie';const copy=document.createElement('div');copy.className='pet-product-copy';const brand=document.createElement('small');brand.textContent=product.brand;const title=document.createElement('h4');title.textContent=product.name;const category=document.createElement('strong');category.textContent=product.category;const profile=document.createElement('i');profile.className='pet-product-profile';profile.textContent=product.profile_label||('Para '+pet.name);const reasonLabel=document.createElement('b');reasonLabel.textContent='Por qué encaja con '+pet.name;const reason=document.createElement('p');reason.textContent=product.reason;copy.append(brand,title,category,profile,reasonLabel,reason);if(product.requires_vet||product.requires_measurement||product.select_before_cart){const warning=document.createElement('em');warning.textContent=product.select_before_cart?'Elige primero la fórmula exacta en el catálogo oficial':product.requires_measurement?'Confirma las medidas de tu mascota y de su espacio; Roxy no adivinará la talla ni la capacidad':'Añádelo para revisar; confirma peso, uso o cambio de dieta antes de comprar';copy.append(warning)}const actions=document.createElement('div');actions.className='pet-product-actions';const source=document.createElement('a');source.href=product.source_url;source.target='_blank';source.rel='noopener noreferrer';source.textContent=product.select_before_cart?'Elegir fórmula oficial':'Información oficial';actions.append(source);if(!product.select_before_cart)actions.append(makeButton(product.requires_measurement?'Añadir para medir':product.requires_vet?'Añadir para revisar':'Añadir al carrito','primary',()=>addPetProduct(product,pet)));card.append(badge,copy,actions);root.append(card)});
+rows.forEach(product=>{const card=document.createElement('article');card.className='pet-product-card';card.append(makePetProductPhoto(product));const badge=document.createElement('span');badge.className='pet-product-rank';badge.textContent=product.identity_specific?'Coincidencia exacta':product.personalization_scope==='life_stage'?'Para su etapa':product.personalization_scope==='selected_goal'?'Para su objetivo':'Esencial para su especie';const copy=document.createElement('div');copy.className='pet-product-copy';const brand=document.createElement('small');brand.textContent=product.brand;const title=document.createElement('h4');title.textContent=product.name;const category=document.createElement('strong');category.textContent=product.category;const profile=document.createElement('i');profile.className='pet-product-profile';profile.textContent=product.profile_label||('Para '+pet.name);const reasonLabel=document.createElement('b');reasonLabel.textContent='Por qué encaja con '+pet.name;const reason=document.createElement('p');reason.textContent=product.reason;copy.append(brand,title,category,profile,reasonLabel,reason);if(product.requires_vet||product.requires_measurement||product.select_before_cart){const warning=document.createElement('em');warning.textContent=product.select_before_cart?'Elige primero la fórmula exacta en el catálogo oficial':product.requires_measurement?'Confirma las medidas de tu mascota y de su espacio; Roxy no adivinará la talla ni la capacidad':'Añádelo para revisar; confirma peso, uso o cambio de dieta antes de comprar';copy.append(warning)}const actions=document.createElement('div');actions.className='pet-product-actions';const source=document.createElement('a');source.href=product.source_url;source.target='_blank';source.rel='noopener noreferrer';source.textContent=product.select_before_cart?'Elegir fórmula oficial':'Información oficial';actions.append(source);if(!product.select_before_cart)actions.append(makeButton(product.requires_measurement?'Añadir para medir':product.requires_vet?'Añadir para revisar':'Añadir al carrito','primary',()=>addPetProduct(product,pet)));card.append(badge,copy,actions);root.append(card)});
     if(!rows.length){const empty=document.createElement('div');empty.className='empty';empty.innerHTML=allRows.length?'<strong>No hay productos en esta categoría</strong>Prueba otro filtro.':pet.exact_species?'<strong>Aún no hay un producto verificado para esta especie</strong>Roxy no inventará una marca. Conserva el plan de cuidado y consulta a un veterinario de exóticos para elegir el producto correcto.':'<strong>Completa la especie exacta</strong>Roxy la necesita antes de recomendar un producto concreto.';root.append(empty)}
   }
   async function addPetProduct(product,pet){try{await api('/v1/shopping/'+encodeURIComponent(user),{method:'POST',body:JSON.stringify({name:product.shopping_name,quantity:1,unit:'unidad',category:'PETS',notes:'Para '+pet.name+'. '+product.disclosure})});await load({quiet:true});announce(product.brand+' añadido a la lista para revisar; tú confirmarás producto, precio y compra.')}catch(error){announce(error.message)}}
