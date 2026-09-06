@@ -105,6 +105,23 @@ El agente de ElevenLabs previo es público; bloquear el endpoint de la demo no
 convierte al agente externo en privado. Revisar acceso en el proveedor y resolver
 su `payment_issue` antes de incluir voz en una demo abierta.
 
+## Seguimiento 168 — controles visibles y aviso de demo
+
+167 se comprobó en público: mapa Google cargado y tráfico visible; Robert/Roxy
+siguen en Nexo. El registro público devuelve `enabled:false` sin exponer claves.
+Al probar los controles nativos de zoom, la interfaz superpuesta recibió el clic
+en “Activar ubicación”; el navegador denegó el permiso. Robert permaneció privado.
+El código confirma que no se guardó ninguna preferencia: solo se guarda después
+de recibir una posición. No se borraron recorridos ni se llamó a desactivación.
+
+168 desactiva el zoom nativo tapado y añade botones propios a la izquierda,
+separados de ubicación. Reposiciona controles y retira la superposición de la
+tarjeta sobre el borde inferior del mapa/atribución. Corrige el mensaje de permiso
+denegado para no afirmar que la preferencia está activa cuando nunca se guardó.
+El aviso de demo usa su propio bloque compacto (el componente reutilizado de
+privacidad tenía una primera columna estrecha). Captura local revisada:
+`/tmp/roxy-demo-proof.rF8h6c/04-private-trial-fixed.png`.
+
 ## Colaboraciones: fuentes oficiales comprobadas, no acuerdos cerrados
 
 - [Petco afiliados](https://www.petco.com/affiliate): solicitud mediante Impact.

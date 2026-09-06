@@ -16,17 +16,20 @@ hogares privados, vencimiento a solo lectura, cinco solicitudes de Roxy al día
 por hogar, cuotas de admisión y verificación Turnstile en servidor. No está abierto.
 Falta configurar Turnstile y probar el alta real, recuperación/soporte y revisar
 el alcance de funciones. No habilitar por el simple hecho de pasar los tests.
-Revisión pública encontró además un error de arranque de Google Maps:
-`ControlPosition.RIGHT_BOTTOM` antes de cargar `core`. 167 espera callback y
-bibliotecas, con prueba de regresión; pendiente de comprobación pública.
+167 comprobado en público: arranque de Google Maps corregido, mapa y tráfico
+visibles. Registro devuelve `enabled:false`. Candidato 168 separa controles de
+zoom y ubicación, evita tapar la atribución y corrige aviso de permiso denegado.
+Una prueba de zoom alcanzó el botón superpuesto de ubicación; el navegador denegó
+permiso y Robert siguió privado. No se guardó preferencia ni se borró historial.
 No aumentar gasto ni cambiar facturación. Voz continúa pendiente por `payment_issue`.
 
 - Worktree: `/Users/robertograu/.codex/worktrees/roxy-home-renueva`.
 - Rama local: `codex/roxy-home-renueva`; destino de despliegue: `origin/codex/roxy-home-nfc`.
 - URL: https://roxy-home.onrender.com/lista#mascotas.
 - Servicio Render: `roxy-home`, `srv-da0l3vs9v7es739kcmd0`, montaje persistente `/var/data`.
-- Versión pública comprobada: 166, commit de implementación `fb6b5af2c`.
-  Candidato 167 aún sin desplegar; 517 tests Home/compras aprobados, incluida la regresión del mapa.
+- Versión pública comprobada: 167, commit de implementación `ce2fd3f53`.
+  Candidato 168 aún sin desplegar; 517 tests Home/compras aprobados y regresión
+  adicional de botones de zoom, sin llamadas de ubicación.
 
 ## Cambio confirmado en infraestructura
 

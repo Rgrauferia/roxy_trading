@@ -1,5 +1,13 @@
 /* Native hidden state must win over component grid/flex rules in every module. */
 [hidden] { display: none !important; }
+.demo-trial-banner { display: block; padding: 12px 16px; margin-bottom: 16px; border: 1px solid #d9dfd5; border-radius: 18px; background: #f0f4e9; color: #1b503b; font-size: .85rem; line-height: 1.5; overflow-wrap: anywhere; }
+.family-map-zoom { position: absolute; z-index: 6; left: 18px; top: 160px; display: grid; gap: 8px; }
+.family-map-zoom button { width: 44px; height: 44px; padding: 0; border: 1px solid #d9dfd5; border-radius: 14px; background: #fffdf8; color: #1b503b; font: 600 26px/1 system-ui; box-shadow: 0 4px 12px #173f2b20; }
+body.family-globe-active .family-map-zoom { display: none; }
+body.family-mode .family-panel .family-map-controls { bottom: 70px; }
+body.family-mode .family-panel .family-map-actions { bottom: 128px; }
+body.family-mode .family-panel .family-presence-card { margin-top: 0; }
+body.family-mode .family-map-actions button[aria-pressed="true"] { background: #1b503b; color: #fffdf8; }
 .aquarium-inhabitants { min-width: 0; padding: 16px; border: 1px solid #d9dfd5; border-radius: 18px; }
 .aquarium-inhabitants > div { display: grid; gap: 16px; margin-block: 16px; }
 .aquarium-inhabitants fieldset { min-width: 0; display: grid; gap: 10px; padding: 14px; border: 1px solid #d9dfd5; border-radius: 14px; }
