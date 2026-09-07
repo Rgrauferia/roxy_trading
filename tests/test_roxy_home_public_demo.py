@@ -73,6 +73,24 @@ def test_signup_has_no_namespace_override_and_preserves_existing_household(demo)
     assert client().get('/v1/shopping/' + one["storage_user_id"], headers={"Authorization":"Bearer home-demo-test-only"}).status_code == 403
 
 
+def test_trial_pet_products_are_private_and_expiration_blocks_additions(demo):
+    from roxy_os.home_pet_catalog import personalized_pet_products
+    tester, outsider = client(), client()
+    member = signup(tester).json()
+    signup(outsider, "trialtwo")
+    namespace = member["storage_user_id"]
+    pet = service._home_food_store().upsert_pet(namespace, name="Prueba", species="ferret", life_stage="adult")
+    product = next(p for p in personalized_pet_products(pet) if p["brand"] == "Kaytee")
+    path = f"/v1/home-food/{namespace}/pets/{pet['id']}/products/{product['id']}/shopping"
+    assert outsider.post(path, json={"confirmed": True}).status_code == 403
+    assert tester.post(path, json={"confirmed": True}).status_code == 201
+    before = service._store().list_items(namespace)
+    expired = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+    demo._mutate(lambda data: data["households"][member["household_id"]]["trial"].update(expires_at=expired))
+    assert tester.post(path, json={"confirmed": True}).status_code == 403
+    assert service._store().list_items(namespace) == before
+
+
 def test_signup_requires_verification_acknowledgement_and_durable_admission_caps(demo):
     tester = client()
     assert signup(tester, verification_token="bad-token").status_code == 422

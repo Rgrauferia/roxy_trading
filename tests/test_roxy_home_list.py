@@ -38,15 +38,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "script-src 'none'" in privacy.headers["content-security-policy"]
     assert "roxy_privacy.html assets/roxy_privacy.css" in Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="171"' in page.text
+    assert 'name="roxy-home-version" content="172"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' in page.text
-    assert 'href="/assets/roxy_list.css?v=122"' in page.text
-    assert 'src="/assets/roxy_list.js?v=170"' in page.text
+    assert 'href="/assets/roxy_list.css?v=124"' in page.text
+    assert 'src="/assets/roxy_list.js?v=173"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
-    assert '/assets/roxy_list.css?v=122' in worker.text
-    assert '/assets/roxy_list.js?v=170' in worker.text
+    assert '/assets/roxy_list.css?v=124' in worker.text
+    assert '/assets/roxy_list.js?v=173' in worker.text
     assert '/assets/roxy_home/renueva-living-room-hero.webp' in worker.text
     assert '/assets/roxy_home/plants-soil-meter.png' in worker.text
     assert '/assets/roxy_home/pet-onboarding-hero.png' in worker.text
@@ -78,7 +78,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
     assert 'Revisar productos' in script.text
-    assert "const APP_VERSION = '171'" in script.text
+    assert "const APP_VERSION = '172'" in script.text
     assert '/assets/roxy_home_registration.js?v=1' in page.text
     assert '/assets/roxy_home_registration.js?v=1' in worker.text
     assert 'COPY assets/roxy_home_registration.js ./assets/roxy_home_registration.js' in Path('Dockerfile.roxy-home').read_text()
@@ -319,7 +319,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "renderPetCare" in script.text
     assert "await refreshHomeFood()" in script.text
     assert "pet-info-stats" in script.text
-    assert "Por qué encaja con " in script.text
+    assert "Por qué aparece para " in script.text
+    assert "Antes de elegir para " in script.text
     assert "Añadir al carrito" in script.text
     assert "petRecipeFilter" in script.text
     assert "title:'Premios'" in script.text

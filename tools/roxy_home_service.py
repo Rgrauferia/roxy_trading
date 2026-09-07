@@ -163,6 +163,10 @@ class ShoppingQuantityRequest(BaseModel):
     quantity: float = Field(gt=0, le=100_000)
 
 
+class PetProductShoppingRequest(BaseModel):
+    confirmed: bool = False
+
+
 class AssistantCommandRequest(BaseModel):
     text: str = Field(min_length=1, max_length=1000)
 
@@ -340,6 +344,7 @@ class HomePromptRequest(BaseModel):
     mode: str = Field(default="routine", pattern="^(routine|deep)$")
     recipe_type: str = Field(default="general", pattern="^(general|alcoholic|non_alcoholic)$")
     catalog_key: str = Field(default="", max_length=120)
+    pet_id: str = Field(default="", max_length=80)
 
 
 class RecipeImportRequest(BaseModel):
@@ -3855,12 +3860,30 @@ def generate_home_recipe(
             deep=payload.mode == "deep",
             recipe_type=payload.recipe_type,
         ))
+    if recipe_data.get("audience") == "pet":
+        try:
+            pet = resolve_pet(snapshot, payload.pet_id)
+            if recipe_data.get("pet_species") != pet.get("species"):
+                raise ValueError("Esta preparación pertenece a otra especie.")
+            if payload.catalog_key:
+                available = {row.get("catalog_key"): row for row in personalized_pet_recipe_catalog(pet, snapshot)}
+                if payload.catalog_key not in available:
+                    raise ValueError("Esta preparación ya no está disponible para el perfil actual. Revisa sus restricciones antes de continuar.")
+                recipe_data = {**recipe_data, **available[payload.catalog_key]}
+            else:
+                recipe_data = validate_pet_import(recipe_data, pet)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     if payload.recipe_type != "general":
         recipe_data = {**recipe_data, "kind": "drink", "drink_type": payload.recipe_type}
     try:
         recipe = store.save_recipe(user, recipe_data, mode=payload.mode)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail="Roxy devolvió una receta incompleta.") from exc
+    if recipe.get("audience") == "pet" and recipe.get("generation_source") == "local_recipe_catalog":
+        # Resolve verified catalog artwork on the server, including the immediate
+        # save response. Do not accept a browser-supplied photo verification flag.
+        recipe = store.get_recipe(user, recipe["id"])
     _schedule_account_recipe_photo(recipe, auth)
     return {"status": "CREATED", "recipe": recipe, "generation_mode": generation_mode}
 
@@ -3940,6 +3963,35 @@ def update_pet_habitat(user_id: str, pet_id: str, payload: PetHabitatRequest, re
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"status": "SAVED", "observation": observation}
+
+
+@app.post("/v1/home-food/{user_id}/pets/{pet_id}/products/{product_id}/shopping", status_code=201)
+def add_home_pet_product(user_id: str, pet_id: str, product_id: str,
+                         payload: PetProductShoppingRequest, request: Request,
+                         auth: AuthContext = Depends(_authenticate)) -> dict[str, Any]:
+    """Re-resolve the current pet and shelf; never trust a cached browser verdict."""
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    if not payload.confirmed:
+        raise HTTPException(status_code=409, detail="Confirma que quieres añadir este producto a tu lista.")
+    pet = next((row for row in _home_food_store().snapshot(user).get("pets", []) if row.get("id") == pet_id), None)
+    if not pet:
+        raise HTTPException(status_code=404, detail="Mascota no encontrada en este hogar.")
+    product = next((row for row in personalized_pet_products(pet) if row["id"] == product_id), None)
+    if not product:
+        raise HTTPException(status_code=409, detail="Este producto ya no coincide con el perfil actual. Actualiza las recomendaciones.")
+    safety = product.get("safety") or {}
+    if safety.get("cart_blocked") or product.get("select_before_cart"):
+        raise HTTPException(status_code=409, detail=safety.get("message") if safety.get("cart_blocked") else "Elige primero la fórmula exacta; no añadiremos una línea de productos genérica.")
+    notes = f"Para {pet['name']}. {product['disclosure']} {safety.get('message', '')}"
+    if product.get("requires_vet"):
+        notes += " Pendiente de revisión veterinaria antes de usar."
+    if product.get("requires_measurement"):
+        notes += " Pendiente de confirmar medidas y talla."
+    item = _store().add(user, product["shopping_name"], quantity=1, unit="unidad",
+                        category="PETS", notes=notes, source="pet_recommendation")
+    return {"status": "ADDED_TO_LIST", "item": item, "pet_id": pet_id, "product_id": product_id,
+            "notice": "Añadido a la lista; no se ha comprado ni autorizado su uso."}
 
 
 @app.post("/v1/home-food/{user_id}/pets/{pet_id}/medical-history", status_code=201)

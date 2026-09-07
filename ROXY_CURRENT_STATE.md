@@ -60,6 +60,23 @@ No se modificaron perfiles, historial, carro, permisos de ubicación ni facturac
 Próximo bloque: ingredientes completos y alergias de productos, variedad real sin
 duplicados por raza y fotos pendientes. No declarar demo listo ni habilitar registro.
 
+## Candidato 172 — seguridad y fotos de mascotas
+
+Implementado, todavía no comprobado en público: ingredientes completos y Compra
+coherente, cribado bilingüe de alergias, cinco fórmulas oficiales revisadas,
+productos con restricciones pendientes y bloqueo en servidor, ID de producto
+estable y receta vinculada a la mascota actual. Restricciones se revalidan al
+cocinar/escalar/enviar a Compra. Importaciones conservadas; copias del catálogo
+reciben correcciones sin perder notas, favorita ni foto personal. Catálogo sin
+duplicados de preparación por raza: perro 13 / Bernese joven 15, todas con imagen
+individual revisada; cinco imágenes nuevas. Luna conserva ocho preparaciones.
+HTML/APP 172, JS 173, CSS 124, SW 170. Registro sigue apagado; voz/facturación
+pendientes. Ver `reports/home_pet_safety_172_20260906.md`. 565 pruebas Home/compras
+aprobadas; JS/SW, JSON y diff válidos. Pendiente de comprobación pública.
+QA únicamente local: 17 perfiles sintéticos, pavo/calabaza guardada con foto,
+ingredientes correctos en Compra; Ferret con restricción, fórmula visible y sin
+botón de añadir; equipo permitido. No se modificaron mascotas/carrito públicos.
+
 ## Cambio confirmado en infraestructura
 
 Roberto autorizó ampliar únicamente el disco de Home de 1 a 10 GB, a un costo

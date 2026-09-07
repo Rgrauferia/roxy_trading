@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from copy import deepcopy
@@ -285,13 +286,21 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         "cat_hard_boiled_egg": ("cat", "Miguitas de huevo hervido para gatos", "Huevo", 1, "unidad", "Hierve el huevo durante 10 minutos, enfríalo y retira toda la cáscara.", "Separa una miguita de clara y yema totalmente firmes, sin leche, aceite, sal ni condimentos."),
         "cat_dehydrated_whitefish": ("cat", "Lascas deshidratadas de pescado blanco para gatos", "Filete de pescado blanco sin piel ni espinas", 160, "gramo", "Revisa el filete con cuidado, retira piel y todas las espinas y córtalo en láminas finas.", "Deshidrata hasta que el pescado esté completamente cocido y seco; vuelve a revisar espinas antes de desmenuzar."),
     }
+    # Every ingredient used in preparation must also reach allergy screening and
+    # shopping. Quantities are for the batch, never an individual feeding ration.
+    complete_batch_ingredients = {
+        "dog_apple_carrot_oat": [("Manzana sin semillas ni corazón", 100, "gramo"), ("Zanahoria", 50, "gramo"), ("Avena molida simple", 50, "gramo")],
+        "dog_turkey_pumpkin": [("Pavo molido sin condimentos", 250, "gramo"), ("Puré de calabaza 100 % natural sin especias", 60, "gramo")],
+        "dog_beef_green_bean": [("Res molida magra sin condimentos", 250, "gramo"), ("Judías verdes cocidas sin sal", 50, "gramo")],
+        "dog_frozen_banana_pumpkin": [("Plátano maduro pelado", 100, "gramo"), ("Puré de calabaza 100 % natural sin especias", 60, "gramo")],
+    }
     for key, (species, title, ingredient_name, quantity, unit, prep, cooking) in extra_treats.items():
         recipe = _recipe(
             title,
             "Premio casero ocasional preparado sin sal, ajo, cebolla, azúcar ni condimentos.",
             "other",
             10,
-            [(ingredient_name, quantity, unit)],
+            complete_batch_ingredients.get(key, [(ingredient_name, quantity, unit)]),
             [
                 "Lávate las manos y limpia la superficie y los utensilios antes de comenzar.",
                 prep,
@@ -307,7 +316,27 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         )
         if "dehydrated" in key:
             recipe["pet_variety"] = "Deshidratado"
-        elif "hard_boiled" in key:
+            poultry = key in {"dog_dehydrated_chicken", "dog_dehydrated_turkey", "cat_dehydrated_chicken"}
+            minimum = "74 °C" if poultry else "63 °C"
+            recipe["steps"][2:3] = [
+                f"Antes de deshidratar, cocina al vapor o en el horno hasta que el centro alcance {minimum}, comprobado con un termómetro alimentario; la temperatura del aire no sustituye esta medición.",
+                "Después, extiende las piezas sin superponerlas y seca en un deshidratador apto para alimentos a 60 °C, siguiendo sus instrucciones, hasta que no queden zonas húmedas. No uses solo el secado para cocinar carne cruda.",
+            ]
+            recipe["sources"].append({"title": "USDA · cocinar antes de deshidratar", "url": "https://www.fsis.usda.gov/food-safety/safe-food-handling-and-preparation/meat-fish/jerky", "authority": "USDA"})
+        if key == "dog_frozen_banana_pumpkin":
+            recipe["steps"][3:] = [
+                "Mantén los cubos congelados y separa solo una pieza pequeña; deja que se ablande antes de ofrecerla y evita piezas duras o grandes que pueda tragar enteras.",
+                "Es un premio ocasional, no una comida completa. Etiqueta el lote con la fecha, mantenlo congelado y descarta la porción descongelada que no consuma; no vuelvas a congelarla.",
+            ]
+        if key == "cat_whitefish_flakes":
+            recipe["steps"][2] = "Hornea sin aceite ni condimentos hasta que el centro alcance 63 °C y la carne se separe fácilmente; vuelve a comprobar que no haya espinas."
+        if key == "cat_rabbit_morsels":
+            recipe["steps"][2] = "Cocina la carne hasta que el centro alcance 71 °C, medido con termómetro, y córtala en bocados mínimos."
+        if "dehydrated" in key or key in {"cat_whitefish_flakes", "cat_rabbit_morsels"}:
+            recipe["sources"].append({"title": "FoodSafety.gov · temperaturas internas", "url": "https://www.foodsafety.gov/food-safety-charts/safe-minimum-internal-temperatures", "authority": "FoodSafety.gov"})
+        if key in complete_batch_ingredients:
+            recipe["content_revision"] = "complete-ingredients-2026-09-06"
+        if "hard_boiled" in key:
             recipe["pet_variety"] = "Hervido"
         recipes[key] = recipe
     bernese_exact_specs = [
@@ -497,15 +526,16 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         "farm_pet": "/assets/roxy_home/recipes/pets/farm-pet-feeding.webp",
         "other": "/assets/roxy_home/recipes/pets/species-identification.webp",
     }
-    # A recipe card must show the preparation it names. These curated collection
-    # photographs are composed so each preparation can receive its own crop; the
-    # older category-wide images remain only as honest fallbacks for care guides.
+    # Only individually inspected, standalone preparations are verified below.
+    # Legacy collage references remain unverified and must never be displayed.
     exact_recipe_photos = {
-        "dog_hard_boiled_egg": ("/assets/roxy_home/recipes/pets/dog-treat-collection.webp", "31% 23%"),
-        "dog_dehydrated_turkey": ("/assets/roxy_home/recipes/pets/dog-treat-collection.webp", "18% 55%"),
-        "dog_dehydrated_chicken": ("/assets/roxy_home/recipes/pets/dog-treat-collection.webp", "80% 28%"),
-        "dog_turkey_pumpkin": ("/assets/roxy_home/recipes/pets/bernese-turkey-pumpkin.jpg", "50% 50%"),
-        "dog_frozen_banana_pumpkin": ("/assets/roxy_home/recipes/pets/bernese-banana-pumpkin.jpg", "50% 50%"),
+        "dog_hard_boiled_egg": ("/assets/roxy_home/recipes/pets/dog-hard-boiled-egg-v2.jpg", "50% 50%"),
+        "dog_dehydrated_turkey": ("/assets/roxy_home/recipes/pets/dog-dehydrated-turkey-v2.jpg", "50% 50%"),
+        "dog_dehydrated_chicken": ("/assets/roxy_home/recipes/pets/dog-dehydrated-chicken-v2.jpg", "50% 50%"),
+        "dog_turkey_pumpkin": ("/assets/roxy_home/recipes/pets/dog-turkey-pumpkin-v2.jpg", "50% 50%"),
+        "bernese_young_turkey_pumpkin": ("/assets/roxy_home/recipes/pets/dog-turkey-pumpkin-v2.jpg", "50% 50%"),
+        "dog_frozen_banana_pumpkin": ("/assets/roxy_home/recipes/pets/dog-banana-pumpkin-blended-v2.jpg", "50% 50%"),
+        "bernese_young_banana_pumpkin": ("/assets/roxy_home/recipes/pets/dog-banana-pumpkin-blended-v2.jpg", "50% 50%"),
         "dog_chicken_training_bits": ("/assets/roxy_home/recipes/pets/bernese-chicken-training.jpg", "50% 50%"),
         "dog_beef_green_bean": ("/assets/roxy_home/recipes/pets/bernese-beef-green-bean.jpg", "50% 50%"),
         "dog_apple_carrot_oat": ("/assets/roxy_home/recipes/pets/bernese-apple-carrot.jpg", "50% 50%"),
@@ -531,6 +561,13 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
             recipe["photo_asset"], recipe["photo_focus"] = exact_recipe_photos[key]
         # Only standalone, recipe-matched assets may bypass generated artwork.
         recipe["photo_asset_verified"] = key in {
+            "dog_banana_oat_treats", "dog_pumpkin_oat_biscuits", "dog_blueberry_yogurt_bites", "dog_chicken_carrot_meatballs",
+            "dog_hard_boiled_egg", "dog_dehydrated_chicken", "dog_frozen_banana_pumpkin",
+            "dog_dehydrated_turkey", "dog_turkey_pumpkin", "bernese_young_turkey_pumpkin",
+            "dog_beef_green_bean", "dog_apple_carrot_oat", "dog_sweet_potato_chews", "dog_chicken_training_bits",
+            "bernese_young_banana_oat", "bernese_young_pumpkin_oat", "bernese_young_blueberry_yogurt", "bernese_young_chicken_carrot",
+            "bernese_young_banana_pumpkin", "bernese_young_beef_green_bean", "bernese_young_apple_carrot",
+            "bernese_young_sweet_potato", "bernese_young_chicken_training", "bernese_young_watermelon", "bernese_young_egg_oat",
             "ferret_poached_chicken", "ferret_cooked_lamb", "ferret_baked_duck", "ferret_turkey_medallions",
             "ferret_cooked_turkey_bites", "ferret_chicken_heart_bites", "ferret_cooked_egg_bites", "ferret_cooked_beef_bites",
             "cat_cooked_chicken_bites", "cat_cooked_salmon_flakes", "cat_turkey_mini_patties", "cat_egg_chicken_bites"
@@ -835,18 +872,8 @@ def personalized_pet_recipe_catalog(pet: dict[str, Any], snapshot: dict[str, Any
         food_profile_reviewed = True
     except ValueError:
         food_profile_reviewed = False
-    allergy_aliases = {
-        "pollo": {"pollo", "chicken"}, "pavo": {"pavo", "turkey"}, "res": {"res", "beef"},
-        "pescado": {"pescado", "salmon", "bacalao", "camaron", "fish", "shrimp"},
-        "huevo": {"huevo", "egg"}, "lacteos": {"yogur", "leche", "queso", "lacteo", "dairy"},
-        "trigo": {"trigo", "harina", "wheat"}, "avena": {"avena", "oat"},
-    }
-    blocked: set[str] = set()
-    for allergy in pet.get("allergies") or []:
-        normalized = _identity(allergy)
-        if normalized.startswith("ninguna"):
-            continue
-        blocked.update(allergy_aliases.get(normalized, {normalized}))
+    from roxy_os.home_pet_restrictions import matching_restrictions, pet_restrictions
+    blocked = pet_restrictions(pet)
     rows: list[dict[str, Any]] = []
     for source in local_recipe_catalog(snapshot):
         if source.get("audience") != "pet" or source.get("pet_species") != species:
@@ -872,7 +899,7 @@ def personalized_pet_recipe_catalog(pet: dict[str, Any], snapshot: dict[str, Any
         if life_stages and stage not in life_stages:
             continue
         ingredient_text = _identity(" ".join(str(item.get("name") or "") for item in source.get("ingredients") or [] if isinstance(item, dict)))
-        matched_allergies = sorted(value for value in blocked if value and value in ingredient_text)
+        matched_allergies = matching_restrictions(pet, ingredient_text)
         if matched_allergies:
             continue
         row = deepcopy(source)
@@ -911,6 +938,16 @@ def personalized_pet_recipe_catalog(pet: dict[str, Any], snapshot: dict[str, Any
     for saved in snapshot.get("recipes") or []:
         if saved.get("audience") != "pet" or not pet.get("id") or saved.get("pet_id") != pet["id"]:
             continue
+        if saved.get("generation_source") == "local_recipe_catalog":
+            # Saving a catalog preparation should not add another identical card.
+            # Carry user metadata on every equivalent candidate before the breed
+            # preference is applied; no stored recipe is changed or removed.
+            for candidate in rows:
+                if candidate.get("ingredients") == saved.get("ingredients") and candidate.get("steps") == saved.get("steps"):
+                    for field in ("id", "favorite", "user_notes", "photo_data_url", "created_at", "shopping_converted_at"):
+                        if field in saved:
+                            candidate[field] = deepcopy(saved[field])
+            continue
         from roxy_os.home_pet_recipe_safety import validate_pet_import
         try:
             own = validate_pet_import(saved, pet)
@@ -918,7 +955,7 @@ def personalized_pet_recipe_catalog(pet: dict[str, Any], snapshot: dict[str, Any
             continue
         own.update(profile_label=f"Para {pet_name} · {identity}", personalization_reason="Importada para este perfil; vuelve a confirmar ingredientes y cantidad antes de ofrecerla.")
         rows.append(own)
-    return sorted(
+    ordered = sorted(
         rows,
         key=lambda row: (
             0 if row.get("pet_exact_terms") else 1,
@@ -926,6 +963,17 @@ def personalized_pet_recipe_catalog(pet: dict[str, Any], snapshot: dict[str, Any
             str(row.get("title") or "").casefold(),
         ),
     )
+    # A breed label alone is not a new preparation. Keep the personalized copy
+    # first, but never collapse distinct methods or user-owned imported recipes.
+    unique, seen = [], set()
+    for row in ordered:
+        signature = json.dumps([row.get("pet_species"), row.get("ingredients"), row.get("steps")], sort_keys=True, ensure_ascii=False)
+        if row.get("catalog_key") and signature in seen:
+            continue
+        if row.get("catalog_key"):
+            seen.add(signature)
+        unique.append(row)
+    return unique
 
 
 def exact_local_recipe(title: str) -> dict[str, Any] | None:

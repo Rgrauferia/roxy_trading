@@ -166,6 +166,7 @@ def test_catalog_recipe_save_survives_optional_photo_queue_failure(tmp_path, mon
     monkeypatch.setenv("ROXY_HOME_MEMORY_PATH", str(tmp_path / "home-food.json"))
     monkeypatch.setattr(roxy_home_service, "_recipe_photo_queue", lambda: BrokenPhotoQueue())
     roxy_home_service._RATE_STATE.clear()
+    pet = roxy_home_service._home_food_store().upsert_pet("robert", name="Prueba", species="ferret", life_stage="adult")
     client = TestClient(roxy_home_service.app)
     response = client.post(
         "/v1/home-food/robert/recipes",
@@ -175,6 +176,7 @@ def test_catalog_recipe_save_survives_optional_photo_queue_failure(tmp_path, mon
             "mode": "routine",
             "recipe_type": "general",
             "catalog_key": "ferret_chicken_heart_bites",
+            "pet_id": pet["id"],
         },
     )
 

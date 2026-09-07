@@ -5,8 +5,8 @@
   "public_url": "https://roxy-home.onrender.com/lista#mascotas",
   "last_verified_public_version": 171,
   "deployed_implementation_commit": "078833299",
-  "candidate_version": 171,
-  "candidate_status": "deployed_public_verified",
+  "candidate_version": 172,
+  "candidate_status": "565_tests_passed_local_qa_pending_public_verification",
   "storage": {
     "authorized_gb": 10,
     "render_confirmed_gb": 10,
@@ -76,10 +76,10 @@
     "463 human catalog templates require editorial review; cooking and shopping now gated",
     "Full UI audit still incomplete: garden/design end-to-end, pantry/settings, public integrations",
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed",
-    "Product allergy filtering needs complete ingredient verification, not only product-name matching",
-    "Recipe variety still includes near-duplicate breed variants; counts are not unique preparations"
+    "Only five manufacturer ingredient panels screened; restrictions fail closed, not clinical allergy clearance",
+    "Shopping footer sums grams as item count; found in isolated QA, pending fix"
   ],
-  "next_step": "Keep signup disabled. Implement product ingredient allergy safeguards, review genuine variety and complete recipe-specific photos, then continue remaining module/content audit. 171 deployed and public UI verified; no universal readiness claim.",
+  "next_step": "Finish tests and deploy candidate 172, verify actual public assets and Bella/Luna UI. Then remaining cat/bird/small-pet photos, shopping quantity footer, exact-species products and remaining module audit. Keep signup disabled; no universal readiness claim.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",

@@ -63,7 +63,7 @@ def trial_access_mode(method: str, path: str) -> str:
         return "local"
     if re.fullmatch(r"/v1/home-food/[^/]+/(?:recipes|substitutions|food-safety|recipe-imports)", path) and method == "POST":
         return "ai"
-    if re.fullmatch(r"/v1/home-food/[^/]+/(?:profile|pantry|pets|pets/[^/]+/(?:habitat|medical-history|care-log)|recipe-imports/commit|recipes/[^/]+(?:/(?:scale|shopping-preview|shopping-commit|cooking-sessions))?|weekly-plans(?:/[^/]+/(?:shopping-commit|meal|day))?|cooking-sessions/[^/]+(?:/timers(?:/[^/]+)?)?)", path):
+    if re.fullmatch(r"/v1/home-food/[^/]+/(?:profile|pantry|pets|pets/[^/]+/(?:habitat|medical-history|care-log|products/[^/]+/shopping)|recipe-imports/commit|recipes/[^/]+(?:/(?:scale|shopping-preview|shopping-commit|cooking-sessions))?|weekly-plans(?:/[^/]+/(?:shopping-commit|meal|day))?|cooking-sessions/[^/]+(?:/timers(?:/[^/]+)?)?)", path):
         return "local"
     if re.fullmatch(r"/v1/home-calendar/[^/]+/(?:drafts(?:/confirm)?|events/[^/]+)", path):
         return "local"

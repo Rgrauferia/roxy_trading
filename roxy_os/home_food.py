@@ -165,6 +165,10 @@ class HomeFoodStore:
         """Refresh old catalog copies while preserving user-owned metadata."""
         if not isinstance(recipe, dict):
             return
+        # A short imported recipe is still owned by the user, not by a matching
+        # catalog title. Never overwrite its ingredients, steps or photograph.
+        if recipe.get("audience") == "pet" and recipe.get("generation_source") not in {None, "", "local_recipe_catalog"}:
+            return
         steps = [str(step or "") for step in recipe.get("steps") or []]
         searchable = _identity(" ".join(steps))
         incomplete = len(steps) < 5 or any(
@@ -203,6 +207,21 @@ class HomeFoodStore:
             recipe[key] = deepcopy(current.get(key))
         recipe["ingredients"] = ingredients
         recipe["editorial_version"] = 3
+        if recipe.get("audience") == "pet" and catalog_owned:
+            for key in ("photo_asset", "photo_asset_verified", "content_revision", "safety_class", "veterinary_note"):
+                recipe[key] = deepcopy(current.get(key))
+
+    def _require_current_pet_recipe(self, user_id: Any, recipe: dict[str, Any]) -> None:
+        if recipe.get("audience") != "pet":
+            return
+        from roxy_os.home_pet_recipe_safety import resolve_pet, validate_pet_import
+        try:
+            pet = resolve_pet(self.snapshot(user_id), str(recipe.get("pet_id") or ""))
+            if recipe.get("pet_species") != pet.get("species"):
+                raise ValueError("La receta pertenece a otra especie. Abre una preparación desde el perfil correcto.")
+            validate_pet_import(recipe, pet)
+        except ValueError as exc:
+            raise RecipeReviewRequired(str(exc)) from exc
 
     @staticmethod
     def _infer_drink_type(recipe: dict[str, Any]) -> str:
@@ -802,6 +821,7 @@ class HomeFoodStore:
     def start_cooking_session(self, user_id: Any, recipe_id: str) -> dict[str, Any]:
         recipe = self.get_recipe(user_id, recipe_id)
         _require_reviewed_recipe(recipe)
+        self._require_current_pet_recipe(user_id, recipe)
 
         def apply(payload: dict[str, Any]) -> dict[str, Any]:
             record = self._user(payload, user_id)
@@ -938,6 +958,7 @@ class HomeFoodStore:
             raise KeyError(session.get("recipe_id"))
         _require_reviewed_recipe(recipe)
         index = max(0, min(int(session.get("step_index") or 0), len(recipe.get("steps") or []) - 1))
+        self._require_current_pet_recipe(user_id, recipe)
         enriched_session = deepcopy(session)
         now = datetime.now(timezone.utc)
         for timer in enriched_session.get("timers", []):
@@ -963,6 +984,7 @@ class HomeFoodStore:
     def scale_recipe(self, user_id: Any, recipe_id: str, servings: Any) -> dict[str, Any]:
         recipe = self.get_recipe(user_id, recipe_id)
         _require_reviewed_recipe(recipe)
+        self._require_current_pet_recipe(user_id, recipe)
         target = _positive_number(servings, maximum=100)
         factor = target / _positive_number(recipe.get("servings") or 1, maximum=100)
         scaled = deepcopy(recipe)
@@ -977,6 +999,7 @@ class HomeFoodStore:
     def shopping_preview(self, user_id: Any, recipe_id: str, *, servings: Any | None = None) -> dict[str, Any]:
         recipe = self.scale_recipe(user_id, recipe_id, servings) if servings is not None else self.get_recipe(user_id, recipe_id)
         _require_reviewed_recipe(recipe)
+        self._require_current_pet_recipe(user_id, recipe)
         pantry = self.snapshot(user_id).get("pantry", [])
         available: dict[tuple[str, str], float] = {}
         for row in pantry:

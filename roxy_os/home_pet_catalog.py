@@ -348,19 +348,13 @@ def pet_profile_options() -> dict[str, Any]:
 
 def personalized_pet_products(pet: dict[str, Any]) -> list[dict[str, Any]]:
     from roxy_os.home_pet_habitats import bird_diet_group
+    from roxy_os.home_pet_product_safety import product_id, product_safety
     species = str(pet.get("species") or "other")
     normalize = lambda value: re.sub(r"[^a-z0-9]+", " ", unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii").lower()).strip()
     exact = normalize(f"{pet.get('exact_species', '')} {pet.get('breed', '')}")
     stage = str(pet.get("life_stage") or "unknown")
     conditions = {str(value).lower() for value in pet.get("conditions") or []}
     goals = {str(value).lower() for value in pet.get("goals") or []}
-    allergies = {normalize(value) for value in pet.get("allergies") or [] if not normalize(value).startswith("ninguna")}
-    allergen_aliases = {
-        "pollo": {"pollo", "chicken", "poultry"}, "res": {"res", "beef"},
-        "pescado": {"pescado", "fish", "salmon", "tuna"}, "huevo": {"huevo", "egg"},
-        "trigo": {"trigo", "wheat"}, "maiz": {"maiz", "corn"}, "soya": {"soya", "soy"},
-        "lacteos": {"leche", "milk", "dairy", "cheese", "yogurt"},
-    }
     vet_context = bool(
         {value for value in conditions if not value.startswith("ninguna")}
         or str(pet.get("veterinarian_instructions") or "").strip()
@@ -379,8 +373,8 @@ def personalized_pet_products(pet: dict[str, Any]) -> list[dict[str, Any]]:
             continue
         if species == "invertebrate" and any(term in exact for term in ("acuatico", "acuario", "camaron")) and row.get("category") in {"Sustrato", "Hábitat", "Hidratación"}:
             continue
-        product_text = normalize(f"{row.get('brand', '')} {row.get('name', '')}")
-        if any(any(alias in product_text for alias in allergen_aliases.get(allergy, {allergy})) for allergy in allergies):
+        safety = product_safety(pet, row)
+        if safety["status"] == "ingredient_conflict":
             continue
         exact_terms = [normalize(value) for value in row.pop("exact_terms", [])]
         if exact_terms and not any(term in exact for term in exact_terms):
@@ -419,13 +413,14 @@ def personalized_pet_products(pet: dict[str, Any]) -> list[dict[str, Any]]:
         if vet_context and (str(row.get("category", "")).startswith("Alimento") or row.get("category") == "Control de peso"):
             requires_vet = True
         row.update(
-            id=f"{species}:{len(rows)+1}:{row['brand'].lower().replace(' ', '-')}",
+            id=product_id(species, source),
             score=min(score, 100),
             requires_vet=requires_vet,
             shopping_name=f"{row['brand']} {row['name']}",
             disclosure="Revisa etiqueta, tamaño, disponibilidad y precio. Roxy no sustituye una prescripción veterinaria.",
             personalization_scope=personalization_scope,
             requires_measurement=bool(row.get("requires_measurement")),
+            safety=safety,
         )
         pet_name = str(pet.get("name") or "esta mascota")
         identity = str(pet.get("breed") or pet.get("exact_species") or species).strip()

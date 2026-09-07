@@ -20,6 +20,9 @@ def pet_import_context(pet: dict) -> dict:
 
 
 def check_import_profile(pet: dict) -> None:
+    from roxy_os.home_pet_restrictions import unclear_restrictions
+    if unclear_restrictions(pet):
+        raise ValueError("Hay una restricción sin identificar. Especifica el ingrediente o consulta al veterinario antes de añadir preparaciones; no vamos a adivinar qué puede comer.")
     species = pet.get("species")
     if species not in {"dog", "cat", "ferret", "rabbit", "guinea_pig", "hamster", "bird"}:
         raise ValueError("Para esta especie, revisa Alimentación y cuidados en Información. Roxy no convierte un protocolo de cuidado en una receta casera.")
@@ -52,6 +55,9 @@ def validate_pet_import(recipe: dict, pet: dict) -> dict:
         if name not in allowed:
             raise ValueError("Un ingrediente no tiene una equivalencia revisada para esta mascota. Roxy no lo añadirá por semejanza: pide a su veterinario confirmar la receta.")
     result = dict(recipe)
+    source = str(recipe.get("generation_source") or "")
+    result["generation_source"] = source if source.startswith("import_") else "import_user"
+    result.pop("catalog_key", None)
     result.update(audience="pet", pet_id=pet["id"], pet_species=pet["species"], pet_name=pet["name"],
                   editorial_status="user_reviewed_import", content_kind="recipe")
     result["veterinary_note"] = "Premio o complemento ocasional; no sustituye su alimento completo. Importación revisada por el usuario, no certificada por un veterinario. Confirma la cantidad individual y cualquier cambio de salud antes de ofrecerla."

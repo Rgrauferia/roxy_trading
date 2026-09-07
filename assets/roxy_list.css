@@ -1193,7 +1193,16 @@ body.pet-module-mode .pet-panel-heading h3{margin:0 0 7px;font-size:32px}
 .pet-product-card .pet-product-copy>b{display:block;margin-top:12px;color:var(--forest);font-size:9px}
 .pet-product-card .pet-product-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr 1.3fr;gap:9px;align-items:center}
 .pet-product-card .pet-product-actions a{display:grid;min-height:42px;place-items:center;border:1px solid #cfd8cf;border-radius:13px;text-align:center;text-decoration:none;font-weight:800}
-.pet-product-card .pet-product-actions button{width:100%;min-height:42px}
+.pet-product-card .pet-product-actions button{width:100%;min-height:44px}
+.pet-product-card .pet-product-actions>a:only-child{grid-column:1/-1}
+.pet-product-review{grid-column:1/-1;min-width:0}
+.pet-product-card .pet-product-review p.pet-product-safety{font-size:12px;line-height:1.55;border-left:3px solid var(--gold);padding-left:10px;margin:0}
+.pet-product-ingredients{margin-top:12px;font-size:12px;line-height:1.55}
+.pet-product-ingredients summary{cursor:pointer;min-height:44px;align-content:center;font-weight:800;color:var(--forest)}
+.pet-product-card .pet-product-review .pet-product-ingredients p{font-size:12px}
+.pet-product-ingredients a{display:block;padding:8px 0;min-height:44px}
+.pet-product-card .pet-product-ingredients small{display:block;margin-top:6px;color:var(--muted);font-size:11px;letter-spacing:normal;text-transform:none;font-weight:400}
+.pet-product-review>em{display:block;margin-top:8px;font-size:12px;line-height:1.5;color:var(--muted)}
 .pet-product-rank{top:13px;right:14px}
 .pet-medical-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 .pet-medical-actions button{display:flex;align-items:center;justify-content:center;gap:7px;min-height:46px}
