@@ -7,6 +7,53 @@ import pytest
 
 from roxy_os.home_food import HomeFoodStore, RecipeReviewRequired
 from roxy_os.home_recipe_fallback import local_recipe_by_key, personalized_pet_recipe_catalog
+from roxy_os.home_pet_recipe_safety import check_import_profile
+from roxy_os.home_pet_product_safety import product_safety
+
+
+@pytest.mark.parametrize("species,exact_species", [
+    ("rabbit", "Conejo doméstico"), ("guinea_pig", "Cobaya"),
+    ("hamster", "Hámster sirio"), ("bird", "Periquito australiano"), ("bird", "Canario"),
+])
+def test_small_pet_preparations_have_individual_photos_and_current_profile(species, exact_species):
+    pet = {"id": "photo-qa", "name": "Prueba", "species": species, "exact_species": exact_species, "life_stage": "adult"}
+    rows = personalized_pet_recipe_catalog(pet, {})
+    root = Path(__file__).resolve().parents[1]
+    assert len(rows) == 3
+    assert len({row["photo_asset"] for row in rows}) == 3
+    assert all(row["photo_asset_verified"] and row["pet_id"] == pet["id"] for row in rows)
+    assert all((root / row["photo_asset"].lstrip("/")).is_file() for row in rows)
+    assert all(row["content_kind"] == "recipe" and len(row["steps"]) >= 5 and row["ingredients"] for row in rows)
+    assert not personalized_pet_recipe_catalog({**pet, "life_stage": "baby"}, {})
+    ingredients = [item["name"] for row in rows for item in row["ingredients"]]
+    assert not personalized_pet_recipe_catalog({**pet, "allergies": ingredients}, {})
+
+
+@pytest.mark.parametrize("conditions,blocked", [
+    (["Ninguna"], False), (["none"], False), (["Sin condiciones conocidas"], False),
+    (["No known conditions"], False), (["Ninguna salvo diabetes"], True),
+    (["Ninguna", "Renal"], True), (["Unknown"], True), ("ninguna salvo diabetes", True),
+])
+def test_recipe_and_product_medical_gate_share_exact_negative_answers(conditions, blocked):
+    pet = {"id": "qa", "name": "Prueba", "species": "cat", "life_stage": "adult", "conditions": conditions}
+    product = {"brand": "Prueba", "name": "Alimento", "category": "Alimento completo"}
+    assert product_safety(pet, product)["cart_blocked"] is blocked
+    if blocked:
+        with pytest.raises(ValueError, match="veterinaria"):
+            check_import_profile(pet)
+        assert personalized_pet_recipe_catalog(pet, {}) == []
+    else:
+        check_import_profile(pet)
+        assert len(personalized_pet_recipe_catalog(pet, {})) == 12
+
+
+@pytest.mark.parametrize("species,exact_species", [
+    ("bird", "Lori arcoíris"), ("bird", ""), ("reptile", "Pitón bola"),
+    ("fish", "Betta"), ("amphibian", "Ajolote"), ("invertebrate", "Tarántula"),
+])
+def test_more_photos_never_enable_recipes_for_specialist_species(species, exact_species):
+    pet = {"id": "qa", "name": "Prueba", "species": species, "exact_species": exact_species, "life_stage": "adult"}
+    assert personalized_pet_recipe_catalog(pet, {}) == []
 
 
 def test_breed_view_has_distinct_preparations_not_relabelled_duplicates():

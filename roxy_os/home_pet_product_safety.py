@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import hashlib
 
-from roxy_os.home_pet_restrictions import matching_restrictions, normalized, pet_restrictions
+from roxy_os.home_pet_restrictions import has_medical_restrictions, matching_restrictions, normalized, pet_restrictions
 
 
 # Facts transcribed from the full manufacturer ingredient panels on 2026-09-06.
@@ -69,10 +69,7 @@ def product_safety(pet: dict, product: dict) -> dict:
         equipment = False
     restrictions = pet_restrictions(pet)
     matches = matching_restrictions(pet, " ".join((name, (review or {}).get("ingredients", ""))))
-    has_diet_restriction = pet.get("current_food_kind") == "veterinary" or bool(pet.get("veterinarian_instructions")) or any(
-        normalized(value) not in {"", "ninguna", "ninguna conocida", "none", "sin condiciones conocidas"}
-        for value in pet.get("conditions") or []
-    )
+    has_diet_restriction = has_medical_restrictions(pet)
     blocked = bool(not equipment and (restrictions or has_diet_restriction))
     if matches:
         status = "ingredient_conflict"

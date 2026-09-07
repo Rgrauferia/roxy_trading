@@ -27,9 +27,9 @@ No aumentar gasto ni cambiar facturación. Voz continúa pendiente por `payment_
 - Rama local: `codex/roxy-home-renueva`; destino de despliegue: `origin/codex/roxy-home-nfc`.
 - URL: https://roxy-home.onrender.com/lista#mascotas.
 - Servicio Render: `roxy-home`, `srv-da0l3vs9v7es739kcmd0`, montaje persistente `/var/data`.
-- Versión pública comprobada: 171, commit de implementación `078833299`.
-  HTML/APP 171, JS 170, CSS 122, SW 167; cinco archivos públicos idénticos al
-  worktree, health correcto y registro apagado. 522 pruebas Home/compras aprobadas.
+- Versión pública comprobada: 173, commit de implementación `8bafa33a5`.
+  HTML/APP 173, JS 174, CSS 124, SW 171; HTML/JS/SW y ocho fotos nuevas
+  coincidentes con el commit. 569 pruebas Home/compras aprobadas. Registro apagado.
   Pruebas de Nexo/texto conservadas de 169 (`fbefb85f3`), no repetidas en 171:
   zoom separado, transición al globo, 13 fotogramas de radar real animados,
   pausa/reanudación y regreso al mapa comprobados en navegador público.
@@ -37,7 +37,7 @@ No aumentar gasto ni cambiar facturación. Voz continúa pendiente por `payment_
   Bella y Luna aparecen con miniaturas cargadas; Robert/Roxy siguen en Nexo.
   Roxy por texto respondió sobre la lista sin modificarla. Voz no verificada.
   Pruebas locales con 17 perfiles sintéticos y hogar demo separado; ninguno se
-  añadió a producción. Servidor QA detenido, evidencia local conservada.
+  añadió a producción. Servidor QA 8767 activo para revisar el bloque 174.
 
 ## Fotos de recetas y productos — 171 público comprobado
 
@@ -79,15 +79,33 @@ QA únicamente local: 17 perfiles sintéticos, pavo/calabaza guardada con foto,
 ingredientes correctos en Compra; Ferret con restricción, fórmula visible y sin
 botón de añadir; equipo permitido. No se modificaron mascotas/carrito públicos.
 
-## Candidato 173 — fotos de gatos y contador de Compra
+## 173 público comprobado — fotos de gatos y contador de Compra
 
 Ocho imágenes individuales generadas y revisadas para las preparaciones exactas:
 gatos pasan a 12 recetas distintas con 12 fotos; filtros de perfil/restricciones
 conservados. Compra cuenta líneas de producto, no suma gramos/litros/unidades;
 etiqueta singular/plural. HTML/APP 173, JS 174, CSS 124, SW 171. 569 pruebas
 Home/compras aprobadas (51.01 s), JS/SW/diff válidos. QA móvil aislado sin
-desbordamiento y contador 3 correcto; publicación pendiente de verificación.
+desbordamiento y contador 3 correcto. Público: HTML/JS/SW y ocho imágenes nuevas
+idénticos al commit `8bafa33a5`; recarga normal meta 173, Bella y Luna visibles y
+miniaturas cargadas. No se modificaron mascotas ni compras de producción.
 Ver `reports/home_pet_photos_173_20260906.md`; no declarar demo lista.
+
+## Candidato 174 — aves/pequeños mamíferos y correcciones de Jardín
+
+Doce imágenes individuales revisadas (cuatro corregidas antes de integrar);
+periquito, conejo, cobaya y hámster con tres fotos cargadas por perfil en QA móvil.
+Recetas y productos comparten cribado médico exacto; «ninguna salvo diabetes» no
+equivale a ausencia de condiciones. Retirada cantidad ficticia de «piezas» en
+picaditos y otras preparaciones. No se activan recetas para especies especialistas.
+Jardín: avisos de luz/drenaje llegan al resumen; no se afirma salud a partir de
+un calendario vacío. Edición de condiciones conserva foto/historial. Clima ausente
+no se convierte en 0 grados. Repetir una revisión no duplica tareas; «no regué»
+no se interpreta como riego. 592 pruebas Home/compras aprobadas (51.82 s);
+JS/SW/JSON/diff válidos. Navegador local: alta, edición, conservación de foto y
+recordatorio de Jardín visible en Calendario (13/9 a las 9:00, aviso 1 h antes).
+Publicación pendiente de verificación.
+HTML/APP 174, JS 175, CSS 124, SW 172.
 
 ## Cambio confirmado en infraestructura
 

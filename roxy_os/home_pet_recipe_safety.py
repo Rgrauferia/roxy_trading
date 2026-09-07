@@ -20,7 +20,7 @@ def pet_import_context(pet: dict) -> dict:
 
 
 def check_import_profile(pet: dict) -> None:
-    from roxy_os.home_pet_restrictions import unclear_restrictions
+    from roxy_os.home_pet_restrictions import has_medical_restrictions, unclear_restrictions
     if unclear_restrictions(pet):
         raise ValueError("Hay una restricción sin identificar. Especifica el ingrediente o consulta al veterinario antes de añadir preparaciones; no vamos a adivinar qué puede comer.")
     species = pet.get("species")
@@ -30,7 +30,7 @@ def check_import_profile(pet: dict) -> None:
         raise ValueError("Confirma su etapa de vida. No importamos preparaciones para crías sin un plan profesional.")
     if species == "bird" and (bird_diet_group(pet) not in {"parrot", "canary"} or ((pet.get("habitat_observations") or {}).get("values") or {}).get("weaned") == "No"):
         raise ValueError("Esta ave necesita un plan específico revisado por un veterinario aviar; no se aplicará una receta de otra especie.")
-    if any(not identity(value).startswith("ninguna") for value in pet.get("conditions") or []) or pet.get("current_food_kind") == "veterinary" or pet.get("veterinarian_instructions"):
+    if has_medical_restrictions(pet):
         raise ValueError("Hay una condición o indicación veterinaria guardada. Conserva la publicación como referencia y consulta antes de cambiar su alimentación; Roxy no reemplazará ese plan.")
 
 

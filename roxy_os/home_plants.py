@@ -156,6 +156,20 @@ def _decode_journal_media(data_url: str) -> tuple[bytes, str, str]:
     return raw, match.group(1), VIDEO_TYPES[match.group(1)][1]
 
 
+def plant_condition_concerns(plant: dict[str, Any]) -> list[str]:
+    """Preventive observations, never a diagnosis or instruction to water."""
+    concerns = []
+    light = str(plant.get("light") or "").lower()
+    current = plant.get("light_exposure")
+    if current == "direct_afternoon" and "indirecta" in light:
+        concerns.append("El sol directo de tarde puede ser demasiado intenso para esta especie. Revisa si hay hojas quemadas y considera moverla.")
+    elif current == "low" and "brillante" in light:
+        concerns.append("La ubicación puede tener menos luz de la recomendada. Observa crecimiento débil o pérdida de color.")
+    if not plant.get("drainage"):
+        concerns.append("No hay drenaje confirmado. Revisa que el exceso de agua pueda salir y que no quede acumulado en el plato antes de volver a regar.")
+    return concerns
+
+
 class HomePlantStore:
     def __init__(self, path: str | Path = "data/roxy_home_plants.json", image_root: str | Path = "data/roxy_home_plants") -> None:
         self.path = Path(path)
@@ -215,11 +229,11 @@ class HomePlantStore:
                     due.append(enriched)
         due.sort(key=lambda row: (row.get("due_date", ""), row.get("plant_name", "")))
         upcoming.sort(key=lambda row: (row.get("due_date", ""), row.get("plant_name", ""), row.get("title", "")))
-        identification_pending = sum(1 for row in plants if row.get("species_key") == "unknown" or row.get("identification", {}).get("status") != "CONFIRMED")
-        watched_ids = {row["plant_id"] for row in due}
+        unidentified_ids = {row["id"] for row in plants if row.get("species_key") == "unknown" or row.get("identification", {}).get("status") != "CONFIRMED"}
+        watched_ids = ({row["plant_id"] for row in due} | {row["id"] for row in plants if row.get("condition_concerns")}) - unidentified_ids
         return {
             "status": "READY", "plants": plants, "due_today": due, "upcoming_care": upcoming[:30],
-            "health_summary": {"total": len(plants), "good": max(0, len(plants) - len(watched_ids) - identification_pending), "watch": len(watched_ids), "needs_identification": identification_pending},
+            "health_summary": {"total": len(plants), "good": len(plants) - len(watched_ids) - len(unidentified_ids), "watch": len(watched_ids), "needs_identification": len(unidentified_ids)},
             "environment": {"sensor_status": "not_connected", "temperature_c": None, "humidity_percent": None},
             "vacation": deepcopy(household.get("vacation") or {}), "care_sources": CARE_SOURCES,
         }
@@ -284,15 +298,20 @@ class HomePlantStore:
             row["updated_at"] = _now(); return deepcopy(row)
         return self._locked(apply)
 
-    def complete_task(self, owner: str, plant_id: str, task_id: str, completed_by: str, observation: str = "") -> dict[str, Any]:
+    def complete_task(self, owner: str, plant_id: str, task_id: str, completed_by: str, observation: str = "", *, result: str = "CHECKED") -> dict[str, Any]:
+        if result not in {"CHECKED", "WATERED"}:
+            raise ValueError("Confirma si solo revisaste o si regaste la planta.")
         def apply(value: dict[str, Any]) -> dict[str, Any]:
             row = self._household(value, owner).get("plants", {}).get(plant_id)
-            if not row: raise KeyError(plant_id)
+            if not row or row.get("archived"): raise KeyError(plant_id)
             task = next((item for item in row.get("care_tasks", []) if item.get("id") == task_id), None)
             if not task: raise KeyError(task_id)
+            if task.get("status") == "DONE":
+                return deepcopy(row)
             task.update({"status": "DONE", "completed_at": _now(), "completed_by": completed_by, "observation": _text(observation, 300)})
             if task.get("action") == "CHECK_SOIL":
-                task["result"] = "WATERED" if "reg" in observation.casefold() else "CHECKED"
+                # "No regué" must never be recorded as watering.
+                task["result"] = result
             cadence = max(1, int(task.get("cadence_days") or row.get("soil_check_days") or 7))
             row.setdefault("care_tasks", []).append({"id": uuid4().hex, "action": task.get("action"), "title": task.get("title"), "due_date": (date.today() + timedelta(days=cadence)).isoformat(), "cadence_days": cadence, "status": "PENDING", "calendar_event_id": ""})
             row["updated_at"] = _now(); return deepcopy(row)
@@ -375,5 +394,6 @@ def public_plant(row: dict[str, Any], user_id: str) -> dict[str, Any]:
         entry["media_type"] = entry.get("photo_media_type") or ""
         entry.pop("photo_path", None); entry.pop("photo_media_type", None)
     result["sources"] = CARE_SOURCES
+    result["condition_concerns"] = plant_condition_concerns(result)
     result["product_queries"] = [f"sustrato para {row.get('common_name')}", f"fertilizante para {row.get('common_name')}", "medidor de humedad para plantas"]
     return result

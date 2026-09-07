@@ -529,6 +529,18 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
     # Only individually inspected, standalone preparations are verified below.
     # Legacy collage references remain unverified and must never be displayed.
     exact_recipe_photos = {
+        "rabbit_morning_greens": ("/assets/roxy_home/recipes/pets/rabbit-morning-greens-v2.jpg", "50% 50%"),
+        "rabbit_pepper_herb_plate": ("/assets/roxy_home/recipes/pets/rabbit-pepper-herb-plate-v2.jpg", "50% 50%"),
+        "rabbit_cucumber_basil_bites": ("/assets/roxy_home/recipes/pets/rabbit-cucumber-basil-bites-v2.jpg", "50% 50%"),
+        "guinea_morning_vitamin_c": ("/assets/roxy_home/recipes/pets/guinea-morning-vitamin-c-v2.jpg", "50% 50%"),
+        "guinea_cucumber_pepper_plate": ("/assets/roxy_home/recipes/pets/guinea-cucumber-pepper-plate-v2.jpg", "50% 50%"),
+        "guinea_herb_foraging_cup": ("/assets/roxy_home/recipes/pets/guinea-herb-foraging-cup-v2.jpg", "50% 50%"),
+        "hamster_morning_oat": ("/assets/roxy_home/recipes/pets/hamster-morning-oat-v2.jpg", "50% 50%"),
+        "hamster_egg_crumb": ("/assets/roxy_home/recipes/pets/hamster-egg-crumb-v2.jpg", "50% 50%"),
+        "hamster_cucumber_seedless": ("/assets/roxy_home/recipes/pets/hamster-cucumber-seedless-v2.jpg", "50% 50%"),
+        "bird_morning_chop": ("/assets/roxy_home/recipes/pets/bird-morning-chop-v2.jpg", "50% 50%"),
+        "bird_quinoa_vegetable": ("/assets/roxy_home/recipes/pets/bird-quinoa-vegetable-v2.jpg", "50% 50%"),
+        "bird_apple_carrot": ("/assets/roxy_home/recipes/pets/bird-apple-carrot-v2.jpg", "50% 50%"),
         "dog_hard_boiled_egg": ("/assets/roxy_home/recipes/pets/dog-hard-boiled-egg-v2.jpg", "50% 50%"),
         "dog_dehydrated_turkey": ("/assets/roxy_home/recipes/pets/dog-dehydrated-turkey-v2.jpg", "50% 50%"),
         "dog_dehydrated_chicken": ("/assets/roxy_home/recipes/pets/dog-dehydrated-chicken-v2.jpg", "50% 50%"),
@@ -561,7 +573,7 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         if key in exact_recipe_photos:
             recipe["photo_asset"], recipe["photo_focus"] = exact_recipe_photos[key]
         # Only standalone, recipe-matched assets may bypass generated artwork.
-        recipe["photo_asset_verified"] = key in {
+        recipe["photo_asset_verified"] = key in exact_recipe_photos or key in {
             "dog_banana_oat_treats", "dog_pumpkin_oat_biscuits", "dog_blueberry_yogurt_bites", "dog_chicken_carrot_meatballs",
             "dog_hard_boiled_egg", "dog_dehydrated_chicken", "dog_frozen_banana_pumpkin",
             "dog_dehydrated_turkey", "dog_turkey_pumpkin", "bernese_young_turkey_pumpkin",

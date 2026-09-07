@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="173" />
+  <meta name="roxy-home-version" content="174" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="/assets/vendor/maplibre-gl.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_list.css?v=124" />
   <script src="/assets/vendor/maplibre-gl.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=174" defer></script>
+  <script src="/assets/roxy_list.js?v=175" defer></script>
   <script src="/assets/roxy_home_registration.js?v=1" defer></script>
 </head>
 <body>
@@ -49,7 +49,7 @@
       </section>
       <section id="todayPlantCareCard" class="today-plant-care" aria-labelledby="todayPlantCareTitle" hidden>
         <span class="material-symbols-rounded" aria-hidden="true">potted_plant</span>
-        <div><small>Mi jardín · cuidado de hoy</small><strong id="todayPlantCareTitle">Tus plantas están al día</strong><em id="todayPlantCareDetail"></em></div>
+        <div><small>Mi jardín · cuidado de hoy</small><strong id="todayPlantCareTitle">Próximas revisiones de tus plantas</strong><em id="todayPlantCareDetail"></em></div>
         <button type="button" data-tab-link="plants">Ver</button>
       </section>
       <section id="mealPlanStudio" class="meal-plan-studio" aria-labelledby="mealPlanTitle">
@@ -139,7 +139,7 @@
         <div id="plantTasksToday" class="plant-tasks-today"></div>
       </section>
       <section class="plant-upcoming-section" aria-labelledby="plantUpcomingTitle"><div class="plant-section-heading"><div><p class="eyebrow">Próximos cuidados</p><h3 id="plantUpcomingTitle">Roxy te lo recordará</h3></div><button id="plantCalendarButton" type="button"><span class="material-symbols-rounded" aria-hidden="true">calendar_month</span> Ver calendario</button></div><div id="plantUpcomingCare" class="plant-upcoming-care"></div></section>
-      <section class="plant-health-section" aria-labelledby="plantHealthTitle"><div><p class="eyebrow">Resumen de salud</p><h3 id="plantHealthTitle">Tu jardín</h3></div><div id="plantHealthSummary" class="plant-health-summary"></div></section>
+      <section class="plant-health-section" aria-labelledby="plantHealthTitle"><div><p class="eyebrow">Estado de las revisiones</p><h3 id="plantHealthTitle">Tu jardín</h3></div><div id="plantHealthSummary" class="plant-health-summary"></div></section>
       <section id="plantShoppingSuggestion" class="plant-shopping-suggestion" hidden></section>
       <div class="plants-toolbar"><strong id="plantCount">0 plantas</strong><button id="plantVacationButton" type="button"><span class="material-symbols-rounded" aria-hidden="true">flight_takeoff</span> Modo viaje</button></div>
       <div id="plantCollection" class="plant-collection" aria-live="polite"></div>
@@ -544,7 +544,7 @@
   <dialog id="plantDialog" class="plant-dialog" aria-labelledby="plantDialogTitle">
     <form id="plantForm">
       <div class="dialog-heading"><div><p class="eyebrow">Una nueva compañera verde</p><h2 id="plantDialogTitle">Añadir planta</h2></div><button type="button" data-close-dialog="plantDialog" aria-label="Cerrar">Cerrar</button></div>
-      <label class="plant-photo-input"><span>Foto actual de la planta</span><input id="plantPhoto" type="file" accept="image/jpeg,image/png,image/webp" required /><small>Roxy propondrá una identificación; tú la confirmas.</small></label>
+      <label class="plant-photo-input"><span>Foto actual de la planta</span><input id="plantPhoto" type="file" accept="image/jpeg,image/png,image/webp" required /><small>Si no conoces la especie, Roxy puede proponerla cuando la identificación esté disponible. Tú la confirmas.</small></label>
       <label><span>Nombre en casa</span><input id="plantName" maxlength="60" placeholder="Ej. Monstera del salón" /></label>
       <label><span>Especie</span><select id="plantSpecies"><option value="unknown">Que Roxy la proponga</option></select></label>
       <div id="plantIdentificationNote" class="plant-identification-note" hidden></div>

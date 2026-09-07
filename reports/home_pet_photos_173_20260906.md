@@ -1,6 +1,8 @@
 # Roxy Home 173 — fotografías de gatos y conteo de Compra
 
-Estado: candidato con 569 pruebas Home/compras aprobadas (51.01 s), JS/SW y diff válidos. Todavía sin verificar en público. 172 público comprobado en el informe anterior.
+Estado: público comprobado, commit `8bafa33a5`. 569 pruebas Home/compras aprobadas (51.01 s), JS/SW y diff válidos. HTML/JS/SW y ocho imágenes nuevas descargados del sitio público y comparados byte a byte con el commit; HTTP 200 y coincidencia exacta.
+
+Recarga normal en navegador: meta 173, Bella y Luna presentes, ambas miniaturas cargadas. Captura `/tmp/roxy-pet-safety-172.PUzAxl/05-public-profiles-173.png`. No se modificaron datos de producción. CSS 124 no cambió desde la verificación pública de 172.
 
 QA móvil aislado: contador con 250 g + 60 g + una transportadora muestra 3 productos; gato Maine Coon muestra 12 preparaciones y fotos individuales, sin desbordamiento horizontal. Captura `/tmp/roxy-pet-safety-172.PUzAxl/04-qa-cat-173.png`. Ninguna mascota ni compra de producción modificada.
 

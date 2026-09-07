@@ -30,6 +30,19 @@ ALLERGEN_GROUPS = {
 }
 _NONE = {"ninguna", "ninguna conocida", "ninguno", "none", "no known allergies", "sin alergias conocidas"}
 _UNCLEAR = {"otra", "otro", "other", "no se", "no se sabe", "desconocida", "unknown", "ingrediente especifico", "sensibilidad ambiental"}
+_NO_CONDITIONS = {"", "ninguna", "ninguno", "ninguna conocida", "none", "no known conditions", "sin condiciones conocidas"}
+
+
+def has_medical_restrictions(pet: dict) -> bool:
+    # Exact negative answers only: "ninguna salvo diabetes" is NOT clearance.
+    conditions = pet.get("conditions") or []
+    if not isinstance(conditions, list):
+        conditions = [conditions]
+    return bool(
+        pet.get("current_food_kind") == "veterinary"
+        or normalized(pet.get("veterinarian_instructions"))
+        or any(normalized(value) not in _NO_CONDITIONS for value in conditions)
+    )
 
 
 def contains_term(text: str, term: str) -> bool:

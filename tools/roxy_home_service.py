@@ -308,6 +308,7 @@ class HomePlantUpdateRequest(BaseModel):
 
 class HomePlantTaskCompleteRequest(BaseModel):
     observation: str = Field(default="", max_length=300)
+    result: str = Field(default="CHECKED", pattern="^(CHECKED|WATERED)$")
 
 
 class HomePlantJournalRequest(BaseModel):
@@ -2890,7 +2891,7 @@ def complete_home_plant_task(
     member = _member_for_auth(auth) or {}
     actor = str(member.get("display_name") or "Miembro del hogar")
     try:
-        row = _plant_store().complete_task(user, plant_id, task_id, actor, payload.observation)
+        row = _plant_store().complete_task(user, plant_id, task_id, actor, payload.observation, result=payload.result)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Tarea o planta no encontrada.") from exc
     return {"status": "COMPLETED", "plant": public_plant(row, user)}

@@ -1,4 +1,7 @@
 import base64
+from datetime import date, timedelta
+from pathlib import Path
+import subprocess
 
 from fastapi.testclient import TestClient
 
@@ -50,7 +53,7 @@ def test_plant_care_records_observation_and_schedules_next_check(tmp_path):
     plant = store.create("hogar-1", "robert", plant_payload())
     first = plant["care_tasks"][0]
 
-    updated = store.complete_task("hogar-1", plant["id"], first["id"], "Robert", "Tierra seca; regué y dejé drenar")
+    updated = store.complete_task("hogar-1", plant["id"], first["id"], "Robert", "Tierra seca; regué y dejé drenar", result="WATERED")
 
     assert updated["care_tasks"][0]["status"] == "DONE"
     assert updated["care_tasks"][0]["completed_by"] == "Robert"
@@ -123,6 +126,7 @@ def test_home_plants_api_is_private_persistent_and_serves_the_uploaded_photo(tmp
     assert forbidden.status_code == 403
     assert completed.status_code == 200
     assert completed.json()["plant"]["care_tasks"][0]["status"] == "DONE"
+    assert completed.json()["plant"]["care_tasks"][0]["result"] == "CHECKED"
     assert journal.status_code == 201
     assert entry["notes"] == "Hoja nueva"
     assert journal_image.status_code == 200 and journal_image.content == PHOTO_BYTES
@@ -138,3 +142,62 @@ def test_plant_photo_validation_rejects_non_image_content(tmp_path):
         assert "no es válida" in str(exc)
     else:  # pragma: no cover
         raise AssertionError("Una foto falsa no debe guardarse")
+
+
+def test_plant_concerns_reach_summary_and_edit_preserves_photo_and_history(tmp_path):
+    store = HomePlantStore(tmp_path / "plants.json", tmp_path / "images")
+    plant = store.create("qa", "qa", plant_payload(species_key="pothos", light_exposure="direct_afternoon", drainage=False))
+    store.add_journal("qa", plant["id"], "qa", "Observación de prueba", PHOTO)
+    before = store.plant("qa", plant["id"])
+    snapshot = store.snapshot("qa", "qa")
+    assert snapshot["health_summary"] == {"total": 1, "good": 0, "watch": 1, "needs_identification": 0}
+    assert len(snapshot["plants"][0]["condition_concerns"]) == 2
+    updated = store.update("qa", plant["id"], {"light_exposure": "bright_indirect", "drainage": True, "room": "Nueva ubicación"})
+    assert updated["photo_path"] == before["photo_path"]
+    assert updated["journal"] == before["journal"]
+    assert updated["care_tasks"] == before["care_tasks"]
+    assert updated["id"] == before["id"]
+    assert Path(updated["photo_path"]).read_bytes() == PHOTO_BYTES
+    after = store.snapshot("qa", "qa")
+    assert after["health_summary"] == {"total": 1, "good": 1, "watch": 0, "needs_identification": 0}
+    assert after["plants"][0]["condition_concerns"] == []
+
+
+def test_plant_summary_never_counts_an_unidentified_plant_twice(tmp_path):
+    store = HomePlantStore(tmp_path / "plants.json", tmp_path / "images")
+    plant = store.create("qa", "qa", plant_payload(species_key="unknown", drainage=False))
+    def make_due(value):
+        value["households"]["qa"]["plants"][plant["id"]]["care_tasks"][0]["due_date"] = (date.today() - timedelta(days=1)).isoformat()
+    store._locked(make_due)
+    snapshot = store.snapshot("qa", "qa")
+    assert snapshot["due_today"]
+    assert snapshot["health_summary"] == {"total": 1, "good": 0, "watch": 0, "needs_identification": 1}
+
+
+def test_plant_completion_is_idempotent_and_never_guesses_watering(tmp_path):
+    store = HomePlantStore(tmp_path / "plants.json", tmp_path / "images")
+    plant = store.create("qa", "qa", plant_payload())
+    task = plant["care_tasks"][0]
+    completed = store.complete_task("qa", plant["id"], task["id"], "qa", "No regué; tierra húmeda")
+    assert completed["care_tasks"][0]["result"] == "CHECKED"
+    repeated = store.complete_task("qa", plant["id"], task["id"], "qa", "Segundo clic", result="WATERED")
+    assert repeated == completed
+    assert len([row for row in repeated["care_tasks"] if row["action"] == "CHECK_SOIL" and row["status"] == "PENDING"]) == 1
+
+
+def test_plant_weather_does_not_turn_missing_temperature_into_freezing_advice():
+    script = (Path(__file__).resolve().parents[1] / "assets/roxy_list.js").read_text()
+    function = script.split("  function plantWeatherContext(){", 1)[1].split("\n", 1)[0]
+    harness = """const assert=require('node:assert/strict');let homeWeather;
+""" + "function plantWeatherContext(){" + function + """
+for(const data of [{}, {status:'ERROR',current:{temperature:40,code:61}}, {status:'READY',current:{temperature:null,code:null}}]){
+  homeWeather=data;const r=plantWeatherContext();assert.equal(Boolean(r.ready),false);assert.equal(Boolean(r.cold),false);assert.equal(Boolean(r.rain),false);
+}
+homeWeather={status:'READY',current:{temperature:90,code:61}};
+assert.equal(plantWeatherContext().hot,true);assert.equal(plantWeatherContext().rain,true);
+"""
+    result = subprocess.run(["node", "-e", harness], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert "makeButton('Editar condiciones'" in script
+    assert "$('plantPhoto').required=!plant" in script
+    assert "piezas preparadas" not in script

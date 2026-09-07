@@ -3,10 +3,10 @@
   "updated_on": "2026-09-06",
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#mascotas",
-  "last_verified_public_version": 172,
-  "deployed_implementation_commit": "1216a182d",
-  "candidate_version": 173,
-  "candidate_status": "569_tests_passed_cat_photos_and_shopping_count_local_qa_pending_public",
+  "last_verified_public_version": 173,
+  "deployed_implementation_commit": "8bafa33a5",
+  "candidate_version": 174,
+  "candidate_status": "592_tests_passed_mobile_pet_photos_and_garden_edit_reminder_verified_pending_public",
   "storage": {
     "authorized_gb": 10,
     "render_confirmed_gb": 10,
@@ -18,18 +18,18 @@
   },
   "verification": {
     "node_check": "passed",
-    "pytest_passed": 565,
+    "pytest_passed": 569,
     "public_health": "ok",
     "pets_visible_after_reload": [
       "Bella",
       "Luna"
     ],
     "public_versions": {
-      "html": 172,
-      "app": 172,
-      "js": 173,
+      "html": 173,
+      "app": 173,
+      "js": 174,
       "css": 124,
-      "service_worker": 170
+      "service_worker": 171
     },
     "public_recipe_image_loaded": "ferret_turkey_mini_medallions.webp",
     "public_assets_byte_identical": true,
@@ -65,11 +65,12 @@
     "luna_product_photos_verification_version": 170,
     "bella_recipe_photos_loaded": 15,
     "bella_recipe_photos_verification_version": 172,
-    "public_normal_url_version": 172
+    "public_normal_url_version": 173,
+    "public_asset_scope_173": "HTML_JS_SW_8_cat_images_byte_identical; CSS124_unchanged_verified172"
   },
   "known_issues": [
     "Luna thumbnail observed in public selector; original photo/profile recovery still unverified",
-    "126 of 683 photo slots pending, including one quarantined mismatch",
+    "Historical snapshot 170:126/683 photo slots pending; not a current coverage count",
     "Provider rate-limit cause still unverified",
     "Universal exact-species coverage and remaining recipe/product photos not complete",
     "PetSmart/Petco affiliations and catalog access not approved",
@@ -77,10 +78,9 @@
     "463 human catalog templates require editorial review; cooking and shopping now gated",
     "Full UI audit still incomplete: garden/design end-to-end, pantry/settings, public integrations",
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed",
-    "Only five manufacturer ingredient panels screened; restrictions fail closed, not clinical allergy clearance",
-    "Shopping footer sums grams as item count; found in isolated QA, pending fix"
+    "Only five manufacturer ingredient panels screened; restrictions fail closed, not clinical allergy clearance"
   ],
-  "next_step": "Finish candidate 173 tests and local browser QA, deploy and verify. Then bird/small-pet photos, exact-species products and remaining module audit. Keep signup disabled; no universal readiness claim.",
+  "next_step": "Finish 174 full regression, garden edit/reminder UI QA; deploy and verify public bytes and profiles. Keep registration disabled until real Turnstile/onboarding/billing verification. Continue remaining module QA without claiming universal coverage.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",
@@ -90,6 +90,31 @@
     "trial_days": 5
   },
   "candidate_verification": {
+    "version": 174,
+    "focused_tests": 47,
+    "full_tests": 592,
+    "qa_server": "isolated_8767_active",
+    "qa_profiles": 17,
+    "qa_smallpet_recipe_images": "12/12 loaded across bird/rabbit/guinea_pig/hamster; no horizontal overflow",
+    "qa_garden": "synthetic Pothos create/edit/photo retained; warning resolves; reminder Sept13 09:00 visible in calendar; no external sync",
+    "production_data_mutated": false
+  },
+  "public_registration": {
+    "enabled": false,
+    "trial_days": 5,
+    "ai_requests_per_household_daily": 5,
+    "max_households": 100,
+    "max_signup_daily": 20,
+    "max_signup_per_connection_daily": 3,
+    "max_members": 6,
+    "captcha": "Turnstile_server_validation_implemented_not_configured",
+    "voice": false,
+    "paid_media_generation": false,
+    "expiry": "read_only_no_auto_charge_no_deletion",
+    "automatic_password_recovery": false,
+    "synthetic_tests_only": true
+  },
+  "historical_qa_171": {
     "node_check": "passed",
     "pytest_passed": 522,
     "html": 171,
@@ -124,20 +149,5 @@
     "product_csp_catalog": "all_remote_origins_match_image_only_allowlist",
     "public_loading_missing_states": "171_verified_screenshots_25_26_27",
     "qa_browser_cleanup": "temporary_tab_closed_viewport_reset_public_mascotas_open"
-  },
-  "public_registration": {
-    "enabled": false,
-    "trial_days": 5,
-    "ai_requests_per_household_daily": 5,
-    "max_households": 100,
-    "max_signup_daily": 20,
-    "max_signup_per_connection_daily": 3,
-    "max_members": 6,
-    "captcha": "Turnstile_server_validation_implemented_not_configured",
-    "voice": false,
-    "paid_media_generation": false,
-    "expiry": "read_only_no_auto_charge_no_deletion",
-    "automatic_password_recovery": false,
-    "synthetic_tests_only": true
   }
 }
