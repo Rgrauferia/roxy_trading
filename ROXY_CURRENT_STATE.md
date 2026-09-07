@@ -27,9 +27,10 @@ No aumentar gasto ni cambiar facturación. Voz continúa pendiente por `payment_
 - Rama local: `codex/roxy-home-renueva`; destino de despliegue: `origin/codex/roxy-home-nfc`.
 - URL: https://roxy-home.onrender.com/lista#mascotas.
 - Servicio Render: `roxy-home`, `srv-da0l3vs9v7es739kcmd0`, montaje persistente `/var/data`.
-- Versión pública comprobada: 174, commit de implementación `735e63fec`.
-  HTML/APP 174, JS 175, CSS 124, SW 172; HTML/JS/CSS/SW y doce fotos nuevas
-  coincidentes con el commit. 592 pruebas Home/compras aprobadas. Registro apagado.
+- Versión pública comprobada: 175, commit de implementación `09298929e`.
+  HTML/APP 175, JS 176, CSS 125, SW 173; HTML/JS/CSS/SW coincidentes con
+  el commit. Doce fotos nuevas comprobadas en 174, sin cambios en 175.
+  594 pruebas Home/compras aprobadas. Registro apagado, demo de cinco días.
   Pruebas de Nexo/texto conservadas de 169 (`fbefb85f3`), no repetidas en 171:
   zoom separado, transición al globo, 13 fotogramas de radar real animados,
   pausa/reanudación y regreso al mapa comprobados en navegador público.
@@ -37,7 +38,8 @@ No aumentar gasto ni cambiar facturación. Voz continúa pendiente por `payment_
   Bella y Luna aparecen con miniaturas cargadas; Robert/Roxy siguen en Nexo.
   Roxy por texto respondió sobre la lista sin modificarla. Voz no verificada.
   Pruebas locales con 17 perfiles sintéticos y hogar demo separado; ninguno se
-  añadió a producción. Servidor QA 8767 activo para revisar el bloque 174.
+  añadió a producción. Servidor QA 8767 detenido al cerrar el bloque 175;
+  pestaña QA cerrada y viewport restaurado. Pestaña pública conservada.
 
 ## Fotos de recetas y productos — 171 público comprobado
 
@@ -109,7 +111,7 @@ Público: HTML/JS/CSS/SW y doce imágenes HTTP 200 idénticos al commit
 Bella y Luna presentes y sus dos fotos de perfil cargadas.
 HTML/APP 174, JS 175, CSS 124, SW 172.
 
-## Candidato 175 — coherencia de presupuesto en Renueva
+## 175 público comprobado — coherencia de presupuesto en Renueva
 
 La alternativa Completa excedía el presupuesto pero el encabezado decía que estaba
 dentro. Ahora muestra límite, objetivo, exceso exacto y aclara estimaciones sin
@@ -121,9 +123,22 @@ QA local: sala sintética guardada y recuperada con foto; no análisis externo.
 HTML/APP 175, JS 176, CSS 125, SW 173. 594 pruebas Home/compras aprobadas
 (50.60 s), JS/SW/diff válidos. Comparación móvil antes/después inspeccionada;
 sin desbordamiento, advertencia legible y selección estable.
-Despliegue pendiente de comprobación. Ver `reports/home_renueva_audit_175_20260907.md`.
+HTML/JS/CSS/SW públicos HTTP 200 idénticos al commit `09298929e`; health correcto.
+Recarga normal: meta 175, Bella y Luna presentes, ambas miniaturas cargadas.
+Registro sigue apagado (`enabled:false`, `trial_days:5`). El recorrido con proyecto
+sintético se probó sólo en QA, no con un proyecto real ni generación externa.
+Ver `reports/home_renueva_audit_175_20260907.md`.
 Inventario actual: 57 filas de preparaciones para mascotas, todas con activo
 individual revisado (no 57 recetas por mascota); 94 guías separadas.
+
+## Puerta de lanzamiento actual
+
+No declarar lista la demo pública. Hace falta intervención del administrador para
+resolver el aviso de pago de Render y `payment_issue` de ElevenLabs; no se cambió
+facturación. Turnstile aún no está configurado y el alta real, recuperación y
+soporte no están validados. La elección de registro abierto sigue aprobada, pero
+no se habilitó sin estas pruebas. También queda curación editorial de borradores
+humanos y verificación real de las integraciones; conservar sus restricciones.
 
 ## Cambio confirmado en infraestructura
 

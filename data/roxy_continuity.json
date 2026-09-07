@@ -3,10 +3,10 @@
   "updated_on": "2026-09-07",
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#mascotas",
-  "last_verified_public_version": 174,
-  "deployed_implementation_commit": "735e63fec",
-  "candidate_version": 175,
-  "candidate_status": "594_tests_passed_renueva_budget_visual_QA_pending_public",
+  "last_verified_public_version": 175,
+  "deployed_implementation_commit": "09298929e",
+  "candidate_version": null,
+  "candidate_status": "175_public_verified_594_tests_passed_demo_still_disabled",
   "storage": {
     "authorized_gb": 10,
     "render_confirmed_gb": 10,
@@ -18,18 +18,18 @@
   },
   "verification": {
     "node_check": "passed",
-    "pytest_passed": 592,
+    "pytest_passed": 594,
     "public_health": "ok",
     "pets_visible_after_reload": [
       "Bella",
       "Luna"
     ],
     "public_versions": {
-      "html": 174,
-      "app": 174,
-      "js": 175,
-      "css": 124,
-      "service_worker": 172
+      "html": 175,
+      "app": 175,
+      "js": 176,
+      "css": 125,
+      "service_worker": 173
     },
     "public_recipe_image_loaded": "ferret_turkey_mini_medallions.webp",
     "public_assets_byte_identical": true,
@@ -65,14 +65,16 @@
     "luna_product_photos_verification_version": 170,
     "bella_recipe_photos_loaded": 15,
     "bella_recipe_photos_verification_version": 172,
-    "public_normal_url_version": 174,
+    "public_normal_url_version": 175,
     "public_asset_scope_173": "HTML_JS_SW_8_cat_images_byte_identical; CSS124_unchanged_verified172",
     "public_asset_scope_174": "HTML_JS_CSS_SW_12_smallpet_images_byte_identical",
+    "public_asset_scope_175": "HTML_JS_CSS_SW_HTTP200_byte_identical_to_09298929e",
+    "qa_cleanup_175": "server_8767_stopped_tab_closed_viewport_reset_public_mascotas_preserved",
     "block_174_qa": {
       "version": 174,
       "focused_tests": 47,
       "full_tests": 592,
-      "qa_server": "isolated_8767_active",
+      "qa_server": "isolated_8767_stopped_at_close_175",
       "qa_profiles": 17,
       "qa_smallpet_recipe_images": "12/12 loaded across bird/rabbit/guinea_pig/hamster; no horizontal overflow",
       "qa_garden": "synthetic Pothos create/edit/photo retained; warning resolves; reminder Sept13 09:00 visible in calendar; no external sync",
@@ -87,11 +89,11 @@
     "PetSmart/Petco affiliations and catalog access not approved",
     "ElevenLabs voice returned payment_issue; administrator billing action required",
     "463 human catalog templates require editorial review; cooking and shopping now gated",
-    "Full UI audit still incomplete: garden/design end-to-end, pantry/settings, public integrations",
+    "Garden create/edit/photo/calendar and Renueva synthetic project/budget UI verified locally; full pantry/settings and live provider integrations still incomplete",
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed",
     "Only five manufacturer ingredient panels screened; restrictions fail closed, not clinical allergy clearance"
   ],
-  "next_step": "Verify 175 final tests and public deployment. Remaining demo gates: real Turnstile registration, account recovery/support and billing. Provider/veterinary partnerships not approved. No universal coverage/readiness claim.",
+  "next_step": "175 publicly verified. Administrator billing and real Turnstile setup required before validating public signup; account recovery/support and human recipe editorial review remain. Keep public signup disabled until launch gates are verified. Provider/veterinary partnerships not approved; no universal coverage/readiness claim.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",
@@ -104,7 +106,7 @@
     "version": 175,
     "focused_tests": 10,
     "full_tests": 594,
-    "qa_server": "isolated_8767_active",
+    "qa_server": "isolated_8767_stopped_at_close_175",
     "renueva": "synthetic project saved with photo; no live provider calls; budget disclosure and contrast verified",
     "production_data_mutated": false
   },

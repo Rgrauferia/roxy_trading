@@ -1,7 +1,7 @@
 # Renueva 175 — presupuesto y procedencia de las recomendaciones
 
-Estado: candidato probado localmente; 594 pruebas Home/compras aprobadas (50.60 s).
-JS/SW y diff válidos. Despliegue todavía por verificar.
+Estado: implementación `09298929e` desplegada y comprobada en público el 7/9/2026;
+594 pruebas Home/compras aprobadas (50.60 s). JS/SW y diff válidos.
 
 ## Alcance
 
@@ -52,3 +52,22 @@ El catálogo personalizado elimina duplicados por preparación. Persisten 463
 borradores humanos sujetos a revisión y sus restricciones de cocina/Compra.
 
 HTML/APP 175, JS 176, CSS 125, SW 173. Registro público permanece apagado.
+
+## Comprobación pública y cierre
+
+`/lista`, `/assets/roxy_list.js`, `/assets/roxy_list.css` y `/lista-sw.js` devuelven
+HTTP 200 y son idénticos byte a byte a los archivos del commit `09298929e`.
+`/health`: `ok`; registro: `enabled:false`, `trial_days:5`.
+Una recarga normal de la pestaña pública muestra meta 175, Bella y Luna, y las
+miniaturas de ambas cargadas. No se modificaron sus perfiles ni compras.
+
+El proyecto de las capturas es sintético y local; no demuestra una compra real,
+análisis con IA ni afiliación activa. Servidor QA detenido, pestaña de prueba
+cerrada y viewport restaurado; datos de prueba y capturas conservados localmente.
+La guía de auditoría visual se utilizó para detectar la contradicción del
+presupuesto, corregir contraste/legibilidad y comparar el resultado.
+
+La demo abierta no está habilitada: faltan configuración y pruebas reales de
+Turnstile/alta, recuperación/soporte, resolver avisos de facturación de Render y
+ElevenLabs y completar la curación editorial humana pendiente. No se cambió
+facturación ni se aceptaron acuerdos de proveedores.
