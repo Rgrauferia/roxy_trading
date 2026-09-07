@@ -1,6 +1,6 @@
 # Roxy Home — estado operativo
 
-Actualizado: 2026-09-06. Este documento pertenece exclusivamente a la rama Home.
+Actualizado: 2026-09-07. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
 ## Ubicación y despliegue
@@ -27,9 +27,9 @@ No aumentar gasto ni cambiar facturación. Voz continúa pendiente por `payment_
 - Rama local: `codex/roxy-home-renueva`; destino de despliegue: `origin/codex/roxy-home-nfc`.
 - URL: https://roxy-home.onrender.com/lista#mascotas.
 - Servicio Render: `roxy-home`, `srv-da0l3vs9v7es739kcmd0`, montaje persistente `/var/data`.
-- Versión pública comprobada: 173, commit de implementación `8bafa33a5`.
-  HTML/APP 173, JS 174, CSS 124, SW 171; HTML/JS/SW y ocho fotos nuevas
-  coincidentes con el commit. 569 pruebas Home/compras aprobadas. Registro apagado.
+- Versión pública comprobada: 174, commit de implementación `735e63fec`.
+  HTML/APP 174, JS 175, CSS 124, SW 172; HTML/JS/CSS/SW y doce fotos nuevas
+  coincidentes con el commit. 592 pruebas Home/compras aprobadas. Registro apagado.
   Pruebas de Nexo/texto conservadas de 169 (`fbefb85f3`), no repetidas en 171:
   zoom separado, transición al globo, 13 fotogramas de radar real animados,
   pausa/reanudación y regreso al mapa comprobados en navegador público.
@@ -91,7 +91,7 @@ idénticos al commit `8bafa33a5`; recarga normal meta 173, Bella y Luna visibles
 miniaturas cargadas. No se modificaron mascotas ni compras de producción.
 Ver `reports/home_pet_photos_173_20260906.md`; no declarar demo lista.
 
-## Candidato 174 — aves/pequeños mamíferos y correcciones de Jardín
+## 174 público comprobado — aves/pequeños mamíferos y correcciones de Jardín
 
 Doce imágenes individuales revisadas (cuatro corregidas antes de integrar);
 periquito, conejo, cobaya y hámster con tres fotos cargadas por perfil en QA móvil.
@@ -104,8 +104,26 @@ no se convierte en 0 grados. Repetir una revisión no duplica tareas; «no regu�
 no se interpreta como riego. 592 pruebas Home/compras aprobadas (51.82 s);
 JS/SW/JSON/diff válidos. Navegador local: alta, edición, conservación de foto y
 recordatorio de Jardín visible en Calendario (13/9 a las 9:00, aviso 1 h antes).
-Publicación pendiente de verificación.
+Público: HTML/JS/CSS/SW y doce imágenes HTTP 200 idénticos al commit
+`735e63fec`; health correcto, registro apagado. Navegador normal meta 174,
+Bella y Luna presentes y sus dos fotos de perfil cargadas.
 HTML/APP 174, JS 175, CSS 124, SW 172.
+
+## Candidato 175 — coherencia de presupuesto en Renueva
+
+La alternativa Completa excedía el presupuesto pero el encabezado decía que estaba
+dentro. Ahora muestra límite, objetivo, exceso exacto y aclara estimaciones sin
+impuestos/envío. Indicador semántico de comparación, contraste y texto legible.
+Las ideas de fallback no se presentan como análisis de la foto, ni el guardado
+anuncia un análisis si el proveedor está desconectado. Comparación temporal
+conservada ante refresh en segundo plano, sin alterar presupuesto guardado.
+QA local: sala sintética guardada y recuperada con foto; no análisis externo.
+HTML/APP 175, JS 176, CSS 125, SW 173. 594 pruebas Home/compras aprobadas
+(50.60 s), JS/SW/diff válidos. Comparación móvil antes/después inspeccionada;
+sin desbordamiento, advertencia legible y selección estable.
+Despliegue pendiente de comprobación. Ver `reports/home_renueva_audit_175_20260907.md`.
+Inventario actual: 57 filas de preparaciones para mascotas, todas con activo
+individual revisado (no 57 recetas por mascota); 94 guías separadas.
 
 ## Cambio confirmado en infraestructura
 

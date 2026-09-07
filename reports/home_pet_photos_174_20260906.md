@@ -1,7 +1,9 @@
 # Roxy Home 174 — fotografías de aves y pequeños mamíferos
 
 Estado: 592 pruebas Home/compras aprobadas (51.82 s), JS/SW/JSON/diff válidos.
-Publicación pendiente de verificación. No declarar demo lista.
+Público comprobado: commit `735e63fec`, HTML/JS/CSS/SW y doce imágenes HTTP 200
+idénticos a Git; health correcto y registro apagado. Navegador meta 174 con Bella
+y Luna presentes y dos miniaturas cargadas. No declarar demo lista.
 
 Doce imágenes individuales vinculadas a su preparación (conejo, cobaya, hámster y aves compatibles). No se activan recetas para peces, reptiles, lori ni especies no identificadas. Cada foto ilustra la preparación y no una ración diaria. Cuatro imágenes corregidas antes de integrar para representar mejor corte, mezcla y cantidad ilustrativa. Originales conservados. Herramienta imagegen; revisión visual individual de ingredientes, preparación y ausencia de añadidos.
 

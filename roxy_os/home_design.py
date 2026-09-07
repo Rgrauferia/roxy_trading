@@ -168,7 +168,7 @@ def _initial_analysis(room_type: str, priorities: list[str], keep_items: list[st
         opportunities.insert(0, f"La prioridad principal será: {priorities[0]}.")
     return {
         "status": "READY_LOCAL",
-        "summary": "Roxy preparó una lectura inicial con tus objetivos. Puedes pedir un análisis visual más detallado.",
+        "summary": "Ideas orientativas basadas en lo que escribiste, no en un análisis de la foto. El análisis visual requiere la conexión de OpenAI de Home.",
         "strengths": [f"Conservar: {', '.join(keep_items)}."] if keep_items else ["La propuesta conservará la arquitectura y los elementos fijos del espacio."],
         "opportunities": opportunities,
         "questions": ["Confirma las medidas principales para validar que los productos caben."] if not priorities else [],

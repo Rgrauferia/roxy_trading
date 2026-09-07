@@ -1,6 +1,7 @@
 import base64
 from pathlib import Path
 from types import SimpleNamespace
+import subprocess
 
 from fastapi.testclient import TestClient
 
@@ -25,6 +26,40 @@ def _values(**overrides):
     }
     values.update(overrides)
     return values
+
+
+def test_design_budget_summary_exposes_overrun_and_never_claims_store_prices():
+    script = (Path(__file__).resolve().parents[1] / "assets/roxy_list.js").read_text()
+    function = script.split("  function designBudgetSummary(project){", 1)[1].split("  function renderDesign(){", 1)[0]
+    harness = """const assert=require('node:assert/strict');
+""" + "function designBudgetSummary(project){" + function + """
+for(const [budget,target,difference,overLimit,ratio]of [[500.50,675.68,175.18,true,135],[500.50,325.32,0,false,65],[500.50,500.50,0,false,100],[0,0,0,false,0]]){
+ const result=designBudgetSummary({budget,selected_tier:'complete',budget_tiers:[{id:'complete',budget:target}]});
+ assert.equal(result.difference,difference);assert.equal(result.overLimit,overLimit);assert.equal(result.ratio,ratio);
+ assert.ok(result.detail.includes('no cotización'));assert.ok(result.detail.includes('impuestos y envío'));
+ assert.equal(result.title.includes('supera'),overLimit);
+}
+"""
+    result = subprocess.run(["node", "-e", harness], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert "no un análisis de la foto" in script
+    assert "El análisis visual aún no está conectado." in script
+
+
+def test_design_preview_survives_background_refresh_without_changing_saved_budget():
+    script = (Path(__file__).resolve().parents[1] / "assets/roxy_list.js").read_text()
+    function = script.split("  function designProjectPreview(project){", 1)[1].split("  function renderDesign(){", 1)[0]
+    harness = """const assert=require('node:assert/strict');const designPreviewTiers=new Map();let user='qa';
+""" + "function designProjectPreview(project){" + function + """
+const saved={id:'room',budget:500.50,selected_tier:'balanced',budget_tiers:[{id:'complete',budget:675.68,products:[{name:'Opción'}]}]};
+const original=JSON.stringify(saved);designPreviewTiers.set('qa:room','complete');
+assert.equal(designProjectPreview(saved).selected_tier,'complete');
+assert.equal(designProjectPreview(JSON.parse(original)).selected_tier,'complete');
+assert.equal(JSON.stringify(saved),original);assert.equal(saved.budget,500.50);
+user='other';assert.equal(designProjectPreview(saved).selected_tier,'balanced');
+"""
+    result = subprocess.run(["node", "-e", harness], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
 
 
 def test_design_store_isolates_projects_and_private_images(tmp_path):
