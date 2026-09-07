@@ -3,10 +3,10 @@
   "updated_on": "2026-09-06",
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#mascotas",
-  "last_verified_public_version": 169,
-  "deployed_implementation_commit": "fbefb85f3",
-  "candidate_version": 170,
-  "candidate_status": "local_photo_and_mobile_verification_pending_deploy",
+  "last_verified_public_version": 170,
+  "deployed_implementation_commit": "6186b136d",
+  "candidate_version": 171,
+  "candidate_status": "locally_verified_pending_deploy",
   "storage": {
     "authorized_gb": 10,
     "render_confirmed_gb": 10,
@@ -18,18 +18,18 @@
   },
   "verification": {
     "node_check": "passed",
-    "pytest_passed": 518,
+    "pytest_passed": 522,
     "public_health": "ok",
     "pets_visible_after_reload": [
       "Bella",
       "Luna"
     ],
     "public_versions": {
-      "html": 169,
-      "app": 169,
-      "js": 168,
-      "css": 120,
-      "service_worker": 165
+      "html": 170,
+      "app": 170,
+      "js": 169,
+      "css": 121,
+      "service_worker": 166
     },
     "public_recipe_image_loaded": "ferret_turkey_mini_medallions.webp",
     "public_assets_byte_identical": true,
@@ -45,9 +45,9 @@
       "ready": 557,
       "missing": 126,
       "quarantined": 1,
-      "status": "INCOMPLETE",
-      "pending": 0,
-      "generated_today": 42
+      "status": "GENERATING_SNAPSHOT_170",
+      "pending": 20,
+      "generated_today": 1
     },
     "public_nexo_map": "Google_map_custom_zoom_15_to_5_and_automatic_globe_verified",
     "luna_display_name": "Ferret_verified_public_169",
@@ -58,7 +58,9 @@
     "public_roxy_text": "shopping_list_read_only_response_verified",
     "public_signup_enabled": false,
     "gps_test_incident": "Covered_native_zoom_clicked_share; browser_denied; viewer_remained_private; no_saved_preference_or_history_deleted",
-    "radar": "169_verified_13_frames_animated_pause_resume_globe_zoom_and_return_to_map"
+    "radar": "169_verified_13_frames_animated_pause_resume_globe_zoom_and_return_to_map",
+    "luna_recipe_photos_loaded": 8,
+    "luna_product_photos_loaded": 8
   },
   "known_issues": [
     "Luna thumbnail observed in public selector; original photo/profile recovery still unverified",
@@ -71,7 +73,7 @@
     "Full UI audit still incomplete: garden/design end-to-end, pantry/settings, public integrations",
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed"
   ],
-  "next_step": "Deploy and verify 170 photo loading and mobile recipes/products on the public page. Keep signup disabled pending real Turnstile, support and demo scope checks. Continue product ingredient allergy safeguards, real variety and remaining module/content audit.",
+  "next_step": "Verify 171 public loading/missing photo UI, keep signup disabled. Continue recipe-specific photo completion, product ingredient allergy safeguards, genuine variety and remaining module/content audit. No universal readiness claim.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",
@@ -83,18 +85,18 @@
   "candidate_verification": {
     "node_check": "passed",
     "pytest_passed": 522,
-    "html": 170,
-    "app": 170,
-    "js": 169,
-    "css": 121,
-    "service_worker": 166,
+    "html": 171,
+    "app": 171,
+    "js": 170,
+    "css": 122,
+    "service_worker": 167,
     "audit": "reports/home_pet_photo_followup_20260906.md",
     "catalog_audit": "reports/home_catalog_audit_20260905.json",
     "literal_local_assets_checked": 105,
     "qa_text_conversation": "verified",
     "qa_shopping_create": "verified",
     "qa_calendar_create": "verified",
-    "remaining_ui": "170_public_recipe_and_product_photo_verification",
+    "remaining_ui": "171_public_loading_and_missing_photo_states",
     "known_wrong_photo_quarantined": "Aderezo César",
     "qa_server": "isolated_8767_running",
     "qa_profiles": 17,

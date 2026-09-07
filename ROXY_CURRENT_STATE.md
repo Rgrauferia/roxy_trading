@@ -38,15 +38,19 @@ No aumentar gasto ni cambiar facturación. Voz continúa pendiente por `payment_
   Pruebas locales con 17 perfiles sintéticos y hogar demo separado; ninguno se
   añadió a producción. Servidor QA detenido, evidencia local conservada.
 
-## Candidato 170 — fotos de recetas y productos
+## Fotos de recetas y productos — 170 público, 171 candidato
 
-Candidato 170: corregida cancelación prematura de fotos de recetas al construir
+170 público comprobado: corregida cancelación prematura de fotos de recetas al construir
 la lista; dominios oficiales de fotos de productos habilitados solo en img-src,
 fallback honesto, enlace Kaytee y nombre de variante MidWest corregidos. Título e
 importación móvil corregidos con capturas. Retirada instrucción de lavar corazones
 de pollo crudos; no se alteran recetas guardadas. Detalle y límites:
-`reports/home_pet_photo_followup_20260906.md`. 522 pruebas Home/compras aprobadas;
-JS/SW y diff válidos. Pendiente verificar despliegue público.
+`reports/home_pet_photo_followup_20260906.md`. Commit `6186b136d`, cinco archivos
+públicos coincidentes y health correcto. Luna: 8 fotos de recetas y 8 de productos
+cargadas en público. Bella y Luna conservadas. Algunas fotos de Bella todavía
+no existen; cobertura consultada 557/683, 126 pendientes y cola 20.
+171 mejora estados de carga/generación/ausencia sin iconos rotos ni fotos genéricas.
+522 pruebas Home/compras aprobadas; JS/SW y diff válidos. Pendiente verificar 171.
 
 ## Cambio confirmado en infraestructura
 

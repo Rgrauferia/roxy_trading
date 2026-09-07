@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '170';
+  const APP_VERSION = '171';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -326,19 +326,25 @@
     entries.forEach(entry=>{if(!entry.isIntersecting)return;const job=observedRecipeImages.get(entry.target);recipeImageObserver.unobserve(entry.target);observedRecipeImages.delete(entry.target);if(job&&entry.target.isConnected)void hydrateRecipeImage(entry.target,job.recipe,job.host,{hideOnMissing:job.hideOnMissing,immediate:true})});
   },{rootMargin:'160px'}):null;
   async function hydrateRecipeImage(image,recipe,host,{hideOnMissing=false,immediate=false}={}){
+    image.classList.add('recipe-image-loading');
     if(recipeImageObserver&&image.loading==='lazy'&&!immediate){
       observedRecipeImages.set(image,{recipe,host,hideOnMissing});recipeImageObserver.observe(image);pruneDetachedRecipeImages();return;
     }
-    const url=recipeImage(recipe);if(!url){image.hidden=true;if(!hideOnMissing){image.remove();host&&host.classList.add('no-photo')}return}
-    const markMissing=()=>{image.classList.remove('recipe-image-loading');if(hideOnMissing)image.hidden=true;else{image.remove();host&&host.classList.add('no-photo')}};
+    let status=null;
+    const showStatus=text=>{if(!host)return;if(!status){status=document.createElement('small');status.className='recipe-photo-status';host.append(status)}status.textContent=text};
+    const clearStatus=()=>{status?.remove();status=null};
+    const markMissing=()=>{image.classList.remove('recipe-image-loading');if(hideOnMissing){image.hidden=true;clearStatus()}else{image.remove();host&&host.classList.add('no-photo');showStatus('Foto específica pendiente')}};
+    const url=recipeImage(recipe);if(!url){markMissing();return}
+    image.addEventListener('load',()=>{image.classList.remove('recipe-image-loading');clearStatus()},{once:true});
     image.addEventListener('error',markMissing,{once:true});
     if(url.startsWith('data:image/')||url.startsWith('/assets/')){image.src=url;return}
-    image.classList.add('recipe-image-loading');
+    showStatus('Cargando foto específica…');
     for(let attempt=0;attempt<20;attempt+=1){
       try{
         const response=await fetch(url,{credentials:'same-origin',cache:'default'});
-        if(response.status===200&&/^image\//i.test(response.headers.get('content-type')||'')){const blob=await response.blob();const objectUrl=URL.createObjectURL(blob);const release=()=>URL.revokeObjectURL(objectUrl);image.addEventListener('load',release,{once:true});image.addEventListener('error',release,{once:true});image.src=objectUrl;image.classList.remove('recipe-image-loading');host&&host.classList.remove('no-photo');return}
+        if(response.status===200&&/^image\//i.test(response.headers.get('content-type')||'')){const blob=await response.blob();const objectUrl=URL.createObjectURL(blob);const release=()=>URL.revokeObjectURL(objectUrl);image.addEventListener('load',release,{once:true});image.addEventListener('error',release,{once:true});image.src=objectUrl;host&&host.classList.remove('no-photo');return}
         if(response.status!==202)break;
+        showStatus('Roxy está preparando la foto específica…');
       }catch(error){if(!navigator.onLine)break}
       await waitForRecipeImage(15000);
     }

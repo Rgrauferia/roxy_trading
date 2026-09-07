@@ -58,6 +58,36 @@ usarlas; directorio `/tmp/roxy-pets-followup-Cbgxlb`.
 `git diff --check` correctos. HTML/APP 170, JS 169, CSS 121, SW 166.
 Pendiente la comprobación en público después del push.
 
+### 170 comprobado en público; candidato 171
+
+170, commit `6186b136d`: cinco archivos públicos HTTP 200 e idénticos al worktree,
+health correcto y registro apagado. Bella y Luna siguen presentes. No se editaron
+perfiles, recetas guardadas ni productos de Compra.
+
+7. `08-public-heading-170.png`: título de Bella corregido en 409 px. La captura
+   `09-public-bella-cards-170.png` es diagnóstico de carga pendiente, no evidencia
+   de fotos terminadas. Algunas imágenes no existen todavía (404 anónimo).
+8. `10` a `13-public-luna-recipes-170.png`: recorrido de las ocho preparaciones de
+   Luna. Todas cargadas, ocho URLs diferentes; tipos de preparación revisados
+   contra ingredientes/pasos. Ningún protocolo de cuidado dentro de Recetas.
+9. `14` a `18-public-luna-products-170.png`: ocho fotos comerciales cargadas.
+   Kaytee, Marshall y MidWest ya no están bloqueadas. La imagen de MidWest muestra
+   un solo cuerpo, consistente con Single Unit. No se enviaron compras.
+10. `19-qa-missing-photo-state-171.png`, `22-mobile-loaded-171.png` y
+    `23-mobile-missing-171.png`: QA de estados disponibles/ausentes. 171 oculta
+    únicamente la imagen mientras carga, la muestra al recibir load, e informa
+    carga/generación/pendiente con texto. No reemplaza fotos faltantes. Capturas
+    20/21 quedaron en los encabezados y se descartan como prueba de estos estados.
+
+Consulta de cobertura durante 170: 557/683 disponibles, 126 pendientes, 20 trabajos
+en cola; contador diario 1. Es una instantánea, no una promesa de generación final.
+No se aumentaron límites ni se llamaron herramientas de generación de imágenes.
+El servicio existente puede programar fotos al abrir recetas; no afirmar que
+ninguna generación se haya iniciado por recorrer la UI.
+
+171: HTML/APP 171, JS 170, CSS 122, SW 167; 522 pruebas Home/compras aprobadas
+(60.26 s), comprobaciones JS/SW y diff correctas. Despliegue aún por verificar.
+
 ## Límites y siguiente bloque
 
 Estas correcciones no generan fotos faltantes, no amplían el catálogo ni certifican
@@ -66,6 +96,5 @@ Queda revisar la variedad real frente a duplicados por raza, ampliar corresponde
 plato-foto y asegurar restricciones por ingredientes completos del producto (no solo
 su nombre). Registro público sigue apagado; CAPTCHA/soporte/voz siguen pendientes.
 
-La cantidad total de fotos disponible en producción no se ha vuelto a contar en
-esta sesión; no repetir 557/683 como un conteo fresco. El diseño tiene textos
-pequeños que todavía requieren revisión de accesibilidad.
+El diseño conserva textos pequeños que todavía requieren revisión de accesibilidad;
+el filtro de productos puede perder su posición visible tras cambiar de categoría.
