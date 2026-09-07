@@ -3,10 +3,10 @@
   "updated_on": "2026-09-06",
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#mascotas",
-  "last_verified_public_version": 170,
-  "deployed_implementation_commit": "6186b136d",
+  "last_verified_public_version": 171,
+  "deployed_implementation_commit": "078833299",
   "candidate_version": 171,
-  "candidate_status": "locally_verified_pending_deploy",
+  "candidate_status": "deployed_public_verified",
   "storage": {
     "authorized_gb": 10,
     "render_confirmed_gb": 10,
@@ -25,11 +25,11 @@
       "Luna"
     ],
     "public_versions": {
-      "html": 170,
-      "app": 170,
-      "js": 169,
-      "css": 121,
-      "service_worker": 166
+      "html": 171,
+      "app": 171,
+      "js": 170,
+      "css": 122,
+      "service_worker": 167
     },
     "public_recipe_image_loaded": "ferret_turkey_mini_medallions.webp",
     "public_assets_byte_identical": true,
@@ -50,7 +50,7 @@
       "generated_today": 1
     },
     "public_nexo_map": "Google_map_custom_zoom_15_to_5_and_automatic_globe_verified",
-    "luna_display_name": "Ferret_verified_public_169",
+    "luna_display_name": "Ferret_verified_public_171",
     "pet_profile_thumbnails_loaded": [
       "Bella",
       "Luna"
@@ -60,7 +60,11 @@
     "gps_test_incident": "Covered_native_zoom_clicked_share; browser_denied; viewer_remained_private; no_saved_preference_or_history_deleted",
     "radar": "169_verified_13_frames_animated_pause_resume_globe_zoom_and_return_to_map",
     "luna_recipe_photos_loaded": 8,
-    "luna_product_photos_loaded": 8
+    "luna_product_photos_loaded": 8,
+    "luna_recipe_photos_verification_version": 171,
+    "luna_product_photos_verification_version": 170,
+    "bella_missing_photo_state": "171_public_preparing_specific_photo_text_no_broken_image",
+    "public_normal_url_version": 171
   },
   "known_issues": [
     "Luna thumbnail observed in public selector; original photo/profile recovery still unverified",
@@ -71,9 +75,11 @@
     "ElevenLabs voice returned payment_issue; administrator billing action required",
     "463 human catalog templates require editorial review; cooking and shopping now gated",
     "Full UI audit still incomplete: garden/design end-to-end, pantry/settings, public integrations",
-    "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed"
+    "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed",
+    "Product allergy filtering needs complete ingredient verification, not only product-name matching",
+    "Recipe variety still includes near-duplicate breed variants; counts are not unique preparations"
   ],
-  "next_step": "Verify 171 public loading/missing photo UI, keep signup disabled. Continue recipe-specific photo completion, product ingredient allergy safeguards, genuine variety and remaining module/content audit. No universal readiness claim.",
+  "next_step": "Keep signup disabled. Implement product ingredient allergy safeguards, review genuine variety and complete recipe-specific photos, then continue remaining module/content audit. 171 deployed and public UI verified; no universal readiness claim.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",
@@ -96,9 +102,9 @@
     "qa_text_conversation": "verified",
     "qa_shopping_create": "verified",
     "qa_calendar_create": "verified",
-    "remaining_ui": "171_public_loading_and_missing_photo_states",
+    "remaining_ui": "full_catalog_species_and_remaining_modules_not_complete",
     "known_wrong_photo_quarantined": "Aderezo César",
-    "qa_server": "isolated_8767_running",
+    "qa_server": "isolated_8767_stopped_port_checked_no_listener",
     "qa_profiles": 17,
     "qa_aquarium_save_reload": "verified_after_null_field_fix",
     "map_loader_regression": "passed",
@@ -114,7 +120,9 @@
       "png": true
     },
     "recipe_lazy_grid_25": "regression_passed_and_mobile_photos_observed",
-    "product_csp_catalog": "all_remote_origins_match_image_only_allowlist"
+    "product_csp_catalog": "all_remote_origins_match_image_only_allowlist",
+    "public_loading_missing_states": "171_verified_screenshots_25_26_27",
+    "qa_browser_cleanup": "temporary_tab_closed_viewport_reset_public_mascotas_open"
   },
   "public_registration": {
     "enabled": false,

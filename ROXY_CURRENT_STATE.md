@@ -27,10 +27,11 @@ No aumentar gasto ni cambiar facturación. Voz continúa pendiente por `payment_
 - Rama local: `codex/roxy-home-renueva`; destino de despliegue: `origin/codex/roxy-home-nfc`.
 - URL: https://roxy-home.onrender.com/lista#mascotas.
 - Servicio Render: `roxy-home`, `srv-da0l3vs9v7es739kcmd0`, montaje persistente `/var/data`.
-- Versión pública comprobada: 169, commit de implementación `fbefb85f3`.
-  HTML/APP 169, JS 168, CSS 120, SW 165; cinco archivos públicos idénticos al
-  worktree y health correcto. 518 pruebas Home/compras aprobadas.
-  Zoom separado, transición al globo, 13 fotogramas de radar real animados,
+- Versión pública comprobada: 171, commit de implementación `078833299`.
+  HTML/APP 171, JS 170, CSS 122, SW 167; cinco archivos públicos idénticos al
+  worktree, health correcto y registro apagado. 522 pruebas Home/compras aprobadas.
+  Pruebas de Nexo/texto conservadas de 169 (`fbefb85f3`), no repetidas en 171:
+  zoom separado, transición al globo, 13 fotogramas de radar real animados,
   pausa/reanudación y regreso al mapa comprobados en navegador público.
   RainViewer acepta sus rutas opacas manteniendo validación de host y frescura.
   Bella y Luna aparecen con miniaturas cargadas; Robert/Roxy siguen en Nexo.
@@ -38,7 +39,7 @@ No aumentar gasto ni cambiar facturación. Voz continúa pendiente por `payment_
   Pruebas locales con 17 perfiles sintéticos y hogar demo separado; ninguno se
   añadió a producción. Servidor QA detenido, evidencia local conservada.
 
-## Fotos de recetas y productos — 170 público, 171 candidato
+## Fotos de recetas y productos — 171 público comprobado
 
 170 público comprobado: corregida cancelación prematura de fotos de recetas al construir
 la lista; dominios oficiales de fotos de productos habilitados solo en img-src,
@@ -50,7 +51,14 @@ públicos coincidentes y health correcto. Luna: 8 fotos de recetas y 8 de produc
 cargadas en público. Bella y Luna conservadas. Algunas fotos de Bella todavía
 no existen; cobertura consultada 557/683, 126 pendientes y cola 20.
 171 mejora estados de carga/generación/ausencia sin iconos rotos ni fotos genéricas.
-522 pruebas Home/compras aprobadas; JS/SW y diff válidos. Pendiente verificar 171.
+Verificado en HTTP y navegador, incluida URL normal sin parámetros: las ocho fotos
+de Luna cargadas y visibles; Bella informa preparación de fotos aún ausentes.
+Capturas 25/26/27 en `/tmp/roxy-pets-followup-Cbgxlb`; captura 24 es de 170 pese al
+nombre, no usarla como prueba de 171. 522 pruebas Home/compras aprobadas; JS/SW y
+diff válidos. Servidor QA 8767 detenido, pestaña QA cerrada y viewport restaurado.
+No se modificaron perfiles, historial, carro, permisos de ubicación ni facturación.
+Próximo bloque: ingredientes completos y alergias de productos, variedad real sin
+duplicados por raza y fotos pendientes. No declarar demo listo ni habilitar registro.
 
 ## Cambio confirmado en infraestructura
 

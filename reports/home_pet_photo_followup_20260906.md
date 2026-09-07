@@ -56,9 +56,9 @@ usarlas; directorio `/tmp/roxy-pets-followup-Cbgxlb`.
 
 522 tests Home/compras aprobados (59.35 s), `node --check` para JS y SW, y
 `git diff --check` correctos. HTML/APP 170, JS 169, CSS 121, SW 166.
-Pendiente la comprobación en público después del push.
+Comprobación posterior en público documentada a continuación.
 
-### 170 comprobado en público; candidato 171
+### 170 comprobado en público; seguimiento 171
 
 170, commit `6186b136d`: cinco archivos públicos HTTP 200 e idénticos al worktree,
 health correcto y registro apagado. Bella y Luna siguen presentes. No se editaron
@@ -86,7 +86,27 @@ El servicio existente puede programar fotos al abrir recetas; no afirmar que
 ninguna generación se haya iniciado por recorrer la UI.
 
 171: HTML/APP 171, JS 170, CSS 122, SW 167; 522 pruebas Home/compras aprobadas
-(60.26 s), comprobaciones JS/SW y diff correctas. Despliegue aún por verificar.
+(60.26 s), comprobaciones JS/SW y diff correctas.
+
+### 171 desplegado y comprobado
+
+Commit `078833299`, confirmado en la rama remota de despliegue. Cinco archivos
+públicos HTTP 200 e idénticos byte a byte a los probados; `/health` responde ok y
+registro `enabled:false`, cinco días. DOM confirma 171 con JS 170, incluida la URL
+normal `https://roxy-home.onrender.com/lista#mascotas`. Bella y Luna presentes.
+
+11. `25-public-bella-pending-171.png`: primeras fotos todavía ausentes; texto de
+    preparación específico y elementos img ocultos, sin iconos rotos ni sustitutos.
+12. `26-public-luna-loaded-171.png`: fotos disponibles mostradas al terminar load.
+13. `27-public-luna-last-recipes-171.png`: pato y medallones visibles; al terminar el
+    recorrido, ocho imágenes con naturalWidth positivo y visibility visible.
+
+La captura `24-public-recipes-171.png` se tomó antes de forzar una navegación nueva:
+el DOM seguía en 170. Se rechaza como evidencia de 171; no ocultar esta diferencia.
+Se comprobó luego la versión DOM y la URL normal sin parámetros de verificación.
+Servidor QA sin listener en 8767; pestaña temporal cerrada, viewport restaurado.
+No se editaron mascotas reales, historial ni Compra; no compras ni cambios de
+permisos, cuentas externas, límites de gasto o facturación.
 
 ## Límites y siguiente bloque
 
