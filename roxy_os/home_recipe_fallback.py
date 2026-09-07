@@ -540,13 +540,14 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         "dog_beef_green_bean": ("/assets/roxy_home/recipes/pets/bernese-beef-green-bean.jpg", "50% 50%"),
         "dog_apple_carrot_oat": ("/assets/roxy_home/recipes/pets/bernese-apple-carrot.jpg", "50% 50%"),
         "dog_sweet_potato_chews": ("/assets/roxy_home/recipes/pets/bernese-sweet-potato.jpg", "50% 50%"),
-        "cat_dehydrated_whitefish": ("/assets/roxy_home/recipes/pets/cat-protein-collection.webp", "31% 27%"),
-        "cat_dehydrated_chicken": ("/assets/roxy_home/recipes/pets/cat-protein-collection.webp", "31% 58%"),
-        "cat_rabbit_morsels": ("/assets/roxy_home/recipes/pets/cat-protein-collection.webp", "78% 44%"),
-        "cat_turkey_flakes": ("/assets/roxy_home/recipes/pets/cat-protein-collection.webp", "66% 25%"),
-        "cat_whitefish_flakes": ("/assets/roxy_home/recipes/pets/cat-protein-collection.webp", "31% 27%"),
-        "cat_beef_crumbles": ("/assets/roxy_home/recipes/pets/cat-protein-collection.webp", "39% 78%"),
-        "cat_plain_shrimp": ("/assets/roxy_home/recipes/pets/cat-protein-collection.webp", "72% 78%"),
+        "cat_dehydrated_whitefish": ("/assets/roxy_home/recipes/pets/cat-dehydrated-whitefish-v2.jpg", "50% 50%"),
+        "cat_dehydrated_chicken": ("/assets/roxy_home/recipes/pets/cat-dehydrated-chicken-v2.jpg", "50% 50%"),
+        "cat_rabbit_morsels": ("/assets/roxy_home/recipes/pets/cat-rabbit-morsels-v2.jpg", "50% 50%"),
+        "cat_turkey_flakes": ("/assets/roxy_home/recipes/pets/cat-turkey-flakes-v2.jpg", "50% 50%"),
+        "cat_whitefish_flakes": ("/assets/roxy_home/recipes/pets/cat-whitefish-flakes-v2.jpg", "50% 50%"),
+        "cat_beef_crumbles": ("/assets/roxy_home/recipes/pets/cat-beef-crumbles-v2.jpg", "50% 50%"),
+        "cat_plain_shrimp": ("/assets/roxy_home/recipes/pets/cat-plain-shrimp-v2.jpg", "50% 50%"),
+        "cat_hard_boiled_egg": ("/assets/roxy_home/recipes/pets/cat-hard-boiled-egg-v2.jpg", "50% 50%"),
         "ferret_poached_chicken": ("/assets/roxy_home/recipes/pets/ferret_poached_chicken_shreds.webp", "50% 50%"),
         "ferret_cooked_lamb": ("/assets/roxy_home/recipes/pets/ferret_cooked_lamb_crumbles.webp", "50% 50%"),
         "ferret_baked_duck": ("/assets/roxy_home/recipes/pets/ferret_cooked_duck_bites.webp", "50% 50%"),
@@ -570,7 +571,9 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
             "bernese_young_sweet_potato", "bernese_young_chicken_training", "bernese_young_watermelon", "bernese_young_egg_oat",
             "ferret_poached_chicken", "ferret_cooked_lamb", "ferret_baked_duck", "ferret_turkey_medallions",
             "ferret_cooked_turkey_bites", "ferret_chicken_heart_bites", "ferret_cooked_egg_bites", "ferret_cooked_beef_bites",
-            "cat_cooked_chicken_bites", "cat_cooked_salmon_flakes", "cat_turkey_mini_patties", "cat_egg_chicken_bites"
+            "cat_cooked_chicken_bites", "cat_cooked_salmon_flakes", "cat_turkey_mini_patties", "cat_egg_chicken_bites",
+            "cat_dehydrated_whitefish", "cat_dehydrated_chicken", "cat_rabbit_morsels", "cat_turkey_flakes",
+            "cat_whitefish_flakes", "cat_beef_crumbles", "cat_plain_shrimp", "cat_hard_boiled_egg"
         }
         recipe.setdefault("editorial_status", "verified_veterinary_guidance")
     return recipes

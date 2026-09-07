@@ -3,10 +3,10 @@
   "updated_on": "2026-09-06",
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#mascotas",
-  "last_verified_public_version": 171,
-  "deployed_implementation_commit": "078833299",
-  "candidate_version": 172,
-  "candidate_status": "565_tests_passed_local_qa_pending_public_verification",
+  "last_verified_public_version": 172,
+  "deployed_implementation_commit": "1216a182d",
+  "candidate_version": 173,
+  "candidate_status": "569_tests_passed_cat_photos_and_shopping_count_local_qa_pending_public",
   "storage": {
     "authorized_gb": 10,
     "render_confirmed_gb": 10,
@@ -18,18 +18,18 @@
   },
   "verification": {
     "node_check": "passed",
-    "pytest_passed": 522,
+    "pytest_passed": 565,
     "public_health": "ok",
     "pets_visible_after_reload": [
       "Bella",
       "Luna"
     ],
     "public_versions": {
-      "html": 171,
-      "app": 171,
-      "js": 170,
-      "css": 122,
-      "service_worker": 167
+      "html": 172,
+      "app": 172,
+      "js": 173,
+      "css": 124,
+      "service_worker": 170
     },
     "public_recipe_image_loaded": "ferret_turkey_mini_medallions.webp",
     "public_assets_byte_identical": true,
@@ -50,7 +50,7 @@
       "generated_today": 1
     },
     "public_nexo_map": "Google_map_custom_zoom_15_to_5_and_automatic_globe_verified",
-    "luna_display_name": "Ferret_verified_public_171",
+    "luna_display_name": "Ferret_verified_public_172",
     "pet_profile_thumbnails_loaded": [
       "Bella",
       "Luna"
@@ -63,8 +63,9 @@
     "luna_product_photos_loaded": 8,
     "luna_recipe_photos_verification_version": 171,
     "luna_product_photos_verification_version": 170,
-    "bella_missing_photo_state": "171_public_preparing_specific_photo_text_no_broken_image",
-    "public_normal_url_version": 171
+    "bella_recipe_photos_loaded": 15,
+    "bella_recipe_photos_verification_version": 172,
+    "public_normal_url_version": 172
   },
   "known_issues": [
     "Luna thumbnail observed in public selector; original photo/profile recovery still unverified",
@@ -79,7 +80,7 @@
     "Only five manufacturer ingredient panels screened; restrictions fail closed, not clinical allergy clearance",
     "Shopping footer sums grams as item count; found in isolated QA, pending fix"
   ],
-  "next_step": "Finish tests and deploy candidate 172, verify actual public assets and Bella/Luna UI. Then remaining cat/bird/small-pet photos, shopping quantity footer, exact-species products and remaining module audit. Keep signup disabled; no universal readiness claim.",
+  "next_step": "Finish candidate 173 tests and local browser QA, deploy and verify. Then bird/small-pet photos, exact-species products and remaining module audit. Keep signup disabled; no universal readiness claim.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",

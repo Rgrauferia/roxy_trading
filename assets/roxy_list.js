@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '172';
+  const APP_VERSION = '173';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -871,7 +871,9 @@
   function renderShopping() {
     renderFilters(); renderStaples(); renderList(); renderHistory();
     const rows=activeItems();
-    $('pendingTotal').textContent=new Intl.NumberFormat('es',{maximumFractionDigits:2}).format(rows.reduce((total,item)=>total+Number(item.quantity||0),0));
+    // A gram, litre and unit cannot be added into an item count.
+    $('pendingTotal').textContent=new Intl.NumberFormat('es').format(rows.length);
+    $('pendingLabel').textContent=rows.length===1?'producto pendiente':'productos pendientes';
     $('completeButton').disabled=!rows.length;
     renderCommerceSummary();
   }

@@ -1,6 +1,6 @@
 # Roxy Home 172 — ingredientes, personalización y fotografías
 
-Estado: candidato local con 565 pruebas Home/compras aprobadas (57.60 s); JS/SW, JSON y diff válidos. Verificación pública pendiente. No declarar demo lista.
+Estado: público 172 comprobado, commit `1216a182d`. 565 pruebas Home/compras aprobadas (57.60 s); JS/SW, JSON y diff válidos. HTML, JS, CSS, SW y cinco fotos nuevas idénticos byte a byte al commit; HTTP 200 y health correcto. Registro `enabled:false`. No declarar demo lista.
 
 ## Cambios
 
@@ -18,6 +18,7 @@ Estado: candidato local con 565 pruebas Home/compras aprobadas (57.60 s); JS/SW,
 Tests nuevos: `tests/test_roxy_home_pet_product_safety.py`, `tests/test_roxy_home_pet_recipe_quality.py`, prueba de autorización y vencimiento en `tests/test_roxy_home_public_demo.py`.
 Navegador aislado: `/tmp/roxy-pets-qa-t23jv7vm`, 17 mascotas sintéticas. Pavo/calabaza guardada con foto correcta y dos ingredientes enviados a Compra después de confirmación. Ferret QA con restricción muestra Mazuri pendiente, sin botón de añadir y con ficha oficial. Ningún perfil ni carrito de producción se modificó.
 Capturas: `/tmp/roxy-pet-safety-172.PUzAxl`.
+Verificación pública: URL normal `https://roxy-home.onrender.com/lista#mascotas`, meta 172; miniaturas de Bella/Luna cargadas; Bella 15 tarjetas y 15 imágenes cargadas al recorrer la lista. Luna sigue como Ferret, con ocho recetas separadas de cuidados. Captura `03-public-bella-172.png`.
 
 Pendiente fuera de este bloque: restantes fotos de gatos/aves/pequeños mamíferos, revisión de productos exactos de especies menos comunes, receta importada arbitraria no equivale a revisión clínica, soporte/recuperación, módulos restantes y servicios de voz/facturación. Registro permanece apagado. Hallazgo para siguiente bloque: Compra suma gramos como «artículos» en el contador de pie.
 

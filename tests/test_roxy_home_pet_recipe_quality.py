@@ -1,6 +1,7 @@
 from copy import deepcopy
 import json
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -19,6 +20,48 @@ def test_breed_view_has_distinct_preparations_not_relabelled_duplicates():
     root = Path(__file__).resolve().parents[1]
     assert all((root / row["photo_asset"].lstrip("/")).is_file() for row in verified)
     assert all(row["pet_id"] == pet["id"] for row in rows)
+
+
+@pytest.mark.parametrize("breed", ["Domestic Shorthair", "Siamese", "Maine Coon"])
+def test_cat_catalog_has_distinct_photos_and_preserves_profile_filters(breed):
+    pet = {"id": "cat-qa", "name": "Prueba", "species": "cat", "breed": breed, "life_stage": "adult"}
+    rows = personalized_pet_recipe_catalog(pet, {})
+    root = Path(__file__).resolve().parents[1]
+    assert len(rows) == 12
+    assert len({r["photo_asset"] for r in rows}) == 12
+    assert all(r["photo_asset_verified"] and r["pet_id"] == pet["id"] for r in rows)
+    assert all((root / r["photo_asset"].lstrip("/")).is_file() for r in rows)
+    assert not any("collection" in r["photo_asset"] or "variety" in r["photo_asset"] for r in rows)
+    filtered = personalized_pet_recipe_catalog({**pet, "allergies": ["chicken", "egg", "fish", "shellfish"]}, {})
+    assert filtered and len(filtered) < len(rows)
+    assert all(r["photo_asset_verified"] for r in filtered)
+    assert {r["catalog_key"] for r in filtered}.isdisjoint({"cat_egg_chicken_bites", "cat_plain_shrimp", "cat_dehydrated_chicken", "cat_dehydrated_whitefish", "cat_hard_boiled_egg"})
+
+
+def test_shopping_footer_counts_product_lines_not_mixed_quantities():
+    script = (Path(__file__).resolve().parents[1] / "assets/roxy_list.js").read_text()
+    function = script.split("  function renderShopping() {", 1)[1].split("  function renderCommerceSummary", 1)[0]
+    harness = """
+const assert = require('node:assert/strict');
+const nodes = {pendingTotal:{},pendingLabel:{},completeButton:{}};
+const $ = id => nodes[id];
+const renderFilters=()=>{},renderStaples=()=>{},renderList=()=>{},renderHistory=()=>{},renderCommerceSummary=()=>{};
+let items=[]; const activeItems=()=>items;
+""" + "function renderShopping(){" + function + """
+for (const [rows, count, label, disabled] of [
+  [[], '0', 'productos pendientes', true],
+  [[{quantity:250,unit:'gramo'}], '1', 'producto pendiente', false],
+  [[{quantity:250,unit:'gramo'},{quantity:60,unit:'gramo'},{quantity:1,unit:'unidad'}], '3', 'productos pendientes', false],
+  [[{quantity:0.5,unit:'litro'},{quantity:12,unit:'unidad'}], '2', 'productos pendientes', false]
+]) {
+  items=rows; renderShopping();
+  assert.equal(nodes.pendingTotal.textContent,count);
+  assert.equal(nodes.pendingLabel.textContent,label);
+  assert.equal(nodes.completeButton.disabled,disabled);
+}
+"""
+    result = subprocess.run(["node", "-e", harness], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.parametrize("key,expected", [

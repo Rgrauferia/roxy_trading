@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="172" />
+  <meta name="roxy-home-version" content="173" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="/assets/vendor/maplibre-gl.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_list.css?v=124" />
   <script src="/assets/vendor/maplibre-gl.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=173" defer></script>
+  <script src="/assets/roxy_list.js?v=174" defer></script>
   <script src="/assets/roxy_home_registration.js?v=1" defer></script>
 </head>
 <body>
@@ -306,7 +306,7 @@
         <label class="search"><span>Buscar</span><input id="searchInput" type="search" placeholder="Buscar en tu lista" autocomplete="off" /></label>
         <div id="categoryFilters" class="chips" role="group" aria-label="Categorías"></div>
         <div id="shoppingList" class="shopping-list"></div>
-        <div class="finish-row"><span><strong id="pendingTotal">0</strong> artículos pendientes</span><button id="completeButton" class="primary" type="button">Compra hecha</button></div>
+        <div class="finish-row"><span aria-live="polite"><strong id="pendingTotal">0</strong> <span id="pendingLabel">productos pendientes</span></span><button id="completeButton" class="primary" type="button">Compra hecha</button></div>
         <div class="shopping-commerce-shortcut">
           <span class="material-symbols-rounded" aria-hidden="true">shopping_bag</span>
           <span><strong>Comparar esta lista</strong><small>Busca opciones en Amazon después de revisar tus pendientes</small></span>

@@ -60,9 +60,9 @@ No se modificaron perfiles, historial, carro, permisos de ubicación ni facturac
 Próximo bloque: ingredientes completos y alergias de productos, variedad real sin
 duplicados por raza y fotos pendientes. No declarar demo listo ni habilitar registro.
 
-## Candidato 172 — seguridad y fotos de mascotas
+## 172 público comprobado — seguridad y fotos de mascotas
 
-Implementado, todavía no comprobado en público: ingredientes completos y Compra
+Implementado y comprobado en público, commit `1216a182d`: ingredientes completos y Compra
 coherente, cribado bilingüe de alergias, cinco fórmulas oficiales revisadas,
 productos con restricciones pendientes y bloqueo en servidor, ID de producto
 estable y receta vinculada a la mascota actual. Restricciones se revalidan al
@@ -72,10 +72,22 @@ duplicados de preparación por raza: perro 13 / Bernese joven 15, todas con imag
 individual revisada; cinco imágenes nuevas. Luna conserva ocho preparaciones.
 HTML/APP 172, JS 173, CSS 124, SW 170. Registro sigue apagado; voz/facturación
 pendientes. Ver `reports/home_pet_safety_172_20260906.md`. 565 pruebas Home/compras
-aprobadas; JS/SW, JSON y diff válidos. Pendiente de comprobación pública.
+aprobadas; JS/SW, JSON y diff válidos. HTML/JS/CSS/SW y cinco fotos nuevas idénticos
+al commit en público; health correcto. Bella 15 recetas/15 fotos cargadas y Luna
+conservada como Ferret con ocho recetas; miniaturas de ambos perfiles cargadas.
 QA únicamente local: 17 perfiles sintéticos, pavo/calabaza guardada con foto,
 ingredientes correctos en Compra; Ferret con restricción, fórmula visible y sin
 botón de añadir; equipo permitido. No se modificaron mascotas/carrito públicos.
+
+## Candidato 173 — fotos de gatos y contador de Compra
+
+Ocho imágenes individuales generadas y revisadas para las preparaciones exactas:
+gatos pasan a 12 recetas distintas con 12 fotos; filtros de perfil/restricciones
+conservados. Compra cuenta líneas de producto, no suma gramos/litros/unidades;
+etiqueta singular/plural. HTML/APP 173, JS 174, CSS 124, SW 171. 569 pruebas
+Home/compras aprobadas (51.01 s), JS/SW/diff válidos. QA móvil aislado sin
+desbordamiento y contador 3 correcto; publicación pendiente de verificación.
+Ver `reports/home_pet_photos_173_20260906.md`; no declarar demo lista.
 
 ## Cambio confirmado en infraestructura
 
