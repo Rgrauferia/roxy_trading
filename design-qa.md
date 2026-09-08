@@ -1,3 +1,93 @@
+# Ejercicio — QA de base integrada local, 2026-09-08
+
+## Alcance y resultado
+
+**PASS para la vista previa de preferencias y navegación. BLOCKED para activar
+entrenamientos o declarar el módulo completo/publicable.** No se ha probado una
+base PostgreSQL real; faltan contenido/licencias, cribado y plantillas con revisión
+profesional. Las pantallas pendientes lo dicen; no hay datos de entrenamiento,
+nutrición, reseñas, precios o asociaciones de muestra presentados como reales.
+Este bloque no invalida la evidencia histórica de Nexo conservada más abajo.
+
+## Fuente, capturas y comparación
+
+Referencia del usuario: `/tmp/codex-remote-attachments/01a05d3b-8e50-7f90-bb0a-4df5de364216/23E7E4F3-855B-492D-A633-DF33B103E6B5/1-Photo-1.jpg`,
+1143×1280, collage de ocho teléfonos. Se comparó en la misma entrada visual con
+capturas reales de la implementación: bienvenida, objetivos y semana. Se revisaron
+regiones equivalentes de contenido excluyendo marcos de teléfonos; el collage no
+aporta viewport/CSS/DPR de origen. No se afirma clonación píxel a píxel ni una
+medición exacta normalizada de densidad.
+
+Evidencia en `reports/fitness-qa/`:
+
+- `welcome-final.png`, `onboarding-final.png`, `goals-final.png`, `week-final.png`:
+  viewport y PNG 393×852, DPR 1. Semana con dos ventanas sintéticas del lunes.
+- `welcome-desktop.png`, `week-desktop.png`: viewport y PNG 1280×900, DPR 1.
+- `week-tablet.png`: viewport y PNG 768×1024, DPR 1, estado sin preferencias al
+  recargar. La primera captura tomada durante el cambio de tamaño salió recortada;
+  se repitió tras estabilización y se verificaron sus dimensiones con sips.
+- `welcome-before.png`, `welcome-after.png`, `goals.png`, `week-before.png`:
+  historial previo, NO resultado final. Fuente y capturas finales abiertas juntas
+  después de corregir diferencias. Viewport temporal restaurado al terminar.
+
+## Cinco superficies de fidelidad
+
+- Tipografía: serif Georgia de Home para títulos, texto operacional sans-serif,
+  descripciones de objetivos peso 400. Jerarquía legible sin cortar títulos.
+- Espaciado: márgenes móviles 16 px, objetivos seleccionables grandes, cinco
+  accesos inferiores en columna; CTA de bienvenida visible sin bajar la pantalla.
+  Objetivos/ajustes largos desplazan verticalmente; pestañas internas desplazan
+  horizontalmente sin desbordar el documento. No se encogen diez módulos en la barra.
+- Color: crema `#faf7f0`, verde `#204d39`, dorado `#d9b86f`; siguen Home y la referencia.
+- Imágenes: nueva ilustración Roxy en reposo, cara y cabello sin corte en móvil;
+  procedencia documentada en `reports/home_fitness_asset_20260908.md`. No es una
+  fotografía técnica ni reemplaza medios autorizados de un ejercicio.
+- Texto/contenido: preferencias individuales, opción sin peso/calorías, edad opcional,
+  idioma descrito como preferencia (no traducción ya disponible), semana como
+  disponibilidad. Ausencia de programas/licencias/base real explícita.
+
+## Diferencias intencionales respecto a la referencia
+
+Se integra el header/navegación actual de Roxy Home; no se crea otra aplicación.
+No se reproducen calorías, cargas, rutinas, suplementos o reseñas del collage.
+No se solicita nombre/sexo/peso para abrir el espacio, ni se imita una postura
+de sentadilla mediante una imagen generada. La bienvenida conservó la identidad
+Roxy existente y vestimenta de reposo. La semana real pendiente sustituye el
+entrenamiento ficticio del collage. Es una implementación por etapas de la
+especificación escrita del usuario, no la entrega del motor final.
+
+## Hallazgos corregidos y nueva comprobación
+
+| Prioridad | Hallazgo inicial | Corrección y evidencia posterior |
+|---|---|---|
+| P2 | Iconos/etiquetas comprimidos en navegación | Cinco columnas y etiquetas debajo, welcome-final |
+| P2 | CTA bajo el pliegue/cabello recortado | Foto móvil 260 px, encuadre 12 %, orden CTA, welcome-final |
+| P2 | Descripciones de objetivos demasiado gruesas | Peso 400, goals-final |
+| P2 | Captura/transición dejaba encabezado bajo barra fija | Margen de scroll 80 px y transición sin smooth scroll, onboarding/goals-final |
+| P2 | Progreso visual completo en paso 2 por estilo inline bloqueado por CSP | data-progress + CSS externo; navegador midió 0.39996 del ancho y Node lo cubre |
+| P2 | Compartir de compras aparecía dentro del módulo privado | Oculto solo en Ejercicio, header final sin acción ambigua |
+| P1 | Riesgo de conservar preferencias de otro miembro tras cambio de sesión | Binding de miembro y limpieza de 401/identity_changed/personal_login_required; pruebas API/Node, no prueba PostgreSQL real |
+| P2 | Respuesta perdida podía confundir guardado o borrado | Estado incierto y reconciliación; pruebas de consentimiento sin perfil y reintento |
+
+## Recorrido funcional y accesibilidad
+
+Probados bienvenida, cinco pasos, selección de objetivo, unidades, edad y zona
+horaria inválida con alerta/foco, dos ventanas en un día, lugares/material,
+revisión sin guardar, seis pestañas, días de semana, ajustes, retorno al recetario
+y acceso desde Más. Guardado real/exportación/eliminación siguen bloqueados sin
+PostgreSQL; cubiertos con dobles en tests, no atribuirlos al recorrido de navegador.
+Sin cambios compartidos ni datos públicos. Perfil sintético descartado al recargar.
+Campos con etiquetas, radios/checkboxes nativos, foco visible, barra ARIA coherente,
+pestañas con un tab stop y controles ocupados deshabilitados. No auditoría con
+lector de pantalla/dispositivo físico. Documento sin overflow horizontal en los
+tres tamaños; última revisión de consola sin errores/warnings.
+
+1.174 tests Python de Home/compras aprobados; 25 Node de Ejercicio; 17 de plantilla
+Home repetidos después de actualizar versiones estáticas. Sintaxis JS/SW y
+git diff --check aprobados. No significa certificación de privacidad o seguridad.
+
+---
+
 # Nexo mobile design QA
 
 ## Evidence

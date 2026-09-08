@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '177';
+  const APP_VERSION = '178';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -424,7 +424,10 @@
     if (!quiet) setBusy(true);
     const previousUser=user;
     try {
-      account=await api('/v1/home-account/me');
+      const nextAccount=await api('/v1/home-account/me');
+      if(account.id!==nextAccount.id||account.mode!==nextAccount.mode)window.RoxyFitness?.clear();
+      account=nextAccount;
+      if(activePanel==='fitness')mountFitness();
       $('app').hidden=false;
       const trial=account.trial;
       $('demoTrialBanner').hidden=!trial;
@@ -478,6 +481,7 @@
       if(error.status===401||error.status===403){
         // Do not reveal offline snapshots after the server rejects a session.
         account={mode:'signed_out',requires_profile_setup:false};
+        window.RoxyFitness?.clear();
         $('app').hidden=true;
         document.querySelectorAll('dialog[open]').forEach(dialog=>dialog.close());
         renderAccount();
@@ -583,6 +587,7 @@
   }
 
   let activePanel='';
+  function mountFitness(){window.RoxyFitness?.mount($('fitnessRoot'),{identity:account.id||account.mode||'preview',navigate:selectPanel})}
   function selectPanel(panel,{smooth=true}={}) {
     activePanel=panel;
     const contentPanel=panel==='pets'?'recipes':panel;
@@ -590,6 +595,7 @@
     document.body.classList.toggle('family-mode',panel==='family');
     document.body.classList.toggle('pet-module-mode',panel==='pets');
     document.body.classList.toggle('design-module-mode',panel==='design');
+    document.body.classList.toggle('fitness-mode',panel==='fitness');
     document.querySelectorAll('[data-panel]').forEach(node => {
       const active = node.dataset.panel === contentPanel;
       node.hidden = !active;
@@ -604,9 +610,10 @@
     // dedicated welcome experience. Today starts and ends with useful content,
     // while the center Roxy tab remains the conversation entry point.
     $('homeWelcome').hidden=true;
-    const hashes={today:'hoy',shopping:'compra',recipes:'recetas',pets:'mascotas',pantry:'despensa',calendar:'calendario',design:'renueva',plants:'jardin',family:'nexo',more:'mas'};
+    const hashes={today:'hoy',shopping:'compra',recipes:'recetas',pets:'mascotas',pantry:'despensa',calendar:'calendario',design:'renueva',plants:'jardin',family:'nexo',more:'mas',fitness:'ejercicio'};
     location.hash=hashes[panel]||'hoy';
     if(contentPanel==='recipes')renderRecipes();
+    if(panel==='fitness')mountFitness();
     window.scrollTo({top:0,behavior:smooth?'smooth':'auto'});
     if(panel==='family'){
       const familyPanel=$('familyPanel');
@@ -2561,7 +2568,7 @@
   applyAppearance();bind();renderHomeMoment();setInterval(renderHomeMoment,30000);render();
   window.addEventListener('pageshow',event=>{if(event.persisted)location.reload()});
   if('scrollRestoration'in history)history.scrollRestoration='manual';
-  const initialPanels={hoy:'today',compra:'shopping',recetas:'recipes',mascotas:'pets',pets:'pets',despensa:'pantry',calendario:'calendar',renueva:'design',jardin:'plants',familia:'family',nexo:'family',family:'family',mas:'more'};
+  const initialPanels={hoy:'today',compra:'shopping',recetas:'recipes',mascotas:'pets',pets:'pets',despensa:'pantry',calendario:'calendar',renueva:'design',jardin:'plants',familia:'family',nexo:'family',family:'family',mas:'more',ejercicio:'fitness'};
   window.addEventListener('hashchange',()=>{const panel=initialPanels[location.hash.slice(1)]||'today';if(panel!==activePanel)selectPanel(panel,{smooth:false})});
   selectPanel(initialPanels[location.hash.slice(1)]||'today',{smooth:false});const calendarSyncResult=new URLSearchParams(location.search).get('calendar_sync');if(calendarSyncResult){sessionStorage.setItem('roxyCalendarSyncNotice',calendarSyncResult);history.replaceState(null,'',`${location.pathname}${location.hash||'#calendario'}`)}load().then(()=>{const notice=sessionStorage.getItem('roxyCalendarSyncNotice');if(notice){sessionStorage.removeItem('roxyCalendarSyncNotice');announce(notice==='connected'?'Google Calendar quedó conectado. Tus próximos eventos ya se están sincronizando.':notice==='denied'?'No se autorizó Google Calendar. No hice cambios.':'No pude terminar la conexión con Google Calendar. Inténtalo de nuevo.')}});
   if('serviceWorker'in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){

@@ -3,6 +3,45 @@
 Actualizado: 2026-09-08. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
+## 178 — Ejercicio: base integrada y vista previa local, NO desplegado
+
+Se añadió Ejercicio al menú Home y una navegación de cinco accesos al entrar.
+Bienvenida con Roxy ilustrativa, cinco pasos voluntarios de preferencias, objetivos,
+unidades/zona horaria, disponibilidad con hasta cuatro ventanas por día y material
+confirmado. Seis secciones navegables: Hoy, Mi semana, Ejercicios, Progreso,
+Alimentación y Servicios. La semana muestra disponibilidad, NO entrenamientos.
+Enlaces al recetario y Hoy existentes sin modificar menús, calendario ni Compra.
+
+API `/api/fitness/v1`, identidad exclusivamente por miembro autenticado,
+consentimiento/versiones/idempotencia, exportación/eliminación y repositorio
+PostgreSQL exclusivo Home preparados. No fallback JSON ni caché privada en navegador.
+CSRF de mismo origen, bloqueo del acceso compartido, vinculación contra cambio de
+miembro en otra pestaña y limpieza del estado privado ante sesión cambiada/vencida.
+TLS verify-full, rol sin privilegios de propietario y FORCE RLS requeridos.
+Migración manual: `migrations/fitness/001_foundation.sql`. PostgreSQL real NO
+aprovisionado ni probado; Docker daemon no disponible. Las pruebas usan dobles SQL.
+
+No hay cribado profesional aprobado, catálogo licenciado, plantillas ni sesiones
+activas. No prescripciones, suplementación, afiliados, reservas o wearables.
+CSEP requiere licencia de integración; wger investigado sin incorporar catálogo;
+MuscleWiki no contratado. La ilustración de Roxy no enseña técnica.
+
+1.174 pruebas Python Home/compras y 25 Node UI aprobadas. Recorrido local con
+preferencias sintéticas, seis pestañas, errores de zona horaria, dos ventanas por
+día, pasos/ajustes y enlaces comprobados. QA 393×852, 768×1024 y 1280×900 sin
+desbordamiento; progreso corregido para CSP (paso 2 = 40 %). Sin errores/warnings
+en la comprobación final del navegador. Ver `design-qa.md` y
+`reports/home_fitness_implementation_20260908.md` para alcance y límites.
+
+Vista local: `http://127.0.0.1:8767/fitness-preview`, helper
+`python -m tools.roxy_home_fitness_preview`, cuenta sintética temporal sin claves
+externas ni PostgreSQL. Selecciones de Ejercicio solo en memoria, se pierden al
+recargar. Se deja servidor local abierto; viewport restaurado. Prototipo 8796
+y datos públicos Bella/Luna preservados. No pagos, cambios de entorno público,
+push ni despliegue. Público sigue 177. Candidato HTML/APP178, JS179, CSS127,
+SW176, fitnessJS3/CSS3. Siguiente puerta: PostgreSQL real con aislamiento entre
+dos miembros y revisión/licencia de contenido antes de habilitar entrenamientos.
+
 ## 177 — publicado y comprobado en Render
 
 Commit de implementación `ae7164fe6`, rama `codex/roxy-home-nfc`. HTML/APP177,

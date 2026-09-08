@@ -98,6 +98,7 @@ from roxy_os.home_recipe_videos import (
 )
 from roxy_os.home_voice import ElevenLabsHomeVoice, HomeVoiceConfig
 from roxy_os.shopping_list import ShoppingListStore, normalize_shopping_user
+from roxy_os.fitness.router import create_fitness_router
 
 
 ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets"
@@ -126,7 +127,7 @@ app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 @app.middleware("http")
 async def private_api_cache(request: Request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith("/v1/"):
+    if request.url.path.startswith(("/v1/", "/api/fitness/v1/")):
         response.headers["Cache-Control"] = "private, no-store"
         response.headers["Vary"] = "Cookie, Authorization"
     return response
@@ -1430,7 +1431,8 @@ def _authenticate(request: Request) -> AuthContext:
     if cookie_auth:
         if cookie_auth.trial:
             mode = trial_access_mode(request.method, request.url.path)
-            if cookie_auth.trial["status"] != "ACTIVE" and request.method not in {"GET", "HEAD"}:
+            privacy_delete = request.method == "DELETE" and request.url.path == "/api/fitness/v1/me/data"
+            if cookie_auth.trial["status"] != "ACTIVE" and request.method not in {"GET", "HEAD"} and not privacy_delete:
                 raise HTTPException(status_code=403, detail="Los cinco días de prueba terminaron. Puedes consultar tus datos; no hay cobro automático.")
             if mode == "unavailable":
                 raise HTTPException(status_code=403, detail="Esta función no está incluida en la demo. No se realizó ninguna operación ni cargo.")
@@ -1455,6 +1457,9 @@ def _authorize_user(user_id: str, auth: AuthContext) -> str:
     if auth.mode != "member":
         _allowed_user(user)
     return user
+
+
+app.include_router(create_fitness_router(_authenticate, lambda request: _rate_limit(request)))
 
 
 def _member_for_auth(auth: AuthContext) -> dict[str, Any] | None:

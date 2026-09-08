@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="177" />
+  <meta name="roxy-home-version" content="178" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
@@ -16,11 +16,13 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
   <link rel="stylesheet" href="/assets/vendor/maplibre-gl.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_list.css?v=127" />
+  <link rel="stylesheet" href="/assets/roxy_fitness.css?v=3" />
   <script src="/assets/vendor/maplibre-gl.js?v=1" defer></script>
   <script src="/assets/roxy_home_recipe_provider.js?v=2" defer></script>
   <script src="/assets/roxy_home_open_recipes.js?v=1" defer></script>
   <script src="/assets/roxy_home_weather_renderer.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=178" defer></script>
+  <script src="/assets/roxy_fitness.js?v=3" defer></script>
+  <script src="/assets/roxy_list.js?v=179" defer></script>
   <script src="/assets/roxy_home_registration.js?v=1" defer></script>
 </head>
 <body>
@@ -30,6 +32,7 @@
       <span><strong>Roxy Home</strong><small id="homeBrandSubtitle">Tu hogar, organizado</small></span>
     </a>
     <button id="shareButton" class="quiet-button" type="button">Compartir</button>
+    <button type="button" class="quiet-button home-more-entry" data-tab-link="more" aria-label="Más secciones y ajustes"><span class="material-symbols-rounded" aria-hidden="true">apps</span></button>
   </header>
 
   <main id="app" aria-busy="true">
@@ -507,9 +510,12 @@
       </form>
     </section>
 
+    <section id="fitnessPanel" class="app-panel" data-panel="fitness" aria-label="Ejercicio" hidden><div id="fitnessRoot"></div></section>
+
     <section id="morePanel" class="app-panel" data-panel="more" aria-labelledby="moreTitle" hidden>
       <div class="section-heading hero-heading"><div><p>Roxy Home</p><h2 id="moreTitle">Más</h2></div></div>
       <div class="quick-grid more-shortcuts" aria-label="Accesos del hogar">
+        <button type="button" data-tab-link="fitness" class="fitness-entry"><span class="material-symbols-rounded" aria-hidden="true">exercise</span><span><strong>Ejercicio</strong><small>Tu bienestar, a tu ritmo · vista previa</small></span><span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span></button>
         <button type="button" data-tab-link="pantry"><strong>Despensa</strong><small>Productos y preferencias</small></button>
         <button type="button" data-tab-link="shopping"><strong>Lista de compra</strong><small>Artículos pendientes</small></button>
         <button type="button" data-tab-link="recipes"><strong>Recetario</strong><small>Todas las categorías</small></button>
@@ -544,6 +550,7 @@
     <button type="button" data-tab-link="family"><span class="material-symbols-rounded" aria-hidden="true">hub</span><strong>Nexo</strong></button>
     <button type="button" data-tab-link="calendar"><span class="material-symbols-rounded" aria-hidden="true">calendar_month</span><strong>Calendario</strong></button>
     <button class="family-more-nav" type="button" data-tab-link="more"><span class="material-symbols-rounded" aria-hidden="true">more_horiz</span><strong>Más</strong></button>
+    <button class="fitness-nav" type="button" data-tab-link="fitness"><span class="material-symbols-rounded" aria-hidden="true">exercise</span><strong>Ejercicio</strong></button>
   </nav>
 
   <dialog id="plantDialog" class="plant-dialog" aria-labelledby="plantDialogTitle">
