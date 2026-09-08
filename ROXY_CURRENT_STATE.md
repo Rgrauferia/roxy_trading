@@ -3,7 +3,7 @@
 Actualizado: 2026-09-08. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## 179 — Ejercicio: candidato educativo comprobado; publicación autorizada
+## 179 — Ejercicio educativo PUBLICADO y comprobado
 
 Roberto autorizó continuar y publicar. Se incorpora selección fija de wger:
 8 fichas, 7 originales ES y 1 EN, 14 párrafos y 16 ilustraciones Everkinetic,
@@ -31,10 +31,21 @@ viewport móvil no cambió el tamaño efectivo del tab en esta ejecución.
 Ver reports/home_fitness_catalog_20260908.md,
 reports/home_fitness_postgres_integration_20260908.md y design-qa.md.
 
-Candidato HTML/APP179, JS180, SW177, fitnessJS4/CSS4, catalogueJS1. Público todavía
-177 hasta verificar el despliegue, no confundir autorización/push con publicación.
+Publicado desde commit 762ef1ae5 en codex/roxy-home-nfc. HTML/APP179, JS180, SW177,
+fitnessJS4/CSS4, catalogueJS1. Ocho recursos públicos HTTP200 y byte a byte iguales:
+HTML, JS principal, SW, tres assets fitness, privacidad y hero. Health HTTP200/ok.
+Hubo un 502 transitorio durante el despliegue; luego la web y health se recuperaron.
+API educativa sin autenticar devuelve 401 y private/no-store. Navegador autenticado:
+179, bienvenida, ocho fichas, búsqueda piernas y Curl femoral sentado con 2/2
+imágenes cargadas, sin errores/warnings ni desbordamiento. Guardado público
+NO disponible, confirmado por UI; no entrenamientos activos. No módulo completo.
 Cuenta local de QA sintética temporal en 8767, sin proveedores ni guardado privado.
 No se modificaron mascotas, compras o datos de usuarios. Prototipo 8796 preservado.
+Siguiente acción requerida del usuario: iniciar sesión en Render para revisar la
+base privada Home y condiciones/coste antes de aprovisionar; ninguna nueva compra
+autorizada. Revisor cualificado necesario para cribado y plantillas de entrenamiento.
+La evidencia de publicación se registra localmente después del commit desplegado;
+no requiere otro despliegue del mismo código.
 
 ## 178 — evidencia histórica de la primera base local, antes del candidato 179
 

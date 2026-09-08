@@ -2,11 +2,11 @@
   "product": "roxy-home",
   "updated_on": "2026-09-08",
   "deployment_branch": "codex/roxy-home-nfc",
-  "public_url": "https://roxy-home.onrender.com/lista#mascotas",
-  "last_verified_public_version": 177,
-  "deployed_implementation_commit": "ae7164fe6",
+  "public_url": "https://roxy-home.onrender.com/lista#ejercicio",
+  "last_verified_public_version": 179,
+  "deployed_implementation_commit": "762ef1ae5",
   "candidate_version": 179,
-  "candidate_status": "179_tested_educational_catalog_and_private_foundation_publication_authorized_not_yet_verified",
+  "candidate_status": "179_published_and_verified_educational_exercise_not_complete_training_module",
   "exercise_candidate_178": {
     "requested_objective": "integrated_private_member_exercise_module_following_user_specification",
     "scope": "five_step_preferences_and_six_section_preview_not_operational_training",
@@ -113,78 +113,24 @@
     "other_services_changed": false
   },
   "verification": {
-    "node_check": "passed",
-    "pytest_passed": 975,
+    "python_home_shopping_provider_passed": 1242,
+    "node_fitness_ui_passed": 33,
+    "postgres_local_real_passed": 11,
     "public_health": "ok",
-    "pets_visible_after_reload": [
-      "Bella",
-      "Luna"
-    ],
     "public_versions": {
-      "html": 177,
-      "app": 177,
-      "js": 178,
+      "html": 179,
+      "app": 179,
+      "js": 180,
       "css": 127,
-      "service_worker": 175,
-      "recipe_provider_js": 2,
-      "open_recipes_js": 1,
-      "weather_renderer_js": 1
+      "service_worker": 177,
+      "fitness_js": 4,
+      "fitness_css": 4,
+      "fitness_catalogue_js": 1
     },
-    "public_recipe_image_loaded": "ferret-cooked-turkey-bites.jpg",
-    "public_assets_byte_identical": true,
-    "public_nexo_members_visible": [
-      "Robert",
-      "Roxy"
-    ],
-    "recipe_search_review_label_verified": true,
-    "photo_quarantine_http": 404,
-    "photo_quarantine_visible": true,
-    "photo_coverage": {
-      "expected": 683,
-      "ready": 557,
-      "missing": 126,
-      "quarantined": 1,
-      "status": "GENERATING_SNAPSHOT_170",
-      "pending": 20,
-      "generated_today": 1
-    },
-    "public_nexo_map": "Google_map_custom_zoom_15_to_5_and_automatic_globe_verified",
-    "luna_display_name": "Ferret_verified_public_172",
-    "pet_profile_thumbnails_loaded": [
-      "Bella",
-      "Luna"
-    ],
-    "public_roxy_text": "shopping_list_read_only_response_verified",
-    "public_signup_enabled": false,
-    "gps_test_incident": "Covered_native_zoom_clicked_share; browser_denied; viewer_remained_private; no_saved_preference_or_history_deleted",
-    "radar": "169_verified_13_frames_animated_pause_resume_globe_zoom_and_return_to_map",
-    "luna_recipe_photos_loaded": 8,
-    "luna_product_photos_loaded": 8,
-    "luna_recipe_photos_verification_version": 176,
-    "luna_product_photos_verification_version": 170,
-    "bella_recipe_photos_loaded": 15,
-    "bella_recipe_photos_verification_version": 172,
-    "public_normal_url_version": 176,
-    "public_asset_scope_176": "HTML_JS_CSS_SW_providerJS_HTTP200_byte_identical_to_65d829d42",
-    "public_browser_176": "Bella_Luna_retained; Luna_Ferret_8_recipes_8_unique_images_loaded; saved_eggs_Desayunos_5_specific_steps; provider_pending; Google_Map_Robert_Roxy_weather_model_timestamp_visible",
-    "public_recipe_catalog_176": {
-      "available": 59,
-      "drafts": 458
-    },
-    "public_asset_scope_173": "HTML_JS_SW_8_cat_images_byte_identical; CSS124_unchanged_verified172",
-    "public_asset_scope_174": "HTML_JS_CSS_SW_12_smallpet_images_byte_identical",
-    "public_asset_scope_175": "HTML_JS_CSS_SW_HTTP200_byte_identical_to_09298929e",
-    "qa_cleanup_175": "server_8767_stopped_tab_closed_viewport_reset_public_mascotas_preserved",
-    "block_174_qa": {
-      "version": 174,
-      "focused_tests": 47,
-      "full_tests": 592,
-      "qa_server": "isolated_8767_stopped_at_close_175",
-      "qa_profiles": 17,
-      "qa_smallpet_recipe_images": "12/12 loaded across bird/rabbit/guinea_pig/hamster; no horizontal overflow",
-      "qa_garden": "synthetic Pothos create/edit/photo retained; warning resolves; reminder Sept13 09:00 visible in calendar; no external sync",
-      "production_data_mutated": false
-    }
+    "eight_public_assets_byte_identical": true,
+    "public_user_data_modified": false,
+    "fitness_public_storage": false,
+    "training_active": false
   },
   "known_issues": [
     "Luna thumbnail observed in public selector; original photo/profile recovery still unverified",
@@ -200,11 +146,11 @@
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed",
     "Only five manufacturer ingredient panels screened; restrictions fail closed, not clinical allergy clearance"
   ],
-  "next_step": "Publish and verify 179 educational Exercise scope via existing Home deploy branch. Need user Render login, authorized dedicated Home PostgreSQL provisioning and production isolation checks before persistent preferences. Professional screening/template review and larger exact-media catalogue required before implementing/enabling guided plans. No payment authorized; no complete module or open-demo readiness claim. Existing recipe/provider/registration gates remain.",
+  "next_step": "179 educational Exercise published and verified. User must sign in to Render before reviewing/provisioning dedicated Home PostgreSQL; confirm any new cost first, then test production isolation/persistence. Qualified professional review for screening/templates and broader exact-media catalogue before enabling guided plans. No module-complete or open-demo readiness claim. Existing recipe/provider/registration gates remain.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",
-    "exercise_section": "179_educational_catalog_and_private_foundation_not_complete_training_module",
+    "exercise_section": "179_published_educational_catalogue_and_preferences_preview_training_and_public_storage_pending",
     "database_and_media_migration": "recommended_not_performed",
     "registration": "public_open_approved_implemented_167_disabled_pending_real_verification",
     "trial_days": 5
@@ -214,7 +160,7 @@
     "python_tests": 1242,
     "node_tests": 33,
     "postgres_real_tests": 11,
-    "public_verified": false,
+    "public_verified": true,
     "production_data_mutated": false
   },
   "public_registration": {
@@ -304,12 +250,24 @@
       "new_mobile_check": false
     },
     "production_user_data_modified": false,
-    "public_deployed": false,
+    "public_deployed": true,
     "evidence": [
       "reports/home_fitness_catalog_20260908.md",
       "reports/home_fitness_postgres_integration_20260908.md",
       "design-qa.md"
-    ]
+    ],
+    "public_verification": {
+      "html": 179,
+      "implementation_commit": "762ef1ae5",
+      "eight_assets_http_200_byte_identical": true,
+      "health": "ok",
+      "temporary_502_recovered": true,
+      "unauthenticated_catalog_status": 401,
+      "api_cache": "private, no-store",
+      "browser": "welcome_8_catalogue_entries_search_legs_detail_2_images_loaded_no_console_errors",
+      "private_storage": "unavailable_confirmed_in_public_UI",
+      "screenshot": "/tmp/roxy-fitness-179-public.png"
+    }
   },
   "candidate_verification_176_historical": {
     "version": 176,
@@ -319,5 +277,79 @@
     "recipes": "synthetic_Luna_Bella_Betta; Luna8; corrected_eggs_5_step_guide; empty_video_panel_hidden; mobile_provider_pending",
     "provider_frontend": "in_memory_Node_mock_checks_passed; explicit_search_only_original_measures_safe_image_hosts_no_mutations_stale_response_suppressed; not_live_provider_test",
     "production_data_mutated": false
+  },
+  "verification_177_historical": {
+    "node_check": "passed",
+    "pytest_passed": 975,
+    "public_health": "ok",
+    "pets_visible_after_reload": [
+      "Bella",
+      "Luna"
+    ],
+    "public_versions": {
+      "html": 177,
+      "app": 177,
+      "js": 178,
+      "css": 127,
+      "service_worker": 175,
+      "recipe_provider_js": 2,
+      "open_recipes_js": 1,
+      "weather_renderer_js": 1
+    },
+    "public_recipe_image_loaded": "ferret-cooked-turkey-bites.jpg",
+    "public_assets_byte_identical": true,
+    "public_nexo_members_visible": [
+      "Robert",
+      "Roxy"
+    ],
+    "recipe_search_review_label_verified": true,
+    "photo_quarantine_http": 404,
+    "photo_quarantine_visible": true,
+    "photo_coverage": {
+      "expected": 683,
+      "ready": 557,
+      "missing": 126,
+      "quarantined": 1,
+      "status": "GENERATING_SNAPSHOT_170",
+      "pending": 20,
+      "generated_today": 1
+    },
+    "public_nexo_map": "Google_map_custom_zoom_15_to_5_and_automatic_globe_verified",
+    "luna_display_name": "Ferret_verified_public_172",
+    "pet_profile_thumbnails_loaded": [
+      "Bella",
+      "Luna"
+    ],
+    "public_roxy_text": "shopping_list_read_only_response_verified",
+    "public_signup_enabled": false,
+    "gps_test_incident": "Covered_native_zoom_clicked_share; browser_denied; viewer_remained_private; no_saved_preference_or_history_deleted",
+    "radar": "169_verified_13_frames_animated_pause_resume_globe_zoom_and_return_to_map",
+    "luna_recipe_photos_loaded": 8,
+    "luna_product_photos_loaded": 8,
+    "luna_recipe_photos_verification_version": 176,
+    "luna_product_photos_verification_version": 170,
+    "bella_recipe_photos_loaded": 15,
+    "bella_recipe_photos_verification_version": 172,
+    "public_normal_url_version": 176,
+    "public_asset_scope_176": "HTML_JS_CSS_SW_providerJS_HTTP200_byte_identical_to_65d829d42",
+    "public_browser_176": "Bella_Luna_retained; Luna_Ferret_8_recipes_8_unique_images_loaded; saved_eggs_Desayunos_5_specific_steps; provider_pending; Google_Map_Robert_Roxy_weather_model_timestamp_visible",
+    "public_recipe_catalog_176": {
+      "available": 59,
+      "drafts": 458
+    },
+    "public_asset_scope_173": "HTML_JS_SW_8_cat_images_byte_identical; CSS124_unchanged_verified172",
+    "public_asset_scope_174": "HTML_JS_CSS_SW_12_smallpet_images_byte_identical",
+    "public_asset_scope_175": "HTML_JS_CSS_SW_HTTP200_byte_identical_to_09298929e",
+    "qa_cleanup_175": "server_8767_stopped_tab_closed_viewport_reset_public_mascotas_preserved",
+    "block_174_qa": {
+      "version": 174,
+      "focused_tests": 47,
+      "full_tests": 592,
+      "qa_server": "isolated_8767_stopped_at_close_175",
+      "qa_profiles": 17,
+      "qa_smallpet_recipe_images": "12/12 loaded across bird/rabbit/guinea_pig/hamster; no horizontal overflow",
+      "qa_garden": "synthetic Pothos create/edit/photo retained; warning resolves; reminder Sept13 09:00 visible in calendar; no external sync",
+      "production_data_mutated": false
+    }
   }
 }

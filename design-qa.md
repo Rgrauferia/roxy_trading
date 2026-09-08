@@ -2,7 +2,13 @@
 
 PASS en el alcance de lectura de originales y preferencias en vista previa.
 NO es aprobación para activar rutinas o anunciar el módulo completo. La publicación
-fue autorizada por el usuario; se verificará separadamente tras desplegar.
+fue autorizada por el usuario y verificada tras desplegar el commit 762ef1ae5.
+
+Comprobación pública: HTML179, ocho assets/privacidad HTTP200 e idénticos,
+health OK después de un 502 transitorio. Bienvenida, catálogo de ocho, búsqueda
+y detalle de Curl femoral sentado con 2/2 imágenes cargadas; sin errores/warnings.
+El aviso de guardado no disponible permanece visible. Sin datos públicos escritos.
+Captura /tmp/roxy-fitness-179-public.png. No sustituye una prueba de teléfono físico.
 
 Se abrió la referencia collage del usuario junto con una captura de la ficha
 real en la misma entrada visual. La comparación abarca familia tipográfica,
