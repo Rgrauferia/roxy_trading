@@ -1,8 +1,8 @@
 # Correcciones 176 — recetas, Luna y clima
 
-Estado de este informe: candidato probado localmente, pendiente de comprobar en
-Render. No significa demo lista ni catálogo completo. Ver continuidad para la
-última versión pública verificada. Home exclusivamente; sin tocar Trading.
+Estado de este informe: versión 176 publicada y comprobada en Render, commit
+`65d829d42`. No significa demo lista ni catálogo completo. Home exclusivamente;
+sin tocar Trading.
 
 ## Errores reproducidos y cambios
 
@@ -59,7 +59,29 @@ contrató ni activó el proveedor. Detalles y fuentes en informe de proveedor.
   «pendiente» local no demuestra ausencia de esas fotos en producción.
 - Capturas de clima sintético observadas: `/private/tmp/roxy-weather-20260908-`
   `storm.png`, `sun.png`, `stale.png`; fixture no usa mapa ni ubicación real.
-- Candidato: HTML/APP176, JS177, CSS126, SW174, proveedorJS1.
+- Versión: HTML/APP176, JS177, CSS126, SW174, proveedorJS1.
+
+## Comprobación pública, 8 de septiembre
+
+- `/lista`, JS, CSS, SW y proveedorJS: HTTP200 y byte a byte idénticos al commit.
+  `/health` OK; meta 176 comprobada también en DOM del navegador.
+- Bella y Luna conservadas con miniaturas. Luna visible como Ferret, ocho recetas
+  y ocho rutas de foto diferentes cargadas al recorrer la lista. Verificación de
+  carga, no certificación veterinaria ni recuperación de una foto anterior.
+- Huevos con tostada integral guardados: Desayunos, ingredientes conservados,
+  cinco pasos propios; ya no aparecen instrucciones genéricas de carne/63°C.
+  Panel TheMealDB indica conexión pendiente sin controles activos engañosos.
+- Google Maps, Robert y Roxy visibles. Clima estimado parcialmente nublado,
+  fuente Open-Meteo, hora de validez y distinción de radar visibles. No se probó
+  una tormenta real ni se cambió permiso/preferencia de ubicación. La ficha aún
+  muestra velocidad junto a una ubicación antigua: revisar presentación antes
+  del lanzamiento para evitar interpretación de movimiento actual.
+- Capturas observadas: `06-luna-public-176.png`, `07-eggs-public-176.png`,
+  `08-nexo-public-176.png` en `/tmp/roxy-home-fixes-20260908/`.
+- Revisión independiente final: 26 tests focalizados aprobados y sintaxis de
+  ambos JS tras el último guard de carga. Fixture Node en memoria del proveedor
+  comprobó búsqueda explícita, textos originales, rechazo de imágenes ajenas,
+  ausencia de escrituras y descarte de respuestas tardías; no proveedor vivo.
 
 ## Pendientes explícitos
 

@@ -1,7 +1,69 @@
 # Roxy Home — estado operativo
 
-Actualizado: 2026-09-07. Este documento pertenece exclusivamente a la rama Home.
+Actualizado: 2026-09-08. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
+
+## 176 — publicado y comprobado en Render
+
+Commit `65d829d42`, publicado desde `codex/roxy-home-nfc`. HTML/APP176, JS177,
+CSS126, SW174 y proveedorJS1. 805 pruebas Home/compras/proveedor aprobadas;
+sintaxis JS/SW/diff correctas. UI móvil QA separada: Luna ocho preparaciones,
+huevos en Desayunos con pasos propios, proveedor pendiente sin acciones falsas.
+No se editaron mascotas, fotos, historial ni Compra públicos. Prototipo preservado.
+HTML/JS/CSS/SW/proveedorJS públicos HTTP200 y byte a byte idénticos; health OK.
+Navegador público: Bella/Luna conservadas, Luna Ferret con ocho recetas y ocho
+fotos distintas cargadas; huevos guardados en Desayunos con cinco pasos propios,
+proveedor comercial pendiente sin búsqueda habilitada. Google Maps y Robert/Roxy
+visibles; clima con fuente/hora y modelo separado del radar. No se pidió GPS ni voz.
+26 pruebas focalizadas adicionales aprobadas tras el último ajuste de carga JS.
+QA 8767 y fixture 8788 detenidos, puertos sin listener. Vista pública de Luna
+conservada y viewport restaurado. Datos de prueba sólo en temporal; sin borrar
+datos públicos ni detener el prototipo cinematográfico 8796.
+
+Eliminado reescritor genérico de recetas cortas; reparaciones por clave concreta,
+cinco originales recuperadas tras revisión: 59 listas / 458 borradores humanos.
+Importaciones cortas conservadas; petición desconocida no se sustituye por pollo.
+«Ninguna diagnosticada» ya no bloquea Luna ni elimina la pestaña. Restricciones
+reales mantienen gates; especialistas sin recetas inventadas. Clima más fino,
+viento/intensidad/día/noche, validez UTC y apagado de efectos con datos vencidos;
+modelo Open-Meteo separado de radar RainViewer, no tormenta fotorrealista.
+
+Roberto autorizó preparar/revisar TheMealDB, NO pagar. Adaptador y búsqueda UI
+preparados pero apagados: faltan licencia comercial, clave exclusiva Home y prueba
+real. $10 anunciado no confirma cobertura comercial; FAQ/terceros requieren
+revisión. Texto/medidas originales inglesas sin inventar porciones, sin guardado
+ni Compra automática. Demo no consulta proveedor externo. Fotos humanas pendientes
+y 458 borradores sin completar; no declarar demo/lista universal al 100%.
+Detalle: `reports/home_recipe_weather_fixes_176_20260908.md`.
+
+## Onboarding cinematográfico — prototipo local, 2026-09-08
+
+Roberto aprobó una película interactiva que se pausa en decisiones y cambia el
+inicio según las elecciones. Primer prototipo en `prototypes/roxy-cinema`, preview
+local `http://127.0.0.1:8796/`; no desplegado ni conectado al registro real.
+Cuatro clips generados, pausas, ramas mascotas/plantas, idioma ES/EN, cuatro temas,
+inicio filtrado, ajustes y persistencia exclusivamente local. Roberto aprobó seguir
+desde esta vista. Añadidas tres apariencias (Clásica, Casual y Acuarela), selección
+antes de Recetas y edición posterior; las dos nuevas son retratos explícitos sin
+animación facial. No reproducen el video de otra apariencia. Renueva y Nexo ahora
+explican beneficios/permisos con escenas ilustrativas y permiten añadir/omitir;
+son ocho capítulos de decisión, no ocho videos. Tres imágenes nuevas mediante
+ImageGen; sala Renueva reutilizada del activo Home. Fotos/voz no son datos reales.
+Sin modificar Bella, Luna, cuentas, permisos, voz pública ni la versión 175.
+Voz de dispositivo opcional y provisional; avatar propio, narración final,
+animación de las variantes/Renueva/Nexo e integración al registro pendientes.
+La ruta Home que devuelve READY no prueba disponibilidad de voz; último fallo
+real registrado `payment_issue`, no repetido hoy. Revisar aislamiento de agente
+Home antes de conectar proveedor, sin copiar claves ni agente de otro producto.
+20 tests del flujo (2.592 combinaciones unitarias), build y 28 archivos runtime
+verificados. Navegador iPhone/Pixel: galería, ES/EN, capítulos, atrás, guardar,
+recargar y ajustes probados; corregido scroll heredado entre capítulos y encuadre.
+Detalle/evidencias: README, `design-qa.md` y `media-manifest-20260908.md` del prototipo.
+Videos del bloque anterior: 30 créditos Higgsfield consumidos; saldo histórico
+consultado 9.5. No nuevos videos/audio, compra ni cambio de facturación este bloque.
+El script `tools/roxy_context_handoff.py` no existe en este worktree Home; intento
+de check falla por archivo ausente. No copiar herramientas de Trading para suplirlo.
+No confundir este bloque visual con demo lista/publicada; sin commit/push/despliegue.
 
 ## Ubicación y despliegue
 
@@ -27,16 +89,18 @@ No aumentar gasto ni cambiar facturación. Voz continúa pendiente por `payment_
 - Rama local: `codex/roxy-home-renueva`; destino de despliegue: `origin/codex/roxy-home-nfc`.
 - URL: https://roxy-home.onrender.com/lista#mascotas.
 - Servicio Render: `roxy-home`, `srv-da0l3vs9v7es739kcmd0`, montaje persistente `/var/data`.
-- Versión pública comprobada: 175, commit de implementación `09298929e`.
-  HTML/APP 175, JS 176, CSS 125, SW 173; HTML/JS/CSS/SW coincidentes con
-  el commit. Doce fotos nuevas comprobadas en 174, sin cambios en 175.
-  594 pruebas Home/compras aprobadas. Registro apagado, demo de cinco días.
+- Versión pública comprobada: 176, commit de implementación `65d829d42`.
+  HTML/APP 176, JS 177, CSS 126, SW 174, proveedorJS 1; los cinco archivos
+  públicos coinciden con el commit. Sin nuevas fotos generadas en 176.
+  805 pruebas Home/compras/proveedor aprobadas, más 26 focalizadas tras el
+  último ajuste. Registro apagado, demo de cinco días aún no abierta.
   Pruebas de Nexo/texto conservadas de 169 (`fbefb85f3`), no repetidas en 171:
   zoom separado, transición al globo, 13 fotogramas de radar real animados,
   pausa/reanudación y regreso al mapa comprobados en navegador público.
   RainViewer acepta sus rutas opacas manteniendo validación de host y frescura.
-  Bella y Luna aparecen con miniaturas cargadas; Robert/Roxy siguen en Nexo.
-  Roxy por texto respondió sobre la lista sin modificarla. Voz no verificada.
+  Bella y Luna aparecen con miniaturas cargadas; ocho fotos de recetas de Luna
+  comprobadas en 176. Robert/Roxy siguen en Nexo. Respuesta de Roxy por texto
+  conservada como evidencia de 175, no repetida en 176. Voz no verificada.
   Pruebas locales con 17 perfiles sintéticos y hogar demo separado; ninguno se
   añadió a producción. Servidor QA 8767 detenido al cerrar el bloque 175;
   pestaña QA cerrada y viewport restaurado. Pestaña pública conservada.
