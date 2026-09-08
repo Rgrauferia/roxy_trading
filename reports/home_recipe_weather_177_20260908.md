@@ -1,8 +1,8 @@
 # Roxy Home 177 — recetas originales, conservación y clima
 
-Estado: candidato local. No acredita publicación hasta la comprobación pública
-que se añadirá al finalizar el despliegue. Home únicamente; `prototypes/` y los
-datos privados de producción no se han editado.
+Estado: publicado y comprobado, commit de implementación `ae7164fe6`, rama
+`codex/roxy-home-nfc`. Home únicamente; `prototypes/` y los perfiles privados de
+producción no se han editado.
 
 ## Cambios verificados
 
@@ -70,3 +70,23 @@ fiel revisada; fotos originales que faltan; originales aptos para cada especie
 y revisión veterinaria donde corresponda. No se certifica el catálogo actual
 entero ni se declara la demo al 100%. Onboarding, voz/facturación y apertura del
 registro mantienen sus bloqueos previos: este cambio no los habilita.
+
+## Comprobación pública posterior al despliegue
+
+HTML/APP177, JS178, CSS127, SW175, proveedorJS2, originalesJS1 y climaJS1.
+Los siete archivos respondieron HTTP200 y coinciden byte a byte con el commit;
+`/health` devuelve OK. Meta 177 también comprobada en el DOM del navegador.
+
+El endpoint autenticado público sirve los seis originales. La foto de tortilla
+ha cargado y el lector avanzó al paso 2/8 conservando su texto. Bella y Luna
+siguen visibles. Luna aparece como Ferret, conserva ocho fichas pendientes;
+la foto `ferret-cooked-turkey-bites.jpg` cargó al abrir pavo, sin acciones para
+cocinar ni añadir a Compra una preparación sin verificar. No es recuperación
+de una foto de perfil anterior ni certificación de esas ocho recetas.
+
+Google Maps, Robert y Roxy siguen visibles. El dato público fue parcialmente
+nublado, Open-Meteo con hora de validez; no se dibujó lluvia para ese dato.
+No se forzó un estado de tormenta en producción, ni GPS ni micrófono. Captura:
+`/tmp/roxy-home-177-review/nexo-public-177.png`.
+Sigue pendiente la velocidad histórica junto a una ubicación antigua: evitar
+que se interprete como movimiento actual antes del lanzamiento.

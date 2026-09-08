@@ -3,7 +3,16 @@
 Actualizado: 2026-09-08. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## 177 — candidato local, aún no publicado
+## 177 — publicado y comprobado en Render
+
+Commit de implementación `ae7164fe6`, rama `codex/roxy-home-nfc`. HTML/APP177,
+JS178, CSS127, SW175, proveedorJS2, originalesJS1 y climaJS1: siete archivos
+públicos HTTP200 y byte a byte idénticos; health OK y meta 177 en navegador.
+Originales públicos: seis fichas, foto de tortilla cargada y lector paso 2/8.
+Bella y Luna visibles; Luna Ferret conserva ocho fichas pendientes y foto de
+pavo cargada. Google Maps, Robert/Roxy y clima parcialmente nublado visibles;
+no lluvia inventada para esa condición ni prueba de tormenta real. No se pidió
+GPS/micrófono ni se editaron perfiles, fotos o compras públicos.
 
 Nueva selección gratuita de seis originales Wikibooks de seis cocinas: 31 líneas
 de ingredientes, 36 pasos y raciones originales en inglés; revisiones fijas,
@@ -30,7 +39,7 @@ comprobados. Clima de modelo Open-Meteo no es observación exacta ni radar; mant
 RainViewer separado. No se afirma tormenta fotorrealista ni prueba en teléfono físico.
 Ver reports/home_recipe_sources_177_20260908.md y home_pet_provenance_177_20260908.md.
 975 pruebas Python Home/compras/proveedor y dos baterías Node aprobadas; videos
-también respetan la revisión de recetas. Despliegue pendiente. Corregido el recorte
+también respetan la revisión de recetas. Corregido el recorte
 silencioso de pasos al guardar y la edición duplicada en búsquedas locales.
 Prototipo cinematográfico preservado.
 
@@ -120,11 +129,11 @@ No aumentar gasto ni cambiar facturación. Voz continúa pendiente por `payment_
 - Rama local: `codex/roxy-home-renueva`; destino de despliegue: `origin/codex/roxy-home-nfc`.
 - URL: https://roxy-home.onrender.com/lista#mascotas.
 - Servicio Render: `roxy-home`, `srv-da0l3vs9v7es739kcmd0`, montaje persistente `/var/data`.
-- Versión pública comprobada: 176, commit de implementación `65d829d42`.
-  HTML/APP 176, JS 177, CSS 126, SW 174, proveedorJS 1; los cinco archivos
-  públicos coinciden con el commit. Sin nuevas fotos generadas en 176.
-  805 pruebas Home/compras/proveedor aprobadas, más 26 focalizadas tras el
-  último ajuste. Registro apagado, demo de cinco días aún no abierta.
+- Versión pública comprobada: 177, commit de implementación `ae7164fe6`.
+  HTML/APP 177, JS 178, CSS 127, SW 175, proveedorJS 2, originalesJS 1 y climaJS 1;
+  los siete archivos públicos coinciden con el commit. Sin nuevas fotos generadas.
+  975 pruebas Home/compras/proveedor y dos baterías Node aprobadas.
+  Registro apagado, demo de cinco días aún no abierta.
   Pruebas de Nexo/texto conservadas de 169 (`fbefb85f3`), no repetidas en 171:
   zoom separado, transición al globo, 13 fotogramas de radar real animados,
   pausa/reanudación y regreso al mapa comprobados en navegador público.
