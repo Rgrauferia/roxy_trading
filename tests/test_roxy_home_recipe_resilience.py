@@ -174,7 +174,7 @@ def test_banana_pancakes_are_breakfast_and_steps_match_the_ingredients():
     assert "sal" not in steps
 
 
-def test_every_local_recipe_is_editorially_complete_and_has_no_placeholder_instructions():
+def test_catalog_separates_drafts_and_preserves_short_actual_preparations():
     from roxy_os.home_recipe_fallback import local_recipe_catalog
 
     rows = local_recipe_catalog({"profile": {"allergies": []}})
@@ -195,9 +195,11 @@ def test_every_local_recipe_is_editorially_complete_and_has_no_placeholder_instr
     for recipe in rows:
         steps = recipe["steps"]
         instructions = " ".join(steps).casefold()
-        assert len(steps) >= 5, recipe["title"]
-        assert all(len(step.strip()) >= 25 for step in steps), recipe["title"]
-        assert not any(phrase in instructions for phrase in forbidden), recipe["title"]
+        assert steps and all(step.strip() for step in steps), recipe["title"]
+        if recipe.get("editorial_status") != "needs_canonical_review":
+            assert not any(phrase in instructions for phrase in forbidden), recipe["title"]
+    assert any(len(row["steps"]) < 5 for row in rows if row.get("kind") == "drink")
+    assert any(row.get("editorial_status") == "needs_canonical_review" for row in rows)
 
 
 def test_pollo_alfredo_explains_the_complete_recipe_instead_of_a_generic_method():

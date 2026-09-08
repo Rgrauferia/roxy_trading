@@ -38,15 +38,15 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "script-src 'none'" in privacy.headers["content-security-policy"]
     assert "roxy_privacy.html assets/roxy_privacy.css" in Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="175"' in page.text
+    assert 'name="roxy-home-version" content="176"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' in page.text
-    assert 'href="/assets/roxy_list.css?v=125"' in page.text
-    assert 'src="/assets/roxy_list.js?v=176"' in page.text
+    assert 'href="/assets/roxy_list.css?v=126"' in page.text
+    assert 'src="/assets/roxy_list.js?v=177"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
-    assert '/assets/roxy_list.css?v=125' in worker.text
-    assert '/assets/roxy_list.js?v=176' in worker.text
+    assert '/assets/roxy_list.css?v=126' in worker.text
+    assert '/assets/roxy_list.js?v=177' in worker.text
     assert '/assets/roxy_home/renueva-living-room-hero.webp' in worker.text
     assert '/assets/roxy_home/plants-soil-meter.png' in worker.text
     assert '/assets/roxy_home/pet-onboarding-hero.png' in worker.text
@@ -78,7 +78,11 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
     assert 'Revisar productos' in script.text
-    assert "const APP_VERSION = '175'" in script.text
+    assert "const APP_VERSION = '176'" in script.text
+    assert '/assets/roxy_home_recipe_provider.js?v=1' in page.text
+    assert '/assets/roxy_home_recipe_provider.js?v=1' in worker.text
+    assert client.get('/assets/roxy_home_recipe_provider.js').status_code == 200
+    assert 'https://www.themealdb.com' in page.headers['content-security-policy']
     assert '/assets/roxy_home_registration.js?v=1' in page.text
     assert '/assets/roxy_home_registration.js?v=1' in worker.text
     assert 'COPY assets/roxy_home_registration.js ./assets/roxy_home_registration.js' in Path('Dockerfile.roxy-home').read_text()
@@ -414,14 +418,14 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "/timers" in script.text
     assert "loadRecipeVideo" in script.text
     assert "createRecipeVideo" not in script.text
-    assert "Video de esta receta" in script.text
-    assert "Cuando empieces a cocinar" in script.text
+    assert "Video creado por Roxy" in script.text
+    assert "Cuando empieces a cocinar, Roxy preparará" not in script.text
     assert "recipe_video_status" in script.text
     assert "syncRecipeVideo" in script.text
     assert "/recipe-videos/" in script.text
     assert "clip.step_indices" in script.text
     assert "clipMatchesStep" in script.text
-    assert "las guardará y las reutilizará para todos" in script.text
+    assert "El video se preparará automáticamente" not in script.text
     dockerfile = (roxy_home_service.ASSETS_DIR.parent / "Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert "COPY assets/roxy_home/products ./assets/roxy_home/products" in dockerfile
     assert "COPY assets/roxy_home/recipes ./assets/roxy_home/recipes" in dockerfile
@@ -817,8 +821,8 @@ def test_roxy_voice_saves_recipe_adds_ingredients_and_guides_steps(tmp_path, mon
     assert ingredients.json()["intent"] == "recipe_to_shopping"
     assert recipe.json()["data"]["generation_mode"] == "voice_local_recipe_catalog"
     assert ingredients.json()["snapshot"]["pending_count"] == 4
-    assert guide.json()["data"]["cooking"]["current_step"].startswith("Lava la fruta")
-    assert next_step.json()["data"]["cooking"]["current_step"].startswith("Corta todo en trozos")
+    assert guide.json()["data"]["cooking"]["current_step"].startswith("Exprime los limones")
+    assert next_step.json()["data"]["cooking"]["current_step"].startswith("Disuelve el azúcar")
     assert timer.json()["intent"] == "cooking_timer_set"
     assert timer.json()["data"]["timer"]["duration_seconds"] == 300
     assert time_left.json()["intent"] == "cooking_timer_query"

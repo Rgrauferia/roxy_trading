@@ -167,7 +167,7 @@ class HomeFoodStore:
             return
         # A short imported recipe is still owned by the user, not by a matching
         # catalog title. Never overwrite its ingredients, steps or photograph.
-        if recipe.get("audience") == "pet" and recipe.get("generation_source") not in {None, "", "local_recipe_catalog"}:
+        if recipe.get("generation_source") not in {None, "", "local_recipe_catalog"}:
             return
         steps = [str(step or "") for step in recipe.get("steps") or []]
         searchable = _identity(" ".join(steps))
@@ -202,7 +202,7 @@ class HomeFoodStore:
                     ingredient["quantity"] = round(float(quantity) * factor, 2)
         for key in (
             "description", "kind", "drink_type", "category", "subcategory", "steps", "sources",
-            "editorial_status", "canonical_variant", "prep_minutes", "cook_minutes",
+            "editorial_status", "editorial_revision", "source_context", "canonical_variant", "prep_minutes", "cook_minutes",
         ):
             recipe[key] = deepcopy(current.get(key))
         recipe["ingredients"] = ingredients
@@ -725,6 +725,8 @@ class HomeFoodStore:
             "shared_recipe_id": _text(raw.get("shared_recipe_id"), 64),
             "generation_source": _text(raw.get("generation_source"), 64),
             "editorial_status": _text(raw.get("editorial_status"), 40),
+            "editorial_revision": _text(raw.get("editorial_revision"), 80),
+            "source_context": _text(raw.get("source_context"), 1000),
             "canonical_variant": _text(raw.get("canonical_variant"), 240),
             "prep_minutes": max(0, int(raw.get("prep_minutes") or 0)),
             "cook_minutes": max(0, int(raw.get("cook_minutes") or 0)),

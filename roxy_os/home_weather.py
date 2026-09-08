@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import os
+import math
 import re
 import threading
 import time
 import unicodedata
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import requests
 
@@ -121,6 +123,36 @@ def condition_for_code(value: Any) -> dict[str, Any]:
     return {"code": code, "condition": label, "icon": icon, "emoji": emoji}
 
 
+def _weather_number(value: Any, *, minimum: float | None = None, maximum: float | None = None) -> float | None:
+    """Missing model values are unknown, never zero-rain, calm wind or sunshine."""
+    if value is None or value == "" or isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(number) or (minimum is not None and number < minimum) or (maximum is not None and number > maximum):
+        return None
+    return number
+
+
+def _weather_valid_at(raw: dict[str, Any], current: dict[str, Any]) -> str | None:
+    """Normalize the model's time, not the fetch time, before freshness checks."""
+    try:
+        value = datetime.fromisoformat(str(current.get("time") or "").replace("Z", "+00:00"))
+        if value.tzinfo is None:
+            try:
+                value = value.replace(tzinfo=ZoneInfo(str(raw.get("timezone") or "")))
+            except (ZoneInfoNotFoundError, ValueError):
+                offset = _weather_number(raw.get("utc_offset_seconds"), minimum=-50400, maximum=50400)
+                if offset is None:
+                    return None
+                value = value.replace(tzinfo=timezone(timedelta(seconds=offset)))
+        return value.astimezone(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
 def geocode_place(
     query: str,
     *,
@@ -201,7 +233,7 @@ def forecast_location(
         "forecast_days": days,
         "temperature_unit": "fahrenheit",
         "wind_speed_unit": "mph",
-        "current": "temperature_2m,apparent_temperature,is_day,weather_code,wind_speed_10m",
+        "current": "temperature_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,wind_direction_10m,precipitation,rain,snowfall,cloud_cover",
         "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset",
         "hourly": "temperature_2m,precipitation_probability,weather_code",
     }
@@ -212,13 +244,24 @@ def forecast_location(
     raw = response.json()
     current_raw = raw.get("current") or {}
     current_condition = condition_for_code(current_raw.get("weather_code"))
+    temperature = _weather_number(current_raw.get("temperature_2m"))
+    feels_like = _weather_number(current_raw.get("apparent_temperature"))
+    wind = _weather_number(current_raw.get("wind_speed_10m"), minimum=0)
     current = {
         **current_condition,
-        "temperature": round(float(current_raw.get("temperature_2m") or 0)),
-        "feels_like": round(float(current_raw.get("apparent_temperature") or 0)),
-        "wind_mph": round(float(current_raw.get("wind_speed_10m") or 0)),
-        "is_day": bool(current_raw.get("is_day", 1)),
+        "temperature": round(temperature) if temperature is not None else None,
+        "feels_like": round(feels_like) if feels_like is not None else None,
+        "wind_mph": round(wind) if wind is not None else None,
+        "is_day": bool(current_raw["is_day"]) if current_raw.get("is_day") in (0, 1) else None,
         "observed_at": str(current_raw.get("time") or ""),
+        "valid_at": _weather_valid_at(raw, current_raw),
+        "interval_seconds": _weather_number(current_raw.get("interval"), minimum=1, maximum=3600),
+        "precipitation_mm": _weather_number(current_raw.get("precipitation"), minimum=0),
+        "rain_mm": _weather_number(current_raw.get("rain"), minimum=0),
+        "snowfall_cm": _weather_number(current_raw.get("snowfall"), minimum=0),
+        "cloud_cover_percent": _weather_number(current_raw.get("cloud_cover"), minimum=0, maximum=100),
+        "wind_direction_degrees": _weather_number(current_raw.get("wind_direction_10m"), minimum=0, maximum=360),
+        "source_kind": "weather_model",
     }
     daily_raw = raw.get("daily") or {}
     daily: list[dict[str, Any]] = []
@@ -247,7 +290,7 @@ def forecast_location(
         "provider": "open_meteo",
         "location": {"label": label, "latitude": latitude, "longitude": longitude},
         "timezone": str(raw.get("timezone") or timezone_name or "auto"),
-        "units": {"temperature": "°F", "wind": "mph"},
+        "units": {"temperature": "°F", "wind": "mph", "precipitation": "mm per current interval", "snowfall": "cm per current interval"},
         "current": current,
         "daily": daily,
         "updated_at": datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z"),

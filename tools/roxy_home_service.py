@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -37,6 +37,7 @@ from roxy_os.home_recipe_fallback import (
     personalized_pet_recipe_catalog,
 )
 from roxy_os.home_recipe_editorial import recipe_quality_issues
+from roxy_os import home_recipe_provider as recipe_provider
 from roxy_os.home_recipe_library import (
     HomeRecipeLibraryStore,
     recipe_is_compatible,
@@ -1665,7 +1666,7 @@ def shopping_page() -> Response:
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; img-src 'self' data: blob: https://maps.googleapis.com "
         "https://maps.gstatic.com https://*.googleapis.com https://*.gstatic.com "
-        "https://images.openfoodfacts.org https://*.rainviewer.com "
+        "https://images.openfoodfacts.org https://www.themealdb.com https://themealdb.com https://*.rainviewer.com "
         "https://*.basemaps.cartocdn.com https://tile.openstreetmap.org "
         "https://mazuri.com https://oxbowanimalhealth.com https://www.wysong.net "
         "https://www.kaytee.com https://www.midwesthomes4pets.com "
@@ -3747,6 +3748,84 @@ def create_home_purchase_link(
     return {"status": "READY_FOR_REVIEW", "disclosure": AFFILIATE_DISCLOSURE, "handoff": handoff, **result}
 
 
+def _require_external_recipe_request(auth: AuthContext, requested: bool) -> None:
+    if not requested:
+        raise HTTPException(status_code=409, detail="Confirma que quieres consultar el proveedor externo de recetas.")
+    # Demo GET requests otherwise bypass the quota for billable AI operations.
+    # Provider access needs its own approved allowance before enabling in trials.
+    if auth.trial:
+        raise HTTPException(status_code=403, detail="La consulta de recetas externas todavía no está incluida en la demo.")
+
+
+def _home_recipe_provider_status(auth: AuthContext) -> dict[str, Any]:
+    status = recipe_provider.recipe_provider_availability()
+    return {
+        **status,
+        "access_allowed": bool(status["available"] and not auth.trial),
+        "access_status": "not_included_in_demo" if auth.trial else status["status"],
+        "explicit_request_required": True,
+    }
+
+
+@app.get("/v1/home-food/{user_id}/providers/recipes/status")
+def read_home_recipe_provider_status(
+    user_id: str, request: Request, auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    _authorize_user(user_id, auth)
+    # Reads configuration only: no provider requests, photos, AI or store access.
+    return _home_recipe_provider_status(auth)
+
+
+@app.get("/v1/home-food/{user_id}/providers/recipes/search")
+def search_home_recipe_provider(
+    user_id: str, request: Request,
+    q: str = Query(min_length=2, max_length=100),
+    limit: int = Query(default=12, ge=1, le=20),
+    audience: str = Query(default="human", pattern="^human$"),
+    requested: bool = Query(default=False),
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    _authorize_user(user_id, auth)
+    _require_external_recipe_request(auth, requested)
+    try:
+        # Only the deliberate search phrase is sent. Never household IDs,
+        # allergies, pantry, pet profiles or conversation history.
+        records = recipe_provider.search_provider_recipes(q, audience=audience, limit=limit)
+    except recipe_provider.RecipeProviderUnavailable:
+        raise HTTPException(status_code=503, detail="El proveedor de recetas no está disponible. Revisa su conexión y licencia.") from None
+    except (recipe_provider.RecipeProviderContentError, ValueError):
+        raise HTTPException(status_code=422, detail="No se pudo validar la consulta o el contenido de la receta.") from None
+    return {
+        "provider": recipe_provider.PROVIDER, "language": "en", "audience": "human",
+        "recipes": [record.to_dict() for record in records], "count": len(records),
+        "status": "RESULTS_NEED_REVIEW" if records else "NO_PUBLISHABLE_MATCHES",
+        "imported": False, "review_required": True,
+    }
+
+
+@app.get("/v1/home-food/{user_id}/providers/recipes/{provider_id}")
+def read_home_recipe_provider_recipe(
+    user_id: str, provider_id: str, request: Request,
+    audience: str = Query(default="human", pattern="^human$"),
+    requested: bool = Query(default=False),
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    _authorize_user(user_id, auth)
+    _require_external_recipe_request(auth, requested)
+    try:
+        record = recipe_provider.get_provider_recipe(provider_id, audience=audience)
+    except recipe_provider.RecipeProviderUnavailable:
+        raise HTTPException(status_code=503, detail="El proveedor de recetas no está disponible. Revisa su conexión y licencia.") from None
+    except (recipe_provider.RecipeProviderContentError, ValueError):
+        raise HTTPException(status_code=422, detail="No se pudo validar la receta y los derechos de su contenido.") from None
+    if record is None:
+        raise HTTPException(status_code=404, detail="Receta externa no encontrada.")
+    return {"provider": recipe_provider.PROVIDER, "recipe": record.to_dict(), "imported": False}
+
+
 @app.get("/v1/home-food/{user_id}")
 def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenticate)) -> dict[str, Any]:
     _rate_limit(request)
@@ -3800,6 +3879,7 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
         "shared_recipe_library": _recipe_library_store().summary(),
         "recipe_image_service": _recipe_photo_queue().public_status(),
         "recipe_video_service": _recipe_video_public_status(),
+        "recipe_provider_service": _home_recipe_provider_status(auth),
         "voice_service": _home_voice_config().public_status(),
     }
 

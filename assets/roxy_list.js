@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '175';
+  const APP_VERSION = '176';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -979,6 +979,8 @@
     const root=$('recipeLibrary'); root.replaceChildren();
     const catalog=homeFood.local_catalog||{};
     const imageService=homeFood.recipe_image_service||{};const petMode=recipeAudience==='pet';
+    if(window.RoxyRecipeProvider)window.RoxyRecipeProvider.render($('recipeProviderPanel'),{user,service:homeFood.recipe_provider_service||{},api,hidden:petMode});
+    $('recipeSearch').disabled=false;
     $('petRecipeImportActions').hidden=!petMode||!petCapabilities(selectedPetProfile()).recipe_import;$('recipeEditorialFilters').hidden=petMode;document.querySelectorAll('#recipeEditorialFilters button').forEach(button=>button.setAttribute('aria-pressed',String((button.id==='recipeDraftShelf')===recipeShowDrafts)));
     $('recipesPanel').classList.toggle('pet-mode',petMode);
     $('recipeHeroEyebrow').textContent=petMode?'Bienestar personalizado':'Roxy cocina contigo';
@@ -986,8 +988,9 @@
     $('recipeHeroBadge').textContent=petMode?'Perfil privado':'Guardado automático';
     $('recipeImportTitle').textContent=petMode?'Tus mascotas':'Trae cualquier receta a Roxy';
     $('recipeLead').firstChild.textContent=petMode?'Cuidados, alimentación y salud organizados para cada mascota. ':'Explora por categoría. Las propuestas pendientes de revisión se identifican antes de guardarlas o cocinarlas. ';
-    const humanCount=(homeFood.local_recipes||[]).filter(recipe=>recipe.audience!=='pet').length;
-    $('recipeCatalogHint').textContent=petMode?'':humanCount?`Incluye ${humanCount} recetas para personas. Las preparaciones para animales están en Mascotas.`:'';
+    const humanCatalog=(homeFood.local_recipes||[]).filter(recipe=>recipe.audience!=='pet');
+    const humanReady=humanRecipeShelf(humanCatalog).length;const humanDrafts=humanRecipeShelf(humanCatalog,true).length;
+    $('recipeCatalogHint').textContent=petMode?'':humanCatalog.length?`${humanReady} recetas disponibles y ${humanDrafts} borradores separados para revisión. Las preparaciones para animales están en Mascotas.`:'';
     $('editPetProfile').setAttribute('aria-label','Editar perfil de la mascota');
     const filters=$('recipeFilters');filters.replaceChildren();filters.hidden=false;
     const pets=savedPets();const onboarding=$('petOnboardingEmpty');const catalogSection=$('recipeCatalogSection');const importStudio=$('recipeImportStudio');const petHub=$('petPersonalizedHub');
@@ -996,6 +999,13 @@
     importStudio.classList.toggle('pet-profile-mode',petMode);
     $('petLoadingStatus').hidden=!petMode||homeFoodReady;
     $('addPetButton').disabled=petMode&&!homeFoodReady;
+    if(!petMode&&!homeFoodReady){
+      onboarding.hidden=true;petHub.hidden=true;catalogSection.hidden=false;importStudio.hidden=false;
+      $('recipeSearch').disabled=true;filters.hidden=true;$('recipeEditorialFilters').hidden=true;
+      $('recipeCount').textContent=homeFoodLoadFailed?'No se pudo cargar':'Cargando…';
+      const loading=document.createElement('p');loading.setAttribute('role','status');
+      loading.textContent=homeFoodLoadFailed?'No pude cargar el recetario. Tus recetas guardadas no se han eliminado; vuelve a conectar o recarga.':'Cargando tu recetario…';root.append(loading);return;
+    }
     if(petMode&&!homeFoodReady){
       $('petLoadingStatus').textContent=homeFoodLoadFailed?'No pude cargar tus mascotas. Vuelve a conectar o recarga; no las añadas otra vez.':'Cargando tus mascotas guardadas…';
       onboarding.hidden=true;catalogSection.hidden=true;petHub.hidden=true;return;
@@ -1012,8 +1022,9 @@
     $('libraryTitle').textContent=petMode?'Recetas para '+selectedPetProfile().name:recipeShowDrafts?'Propuestas pendientes':'Recetario de Roxy';
     $('recipeLibraryHint').textContent=petMode?'Solo preparaciones compatibles. Los cuidados y protocolos están en Información; los premios no sustituyen su alimento completo.':recipeShowDrafts?'Estas propuestas no están listas para cocinar. Roxy debe revisar ingredientes y pasos antes de guardarlas.':'Ingredientes y pasos separados de las propuestas pendientes. Abre una receta antes de guardarla';
     $('recipeSearch').placeholder=petMode?'Buscar una preparación…':'Buscar huevos, pollo, café…';
-    if(recipeAudience==='human')[...recipeCategories,{id:'favorite',title:'Favoritas',icon:'favorite'}].forEach(category=>{const button=document.createElement('button');button.type='button';button.className=`recipe-filter-card${recipeFilter===category.id?' active':''}`;button.dataset.recipeFilter=category.id;if(category.icon){const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.setAttribute('aria-hidden','true');icon.textContent=category.icon;button.append(icon)}const label=document.createElement('span');label.textContent=category.title;button.append(label);button.addEventListener('click',()=>{recipeFilter=category.id;renderRecipes()});filters.append(button)});
+    if(recipeAudience==='human')[{id:'all',title:'Todas',icon:'apps'},...recipeCategories,{id:'favorite',title:'Favoritas',icon:'favorite'}].forEach(category=>{const button=document.createElement('button');button.type='button';button.className=`recipe-filter-card${recipeFilter===category.id?' active':''}`;button.dataset.recipeFilter=category.id;if(category.icon){const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.setAttribute('aria-hidden','true');icon.textContent=category.icon;button.append(icon)}const label=document.createElement('span');label.textContent=category.title;button.append(label);button.addEventListener('click',()=>{recipeFilter=category.id;renderRecipes()});filters.append(button)});
     else [{id:'all',title:'Todas',icon:'apps'},{id:'treat',title:'Premios',icon:'cookie'},{id:'favorite',title:'Favoritas',icon:'favorite'}].forEach(category=>{const button=document.createElement('button');button.type='button';button.className=`recipe-filter-card${petRecipeFilter===category.id?' active':''}`;const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.setAttribute('aria-hidden','true');icon.textContent=category.icon;const label=document.createElement('span');label.textContent=category.title;button.append(icon,label);button.addEventListener('click',()=>{petRecipeFilter=category.id;renderRecipes()});filters.append(button)});
+    if(petMode&&renderPetRecipeAvailability(selectedPetProfile(),root))return;
     const sessions=homeFood.cooking_sessions||[];
     const active=[...sessions].reverse().find(row=>row.status==='ACTIVE');
     if(active&&recipeAudience==='human'){
@@ -1028,8 +1039,14 @@
     // second substring filter here incorrectly treated “res” as part of “fresa”.
     const blockedIngredients=(pet?.allergies||[]).map(normalize).filter(value=>value&&!['ninguna','ninguna conocida','none','sin alergias conocidas'].includes(value));
     const audienceRows=allRows.filter(recipe=>recipeAudience==='pet'?recipe.audience==='pet'&&recipe.pet_species===petSpecies&&String(recipe.pet_id)===String(pet?.id):humanRecipeShelf([recipe],recipeShowDrafts).length>0);
+    if(!petMode){
+      const available=new Set(audienceRows.map(recipeCategoryId));
+      if(!['all','favorite'].includes(recipeFilter)&&!available.has(recipeFilter))recipeFilter='all';
+      filters.querySelectorAll('button').forEach(button=>{const id=button.dataset.recipeFilter;button.hidden=!['all','favorite'].includes(id)&&!available.has(id);button.classList.toggle('active',recipeFilter===id);button.setAttribute('aria-pressed',String(recipeFilter===id));});
+      $('recipeReadyShelf').textContent=`Recetas (${humanReady})`;$('recipeDraftShelf').textContent=`Borradores (${humanDrafts})`;
+    }
     const exactPetRows=recipeAudience==='pet'?audienceRows.filter(recipe=>(recipe.pet_exact_terms||[]).length):[];
-    const rows=audienceRows.filter(recipe=>{const matchesSearch=!recipeSearch||normalize(`${recipe.title||''} ${recipe.subcategory||''}`).includes(recipeSearch);const matchesCategory=recipeAudience==='pet'?(petRecipeFilter==='all'||(petRecipeFilter==='favorite'?recipe.favorite:recipe.safety_class===petRecipeFilter)):recipeFilter==='favorite'?recipe.favorite:recipeSearch||recipeCategoryId(recipe)===recipeFilter;return matchesSearch&&matchesCategory});
+    const rows=audienceRows.filter(recipe=>{const matchesSearch=!recipeSearch||normalize(`${recipe.title||''} ${recipe.subcategory||''}`).includes(recipeSearch);const matchesCategory=recipeAudience==='pet'?(petRecipeFilter==='all'||(petRecipeFilter==='favorite'?recipe.favorite:recipe.safety_class===petRecipeFilter)):recipeFilter==='favorite'?recipe.favorite:recipeFilter==='all'||recipeSearch||recipeCategoryId(recipe)===recipeFilter;return matchesSearch&&matchesCategory});
     const speciesLabel={dog:'para perros',cat:'para gatos',ferret:'para ferrets',rabbit:'para conejos',guinea_pig:'para cobayas',hamster:'para hámsteres',bird:'para aves',fish:'para peces',reptile:'para reptiles',amphibian:'para anfibios',other:'para otras mascotas'}[petSpecies]||'para mascotas';
     $('recipeCount').textContent=recipeAudience==='pet'?`${rows.length} ${speciesLabel}`:recipeSearch||recipeFilter==='favorite'?`${rows.length} ${rows.length===1?'resultado':'resultados'}`:`${audienceRows.length} ${recipeShowDrafts?'por revisar':'para personas'}`;
     if(recipeAudience==='pet'){
@@ -1037,7 +1054,7 @@
       const heading=document.createElement('div');heading.className='recipe-category-heading';const copy=document.createElement('div');const title=document.createElement('h3');title.textContent=`${feedingHub?'Alimentación':'Recetario'} de ${pet?.name||'tu mascota'}`;const description=document.createElement('p');description.textContent=blockedIngredients.length?`Filtrado según su especie y ${blockedIngredients.length} ${blockedIngredients.length===1?'restricción':'restricciones'} registradas`:exactPetRows.length?`Selección para ${pet.name}: ${pet.breed||pet.exact_species}, ${({baby:'bebé',young:'joven',adult:'adulta',senior:'senior'})[pet.life_stage]||'etapa pendiente'}. Son premios ocasionales, no su comida completa.`:feedingHub?'Guías específicas; la etiqueta y el especialista determinan cantidad y frecuencia':'Premios y complementos separados de su alimento completo';copy.append(title,description);const count=document.createElement('span');count.textContent=String(rows.length);heading.append(copy,count);section.append(heading);
       const grid=document.createElement('div');grid.className='recipe-category-grid';rows.forEach(recipe=>grid.append(recipeCard(recipe)));if(!rows.length){const empty=document.createElement('div');empty.className='empty category-empty';const emptyCopy={favorite:'<strong>Aún no hay favoritas</strong>Abre una preparación o guía guardada para marcarla como favorita.',treat:'<strong>No hay premios compatibles para este perfil</strong>Roxy no inventará una receta cuando la especie o sus restricciones necesiten una guía más precisa.',feeding_guide:'<strong>No hay una guía específica en este filtro</strong>Conserva el plan de alimentación guardado y confirma los cambios con su especialista.'};empty.innerHTML=emptyCopy[petRecipeFilter]||'<strong>No hay una receta segura disponible todavía</strong>Roxy no mostrará recetas genéricas. Completa los detalles de alimentación y salud del perfil para afinar las opciones.';grid.append(empty)}section.append(grid);root.append(section);return;
     }
-    const visibleCategories=recipeSearch?recipeCategories.filter(category=>rows.some(recipe=>recipeCategoryId(recipe)===category.id)):recipeCategories.filter(category=>category.id===recipeFilter);
+    const visibleCategories=recipeSearch||['all','favorite'].includes(recipeFilter)?recipeCategories.filter(category=>rows.some(recipe=>recipeCategoryId(recipe)===category.id)):recipeCategories.filter(category=>category.id===recipeFilter);
     visibleCategories.forEach(category=>{
       const categoryRows=rows.filter(recipe=>recipeCategoryId(recipe)===category.id);
       if(!categoryRows.length&&recipeFilter==='all')return;
@@ -1139,10 +1156,27 @@
     // Older/offline snapshots must not expose recipes for an unsupported species.
     const rows=(homeFood.pet_recipe_recommendations||{})[String(pet.id)]||[];
     const available=rows.some(row=>['treat','complement'].includes(row.safety_class)&&row.pet_species===pet.species&&String(row.pet_id)===String(pet.id));
-    return {recipes:available,recipe_import:available};
+    const supported=['dog','cat','ferret','rabbit','guinea_pig','hamster'].includes(pet.species)||available;
+    return {recipes:available,recipe_tab:supported,recipe_import:available,recipe_notice:available?'':'Conecta para comprobar el perfil y sus preparaciones. No se han borrado las recetas guardadas.'};
+  }
+  function renderPetRecipeAvailability(pet,root){
+    const capability=petCapabilities(pet);const blocked=!capability.recipes;
+    if(!blocked&&!capability.recipe_notice)return false;
+    const notice=document.createElement('section');notice.className='pet-care-source';notice.setAttribute('aria-label','Disponibilidad de recetas');
+    const title=document.createElement('strong');title.textContent=capability.recipe_notice_title||(blocked?'Revisa su perfil antes de preparar':'Premios ocasionales');
+    const message=document.createElement('p');message.textContent=capability.recipe_notice||'Revisa sus datos de alimentación antes de añadir preparaciones.';
+    notice.append(title,message);
+    if(blocked){
+      $('recipeFilters').hidden=true;$('recipeSearch').disabled=true;$('recipeCount').textContent='En revisión';
+      const saved=document.createElement('p');saved.textContent='Las recetas guardadas no se eliminan. Las recomendaciones y la importación quedan pausadas hasta revisar estos datos.';
+      const edit=document.createElement('button');edit.type='button';edit.className='secondary';edit.textContent='Revisar perfil de '+pet.name;edit.addEventListener('click',()=>openPetProfile(pet));
+      notice.append(saved,edit);
+    }
+    if(capability.recipe_source?.url){const source=document.createElement('a');source.href=capability.recipe_source.url;source.target='_blank';source.rel='noopener noreferrer';source.textContent=capability.recipe_source.label||'Consultar orientación veterinaria';notice.append(source)}
+    root.append(notice);return blocked;
   }
   function openPetHubSection(section){petHubTab=section;renderRecipes();requestAnimationFrame(()=>$('petPersonalizedHub').scrollIntoView({behavior:'smooth',block:'start'}))}
-  function renderPetHub(){const pet=selectedPetProfile();if(!pet)return;const capability=petCapabilities(pet);if(petHubTab==='recipes'&&!capability.recipes)petHubTab='care';$('petHubTitle').textContent=pet.name;const details=[pet.breed||pet.exact_species||petSpeciesLabels[pet.species]||'Mascota',pet.life_stage&&pet.life_stage!=='unknown'?({baby:'Bebé',young:'Joven',adult:'Adulto',senior:'Senior'})[pet.life_stage]:'',pet.photo_data_url?'':'Foto pendiente'].filter(Boolean);$('petHubSummary').textContent=details.join(' · ');const avatar=$('petHubAvatar');avatar.replaceChildren();if(pet.photo_data_url){const image=document.createElement('img');image.src=pet.photo_data_url;image.alt='Foto de '+pet.name;avatar.append(image)}else{const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.textContent='add_a_photo';avatar.append(icon)}const tabs=document.querySelector('.pet-hub-tabs');if(tabs){tabs.scrollLeft=0;tabs.style.gridTemplateColumns=`repeat(${capability.recipes?4:3},minmax(0,1fr))`}document.querySelectorAll('[data-pet-hub-tab]').forEach(button=>{button.hidden=button.dataset.petHubTab==='recipes'&&!capability.recipes;const active=button.dataset.petHubTab===petHubTab;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1});document.querySelectorAll('[data-pet-hub-panel]').forEach(panel=>panel.hidden=panel.dataset.petHubPanel!==petHubTab);if(petHubTab==='care')renderPetCare(pet);if(petHubTab==='products')renderPetProducts(pet);if(petHubTab==='medical'){renderPetMedicalHistory(pet);renderPetDocuments(pet)}}
+  function renderPetHub(){const pet=selectedPetProfile();if(!pet)return;const capability=petCapabilities(pet);const recipeTab=capability.recipe_tab??capability.recipes;if(petHubTab==='recipes'&&!recipeTab)petHubTab='care';$('petHubTitle').textContent=pet.name;const details=[pet.breed||pet.exact_species||petSpeciesLabels[pet.species]||'Mascota',pet.life_stage&&pet.life_stage!=='unknown'?({baby:'Bebé',young:'Joven',adult:'Adulto',senior:'Senior'})[pet.life_stage]:'',pet.photo_data_url?'':'Foto pendiente'].filter(Boolean);$('petHubSummary').textContent=details.join(' · ');const avatar=$('petHubAvatar');avatar.replaceChildren();if(pet.photo_data_url){const image=document.createElement('img');image.src=pet.photo_data_url;image.alt='Foto de '+pet.name;avatar.append(image)}else{const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.textContent='add_a_photo';avatar.append(icon)}const tabs=document.querySelector('.pet-hub-tabs');if(tabs){tabs.scrollLeft=0;tabs.style.gridTemplateColumns=`repeat(${recipeTab?4:3},minmax(0,1fr))`}document.querySelectorAll('[data-pet-hub-tab]').forEach(button=>{button.hidden=button.dataset.petHubTab==='recipes'&&!recipeTab;const active=button.dataset.petHubTab===petHubTab;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1});document.querySelectorAll('[data-pet-hub-panel]').forEach(panel=>panel.hidden=panel.dataset.petHubPanel!==petHubTab);if(petHubTab==='care')renderPetCare(pet);if(petHubTab==='products')renderPetProducts(pet);if(petHubTab==='medical'){renderPetMedicalHistory(pet);renderPetDocuments(pet)}}
   function petRoutineTimeLabel(value){const [hour,minute]=String(value||'').split(':').map(Number);if(!Number.isFinite(hour))return'';return new Intl.DateTimeFormat('es-US',{hour:'numeric',minute:'2-digit'}).format(new Date(2020,0,1,hour,minute||0))}
   async function completePetRoutine(pet,routine,button){button.disabled=true;try{await api(`/v1/home-food/${encodeURIComponent(user)}/pets/${encodeURIComponent(pet.id)}/care-log`,{method:'POST',body:JSON.stringify({routine_id:routine.id,title:routine.title})});await refreshHomeFood();announce(routine.title+' registrado para '+pet.name)}catch(error){button.disabled=false;announce(error.message)}}
   function renderPetDailySummary(pet,plan){
@@ -1238,7 +1272,7 @@
   function renderPetProfiles(){const root=$('petProfiles');root.replaceChildren();const rows=savedPets();if(!rows.length)return;const selected=selectedPetProfile();rows.forEach(pet=>{const chip=document.createElement('button');chip.type='button';chip.className=`pet-profile${String(pet.id)===String(selected?.id)?' active':''}`;if(pet.photo_data_url){const image=document.createElement('img');image.src=pet.photo_data_url;image.alt='';chip.append(image)}else{const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.textContent='pets';chip.append(icon)}const name=document.createElement('span');name.textContent=pet.name;chip.append(name);chip.addEventListener('click',()=>{selectedPetId=String(pet.id);petSpecies=pet.species||'other';petRecipeFilter='all';petProductFilter='all';renderPetProfiles();renderRecipes()});root.append(chip)});$('petSafetySummary').textContent=`Las recomendaciones para ${selected?.name||'tu mascota'} usan los datos guardados. Revisa los ingredientes, las advertencias y su plan veterinario antes de elegir.`}
   const commaPetValues=value=>String(value||'').split(',').map(row=>row.trim()).filter(Boolean).slice(0,30);
   const selectedChoiceValues=id=>[...$(id).querySelectorAll('button.active')].map(button=>button.dataset.value);
-  function renderPetChoices(id,values,selected=[]){const root=$(id);root.replaceChildren();const chosen=new Set((selected||[]).map(normalize));(values||[]).forEach(value=>{const button=document.createElement('button');button.type='button';button.dataset.value=value;button.textContent=value;button.classList.toggle('active',chosen.has(normalize(value)));button.addEventListener('click',()=>{if(/ninguna/i.test(value)){root.querySelectorAll('button').forEach(row=>row.classList.remove('active'));button.classList.add('active')}else{root.querySelectorAll('button').forEach(row=>{if(/ninguna/i.test(row.dataset.value))row.classList.remove('active')});button.classList.toggle('active')}});root.append(button)})}
+  function renderPetChoices(id,values,selected=[]){const root=$(id);root.replaceChildren();const chosen=new Set((selected||[]).map(normalize));const sync=()=>root.querySelectorAll('button').forEach(row=>row.setAttribute('aria-pressed',String(row.classList.contains('active'))));(values||[]).forEach(value=>{const button=document.createElement('button');button.type='button';button.dataset.value=value;button.textContent=value;button.classList.toggle('active',chosen.has(normalize(value)));button.addEventListener('click',()=>{if(/ninguna/i.test(value)){root.querySelectorAll('button').forEach(row=>row.classList.remove('active'));button.classList.add('active')}else{root.querySelectorAll('button').forEach(row=>{if(/ninguna/i.test(row.dataset.value))row.classList.remove('active')});button.classList.toggle('active')}sync()});root.append(button)});sync()}
   function fillPetDataList(id,values){const root=$(id);root.replaceChildren();(values||[]).forEach(value=>{const option=document.createElement('option');option.value=value;root.append(option)})}
   function fillPetSelect(id,values){const select=$(id);const previous=select.value;select.replaceChildren();values.forEach(([value,label])=>{const option=document.createElement('option');option.value=value;option.textContent=label;select.append(option)});if(values.some(([value])=>value===previous))select.value=previous}
   function adaptPetHealthFields(species){const mammal=['dog','cat','ferret','rabbit','guinea_pig','hamster','small_mammal','farm_pet'].includes(species);$('petSterilizedField').hidden=!mammal;if(!mammal)$('petProfileSterilized').value='unknown';const aquatic=['fish','amphibian'].includes(species);const habitatSpecies=['fish','reptile','amphibian','bird','invertebrate'].includes(species);$('petSizeLabel').textContent=aquatic?'Tamaño aproximado':habitatSpecies?'Tamaño actual':'Tamaño adulto';fillPetSelect('petProfileSize',aquatic?[["unknown","No estoy seguro"],["toy","Muy pequeño"],["small","Pequeño"],["medium","Mediano"],["large","Grande"]]:habitatSpecies?[["unknown","No estoy seguro"],["toy","Muy pequeño"],["small","Pequeño"],["medium","Mediano"],["large","Grande"]]:[["unknown","No estoy seguro"],["toy","Mini / toy"],["small","Pequeño"],["medium","Mediano"],["large","Grande"],["giant","Gigante"]]);$('petBodyLabel').textContent=aquatic?'Estado corporal observado':'Condición corporal';fillPetSelect('petProfileBody',aquatic?[["unknown","No estoy seguro"],["underweight","Delgado o retraído"],["ideal","Aspecto habitual"],["overweight","Abultado o hinchado"]]:[["unknown","No estoy seguro"],["underweight","Bajo peso"],["ideal","Ideal"],["overweight","Sobrepeso"]]);$('petActivityLabel').textContent=aquatic?'Comportamiento y actividad':species==='reptile'||species==='amphibian'||species==='invertebrate'?'Actividad observada':'Nivel de actividad';fillPetSelect('petProfileActivity',mammal?[["unknown","No estoy seguro"],["low","Bajo"],["moderate","Moderado"],["high","Alto"],["working","Trabajo o deporte"]]:[["unknown","No estoy seguro"],["low","Baja"],["moderate","Habitual"],["high","Muy activa"]])}
@@ -1310,9 +1344,10 @@
       const safetyCopy=document.createElement('p');safetyCopy.textContent=recipe.veterinary_note||'Consulta a tu veterinario antes de incorporarla de forma habitual, especialmente si tu mascota tiene alergias o una condición médica.';
       safety.append(safetyTitle,safetyCopy);columns.append(safety);
     }
-    if(String(recipe.editorial_status||'').startsWith('verified')){
+    if((recipe.sources||[]).length||recipe.source_context){
       const review=document.createElement('section');review.className='recipe-editorial-review';
-      const reviewTitle=document.createElement('strong');reviewTitle.textContent=recipe.audience==='pet'?'Fuentes de orientación, no prescripción':'Receta verificada';review.append(reviewTitle);
+      const reviewTitle=document.createElement('strong');reviewTitle.textContent=recipe.audience==='pet'?'Fuentes de orientación, no prescripción':'Origen y referencias';review.append(reviewTitle);
+      if(recipe.source_context){const scope=document.createElement('p');scope.textContent=recipe.source_context;review.append(scope);}
       if(recipe.canonical_variant){const variant=document.createElement('p');variant.textContent=recipe.canonical_variant;review.append(variant)}
       const sources=(recipe.sources||[]).filter(source=>/^https:\/\//.test(String(source.url||'')));
       if(sources.length){const sourceLabel=document.createElement('span');sourceLabel.textContent='Fuente: ';review.append(sourceLabel);sources.slice(0,3).forEach((source,index)=>{const link=document.createElement('a');link.href=source.url;link.target='_blank';link.rel='noopener noreferrer';link.textContent=source.title||source.authority||'Referencia culinaria';if(index)review.append(document.createTextNode(' · '));review.append(link)})}
@@ -1333,8 +1368,7 @@
     if(currentRecipe&&currentRecipe.id!==recipe.id)return;
     area.replaceChildren();
     if(!video){
-      if(!service||!service.enabled){area.hidden=true;return}
-      area.hidden=false;const heading=document.createElement('div');heading.className='recipe-video-heading';const copy=document.createElement('div');const title=document.createElement('h3');title.textContent='Video de esta receta';const note=document.createElement('p');note.textContent=`Cuando empieces a cocinar, Roxy preparará ${service.clip_count} demostraciones prácticas automáticamente, las guardará y las reutilizará para todos.`;copy.append(title,note);heading.append(copy);area.append(heading);return;
+      area.hidden=true;return;
     }
     area.hidden=false;const heading=document.createElement('div');heading.className='recipe-video-heading';const copy=document.createElement('div');const title=document.createElement('h3');title.textContent='Video creado por Roxy';const note=document.createElement('p');note.textContent=`${recipeVideoStatusLabel(video.status)} · ${video.visibility==='shared'?'biblioteca compartida':'solo este hogar'} · generado con IA`;copy.append(title,note);heading.append(copy);area.append(heading);
     const playable=(video.clips||[]).filter(clip=>clip.playback_url);
@@ -1366,8 +1400,7 @@
     if(currentRecipe&&currentRecipe.id!==recipe.id)return;
     area.replaceChildren();
     if(!video){
-      if(!service||!service.enabled){area.hidden=true;return}
-      area.hidden=false;const heading=document.createElement('div');heading.className='recipe-video-heading';const copy=document.createElement('div');const title=document.createElement('h3');title.textContent='Video de esta receta';const note=document.createElement('p');note.textContent=`Cuando empieces a cocinar, Roxy preparará ${service.clip_count} demostraciones prácticas automáticamente, las guardará y las reutilizará para todos.`;copy.append(title,note);heading.append(copy);area.append(heading);return;
+      area.hidden=true;return;
     }
     area.hidden=false;const heading=document.createElement('div');heading.className='recipe-video-heading';const copy=document.createElement('div');const title=document.createElement('h3');title.textContent='Video creado por Roxy';const note=document.createElement('p');note.textContent=`${recipeVideoStatusLabel(video.status)} · ${video.visibility==='shared'?'biblioteca compartida':'solo este hogar'} · generado con IA`;copy.append(title,note);heading.append(copy);area.append(heading);
     const playable=(video.clips||[]).filter(clip=>clip.playback_url);
@@ -1516,19 +1549,63 @@
     if(homeWeather.status!=='READY')return '';
     const current=homeWeather.current||{};if(current.code===null||current.code===undefined||current.code==='')return '';const code=Number(current.code);
     if(!Number.isFinite(code))return '';
-    if(code>=95)return 'storm';
+    if([95,96,99].includes(code))return 'storm';
     if([71,73,75,77,85,86].includes(code))return 'snow';
-    if((code>=51&&code<=67)||(code>=80&&code<=82))return 'rain';
+    if([51,53,55,56,57,61,63,65,66,67,80,81,82].includes(code))return 'rain';
     if(code===45||code===48)return 'fog';
-    if(code===0)return current.is_day===false?'clear-night':'sunny';
-    if(code<=3)return 'cloudy';
-    const feels=Number(current.feels_like);
-    return Number.isFinite(feels)&&feels<=45?'cold':'';
+    if(code===0||code===1)return current.is_day===false?'clear-night':current.is_day===true?'sunny':'';
+    if(code===2)return 'partly-cloudy';
+    if(code===3)return 'cloudy';
+    return '';
+  }
+  function familyWeatherAtmosphere(now=Date.now()){
+    const weather=homeWeather||{},current=weather.current||{};
+    const timestamp=value=>typeof value==='string'&&/(Z|[+-]\d\d:\d\d)$/.test(value)?Date.parse(value):NaN;
+    const validAt=timestamp(current.valid_at),fetchedAt=timestamp(weather.updated_at);
+    // Open-Meteo is model data, not a camera or a rain sensor at the user's phone.
+    // Require both model validity and fetch time; cached/unknown data must not look live.
+    const fresh=weather.status==='READY'&&Number.isFinite(validAt)&&Number.isFinite(fetchedAt)&&now-validAt>=-300000&&now-validAt<=2700000&&now-fetchedAt>=-300000&&now-fetchedAt<=2700000;
+    const mode=fresh?familyWeatherMode():'';
+    const number=value=>value===null||value===undefined||value===''||typeof value==='boolean'?null:Number.isFinite(Number(value))?Number(value):null;
+    const code=number(current.code),precipitation=number(current.precipitation_mm),interval=number(current.interval_seconds);
+    const hourlyRate=precipitation!==null&&precipitation>=0&&interval>0&&interval<=3600?precipitation*3600/interval:null;
+    const codeIntensity=[55,57,65,67,75,82,86,99].includes(code)?1:[53,63,73,81,95,96].includes(code)?.65:.28;
+    const intensity=hourlyRate===null?codeIntensity:Math.max(.12,Math.min(1,hourlyRate/8));
+    const wind=number(current.wind_mph),direction=number(current.wind_direction_degrees);
+    const drift=wind!==null&&wind>=0&&direction!==null&&direction>=0&&direction<=360?Math.round(Math.sin((direction+180)*Math.PI/180)*Math.min(44,wind)*3):0;
+    const clouds=number(current.cloud_cover_percent);
+    return {fresh,mode,validAt,fetchedAt,intensity,drift,night:current.is_day===false,clouds:clouds===null?null:Math.max(0,Math.min(100,clouds)),wind:wind===null?null:Math.max(0,wind),location:String(weather.location?.label||'Ubicación guardada'),ageMinutes:Number.isFinite(validAt)?Math.max(0,Math.floor((now-validAt)/60000)):null};
+  }
+  function familyWeatherParticles(scene){
+    const wet=['rain','storm','snow'].includes(scene.mode);
+    const count=wet?Math.round((scene.mode==='snow'?24:38)+scene.intensity*(scene.mode==='snow'?28:62)):0;
+    return Array.from({length:count},(_,index)=>{
+      const depth=index%3,jitter=((index*37)%101)/101;
+      return {x:((index*61.803398875)%120)-10,depth,size:scene.mode==='snow'?1.4+depth*.7:0.45+depth*.28,length:5+depth*4+jitter*3,opacity:.2+depth*.14,duration:scene.mode==='snow'?6+depth*1.7+jitter*3:1.6-depth*.35+jitter*.28,delay:-((index*1.618)%10)};
+    });
+  }
+  let familyWeatherRefreshTimer=null,familyWeatherRefreshPending=false,familyWeatherRefreshAt=0,familyWeatherBaseMapStyles=null;
+  async function refreshFamilyWeatherIfNeeded(){
+    if(activePanel!=='family'||document.hidden||account.mode!=='member'||familyWeatherRefreshPending||Date.now()-familyWeatherRefreshAt<300000)return;
+    if(!commerce.profile?.location_enabled)return;
+    familyWeatherRefreshPending=true;familyWeatherRefreshAt=Date.now();const requestedUser=user;
+    try{const weather=await api(`/v1/home-weather/${encodeURIComponent(requestedUser)}`);if(user!==requestedUser)return;homeWeather=weather;renderWeather();renderFamilyWeatherFx();if(familyMap&&familyWeatherBaseMapStyles)familyMap.setOptions({styles:familyWeatherMapStyles(familyWeatherBaseMapStyles)})}
+    catch(_error){renderFamilyWeatherFx()}
+    finally{familyWeatherRefreshPending=false}
   }
   function renderFamilyWeatherFx(){
-    const root=$('familyWeatherFx'),note=$('familyWeatherFxNote');if(!root)return;const mode=familyWeatherMode();root.className=`family-weather-fx${mode?` is-${mode}`:''}`;
-    if(root.dataset.mode!==mode){root.replaceChildren();root.dataset.mode=mode;const count={rain:42,storm:54,snow:32,cloudy:5,fog:5}[mode]||0;for(let index=0;index<count;index+=1){const particle=document.createElement('i');particle.style.setProperty('--x',`${(index*37)%101}%`);particle.style.setProperty('--y',`${12+(index*19)%54}%`);particle.style.setProperty('--delay',`${-((index*173)%3200)}ms`);particle.style.setProperty('--duration',`${900+(index*97)%1700}ms`);particle.style.setProperty('--size',`${4+(index*7)%8}px`);root.append(particle)}}
-    if(note){note.hidden=!mode||familyWeatherGlobeActive;note.textContent=`Ambiente visual ${({rain:'de lluvia',storm:'de tormenta',snow:'de nieve',cloudy:'de nubes',fog:'de niebla'}[mode]||'meteorológico')} según Open-Meteo`}
+    const root=$('familyWeatherFx'),note=$('familyWeatherFxNote');if(!root)return;
+    const scene=familyWeatherAtmosphere(),mode=scene.mode,paused=document.hidden||activePanel!=='family'||familyWeatherGlobeActive;
+    if(root.dataset.weatherMode!==mode&&familyMap&&familyWeatherBaseMapStyles)familyMap.setOptions({styles:familyWeatherMapStyles(familyWeatherBaseMapStyles)});
+    root.dataset.weatherMode=mode;
+    root.className=`family-weather-fx${mode?` is-${mode}`:''}${scene.night?' is-night':''}${paused?' is-paused':''}`;root.setAttribute('aria-hidden','true');
+    root.dataset.active=String(Boolean(mode));root.style.setProperty('--weather-drift',`${scene.drift}px`);root.style.setProperty('--weather-fall',`${Math.max(500,root.clientHeight)+45}px`);root.style.setProperty('--weather-angle',`${-Math.atan2(scene.drift,Math.max(500,root.clientHeight))*180/Math.PI}deg`);root.style.setProperty('--weather-cloud-opacity',String(scene.clouds===null?.2:.08+scene.clouds*.002));root.style.setProperty('--weather-cloud-duration',`${Math.max(12,48-(scene.wind||0))}s`);
+    const signature=`${mode}:${Math.round(scene.intensity*10)}`;
+    if(root.dataset.mode!==signature){root.replaceChildren();root.dataset.mode=signature;familyWeatherParticles(scene).forEach(row=>{const particle=document.createElement('i');particle.dataset.depth=String(row.depth);[['--x',`${row.x}%`],['--delay',`${row.delay}s`],['--duration',`${row.duration}s`],['--size',`${row.size}px`],['--length',`${row.length}px`],['--particle-opacity',String(row.opacity)]].forEach(([key,value])=>particle.style.setProperty(key,value));root.append(particle)})}
+    const summary=$('familyWeatherSummary'),current=homeWeather.current||{},temperature=current.temperature==null?'':`${Math.round(Number(current.temperature))}° · `;
+    if(summary)summary.textContent=scene.fresh?`${current.emoji||''} ${temperature}${current.condition||'Clima local'}`.trim():homeWeather.status==='LOCATION_REQUIRED'?'Clima sin activar':'Clima pendiente de actualizar';
+    if(note){note.hidden=familyWeatherGlobeActive||homeWeather.status==='LOCATION_REQUIRED';note.textContent=scene.fresh?`Clima estimado · ${scene.location} · ${familyClock(scene.validAt)}\nVisualización según Open-Meteo; no es radar.`:'Sin clima reciente: ambiente pausado. El mapa sigue disponible.';note.title=scene.fresh?`Condiciones de un modelo meteorológico, no observaciones exactas de tu teléfono. Válido hace ${scene.ageMinutes} min. El radar RainViewer muestra precipitación observada por separado.`:''}
+    if(!familyWeatherRefreshTimer){familyWeatherRefreshTimer=setInterval(()=>{renderFamilyWeatherFx();void refreshFamilyWeatherIfNeeded()},30000);document.addEventListener('visibilitychange',()=>{renderFamilyWeatherFx();if(!document.hidden)void refreshFamilyWeatherIfNeeded()});window.addEventListener('resize',renderFamilyWeatherFx)}
   }
   async function loadFamilyRadarMetadata(force=false){
     if(!force&&familyRadarMetadata&&Date.now()-familyRadarFetchedAt<300000)return familyRadarMetadata;
@@ -1583,13 +1660,14 @@
     if(familyMap){if(useGlobeCenter&&familyWeatherGlobeMap){const center=familyWeatherGlobeMap.getCenter();familyMap.setCenter({lat:center.lat,lng:center.lng})}familyMap.setZoom(7)}setTimeout(()=>{familyMapTransitioning=false},520);
   }
   function familyWeatherMapStyles(baseStyles){
-    const mode=familyWeatherMode();
+    familyWeatherBaseMapStyles=baseStyles;const mode=familyWeatherAtmosphere().mode;
     const atmosphere={
       sunny:[{elementType:'geometry',stylers:[{saturation:10},{lightness:4}]}],
+      'partly-cloudy':[{elementType:'geometry',stylers:[{saturation:-8},{lightness:2}]}],
       cloudy:[{elementType:'geometry',stylers:[{saturation:-38},{lightness:-5},{gamma:.92}]}],
       fog:[{elementType:'geometry',stylers:[{saturation:-58},{lightness:10},{gamma:1.08}]}],
-      rain:[{elementType:'geometry',stylers:[{saturation:-52},{lightness:-10},{gamma:.86}]}],
-      storm:[{elementType:'geometry',stylers:[{saturation:-70},{lightness:-18},{gamma:.78}]}],
+      rain:[{elementType:'geometry',stylers:[{saturation:-30},{lightness:-4},{gamma:.95}]}],
+      storm:[{elementType:'geometry',stylers:[{saturation:-40},{lightness:-8},{gamma:.9}]}],
       snow:[{elementType:'geometry',stylers:[{saturation:-50},{lightness:13},{gamma:1.12}]}],
       'clear-night':[{elementType:'geometry',stylers:[{saturation:-44},{lightness:-19},{gamma:.76}]}],
       cold:[{elementType:'geometry',stylers:[{saturation:-22},{lightness:5},{gamma:1.02}]}]
@@ -1681,9 +1759,6 @@
     const accountName=homeFamily.account?.household_name||homeFamily.household_name||'Nuestro hogar';
     $('familyHouseholdName').textContent=accountName;
     $('familyTodayLabel').textContent=`${familyFriendlyDate()} · Ubicaciones privadas`;
-    const weatherDay=(homeWeather.daily||[])[0],weatherCurrent=homeWeather.current||{};
-    const weatherReady=homeWeather.status==='READY';
-    $('familyWeatherSummary').textContent=weatherReady?`${weatherCurrent.emoji||weatherDay?.emoji||''} ${Math.round(Number(weatherCurrent.temperature??weatherDay?.temperature_max??0))}° · ${weatherCurrent.condition||weatherDay?.condition||'clima local'}`.trim():'Clima sin activar';
     renderFamilyWeatherFx();
     $('familyTrafficSummary').textContent=familyRouteSnapshot?.traffic||'Selecciona una ruta';
     rail.replaceChildren();
@@ -2027,7 +2102,7 @@
       if(data.recipe_video_status==='QUEUED')announce('Empezamos. Roxy también está preparando y guardando el video para reutilizarlo.');
       else if(data.recipe_video_status==='REUSED')announce('Empezamos con el video que Roxy ya tenía guardado.');
       else if(data.recipe_video_status==='BUDGET_LIMIT')announce('Empezamos la receta. El video esperará al próximo presupuesto disponible.');
-      else if(data.recipe_video_status==='LIBRARY_BUILDING')announce('Empezamos la receta. Roxy usará la guía hablada mientras completa su videoteca reutilizable, sin generar un cobro nuevo.');
+      else if(data.recipe_video_status==='LIBRARY_BUILDING')announce('Guía de cocina lista. Esta receta todavía no tiene un video disponible.');
       else if(['DISABLED','MISSING_KEY','MISSING_BUDGET','COST_LIMIT'].includes(data.recipe_video_status)){const service=homeFood.recipe_video_service||{};announce(service.message||'La guía funciona, pero falta terminar la configuración del video.');}
       speakCurrentStep();
     }catch(error){announce(error.message);}
@@ -2050,7 +2125,7 @@
   function renderCookingVideo(status,video){
     const root=$('cookingVideo');const visual=$('cookingImage').parentElement;if(visual)visual.hidden=false;root.replaceChildren();root.setAttribute('aria-live','polite');clearTimeout(cookingVideoPoll);cookingVideoPoll=null;
     const service=homeFood.recipe_video_service||{};
-    if(!video){if(service.enabled){root.hidden=false;const strong=document.createElement('strong');strong.textContent='Video de Roxy';const small=document.createElement('small');small.textContent='El video se preparará automáticamente al comenzar una receta nueva.';root.append(strong,small);}else root.hidden=true;return;}
+    if(!video){currentCookingVideo=null;root.hidden=true;return;}
     currentCookingVideo=video;root.hidden=false;
     const strong=document.createElement('strong');strong.textContent=video.status==='READY'?'Video disponible':video.status==='REVIEW'?'Video terminado':video.status==='FAILED'?'No se pudo crear el video':'Roxy está creando las demostraciones';
     const completed=(video.clips||[]).filter(clip=>clip.status==='COMPLETED').length;const total=Number(video.clip_count||(video.clips||[]).length||3);const elapsed=Math.max(0,Math.floor((Date.now()-Date.parse(video.created_at||new Date().toISOString()))/60000));

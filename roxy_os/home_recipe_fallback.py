@@ -8,7 +8,8 @@ from functools import lru_cache
 from typing import Any
 
 from roxy_os.home_recipe_catalog import installed_recipe_templates
-from roxy_os.home_recipe_editorial import editorialize_recipe
+from roxy_os.home_recipe_repairs import repair_core_recipe
+from roxy_os.home_recipe_core_followup import apply_core_followup, RECOVERABLE_ORIGINAL_KEYS
 
 
 def _identity(value: Any) -> str:
@@ -139,8 +140,8 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
     ferret_beef.update(audience="pet", pet_species="ferret", safety_class="treat", veterinary_note="Premio ocasional; no sustituye una dieta completa para hurones. Consulta a un veterinario de animales exóticos.", photo_asset="/assets/roxy_home/recipes/pets/ferret-cooked-beef-bites.png", sources=[ferret_source])
     ferret_extra_specs = {
         "ferret_poached_chicken": ("Hebras de pollo cocido para hurones", "Pechuga de pollo sin piel ni hueso", 150, "gramo", "Cocina el pollo en agua a hervor suave hasta que el centro alcance 74 °C.", "Desmenúzalo en hebras muy cortas y ofrece una cantidad pequeña cuando esté completamente frío."),
-        "ferret_baked_duck": ("Mini bocados de pato para hurones", "Pechuga de pato sin piel ni hueso", 150, "gramo", "Hornea el pato sin aceite ni condimentos hasta que el centro alcance 74 °C.", "Retira la grasa visible, deja enfriar y corta uno o dos bocados muy pequeños."),
-        "ferret_cooked_lamb": ("Miguitas de cordero para hurones", "Cordero magro molido sin condimentos", 150, "gramo", "Cocina el cordero en una sartén antiadherente, sin aceite, hasta alcanzar 71 °C.", "Escurre la grasa, enfría por completo y separa una porción mínima."),
+        "ferret_baked_duck": ("Mini bocados de pato para hurones", "Pechuga de pato sin piel ni hueso", 150, "gramo", "Precalienta el horno a 190 °C. Pon el pato en una fuente, sin aceite ni condimentos, y hornea hasta medir 74 °C en la parte más gruesa con un termómetro; el color no confirma la cocción.", "Retira la grasa visible, deja enfriar y corta bocados muy pequeños; la cantidad debe acordarse con su veterinario."),
+        "ferret_cooked_lamb": ("Miguitas de cordero para hurones", "Cordero magro molido sin condimentos", 150, "gramo", "Cocina el cordero en una sartén antiadherente a fuego medio-bajo, sin aceite, separándolo con una espátula; comprueba con termómetro que alcance al menos 71.1 °C (160 °F).", "Escurre la grasa, enfría por completo y separa una porción mínima."),
         "ferret_turkey_medallions": ("Mini medallones de pavo para hurones", "Pavo molido sin condimentos", 150, "gramo", "Forma medallones muy pequeños y hornéalos a 190 °C hasta que el centro alcance 74 °C.", "Déjalos enfriar, divide cada medallón y ofrece solo uno o dos trozos."),
     }
     ferret_extras = {}
@@ -158,6 +159,22 @@ def _pet_templates() -> dict[str, dict[str, Any]]:
         )
         row.update(audience="pet", pet_species="ferret", pet_category="pet_treats", safety_class="treat", veterinary_note="Premio ocasional; no sustituye el alimento completo de un hurón. Confirma ingredientes y porción con un veterinario de animales exóticos.", sources=[ferret_source], editorial_status="verified_veterinary_guidance")
         ferret_extras[key] = row
+    # These are our preparation instructions, not veterinarian-authored recipes
+    # or a complete ferret diet. Sources support ingredient/handling principles;
+    # no source certifies these batches or an individual animal's serving size.
+    ferret["steps"][3] = "Comprueba con un termómetro que la parte más gruesa alcance 74 °C (165 °F); no uses el color como única prueba de cocción. Escurre la grasa sobrante."
+    ferret_hearts["steps"][3] = "Comprueba con un termómetro que el centro de los corazones alcance 74 °C (165 °F); si no, continúa cocinando y vuelve a medir."
+    ferret_beef["steps"][3] = "Comprueba con un termómetro que la carne alcance al menos 71.1 °C (160 °F), sin usar el color como única prueba. Escurre la grasa sobrante."
+    for row in [ferret, ferret_hearts, ferret_egg, ferret_beef, *ferret_extras.values()]:
+        row["canonical_variant"] = "Preparación propia de Roxy basada en orientación de alimentación e higiene; las fuentes no certifican esta receta ni la porción para tu mascota. No es una dieta completa."
+        row["content_revision"] = "ferret-preparation-2026-09-08"
+        row["sources"] = [
+            {"title": "NC State Veterinary Hospital · orientación alimentaria del Ferret", "url": "https://hospital.cvm.ncsu.edu/services/small-animals/nutrition/caring-for-your-pet-ferret/", "authority": "NC State Veterinary Hospital"},
+            {"title": "USDA · temperaturas internas y conservación", "url": "https://www.fsis.usda.gov/food-safety/safe-food-handling-and-preparation/food-safety-basics/leftovers-and-food-safety", "authority": "USDA FSIS"},
+            ferret_source,
+        ]
+        row["steps"].append("Guarda pronto el resto en un recipiente poco profundo, en refrigeración a 4 °C o menos. Desecha lo que lleve fuera más de 2 horas, o 1 hora si el ambiente supera 32 °C; no esperes a que el lote enfríe sobre la mesa.")
+        row["veterinary_note"] += " Los ingredientes indican un lote para preparar, no la ración de tu mascota; confirma qué cantidad y frecuencia le corresponden."
     recipes = {
         "dog_banana_oat_treats": dog,
         "dog_pumpkin_oat_biscuits": dog_pumpkin,
@@ -620,7 +637,10 @@ def _templates() -> dict[str, dict[str, Any]]:
     templates.update(_expanded_templates())
     templates.update(installed_recipe_templates())
     templates.update(_pet_templates())
-    for row in templates.values():
+    for key, row in templates.items():
+        if not key.startswith("installed_") and row.get("audience") != "pet":
+            repair_core_recipe(key, row)
+            apply_core_followup(key, row)
         if row.get("category"):
             continue
         if row.get("drink_type") == "alcoholic":
@@ -633,20 +653,9 @@ def _templates() -> dict[str, dict[str, Any]]:
             row["category"] = "baked"
         else:
             row["category"] = "pasta" if re.search(r"pasta|espagueti|lasa", _identity(row.get("title"))) else "chicken" if "pollo" in _identity(row.get("title")) else "bowls_salads" if re.search(r"bowl|ensalada", _identity(row.get("title"))) else "soups" if re.search(r"sopa|lenteja", _identity(row.get("title"))) else "meat"
-    vague_phrases = ("metodo indicado", "segun corresponda", "orden indicado", "punto correcto", "cocina u hornea")
-    for row in templates.values():
-        steps_text = _identity(" ".join(str(step) for step in row.get("steps") or []))
-        if len(row.get("steps") or []) >= 5 and not any(phrase in steps_text for phrase in vague_phrases):
-            continue
-        ingredients, steps, description = editorialize_recipe(
-            str(row.get("category") or ""),
-            str(row.get("title") or "Receta"),
-            str(row.get("kind") or "meal"),
-            list(row.get("ingredients") or []),
-        )
-        row["ingredients"] = ingredients
-        row["steps"] = steps
-        row["description"] = description
+    # A short recipe is not an incomplete recipe. Never replace its actual
+    # instructions/ingredients with a category template just to reach five steps.
+    # Installed drafts retain their explicit review gate; pets have separate rules.
     return templates
 
 
@@ -1001,11 +1010,14 @@ def exact_local_recipe(title: str) -> dict[str, Any] | None:
 
 
 def _unique_catalog_templates() -> dict[str, dict[str, Any]]:
-    """Prefer the new categorized edition when a legacy title is duplicated."""
+    """Prefer individually reviewed originals over duplicate installed drafts."""
     templates = _templates()
     unique: dict[str, dict[str, Any]] = {}
     seen_titles: set[str] = set()
-    for key in sorted(templates, key=lambda value: (not value.startswith("installed_"), value)):
+    for key in sorted(templates, key=lambda value: (
+        0 if value in RECOVERABLE_ORIGINAL_KEYS and templates[value].get("editorial_status") == "reviewed_local" else 1,
+        not value.startswith("installed_"), value,
+    )):
         title = _identity(templates[key].get("title") or key)
         if title and title not in seen_titles:
             unique[key] = templates[key]
@@ -1014,5 +1026,8 @@ def _unique_catalog_templates() -> dict[str, dict[str, Any]]:
 
 
 def generate_local_recipe(prompt: str, snapshot: dict[str, Any]) -> dict[str, Any]:
-    """Always return a safe recipe when a remote provider is unavailable."""
-    return find_local_recipe(prompt, snapshot) or _prepare_local_recipe("chicken", snapshot)
+    """Return a matching recipe, never substitute an unrelated dish on failure."""
+    recipe = find_local_recipe(prompt, snapshot)
+    if recipe is None:
+        raise ValueError("No hay una receta disponible que coincida con lo que pediste. Prueba otra búsqueda; no se ha guardado una receta diferente.")
+    return recipe

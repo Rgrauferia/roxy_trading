@@ -85,7 +85,7 @@ def test_catalog_inventory_has_separate_care_and_recipe_counts():
     result = audit_catalog()
     assert result["total"] == 668
     assert result["modules"] == {"human_recipes": 517, "pet_care": 94, "pet_recipes": 57}
-    assert result["editorial_statuses"]["needs_canonical_review"] == 463
+    assert result["editorial_statuses"]["needs_canonical_review"] == 458
     cesar = next(row for row in result["recipes"] if row["title"] == "Aderezo César")
     assert any("propio ingrediente" in issue for issue in cesar["checks"])
 

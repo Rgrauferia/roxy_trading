@@ -30,11 +30,13 @@ ALLERGEN_GROUPS = {
 }
 _NONE = {"ninguna", "ninguna conocida", "ninguno", "none", "no known allergies", "sin alergias conocidas"}
 _UNCLEAR = {"otra", "otro", "other", "no se", "no se sabe", "desconocida", "unknown", "ingrediente especifico", "sensibilidad ambiental"}
-_NO_CONDITIONS = {"", "ninguna", "ninguno", "ninguna conocida", "none", "no known conditions", "sin condiciones conocidas"}
+_NO_CONDITIONS = {"", "ninguna", "ninguno", "ninguna conocida", "ninguna diagnosticada", "ninguna observada",
+                  "none", "no known conditions", "sin condiciones conocidas"}
 
 
 def has_medical_restrictions(pet: dict) -> bool:
-    # Exact negative answers only: "ninguna salvo diabetes" is NOT clearance.
+    # Include the exact negative choices offered by COMMON_CONDITIONS, without
+    # turning "ninguna salvo diabetes" or other free text into clearance.
     conditions = pet.get("conditions") or []
     if not isinstance(conditions, list):
         conditions = [conditions]

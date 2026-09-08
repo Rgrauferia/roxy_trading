@@ -53,6 +53,9 @@ def trial_access_mode(method: str, path: str) -> str:
         return "local"
     if method == "GET" and path in {"/v1/home-food/recipe-photo", "/v1/home-food/recipe-photo-info"}:
         return "local"
+    if method == "GET" and re.fullmatch(r"/v1/home-food/[^/]+/providers/recipes/status", path):
+        # Configuration summary only; provider search/detail remain unavailable.
+        return "local"
     if re.fullmatch(r"/v1/assistant/command/[^/]+", path) and method == "POST":
         return "ai"
     if method == "GET" and re.fullmatch(r"/v1/(?:shopping|home-food|home-daily|home-weather|home-plants|home-calendar|home-design|home-commerce)/[^/]+", path):
