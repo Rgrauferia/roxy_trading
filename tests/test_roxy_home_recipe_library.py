@@ -81,7 +81,7 @@ def test_irrelevant_provider_result_cannot_poison_shared_query(tmp_path):
     assert store.summary() == {"recipes": 0, "reuses": 0}
 
 
-def test_home_api_calls_openai_once_then_reuses_recipe_for_another_user(tmp_path, monkeypatch):
+def test_home_api_never_generates_or_shares_an_original_that_does_not_exist(tmp_path, monkeypatch):
     from tools import roxy_home_service
 
     calls = []
@@ -111,11 +111,9 @@ def test_home_api_calls_openai_once_then_reuses_recipe_for_another_user(tmp_path
         json={"prompt": "Quiero hacer injera etíope para 8 personas", "mode": "routine"},
     )
 
-    assert first.status_code == 201
-    assert first.json()["generation_mode"] == "openai"
-    assert second.status_code == 201
-    assert second.json()["generation_mode"] == "shared_recipe_library"
-    assert second.json()["recipe"]["servings"] == 8
-    assert second.json()["recipe"]["shared_recipe_id"] == first.json()["recipe"]["shared_recipe_id"]
-    assert len(calls) == 1
-    assert calls[0][1] == {"profile": {}, "pantry": []}
+    assert first.status_code == second.status_code == 422
+    assert "receta original" in first.json()["detail"]
+    assert calls == []
+    assert roxy_home_service._recipe_library_store().summary() == {"recipes": 0, "reuses": 0}
+    assert roxy_home_service._home_food_store().snapshot("robert")["recipes"] == []
+    assert roxy_home_service._home_food_store().snapshot("alice")["recipes"] == []

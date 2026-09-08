@@ -102,9 +102,7 @@ const light=familyWeatherAtmosphere(now);assert(light.intensity<.3);assert(light
 homeWeather.current.precipitation_mm=2;const heavy=familyWeatherAtmosphere(now);assert.equal(heavy.intensity,1);
 homeWeather.current.wind_direction_degrees=90;assert(familyWeatherAtmosphere(now).drift<0);
 homeWeather.current.wind_direction_degrees=null;assert.equal(familyWeatherAtmosphere(now).drift,0);
-assert(familyWeatherParticles(heavy).length>familyWeatherParticles(light).length);
-for(const particle of familyWeatherParticles(heavy)){assert(particle.length<17);assert(particle.size<1.1);assert(particle.opacity<.5);}
-homeWeather.current.code=0;assert.equal(familyWeatherParticles(familyWeatherAtmosphere(now)).length,0);
+homeWeather.current.code=0;assert.equal(familyWeatherAtmosphere(now).mode,'sunny');
 """)
 
 
@@ -112,8 +110,11 @@ def test_scene_accessibility_source_and_refresh_contract():
     js = (ROOT / "assets/roxy_list.js").read_text()
     css = (ROOT / "assets/roxy_list.css").read_text()
     assert "family-lightning" not in css
-    assert ".family-weather-fx i{display:none}" in css
+    assert ".family-weather-fx .family-weather-canvas{display:none}" in css
     assert "animation-play-state:paused!important" in css
+    assert "RoxyWeatherRenderer.render(root,scene,{paused})" in js
+    assert "else{root.replaceChildren();root.dataset.weatherMotion='off'}" in js
+    assert "function familyWeatherParticles" not in js
     assert "Visualización según Open-Meteo; no es radar." in js
     assert "Sin clima reciente: ambiente pausado. El mapa sigue disponible." in js
     refresh = js[js.index("  async function refreshFamilyWeatherIfNeeded()"):js.index("  function renderFamilyWeatherFx()")]

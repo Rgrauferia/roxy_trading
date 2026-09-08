@@ -2,6 +2,7 @@ from time import perf_counter
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+import pytest
 
 from roxy_os.home_recipe_fallback import find_local_recipe, generate_local_recipe, local_recipe_catalog_summary
 
@@ -78,36 +79,111 @@ def test_expanded_catalog_covers_common_drinks_meals_and_desserts_before_openai(
     assert summary["non_alcoholic_drinks"] >= 80
 
 
-def test_common_recipe_bypasses_openai_but_uncommon_recipe_uses_it(monkeypatch, tmp_path):
+def test_reviewed_local_recipe_returns_but_uncommon_recipe_requires_an_original(monkeypatch, tmp_path):
     from tools import roxy_home_service
 
-    class TrackingAI:
-        calls = 0
-
-        def generate_recipe(self, prompt, snapshot, *, deep=False):
-            self.calls += 1
-            return {
-                "title": "Injera etíope",
-                "description": "Receta especializada",
-                "kind": "meal",
-                "servings": 4,
-                "ingredients": [{"name": "Harina de teff", "quantity": 2, "unit": "taza"}],
-                "steps": ["Fermenta la masa", "Cocina cada injera"],
-            }
-
-    ai = TrackingAI()
-    monkeypatch.setattr(roxy_home_service, "_home_ai", lambda: ai)
+    monkeypatch.setattr(roxy_home_service, "_home_ai", lambda: pytest.fail("No recipe AI call is authorized"))
+    monkeypatch.setattr(roxy_home_service, "generate_local_recipe", lambda *args: pytest.fail("No random fallback"), raising=False)
     monkeypatch.setenv("ROXY_HOME_RECIPE_LIBRARY_PATH", str(tmp_path / "recipe-library.sqlite"))
     snapshot = {"profile": {"allergies": []}}
 
     common, common_mode = roxy_home_service._recipe_with_resilience("Dame un whisky sour", snapshot, deep=False)
-    uncommon, uncommon_mode = roxy_home_service._recipe_with_resilience("Quiero preparar injera etíope", snapshot, deep=False)
-
     assert common["title"] == "Whisky sour"
     assert common_mode == "local_recipe_catalog"
-    assert uncommon["title"] == "Injera etíope"
-    assert uncommon_mode == "openai"
-    assert ai.calls == 1
+    assert common["editorial_status"] == "reviewed_local"
+    with pytest.raises(ValueError, match="Necesito una receta original.*Recetas del mundo.*importar una fuente"):
+        roxy_home_service._recipe_with_resilience("Quiero preparar injera etíope", snapshot, deep=False)
+    assert roxy_home_service._recipe_library_store().summary() == {"recipes": 0, "reuses": 0}
+
+
+@pytest.mark.parametrize("status", [None, "", "needs_canonical_review", "verified_with_sources", "verified_veterinary_guidance", "verified_by_ai"])
+def test_recipe_lookup_never_treats_missing_or_ai_review_as_editorial_approval(monkeypatch, status):
+    from tools import roxy_home_service as service
+
+    recipe = {"title": "Preparación QA", "editorial_status": status, "servings": 2,
+              "ingredients": [{"name": "Teff", "quantity": 100, "unit": "g"}], "steps": ["Paso original QA."]}
+    class Library:
+        def find(self, *args, **kwargs):
+            return {**recipe, "sources": [{"title": "Original QA", "url": "https://publisher.example/recipes/qa", "role": "original_recipe_source"}]}
+
+        def publish(self, *args, **kwargs):
+            pytest.fail("Lookup must not publish")
+    monkeypatch.setattr(service, "find_local_recipe", lambda *args: recipe)
+    monkeypatch.setattr(service, "_recipe_library_store", lambda: Library())
+    monkeypatch.setattr(service, "_home_ai", lambda: pytest.fail("No AI certification"))
+    monkeypatch.setattr(service, "generate_local_recipe", lambda *args: pytest.fail("No replacement fallback"), raising=False)
+    for deep in (False, True):
+        with pytest.raises(ValueError, match="Necesito una receta original"):
+            service._recipe_with_resilience("Preparación QA", {}, deep=deep)
+    assert recipe["editorial_status"] == status
+
+
+@pytest.mark.parametrize("blocked_profile", [{"allergies": ["Teff"]}, {"dislikes": ["Teff"]}])
+def test_reviewed_recipe_lookup_preserves_profile_compatibility_without_inventing_substitutes(monkeypatch, blocked_profile):
+    from tools import roxy_home_service as service
+
+    recipe = {"title": "Original QA", "editorial_status": "verified", "servings": 2,
+              "ingredients": [{"name": "Harina de teff", "quantity": 100, "unit": "g"}],
+              "steps": ["Paso original QA."], "sources": [{"title": "Original QA", "url": "https://publisher.example/recipes/qa", "role": "original_recipe_source"}]}
+    class Library:
+        def find(self, *args, **kwargs):
+            return recipe
+    monkeypatch.setattr(service, "find_local_recipe", lambda *args: recipe)
+    monkeypatch.setattr(service, "_recipe_library_store", lambda: Library())
+    monkeypatch.setattr(service, "_home_ai", lambda: pytest.fail("No private generated substitution"))
+    with pytest.raises(ValueError, match="compatible con tu perfil"):
+        service._recipe_with_resilience("Original QA", {"profile": blocked_profile}, deep=True)
+    assert recipe["ingredients"][0]["name"] == "Harina de teff"
+
+
+def test_shared_recipe_requires_review_and_original_source_then_retains_content_and_private_notes(monkeypatch):
+    from copy import deepcopy
+    from tools import roxy_home_service as service
+
+    recipe = {"title": "Original QA", "editorial_status": "reviewed", "servings": 2,
+              "ingredients": [{"name": "Teff", "quantity": 100, "unit": "g"}],
+              "steps": ["Paso original QA."], "sources": []}
+    class Library:
+        def find(self, *args, **kwargs):
+            assert kwargs["recipe_type"] == "general"
+            return recipe
+
+        def publish(self, *args, **kwargs):
+            pytest.fail("An existing original does not need publication")
+    monkeypatch.setattr(service, "find_local_recipe", lambda *args: None)
+    monkeypatch.setattr(service, "_recipe_library_store", lambda: Library())
+    monkeypatch.setattr(service, "_home_ai", lambda: pytest.fail("No AI needed for saved source content"))
+    for sources in [[], [{"title": "Food safety", "url": "https://www.fda.gov/food"}],
+                    [{"title": "General guide", "url": "https://publisher.example/guide", "role": "general_reference"}],
+                    [{"title": "Invalid", "url": "javascript:alert(1)", "role": "original_recipe_source"}]]:
+        recipe["sources"] = sources
+        with pytest.raises(ValueError, match="Recetas del mundo"):
+            service._recipe_with_resilience("Original QA", {}, deep=False)
+    recipe["sources"] = [{"title": "Original QA", "url": "https://publisher.example/recipes/qa", "role": "original_recipe_source"}]
+    before = deepcopy(recipe)
+    found, mode = service._recipe_with_resilience("Original QA", {"profile": {"allergies": ["Nueces"]}}, deep=True)
+    assert mode == "shared_recipe_library"
+    assert found["ingredients"] == before["ingredients"] and found["steps"] == before["steps"]
+    assert found["editorial_status"] == "reviewed"
+    assert "Nueces" in found["allergen_notes"][0]
+    assert recipe == before
+
+
+def test_requested_strict_editorial_review_cannot_be_satisfied_by_local_review_or_an_ai_call(monkeypatch):
+    from tools import roxy_home_service as service
+
+    class Library:
+        def find(self, *args, **kwargs):
+            return None
+    monkeypatch.setattr(service, "_recipe_library_store", lambda: Library())
+    monkeypatch.setattr(service, "_home_ai", lambda: pytest.fail("No AI self-certification"))
+    with pytest.raises(ValueError, match="Necesito una receta original"):
+        service._recipe_with_resilience("Whisky sour", {}, deep=True, require_editorial_review=True)
+    monkeypatch.setenv("ROXY_HOME_REQUIRE_VERIFIED_RECIPES", "1")
+    with pytest.raises(ValueError, match="Necesito una receta original"):
+        service._recipe_with_resilience("Whisky sour", {}, deep=False)
+    recipe, mode = service._recipe_with_resilience("Café cubano", {}, deep=False)
+    assert recipe["editorial_status"] == "verified" and mode == "local_recipe_catalog"
 
 
 def test_recipe_endpoint_uses_real_local_catalog_when_home_openai_is_not_connected(tmp_path, monkeypatch):

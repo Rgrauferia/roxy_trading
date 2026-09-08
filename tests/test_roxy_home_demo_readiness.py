@@ -121,7 +121,7 @@ if(humanRecipeShelf(rows,true).length!==1||humanRecipeShelf(rows,true)[0].title!
 
 def test_saved_recipes_sessions_and_weeks_are_not_silently_evicted(tmp_path, monkeypatch):
     store = HomeFoodStore(tmp_path / "home.json")
-    recipe = {"title": "Receta QA", "ingredients": [{"name": "Agua", "quantity": 1, "unit": "taza"}], "steps": ["Prueba de almacenamiento"]}
+    recipe = {"title": "Receta QA", "servings": 1, "ingredients": [{"name": "Agua", "quantity": 1, "unit": "taza"}], "steps": ["Prueba de almacenamiento"]}
     first = store.save_recipe("qa", recipe)
     first_session = store.start_cooking_session("qa", first["id"])
     first_week = store.save_weekly_plan("qa", {"days": []})

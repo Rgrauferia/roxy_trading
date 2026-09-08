@@ -100,17 +100,17 @@ def test_ui_honors_hidden_and_preserves_private_nexo_members():
     assert "Pendiente de revisión · no lista para cocinar" in script
 
 
-def test_failed_editorial_review_never_returns_the_defective_offline_recipe(monkeypatch):
+def test_missing_editorial_review_never_calls_ai_or_returns_the_defective_offline_recipe(monkeypatch):
     from tools import roxy_home_service as service
     class AI:
         def curate_recipe(self, *args):
-            raise ValueError("unavailable")
+            pytest.fail("AI cannot certify an original recipe")
     class Library:
         def find(self, *args, **kwargs):
             return None
     monkeypatch.setattr(service, "_home_ai", lambda: AI())
     monkeypatch.setattr(service, "_recipe_library_store", lambda: Library())
-    with pytest.raises(ValueError, match="unavailable"):
+    with pytest.raises(ValueError, match="Necesito una receta original"):
         service._recipe_with_resilience("Aderezo César", {}, deep=False)
 
 

@@ -133,18 +133,18 @@ def test_client_blocked_section_explains_reason_and_edits_without_mutating():
     script = """
 const assert=require('node:assert/strict');
 const make=()=>({children:[],attrs:{},listeners:{},append(...items){this.children.push(...items)},setAttribute(k,v){this.attrs[k]=v},addEventListener(k,v){this.listeners[k]=v}});
-const document={createElement:make};const nodes={recipeFilters:{},recipeSearch:{},recipeCount:{}};const $=id=>nodes[id];
+const document={createElement:make};const nodes={recipeFilters:{},recipeSearch:{},recipeCount:{}};const $=id=>nodes[id];const homeFood={pet_recipe_sources:{}};
 let edited=null;const openPetProfile=pet=>edited=pet;let capability;const petCapabilities=()=>capability;
 """ + "function renderPetRecipeAvailability(" + function + """
 const pet={id:'luna',name:'Luna',species:'ferret'};let root=make();
 capability={recipes:false,recipe_notice:'Confirma su etapa de vida.',recipe_notice_title:'Revisar perfil'};
 assert.equal(renderPetRecipeAvailability(pet,root),true);
 assert.equal(nodes.recipeSearch.disabled,true);assert.equal(nodes.recipeFilters.hidden,true);
-assert.equal(root.children[0].children[1].textContent,capability.recipe_notice);
-const button=root.children[0].children.find(row=>row.listeners.click);button.listeners.click();assert.equal(edited,pet);
+assert.equal(root.children[1].children[1].textContent,capability.recipe_notice);
+const button=root.children[1].children.find(row=>row.listeners.click);button.listeners.click();assert.equal(edited,pet);
 root=make();capability={recipes:true,recipe_notice:'Premio ocasional, no dieta completa.',recipe_source:{url:'https://hospital.cvm.ncsu.edu/',label:'Orientación veterinaria'}};
 assert.equal(renderPetRecipeAvailability(pet,root),false);
-assert.equal(root.children[0].children.at(-1).href,capability.recipe_source.url);
+assert.equal(root.children[1].children.at(-1).href,capability.recipe_source.url);
 """
     result = subprocess.run(["node", "-e", script], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr

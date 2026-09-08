@@ -222,6 +222,10 @@ class HomeFoodStore:
             validate_pet_import(recipe, pet)
         except ValueError as exc:
             raise RecipeReviewRequired(str(exc)) from exc
+        from roxy_os.home_recipe_provenance import assess_recipe_provenance
+        # Keep records intact. General references and AI badges are not originals.
+        if not assess_recipe_provenance(recipe)["can_cook_from_source"]:
+            raise RecipeReviewRequired("La preparación se conserva, pero falta verificar su receta original y su uso para esta mascota antes de cocinar o añadir ingredientes a Compra.")
 
     @staticmethod
     def _infer_drink_type(recipe: dict[str, Any]) -> str:
@@ -663,24 +667,36 @@ class HomeFoodStore:
         title = _text(raw.get("title"), 180)
         if not title:
             raise ValueError("La receta necesita un título.")
-        servings = _positive_number(raw.get("servings") or 1, maximum=100)
+        servings = _positive_number(raw.get("servings"), maximum=100)
         ingredients: list[dict[str, Any]] = []
-        for row in raw.get("ingredients") or []:
+        rows = raw.get("ingredients")
+        if not isinstance(rows, list) or len(rows) > 100:
+            raise ValueError("La receta necesita una lista completa de ingredientes.")
+        for row in rows:
             if not isinstance(row, dict) or not _text(row.get("name")):
-                continue
+                raise ValueError("La receta contiene un ingrediente incompleto.")
+            if not isinstance(row.get("unit"), str) or not row["unit"].strip():
+                raise ValueError("Falta la unidad original de un ingrediente.")
+            if any(len(str(row.get(key) or "")) > maximum for key, maximum in (("name", 300), ("unit", 80), ("notes", 2000))):
+                raise ValueError("El ingrediente excede el tamaño admitido; no se ha recortado.")
             ingredients.append(
                 {
-                    "name": _text(row.get("name"), 120),
-                    "quantity": _positive_number(row.get("quantity") or 1),
-                    "unit": _text(row.get("unit") or "unidad", 32) or "unidad",
-                    "notes": _text(row.get("notes"), 240),
+                    "name": str(row["name"]).strip(),
+                    "quantity": _positive_number(row.get("quantity")),
+                    "unit": row["unit"].strip(),
+                    "notes": str(row.get("notes") or "").strip(),
                 }
             )
         if not ingredients:
             raise ValueError("La receta necesita ingredientes.")
-        steps = _string_list(raw.get("steps"), limit=40)
-        if not steps:
-            raise ValueError("La receta necesita pasos de preparación.")
+        steps = raw.get("steps")
+        # Instructions are not short preference tags: keep full paragraphs,
+        # order and intentional repetition. Reject excess instead of truncating.
+        if (not isinstance(steps, list) or not 1 <= len(steps) <= 100
+                or any(not isinstance(step, str) or not step.strip() or len(step) > 4000 for step in steps)
+                or sum(len(step) for step in steps) > 80000):
+            raise ValueError("La receta necesita pasos de preparación completos dentro del tamaño admitido; no se ha recortado.")
+        steps = [step.strip() for step in steps]
         kind = _identity(raw.get("kind") or raw.get("category"))
         if kind not in {"meal", "bread", "dessert", "drink", "other"}:
             searchable = _identity(f"{title} {raw.get('description') or ''}")

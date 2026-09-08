@@ -1,5 +1,28 @@
 # Human recipe provider boundary — 2026-09-08
 
+## Candidate 177 follow-up (not proof of production activation)
+
+Roberto confirms he has no account or API key. No purchase, account creation,
+commercial license approval, environment change or production activation occurred.
+New explicit human-only endpoints list cuisines and fetch up to four complete
+records for a selected cuisine. The frontend offers a load-countries button and
+discards stale responses after query/user changes. Local Wikibooks originals are
+a separate free source and never use the TheMealDB development key.
+
+One development-only request to the official documented key-1 search endpoint
+returned HTTP200: id52771, Spicy Arrabiata Penne, Italian, eight ingredients,
+619 instruction characters and a photo URL. Its CC flag was null. No recipe or
+image from that probe was published, stored in a household, copied to the open
+catalog, or treated as licensed. This checks the live response shape only;
+production access and per-item rights still require verification.
+
+The official API page currently routes signup through PayPal whereas its FAQ
+requires commercial-tier Patreon support. Do not infer a commercial license from
+the homepage's one-off price. The API page publishes thedatadb (at) gmail.com for
+clarification. No message has been sent. Confirm intended web+App Store usage,
+recipe/photo reuse, translations, caching and final recurring/one-off cost before
+payment or flags. Store any resulting private key only in Home server secrets.
+
 ## Actual state
 
 The new `roxy_os/home_recipe_provider.py` adapter is implemented but disabled by

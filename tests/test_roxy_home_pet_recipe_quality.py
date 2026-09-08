@@ -117,15 +117,20 @@ for (const [rows, count, label, disabled] of [
     ("dog_beef_green_bean", ["res", "judías"]),
     ("dog_frozen_banana_pumpkin", ["plátano", "calabaza"]),
 ])
-def test_every_batch_ingredient_reaches_shopping_and_allergy_screening(tmp_path, key, expected):
+def test_batch_ingredients_are_preserved_but_unverified_sources_cannot_reach_shopping(tmp_path, key, expected):
     store = HomeFoodStore(tmp_path / "food.json")
     pet = store.upsert_pet("qa", name="Prueba", species="dog", life_stage="adult")
     canonical = local_recipe_by_key(key, {})
     recipe = store.save_recipe("qa", {**canonical, "pet_id": pet["id"]})
-    preview = store.shopping_preview("qa", recipe["id"])
-    names = " ".join(r["name"].lower() for r in preview["items"])
+    names = " ".join(r["name"].lower() for r in recipe["ingredients"])
     assert all(ingredient in names for ingredient in expected)
-    assert len(preview["items"]) == len(expected)
+    assert len(recipe["ingredients"]) == len(expected)
+    before = deepcopy(store.snapshot("qa"))
+    with pytest.raises(RecipeReviewRequired, match="original"):
+        store.shopping_preview("qa", recipe["id"])
+    with pytest.raises(RecipeReviewRequired, match="original"):
+        store.start_cooking_session("qa", recipe["id"])
+    assert store.snapshot("qa") == before
     store.upsert_pet("qa", pet_id=pet["id"], name=pet["name"], species="dog", allergies=[expected[-1]])
     assert not any(r["catalog_key"] == key for r in personalized_pet_recipe_catalog(store.snapshot("qa")["pets"][0], {}))
     with pytest.raises(RecipeReviewRequired):

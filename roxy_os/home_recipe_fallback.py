@@ -848,8 +848,12 @@ def _prepare_local_recipe(key: str, snapshot: dict[str, Any]) -> dict[str, Any]:
 
 
 def find_local_recipe(prompt: str, snapshot: dict[str, Any]) -> dict[str, Any] | None:
-    """Return a common curated recipe, or ``None`` when OpenAI is warranted."""
+    """Return the same edition shown in the cookbook, never an older duplicate."""
     key = _local_recipe_key(prompt)
+    if key:
+        title = _identity(_templates()[key].get("title"))
+        key = next((candidate for candidate, row in _unique_catalog_templates().items()
+                    if _identity(row.get("title")) == title), key)
     return _prepare_local_recipe(key, snapshot) if key else None
 
 

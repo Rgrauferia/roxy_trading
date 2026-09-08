@@ -3,6 +3,37 @@
 Actualizado: 2026-09-08. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
+## 177 — candidato local, aún no publicado
+
+Nueva selección gratuita de seis originales Wikibooks de seis cocinas: 31 líneas
+de ingredientes, 36 pasos y raciones originales en inglés; revisiones fijas,
+SHA-256, atribución y CC BY-SA 4.0. Lectura paso a paso y descarga TXT; no se
+inventan medidas ni se convierten a Compra/IA. No significa recetario completo.
+TheMealDB añade búsqueda por país y consulta de hasta cuatro detalles completos.
+Roberto confirma que NO tiene cuenta ni clave. Sin pagos ni cambios de entorno;
+licencia comercial/terceros y clave Home siguen pendientes. Una consulta de
+desarrollo autorizada con la clave pública 1 respondió HTTP200 (52771, ocho
+ingredientes, 619 caracteres de instrucciones); no es acceso comercial verificado.
+
+Eliminada generación/certificación automática de recetas y fallback inventado en
+solicitudes de texto/voz. Reutiliza preparaciones revisadas y compatibles; si no
+existe, pide una fuente original. Mascotas: las 57 preparaciones locales carecen
+de original validado; referencias generales NO las certifican. Fichas y fotos se
+conservan con aviso; cocinar/escalar/Compra quedan bloqueados hasta verificar.
+Directorio Hill’s para perros/gatos y guías VCA/Oxbow para Ferret, sin convertir
+estas guías en recetas. No se han editado Bella, Luna ni otros datos públicos.
+
+Nexo: Canvas con lluvia en profundidad, viento, nieve diferenciada y gotas finas;
+apagado por datos vencidos/movimiento reducido/oculto, coste acotado y limpieza.
+Comparación visual antes/después de fixture aislado y lector original móvil
+comprobados. Clima de modelo Open-Meteo no es observación exacta ni radar; mantiene
+RainViewer separado. No se afirma tormenta fotorrealista ni prueba en teléfono físico.
+Ver reports/home_recipe_sources_177_20260908.md y home_pet_provenance_177_20260908.md.
+975 pruebas Python Home/compras/proveedor y dos baterías Node aprobadas; videos
+también respetan la revisión de recetas. Despliegue pendiente. Corregido el recorte
+silencioso de pasos al guardar y la edición duplicada en búsquedas locales.
+Prototipo cinematográfico preservado.
+
 ## 176 — publicado y comprobado en Render
 
 Commit `65d829d42`, publicado desde `codex/roxy-home-nfc`. HTML/APP176, JS177,

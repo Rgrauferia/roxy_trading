@@ -30,14 +30,14 @@ from roxy_os.home_ai import (
 from roxy_os.home_recipe_fallback import (
     exact_local_recipe,
     find_local_recipe,
-    generate_local_recipe,
     local_recipe_catalog,
     local_recipe_by_key,
     local_recipe_catalog_summary,
     personalized_pet_recipe_catalog,
 )
-from roxy_os.home_recipe_editorial import recipe_quality_issues
 from roxy_os import home_recipe_provider as recipe_provider
+from roxy_os.home_open_recipes import open_recipe_catalog
+from roxy_os.home_recipe_provenance import assess_recipe_provenance, pet_recipe_source_directory
 from roxy_os.home_recipe_library import (
     HomeRecipeLibraryStore,
     recipe_is_compatible,
@@ -615,6 +615,8 @@ def _schedule_recipe_photo(recipe: dict[str, Any]) -> str:
     """Keep optional artwork generation from blocking core recipe actions."""
     if recipe.get("editorial_status") == "needs_canonical_review":
         return "REVIEW_REQUIRED"
+    if recipe.get("audience") == "pet" and not assess_recipe_provenance(recipe)["can_cook_from_source"]:
+        return "SOURCE_REVIEW_REQUIRED"
     if recipe.get("audience") == "pet" and (recipe.get("safety_class") == "feeding_guide" or recipe.get("photo_asset_verified")):
         return "NOT_NEEDED"
     try:
@@ -860,70 +862,33 @@ def _recipe_with_resilience(
     recipe_type: str = "general",
     require_editorial_review: bool = False,
 ) -> tuple[dict[str, Any], str]:
-    """Use the curated catalog first and reserve OpenAI for uncommon recipes."""
+    """Retrieve an existing reviewed preparation without inventing or certifying one."""
     strict_editorial = str(os.getenv("ROXY_HOME_REQUIRE_VERIFIED_RECIPES") or "0").strip().lower() in {"1", "true", "yes", "on"}
+    reviewed_statuses = {"verified"} if strict_editorial or require_editorial_review else {"reviewed_local", "reviewed", "verified"}
     local_recipe = find_local_recipe(prompt, snapshot)
-    strict_editorial = strict_editorial or require_editorial_review or bool(local_recipe and local_recipe.get("editorial_status") == "needs_canonical_review")
-    if local_recipe is not None and (
-        not strict_editorial or str(local_recipe.get("editorial_status") or "").startswith("verified")
-    ):
+    if (local_recipe is not None
+            and local_recipe.get("editorial_status") in reviewed_statuses
+            and recipe_is_compatible(local_recipe, snapshot)):
         return scale_recipe_payload(local_recipe, requested_servings(prompt)), "local_recipe_catalog"
     shared_recipe = _recipe_library_store().find(prompt, snapshot, recipe_type=recipe_type)
-    strict_editorial = strict_editorial or bool(shared_recipe and shared_recipe.get("editorial_status") == "needs_canonical_review")
-    if shared_recipe is not None and (
-        not strict_editorial or str(shared_recipe.get("editorial_status") or "").startswith("verified")
-    ):
+    # A prior AI-generated "verified_with_sources" badge is not an editorial
+    # review. Shared reuse needs an explicit review and a recipe-specific source;
+    # general food-safety references cannot establish its quantities or steps.
+    original_sources = [
+        source for source in (shared_recipe or {}).get("sources") or []
+        if isinstance(source, dict)
+        and source.get("role") == "original_recipe_source"
+        and re.fullmatch(r"https://[^\s/@:]+\.[^\s/@:]+/[^\s]+", str(source.get("url") or ""))
+        and str(source.get("title") or "").strip()
+    ]
+    if (shared_recipe is not None
+            and shared_recipe.get("editorial_status") in reviewed_statuses
+            and original_sources and recipe_is_compatible(shared_recipe, snapshot)):
         return _with_private_allergy_notes(shared_recipe, snapshot), "shared_recipe_library"
-    try:
-        # Canonical content is generated without any household profile, pantry,
-        # name or preference. Only that sanitized base may enter the global DB.
-        expected_title = str((local_recipe or {}).get("title") or prompt).strip()
-        generated = (
-            _home_ai().curate_recipe(expected_title, {"profile": {}, "pantry": []})
-            if strict_editorial
-            else _home_ai().generate_recipe(prompt, {"profile": {}, "pantry": []}, deep=deep)
-        )
-        if strict_editorial:
-            issues = recipe_quality_issues(generated, expected_title)
-            if issues:
-                raise ValueError("La revisión editorial rechazó la receta: " + " ".join(issues))
-            generated = {**generated, "editorial_status": "verified_with_sources"}
-        if not recipe_is_compatible(generated, snapshot):
-            private_recipe = (
-                _home_ai().curate_recipe(expected_title, snapshot)
-                if strict_editorial
-                else _home_ai().generate_recipe(prompt, snapshot, deep=deep)
-            )
-            if strict_editorial:
-                issues = recipe_quality_issues(private_recipe, expected_title)
-                if issues:
-                    raise ValueError("La revisión editorial rechazó la variante privada: " + " ".join(issues))
-                private_recipe = {**private_recipe, "editorial_status": "verified_with_sources"}
-            return {
-                **scale_recipe_payload(private_recipe, requested_servings(prompt)),
-                "shared_recipe_id": "",
-                "generation_source": "openai_private",
-            }, "openai_private"
-        published = _recipe_library_store().publish(
-            prompt,
-            generated,
-            source="openai",
-            recipe_type=recipe_type,
-        )
-        generated = _with_private_allergy_notes({
-            **scale_recipe_payload(generated, requested_servings(prompt)),
-            "shared_recipe_id": published.get("id") or "",
-            "generation_source": "openai",
-        }, snapshot)
-        return generated, "openai"
-    except (HomeAIConfigurationError, HomeAIBudgetExceeded, ValueError, KeyError):
-        if strict_editorial:
-            raise
-        return scale_recipe_payload(generate_local_recipe(prompt, snapshot), requested_servings(prompt)), "local_recipe_catalog"
-    except Exception:
-        if strict_editorial:
-            raise
-        return scale_recipe_payload(generate_local_recipe(prompt, snapshot), requested_servings(prompt)), "local_recipe_catalog"
+    raise ValueError(
+        "Necesito una receta original compatible con tu perfil, con ingredientes y pasos revisados. "
+        "Puedes buscar en Recetas del mundo o importar una fuente completa."
+    )
 
 
 def _assistant_shopping_intent(text: str) -> str:
@@ -1666,7 +1631,7 @@ def shopping_page() -> Response:
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; img-src 'self' data: blob: https://maps.googleapis.com "
         "https://maps.gstatic.com https://*.googleapis.com https://*.gstatic.com "
-        "https://images.openfoodfacts.org https://www.themealdb.com https://themealdb.com https://*.rainviewer.com "
+        "https://images.openfoodfacts.org https://www.themealdb.com https://themealdb.com https://upload.wikimedia.org https://*.rainviewer.com "
         "https://*.basemaps.cartocdn.com https://tile.openstreetmap.org "
         "https://mazuri.com https://oxbowanimalhealth.com https://www.wysong.net "
         "https://www.kaytee.com https://www.midwesthomes4pets.com "
@@ -2473,10 +2438,10 @@ def assistant_command(
                             detail="Tu despensa está vacía. Dime qué tienes en casa y te propongo una receta.",
                         )
                     recipe_prompt = f"Receta sencilla para hoy con {pantry_words}"
-                recipe_data = find_local_recipe(recipe_prompt, food_snapshot)
-                generation_mode = "local_recipe_catalog"
-                if recipe_data is None:
+                try:
                     recipe_data, generation_mode = _recipe_with_resilience(recipe_prompt, food_snapshot, deep=False)
+                except ValueError as exc:
+                    raise HTTPException(status_code=422, detail=str(exc)) from exc
                 recipe = home_store.save_recipe(user, recipe_data, mode="routine")
                 if intent == "weekly_from_pantry":
                     meal_type = str(meal.get("meal_type") or _weekly_meal_type(command_text))
@@ -2570,14 +2535,14 @@ def assistant_command(
         extra["providers"] = providers
     elif intent == "recipe_generate":
         home_store = _home_food_store()
-        # The ElevenLabs client tool currently allows only one second for its
-        # response. A remote model can exceed that even when it succeeds, which
-        # made the voice agent announce a false failure before the recipe
-        # appeared on screen. Voice requests use the curated local catalog so
-        # the complete, durable recipe returns inside the tool deadline. The
-        # regular recipe screen continues to use OpenAI with resilient fallback.
-        recipe_data = generate_local_recipe(command_text, home_store.snapshot(user))
-        generation_mode = "voice_local_recipe_catalog"
+        # Voice and text use the same source gate; neither invents a replacement
+        # when the requested original is unavailable.
+        try:
+            recipe_data, generation_mode = _recipe_with_resilience(command_text, home_store.snapshot(user), deep=False)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if generation_mode == "local_recipe_catalog":
+            generation_mode = "voice_local_recipe_catalog"
         try:
             recipe = home_store.save_recipe(user, recipe_data, mode="routine")
         except ValueError as exc:
@@ -3777,6 +3742,18 @@ def read_home_recipe_provider_status(
     return _home_recipe_provider_status(auth)
 
 
+@app.get("/v1/home-food/{user_id}/open-recipes")
+def read_home_open_recipes(
+    user_id: str, request: Request,
+    q: str = Query(default="", max_length=100),
+    cuisine: str = Query(default="", max_length=100),
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    _authorize_user(user_id, auth)
+    return open_recipe_catalog(q.strip(), cuisine.strip())
+
+
 @app.get("/v1/home-food/{user_id}/providers/recipes/search")
 def search_home_recipe_provider(
     user_id: str, request: Request,
@@ -3803,6 +3780,37 @@ def search_home_recipe_provider(
         "status": "RESULTS_NEED_REVIEW" if records else "NO_PUBLISHABLE_MATCHES",
         "imported": False, "review_required": True,
     }
+
+
+@app.get("/v1/home-food/{user_id}/providers/recipes/areas")
+def read_home_recipe_areas(user_id: str, request: Request,
+    requested: bool = Query(default=False), auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    _authorize_user(user_id, auth)
+    _require_external_recipe_request(auth, requested)
+    try:
+        return {"areas": list(recipe_provider.provider_recipe_areas())}
+    except recipe_provider.RecipeProviderUnavailable:
+        raise HTTPException(status_code=503, detail="No se pudieron consultar las cocinas del proveedor.") from None
+
+
+@app.get("/v1/home-food/{user_id}/providers/recipes/browse")
+def browse_home_recipe_areas(user_id: str, request: Request,
+    area: str = Query(min_length=2, max_length=60, pattern="^[A-Za-z][A-Za-z -]+$"),
+    requested: bool = Query(default=False), auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    _authorize_user(user_id, auth)
+    _require_external_recipe_request(auth, requested)
+    try:
+        rows = recipe_provider.browse_provider_recipes(area)
+        return {"provider": "themealdb", "recipes": [row.to_dict() for row in rows],
+                "count": len(rows), "review_required": True, "imported": False}
+    except recipe_provider.RecipeProviderUnavailable:
+        raise HTTPException(status_code=503, detail="El proveedor no está disponible; no se sustituyeron las recetas.") from None
+    except (ValueError, recipe_provider.RecipeProviderContentError):
+        raise HTTPException(status_code=422, detail="No se pudo verificar la preparación original.") from None
 
 
 @app.get("/v1/home-food/{user_id}/providers/recipes/{provider_id}")
@@ -3832,6 +3840,8 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
     user = _authorize_user(user_id, auth)
     snapshot = _home_food_store().snapshot(user)
     for recipe in snapshot.get("recipes", []):
+        if recipe.get("audience") == "pet":
+            recipe["provenance"] = assess_recipe_provenance(recipe)
         _schedule_account_recipe_photo(recipe, auth)
     for plan in snapshot.get("weekly_plans", []):
         for day in plan.get("days", []):
@@ -3850,6 +3860,7 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
     # these visible cards and amplified provider rate limits.
     for recipes in pet_recipe_recommendations.values():
         for recipe in recipes:
+            recipe["provenance"] = assess_recipe_provenance(recipe)
             _schedule_account_recipe_photo(recipe, auth)
     return {
         **snapshot,
@@ -3858,6 +3869,7 @@ def read_home_food(user_id: str, request: Request, auth: str = Depends(_authenti
             str(pet.get("id")): pet_display_copy(pet, personalized_pet_products(pet)) for pet in pets if pet.get("id")
         },
         "pet_recipe_recommendations": pet_recipe_recommendations,
+        "pet_recipe_sources": {str(pet["id"]): pet_recipe_source_directory(pet.get("species")) for pet in pets if pet.get("id")},
         "pet_capabilities": {str(pet["id"]): pet_capabilities(pet, pet_recipe_recommendations[str(pet["id"])]) for pet in pets if pet.get("id")},
         "pet_habitat_plans": {str(pet["id"]): habitat_plan(pet) for pet in pets if pet.get("id")},
         "pet_care_guides": {
@@ -4148,6 +4160,43 @@ def delete_home_recipe(
     return {"status": "DELETED", "recipe": recipe}
 
 
+def _require_recipe_video_eligible(user: str, recipe: dict[str, Any]) -> None:
+    """Video guidance has the same current-content gate as cooking instructions."""
+    if recipe.get("editorial_status") in {"needs_canonical_review", "provider_content_needs_review"}:
+        raise HTTPException(status_code=422, detail="Revisa la fuente original, los ingredientes y los pasos antes de abrir o generar un video de esta receta.")
+    try:
+        if recipe.get("audience") == "pet":
+            _home_food_store()._require_current_pet_recipe(user, recipe)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+def _require_recipe_video_record_eligible(user: str, record: dict[str, Any]) -> None:
+    """Old playback URLs cannot bypass a recipe's newly required source review.
+
+    Legacy media stores a content fingerprint, not a recipe ID or pet profile.
+    Resolve that fingerprint in the requesting home; do not infer eligibility
+    from a READY media badge or from a different home's private recipe.
+    """
+    from roxy_os.home_recipe_videos import recipe_fingerprint
+
+    fingerprint = str(record.get("recipe_fingerprint") or "")
+    clips = record.get("clips") or []
+    if fingerprint.startswith("roxy-action-pilot-v") and clips and all(clip.get("pilot") is True for clip in clips):
+        return  # Server-owned generic action pilots are not recipe instructions.
+    matches = []
+    for recipe in _home_food_store().snapshot(user).get("recipes", []):
+        try:
+            if fingerprint and recipe_fingerprint(recipe) == fingerprint:
+                matches.append(recipe)
+        except (TypeError, ValueError):
+            continue
+    if not matches:
+        raise HTTPException(status_code=422, detail="Este video no tiene una receta vigente verificada en tu hogar. Abre primero la receta original revisada; no se ha borrado el video.")
+    for recipe in matches:
+        _require_recipe_video_eligible(user, recipe)
+
+
 @app.get("/v1/home-food/{user_id}/recipes/{recipe_id}/video")
 def read_home_recipe_video(
     user_id: str,
@@ -4161,6 +4210,7 @@ def read_home_recipe_video(
         recipe = _home_food_store().get_recipe(user, recipe_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Receta no encontrada") from exc
+    _require_recipe_video_eligible(user, recipe)
     config = _recipe_video_config()
     video = _recipe_video_store().find_for_recipe(user, recipe)
     return {"status": "READY" if video and video.get("status") == "READY" else "AVAILABLE", "video": video, "service": _recipe_video_public_status()}
@@ -4180,6 +4230,7 @@ def create_home_recipe_video(
         recipe = _home_food_store().get_recipe(user, recipe_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Receta no encontrada") from exc
+    _require_recipe_video_eligible(user, recipe)
     config = _recipe_video_config()
     store = _recipe_video_store()
     existing = store.find_for_recipe(user, recipe)
@@ -4231,6 +4282,7 @@ def sync_home_recipe_video(
         raise HTTPException(status_code=404, detail="Video no encontrado") from exc
     if record.get("owner_user_id") != user and record.get("status") != "READY":
         raise HTTPException(status_code=403, detail="Este video pertenece a otro hogar.")
+    _require_recipe_video_record_eligible(user, record)
     config = _recipe_video_config()
     if record.get("status") not in {"REVIEW", "READY", "FAILED", "REJECTED"} and not config.configured:
         raise HTTPException(status_code=503, detail="El proveedor de videos no está disponible.")
@@ -4254,6 +4306,9 @@ def review_home_recipe_video(
     if not config.admin_key or not hmac.compare_digest(supplied, config.admin_key):
         raise HTTPException(status_code=403, detail="Revisión administrativa requerida.")
     try:
+        record = _recipe_video_store().get_internal(video_id)
+        if payload.approved:
+            _require_recipe_video_record_eligible(str(record.get("owner_user_id") or user), record)
         record = _recipe_video_store().approve(video_id, approved=payload.approved, notes=payload.notes)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Video no encontrado") from exc
@@ -4275,6 +4330,7 @@ def read_home_recipe_video_clip(
     store = _recipe_video_store()
     try:
         record = store.accessible_internal(user, video_id)
+        _require_recipe_video_record_eligible(user, record)
         clips = record.get("clips") or []
         clip = clips[clip_index] if 0 <= clip_index < len(clips) else None
         if not clip or not clip.get("media_path"):
@@ -4291,9 +4347,9 @@ def read_home_recipe_video_clip(
         filename=f"roxy-{video_id}-{clip_index + 1}.mp4",
         content_disposition_type="inline",
     )
-    response.headers["Cache-Control"] = (
-        "public, max-age=86400" if record.get("visibility") == "shared" and record.get("status") == "READY" else "private, no-store"
-    )
+    # Eligibility is household-specific and may change with a recipe/profile.
+    # A shared cache must not serve old clips after their source is quarantined.
+    response.headers["Cache-Control"] = "private, no-store"
     return _security_headers(response)
 
 

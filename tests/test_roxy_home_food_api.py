@@ -229,7 +229,7 @@ def test_home_food_api_requires_confirmation_before_touching_shopping_list(tmp_p
     recipe_response = client.post(
         "/v1/home-food/robert/recipes",
         headers=headers,
-        json={"prompt": "Una cena rápida", "mode": "routine"},
+        json={"prompt": "Huevos con tostada integral", "mode": "routine"},
     )
     recipe_id = recipe_response.json()["recipe"]["id"]
     blocked = client.post(
@@ -252,7 +252,7 @@ def test_home_food_api_requires_confirmation_before_touching_shopping_list(tmp_p
     assert blocked.json()["detail"] == "CONFIRMATION_REQUIRED"
     assert before.json()["items"] == []
     assert committed.json()["status"] == "ADDED"
-    assert after.json()["items"][0]["name"] == "Pasta"
+    assert {row["name"] for row in after.json()["items"]} == {"Huevo", "Pan integral", "Aceite"}
     assert isolated.json()["recipes"] == []
 
 
@@ -710,6 +710,12 @@ def test_roxy_conversation_controls_days_and_reuses_available_recipes(tmp_path, 
     leftovers_plan = leftovers.json()["data"]["weekly_plan"]
     assert leftovers_plan["days"][roxy_home_service._weekly_day_index("miércoles", leftovers_plan)]["status"] == "leftovers"
 
+    # Link Thursday to an actual reviewed cookbook edition, not a generated title.
+    thursday = roxy_home_service._weekly_day_index("jueves", leftovers_plan)
+    for meal in leftovers_plan["days"][thursday]["meals"]:
+        meal["title"] = "Huevos con tostada integral"
+    roxy_home_service._home_food_store().replace_weekly_plan("robert", leftovers_plan["id"], leftovers_plan)
+
     recipe = client.post(
         "/v1/assistant/command/robert",
         headers=headers,
@@ -726,14 +732,9 @@ def test_roxy_conversation_controls_days_and_reuses_available_recipes(tmp_path, 
         json={"text": "Roxy, hoy no cociné, tengo pollo y arroz"},
     )
     assert adapted.status_code == 200
-    assert adapted.json()["intent"] == "weekly_from_pantry"
-    assert adapted.json()["data"]["recipe"]["generation_source"] == "local_recipe_catalog"
-    assert "No añadí nada a compras" in adapted.json()["speech"]
-    adapted_plan = adapted.json()["data"]["weekly_plan"]
-    assert any(
-        meal.get("recipe_id") == adapted.json()["data"]["recipe"]["id"]
-        for meal in adapted_plan["days"][roxy_home_service._weekly_day_index("hoy", adapted_plan)]["meals"]
-    )
+    assert adapted.json()["data"]["recipe"]["editorial_status"] == "reviewed_local"
+    assert adapted.json()["data"]["recipe"]["title"] == "Pollo al ajo y limón"
+    assert client.get("/v1/shopping/robert", headers=headers).json()["items"] == []
 
     cookbook = client.get("/v1/home-food/robert", headers=headers).json()
     assert cookbook["local_catalog"]["total"] == len(cookbook["local_recipes"])
@@ -758,7 +759,7 @@ def test_voice_can_create_recipe_add_ingredients_and_remove_naturally(tmp_path, 
     recipe = client.post(
         "/v1/assistant/command/robert",
         headers=headers,
-        json={"text": "Roxy, dame una receta de pasta de verdad"},
+        json={"text": "Roxy, dame una receta de huevos con tostada integral"},
     )
     add = client.post(
         "/v1/assistant/command/robert",
@@ -768,20 +769,20 @@ def test_voice_can_create_recipe_add_ingredients_and_remove_naturally(tmp_path, 
     remove = client.post(
         "/v1/assistant/command/robert",
         headers=headers,
-        json={"text": "saca las pastas de mi lista de compras"},
+        json={"text": "saca los huevos de mi lista de compras"},
     )
     final_list = client.get("/v1/shopping/robert", headers=headers)
 
     assert recipe.status_code == 200
     assert recipe.json()["intent"] == "recipe_generate"
-    assert recipe.json()["data"]["recipe"]["title"] == "Pasta rápida con tomate y ajo"
+    assert recipe.json()["data"]["recipe"]["title"] == "Huevos con tostada integral"
     assert recipe.json()["data"]["generation_mode"] == "voice_local_recipe_catalog"
     assert add.json()["intent"] == "recipe_to_shopping"
-    assert add.json()["data"]["items"][0]["name"] == "Pasta"
+    assert add.json()["data"]["items"][0]["name"] == "Huevo"
     assert remove.json()["intent"] == "shopping_remove"
-    assert "Pasta" in remove.json()["message"]
-    assert all(row["name"] != "Pasta" for row in final_list.json()["items"])
-    assert len(final_list.json()["items"]) == 4
+    assert "Huevo" in remove.json()["message"]
+    assert all(row["name"] != "Huevo" for row in final_list.json()["items"])
+    assert len(final_list.json()["items"]) == 2
 
 
 def test_recipe_can_be_deleted_without_touching_another_users_library(tmp_path, monkeypatch):
@@ -798,12 +799,12 @@ def test_recipe_can_be_deleted_without_touching_another_users_library(tmp_path, 
     robert = client.post(
         "/v1/home-food/robert/recipes",
         headers=headers,
-        json={"prompt": "Pasta para Robert", "mode": "routine"},
+        json={"prompt": "Huevos con tostada integral", "mode": "routine"},
     ).json()["recipe"]
     alice = client.post(
         "/v1/home-food/alice/recipes",
         headers=headers,
-        json={"prompt": "Pasta para Alice", "mode": "routine"},
+        json={"prompt": "Huevos con tostada integral", "mode": "routine"},
     ).json()["recipe"]
     session = client.post(
         f"/v1/home-food/robert/recipes/{robert['id']}/cooking-sessions",

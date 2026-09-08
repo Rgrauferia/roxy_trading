@@ -110,6 +110,7 @@ class ProviderRecipe:
         return {
             "provider": PROVIDER, "provider_id": self.provider_id,
             "title": original["title"], "language": "en", "audience": "human",
+            "area": original.get("area", ""), "category": original.get("category", ""),
             "provider_original": original, "ingredients": [dict(item) for item in original["ingredients"]],
             "steps": steps, "servings": None, "servings_status": "not_provided_by_provider",
             "image_url": original["image_url"], "photo_verified": False,
@@ -289,3 +290,46 @@ def get_provider_recipe(provider_id: str, *, audience: str = "human",
     if result.provider_id != provider_id:
         raise RecipeProviderContentError("provider_id_mismatch")
     return result
+
+
+def provider_recipe_areas(*, config=None, transport=None) -> tuple[str, ...]:
+    """Provider country/cuisine names, only after a deliberate authenticated call."""
+    config = config or HomeRecipeProviderConfig.from_env()
+    _require_available(config, "human")
+    rows = _records(_fetch("list.php", {"a": "list"}, config, transport))
+    areas = set()
+    for row in rows:
+        if isinstance(row, dict):
+            value = row.get("strArea")
+            if isinstance(value, str) and re.fullmatch(r"[A-Za-z][A-Za-z -]{1,59}", value):
+                areas.add(value)
+    return tuple(sorted(areas))
+
+
+def browse_provider_recipes(area: str, *, limit=4, config=None, transport=None) -> tuple[ProviderRecipe, ...]:
+    """Filters only return thumbnails: hydrate exact IDs, never fabricate steps.
+
+    A maximum of four details are looked up per deliberate request. Results with
+    incomplete content or unconfirmed rights remain excluded, even if that means
+    fewer results. No unbounded crawling or complete-database import.
+    """
+    config = config or HomeRecipeProviderConfig.from_env()
+    _require_available(config, "human")
+    if not isinstance(area, str) or not re.fullmatch(r"[A-Za-z][A-Za-z -]{1,59}", area):
+        raise ValueError("invalid_recipe_area")
+    rows = _records(_fetch("filter.php", {"a": area}, config, transport))
+    ids = []
+    for row in rows:
+        value = row.get("idMeal") if isinstance(row, dict) else None
+        if isinstance(value, str) and re.fullmatch(r"[0-9]{1,12}", value) and value not in ids:
+            ids.append(value)
+    results = []
+    cap = int(_bounded(limit, 4, 1, 4))
+    for value in ids[:cap]:
+        try:
+            recipe = get_provider_recipe(value, config=config, transport=transport)
+        except RecipeProviderContentError:
+            continue
+        if recipe is not None and recipe.to_dict()["area"] == area:
+            results.append(recipe)
+    return tuple(results)
